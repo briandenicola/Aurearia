@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@imgly/background-removal": "1.7.0",
-    "axios": "^1.15.0",
+    "axios": "^1.15.2",
     "dompurify": "^3.4.0",
     "lucide-vue-next": "^0.577.0",
     "markdown-it": "^14.1.1",
