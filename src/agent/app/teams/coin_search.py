@@ -14,6 +14,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
 from app.llm.provider import create_search_agent, get_chat_model, get_search_model
+from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
 from app.tools.search import fetch_dealer_page
 
@@ -127,7 +128,7 @@ def create_coin_search_team(llm_config: LLMConfig, search_prompt: str = ""):
         else:
             # Anthropic: built-in web_search handled server-side
             model = get_search_model(llm_config)
-            response = await model.ainvoke(messages)
+            response = await ainvoke_with_retry(model, messages)
             content = response.content if isinstance(response.content, str) else str(response.content)
             logger.debug("[coin_search] Anthropic search response=%d chars", len(content))
 
@@ -177,7 +178,7 @@ def create_coin_search_team(llm_config: LLMConfig, search_prompt: str = ""):
                     "No coin listings could be extracted. Generate a helpful response."
                 ),
             ]
-            response = await model.ainvoke(messages)
+            response = await ainvoke_with_retry(model, messages)
             content = response.content if isinstance(response.content, str) else str(response.content)
             return {"messages": [AIMessage(content=content)]}
 
@@ -189,7 +190,7 @@ def create_coin_search_team(llm_config: LLMConfig, search_prompt: str = ""):
                 f"Extracted listing data:\n{fetched}"
             ),
         ]
-        response = await model.ainvoke(messages)
+        response = await ainvoke_with_retry(model, messages)
         formatted = response.content if isinstance(response.content, str) else str(response.content)
 
         summary = (

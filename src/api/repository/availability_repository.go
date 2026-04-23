@@ -98,9 +98,13 @@ func (r *AvailabilityRepository) PruneOldRuns(keep int) {
 		return
 	}
 
-	// Delete results for old runs, then the runs themselves
-	r.db.Where("run_id IN (?)",
-		r.db.Model(&models.AvailabilityRun{}).Select("id").Where("started_at <= ?", cutoffRun.StartedAt),
-	).Delete(&models.AvailabilityResult{})
-	r.db.Where("started_at <= ?", cutoffRun.StartedAt).Delete(&models.AvailabilityRun{})
+	// Delete results and runs in a single transaction
+	r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("run_id IN (?)",
+			tx.Model(&models.AvailabilityRun{}).Select("id").Where("started_at <= ?", cutoffRun.StartedAt),
+		).Delete(&models.AvailabilityResult{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("started_at <= ?", cutoffRun.StartedAt).Delete(&models.AvailabilityRun{}).Error
+	})
 }

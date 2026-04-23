@@ -165,6 +165,7 @@ import type { ImageType, Tag } from '@/types'
 import { getTags, bulkAction } from '@/api/client'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useBulkSelect } from '@/composables/useBulkSelect'
+import { usePwa } from '@/composables/usePwa'
 import CoinCard from '@/components/CoinCard.vue'
 import SwipeGallery from '@/components/SwipeGallery.vue'
 import CategoryFilter from '@/components/CategoryFilter.vue'
@@ -198,8 +199,7 @@ onMounted(fetchUserTags)
 
 // Use saved preference if set, otherwise default to swipe in PWA mode
 const savedView = localStorage.getItem('defaultView') as 'grid' | 'swipe' | null
-const isPwa = window.matchMedia('(display-mode: standalone)').matches
-  || (window.navigator as any).standalone === true
+const { isPwa } = usePwa()
 const viewMode = ref<'grid' | 'swipe'>(isPwa ? (savedView || 'swipe') : 'grid')
 const gridSide = ref<ImageType | null>(null)
 
@@ -431,20 +431,6 @@ async function bulkTag(tagId: number) {
   justify-content: center;
   gap: 0.4rem;
   text-decoration: none;
-}
-
-.pwa-icon-btn {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-}
-.pwa-icon-btn.active {
-  color: var(--accent-gold);
 }
 
 /* Menu slide transition */

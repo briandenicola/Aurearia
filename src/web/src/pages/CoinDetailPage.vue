@@ -324,13 +324,13 @@ import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
 import { Camera } from 'lucide-vue-next'
 import { useDialog } from '@/composables/useDialog'
+import { usePwa } from '@/composables/usePwa'
 
 const { showConfirm, showAlert } = useDialog()
 const route = useRoute()
 const router = useRouter()
 const store = useCoinsStore()
-const isPwa = window.matchMedia('(display-mode: standalone)').matches
-  || (window.navigator as any).standalone === true
+const { isPwa } = usePwa()
 
 const uploadType = ref('obverse')
 const uploadStatus = ref('')
@@ -627,8 +627,12 @@ async function handleEstimateValue() {
     // Refresh value history and journal (backend auto-creates entries)
     loadValueHistory(coin.value.id)
     loadJournal(coin.value.id)
-  } catch (err: any) {
-    estimateError.value = err.response?.data?.error || 'Failed to estimate value'
+  } catch (err: unknown) {
+    estimateError.value = err instanceof Error ? err.message : 'Failed to estimate value'
+    if (typeof err === 'object' && err !== null && 'response' in err) {
+      const axiosErr = err as { response?: { data?: { error?: string } } }
+      estimateError.value = axiosErr.response?.data?.error || estimateError.value
+    }
   } finally {
     estimating.value = false
   }

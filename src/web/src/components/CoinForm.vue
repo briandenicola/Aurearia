@@ -201,9 +201,9 @@ import { CATEGORIES, MATERIALS } from '@/types'
 import type { Coin } from '@/types'
 import AutocompleteInput from '@/components/AutocompleteInput.vue'
 import { X, Camera } from 'lucide-vue-next'
+import { usePwa } from '@/composables/usePwa'
 
-const isPwa = window.matchMedia('(display-mode: standalone)').matches
-  || (window.navigator as any).standalone === true
+const { isPwa } = usePwa()
 
 const props = defineProps<{
   form: Partial<Coin>

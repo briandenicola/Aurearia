@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
 from app.llm.provider import get_chat_model, get_search_model
+from app.llm.retry import ainvoke_with_retry
 from app.models.requests import CoinData, LLMConfig
 
 logger = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ def create_similar_lot_team(
             SystemMessage(content=SEARCH_PROMPT),
             HumanMessage(content=f"Find active auction lots similar to:\n\n{coin_desc}"),
         ]
-        response = await search_model.ainvoke(messages)
+        response = await ainvoke_with_retry(search_model, messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
         return {"search_results": content, "messages": []}
 
@@ -91,7 +92,7 @@ def create_similar_lot_team(
             SystemMessage(content=SCORING_PROMPT),
             HumanMessage(content=f"Reference coin:\n{coin_desc}\n\nSearch results:\n\n{results}"),
         ]
-        response = await chat_model.ainvoke(messages)
+        response = await ainvoke_with_retry(chat_model, messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
         return {"scored_results": content, "messages": [AIMessage(content=content)]}
 

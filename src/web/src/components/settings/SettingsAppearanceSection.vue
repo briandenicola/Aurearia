@@ -74,18 +74,20 @@
 </template>
 
 <script setup lang="ts">
+import type { Theme } from '@/types'
+
 defineProps<{
-  theme: string
+  theme: Theme
   timezone: string
   timezones: string[]
-  defaultView: string
+  defaultView: 'grid' | 'swipe'
   defaultSort: string
 }>()
 
 defineEmits<{
-  'set-theme': [theme: string]
+  'set-theme': [theme: Theme]
   'save-timezone': [tz: string]
-  'set-default-view': [view: string]
+  'set-default-view': [view: 'grid' | 'swipe']
   'save-default-sort': [sort: string]
 }>()
 </script>

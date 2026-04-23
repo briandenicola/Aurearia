@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -48,7 +49,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		NewPassword     string `json:"newPassword" binding:"required,min=6"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 
@@ -71,7 +72,10 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	h.repo.UpdateField(&user, "password_hash", string(hash))
+	if err := h.repo.UpdateField(&user, "password_hash", string(hash)); err != nil {
+		respondError(c, http.StatusInternalServerError, "Failed to update password", err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "Password changed"})
 }
 
@@ -221,7 +225,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		NumisBidsPassword *string `json:"numisBidsPassword"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 
@@ -268,16 +272,25 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 			logger.Info("user", "User %d going private — followers will be removed", userID)
 		}
 		if len(updates) > 0 {
-			h.repo.UpdateProfileWithPrivacy(&user, updates, goingPrivate)
+			if err := h.repo.UpdateProfileWithPrivacy(&user, updates, goingPrivate); err != nil {
+				respondError(c, http.StatusInternalServerError, "Failed to update profile", err)
+				return
+			}
 			logger.Info("user", "Profile updated for user %d", userID)
 		}
 	} else if len(updates) > 0 {
-		h.repo.UpdateFields(&user, updates)
+		if err := h.repo.UpdateFields(&user, updates); err != nil {
+			respondError(c, http.StatusInternalServerError, "Failed to update profile", err)
+			return
+		}
 		logger.Info("user", "Profile updated for user %d", userID)
 	}
 
 	// Reload and return
-	h.repo.Reload(&user)
+	if err := h.repo.Reload(&user); err != nil {
+		respondError(c, http.StatusInternalServerError, "Failed to reload profile", err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"id":                  user.ID,
 		"username":            user.Username,
@@ -335,7 +348,10 @@ func (h *UserHandler) UploadAvatar(c *gin.Context) {
 	}
 
 	avatarRelPath := filepath.ToSlash(filepath.Join("avatars", filename))
-	h.repo.UpdateField(&user, "avatar_path", avatarRelPath)
+	if err := h.repo.UpdateField(&user, "avatar_path", avatarRelPath); err != nil {
+		respondError(c, http.StatusInternalServerError, "Failed to update avatar", err)
+		return
+	}
 
 	logger.Info("user", "Avatar uploaded for user %d: %s", userID, avatarRelPath)
 	c.JSON(http.StatusOK, gin.H{"avatarPath": avatarRelPath})
@@ -354,8 +370,13 @@ func (h *UserHandler) DeleteAvatar(c *gin.Context) {
 	}
 
 	if user.AvatarPath != "" {
-		os.Remove(filepath.Join(h.UploadDir, user.AvatarPath))
-		h.repo.UpdateField(&user, "avatar_path", "")
+		if err := os.Remove(filepath.Join(h.UploadDir, user.AvatarPath)); err != nil {
+			log.Printf("[handler] DeleteAvatar: failed to remove file: %v", err)
+		}
+		if err := h.repo.UpdateField(&user, "avatar_path", ""); err != nil {
+			respondError(c, http.StatusInternalServerError, "Failed to remove avatar", err)
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Avatar removed"})

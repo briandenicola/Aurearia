@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -128,7 +129,7 @@ func (h *AdminHandler) ResetPassword(c *gin.Context) {
 		NewPassword string `json:"newPassword" binding:"required,min=6"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 
@@ -199,7 +200,7 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 		Value string `json:"value"`
 	}
 	if err := c.ShouldBindJSON(&settings); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 
@@ -305,7 +306,8 @@ func (h *AdminHandler) TestAnthropicConnection(c *gin.Context) {
 
 	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"available": false, "message": fmt.Sprintf("Connection failed: %s", err.Error())})
+		log.Printf("[handler] TestAnthropicConnection: %v", err)
+		c.JSON(http.StatusOK, gin.H{"available": false, "message": "Connection failed"})
 		return
 	}
 	defer resp.Body.Close()
@@ -338,12 +340,13 @@ func (h *AdminHandler) TestSearXNGConnection(c *gin.Context) {
 
 	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"available": false, "message": fmt.Sprintf("Connection failed: %s", err.Error())})
+		log.Printf("[handler] TestSearXNGConnection: %v", err)
+		c.JSON(http.StatusOK, gin.H{"available": false, "message": "Connection failed"})
 		return
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+	if resp.StatusCode >= 200&& resp.StatusCode < 400 {
 		c.JSON(http.StatusOK, gin.H{"available": true, "message": fmt.Sprintf("SearXNG is reachable at %s", searxngURL)})
 	} else {
 		c.JSON(http.StatusOK, gin.H{"available": false, "message": fmt.Sprintf("SearXNG returned HTTP %d", resp.StatusCode)})

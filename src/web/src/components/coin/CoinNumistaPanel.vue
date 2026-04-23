@@ -59,8 +59,12 @@ async function handleSearch() {
     if (!results.value.length) {
       error.value = 'No results found on Numista'
     }
-  } catch (err: any) {
-    error.value = err.response?.data?.error || 'Numista search failed'
+  } catch (err: unknown) {
+    error.value = err instanceof Error ? err.message : 'Numista search failed'
+    if (typeof err === 'object' && err !== null && 'response' in err) {
+      const axiosErr = err as { response?: { data?: { error?: string } } }
+      error.value = axiosErr.response?.data?.error || error.value
+    }
   } finally {
     searching.value = false
   }
