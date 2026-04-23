@@ -22,45 +22,14 @@
       </div>
 
       <!-- Users Tab -->
-      <section v-if="activeTab === 'users'" class="admin-section card">
-        <h2>User Management</h2>
-        <div v-if="usersLoading" class="loading-overlay"><div class="spinner"></div></div>
-        <table v-else class="users-table">
-          <thead>
-            <tr>
-              <th>Username</th>
-              <th>Role</th>
-              <th>Created</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="user in users" :key="user.id">
-              <td>
-                <span class="username">{{ user.username }}</span>
-                <span v-if="user.id === auth.user?.id" class="you-badge">(you)</span>
-              </td>
-              <td>
-                <span class="badge" :class="`badge-${user.role === 'admin' ? 'roman' : 'modern'}`">
-                  {{ user.role }}
-                </span>
-              </td>
-              <td class="date-cell">{{ formatDate(user.createdAt) }}</td>
-              <td>
-                <div v-if="user.id !== auth.user?.id" class="action-btns">
-                  <button class="btn btn-secondary btn-sm" @click="openResetModal(user)">
-                    Reset
-                  </button>
-                  <button class="btn btn-danger btn-sm" @click="handleDeleteUser(user)">
-                    Delete
-                  </button>
-                </div>
-                <span v-else class="text-muted">—</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
+      <AdminUsersSection
+        v-if="activeTab === 'users'"
+        :users="users"
+        :loading="usersLoading"
+        :current-user-id="auth.user?.id ?? 0"
+        @reset="openResetModal"
+        @delete="handleDeleteUser"
+      />
 
       <!-- AI Tab -->
       <section v-if="activeTab === 'ai'" class="admin-section card">
@@ -271,75 +240,31 @@
       </section>
 
       <!-- System Tab -->
-      <section v-if="activeTab === 'system'" class="admin-section card">
-        <h2>System Settings</h2>
-        <form @submit.prevent="saveSettings">
-          <div class="form-group">
-            <label class="form-label">Numista API Key</label>
-            <input v-model="settings.NumistaAPIKey" class="form-input" type="password" placeholder="Enter your Numista API key" />
-            <span class="form-hint">Get a free key at <a href="https://en.numista.com/api/" target="_blank" rel="noopener">numista.com/api</a> (2,000 requests/month free)</span>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Log Level</label>
-            <select v-model="settings.LogLevel" class="form-select">
-              <option v-for="level in LOG_LEVELS" :key="level" :value="level">{{ level }}</option>
-            </select>
-          </div>
-          <p v-if="settingsMsg" class="msg" :class="{ error: settingsError }">{{ settingsMsg }}</p>
-          <button type="submit" class="btn btn-primary btn-sm" :disabled="settingsSaving">
-            {{ settingsSaving ? 'Saving...' : 'Save System Settings' }}
-          </button>
-        </form>
-        <div class="version-info">
-          <span class="version-label">Version</span>
-          <span class="version-value">{{ appVersion }}</span>
-          <span v-if="buildDate" class="version-date">Built {{ buildDate }}</span>
-        </div>
-      </section>
+      <AdminSystemSection
+        v-if="activeTab === 'system'"
+        :numista-api-key="settings.NumistaAPIKey ?? ''"
+        :log-level="settings.LogLevel ?? ''"
+        :log-levels="LOG_LEVELS"
+        :saving="settingsSaving"
+        :msg="settingsMsg"
+        :error="settingsError"
+        :app-version="appVersion"
+        :build-date="buildDate"
+        @save="onSystemSave"
+      />
 
       <!-- Logs Tab -->
-      <section v-if="activeTab === 'logs'" class="admin-section card">
-        <h2>Application Logs</h2>
-        <div class="logs-toolbar">
-          <select v-model="logsFilter" class="form-select logs-filter" @change="loadLogs">
-            <option value="">All Levels</option>
-            <option v-for="level in ['TRACE','DEBUG','INFO','WARN','ERROR']" :key="level" :value="level">{{ level }}</option>
-          </select>
-          <button class="btn btn-secondary btn-sm" @click="loadLogs" :disabled="logsLoading">
-            {{ logsLoading ? 'Loading...' : 'Refresh' }}
-          </button>
-          <button
-            class="btn btn-sm"
-            :class="logsAutoRefresh ? 'btn-primary' : 'btn-secondary'"
-            @click="toggleAutoRefresh"
-          >
-            {{ logsAutoRefresh ? 'Auto ●' : 'Auto ○' }}
-          </button>
-          <button
-            class="btn btn-secondary btn-sm"
-            @click="exportLogs"
-            :disabled="logs.length === 0"
-            title="Export logs as text file"
-          >
-            <Download :size="14" /> Export
-          </button>
-        </div>
-        <div class="logs-container">
-          <div v-if="logs.length === 0 && !logsLoading" class="logs-empty">
-            No log entries. Click Refresh to load.
-          </div>
-          <div
-            v-for="(entry, i) in logs"
-            :key="i"
-            class="log-entry"
-            :class="logLevelClass(entry.level)"
-          >
-            <span class="log-time">{{ entry.timestamp.substring(11, 19) }}</span>
-            <span class="log-level-badge">{{ entry.level }}</span>
-            <span class="log-msg">{{ entry.message }}</span>
-          </div>
-        </div>
-      </section>
+      <AdminLogsSection
+        v-if="activeTab === 'logs'"
+        :logs="logs"
+        :loading="logsLoading"
+        :filter="logsFilter"
+        :auto-refresh="logsAutoRefresh"
+        @load="loadLogs"
+        @toggle-auto-refresh="toggleAutoRefresh"
+        @export="exportLogs"
+        @update:filter="logsFilter = $event"
+      />
 
       <!-- Schedules Tab -->
       <section v-if="activeTab === 'schedules'" class="admin-section card">
@@ -610,17 +535,18 @@ import { ref, computed, onMounted, onUnmounted, type Component } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   getUsers, deleteUser,
-  getAppSettings, getAppSettingDefaults, updateAppSettings, getAdminLogs, getOllamaStatus,
-  getAnthropicModels, getCoinSearchPrompt, getCoinShowsPrompt, getValuationPrompt,
-  testAnthropicConnection, testSearXNGConnection,
+  getAdminLogs,
   getAvailabilityRuns, getAvailabilityRunDetail,
   getValuationRuns, getValuationRunDetail, triggerValuation, cancelValuationRun,
 } from '@/api/client'
-import type { AnthropicModel } from '@/api/client'
 import { LOG_LEVELS } from '@/types'
-import type { UserInfo, AppSettings, LogEntry, AvailabilityRun, ValuationRun } from '@/types'
+import type { UserInfo, LogEntry, AvailabilityRun, ValuationRun } from '@/types'
 import { useDialog } from '@/composables/useDialog'
+import { useAdminConfig } from '@/composables/useAdminConfig'
 import ResetPasswordModal from '@/components/admin/ResetPasswordModal.vue'
+import AdminUsersSection from '@/components/admin/AdminUsersSection.vue'
+import AdminSystemSection from '@/components/admin/AdminSystemSection.vue'
+import AdminLogsSection from '@/components/admin/AdminLogsSection.vue'
 import { Users, Cpu, Wrench, ScrollText, Download, ShieldCheck, CalendarClock } from 'lucide-vue-next'
 
 const tabIcons: Record<string, Component> = { users: Users, ai: Cpu, system: Wrench, logs: ScrollText, schedules: CalendarClock }
@@ -683,165 +609,17 @@ function openResetModal(user: UserInfo) {
   resetTarget.value = user
 }
 
-// Settings
-const settings = ref<AppSettings>({
-  AIProvider: '',
-  OllamaURL: 'http://localhost:11434',
-  OllamaModel: 'llava',
-  ObversePrompt: '',
-  ReversePrompt: '',
-  TextExtractionPrompt: '',
-  OllamaTimeout: '300',
-  SearXNGURL: '',
-  LogLevel: 'info',
-})
-const settingDefaults = ref<AppSettings>({
-  AIProvider: '',
-  OllamaURL: '',
-  OllamaModel: '',
-  ObversePrompt: '',
-  ReversePrompt: '',
-  TextExtractionPrompt: '',
-  OllamaTimeout: '',
-  SearXNGURL: '',
-  LogLevel: '',
-})
-const settingsMsg = ref('')
-const settingsError = ref(false)
-const settingsSaving = ref(false)
-const ollamaTesting = ref(false)
-const ollamaTestResult = ref('')
-const ollamaTestOk = ref(false)
-const anthropicTesting = ref(false)
-const anthropicTestResult = ref('')
-const anthropicTestOk = ref(false)
-const searxngTesting = ref(false)
-const searxngTestResult = ref('')
-const searxngTestOk = ref(false)
-const anthropicModels = ref<AnthropicModel[]>([
-  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
-  { id: 'claude-haiku-4-20250414', name: 'Claude Haiku 4' },
-  { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
-])
-const coinSearchPromptDefault = ref('')
-const coinShowsPromptDefault = ref('')
-const valuationPromptDefault = ref('')
-
-async function loadSettings() {
-  try {
-    const [settingsRes, defaultsRes] = await Promise.all([
-      getAppSettings(),
-      getAppSettingDefaults(),
-    ])
-    settingDefaults.value = { ...settingDefaults.value, ...defaultsRes.data }
-    settings.value = { ...settings.value, ...settingsRes.data }
-
-    // Load Anthropic models and prompts in parallel
-    const [modelsRes, coinSearchRes, coinShowsRes, valPromptRes] = await Promise.all([
-      getAnthropicModels().catch(() => null),
-      getCoinSearchPrompt().catch(() => null),
-      getCoinShowsPrompt().catch(() => null),
-      getValuationPrompt().catch(() => null),
-    ])
-
-    if (modelsRes?.data?.length) {
-      anthropicModels.value = modelsRes.data
-    }
-
-    if (coinSearchRes?.data) {
-      coinSearchPromptDefault.value = coinSearchRes.data.default
-      if (!settings.value.CoinSearchPrompt) {
-        settings.value.CoinSearchPrompt = coinSearchRes.data.prompt
-      }
-    }
-
-    if (coinShowsRes?.data) {
-      coinShowsPromptDefault.value = coinShowsRes.data.default
-      if (!settings.value.CoinShowsPrompt) {
-        settings.value.CoinShowsPrompt = coinShowsRes.data.prompt
-      }
-    }
-
-    if (valPromptRes?.data) {
-      valuationPromptDefault.value = valPromptRes.data.default
-      if (!settings.value.ValuationPrompt) {
-        settings.value.ValuationPrompt = valPromptRes.data.prompt
-      }
-    }
-  } catch { /* use defaults */ }
-}
-
-async function saveSettings() {
-  settingsSaving.value = true
-  settingsMsg.value = ''
-  settingsError.value = false
-  availSettingsMsg.value = ''
-  availSettingsError.value = false
-  valSettingsMsg.value = ''
-  valSettingsError.value = false
-  try {
-    const entries = Object.entries(settings.value).map(([key, value]) => ({ key, value: String(value) }))
-    await updateAppSettings(entries)
-    settingsMsg.value = 'Settings saved'
-    availSettingsMsg.value = 'Settings saved'
-    valSettingsMsg.value = 'Settings saved'
-    setTimeout(() => { availSettingsMsg.value = ''; valSettingsMsg.value = '' }, 3000)
-  } catch {
-    settingsMsg.value = 'Failed to save settings'
-    settingsError.value = true
-    availSettingsMsg.value = 'Failed to save settings'
-    availSettingsError.value = true
-    valSettingsMsg.value = 'Failed to save settings'
-    valSettingsError.value = true
-  } finally {
-    settingsSaving.value = false
-  }
-}
-
-async function testOllamaConnection() {
-  ollamaTesting.value = true
-  ollamaTestResult.value = ''
-  try {
-    const res = await getOllamaStatus()
-    ollamaTestOk.value = res.data.available
-    ollamaTestResult.value = res.data.message
-  } catch {
-    ollamaTestOk.value = false
-    ollamaTestResult.value = 'Failed to check Ollama status'
-  } finally {
-    ollamaTesting.value = false
-  }
-}
-
-async function testAnthropicConn() {
-  anthropicTesting.value = true
-  anthropicTestResult.value = ''
-  try {
-    const res = await testAnthropicConnection()
-    anthropicTestOk.value = res.data.available
-    anthropicTestResult.value = res.data.message
-  } catch {
-    anthropicTestOk.value = false
-    anthropicTestResult.value = 'Failed to test Anthropic connection'
-  } finally {
-    anthropicTesting.value = false
-  }
-}
-
-async function testSearxngConn() {
-  searxngTesting.value = true
-  searxngTestResult.value = ''
-  try {
-    const res = await testSearXNGConnection()
-    searxngTestOk.value = res.data.available
-    searxngTestResult.value = res.data.message
-  } catch {
-    searxngTestOk.value = false
-    searxngTestResult.value = 'Failed to test SearXNG connection'
-  } finally {
-    searxngTesting.value = false
-  }
-}
+// Settings (from composable)
+const {
+  settings, settingDefaults, settingsMsg, settingsError, settingsSaving,
+  ollamaTesting, ollamaTestResult, ollamaTestOk,
+  anthropicTesting, anthropicTestResult, anthropicTestOk, anthropicModels,
+  searxngTesting, searxngTestResult, searxngTestOk,
+  coinSearchPromptDefault, coinShowsPromptDefault, valuationPromptDefault,
+  availSettingsMsg, availSettingsError, valSettingsMsg, valSettingsError,
+  loadSettings, saveSettings,
+  testOllamaConnection, testAnthropicConn, testSearxngConn,
+} = useAdminConfig()
 
 // Logs
 const logs = ref<LogEntry[]>([])
@@ -885,23 +663,17 @@ function exportLogs() {
   URL.revokeObjectURL(url)
 }
 
-function logLevelClass(level: string) {
-  switch (level) {
-    case 'ERROR': return 'log-error'
-    case 'WARN': return 'log-warn'
-    case 'DEBUG': return 'log-debug'
-    case 'TRACE': return 'log-trace'
-    default: return 'log-info'
-  }
-}
-
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString()
 }
 
+function onSystemSave(payload: { numistaApiKey: string; logLevel: string }) {
+  settings.value.NumistaAPIKey = payload.numistaApiKey
+  settings.value.LogLevel = payload.logLevel
+  saveSettings()
+}
+
 // Availability
-const availSettingsMsg = ref('')
-const availSettingsError = ref(false)
 const availRuns = ref<AvailabilityRun[]>([])
 const availTotal = ref(0)
 const availPage = ref(1)
@@ -941,8 +713,6 @@ async function toggleRunDetail(runId: number) {
 }
 
 // Valuation
-const valSettingsMsg = ref('')
-const valSettingsError = ref(false)
 const valRuns = ref<ValuationRun[]>([])
 const valTotal = ref(0)
 const valPage = ref(1)
@@ -1119,24 +889,9 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
-.username {
-  font-weight: 500;
-}
-
-.you-badge {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  margin-left: 0.3rem;
-}
-
 .date-cell {
   font-size: 0.85rem;
   color: var(--text-secondary);
-}
-
-.action-btns {
-  display: flex;
-  gap: 0.4rem;
 }
 
 .text-muted {
@@ -1307,103 +1062,14 @@ onUnmounted(() => {
   .users-table {
     font-size: 0.85rem;
   }
-  .action-btns {
-    flex-direction: column;
-  }
 }
 
 /* Logs */
-.logs-toolbar {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.logs-filter {
-  width: auto;
-  min-width: 120px;
-}
-
-.logs-container {
-  max-height: 500px;
-  overflow-y: auto;
-  background: var(--bg-body);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 0.5rem;
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 0.78rem;
-  line-height: 1.5;
-}
-
 .logs-empty {
   text-align: center;
   padding: 2rem;
   color: var(--text-muted);
   font-family: 'Inter', sans-serif;
-}
-
-.log-entry {
-  display: flex;
-  gap: 0.5rem;
-  padding: 0.15rem 0.25rem;
-  border-radius: 2px;
-}
-
-.log-entry:hover {
-  background: var(--bg-card);
-}
-
-.log-time {
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.log-level-badge {
-  flex-shrink: 0;
-  min-width: 48px;
-  text-align: center;
-  font-weight: 600;
-  border-radius: 2px;
-  padding: 0 4px;
-}
-
-.log-msg {
-  word-break: break-word;
-}
-
-.log-error .log-level-badge { color: #e74c3c; }
-.log-error .log-msg { color: #e74c3c; }
-.log-warn .log-level-badge { color: #f39c12; }
-.log-debug .log-level-badge { color: #3498db; }
-.log-trace .log-level-badge { color: #7f8c8d; }
-.log-info .log-level-badge { color: #2ecc71; }
-
-.version-info {
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-subtle);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-}
-
-.version-label {
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.version-value {
-  font-family: 'Courier New', Courier, monospace;
-  color: var(--text-secondary);
-}
-
-.version-date {
-  margin-left: 0.25rem;
 }
 
 /* Availability */

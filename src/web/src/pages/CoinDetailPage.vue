@@ -5,15 +5,14 @@
     </div>
 
     <div v-else-if="coin" class="coin-detail">
-      <div class="detail-header">
-        <button class="btn btn-secondary btn-sm" @click="$router.back()">← Back</button>
-        <div class="detail-actions">
-          <button v-if="coin.isWishlist" class="btn btn-primary btn-sm" @click="showPurchaseModal = true">Mark as Purchased</button>
-          <button v-if="!coin.isWishlist && !coin.isSold" class="btn btn-secondary btn-sm" @click="showSellModal = true">Sell</button>
-          <router-link :to="`/edit/${coin.id}`" class="btn btn-secondary btn-sm">Edit</router-link>
-          <button class="btn btn-danger btn-sm" @click="handleDelete">Delete</button>
-        </div>
-      </div>
+      <CoinDetailHeaderActions
+        :is-wishlist="coin.isWishlist"
+        :is-sold="coin.isSold"
+        :coin-id="coin.id"
+        @purchase="showPurchaseModal = true"
+        @sell="showSellModal = true"
+        @delete="handleDelete"
+      />
 
       <div class="detail-layout">
         <!-- Images -->
@@ -208,68 +207,23 @@
             </div>
           </div>
 
-          <div class="numista-section">
-            <div class="numista-header">
-              <h3>Numista Lookup</h3>
-              <button
-                class="btn btn-secondary btn-sm"
-                :disabled="numistaSearching"
-                @click="handleNumistaSearch"
-              >
-                {{ numistaSearching ? 'Searching...' : 'Search' }}
-              </button>
-            </div>
-            <p v-if="numistaError" class="numista-error">{{ numistaError }}</p>
-            <div v-if="numistaResults.length" class="numista-results">
-              <a
-                v-for="item in numistaResults"
-                :key="item.id"
-                :href="`https://en.numista.com/catalogue/pieces${item.id}.html`"
-                target="_blank"
-                rel="noopener"
-                class="numista-card"
-              >
-                <img v-if="item.obverse_thumbnail" :src="item.obverse_thumbnail" class="numista-thumb" />
-                <div class="numista-card-info">
-                  <span class="numista-card-title">{{ item.title }}</span>
-                  <span class="numista-card-meta">
-                    <template v-if="item.issuer?.name">{{ item.issuer.name }}</template>
-                    <template v-if="item.min_year"> · {{ item.min_year }}<template v-if="item.max_year && item.max_year !== item.min_year">–{{ item.max_year }}</template></template>
-                  </span>
-                </div>
-              </a>
-            </div>
-          </div>
+          <CoinNumistaPanel
+            :coin-name="coin.name"
+            :coin-ruler="coin.ruler"
+            :coin-denomination="coin.denomination"
+          />
 
           <div v-if="coin.notes" class="notes-section">
             <h3>Notes</h3>
             <p>{{ coin.notes }}</p>
           </div>
 
-          <!-- Activity Journal -->
-          <div class="journal-section">
-            <h3>Activity Journal</h3>
-            <div class="journal-add">
-              <input
-                v-model="journalInput"
-                type="text"
-                class="form-input journal-input"
-                placeholder="e.g. Cleaned, sent to grading, displayed at show..."
-                @keyup.enter="handleAddJournalEntry"
-              />
-              <button class="btn btn-primary btn-sm" :disabled="!journalInput.trim()" @click="handleAddJournalEntry">Add</button>
-            </div>
-            <div v-if="journalEntries.length" class="journal-list">
-              <div v-for="entry in journalEntries" :key="entry.id" class="journal-entry">
-                <div class="journal-entry-content">
-                  <span class="journal-entry-text">{{ entry.entry }}</span>
-                  <span class="journal-entry-date">{{ formatJournalDate(entry.createdAt) }}</span>
-                </div>
-                <button class="btn btn-ghost btn-xs" @click="handleDeleteJournalEntry(entry.id)">✕</button>
-              </div>
-            </div>
-            <p v-else class="journal-empty">No activity recorded yet.</p>
-          </div>
+          <CoinActivityJournal
+            :entries="journalEntries"
+            :coin-id="coin.id"
+            @add="handleAddJournalEntry"
+            @delete="handleDeleteJournalEntry"
+          />
 
           <div v-if="coin.referenceUrl" class="reference-section">
             <a :href="coin.referenceUrl" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">
@@ -360,9 +314,12 @@ import { useCoinsStore } from '@/stores/coins'
 import ImageGallery from '@/components/ImageGallery.vue'
 import SellModal from '@/components/SellModal.vue'
 import PurchaseModal from '@/components/PurchaseModal.vue'
-import { uploadImage, proxyImage, analyzeCoin, deleteAnalysis, deleteCoin, deleteImage, purchaseCoin, sellCoin, getOllamaStatus, getJournalEntries, addJournalEntry, deleteJournalEntry, searchNumista, estimateCoinValue, updateCoin, getCoinValueHistory, updateListingStatus, getTags, addTagToCoin, removeTagFromCoin } from '@/api/client'
+import CoinDetailHeaderActions from '@/components/coin/CoinDetailHeaderActions.vue'
+import CoinNumistaPanel from '@/components/coin/CoinNumistaPanel.vue'
+import CoinActivityJournal from '@/components/coin/CoinActivityJournal.vue'
+import { uploadImage, proxyImage, analyzeCoin, deleteAnalysis, deleteCoin, deleteImage, purchaseCoin, sellCoin, getOllamaStatus, getJournalEntries, addJournalEntry, deleteJournalEntry, estimateCoinValue, updateCoin, getCoinValueHistory, updateListingStatus, getTags, addTagToCoin, removeTagFromCoin } from '@/api/client'
 import { removeBackground as removeBg } from '@imgly/background-removal'
-import type { CoinImage, CoinJournal, NumistaType, ValueEstimate, CoinValueHistory as CoinValueHistoryType, Tag } from '@/types'
+import type { CoinImage, CoinJournal, ValueEstimate, CoinValueHistory as CoinValueHistoryType, Tag } from '@/types'
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
 import { Camera } from 'lucide-vue-next'
@@ -390,12 +347,6 @@ const showPurchaseModal = ref(false)
 
 // Journal
 const journalEntries = ref<CoinJournal[]>([])
-const journalInput = ref('')
-
-// Numista
-const numistaResults = ref<NumistaType[]>([])
-const numistaSearching = ref(false)
-const numistaError = ref('')
 
 // Value Estimation
 const estimating = ref(false)
@@ -480,11 +431,10 @@ async function loadJournal(coinId: number) {
   }
 }
 
-async function handleAddJournalEntry() {
-  if (!coin.value || !journalInput.value.trim()) return
+async function handleAddJournalEntry(entry: string) {
+  if (!coin.value || !entry) return
   try {
-    await addJournalEntry(coin.value.id, journalInput.value.trim())
-    journalInput.value = ''
+    await addJournalEntry(coin.value.id, entry)
     loadJournal(coin.value.id)
   } catch {
     await showAlert('Failed to add journal entry', { title: 'Error' })
@@ -501,12 +451,6 @@ async function handleDeleteJournalEntry(entryId: number) {
   }
 }
 
-function formatJournalDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString(undefined, {
-    month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
-}
-
 function formatListingDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString(undefined, {
     month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -520,29 +464,6 @@ async function dismissListingStatus() {
     store.fetchCoin(Number(route.params.id))
   } catch {
     // silently fail
-  }
-}
-
-async function handleNumistaSearch() {
-  if (!coin.value) return
-  numistaSearching.value = true
-  numistaError.value = ''
-  numistaResults.value = []
-  try {
-    const q = [coin.value.name, coin.value.denomination, coin.value.ruler].filter(Boolean).join(' ')
-    const res = await searchNumista(q)
-    numistaResults.value = res.data.types || []
-    if (!numistaResults.value.length) {
-      numistaError.value = 'No results found on Numista'
-    }
-  } catch (err: unknown) {
-    numistaError.value = err instanceof Error ? err.message : 'Numista search failed'
-    if (typeof err === 'object' && err !== null && 'response' in err) {
-      const axiosErr = err as { response?: { data?: { error?: string } } }
-      numistaError.value = axiosErr.response?.data?.error || numistaError.value
-    }
-  } finally {
-    numistaSearching.value = false
   }
 }
 
@@ -734,18 +655,6 @@ function formatCurrency(value: number) {
 </script>
 
 <style scoped>
-.detail-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.detail-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
 .detail-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -884,16 +793,14 @@ function formatCurrency(value: number) {
 .inscriptions-section,
 .descriptions-section,
 .value-section,
-.notes-section,
-.journal-section {
+.notes-section {
   margin-bottom: 1.5rem;
 }
 
 .inscriptions-section h3,
 .descriptions-section h3,
 .value-section h3,
-.notes-section h3,
-.journal-section h3 {
+.notes-section h3 {
   margin-bottom: 0.75rem;
   font-size: 1rem;
 }
@@ -1009,56 +916,6 @@ function formatCurrency(value: number) {
   font-size: 0.75rem;
   color: var(--text-muted);
   margin: 0;
-}
-
-/* Journal */
-.journal-add {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.journal-input {
-  flex: 1;
-}
-
-.journal-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.journal-entry {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-}
-
-.journal-entry-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  min-width: 0;
-}
-
-.journal-entry-text {
-  font-size: 0.85rem;
-}
-
-.journal-entry-date {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-}
-
-.journal-empty {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  font-style: italic;
 }
 
 /* AI Value Estimate */
@@ -1202,81 +1059,6 @@ function formatCurrency(value: number) {
   display: flex;
   gap: 0.5rem;
   margin-top: 0.75rem;
-}
-
-/* Numista */
-.numista-section {
-  margin-bottom: 1.5rem;
-}
-
-.numista-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-
-.numista-header h3 {
-  font-size: 1rem;
-  margin: 0;
-}
-
-.numista-error {
-  font-size: 0.85rem;
-  color: #e67e22;
-  font-style: italic;
-}
-
-.numista-results {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 0.75rem;
-}
-
-.numista-card {
-  display: flex;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  text-decoration: none;
-  color: inherit;
-  transition: border-color var(--transition-fast);
-}
-
-.numista-card:hover {
-  border-color: var(--accent-gold);
-}
-
-.numista-thumb {
-  width: 48px;
-  height: 48px;
-  object-fit: contain;
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-
-.numista-card-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 0;
-}
-
-.numista-card-title {
-  font-size: 0.85rem;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.numista-card-meta {
-  font-size: 0.75rem;
-  color: var(--text-muted);
 }
 
 /* Image upload */

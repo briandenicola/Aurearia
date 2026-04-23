@@ -198,72 +198,19 @@
         </template>
       </section>
 
-      <!-- Blocked Users Tab -->
       <!-- Appearance Tab -->
-      <section v-if="activeTab === 'appearance'" class="settings-section card">
-        <h2>Appearance</h2>
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">Theme</span>
-            <span class="setting-desc">Choose your preferred color scheme</span>
-          </div>
-          <div class="theme-toggle">
-            <button
-              class="theme-btn"
-              :class="{ active: theme === 'dark' }"
-              @click="setTheme('dark')"
-            >Dark</button>
-            <button
-              class="theme-btn"
-              :class="{ active: theme === 'light' }"
-              @click="setTheme('light')"
-            >Light</button>
-          </div>
-        </div>
-
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">Timezone</span>
-            <span class="setting-desc">Used for date display</span>
-          </div>
-          <select v-model="timezone" class="form-select tz-select" @change="saveTimezone">
-            <option v-for="tz in timezones" :key="tz" :value="tz">{{ tz }}</option>
-          </select>
-        </div>
-
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">Default View</span>
-            <span class="setting-desc">Preferred collection view on mobile / PWA</span>
-          </div>
-          <div class="theme-toggle">
-            <button
-              class="theme-btn"
-              :class="{ active: defaultView === 'swipe' }"
-              @click="setDefaultView('swipe')"
-            >Swipe</button>
-            <button
-              class="theme-btn"
-              :class="{ active: defaultView === 'grid' }"
-              @click="setDefaultView('grid')"
-            >Grid</button>
-          </div>
-        </div>
-
-        <div class="setting-item">
-          <div class="setting-info">
-            <span class="setting-label">Default Sort</span>
-            <span class="setting-desc">How coins are sorted by default</span>
-          </div>
-          <select v-model="defaultSort" class="form-select sort-select" @change="saveDefaultSort">
-            <option value="updated_at_desc">Last Updated</option>
-            <option value="created_at_desc">Newest First</option>
-            <option value="created_at_asc">Oldest First</option>
-            <option value="current_value_desc">Price: High → Low</option>
-            <option value="current_value_asc">Price: Low → High</option>
-          </select>
-        </div>
-      </section>
+      <SettingsAppearanceSection
+        v-if="activeTab === 'appearance'"
+        :theme="theme"
+        :timezone="timezone"
+        :timezones="timezones"
+        :default-view="defaultView"
+        :default-sort="defaultSort"
+        @set-theme="setTheme"
+        @save-timezone="(tz: string) => { timezone = tz; saveTimezone() }"
+        @set-default-view="setDefaultView"
+        @save-default-sort="(sort: string) => { defaultSort = sort; saveDefaultSort() }"
+      />
 
       <!-- Data Tab -->
       <section v-if="activeTab === 'data'" class="settings-section card">
@@ -417,56 +364,22 @@
       </section>
 
       <!-- Tools Tab -->
-      <section v-if="activeTab === 'tools'" class="settings-section card">
-        <h2>Image Processor</h2>
-        <p class="setting-desc" style="margin-bottom: 1rem">
-          Remove backgrounds and crop coin images for your collection.
-        </p>
-        <ImageProcessor @saved="handleProcessSaved" />
-
-        <h3 style="margin-top: 2rem">Blocked Users</h3>
-        <p class="setting-desc" style="margin-bottom: 0.75rem">
-          Blocked users cannot send you follow requests or view your collection.
-        </p>
-        <div v-if="blockedUsers.length" class="apikey-list">
-          <div v-for="user in blockedUsers" :key="user.id" class="apikey-item">
-            <div class="apikey-item-info" style="display: flex; align-items: center; gap: 0.5rem;">
-              <img
-                :src="user.avatarPath ? `/uploads/${user.avatarPath}` : '/coin-logo.jpg'"
-                :alt="user.username"
-                style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-subtle);"
-              />
-              <span class="apikey-item-name">{{ user.username }}</span>
-            </div>
-            <button class="btn btn-secondary btn-sm" :disabled="blockedLoading" @click="handleUnblock(user)">Unblock</button>
-          </div>
-        </div>
-        <p v-else class="setting-desc" style="margin-top: 0.5rem">No blocked users.</p>
-      </section>
+      <SettingsToolsSection
+        v-if="activeTab === 'tools'"
+        :blocked-users="blockedUsers"
+        :blocked-loading="blockedLoading"
+        @saved="handleProcessSaved"
+        @unblock="handleUnblock"
+      />
 
       <!-- Conversations Tab -->
-      <section v-if="activeTab === 'conversations'" class="settings-section card">
-        <h2>Saved Conversations</h2>
-        <p class="setting-desc" style="margin-bottom: 1rem">
-          Your saved AI coin search conversations. Open one to continue the search or review results.
-        </p>
-
-        <div v-if="conversationsLoading" class="loading-inline">Loading...</div>
-
-        <div v-else-if="conversations.length" class="apikey-list">
-          <div v-for="conv in conversations" :key="conv.id" class="apikey-item">
-            <div class="apikey-item-info" style="cursor: pointer" @click="openConversation(conv.id)">
-              <span class="apikey-item-name">{{ conv.title }}</span>
-              <span class="apikey-item-meta">{{ formatDate(conv.updatedAt) }}</span>
-            </div>
-            <div class="conv-actions">
-              <button class="btn btn-secondary btn-sm" @click="openConversation(conv.id)">Open</button>
-              <button class="btn btn-danger btn-sm" @click="handleDeleteConversation(conv.id)">Delete</button>
-            </div>
-          </div>
-        </div>
-        <p v-else class="setting-desc" style="margin-top: 0.5rem">No saved conversations yet. Use the Save button in the coin search chat to save a conversation.</p>
-      </section>
+      <SavedConversationsSection
+        v-if="activeTab === 'conversations'"
+        :conversations="conversations"
+        :loading="conversationsLoading"
+        @open="openConversation"
+        @delete="handleDeleteConversation"
+      />
 
       <!-- Help Tab -->
       <HelpSection v-if="activeTab === 'help'" />
@@ -488,22 +401,25 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import PullToRefresh from '@/components/PullToRefresh.vue'
 import {
-  changePassword, exportCollection, exportCatalogPDF, importCollection,
+  exportCollection, exportCatalogPDF, importCollection,
   generateApiKey, listApiKeys, revokeApiKey,
   webauthnRegisterBegin, webauthnRegisterFinish,
   webauthnListCredentials, webauthnDeleteCredential,
   listConversations, getConversation, deleteConversation,
-  uploadAvatar, deleteAvatar, updateProfile, getMe,
-  getBlockedUsers, unblockFollower, validateNumisBidsCredentials,
+  getBlockedUsers, unblockFollower,
   getTags, createTag, updateTag as updateTagApi, deleteTag,
 } from '@/api/client'
 import type { ConversationSummary } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
 import { usePwa } from '@/composables/usePwa'
+import { useSettingsProfile } from '@/composables/useSettingsProfile'
 import type { Coin, Theme, ApiKey, WebAuthnCredentialInfo, Tag } from '@/types'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import ImageProcessor from '@/components/ImageProcessor.vue'
 import HelpSection from '@/components/HelpSection.vue'
+import SettingsAppearanceSection from '@/components/settings/SettingsAppearanceSection.vue'
+import SavedConversationsSection from '@/components/settings/SavedConversationsSection.vue'
+import SettingsToolsSection from '@/components/settings/SettingsToolsSection.vue'
 import { User, Palette, Database, MessageSquare, HelpCircle, Wrench, Menu, ShieldCheck, Tags } from 'lucide-vue-next'
 
 const tabIcons: Record<string, Component> = {
@@ -524,6 +440,16 @@ const { isPwa } = usePwa()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+
+const {
+  avatarUrl, handleAvatarUpload, handleAvatarDelete,
+  profileEmail, profileBio, profileZipCode,
+  nbUsername, nbPassword, profilePublic, profileMsg, profileError, profileSaving,
+  showPrivacyWarning, onPublicToggle, confirmGoPrivate, cancelGoPrivate,
+  nbValidating, nbValidationError, handleSaveProfile,
+  currentPassword, newPassword, confirmPassword,
+  passwordMsg, passwordError, passwordLoading, handleChangePassword,
+} = useSettingsProfile()
 
 const baseTabs = [
   { id: 'account', label: 'Account' },
@@ -589,9 +515,6 @@ async function handleUnblock(user: { id: number; username: string; avatarPath: s
     blockedLoading.value = false
   }
 }
-
-// Avatar
-const avatarUrl = ref('/coin-logo.jpg')
 
 // Tag management
 const tagList = ref<Tag[]>([])
@@ -660,160 +583,6 @@ async function handleDeleteTag(tag: Tag) {
     await deleteTag(tag.id)
     await loadTags()
   } catch { /* ignore */ }
-}
-
-function updateAvatarUrl() {
-  avatarUrl.value = auth.user?.avatarPath ? `/uploads/${auth.user.avatarPath}` : '/coin-logo.jpg'
-}
-updateAvatarUrl()
-
-async function handleAvatarUpload(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  try {
-    const res = await uploadAvatar(file)
-    if (auth.user) {
-      auth.user.avatarPath = res.data.avatarPath
-      localStorage.setItem('user', JSON.stringify(auth.user))
-    }
-    updateAvatarUrl()
-  } catch { /* ignore */ }
-}
-
-async function handleAvatarDelete() {
-  try {
-    await deleteAvatar()
-    if (auth.user) {
-      auth.user.avatarPath = ''
-      localStorage.setItem('user', JSON.stringify(auth.user))
-    }
-    updateAvatarUrl()
-  } catch { /* ignore */ }
-}
-
-// Profile
-const profileEmail = ref(auth.user?.email || '')
-const profileBio = ref(auth.user?.bio || '')
-const profileZipCode = ref(auth.user?.zipCode || '')
-const nbUsername = ref(auth.user?.numisBidsUsername || '')
-const nbPassword = ref('')
-const profilePublic = ref(auth.user?.isPublic || false)
-const profileMsg = ref('')
-const profileError = ref(false)
-const profileSaving = ref(false)
-const showPrivacyWarning = ref(false)
-
-function onPublicToggle(e: Event) {
-  const checked = (e.target as HTMLInputElement).checked
-  if (!checked && profilePublic.value) {
-    // Going from public → private: show warning
-    ;(e.target as HTMLInputElement).checked = true // revert checkbox visually
-    showPrivacyWarning.value = true
-  } else {
-    profilePublic.value = checked
-  }
-}
-
-function confirmGoPrivate() {
-  profilePublic.value = false
-  showPrivacyWarning.value = false
-}
-
-function cancelGoPrivate() {
-  showPrivacyWarning.value = false
-}
-
-const nbValidating = ref(false)
-const nbValidationError = ref('')
-
-async function handleSaveProfile() {
-  profileMsg.value = ''
-  profileError.value = false
-  profileSaving.value = true
-  nbValidationError.value = ''
-  try {
-    // If user entered new NB credentials, validate them first
-    if (nbPassword.value && nbUsername.value) {
-      nbValidating.value = true
-      try {
-        const valRes = await validateNumisBidsCredentials(nbUsername.value, nbPassword.value)
-        if (!valRes.data.valid) {
-          nbValidationError.value = valRes.data.error || 'Invalid NumisBids credentials'
-          profileSaving.value = false
-          nbValidating.value = false
-          return
-        }
-      } catch {
-        nbValidationError.value = 'Could not validate NumisBids credentials. Check your username and password.'
-        profileSaving.value = false
-        nbValidating.value = false
-        return
-      } finally {
-        nbValidating.value = false
-      }
-    }
-
-    const data: Record<string, unknown> = {
-      email: profileEmail.value,
-      bio: profileBio.value,
-      zipCode: profileZipCode.value,
-      isPublic: profilePublic.value,
-      numisBidsUsername: nbUsername.value,
-    }
-    if (nbPassword.value) {
-      data.numisBidsPassword = nbPassword.value
-    }
-    const res = await updateProfile(data as Parameters<typeof updateProfile>[0])
-    if (auth.user) {
-      auth.user.email = res.data.email
-      auth.user.bio = res.data.bio
-      auth.user.zipCode = res.data.zipCode
-      auth.user.isPublic = res.data.isPublic
-      auth.user.numisBidsUsername = res.data.numisBidsUsername
-      auth.user.numisBidsConfigured = res.data.numisBidsConfigured
-      localStorage.setItem('user', JSON.stringify(auth.user))
-    }
-    nbPassword.value = ''
-    profileMsg.value = 'Profile saved'
-  } catch {
-    profileMsg.value = 'Failed to save profile'
-    profileError.value = true
-  } finally {
-    profileSaving.value = false
-  }
-}
-
-// Password
-const currentPassword = ref('')
-const newPassword = ref('')
-const confirmPassword = ref('')
-const passwordMsg = ref('')
-const passwordError = ref(false)
-const passwordLoading = ref(false)
-
-async function handleChangePassword() {
-  passwordMsg.value = ''
-  passwordError.value = false
-
-  if (newPassword.value !== confirmPassword.value) {
-    passwordMsg.value = 'New passwords do not match'
-    passwordError.value = true
-    return
-  }
-
-  passwordLoading.value = true
-  try {
-    await changePassword(currentPassword.value, newPassword.value)
-    passwordMsg.value = 'Password changed successfully'
-    currentPassword.value = ''
-    newPassword.value = ''
-    confirmPassword.value = ''
-  } catch {
-    passwordMsg.value = 'Failed — check your current password'
-    passwordError.value = true
-  } finally {
-    passwordLoading.value = false
-  }
 }
 
 // Theme
@@ -1283,38 +1052,6 @@ onMounted(() => {
   max-width: 350px;
 }
 
-.theme-toggle {
-  display: flex;
-  gap: 0.25rem;
-  background: var(--bg-primary);
-  border-radius: var(--radius-full);
-  padding: 0.2rem;
-}
-
-.theme-btn {
-  padding: 0.35rem 0.75rem;
-  border: none;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.theme-btn.active {
-  background: var(--accent-gold-dim);
-  color: var(--accent-gold);
-}
-
-.tz-select {
-  max-width: 250px;
-}
-
-.sort-select {
-  max-width: 250px;
-}
-
 .import-btn {
   cursor: pointer;
 }
@@ -1519,18 +1256,6 @@ onMounted(() => {
     font-size: 0.78rem;
     padding: 0.5rem 0.6rem;
   }
-}
-
-.conv-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-.loading-inline {
-  color: var(--text-muted);
-  font-style: italic;
-  padding: 0.5rem 0;
 }
 
 .modal-overlay {

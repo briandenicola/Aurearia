@@ -161,11 +161,12 @@ import { ref, watch, onMounted } from 'vue'
 import { useCoinsStore } from '@/stores/coins'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-import type { ImageType, Tag } from '@/types'
-import { getTags, bulkAction } from '@/api/client'
+import type { ImageType } from '@/types'
+import { bulkAction } from '@/api/client'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useBulkSelect } from '@/composables/useBulkSelect'
 import { usePwa } from '@/composables/usePwa'
+import { useCollectionFilters } from '@/composables/useCollectionFilters'
 import CoinCard from '@/components/CoinCard.vue'
 import SwipeGallery from '@/components/SwipeGallery.vue'
 import CategoryFilter from '@/components/CategoryFilter.vue'
@@ -180,20 +181,13 @@ import { Layers, LayoutGrid, CirclePlus, SlidersHorizontal, CheckSquare } from '
 const store = useCoinsStore()
 const auth = useAuthStore()
 const router = useRouter()
-const selectedCategory = store.selectedCategory !== undefined ? ref(store.selectedCategory) : ref('')
-const search = ref(store.searchQuery)
-const page = ref(1)
-const sortKey = ref(localStorage.getItem('defaultSort') || 'updated_at_desc')
-const menuOpen = ref(false)
-const selectedTag = ref('')
-const userTags = ref<Tag[]>([])
 
-async function fetchUserTags() {
-  try {
-    const res = await getTags()
-    userTags.value = res.data?.tags ?? []
-  } catch { /* ignore */ }
-}
+const {
+  selectedCategory, search, page, sortKey, selectedTag, userTags,
+  fetchUserTags, loadCoins,
+} = useCollectionFilters()
+
+const menuOpen = ref(false)
 
 onMounted(fetchUserTags)
 
@@ -212,50 +206,6 @@ const { pullDistance, refreshing } = usePullToRefresh(pullContainer, async () =>
     })
     if (!store.loading) { unwatch(); resolve() }
   })
-})
-
-let debounceTimer: ReturnType<typeof setTimeout>
-
-function loadCoins() {
-  const [sort, order] = sortKey.value.split('_').length === 3
-    ? [sortKey.value.split('_').slice(0, 2).join('_'), sortKey.value.split('_')[2]]
-    : [sortKey.value.split('_')[0], sortKey.value.split('_')[1]]
-  store.selectedCategory = selectedCategory.value
-  store.searchQuery = search.value
-  store.fetchCoins({
-    category: selectedCategory.value || undefined,
-    search: search.value || undefined,
-    tag: selectedTag.value || undefined,
-    wishlist: 'false',
-    sold: 'false',
-    page: page.value,
-    sort,
-    order,
-  })
-}
-
-watch(selectedCategory, () => {
-  page.value = 1
-  loadCoins()
-})
-
-watch(selectedTag, () => {
-  page.value = 1
-  loadCoins()
-})
-
-watch(search, () => {
-  clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => {
-    page.value = 1
-    loadCoins()
-  }, 300)
-})
-
-watch(page, loadCoins)
-watch(sortKey, () => {
-  page.value = 1
-  loadCoins()
 })
 
 loadCoins()

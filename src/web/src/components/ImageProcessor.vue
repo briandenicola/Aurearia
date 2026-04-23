@@ -1,25 +1,15 @@
 <template>
   <div class="image-processor">
     <!-- Step 1: Image Input -->
-    <div v-if="!sourceImage" class="input-section card">
-      <h3>Load Image</h3>
-      <div class="input-methods">
-        <label class="drop-zone" :class="{ dragging }" @dragover.prevent="dragging = true"
-          @dragleave="dragging = false" @drop.prevent="handleDrop">
-          <Upload :size="32" />
-          <span>Drop an image here or click to browse</span>
-          <input type="file" accept="image/*" hidden @change="handleFileSelect" />
-        </label>
-        <div class="url-input-row">
-          <input v-model="imageUrl" type="url" class="form-input" placeholder="Or paste an image URL..."
-            @keydown.enter="handleUrlLoad" />
-          <button class="btn btn-primary btn-sm" :disabled="!imageUrl || urlLoading" @click="handleUrlLoad">
-            {{ urlLoading ? 'Loading...' : 'Fetch' }}
-          </button>
-        </div>
-        <p v-if="inputError" class="msg error">{{ inputError }}</p>
-      </div>
-    </div>
+    <ImageInputPanel
+      v-if="!sourceImage"
+      :source-image="sourceImage"
+      :url-loading="urlLoading"
+      :input-error="inputError"
+      @file-select="loadImageFromFile"
+      @url-load="handleUrlLoad"
+      @drop="loadImageFromFile"
+    />
 
     <!-- Step 2: Processing & Preview -->
     <div v-if="sourceImage" class="processing-section">
@@ -135,12 +125,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { removeBackground as removeBg } from '@imgly/background-removal'
-import { Upload } from 'lucide-vue-next'
-import { proxyImage, uploadImage, createCoin, getCoins } from '@/api/client'
-import { getCoin } from '@/api/client'
-import type { Coin } from '@/types'
+import { ref } from 'vue'
+import { useImageProcessor } from '@/composables/useImageProcessor'
+import ImageInputPanel from '@/components/ImageInputPanel.vue'
 
 const props = defineProps<{
   coinId?: number
@@ -150,508 +137,39 @@ const emit = defineEmits<{
   saved: [coinId: number]
 }>()
 
-// Input state
-const sourceImage = ref<string | null>(null)
-const imageUrl = ref('')
-const urlLoading = ref(false)
-const inputError = ref('')
-const dragging = ref(false)
-
-// Processing state
-type Step = 'preview' | 'removing' | 'crop' | 'done'
-const step = ref<Step>('preview')
-const processedBlob = ref<Blob | null>(null)
-const processedImage = ref<HTMLImageElement | null>(null)
-
-// Crop state
 const cropCanvas = ref<HTMLCanvasElement | null>(null)
 const resultCanvas = ref<HTMLCanvasElement | null>(null)
-const cropPadding = ref(10)
-const cropRect = ref({ x: 0, y: 0, w: 0, h: 0 })
-const cropDragging = ref(false)
-const cropDragType = ref<'move' | 'nw' | 'ne' | 'sw' | 'se' | null>(null)
-const cropDragStart = ref({ x: 0, y: 0, rx: 0, ry: 0, rw: 0, rh: 0 })
-let canvasScale = 1
 
-// Save state
-const saveTab = ref<'existing' | 'new' | 'download'>('existing')
-const saveImageType = ref('obverse')
-const saving = ref(false)
-const saveMsg = ref('')
-const saveError = ref(false)
-
-// Existing coin selection
-const coinSearch = ref('')
-const coinOptions = ref<Coin[]>([])
-const coinsLoading = ref(false)
-const selectedCoinId = ref<number | null>(null)
-let searchTimeout: ReturnType<typeof setTimeout> | null = null
-
-// New coin
-const newCoinName = ref('')
-
-// Pre-select coin if coinId prop provided
-onMounted(async () => {
-  if (props.coinId) {
-    try {
-      const res = await getCoin(props.coinId)
-      coinOptions.value = [res.data]
-      selectedCoinId.value = res.data.id
-    } catch { /* ignore */ }
-  }
-})
-
-// --- Input Methods ---
-
-function loadImageFromFile(file: File) {
-  inputError.value = ''
-  if (!file.type.startsWith('image/')) {
-    inputError.value = 'Please select an image file'
-    return
-  }
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    sourceImage.value = e.target?.result as string
-    step.value = 'preview'
-  }
-  reader.readAsDataURL(file)
-}
-
-function handleFileSelect(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (file) loadImageFromFile(file)
-}
-
-function handleDrop(e: DragEvent) {
-  dragging.value = false
-  const file = e.dataTransfer?.files?.[0]
-  if (file) loadImageFromFile(file)
-}
-
-async function handleUrlLoad() {
-  if (!imageUrl.value) return
-  inputError.value = ''
-  urlLoading.value = true
-  try {
-    const res = await proxyImage(imageUrl.value)
-    const blob = res.data as Blob
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      sourceImage.value = e.target?.result as string
-      step.value = 'preview'
-    }
-    reader.readAsDataURL(blob)
-  } catch {
-    inputError.value = 'Failed to fetch image from URL'
-  } finally {
-    urlLoading.value = false
-  }
-}
-
-// --- Background Removal ---
-
-async function removeBackground() {
-  if (!sourceImage.value) return
-  step.value = 'removing'
-
-  try {
-    const response = await fetch(sourceImage.value)
-    const srcBlob = await response.blob()
-    const result = await removeBg(srcBlob, {
-      output: { format: 'image/png', quality: 1 },
-    })
-    processedBlob.value = result
-    const img = new Image()
-    img.onload = () => {
-      processedImage.value = img
-      step.value = 'crop'
-      nextTick(() => {
-        autoCrop()
-      })
-    }
-    img.src = URL.createObjectURL(result)
-  } catch (err) {
-    console.error('Background removal failed:', err)
-    inputError.value = 'Background removal failed. Please try again.'
-    step.value = 'preview'
-  }
-}
-
-// --- Crop Logic ---
-
-function autoCrop() {
-  if (!processedImage.value || !cropCanvas.value) return
-
-  // Draw to offscreen canvas to read pixels
-  const img = processedImage.value
-  const offscreen = document.createElement('canvas')
-  offscreen.width = img.naturalWidth
-  offscreen.height = img.naturalHeight
-  const ctx = offscreen.getContext('2d')!
-  ctx.drawImage(img, 0, 0)
-
-  const data = ctx.getImageData(0, 0, offscreen.width, offscreen.height).data
-  let minX = offscreen.width, minY = offscreen.height, maxX = 0, maxY = 0
-
-  for (let y = 0; y < offscreen.height; y++) {
-    for (let x = 0; x < offscreen.width; x++) {
-      const alpha = data[(y * offscreen.width + x) * 4 + 3] ?? 0
-      if (alpha > 10) {
-        if (x < minX) minX = x
-        if (x > maxX) maxX = x
-        if (y < minY) minY = y
-        if (y > maxY) maxY = y
-      }
-    }
-  }
-
-  if (maxX <= minX || maxY <= minY) {
-    // No visible content found, use full image
-    cropRect.value = { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight }
-  } else {
-    const pad = cropPadding.value
-    cropRect.value = {
-      x: Math.max(0, minX - pad),
-      y: Math.max(0, minY - pad),
-      w: Math.min(img.naturalWidth - Math.max(0, minX - pad), maxX - minX + 1 + pad * 2),
-      h: Math.min(img.naturalHeight - Math.max(0, minY - pad), maxY - minY + 1 + pad * 2),
-    }
-  }
-
-  drawCropCanvas()
-  drawResultCanvas()
-}
-
-function resetCrop() {
-  if (!processedImage.value) return
-  cropRect.value = {
-    x: 0, y: 0,
-    w: processedImage.value.naturalWidth,
-    h: processedImage.value.naturalHeight,
-  }
-  drawCropCanvas()
-  drawResultCanvas()
-}
-
-function drawCropCanvas() {
-  const canvas = cropCanvas.value
-  const img = processedImage.value
-  if (!canvas || !img) return
-
-  // Scale to fit container (max 500px wide)
-  const maxW = Math.min(500, canvas.parentElement?.clientWidth || 500)
-  canvasScale = maxW / img.naturalWidth
-  const dispH = img.naturalHeight * canvasScale
-
-  canvas.width = maxW
-  canvas.height = dispH
-  canvas.style.width = maxW + 'px'
-  canvas.style.height = dispH + 'px'
-
-  const ctx = canvas.getContext('2d')!
-
-  // Checkerboard background for transparency
-  drawCheckerboard(ctx, maxW, dispH)
-
-  // Draw image
-  ctx.drawImage(img, 0, 0, maxW, dispH)
-
-  // Dim outside crop area
-  const r = cropRect.value
-  const sx = r.x * canvasScale
-  const sy = r.y * canvasScale
-  const sw = r.w * canvasScale
-  const sh = r.h * canvasScale
-
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
-  ctx.fillRect(0, 0, maxW, sy) // top
-  ctx.fillRect(0, sy + sh, maxW, dispH - sy - sh) // bottom
-  ctx.fillRect(0, sy, sx, sh) // left
-  ctx.fillRect(sx + sw, sy, maxW - sx - sw, sh) // right
-
-  // Crop border
-  ctx.strokeStyle = '#c9a84c'
-  ctx.lineWidth = 2
-  ctx.strokeRect(sx, sy, sw, sh)
-
-  // Corner handles
-  const handleSize = 8
-  ctx.fillStyle = '#c9a84c'
-  for (const [hx, hy] of [[sx, sy], [sx + sw, sy], [sx, sy + sh], [sx + sw, sy + sh]] as const) {
-    ctx.fillRect(hx! - handleSize / 2, hy! - handleSize / 2, handleSize, handleSize)
-  }
-}
-
-function drawResultCanvas() {
-  const canvas = resultCanvas.value
-  const img = processedImage.value
-  if (!canvas || !img) return
-
-  const r = cropRect.value
-  const w = Math.max(1, Math.round(r.w))
-  const h = Math.max(1, Math.round(r.h))
-
-  // Scale result preview to max 200px
-  const maxDim = 200
-  const scale = Math.min(maxDim / w, maxDim / h, 1)
-  canvas.width = Math.round(w * scale)
-  canvas.height = Math.round(h * scale)
-
-  const ctx = canvas.getContext('2d')!
-  drawCheckerboard(ctx, canvas.width, canvas.height)
-  ctx.drawImage(img, r.x, r.y, r.w, r.h, 0, 0, canvas.width, canvas.height)
-}
-
-function drawCheckerboard(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  const size = 8
-  for (let y = 0; y < h; y += size) {
-    for (let x = 0; x < w; x += size) {
-      ctx.fillStyle = (Math.floor(x / size) + Math.floor(y / size)) % 2 === 0 ? '#2a2a3e' : '#1e1e30'
-      ctx.fillRect(x, y, size, size)
-    }
-  }
-}
-
-// --- Crop Drag ---
-
-function getCanvasPos(e: PointerEvent) {
-  const canvas = cropCanvas.value!
-  const rect = canvas.getBoundingClientRect()
-  return {
-    x: (e.clientX - rect.left) / canvasScale,
-    y: (e.clientY - rect.top) / canvasScale,
-  }
-}
-
-function startCropDrag(e: PointerEvent) {
-  const pos = getCanvasPos(e)
-  const r = cropRect.value
-  const handleThreshold = 12 / canvasScale
-
-  // Check corners
-  if (Math.abs(pos.x - r.x) < handleThreshold && Math.abs(pos.y - r.y) < handleThreshold) {
-    cropDragType.value = 'nw'
-  } else if (Math.abs(pos.x - (r.x + r.w)) < handleThreshold && Math.abs(pos.y - r.y) < handleThreshold) {
-    cropDragType.value = 'ne'
-  } else if (Math.abs(pos.x - r.x) < handleThreshold && Math.abs(pos.y - (r.y + r.h)) < handleThreshold) {
-    cropDragType.value = 'sw'
-  } else if (Math.abs(pos.x - (r.x + r.w)) < handleThreshold && Math.abs(pos.y - (r.y + r.h)) < handleThreshold) {
-    cropDragType.value = 'se'
-  } else if (pos.x >= r.x && pos.x <= r.x + r.w && pos.y >= r.y && pos.y <= r.y + r.h) {
-    cropDragType.value = 'move'
-  } else {
-    return
-  }
-
-  cropDragging.value = true
-  cropDragStart.value = { x: pos.x, y: pos.y, rx: r.x, ry: r.y, rw: r.w, rh: r.h }
-  cropCanvas.value?.setPointerCapture(e.pointerId)
-}
-
-function onCropDrag(e: PointerEvent) {
-  if (!cropDragging.value || !processedImage.value) return
-  const pos = getCanvasPos(e)
-  const s = cropDragStart.value
-  const dx = pos.x - s.x
-  const dy = pos.y - s.y
-  const imgW = processedImage.value.naturalWidth
-  const imgH = processedImage.value.naturalHeight
-
-  const r = { ...cropRect.value }
-
-  switch (cropDragType.value) {
-    case 'move':
-      r.x = Math.max(0, Math.min(imgW - s.rw, s.rx + dx))
-      r.y = Math.max(0, Math.min(imgH - s.rh, s.ry + dy))
-      break
-    case 'nw':
-      r.x = Math.max(0, Math.min(s.rx + s.rw - 20, s.rx + dx))
-      r.y = Math.max(0, Math.min(s.ry + s.rh - 20, s.ry + dy))
-      r.w = s.rw - (r.x - s.rx)
-      r.h = s.rh - (r.y - s.ry)
-      break
-    case 'ne':
-      r.w = Math.max(20, Math.min(imgW - s.rx, s.rw + dx))
-      r.y = Math.max(0, Math.min(s.ry + s.rh - 20, s.ry + dy))
-      r.h = s.rh - (r.y - s.ry)
-      break
-    case 'sw':
-      r.x = Math.max(0, Math.min(s.rx + s.rw - 20, s.rx + dx))
-      r.w = s.rw - (r.x - s.rx)
-      r.h = Math.max(20, Math.min(imgH - s.ry, s.rh + dy))
-      break
-    case 'se':
-      r.w = Math.max(20, Math.min(imgW - s.rx, s.rw + dx))
-      r.h = Math.max(20, Math.min(imgH - s.ry, s.rh + dy))
-      break
-  }
-
-  cropRect.value = r
-  drawCropCanvas()
-  drawResultCanvas()
-}
-
-function endCropDrag() {
-  cropDragging.value = false
-  cropDragType.value = null
-}
-
-// Redraw when padding changes
-watch(cropPadding, () => {
-  if (step.value === 'crop' || step.value === 'done') {
-    autoCrop()
-  }
-})
-
-// --- Coin Search ---
-
-function searchCoins() {
-  if (searchTimeout) clearTimeout(searchTimeout)
-  selectedCoinId.value = null
-  if (!coinSearch.value.trim()) {
-    coinOptions.value = []
-    return
-  }
-  searchTimeout = setTimeout(async () => {
-    coinsLoading.value = true
-    try {
-      const res = await getCoins({ search: coinSearch.value.trim(), limit: 20 })
-      coinOptions.value = res.data.coins || []
-    } catch {
-      coinOptions.value = []
-    } finally {
-      coinsLoading.value = false
-    }
-  }, 300)
-}
-
-// --- Save / Download ---
-
-function getResultBlob(): Promise<Blob> {
-  return new Promise((resolve) => {
-    const img = processedImage.value!
-    const r = cropRect.value
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.round(r.w)
-    canvas.height = Math.round(r.h)
-    const ctx = canvas.getContext('2d')!
-    ctx.drawImage(img, r.x, r.y, r.w, r.h, 0, 0, canvas.width, canvas.height)
-    canvas.toBlob((blob) => resolve(blob!), 'image/png')
-  })
-}
+const {
+  sourceImage, urlLoading, inputError,
+  step,
+  cropPadding,
+  saveTab, saveImageType, saving, saveMsg, saveError,
+  coinSearch, coinOptions, coinsLoading, selectedCoinId,
+  newCoinName,
+  loadImageFromFile, handleUrlLoad,
+  removeBackground,
+  autoCrop, resetCrop, startCropDrag, onCropDrag, endCropDrag,
+  saveToExisting: doSaveToExisting,
+  saveToNewCoin: doSaveToNewCoin,
+  downloadResult, reset, searchCoins,
+} = useImageProcessor(cropCanvas, resultCanvas, { coinId: props.coinId })
 
 async function saveToExisting() {
-  if (!selectedCoinId.value) return
-  saving.value = true
-  saveMsg.value = ''
-  saveError.value = false
-  try {
-    const blob = await getResultBlob()
-    const file = new File([blob], `${saveImageType.value}.png`, { type: 'image/png' })
-    const isPrimary = saveImageType.value === 'obverse'
-    await uploadImage(selectedCoinId.value, file, saveImageType.value, isPrimary)
-    const coin = coinOptions.value.find(c => c.id === selectedCoinId.value)
-    saveMsg.value = `Saved as ${saveImageType.value} to "${coin?.name || 'coin'}"!`
-    emit('saved', selectedCoinId.value)
-  } catch {
-    saveMsg.value = 'Failed to save image'
-    saveError.value = true
-  } finally {
-    saving.value = false
-  }
+  const coinId = await doSaveToExisting()
+  if (coinId != null) emit('saved', coinId)
 }
 
 async function saveToNewCoin() {
-  if (!newCoinName.value.trim()) return
-  saving.value = true
-  saveMsg.value = ''
-  saveError.value = false
-  try {
-    const res = await createCoin({ name: newCoinName.value.trim() })
-    const coin = res.data
-    const blob = await getResultBlob()
-    const file = new File([blob], 'obverse.png', { type: 'image/png' })
-    await uploadImage(coin.id, file, 'obverse', true)
-    saveMsg.value = `Created "${coin.name}" with obverse image!`
-    emit('saved', coin.id)
-  } catch {
-    saveMsg.value = 'Failed to create coin'
-    saveError.value = true
-  } finally {
-    saving.value = false
-  }
+  const coinId = await doSaveToNewCoin()
+  if (coinId != null) emit('saved', coinId)
 }
-
-async function downloadResult() {
-  const blob = await getResultBlob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `coin-${saveImageType.value}-processed.png`
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-function reset() {
-  if (processedImage.value) URL.revokeObjectURL(processedImage.value.src)
-  sourceImage.value = null
-  processedBlob.value = null
-  processedImage.value = null
-  step.value = 'preview'
-  inputError.value = ''
-  saveMsg.value = ''
-}
-
-onUnmounted(() => {
-  if (processedImage.value) URL.revokeObjectURL(processedImage.value.src)
-})
 </script>
 
 <style scoped>
 .image-processor {
   max-width: 700px;
   margin: 0 auto;
-}
-
-.input-section h3 {
-  margin-bottom: 1rem;
-}
-
-.input-methods {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.drop-zone {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  padding: 2.5rem 1.5rem;
-  border: 2px dashed var(--border-subtle);
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  text-align: center;
-}
-
-.drop-zone:hover,
-.drop-zone.dragging {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-  background: var(--accent-gold-glow);
-}
-
-.url-input-row {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.url-input-row .form-input {
-  flex: 1;
 }
 
 /* Steps */
