@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -241,8 +240,7 @@ func (h *WebAuthnHandler) RegisterFinish(c *gin.Context) {
 	credential, err := w.FinishRegistration(wUser, *session, c.Request)
 	if err != nil {
 		logger.Error("webauthn", "Registration failed for user %s: %v", user.Username, err)
-		log.Printf("WebAuthn RegisterFinish error: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Registration failed"})
+		respondError(c, http.StatusBadRequest, "Registration failed", err)
 		return
 	}
 
@@ -296,7 +294,7 @@ func (h *WebAuthnHandler) LoginBegin(c *gin.Context) {
 		Username string `json:"username" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 
@@ -384,8 +382,7 @@ func (h *WebAuthnHandler) LoginFinish(c *gin.Context) {
 	credential, err := w.FinishLogin(wUser, *session, c.Request)
 	if err != nil {
 		logger.Error("webauthn", "Login failed for user %s: %v", username, err)
-		log.Printf("WebAuthn LoginFinish error: %v", err)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed"})
+		respondError(c, http.StatusUnauthorized, "Authentication failed", err)
 		return
 	}
 

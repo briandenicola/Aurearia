@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/base64"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -117,7 +118,7 @@ func (h *AnalysisHandler) Analyze(c *gin.Context) {
 	// Resolve LLM provider from explicit setting
 	llmCfg, errMsg := resolveLLMConfig()
 	if errMsg != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
+		respondError(c, http.StatusBadRequest, "Unable to configure analysis provider", fmt.Errorf("%s", errMsg))
 		return
 	}
 
@@ -225,11 +226,18 @@ func (h *AnalysisHandler) DeleteAnalysis(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid side value"})
 		return
 	}
-	h.repo.UpdateCoinField(coin, column, "")
+	if err := h.repo.UpdateCoinField(coin, column, ""); err != nil {
+		respondError(c, http.StatusInternalServerError, "Failed to clear analysis", err)
+		return
+	}
 	logger.Info("analysis", "Cleared %s analysis for coin %d", side, coinID)
 
 	// Reload to return updated coin
-	coin, _ = h.repo.ReloadCoinWithImages(uint(coinID))
+	coin, err = h.repo.ReloadCoinWithImages(uint(coinID))
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "Failed to reload coin", err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"coin": coin})
 }
 

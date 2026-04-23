@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -31,19 +32,20 @@ func (h *SocialHandler) FollowUser(c *gin.Context) {
 
 	status, err := h.svc.FollowUser(userID, uint(targetID))
 	if err != nil {
+		log.Printf("[handler] FollowUser: %v", err)
 		switch err {
 		case services.ErrSelfFollow:
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Unable to follow user"})
 		case services.ErrUserNotFound:
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		case services.ErrUserNotPublic:
-			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			c.JSON(http.StatusForbidden, gin.H{"error": "Action not allowed"})
 		case services.ErrBlocked:
-			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			c.JSON(http.StatusForbidden, gin.H{"error": "Action not allowed"})
 		case services.ErrFollowPending:
-			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			c.JSON(http.StatusConflict, gin.H{"error": "Request already exists"})
 		case services.ErrAlreadyFollowing:
-			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			c.JSON(http.StatusConflict, gin.H{"error": "Already following user"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to follow user"})
 		}
@@ -375,11 +377,11 @@ func (h *SocialHandler) AddComment(c *gin.Context) {
 	}
 
 	var req struct {
-		Comment string `json:"comment" binding:"required"`
+		Comment string `json:"comment" binding:"required,max=2000"`
 		Rating  int    `json:"rating"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 

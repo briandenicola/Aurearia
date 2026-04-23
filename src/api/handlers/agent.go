@@ -422,7 +422,7 @@ func (h *AgentHandler) EstimateValue(c *gin.Context) {
 	// Resolve LLM provider from shared config
 	llmCfg, cfgErr := services.ResolveLLMConfig()
 	if cfgErr != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": cfgErr.Error()})
+		respondError(c, http.StatusBadRequest, "Unable to configure valuation provider", cfgErr)
 		return
 	}
 

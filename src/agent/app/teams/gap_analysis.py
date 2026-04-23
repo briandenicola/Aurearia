@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
 from app.llm.provider import get_chat_model
+from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig, PortfolioSummary
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ def create_gap_analysis_team(
             SystemMessage(content=ANALYSIS_PROMPT),
             HumanMessage(content=f"Collection Summary:\n\n{summary_text}\n\nUser request: {user_message}"),
         ]
-        response = await model.ainvoke(messages)
+        response = await ainvoke_with_retry(model, messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
         return {"gap_analysis": content, "messages": []}
 
@@ -90,7 +91,7 @@ def create_gap_analysis_team(
             SystemMessage(content=SUGGESTION_PROMPT),
             HumanMessage(content=f"Gap Analysis:\n\n{gap}\n\nCollection Summary:\n\n{summary_text}"),
         ]
-        response = await model.ainvoke(messages)
+        response = await ainvoke_with_retry(model, messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
 
         combined = f"{gap}\n\n---\n\n**Suggested Acquisitions**\n\n{content}"

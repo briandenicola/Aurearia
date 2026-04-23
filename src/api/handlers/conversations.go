@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -39,7 +38,11 @@ func (h *ConversationHandler) List(c *gin.Context) {
 	userID := c.GetUint("userId")
 
 	var conversations []models.AgentConversation
-	conversations, _ = h.repo.List(userID)
+	conversations, err := h.repo.List(userID)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "Failed to list conversations", err)
+		return
+	}
 
 	summaries := make([]ConversationSummary, len(conversations))
 	for i, conv := range conversations {
@@ -68,14 +71,13 @@ func (h *ConversationHandler) List(c *gin.Context) {
 //	@Router			/agent/conversations/{id} [get]
 func (h *ConversationHandler) Get(c *gin.Context) {
 	userID := c.GetUint("userId")
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid conversation ID"})
+	id, ok := parseID(c, "id")
+	if !ok {
 		return
 	}
 
 	var conv models.AgentConversation
-	found, err := h.repo.FindByID(uint(id), userID)
+	found, err := h.repo.FindByID(id, userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Conversation not found"})
 		return
@@ -103,8 +105,8 @@ func (h *ConversationHandler) Save(c *gin.Context) {
 
 	var body struct {
 		ID       uint   `json:"id"`
-		Title    string `json:"title" binding:"required"`
-		Messages string `json:"messages" binding:"required"`
+		Title    string `json:"title" binding:"required,max=200"`
+		Messages string `json:"messages" binding:"required,max=50000"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Title and messages are required"})
@@ -152,13 +154,12 @@ func (h *ConversationHandler) Save(c *gin.Context) {
 //	@Router			/agent/conversations/{id} [delete]
 func (h *ConversationHandler) Delete(c *gin.Context) {
 	userID := c.GetUint("userId")
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid conversation ID"})
+	id, ok := parseID(c, "id")
+	if !ok {
 		return
 	}
 
-	rowsAffected, _ := h.repo.Delete(uint(id), userID)
+	rowsAffected, _ := h.repo.Delete(id, userID)
 	if rowsAffected == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Conversation not found"})
 		return

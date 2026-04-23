@@ -93,8 +93,8 @@ async function handleBiometricLogin() {
     await auth.doWebAuthnLogin(username.value)
     localStorage.setItem('lastUsername', username.value)
     router.push('/')
-  } catch (e: any) {
-    error.value = e?.message || 'Biometric authentication failed'
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : 'Biometric authentication failed'
   } finally {
     loading.value = false
   }

@@ -94,13 +94,14 @@ func (h *TagHandler) Create(c *gin.Context) {
 // Update modifies a tag's name and/or color.
 func (h *TagHandler) Update(c *gin.Context) {
 	userID := c.GetUint("userId")
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	id, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tag ID"})
 		return
 	}
+	tagID := uint(id)
 
-	tag, err := h.repo.GetByID(uint(id), userID)
+	tag, err := h.repo.GetByID(tagID, userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Tag not found"})
 		return
@@ -152,7 +153,11 @@ func (h *TagHandler) Update(c *gin.Context) {
 	}
 
 	// Re-fetch to return updated state
-	tag, _ = h.repo.GetByID(uint(id), userID)
+	tag, err = h.repo.GetByID(tagID, userID)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "Failed to reload tag", err)
+		return
+	}
 	c.JSON(http.StatusOK, tag)
 }
 

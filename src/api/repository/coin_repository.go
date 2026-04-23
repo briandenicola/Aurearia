@@ -102,6 +102,16 @@ func NewCoinRepository(db *gorm.DB) *CoinRepository {
 	return &CoinRepository{db: db}
 }
 
+// WithTx returns a shallow copy of the repository that uses tx for all queries.
+func (r *CoinRepository) WithTx(tx *gorm.DB) *CoinRepository {
+	return &CoinRepository{db: tx}
+}
+
+// DB exposes the underlying *gorm.DB so callers can create transactions.
+func (r *CoinRepository) DB() *gorm.DB {
+	return r.db
+}
+
 var allowedSortFields = map[string]string{
 	"created_at":    "created_at",
 	"updated_at":    "updated_at",

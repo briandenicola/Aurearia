@@ -193,7 +193,7 @@ func (h *ShowcaseHandler) SetShowcaseCoins(c *gin.Context) {
 	}
 
 	if err := h.repo.SetCoins(uint(id), userID, req.CoinIDs); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, "Invalid request", err)
 		return
 	}
 

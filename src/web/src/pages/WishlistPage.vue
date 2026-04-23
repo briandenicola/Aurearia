@@ -84,10 +84,10 @@ import PurchaseModal from '@/components/PurchaseModal.vue'
 import { purchaseCoin, checkWishlistAvailability, updateListingStatus } from '@/api/client'
 import type { Coin, AvailabilityRunSummary } from '@/types'
 import { CirclePlus, Bot, ShieldCheck } from 'lucide-vue-next'
+import { usePwa } from '@/composables/usePwa'
 
 const store = useCoinsStore()
-const isPwa = window.matchMedia('(display-mode: standalone)').matches
-  || (window.navigator as any).standalone === true
+const { isPwa } = usePwa()
 const showChat = ref(false)
 const purchaseTarget = ref<Coin | null>(null)
 const checking = ref(false)
@@ -146,41 +146,11 @@ loadCoins()
 </script>
 
 <style scoped>
-.page-header:has(.pwa-actions) {
-  flex-direction: row;
-  align-items: center;
-  flex-wrap: nowrap;
-}
-
 .header-actions {
   display: flex;
   gap: 0.75rem;
   align-items: center;
   flex-wrap: wrap;
-}
-
-.pwa-actions {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  margin-left: auto;
-}
-
-.pwa-icon-btn {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-}
-
-.pwa-icon-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .spinner-sm {

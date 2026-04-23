@@ -44,7 +44,7 @@ func (r *NotificationRepository) GetUnreadCount(userID uint) (int64, error) {
 // MarkRead marks a single notification as read for the given user.
 func (r *NotificationRepository) MarkRead(id, userID uint) error {
 	result := r.db.Model(&models.Notification{}).
-		Where("id = ? AND user_id = ?", id, userID).
+		Scopes(OwnedByID(id, userID)).
 		Update("is_read", true)
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
@@ -62,7 +62,7 @@ func (r *NotificationRepository) MarkAllRead(userID uint) error {
 
 // Delete removes a single notification for the given user.
 func (r *NotificationRepository) Delete(id, userID uint) error {
-	result := r.db.Where("id = ? AND user_id = ?", id, userID).Delete(&models.Notification{})
+	result := r.db.Scopes(OwnedByID(id, userID)).Delete(&models.Notification{})
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
