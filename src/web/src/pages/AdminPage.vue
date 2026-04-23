@@ -600,24 +600,7 @@
       </section>
 
       <!-- Reset Password Modal -->
-      <div v-if="resetTarget" class="modal-overlay" @click.self="resetTarget = null">
-        <div class="modal card">
-          <h3>Reset Password for {{ resetTarget.username }}</h3>
-          <form @submit.prevent="handleResetPassword">
-            <div class="form-group">
-              <label class="form-label">New Password</label>
-              <input v-model="resetNewPassword" type="password" class="form-input" required minlength="6" />
-            </div>
-            <p v-if="resetMsg" class="msg" :class="{ error: resetError }">{{ resetMsg }}</p>
-            <div class="modal-actions">
-              <button type="button" class="btn btn-secondary btn-sm" @click="resetTarget = null">Cancel</button>
-              <button type="submit" class="btn btn-primary btn-sm" :disabled="resetLoading">
-                {{ resetLoading ? 'Resetting...' : 'Reset Password' }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
+      <ResetPasswordModal :user="resetTarget" @close="resetTarget = null" />
     </div>
   </div>
 </template>
@@ -626,7 +609,7 @@
 import { ref, computed, onMounted, onUnmounted, type Component } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import {
-  getUsers, deleteUser, resetUserPassword,
+  getUsers, deleteUser,
   getAppSettings, getAppSettingDefaults, updateAppSettings, getAdminLogs, getOllamaStatus,
   getAnthropicModels, getCoinSearchPrompt, getCoinShowsPrompt, getValuationPrompt,
   testAnthropicConnection, testSearXNGConnection,
@@ -637,6 +620,7 @@ import type { AnthropicModel } from '@/api/client'
 import { LOG_LEVELS } from '@/types'
 import type { UserInfo, AppSettings, LogEntry, AvailabilityRun, ValuationRun } from '@/types'
 import { useDialog } from '@/composables/useDialog'
+import ResetPasswordModal from '@/components/admin/ResetPasswordModal.vue'
 import { Users, Cpu, Wrench, ScrollText, Download, ShieldCheck, CalendarClock } from 'lucide-vue-next'
 
 const tabIcons: Record<string, Component> = { users: Users, ai: Cpu, system: Wrench, logs: ScrollText, schedules: CalendarClock }
@@ -694,32 +678,9 @@ async function handleDeleteUser(user: UserInfo) {
 
 // Reset password modal
 const resetTarget = ref<UserInfo | null>(null)
-const resetNewPassword = ref('')
-const resetMsg = ref('')
-const resetError = ref(false)
-const resetLoading = ref(false)
 
 function openResetModal(user: UserInfo) {
   resetTarget.value = user
-  resetNewPassword.value = ''
-  resetMsg.value = ''
-  resetError.value = false
-}
-
-async function handleResetPassword() {
-  if (!resetTarget.value) return
-  resetLoading.value = true
-  resetMsg.value = ''
-  try {
-    await resetUserPassword(resetTarget.value.id, resetNewPassword.value)
-    resetMsg.value = 'Password reset successfully'
-    setTimeout(() => { resetTarget.value = null }, 1200)
-  } catch {
-    resetMsg.value = 'Failed to reset password'
-    resetError.value = true
-  } finally {
-    resetLoading.value = false
-  }
 }
 
 // Settings
@@ -1337,34 +1298,6 @@ onUnmounted(() => {
   gap: 0.5rem;
   margin-top: 0.75rem;
   margin-bottom: 0.5rem;
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-  padding: 1rem;
-}
-
-.modal {
-  width: 100%;
-  max-width: 400px;
-}
-
-.modal h3 {
-  margin-bottom: 1rem;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1rem;
 }
 
 @media (max-width: 640px) {
