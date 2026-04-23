@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -39,7 +40,12 @@ func (h *ConversationHandler) List(c *gin.Context) {
 	userID := c.GetUint("userId")
 
 	var conversations []models.AgentConversation
-	conversations, _ = h.repo.List(userID)
+	conversations, err := h.repo.List(userID)
+	if err != nil {
+		log.Printf("[handler] List: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list conversations"})
+		return
+	}
 
 	summaries := make([]ConversationSummary, len(conversations))
 	for i, conv := range conversations {

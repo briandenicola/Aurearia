@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -152,7 +153,12 @@ func (h *TagHandler) Update(c *gin.Context) {
 	}
 
 	// Re-fetch to return updated state
-	tag, _ = h.repo.GetByID(uint(id), userID)
+	tag, err = h.repo.GetByID(uint(id), userID)
+	if err != nil {
+		log.Printf("[handler] Update: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reload tag"})
+		return
+	}
 	c.JSON(http.StatusOK, tag)
 }
 

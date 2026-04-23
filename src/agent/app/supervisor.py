@@ -20,6 +20,7 @@ from langchain_core.messages import SystemMessage
 from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.types import Command
 
+from app.config import settings
 from app.llm.provider import get_chat_model
 from app.models.requests import LLMConfig, PortfolioSummary, UserContext
 from app.teams.auction_search import create_auction_search_team
@@ -326,4 +327,4 @@ def create_supervisor(
     graph.add_edge("auction_search", END)
     graph.add_edge("general", END)
 
-    return graph.compile()
+    return graph.compile(recursion_limit=settings.max_supervisor_iterations)

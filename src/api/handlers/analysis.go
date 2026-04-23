@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/base64"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -117,7 +118,8 @@ func (h *AnalysisHandler) Analyze(c *gin.Context) {
 	// Resolve LLM provider from explicit setting
 	llmCfg, errMsg := resolveLLMConfig()
 	if errMsg != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
+		log.Printf("[handler] Analyze: %s", errMsg)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unable to configure analysis provider"})
 		return
 	}
 
@@ -225,11 +227,20 @@ func (h *AnalysisHandler) DeleteAnalysis(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid side value"})
 		return
 	}
-	h.repo.UpdateCoinField(coin, column, "")
+	if err := h.repo.UpdateCoinField(coin, column, ""); err != nil {
+		log.Printf("[handler] DeleteAnalysis: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear analysis"})
+		return
+	}
 	logger.Info("analysis", "Cleared %s analysis for coin %d", side, coinID)
 
 	// Reload to return updated coin
-	coin, _ = h.repo.ReloadCoinWithImages(uint(coinID))
+	coin, err = h.repo.ReloadCoinWithImages(uint(coinID))
+	if err != nil {
+		log.Printf("[handler] DeleteAnalysis: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reload coin"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"coin": coin})
 }
 

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -150,8 +151,8 @@ func (h *CoinHandler) Create(c *gin.Context) {
 
 	var coin models.Coin
 	if err := c.ShouldBindJSON(&coin); err != nil {
-		logger.Warn("coins", "Create failed - invalid JSON (user %d): %v", userID, err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		log.Printf("[handler] Create: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 		return
 	}
 
@@ -202,7 +203,8 @@ func (h *CoinHandler) Update(c *gin.Context) {
 
 	var updates models.Coin
 	if err := c.ShouldBindJSON(&updates); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		log.Printf("[handler] Update: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 		return
 	}
 
@@ -256,7 +258,10 @@ func (h *CoinHandler) Purchase(c *gin.Context) {
 	// Apply optional purchase details from request body
 	var req PurchaseRequest
 	if c.Request.ContentLength > 0 {
-		_ = c.ShouldBindJSON(&req)
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+			return
+		}
 	}
 	if req.PurchasePrice != nil {
 		coin.PurchasePrice = req.PurchasePrice
