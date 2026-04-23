@@ -535,16 +535,14 @@ import { ref, computed, onMounted, onUnmounted, type Component } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   getUsers, deleteUser,
-  getAppSettings, getAppSettingDefaults, updateAppSettings, getAdminLogs, getOllamaStatus,
-  getAnthropicModels, getCoinSearchPrompt, getCoinShowsPrompt, getValuationPrompt,
-  testAnthropicConnection, testSearXNGConnection,
+  getAdminLogs,
   getAvailabilityRuns, getAvailabilityRunDetail,
   getValuationRuns, getValuationRunDetail, triggerValuation, cancelValuationRun,
 } from '@/api/client'
-import type { AnthropicModel } from '@/api/client'
 import { LOG_LEVELS } from '@/types'
-import type { UserInfo, AppSettings, LogEntry, AvailabilityRun, ValuationRun } from '@/types'
+import type { UserInfo, LogEntry, AvailabilityRun, ValuationRun } from '@/types'
 import { useDialog } from '@/composables/useDialog'
+import { useAdminConfig } from '@/composables/useAdminConfig'
 import ResetPasswordModal from '@/components/admin/ResetPasswordModal.vue'
 import AdminUsersSection from '@/components/admin/AdminUsersSection.vue'
 import AdminSystemSection from '@/components/admin/AdminSystemSection.vue'

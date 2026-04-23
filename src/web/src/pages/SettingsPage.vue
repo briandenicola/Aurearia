@@ -401,18 +401,18 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import PullToRefresh from '@/components/PullToRefresh.vue'
 import {
-  changePassword, exportCollection, exportCatalogPDF, importCollection,
+  exportCollection, exportCatalogPDF, importCollection,
   generateApiKey, listApiKeys, revokeApiKey,
   webauthnRegisterBegin, webauthnRegisterFinish,
   webauthnListCredentials, webauthnDeleteCredential,
   listConversations, getConversation, deleteConversation,
-  uploadAvatar, deleteAvatar, updateProfile, getMe,
-  getBlockedUsers, unblockFollower, validateNumisBidsCredentials,
+  getBlockedUsers, unblockFollower,
   getTags, createTag, updateTag as updateTagApi, deleteTag,
 } from '@/api/client'
 import type { ConversationSummary } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
 import { usePwa } from '@/composables/usePwa'
+import { useSettingsProfile } from '@/composables/useSettingsProfile'
 import type { Coin, Theme, ApiKey, WebAuthnCredentialInfo, Tag } from '@/types'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import ImageProcessor from '@/components/ImageProcessor.vue'
@@ -440,6 +440,16 @@ const { isPwa } = usePwa()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+
+const {
+  avatarUrl, handleAvatarUpload, handleAvatarDelete,
+  profileEmail, profileBio, profileZipCode,
+  nbUsername, nbPassword, profilePublic, profileMsg, profileError, profileSaving,
+  showPrivacyWarning, onPublicToggle, confirmGoPrivate, cancelGoPrivate,
+  nbValidating, nbValidationError, handleSaveProfile,
+  currentPassword, newPassword, confirmPassword,
+  passwordMsg, passwordError, passwordLoading, handleChangePassword,
+} = useSettingsProfile()
 
 const baseTabs = [
   { id: 'account', label: 'Account' },
@@ -505,9 +515,6 @@ async function handleUnblock(user: { id: number; username: string; avatarPath: s
     blockedLoading.value = false
   }
 }
-
-// Avatar
-const avatarUrl = ref('/coin-logo.jpg')
 
 // Tag management
 const tagList = ref<Tag[]>([])
@@ -576,160 +583,6 @@ async function handleDeleteTag(tag: Tag) {
     await deleteTag(tag.id)
     await loadTags()
   } catch { /* ignore */ }
-}
-
-function updateAvatarUrl() {
-  avatarUrl.value = auth.user?.avatarPath ? `/uploads/${auth.user.avatarPath}` : '/coin-logo.jpg'
-}
-updateAvatarUrl()
-
-async function handleAvatarUpload(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  try {
-    const res = await uploadAvatar(file)
-    if (auth.user) {
-      auth.user.avatarPath = res.data.avatarPath
-      localStorage.setItem('user', JSON.stringify(auth.user))
-    }
-    updateAvatarUrl()
-  } catch { /* ignore */ }
-}
-
-async function handleAvatarDelete() {
-  try {
-    await deleteAvatar()
-    if (auth.user) {
-      auth.user.avatarPath = ''
-      localStorage.setItem('user', JSON.stringify(auth.user))
-    }
-    updateAvatarUrl()
-  } catch { /* ignore */ }
-}
-
-// Profile
-const profileEmail = ref(auth.user?.email || '')
-const profileBio = ref(auth.user?.bio || '')
-const profileZipCode = ref(auth.user?.zipCode || '')
-const nbUsername = ref(auth.user?.numisBidsUsername || '')
-const nbPassword = ref('')
-const profilePublic = ref(auth.user?.isPublic || false)
-const profileMsg = ref('')
-const profileError = ref(false)
-const profileSaving = ref(false)
-const showPrivacyWarning = ref(false)
-
-function onPublicToggle(e: Event) {
-  const checked = (e.target as HTMLInputElement).checked
-  if (!checked && profilePublic.value) {
-    // Going from public → private: show warning
-    ;(e.target as HTMLInputElement).checked = true // revert checkbox visually
-    showPrivacyWarning.value = true
-  } else {
-    profilePublic.value = checked
-  }
-}
-
-function confirmGoPrivate() {
-  profilePublic.value = false
-  showPrivacyWarning.value = false
-}
-
-function cancelGoPrivate() {
-  showPrivacyWarning.value = false
-}
-
-const nbValidating = ref(false)
-const nbValidationError = ref('')
-
-async function handleSaveProfile() {
-  profileMsg.value = ''
-  profileError.value = false
-  profileSaving.value = true
-  nbValidationError.value = ''
-  try {
-    // If user entered new NB credentials, validate them first
-    if (nbPassword.value && nbUsername.value) {
-      nbValidating.value = true
-      try {
-        const valRes = await validateNumisBidsCredentials(nbUsername.value, nbPassword.value)
-        if (!valRes.data.valid) {
-          nbValidationError.value = valRes.data.error || 'Invalid NumisBids credentials'
-          profileSaving.value = false
-          nbValidating.value = false
-          return
-        }
-      } catch {
-        nbValidationError.value = 'Could not validate NumisBids credentials. Check your username and password.'
-        profileSaving.value = false
-        nbValidating.value = false
-        return
-      } finally {
-        nbValidating.value = false
-      }
-    }
-
-    const data: Record<string, unknown> = {
-      email: profileEmail.value,
-      bio: profileBio.value,
-      zipCode: profileZipCode.value,
-      isPublic: profilePublic.value,
-      numisBidsUsername: nbUsername.value,
-    }
-    if (nbPassword.value) {
-      data.numisBidsPassword = nbPassword.value
-    }
-    const res = await updateProfile(data as Parameters<typeof updateProfile>[0])
-    if (auth.user) {
-      auth.user.email = res.data.email
-      auth.user.bio = res.data.bio
-      auth.user.zipCode = res.data.zipCode
-      auth.user.isPublic = res.data.isPublic
-      auth.user.numisBidsUsername = res.data.numisBidsUsername
-      auth.user.numisBidsConfigured = res.data.numisBidsConfigured
-      localStorage.setItem('user', JSON.stringify(auth.user))
-    }
-    nbPassword.value = ''
-    profileMsg.value = 'Profile saved'
-  } catch {
-    profileMsg.value = 'Failed to save profile'
-    profileError.value = true
-  } finally {
-    profileSaving.value = false
-  }
-}
-
-// Password
-const currentPassword = ref('')
-const newPassword = ref('')
-const confirmPassword = ref('')
-const passwordMsg = ref('')
-const passwordError = ref(false)
-const passwordLoading = ref(false)
-
-async function handleChangePassword() {
-  passwordMsg.value = ''
-  passwordError.value = false
-
-  if (newPassword.value !== confirmPassword.value) {
-    passwordMsg.value = 'New passwords do not match'
-    passwordError.value = true
-    return
-  }
-
-  passwordLoading.value = true
-  try {
-    await changePassword(currentPassword.value, newPassword.value)
-    passwordMsg.value = 'Password changed successfully'
-    currentPassword.value = ''
-    newPassword.value = ''
-    confirmPassword.value = ''
-  } catch {
-    passwordMsg.value = 'Failed — check your current password'
-    passwordError.value = true
-  } finally {
-    passwordLoading.value = false
-  }
 }
 
 // Theme
