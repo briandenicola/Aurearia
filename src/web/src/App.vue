@@ -110,6 +110,7 @@ import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, S
 import { updateProfile, getMe } from '@/api/client'
 import { useNotifications } from '@/composables/useNotifications'
 import { useBulkSelect } from '@/composables/useBulkSelect'
+import { usePwa } from '@/composables/usePwa'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import PwaInstallPrompt from '@/components/PwaInstallPrompt.vue'
@@ -127,8 +128,7 @@ interface NavItem {
 
 const auth = useAuthStore()
 const router = useRouter()
-const isPwa = window.matchMedia('(display-mode: standalone)').matches
-  || (window.navigator as any).standalone === true
+const { isPwa } = usePwa()
 
 const showChat = ref(false)
 const sidebarOpen = ref(false)

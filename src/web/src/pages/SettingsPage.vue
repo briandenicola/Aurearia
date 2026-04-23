@@ -790,6 +790,7 @@ import {
 } from '@/api/client'
 import type { ConversationSummary } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
+import { usePwa } from '@/composables/usePwa'
 import type { Coin, Theme, ApiKey, WebAuthnCredentialInfo, Tag } from '@/types'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import ImageProcessor from '@/components/ImageProcessor.vue'
@@ -808,8 +809,7 @@ const tabIcons: Record<string, Component> = {
 const { showConfirm, showAlert } = useDialog()
 const activeTab = ref('account')
 const settingsMenuOpen = ref(false)
-const isPwa = window.matchMedia('(display-mode: standalone)').matches
-  || (window.navigator as any).standalone === true
+const { isPwa } = usePwa()
 
 const route = useRoute()
 const router = useRouter()
@@ -910,8 +910,13 @@ async function handleCreateTag() {
     newTagName.value = ''
     newTagColor.value = '#6b7280'
     await loadTags()
-  } catch (e: any) {
-    tagError.value = e?.response?.data?.error ?? 'Failed to create tag'
+  } catch (e: unknown) {
+    if (typeof e === 'object' && e !== null && 'response' in e) {
+      const axiosErr = e as { response?: { data?: { error?: string } } }
+      tagError.value = axiosErr.response?.data?.error ?? 'Failed to create tag'
+    } else {
+      tagError.value = 'Failed to create tag'
+    }
   }
 }
 
@@ -928,8 +933,13 @@ async function handleSaveTag() {
     await updateTagApi(editingTag.value.id, { name: editTagName.value.trim(), color: editTagColor.value })
     editingTag.value = null
     await loadTags()
-  } catch (e: any) {
-    tagError.value = e?.response?.data?.error ?? 'Failed to update tag'
+  } catch (e: unknown) {
+    if (typeof e === 'object' && e !== null && 'response' in e) {
+      const axiosErr = e as { response?: { data?: { error?: string } } }
+      tagError.value = axiosErr.response?.data?.error ?? 'Failed to update tag'
+    } else {
+      tagError.value = 'Failed to update tag'
+    }
   }
 }
 
@@ -1106,7 +1116,9 @@ function setTheme(t: Theme) {
 }
 
 // Timezone
-const timezones = (Intl as any).supportedValuesOf('timeZone') as string[]
+const timezones = 'supportedValuesOf' in Intl
+  ? (Intl as unknown as { supportedValuesOf: (key: string) => string[] }).supportedValuesOf('timeZone')
+  : [] as string[]
 const timezone = ref(localStorage.getItem('timezone') || Intl.DateTimeFormat().resolvedOptions().timeZone)
 
 function saveTimezone() {
@@ -1319,7 +1331,7 @@ async function handleRegisterCredential() {
       timeout: options.publicKey.timeout || 60000,
       authenticatorSelection: options.publicKey.authenticatorSelection,
       attestation: options.publicKey.attestation || 'none',
-      excludeCredentials: (options.publicKey.excludeCredentials || []).map((c: any) => ({
+      excludeCredentials: (options.publicKey.excludeCredentials || []).map((c: { id: string; type: string; transports?: string[] }) => ({
         id: base64urlToBuffer(c.id),
         type: c.type,
         transports: c.transports,
@@ -1336,8 +1348,8 @@ async function handleRegisterCredential() {
 
     credentialMsg.value = 'Biometric credential registered!'
     await loadCredentials()
-  } catch (e: any) {
-    credentialMsg.value = e?.message || 'Registration failed'
+  } catch (e: unknown) {
+    credentialMsg.value = e instanceof Error ? e.message : 'Registration failed'
     credentialError.value = true
   } finally {
     registeringCredential.value = false

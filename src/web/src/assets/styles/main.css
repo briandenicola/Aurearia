@@ -290,3 +290,38 @@ a:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* PWA shared styles */
+.page-header:has(.pwa-actions) {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.pwa-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-left: auto;
+}
+
+.pwa-icon-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.pwa-icon-btn.active {
+  color: var(--accent-gold);
+}
+
+.pwa-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

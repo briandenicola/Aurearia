@@ -42,6 +42,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { Download, X, Share, MoreVertical, MoreHorizontal } from 'lucide-vue-next'
+import { usePwa } from '@/composables/usePwa'
 
 const DISMISS_KEY = 'pwa-install-dismissed'
 
@@ -67,8 +68,8 @@ function isMobile(): boolean {
 }
 
 function isStandalone(): boolean {
-  return window.matchMedia('(display-mode: standalone)').matches
-    || (window.navigator as any).standalone === true
+  const { isPwa } = usePwa()
+  return isPwa
 }
 
 function dismiss() {

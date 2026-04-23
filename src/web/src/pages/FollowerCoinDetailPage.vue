@@ -68,10 +68,16 @@ async function loadCoin() {
     const profile = await getPublicProfile(username.value)
     const result = await getFollowingCoinDetail(profile.data.id, coinId.value)
     coin.value = result.data
-    comments.value = (result.data as any).comments || []
-    rating.value = (result.data as any).rating || { average: 0, count: 0, userRating: 0 }
-  } catch (e: any) {
-    error.value = e?.response?.data?.error || e?.message || 'Failed to load coin'
+    comments.value = (result.data as { comments?: CoinComment[] }).comments || []
+    rating.value = (result.data as { rating?: CoinRating }).rating || { average: 0, count: 0, userRating: 0 }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Failed to load coin'
+    if (typeof e === 'object' && e !== null && 'response' in e) {
+      const axiosErr = e as { response?: { data?: { error?: string } } }
+      error.value = axiosErr.response?.data?.error || msg
+    } else {
+      error.value = msg
+    }
   } finally {
     loading.value = false
   }
@@ -81,7 +87,7 @@ async function handleRate(stars: number) {
   try {
     const updated = await rateCoin(coinId.value, stars)
     rating.value = updated.data
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Failed to rate coin', e)
   }
 }
@@ -94,9 +100,9 @@ async function handleAddComment() {
     comments.value.push(comment.data)
     newComment.value = ''
     newCommentRating.value = 0
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Failed to add comment', e)
-  } finally {
+  }finally {
     submitting.value = false
   }
 }
@@ -105,7 +111,7 @@ async function handleDeleteComment(commentId: number) {
   try {
     await deleteComment(coinId.value, commentId)
     comments.value = comments.value.filter(c => c.id !== commentId)
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Failed to delete comment', e)
   }
 }
