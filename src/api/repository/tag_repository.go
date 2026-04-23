@@ -21,7 +21,7 @@ func NewTagRepository(db *gorm.DB) *TagRepository {
 // List returns all tags belonging to the given user.
 func (r *TagRepository) List(userID uint) ([]models.Tag, error) {
 	var tags []models.Tag
-	err := r.db.Where("user_id = ?", userID).Order("name ASC").Find(&tags).Error
+	err := r.db.Scopes(OwnedBy(userID)).Order("name ASC").Find(&tags).Error
 	return tags, err
 }
 
@@ -42,7 +42,7 @@ func (r *TagRepository) Update(tag *models.Tag, updates map[string]interface{}) 
 // GetByID finds a tag by ID and user ID.
 func (r *TagRepository) GetByID(id, userID uint) (*models.Tag, error) {
 	var tag models.Tag
-	err := r.db.Where("id = ? AND user_id = ?", id, userID).First(&tag).Error
+	err := r.db.Scopes(OwnedByID(id, userID)).First(&tag).Error
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (r *TagRepository) Delete(id, userID uint) error {
 		if err := tx.Where("tag_id = ?", id).Delete(&models.CoinTag{}).Error; err != nil {
 			return err
 		}
-		result := tx.Where("id = ? AND user_id = ?", id, userID).Delete(&models.Tag{})
+		result := tx.Scopes(OwnedByID(id, userID)).Delete(&models.Tag{})
 		if result.Error != nil {
 			return result.Error
 		}
@@ -124,7 +124,7 @@ func (r *TagRepository) GetTagsForCoin(coinID uint) ([]models.Tag, error) {
 // CountByUser returns the total number of tags for a user.
 func (r *TagRepository) CountByUser(userID uint) (int64, error) {
 	var count int64
-	err := r.db.Model(&models.Tag{}).Where("user_id = ?", userID).Count(&count).Error
+	err := r.db.Model(&models.Tag{}).Scopes(OwnedBy(userID)).Count(&count).Error
 	return count, err
 }
 

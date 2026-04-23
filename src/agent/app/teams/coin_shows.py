@@ -17,6 +17,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
 from app.llm.provider import create_search_agent, get_chat_model, get_search_model
+from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig, UserContext
 
 logger = logging.getLogger(__name__)
@@ -203,7 +204,7 @@ def create_coin_show_team(
                 SystemMessage(content=prompt),
                 HumanMessage(content=f"Search for: {user_msg}"),
             ]
-            response = await search_model.ainvoke(messages)
+            response = await ainvoke_with_retry(search_model, messages)
             response_content = response.content if isinstance(response.content, str) else str(response.content)
             logger.debug("[coin_shows] Anthropic search response=%d chars", len(response_content))
 
@@ -243,7 +244,7 @@ def create_coin_show_team(
                 "Verify dates are future, show is not cancelled, and location is reasonable."
             ),
         ]
-        response = await model.ainvoke(messages)
+        response = await ainvoke_with_retry(model, messages)
 
         return {
             "verification_results": response.content if isinstance(response.content, str) else str(response.content),
@@ -279,7 +280,7 @@ def create_coin_show_team(
                     "No verified coin shows were found. Generate a helpful response."
                 ),
             ]
-            response = await model.ainvoke(messages)
+            response = await ainvoke_with_retry(model, messages)
             content = response.content if isinstance(response.content, str) else str(response.content)
             return {"formatted_results": "", "messages": [AIMessage(content=content)]}
 
@@ -291,7 +292,7 @@ def create_coin_show_team(
                 "Format these into the required JSON schema."
             ),
         ]
-        response = await model.ainvoke(messages)
+        response = await ainvoke_with_retry(model, messages)
         formatted = response.content if isinstance(response.content, str) else str(response.content)
 
         # Sanitize URLs: replace any fabricated URLs with originals from search results

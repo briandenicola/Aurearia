@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
 from app.llm.provider import get_chat_model
+from app.llm.retry import ainvoke_with_retry
 from app.models.requests import CoinData, LLMConfig
 
 logger = logging.getLogger(__name__)
@@ -83,7 +84,7 @@ def create_coin_grading_team(
             SystemMessage(content="You are a professional coin grading expert."),
             HumanMessage(content=human_content),
         ]
-        response = await model.ainvoke(messages)
+        response = await ainvoke_with_retry(model, messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
         return {"raw_assessment": content, "messages": []}
 
@@ -99,7 +100,7 @@ def create_coin_grading_team(
             SystemMessage(content=FORMAT_PROMPT),
             HumanMessage(content=f"Raw grading assessment:\n\n{raw}"),
         ]
-        response = await model.ainvoke(messages)
+        response = await ainvoke_with_retry(model, messages)
         formatted = response.content if isinstance(response.content, str) else str(response.content)
         return {"formatted_assessment": formatted, "messages": [AIMessage(content=formatted)]}
 

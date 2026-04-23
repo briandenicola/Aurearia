@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
 from app.llm.provider import get_chat_model
+from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
 from app.models.responses import AvailabilityVerdict
 from app.tools.search import verify_url
@@ -130,7 +131,7 @@ def create_availability_check_team(llm_config: LLMConfig):
             ),
         ]
 
-        response = await model.ainvoke(messages)
+        response = await ainvoke_with_retry(model, messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
 
         logger.debug("[availability] analyze_results_node — response: %d chars", len(content))

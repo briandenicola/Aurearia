@@ -16,12 +16,13 @@ The supervisor examines the user's message and delegates to:
 import logging
 from typing import Literal
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.types import Command
 
 from app.config import settings
 from app.llm.provider import get_chat_model
+from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig, PortfolioSummary, UserContext
 from app.teams.auction_search import create_auction_search_team
 from app.teams.coin_search import create_coin_search_team
@@ -77,7 +78,7 @@ def create_router(llm_config: LLMConfig):
         # Include recent history for context (last 4 messages max to keep it light)
         recent = state["messages"][-4:] if len(state["messages"]) > 4 else state["messages"]
         messages = [SystemMessage(content=ROUTER_PROMPT)] + recent
-        response = await model.ainvoke(messages)
+        response = await ainvoke_with_retry(model, messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
         route = content.strip().lower().replace('"', "").replace("'", "")
 
@@ -122,13 +123,18 @@ def create_supervisor(
 
     async def coin_search_node(state: MessagesState) -> dict:
         """Delegate to Team 1 coin search pipeline."""
-        result = await coin_search_graph.ainvoke({
-            "messages": [],
-            "search_results": "",
-            "fetched_listings": "",
-            "user_message": user_message,
-        })
-        return {"messages": result.get("messages", [])}
+        try:
+            result = await coin_search_graph.ainvoke({
+                "messages": [],
+                "search_results": "",
+                "fetched_listings": "",
+                "user_message": user_message,
+            })
+            return {"messages": result.get("messages", [])}
+        except Exception as e:
+            logger.error("Coin search team failed: %s", e)
+            msg = "I'm sorry, the coin search encountered an error. Please try again."
+            return {"messages": [AIMessage(content=msg)]}
 
     # Build Team 2 as a callable node
     coin_show_graph = create_coin_show_team(
@@ -142,8 +148,6 @@ def create_supervisor(
         message, ask them where they'd like to search before running the team.
         """
         import re
-
-        from langchain_core.messages import AIMessage
 
         has_zip = user_context and user_context.zip_code
         if not has_zip:
@@ -184,28 +188,38 @@ def create_supervisor(
             else:
                 location_ctx = f"User indicated their location as: {user_message}"
 
-        result = await coin_show_graph.ainvoke({
-            "messages": [],
-            "search_results": "",
-            "verification_results": "",
-            "formatted_results": "",
-            "user_message": user_message,
-            "location_context": location_ctx,
-        })
-        return {"messages": result.get("messages", [])}
+        try:
+            result = await coin_show_graph.ainvoke({
+                "messages": [],
+                "search_results": "",
+                "verification_results": "",
+                "formatted_results": "",
+                "user_message": user_message,
+                "location_context": location_ctx,
+            })
+            return {"messages": result.get("messages", [])}
+        except Exception as e:
+            logger.error("Coin shows team failed: %s", e)
+            msg = "I'm sorry, the coin show search encountered an error. Please try again."
+            return {"messages": [AIMessage(content=msg)]}
 
     # Build Team 5 as a callable node
     auction_search_graph = create_auction_search_team(llm_config)
 
     async def auction_search_node(state: MessagesState) -> dict:
         """Delegate to Team 5 auction search pipeline."""
-        result = await auction_search_graph.ainvoke({
-            "messages": [],
-            "search_results": "",
-            "fetched_lots": "",
-            "user_message": user_message,
-        })
-        return {"messages": result.get("messages", [])}
+        try:
+            result = await auction_search_graph.ainvoke({
+                "messages": [],
+                "search_results": "",
+                "fetched_lots": "",
+                "user_message": user_message,
+            })
+            return {"messages": result.get("messages", [])}
+        except Exception as e:
+            logger.error("Auction search team failed: %s", e)
+            msg = "I'm sorry, the auction search encountered an error. Please try again."
+            return {"messages": [AIMessage(content=msg)]}
 
     # Build Team 4 as a callable node
     portfolio_graph = create_portfolio_review_team(
@@ -214,14 +228,19 @@ def create_supervisor(
 
     async def portfolio_node(state: MessagesState) -> dict:
         """Delegate to Team 4 portfolio review pipeline."""
-        result = await portfolio_graph.ainvoke({
-            "messages": [],
-            "portfolio_summary": "",
-            "valuation_commentary": "",
-            "final_analysis": "",
-            "user_message": user_message,
-        })
-        return {"messages": result.get("messages", [])}
+        try:
+            result = await portfolio_graph.ainvoke({
+                "messages": [],
+                "portfolio_summary": "",
+                "valuation_commentary": "",
+                "final_analysis": "",
+                "user_message": user_message,
+            })
+            return {"messages": result.get("messages", [])}
+        except Exception as e:
+            logger.error("Portfolio review team failed: %s", e)
+            msg = "I'm sorry, the portfolio review encountered an error. Please try again."
+            return {"messages": [AIMessage(content=msg)]}
 
     # Build Team 7 (Gap Analysis) as a callable node
     gap_analysis_graph = create_gap_analysis_team(
@@ -230,45 +249,58 @@ def create_supervisor(
 
     async def gap_analysis_node(state: MessagesState) -> dict:
         """Delegate to Team 7 gap analysis pipeline."""
-        result = await gap_analysis_graph.ainvoke({
-            "messages": [],
-            "collection_summary": "",
-            "gap_analysis": "",
-            "suggestions": "",
-            "user_message": user_message,
-        })
-        return {"messages": result.get("messages", [])}
+        try:
+            result = await gap_analysis_graph.ainvoke({
+                "messages": [],
+                "collection_summary": "",
+                "gap_analysis": "",
+                "suggestions": "",
+                "user_message": user_message,
+            })
+            return {"messages": result.get("messages", [])}
+        except Exception as e:
+            logger.error("Gap analysis team failed: %s", e)
+            msg = "I'm sorry, the gap analysis encountered an error. Please try again."
+            return {"messages": [AIMessage(content=msg)]}
 
     # Build Team 9 (Price Trends) as a callable node
     price_trend_graph = create_price_trend_team(llm_config, user_message=user_message)
 
     async def price_trends_node(state: MessagesState) -> dict:
         """Delegate to Team 9 price trend analysis pipeline."""
-        result = await price_trend_graph.ainvoke({
-            "messages": [],
-            "search_results": "",
-            "analysis": "",
-            "user_message": user_message,
-        })
-        return {"messages": result.get("messages", [])}
+        try:
+            result = await price_trend_graph.ainvoke({
+                "messages": [],
+                "search_results": "",
+                "analysis": "",
+                "user_message": user_message,
+            })
+            return {"messages": result.get("messages", [])}
+        except Exception as e:
+            logger.error("Price trends team failed: %s", e)
+            msg = "I'm sorry, the price trend analysis encountered an error. Please try again."
+            return {"messages": [AIMessage(content=msg)]}
 
     # Build Team 10 (Similar Lots) as a callable node
     similar_lot_graph = create_similar_lot_team(llm_config, user_message=user_message)
 
     async def similar_lots_node(state: MessagesState) -> dict:
         """Delegate to Team 10 similar lot finder pipeline."""
-        result = await similar_lot_graph.ainvoke({
-            "messages": [],
-            "search_results": "",
-            "scored_results": "",
-            "user_message": user_message,
-        })
-        return {"messages": result.get("messages", [])}
+        try:
+            result = await similar_lot_graph.ainvoke({
+                "messages": [],
+                "search_results": "",
+                "scored_results": "",
+                "user_message": user_message,
+            })
+            return {"messages": result.get("messages", [])}
+        except Exception as e:
+            logger.error("Similar lots team failed: %s", e)
+            msg = "I'm sorry, the similar lot search encountered an error. Please try again."
+            return {"messages": [AIMessage(content=msg)]}
 
     async def passthrough(state: MessagesState) -> dict:
         """Placeholder for teams not yet implemented."""
-        from langchain_core.messages import AIMessage
-
         return {"messages": [AIMessage(content="This capability is not yet available. Please try again later.")]}
 
     async def general_handler(state: MessagesState) -> dict:
@@ -293,7 +325,7 @@ def create_supervisor(
             "Do not use emojis."
         )
         messages = [SystemMessage(content=general_system)] + state["messages"]
-        response = await general_model.ainvoke(messages)
+        response = await ainvoke_with_retry(general_model, messages)
         return {"messages": [response]}
 
     router = create_router(llm_config)

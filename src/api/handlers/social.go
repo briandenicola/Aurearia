@@ -377,7 +377,7 @@ func (h *SocialHandler) AddComment(c *gin.Context) {
 	}
 
 	var req struct {
-		Comment string `json:"comment" binding:"required"`
+		Comment string `json:"comment" binding:"required,max=2000"`
 		Rating  int    `json:"rating"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {

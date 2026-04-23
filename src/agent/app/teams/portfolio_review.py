@@ -16,6 +16,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
 from app.llm.provider import get_chat_model
+from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig, PortfolioSummary
 
 logger = logging.getLogger(__name__)
@@ -100,7 +101,7 @@ def create_portfolio_review_team(
             SystemMessage(content=READER_PROMPT),
             HumanMessage(content=f"Here is the portfolio data:\n\n{portfolio_data}"),
         ]
-        response = await model.ainvoke(messages)
+        response = await ainvoke_with_retry(model, messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
 
         return {
@@ -120,7 +121,7 @@ def create_portfolio_review_team(
                 f"Raw portfolio data:\n{portfolio_data}"
             ),
         ]
-        response = await model.ainvoke(messages)
+        response = await ainvoke_with_retry(model, messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
 
         return {
@@ -151,7 +152,7 @@ def create_portfolio_review_team(
                 f"{user_context}"
             ),
         ]
-        response = await model.ainvoke(messages)
+        response = await ainvoke_with_retry(model, messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
 
         return {

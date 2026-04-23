@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
 from app.llm.provider import get_chat_model, get_search_model
+from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,7 @@ def create_price_trend_team(
             SystemMessage(content=SEARCH_PROMPT),
             HumanMessage(content=f"Find recent auction results for: {user_message}"),
         ]
-        response = await search_model.ainvoke(messages)
+        response = await ainvoke_with_retry(search_model, messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
         return {"search_results": content, "messages": []}
 
@@ -86,7 +87,7 @@ def create_price_trend_team(
             SystemMessage(content=ANALYSIS_PROMPT),
             HumanMessage(content=f"Coin query: {user_message}\n\nSearch results:\n\n{results}"),
         ]
-        response = await chat_model.ainvoke(messages)
+        response = await ainvoke_with_retry(chat_model, messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
         return {"analysis": content, "messages": [AIMessage(content=content)]}
 

@@ -23,7 +23,7 @@ func NewApiKeyHandler(repo *repository.ApiKeyRepository) *ApiKeyHandler {
 }
 
 type generateApiKeyRequest struct {
-	Name string `json:"name" binding:"required" example:"My Script"`
+	Name string `json:"name" binding:"required,max=100" example:"My Script"`
 }
 
 type generateApiKeyResponse struct {

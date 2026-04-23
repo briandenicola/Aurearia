@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
 from app.llm.provider import get_chat_model
+from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ def create_photo_guide_team(
             SystemMessage(content="You are a professional numismatic photographer and photo evaluator."),
             HumanMessage(content=human_content),
         ]
-        response = await model.ainvoke(messages)
+        response = await ainvoke_with_retry(model, messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
         return {"raw_evaluation": content, "messages": []}
 
@@ -96,7 +97,7 @@ def create_photo_guide_team(
             SystemMessage(content=TIPS_PROMPT),
             HumanMessage(content=f"Photo evaluation:\n\n{raw}"),
         ]
-        response = await model.ainvoke(messages)
+        response = await ainvoke_with_retry(model, messages)
         formatted = response.content if isinstance(response.content, str) else str(response.content)
         return {"formatted_guide": formatted, "messages": [AIMessage(content=formatted)]}
 
