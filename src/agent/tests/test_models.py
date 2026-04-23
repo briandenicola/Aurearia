@@ -1,9 +1,9 @@
 """Tests for request/response Pydantic models."""
 
 from app.models.requests import (
+    LLMConfig,
     PortfolioCoin,
     PortfolioSummary,
-    LLMConfig,
     UserContext,
 )
 

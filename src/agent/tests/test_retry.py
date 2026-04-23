@@ -1,7 +1,8 @@
 """Tests for LLM retry utility."""
 
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from app.llm.retry import ainvoke_with_retry
 
