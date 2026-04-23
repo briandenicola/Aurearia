@@ -1,22 +1,14 @@
 <template>
   <div class="chat-overlay" @click.self="$emit('close')">
     <div class="chat-drawer">
-      <div class="chat-header">
-        <h1><Bot :size="20" /> Coin Search Agent</h1>
-        <div class="chat-header-actions">
-          <button
-            v-if="messages.length > 0"
-            class="chat-save"
-            :disabled="saving"
-            @click="handleSave"
-            :title="conversationId ? 'Update saved conversation' : 'Save conversation'"
-          >
-            <Save :size="16" />
-            {{ saveLabel }}
-          </button>
-          <button class="chat-close" @click="$emit('close')"><X :size="18" /></button>
-        </div>
-      </div>
+      <ChatHeader
+        :has-messages="messages.length > 0"
+        :saving="saving"
+        :conversation-id="conversationId"
+        :save-label="saveLabel"
+        @save="handleSave"
+        @close="$emit('close')"
+      />
 
       <!-- Unconfigured provider banner -->
       <div v-if="!providerConfigured" class="provider-banner">
@@ -25,27 +17,11 @@
       </div>
 
       <div class="chat-messages" ref="messagesEl">
-        <div v-if="messages.length === 0" class="chat-intro">
-          <Bot :size="32" />
-          <p>Search for coins, find upcoming shows, or get a portfolio analysis -- ask me anything about collecting.</p>
-          <div class="chat-examples">
-            <button class="example-btn" @click="sendExample('Find me Roman silver denarii of Julius Caesar')">
-              Roman denarii of Julius Caesar
-            </button>
-            <button class="example-btn" @click="sendExample('I\'m looking for Byzantine gold solidi under $1000')">
-              Byzantine gold solidi under $1000
-            </button>
-            <button class="example-btn" @click="sendExample('Show me ancient Greek tetradrachms from Athens')">
-              Greek tetradrachms from Athens
-            </button>
-            <button class="example-btn" @click="sendExample('What ancient coin shows are coming up near me?')">
-              Upcoming coin shows near me
-            </button>
-            <button class="example-btn" @click="sendPortfolioAnalysis">
-              Analyze my portfolio
-            </button>
-          </div>
-        </div>
+        <ChatIntroPanel
+          v-if="messages.length === 0"
+          @send="sendExample"
+          @send-portfolio="sendPortfolioAnalysis"
+        />
 
         <template v-for="(msg, i) in messages" :key="i">
           <div class="chat-bubble" :class="[msg.role, { streaming: msg.streaming }]">
@@ -126,18 +102,13 @@
         </div>
       </div>
 
-      <form class="chat-input-bar" @submit.prevent="sendMessage">
-        <input
-          v-model="input"
-          class="chat-input"
-          :placeholder="providerConfigured ? 'Describe the coins you\'re looking for...' : 'Configure AI provider in Admin Settings'"
-          :disabled="loading || !providerConfigured"
-          ref="inputEl"
-        />
-        <button type="submit" class="send-btn" :disabled="!input.trim() || loading || !providerConfigured">
-          <SendHorizontal :size="18" />
-        </button>
-      </form>
+      <ChatInputBar
+        v-model="input"
+        :loading="loading"
+        :provider-configured="providerConfigured"
+        ref="inputBarEl"
+        @send="sendMessage"
+      />
     </div>
   </div>
 </template>
@@ -146,10 +117,13 @@
 import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { agentChatStream, createCoin, proxyImage, scrapeImage, uploadImage, saveConversation, getPortfolioSummary, getAgentStatus, createCalendarEvent } from '@/api/client'
 import type { CoinSuggestion, CoinShow, AgentChatMessage, Category, Material } from '@/types'
-import { Bot, X, SendHorizontal, CirclePlus, ExternalLink, Save, AlertTriangle, Calendar, MapPin, Ticket, CalendarPlus } from 'lucide-vue-next'
+import { CirclePlus, ExternalLink, AlertTriangle, Calendar, MapPin, Ticket, CalendarPlus } from 'lucide-vue-next'
 import DOMPurify from 'dompurify'
 import { useDialog } from '@/composables/useDialog'
 import MarkdownIt from 'markdown-it'
+import ChatHeader from '@/components/chat/ChatHeader.vue'
+import ChatIntroPanel from '@/components/chat/ChatIntroPanel.vue'
+import ChatInputBar from '@/components/chat/ChatInputBar.vue'
 
 type ChatSuggestion = CoinSuggestion | CoinShow
 
@@ -179,7 +153,7 @@ const addedSet = ref<Set<string>>(new Set())
 const savedShows = ref<Set<string>>(new Set())
 const savingShow = ref<string | null>(null)
 const messagesEl = ref<HTMLElement>()
-const inputEl = ref<HTMLInputElement>()
+const inputBarEl = ref<InstanceType<typeof ChatInputBar>>()
 const conversationId = ref<number | null>(null)
 const saving = ref(false)
 const scrapedImages = ref<Map<string, string>>(new Map())
@@ -537,7 +511,7 @@ function handleImgError(e: Event) {
 }
 
 onMounted(async () => {
-  inputEl.value?.focus()
+  inputBarEl.value?.focus()
   if (props.loadConversation) {
     conversationId.value = props.loadConversation.id
     try {
@@ -597,30 +571,6 @@ function handleViewportResize() {
   box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
 }
 
-.chat-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border-subtle);
-  flex-shrink: 0;
-}
-
-.chat-header h1 {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.4rem;
-  margin: 0;
-  color: var(--accent-gold);
-}
-
-.chat-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 .provider-banner {
   display: flex;
   align-items: center;
@@ -639,45 +589,6 @@ function handleViewportResize() {
   font-weight: 600;
 }
 
-.chat-save {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  background: none;
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 0.3rem 0.6rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.75rem;
-  transition: all var(--transition-fast);
-}
-
-.chat-save:hover:not(:disabled) {
-  color: var(--accent-gold);
-  border-color: var(--accent-gold);
-}
-
-.chat-save:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.chat-close {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
-}
-
-.chat-close:hover {
-  color: var(--text-primary);
-  background: var(--bg-card);
-}
-
 .chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -685,48 +596,6 @@ function handleViewportResize() {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-}
-
-.chat-intro {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding: 1rem;
-  color: var(--text-secondary);
-  gap: 0.75rem;
-  flex-shrink: 1;
-  overflow-y: auto;
-}
-
-.chat-intro p {
-  max-width: 300px;
-  line-height: 1.5;
-}
-
-.chat-examples {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-  width: 100%;
-}
-
-.example-btn {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 0.6rem 0.75rem;
-  color: var(--text-secondary);
-  font-size: 0.82rem;
-  cursor: pointer;
-  text-align: left;
-  transition: all var(--transition-fast);
-}
-
-.example-btn:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
 }
 
 .chat-bubble {
@@ -1066,52 +935,6 @@ function handleViewportResize() {
   font-size: 0.72rem;
   padding: 0.3rem 0.6rem;
   flex-shrink: 0;
-}
-
-.chat-input-bar {
-  display: flex;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-top: 1px solid var(--border-subtle);
-  flex-shrink: 0;
-  background: var(--bg-primary);
-}
-
-.chat-input {
-  flex: 1;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 0.6rem 0.75rem;
-  color: var(--text-primary);
-  font-size: 0.88rem;
-  outline: none;
-  transition: border-color var(--transition-fast);
-}
-
-.chat-input:focus {
-  border-color: var(--accent-gold);
-}
-
-.send-btn {
-  background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--bg-primary);
-  padding: 0.5rem 0.75rem;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  display: flex;
-  align-items: center;
-}
-
-.send-btn:hover:not(:disabled) {
-  box-shadow: 0 0 12px var(--accent-gold-dim);
-}
-
-.send-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
 
 @media (max-width: 640px) {
