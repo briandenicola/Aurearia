@@ -5,18 +5,31 @@
       <span class="pull-text">{{ refreshing ? 'Refreshing...' : pullDistance >= 60 ? 'Release to refresh' : 'Pull to refresh' }}</span>
     </div>
 
-    <!-- PWA compact header: search + hamburger -->
+    <!-- PWA compact header: search + filter/sort -->
     <div v-if="isPwa" class="pwa-header">
       <SearchBar v-model="search" />
+      <button class="pwa-icon-btn" :class="{ active: selectMode }" @click="toggleSelectMode" title="Select">
+        <CheckSquare :size="22" />
+      </button>
+      <router-link to="/add" class="pwa-add-btn">
+        <CirclePlus :size="22" />
+      </router-link>
       <div class="hamburger-wrapper">
         <button class="hamburger-btn" @click="menuOpen = !menuOpen" :class="{ active: menuOpen }">
-          <Menu :size="22" />
+          <SlidersHorizontal :size="22" />
         </button>
         <Transition name="menu-slide">
           <div v-if="menuOpen" class="pwa-menu">
             <div class="pwa-menu-section">
               <span class="pwa-menu-label">Category</span>
               <CategoryFilter v-model="selectedCategory" />
+            </div>
+            <div v-if="userTags.length" class="pwa-menu-section">
+              <span class="pwa-menu-label">Tag</span>
+              <select v-model="selectedTag" class="tag-filter-select pwa-tag-select">
+                <option value="">All Tags</option>
+                <option v-for="tag in userTags" :key="tag.id" :value="String(tag.id)">{{ tag.name }}</option>
+              </select>
             </div>
             <div class="pwa-menu-section">
               <span class="pwa-menu-label">Sort</span>
@@ -40,10 +53,6 @@
                 </div>
               </div>
             </div>
-            <div class="pwa-menu-divider"></div>
-            <button class="pwa-menu-link pwa-menu-logout" @click="handlePwaLogout">
-              <LogOut :size="18" /> Log Out
-            </button>
           </div>
         </Transition>
       </div>
@@ -51,35 +60,40 @@
     <div v-if="isPwa && menuOpen" class="pwa-menu-backdrop" @click="menuOpen = false"></div>
 
     <!-- Desktop header (hidden in PWA) -->
-    <div v-if="!isPwa" class="page-header collection-header">
-      <h1>My Collection</h1>
-      <SearchBar v-model="search" />
-      <SortSelect v-model="sortKey" />
-    </div>
+    <div v-if="!isPwa" class="desktop-sticky-header">
+      <div class="page-header collection-header">
+        <div class="header-spacer"></div>
+        <SearchBar v-model="search" />
+        <div class="header-sort">
+          <SortSelect v-model="sortKey" />
+        </div>
+      </div>
 
-    <div v-if="!isPwa" class="collection-toolbar">
-      <CategoryFilter v-model="selectedCategory" />
-      <div class="toolbar-right">
-        <div v-if="viewMode === 'grid'" class="side-toggle">
-          <button class="toggle-btn" :class="{ active: gridSide === null }" @click="gridSide = null">
-            Primary
-          </button>
-          <button class="toggle-btn" :class="{ active: gridSide === 'obverse' }" @click="gridSide = 'obverse'">
-            Obverse
-          </button>
-          <button class="toggle-btn" :class="{ active: gridSide === 'reverse' }" @click="gridSide = 'reverse'">
-            Reverse
-          </button>
+      <div class="collection-toolbar">
+        <div class="toolbar-filters">
+          <CategoryFilter v-model="selectedCategory" />
+          <select v-if="userTags.length" v-model="selectedTag" class="tag-filter-select">
+            <option value="">All Tags</option>
+            <option v-for="tag in userTags" :key="tag.id" :value="String(tag.id)">{{ tag.name }}</option>
+          </select>
         </div>
-        <div class="view-toggle">
-          <button class="view-btn" :class="{ active: viewMode === 'swipe' }" @click="viewMode = 'swipe'" title="Swipe view">
-            <Layers :size="18" />
+        <div class="toolbar-right">
+          <button class="btn" :class="selectMode ? 'btn-primary' : 'btn-secondary'" @click="toggleSelectMode">
+            <CheckSquare :size="16" /> {{ selectMode ? 'Cancel' : 'Select' }}
           </button>
-          <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'" title="Grid view">
-            <LayoutGrid :size="18" />
-          </button>
+          <div class="side-toggle">
+            <button class="btn btn-primary toggle-btn" :class="{ active: gridSide === null }" @click="gridSide = null">
+              Primary
+            </button>
+            <button class="btn btn-primary toggle-btn" :class="{ active: gridSide === 'obverse' }" @click="gridSide = 'obverse'">
+              Obverse
+            </button>
+            <button class="btn btn-primary toggle-btn" :class="{ active: gridSide === 'reverse' }" @click="gridSide = 'reverse'">
+              Reverse
+            </button>
+          </div>
+          <router-link to="/add" class="btn btn-primary"><CirclePlus :size="16" /> Add Coin</router-link>
         </div>
-        <router-link to="/add" class="btn btn-primary"><CirclePlus :size="16" /> Add Coin</router-link>
       </div>
     </div>
 
@@ -89,9 +103,22 @@
     </div>
 
     <template v-else-if="store.coins.length">
-      <SwipeGallery v-if="viewMode === 'swipe'" :coins="store.coins" />
+      <div v-if="selectMode" class="select-controls">
+        <button class="btn btn-sm btn-secondary" @click="selectAll">Select All</button>
+        <button class="btn btn-sm btn-secondary" @click="deselectAll">Deselect All</button>
+        <span class="select-count">{{ selectedCoinIds.size }} selected</span>
+      </div>
+      <SwipeGallery v-if="isPwa && viewMode === 'swipe' && !selectMode" :coins="store.coins" />
       <div v-else class="coins-grid">
-        <CoinCard v-for="coin in store.coins" :key="coin.id" :coin="coin" :image-side="gridSide" />
+        <CoinCard
+          v-for="coin in store.coins"
+          :key="coin.id"
+          :coin="coin"
+          :image-side="gridSide"
+          :selectable="selectMode"
+          :selected="selectedCoinIds.has(coin.id)"
+          @toggle-select="toggleCoinSelect"
+        />
       </div>
     </template>
 
@@ -108,6 +135,46 @@
       <span class="page-info">Page {{ page }} of {{ Math.ceil(store.total / 50) }}</span>
       <button class="btn btn-secondary btn-sm" :disabled="page * 50 >= store.total" @click="page++">Next →</button>
     </div>
+
+    <!-- Floating bulk action bar -->
+    <Transition name="bar-slide">
+      <div v-if="selectMode && selectedCoinIds.size > 0" class="bulk-action-bar">
+        <span class="bulk-count">{{ selectedCoinIds.size }} coin{{ selectedCoinIds.size === 1 ? '' : 's' }} selected</span>
+        <div class="bulk-actions">
+          <button class="bulk-btn bulk-btn-tag" @click="showTagPicker = true">
+            <TagIcon :size="16" /> Tag
+          </button>
+          <button class="bulk-btn bulk-btn-sell" @click="bulkSell">
+            <DollarSign :size="16" /> Mark Sold
+          </button>
+          <button class="bulk-btn bulk-btn-delete" @click="bulkDelete">
+            <Trash2 :size="16" /> Delete
+          </button>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Tag picker modal for bulk tag -->
+    <Teleport to="body">
+      <div v-if="showTagPicker" class="modal-backdrop" @click="showTagPicker = false">
+        <div class="modal-content tag-picker-modal" @click.stop>
+          <h3>Apply Tag</h3>
+          <div v-if="userTags.length" class="tag-picker-list">
+            <button
+              v-for="tag in userTags"
+              :key="tag.id"
+              class="tag-picker-item"
+              @click="bulkTag(tag.id)"
+            >
+              <span class="tag-swatch" :style="{ background: tag.color }"></span>
+              {{ tag.name }}
+            </button>
+          </div>
+          <p v-else class="empty-tags">No tags. Create tags in Settings first.</p>
+          <button class="btn btn-secondary btn-sm" style="margin-top: 0.75rem;" @click="showTagPicker = false">Cancel</button>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -116,15 +183,18 @@ import { ref, watch, onMounted } from 'vue'
 import { useCoinsStore } from '@/stores/coins'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-import type { ImageType } from '@/types'
+import type { ImageType, Tag } from '@/types'
+import { getTags, bulkAction } from '@/api/client'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
+import { useBulkSelect } from '@/composables/useBulkSelect'
+import { usePwa } from '@/composables/usePwa'
 import CoinCard from '@/components/CoinCard.vue'
 import SwipeGallery from '@/components/SwipeGallery.vue'
 import CategoryFilter from '@/components/CategoryFilter.vue'
 import SearchBar from '@/components/SearchBar.vue'
 import SortSelect from '@/components/SortSelect.vue'
 
-import { Layers, LayoutGrid, CirclePlus, Menu, LogOut } from 'lucide-vue-next'
+import { Layers, LayoutGrid, CirclePlus, SlidersHorizontal, CheckSquare, Trash2, DollarSign, Tag as TagIcon } from 'lucide-vue-next'
 
 const store = useCoinsStore()
 const auth = useAuthStore()
@@ -134,12 +204,22 @@ const search = ref(store.searchQuery)
 const page = ref(1)
 const sortKey = ref(localStorage.getItem('defaultSort') || 'updated_at_desc')
 const menuOpen = ref(false)
+const selectedTag = ref('')
+const userTags = ref<Tag[]>([])
+
+async function fetchUserTags() {
+  try {
+    const res = await getTags()
+    userTags.value = res.data?.tags ?? []
+  } catch { /* ignore */ }
+}
+
+onMounted(fetchUserTags)
 
 // Use saved preference if set, otherwise default to swipe in PWA mode
 const savedView = localStorage.getItem('defaultView') as 'grid' | 'swipe' | null
-const isPwa = window.matchMedia('(display-mode: standalone)').matches
-  || (window.navigator as any).standalone === true
-const viewMode = ref<'grid' | 'swipe'>(savedView || (isPwa ? 'swipe' : 'grid'))
+const { isPwa } = usePwa()
+const viewMode = ref<'grid' | 'swipe'>(isPwa ? (savedView || 'swipe') : 'grid')
 const gridSide = ref<ImageType | null>(null)
 
 const pullContainer = ref<HTMLElement | null>(null)
@@ -164,6 +244,7 @@ function loadCoins() {
   store.fetchCoins({
     category: selectedCategory.value || undefined,
     search: search.value || undefined,
+    tag: selectedTag.value || undefined,
     wishlist: 'false',
     sold: 'false',
     page: page.value,
@@ -173,6 +254,11 @@ function loadCoins() {
 }
 
 watch(selectedCategory, () => {
+  page.value = 1
+  loadCoins()
+})
+
+watch(selectedTag, () => {
   page.value = 1
   loadCoins()
 })
@@ -193,11 +279,80 @@ watch(sortKey, () => {
 
 loadCoins()
 
-function handlePwaLogout() {
-  menuOpen.value = false
-  auth.logout()
-  router.push('/login')
+// Select mode state
+const selectMode = ref(false)
+const selectedCoinIds = ref(new Set<number>())
+const showTagPicker = ref(false)
+const { bulkSelectActive } = useBulkSelect()
+
+function toggleSelectMode() {
+  selectMode.value = !selectMode.value
+  bulkSelectActive.value = selectMode.value
+  if (!selectMode.value) {
+    selectedCoinIds.value = new Set()
+    showTagPicker.value = false
+  }
 }
+
+function toggleCoinSelect(coinId: number) {
+  const next = new Set(selectedCoinIds.value)
+  if (next.has(coinId)) {
+    next.delete(coinId)
+  } else {
+    next.add(coinId)
+  }
+  selectedCoinIds.value = next
+}
+
+function selectAll() {
+  selectedCoinIds.value = new Set(store.coins.map(c => c.id))
+}
+
+function deselectAll() {
+  selectedCoinIds.value = new Set()
+}
+
+async function bulkDelete() {
+  const count = selectedCoinIds.value.size
+  if (!confirm(`Delete ${count} coin${count === 1 ? '' : 's'}? This cannot be undone.`)) return
+  try {
+    await bulkAction([...selectedCoinIds.value], 'delete')
+    selectedCoinIds.value = new Set()
+    selectMode.value = false
+    bulkSelectActive.value = false
+    loadCoins()
+  } catch {
+    alert('Failed to delete coins')
+  }
+}
+
+async function bulkSell() {
+  const count = selectedCoinIds.value.size
+  if (!confirm(`Mark ${count} coin${count === 1 ? '' : 's'} as sold?`)) return
+  try {
+    await bulkAction([...selectedCoinIds.value], 'sell')
+    selectedCoinIds.value = new Set()
+    selectMode.value = false
+    bulkSelectActive.value = false
+    loadCoins()
+  } catch {
+    alert('Failed to mark coins as sold')
+  }
+}
+
+async function bulkTag(tagId: number) {
+  try {
+    await bulkAction([...selectedCoinIds.value], 'tag', tagId)
+    showTagPicker.value = false
+    selectedCoinIds.value = new Set()
+    selectMode.value = false
+    bulkSelectActive.value = false
+    loadCoins()
+  } catch {
+    alert('Failed to apply tag')
+  }
+}
+
 </script>
 
 <style scoped>
@@ -207,6 +362,11 @@ function handlePwaLogout() {
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+  position: sticky;
+  top: 60px;
+  z-index: 150;
+  background: var(--bg-primary);
+  padding: 0.5rem 0;
 }
 
 .pwa-header :deep(.search-bar) {
@@ -277,38 +437,6 @@ function handlePwaLogout() {
   font-weight: 600;
 }
 
-.pwa-menu-divider {
-  border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
-  margin: 0.25rem 0;
-}
-
-.pwa-menu-link {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 0;
-  color: var(--text);
-  text-decoration: none;
-  font-size: 0.9rem;
-  background: none;
-  border: none;
-  cursor: pointer;
-  width: 100%;
-  text-align: left;
-}
-
-.pwa-menu-link:hover {
-  color: var(--gold, #c9a84c);
-}
-
-.pwa-menu-logout {
-  color: #e57373;
-}
-
-.pwa-menu-logout:hover {
-  color: #ef5350;
-}
-
 .pwa-menu-row {
   display: flex;
   gap: 0.5rem;
@@ -335,21 +463,42 @@ function handlePwaLogout() {
   transform: translateY(-8px);
 }
 
-/* --- Desktop header (unchanged) --- */
+/* --- Desktop sticky header --- */
+.desktop-sticky-header {
+  position: sticky;
+  top: 60px;
+  z-index: 50;
+  background: var(--bg-primary);
+  padding-bottom: 0.5rem;
+  margin: 0 -2rem;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+/* --- Desktop header --- */
 .collection-header {
   display: flex;
   align-items: center;
   gap: 1rem;
 }
 
-.collection-header h1 {
-  white-space: nowrap;
+.header-spacer {
+  flex: 1;
 }
 
 .collection-header :deep(.search-bar) {
+  flex: 0 1 600px;
+}
+
+.collection-header :deep(.search-input) {
+  padding: 0.75rem 2.5rem;
+  font-size: 0.95rem;
+}
+
+.header-sort {
   flex: 1;
-  max-width: 400px;
-  margin: 0 auto;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .collection-toolbar {
@@ -359,6 +508,27 @@ function handlePwaLogout() {
   gap: 0.75rem;
   flex-wrap: wrap;
   margin-bottom: 1rem;
+}
+
+.toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tag-filter-select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.pwa-tag-select {
+  width: 100%;
 }
 
 .toolbar-right {
@@ -397,28 +567,35 @@ function handlePwaLogout() {
 
 .side-toggle {
   display: flex;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
+  gap: 0;
+}
+
+.side-toggle .toggle-btn {
+  border-radius: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.side-toggle .toggle-btn:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.side-toggle .toggle-btn:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border-right: none;
 }
 
 .toggle-btn {
-  padding: 0.35rem 0.75rem;
-  border: none;
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all var(--transition-fast);
+  opacity: 0.6;
 }
 
 .toggle-btn.active {
-  background: var(--accent-gold-dim);
-  color: var(--accent-gold);
+  opacity: 1;
+  background: var(--accent-gold);
+  color: #1a1a2e;
 }
 
 .toggle-btn:hover:not(.active) {
-  background: var(--bg-card-hover);
+  opacity: 0.8;
 }
 
 .pagination {
@@ -487,12 +664,173 @@ function handlePwaLogout() {
     align-items: stretch;
   }
 
+  .header-spacer {
+    display: none;
+  }
+
+  .header-sort {
+    justify-content: flex-start;
+  }
+
   .collection-header :deep(.search-bar) {
     max-width: 100%;
+  }
+
+  .collection-header :deep(.search-input) {
+    padding: 0.6rem 2.5rem;
+    font-size: 0.85rem;
   }
 
   .header-filters {
     justify-content: flex-start;
   }
+}
+
+/* --- Select mode controls --- */
+.select-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.select-count {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-left: 0.5rem;
+}
+
+/* --- Floating bulk action bar --- */
+.bulk-action-bar {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--accent-gold-dim);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1.25rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  z-index: 200;
+  white-space: nowrap;
+}
+
+.bulk-count {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.bulk-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.bulk-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.bulk-btn:hover {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
+.bulk-btn-delete:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.bulk-btn-sell:hover {
+  border-color: #10b981;
+  color: #10b981;
+}
+
+/* Bar slide transition */
+.bar-slide-enter-active,
+.bar-slide-leave-active {
+  transition: all 0.25s ease;
+}
+.bar-slide-enter-from,
+.bar-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
+}
+
+/* --- Tag picker modal --- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  max-width: 320px;
+  width: 90%;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.tag-picker-modal h3 {
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+}
+
+.tag-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.tag-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all var(--transition-fast);
+}
+
+.tag-picker-item:hover {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
+.tag-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.empty-tags {
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 </style>

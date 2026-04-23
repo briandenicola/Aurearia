@@ -59,13 +59,7 @@ func (r *AuthRepository) FindRefreshToken(tokenHash string) (*models.RefreshToke
 	return &rt, nil
 }
 
-// RevokeRefreshToken marks a refresh token as revoked with the current time.
-func (r *AuthRepository) RevokeRefreshToken(rt *models.RefreshToken) error {
-	now := time.Now()
-	return r.db.Model(rt).Update("revoked_at", &now).Error
-}
-
-// CreateRefreshToken inserts a new refresh token record.
+// CreateRefreshTokeninserts a new refresh token record.
 func (r *AuthRepository) CreateRefreshToken(rt *models.RefreshToken) error {
 	return r.db.Create(rt).Error
 }

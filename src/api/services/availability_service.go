@@ -3,26 +3,12 @@ package services
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
 )
-
-var soldIndicators = []string{
-	"sold", "auction ended", "realized price", "no longer available",
-	"out of stock", "lot closed", "hammer price", "price realized",
-	"this lot has been sold", "bidding closed", "sale ended",
-}
-
-var buyIndicators = []string{
-	"add to cart", "buy now", "add to basket", "purchase",
-	"bid now", "place bid", "current bid", "place your bid",
-	"submit bid", "make an offer",
-}
 
 const (
 	availabilityHTTPTimeout = 10 * time.Second
@@ -52,6 +38,7 @@ type AvailabilityService struct {
 	coinRepo   *repository.CoinRepository
 	availRepo  *repository.AvailabilityRepository
 	agentProxy *AgentProxy
+	notifSvc   *NotificationService
 	logger     *Logger
 }
 
@@ -60,16 +47,20 @@ func NewAvailabilityService(
 	coinRepo *repository.CoinRepository,
 	availRepo *repository.AvailabilityRepository,
 	agentProxy *AgentProxy,
+	notifSvc *NotificationService,
 ) *AvailabilityService {
 	return &AvailabilityService{
 		coinRepo:   coinRepo,
 		availRepo:  availRepo,
 		agentProxy: agentProxy,
+		notifSvc:   notifSvc,
 		logger:     AppLogger,
 	}
 }
 
-// CheckURL performs an HTTP GET and applies keyword heuristics to determine listing status.
+// CheckURL performs an HTTP GET to check basic connectivity and status.
+// All successful (HTTP 200) responses are marked as "unknown" and escalated to the AI agent
+// to avoid false positives from simple keyword matching.
 func (s *AvailabilityService) CheckURL(url string) (*URLCheckResult, error) {
 	client := &http.Client{
 		Timeout: availabilityHTTPTimeout,
@@ -114,42 +105,16 @@ func (s *AvailabilityService) CheckURL(url string) (*URLCheckResult, error) {
 		return result, nil
 	}
 
-	// Read body for keyword analysis (limit to 512KB)
-	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 512*1024))
-	if err != nil {
-		result.Status = "unknown"
-		result.Reason = fmt.Sprintf("Failed to read response body: %s", err)
-		return result, nil
-	}
-	bodyLower := strings.ToLower(string(bodyBytes))
-
-	// Check for sold indicators
-	for _, indicator := range soldIndicators {
-		if strings.Contains(bodyLower, indicator) {
-			result.Status = "unavailable"
-			result.Reason = fmt.Sprintf("Page contains sold indicator: '%s'", indicator)
-			return result, nil
-		}
-	}
-
-	// Check for active listing indicators
-	for _, indicator := range buyIndicators {
-		if strings.Contains(bodyLower, indicator) {
-			result.Status = "available"
-			result.Reason = fmt.Sprintf("Active listing with indicator: '%s'", indicator)
-			return result, nil
-		}
-	}
-
-	// Ambiguous — no clear indicators found
+	// For HTTP 200, mark as unknown and let the Python agent analyze
+	// Simple keyword matching produces too many false positives
 	result.Status = "unknown"
-	result.Reason = "Could not determine availability from page content"
+	result.Reason = "Requires AI analysis to determine availability"
 	return result, nil
 }
 
 // CheckWishlistForUser runs availability checks for all wishlist items with URLs.
-// Go performs fast HTTP+keyword checks first, then escalates ambiguous results
-// to the Python agent for LLM-powered analysis.
+// Go performs fast HTTP status checks, then escalates all 200 OK responses
+// to the Python agent for AI-powered analysis to avoid false positives from keyword matching.
 func (s *AvailabilityService) CheckWishlistForUser(
 	userID uint, triggerType string, triggerUserID *uint,
 ) (*models.AvailabilityRun, error) {
@@ -233,6 +198,11 @@ func (s *AvailabilityService) CheckWishlistForUser(
 		// Update coin's listing status
 		if err := s.coinRepo.UpdateListingStatus(cr.coin.ID, cr.dbResult.Status, cr.dbResult.Reason, time.Now()); err != nil {
 			s.logger.Error("availability", "Failed to update listing status for coin %d: %s", cr.coin.ID, err)
+		}
+
+		// Notify user when a coin newly becomes unavailable
+		if cr.dbResult.Status == "unavailable" && cr.coin.ListingStatus != "unavailable" && s.notifSvc != nil {
+			s.notifSvc.NotifyWishlistUnavailable(userID, cr.coin, cr.dbResult.Reason)
 		}
 	}
 

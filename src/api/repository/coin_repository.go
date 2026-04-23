@@ -13,6 +13,7 @@ type CoinListFilters struct {
 	Search    string
 	Wishlist  *bool
 	Sold      *bool
+	TagID     *uint
 	SortField string
 	SortOrder string
 	Page      int
@@ -84,6 +85,13 @@ type CollectionStats struct {
 	SoldValues    SoldSummary     `json:"soldValues"`
 }
 
+// DistributionCell holds a single cell in the era × category heat map.
+type DistributionCell struct {
+	Era      string `json:"era"`
+	Category string `json:"category"`
+	Count    int    `json:"count"`
+}
+
 // CoinRepository encapsulates all coin-related database operations.
 type CoinRepository struct {
 	db *gorm.DB
@@ -92,6 +100,16 @@ type CoinRepository struct {
 // NewCoinRepository creates a new CoinRepository.
 func NewCoinRepository(db *gorm.DB) *CoinRepository {
 	return &CoinRepository{db: db}
+}
+
+// WithTx returns a shallow copy of the repository that uses tx for all queries.
+func (r *CoinRepository) WithTx(tx *gorm.DB) *CoinRepository {
+	return &CoinRepository{db: tx}
+}
+
+// DB exposes the underlying *gorm.DB so callers can create transactions.
+func (r *CoinRepository) DB() *gorm.DB {
+	return r.db
 }
 
 var allowedSortFields = map[string]string{
@@ -107,7 +125,7 @@ var searchFields = []string{
 
 // List returns a paginated, filtered list of coins for a user.
 func (r *CoinRepository) List(userID uint, filters CoinListFilters) ([]models.Coin, int64, error) {
-	query := r.db.Scopes(OwnedBy(userID)).Preload("Images")
+	query := r.db.Scopes(OwnedBy(userID)).Preload("Images").Preload("Tags")
 
 	if filters.Category != "" {
 		query = query.Where("category = ?", filters.Category)
@@ -117,6 +135,9 @@ func (r *CoinRepository) List(userID uint, filters CoinListFilters) ([]models.Co
 	}
 	if filters.Sold != nil {
 		query = query.Where("is_sold = ?", *filters.Sold)
+	}
+	if filters.TagID != nil {
+		query = query.Where("id IN (SELECT coin_id FROM coin_tags WHERE tag_id = ?)", *filters.TagID)
 	}
 	if filters.Search != "" {
 		term := "%" + filters.Search + "%"
@@ -161,7 +182,7 @@ func (r *CoinRepository) List(userID uint, filters CoinListFilters) ([]models.Co
 // FindByID returns a single coin owned by the user, with images preloaded.
 func (r *CoinRepository) FindByID(id uint, userID uint) (*models.Coin, error) {
 	var coin models.Coin
-	err := r.db.Scopes(OwnedByID(id, userID)).Preload("Images").First(&coin).Error
+	err := r.db.Scopes(OwnedByID(id, userID)).Preload("Images").Preload("Tags").First(&coin).Error
 	if err != nil {
 		return nil, err
 	}
@@ -237,6 +258,63 @@ func (r *CoinRepository) Delete(id uint, userID uint) (int64, error) {
 	return rowsAffected, err
 }
 
+// BulkDelete removes multiple coins and all associated data in a single transaction.
+func (r *CoinRepository) BulkDelete(coinIDs []uint, userID uint) (int64, error) {
+	var rowsAffected int64
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Where("id IN ? AND user_id = ?", coinIDs, userID).Delete(&models.Coin{})
+		if result.Error != nil {
+			return result.Error
+		}
+		rowsAffected = result.RowsAffected
+		if rowsAffected == 0 {
+			return nil
+		}
+		if err := tx.Where("coin_id IN ?", coinIDs).Delete(&models.CoinImage{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("coin_id IN ?", coinIDs).Delete(&models.CoinJournal{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("coin_id IN ?", coinIDs).Delete(&models.CoinValueHistory{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("coin_id IN ?", coinIDs).Delete(&models.CoinComment{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("coin_id IN ?", coinIDs).Delete(&models.AvailabilityResult{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("coin_id IN ?", coinIDs).Delete(&models.CoinTag{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&models.AuctionLot{}).Where("coin_id IN ?", coinIDs).Update("coin_id", nil).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	return rowsAffected, err
+}
+
+// BulkMarkSold marks multiple coins as sold in a single transaction.
+func (r *CoinRepository) BulkMarkSold(coinIDs []uint, userID uint) (int64, error) {
+	result := r.db.Model(&models.Coin{}).
+		Where("id IN ? AND user_id = ? AND is_sold = ?", coinIDs, userID, false).
+		Updates(map[string]interface{}{
+			"is_sold":   true,
+			"sold_date": time.Now(),
+		})
+	return result.RowsAffected, result.Error
+}
+
+// GetByIDs returns coins matching the given IDs for the given user.
+func (r *CoinRepository) GetByIDs(coinIDs []uint, userID uint) ([]models.Coin, error) {
+	var coins []models.Coin
+	err := r.db.Where("id IN ? AND user_id = ?", coinIDs, userID).
+		Preload("Images").Preload("Tags").Find(&coins).Error
+	return coins, err
+}
+
 // GetStats returns aggregate collection statistics for a user.
 func (r *CoinRepository) GetStats(userID uint) (*CollectionStats, error) {
 	stats := &CollectionStats{}
@@ -297,6 +375,18 @@ func (r *CoinRepository) GetStats(userID uint) (*CollectionStats, error) {
 		Scan(&stats.SoldValues)
 
 	return stats, nil
+}
+
+// GetDistribution returns era × category cross-tabulation counts for the heat map.
+func (r *CoinRepository) GetDistribution(userID uint) ([]DistributionCell, error) {
+	var cells []DistributionCell
+	err := r.db.Model(&models.Coin{}).
+		Select("era, category, COUNT(*) as count").
+		Where("user_id = ? AND is_wishlist = ? AND is_sold = ? AND era != '' AND category != ''", userID, false, false).
+		Group("era, category").
+		Order("era, category").
+		Scan(&cells).Error
+	return cells, err
 }
 
 // Suggestions returns distinct values for an autocomplete field.

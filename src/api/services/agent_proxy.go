@@ -74,6 +74,7 @@ type PortfolioCoinProxy struct {
 	Material      string  `json:"material"`
 	Era           string  `json:"era"`
 	Ruler         string  `json:"ruler"`
+	Grade         string  `json:"grade"`
 	PurchasePrice float64 `json:"purchase_price"`
 	CurrentValue  float64 `json:"current_value"`
 }
@@ -145,12 +146,7 @@ func (p *AgentProxy) StreamChat(ctx context.Context, w http.ResponseWriter, req 
 	return p.proxySSE(ctx, w, "/api/search/coins", req)
 }
 
-// StreamPortfolioReview POSTs to /api/portfolio/review and proxies SSE.
-func (p *AgentProxy) StreamPortfolioReview(ctx context.Context, w http.ResponseWriter, req PortfolioReviewProxyRequest) error {
-	return p.proxySSE(ctx, w, "/api/portfolio/review", req)
-}
-
-// CollectPortfolioReview POSTs to /api/portfolio/review, reads the full SSE
+// CollectPortfolioReviewPOSTs to /api/portfolio/review, reads the full SSE
 // stream, and returns the final message text (from the "done" event).
 func (p *AgentProxy) CollectPortfolioReview(ctx context.Context, req PortfolioReviewProxyRequest) (string, error) {
 	return p.collectSSE(ctx, "/api/portfolio/review", req)
@@ -235,23 +231,8 @@ func (p *AgentProxy) CheckAvailability(ctx context.Context, req AvailabilityChec
 	}
 	return &result, nil
 }
-func (p *AgentProxy) CheckHealth(ctx context.Context) error {
-	httpReq, err := http.NewRequestWithContext(ctx, "GET", p.baseURL+"/health", nil)
-	if err != nil {
-		return err
-	}
-	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(httpReq)
-	if err != nil {
-		return fmt.Errorf("agent service unreachable: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("agent service returned HTTP %d", resp.StatusCode)
-	}
-	return nil
-}
 
-// FetchLogs retrieves log entries from the Python agent's /logs endpoint
+// FetchLogsretrieves log entries from the Python agent's /logs endpoint
 // and returns them as LogEntry slices compatible with the Go logger format.
 func (p *AgentProxy) FetchLogs(ctx context.Context, limit int, level string) []LogEntry {
 	url := fmt.Sprintf("%s/logs?limit=%d", p.baseURL, limit)

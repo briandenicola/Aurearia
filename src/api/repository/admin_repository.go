@@ -84,17 +84,3 @@ func (r *AdminRepository) ResetPassword(userID uint, passwordHash string) (int64
 	result := r.db.Model(&models.User{}).Where("id = ?", userID).Update("password_hash", passwordHash)
 	return result.RowsAffected, result.Error
 }
-
-// ExportAllCoins returns all coins with their images preloaded.
-func (r *AdminRepository) ExportAllCoins() ([]models.Coin, error) {
-	var coins []models.Coin
-	if err := r.db.Preload("Images").Find(&coins).Error; err != nil {
-		return nil, err
-	}
-	return coins, nil
-}
-
-// ImportCoin creates a single coin record.
-func (r *AdminRepository) ImportCoin(coin *models.Coin) error {
-	return r.db.Create(coin).Error
-}

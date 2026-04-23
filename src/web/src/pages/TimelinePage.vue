@@ -93,7 +93,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Clock, Image as ImageIcon } from 'lucide-vue-next'
 import { getCoins } from '@/api/client'
 import type { Coin } from '@/types'

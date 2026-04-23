@@ -71,7 +71,7 @@ func (h *NumistaHandler) Search(c *gin.Context) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		c.JSON(resp.StatusCode, gin.H{"error": "Numista API error", "details": string(body)})
+		c.JSON(resp.StatusCode, gin.H{"error": "Numista API error"})
 		return
 	}
 

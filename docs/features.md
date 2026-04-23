@@ -79,7 +79,7 @@ Key features:
 - **Streaming Responses** — Agent replies stream in real-time via Server-Sent Events (SSE) with a progressive text display and blinking cursor, so you see results as they arrive.
 - **Real-time Status Indicators** — During agent processing, status indicators show which team and step is active (searching, fetching, formatting).
 - **SSE Progress Events** — The agent streams structured progress events so the frontend can display step-by-step status updates.
-- **Multi-team Architecture** — The agent uses specialized teams: coin search finds listings, coin shows finds upcoming events, portfolio review analyzes your collection, and coin analysis examines uploaded images.
+- **Multi-team Architecture** — The agent uses specialized teams: coin search finds listings, coin shows finds upcoming events, portfolio review analyzes your collection, coin analysis examines uploaded images, coin grading estimates grades from photos, gap analysis identifies missing coins in your collection, photo guide critiques your coin photography, price trends analyzes market direction from auction history, and similar lots finds matching active auction listings.
 - **Automatic Image Extraction** — When you add a coin to your wishlist, the system automatically extracts the listing's primary image using `og:image` meta tag scraping from the source page. Falls back to the agent-provided image URL if scraping finds nothing.
 - **Paste Image URL** — If automatic extraction misses an image, you can paste an image URL directly on the coin detail page to fetch and attach it.
 - **Save Conversations** — Save search conversations for later reference. Saved chats appear in the Settings → Conversations tab where you can reopen or delete them.
@@ -110,6 +110,7 @@ The **Stats** page shows:
 - **Grade distribution** — Bar chart showing coin counts by grade (VF, EF, AU, etc.) with a blue gradient
 - **Value over time** — SVG line chart tracking total portfolio value and total invested over time, built from automatic snapshots recorded after every coin create, update, or delete
 - **Top coins by value** — Ranked list of the most valuable coins in your collection
+- **Era/Region Heat Map** — SVG-based heat map showing the distribution of your collection across time periods and geographic regions, highlighting concentrations and gaps at a glance. Available via the `/stats/distribution` endpoint.
 
 ## Image Text Extraction
 
@@ -141,8 +142,9 @@ All authenticated users can access **Settings**, organized in a tabbed layout:
 
 - **Account** — Change password (requires current password), register WebAuthn/FIDO2 passkeys for passwordless login, manage avatar and profile settings.
 - **Appearance** — Switch between dark (museum) and light theme, set time zone, choose default gallery view (swipe or grid), and default sort order. Preferences persist across sessions.
-- **Data** — Export your entire collection as JSON, import coins from a JSON file, and manage API keys for programmatic access. See the [Getting Started Guide](getting-started.md#import--export) for the full import file format.
+- **Data** — Export your entire collection as JSON, import coins from a JSON file, download an insurance/provenance PDF catalog of your collection (with photos, grades, provenance, and valuations), and manage API keys for programmatic access. See the [Getting Started Guide](getting-started.md#import--export) for the full import file format.
 - **Conversations** — View, reopen, or delete saved AI search agent conversations.
+- **Tags** — Create, rename, and delete custom tags with color selection. Tags created here can be attached to any coin in your collection.
 - **Help** — Beginner's guide to ancient coin collecting.
 
 ## Admin Settings
@@ -176,6 +178,117 @@ The app is a Progressive Web App installable on iOS, Android, and desktop:
 - **Background Removal** — Remove image backgrounds in-place on the coin detail page using client-side ML.
 
 For installation instructions and a full feature guide, see the [PWA Guide](pwa-guide.md).
+
+## AI Grading Assistant
+
+Upload coin photos and ask the AI agent to estimate the grade (VF, EF, AU, etc.) with reasoning and a confidence score. The grading assistant is accessible through the AI agent chat — send photos and ask "Grade this coin."
+
+- **Vision-Based Grading** — The agent examines surface wear, strike quality, and detail preservation to estimate a Sheldon-scale grade.
+- **Reasoning and Confidence** — Each grade estimate includes an explanation of the factors considered and a confidence level.
+- **Agent Team 7** — Powered by the `coin_grading.py` agent team in the Python agent service.
+
+## Price Trend Analysis
+
+Ask the AI agent about price trends for a specific coin type. The agent searches NumisBids and other auction sources for historical sale data, analyzes results over time, and reports market direction.
+
+- **Historical Auction Data** — Searches for past auction results of similar coins to build a price history.
+- **Market Direction** — Identifies whether prices are trending up, down, or stable for a given coin type.
+- **Agent Team 8** — Powered by the `price_trends.py` agent team in the Python agent service.
+
+## Collection Gap Analysis
+
+The AI agent reviews your collection and suggests what is missing for completeness. It analyzes your holdings by category, era, ruler, and material to find gaps, then suggests specific coins to fill them with estimated prices.
+
+- **Portfolio-Aware** — Uses the portfolio summary from the Go API to understand your current holdings.
+- **Targeted Suggestions** — Recommends specific coins with estimated market prices to fill identified gaps.
+- **Agent Team 9** — Powered by the `gap_analysis.py` agent team in the Python agent service.
+
+## Coin Photography Guide
+
+Upload coin photos and ask the AI agent for photography tips. The agent evaluates your photos and provides actionable advice on lighting, focus, background, and positioning.
+
+- **Photo Quality Analysis** — The agent critiques uploaded images and identifies areas for improvement.
+- **Practical Tips** — Suggestions cover lighting angles, background choices, camera settings, and coin positioning.
+- **Agent Team 10** — Powered by the `photo_guide.py` agent team in the Python agent service.
+
+## Similar Lot Finder
+
+Find active auction lots similar to coins in your collection. The agent searches NumisBids for matching lots and ranks results by relevance.
+
+- **Collection-Based Search** — Describe a coin or reference one in your collection to find similar active listings.
+- **Relevance Ranking** — Results are sorted by how closely they match the target coin.
+- **Agent Team 11** — Powered by the `similar_lots.py` agent team in the Python agent service.
+
+## Collection Showcase
+
+Create curated subsets of your collection to share publicly. Each showcase gets a unique shareable URL.
+
+- **Create and Manage** — Create showcases from your collection, each with a title, description, and slug for the public URL (`/s/:slug`).
+- **Two-Column Coin Picker** — Add or remove coins from a showcase using a side-by-side picker interface.
+- **Published / Draft Toggle** — Control visibility of each showcase. Only published showcases are accessible via the public URL.
+- **Public View** — The public showcase page is read-only and requires no authentication. It displays coin images and basic metadata.
+- **API Endpoints** — `GET/POST /showcases`, `GET/PUT/DELETE /showcases/:id`, `PUT /showcases/:id/coins`. Public endpoint: `GET /api/showcase/:slug` (no auth required).
+
+## Auction Calendar
+
+A monthly calendar view showing auction lot end dates and custom events.
+
+- **Calendar View** — Visual month-by-month calendar with lot indicators showing which days have scheduled auctions.
+- **Date Range Filter** — Filter events by date range using query parameters.
+- **Custom Events** — Add custom auction events with a title, description, date, and optional URL (e.g., for auction house registration links).
+- **Lot Indicators** — Days with tracked auction lots display visual indicators on the calendar.
+- **API Endpoints** — `GET /calendar`, `POST/PUT/DELETE /calendar/events`.
+
+## Price Alerts
+
+Set target prices on watched auction lots and get notified when bidding crosses your threshold.
+
+- **Target Price** — Set a price threshold and direction (above or below) for any tracked auction lot.
+- **Triggered Notifications** — When bidding crosses the threshold, a notification is generated in your notification inbox.
+- **API Endpoints** — `GET/POST /alerts`, `DELETE /alerts/:id`. Each alert tracks the lot ID, target price, direction, and triggered status.
+
+## Bid Sniping Reminders
+
+Set reminders for a configurable number of minutes before a watched lot's auction session closes.
+
+- **Configurable Lead Time** — Choose how many minutes before the auction close you want to be reminded.
+- **Notification Integration** — Reminders appear in the in-app notification inbox when triggered.
+- **API Endpoints** — `GET/POST /reminders`, `DELETE /reminders/:id`. Each reminder tracks the lot ID, remind-before minutes, and triggered status.
+
+## Custom Tags and Labels
+
+Create user-defined categories beyond the built-in fields. Tags provide flexible, personal organization for your collection.
+
+- **Create and Manage** — Create, rename, and delete custom tags with color selection in **Settings → Tags**.
+- **Attach to Coins** — Attach or detach tags on any coin in your collection. Tags display on coin cards and the detail page.
+- **API Endpoints** — `GET/POST /tags`, `PUT/DELETE /tags/:id`, `POST /coins/:id/tags`, `DELETE /coins/:id/tags/:tagId`.
+
+## Bulk Operations
+
+Multi-select coins for batch operations across your collection.
+
+- **Select Mode** — Enter select mode, tap coins to select them, then apply a bulk action.
+- **Supported Actions** — Batch status changes, tagging, and export.
+- **PWA Integration** — In PWA mode, a dedicated **Select** button appears in the header. The agent FAB is automatically hidden during bulk select mode.
+- **API Endpoint** — `POST /coins/bulk`.
+
+## Notifications
+
+An in-app notification system with an unread badge count in the navigation bar.
+
+- **Social Notifications** — Follow requests, comments, and star ratings generate notifications.
+- **Alert and Reminder Triggers** — Price alert and bid sniping reminder triggers create notifications.
+- **Mark as Read** — Mark individual notifications or all at once as read.
+- **Delete** — Remove notifications you no longer need.
+- **Real-Time Badge** — The unread count badge polls automatically using a shared composable.
+- **API Endpoints** — `GET /notifications`, `GET /notifications/unread-count`, `PUT /notifications/:id/read`, `PUT /notifications/read-all`, `DELETE /notifications/:id`.
+
+## Insurance / Provenance PDF Export
+
+Generate a downloadable PDF catalog of your collection with photos, grades, provenance details, and valuations. Useful for insurance documentation or sharing with dealers.
+
+- **Download from Settings** — Available in **Settings → Data** as a one-click download.
+- **API Endpoint** — `GET /user/export/catalog`.
 
 ## Configuration
 

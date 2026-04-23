@@ -126,7 +126,12 @@ Vue SPA ───> Go API (8080) ───> Python Agent (8081)
               │                   ├── Team 3: Coin Analysis
               │                   ├── Team 4: Portfolio Review
               │                   ├── Team 5: Auction Search
-              │                   └── Team 6: Availability Check
+              │                   ├── Team 6: Availability Check
+              │                   ├── Team 7: Coin Grading
+              │                   ├── Team 8: Gap Analysis
+              │                   ├── Team 9: Photo Guide
+              │                   ├── Team 10: Price Trends
+              │                   └── Team 11: Similar Lots
               │                   │
               │              ┌────┴────┐
               │              v         v
@@ -148,6 +153,11 @@ Each team follows a multi-agent pipeline with verification steps to prevent hall
 | 4: Portfolio Review | Read → Valuate → Analyze | Collection analysis and recommendations |
 | 5: Auction Search | Search → Fetch → Format | Search NumisBids for auction lots |
 | 6: Availability Check | Check URLs → Analyze Results | Verify wishlist listings are still for sale |
+| 7: Coin Grading | Analyze Photos → Grade → Format | AI grade estimation with confidence |
+| 8: Gap Analysis | Read Portfolio → Analyze Gaps → Suggest | Collection completeness analysis |
+| 9: Photo Guide | Analyze Photos → Evaluate → Tips | Photography improvement suggestions |
+| 10: Price Trends | Search Auctions → Analyze Trends → Format | Market price trend analysis |
+| 11: Similar Lots | Search → Rank → Format | Find similar active auction lots |
 
 ### Search Strategy
 
@@ -176,6 +186,11 @@ The Python service is **stateless** — it has no database access. All configura
 | `src/agent/app/teams/portfolio_review.py` | Team 4: Read → Valuate → Analyze |
 | `src/agent/app/teams/auction_search.py` | Team 5: Auction search → Fetch → Format |
 | `src/agent/app/teams/availability_check.py` | Team 6: Check URLs → Analyze results |
+| `src/agent/app/teams/coin_grading.py` | Team 7: Photo-based grade estimation |
+| `src/agent/app/teams/gap_analysis.py` | Team 8: Collection gap analysis |
+| `src/agent/app/teams/photo_guide.py` | Team 9: Photography tips |
+| `src/agent/app/teams/price_trends.py` | Team 10: Price trend analysis |
+| `src/agent/app/teams/similar_lots.py` | Team 11: Similar lot finder |
 | `src/agent/app/tools/numisbids.py` | NumisBids scraping tools |
 | `src/api/services/numisbids_service.go` | Go NumisBids HTTP client (login, watchlist, scraper) |
 | `src/api/services/auction_lot_service.go` | Auction lot status transitions, convert-to-coin |
@@ -184,3 +199,15 @@ The Python service is **stateless** — it has no database access. All configura
 | `src/agent/app/streaming.py` | SSE streaming from LangGraph events |
 | `src/agent/app/llm/provider.py` | LLM factory (Anthropic vs Ollama) |
 | `src/api/services/agent_proxy.go` | Go SSE proxy to Python service |
+| `src/api/handlers/showcase.go` | Showcase CRUD + public endpoint |
+| `src/api/handlers/calendar.go` | Calendar events CRUD |
+| `src/api/handlers/alerts.go` | Price alerts + bid reminders |
+| `src/api/handlers/bulk.go` | Bulk coin operations |
+| `src/api/handlers/tag.go` | Custom tags CRUD |
+| `src/api/handlers/notification.go` | Notification management |
+| `src/api/handlers/export_pdf.go` | PDF catalog generation |
+| `src/api/repository/showcase_repository.go` | Showcase + coin assignments |
+| `src/api/repository/price_alert_repository.go` | Alerts + reminders |
+| `src/api/repository/auction_event_repository.go` | Calendar events |
+| `src/api/repository/tag_repository.go` | Tags + coin-tag joins |
+| `src/api/repository/notification_repository.go` | Notification persistence |

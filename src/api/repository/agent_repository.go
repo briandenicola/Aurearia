@@ -36,6 +36,7 @@ type TopCoin struct {
 	CurrentValue *float64 `json:"currentValue"`
 	Ruler        string   `json:"ruler"`
 	Era          string   `json:"era"`
+	Grade        string   `json:"grade"`
 }
 
 // PortfolioSummary holds all aggregated portfolio data.
@@ -101,7 +102,7 @@ func (r *AgentRepository) GetPortfolioSummary(userID uint) (*PortfolioSummary, e
 
 	var topCoins []TopCoin
 	r.db.Model(&models.Coin{}).
-		Select("name, category, current_value, ruler, era").
+		Select("name, category, current_value, ruler, era, grade").
 		Where(activeFilter+" AND current_value IS NOT NULL", userID, false, false).
 		Order("current_value DESC").Limit(10).Find(&topCoins)
 

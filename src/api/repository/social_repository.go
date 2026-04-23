@@ -177,7 +177,25 @@ func (r *SocialRepository) GetAllFollows(followerID uint) ([]models.Follow, erro
 	return follows, err
 }
 
-// SearchUsers searches for public users by username prefix, excluding the given user.
+// GetAcceptedFollowerIDs returns the user IDs of all accepted followers for the given user.
+func (r *SocialRepository) GetAcceptedFollowerIDs(userID uint) ([]uint, error) {
+	var ids []uint
+	err := r.db.Model(&models.Follow{}).
+		Where("following_id = ? AND status = ?", userID, "accepted").
+		Pluck("follower_id", &ids).Error
+	return ids, err
+}
+
+// GetUserByID returns a user by primary key.
+func (r *SocialRepository) GetUserByID(id uint) (*models.User, error) {
+	var user models.User
+	if err := r.db.First(&user, id).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// SearchUserssearches for public users by username prefix, excluding the given user.
 func (r *SocialRepository) SearchUsers(query string, excludeUserID uint) ([]models.User, error) {
 	var users []models.User
 	err := r.db.Where("username LIKE ? AND id != ? AND is_public = ?", query+"%", excludeUserID, true).

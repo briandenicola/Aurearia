@@ -19,7 +19,8 @@ type AuctionLot struct {
 	LotNumber    int              `json:"lotNumber"`
 	AuctionHouse string           `json:"auctionHouse"`
 	SaleName     string           `json:"saleName"`
-	SaleDate     *time.Time       `json:"saleDate"`
+	SaleDate       *time.Time       `json:"saleDate"`
+	AuctionEndTime *time.Time       `json:"auctionEndTime"`
 	Title        string           `gorm:"not null" json:"title"`
 	Description  string           `gorm:"type:text" json:"description"`
 	Category     Category         `gorm:"type:varchar(20);default:'Other'" json:"category"`
@@ -31,6 +32,8 @@ type AuctionLot struct {
 	ImageURL     string           `json:"imageUrl"`
 	CoinID       *uint            `json:"coinId"`
 	Coin         *Coin            `gorm:"foreignKey:CoinID" json:"coin,omitempty"`
+	EventID      *uint            `json:"eventId"`
+	Event        *AuctionEvent    `gorm:"foreignKey:EventID" json:"event,omitempty"`
 	UserID       uint             `gorm:"not null" json:"userId"`
 	User         User             `gorm:"foreignKey:UserID" json:"-"`
 	CreatedAt    time.Time        `json:"createdAt"`

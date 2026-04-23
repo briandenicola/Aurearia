@@ -39,6 +39,7 @@ class PortfolioCoin(BaseModel):
     material: str = ""
     era: str = ""
     ruler: str = ""
+    grade: str = ""
     purchase_price: float = 0
     current_value: float = 0
 

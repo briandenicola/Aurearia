@@ -25,7 +25,7 @@ func (r *ApiKeyRepository) Create(apiKey *models.ApiKey) error {
 // ListByUser returns all API keys for a user, ordered by creation date descending.
 func (r *ApiKeyRepository) ListByUser(userID uint) ([]models.ApiKey, error) {
 	var keys []models.ApiKey
-	if err := r.db.Where("user_id = ?", userID).Order("created_at DESC").Find(&keys).Error; err != nil {
+	if err := r.db.Scopes(OwnedBy(userID)).Order("created_at DESC").Find(&keys).Error; err != nil {
 		return nil, err
 	}
 	return keys, nil
@@ -34,7 +34,7 @@ func (r *ApiKeyRepository) ListByUser(userID uint) ([]models.ApiKey, error) {
 // FindByIDAndUser finds an API key by its ID and owning user.
 func (r *ApiKeyRepository) FindByIDAndUser(keyID uint, userID uint) (*models.ApiKey, error) {
 	var apiKey models.ApiKey
-	if err := r.db.Where("id = ? AND user_id = ?", keyID, userID).First(&apiKey).Error; err != nil {
+	if err := r.db.Scopes(OwnedByID(keyID, userID)).First(&apiKey).Error; err != nil {
 		return nil, err
 	}
 	return &apiKey, nil

@@ -36,6 +36,7 @@ export interface Coin {
   listingCheckReason: string
   userId: number
   images: CoinImage[]
+  tags?: Tag[]
   createdAt: string
   updatedAt: string
 }
@@ -47,6 +48,13 @@ export interface CoinImage {
   imageType: ImageType
   isPrimary: boolean
   createdAt: string
+}
+
+export interface Tag {
+  id: number
+  userId: number
+  name: string
+  color: string
 }
 
 export type Category = 'Roman' | 'Greek' | 'Byzantine' | 'Modern' | 'Other'
@@ -331,6 +339,7 @@ export interface AuctionLot {
   imageUrl: string
   coinId: number | null
   coin?: Coin
+  eventId: number | null
   userId: number
   createdAt: string
   updatedAt: string
@@ -339,6 +348,18 @@ export interface AuctionLot {
 export interface AuctionLotListResponse {
   lots: AuctionLot[]
   total: number
+}
+
+export interface CalendarEventDetail {
+  id: number
+  title: string
+  auctionHouse: string
+  startDate: string | null
+  endDate: string | null
+  url: string
+  notes: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface AvailabilityRunSummary {
@@ -378,4 +399,56 @@ export interface AvailabilityRun {
   completedAt: string | null
   results?: AvailabilityResult[]
   createdAt: string
+}
+
+export interface ValuationResult {
+  id: number
+  runId: number
+  coinId: number
+  coinName: string
+  previousValue: number | null
+  estimatedValue: number
+  confidence: string
+  reasoning: string
+  status: string
+  errorMessage?: string
+  checkedAt: string
+}
+
+export interface ValuationRun {
+  id: number
+  userId: number
+  triggerType: string
+  triggerUserId: number | null
+  status: string
+  totalCoins: number
+  coinsChecked: number
+  coinsUpdated: number
+  coinsSkipped: number
+  errors: number
+  durationMs: number
+  startedAt: string
+  completedAt: string | null
+  errorMessage?: string
+  results?: ValuationResult[]
+  createdAt: string
+}
+
+export interface Notification {
+  id: number
+  userId: number
+  type: 'wishlist_unavailable' | 'friend_new_coin'
+  title: string
+  message: string
+  referenceId: number
+  referenceUrl?: string
+  isRead: boolean
+  createdAt: string
+}
+
+export interface NotificationListResponse {
+  notifications: Notification[]
+  total: number
+  page: number
+  limit: number
 }

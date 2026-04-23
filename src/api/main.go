@@ -133,18 +133,29 @@ func main() {
 		api.POST("/auth/webauthn/login/begin", authRateLimit, webauthnHandler.LoginBegin)
 		api.POST("/auth/webauthn/login/finish", authRateLimit, webauthnHandler.LoginFinish)
 		api.GET("/auth/webauthn/check", webauthnHandler.CheckCredentials)
+
+		// Public showcase route (no auth)
+		publicShowcaseRepo := repository.NewShowcaseRepository(database.DB)
+		publicShowcaseHandler := handlers.NewShowcaseHandler(publicShowcaseRepo)
+		api.GET("/showcase/:slug", publicShowcaseHandler.GetPublicShowcase)
 	}
 
 	// Protected routes
 	agentProxy := services.NewAgentProxy(cfg.AgentServiceURL)
 	availRepo := repository.NewAvailabilityRepository(database.DB)
 	coinRepo := repository.NewCoinRepository(database.DB)
-	availSvc := services.NewAvailabilityService(coinRepo, availRepo, agentProxy)
+	socialRepo := repository.NewSocialRepository(database.DB)
+	notifRepo := repository.NewNotificationRepository(database.DB)
+	notifSvc := services.NewNotificationService(notifRepo, socialRepo)
+	availSvc := services.NewAvailabilityService(coinRepo, availRepo, agentProxy, notifSvc)
+	valRepo := repository.NewValuationRepository(database.DB)
+	userRepoForVal := repository.NewUserRepository(database.DB)
+	valSvc := services.NewValuationService(coinRepo, valRepo, agentProxy, userRepoForVal)
 
 	protected := api.Group("")
 	protected.Use(middleware.AuthRequired(cfg.JWTSecret, database.DB))
 	{
-		coinSvc := services.NewCoinService(coinRepo)
+		coinSvc := services.NewCoinService(coinRepo, notifSvc)
 		coinHandler := handlers.NewCoinHandler(coinRepo, coinSvc)
 		protected.GET("/coins", coinHandler.List)
 		protected.GET("/coins/:id", coinHandler.Get)
@@ -154,6 +165,18 @@ func main() {
 		protected.POST("/coins/:id/sell", coinHandler.Sell)
 		protected.DELETE("/coins/:id", coinHandler.Delete)
 
+		tagRepo := repository.NewTagRepository(database.DB)
+		tagHandler := handlers.NewTagHandler(tagRepo)
+		protected.GET("/tags", tagHandler.List)
+		protected.POST("/tags", tagHandler.Create)
+		protected.PUT("/tags/:id", tagHandler.Update)
+		protected.DELETE("/tags/:id", tagHandler.Delete)
+		bulkHandler := handlers.NewBulkHandler(coinRepo, tagRepo)
+		protected.POST("/coins/bulk", bulkHandler.BulkAction)
+
+		protected.POST("/coins/:id/tags", tagHandler.AttachToCoin)
+		protected.DELETE("/coins/:id/tags/:tagId", tagHandler.DetachFromCoin)
+
 		journalRepo := repository.NewJournalRepository(database.DB)
 		journalHandler := handlers.NewJournalHandler(journalRepo)
 		protected.GET("/coins/:id/journal", journalHandler.ListEntries)
@@ -161,6 +184,7 @@ func main() {
 		protected.DELETE("/coins/:id/journal/:entryId", journalHandler.DeleteEntry)
 
 		protected.GET("/stats", coinHandler.Stats)
+		protected.GET("/stats/distribution", coinHandler.Distribution)
 		protected.GET("/value-history", coinHandler.ValueHistory)
 		protected.GET("/coins/:id/value-history", coinHandler.CoinValueHistory)
 		protected.GET("/suggestions", coinHandler.Suggestions)
@@ -190,10 +214,13 @@ func main() {
 		auctionUserRepo := repository.NewUserRepository(database.DB)
 		auctionLotHandler := handlers.NewAuctionLotHandler(auctionLotRepo, auctionLotSvc, auctionUserRepo, nbSvc)
 		protected.GET("/auctions", auctionLotHandler.List)
+		protected.GET("/auctions/counts", auctionLotHandler.Counts)
+		protected.PUT("/auctions/bulk-link-event", auctionLotHandler.BulkLinkEvent)
 		protected.GET("/auctions/:id", auctionLotHandler.Get)
 		protected.POST("/auctions", auctionLotHandler.Create)
 		protected.PUT("/auctions/:id", auctionLotHandler.Update)
 		protected.PUT("/auctions/:id/status", auctionLotHandler.UpdateStatus)
+		protected.PUT("/auctions/:id/event", auctionLotHandler.LinkEvent)
 		protected.POST("/auctions/:id/convert", auctionLotHandler.ConvertToCoin)
 		protected.DELETE("/auctions/:id", auctionLotHandler.Delete)
 		protected.POST("/auctions/import", auctionLotHandler.ImportFromURL)
@@ -232,10 +259,10 @@ func main() {
 		protected.POST("/user/avatar", userHandler.UploadAvatar)
 		protected.DELETE("/user/avatar", userHandler.DeleteAvatar)
 		protected.GET("/user/export", userHandler.ExportCollection)
+		protected.GET("/user/export/catalog", userHandler.ExportCatalogPDF)
 		protected.POST("/user/import", userHandler.ImportCollection)
 
 		// Social routes
-		socialRepo := repository.NewSocialRepository(database.DB)
 		socialSvc := services.NewSocialService(socialRepo)
 		socialHandler := handlers.NewSocialHandler(socialRepo, socialSvc)
 		protected.POST("/social/follow/:userId", socialHandler.FollowUser)
@@ -256,6 +283,14 @@ func main() {
 		protected.PUT("/social/coins/:coinId/rating", socialHandler.RateCoin)
 		protected.GET("/social/coins/:coinId/rating", socialHandler.GetCoinRating)
 
+		// Notification routes
+		notifHandler := handlers.NewNotificationHandler(notifRepo)
+		protected.GET("/notifications", notifHandler.List)
+		protected.GET("/notifications/unread-count", notifHandler.UnreadCount)
+		protected.PUT("/notifications/:id/read", notifHandler.MarkRead)
+		protected.PUT("/notifications/read-all", notifHandler.MarkAllRead)
+		protected.DELETE("/notifications/:id", notifHandler.Delete)
+
 		// API key management
 		apiKeyRepo := repository.NewApiKeyRepository(database.DB)
 		apiKeyHandler := handlers.NewApiKeyHandler(apiKeyRepo)
@@ -268,6 +303,37 @@ func main() {
 		protected.POST("/auth/webauthn/register/finish", webauthnHandler.RegisterFinish)
 		protected.GET("/auth/webauthn/credentials", webauthnHandler.ListCredentials)
 		protected.DELETE("/auth/webauthn/credentials/:id", webauthnHandler.DeleteCredential)
+
+		// Showcase routes
+		showcaseRepo := repository.NewShowcaseRepository(database.DB)
+		showcaseHandler := handlers.NewShowcaseHandler(showcaseRepo)
+		protected.GET("/showcases", showcaseHandler.ListShowcases)
+		protected.GET("/showcases/:id", showcaseHandler.GetShowcase)
+		protected.POST("/showcases", showcaseHandler.CreateShowcase)
+		protected.PUT("/showcases/:id", showcaseHandler.UpdateShowcase)
+		protected.DELETE("/showcases/:id", showcaseHandler.DeleteShowcase)
+		protected.PUT("/showcases/:id/coins", showcaseHandler.SetShowcaseCoins)
+
+		// Calendar / Auction Event routes
+		eventRepo := repository.NewAuctionEventRepository(database.DB)
+		calendarHandler := handlers.NewCalendarHandler(eventRepo, auctionLotRepo)
+		protected.GET("/calendar", calendarHandler.GetCalendar)
+		protected.GET("/calendar/events", calendarHandler.ListEvents)
+		protected.GET("/calendar/events/:id", calendarHandler.GetEvent)
+		protected.POST("/calendar/events", calendarHandler.CreateEvent)
+		protected.PUT("/calendar/events/:id", calendarHandler.UpdateEvent)
+		protected.DELETE("/calendar/events/:id", calendarHandler.DeleteEvent)
+
+		// Price Alerts & Bid Reminders
+		priceAlertRepo := repository.NewPriceAlertRepository(database.DB)
+		bidReminderRepo := repository.NewBidReminderRepository(database.DB)
+		alertHandler := handlers.NewAlertHandler(priceAlertRepo, bidReminderRepo)
+		protected.GET("/alerts", alertHandler.ListAlerts)
+		protected.POST("/alerts", alertHandler.CreateAlert)
+		protected.DELETE("/alerts/:id", alertHandler.DeleteAlert)
+		protected.GET("/reminders", alertHandler.ListReminders)
+		protected.POST("/reminders", alertHandler.CreateReminder)
+		protected.DELETE("/reminders/:id", alertHandler.DeleteReminder)
 	}
 
 	// Admin-only routes
@@ -291,6 +357,13 @@ func main() {
 		adminAvailHandler := handlers.NewAvailabilityHandler(nil, availRepo, nil)
 		admin.GET("/availability-runs", adminAvailHandler.ListRuns)
 		admin.GET("/availability-runs/:id", adminAvailHandler.GetRunDetail)
+
+		// Valuation run history and manual trigger
+		valAdminHandler := handlers.NewValuationAdminHandler(valRepo, valSvc)
+		admin.GET("/valuation-runs", valAdminHandler.ListRuns)
+		admin.GET("/valuation-runs/:id", valAdminHandler.GetRunDetail)
+		admin.POST("/valuation-runs/trigger", valAdminHandler.TriggerValuation)
+		admin.POST("/valuation-runs/:id/cancel", valAdminHandler.CancelValuation)
 	}
 
 	log.Printf("Starting server on :%s", cfg.Port)
@@ -313,6 +386,10 @@ func main() {
 	// Start wishlist availability scheduler
 	scheduler := services.NewAvailabilityScheduler(availSvc, coinRepo)
 	go scheduler.Start()
+
+	// Start collection valuation scheduler
+	valScheduler := services.NewValuationScheduler(valSvc, coinRepo)
+	go valScheduler.Start()
 
 	logger.Info("startup", "Application ready")
 	log.Println("Application ready")

@@ -1,7 +1,7 @@
 <template>
-  <div class="coin-card card" @click="$router.push(`/coin/${coin.id}`)">
+  <div class="coin-card card" :class="{ 'coin-card-selected': selectable && selected }" @click="handleClick">
     <div class="card-image-container">
-      <img v-if="primaryImage" :src="primaryImage" :alt="coin.name" class="card-image" />
+      <img v-if="primaryImage" :src="primaryImage" :alt="coin.name" class="card-image" loading="lazy" />
       <div v-else class="card-image-placeholder"><Coins :size="48" :stroke-width="1" /></div>
       <div v-if="wishlist && coin.listingStatus === 'unavailable'" class="listing-overlay"></div>
       <span v-if="wishlist && coin.listingStatus === 'unavailable'" class="listing-badge listing-badge-unavailable">Unavailable</span>
@@ -10,6 +10,9 @@
         class="listing-dismiss-btn"
         @click.stop="emit('dismiss-status', coin.id)"
       >Dismiss</button>
+      <div v-if="selectable" class="select-checkbox" :class="{ checked: selected }" @click.stop="emit('toggle-select', coin.id)">
+        <Check v-if="selected" :size="14" :stroke-width="3" />
+      </div>
     </div>
     <div class="card-body">
       <h3 class="card-title">
@@ -25,6 +28,14 @@
         ></span>
         {{ coin.name }}
       </h3>
+      <div v-if="coin.tags?.length" class="card-tags">
+        <span
+          v-for="tag in coin.tags"
+          :key="tag.id"
+          class="tag-chip"
+          :style="{ backgroundColor: tag.color + '22', color: tag.color, borderColor: tag.color + '44' }"
+        >{{ tag.name }}</span>
+      </div>
       <template v-if="!wishlist && !sold">
         <div class="card-meta">
           <span v-if="coin.ruler" class="meta-item">{{ coin.ruler }}</span>
@@ -76,18 +87,39 @@
 <script setup lang="ts">
 import type { Coin, ImageType } from '@/types'
 import { computed } from 'vue'
-import { Coins, ShoppingCart } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { Coins, ShoppingCart, Check } from 'lucide-vue-next'
 
-const props = withDefaults(defineProps<{ coin: Coin; imageSide?: ImageType | null; wishlist?: boolean; sold?: boolean }>(), {
+const router = useRouter()
+
+const props = withDefaults(defineProps<{
+  coin: Coin
+  imageSide?: ImageType | null
+  wishlist?: boolean
+  sold?: boolean
+  selectable?: boolean
+  selected?: boolean
+}>(), {
   imageSide: null,
   wishlist: false,
   sold: false,
+  selectable: false,
+  selected: false,
 })
 
 const emit = defineEmits<{
   purchase: [coin: Coin]
   'dismiss-status': [coinId: number]
+  'toggle-select': [coinId: number]
 }>()
+
+function handleClick() {
+  if (props.selectable) {
+    emit('toggle-select', props.coin.id)
+  } else {
+    router.push(`/coin/${props.coin.id}`)
+  }
+}
 
 const primaryImage = computed(() => {
   if (props.imageSide) {
@@ -100,8 +132,10 @@ const primaryImage = computed(() => {
   return img ? `/uploads/${img.filePath}` : null
 })
 
+const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
+
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
+  return currencyFormatter.format(value)
 }
 </script>
 
@@ -183,6 +217,22 @@ function formatCurrency(value: number) {
   overflow: hidden;
 }
 
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.tag-chip {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 9999px;
+  border: 1px solid;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
 .card-meta {
   display: flex;
   gap: 0.5rem;
@@ -201,11 +251,20 @@ function formatCurrency(value: number) {
 }
 
 .detail {
-  font-size: 0.75rem;
-  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+  padding: 0.2rem 0.65rem;
   background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
   color: var(--text-secondary);
+}
+
+/* PWA: slightly larger pills for touch targets */
+@media (display-mode: standalone) {
+  .detail {
+    font-size: 0.85rem;
+    padding: 0.25rem 0.75rem;
+  }
 }
 
 .card-grade {
@@ -236,16 +295,6 @@ function formatCurrency(value: number) {
 }
 
 .card-purchase-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-top: 0.5rem;
-  width: 100%;
-  justify-content: center;
-  font-size: 0.8rem;
-}
-
-.card-sell-btn {
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -294,6 +343,12 @@ function formatCurrency(value: number) {
 .category-byzantine { color: #e67e73; }
 .category-modern { color: #7ab3d4; }
 .category-other { color: #aaa; }
+
+.material-gold { color: #d4af37; }
+.material-silver { color: #a8a9ad; }
+.material-bronze { color: #cd7f32; }
+.material-copper { color: #b87333; }
+.material-ae { color: #cd7f32; }
 
 /* Listing status overlay & badge */
 .listing-overlay {
@@ -355,5 +410,34 @@ function formatCurrency(value: number) {
 
 .status-dot-unknown {
   background: #f1c40f;
+}
+
+/* Select mode */
+.select-checkbox {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 4;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.select-checkbox.checked {
+  background: var(--accent-gold);
+  border-color: var(--accent-gold);
+  color: #000;
+}
+
+.coin-card-selected {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: -2px;
 }
 </style>

@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -32,40 +30,13 @@ func NewAgentHandler(repo *repository.AgentRepository, userRepo *repository.User
 	}
 }
 
-// resolveLLMConfig reads the explicit AIProvider setting and builds LLMConfig.
-// Returns an error message if the provider is not configured.
+// resolveLLMConfig wraps services.ResolveLLMConfig for handler use,
+// returning an error message string for HTTP responses.
 func resolveLLMConfig() (services.LLMConfig, string) {
-	provider := services.GetSetting(services.SettingAIProvider)
-	if provider == "" {
-		return services.LLMConfig{}, "AI provider not configured. Please select Anthropic or Ollama in Admin Settings."
+	cfg, err := services.ResolveLLMConfig()
+	if err != nil {
+		return services.LLMConfig{}, err.Error()
 	}
-
-	cfg := services.LLMConfig{
-		Provider:   provider,
-		OllamaURL:  services.GetSetting(services.SettingOllamaURL),
-		SearXNGURL: services.GetSetting(services.SettingSearXNGURL),
-	}
-
-	switch provider {
-	case "anthropic":
-		cfg.APIKey = services.GetSetting(services.SettingAnthropicAPIKey)
-		cfg.Model = services.GetSetting(services.SettingAnthropicModel)
-		if cfg.APIKey == "" {
-			return services.LLMConfig{}, "Anthropic API key is required. Configure it in Admin Settings."
-		}
-	case "ollama":
-		cfg.Model = services.GetSetting(services.SettingOllamaModel)
-		if cfg.OllamaURL == "" {
-			return services.LLMConfig{}, "Ollama URL is required. Configure it in Admin Settings."
-		}
-	default:
-		return services.LLMConfig{}, "Invalid AI provider. Please select Anthropic or Ollama in Admin Settings."
-	}
-
-	if cfg.Model == "" {
-		cfg.Model = "claude-sonnet-4-20250514"
-	}
-
 	return cfg, ""
 }
 
@@ -395,22 +366,7 @@ func (h *AgentHandler) PortfolioSummary(c *gin.Context) {
 	})
 }
 
-// Value estimation types
-
-type ValueComparable struct {
-	Source string `json:"source"`
-	Price  string `json:"price"`
-	URL    string `json:"url"`
-}
-
-type ValueEstimateResponse struct {
-	EstimatedValue float64           `json:"estimatedValue"`
-	Confidence     string            `json:"confidence"`
-	Reasoning      string            `json:"reasoning"`
-	Comparables    []ValueComparable `json:"comparables"`
-}
-
-const DefaultValuationPrompt = `You are an expert numismatist and coin appraiser. Estimate the current fair market value of a coin.
+const DefaultValuationPrompt= `You are an expert numismatist and coin appraiser. Estimate the current fair market value of a coin.
 
 Instructions:
 1. Search for CURRENT listings and RECENT sales of comparable coins.
@@ -463,10 +419,10 @@ func (h *AgentHandler) EstimateValue(c *gin.Context) {
 		return
 	}
 
-	// Resolve LLM provider from explicit setting
-	llmCfg, errMsg := resolveLLMConfig()
-	if errMsg != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
+	// Resolve LLM provider from shared config
+	llmCfg, cfgErr := services.ResolveLLMConfig()
+	if cfgErr != nil {
+		respondError(c, http.StatusBadRequest, "Unable to configure valuation provider", cfgErr)
 		return
 	}
 
@@ -475,47 +431,9 @@ func (h *AgentHandler) EstimateValue(c *gin.Context) {
 		zipCode = user.ZipCode
 	}
 
-	// Build description of the coin for the AI
-	parts := []string{}
-	if coin.Name != "" {
-		parts = append(parts, fmt.Sprintf("Name: %s", coin.Name))
-	}
-	if coin.Category != "" {
-		parts = append(parts, fmt.Sprintf("Category: %s", string(coin.Category)))
-	}
-	if coin.Denomination != "" {
-		parts = append(parts, fmt.Sprintf("Denomination: %s", coin.Denomination))
-	}
-	if coin.Ruler != "" {
-		parts = append(parts, fmt.Sprintf("Ruler: %s", coin.Ruler))
-	}
-	if coin.Era != "" {
-		parts = append(parts, fmt.Sprintf("Era: %s", coin.Era))
-	}
-	if coin.Material != "" {
-		parts = append(parts, fmt.Sprintf("Material: %s", string(coin.Material)))
-	}
-	if coin.Grade != "" {
-		parts = append(parts, fmt.Sprintf("Grade/Condition: %s", coin.Grade))
-	}
-	if coin.WeightGrams != nil {
-		parts = append(parts, fmt.Sprintf("Weight: %.2fg", *coin.WeightGrams))
-	}
-	if coin.DiameterMm != nil {
-		parts = append(parts, fmt.Sprintf("Diameter: %.1fmm", *coin.DiameterMm))
-	}
-	if coin.RarityRating != "" {
-		parts = append(parts, fmt.Sprintf("Rarity/RIC: %s", coin.RarityRating))
-	}
-	if coin.Mint != "" {
-		parts = append(parts, fmt.Sprintf("Mint: %s", coin.Mint))
-	}
-	if coin.PurchasePrice != nil {
-		parts = append(parts, fmt.Sprintf("Purchase Price: $%.2f", *coin.PurchasePrice))
-	}
-
+	description := services.BuildCoinDescription(coin)
 	userMessage := fmt.Sprintf("Estimate the current market value of this coin:\n\n%s\n\n"+
-		"Return ONLY the JSON block as specified in your instructions. No preamble or extra text.", strings.Join(parts, "\n"))
+		"Return ONLY the JSON block as specified in your instructions. No preamble or extra text.", description)
 
 	proxyReq := services.PortfolioReviewProxyRequest{
 		LLM: llmCfg,
@@ -540,16 +458,12 @@ func (h *AgentHandler) EstimateValue(c *gin.Context) {
 		return
 	}
 
-	// Parse structured fields from the AI's free-text response
-	estimate := parseValueEstimate(aiText)
+	// Parse structured fields using the shared parser
+	estimate := services.ParseValueEstimate(aiText)
 
 	// Save estimate to the coin's journal
-	if estVal, ok := estimate["estimatedValue"].(float64); ok && estVal > 0 {
-		confidence, _ := estimate["confidence"].(string)
-		if confidence == "" {
-			confidence = "medium"
-		}
-		journalText := fmt.Sprintf("AI Value Estimate: $%.2f (%s confidence)", estVal, confidence)
+	if estimate.EstimatedValue > 0 {
+		journalText := fmt.Sprintf("AI Value Estimate: $%.2f (%s confidence)", estimate.EstimatedValue, estimate.Confidence)
 		entry := models.CoinJournal{
 			CoinID: uint(coinID),
 			UserID: userID,
@@ -560,163 +474,17 @@ func (h *AgentHandler) EstimateValue(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, estimate)
-}
-
-// parseValueEstimate extracts structured fields from the AI response.
-// First tries to parse a JSON block (the prompt requests one), then
-// falls back to regex extraction from free text.
-func parseValueEstimate(text string) gin.H {
-	// Try parsing a ```json block first
-	if jsonResult := tryParseJSONEstimate(text); jsonResult != nil {
-		return jsonResult
+	// Convert to gin.H for API response compatibility
+	comps := make([]gin.H, 0, len(estimate.Comparables))
+	for _, comp := range estimate.Comparables {
+		comps = append(comps, gin.H{"source": comp.Source, "price": comp.Price, "url": comp.URL})
 	}
-
-	// Fallback: extract from free text
-	result := gin.H{
-		"estimatedValue": 0.0,
-		"confidence":     "medium",
-		"reasoning":      summarizeReasoning(text),
-		"comparables":    []gin.H{},
-	}
-
-	// Extract dollar amount: patterns like $150, $150-200, $1,500
-	priceRe := regexp.MustCompile(`\$[\d,]+(?:\.\d{2})?(?:\s*[-–]\s*\$?[\d,]+(?:\.\d{2})?)?`)
-	if match := priceRe.FindString(text); match != "" {
-		numRe := regexp.MustCompile(`[\d,]+(?:\.\d{2})?`)
-		nums := numRe.FindAllString(match, -1)
-		if len(nums) > 0 {
-			first := parsePrice(nums[0])
-			if len(nums) > 1 {
-				second := parsePrice(nums[len(nums)-1])
-				result["estimatedValue"] = (first + second) / 2
-			} else {
-				result["estimatedValue"] = first
-			}
-		}
-	}
-
-	// Extract confidence
-	lower := strings.ToLower(text)
-	if strings.Contains(lower, "high confidence") || strings.Contains(lower, "confidence: high") || strings.Contains(lower, "confidence level: high") {
-		result["confidence"] = "high"
-	} else if strings.Contains(lower, "low confidence") || strings.Contains(lower, "confidence: low") || strings.Contains(lower, "confidence level: low") {
-		result["confidence"] = "low"
-	}
-
-	return result
-}
-
-// tryParseJSONEstimate attempts to extract a ValueEstimate JSON block.
-func tryParseJSONEstimate(text string) gin.H {
-	start := strings.Index(text, "```json")
-	if start == -1 {
-		return nil
-	}
-	start += len("```json")
-	end := strings.Index(text[start:], "```")
-	if end == -1 {
-		return nil
-	}
-	jsonStr := strings.TrimSpace(text[start : start+end])
-
-	var parsed struct {
-		EstimatedValue float64 `json:"estimatedValue"`
-		Confidence     string  `json:"confidence"`
-		Reasoning      string  `json:"reasoning"`
-		Comparables    []struct {
-			Source string `json:"source"`
-			Price  string `json:"price"`
-			URL    string `json:"url"`
-		} `json:"comparables"`
-	}
-	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {
-		return nil
-	}
-
-	comps := []gin.H{}
-	for _, c := range parsed.Comparables {
-		comps = append(comps, gin.H{"source": c.Source, "price": c.Price, "url": c.URL})
-	}
-
-	confidence := parsed.Confidence
-	if confidence == "" {
-		confidence = "medium"
-	}
-
-	return gin.H{
-		"estimatedValue": parsed.EstimatedValue,
-		"confidence":     confidence,
-		"reasoning":      parsed.Reasoning,
+	c.JSON(http.StatusOK, gin.H{
+		"estimatedValue": estimate.EstimatedValue,
+		"confidence":     estimate.Confidence,
+		"reasoning":      estimate.Reasoning,
 		"comparables":    comps,
-	}
-}
-
-// summarizeReasoning trims verbose AI output to a clean summary.
-// Looks for key sentences containing valuation info and limits to ~3 sentences.
-func summarizeReasoning(text string) string {
-	// Remove markdown headers and formatting
-	text = strings.ReplaceAll(text, "**", "")
-	text = strings.ReplaceAll(text, "##", "")
-	text = strings.ReplaceAll(text, "# ", "")
-
-	// Split into sentences
-	sentences := splitSentences(text)
-	if len(sentences) == 0 {
-		return text
-	}
-
-	// Pick the most relevant sentences (containing value/price/estimate keywords)
-	keywords := []string{"estimat", "value", "price", "worth", "$", "market", "condition", "grade", "comparable", "range", "auction"}
-	var relevant []string
-	for _, s := range sentences {
-		s = strings.TrimSpace(s)
-		if len(s) < 15 {
-			continue
-		}
-		lower := strings.ToLower(s)
-		for _, kw := range keywords {
-			if strings.Contains(lower, kw) {
-				relevant = append(relevant, s)
-				break
-			}
-		}
-	}
-
-	if len(relevant) == 0 {
-		// Just take first 3 sentences
-		limit := 3
-		if len(sentences) < limit {
-			limit = len(sentences)
-		}
-		return strings.Join(sentences[:limit], " ")
-	}
-
-	limit := 3
-	if len(relevant) < limit {
-		limit = len(relevant)
-	}
-	return strings.Join(relevant[:limit], " ")
-}
-
-func splitSentences(text string) []string {
-	// Split on sentence-ending punctuation followed by space or newline
-	re := regexp.MustCompile(`[.!?]\s+`)
-	parts := re.Split(text, -1)
-	var result []string
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			result = append(result, p+".")
-		}
-	}
-	return result
-}
-
-func parsePrice(s string) float64 {
-	s = strings.ReplaceAll(s, ",", "")
-	val, _ := strconv.ParseFloat(s, 64)
-	return val
+	})
 }
 
 // buildPortfolioData converts the repository PortfolioSummary into the proxy PortfolioData.
@@ -748,6 +516,7 @@ func buildPortfolioData(s *repository.PortfolioSummary) *services.PortfolioData 
 			Category:     tc.Category,
 			Era:          tc.Era,
 			Ruler:        tc.Ruler,
+			Grade:        tc.Grade,
 			CurrentValue: cv,
 		})
 	}

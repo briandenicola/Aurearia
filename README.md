@@ -2,9 +2,9 @@
 
 > **Note:** This application is 100% vibe coded. It's exclusively for me to learn and experiment with GitHub Copilot CLI.
 
-Ancient Coins is a full-stack web application for cataloging and managing your personal coin collection. Track details like denomination, ruler, era, mint, material, grade, inscriptions, RIC rarity ratings, photos, and more — with AI-powered coin analysis via Ollama vision models and an Anthropic-powered coin search agent. Every coin is scoped to your authenticated account using JWT-based authentication.
+Ancient Coins is a full-stack web application for cataloging and managing your personal coin collection. Track details like denomination, ruler, era, mint, material, grade, inscriptions, RIC rarity ratings, photos, and more — with AI-powered coin analysis via Ollama vision models and an Anthropic-powered coin search agent. New AI agent teams provide **grading assistance**, **collection gap analysis**, **coin photography tips**, **price trend analysis**, and **similar lot finding**. Share curated subsets of your collection via **public showcase links**, plan purchases with an **auction calendar**, stay informed with **price alerts** and **bid reminders** through an **in-app notification system**, organize with **custom tags and labels**, act on multiple coins at once with **bulk operations**, visualize your holdings on a **heat map**, and generate a **PDF catalog export**. Every coin is scoped to your authenticated account using JWT-based authentication.
 
-It includes a **wish list** with an AI search agent for discovering coins and **automated availability checking** to detect when listings go off-market, **auction lot tracking** with NumisBids watchlist sync, a **stats dashboard** with grade distribution charts and portfolio value tracking over time, per-coin **activity journals**, **Numista catalog lookups**, collection **export/import**, and **social features** — follow other collectors, accept or block followers, browse follower galleries, leave comments and star ratings on coins, and discover users with search and public profiles.
+It includes a **wish list** with an AI search agent for discovering coins and **automated availability checking** to detect when listings go off-market, **auction lot tracking** with NumisBids watchlist sync, a **stats dashboard** with grade distribution charts, portfolio value tracking over time, and a **heat map** of your collection by era and region, per-coin **activity journals**, **Numista catalog lookups**, collection **export/import**, **PDF catalog export** with photos and valuations, **collection showcases** with public shareable links, **notifications** with unread badges, **bulk operations** for batch status changes and tagging, **custom tags** with user-defined colors, and **social features** — follow other collectors, accept or block followers, browse follower galleries, leave comments and star ratings on coins, and discover users with search and public profiles.
 
 On first launch, the first user to register is automatically assigned as the admin and can configure application settings including AI integrations.
 
@@ -131,6 +131,20 @@ For detailed descriptions of every feature, see the [Features Guide](docs/featur
 - **PWA** — Installable on iOS/Android/desktop with swipe gallery, camera capture, pull-to-refresh ([details](docs/pwa-guide.md))
 - **Settings** — Appearance, data export/import, API keys, WebAuthn, saved conversations
 - **Admin** — User management, AI configuration, system settings, live logs
+- **AI Grading Assistant** — Upload photos, AI estimates grade with reasoning and confidence
+- **Price Trend Analysis** — Track auction results over time, show market direction
+- **Collection Gap Analysis** — AI reviews collection and suggests missing coins
+- **Heat Map** — Visual distribution by era and region on the Stats page
+- **Collection Showcase** — Public shareable links for curated collection subsets
+- **Auction Calendar** — Monthly calendar with lot end dates and custom events
+- **Price Alerts** — Set target prices on watched lots, get notified when bidding crosses threshold
+- **Bid Reminders** — Notification before a watched lot's session closes
+- **Notifications** — In-app notification system with unread badge
+- **Bulk Operations** — Multi-select coins for batch status changes, tagging, or export
+- **Custom Tags** — User-defined labels with colors for organizing coins
+- **PDF Export** — Generate catalog with photos, grades, provenance, and valuations
+- **Coin Photography Guide** — AI tips for better coin photos based on uploads
+- **Similar Lot Finder** — Find active auction lots similar to your collection coins
 
 ## Deployment
 
@@ -173,6 +187,13 @@ AncientCoins/
 │   │   │   ├── admin.go              # User/settings management
 │   │   │   ├── user.go               # Password change, profile
 │   │   │   ├── auction_lots.go       # Auction lot CRUD, NumisBids sync, convert-to-coin
+│   │   │   ├── alerts.go              # Price alerts & bid reminders
+│   │   │   ├── bulk.go                # Bulk coin operations
+│   │   │   ├── calendar.go            # Auction calendar events
+│   │   │   ├── export_pdf.go          # PDF catalog generation
+│   │   │   ├── notification.go        # Notification CRUD
+│   │   │   ├── showcase.go            # Collection showcase CRUD + public view
+│   │   │   ├── tag.go                 # Custom tags CRUD
 │   │   │   ├── api_keys.go           # API key management
 │   │   │   └── webauthn.go           # FIDO2/WebAuthn auth
 │   │   ├── repository/               # Database access layer (all GORM queries)
@@ -184,6 +205,11 @@ AncientCoins/
 │   │   │   ├── admin_repository.go   # Admin user management, cascade delete
 │   │   │   ├── agent_repository.go   # Portfolio summary, value estimation
 │   │   │   ├── auction_lot_repository.go # Auction lot CRUD, upsert, status
+│   │   │   ├── auction_event_repository.go # Calendar events
+│   │   │   ├── notification_repository.go  # Notifications
+│   │   │   ├── price_alert_repository.go   # Price alerts & bid reminders
+│   │   │   ├── showcase_repository.go      # Showcase + coin assignments
+│   │   │   ├── tag_repository.go           # Tag CRUD & coin-tag joins
 │   │   │   └── ...                   # journal, conversation, webauthn, api_key, analysis
 │   │   ├── services/                 # Business logic (HTTP-agnostic)
 │   │   │   ├── coin_service.go       # Value tracking, snapshot orchestration
@@ -198,6 +224,10 @@ AncientCoins/
 │   │   │   └── logger.go             # Structured logger with in-memory buffer
 │   │   ├── middleware/               # JWT & API key auth middleware
 │   │   ├── models/                   # GORM entities (Coin, User, Follow, etc.)
+│   │   │   ├── notification.go        # Notification events
+│   │   │   ├── price_alert.go         # PriceAlert & BidReminder
+│   │   │   ├── showcase.go            # Showcase, ShowcaseCoin, AuctionEvent
+│   │   │   └── tag.go                 # Tag & CoinTag
 │   │   └── architecture_test.go      # Enforces layering rules (no database.DB in handlers)
 │   ├── agent/                         # Python LangGraph agent service
 │   │   ├── app/
@@ -215,7 +245,12 @@ AncientCoins/
 │   │   │       ├── coin_shows.py     # Team 2: Shows → Date verify → Format
 │   │   │       ├── coin_analysis.py  # Team 3: Vision analysis → Format
 │   │   │       ├── portfolio_review.py # Team 4: Read → Valuate → Analyze
-│   │   │       └── auction_search.py # Team 5: Auction search → Fetch → Format
+│   │   │       ├── auction_search.py # Team 5: Auction search → Fetch → Format
+│   │   │       ├── coin_grading.py    # Team 7: Grade estimation from photos
+│   │   │       ├── gap_analysis.py    # Team 8: Collection completeness analysis
+│   │   │       ├── photo_guide.py     # Team 9: Photography improvement tips
+│   │   │       ├── price_trends.py    # Team 10: Market price trend analysis
+│   │   │       └── similar_lots.py    # Team 11: Find similar active auction lots
 │   │   ├── tests/                    # Pytest tests
 │   │   ├── Dockerfile                # Python 3.12-slim multi-stage
 │   │   └── pyproject.toml            # Dependencies (FastAPI, LangGraph, LangChain)
@@ -238,7 +273,17 @@ AncientCoins/
 │       │   │   ├── ImageProcessor.vue # Store card OCR upload
 │       │   │   └── AutocompleteInput.vue
 │       │   ├── pages/                # Route pages
+│       │   │   ├── CalendarPage.vue       # Auction calendar
+│       │   │   ├── NotificationsPage.vue  # Notification inbox
+│       │   │   ├── PublicShowcasePage.vue  # Public showcase viewer
+│       │   │   ├── ShowcasesPage.vue      # Showcase management
+│       │   │   └── ShowcaseEditPage.vue   # Showcase coin picker
 │       │   ├── stores/               # Pinia stores (auth, coins)
+│       │   ├── composables/           # Shared reactive state
+│       │   │   ├── useBulkSelect.ts   # Bulk select mode toggle
+│       │   │   ├── useDialog.ts       # Confirm/alert dialogs
+│       │   │   ├── useNotifications.ts # Unread badge polling
+│       │   │   └── usePullToRefresh.ts # Touch pull-to-refresh
 │       │   ├── router/               # Vue Router configuration
 │       │   └── types/                # TypeScript type definitions
 │       ├── public/                   # PWA icons & coin logo
@@ -252,7 +297,8 @@ AncientCoins/
 │   ├── deployment.md                # Production deployment guide
 │   ├── pwa-guide.md                 # PWA features & installation
 │   ├── social-feature.md            # Social features spec & implementation details
-│   └── security-analysis.md         # Security analysis report
+│   ├── security-analysis.md         # Security analysis report
+│   └── SDD.md                       # Software design document
 ├── instructions.md                   # Agent instructions for AI coding assistants
 ├── Dockerfile                        # Multi-stage build (Vue + Go → Alpine)
 ├── Taskfile.yml                      # Task runner configuration
@@ -300,7 +346,20 @@ Feature ideas and completed enhancements:
 - [x] **Auction Lot Tracking** — NumisBids integration with watchlist sync, status workflow, and auto-convert to collection
 - [ ] **Coin Comparison** — Side-by-side spec comparison of any two coins
 - [ ] **Advanced Search** — Filter by date range, price range, grade, material
-- [ ] **Price Alerts** — Notifications when watched coins appear below a target price
+- [x] **Price Alerts** — Set target prices on watched lots, get notified when bidding crosses threshold
+- [x] **AI Grading Assistant** — Upload photos, AI estimates grade with confidence
+- [x] **Price Trend Analysis** — Track auction results, show market direction
+- [x] **Collection Gap Analysis** — AI reviews collection, suggests missing coins
+- [x] **Heat Map** — Visual distribution by era/region on Stats page
+- [x] **Collection Showcase** — Public shareable links with curated coin subsets
+- [x] **Auction Calendar** — Monthly calendar with lot dates and custom events
+- [x] **Bid Reminders** — Notification before watched lot session closes
+- [x] **Notifications** — In-app notification system with badge count
+- [x] **Bulk Operations** — Multi-select for batch status changes, tagging, export
+- [x] **Custom Tags** — User-defined labels with colors
+- [x] **PDF Catalog Export** — Generate PDF with photos, grades, provenance, valuations
+- [x] **Coin Photography Guide** — AI tips for better coin photos
+- [x] **Similar Lot Finder** — Find active lots similar to collection coins
 - [x] **Share Collection** — Follow collectors and browse their public galleries with comments and ratings
 - [x] **Repository + Service Layer** — Layered architecture with DI, transactions, and architecture tests
 

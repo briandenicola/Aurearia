@@ -47,12 +47,30 @@ export default defineConfig({
         runtimeCaching: [
           {
             urlPattern: /^https?:\/\/.*\/api\//,
+            handler: 'NetworkOnly',
+            method: 'PUT',
+          },
+          {
+            urlPattern: /^https?:\/\/.*\/api\//,
+            handler: 'NetworkOnly',
+            method: 'POST',
+          },
+          {
+            urlPattern: /^https?:\/\/.*\/api\//,
+            handler: 'NetworkOnly',
+            method: 'DELETE',
+          },
+          {
+            urlPattern: /^https?:\/\/.*\/api\//,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
               expiration: {
                 maxEntries: 50,
                 maxAgeSeconds: 300,
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
               },
             },
           },

@@ -1,71 +1,77 @@
 <template>
   <div class="app">
+    <!-- Nav bar — brand + hamburger for both desktop and PWA -->
     <nav v-if="auth.isAuthenticated" class="nav-bar" :class="{ 'pwa-mode': isPwa }">
       <div class="nav-content">
-        <component :is="isPwa ? 'router-link' : 'router-link'" to="/" class="nav-brand">
+        <button class="nav-brand" @click="sidebarOpen = !sidebarOpen">
           <img src="/coin-logo.jpg" alt="Ancient Coins" class="nav-logo" />
           <span class="nav-title">Coin Collection</span>
-        </component>
-        <div class="nav-links">
-          <router-link v-if="isPwa" to="/add" class="nav-link add-link" active-class="active">
-            <CirclePlus :size="18" />
-            <span class="nav-label">Add</span>
-          </router-link>
-          <router-link v-if="!isPwa" to="/" class="nav-link" active-class="active">
-            <Landmark :size="18" />
-            <span class="nav-label">Collection</span>
-          </router-link>
-          <router-link to="/wishlist" class="nav-link" active-class="active">
-            <Bookmark :size="18" />
-            <span class="nav-label">Wishlist</span>
-          </router-link>
-          <router-link to="/sold" class="nav-link" active-class="active">
-            <BadgeDollarSign :size="18" />
-            <span class="nav-label">Sold</span>
-          </router-link>
-          <router-link to="/auctions" class="nav-link" active-class="active">
-            <Gavel :size="18" />
-            <span class="nav-label">Auctions</span>
-          </router-link>
-          <router-link to="/followers" class="nav-link" active-class="active">
-            <UsersIcon :size="18" />
-            <span class="nav-label">Followers</span>
-          </router-link>
-          <a v-if="!isPwa" href="#" class="nav-link" @click.prevent="showChat = true">
-            <Bot :size="18" />
-            <span class="nav-label">Agent</span>
-          </a>
-          <router-link to="/stats" class="nav-link" active-class="active">
-            <BarChart3 :size="18" />
-            <span class="nav-label">Stats</span>
-          </router-link>
-          <router-link to="/timeline" class="nav-link" active-class="active">
-            <Clock :size="18" />
-            <span class="nav-label">Timeline</span>
-          </router-link>
-        </div>
-        <div class="nav-right">
-          <router-link to="/settings" class="nav-link" active-class="active">
-            <Settings :size="18" />
-            <span class="nav-label">Settings</span>
-          </router-link>
-          <router-link v-if="auth.isAdmin && !isPwa" to="/admin" class="nav-link" active-class="active">
-            <ShieldCheck :size="18" />
-            <span class="nav-label">Admin</span>
-          </router-link>
-          <button v-if="!isPwa" class="btn-logout" @click="handleLogout">
-            <LogOut :size="16" />
-          </button>
-        </div>
+        </button>
+        <router-link to="/notifications" class="nav-bell" aria-label="Notifications">
+          <Bell :size="20" />
+          <span v-if="unreadCount > 0" class="nav-bell-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+        </router-link>
       </div>
     </nav>
+
+    <!-- Sidebar overlay -->
+    <Transition name="sidebar-fade">
+      <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
+    </Transition>
+
+    <!-- Slide-in sidebar -->
+    <Transition name="sidebar-slide">
+      <aside v-if="sidebarOpen" class="sidebar">
+        <div class="sidebar-header">
+          <img src="/coin-logo.jpg" alt="Ancient Coins" class="sidebar-logo" />
+          <span class="sidebar-title">Coin Collection</span>
+          <button class="sidebar-header-btn" :class="{ active: editMode }" @click="toggleEditMode" :title="editMode ? 'Done' : 'Reorder menu'">
+            <GripVertical :size="18" />
+          </button>
+          <button class="sidebar-close" @click="sidebarOpen = false">
+            <X :size="20" />
+          </button>
+        </div>
+        <nav ref="navRef" class="sidebar-nav" :class="{ 'edit-mode': editMode }">
+          <component
+            v-for="item in orderedNavItems"
+            :key="item.id"
+            :is="!editMode && item.to ? 'router-link' : 'button'"
+            v-bind="!editMode && item.to ? { to: item.to, 'active-class': 'active' } : {}"
+            class="sidebar-link"
+            :data-id="item.id"
+            @click="handleNavClick(item)"
+          >
+            <span v-if="editMode" class="drag-handle"><GripVertical :size="16" /></span>
+            <component :is="item.icon" :size="20" />
+            <span>{{ item.label }}</span>
+            <span v-if="item.badge && item.badge() > 0" class="sidebar-badge">{{ item.badge() }}</span>
+          </component>
+        </nav>
+        <div class="sidebar-footer">
+          <router-link to="/settings" class="sidebar-link" active-class="active" @click="sidebarOpen = false">
+            <Settings :size="20" />
+            <span>Settings</span>
+          </router-link>
+          <router-link v-if="auth.isAdmin" to="/admin" class="sidebar-link" active-class="active" @click="sidebarOpen = false">
+            <ShieldCheck :size="20" />
+            <span>Admin</span>
+          </router-link>
+          <button class="sidebar-link sidebar-logout" @click="handleLogout">
+            <LogOut :size="20" />
+            <span>Logout</span>
+          </button>
+        </div>
+      </aside>
+    </Transition>
+
     <main class="main-content" :class="{ 'with-nav': auth.isAuthenticated }">
       <router-view />
     </main>
 
     <!-- PWA floating agent button -->
     <button
-      v-if="isPwa && auth.isAuthenticated && !showChat"
+      v-if="isPwa && auth.isAuthenticated && !showChat && !bulkSelectActive"
       class="agent-fab"
       @click="showChat = true"
       aria-label="Open AI Agent"
@@ -92,29 +98,174 @@
     </div>
 
     <AppDialog />
+    <PwaInstallPrompt />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, markRaw, type Component } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Clock, Bot, Gavel } from 'lucide-vue-next'
+import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Clock, Bot, Gavel, X, Bell, CalendarDays, Share2, GripVertical } from 'lucide-vue-next'
 import { updateProfile, getMe } from '@/api/client'
+import { useNotifications } from '@/composables/useNotifications'
+import { useBulkSelect } from '@/composables/useBulkSelect'
+import { usePwa } from '@/composables/usePwa'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import AppDialog from '@/components/AppDialog.vue'
+import PwaInstallPrompt from '@/components/PwaInstallPrompt.vue'
+import Sortable from 'sortablejs'
+
+interface NavItem {
+  id: string
+  label: string
+  icon: Component
+  to?: string
+  action?: () => void
+  visible: boolean
+  badge?: () => number
+}
 
 const auth = useAuthStore()
 const router = useRouter()
-const isPwa = window.matchMedia('(display-mode: standalone)').matches
-  || (window.navigator as any).standalone === true
+const { isPwa } = usePwa()
 
 const showChat = ref(false)
+const sidebarOpen = ref(false)
 const showEmailPrompt = ref(false)
 const promptEmail = ref('')
+const editMode = ref(false)
+const navRef = ref<HTMLElement | null>(null)
+let sortableInstance: Sortable | null = null
+const { unreadCount, startPolling, stopPolling } = useNotifications()
+const { bulkSelectActive } = useBulkSelect()
+
+const defaultNavItems: NavItem[] = [
+  { id: 'collection', label: 'Collection', icon: markRaw(Landmark), to: '/', visible: true },
+  { id: 'add-coin', label: 'Add Coin', icon: markRaw(CirclePlus), to: '/add', visible: isPwa },
+  { id: 'wishlist', label: 'Wishlist', icon: markRaw(Bookmark), to: '/wishlist', visible: true },
+  { id: 'sold', label: 'Sold', icon: markRaw(BadgeDollarSign), to: '/sold', visible: true },
+  { id: 'auctions', label: 'Auctions', icon: markRaw(Gavel), to: '/auctions', visible: true },
+  { id: 'followers', label: 'Followers', icon: markRaw(UsersIcon), to: '/followers', visible: true },
+  { id: 'agent', label: 'Agent', icon: markRaw(Bot), action: () => { showChat.value = true; sidebarOpen.value = false }, visible: true },
+  { id: 'stats', label: 'Stats', icon: markRaw(BarChart3), to: '/stats', visible: true },
+  { id: 'timeline', label: 'Timeline', icon: markRaw(Clock), to: '/timeline', visible: true },
+  { id: 'calendar', label: 'Calendar', icon: markRaw(CalendarDays), to: '/calendar', visible: true },
+  { id: 'showcases', label: 'Showcases', icon: markRaw(Share2), to: '/showcases', visible: true },
+  { id: 'notifications', label: 'Notifications', icon: markRaw(Bell), to: '/notifications', visible: true, badge: () => unreadCount.value },
+]
+
+function getStorageKey() {
+  const userId = auth.user?.id || 'default'
+  return `sidebarNavOrder:${userId}`
+}
+
+function loadSavedOrder(): string[] {
+  try {
+    const saved = localStorage.getItem(getStorageKey())
+    return saved ? JSON.parse(saved) : []
+  } catch { return [] }
+}
+
+function applyOrder(order: string[]): NavItem[] {
+  const itemMap = new Map(defaultNavItems.map(item => [item.id, item]))
+  const ordered: NavItem[] = []
+  for (const id of order) {
+    const item = itemMap.get(id)
+    if (item) {
+      ordered.push(item)
+      itemMap.delete(id)
+    }
+  }
+  // Append any new items not in saved order
+  for (const item of itemMap.values()) {
+    ordered.push(item)
+  }
+  return ordered
+}
+
+const navOrder = ref<string[]>(loadSavedOrder())
+const orderedNavItems = computed(() => {
+  const items = navOrder.value.length ? applyOrder(navOrder.value) : defaultNavItems
+  return items.filter(item => item.visible)
+})
+
+// Full order including hidden items for persistence
+const fullOrder = computed(() => {
+  return navOrder.value.length ? applyOrder(navOrder.value).map(i => i.id) : defaultNavItems.map(i => i.id)
+})
+
+function handleNavClick(item: NavItem) {
+  if (editMode.value) return
+  if (item.action) {
+    item.action()
+  } else if (item.to) {
+    router.push(item.to)
+    sidebarOpen.value = false
+  }
+}
+
+function toggleEditMode() {
+  editMode.value = !editMode.value
+}
+
+function initSortable() {
+  if (!navRef.value) return
+  sortableInstance = Sortable.create(navRef.value, {
+    animation: 150,
+    handle: '.drag-handle',
+    ghostClass: 'sortable-ghost',
+    chosenClass: 'sortable-chosen',
+    onEnd: (evt) => {
+      if (evt.oldIndex == null || evt.newIndex == null) return
+      const visibleIds = orderedNavItems.value.map(i => i.id)
+      const moved = visibleIds.splice(evt.oldIndex, 1)[0]!
+      visibleIds.splice(evt.newIndex, 0, moved)
+      const full = [...fullOrder.value]
+      const newFull: string[] = []
+      let visIdx = 0
+      for (const id of full) {
+        const item = defaultNavItems.find(n => n.id === id)
+        if (item && !item.visible) {
+          newFull.push(id)
+        } else if (visIdx < visibleIds.length) {
+          newFull.push(visibleIds[visIdx]!)
+          visIdx++
+        }
+      }
+      while (visIdx < visibleIds.length) {
+        newFull.push(visibleIds[visIdx]!)
+        visIdx++
+      }
+      navOrder.value = newFull
+      localStorage.setItem(getStorageKey(), JSON.stringify(newFull))
+    },
+  })
+}
+
+function destroySortable() {
+  if (sortableInstance) {
+    sortableInstance.destroy()
+    sortableInstance = null
+  }
+}
+
+watch([sidebarOpen, editMode], async ([open, edit]) => {
+  destroySortable()
+  if (open && edit) {
+    await nextTick()
+    initSortable()
+  }
+})
+
+// Turn off edit mode when sidebar closes
+watch(sidebarOpen, (open) => {
+  if (!open) editMode.value = false
+})
 
 onMounted(async () => {
   if (auth.isAuthenticated) {
+    startPolling()
     try {
       const res = await getMe()
       if (res.data.emailMissing) {
@@ -142,9 +293,15 @@ async function savePromptEmail() {
 }
 
 function handleLogout() {
+  stopPolling()
   auth.logout()
   router.push('/login')
 }
+
+onUnmounted(() => {
+  destroySortable()
+  stopPolling()
+})
 </script>
 
 <style scoped>
@@ -152,6 +309,7 @@ function handleLogout() {
   min-height: 100vh;
 }
 
+/* ── Top nav bar (shared structure) ── */
 .nav-bar {
   position: fixed;
   top: 0;
@@ -182,8 +340,14 @@ function handleLogout() {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
   flex-shrink: 0;
+}
+
+.nav-brand:hover {
+  background: var(--accent-gold-glow);
 }
 
 .nav-logo {
@@ -202,65 +366,236 @@ function handleLogout() {
   white-space: nowrap;
 }
 
-.nav-links {
-  display: flex;
-  gap: 0.25rem;
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.nav-links::-webkit-scrollbar {
-  display: none;
-}
-
-.nav-link {
+.nav-bell {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.8rem;
-  border-radius: var(--radius-sm);
+  justify-content: center;
   color: var(--text-secondary);
-  font-size: 0.85rem;
-  transition: all var(--transition-fast);
+  padding: 0.4rem;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background var(--transition-fast);
   text-decoration: none;
-  white-space: nowrap;
-  flex-shrink: 0;
 }
 
-.nav-link:hover,
-.nav-link.active {
+.nav-bell:hover {
   color: var(--accent-gold);
   background: var(--accent-gold-glow);
 }
 
-.add-link {
-  color: var(--accent-gold);
-}
-
-.nav-right {
+.nav-bell-badge {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent-gold);
+  color: var(--bg-primary);
+  font-size: 0.65rem;
+  font-weight: 700;
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  flex-shrink: 0;
+  justify-content: center;
+  line-height: 1;
 }
 
-.btn-logout {
-  padding: 0.4rem 0.8rem;
-  background: transparent;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+/* ── Sidebar ── */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 199;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  background: var(--bg-card);
+  border-right: 1px solid var(--border-subtle);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem 1.25rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sidebar-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--accent-gold-dim);
+}
+
+.sidebar-title {
+  font-family: 'Cinzel', serif;
+  font-size: 1.05rem;
+  color: var(--accent-gold);
+  font-weight: 600;
+  flex: 1;
+}
+
+.sidebar-close {
+  background: none;
+  border: none;
   color: var(--text-secondary);
-  font-size: 0.8rem;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  padding: 0.3rem;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
-.btn-logout:hover {
-  border-color: var(--border-accent);
+.sidebar-close:hover {
   color: var(--text-primary);
+  background: var(--accent-gold-glow);
+}
+
+.sidebar-header-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.3rem;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.sidebar-header-btn:hover {
+  color: var(--text-primary);
+  background: var(--accent-gold-glow);
+}
+
+.sidebar-header-btn.active {
+  color: var(--accent-gold);
+  background: var(--accent-gold-glow);
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 0.75rem 0;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 1.25rem;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  border: none;
+  background: none;
+  width: 100%;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.sidebar-link:hover {
+  color: var(--accent-gold);
+  background: var(--accent-gold-glow);
+}
+
+.sidebar-link.active {
+  color: var(--accent-gold);
+  background: var(--accent-gold-glow);
+  border-right: 3px solid var(--accent-gold);
+}
+
+.sidebar-badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--accent-gold);
+  color: var(--bg-primary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-footer {
+  border-top: 1px solid var(--border-subtle);
+  padding: 0.5rem 0;
+}
+
+/* Drag handle & edit mode */
+.drag-handle {
+  color: var(--text-secondary);
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity var(--transition-fast);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.sidebar-link:hover .drag-handle {
+  opacity: 1;
+}
+
+.edit-mode .sidebar-link {
+  cursor: default;
+  user-select: none;
+}
+
+.sortable-ghost {
+  background: var(--accent-gold-glow);
+  border-right: 3px solid var(--accent-gold);
+  opacity: 0.6;
+}
+
+.sortable-chosen {
+  background: var(--accent-gold-glow);
+}
+
+.sidebar-logout {
+  color: var(--text-secondary);
+}
+
+.sidebar-logout:hover {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+}
+
+/* Sidebar transitions */
+.sidebar-slide-enter-active,
+.sidebar-slide-leave-active {
+  transition: transform 0.25s ease;
+}
+
+.sidebar-slide-enter-from,
+.sidebar-slide-leave-to {
+  transform: translateX(-100%);
+}
+
+.sidebar-fade-enter-active,
+.sidebar-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.sidebar-fade-enter-from,
+.sidebar-fade-leave-to {
+  opacity: 0;
 }
 
 .main-content {
@@ -269,27 +604,6 @@ function handleLogout() {
 
 .main-content.with-nav {
   padding-top: 76px;
-}
-
-@media (max-width: 900px) {
-  .nav-title { display: none; }
-  .nav-label { display: none; }
-  .nav-link { padding: 0.5rem; }
-  .nav-icon { font-size: 1.2rem; }
-}
-
-.pwa-mode .nav-links {
-  flex: 1;
-  justify-content: space-evenly;
-  gap: 0;
-}
-
-.pwa-mode .nav-right {
-  gap: 0;
-}
-
-.pwa-mode .nav-content {
-  gap: 0.5rem;
 }
 
 .modal-overlay {

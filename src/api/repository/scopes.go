@@ -9,13 +9,6 @@ func OwnedBy(userID uint) func(db *gorm.DB) *gorm.DB {
 	}
 }
 
-// ByID scopes a query to a specific record by primary key.
-func ByID(id uint) func(db *gorm.DB) *gorm.DB {
-	return func(db *gorm.DB) *gorm.DB {
-		return db.Where("id = ?", id)
-	}
-}
-
 // OwnedByID scopes a query to a specific record owned by the given user.
 func OwnedByID(id uint, userID uint) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
@@ -34,12 +27,5 @@ func ActiveCollection(userID uint) func(db *gorm.DB) *gorm.DB {
 func PublicCoins(userID uint) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		return db.Where("user_id = ? AND is_wishlist = false AND is_sold = false AND is_private = false", userID)
-	}
-}
-
-// ByCoinID scopes a query to records associated with a specific coin.
-func ByCoinID(coinID uint) func(db *gorm.DB) *gorm.DB {
-	return func(db *gorm.DB) *gorm.DB {
-		return db.Where("coin_id = ?", coinID)
 	}
 }

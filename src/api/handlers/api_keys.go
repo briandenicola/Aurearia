@@ -22,7 +22,7 @@ func NewApiKeyHandler(repo *repository.ApiKeyRepository) *ApiKeyHandler {
 }
 
 type generateApiKeyRequest struct {
-	Name string `json:"name" binding:"required" example:"My Script"`
+	Name string `json:"name" binding:"required,max=100" example:"My Script"`
 }
 
 type generateApiKeyResponse struct {
@@ -50,7 +50,7 @@ func (h *ApiKeyHandler) Generate(c *gin.Context) {
 
 	var req generateApiKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 

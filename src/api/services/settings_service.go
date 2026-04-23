@@ -21,9 +21,13 @@ const (
 	SettingCoinShowsPrompt      = "CoinShowsPrompt"
 	SettingValuationPrompt      = "ValuationPrompt"
 	SettingSearXNGURL           = "SearXNGURL"
-	SettingWishlistCheckEnabled  = "WishlistCheckEnabled"
-	SettingWishlistCheckInterval = "WishlistCheckInterval"
-	SettingWishlistCheckStartTime = "WishlistCheckStartTime"
+	SettingWishlistCheckEnabled    = "WishlistCheckEnabled"
+	SettingWishlistCheckInterval   = "WishlistCheckInterval"
+	SettingWishlistCheckStartTime  = "WishlistCheckStartTime"
+	SettingValuationCheckEnabled   = "ValuationCheckEnabled"
+	SettingValuationCheckInterval  = "ValuationCheckIntervalDays"
+	SettingValuationCheckStartTime = "ValuationCheckStartTime"
+	SettingValuationMaxCoins       = "ValuationMaxCoins"
 )
 
 const DefaultObversePrompt = `You are an expert numismatist specializing in ancient and modern coins. Analyze the obverse (front) of this coin and provide:
@@ -64,9 +68,13 @@ var settingDefaults = map[string]string{
 	SettingCoinShowsPrompt:      "",
 	SettingValuationPrompt:      "",
 	SettingSearXNGURL:           "",
-	SettingWishlistCheckEnabled:  "false",
-	SettingWishlistCheckInterval: "120",
-	SettingWishlistCheckStartTime: "02:00",
+	SettingWishlistCheckEnabled:     "false",
+	SettingWishlistCheckInterval:    "120",
+	SettingWishlistCheckStartTime:   "02:00",
+	SettingValuationCheckEnabled:    "false",
+	SettingValuationCheckInterval:   "7",
+	SettingValuationCheckStartTime:  "03:00",
+	SettingValuationMaxCoins:        "50",
 }
 
 var settingsDB *gorm.DB

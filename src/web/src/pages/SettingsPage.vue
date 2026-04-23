@@ -199,27 +199,6 @@
       </section>
 
       <!-- Blocked Users Tab -->
-      <section v-if="activeTab === 'blocked'" class="settings-section card">
-        <h2>Blocked Users</h2>
-        <p class="setting-desc" style="margin-bottom: 0.75rem">
-          Blocked users cannot send you follow requests or view your collection.
-        </p>
-        <div v-if="blockedUsers.length" class="apikey-list">
-          <div v-for="user in blockedUsers" :key="user.id" class="apikey-item">
-            <div class="apikey-item-info" style="display: flex; align-items: center; gap: 0.5rem;">
-              <img
-                :src="user.avatarPath ? `/uploads/${user.avatarPath}` : '/coin-logo.jpg'"
-                :alt="user.username"
-                style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-subtle);"
-              />
-              <span class="apikey-item-name">{{ user.username }}</span>
-            </div>
-            <button class="btn btn-secondary btn-sm" :disabled="blockedLoading" @click="handleUnblock(user)">Unblock</button>
-          </div>
-        </div>
-        <p v-else class="setting-desc" style="margin-top: 0.5rem">No blocked users.</p>
-      </section>
-
       <!-- Appearance Tab -->
       <section v-if="activeTab === 'appearance'" class="settings-section card">
         <h2>Appearance</h2>
@@ -295,7 +274,16 @@
             <span class="setting-desc">Download your collection data and photos as a zip archive</span>
           </div>
           <button class="btn btn-secondary btn-sm" :disabled="exporting" @click="handleExport">
-            {{ exporting ? 'Exporting...' : '📥 Export' }}
+            {{ exporting ? 'Exporting...' : 'Export ZIP' }}
+          </button>
+        </div>
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="setting-label">PDF Catalog</span>
+            <span class="setting-desc">Generate a styled PDF catalog with photos, grades, and valuations</span>
+          </div>
+          <button class="btn btn-secondary btn-sm" :disabled="exportingPdf" @click="handleExportPDF">
+            {{ exportingPdf ? 'Generating...' : 'Export PDF' }}
           </button>
         </div>
         <div class="setting-item">
@@ -372,15 +360,88 @@
           </div>
         </div>
         <p v-else-if="!generatingKey" class="setting-desc" style="margin-top: 0.5rem">No API keys yet.</p>
+
+        <h3 style="margin-top: 2rem">Tags</h3>
+        <p class="setting-desc">Create custom tags to organize and filter your coins.</p>
+
+        <div class="tag-create-form">
+          <input
+            v-model="newTagName"
+            type="text"
+            class="form-input"
+            placeholder="New tag name..."
+            maxlength="50"
+            @keydown.enter="handleCreateTag"
+          />
+          <div class="tag-color-picker">
+            <button
+              v-for="c in TAG_COLORS"
+              :key="c"
+              class="color-swatch"
+              :class="{ active: newTagColor === c }"
+              :style="{ backgroundColor: c }"
+              @click="newTagColor = c"
+            ></button>
+          </div>
+          <button class="btn btn-primary btn-sm" @click="handleCreateTag" :disabled="!newTagName.trim()">Create Tag</button>
+        </div>
+        <p v-if="tagError" class="tag-error">{{ tagError }}</p>
+
+        <div v-if="tagList.length" class="tag-list">
+          <div v-for="tag in tagList" :key="tag.id" class="tag-list-item">
+            <template v-if="editingTag?.id === tag.id">
+              <input v-model="editTagName" class="form-input tag-edit-input" maxlength="50" @keydown.enter="handleSaveTag" />
+              <div class="tag-color-picker">
+                <button
+                  v-for="c in TAG_COLORS"
+                  :key="c"
+                  class="color-swatch sm"
+                  :class="{ active: editTagColor === c }"
+                  :style="{ backgroundColor: c }"
+                  @click="editTagColor = c"
+                ></button>
+              </div>
+              <button class="btn btn-primary btn-sm" @click="handleSaveTag">Save</button>
+              <button class="btn btn-secondary btn-sm" @click="editingTag = null">Cancel</button>
+            </template>
+            <template v-else>
+              <span class="tag-preview" :style="{ backgroundColor: tag.color + '22', color: tag.color, borderColor: tag.color + '44' }">{{ tag.name }}</span>
+              <div class="tag-actions">
+                <button class="btn btn-secondary btn-sm" @click="startEditTag(tag)">Edit</button>
+                <button class="btn btn-danger btn-sm" @click="handleDeleteTag(tag)">Delete</button>
+              </div>
+            </template>
+          </div>
+        </div>
+        <p v-else class="empty-tags">No tags created yet. Create your first tag above.</p>
       </section>
 
-      <!-- Process Tab -->
-      <section v-if="activeTab === 'process'" class="settings-section card">
+      <!-- Tools Tab -->
+      <section v-if="activeTab === 'tools'" class="settings-section card">
         <h2>Image Processor</h2>
         <p class="setting-desc" style="margin-bottom: 1rem">
           Remove backgrounds and crop coin images for your collection.
         </p>
         <ImageProcessor @saved="handleProcessSaved" />
+
+        <h3 style="margin-top: 2rem">Blocked Users</h3>
+        <p class="setting-desc" style="margin-bottom: 0.75rem">
+          Blocked users cannot send you follow requests or view your collection.
+        </p>
+        <div v-if="blockedUsers.length" class="apikey-list">
+          <div v-for="user in blockedUsers" :key="user.id" class="apikey-item">
+            <div class="apikey-item-info" style="display: flex; align-items: center; gap: 0.5rem;">
+              <img
+                :src="user.avatarPath ? `/uploads/${user.avatarPath}` : '/coin-logo.jpg'"
+                :alt="user.username"
+                style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-subtle);"
+              />
+              <span class="apikey-item-name">{{ user.username }}</span>
+            </div>
+            <button class="btn btn-secondary btn-sm" :disabled="blockedLoading" @click="handleUnblock(user)">Unblock</button>
+          </div>
+        </div>
+        <p v-else class="setting-desc" style="margin-top: 0.5rem">No blocked users.</p>
       </section>
 
       <!-- Conversations Tab -->
@@ -718,27 +779,28 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import PullToRefresh from '@/components/PullToRefresh.vue'
 import {
-  changePassword, exportCollection, importCollection,
+  changePassword, exportCollection, exportCatalogPDF, importCollection,
   generateApiKey, listApiKeys, revokeApiKey,
   webauthnRegisterBegin, webauthnRegisterFinish,
   webauthnListCredentials, webauthnDeleteCredential,
   listConversations, getConversation, deleteConversation,
   uploadAvatar, deleteAvatar, updateProfile, getMe,
   getBlockedUsers, unblockFollower, validateNumisBidsCredentials,
+  getTags, createTag, updateTag as updateTagApi, deleteTag,
 } from '@/api/client'
 import type { ConversationSummary } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
-import type { Coin, Theme, ApiKey, WebAuthnCredentialInfo } from '@/types'
+import { usePwa } from '@/composables/usePwa'
+import type { Coin, Theme, ApiKey, WebAuthnCredentialInfo, Tag } from '@/types'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import ImageProcessor from '@/components/ImageProcessor.vue'
-import { User, Palette, Database, MessageSquare, HelpCircle, Scissors, Menu, ShieldOff, ShieldCheck } from 'lucide-vue-next'
+import { User, Palette, Database, MessageSquare, HelpCircle, Wrench, Menu, ShieldCheck, Tags } from 'lucide-vue-next'
 
 const tabIcons: Record<string, Component> = {
   account: User,
-  blocked: ShieldOff,
   appearance: Palette,
   data: Database,
-  process: Scissors,
+  tools: Wrench,
   conversations: MessageSquare,
   help: HelpCircle,
   admin: ShieldCheck,
@@ -747,8 +809,7 @@ const tabIcons: Record<string, Component> = {
 const { showConfirm, showAlert } = useDialog()
 const activeTab = ref('account')
 const settingsMenuOpen = ref(false)
-const isPwa = window.matchMedia('(display-mode: standalone)').matches
-  || (window.navigator as any).standalone === true
+const { isPwa } = usePwa()
 
 const route = useRoute()
 const router = useRouter()
@@ -758,9 +819,8 @@ const baseTabs = [
   { id: 'account', label: 'Account' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'data', label: 'Data' },
-  { id: 'process', label: 'Process' },
+  { id: 'tools', label: 'Tools' },
   { id: 'conversations', label: 'Conversations' },
-  { id: 'blocked', label: 'Blocked' },
   { id: 'help', label: 'Help' },
 ]
 const tabs = computed(() => {
@@ -770,9 +830,8 @@ const tabs = computed(() => {
       { id: 'admin', label: 'Admin' },
       { id: 'appearance', label: 'Appearance' },
       { id: 'data', label: 'Data' },
-      { id: 'process', label: 'Process' },
+      { id: 'tools', label: 'Tools' },
       { id: 'conversations', label: 'Conversations' },
-      { id: 'blocked', label: 'Blocked' },
       { id: 'help', label: 'Help' },
     ]
   }
@@ -823,6 +882,75 @@ async function handleUnblock(user: { id: number; username: string; avatarPath: s
 
 // Avatar
 const avatarUrl = ref('/coin-logo.jpg')
+
+// Tag management
+const tagList = ref<Tag[]>([])
+const newTagName = ref('')
+const newTagColor = ref('#6b7280')
+const editingTag = ref<Tag | null>(null)
+const editTagName = ref('')
+const editTagColor = ref('')
+const tagError = ref('')
+
+const TAG_COLORS = ['#6b7280', '#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1']
+
+async function loadTags() {
+  try {
+    const res = await getTags()
+    tagList.value = res.data?.tags ?? []
+  } catch { tagList.value = [] }
+}
+
+async function handleCreateTag() {
+  tagError.value = ''
+  const name = newTagName.value.trim()
+  if (!name) return
+  try {
+    await createTag({ name, color: newTagColor.value })
+    newTagName.value = ''
+    newTagColor.value = '#6b7280'
+    await loadTags()
+  } catch (e: unknown) {
+    if (typeof e === 'object' && e !== null && 'response' in e) {
+      const axiosErr = e as { response?: { data?: { error?: string } } }
+      tagError.value = axiosErr.response?.data?.error ?? 'Failed to create tag'
+    } else {
+      tagError.value = 'Failed to create tag'
+    }
+  }
+}
+
+function startEditTag(tag: Tag) {
+  editingTag.value = tag
+  editTagName.value = tag.name
+  editTagColor.value = tag.color
+}
+
+async function handleSaveTag() {
+  tagError.value = ''
+  if (!editingTag.value) return
+  try {
+    await updateTagApi(editingTag.value.id, { name: editTagName.value.trim(), color: editTagColor.value })
+    editingTag.value = null
+    await loadTags()
+  } catch (e: unknown) {
+    if (typeof e === 'object' && e !== null && 'response' in e) {
+      const axiosErr = e as { response?: { data?: { error?: string } } }
+      tagError.value = axiosErr.response?.data?.error ?? 'Failed to update tag'
+    } else {
+      tagError.value = 'Failed to update tag'
+    }
+  }
+}
+
+async function handleDeleteTag(tag: Tag) {
+  const confirmed = await showConfirm(`Delete tag "${tag.name}"? It will be removed from all coins.`, { title: 'Delete Tag', variant: 'danger' })
+  if (!confirmed) return
+  try {
+    await deleteTag(tag.id)
+    await loadTags()
+  } catch { /* ignore */ }
+}
 
 function updateAvatarUrl() {
   avatarUrl.value = auth.user?.avatarPath ? `/uploads/${auth.user.avatarPath}` : '/coin-logo.jpg'
@@ -988,7 +1116,9 @@ function setTheme(t: Theme) {
 }
 
 // Timezone
-const timezones = (Intl as any).supportedValuesOf('timeZone') as string[]
+const timezones = 'supportedValuesOf' in Intl
+  ? (Intl as unknown as { supportedValuesOf: (key: string) => string[] }).supportedValuesOf('timeZone')
+  : [] as string[]
 const timezone = ref(localStorage.getItem('timezone') || Intl.DateTimeFormat().resolvedOptions().timeZone)
 
 function saveTimezone() {
@@ -1012,6 +1142,7 @@ function saveDefaultSort() {
 
 // Data
 const exporting = ref(false)
+const exportingPdf = ref(false)
 const dataMsg = ref('')
 const dataError = ref(false)
 
@@ -1033,6 +1164,27 @@ async function handleExport() {
     dataError.value = true
   } finally {
     exporting.value = false
+  }
+}
+
+async function handleExportPDF() {
+  exportingPdf.value = true
+  dataMsg.value = ''
+  try {
+    const res = await exportCatalogPDF()
+    const blob = new Blob([res.data], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `coin-catalog-${new Date().toISOString().slice(0, 10)}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+    dataMsg.value = 'PDF catalog downloaded'
+  } catch {
+    dataMsg.value = 'PDF generation failed'
+    dataError.value = true
+  } finally {
+    exportingPdf.value = false
   }
 }
 
@@ -1179,7 +1331,7 @@ async function handleRegisterCredential() {
       timeout: options.publicKey.timeout || 60000,
       authenticatorSelection: options.publicKey.authenticatorSelection,
       attestation: options.publicKey.attestation || 'none',
-      excludeCredentials: (options.publicKey.excludeCredentials || []).map((c: any) => ({
+      excludeCredentials: (options.publicKey.excludeCredentials || []).map((c: { id: string; type: string; transports?: string[] }) => ({
         id: base64urlToBuffer(c.id),
         type: c.type,
         transports: c.transports,
@@ -1196,8 +1348,8 @@ async function handleRegisterCredential() {
 
     credentialMsg.value = 'Biometric credential registered!'
     await loadCredentials()
-  } catch (e: any) {
-    credentialMsg.value = e?.message || 'Registration failed'
+  } catch (e: unknown) {
+    credentialMsg.value = e instanceof Error ? e.message : 'Registration failed'
     credentialError.value = true
   } finally {
     registeringCredential.value = false
@@ -1270,6 +1422,7 @@ onMounted(() => {
   loadApiKeys()
   loadConversations()
   loadBlockedUsers()
+  loadTags()
   if (supportsWebAuthn) loadCredentials()
 })
 </script>
@@ -1671,6 +1824,11 @@ onMounted(() => {
 }
 
 /* Help Section */
+.help-section {
+  overflow: hidden;
+  min-width: 0;
+}
+
 .help-section h2 {
   margin-bottom: 0.5rem;
 }
@@ -1724,6 +1882,7 @@ onMounted(() => {
   font-size: 0.9rem;
   line-height: 1.65;
   color: var(--text-secondary);
+  overflow-x: auto;
 }
 
 .help-content h4 {
@@ -1782,6 +1941,7 @@ onMounted(() => {
   border-collapse: collapse;
   margin: 0.75rem 0;
   font-size: 0.85rem;
+  table-layout: fixed;
 }
 
 .help-table th,
@@ -1789,6 +1949,8 @@ onMounted(() => {
   padding: 0.5rem 0.65rem;
   text-align: left;
   border-bottom: 1px solid var(--border-subtle);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .help-table th {
@@ -1825,5 +1987,92 @@ onMounted(() => {
 
 .modal-body {
   padding: 1.25rem;
+}
+
+/* Tag Manager */
+.tag-create-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+
+.tag-create-form .form-input {
+  flex: 1;
+  min-width: 150px;
+}
+
+.tag-color-picker {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.color-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.color-swatch.active {
+  border-color: var(--text-primary);
+  box-shadow: 0 0 0 2px var(--bg-card);
+}
+
+.color-swatch.sm {
+  width: 18px;
+  height: 18px;
+}
+
+.tag-error {
+  color: #ef4444;
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+
+.tag-list {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tag-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+}
+
+.tag-preview {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  border: 1px solid;
+  flex-shrink: 0;
+}
+
+.tag-edit-input {
+  flex: 1;
+  min-width: 120px;
+}
+
+.tag-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.empty-tags {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-top: 1rem;
 }
 </style>

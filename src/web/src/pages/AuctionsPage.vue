@@ -3,12 +3,28 @@
   <div class="container">
     <div class="page-header">
       <h1>Auctions</h1>
-      <div class="header-actions">
+      <!-- PWA: icon-only buttons inline with title -->
+      <div v-if="isPwa" class="pwa-actions">
+        <button class="pwa-icon-btn" :disabled="syncing" @click="syncWatchlist" title="Sync Watchlist">
+          <RefreshCw :size="22" :class="{ spinning: syncing }" />
+        </button>
+        <button class="pwa-icon-btn" :class="{ active: selectMode }" @click="toggleSelectMode" title="Select">
+          <CheckSquare :size="22" />
+        </button>
+        <button class="pwa-icon-btn" @click="showImport = true" title="Add Lot">
+          <CirclePlus :size="22" />
+        </button>
+      </div>
+      <!-- Desktop: full text buttons -->
+      <div v-else class="header-actions">
         <button class="btn btn-secondary" :disabled="syncing" @click="syncWatchlist">
           <RefreshCw :size="16" :class="{ spinning: syncing }" />
           {{ syncing ? 'Syncing...' : 'Sync Watchlist' }}
         </button>
-        <button class="btn btn-primary" @click="showImport = true"><Import :size="16" /> Add Lot</button>
+        <button class="btn" :class="selectMode ? 'btn-primary' : 'btn-secondary'" @click="toggleSelectMode">
+          <CheckSquare :size="16" /> {{ selectMode ? 'Cancel' : 'Select' }}
+        </button>
+        <button class="btn btn-primary" @click="showImport = true"><Plus :size="16" /> Add Lot</button>
       </div>
     </div>
 
@@ -29,19 +45,33 @@
       </div>
     </div>
 
+    <div v-if="selectMode" class="select-controls">
+      <button class="btn btn-sm btn-secondary" @click="selectAllLots">Select All</button>
+      <button class="btn btn-sm btn-secondary" @click="deselectAllLots">Deselect All</button>
+      <span class="select-count">{{ selectedLotIds.size }} selected</span>
+    </div>
+
     <div v-if="loading" class="loading-overlay">
       <div class="spinner"></div>
     </div>
 
     <div v-else-if="lots.length" class="lots-grid">
-      <AuctionLotCard v-for="lot in lots" :key="lot.id" :lot="lot" @select="openLot" />
+      <AuctionLotCard
+        v-for="lot in lots"
+        :key="lot.id"
+        :lot="lot"
+        :selectable="selectMode"
+        :selected="selectedLotIds.has(lot.id)"
+        @select="openLot"
+        @toggle-select="toggleLotSelect"
+      />
     </div>
 
     <div v-else class="empty-state">
       <h3>No auction lots{{ activeStatus ? ` with status "${activeStatus}"` : '' }}</h3>
       <p>Import lots from NumisBids to start tracking auctions</p>
       <button class="btn btn-primary" @click="showImport = true" style="margin-top: 0.75rem">
-        <Import :size="16" /> Import Your First Lot
+        <Plus :size="16" /> Import Your First Lot
       </button>
     </div>
 
@@ -68,6 +98,10 @@
             <span class="detail-label">Sale</span>
             <span>{{ selectedLot.saleName }}</span>
           </div>
+          <div class="detail-row" v-if="selectedLot.lotNumber">
+            <span class="detail-label">Lot #</span>
+            <span>{{ selectedLot.lotNumber }}</span>
+          </div>
           <div class="detail-row" v-if="selectedLot.saleDate">
             <span class="detail-label">Sale Date</span>
             <span>{{ formatDate(selectedLot.saleDate) }}</span>
@@ -79,6 +113,10 @@
           <div class="detail-row" v-if="selectedLot.currentBid">
             <span class="detail-label">Current Bid</span>
             <span class="bid-value">{{ formatCurrency(selectedLot.currentBid, selectedLot.currency) }}</span>
+          </div>
+          <div class="detail-row" v-if="selectedLot.maxBid">
+            <span class="detail-label">Max Bid</span>
+            <span class="max-bid-value">{{ formatCurrency(selectedLot.maxBid, selectedLot.currency) }}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">Status</span>
@@ -103,6 +141,35 @@
               Update Status
             </button>
           </div>
+          <div v-if="newStatus === 'bidding'" class="action-row bid-input-row">
+            <label class="detail-label">Max Bid</label>
+            <input
+              v-model.number="maxBidInput"
+              type="number"
+              class="form-input bid-input"
+              :placeholder="selectedLot.currency || 'USD'"
+              min="0"
+              step="1"
+            />
+          </div>
+          <div class="action-row event-link-row">
+            <label class="detail-label"><CalendarDays :size="14" /> Calendar Event</label>
+            <div class="event-link-controls">
+              <select v-model="selectedEventId" class="form-input event-select">
+                <option value="">None</option>
+                <option v-for="evt in calendarEvents" :key="evt.id" :value="evt.id">
+                  {{ evt.title }}
+                </option>
+              </select>
+              <button
+                class="btn btn-secondary btn-sm"
+                @click="linkEvent"
+                :disabled="(selectedEventId === '' ? null : Number(selectedEventId)) === (selectedLot?.eventId ?? null)"
+              >
+                Link
+              </button>
+            </div>
+          </div>
           <div class="action-row">
             <a :href="selectedLot.numisBidsUrl" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
               <ExternalLink :size="14" /> View on NumisBids
@@ -117,6 +184,24 @@
         </div>
       </div>
     </div>
+
+    <!-- Floating bulk action bar -->
+    <Transition name="bar-slide">
+      <div v-if="selectMode && selectedLotIds.size > 0" class="bulk-action-bar">
+        <span class="bulk-count">{{ selectedLotIds.size }} lot{{ selectedLotIds.size === 1 ? '' : 's' }} selected</span>
+        <div class="bulk-actions">
+          <select v-model="bulkEventId" class="form-input bulk-event-select">
+            <option value="">Unlink Event</option>
+            <option v-for="evt in calendarEvents" :key="evt.id" :value="evt.id">
+              {{ evt.title }}
+            </option>
+          </select>
+          <button class="bulk-btn bulk-btn-link" @click="bulkLinkEvent">
+            <CalendarDays :size="16" /> {{ bulkEventId === '' ? 'Unlink' : 'Link' }}
+          </button>
+        </div>
+      </div>
+    </Transition>
   </div>
   </PullToRefresh>
 </template>
@@ -124,25 +209,89 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { getAuctionLots, updateAuctionLotStatus, convertAuctionLotToCoin, deleteAuctionLot, syncNumisBidsWatchlist } from '@/api/client'
+import { getAuctionLots, getAuctionLotCounts, updateAuctionLotStatus, convertAuctionLotToCoin, deleteAuctionLot, syncNumisBidsWatchlist, listCalendarEvents, linkAuctionLotEvent, bulkLinkAuctionLotEvent } from '@/api/client'
 import type { AuctionLot, AuctionLotStatus } from '@/types'
 import AuctionLotCard from '@/components/AuctionLotCard.vue'
 import ImportLotModal from '@/components/ImportLotModal.vue'
 import PullToRefresh from '@/components/PullToRefresh.vue'
-import { Import, X, ExternalLink, ArrowRightCircle, Trash2, RefreshCw } from 'lucide-vue-next'
+import { Plus, CirclePlus, X, ExternalLink, ArrowRightCircle, Trash2, RefreshCw, CalendarDays, CheckSquare } from 'lucide-vue-next'
+import { usePwa } from '@/composables/usePwa'
 
 const router = useRouter()
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+const { isPwa } = usePwa()
 
 const lots = ref<AuctionLot[]>([])
-const allLots = ref<AuctionLot[]>([])
+const statusCounts = ref<Record<string, number>>({})
 const loading = ref(true)
 const showImport = ref(false)
 const selectedLot = ref<AuctionLot | null>(null)
 const newStatus = ref<AuctionLotStatus>('watching')
-const activeStatus = ref('')
+const maxBidInput = ref<number | null>(null)
+const activeStatus = ref('bidding')
 const syncing = ref(false)
 const syncMessage = ref('')
+const calendarEvents = ref<Array<{ id: number; title: string; auctionHouse: string; startDate: string | null }>>([])
+const selectedEventId = ref<number | string>('')
+
+const selectMode = ref(false)
+const selectedLotIds = ref(new Set<number>())
+const bulkEventId = ref<number | string>('')
+
+function toggleSelectMode() {
+  selectMode.value = !selectMode.value
+  if (!selectMode.value) {
+    selectedLotIds.value = new Set()
+  } else {
+    fetchCalendarEvents()
+  }
+}
+
+function toggleLotSelect(lotId: number) {
+  const next = new Set(selectedLotIds.value)
+  if (next.has(lotId)) {
+    next.delete(lotId)
+  } else {
+    next.add(lotId)
+  }
+  selectedLotIds.value = next
+}
+
+function selectAllLots() {
+  selectedLotIds.value = new Set(lots.value.map(l => l.id))
+}
+
+function deselectAllLots() {
+  selectedLotIds.value = new Set()
+}
+
+async function bulkLinkEvent() {
+  const eventId = bulkEventId.value === '' ? null : Number(bulkEventId.value)
+  try {
+    await bulkLinkAuctionLotEvent([...selectedLotIds.value], eventId)
+    selectedLotIds.value = new Set()
+    selectMode.value = false
+    bulkEventId.value = ''
+    fetchLots()
+  } catch { /* ignore */ }
+}
+
+async function fetchCalendarEvents() {
+  try {
+    const res = await listCalendarEvents()
+    calendarEvents.value = res.data?.events ?? []
+  } catch { /* ignore */ }
+}
+
+async function linkEvent() {
+  if (!selectedLot.value) return
+  const eventId = selectedEventId.value === '' ? null : Number(selectedEventId.value)
+  try {
+    const res = await linkAuctionLotEvent(selectedLot.value.id, eventId)
+    selectedLot.value = res.data
+    fetchLots()
+  } catch { /* ignore */ }
+}
 
 const proxiedDetailImageUrl = computed(() => {
   if (!selectedLot.value?.imageUrl) return ''
@@ -159,14 +308,6 @@ const statuses = [
   { value: 'passed', label: 'Passed' },
 ]
 
-const statusCounts = computed(() => {
-  const counts: Record<string, number> = {}
-  for (const lot of allLots.value) {
-    counts[lot.status] = (counts[lot.status] ?? 0) + 1
-  }
-  return counts
-})
-
 watch(activeStatus, () => fetchLots())
 
 async function fetchLots() {
@@ -176,7 +317,6 @@ async function fetchLots() {
     if (activeStatus.value) params.status = activeStatus.value
     const res = await getAuctionLots(params)
     lots.value = res.data?.lots ?? []
-    if (!activeStatus.value) allLots.value = lots.value
   } catch {
     lots.value = []
   } finally {
@@ -186,8 +326,8 @@ async function fetchLots() {
 
 async function fetchAllCounts() {
   try {
-    const res = await getAuctionLots({ limit: 999 })
-    allLots.value = res.data?.lots ?? []
+    const res = await getAuctionLotCounts()
+    statusCounts.value = res.data?.counts ?? {}
   } catch { /* ignore */ }
 }
 
@@ -199,6 +339,9 @@ async function handleRefresh() {
 function openLot(lot: AuctionLot) {
   selectedLot.value = lot
   newStatus.value = lot.status
+  maxBidInput.value = lot.maxBid ?? null
+  selectedEventId.value = lot.eventId ?? ''
+  fetchCalendarEvents()
 }
 
 function handleImported() {
@@ -210,7 +353,8 @@ function handleImported() {
 async function changeStatus() {
   if (!selectedLot.value) return
   try {
-    const res = await updateAuctionLotStatus(selectedLot.value.id, newStatus.value)
+    const bid = newStatus.value === 'bidding' ? maxBidInput.value : undefined
+    const res = await updateAuctionLotStatus(selectedLot.value.id, newStatus.value, bid)
     selectedLot.value = res.data
 
     // When marked as Won, automatically convert to a coin and open edit page
@@ -422,6 +566,21 @@ fetchAllCounts()
   color: var(--accent-gold);
 }
 
+.max-bid-value {
+  font-weight: 600;
+  color: var(--accent-gold);
+  opacity: 0.8;
+}
+
+.bid-input-row {
+  align-items: center;
+}
+
+.bid-input {
+  flex: 1;
+  max-width: 140px;
+}
+
 .status-tag {
   padding: 0.15rem 0.55rem;
   border-radius: var(--radius-full);
@@ -512,5 +671,112 @@ fetchAllCounts()
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+.event-link-row {
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.event-link-row .detail-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.event-link-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.event-select {
+  flex: 1;
+  min-width: 160px;
+}
+
+.btn-sm {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+/* Select controls */
+.select-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.select-count {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* Floating bulk action bar */
+.bulk-action-bar {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--accent-gold-dim);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1.25rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  z-index: 200;
+  white-space: nowrap;
+}
+
+.bulk-count {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.bulk-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.bulk-event-select {
+  min-width: 160px;
+  font-size: 0.82rem;
+}
+
+.bulk-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.bulk-btn:hover {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
+/* Bar slide transition */
+.bar-slide-enter-active,
+.bar-slide-leave-active {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.bar-slide-enter-from,
+.bar-slide-leave-to {
+  transform: translateX(-50%) translateY(20px);
+  opacity: 0;
 }
 </style>

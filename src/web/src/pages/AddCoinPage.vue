@@ -13,7 +13,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useCoinsStore } from '@/stores/coins'
-import { uploadImage, deleteImage, extractText, updateCoin } from '@/api/client'
+import { uploadImage, extractText, updateCoin } from '@/api/client'
 import CoinForm from '@/components/CoinForm.vue'
 import type { Coin } from '@/types'
 import { useDialog } from '@/composables/useDialog'

@@ -1,15 +1,19 @@
 <template>
-  <div class="lot-card card" @click="emit('select', lot)">
+  <div class="lot-card card" :class="{ 'lot-card-selected': selectable && selected }" @click="handleClick">
     <div class="lot-image-container">
-      <img v-if="lot.imageUrl" :src="proxiedImageUrl" :alt="lot.title" class="lot-image" />
+      <img v-if="lot.imageUrl" :src="proxiedImageUrl" :alt="lot.title" class="lot-image" loading="lazy" />
       <div v-else class="lot-image-placeholder"><Gavel :size="48" :stroke-width="1" /></div>
       <span class="lot-status-badge" :class="`status-${lot.status}`">{{ statusLabel }}</span>
+      <div v-if="selectable" class="select-checkbox" :class="{ checked: selected }" @click.stop="emit('toggle-select', lot.id)">
+        <Check v-if="selected" :size="14" :stroke-width="3" />
+      </div>
     </div>
     <div class="lot-body">
       <h3 class="lot-title">{{ lot.title }}</h3>
       <div class="lot-meta">
         <span v-if="lot.auctionHouse" class="meta-item">{{ lot.auctionHouse }}</span>
         <span v-if="lot.saleName" class="meta-item">{{ lot.saleName }}</span>
+        <span v-if="lot.lotNumber" class="meta-item lot-number">Lot {{ lot.lotNumber }}</span>
       </div>
       <div class="lot-details">
         <span v-if="lot.category" class="detail" :class="`category-${lot.category.toLowerCase()}`">{{ lot.category }}</span>
@@ -37,10 +41,28 @@
 <script setup lang="ts">
 import type { AuctionLot } from '@/types'
 import { computed } from 'vue'
-import { Gavel } from 'lucide-vue-next'
+import { Gavel, Check } from 'lucide-vue-next'
 
-const props = defineProps<{ lot: AuctionLot }>()
-const emit = defineEmits<{ select: [lot: AuctionLot] }>()
+const props = withDefaults(defineProps<{
+  lot: AuctionLot
+  selectable?: boolean
+  selected?: boolean
+}>(), {
+  selectable: false,
+  selected: false,
+})
+const emit = defineEmits<{
+  select: [lot: AuctionLot]
+  'toggle-select': [lotId: number]
+}>()
+
+function handleClick() {
+  if (props.selectable) {
+    emit('toggle-select', props.lot.id)
+  } else {
+    emit('select', props.lot)
+  }
+}
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -195,6 +217,11 @@ function formatCurrency(value: number, currency?: string) {
   color: var(--text-secondary);
 }
 
+.lot-number {
+  font-weight: 600;
+  color: var(--accent-gold);
+}
+
 .lot-details {
   display: flex;
   gap: 0.5rem;
@@ -258,5 +285,33 @@ function formatCurrency(value: number, currency?: string) {
   .lot-image-container {
     aspect-ratio: 5 / 6;
   }
+}
+
+.select-checkbox {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 4;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.select-checkbox.checked {
+  background: var(--accent-gold);
+  border-color: var(--accent-gold);
+  color: #000;
+}
+
+.lot-card-selected {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: -2px;
 }
 </style>

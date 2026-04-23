@@ -77,7 +77,7 @@ func (h *JournalHandler) AddEntry(c *gin.Context) {
 	}
 
 	var body struct {
-		Entry string `json:"entry" binding:"required"`
+		Entry string `json:"entry" binding:"required,max=10000"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Entry text is required"})
@@ -113,13 +113,12 @@ func (h *JournalHandler) AddEntry(c *gin.Context) {
 //	@Router			/coins/{id}/journal/{entryId} [delete]
 func (h *JournalHandler) DeleteEntry(c *gin.Context) {
 	userID := c.GetUint("userId")
-	entryID, err := strconv.ParseUint(c.Param("entryId"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid entry ID"})
+	entryID, ok := parseID(c, "entryId")
+	if !ok {
 		return
 	}
 
-	rowsAffected, _ := h.repo.DeleteEntry(uint(entryID), userID)
+	rowsAffected, _ := h.repo.DeleteEntry(entryID, userID)
 	if rowsAffected == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Entry not found"})
 		return

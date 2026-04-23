@@ -78,11 +78,7 @@ def create_searxng_search(searxng_url: str = ""):
     return searxng_search
 
 
-# Default instance for backward compatibility
-searxng_search = create_searxng_search()
-
-
-# Standard browser user-agent — many dealer sites block bot-like strings
+# Standard browser user-agent— many dealer sites block bot-like strings
 _USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "

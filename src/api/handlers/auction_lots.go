@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -64,6 +65,25 @@ func (h *AuctionLotHandler) List(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"lots": lots, "total": total})
+}
+
+// Counts returns per-status counts for the authenticated user's auction lots.
+//
+//	@Summary		Get auction lot counts by status
+//	@Description	Returns a map of status → count for the authenticated user.
+//	@Tags			Auctions
+//	@Produce		json
+//	@Success		200	{object}	map[string]int64
+//	@Security		BearerAuth
+//	@Router			/auctions/counts [get]
+func (h *AuctionLotHandler) Counts(c *gin.Context) {
+	userID := c.GetUint("userId")
+	counts, err := h.repo.CountByStatus(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count auction lots"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"counts": counts})
 }
 
 // Get returns a single auction lot by ID.
@@ -179,7 +199,8 @@ func (h *AuctionLotHandler) Update(c *gin.Context) {
 
 // UpdateStatusRequest holds the new status for an auction lot.
 type UpdateStatusRequest struct {
-	Status string `json:"status" binding:"required"`
+	Status string   `json:"status" binding:"required"`
+	MaxBid *float64 `json:"maxBid,omitempty"`
 }
 
 // UpdateStatus transitions an auction lot to a new status.
@@ -223,8 +244,103 @@ func (h *AuctionLotHandler) UpdateStatus(c *gin.Context) {
 		return
 	}
 
+	// Save max bid if provided (typically when transitioning to "bidding")
+	if req.MaxBid != nil {
+		lot, _ := h.repo.GetByID(uint(id), userID)
+		if lot != nil {
+			h.repo.UpdateFields(lot, map[string]interface{}{"max_bid": req.MaxBid})
+		}
+	}
+
 	lot, _ := h.repo.GetByID(uint(id), userID)
 	c.JSON(http.StatusOK, lot)
+}
+
+// LinkEventRequest holds the event ID to associate with a lot.
+type LinkEventRequest struct {
+	EventID *uint `json:"eventId"`
+}
+
+// LinkEvent associates or disassociates an auction lot with a calendar event.
+//
+//	@Summary		Link lot to calendar event
+//	@Description	Sets or clears the calendar event association for an auction lot.
+//	@Tags			Auctions
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int					true	"Auction lot ID"
+//	@Param			body	body		LinkEventRequest	true	"Event ID (null to unlink)"
+//	@Success		200		{object}	models.AuctionLot
+//	@Failure		400		{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/auctions/{id}/event [put]
+func (h *AuctionLotHandler) LinkEvent(c *gin.Context) {
+	userID := c.GetUint("userId")
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	lot, err := h.repo.GetByID(uint(id), userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Auction lot not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get auction lot"})
+		return
+	}
+
+	var req LinkEventRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	h.repo.UpdateFields(lot, map[string]interface{}{"event_id": req.EventID})
+	updated, _ := h.repo.GetByID(uint(id), userID)
+	c.JSON(http.StatusOK, updated)
+}
+
+// BulkLinkEventRequest holds lot IDs and the target event ID.
+type BulkLinkEventRequest struct {
+	LotIDs  []uint `json:"lotIds" binding:"required"`
+	EventID *uint  `json:"eventId"`
+}
+
+// BulkLinkEvent associates or disassociates multiple auction lots with a calendar event.
+//
+//	@Summary		Bulk link lots to calendar event
+//	@Description	Sets or clears the calendar event for multiple auction lots at once.
+//	@Tags			Auctions
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		BulkLinkEventRequest	true	"Lot IDs and event ID"
+//	@Success		200		{object}	map[string]int
+//	@Failure		400		{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/auctions/bulk-link-event [put]
+func (h *AuctionLotHandler) BulkLinkEvent(c *gin.Context) {
+	userID := c.GetUint("userId")
+
+	var req BulkLinkEventRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	updated := 0
+	for _, lotID := range req.LotIDs {
+		lot, err := h.repo.GetByID(lotID, userID)
+		if err != nil {
+			continue
+		}
+		h.repo.UpdateFields(lot, map[string]interface{}{"event_id": req.EventID})
+		updated++
+	}
+
+	c.JSON(http.StatusOK, gin.H{"updated": updated})
 }
 
 // ConvertToCoin creates an owned Coin from a won auction lot.
@@ -395,12 +511,37 @@ func (h *AuctionLotHandler) SyncWatchlist(c *gin.Context) {
 	parsed := h.nbSvc.ParseWatchlist(rawHTML)
 
 	var synced []models.AuctionLot
+	now := time.Now()
+
 	for _, wl := range parsed {
-		// Scrape the lot page for the full-resolution og:image
-		if imgURL, err := h.nbSvc.ScrapeLotImage(wl.URL); err == nil {
-			wl.ImageURL = imgURL
-		} else if wl.ImageURL == "" {
-			log.Printf("Could not scrape image for %s: %v", wl.URL, err)
+		// Scrape the lot page for image, auction house, sale name, current bid, lot number, description, sale date
+		if details, err := h.nbSvc.ScrapeLotPage(wl.URL); err == nil {
+			if details.ImageURL != "" {
+				wl.ImageURL = details.ImageURL
+			}
+			wl.AuctionHouse = details.AuctionHouse
+			wl.SaleName = details.SaleName
+			wl.SaleDate = details.SaleDate
+			wl.Description = details.Description
+			wl.CurrentBid = details.CurrentBid
+			if details.Currency != "" {
+				wl.Currency = details.Currency
+			}
+			if details.LotNumber > 0 {
+				wl.LotNumber = details.LotNumber
+			}
+		} else {
+			log.Printf("Could not scrape lot page for %s: %v", wl.URL, err)
+		}
+
+		// Determine status: mark as passed if sale date is in the past
+		status := models.AuctionStatusWatching
+		var saleDate *time.Time
+		if wl.SaleDate != "" {
+			saleDate = services.ParseSaleDate(wl.SaleDate)
+			if saleDate != nil && saleDate.Before(now) {
+				status = models.AuctionStatusPassed
+			}
 		}
 
 		lot := models.AuctionLot{
@@ -408,10 +549,15 @@ func (h *AuctionLotHandler) SyncWatchlist(c *gin.Context) {
 			SaleID:       wl.SaleID,
 			LotNumber:    wl.LotNumber,
 			Title:        wl.Title,
+			Description:  wl.Description,
 			ImageURL:     wl.ImageURL,
 			Estimate:     wl.Estimate,
+			CurrentBid:   wl.CurrentBid,
 			Currency:     wl.Currency,
-			Status:       models.AuctionStatusWatching,
+			AuctionHouse: wl.AuctionHouse,
+			SaleName:     wl.SaleName,
+			SaleDate:     saleDate,
+			Status:       status,
 			UserID:       userID,
 		}
 		if lot.Currency == "" {
@@ -427,6 +573,9 @@ func (h *AuctionLotHandler) SyncWatchlist(c *gin.Context) {
 			synced = append(synced, *upserted)
 		}
 	}
+
+	// Also mark any existing watching lots whose sale date has passed
+	h.repo.MarkPastAuctionsAsPassed(userID, now)
 
 	c.JSON(http.StatusOK, gin.H{"synced": len(synced), "lots": synced})
 }

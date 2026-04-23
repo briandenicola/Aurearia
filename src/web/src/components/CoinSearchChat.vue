@@ -73,6 +73,14 @@
                 <div v-if="show.notableDealers?.length" class="show-dealers">
                   <span v-for="(dealer, k) in show.notableDealers" :key="k" class="meta-tag">{{ dealer }}</span>
                 </div>
+                <button
+                  class="save-cal-btn"
+                  :disabled="savedShows.has(showKey(show)) || savingShow === showKey(show)"
+                  @click="saveShowToCalendar(show)"
+                >
+                  <CalendarPlus :size="13" />
+                  {{ savedShows.has(showKey(show)) ? 'Saved' : savingShow === showKey(show) ? 'Saving...' : 'Save to Calendar' }}
+                </button>
               </div>
             </div>
           </div>
@@ -135,10 +143,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted, onBeforeUnmount, computed } from 'vue'
-import { agentChatStream, createCoin, proxyImage, scrapeImage, uploadImage, saveConversation, getPortfolioSummary, getAgentStatus } from '@/api/client'
+import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { agentChatStream, createCoin, proxyImage, scrapeImage, uploadImage, saveConversation, getPortfolioSummary, getAgentStatus, createCalendarEvent } from '@/api/client'
 import type { CoinSuggestion, CoinShow, AgentChatMessage, Category, Material } from '@/types'
-import { Bot, X, SendHorizontal, CirclePlus, ExternalLink, Save, AlertTriangle, Calendar, MapPin, Ticket } from 'lucide-vue-next'
+import { Bot, X, SendHorizontal, CirclePlus, ExternalLink, Save, AlertTriangle, Calendar, MapPin, Ticket, CalendarPlus } from 'lucide-vue-next'
 import DOMPurify from 'dompurify'
 import { useDialog } from '@/composables/useDialog'
 import MarkdownIt from 'markdown-it'
@@ -168,6 +176,8 @@ const input = ref('')
 const loading = ref(false)
 const addingIdx = ref<string | null>(null)
 const addedSet = ref<Set<string>>(new Set())
+const savedShows = ref<Set<string>>(new Set())
+const savingShow = ref<string | null>(null)
 const messagesEl = ref<HTMLElement>()
 const inputEl = ref<HTMLInputElement>()
 const conversationId = ref<number | null>(null)
@@ -401,6 +411,86 @@ function isCoinShowResults(suggestions: ChatSuggestion[]): boolean {
   if (!suggestions?.length) return false
   const first = suggestions[0]!
   return 'dates' in first || 'venue' in first
+}
+
+function showKey(show: CoinShow): string {
+  return `${show.name}|${show.dates}`
+}
+
+function parseDateRange(dateStr: string): { start?: string; end?: string } {
+  if (!dateStr) return {}
+
+  // ISO format: "2026-05-15"
+  const isoMatch = dateStr.match(/(\d{4}-\d{2}-\d{2})/)
+  if (isoMatch) {
+    return { start: isoMatch[1]! + 'T00:00:00Z' }
+  }
+
+  // "Month Day-Day, Year" e.g. "May 15-17, 2026"
+  const rangeMatch = dateStr.match(/([A-Z][a-z]+)\s+(\d{1,2})\s*[-–]\s*(\d{1,2}),?\s*(\d{4})/)
+  if (rangeMatch) {
+    const [, month, startDay, endDay, year] = rangeMatch
+    const s = new Date(`${month} ${startDay}, ${year}`)
+    const e = new Date(`${month} ${endDay}, ${year}`)
+    if (!isNaN(s.getTime())) {
+      return {
+        start: s.toISOString().split('T')[0]! + 'T00:00:00Z',
+        end: !isNaN(e.getTime()) ? e.toISOString().split('T')[0]! + 'T00:00:00Z' : undefined,
+      }
+    }
+  }
+
+  // "Month Day - Month Day, Year" e.g. "May 30 - June 1, 2026"
+  const crossMonthMatch = dateStr.match(/([A-Z][a-z]+)\s+(\d{1,2})\s*[-–]\s*([A-Z][a-z]+)\s+(\d{1,2}),?\s*(\d{4})/)
+  if (crossMonthMatch) {
+    const [, month1, day1, month2, day2, year] = crossMonthMatch
+    const s = new Date(`${month1} ${day1}, ${year}`)
+    const e = new Date(`${month2} ${day2}, ${year}`)
+    if (!isNaN(s.getTime())) {
+      return {
+        start: s.toISOString().split('T')[0]! + 'T00:00:00Z',
+        end: !isNaN(e.getTime()) ? e.toISOString().split('T')[0]! + 'T00:00:00Z' : undefined,
+      }
+    }
+  }
+
+  // "Month Day, Year" e.g. "May 15, 2026"
+  const singleMatch = dateStr.match(/([A-Z][a-z]+)\s+(\d{1,2}),?\s*(\d{4})/)
+  if (singleMatch) {
+    const d = new Date(`${singleMatch[1]} ${singleMatch[2]}, ${singleMatch[3]}`)
+    if (!isNaN(d.getTime())) {
+      return { start: d.toISOString().split('T')[0]! + 'T00:00:00Z' }
+    }
+  }
+
+  // Fallback: try native Date parsing
+  const d = new Date(dateStr)
+  if (!isNaN(d.getTime())) {
+    return { start: d.toISOString().split('T')[0]! + 'T00:00:00Z' }
+  }
+  return {}
+}
+
+async function saveShowToCalendar(show: CoinShow) {
+  const key = showKey(show)
+  if (savedShows.value.has(key)) return
+  savingShow.value = key
+  try {
+    const { start, end } = parseDateRange(show.dates)
+    const location = [show.venue, show.location].filter(Boolean).join(', ')
+    await createCalendarEvent({
+      title: show.name,
+      startDate: start,
+      endDate: end,
+      url: show.url || undefined,
+      notes: [location, show.entryFee ? `Entry: ${show.entryFee}` : '', show.description].filter(Boolean).join('\n'),
+    })
+    savedShows.value.add(key)
+  } catch {
+    await showAlert('Failed to save event to calendar')
+  } finally {
+    savingShow.value = null
+  }
 }
 
 function proxyImageUrl(url: string): string {
@@ -940,6 +1030,33 @@ function handleViewportResize() {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
+}
+
+.save-cal-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.65rem;
+  margin-top: 0.5rem;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+}
+
+.save-cal-btn:hover:not(:disabled) {
+  border-color: var(--accent-gold-dim);
+  color: var(--accent-gold);
+  background: var(--accent-gold-glow);
+}
+
+.save-cal-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .add-btn {

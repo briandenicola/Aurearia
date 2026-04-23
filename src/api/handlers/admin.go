@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -129,7 +129,7 @@ func (h *AdminHandler) ResetPassword(c *gin.Context) {
 		NewPassword string `json:"newPassword" binding:"required,min=6"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 
@@ -200,7 +200,7 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 		Value string `json:"value"`
 	}
 	if err := c.ShouldBindJSON(&settings); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 
@@ -306,7 +306,8 @@ func (h *AdminHandler) TestAnthropicConnection(c *gin.Context) {
 
 	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"available": false, "message": fmt.Sprintf("Connection failed: %s", err.Error())})
+		log.Printf("[handler] TestAnthropicConnection: %v", err)
+		c.JSON(http.StatusOK, gin.H{"available": false, "message": "Connection failed"})
 		return
 	}
 	defer resp.Body.Close()
@@ -339,41 +340,17 @@ func (h *AdminHandler) TestSearXNGConnection(c *gin.Context) {
 
 	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"available": false, "message": fmt.Sprintf("Connection failed: %s", err.Error())})
+		log.Printf("[handler] TestSearXNGConnection: %v", err)
+		c.JSON(http.StatusOK, gin.H{"available": false, "message": "Connection failed"})
 		return
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+	if resp.StatusCode >= 200&& resp.StatusCode < 400 {
 		c.JSON(http.StatusOK, gin.H{"available": true, "message": fmt.Sprintf("SearXNG is reachable at %s", searxngURL)})
 	} else {
 		c.JSON(http.StatusOK, gin.H{"available": false, "message": fmt.Sprintf("SearXNG returned HTTP %d", resp.StatusCode)})
 	}
 }
 
-// ExportAllData exports all coins and images as a zip archive
-func (h *AdminHandler) ExportAllData(c *gin.Context) {
-	coins, _ := h.repo.ExportAllCoins()
 
-	filename := fmt.Sprintf("ancient-coins-export-%s.zip", time.Now().Format("2006-01-02"))
-	writeCollectionZip(c, coins, h.UploadDir, filename)
-}
-
-// ImportCollection imports coins from JSON for a specific user (admin)
-func (h *AdminHandler) ImportData(c *gin.Context) {
-	var coins []models.Coin
-	if err := json.NewDecoder(c.Request.Body).Decode(&coins); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
-		return
-	}
-
-	imported := 0
-	for _, coin := range coins {
-		coin.ID = 0
-		if err := h.repo.ImportCoin(&coin); err == nil {
-			imported++
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Import complete", "imported": imported})
-}

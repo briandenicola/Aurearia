@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatResponse, CoinSuggestion, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatResponse, CoinSuggestion, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, Notification, NotificationListResponse, Tag, ValuationRun, CalendarEventDetail } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -81,7 +81,6 @@ function clearAuth() {
 }
 
 // Auth
-export const checkSetup = () => api.get<{ needsSetup: boolean }>('/auth/setup')
 export const login = (username: string, password: string) =>
   api.post<AuthResponse>('/auth/login', { username, password })
 export const register = (username: string, password: string, email?: string) =>
@@ -129,6 +128,18 @@ export const sellCoin = (id: number, soldPrice: number | null, soldTo: string) =
   api.post<Coin>(`/coins/${id}/sell`, { soldPrice, soldTo })
 export const deleteCoin = (id: number) => api.delete(`/coins/${id}`)
 
+// Tags
+export const getTags = () => api.get<{ tags: Tag[] }>('/tags')
+export const createTag = (data: { name: string; color?: string }) => api.post<Tag>('/tags', data)
+export const updateTag = (id: number, data: { name?: string; color?: string }) => api.put<Tag>(`/tags/${id}`, data)
+export const deleteTag = (id: number) => api.delete(`/tags/${id}`)
+export const addTagToCoin = (coinId: number, tagId: number) => api.post(`/coins/${coinId}/tags`, { tagId })
+export const removeTagFromCoin = (coinId: number, tagId: number) => api.delete(`/coins/${coinId}/tags/${tagId}`)
+
+// Bulk Operations
+export const bulkAction = (coinIds: number[], action: string, tagId?: number) =>
+  api.post<{ message: string; affected: number; coins?: Coin[] }>('/coins/bulk', { coinIds, action, tagId })
+
 // Journal
 export const getJournalEntries = (coinId: number) => api.get<CoinJournal[]>(`/coins/${coinId}/journal`)
 export const addJournalEntry = (coinId: number, entry: string) =>
@@ -151,8 +162,6 @@ export const getValuationPrompt = () => api.get<{ prompt: string; default: strin
 export const getPortfolioSummary = () => api.get<PortfolioSummary>('/agent/portfolio-summary')
 
 // Agent
-export const agentChat = (message: string, history: AgentChatMessage[] = []) =>
-  api.post<AgentChatResponse>('/agent/chat', { message, history })
 
 export async function agentChatStream(
   message: string,
@@ -278,6 +287,7 @@ export const getOllamaStatus = () =>
 
 // Stats
 export const getStats = () => api.get<StatsResponse>('/stats')
+export const getDistribution = () => api.get<{ cells: { era: string; category: string; count: number }[] }>('/stats/distribution')
 export const getValueHistory = () => api.get<ValueSnapshot[]>('/value-history')
 
 // Autocomplete suggestions
@@ -289,6 +299,7 @@ export const getMe = () => api.get<UserInfo>('/auth/me')
 export const changePassword = (currentPassword: string, newPassword: string) =>
   api.post('/auth/change-password', { currentPassword, newPassword })
 export const exportCollection = () => api.get('/user/export', { responseType: 'blob' })
+export const exportCatalogPDF = () => api.get('/user/export/catalog', { responseType: 'blob' })
 export const proxyImage = (url: string) =>
   api.get('/proxy-image', { params: { url }, responseType: 'blob' })
 export const scrapeImage = (url: string) =>
@@ -401,6 +412,39 @@ export const followUser = (userId: number) => api.post(`/social/follow/${userId}
 export const unfollowUser = (userId: number) => api.delete(`/social/follow/${userId}`)
 export const acceptFollower = (userId: number) => api.put(`/social/followers/${userId}/accept`)
 export const blockFollower = (userId: number) => api.put(`/social/followers/${userId}/block`)
+
+// Showcases
+export const listShowcases = () => api.get('/showcases')
+export const getShowcase = (id: number) => api.get(`/showcases/${id}`)
+export const createShowcase = (data: { title: string; description?: string }) => api.post('/showcases', data)
+export const updateShowcase = (id: number, data: { title?: string; description?: string; isActive?: boolean }) => api.put(`/showcases/${id}`, data)
+export const deleteShowcase = (id: number) => api.delete(`/showcases/${id}`)
+export const setShowcaseCoins = (id: number, coinIds: number[]) => api.put(`/showcases/${id}/coins`, { coinIds })
+export const getPublicShowcase = (slug: string) => axios.get(`${API_BASE}/api/showcase/${slug}`)
+
+// Calendar / Auction Events
+export const getCalendar = (start?: string, end?: string) => {
+  const params: Record<string, string> = {}
+  if (start) params.start = start
+  if (end) params.end = end
+  return api.get('/calendar', { params })
+}
+export const listCalendarEvents = () => api.get<{ events: Array<{ id: number; title: string; auctionHouse: string; startDate: string | null }> }>('/calendar/events')
+export const getCalendarEvent = (id: number) => api.get<{ event: CalendarEventDetail; lots: AuctionLot[] }>(`/calendar/events/${id}`)
+export const createCalendarEvent = (data: { title: string; auctionHouse?: string; startDate?: string; endDate?: string; url?: string; notes?: string }) => api.post('/calendar/events', data)
+export const updateCalendarEvent = (id: number, data: Record<string, unknown>) => api.put(`/calendar/events/${id}`, data)
+export const deleteCalendarEvent = (id: number) => api.delete(`/calendar/events/${id}`)
+
+// Price Alerts
+export const listAlerts = () => api.get('/alerts')
+export const createAlert = (data: { auctionLotId: number; targetPrice: number; direction?: string }) => api.post('/alerts', data)
+export const deleteAlert = (id: number) => api.delete(`/alerts/${id}`)
+
+// Bid Reminders
+export const listReminders = () => api.get('/reminders')
+export const createReminder = (data: { auctionLotId: number; minutesBefore?: number }) => api.post('/reminders', data)
+export const deleteReminder = (id: number) => api.delete(`/reminders/${id}`)
+
 export const unblockFollower = (userId: number) => api.delete(`/social/followers/${userId}/block`)
 export const getFollowers = () => api.get<{ followers: FollowUser[] }>('/social/followers')
 export const getFollowing = () => api.get<{ following: FollowUser[] }>('/social/following')
@@ -419,22 +463,21 @@ export const getFollowingCoinDetail = (userId: number, coinId: number) =>
 // Comments & ratings
 export const addComment = (coinId: number, comment: string, rating?: number) =>
   api.post<CoinComment>(`/social/coins/${coinId}/comments`, { comment, rating: rating || 0 })
-export const getComments = (coinId: number) => api.get<{ comments: CoinComment[] }>(`/social/coins/${coinId}/comments`)
 export const deleteComment = (coinId: number, commentId: number) =>
   api.delete(`/social/coins/${coinId}/comments/${commentId}`)
 export const rateCoin = (coinId: number, rating: number) =>
   api.put<CoinRating>(`/social/coins/${coinId}/rating`, { rating })
-export const getCoinRating = (coinId: number) => api.get<CoinRating>(`/social/coins/${coinId}/rating`)
 
 // Auction lots
 export const getAuctionLots = (params?: { status?: string; search?: string; sort?: string; order?: string; page?: number; limit?: number }) =>
   api.get<AuctionLotListResponse>('/auctions', { params })
-export const getAuctionLot = (id: number) => api.get<AuctionLot>(`/auctions/${id}`)
-export const createAuctionLot = (lot: Partial<AuctionLot>) => api.post<AuctionLot>('/auctions', lot)
-export const updateAuctionLot = (id: number, lot: Partial<AuctionLot>) => api.put<AuctionLot>(`/auctions/${id}`, lot)
-export const updateAuctionLotStatus = (id: number, status: string) => api.put<AuctionLot>(`/auctions/${id}/status`, { status })
+export const getAuctionLotCounts = () =>
+  api.get<{ counts: Record<string, number> }>('/auctions/counts')
+export const updateAuctionLotStatus = (id: number, status: string, maxBid?: number | null) => api.put<AuctionLot>(`/auctions/${id}/status`, { status, ...(maxBid != null ? { maxBid } : {}) })
 export const convertAuctionLotToCoin = (id: number) => api.post<Coin>(`/auctions/${id}/convert`)
 export const deleteAuctionLot = (id: number) => api.delete(`/auctions/${id}`)
+export const linkAuctionLotEvent = (id: number, eventId: number | null) => api.put<AuctionLot>(`/auctions/${id}/event`, { eventId })
+export const bulkLinkAuctionLotEvent = (lotIds: number[], eventId: number | null) => api.put<{ updated: number }>('/auctions/bulk-link-event', { lotIds, eventId })
 export const importAuctionLot = (data: { url: string; title?: string; description?: string; auctionHouse?: string; saleName?: string; category?: string; imageUrl?: string; estimate?: number | null; currentBid?: number | null; currency?: string }) =>
   api.post<AuctionLot>('/auctions/import', data)
 export const syncNumisBidsWatchlist = () =>
@@ -451,5 +494,27 @@ export const getAvailabilityRuns = (page = 1, limit = 20) =>
   api.get<{ runs: AvailabilityRun[]; total: number }>('/admin/availability-runs', { params: { page, limit } })
 export const getAvailabilityRunDetail = (runId: number) =>
   api.get<AvailabilityRun>(`/admin/availability-runs/${runId}`)
+
+// Valuation Runs
+export const getValuationRuns = (page = 1, limit = 20) =>
+  api.get<{ runs: ValuationRun[]; total: number }>('/admin/valuation-runs', { params: { page, limit } })
+export const getValuationRunDetail = (runId: number) =>
+  api.get<ValuationRun>(`/admin/valuation-runs/${runId}`)
+export const triggerValuation = () =>
+  api.post<{ message: string; users: number }>('/admin/valuation-runs/trigger')
+export const cancelValuationRun = (runId: number) =>
+  api.post<{ message: string }>(`/admin/valuation-runs/${runId}/cancel`)
+
+// Notifications
+export const getNotifications = (page = 1, limit = 20) =>
+  api.get<NotificationListResponse>('/notifications', { params: { page, limit } })
+export const getUnreadNotificationCount = () =>
+  api.get<{ count: number }>('/notifications/unread-count')
+export const markNotificationRead = (id: number) =>
+  api.put(`/notifications/${id}/read`)
+export const markAllNotificationsRead = () =>
+  api.put('/notifications/read-all')
+export const deleteNotification = (id: number) =>
+  api.delete(`/notifications/${id}`)
 
 export default api

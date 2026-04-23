@@ -2,8 +2,18 @@
   <div class="container">
     <div class="page-header">
       <h1>Wishlist</h1>
-      <div class="header-actions">
-        <button class="btn btn-primary" @click="showChat = true"><Bot :size="16" /> Find Coins</button>
+      <!-- PWA: icon-only buttons inline with title -->
+      <div v-if="isPwa" class="pwa-actions">
+        <button class="pwa-icon-btn" :disabled="checking" @click="handleCheckAvailability" title="Check Availability">
+          <span v-if="checking" class="spinner-sm"></span>
+          <ShieldCheck v-else :size="22" />
+        </button>
+        <router-link to="/add?wishlist=true" class="pwa-icon-btn" title="Add Coin">
+          <CirclePlus :size="22" />
+        </router-link>
+      </div>
+      <!-- Desktop: full text buttons -->
+      <div v-else class="header-actions">
         <button
           class="btn btn-secondary"
           :disabled="checking"
@@ -40,6 +50,12 @@
       />
     </div>
 
+    <div v-if="store.total > pageSize" class="pagination">
+      <button class="btn btn-secondary btn-sm" :disabled="page <= 1" @click="page--">← Previous</button>
+      <span class="page-info">Page {{ page }} of {{ Math.ceil(store.total / pageSize) }}</span>
+      <button class="btn btn-secondary btn-sm" :disabled="page * pageSize >= store.total" @click="page++">Next →</button>
+    </div>
+
     <div v-else class="empty-state">
       <h3>Your wishlist is empty</h3>
       <p>Add coins to your wishlist to track what you're looking for</p>
@@ -60,7 +76,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useCoinsStore } from '@/stores/coins'
 import CoinCard from '@/components/CoinCard.vue'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
@@ -68,17 +84,23 @@ import PurchaseModal from '@/components/PurchaseModal.vue'
 import { purchaseCoin, checkWishlistAvailability, updateListingStatus } from '@/api/client'
 import type { Coin, AvailabilityRunSummary } from '@/types'
 import { CirclePlus, Bot, ShieldCheck } from 'lucide-vue-next'
+import { usePwa } from '@/composables/usePwa'
 
 const store = useCoinsStore()
+const { isPwa } = usePwa()
 const showChat = ref(false)
 const purchaseTarget = ref<Coin | null>(null)
 const checking = ref(false)
 const checkResult = ref<AvailabilityRunSummary | null>(null)
 let dismissTimer: ReturnType<typeof setTimeout> | null = null
+const page = ref(1)
+const pageSize = 50
 
 function loadCoins() {
-  store.fetchCoins({ wishlist: 'true', sort: 'updated_at', order: 'desc' })
+  store.fetchCoins({ wishlist: 'true', sort: 'updated_at', order: 'desc', page: page.value })
 }
+
+watch(page, loadCoins)
 
 function openPurchaseModal(coin: Coin) {
   purchaseTarget.value = coin
@@ -197,5 +219,19 @@ loadCoins()
 
 .banner-dismiss:hover {
   color: var(--text-primary);
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding: 1rem 0;
+}
+
+.page-info {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
 }
 </style>

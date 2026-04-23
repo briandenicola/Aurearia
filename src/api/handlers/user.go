@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -48,7 +49,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		NewPassword     string `json:"newPassword" binding:"required,min=6"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 
@@ -71,7 +72,10 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	h.repo.UpdateField(&user, "password_hash", string(hash))
+	if err := h.repo.UpdateField(&user, "password_hash", string(hash)); err != nil {
+		respondError(c, http.StatusInternalServerError, "Failed to update password", err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "Password changed"})
 }
 
@@ -133,6 +137,44 @@ func (h *UserHandler) ExportCollection(c *gin.Context) {
 	writeCollectionZip(c, coins, h.UploadDir, filename)
 }
 
+// ExportCatalogPDF generates a styled PDF catalog of the user's collection.
+//
+//	@Summary		Export PDF catalog
+//	@Description	Generates a PDF catalog with photos, grades, provenance, and valuations.
+//	@Tags			User
+//	@Produce		application/pdf
+//	@Success		200	"PDF document"
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/user/export/catalog [get]
+func (h *UserHandler) ExportCatalogPDF(c *gin.Context) {
+	userID := c.GetUint("userId")
+
+	var coins []models.Coin
+	coins, _ = h.repo.GetCoinsWithImages(userID)
+
+	// Get username for cover page
+	user, _ := h.repo.FindByID(userID)
+	username := "Collector"
+	if user != nil {
+		username = user.Username
+	}
+
+	pdf, err := writeCatalogPDF(coins, h.UploadDir, username)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate catalog"})
+		return
+	}
+
+	filename := fmt.Sprintf("coin-catalog-%s.pdf", time.Now().Format("2006-01-02"))
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	if err := pdf.Output(c.Writer); err != nil {
+		services.AppLogger.Error("pdf", "Failed to write PDF: %v", err)
+	}
+}
+
 // ImportCollection imports coins from JSON for the current user.
 //
 //	@Summary		Import collection
@@ -183,7 +225,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		NumisBidsPassword *string `json:"numisBidsPassword"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 
@@ -230,16 +272,25 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 			logger.Info("user", "User %d going private — followers will be removed", userID)
 		}
 		if len(updates) > 0 {
-			h.repo.UpdateProfileWithPrivacy(&user, updates, goingPrivate)
+			if err := h.repo.UpdateProfileWithPrivacy(&user, updates, goingPrivate); err != nil {
+				respondError(c, http.StatusInternalServerError, "Failed to update profile", err)
+				return
+			}
 			logger.Info("user", "Profile updated for user %d", userID)
 		}
 	} else if len(updates) > 0 {
-		h.repo.UpdateFields(&user, updates)
+		if err := h.repo.UpdateFields(&user, updates); err != nil {
+			respondError(c, http.StatusInternalServerError, "Failed to update profile", err)
+			return
+		}
 		logger.Info("user", "Profile updated for user %d", userID)
 	}
 
 	// Reload and return
-	h.repo.Reload(&user)
+	if err := h.repo.Reload(&user); err != nil {
+		respondError(c, http.StatusInternalServerError, "Failed to reload profile", err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"id":                  user.ID,
 		"username":            user.Username,
@@ -297,7 +348,10 @@ func (h *UserHandler) UploadAvatar(c *gin.Context) {
 	}
 
 	avatarRelPath := filepath.ToSlash(filepath.Join("avatars", filename))
-	h.repo.UpdateField(&user, "avatar_path", avatarRelPath)
+	if err := h.repo.UpdateField(&user, "avatar_path", avatarRelPath); err != nil {
+		respondError(c, http.StatusInternalServerError, "Failed to update avatar", err)
+		return
+	}
 
 	logger.Info("user", "Avatar uploaded for user %d: %s", userID, avatarRelPath)
 	c.JSON(http.StatusOK, gin.H{"avatarPath": avatarRelPath})
@@ -316,8 +370,13 @@ func (h *UserHandler) DeleteAvatar(c *gin.Context) {
 	}
 
 	if user.AvatarPath != "" {
-		os.Remove(filepath.Join(h.UploadDir, user.AvatarPath))
-		h.repo.UpdateField(&user, "avatar_path", "")
+		if err := os.Remove(filepath.Join(h.UploadDir, user.AvatarPath)); err != nil {
+			log.Printf("[handler] DeleteAvatar: failed to remove file: %v", err)
+		}
+		if err := h.repo.UpdateField(&user, "avatar_path", ""); err != nil {
+			respondError(c, http.StatusInternalServerError, "Failed to remove avatar", err)
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Avatar removed"})

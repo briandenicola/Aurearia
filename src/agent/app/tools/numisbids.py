@@ -202,65 +202,6 @@ def _parse_lot_page(html: str, url: str) -> dict:
 
 
 @tool
-async def scrape_numisbids_watchlist(html: str) -> list[dict]:
-    """Parse a NumisBids watchlist HTML page into a list of lot summaries.
-
-    This tool receives pre-fetched HTML (the Go API handles authentication
-    and fetching) and parses it into structured lot data.
-
-    Args:
-        html: Raw HTML of the NumisBids /watchlist page (authenticated)
-
-    Returns:
-        List of dictionaries, each with lot URL, title, estimate, imageUrl.
-    """
-    lots: list[dict] = []
-
-    # Find each lot block — they typically include image, title, estimate
-    lot_blocks = re.split(r'(?=<a[^>]*href="/sale/\d+/lot/\d+)', html)
-
-    for block in lot_blocks:
-        link_match = re.search(r'href="(/sale/(\d+)/lot/(\d+))"', block)
-        if not link_match:
-            continue
-
-        lot: dict = {
-            "url": f"{_NUMISBIDS_BASE}{link_match.group(1)}",
-            "saleId": link_match.group(2),
-            "lotNumber": int(link_match.group(3)),
-        }
-
-        # Image: thumbnail or full image
-        img_match = re.search(r'<img[^>]*src="([^"]*)"', block)
-        if img_match:
-            img_url = img_match.group(1)
-            if img_url.startswith("//"):
-                img_url = "https:" + img_url
-            lot["imageUrl"] = img_url
-        else:
-            lot["imageUrl"] = ""
-
-        # Title/description text near the link
-        text = _clean_html(block).strip()
-        lot["title"] = text[:200] if text else ""
-
-        # Estimate
-        est_match = re.search(r"Estimate:\s*([\d,]+(?:\.\d+)?\s*\w+)", block)
-        if est_match:
-            value, currency = _parse_currency_value(est_match.group(1))
-            lot["estimate"] = value
-            lot["currency"] = currency
-        else:
-            lot["estimate"] = None
-            lot["currency"] = "USD"
-
-        lots.append(lot)
-
-    logger.debug("[numisbids] Parsed %d lots from watchlist", len(lots))
-    return lots
-
-
-@tool
 async def search_numisbids(query: str) -> list[dict]:
     """Search NumisBids across all auctions and return matching lots.
 

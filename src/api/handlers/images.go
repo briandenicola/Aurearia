@@ -138,7 +138,7 @@ func (h *ImageHandler) UploadBase64(c *gin.Context) {
 
 	var req base64ImageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 

@@ -1378,3 +1378,454 @@ Validate NumisBids credentials by attempting a login. Does not save anything.
 **Body:** `{ "username": "user@example.com", "password": "..." }`
 
 **Response:** `{ "valid": true }` or `{ "valid": false, "error": "Login failed. Check your credentials." }`
+
+---
+
+## Tags
+
+Manage user-defined tags for organizing coins. All tag endpoints require authentication.
+
+### GET /api/tags
+
+List all tags for the authenticated user.
+
+**Response:**
+
+```json
+{
+  "tags": [
+    { "id": 1, "name": "Favorites", "color": "#e5a00d" },
+    { "id": 2, "name": "For Sale", "color": "#3b82f6" }
+  ]
+}
+```
+
+### POST /api/tags
+
+Create a new tag.
+
+**Request Body:**
+
+```json
+{ "name": "Favorites", "color": "#e5a00d" }
+```
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `name` | string | Yes | Tag display name |
+| `color` | string | No | Hex color code for the tag badge |
+
+**Response (201):** The created tag object.
+
+### PUT /api/tags/:id
+
+Update a tag's name or color.
+
+**Request Body:**
+
+```json
+{ "name": "Top Picks", "color": "#f59e0b" }
+```
+
+### DELETE /api/tags/:id
+
+Delete a tag. Removes the tag from all coins it was attached to.
+
+### POST /api/coins/:id/tags
+
+Attach a tag to a coin.
+
+**Request Body:**
+
+```json
+{ "tagId": 1 }
+```
+
+### DELETE /api/coins/:id/tags/:tagId
+
+Detach a tag from a coin.
+
+---
+
+## Bulk Operations
+
+### POST /api/coins/bulk
+
+Perform a bulk action on a set of coins. Requires authentication.
+
+**Request Body:**
+
+```json
+{
+  "action": "tag",
+  "coinIds": [1, 2, 3],
+  "tagId": 1
+}
+```
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `action` | string | Yes | One of `delete`, `tag`, `untag`, `status` |
+| `coinIds` | int[] | Yes | Array of coin IDs to act on |
+| `tagId` | int | Conditional | Required when `action` is `tag` or `untag` |
+
+**Response:**
+
+```json
+{ "message": "Bulk action completed", "affected": 3 }
+```
+
+---
+
+## Notifications
+
+All notification endpoints require authentication and are scoped to the authenticated user.
+
+### GET /api/notifications
+
+List notifications for the authenticated user.
+
+**Response:**
+
+```json
+{
+  "notifications": [
+    {
+      "id": 1,
+      "type": "follow_request",
+      "message": "numismatist wants to follow you",
+      "read": false,
+      "createdAt": "2024-06-01T12:00:00Z"
+    }
+  ]
+}
+```
+
+### GET /api/notifications/unread-count
+
+Get the number of unread notifications.
+
+**Response:**
+
+```json
+{ "count": 3 }
+```
+
+### PUT /api/notifications/:id/read
+
+Mark a single notification as read.
+
+**Response:**
+
+```json
+{ "message": "Notification marked as read" }
+```
+
+### PUT /api/notifications/read-all
+
+Mark all notifications as read for the authenticated user.
+
+**Response:**
+
+```json
+{ "message": "All notifications marked as read" }
+```
+
+### DELETE /api/notifications/:id
+
+Delete a notification.
+
+---
+
+## Showcases
+
+Curated collections of coins that can be published with a shareable URL. All endpoints except the public slug endpoint require authentication.
+
+### GET /api/showcases
+
+List showcases for the authenticated user.
+
+**Response:**
+
+```json
+{
+  "showcases": [
+    {
+      "id": 1,
+      "name": "Roman Imperial Highlights",
+      "description": "My best imperial coins",
+      "slug": "roman-imperial-highlights",
+      "isPublished": true,
+      "coinCount": 8,
+      "createdAt": "2024-06-01T12:00:00Z"
+    }
+  ]
+}
+```
+
+### GET /api/showcases/:id
+
+Get a showcase with its coins.
+
+**Response:**
+
+```json
+{
+  "id": 1,
+  "name": "Roman Imperial Highlights",
+  "description": "My best imperial coins",
+  "slug": "roman-imperial-highlights",
+  "isPublished": true,
+  "coins": [ { "id": 10, "name": "Augustus Denarius", "..." : "..." } ],
+  "createdAt": "2024-06-01T12:00:00Z"
+}
+```
+
+### POST /api/showcases
+
+Create a new showcase.
+
+**Request Body:**
+
+```json
+{
+  "name": "Roman Imperial Highlights",
+  "description": "My best imperial coins"
+}
+```
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `name` | string | Yes | Showcase title |
+| `description` | string | No | Short description |
+
+**Response (201):** The created showcase object.
+
+### PUT /api/showcases/:id
+
+Update a showcase's metadata or publish status.
+
+**Request Body:**
+
+```json
+{
+  "name": "Updated Title",
+  "description": "Updated description",
+  "isPublished": true
+}
+```
+
+### DELETE /api/showcases/:id
+
+Delete a showcase. Does not delete the coins themselves.
+
+### PUT /api/showcases/:id/coins
+
+Set the coins included in a showcase. Replaces the existing coin list.
+
+**Request Body:**
+
+```json
+{ "coinIds": [10, 22, 35] }
+```
+
+**Response:**
+
+```json
+{ "message": "Showcase coins updated" }
+```
+
+---
+
+### Public Showcase
+
+#### GET /api/showcase/:slug
+
+Get a published showcase by its URL slug. **No authentication required.**
+
+Returns `404` if the showcase does not exist or is not published.
+
+**Response:** Same shape as [GET /api/showcases/:id](#get-apishowcasesid) (without private fields).
+
+---
+
+## Calendar
+
+View auction lot dates and manage custom calendar events. All endpoints require authentication.
+
+### GET /api/calendar
+
+Get calendar data for a date range. Returns auction lots and custom events that fall within the range.
+
+**Query Parameters:**
+
+| Param | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `start` | string | Yes | Range start (ISO 8601 date, e.g., `2024-06-01`) |
+| `end` | string | Yes | Range end (ISO 8601 date, e.g., `2024-06-30`) |
+
+**Response:**
+
+```json
+{
+  "lots": [
+    { "id": 1, "title": "Augustus Aureus", "date": "2024-06-15T14:00:00Z", "auctionHouse": "CNG" }
+  ],
+  "events": [
+    { "id": 1, "title": "Coin Show - NYC", "description": "Annual NYINC show", "date": "2024-06-20T09:00:00Z", "url": "https://example.com/show" }
+  ]
+}
+```
+
+### POST /api/calendar/events
+
+Create a custom calendar event.
+
+**Request Body:**
+
+```json
+{
+  "title": "Coin Show - NYC",
+  "description": "Annual NYINC show",
+  "date": "2024-06-20T09:00:00Z",
+  "url": "https://example.com/show"
+}
+```
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `title` | string | Yes | Event title |
+| `description` | string | No | Event description |
+| `date` | string | Yes | ISO 8601 date/time |
+| `url` | string | No | Related URL |
+
+**Response (201):** The created event object.
+
+### PUT /api/calendar/events/:id
+
+Update a custom calendar event.
+
+**Request Body:** Same schema as create — only include the fields you want to update.
+
+### DELETE /api/calendar/events/:id
+
+Delete a custom calendar event.
+
+---
+
+## Price Alerts
+
+Set alerts for auction lots to be notified when prices reach a target. All endpoints require authentication.
+
+### GET /api/alerts
+
+List price alerts for the authenticated user.
+
+**Response:**
+
+```json
+{
+  "alerts": [
+    {
+      "id": 1,
+      "lotId": 42,
+      "targetPrice": 500.00,
+      "direction": "below",
+      "createdAt": "2024-06-01T12:00:00Z"
+    }
+  ]
+}
+```
+
+### POST /api/alerts
+
+Create a price alert.
+
+**Request Body:**
+
+```json
+{
+  "lotId": 42,
+  "targetPrice": 500.00,
+  "direction": "below"
+}
+```
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `lotId` | int | Yes | The auction lot to monitor |
+| `targetPrice` | float | Yes | Target price threshold |
+| `direction` | string | Yes | `above` or `below` |
+
+**Response (201):** The created alert object.
+
+### DELETE /api/alerts/:id
+
+Delete a price alert.
+
+---
+
+## Bid Reminders
+
+Set reminders to be notified before auction lot bidding closes. All endpoints require authentication.
+
+### GET /api/reminders
+
+List bid reminders for the authenticated user.
+
+**Response:**
+
+```json
+{
+  "reminders": [
+    {
+      "id": 1,
+      "lotId": 42,
+      "minutesBefore": 30,
+      "createdAt": "2024-06-01T12:00:00Z"
+    }
+  ]
+}
+```
+
+### POST /api/reminders
+
+Create a bid reminder.
+
+**Request Body:**
+
+```json
+{
+  "lotId": 42,
+  "minutesBefore": 30
+}
+```
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `lotId` | int | Yes | The auction lot to set a reminder for |
+| `minutesBefore` | int | Yes | Minutes before lot closes to trigger the reminder |
+
+**Response (201):** The created reminder object.
+
+### DELETE /api/reminders/:id
+
+Delete a bid reminder.
+
+---
+
+## PDF Export
+
+### GET /api/user/export/catalog
+
+Download a PDF catalog of the authenticated user's coin collection. The PDF includes photos, grades, provenance, and valuations for each coin.
+
+**Response:** `Content-Type: application/pdf` with `Content-Disposition: attachment` headers.
+
+**Example:**
+
+```sh
+curl http://localhost:8080/api/user/export/catalog \
+  -H "Authorization: Bearer $TOKEN" \
+  --output my-catalog.pdf
+```

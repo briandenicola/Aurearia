@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/briandenicola/ancient-coins-api/models"
 	"gorm.io/gorm"
 )
@@ -112,6 +114,30 @@ func (r *AuctionLotRepository) Delete(id, userID uint) (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
+// StatusCount holds a status label and its count.
+type StatusCount struct {
+	Status string
+	Count  int64
+}
+
+// CountByStatus returns per-status counts for the given user.
+func (r *AuctionLotRepository) CountByStatus(userID uint) (map[string]int64, error) {
+	var rows []StatusCount
+	err := r.db.Model(&models.AuctionLot{}).
+		Select("status, COUNT(*) as count").
+		Where("user_id = ?", userID).
+		Group("status").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	counts := make(map[string]int64)
+	for _, r := range rows {
+		counts[r.Status] = r.Count
+	}
+	return counts, nil
+}
+
 // Upsert creates or updates an auction lot by its NumisBids URL for the given user.
 func (r *AuctionLotRepository) Upsert(lot *models.AuctionLot) error {
 	existing, err := r.GetByURL(lot.NumisBidsURL, lot.UserID)
@@ -121,11 +147,36 @@ func (r *AuctionLotRepository) Upsert(lot *models.AuctionLot) error {
 	}
 	// Update fields that may have changed
 	updates := map[string]interface{}{
-		"current_bid": lot.CurrentBid,
-		"estimate":    lot.Estimate,
-		"title":       lot.Title,
-		"description": lot.Description,
-		"image_url":   lot.ImageURL,
+		"current_bid":   lot.CurrentBid,
+		"estimate":      lot.Estimate,
+		"title":         lot.Title,
+		"description":   lot.Description,
+		"image_url":     lot.ImageURL,
+		"auction_house": lot.AuctionHouse,
+		"sale_name":     lot.SaleName,
+		"sale_date":     lot.SaleDate,
+		"currency":      lot.Currency,
+		"lot_number":    lot.LotNumber,
+	}
+	// Only update status if the lot is being marked as passed (don't overwrite bidding/won/lost)
+	if lot.Status == models.AuctionStatusPassed && existing.Status == models.AuctionStatusWatching {
+		updates["status"] = string(models.AuctionStatusPassed)
 	}
 	return r.UpdateFields(existing, updates)
+}
+
+// MarkPastAuctionsAsPassed updates all "watching" lots for a user where sale_date is before now.
+func (r *AuctionLotRepository) MarkPastAuctionsAsPassed(userID uint, now time.Time) {
+	r.db.Model(&models.AuctionLot{}).
+		Where("user_id = ? AND status = ? AND sale_date IS NOT NULL AND sale_date < ?",
+			userID, models.AuctionStatusWatching, now).
+		Update("status", string(models.AuctionStatusPassed))
+}
+
+// ListByEventID returns all auction lots linked to a specific calendar event.
+func (r *AuctionLotRepository) ListByEventID(eventID, userID uint) ([]models.AuctionLot, error) {
+	var lots []models.AuctionLot
+	err := r.db.Where("event_id = ? AND user_id = ?", eventID, userID).
+		Order("lot_number ASC").Find(&lots).Error
+	return lots, err
 }
