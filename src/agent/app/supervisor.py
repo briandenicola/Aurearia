@@ -359,4 +359,4 @@ def create_supervisor(
     graph.add_edge("auction_search", END)
     graph.add_edge("general", END)
 
-    return graph.compile(recursion_limit=settings.max_supervisor_iterations)
+    return graph.compile()

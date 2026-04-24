@@ -12,8 +12,11 @@ from app.models.requests import (
     CoinShowSearchRequest,
     PortfolioReviewRequest,
 )
+from app.config import settings
 from app.models.responses import AgentResponse, AvailabilityCheckResponse, AvailabilityVerdict
 from app.streaming import stream_graph_events
+
+_RECURSION_CONFIG = {"recursion_limit": settings.max_supervisor_iterations}
 from app.supervisor import create_supervisor
 from app.teams.availability_check import create_availability_check_team, parse_verdicts
 from app.teams.coin_analysis import create_coin_analysis_team
@@ -57,7 +60,7 @@ async def search_coins(request: CoinSearchRequest):
     )
 
     async def event_stream():
-        async for chunk in stream_graph_events(graph, {"messages": messages}):
+        async for chunk in stream_graph_events(graph, {"messages": messages}, config=_RECURSION_CONFIG):
             yield chunk
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -80,7 +83,7 @@ async def search_shows(request: CoinShowSearchRequest):
     )
 
     async def event_stream():
-        async for chunk in stream_graph_events(graph, {"messages": messages}):
+        async for chunk in stream_graph_events(graph, {"messages": messages}, config=_RECURSION_CONFIG):
             yield chunk
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -144,7 +147,7 @@ async def review_portfolio(request: PortfolioReviewRequest):
     )
 
     async def event_stream():
-        async for chunk in stream_graph_events(graph, {"messages": messages}):
+        async for chunk in stream_graph_events(graph, {"messages": messages}, config=_RECURSION_CONFIG):
             yield chunk
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
