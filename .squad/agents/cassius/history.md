@@ -13,3 +13,5 @@
 - **2026-04-24:** Completed deep backend code quality review of all Go source in `src/api/`. Overall grade B-. Key findings: (1) `settings_service.go` bypasses the repository layer with a global `*gorm.DB`; (2) middleware/auth.go does direct DB access; (3) both schedulers have double-close panic risk; (4) business logic leaks into `analysis.go`, `agent.go`, `coins.go`, and `admin.go` handlers; (5) error handling is inconsistent — many repos/services silently swallow errors; (6) input validation is thin across handlers and models. Full report in `.squad/decisions/inbox/cassius-code-review.md` with 20 prioritized backlog items.
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
+
+- **2026-04-24:** Fixed two P0 issues from the code review: (1) Added `sync.Once` guards to both `ValuationScheduler.Stop()` and `AvailabilityScheduler.Stop()` to prevent double-close panics on the stop channel. (2) Added a defense-in-depth column allowlist to `CoinRepository.Suggestions()` so the repo validates the column name before interpolating it into SQL, matching the handler's existing whitelist. All tests pass.

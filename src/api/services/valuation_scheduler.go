@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -14,6 +15,7 @@ type ValuationScheduler struct {
 	coinRepo *repository.CoinRepository
 	logger   *Logger
 	stopCh   chan struct{}
+	once     sync.Once
 }
 
 // NewValuationScheduler creates a new scheduler.
@@ -55,9 +57,9 @@ func (s *ValuationScheduler) Start() {
 	}
 }
 
-// Stop signals the scheduler to shut down.
+// Stop signals the scheduler to shut down. Safe to call multiple times.
 func (s *ValuationScheduler) Stop() {
-	close(s.stopCh)
+	s.once.Do(func() { close(s.stopCh) })
 }
 
 // timeUntilNextRun calculates delay until the next scheduled run.

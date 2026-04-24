@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -14,6 +15,7 @@ type AvailabilityScheduler struct {
 	coinRepo *repository.CoinRepository
 	logger   *Logger
 	stopCh   chan struct{}
+	once     sync.Once
 }
 
 // NewAvailabilityScheduler creates a new scheduler.
@@ -56,9 +58,9 @@ func (s *AvailabilityScheduler) Start() {
 	}
 }
 
-// Stop signals the scheduler to shut down.
+// Stop signals the scheduler to shut down. Safe to call multiple times.
 func (s *AvailabilityScheduler) Stop() {
-	close(s.stopCh)
+	s.once.Do(func() { close(s.stopCh) })
 }
 
 // timeUntilNextRun calculates the delay until the next scheduled run.

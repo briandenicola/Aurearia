@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -389,8 +390,21 @@ func (r *CoinRepository) GetDistribution(userID uint) ([]DistributionCell, error
 	return cells, err
 }
 
+// validSuggestionColumns is the allowlist of columns permitted in Suggestions queries.
+var validSuggestionColumns = map[string]bool{
+	"name":              true,
+	"denomination":      true,
+	"ruler":             true,
+	"era":               true,
+	"purchase_location": true,
+}
+
 // Suggestions returns distinct values for an autocomplete field.
 func (r *CoinRepository) Suggestions(userID uint, column string, q string) ([]string, error) {
+	if !validSuggestionColumns[column] {
+		return nil, fmt.Errorf("invalid suggestion column: %s", column)
+	}
+
 	var values []string
 	query := r.db.Model(&models.Coin{}).
 		Where("user_id = ? AND "+column+" != ''", userID).
