@@ -106,24 +106,24 @@ export const getCoins = (params?: {
   order?: string
 }) => api.get<CoinListResponse>('/coins', { params })
 
-const NULLABLE_FIELDS = ['weightGrams', 'diameterMm', 'purchasePrice', 'currentValue', 'purchaseDate']
+const NULLABLE_FIELDS: (keyof Coin)[] = ['weightGrams', 'diameterMm', 'purchasePrice', 'currentValue', 'purchaseDate']
 
 function sanitizeCoin(coin: Partial<Coin>): Partial<Coin> {
-  const clean = { ...coin }
+  const clean: Record<string, unknown> = { ...coin }
   for (const field of NULLABLE_FIELDS) {
-    if ((clean as any)[field] === '' || (clean as any)[field] === undefined) {
-      ;(clean as any)[field] = null
+    if (clean[field] === '' || clean[field] === undefined) {
+      clean[field] = null
     }
   }
-  // Default currentValue to purchasePrice if not set
-  if (!clean.currentValue && clean.purchasePrice) {
+  // Default currentValue to purchasePrice if not set (preserve 0 as valid)
+  if (clean.currentValue == null && clean.purchasePrice != null) {
     clean.currentValue = clean.purchasePrice
   }
   // Convert date-only strings (YYYY-MM-DD) to RFC3339 for Go
   if (typeof clean.purchaseDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(clean.purchaseDate)) {
     clean.purchaseDate = clean.purchaseDate + 'T00:00:00Z'
   }
-  return clean
+  return clean as Partial<Coin>
 }
 
 export const getCoin = (id: number) => api.get<Coin>(`/coins/${id}`)
