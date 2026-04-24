@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -11,6 +13,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+// allowedListSortFields is the handler-level allowlist of sort fields for the
+// coin list endpoint. Matches the repository's allowedSortFields map.
+var allowedListSortFields = map[string]bool{
+	"created_at":    true,
+	"updated_at":    true,
+	"current_value": true,
+}
 
 type CoinHandler struct {
 	repo   *repository.CoinRepository
@@ -44,20 +54,55 @@ type PurchaseRequest struct {
 //	@Param			sort		query		string	false	"Sort field"	Enums(created_at, updated_at, current_value)	default(updated_at)
 //	@Param			order		query		string	false	"Sort order"	Enums(asc, desc)	default(desc)
 //	@Success		200			{object}	CoinListResponse
+//	@Failure		400			{object}	ErrorResponse
 //	@Failure		401			{object}	ErrorResponse
 //	@Failure		500			{object}	ErrorResponse
 //	@Security		BearerAuth
 //	@Router			/coins [get]
 func (h *CoinHandler) List(c *gin.Context) {
 	userID := c.GetUint("userId")
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+
+	// Validate page
+	pageStr := c.DefaultQuery("page", "1")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "page must be an integer >= 1"})
+		return
+	}
+
+	// Validate limit
+	limitStr := c.DefaultQuery("limit", "50")
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 || limit > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "limit must be an integer between 1 and 100"})
+		return
+	}
+
+	// Validate sort field against allowlist (defense-in-depth against SQL injection)
+	sortField := c.DefaultQuery("sort", "updated_at")
+	if !allowedListSortFields[sortField] {
+		allowed := make([]string, 0, len(allowedListSortFields))
+		for k := range allowedListSortFields {
+			allowed = append(allowed, k)
+		}
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("sort must be one of: %s", strings.Join(allowed, ", ")),
+		})
+		return
+	}
+
+	// Validate sort order
+	sortOrder := c.DefaultQuery("order", "desc")
+	if sortOrder != "asc" && sortOrder != "desc" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "order must be 'asc' or 'desc'"})
+		return
+	}
 
 	filters := repository.CoinListFilters{
 		Category:  c.Query("category"),
 		Search:    c.Query("search"),
-		SortField: c.DefaultQuery("sort", "updated_at"),
-		SortOrder: c.DefaultQuery("order", "desc"),
+		SortField: sortField,
+		SortOrder: sortOrder,
 		Page:      page,
 		Limit:     limit,
 	}

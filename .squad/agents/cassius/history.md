@@ -15,3 +15,5 @@
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
 - **2026-04-24:** Fixed two P0 issues from the code review: (1) Added `sync.Once` guards to both `ValuationScheduler.Stop()` and `AvailabilityScheduler.Stop()` to prevent double-close panics on the stop channel. (2) Added a defense-in-depth column allowlist to `CoinRepository.Suggestions()` so the repo validates the column name before interpolating it into SQL, matching the handler's existing whitelist. All tests pass.
+
+- **2026-04-25:** Completed P2 #34 and P2 #35. (1) Added handler-level input validation to the coins List endpoint: page must be ≥1, limit must be 1–100, sort field is checked against an allowlist (defense-in-depth against SQL injection), and order must be "asc" or "desc". Invalid input now returns HTTP 400 with a clear message instead of being silently corrected by the repository. (2) Fixed orphan file risk in `ImageService.UploadImage()`: if the DB insert fails after the file is written to disk, the file is now cleaned up via `os.Remove()` to prevent orphans.

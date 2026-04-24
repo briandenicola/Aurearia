@@ -59,14 +59,16 @@ func (s *ImageService) UploadImage(coinID, userID uint, fileData []byte, ext str
 		IsPrimary: isPrimary,
 	}
 
+	var dbErr error
 	if isPrimary {
-		if err := s.repo.SetPrimaryAndCreate(coinID, &image); err != nil {
-			return nil, ErrImageRecord
-		}
+		dbErr = s.repo.SetPrimaryAndCreate(coinID, &image)
 	} else {
-		if err := s.repo.CreateImage(&image); err != nil {
-			return nil, ErrImageRecord
-		}
+		dbErr = s.repo.CreateImage(&image)
+	}
+	if dbErr != nil {
+		// Clean up the file written to disk to prevent orphans
+		os.Remove(filePath)
+		return nil, ErrImageRecord
 	}
 
 	return &image, nil
