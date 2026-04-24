@@ -10,4 +10,6 @@
 
 - **2025-07-18:** Maximus completed comprehensive `docs/ARCHITECTURE.md` covering full-system architecture (Go API, Vue frontend, Python agent service, data flows, DB schema, auth, agent integration, Docker, design decisions). This is the authoritative reference for all agents and team members.
 
+- **2026-04-24:** Completed deep frontend code quality review. Key findings: (1) `v-html` XSS risk in AI content rendering — needs DOMPurify, (2) 15+ files have uncleared setTimeout/setInterval — memory leak pattern is widespread, (3) Router has no admin role guard — only UI-hidden, (4) Auth store drifts from localStorage after silent token refresh, (5) PWA icons missing from public/ breaking installability, (6) Accessibility is the weakest area — almost no ARIA, no focus traps, clickable divs without keyboard support. Three pages exceed 1200+ lines and need splitting. Overall grade: B-. 19 backlog items created in `.squad/decisions/inbox/aurelia-code-review.md`.
+
 <!-- Append new learnings below. Each entry is something lasting about the project. -->

@@ -15,3 +15,4 @@
 - The system has 26 auto-migrated GORM models, 22 repository files, 17 service files, 25 handler files, 21 Vue pages, and 10 composables.
 - Two background goroutine schedulers (availability + valuation) run with configurable anchor times and intervals from DB settings.
 - Auth supports 3 methods: JWT (15min access + 30d refresh with rotation), API keys (SHA-256 hashed), and WebAuthn/passkeys.
+- **2026-04-24**: Full architecture & code quality review. Graded 11 areas (A- to C+). Key findings: DI is undermined by 3 package-level globals (`AppLogger`, `GetSetting`, `cancelMap`); `social.go` silently drops 7+ errors; frontend has 3 god-pages (1200-1400 lines each); Python agent lacks tests for supervisor routing and team pipelines. Error handling is the weakest area (C+). Documentation is the strongest (A-). Created 20-item prioritized backlog in `.squad/decisions/inbox/maximus-code-review.md`.
