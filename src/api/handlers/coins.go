@@ -13,12 +13,13 @@ import (
 )
 
 type CoinHandler struct {
-	repo *repository.CoinRepository
-	svc  *services.CoinService
+	repo   *repository.CoinRepository
+	svc    *services.CoinService
+	logger *services.Logger
 }
 
-func NewCoinHandler(repo *repository.CoinRepository, svc *services.CoinService) *CoinHandler {
-	return &CoinHandler{repo: repo, svc: svc}
+func NewCoinHandler(repo *repository.CoinRepository, svc *services.CoinService, logger *services.Logger) *CoinHandler {
+	return &CoinHandler{repo: repo, svc: svc, logger: logger}
 }
 
 // PurchaseRequest holds optional details when purchasing a wishlist coin.
@@ -145,7 +146,7 @@ func (h *CoinHandler) Get(c *gin.Context) {
 //	@Security		BearerAuth
 //	@Router			/coins [post]
 func (h *CoinHandler) Create(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	userID := c.GetUint("userId")
 
 	var coin models.Coin

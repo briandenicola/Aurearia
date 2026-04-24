@@ -45,3 +45,22 @@ func (r *ApiKeyRepository) Revoke(apiKey *models.ApiKey) error {
 	now := time.Now()
 	return r.db.Model(apiKey).Update("revoked_at", &now).Error
 }
+
+// FindActiveByHash returns an active (non-revoked) API key by its SHA-256 hash.
+func (r *ApiKeyRepository) FindActiveByHash(keyHash string) (*models.ApiKey, error) {
+	var apiKey models.ApiKey
+	err := r.db.Where("key_hash = ? AND revoked_at IS NULL", keyHash).First(&apiKey).Error
+	return &apiKey, err
+}
+
+// FindUserByID returns a user by primary key (for API key auth lookup).
+func (r *ApiKeyRepository) FindUserByID(id uint) (*models.User, error) {
+	var user models.User
+	err := r.db.First(&user, id).Error
+	return &user, err
+}
+
+// UpdateLastUsed sets the last_used_at timestamp on an API key.
+func (r *ApiKeyRepository) UpdateLastUsed(apiKey *models.ApiKey, t time.Time) {
+	r.db.Model(apiKey).Update("last_used_at", &t)
+}

@@ -13,14 +13,16 @@ import (
 type ValuationAdminHandler struct {
 	valRepo *repository.ValuationRepository
 	valSvc  *services.ValuationService
+	logger  *services.Logger
 }
 
 // NewValuationAdminHandler creates a new ValuationAdminHandler.
 func NewValuationAdminHandler(
 	valRepo *repository.ValuationRepository,
 	valSvc *services.ValuationService,
+	logger *services.Logger,
 ) *ValuationAdminHandler {
-	return &ValuationAdminHandler{valRepo: valRepo, valSvc: valSvc}
+	return &ValuationAdminHandler{valRepo: valRepo, valSvc: valSvc, logger: logger}
 }
 
 // ListValuationRuns returns paginated valuation run history.
@@ -116,7 +118,7 @@ func (h *ValuationAdminHandler) TriggerValuation(c *gin.Context) {
 		for _, userID := range userIDs {
 			_, err := h.valSvc.ValuateCollectionForUser(userID, "manual", &triggerUserID)
 			if err != nil {
-				services.AppLogger.Error("valuation", "Manual valuation failed for user %d: %s", userID, err)
+				h.logger.Error("valuation", "Manual valuation failed for user %d: %s", userID, err)
 			}
 		}
 	}()

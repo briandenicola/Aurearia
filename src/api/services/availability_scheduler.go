@@ -11,23 +11,27 @@ import (
 
 // AvailabilityScheduler runs periodic wishlist availability checks.
 type AvailabilityScheduler struct {
-	svc      *AvailabilityService
-	coinRepo *repository.CoinRepository
-	logger   *Logger
-	stopCh   chan struct{}
-	once     sync.Once
+	svc         *AvailabilityService
+	coinRepo    *repository.CoinRepository
+	settingsSvc *SettingsService
+	logger      *Logger
+	stopCh      chan struct{}
+	once        sync.Once
 }
 
 // NewAvailabilityScheduler creates a new scheduler.
 func NewAvailabilityScheduler(
 	svc *AvailabilityService,
 	coinRepo *repository.CoinRepository,
+	settingsSvc *SettingsService,
+	logger *Logger,
 ) *AvailabilityScheduler {
 	return &AvailabilityScheduler{
-		svc:      svc,
-		coinRepo: coinRepo,
-		logger:   AppLogger,
-		stopCh:   make(chan struct{}),
+		svc:         svc,
+		coinRepo:    coinRepo,
+		settingsSvc: settingsSvc,
+		logger:      logger,
+		stopCh:      make(chan struct{}),
 	}
 }
 
@@ -88,7 +92,7 @@ func (s *AvailabilityScheduler) timeUntilNextRun() time.Duration {
 
 // getStartTime parses HH:MM from settings, defaults to 02:00.
 func (s *AvailabilityScheduler) getStartTime() (int, int) {
-	raw := GetSetting(SettingWishlistCheckStartTime)
+	raw := s.settingsSvc.GetSetting(SettingWishlistCheckStartTime)
 	var h, m int
 	if _, err := fmt.Sscanf(raw, "%d:%d", &h, &m); err != nil || h < 0 || h > 23 || m < 0 || m > 59 {
 		return 2, 0
@@ -98,7 +102,7 @@ func (s *AvailabilityScheduler) getStartTime() (int, int) {
 
 // getInterval returns the configured check interval.
 func (s *AvailabilityScheduler) getInterval() time.Duration {
-	minStr := GetSetting(SettingWishlistCheckInterval)
+	minStr := s.settingsSvc.GetSetting(SettingWishlistCheckInterval)
 	mins, err := strconv.Atoi(minStr)
 	if err != nil || mins < 5 {
 		mins = 120
@@ -108,7 +112,7 @@ func (s *AvailabilityScheduler) getInterval() time.Duration {
 
 // runCycle executes one full availability check for all users.
 func (s *AvailabilityScheduler) runCycle() {
-	enabled := GetSetting(SettingWishlistCheckEnabled)
+	enabled := s.settingsSvc.GetSetting(SettingWishlistCheckEnabled)
 	if enabled != "true" {
 		s.logger.Debug("scheduler", "Wishlist checking disabled, skipping cycle")
 		return

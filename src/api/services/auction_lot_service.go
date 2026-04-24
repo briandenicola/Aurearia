@@ -5,6 +5,7 @@ import (
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
+	"gorm.io/gorm"
 )
 
 var (
@@ -90,12 +91,18 @@ func (s *AuctionLotService) ConvertToCoin(lotID, userID uint) (*models.Coin, err
 		UserID:        userID,
 	}
 
-	if err := s.coinRepo.Create(coin); err != nil {
+	err = s.repo.Transaction(func(tx *gorm.DB) error {
+		txCoinRepo := s.coinRepo.WithTx(tx)
+		txLotRepo := s.repo.WithTx(tx)
+
+		if err := txCoinRepo.Create(coin); err != nil {
+			return err
+		}
+		return txLotRepo.UpdateFields(lot, map[string]interface{}{"coin_id": coin.ID})
+	})
+	if err != nil {
 		return nil, err
 	}
-
-	// Link the lot to the new coin
-	s.repo.UpdateFields(lot, map[string]interface{}{"coin_id": coin.ID})
 
 	return coin, nil
 }

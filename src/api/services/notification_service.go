@@ -11,16 +11,19 @@ import (
 type NotificationService struct {
 	notifRepo  *repository.NotificationRepository
 	socialRepo *repository.SocialRepository
+	logger     *Logger
 }
 
 // NewNotificationService creates a new NotificationService.
 func NewNotificationService(
 	notifRepo *repository.NotificationRepository,
 	socialRepo *repository.SocialRepository,
+	logger *Logger,
 ) *NotificationService {
 	return &NotificationService{
 		notifRepo:  notifRepo,
 		socialRepo: socialRepo,
+		logger:     logger,
 	}
 }
 
@@ -42,7 +45,7 @@ func (s *NotificationService) NotifyWishlistUnavailable(userID uint, coin models
 	}
 
 	if err := s.notifRepo.Create(n); err != nil {
-		AppLogger.Error("notifications", "Failed to create wishlist notification for user %d, coin %d: %v", userID, coin.ID, err)
+		s.logger.Error("notifications", "Failed to create wishlist notification for user %d, coin %d: %v", userID, coin.ID, err)
 	}
 }
 
@@ -55,7 +58,7 @@ func (s *NotificationService) NotifyNewCoin(ownerID uint, coin models.Coin) {
 
 	followers, err := s.socialRepo.GetAcceptedFollowerIDs(ownerID)
 	if err != nil {
-		AppLogger.Error("notifications", "Failed to get followers for user %d: %v", ownerID, err)
+		s.logger.Error("notifications", "Failed to get followers for user %d: %v", ownerID, err)
 		return
 	}
 
@@ -83,9 +86,9 @@ func (s *NotificationService) NotifyNewCoin(ownerID uint, coin models.Coin) {
 			ReferenceID: coin.ID,
 		}
 		if err := s.notifRepo.Create(n); err != nil {
-			AppLogger.Error("notifications", "Failed to notify follower %d about coin %d: %v", followerID, coin.ID, err)
+			s.logger.Error("notifications", "Failed to notify follower %d about coin %d: %v", followerID, coin.ID, err)
 		}
 	}
 
-	AppLogger.Debug("notifications", "Notified %d followers about new coin %d from user %d", len(followers), coin.ID, ownerID)
+	s.logger.Debug("notifications", "Notified %d followers about new coin %d from user %d", len(followers), coin.ID, ownerID)
 }

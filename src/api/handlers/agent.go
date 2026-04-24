@@ -19,21 +19,25 @@ type AgentHandler struct {
 	userRepo    *repository.UserRepository
 	journalRepo *repository.JournalRepository
 	proxy       *services.AgentProxy
+	settingsSvc *services.SettingsService
+	logger      *services.Logger
 }
 
-func NewAgentHandler(repo *repository.AgentRepository, userRepo *repository.UserRepository, journalRepo *repository.JournalRepository, proxy *services.AgentProxy) *AgentHandler {
+func NewAgentHandler(repo *repository.AgentRepository, userRepo *repository.UserRepository, journalRepo *repository.JournalRepository, proxy *services.AgentProxy, settingsSvc *services.SettingsService, logger *services.Logger) *AgentHandler {
 	return &AgentHandler{
 		repo:        repo,
 		userRepo:    userRepo,
 		journalRepo: journalRepo,
 		proxy:       proxy,
+		settingsSvc: settingsSvc,
+		logger:      logger,
 	}
 }
 
-// resolveLLMConfig wraps services.ResolveLLMConfig for handler use,
+// resolveLLMConfig wraps settingsSvc.ResolveLLMConfig for handler use,
 // returning an error message string for HTTP responses.
-func resolveLLMConfig() (services.LLMConfig, string) {
-	cfg, err := services.ResolveLLMConfig()
+func (h *AgentHandler) resolveLLMConfig() (services.LLMConfig, string) {
+	cfg, err := h.settingsSvc.ResolveLLMConfig()
 	if err != nil {
 		return services.LLMConfig{}, err.Error()
 	}
@@ -108,7 +112,7 @@ CRITICAL RULES:
 - Note any special exhibits, notable dealers, or auction events at the show`
 
 func (h *AgentHandler) getCoinSearchPrompt() string {
-	prompt := services.GetSetting(services.SettingCoinSearchPrompt)
+	prompt := h.settingsSvc.GetSetting(services.SettingCoinSearchPrompt)
 	if prompt == "" {
 		prompt = DefaultCoinSearchPrompt
 	}
@@ -116,7 +120,7 @@ func (h *AgentHandler) getCoinSearchPrompt() string {
 }
 
 func (h *AgentHandler) getCoinShowsPrompt(userID uint) string {
-	prompt := services.GetSetting(services.SettingCoinShowsPrompt)
+	prompt := h.settingsSvc.GetSetting(services.SettingCoinShowsPrompt)
 	if prompt == "" {
 		prompt = DefaultCoinShowsPrompt
 	}
@@ -150,7 +154,7 @@ func (h *AgentHandler) getCoinShowsPrompt(userID uint) string {
 //	@Security		BearerAuth
 //	@Router			/agent/chat [post]
 func (h *AgentHandler) ChatStream(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	userID := c.GetUint("userId")
 
 	var req AgentChatRequest
@@ -160,7 +164,7 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 	}
 
 	// Resolve LLM provider from explicit setting
-	llmCfg, errMsg := resolveLLMConfig()
+	llmCfg, errMsg := h.resolveLLMConfig()
 	if errMsg != "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
 		return
@@ -211,7 +215,7 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 
 // AgentStatus returns the current AI provider configuration status.
 func (h *AgentHandler) AgentStatus(c *gin.Context) {
-	provider := services.GetSetting(services.SettingAIProvider)
+	provider := h.settingsSvc.GetSetting(services.SettingAIProvider)
 	configured := provider == "anthropic" || provider == "ollama"
 
 	c.JSON(http.StatusOK, gin.H{
@@ -230,7 +234,7 @@ func (h *AgentHandler) AgentStatus(c *gin.Context) {
 //	@Security		BearerAuth
 //	@Router			/agent/models [get]
 func (h *AgentHandler) ListModels(c *gin.Context) {
-	apiKey := services.GetSetting(services.SettingAnthropicAPIKey)
+	apiKey := h.settingsSvc.GetSetting(services.SettingAnthropicAPIKey)
 	if apiKey == "" {
 		// Return defaults if no API key
 		c.JSON(http.StatusOK, getDefaultModels())
@@ -293,7 +297,7 @@ func getDefaultModels() []map[string]string {
 //	@Security		BearerAuth
 //	@Router			/agent/coin-search-prompt [get]
 func (h *AgentHandler) GetCoinSearchPrompt(c *gin.Context) {
-	prompt := services.GetSetting(services.SettingCoinSearchPrompt)
+	prompt := h.settingsSvc.GetSetting(services.SettingCoinSearchPrompt)
 	if prompt == "" {
 		prompt = DefaultCoinSearchPrompt
 	}
@@ -312,7 +316,7 @@ func (h *AgentHandler) GetCoinSearchPrompt(c *gin.Context) {
 //	@Security		BearerAuth
 //	@Router			/agent/coin-shows-prompt [get]
 func (h *AgentHandler) GetCoinShowsPrompt(c *gin.Context) {
-	prompt := services.GetSetting(services.SettingCoinShowsPrompt)
+	prompt := h.settingsSvc.GetSetting(services.SettingCoinShowsPrompt)
 	if prompt == "" {
 		prompt = DefaultCoinShowsPrompt
 	}
@@ -331,7 +335,7 @@ func (h *AgentHandler) GetCoinShowsPrompt(c *gin.Context) {
 //	@Security		BearerAuth
 //	@Router			/agent/valuation-prompt [get]
 func (h *AgentHandler) GetValuationPrompt(c *gin.Context) {
-	prompt := services.GetSetting(services.SettingValuationPrompt)
+	prompt := h.settingsSvc.GetSetting(services.SettingValuationPrompt)
 	if prompt == "" {
 		prompt = DefaultValuationPrompt
 	}
@@ -395,7 +399,7 @@ CRITICAL: Return your response as ONLY a JSON object (wrapped in ` + "```json" +
 Only include real listings from your search. Do not fabricate URLs or prices. Do not write any text outside the JSON block.`
 
 func (h *AgentHandler) getValuationPrompt() string {
-	prompt := services.GetSetting(services.SettingValuationPrompt)
+	prompt := h.settingsSvc.GetSetting(services.SettingValuationPrompt)
 	if prompt == "" {
 		return DefaultValuationPrompt
 	}
@@ -404,7 +408,7 @@ func (h *AgentHandler) getValuationPrompt() string {
 
 // EstimateValue estimates the current market value of a coin using the agent service.
 func (h *AgentHandler) EstimateValue(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 
 	coinID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -420,7 +424,7 @@ func (h *AgentHandler) EstimateValue(c *gin.Context) {
 	}
 
 	// Resolve LLM provider from shared config
-	llmCfg, cfgErr := services.ResolveLLMConfig()
+	llmCfg, cfgErr := h.settingsSvc.ResolveLLMConfig()
 	if cfgErr != nil {
 		respondError(c, http.StatusBadRequest, "Unable to configure valuation provider", cfgErr)
 		return

@@ -37,12 +37,11 @@ func main() {
 
 	database.Connect(cfg.DBPath)
 
-	// Initialize settings service with DB connection
-	services.InitSettings(database.DB)
-
-	// Initialize logger from DB settings
-	services.SyncLogLevel()
-	logger := services.AppLogger
+	// Create logger and settings service
+	logger := services.NewLogger(1000)
+	settingsRepo := repository.NewSettingsRepository(database.DB)
+	settingsSvc := services.NewSettingsService(settingsRepo)
+	settingsSvc.SyncLogLevel(logger)
 
 	logger.Info("startup", "Application starting")
 	logger.Info("startup", "Database connected: %s", cfg.DBPath)
@@ -115,7 +114,7 @@ func main() {
 	authSvc := services.NewAuthService(authRepo, cfg.JWTSecret)
 	authHandler := handlers.NewAuthHandler(cfg.JWTSecret, authRepo, authSvc)
 	webauthnRepo := repository.NewWebAuthnRepository(database.DB)
-	webauthnHandler, err := handlers.NewWebAuthnHandler(cfg.WebAuthnID, cfg.WebAuthnOrigin, authHandler, webauthnRepo)
+	webauthnHandler, err := handlers.NewWebAuthnHandler(cfg.WebAuthnID, cfg.WebAuthnOrigin, authHandler, webauthnRepo, logger)
 	if err != nil {
 		log.Fatalf("Failed to initialize WebAuthn: %v", err)
 	}
@@ -141,22 +140,25 @@ func main() {
 	}
 
 	// Protected routes
-	agentProxy := services.NewAgentProxy(cfg.AgentServiceURL)
+	agentProxy := services.NewAgentProxy(cfg.AgentServiceURL, logger)
 	availRepo := repository.NewAvailabilityRepository(database.DB)
 	coinRepo := repository.NewCoinRepository(database.DB)
 	socialRepo := repository.NewSocialRepository(database.DB)
 	notifRepo := repository.NewNotificationRepository(database.DB)
-	notifSvc := services.NewNotificationService(notifRepo, socialRepo)
-	availSvc := services.NewAvailabilityService(coinRepo, availRepo, agentProxy, notifSvc)
+	notifSvc := services.NewNotificationService(notifRepo, socialRepo, logger)
+	availSvc := services.NewAvailabilityService(coinRepo, availRepo, agentProxy, notifSvc, settingsSvc, logger)
 	valRepo := repository.NewValuationRepository(database.DB)
 	userRepoForVal := repository.NewUserRepository(database.DB)
-	valSvc := services.NewValuationService(coinRepo, valRepo, agentProxy, userRepoForVal)
+	valSvc := services.NewValuationService(coinRepo, valRepo, agentProxy, userRepoForVal, settingsSvc, logger)
+
+	apiKeyRepo := repository.NewApiKeyRepository(database.DB)
+	apiKeyAuth := apiKeyRepo // implements middleware.ApiKeyAuthenticator
 
 	protected := api.Group("")
-	protected.Use(middleware.AuthRequired(cfg.JWTSecret, database.DB))
+	protected.Use(middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth))
 	{
 		coinSvc := services.NewCoinService(coinRepo, notifSvc)
-		coinHandler := handlers.NewCoinHandler(coinRepo, coinSvc)
+		coinHandler := handlers.NewCoinHandler(coinRepo, coinSvc, logger)
 		protected.GET("/coins", coinHandler.List)
 		protected.GET("/coins/:id", coinHandler.Get)
 		protected.POST("/coins", coinHandler.Create)
@@ -191,7 +193,7 @@ func main() {
 
 		imageRepo := repository.NewImageRepository(database.DB)
 		imageSvc := services.NewImageService(imageRepo, cfg.UploadDir)
-		imageHandler := handlers.NewImageHandler(cfg.UploadDir, imageRepo, imageSvc)
+		imageHandler := handlers.NewImageHandler(cfg.UploadDir, imageRepo, imageSvc, logger)
 		protected.POST("/coins/:id/images", imageHandler.Upload)
 		protected.POST("/coins/:id/images/base64", imageHandler.UploadBase64)
 		protected.DELETE("/coins/:id/images/:imageId", imageHandler.Delete)
@@ -199,13 +201,13 @@ func main() {
 		protected.GET("/scrape-image", imageHandler.ScrapeImage)
 
 		analysisRepo := repository.NewAnalysisRepository(database.DB)
-		analysisHandler := handlers.NewAnalysisHandler(analysisRepo, agentProxy)
+		analysisHandler := handlers.NewAnalysisHandler(analysisRepo, agentProxy, settingsSvc, logger)
 		protected.POST("/coins/:id/analyze", analysisHandler.Analyze)
 		protected.DELETE("/coins/:id/analyze", analysisHandler.DeleteAnalysis)
 		protected.POST("/extract-text", analysisHandler.ExtractText)
 		protected.GET("/ollama-status", analysisHandler.OllamaStatus)
 
-		numistaHandler := handlers.NewNumistaHandler()
+		numistaHandler := handlers.NewNumistaHandler(settingsSvc)
 		protected.GET("/numista/search", numistaHandler.Search)
 
 		auctionLotRepo := repository.NewAuctionLotRepository(database.DB)
@@ -234,7 +236,7 @@ func main() {
 
 		agentRepo := repository.NewAgentRepository(database.DB)
 		userRepo := repository.NewUserRepository(database.DB)
-		agentHandler := handlers.NewAgentHandler(agentRepo, userRepo, journalRepo, agentProxy)
+		agentHandler := handlers.NewAgentHandler(agentRepo, userRepo, journalRepo, agentProxy, settingsSvc, logger)
 		protected.POST("/agent/chat", agentHandler.ChatStream)
 		protected.POST("/coins/:id/estimate-value", agentHandler.EstimateValue)
 		protected.GET("/agent/models", agentHandler.ListModels)
@@ -252,7 +254,7 @@ func main() {
 		protected.DELETE("/agent/conversations/:id", convHandler.Delete)
 
 		// User self-service routes
-		userHandler := handlers.NewUserHandler(cfg.UploadDir, userRepo)
+		userHandler := handlers.NewUserHandler(cfg.UploadDir, userRepo, logger)
 		protected.GET("/auth/me", userHandler.GetMe)
 		protected.POST("/auth/change-password", userHandler.ChangePassword)
 		protected.PUT("/user/profile", userHandler.UpdateProfile)
@@ -264,7 +266,7 @@ func main() {
 
 		// Social routes
 		socialSvc := services.NewSocialService(socialRepo)
-		socialHandler := handlers.NewSocialHandler(socialRepo, socialSvc)
+		socialHandler := handlers.NewSocialHandler(socialRepo, socialSvc, logger)
 		protected.POST("/social/follow/:userId", socialHandler.FollowUser)
 		protected.DELETE("/social/follow/:userId", socialHandler.UnfollowUser)
 		protected.PUT("/social/followers/:userId/accept", socialHandler.AcceptFollower)
@@ -292,8 +294,7 @@ func main() {
 		protected.DELETE("/notifications/:id", notifHandler.Delete)
 
 		// API key management
-		apiKeyRepo := repository.NewApiKeyRepository(database.DB)
-		apiKeyHandler := handlers.NewApiKeyHandler(apiKeyRepo)
+		apiKeyHandler := handlers.NewApiKeyHandler(apiKeyRepo, logger)
 		protected.POST("/auth/api-keys", apiKeyHandler.Generate)
 		protected.GET("/auth/api-keys", apiKeyHandler.List)
 		protected.DELETE("/auth/api-keys/:id", apiKeyHandler.Revoke)
@@ -338,11 +339,11 @@ func main() {
 
 	// Admin-only routes
 	admin := api.Group("/admin")
-	admin.Use(middleware.AuthRequired(cfg.JWTSecret, database.DB))
+	admin.Use(middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth))
 	admin.Use(handlers.AdminRequired())
 	{
 		adminRepo := repository.NewAdminRepository(database.DB)
-		adminHandler := handlers.NewAdminHandler(cfg.UploadDir, adminRepo, agentProxy)
+		adminHandler := handlers.NewAdminHandler(cfg.UploadDir, adminRepo, agentProxy, settingsSvc, logger)
 		admin.GET("/users", adminHandler.ListUsers)
 		admin.DELETE("/users/:id", adminHandler.DeleteUser)
 		admin.POST("/users/:id/reset-password", adminHandler.ResetPassword)
@@ -359,7 +360,7 @@ func main() {
 		admin.GET("/availability-runs/:id", adminAvailHandler.GetRunDetail)
 
 		// Valuation run history and manual trigger
-		valAdminHandler := handlers.NewValuationAdminHandler(valRepo, valSvc)
+		valAdminHandler := handlers.NewValuationAdminHandler(valRepo, valSvc, logger)
 		admin.GET("/valuation-runs", valAdminHandler.ListRuns)
 		admin.GET("/valuation-runs/:id", valAdminHandler.GetRunDetail)
 		admin.POST("/valuation-runs/trigger", valAdminHandler.TriggerValuation)
@@ -372,9 +373,9 @@ func main() {
 
 	// Check Ollama connectivity at startup (blocks until complete)
 	func() {
-		ollamaURL := services.GetSetting(services.SettingOllamaURL)
-		ollamaModel := services.GetSetting(services.SettingOllamaModel)
-		svc := services.NewOllamaService(ollamaURL, 10)
+		ollamaURL := settingsSvc.GetSetting(services.SettingOllamaURL)
+		ollamaModel := settingsSvc.GetSetting(services.SettingOllamaModel)
+		svc := services.NewOllamaService(ollamaURL, 10, logger)
 		available, msg := svc.CheckModel(ollamaModel)
 		if available {
 			logger.Info("startup", "Ollama: %s", msg)
@@ -384,11 +385,11 @@ func main() {
 	}()
 
 	// Start wishlist availability scheduler
-	scheduler := services.NewAvailabilityScheduler(availSvc, coinRepo)
+	scheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, settingsSvc, logger)
 	go scheduler.Start()
 
 	// Start collection valuation scheduler
-	valScheduler := services.NewValuationScheduler(valSvc, coinRepo)
+	valScheduler := services.NewValuationScheduler(valSvc, coinRepo, settingsSvc, logger)
 	go valScheduler.Start()
 
 	logger.Info("startup", "Application ready")

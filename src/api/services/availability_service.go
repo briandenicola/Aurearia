@@ -35,11 +35,12 @@ type coinResult struct {
 
 // AvailabilityService orchestrates wishlist availability checking.
 type AvailabilityService struct {
-	coinRepo   *repository.CoinRepository
-	availRepo  *repository.AvailabilityRepository
-	agentProxy *AgentProxy
-	notifSvc   *NotificationService
-	logger     *Logger
+	coinRepo    *repository.CoinRepository
+	availRepo   *repository.AvailabilityRepository
+	agentProxy  *AgentProxy
+	notifSvc    *NotificationService
+	settingsSvc *SettingsService
+	logger      *Logger
 }
 
 // NewAvailabilityService creates a new AvailabilityService.
@@ -48,13 +49,16 @@ func NewAvailabilityService(
 	availRepo *repository.AvailabilityRepository,
 	agentProxy *AgentProxy,
 	notifSvc *NotificationService,
+	settingsSvc *SettingsService,
+	logger *Logger,
 ) *AvailabilityService {
 	return &AvailabilityService{
-		coinRepo:   coinRepo,
-		availRepo:  availRepo,
-		agentProxy: agentProxy,
-		notifSvc:   notifSvc,
-		logger:     AppLogger,
+		coinRepo:    coinRepo,
+		availRepo:   availRepo,
+		agentProxy:  agentProxy,
+		notifSvc:    notifSvc,
+		settingsSvc: settingsSvc,
+		logger:      logger,
 	}
 }
 
@@ -234,7 +238,7 @@ func (s *AvailabilityService) escalateToAgent(
 	ambiguousItems []AvailabilityCheckProxyItem,
 ) {
 	// Build LLM config from app settings
-	provider := GetSetting(SettingAIProvider)
+	provider := s.settingsSvc.GetSetting(SettingAIProvider)
 	if provider == "" {
 		s.logger.Warn("availability", "No AI provider configured, skipping agent escalation")
 		return
@@ -242,10 +246,10 @@ func (s *AvailabilityService) escalateToAgent(
 
 	llmConfig := LLMConfig{
 		Provider:   provider,
-		APIKey:     GetSetting(SettingAnthropicAPIKey),
-		Model:      GetSetting(SettingAnthropicModel),
-		OllamaURL:  GetSetting(SettingOllamaURL),
-		SearXNGURL: GetSetting(SettingSearXNGURL),
+		APIKey:     s.settingsSvc.GetSetting(SettingAnthropicAPIKey),
+		Model:      s.settingsSvc.GetSetting(SettingAnthropicModel),
+		OllamaURL:  s.settingsSvc.GetSetting(SettingOllamaURL),
+		SearXNGURL: s.settingsSvc.GetSetting(SettingSearXNGURL),
 	}
 
 	req := AvailabilityCheckProxyRequest{

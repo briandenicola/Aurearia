@@ -26,6 +26,7 @@ type WebAuthnHandler struct {
 	rpOrigins []string
 	sessions  map[string]*webauthn.SessionData
 	sessionMu sync.RWMutex
+	logger    *services.Logger
 }
 
 // webAuthnUser wraps our User model to satisfy the webauthn.User interface.
@@ -47,7 +48,7 @@ func (u *webAuthnUser) WebAuthnName() string        { return u.user.Username }
 func (u *webAuthnUser) WebAuthnDisplayName() string  { return u.user.Username }
 func (u *webAuthnUser) WebAuthnCredentials() []webauthn.Credential { return u.credentials }
 
-func NewWebAuthnHandler(rpID, rpOrigin string, authHandler *AuthHandler, repo *repository.WebAuthnRepository) (*WebAuthnHandler, error) {
+func NewWebAuthnHandler(rpID, rpOrigin string, authHandler *AuthHandler, repo *repository.WebAuthnRepository, logger *services.Logger) (*WebAuthnHandler, error) {
 	// Support comma-separated origins
 	origins := strings.Split(rpOrigin, ",")
 	for i := range origins {
@@ -77,6 +78,7 @@ func NewWebAuthnHandler(rpID, rpOrigin string, authHandler *AuthHandler, repo *r
 		rpID:      rpID,
 		rpOrigins: origins,
 		sessions:  make(map[string]*webauthn.SessionData),
+		logger:    logger,
 	}, nil
 }
 
@@ -104,7 +106,7 @@ func (h *WebAuthnHandler) getWebAuthnForRequest(c *gin.Context) *webauthn.WebAut
 	}
 
 	// Origin not in configured list — create instance with this origin included
-	logger := services.AppLogger
+	logger := h.logger
 	logger.Info("webauthn", "Request origin %q not in configured origins %v, adding dynamically", origin, h.rpOrigins)
 
 	allOrigins := append([]string{}, h.rpOrigins...)
@@ -204,7 +206,7 @@ func (h *WebAuthnHandler) RegisterBegin(c *gin.Context) {
 //	@Router			/auth/webauthn/register/finish [post]
 func (h *WebAuthnHandler) RegisterFinish(c *gin.Context) {
 	userID := c.GetUint("userId")
-	logger := services.AppLogger
+	logger := h.logger
 
 	var user models.User
 	found, err := h.repo.FindUserByID(userID)
@@ -348,7 +350,7 @@ func (h *WebAuthnHandler) LoginBegin(c *gin.Context) {
 //	@Failure		500		{object}	ErrorResponse
 //	@Router			/auth/webauthn/login/finish [post]
 func (h *WebAuthnHandler) LoginFinish(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 
 	// Username is passed as a query param so we know which user's session to look up
 	username := c.Query("username")

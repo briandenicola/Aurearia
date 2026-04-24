@@ -1,8 +1,9 @@
 package services
 
 import (
-	"github.com/briandenicola/ancient-coins-api/models"
-	"gorm.io/gorm"
+	"fmt"
+
+	"github.com/briandenicola/ancient-coins-api/repository"
 )
 
 const (
@@ -77,17 +78,20 @@ var settingDefaults = map[string]string{
 	SettingValuationMaxCoins:        "50",
 }
 
-var settingsDB *gorm.DB
-
-// InitSettings sets the database connection used by the settings service.
-// Must be called before any GetSetting/SetSetting calls.
-func InitSettings(db *gorm.DB) {
-	settingsDB = db
+// SettingsService provides access to application settings backed by the database.
+type SettingsService struct {
+	repo *repository.SettingsRepository
 }
 
-func GetSetting(key string) string {
-	var setting models.AppSetting
-	if err := settingsDB.Where("key = ?", key).First(&setting).Error; err != nil {
+// NewSettingsService creates a new SettingsService.
+func NewSettingsService(repo *repository.SettingsRepository) *SettingsService {
+	return &SettingsService{repo: repo}
+}
+
+// GetSetting returns the value for a given key, falling back to defaults.
+func (s *SettingsService) GetSetting(key string) string {
+	setting, err := s.repo.FindByKey(key)
+	if err != nil {
 		if def, ok := settingDefaults[key]; ok {
 			return def
 		}
@@ -103,37 +107,67 @@ func GetSetting(key string) string {
 	return setting.Value
 }
 
-func SetSetting(key, value string) error {
-	var setting models.AppSetting
-	result := settingsDB.Where("key = ?", key).First(&setting)
-	if result.Error != nil {
-		setting = models.AppSetting{Key: key, Value: value}
-		return settingsDB.Create(&setting).Error
-	}
-	setting.Value = value
-	return settingsDB.Save(&setting).Error
+// SetSetting creates or updates a setting value.
+func (s *SettingsService) SetSetting(key, value string) error {
+	return s.repo.Upsert(key, value)
 }
 
-func GetAllSettings() map[string]string {
+// GetAllSettings returns all settings merged with defaults.
+func (s *SettingsService) GetAllSettings() map[string]string {
 	result := make(map[string]string)
 	for k, v := range settingDefaults {
 		result[k] = v
 	}
 
-	var settings []models.AppSetting
-	settingsDB.Find(&settings)
-	for _, s := range settings {
-		if s.Value != "" {
-			result[s.Key] = s.Value
+	settings, _ := s.repo.FindAll()
+	for _, st := range settings {
+		if st.Value != "" {
+			result[st.Key] = st.Value
 		}
 	}
 	return result
 }
 
-func GetSettingDefaults() map[string]string {
+// GetSettingDefaults returns the built-in default values for all settings.
+func (s *SettingsService) GetSettingDefaults() map[string]string {
 	result := make(map[string]string)
 	for k, v := range settingDefaults {
 		result[k] = v
 	}
 	return result
+}
+
+// SyncLogLevel reads the LogLevel setting from the DB and applies it to the logger.
+func (s *SettingsService) SyncLogLevel(logger *Logger) {
+	level := s.GetSetting(SettingLogLevel)
+	logger.SetLevel(level)
+}
+
+// ResolveLLMConfig reads AI provider settings and returns a configured LLMConfig.
+func (s *SettingsService) ResolveLLMConfig() (LLMConfig, error) {
+	provider := s.GetSetting(SettingAIProvider)
+	if provider == "" {
+		return LLMConfig{}, fmt.Errorf("AI provider not configured. Please select Anthropic or Ollama in Admin Settings.")
+	}
+
+	cfg := LLMConfig{
+		Provider:   provider,
+		OllamaURL:  s.GetSetting(SettingOllamaURL),
+		SearXNGURL: s.GetSetting(SettingSearXNGURL),
+	}
+
+	switch provider {
+	case "anthropic":
+		cfg.APIKey = s.GetSetting(SettingAnthropicAPIKey)
+		cfg.Model = s.GetSetting(SettingAnthropicModel)
+		if cfg.APIKey == "" {
+			return LLMConfig{}, fmt.Errorf("Anthropic API key is required")
+		}
+	case "ollama":
+		cfg.Model = s.GetSetting(SettingOllamaModel)
+	default:
+		return LLMConfig{}, fmt.Errorf("unknown AI provider: %s", provider)
+	}
+
+	return cfg, nil
 }

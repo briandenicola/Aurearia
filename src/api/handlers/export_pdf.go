@@ -35,8 +35,7 @@ const (
 )
 
 // writeCatalogPDF generates a styled PDF catalog for the given coins.
-func writeCatalogPDF(coins []models.Coin, uploadDir string, username string) (*fpdf.Fpdf, error) {
-	logger := services.AppLogger
+func writeCatalogPDF(coins []models.Coin, uploadDir string, username string, logger *services.Logger) (*fpdf.Fpdf, error) {
 
 	pdf := fpdf.New("P", "mm", "A4", "")
 	pdf.SetAutoPageBreak(true, margin)

@@ -19,10 +19,11 @@ type ImageHandler struct {
 	UploadDir string
 	repo      *repository.ImageRepository
 	svc       *services.ImageService
+	logger    *services.Logger
 }
 
-func NewImageHandler(uploadDir string, repo *repository.ImageRepository, svc *services.ImageService) *ImageHandler {
-	return &ImageHandler{UploadDir: uploadDir, repo: repo, svc: svc}
+func NewImageHandler(uploadDir string, repo *repository.ImageRepository, svc *services.ImageService, logger *services.Logger) *ImageHandler {
+	return &ImageHandler{UploadDir: uploadDir, repo: repo, svc: svc, logger: logger}
 }
 
 // Upload adds an image to a coin.
@@ -44,7 +45,7 @@ func NewImageHandler(uploadDir string, repo *repository.ImageRepository, svc *se
 //	@Security		BearerAuth
 //	@Router			/coins/{id}/images [post]
 func (h *ImageHandler) Upload(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	userID := c.GetUint("userId")
 	coinID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -128,7 +129,7 @@ type base64ImageRequest struct {
 //	@Security		ApiKeyAuth
 //	@Router			/coins/{id}/images/base64 [post]
 func (h *ImageHandler) UploadBase64(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	userID := c.GetUint("userId")
 	coinID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -235,7 +236,7 @@ func (h *ImageHandler) Delete(c *gin.Context) {
 //	@Security		BearerAuth
 //	@Router			/proxy-image [get]
 func (h *ImageHandler) ProxyImage(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 
 	imageURL := c.Query("url")
 	if imageURL == "" {
@@ -324,7 +325,7 @@ func (h *ImageHandler) ProxyImage(c *gin.Context) {
 //	@Security		BearerAuth
 //	@Router			/scrape-image [get]
 func (h *ImageHandler) ScrapeImage(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 
 	pageURL := c.Query("url")
 	if pageURL == "" {

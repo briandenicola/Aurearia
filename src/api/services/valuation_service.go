@@ -23,15 +23,17 @@ const (
 )
 
 // cancelMap tracks cancellation channels for active valuation runs, keyed by run ID.
-var cancelMap sync.Map
+// Stored as an instance field on ValuationService.
 
 // ValuationService orchestrates bulk AI-powered coin valuation.
 type ValuationService struct {
-	coinRepo   *repository.CoinRepository
-	valRepo    *repository.ValuationRepository
-	agentProxy *AgentProxy
-	userRepo   *repository.UserRepository
-	logger     *Logger
+	coinRepo    *repository.CoinRepository
+	valRepo     *repository.ValuationRepository
+	agentProxy  *AgentProxy
+	userRepo    *repository.UserRepository
+	settingsSvc *SettingsService
+	logger      *Logger
+	cancelMap   sync.Map
 }
 
 // NewValuationService creates a new ValuationService.
@@ -40,44 +42,20 @@ func NewValuationService(
 	valRepo *repository.ValuationRepository,
 	agentProxy *AgentProxy,
 	userRepo *repository.UserRepository,
+	settingsSvc *SettingsService,
+	logger *Logger,
 ) *ValuationService {
 	return &ValuationService{
-		coinRepo:   coinRepo,
-		valRepo:    valRepo,
-		agentProxy: agentProxy,
-		userRepo:   userRepo,
-		logger:     AppLogger,
+		coinRepo:    coinRepo,
+		valRepo:     valRepo,
+		agentProxy:  agentProxy,
+		userRepo:    userRepo,
+		settingsSvc: settingsSvc,
+		logger:      logger,
 	}
 }
 
-// ResolveLLMConfig reads AI provider settings and returns a configured LLMConfig.
-func ResolveLLMConfig() (LLMConfig, error) {
-	provider := GetSetting(SettingAIProvider)
-	if provider == "" {
-		return LLMConfig{}, fmt.Errorf("AI provider not configured. Please select Anthropic or Ollama in Admin Settings.")
-	}
-
-	cfg := LLMConfig{
-		Provider:   provider,
-		OllamaURL:  GetSetting(SettingOllamaURL),
-		SearXNGURL: GetSetting(SettingSearXNGURL),
-	}
-
-	switch provider {
-	case "anthropic":
-		cfg.APIKey = GetSetting(SettingAnthropicAPIKey)
-		cfg.Model = GetSetting(SettingAnthropicModel)
-		if cfg.APIKey == "" {
-			return LLMConfig{}, fmt.Errorf("Anthropic API key is required")
-		}
-	case "ollama":
-		cfg.Model = GetSetting(SettingOllamaModel)
-	default:
-		return LLMConfig{}, fmt.Errorf("unknown AI provider: %s", provider)
-	}
-
-	return cfg, nil
-}
+// (ResolveLLMConfig moved to SettingsService.ResolveLLMConfig)
 
 // BuildCoinDescription constructs a text description of a coin for AI valuation.
 func BuildCoinDescription(coin *models.Coin) string {
@@ -174,7 +152,7 @@ func (s *ValuationService) ValuateCollectionForUser(
 
 	// Get max coins setting
 	maxCoins := 50
-	if maxStr := GetSetting(SettingValuationMaxCoins); maxStr != "" {
+	if maxStr := s.settingsSvc.GetSetting(SettingValuationMaxCoins); maxStr != "" {
 		if v, err := strconv.Atoi(maxStr); err == nil && v > 0 {
 			maxCoins = v
 		}
@@ -201,11 +179,11 @@ func (s *ValuationService) ValuateCollectionForUser(
 
 	// Register a cancellation channel for this run
 	cancelCh := make(chan struct{})
-	cancelMap.Store(run.ID, cancelCh)
+	s.cancelMap.Store(run.ID, cancelCh)
 
 	// Ensure run is finalized even on panic
 	defer func() {
-		cancelMap.Delete(run.ID)
+		s.cancelMap.Delete(run.ID)
 		if run.Status == "running" {
 			run.Status = "failed"
 			run.ErrorMessage = "run terminated unexpectedly"
@@ -217,7 +195,7 @@ func (s *ValuationService) ValuateCollectionForUser(
 	}()
 
 	// Resolve LLM config
-	llmCfg, err := ResolveLLMConfig()
+	llmCfg, err := s.settingsSvc.ResolveLLMConfig()
 	if err != nil {
 		run.Status = "failed"
 		run.ErrorMessage = err.Error()
@@ -235,7 +213,7 @@ func (s *ValuationService) ValuateCollectionForUser(
 	}
 
 	// Get valuation prompt
-	valuationPrompt := GetSetting(SettingValuationPrompt)
+	valuationPrompt := s.settingsSvc.GetSetting(SettingValuationPrompt)
 
 	s.logger.Info("valuation", "Starting bulk valuation for user %d: %d coins (max %d)", userID, len(coins), maxCoins)
 
@@ -404,7 +382,7 @@ func (s *ValuationService) ValuateCollectionForUser(
 // CancelRun signals a running valuation to stop after the current coin.
 // Returns true if a running valuation was found and signalled.
 func (s *ValuationService) CancelRun(runID uint) bool {
-	if ch, ok := cancelMap.Load(runID); ok {
+	if ch, ok := s.cancelMap.Load(runID); ok {
 		close(ch.(chan struct{}))
 		return true
 	}

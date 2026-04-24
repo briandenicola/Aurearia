@@ -11,23 +11,27 @@ import (
 
 // ValuationScheduler runs periodic collection valuation checks.
 type ValuationScheduler struct {
-	svc      *ValuationService
-	coinRepo *repository.CoinRepository
-	logger   *Logger
-	stopCh   chan struct{}
-	once     sync.Once
+	svc         *ValuationService
+	coinRepo    *repository.CoinRepository
+	settingsSvc *SettingsService
+	logger      *Logger
+	stopCh      chan struct{}
+	once        sync.Once
 }
 
 // NewValuationScheduler creates a new scheduler.
 func NewValuationScheduler(
 	svc *ValuationService,
 	coinRepo *repository.CoinRepository,
+	settingsSvc *SettingsService,
+	logger *Logger,
 ) *ValuationScheduler {
 	return &ValuationScheduler{
-		svc:      svc,
-		coinRepo: coinRepo,
-		logger:   AppLogger,
-		stopCh:   make(chan struct{}),
+		svc:         svc,
+		coinRepo:    coinRepo,
+		settingsSvc: settingsSvc,
+		logger:      logger,
+		stopCh:      make(chan struct{}),
 	}
 }
 
@@ -88,7 +92,7 @@ func (s *ValuationScheduler) timeUntilNextRun() time.Duration {
 
 // getStartTime parses HH:MM from settings, defaults to 03:00.
 func (s *ValuationScheduler) getStartTime() (int, int) {
-	raw := GetSetting(SettingValuationCheckStartTime)
+	raw := s.settingsSvc.GetSetting(SettingValuationCheckStartTime)
 	var h, m int
 	if _, err := fmt.Sscanf(raw, "%d:%d", &h, &m); err != nil || h < 0 || h > 23 || m < 0 || m > 59 {
 		return 3, 0
@@ -98,7 +102,7 @@ func (s *ValuationScheduler) getStartTime() (int, int) {
 
 // getIntervalDays returns the configured check interval in days.
 func (s *ValuationScheduler) getIntervalDays() int {
-	dayStr := GetSetting(SettingValuationCheckInterval)
+	dayStr := s.settingsSvc.GetSetting(SettingValuationCheckInterval)
 	days, err := strconv.Atoi(dayStr)
 	if err != nil || days < 1 {
 		days = 7
@@ -108,7 +112,7 @@ func (s *ValuationScheduler) getIntervalDays() int {
 
 // runCycle executes one full valuation check for all users with owned coins.
 func (s *ValuationScheduler) runCycle() {
-	enabled := GetSetting(SettingValuationCheckEnabled)
+	enabled := s.settingsSvc.GetSetting(SettingValuationCheckEnabled)
 	if enabled != "true" {
 		s.logger.Debug("valuation-scheduler", "Collection valuation disabled, skipping cycle")
 		return

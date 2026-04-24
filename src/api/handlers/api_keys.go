@@ -14,11 +14,12 @@ import (
 )
 
 type ApiKeyHandler struct {
-	repo *repository.ApiKeyRepository
+	repo   *repository.ApiKeyRepository
+	logger *services.Logger
 }
 
-func NewApiKeyHandler(repo *repository.ApiKeyRepository) *ApiKeyHandler {
-	return &ApiKeyHandler{repo: repo}
+func NewApiKeyHandler(repo *repository.ApiKeyRepository, logger *services.Logger) *ApiKeyHandler {
+	return &ApiKeyHandler{repo: repo, logger: logger}
 }
 
 type generateApiKeyRequest struct {
@@ -45,7 +46,7 @@ type generateApiKeyResponse struct {
 //	@Security		BearerAuth
 //	@Router			/auth/api-keys [post]
 func (h *ApiKeyHandler) Generate(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	userID := c.GetUint("userId")
 
 	var req generateApiKeyRequest
@@ -124,7 +125,7 @@ func (h *ApiKeyHandler) List(c *gin.Context) {
 //	@Security		BearerAuth
 //	@Router			/auth/api-keys/{id} [delete]
 func (h *ApiKeyHandler) Revoke(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	userID := c.GetUint("userId")
 
 	keyID, err := strconv.ParseUint(c.Param("id"), 10, 32)

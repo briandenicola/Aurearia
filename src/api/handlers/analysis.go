@@ -16,12 +16,22 @@ import (
 )
 
 type AnalysisHandler struct {
-	repo  *repository.AnalysisRepository
-	proxy *services.AgentProxy
+	repo        *repository.AnalysisRepository
+	proxy       *services.AgentProxy
+	settingsSvc *services.SettingsService
+	logger      *services.Logger
 }
 
-func NewAnalysisHandler(repo *repository.AnalysisRepository, proxy *services.AgentProxy) *AnalysisHandler {
-	return &AnalysisHandler{repo: repo, proxy: proxy}
+func NewAnalysisHandler(repo *repository.AnalysisRepository, proxy *services.AgentProxy, settingsSvc *services.SettingsService, logger *services.Logger) *AnalysisHandler {
+	return &AnalysisHandler{repo: repo, proxy: proxy, settingsSvc: settingsSvc, logger: logger}
+}
+
+func (h *AnalysisHandler) resolveLLMConfig() (services.LLMConfig, string) {
+	cfg, err := h.settingsSvc.ResolveLLMConfig()
+	if err != nil {
+		return services.LLMConfig{}, err.Error()
+	}
+	return cfg, ""
 }
 
 // Analyze runs AI analysis on a coin's images using Ollama.
@@ -40,7 +50,7 @@ func NewAnalysisHandler(repo *repository.AnalysisRepository, proxy *services.Age
 //	@Security		BearerAuth
 //	@Router			/coins/{id}/analyze [post]
 func (h *AnalysisHandler) Analyze(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	userID := c.GetUint("userId")
 	coinID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -90,11 +100,11 @@ func (h *AnalysisHandler) Analyze(c *gin.Context) {
 	var customPrompt string
 	switch side {
 	case "obverse":
-		customPrompt = services.GetSetting(services.SettingObversePrompt)
+		customPrompt = h.settingsSvc.GetSetting(services.SettingObversePrompt)
 	case "reverse":
-		customPrompt = services.GetSetting(services.SettingReversePrompt)
+		customPrompt = h.settingsSvc.GetSetting(services.SettingReversePrompt)
 	default:
-		customPrompt = services.GetSetting(services.SettingObversePrompt)
+		customPrompt = h.settingsSvc.GetSetting(services.SettingObversePrompt)
 	}
 
 	// Read base64 images from files
@@ -116,7 +126,7 @@ func (h *AnalysisHandler) Analyze(c *gin.Context) {
 	}
 
 	// Resolve LLM provider from explicit setting
-	llmCfg, errMsg := resolveLLMConfig()
+	llmCfg, errMsg := h.resolveLLMConfig()
 	if errMsg != "" {
 		respondError(c, http.StatusBadRequest, "Unable to configure analysis provider", fmt.Errorf("%s", errMsg))
 		return
@@ -196,7 +206,7 @@ func (h *AnalysisHandler) Analyze(c *gin.Context) {
 //	@Security		BearerAuth
 //	@Router			/coins/{id}/analyze [delete]
 func (h *AnalysisHandler) DeleteAnalysis(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	userID := c.GetUint("userId")
 	coinID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -256,7 +266,7 @@ func (h *AnalysisHandler) DeleteAnalysis(c *gin.Context) {
 //	@Security		BearerAuth
 //	@Router			/extract-text [post]
 func (h *AnalysisHandler) ExtractText(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	logger.Info("extract-text", "Text extraction request received")
 
 	file, err := c.FormFile("image")
@@ -283,15 +293,15 @@ func (h *AnalysisHandler) ExtractText(c *gin.Context) {
 		return
 	}
 
-	ollamaURL := services.GetSetting(services.SettingOllamaURL)
-	ollamaModel := services.GetSetting(services.SettingOllamaModel)
-	ollamaTimeout, _ := strconv.Atoi(services.GetSetting(services.SettingOllamaTimeout))
-	customPrompt := services.GetSetting(services.SettingTextExtractionPrompt)
+	ollamaURL := h.settingsSvc.GetSetting(services.SettingOllamaURL)
+	ollamaModel := h.settingsSvc.GetSetting(services.SettingOllamaModel)
+	ollamaTimeout, _ := strconv.Atoi(h.settingsSvc.GetSetting(services.SettingOllamaTimeout))
+	customPrompt := h.settingsSvc.GetSetting(services.SettingTextExtractionPrompt)
 
 	logger.Debug("extract-text", "Sending to Ollama: URL=%s, Model=%s, Timeout=%ds", ollamaURL, ollamaModel, ollamaTimeout)
 	logger.Debug("extract-text", "Custom extraction prompt: [%s]", customPrompt)
 
-	ollamaSvc := services.NewOllamaService(ollamaURL, ollamaTimeout)
+	ollamaSvc := services.NewOllamaService(ollamaURL, ollamaTimeout, h.logger)
 	text, err := ollamaSvc.ExtractTextFromImage(imageData, ollamaModel, customPrompt)
 	if err != nil {
 		logger.Error("extract-text", "Text extraction failed: %v", err)
@@ -316,13 +326,13 @@ func (h *AnalysisHandler) ExtractText(c *gin.Context) {
 //	@Security		BearerAuth
 //	@Router			/ollama-status [get]
 func (h *AnalysisHandler) OllamaStatus(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	logger.Debug("ollama-status", "Checking Ollama status")
 
-	ollamaURL := services.GetSetting(services.SettingOllamaURL)
-	ollamaModel := services.GetSetting(services.SettingOllamaModel)
+	ollamaURL := h.settingsSvc.GetSetting(services.SettingOllamaURL)
+	ollamaModel := h.settingsSvc.GetSetting(services.SettingOllamaModel)
 
-	ollamaSvc := services.NewOllamaService(ollamaURL, 10)
+	ollamaSvc := services.NewOllamaService(ollamaURL, 10, h.logger)
 	available, message := ollamaSvc.CheckModel(ollamaModel)
 
 	logger.Info("ollama-status", "Ollama available=%v, model=%s, message=%s", available, ollamaModel, message)

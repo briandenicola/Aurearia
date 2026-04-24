@@ -89,16 +89,18 @@ func (r *SocialRepository) AcceptFollow(followerID, followingID uint) (int64, er
 
 // BlockUser blocks a user. Creates or updates the follow record.
 func (r *SocialRepository) BlockUser(followerID, followingID uint) error {
-	var follow models.Follow
-	if err := r.db.Where("follower_id = ? AND following_id = ?", followerID, followingID).First(&follow).Error; err != nil {
-		follow = models.Follow{
-			FollowerID:  followerID,
-			FollowingID: followingID,
-			Status:      "blocked",
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var follow models.Follow
+		if err := tx.Where("follower_id = ? AND following_id = ?", followerID, followingID).First(&follow).Error; err != nil {
+			follow = models.Follow{
+				FollowerID:  followerID,
+				FollowingID: followingID,
+				Status:      "blocked",
+			}
+			return tx.Create(&follow).Error
 		}
-		return r.db.Create(&follow).Error
-	}
-	return r.db.Model(&follow).Update("status", "blocked").Error
+		return tx.Model(&follow).Update("status", "blocked").Error
+	})
 }
 
 // UnblockUser removes a block relationship.

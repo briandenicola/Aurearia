@@ -17,13 +17,15 @@ type AgentProxy struct {
 	baseURL       string
 	streamClient  *http.Client // No timeout — SSE streams can run long
 	requestClient *http.Client // Short timeout for non-streaming requests
+	logger        *Logger
 }
 
-func NewAgentProxy(baseURL string) *AgentProxy {
+func NewAgentProxy(baseURL string, logger *Logger) *AgentProxy {
 	return &AgentProxy{
 		baseURL:       strings.TrimRight(baseURL, "/"),
 		streamClient:  &http.Client{Timeout: 0},
 		requestClient: &http.Client{Timeout: 5 * time.Minute},
+		logger:        logger,
 	}
 }
 
@@ -154,7 +156,7 @@ func (p *AgentProxy) CollectPortfolioReview(ctx context.Context, req PortfolioRe
 
 // AnalyzeCoin POSTs to /api/analyze and returns the analysis text.
 func (p *AgentProxy) AnalyzeCoin(ctx context.Context, req AnalyzeProxyRequest) (string, error) {
-	logger := AppLogger
+	logger := p.logger
 
 	body, err := json.Marshal(req)
 	if err != nil {
@@ -194,7 +196,7 @@ func (p *AgentProxy) AnalyzeCoin(ctx context.Context, req AnalyzeProxyRequest) (
 
 // CheckAvailability POSTs to the Python agent's /api/check-availability endpoint.
 func (p *AgentProxy) CheckAvailability(ctx context.Context, req AvailabilityCheckProxyRequest) (*AvailabilityCheckProxyResponse, error) {
-	logger := AppLogger
+	logger := p.logger
 
 	body, err := json.Marshal(req)
 	if err != nil {
@@ -287,7 +289,7 @@ func (p *AgentProxy) SetLogLevel(ctx context.Context, level string) {
 // proxySSE is the shared helper that posts JSON to the Python service and
 // forwards the SSE byte stream line-by-line back to the Go response writer.
 func (p *AgentProxy) proxySSE(ctx context.Context, w http.ResponseWriter, path string, payload any) error {
-	logger := AppLogger
+	logger := p.logger
 
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -354,7 +356,7 @@ func (p *AgentProxy) proxySSE(ctx context.Context, w http.ResponseWriter, path s
 // returns the final message from the "done" event. Used for non-streaming
 // endpoints (like value estimation) that need a complete response.
 func (p *AgentProxy) collectSSE(ctx context.Context, path string, payload any) (string, error) {
-	logger := AppLogger
+	logger := p.logger
 
 	body, err := json.Marshal(payload)
 	if err != nil {

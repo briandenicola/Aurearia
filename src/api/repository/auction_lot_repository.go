@@ -17,6 +17,16 @@ func NewAuctionLotRepository(db *gorm.DB) *AuctionLotRepository {
 	return &AuctionLotRepository{db: db}
 }
 
+// WithTx returns a copy of the repository using the given transaction.
+func (r *AuctionLotRepository) WithTx(tx *gorm.DB) *AuctionLotRepository {
+	return &AuctionLotRepository{db: tx}
+}
+
+// Transaction executes fn inside a database transaction.
+func (r *AuctionLotRepository) Transaction(fn func(tx *gorm.DB) error) error {
+	return r.db.Transaction(fn)
+}
+
 // AuctionLotListFilters holds filtering/sorting options for listing auction lots.
 type AuctionLotListFilters struct {
 	Status    string
@@ -140,29 +150,32 @@ func (r *AuctionLotRepository) CountByStatus(userID uint) (map[string]int64, err
 
 // Upsert creates or updates an auction lot by its NumisBids URL for the given user.
 func (r *AuctionLotRepository) Upsert(lot *models.AuctionLot) error {
-	existing, err := r.GetByURL(lot.NumisBidsURL, lot.UserID)
-	if err != nil {
-		// Not found — create
-		return r.Create(lot)
-	}
-	// Update fields that may have changed
-	updates := map[string]interface{}{
-		"current_bid":   lot.CurrentBid,
-		"estimate":      lot.Estimate,
-		"title":         lot.Title,
-		"description":   lot.Description,
-		"image_url":     lot.ImageURL,
-		"auction_house": lot.AuctionHouse,
-		"sale_name":     lot.SaleName,
-		"sale_date":     lot.SaleDate,
-		"currency":      lot.Currency,
-		"lot_number":    lot.LotNumber,
-	}
-	// Only update status if the lot is being marked as passed (don't overwrite bidding/won/lost)
-	if lot.Status == models.AuctionStatusPassed && existing.Status == models.AuctionStatusWatching {
-		updates["status"] = string(models.AuctionStatusPassed)
-	}
-	return r.UpdateFields(existing, updates)
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		txRepo := &AuctionLotRepository{db: tx}
+		existing, err := txRepo.GetByURL(lot.NumisBidsURL, lot.UserID)
+		if err != nil {
+			// Not found — create
+			return tx.Create(lot).Error
+		}
+		// Update fields that may have changed
+		updates := map[string]interface{}{
+			"current_bid":   lot.CurrentBid,
+			"estimate":      lot.Estimate,
+			"title":         lot.Title,
+			"description":   lot.Description,
+			"image_url":     lot.ImageURL,
+			"auction_house": lot.AuctionHouse,
+			"sale_name":     lot.SaleName,
+			"sale_date":     lot.SaleDate,
+			"currency":      lot.Currency,
+			"lot_number":    lot.LotNumber,
+		}
+		// Only update status if the lot is being marked as passed (don't overwrite bidding/won/lost)
+		if lot.Status == models.AuctionStatusPassed && existing.Status == models.AuctionStatusWatching {
+			updates["status"] = string(models.AuctionStatusPassed)
+		}
+		return txRepo.UpdateFields(existing, updates)
+	})
 }
 
 // MarkPastAuctionsAsPassed updates all "watching" lots for a user where sale_date is before now.

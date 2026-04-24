@@ -12,17 +12,18 @@ import (
 )
 
 type SocialHandler struct {
-	repo *repository.SocialRepository
-	svc  *services.SocialService
+	repo   *repository.SocialRepository
+	svc    *services.SocialService
+	logger *services.Logger
 }
 
-func NewSocialHandler(repo *repository.SocialRepository, svc *services.SocialService) *SocialHandler {
-	return &SocialHandler{repo: repo, svc: svc}
+func NewSocialHandler(repo *repository.SocialRepository, svc *services.SocialService, logger *services.Logger) *SocialHandler {
+	return &SocialHandler{repo: repo, svc: svc, logger: logger}
 }
 
 // FollowUser sends a follow request to another user.
 func (h *SocialHandler) FollowUser(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	userID := c.GetUint("userId")
 	targetID, err := strconv.ParseUint(c.Param("userId"), 10, 32)
 	if err != nil {
@@ -59,7 +60,7 @@ func (h *SocialHandler) FollowUser(c *gin.Context) {
 
 // UnfollowUser unfollows a user (removes any follow relationship).
 func (h *SocialHandler) UnfollowUser(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	userID := c.GetUint("userId")
 	targetID, err := strconv.ParseUint(c.Param("userId"), 10, 32)
 	if err != nil {
@@ -79,7 +80,7 @@ func (h *SocialHandler) UnfollowUser(c *gin.Context) {
 
 // AcceptFollower accepts a pending follow request.
 func (h *SocialHandler) AcceptFollower(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	userID := c.GetUint("userId")
 	followerID, err := strconv.ParseUint(c.Param("userId"), 10, 32)
 	if err != nil {
@@ -99,7 +100,7 @@ func (h *SocialHandler) AcceptFollower(c *gin.Context) {
 
 // BlockFollower blocks a user from following.
 func (h *SocialHandler) BlockFollower(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	userID := c.GetUint("userId")
 	followerID, err := strconv.ParseUint(c.Param("userId"), 10, 32)
 	if err != nil {
@@ -118,7 +119,7 @@ func (h *SocialHandler) BlockFollower(c *gin.Context) {
 
 // UnblockFollower removes a block on a user.
 func (h *SocialHandler) UnblockFollower(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	userID := c.GetUint("userId")
 	followerID, err := strconv.ParseUint(c.Param("userId"), 10, 32)
 	if err != nil {
@@ -140,7 +141,12 @@ func (h *SocialHandler) UnblockFollower(c *gin.Context) {
 func (h *SocialHandler) GetBlockedUsers(c *gin.Context) {
 	userID := c.GetUint("userId")
 
-	blocked, _ := h.repo.GetBlockedUsers(userID)
+	blocked, err := h.repo.GetBlockedUsers(userID)
+	if err != nil {
+		h.logger.Error("social", "Failed to get blocked users: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get blocked users"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"blocked": blocked})
 }
 
@@ -148,7 +154,12 @@ func (h *SocialHandler) GetBlockedUsers(c *gin.Context) {
 func (h *SocialHandler) GetFollowers(c *gin.Context) {
 	userID := c.GetUint("userId")
 
-	follows, users, _ := h.repo.GetFollowers(userID)
+	follows, users, err := h.repo.GetFollowers(userID)
+	if err != nil {
+		h.logger.Error("social", "Failed to get followers: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get followers"})
+		return
+	}
 
 	if len(follows) == 0 {
 		c.JSON(http.StatusOK, gin.H{"followers": []interface{}{}})
@@ -182,7 +193,12 @@ func (h *SocialHandler) GetFollowers(c *gin.Context) {
 func (h *SocialHandler) GetFollowing(c *gin.Context) {
 	userID := c.GetUint("userId")
 
-	users, _ := h.repo.GetFollowing(userID)
+	users, err := h.repo.GetFollowing(userID)
+	if err != nil {
+		h.logger.Error("social", "Failed to get following: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get following"})
+		return
+	}
 
 	if len(users) == 0 {
 		c.JSON(http.StatusOK, gin.H{"following": []interface{}{}})
@@ -214,9 +230,19 @@ func (h *SocialHandler) SearchUsers(c *gin.Context) {
 		return
 	}
 
-	users, _ := h.repo.SearchUsers(query, userID)
+	users, err := h.repo.SearchUsers(query, userID)
+	if err != nil {
+		h.logger.Error("social", "Failed to search users: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search users"})
+		return
+	}
 
-	follows, _ := h.repo.GetAllFollows(userID)
+	follows, err := h.repo.GetAllFollows(userID)
+	if err != nil {
+		h.logger.Error("social", "Failed to get follows: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get follows"})
+		return
+	}
 	followStatusMap := map[uint]string{}
 	for _, f := range follows {
 		followStatusMap[f.FollowingID] = f.Status
@@ -293,7 +319,12 @@ func (h *SocialHandler) GetFollowingCoins(c *gin.Context) {
 		return
 	}
 
-	coins, _ := h.repo.GetPublicCoins(uint(targetID))
+	coins, err := h.repo.GetPublicCoins(uint(targetID))
+	if err != nil {
+		h.logger.Error("social", "Failed to get public coins: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get coins"})
+		return
+	}
 
 	var result []gin.H
 	for _, coin := range coins {
@@ -334,7 +365,12 @@ func (h *SocialHandler) GetFollowingCoinDetail(c *gin.Context) {
 		return
 	}
 
-	comments, _ := h.repo.GetCommentsWithAuthors(uint(coinID))
+	comments, err := h.repo.GetCommentsWithAuthors(uint(coinID))
+	if err != nil {
+		h.logger.Error("social", "Failed to get comments: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get comments"})
+		return
+	}
 	var commentResults []gin.H
 	for _, cm := range comments {
 		commentResults = append(commentResults, gin.H{
@@ -368,7 +404,7 @@ func (h *SocialHandler) GetFollowingCoinDetail(c *gin.Context) {
 
 // AddComment adds a comment (with optional rating) to a coin.
 func (h *SocialHandler) AddComment(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	currentUserID := c.GetUint("userId")
 	coinID, err := strconv.ParseUint(c.Param("coinId"), 10, 32)
 	if err != nil {
@@ -421,7 +457,10 @@ func (h *SocialHandler) AddComment(c *gin.Context) {
 		return
 	}
 
-	user, _ := h.repo.FindUser(currentUserID)
+	user, err := h.repo.FindUser(currentUserID)
+	if err != nil {
+		h.logger.Error("social", "Failed to find user for comment response: %v", err)
+	}
 
 	logger.Info("social", "User %d commented on coin %d", currentUserID, coinID)
 	c.JSON(http.StatusCreated, gin.H{
@@ -458,7 +497,12 @@ func (h *SocialHandler) GetComments(c *gin.Context) {
 		}
 	}
 
-	comments, _ := h.repo.GetCommentsWithAuthors(uint(coinID))
+	comments, err := h.repo.GetCommentsWithAuthors(uint(coinID))
+	if err != nil {
+		h.logger.Error("social", "Failed to get comments: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get comments"})
+		return
+	}
 
 	var result []gin.H
 	for _, cm := range comments {
@@ -482,7 +526,7 @@ func (h *SocialHandler) GetComments(c *gin.Context) {
 
 // DeleteComment deletes a comment. Owner of coin or commenter can delete.
 func (h *SocialHandler) DeleteComment(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	currentUserID := c.GetUint("userId")
 	coinID, err := strconv.ParseUint(c.Param("coinId"), 10, 32)
 	if err != nil {
@@ -501,7 +545,11 @@ func (h *SocialHandler) DeleteComment(c *gin.Context) {
 		return
 	}
 
-	coin, _ := h.repo.FindCoin(uint(coinID))
+	coin, err := h.repo.FindCoin(uint(coinID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
+		return
+	}
 	if comment.UserID != currentUserID && coin.UserID != currentUserID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Cannot delete this comment"})
 		return

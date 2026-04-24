@@ -82,7 +82,7 @@ func setupCoinHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	db := setupCoinHandlerTestDB(t)
 	coinRepo := repository.NewCoinRepository(db)
 	coinSvc := services.NewCoinService(coinRepo, nil)
-	handler := NewCoinHandler(coinRepo, coinSvc)
+	handler := NewCoinHandler(coinRepo, coinSvc, services.NewLogger(100))
 
 	r := gin.New()
 	protected := r.Group("/api")

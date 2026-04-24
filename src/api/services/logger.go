@@ -49,8 +49,6 @@ type Logger struct {
 	count    int
 }
 
-var AppLogger = NewLogger(1000)
-
 func NewLogger(bufferSize int) *Logger {
 	return &Logger{
 		level:   LevelInfo,
@@ -151,8 +149,4 @@ func (l *Logger) GetLogs(limit int) []LogEntry {
 	return result
 }
 
-// SyncFromSettings reads the LogLevel setting from the DB and applies it
-func SyncLogLevel() {
-	level := GetSetting(SettingLogLevel)
-	AppLogger.SetLevel(level)
-}
+// (SyncLogLevel moved to SettingsService.SyncLogLevel)

@@ -14,8 +14,7 @@ import (
 )
 
 // writeCollectionZip streams a zip archive containing coins.json and all associated images.
-func writeCollectionZip(c *gin.Context, coins []models.Coin, uploadDir string, filename string) {
-	logger := services.AppLogger
+func writeCollectionZip(c *gin.Context, coins []models.Coin, uploadDir string, filename string, logger *services.Logger) {
 
 	c.Header("Content-Type", "application/zip")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))

@@ -16,13 +16,15 @@ import (
 )
 
 type AdminHandler struct {
-	UploadDir  string
-	repo       *repository.AdminRepository
-	agentProxy *services.AgentProxy
+	UploadDir   string
+	repo        *repository.AdminRepository
+	agentProxy  *services.AgentProxy
+	settingsSvc *services.SettingsService
+	logger      *services.Logger
 }
 
-func NewAdminHandler(uploadDir string, repo *repository.AdminRepository, agentProxy *services.AgentProxy) *AdminHandler {
-	return &AdminHandler{UploadDir: uploadDir, repo: repo, agentProxy: agentProxy}
+func NewAdminHandler(uploadDir string, repo *repository.AdminRepository, agentProxy *services.AgentProxy, settingsSvc *services.SettingsService, logger *services.Logger) *AdminHandler {
+	return &AdminHandler{UploadDir: uploadDir, repo: repo, agentProxy: agentProxy, settingsSvc: settingsSvc, logger: logger}
 }
 
 // AdminRequired middleware ensures only admin users can access
@@ -160,7 +162,7 @@ func (h *AdminHandler) ResetPassword(c *gin.Context) {
 //	@Security		BearerAuth
 //	@Router			/admin/settings [get]
 func (h *AdminHandler) GetSettings(c *gin.Context) {
-	settings := services.GetAllSettings()
+	settings := h.settingsSvc.GetAllSettings()
 	c.JSON(http.StatusOK, settings)
 }
 
@@ -176,7 +178,7 @@ func (h *AdminHandler) GetSettings(c *gin.Context) {
 //	@Security		BearerAuth
 //	@Router			/admin/settings/defaults [get]
 func (h *AdminHandler) GetSettingDefaults(c *gin.Context) {
-	c.JSON(http.StatusOK, services.GetSettingDefaults())
+	c.JSON(http.StatusOK, h.settingsSvc.GetSettingDefaults())
 }
 
 // UpdateSettings updates app settings.
@@ -205,18 +207,18 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 	}
 
 	for _, s := range settings {
-		if err := services.SetSetting(s.Key, s.Value); err != nil {
+		if err := h.settingsSvc.SetSetting(s.Key, s.Value); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save setting: " + s.Key})
 			return
 		}
 	}
 
 	// Sync log level if it was updated
-	services.SyncLogLevel()
+	h.settingsSvc.SyncLogLevel(h.logger)
 
 	// Push log level to Python agent service
 	if h.agentProxy != nil {
-		logLevel := services.GetSetting(services.SettingLogLevel)
+		logLevel := h.settingsSvc.GetSetting(services.SettingLogLevel)
 		h.agentProxy.SetLogLevel(c.Request.Context(), logLevel)
 	}
 
@@ -245,7 +247,7 @@ func (h *AdminHandler) GetLogs(c *gin.Context) {
 	}
 
 	level := c.Query("level")
-	logs := services.AppLogger.GetLogs(limit)
+	logs := h.logger.GetLogs(limit)
 
 	if level != "" {
 		filtered := make([]services.LogEntry, 0)
@@ -266,7 +268,7 @@ func (h *AdminHandler) GetLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"logs":     logs,
 		"count":    len(logs),
-		"logLevel": services.AppLogger.GetLevel(),
+		"logLevel": h.logger.GetLevel(),
 	})
 }
 
@@ -290,7 +292,7 @@ func mergeLogsByTimestamp(a, b []services.LogEntry) []services.LogEntry {
 
 // TestAnthropicConnection validates the Anthropic API key by listing models.
 func (h *AdminHandler) TestAnthropicConnection(c *gin.Context) {
-	apiKey := services.GetSetting(services.SettingAnthropicAPIKey)
+	apiKey := h.settingsSvc.GetSetting(services.SettingAnthropicAPIKey)
 	if apiKey == "" {
 		c.JSON(http.StatusOK, gin.H{"available": false, "message": "Anthropic API key is not configured"})
 		return
@@ -326,7 +328,7 @@ func (h *AdminHandler) TestAnthropicConnection(c *gin.Context) {
 
 // TestSearXNGConnection validates the SearXNG endpoint is reachable.
 func (h *AdminHandler) TestSearXNGConnection(c *gin.Context) {
-	searxngURL := services.GetSetting(services.SettingSearXNGURL)
+	searxngURL := h.settingsSvc.GetSetting(services.SettingSearXNGURL)
 	if searxngURL == "" {
 		c.JSON(http.StatusOK, gin.H{"available": false, "message": "SearXNG URL is not configured"})
 		return

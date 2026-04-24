@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
+	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/golang-jwt/jwt/v5"
@@ -59,7 +60,8 @@ func makeExpiredJWT(userID uint) string {
 func setupAuthRouter(db *gorm.DB) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.Use(AuthRequired(testSecret, db))
+	apiKeyAuth := repository.NewApiKeyRepository(db)
+	r.Use(AuthRequired(testSecret, apiKeyAuth))
 	r.GET("/protected", func(c *gin.Context) {
 		userID := c.GetUint("userId")
 		role, _ := c.Get("userRole")
@@ -255,7 +257,8 @@ func TestAuthMiddleware_TokenQueryParam(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.Use(AuthRequired(testSecret, db))
+	apiKeyAuth := repository.NewApiKeyRepository(db)
+	r.Use(AuthRequired(testSecret, apiKeyAuth))
 	r.GET("/protected", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})

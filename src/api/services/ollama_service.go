@@ -16,6 +16,7 @@ import (
 type OllamaService struct {
 	BaseURL string
 	Client  *http.Client
+	logger  *Logger
 }
 
 type ollamaRequest struct {
@@ -30,7 +31,7 @@ type ollamaResponse struct {
 	Done     bool   `json:"done"`
 }
 
-func NewOllamaService(baseURL string, timeoutSeconds int) *OllamaService {
+func NewOllamaService(baseURL string, timeoutSeconds int, logger *Logger) *OllamaService {
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = 300
 	}
@@ -39,12 +40,13 @@ func NewOllamaService(baseURL string, timeoutSeconds int) *OllamaService {
 		Client: &http.Client{
 			Timeout: time.Duration(timeoutSeconds) * time.Second,
 		},
+		logger: logger,
 	}
 }
 
 // ExtractTextFromImage sends an image to Ollama and asks it to extract all visible text
 func (s *OllamaService) ExtractTextFromImage(imageData []byte, model string, customPrompt string) (string, error) {
-	logger := AppLogger
+	logger := s.logger
 	if model == "" {
 		model = "llava"
 	}
@@ -108,7 +110,7 @@ func (s *OllamaService) ExtractTextFromImage(imageData []byte, model string, cus
 
 // CheckModel calls the Ollama "show model" API to verify the model is available
 func (s *OllamaService) CheckModel(model string) (bool, string) {
-	logger := AppLogger
+	logger := s.logger
 	if model == "" {
 		model = "llava"
 	}

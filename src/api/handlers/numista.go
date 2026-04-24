@@ -13,12 +13,14 @@ import (
 )
 
 type NumistaHandler struct {
-	client *http.Client
+	client      *http.Client
+	settingsSvc *services.SettingsService
 }
 
-func NewNumistaHandler() *NumistaHandler {
+func NewNumistaHandler(settingsSvc *services.SettingsService) *NumistaHandler {
 	return &NumistaHandler{
-		client: &http.Client{Timeout: 15 * time.Second},
+		client:      &http.Client{Timeout: 15 * time.Second},
+		settingsSvc: settingsSvc,
 	}
 }
 
@@ -36,7 +38,7 @@ func NewNumistaHandler() *NumistaHandler {
 //	@Security		BearerAuth
 //	@Router			/numista/search [get]
 func (h *NumistaHandler) Search(c *gin.Context) {
-	apiKey := services.GetSetting(services.SettingNumistaAPIKey)
+	apiKey := h.settingsSvc.GetSetting(services.SettingNumistaAPIKey)
 	if apiKey == "" {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Numista API key not configured. Set it in Admin → Settings."})
 		return

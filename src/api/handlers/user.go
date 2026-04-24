@@ -20,10 +20,11 @@ import (
 type UserHandler struct {
 	UploadDir string
 	repo      *repository.UserRepository
+	logger    *services.Logger
 }
 
-func NewUserHandler(uploadDir string, repo *repository.UserRepository) *UserHandler {
-	return &UserHandler{UploadDir: uploadDir, repo: repo}
+func NewUserHandler(uploadDir string, repo *repository.UserRepository, logger *services.Logger) *UserHandler {
+	return &UserHandler{UploadDir: uploadDir, repo: repo, logger: logger}
 }
 
 // ChangePassword allows a user to change their own password.
@@ -134,7 +135,7 @@ func (h *UserHandler) ExportCollection(c *gin.Context) {
 	coins, _ = h.repo.GetCoinsWithImages(userID)
 
 	filename := fmt.Sprintf("my-coins-export-%s.zip", time.Now().Format("2006-01-02"))
-	writeCollectionZip(c, coins, h.UploadDir, filename)
+	writeCollectionZip(c, coins, h.UploadDir, filename, h.logger)
 }
 
 // ExportCatalogPDF generates a styled PDF catalog of the user's collection.
@@ -161,7 +162,7 @@ func (h *UserHandler) ExportCatalogPDF(c *gin.Context) {
 		username = user.Username
 	}
 
-	pdf, err := writeCatalogPDF(coins, h.UploadDir, username)
+	pdf, err := writeCatalogPDF(coins, h.UploadDir, username, h.logger)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate catalog"})
 		return
@@ -171,7 +172,7 @@ func (h *UserHandler) ExportCatalogPDF(c *gin.Context) {
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	if err := pdf.Output(c.Writer); err != nil {
-		services.AppLogger.Error("pdf", "Failed to write PDF: %v", err)
+		h.logger.Error("pdf", "Failed to write PDF: %v", err)
 	}
 }
 
@@ -213,7 +214,7 @@ func (h *UserHandler) ImportCollection(c *gin.Context) {
 
 // UpdateProfile updates the authenticated user's profile info.
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	userID := c.GetUint("userId")
 
 	var req struct {
@@ -307,7 +308,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
 // UploadAvatar uploads a profile avatar image for the authenticated user.
 func (h *UserHandler) UploadAvatar(c *gin.Context) {
-	logger := services.AppLogger
+	logger := h.logger
 	userID := c.GetUint("userId")
 
 	file, err := c.FormFile("avatar")
