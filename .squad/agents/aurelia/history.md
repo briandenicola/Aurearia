@@ -12,4 +12,6 @@
 
 - **2026-04-24:** Completed deep frontend code quality review. Key findings: (1) `v-html` XSS risk in AI content rendering — needs DOMPurify, (2) 15+ files have uncleared setTimeout/setInterval — memory leak pattern is widespread, (3) Router has no admin role guard — only UI-hidden, (4) Auth store drifts from localStorage after silent token refresh, (5) PWA icons missing from public/ breaking installability, (6) Accessibility is the weakest area — almost no ARIA, no focus traps, clickable divs without keyboard support. Three pages exceed 1200+ lines and need splitting. Overall grade: B-. 19 backlog items created in `.squad/decisions/inbox/aurelia-code-review.md`.
 
+- **2025-07-22:** P0 security fixes. (1) Confirmed all 4 `v-html` bindings already use DOMPurify — `CoinSearchChat.vue` via `formatMessage()` in `useCoinSearchChat.ts` (strict allowlist), `CoinDetailPage.vue` via `DOMPurify.sanitize(md.render(...))` on all three AI analysis computeds. No additional work needed. (2) Added admin role guard to router: `/admin` route now has `meta.requiresAdmin`, `beforeEach` checks `auth.isAdmin` and redirects non-admins to collection page. TypeScript + production build verified clean.
+
 <!-- Append new learnings below. Each entry is something lasting about the project. -->

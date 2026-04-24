@@ -78,7 +78,7 @@ const router = createRouter({
       path: '/admin',
       name: 'admin',
       component: () => import('@/pages/AdminPage.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, requiresAdmin: true },
     },
     {
       path: '/process-image',
@@ -139,6 +139,9 @@ router.beforeEach((to) => {
   const auth = useAuthStore()
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { name: 'login' }
+  }
+  if (to.meta.requiresAdmin && !auth.isAdmin) {
+    return { name: 'collection' }
   }
 })
 
