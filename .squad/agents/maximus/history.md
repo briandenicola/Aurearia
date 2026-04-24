@@ -9,3 +9,9 @@
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
+
+- **2025-07-18**: Rewrote `docs/ARCHITECTURE.md` from API-only doc (214 lines) to full-system architecture (761 lines) covering all three services, data flows, DB schema, auth, agent integration, schedulers, build pipeline, and design decisions. Derived entirely from codebase inspection.
+- Key file paths: `src/api/main.go` (composition root, ~400 lines of DI wiring), `src/agent/app/supervisor.py` (11-team LLM router), `src/web/src/api/client.ts` (Axios + SSE + 401 refresh queue), `src/api/services/agent_proxy.go` (SSE proxy pattern).
+- The system has 26 auto-migrated GORM models, 22 repository files, 17 service files, 25 handler files, 21 Vue pages, and 10 composables.
+- Two background goroutine schedulers (availability + valuation) run with configurable anchor times and intervals from DB settings.
+- Auth supports 3 methods: JWT (15min access + 30d refresh with rotation), API keys (SHA-256 hashed), and WebAuthn/passkeys.

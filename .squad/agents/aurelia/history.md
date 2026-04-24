@@ -8,4 +8,6 @@
 
 ## Learnings
 
+- **2025-07-18:** Maximus completed comprehensive `docs/ARCHITECTURE.md` covering full-system architecture (Go API, Vue frontend, Python agent service, data flows, DB schema, auth, agent integration, Docker, design decisions). This is the authoritative reference for all agents and team members.
+
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
