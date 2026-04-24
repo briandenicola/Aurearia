@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
+from app.config import settings
 from app.models.requests import (
     AnalyzeRequest,
     AvailabilityCheckRequest,
@@ -12,16 +13,15 @@ from app.models.requests import (
     CoinShowSearchRequest,
     PortfolioReviewRequest,
 )
-from app.config import settings
 from app.models.responses import AgentResponse, AvailabilityCheckResponse, AvailabilityVerdict
 from app.streaming import stream_graph_events
-
-_RECURSION_CONFIG = {"recursion_limit": settings.max_supervisor_iterations}
 from app.supervisor import create_supervisor
 from app.teams.availability_check import create_availability_check_team, parse_verdicts
 from app.teams.coin_analysis import create_coin_analysis_team
 
 logger = logging.getLogger(__name__)
+
+_RECURSION_CONFIG = {"recursion_limit": settings.max_supervisor_iterations}
 
 router = APIRouter(prefix="/api")
 

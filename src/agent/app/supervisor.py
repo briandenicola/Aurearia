@@ -20,7 +20,6 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.types import Command
 
-from app.config import settings
 from app.llm.provider import get_chat_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig, PortfolioSummary, UserContext
