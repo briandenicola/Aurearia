@@ -8,7 +8,9 @@
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "build-only": "vite build",
-    "type-check": "vue-tsc --build"
+    "type-check": "vue-tsc --build",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@imgly/background-removal": "1.7.0",
@@ -22,18 +24,22 @@
     "vue-router": "^5.0.6"
   },
   "devDependencies": {
+    "@testing-library/vue": "^8.1.0",
     "@tsconfig/node24": "^24.0.4",
     "@types/dompurify": "^3.2.0",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^25.6.0",
     "@types/sortablejs": "^1.15.9",
     "@vitejs/plugin-vue": "^6.0.6",
+    "@vue/test-utils": "^2.4.8",
     "@vue/tsconfig": "^0.8.1",
+    "jsdom": "^28.1.0",
     "npm-run-all2": "^8.0.4",
     "typescript": "~5.9.3",
     "vite": "^7.3.2",
     "vite-plugin-pwa": "^1.2.0",
     "vite-plugin-vue-devtools": "^8.1.1",
+    "vitest": "^4.1.5",
     "vue-tsc": "^3.2.7"
   },
   "engines": {
