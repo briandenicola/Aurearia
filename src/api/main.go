@@ -389,7 +389,7 @@ func main() {
 	go scheduler.Start()
 
 	// Start collection valuation scheduler
-	valScheduler := services.NewValuationScheduler(valSvc, coinRepo, settingsSvc, logger)
+	valScheduler := services.NewValuationScheduler(valSvc, coinRepo, valRepo, settingsSvc, logger)
 	go valScheduler.Start()
 
 	logger.Info("startup", "Application ready")

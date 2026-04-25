@@ -9,7 +9,7 @@ export function useCollectionFilters() {
   const selectedCategory = store.selectedCategory !== undefined ? ref(store.selectedCategory) : ref('')
   const search = ref(store.searchQuery)
   const page = ref(1)
-  const sortKey = ref(localStorage.getItem('defaultSort') || 'updated_at_desc')
+  const sortKey = ref(store.activeSortKey || localStorage.getItem('defaultSort') || 'updated_at_desc')
   const selectedTag = ref('')
   const userTags = ref<Tag[]>([])
 
@@ -60,6 +60,7 @@ export function useCollectionFilters() {
 
   watch(page, loadCoins)
   watch(sortKey, () => {
+    store.activeSortKey = sortKey.value
     page.value = 1
     loadCoins()
   })

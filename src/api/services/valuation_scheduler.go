@@ -13,6 +13,7 @@ import (
 type ValuationScheduler struct {
 	svc         *ValuationService
 	coinRepo    *repository.CoinRepository
+	valRepo     *repository.ValuationRepository
 	settingsSvc *SettingsService
 	logger      *Logger
 	stopCh      chan struct{}
@@ -23,12 +24,14 @@ type ValuationScheduler struct {
 func NewValuationScheduler(
 	svc *ValuationService,
 	coinRepo *repository.CoinRepository,
+	valRepo *repository.ValuationRepository,
 	settingsSvc *SettingsService,
 	logger *Logger,
 ) *ValuationScheduler {
 	return &ValuationScheduler{
 		svc:         svc,
 		coinRepo:    coinRepo,
+		valRepo:     valRepo,
 		settingsSvc: settingsSvc,
 		logger:      logger,
 		stopCh:      make(chan struct{}),
@@ -45,6 +48,11 @@ func (s *ValuationScheduler) Start() {
 	case <-s.stopCh:
 		return
 	}
+
+	enabled := s.settingsSvc.GetSetting(SettingValuationCheckEnabled)
+	startTime := s.settingsSvc.GetSetting(SettingValuationCheckStartTime)
+	intervalDays := s.settingsSvc.GetSetting(SettingValuationCheckInterval)
+	s.logger.Info("valuation-scheduler", "Settings — enabled: %s, startTime: %s, intervalDays: %s", enabled, startTime, intervalDays)
 
 	for {
 		wait := s.timeUntilNextRun()
@@ -67,23 +75,35 @@ func (s *ValuationScheduler) Stop() {
 }
 
 // timeUntilNextRun calculates delay until the next scheduled run.
-// Uses ValuationCheckStartTime (HH:MM) as the daily anchor and
-// ValuationCheckIntervalDays as the repeat cadence.
+// If there is a previous scheduled run, uses that as the anchor so that
+// app restarts don't reset the schedule. Falls back to the start-time
+// based calculation only when no run history exists.
 func (s *ValuationScheduler) timeUntilNextRun() time.Duration {
 	now := time.Now()
-	startHour, startMin := s.getStartTime()
 	intervalDays := s.getIntervalDays()
+	interval := time.Duration(intervalDays) * 24 * time.Hour
 
-	// Build today's anchor from the start time
+	// Check last completed scheduled run
+	lastRun := s.valRepo.GetLastScheduledRun()
+	if lastRun != nil {
+		nextFromLast := lastRun.StartedAt.Add(interval)
+		if nextFromLast.Before(now) {
+			// Overdue — run immediately
+			s.logger.Info("valuation-scheduler", "Last scheduled run was %s ago, overdue — running now", now.Sub(lastRun.StartedAt).Round(time.Minute))
+			return 0
+		}
+		return nextFromLast.Sub(now)
+	}
+
+	// No previous run — use today's start time as anchor
+	startHour, startMin := s.getStartTime()
 	anchor := time.Date(now.Year(), now.Month(), now.Day(), startHour, startMin, 0, 0, now.Location())
 
-	// If anchor is in the future today, that's the next run
 	if anchor.After(now) {
 		return anchor.Sub(now)
 	}
 
-	// Find the next occurrence: anchor + N*interval that is still in the future
-	interval := time.Duration(intervalDays) * 24 * time.Hour
+	// Find the next occurrence after now
 	elapsed := now.Sub(anchor)
 	periods := int(elapsed/interval) + 1
 	next := anchor.Add(time.Duration(periods) * interval)
@@ -114,7 +134,7 @@ func (s *ValuationScheduler) getIntervalDays() int {
 func (s *ValuationScheduler) runCycle() {
 	enabled := s.settingsSvc.GetSetting(SettingValuationCheckEnabled)
 	if enabled != "true" {
-		s.logger.Debug("valuation-scheduler", "Collection valuation disabled, skipping cycle")
+		s.logger.Info("valuation-scheduler", "Collection valuation disabled, skipping cycle")
 		return
 	}
 

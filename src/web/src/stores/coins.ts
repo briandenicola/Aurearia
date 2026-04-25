@@ -12,6 +12,7 @@ export const useCoinsStore = defineStore('coins', () => {
   const valueHistory = ref<ValueSnapshot[]>([])
   const selectedCategory = ref('')
   const searchQuery = ref('')
+  const activeSortKey = ref('')
   const galleryIndex = ref(0)
 
   async function fetchCoins(params?: {
@@ -78,6 +79,7 @@ export const useCoinsStore = defineStore('coins', () => {
     valueHistory,
     selectedCategory,
     searchQuery,
+    activeSortKey,
     galleryIndex,
     fetchCoins,
     fetchCoin,

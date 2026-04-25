@@ -142,6 +142,17 @@ func (r *ValuationRepository) GetUsersWithOwnedCoins() ([]uint, error) {
 	return userIDs, err
 }
 
+// GetLastScheduledRun returns the most recent completed "scheduled" valuation run, or nil if none.
+func (r *ValuationRepository) GetLastScheduledRun() *models.ValuationRun {
+	var run models.ValuationRun
+	err := r.db.Where("trigger_type = ? AND status = ?", "scheduled", "completed").
+		Order("started_at DESC").Limit(1).First(&run).Error
+	if err != nil {
+		return nil
+	}
+	return &run
+}
+
 // PruneOldRuns keeps only the most recent `keep` runs, deleting older runs and their results.
 func (r *ValuationRepository) PruneOldRuns(keep int) {
 	var count int64
