@@ -129,54 +129,6 @@
             </div>
           </div>
 
-          <div class="estimate-section">
-            <div class="estimate-header">
-              <h3>AI Value Estimate</h3>
-              <button
-                class="btn btn-secondary btn-sm"
-                :disabled="estimating"
-                @click="handleEstimateValue"
-              >
-                {{ estimating ? 'Researching...' : 'Estimate Value' }}
-              </button>
-            </div>
-            <div v-if="estimating" class="estimate-loading">
-              <div class="spinner" />
-              <span>Researching current market value...</span>
-            </div>
-            <div v-if="estimateError" class="estimate-error">{{ estimateError }}</div>
-            <div v-if="valueEstimate" class="estimate-result">
-              <div class="estimate-value-row">
-                <span class="estimate-value">{{ valueEstimate.estimatedValue ? formatCurrency(valueEstimate.estimatedValue) : 'N/A' }}</span>
-                <span :class="['confidence-badge', `confidence-${valueEstimate.confidence}`]">
-                  {{ valueEstimate.confidence }} confidence
-                </span>
-              </div>
-              <p class="estimate-reasoning">{{ valueEstimate.reasoning }}</p>
-              <div v-if="valueEstimate.comparables?.length" class="estimate-comparables">
-                <h4>Comparable Listings</h4>
-                <div v-for="(comp, i) in valueEstimate.comparables" :key="i" class="comparable-item">
-                  <a v-if="comp.url" :href="comp.url" target="_blank" rel="noopener" class="comparable-source">{{ comp.source }}</a>
-                  <span v-else class="comparable-source">{{ comp.source }}</span>
-                  <span class="comparable-price">{{ comp.price }}</span>
-                </div>
-              </div>
-              <div class="estimate-actions">
-                <button class="btn btn-primary btn-sm" @click="applyEstimate">
-                  Apply as Current Value
-                </button>
-                <button class="btn btn-ghost btn-sm" @click="valueEstimate = null">
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <CoinNumistaPanel
-            :coin-name="coin.name"
-            :coin-ruler="coin.ruler"
-            :coin-denomination="coin.denomination"
-          />
 
           <div v-if="coin.notes" class="notes-section">
             <h3>Notes</h3>
