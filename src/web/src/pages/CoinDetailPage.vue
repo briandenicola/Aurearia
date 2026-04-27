@@ -969,7 +969,6 @@ function formatCurrency(value: number) {
   white-space: pre-wrap;
   margin-bottom: 0;
 }
-}
 
 
 /* Listing Status Card */
