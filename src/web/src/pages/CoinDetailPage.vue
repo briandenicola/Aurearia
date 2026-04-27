@@ -93,7 +93,22 @@
             </div>
           </div>
 
+          <div v-if="coin.purchaseDate || coin.purchaseLocation" class="purchase-meta">
+            <span v-if="coin.purchaseDate">Purchased {{ new Date(coin.purchaseDate).toLocaleDateString() }}</span>
+            <span v-if="coin.purchaseDate && coin.purchaseLocation"> from </span>
+            <span v-if="!coin.purchaseDate && coin.purchaseLocation">Purchased from </span>
+            <span v-if="coin.purchaseLocation">{{ coin.purchaseLocation }}</span>
+          </div>
+
           <div class="info-grid">
+            <div class="info-card" v-if="coin.purchasePrice">
+              <span class="info-label">Purchase Price</span>
+              <span class="info-value">{{ formatCurrency(coin.purchasePrice) }}</span>
+            </div>
+            <div class="info-card" v-if="coin.currentValue">
+              <span class="info-label">Current Value</span>
+              <span class="info-value gold">{{ formatCurrency(coin.currentValue) }}</span>
+            </div>
             <div class="info-card" v-if="coin.denomination">
               <span class="info-label">Denomination</span>
               <span class="info-value">{{ coin.denomination }}</span>
@@ -144,24 +159,6 @@
             <h3>Design Descriptions</h3>
             <p v-if="coin.obverseDescription"><strong>Obverse:</strong> {{ coin.obverseDescription }}</p>
             <p v-if="coin.reverseDescription"><strong>Reverse:</strong> {{ coin.reverseDescription }}</p>
-          </div>
-
-          <div v-if="coin.purchasePrice || coin.currentValue" class="value-section">
-            <h3>Value</h3>
-            <div class="value-grid">
-              <div v-if="coin.purchasePrice" class="value-item">
-                <span class="value-label">Purchase Price</span>
-                <span class="value-amount">{{ formatCurrency(coin.purchasePrice) }}</span>
-              </div>
-              <div v-if="coin.currentValue" class="value-item">
-                <span class="value-label">Current Value</span>
-                <span class="value-amount gold">{{ formatCurrency(coin.currentValue) }}</span>
-              </div>
-            </div>
-            <div v-if="coin.purchaseDate" class="value-meta">
-              Purchased {{ new Date(coin.purchaseDate).toLocaleDateString() }}
-              <span v-if="coin.purchaseLocation"> from {{ coin.purchaseLocation }}</span>
-            </div>
           </div>
 
           <div class="estimate-section">
@@ -756,6 +753,11 @@ function formatCurrency(value: number) {
   color: var(--text-secondary);
   font-size: 0.75rem;
   cursor: pointer;
+}
+
+.purchase-meta {
+  margin-bottom: 0.75rem;
+  color: var(--text-secondary);
 }
 
 .info-grid {
