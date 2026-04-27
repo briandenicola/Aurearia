@@ -46,11 +46,13 @@
                     <LayoutGrid :size="18" />
                   </button>
                 </div>
-                <div v-if="viewMode === 'grid'" class="side-toggle">
-                  <button class="toggle-btn" :class="{ active: gridSide === null }" @click="gridSide = null">Primary</button>
-                  <button class="toggle-btn" :class="{ active: gridSide === 'obverse' }" @click="gridSide = 'obverse'">Obverse</button>
-                  <button class="toggle-btn" :class="{ active: gridSide === 'reverse' }" @click="gridSide = 'reverse'">Reverse</button>
-                </div>
+              </div>
+            </div>
+            <div v-if="viewMode === 'grid'" class="pwa-menu-section">
+              <span class="pwa-menu-label">Face</span>
+              <div class="face-filter">
+                <button class="filter-btn" :class="{ active: gridSide === 'obverse' }" @click="gridSide = gridSide === 'obverse' ? null : 'obverse'">Obverse</button>
+                <button class="filter-btn" :class="{ active: gridSide === 'reverse' }" @click="gridSide = gridSide === 'reverse' ? null : 'reverse'">Reverse</button>
               </div>
             </div>
           </div>
@@ -81,14 +83,11 @@
           <button class="btn" :class="selectMode ? 'btn-primary' : 'btn-secondary'" @click="toggleSelectMode">
             <CheckSquare :size="16" /> {{ selectMode ? 'Cancel' : 'Select' }}
           </button>
-          <div class="side-toggle">
-            <button class="btn btn-primary toggle-btn" :class="{ active: gridSide === null }" @click="gridSide = null">
-              Primary
-            </button>
-            <button class="btn btn-primary toggle-btn" :class="{ active: gridSide === 'obverse' }" @click="gridSide = 'obverse'">
+          <div class="face-filter">
+            <button class="filter-btn" :class="{ active: gridSide === 'obverse' }" @click="gridSide = gridSide === 'obverse' ? null : 'obverse'">
               Obverse
             </button>
-            <button class="btn btn-primary toggle-btn" :class="{ active: gridSide === 'reverse' }" @click="gridSide = 'reverse'">
+            <button class="filter-btn" :class="{ active: gridSide === 'reverse' }" @click="gridSide = gridSide === 'reverse' ? null : 'reverse'">
               Reverse
             </button>
           </div>
@@ -496,37 +495,33 @@ async function bulkTag(tagId: number) {
   background: var(--bg-card-hover);
 }
 
-.side-toggle {
+.face-filter {
   display: flex;
-  gap: 0;
+  gap: 0.4rem;
+  flex-wrap: wrap;
 }
 
-.side-toggle .toggle-btn {
-  border-radius: 0;
-  border-right: 1px solid rgba(255, 255, 255, 0.15);
+.face-filter .filter-btn {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
 }
 
-.side-toggle .toggle-btn:first-child {
-  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+.face-filter .filter-btn:hover {
+  border-color: var(--border-accent);
+  color: var(--text-primary);
 }
 
-.side-toggle .toggle-btn:last-child {
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  border-right: none;
-}
-
-.toggle-btn {
-  opacity: 0.6;
-}
-
-.toggle-btn.active {
-  opacity: 1;
-  background: var(--accent-gold);
-  color: #1a1a2e;
-}
-
-.toggle-btn:hover:not(.active) {
-  opacity: 0.8;
+.face-filter .filter-btn.active {
+  background: var(--accent-gold-dim);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
 }
 
 /* --- Pull to refresh --- */
