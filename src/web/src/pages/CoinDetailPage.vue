@@ -168,6 +168,7 @@
         <div class="detail-actions">
           <h2>Actions</h2>
 
+          <div class="section-content-card">
           <div class="upload-section">
             <h3>Upload Images</h3>
             <div class="upload-content">
@@ -257,6 +258,7 @@
             :coin-ruler="coin.ruler"
             :coin-denomination="coin.denomination"
           />
+          </div>
         </div>
 
         <!-- AI Analysis -->
