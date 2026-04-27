@@ -209,8 +209,10 @@
           </div>
         </div>
 
-        <!-- Upload Images -->
-        <div class="detail-upload">
+        <!-- Actions -->
+        <div class="detail-actions">
+          <h2>Actions</h2>
+
           <div class="upload-section">
             <h3>Upload Images</h3>
             <div class="upload-content">
@@ -251,6 +253,55 @@
               <p v-if="uploadStatus" class="upload-status" :class="{ error: uploadError }">{{ uploadStatus }}</p>
             </div>
           </div>
+
+          <div class="estimate-section">
+            <div class="estimate-header">
+              <h3>AI Value Estimate</h3>
+              <button
+                class="btn btn-secondary btn-sm"
+                :disabled="estimating"
+                @click="handleEstimateValue"
+              >
+                {{ estimating ? 'Researching...' : 'Estimate Value' }}
+              </button>
+            </div>
+            <div v-if="estimating" class="estimate-loading">
+              <div class="spinner" />
+              <span>Researching current market value...</span>
+            </div>
+            <div v-if="estimateError" class="estimate-error">{{ estimateError }}</div>
+            <div v-if="valueEstimate" class="estimate-result">
+              <div class="estimate-value-row">
+                <span class="estimate-value">{{ valueEstimate.estimatedValue ? formatCurrency(valueEstimate.estimatedValue) : 'N/A' }}</span>
+                <span :class="['confidence-badge', `confidence-${valueEstimate.confidence}`]">
+                  {{ valueEstimate.confidence }} confidence
+                </span>
+              </div>
+              <p class="estimate-reasoning">{{ valueEstimate.reasoning }}</p>
+              <div v-if="valueEstimate.comparables?.length" class="estimate-comparables">
+                <h4>Comparable Listings</h4>
+                <div v-for="(comp, i) in valueEstimate.comparables" :key="i" class="comparable-item">
+                  <a v-if="comp.url" :href="comp.url" target="_blank" rel="noopener" class="comparable-source">{{ comp.source }}</a>
+                  <span v-else class="comparable-source">{{ comp.source }}</span>
+                  <span class="comparable-price">{{ comp.price }}</span>
+                </div>
+              </div>
+              <div class="estimate-actions">
+                <button class="btn btn-primary btn-sm" @click="applyEstimate">
+                  Apply as Current Value
+                </button>
+                <button class="btn btn-ghost btn-sm" @click="valueEstimate = null">
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <CoinNumistaPanel
+            :coin-name="coin.name"
+            :coin-ruler="coin.ruler"
+            :coin-denomination="coin.denomination"
+          />
         </div>
 
         <!-- AI Analysis -->
@@ -674,8 +725,14 @@ function formatCurrency(value: number) {
   grid-column: 1 / -1;
 }
 
-.detail-upload {
+.detail-actions {
   grid-column: 1 / -1;
+}
+
+.detail-actions h2 {
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .detail-title-section {
@@ -1260,7 +1317,7 @@ function formatCurrency(value: number) {
   }
   .detail-images { order: 1; }
   .detail-info { order: 2; }
-  .detail-upload { order: 3; }
+  .detail-actions { order: 3; }
   .detail-ai { order: 4; }
   .info-grid {
     grid-template-columns: 1fr 1fr;
