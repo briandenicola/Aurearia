@@ -123,8 +123,10 @@
 
           <div v-if="coin.obverseDescription || coin.reverseDescription" class="descriptions-section">
             <h3>Description</h3>
-            <p v-if="coin.obverseDescription"><strong>Obverse:</strong> {{ coin.obverseDescription }}</p>
-            <p v-if="coin.reverseDescription"><strong>Reverse:</strong> {{ coin.reverseDescription }}</p>
+            <div class="section-content-card">
+              <p v-if="coin.obverseDescription"><strong>Obverse:</strong> {{ coin.obverseDescription }}</p>
+              <p v-if="coin.reverseDescription"><strong>Reverse:</strong> {{ coin.reverseDescription }}</p>
+            </div>
           </div>
 
           <div class="estimate-section">
@@ -178,7 +180,9 @@
 
           <div v-if="coin.notes" class="notes-section">
             <h3>Notes</h3>
-            <p>{{ coin.notes }}</p>
+            <div class="section-content-card">
+              <p>{{ coin.notes }}</p>
+            </div>
           </div>
 
           <CoinActivityJournal
@@ -847,6 +851,24 @@ function formatCurrency(value: number) {
   color: var(--text-secondary);
 }
 
+/* Shared content card for section bodies (Description, Notes, etc.) */
+.section-content-card {
+  padding: 0.75rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.section-content-card p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+}
+
+.section-content-card p:last-child {
+  margin-bottom: 0;
+}
+
 .descriptions-section p {
   font-size: 0.9rem;
   color: var(--text-secondary);
@@ -888,6 +910,8 @@ function formatCurrency(value: number) {
   color: var(--text-secondary);
   font-size: 0.9rem;
   white-space: pre-wrap;
+  margin-bottom: 0;
+}
 }
 
 
@@ -1149,10 +1173,10 @@ function formatCurrency(value: number) {
 }
 
 .ai-analysis-content {
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
 }
 
 .ai-buttons {
