@@ -112,22 +112,5 @@ function formatJournalDate(dateStr: string) {
   font-style: italic;
 }
 
-.btn-ghost {
-  background: transparent;
-  border: 1px solid var(--border-subtle);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.btn-ghost:hover {
-  color: #e74c3c;
-  border-color: #e74c3c;
-}
-
-.btn-xs {
-  padding: 0.15rem 0.45rem;
-  font-size: 0.7rem;
-  border-radius: var(--radius-sm);
-}
+/* btn-ghost and btn-xs are now global in main.css */
 </style>

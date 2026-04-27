@@ -66,11 +66,14 @@
             </div>
           </div>
 
-          <div v-if="coin.purchaseDate || coin.purchaseLocation" class="purchase-meta">
+          <div v-if="coin.purchaseDate || coin.purchaseLocation || coin.referenceUrl" class="purchase-meta">
             <span v-if="coin.purchaseDate">Purchased {{ new Date(coin.purchaseDate).toLocaleDateString() }}</span>
             <span v-if="coin.purchaseDate && coin.purchaseLocation"> from </span>
             <span v-if="!coin.purchaseDate && coin.purchaseLocation">Purchased from </span>
             <span v-if="coin.purchaseLocation">{{ coin.purchaseLocation }}</span>
+            <a v-if="coin.referenceUrl" :href="coin.referenceUrl" target="_blank" rel="noopener" class="store-link">
+              {{ coin.referenceText || 'Store Link' }} ↗
+            </a>
           </div>
 
           <div class="info-grid">
@@ -117,7 +120,7 @@
           </div>
 
           <div v-if="coin.obverseDescription || coin.reverseDescription" class="descriptions-section">
-            <h3>Design Descriptions</h3>
+            <h3>Description</h3>
             <p v-if="coin.obverseDescription"><strong>Obverse:</strong> {{ coin.obverseDescription }}</p>
             <p v-if="coin.reverseDescription"><strong>Reverse:</strong> {{ coin.reverseDescription }}</p>
           </div>
@@ -183,12 +186,6 @@
             @delete="handleDeleteJournalEntry"
           />
 
-          <div v-if="coin.referenceUrl" class="reference-section">
-            <a :href="coin.referenceUrl" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">
-              🔗 {{ coin.referenceText || 'Reference Link' }}
-            </a>
-          </div>
-
           <div v-if="coin.listingStatus" class="listing-status-card">
             <div class="listing-status-header">
               <span
@@ -250,9 +247,9 @@
 
         <!-- AI Analysis -->
         <div class="detail-ai">
-          <div class="ai-section">
-            <div class="ai-header">
-              <h4>AI Analysis</h4>
+          <div class="ai-analysis-section">
+            <div class="ai-analysis-header">
+              <h3>AI Analysis</h3>
               <div class="ai-buttons">
                 <button
                   class="btn btn-primary btn-sm"
@@ -765,6 +762,22 @@ function formatCurrency(value: number) {
 .purchase-meta {
   margin-bottom: 0.75rem;
   color: var(--text-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+
+.store-link {
+  color: var(--accent-gold);
+  font-size: 0.85rem;
+  text-decoration: none;
+  margin-left: 0.5rem;
+  white-space: nowrap;
+}
+
+.store-link:hover {
+  text-decoration: underline;
 }
 
 .info-grid {
@@ -873,9 +886,6 @@ function formatCurrency(value: number) {
   white-space: pre-wrap;
 }
 
-.reference-section {
-  margin-top: 1rem;
-}
 
 /* Listing Status Card */
 .listing-status-card {
@@ -928,7 +938,7 @@ function formatCurrency(value: number) {
   margin: 0;
 }
 
-/* AI Value Estimate */
+/* AI Value Estimate — matches Numista section */
 .estimate-section {
   margin-bottom: 1.5rem;
 }
@@ -942,6 +952,7 @@ function formatCurrency(value: number) {
 
 .estimate-header h3 {
   margin: 0;
+  font-size: 1rem;
 }
 
 .estimate-loading {
@@ -1127,24 +1138,21 @@ function formatCurrency(value: number) {
   font-size: 0.82rem;
 }
 
-/* AI section */
-.ai-section {
-  margin-top: 1.25rem;
-  padding: 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+/* AI Analysis — standard section matching Description, Notes, Journal */
+.ai-analysis-section {
+  margin-bottom: 1.5rem;
 }
 
-.ai-header {
+.ai-analysis-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.75rem;
 }
 
-.ai-header h4 {
-  font-size: 0.9rem;
+.ai-analysis-header h3 {
+  margin: 0;
+  font-size: 1rem;
 }
 
 .ai-buttons {

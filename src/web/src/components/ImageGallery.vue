@@ -1,6 +1,5 @@
 <template>
   <div class="image-gallery">
-    <h4 class="section-label">Face</h4>
     <div v-if="images.length" class="gallery-main">
       <img :src="activeImageSrc" :alt="activeImage?.imageType" class="gallery-active-img" />
       <span class="gallery-type-badge">{{ activeImage?.imageType }}</span>
