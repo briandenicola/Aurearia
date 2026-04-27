@@ -37,10 +37,6 @@
         >{{ tag.name }}</span>
       </div>
       <template v-if="!wishlist && !sold">
-        <div class="card-meta">
-          <span v-if="coin.ruler" class="meta-item">{{ coin.ruler }}</span>
-          <span v-if="coin.era" class="meta-item">{{ coin.era }}</span>
-        </div>
         <div class="card-details">
           <span v-if="coin.category" class="detail" :class="`category-${coin.category.toLowerCase()}`">{{ coin.category }}</span>
           <span v-if="coin.denomination" class="detail">{{ coin.denomination }}</span>
@@ -48,7 +44,6 @@
             {{ coin.material }}
           </span>
         </div>
-        <div v-if="coin.grade" class="card-grade">{{ coin.grade }}</div>
       </template>
       <template v-if="sold">
         <div class="card-sold-info">
@@ -60,7 +55,7 @@
           <div v-if="coin.soldTo" class="card-sold-to">To: {{ coin.soldTo }}</div>
         </div>
       </template>
-      <div v-if="!sold && (coin.currentValue || coin.purchasePrice)" class="card-value">
+      <div v-if="wishlist && (coin.currentValue || coin.purchasePrice)" class="card-value">
         {{ formatCurrency(coin.currentValue || coin.purchasePrice || 0) }}
       </div>
       <a

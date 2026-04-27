@@ -18,57 +18,30 @@
         <!-- Images -->
         <div class="detail-images">
           <ImageGallery :images="coin.images || []" :processing="removingBg" @remove-bg="handleRemoveBackground" @delete-image="handleDeleteImage" />
-
-          <div class="image-upload-section">
-            <h4>Upload Images</h4>
-            <div class="upload-row">
-              <select v-model="uploadType" class="form-select upload-select">
-                <option value="obverse">Obverse</option>
-                <option value="reverse">Reverse</option>
-                <option value="detail">Detail</option>
-                <option value="other">Other</option>
-              </select>
-              <label class="btn btn-secondary btn-sm upload-btn">
-                Choose File
-                <input type="file" accept="image/*" hidden @change="handleImageUpload" />
-              </label>
-              <label v-if="isPwa" class="btn btn-secondary btn-sm upload-btn camera-btn">
-                <Camera :size="14" /> Photo
-                <input type="file" accept="image/*" capture="environment" hidden @change="handleImageUpload" />
-              </label>
-            </div>
-
-            <div class="url-upload-row">
-              <input
-                v-model="imageUrl"
-                type="url"
-                class="form-input url-input"
-                placeholder="Or paste an image URL..."
-                @keydown.enter="handleUrlUpload"
-              />
-              <button
-                class="btn btn-secondary btn-sm"
-                :disabled="!imageUrl || urlLoading"
-                @click="handleUrlUpload"
-              >
-                {{ urlLoading ? 'Fetching...' : 'Fetch' }}
-              </button>
-            </div>
-
-            <p v-if="uploadStatus" class="upload-status" :class="{ error: uploadError }">{{ uploadStatus }}</p>
-          </div>
         </div>
 
         <!-- Info -->
         <div class="detail-info">
           <div class="detail-title-section">
-            <span class="badge" :class="`badge-${coin.category.toLowerCase()}`">{{ coin.category }}</span>
             <h1>{{ coin.name }}</h1>
             <p v-if="coin.ruler" class="detail-ruler">{{ coin.ruler }}</p>
           </div>
 
+          <div v-if="coin.obverseInscription || coin.reverseInscription" class="inscriptions-section">
+            <h3>Inscriptions</h3>
+            <div v-if="coin.obverseInscription" class="inscription">
+              <span class="inscription-label">Obverse:</span>
+              <span class="inscription-text">{{ coin.obverseInscription }}</span>
+            </div>
+            <div v-if="coin.reverseInscription" class="inscription">
+              <span class="inscription-label">Reverse:</span>
+              <span class="inscription-text">{{ coin.reverseInscription }}</span>
+            </div>
+          </div>
+
           <div class="detail-tags-section">
             <div class="detail-tags">
+              <span class="badge" :class="`badge-${coin.category.toLowerCase()}`">{{ coin.category }}</span>
               <span
                 v-for="tag in coin.tags ?? []"
                 :key="tag.id"
@@ -90,18 +63,6 @@
                 >{{ tag.name }}</option>
               </select>
               <button class="btn-tag-cancel" @click="showTagPicker = false">Cancel</button>
-            </div>
-          </div>
-
-          <div v-if="coin.obverseInscription || coin.reverseInscription" class="inscriptions-section">
-            <h3>Inscriptions</h3>
-            <div v-if="coin.obverseInscription" class="inscription">
-              <span class="inscription-label">Obverse:</span>
-              <span class="inscription-text">{{ coin.obverseInscription }}</span>
-            </div>
-            <div v-if="coin.reverseInscription" class="inscription">
-              <span class="inscription-label">Reverse:</span>
-              <span class="inscription-text">{{ coin.reverseInscription }}</span>
             </div>
           </div>
 
@@ -242,6 +203,48 @@
             </div>
             <p v-if="coin.listingCheckReason" class="listing-reason">{{ coin.listingCheckReason }}</p>
             <p v-if="coin.listingCheckedAt" class="listing-checked-at">Last checked: {{ formatListingDate(coin.listingCheckedAt) }}</p>
+          </div>
+        </div>
+
+        <!-- Upload Images -->
+        <div class="detail-upload">
+          <div class="image-upload-section">
+            <h4>Upload Images</h4>
+            <div class="upload-row">
+              <select v-model="uploadType" class="form-select upload-select">
+                <option value="obverse">Obverse</option>
+                <option value="reverse">Reverse</option>
+                <option value="detail">Detail</option>
+                <option value="other">Other</option>
+              </select>
+              <label class="btn btn-secondary btn-sm upload-btn">
+                Choose File
+                <input type="file" accept="image/*" hidden @change="handleImageUpload" />
+              </label>
+              <label v-if="isPwa" class="btn btn-secondary btn-sm upload-btn camera-btn">
+                <Camera :size="14" /> Photo
+                <input type="file" accept="image/*" capture="environment" hidden @change="handleImageUpload" />
+              </label>
+            </div>
+
+            <div class="url-upload-row">
+              <input
+                v-model="imageUrl"
+                type="url"
+                class="form-input url-input"
+                placeholder="Or paste an image URL..."
+                @keydown.enter="handleUrlUpload"
+              />
+              <button
+                class="btn btn-secondary btn-sm"
+                :disabled="!imageUrl || urlLoading"
+                @click="handleUrlUpload"
+              >
+                {{ urlLoading ? 'Fetching...' : 'Fetch' }}
+              </button>
+            </div>
+
+            <p v-if="uploadStatus" class="upload-status" :class="{ error: uploadError }">{{ uploadStatus }}</p>
           </div>
         </div>
 
@@ -663,6 +666,10 @@ function formatCurrency(value: number) {
 }
 
 .detail-ai {
+  grid-column: 1 / -1;
+}
+
+.detail-upload {
   grid-column: 1 / -1;
 }
 
@@ -1236,7 +1243,8 @@ function formatCurrency(value: number) {
   }
   .detail-images { order: 1; }
   .detail-info { order: 2; }
-  .detail-ai { order: 3; }
+  .detail-upload { order: 3; }
+  .detail-ai { order: 4; }
   .info-grid {
     grid-template-columns: 1fr 1fr;
   }

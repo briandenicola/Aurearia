@@ -1,5 +1,6 @@
 <template>
   <div class="image-gallery">
+    <h4 class="gallery-face-header">Face</h4>
     <div v-if="images.length" class="gallery-main">
       <img :src="activeImageSrc" :alt="activeImage?.imageType" class="gallery-active-img" />
       <span class="gallery-type-badge">{{ activeImage?.imageType }}</span>
@@ -93,16 +94,24 @@ const activeImageSrc = computed(() => {
   object-fit: contain;
 }
 
+.gallery-face-header {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
 .gallery-type-badge {
   position: absolute;
   bottom: 0.5rem;
   left: 0.5rem;
-  padding: 0.2rem 0.6rem;
+  padding: 0.15rem 0.5rem;
   background: rgba(0, 0, 0, 0.7);
   color: var(--accent-gold);
   font-size: 0.75rem;
-  border-radius: var(--radius-full);
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
   text-transform: capitalize;
+  backdrop-filter: blur(4px);
 }
 
 .gallery-action-btns {
