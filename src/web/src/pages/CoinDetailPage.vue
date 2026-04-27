@@ -93,6 +93,18 @@
             </div>
           </div>
 
+          <div v-if="coin.obverseInscription || coin.reverseInscription" class="inscriptions-section">
+            <h3>Inscriptions</h3>
+            <div v-if="coin.obverseInscription" class="inscription">
+              <span class="inscription-label">Obverse:</span>
+              <span class="inscription-text">{{ coin.obverseInscription }}</span>
+            </div>
+            <div v-if="coin.reverseInscription" class="inscription">
+              <span class="inscription-label">Reverse:</span>
+              <span class="inscription-text">{{ coin.reverseInscription }}</span>
+            </div>
+          </div>
+
           <div v-if="coin.purchaseDate || coin.purchaseLocation" class="purchase-meta">
             <span v-if="coin.purchaseDate">Purchased {{ new Date(coin.purchaseDate).toLocaleDateString() }}</span>
             <span v-if="coin.purchaseDate && coin.purchaseLocation"> from </span>
@@ -140,18 +152,6 @@
             <div class="info-card" v-if="coin.rarityRating">
               <span class="info-label">Rarity / RIC</span>
               <span class="info-value">{{ coin.rarityRating }}</span>
-            </div>
-          </div>
-
-          <div v-if="coin.obverseInscription || coin.reverseInscription" class="inscriptions-section">
-            <h3>Inscriptions</h3>
-            <div v-if="coin.obverseInscription" class="inscription">
-              <span class="inscription-label">Obverse:</span>
-              <span class="inscription-text">{{ coin.obverseInscription }}</span>
-            </div>
-            <div v-if="coin.reverseInscription" class="inscription">
-              <span class="inscription-label">Reverse:</span>
-              <span class="inscription-text">{{ coin.reverseInscription }}</span>
             </div>
           </div>
 
