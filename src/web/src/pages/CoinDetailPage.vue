@@ -73,9 +73,12 @@
               <a v-if="coin.referenceUrl" :href="coin.referenceUrl" target="_blank" rel="noopener" class="store-link">{{ coin.purchaseLocation }} ↗</a>
               <span v-else>{{ coin.purchaseLocation }}</span>
             </template>
-            <a v-if="coin.referenceUrl && !coin.purchaseLocation" :href="coin.referenceUrl" target="_blank" rel="noopener" class="store-link">
-              {{ coin.referenceText || 'Store Link' }} ↗
-            </a>
+            <template v-if="coin.referenceUrl && !coin.purchaseLocation">
+              <span v-if="coin.purchaseDate"> · </span>
+              <a :href="coin.referenceUrl" target="_blank" rel="noopener" class="store-link">
+                {{ coin.referenceText || 'View Listing' }} ↗
+              </a>
+            </template>
           </div>
 
           <div class="info-grid">
