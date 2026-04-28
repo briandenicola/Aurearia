@@ -5,129 +5,46 @@
       <span class="pull-text">{{ refreshing ? 'Refreshing...' : pullDistance >= 60 ? 'Release to refresh' : 'Pull to refresh' }}</span>
     </div>
 
-    <!-- PWA compact header: search + filter/sort -->
-    <div v-if="isPwa" class="pwa-header">
-      <SearchBar v-model="search" />
-      <button class="pwa-icon-btn" :class="{ active: selectMode }" @click="toggleSelectMode" title="Select">
-        <CheckSquare :size="22" />
-      </button>
-      <router-link to="/add" class="pwa-add-btn">
-        <CirclePlus :size="22" />
-      </router-link>
-      <div class="hamburger-wrapper">
-        <button class="hamburger-btn" @click="menuOpen = !menuOpen" :class="{ active: menuOpen }">
-          <SlidersHorizontal :size="22" />
-        </button>
-        <Transition name="menu-slide">
-          <div v-if="menuOpen" class="pwa-menu">
-            <div class="pwa-menu-section">
-              <span class="pwa-menu-label">Category</span>
-              <CategoryFilter v-model="selectedCategory" />
-            </div>
-            <div v-if="userTags.length" class="pwa-menu-section">
-              <span class="pwa-menu-label">Tag</span>
-              <select v-model="selectedTag" class="tag-filter-select pwa-tag-select">
-                <option value="">All Tags</option>
-                <option v-for="tag in userTags" :key="tag.id" :value="String(tag.id)">{{ tag.name }}</option>
-              </select>
-            </div>
-            <div class="pwa-menu-section">
-              <span class="pwa-menu-label">Sort</span>
-              <SortSelect v-model="sortKey" />
-            </div>
-            <div class="pwa-menu-section">
-              <span class="pwa-menu-label">View</span>
-              <div class="pwa-menu-row">
-                <div class="view-toggle">
-                  <button class="view-btn" :class="{ active: viewMode === 'swipe' }" @click="viewMode = 'swipe'" title="Swipe view">
-                    <Layers :size="18" />
-                  </button>
-                  <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'" title="Grid view">
-                    <LayoutGrid :size="18" />
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div v-if="viewMode === 'grid'" class="pwa-menu-section">
-              <span class="pwa-menu-label">Face</span>
-              <div class="face-filter">
-                <button class="chip" :class="{ active: gridSide === 'obverse' }" @click="gridSide = gridSide === 'obverse' ? null : 'obverse'">Obverse</button>
-                <button class="chip" :class="{ active: gridSide === 'reverse' }" @click="gridSide = gridSide === 'reverse' ? null : 'reverse'">Reverse</button>
-              </div>
-            </div>
-          </div>
-        </Transition>
-      </div>
-    </div>
-    <div v-if="isPwa && menuOpen" class="pwa-menu-backdrop" @click="menuOpen = false"></div>
+    <PwaCollectionHeader
+      v-if="isPwa"
+      v-model:search="search"
+      v-model:menuOpen="menuOpen"
+      v-model:selectedCategory="selectedCategory"
+      v-model:selectedTag="selectedTag"
+      v-model:sortKey="sortKey"
+      v-model:viewMode="viewMode"
+      v-model:gridSide="gridSide"
+      :select-mode="selectMode"
+      :user-tags="userTags"
+      @toggle-select-mode="toggleSelectMode"
+    />
 
-    <!-- Desktop header (hidden in PWA) -->
-    <div v-if="!isPwa" class="desktop-sticky-header">
-      <div class="page-header collection-header">
-        <div class="header-spacer"></div>
-        <SearchBar v-model="search" />
-        <div class="header-sort">
-          <SortSelect v-model="sortKey" />
-        </div>
-      </div>
+    <DesktopCollectionHeader
+      v-if="!isPwa"
+      v-model:search="search"
+      v-model:selectedCategory="selectedCategory"
+      v-model:selectedTag="selectedTag"
+      v-model:sortKey="sortKey"
+      v-model:gridSide="gridSide"
+      :select-mode="selectMode"
+      :user-tags="userTags"
+      @toggle-select-mode="toggleSelectMode"
+    />
 
-      <div class="collection-toolbar">
-        <div class="toolbar-filters">
-          <CategoryFilter v-model="selectedCategory" />
-          <select v-if="userTags.length" v-model="selectedTag" class="tag-filter-select">
-            <option value="">All Tags</option>
-            <option v-for="tag in userTags" :key="tag.id" :value="String(tag.id)">{{ tag.name }}</option>
-          </select>
-        </div>
-        <div class="toolbar-right">
-          <button class="btn" :class="selectMode ? 'btn-primary' : 'btn-secondary'" @click="toggleSelectMode">
-            <CheckSquare :size="16" /> {{ selectMode ? 'Cancel' : 'Select' }}
-          </button>
-          <div class="face-filter">
-            <button class="chip" :class="{ active: gridSide === 'obverse' }" @click="gridSide = gridSide === 'obverse' ? null : 'obverse'">
-              Obverse
-            </button>
-            <button class="chip" :class="{ active: gridSide === 'reverse' }" @click="gridSide = gridSide === 'reverse' ? null : 'reverse'">
-              Reverse
-            </button>
-          </div>
-          <router-link to="/add" class="btn btn-primary"><CirclePlus :size="16" /> Add Coin</router-link>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="store.loading" class="loading-overlay">
-      <div class="spinner"></div>
-      <p>Loading collection...</p>
-    </div>
-
-    <template v-else-if="store.coins.length">
-      <div v-if="selectMode" class="select-controls">
-        <button class="btn btn-sm btn-secondary" @click="selectAll">Select All</button>
-        <button class="btn btn-sm btn-secondary" @click="deselectAll">Deselect All</button>
-        <span class="select-count">{{ selectedCoinIds.size }} selected</span>
-      </div>
-      <SwipeGallery v-if="isPwa && viewMode === 'swipe' && !selectMode" :coins="store.coins" />
-      <div v-else class="coins-grid">
-        <CoinCard
-          v-for="coin in store.coins"
-          :key="coin.id"
-          :coin="coin"
-          :image-side="gridSide"
-          :selectable="selectMode"
-          :selected="selectedCoinIds.has(coin.id)"
-          @toggle-select="toggleCoinSelect"
-        />
-      </div>
-    </template>
-
-    <div v-else class="empty-state">
-      <h3>{{ search || selectedCategory ? 'No coins match your search' : 'Your collection is empty' }}</h3>
-      <p>{{ search || selectedCategory ? 'Try different filters' : 'Add your first coin to get started' }}</p>
-      <router-link v-if="!search && !selectedCategory" to="/add" class="btn btn-primary" style="margin-top: 1rem">
-        Add Your First Coin
-      </router-link>
-    </div>
+    <CollectionContent
+      :loading="store.loading"
+      :coins="store.coins"
+      :select-mode="selectMode"
+      :selected-coin-ids="selectedCoinIds"
+      :selected-count="selectedCoinIds.size"
+      :is-pwa="isPwa"
+      :view-mode="viewMode"
+      :grid-side="gridSide"
+      :has-filters="!!(search || selectedCategory)"
+      @select-all="selectAll"
+      @deselect-all="deselectAll"
+      @toggle-coin-select="toggleCoinSelect"
+    />
 
     <CollectionPagination
       :page="page"
@@ -158,28 +75,20 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { useCoinsStore } from '@/stores/coins'
-import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
 import type { ImageType } from '@/types'
 import { bulkAction } from '@/api/client'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useBulkSelect } from '@/composables/useBulkSelect'
 import { usePwa } from '@/composables/usePwa'
 import { useCollectionFilters } from '@/composables/useCollectionFilters'
-import CoinCard from '@/components/CoinCard.vue'
-import SwipeGallery from '@/components/SwipeGallery.vue'
-import CategoryFilter from '@/components/CategoryFilter.vue'
-import SearchBar from '@/components/SearchBar.vue'
-import SortSelect from '@/components/SortSelect.vue'
+import PwaCollectionHeader from '@/components/collection/PwaCollectionHeader.vue'
+import DesktopCollectionHeader from '@/components/collection/DesktopCollectionHeader.vue'
+import CollectionContent from '@/components/collection/CollectionContent.vue'
 import CollectionPagination from '@/components/CollectionPagination.vue'
 import BulkActionBar from '@/components/BulkActionBar.vue'
 import BulkTagPickerModal from '@/components/BulkTagPickerModal.vue'
 
-import { Layers, LayoutGrid, CirclePlus, SlidersHorizontal, CheckSquare } from 'lucide-vue-next'
-
 const store = useCoinsStore()
-const auth = useAuthStore()
-const router = useRouter()
 
 const {
   selectedCategory, search, page, sortKey, selectedTag, userTags,
@@ -190,7 +99,6 @@ const menuOpen = ref(false)
 
 onMounted(fetchUserTags)
 
-// Use saved preference if set, otherwise default to swipe in PWA mode
 const savedView = localStorage.getItem('defaultView') as 'grid' | 'swipe' | null
 const { isPwa } = usePwa()
 const viewMode = ref<'grid' | 'swipe'>(isPwa ? (savedView || 'swipe') : 'grid')
@@ -209,7 +117,6 @@ const { pullDistance, refreshing } = usePullToRefresh(pullContainer, async () =>
 
 loadCoins()
 
-// Select mode state
 const selectMode = ref(false)
 const selectedCoinIds = ref(new Set<number>())
 const showTagPicker = ref(false)
@@ -282,226 +189,9 @@ async function bulkTag(tagId: number) {
     alert('Failed to apply tag')
   }
 }
-
 </script>
 
 <style scoped>
-/* --- PWA compact header --- */
-.pwa-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-  position: sticky;
-  top: 60px;
-  z-index: 150;
-  background: var(--bg-primary);
-  padding: 0.5rem 0;
-}
-
-.pwa-header :deep(.search-bar) {
-  flex: 1;
-  max-width: none;
-}
-
-.hamburger-wrapper {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.hamburger-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.hamburger-btn.active,
-.hamburger-btn:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-  background: var(--accent-gold-dim);
-}
-
-/* --- PWA popover menu --- */
-.pwa-menu {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  right: 0;
-  z-index: 100;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 1rem;
-  min-width: 260px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-}
-
-.pwa-menu-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-}
-
-.pwa-menu-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.pwa-menu-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
-.pwa-menu-row {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.pwa-add-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  text-decoration: none;
-}
-
-/* Menu slide transition */
-.menu-slide-enter-active,
-.menu-slide-leave-active {
-  transition: all 0.2s ease;
-}
-.menu-slide-enter-from,
-.menu-slide-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-/* --- Desktop sticky header --- */
-.desktop-sticky-header {
-  position: sticky;
-  top: 60px;
-  z-index: 50;
-  background: var(--bg-primary);
-  padding-bottom: 0.5rem;
-  margin: 0 -2rem;
-  padding-left: 2rem;
-  padding-right: 2rem;
-}
-
-/* --- Desktop header --- */
-.collection-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.header-spacer {
-  flex: 1;
-}
-
-.collection-header :deep(.search-bar) {
-  flex: 0 1 600px;
-}
-
-.collection-header :deep(.search-input) {
-  padding: 0.75rem 2.5rem;
-  font-size: 0.95rem;
-}
-
-.header-sort {
-  flex: 1;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.collection-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
-
-.toolbar-filters {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.tag-filter-select {
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-card);
-  color: var(--text-primary);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.pwa-tag-select {
-  width: 100%;
-}
-
-.toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.view-toggle {
-  display: flex;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-.view-btn {
-  padding: 0.4rem 0.6rem;
-  border: none;
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  line-height: 1;
-}
-
-.view-btn.active {
-  background: var(--accent-gold-dim);
-  color: var(--accent-gold);
-}
-
-.view-btn:hover:not(.active) {
-  background: var(--bg-card-hover);
-}
-
-.face-filter {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-
-/* --- Pull to refresh --- */
 .pull-indicator {
   position: fixed;
   left: 50%;
@@ -545,47 +235,4 @@ async function bulkTag(tagId: number) {
   color: var(--text-secondary);
   white-space: nowrap;
 }
-
-@media (max-width: 768px) {
-  .collection-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .header-spacer {
-    display: none;
-  }
-
-  .header-sort {
-    justify-content: flex-start;
-  }
-
-  .collection-header :deep(.search-bar) {
-    max-width: 100%;
-  }
-
-  .collection-header :deep(.search-input) {
-    padding: 0.6rem 2.5rem;
-    font-size: 0.85rem;
-  }
-
-  .header-filters {
-    justify-content: flex-start;
-  }
-}
-
-/* --- Select mode controls --- */
-.select-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.select-count {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  margin-left: 0.5rem;
-}
-
 </style>

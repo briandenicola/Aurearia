@@ -1,0 +1,167 @@
+<template>
+  <div class="desktop-sticky-header">
+    <div class="page-header collection-header">
+      <div class="header-spacer"></div>
+      <SearchBar :modelValue="search" @update:modelValue="$emit('update:search', $event)" />
+      <div class="header-sort">
+        <SortSelect :modelValue="sortKey" @update:modelValue="$emit('update:sortKey', $event)" />
+      </div>
+    </div>
+
+    <div class="collection-toolbar">
+      <div class="toolbar-filters">
+        <CategoryFilter :modelValue="selectedCategory" @update:modelValue="$emit('update:selectedCategory', $event)" />
+        <select v-if="userTags.length" :value="selectedTag" @change="$emit('update:selectedTag', ($event.target as HTMLSelectElement).value)" class="tag-filter-select">
+          <option value="">All Tags</option>
+          <option v-for="tag in userTags" :key="tag.id" :value="String(tag.id)">{{ tag.name }}</option>
+        </select>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn" :class="selectMode ? 'btn-primary' : 'btn-secondary'" @click="$emit('toggle-select-mode')">
+          <CheckSquare :size="16" /> {{ selectMode ? 'Cancel' : 'Select' }}
+        </button>
+        <div class="face-filter">
+          <button class="chip" :class="{ active: gridSide === 'obverse' }" @click="$emit('update:gridSide', gridSide === 'obverse' ? null : 'obverse')">
+            Obverse
+          </button>
+          <button class="chip" :class="{ active: gridSide === 'reverse' }" @click="$emit('update:gridSide', gridSide === 'reverse' ? null : 'reverse')">
+            Reverse
+          </button>
+        </div>
+        <router-link to="/add" class="btn btn-primary"><CirclePlus :size="16" /> Add Coin</router-link>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import type { ImageType, Tag } from '@/types'
+import CategoryFilter from '@/components/CategoryFilter.vue'
+import SearchBar from '@/components/SearchBar.vue'
+import SortSelect from '@/components/SortSelect.vue'
+import { CirclePlus, CheckSquare } from 'lucide-vue-next'
+
+defineProps<{
+  search: string
+  selectMode: boolean
+  selectedCategory: string
+  selectedTag: string
+  userTags: Tag[]
+  sortKey: string
+  gridSide: ImageType | null
+}>()
+
+defineEmits<{
+  'update:search': [value: string]
+  'update:selectedCategory': [value: string]
+  'update:selectedTag': [value: string]
+  'update:sortKey': [value: string]
+  'update:gridSide': [value: ImageType | null]
+  'toggle-select-mode': []
+}>()
+</script>
+
+<style scoped>
+.desktop-sticky-header {
+  position: sticky;
+  top: 60px;
+  z-index: 50;
+  background: var(--bg-primary);
+  padding-bottom: 0.5rem;
+  margin: 0 -2rem;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+.collection-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-spacer {
+  flex: 1;
+}
+
+.collection-header :deep(.search-bar) {
+  flex: 0 1 600px;
+}
+
+.collection-header :deep(.search-input) {
+  padding: 0.75rem 2.5rem;
+  font-size: 0.95rem;
+}
+
+.header-sort {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.collection-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tag-filter-select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.face-filter {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .collection-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-spacer {
+    display: none;
+  }
+
+  .header-sort {
+    justify-content: flex-start;
+  }
+
+  .collection-header :deep(.search-bar) {
+    max-width: 100%;
+  }
+
+  .collection-header :deep(.search-input) {
+    padding: 0.6rem 2.5rem;
+    font-size: 0.85rem;
+  }
+
+  .header-filters {
+    justify-content: flex-start;
+  }
+}
+</style>
