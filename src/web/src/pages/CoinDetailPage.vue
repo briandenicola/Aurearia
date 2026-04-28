@@ -390,36 +390,24 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
   margin-bottom: 0;
 }
 
-/* Desktop: sticky action bar below fixed navbar */
+/* Desktop: sticky action bar below fixed navbar (nav-content is 60px + 1px border = 61px) */
 @media (min-width: 769px) {
   .sticky-action-bar {
     position: sticky;
-    top: 76px;
+    top: 61px;
     z-index: 10;
     background: var(--bg-primary);
     padding: 0.75rem 0;
     border-bottom: 1px solid var(--border-subtle);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
-  /* Extend background downward to seal any sub-pixel gap */
-  .sticky-action-bar::after {
-    content: '';
-    display: block;
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -8px;
-    height: 8px;
-    background: var(--bg-primary);
-    z-index: -1;
-  }
 }
 
-/* Desktop: sticky image sidebar — clear navbar (76px) + action bar (~52px) */
+/* Desktop: sticky image sidebar — clear navbar (61px) + action bar (~60px) */
 @media (min-width: 769px) {
   .detail-images {
     position: sticky;
-    top: 140px;
+    top: 125px;
     height: fit-content;
   }
 }
