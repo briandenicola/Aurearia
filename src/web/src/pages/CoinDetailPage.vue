@@ -301,9 +301,6 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
 }
 
 .detail-images {
-  position: sticky;
-  top: 1rem;
-  height: fit-content;
   align-self: start;
 }
 
@@ -391,14 +388,21 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
   margin-bottom: 0;
 }
 
+/* Desktop: sticky image sidebar */
+@media (min-width: 769px) {
+  .detail-images {
+    position: sticky;
+    top: 1rem;
+    height: fit-content;
+  }
+}
+
+/* Mobile: single-column, no sticky */
 @media (max-width: 768px) {
   .detail-layout {
     grid-template-columns: 1fr;
   }
   .detail-images { order: 1; }
   .detail-info { order: 2; }
-  .detail-dashboard {
-    grid-template-columns: 1fr;
-  }
 }
 </style>
