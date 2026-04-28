@@ -151,6 +151,24 @@ a:hover {
 }
 
 /* Section label — consistent uppercase label above grouped content */
+/* Section content card — shared card treatment for content areas */
+.section-content-card {
+  padding: 0.75rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.section-content-card p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+}
+
+.section-content-card p:last-child {
+  margin-bottom: 0;
+}
+
 .section-label {
   font-family: 'Inter', sans-serif;
   font-size: 0.7rem;
