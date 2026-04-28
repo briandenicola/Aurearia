@@ -33,7 +33,7 @@ const router = useRouter()
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0;
 }
 
 .detail-actions {
@@ -41,9 +41,9 @@ const router = useRouter()
   gap: 0.5rem;
 }
 
-@media (min-width: 769px) {
+@media (max-width: 768px) {
   .detail-header {
-    margin-bottom: 0;
+    margin-bottom: 1.5rem;
   }
 }
 </style>
