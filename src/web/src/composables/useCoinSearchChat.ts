@@ -193,7 +193,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
             scrapedUrl = scraped.data.imageUrl || ''
           }
           if (scrapedUrl) {
-            console.log('[agent] Downloading scraped image:', scrapedUrl)
+            // downloading scraped image
             const imgRes = await proxyImage(scrapedUrl)
             const blob = imgRes.data as Blob
             if (blob.size > 0) {
@@ -201,7 +201,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
               const file = new File([blob], `obverse${ext}`, { type: blob.type || 'image/jpeg' })
               await uploadImage(created.data.id, file, 'obverse', true)
               imageAttached = true
-              console.log('[agent] Image attached via scraping')
+              // image attached via scraping
             }
           }
         } catch (err) {
@@ -211,7 +211,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
 
       if (!imageAttached && coin.imageUrl) {
         try {
-          console.log('[agent] Trying agent imageUrl:', coin.imageUrl)
+          // trying agent imageUrl
           const imgRes = await proxyImage(coin.imageUrl)
           const blob = imgRes.data as Blob
           if (blob.size > 0) {
@@ -219,7 +219,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
             const file = new File([blob], `obverse${ext}`, { type: blob.type || 'image/jpeg' })
             await uploadImage(created.data.id, file, 'obverse', true)
             imageAttached = true
-            console.log('[agent] Image attached via agent imageUrl')
+            // image attached via agent imageUrl
           }
         } catch (err) {
           console.warn('[agent] Agent imageUrl download failed:', coin.imageUrl, err)
