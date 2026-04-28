@@ -41,4 +41,9 @@ const router = useRouter()
   gap: 0.5rem;
 }
 
+@media (min-width: 769px) {
+  .detail-header {
+    margin-bottom: 0;
+  }
+}
 </style>
