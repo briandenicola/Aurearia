@@ -89,8 +89,8 @@
 
       <CoinNumistaPanel
         :coin-name="coinName"
-        :coin-ruler="coinRuler"
-        :coin-denomination="coinDenomination"
+        :coin-ruler="coinRuler ?? ''"
+        :coin-denomination="coinDenomination ?? ''"
       />
     </div>
   </div>
