@@ -162,153 +162,156 @@
             <p v-if="coin.listingCheckReason" class="listing-reason">{{ coin.listingCheckReason }}</p>
             <p v-if="coin.listingCheckedAt" class="listing-checked-at">Last checked: {{ formatListingDate(coin.listingCheckedAt) }}</p>
           </div>
-        </div>
 
-        <!-- Actions -->
-        <div class="detail-actions">
-          <h2>Actions</h2>
+          <!-- Dashboard: Actions + AI Analysis side-by-side on desktop -->
+          <div class="detail-dashboard">
+            <!-- Actions -->
+            <div class="detail-actions">
+              <h2>Actions</h2>
 
-          <div class="section-content-card">
-          <div class="upload-section">
-            <h3>Upload Images</h3>
-            <div class="upload-content">
-              <div class="upload-row">
-                <select v-model="uploadType" class="form-select upload-select">
-                  <option value="obverse">Obverse</option>
-                  <option value="reverse">Reverse</option>
-                  <option value="detail">Detail</option>
-                  <option value="other">Other</option>
-                </select>
-                <label class="btn btn-secondary btn-sm upload-btn">
-                  Choose File
-                  <input type="file" accept="image/*" hidden @change="handleImageUpload" />
-                </label>
-                <label v-if="isPwa" class="btn btn-secondary btn-sm upload-btn camera-btn">
-                  <Camera :size="14" /> Photo
-                  <input type="file" accept="image/*" capture="environment" hidden @change="handleImageUpload" />
-                </label>
-              </div>
+              <div class="section-content-card">
+              <div class="upload-section">
+                <h3>Upload Images</h3>
+                <div class="upload-content">
+                  <div class="upload-row">
+                    <select v-model="uploadType" class="form-select upload-select">
+                      <option value="obverse">Obverse</option>
+                      <option value="reverse">Reverse</option>
+                      <option value="detail">Detail</option>
+                      <option value="other">Other</option>
+                    </select>
+                    <label class="btn btn-secondary btn-sm upload-btn">
+                      Choose File
+                      <input type="file" accept="image/*" hidden @change="handleImageUpload" />
+                    </label>
+                    <label v-if="isPwa" class="btn btn-secondary btn-sm upload-btn camera-btn">
+                      <Camera :size="14" /> Photo
+                      <input type="file" accept="image/*" capture="environment" hidden @change="handleImageUpload" />
+                    </label>
+                  </div>
 
-              <div class="url-upload-row">
-                <input
-                  v-model="imageUrl"
-                  type="url"
-                  class="form-input url-input"
-                  placeholder="Or paste an image URL..."
-                  @keydown.enter="handleUrlUpload"
-                />
-                <button
-                  class="btn btn-secondary btn-sm"
-                  :disabled="!imageUrl || urlLoading"
-                  @click="handleUrlUpload"
-                >
-                  {{ urlLoading ? 'Fetching...' : 'Fetch' }}
-                </button>
-              </div>
+                  <div class="url-upload-row">
+                    <input
+                      v-model="imageUrl"
+                      type="url"
+                      class="form-input url-input"
+                      placeholder="Or paste an image URL..."
+                      @keydown.enter="handleUrlUpload"
+                    />
+                    <button
+                      class="btn btn-secondary btn-sm"
+                      :disabled="!imageUrl || urlLoading"
+                      @click="handleUrlUpload"
+                    >
+                      {{ urlLoading ? 'Fetching...' : 'Fetch' }}
+                    </button>
+                  </div>
 
-              <p v-if="uploadStatus" class="upload-status" :class="{ error: uploadError }">{{ uploadStatus }}</p>
-            </div>
-          </div>
-
-          <div class="estimate-section">
-            <div class="estimate-header">
-              <h3>AI Value Estimate</h3>
-              <button
-                class="btn btn-secondary btn-sm"
-                :disabled="estimating"
-                @click="handleEstimateValue"
-              >
-                {{ estimating ? 'Researching...' : 'Estimate Value' }}
-              </button>
-            </div>
-            <div v-if="estimating" class="estimate-loading">
-              <div class="spinner" />
-              <span>Researching current market value...</span>
-            </div>
-            <div v-if="estimateError" class="estimate-error">{{ estimateError }}</div>
-            <div v-if="valueEstimate" class="estimate-result">
-              <div class="estimate-value-row">
-                <span class="estimate-value">{{ valueEstimate.estimatedValue ? formatCurrency(valueEstimate.estimatedValue) : 'N/A' }}</span>
-                <span :class="['confidence-badge', `confidence-${valueEstimate.confidence}`]">
-                  {{ valueEstimate.confidence }} confidence
-                </span>
-              </div>
-              <p class="estimate-reasoning">{{ valueEstimate.reasoning }}</p>
-              <div v-if="valueEstimate.comparables?.length" class="estimate-comparables">
-                <h4>Comparable Listings</h4>
-                <div v-for="(comp, i) in valueEstimate.comparables" :key="i" class="comparable-item">
-                  <a v-if="comp.url" :href="comp.url" target="_blank" rel="noopener" class="comparable-source">{{ comp.source }}</a>
-                  <span v-else class="comparable-source">{{ comp.source }}</span>
-                  <span class="comparable-price">{{ comp.price }}</span>
+                  <p v-if="uploadStatus" class="upload-status" :class="{ error: uploadError }">{{ uploadStatus }}</p>
                 </div>
               </div>
-              <div class="estimate-actions">
-                <button class="btn btn-primary btn-sm" @click="applyEstimate">
-                  Apply as Current Value
-                </button>
-                <button class="btn btn-ghost btn-sm" @click="valueEstimate = null">
-                  Dismiss
-                </button>
+
+              <div class="estimate-section">
+                <div class="estimate-header">
+                  <h3>AI Value Estimate</h3>
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    :disabled="estimating"
+                    @click="handleEstimateValue"
+                  >
+                    {{ estimating ? 'Researching...' : 'Estimate Value' }}
+                  </button>
+                </div>
+                <div v-if="estimating" class="estimate-loading">
+                  <div class="spinner" />
+                  <span>Researching current market value...</span>
+                </div>
+                <div v-if="estimateError" class="estimate-error">{{ estimateError }}</div>
+                <div v-if="valueEstimate" class="estimate-result">
+                  <div class="estimate-value-row">
+                    <span class="estimate-value">{{ valueEstimate.estimatedValue ? formatCurrency(valueEstimate.estimatedValue) : 'N/A' }}</span>
+                    <span :class="['confidence-badge', `confidence-${valueEstimate.confidence}`]">
+                      {{ valueEstimate.confidence }} confidence
+                    </span>
+                  </div>
+                  <p class="estimate-reasoning">{{ valueEstimate.reasoning }}</p>
+                  <div v-if="valueEstimate.comparables?.length" class="estimate-comparables">
+                    <h4>Comparable Listings</h4>
+                    <div v-for="(comp, i) in valueEstimate.comparables" :key="i" class="comparable-item">
+                      <a v-if="comp.url" :href="comp.url" target="_blank" rel="noopener" class="comparable-source">{{ comp.source }}</a>
+                      <span v-else class="comparable-source">{{ comp.source }}</span>
+                      <span class="comparable-price">{{ comp.price }}</span>
+                    </div>
+                  </div>
+                  <div class="estimate-actions">
+                    <button class="btn btn-primary btn-sm" @click="applyEstimate">
+                      Apply as Current Value
+                    </button>
+                    <button class="btn btn-ghost btn-sm" @click="valueEstimate = null">
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <CoinNumistaPanel
+                :coin-name="coin.name"
+                :coin-ruler="coin.ruler"
+                :coin-denomination="coin.denomination"
+              />
               </div>
             </div>
-          </div>
 
-          <CoinNumistaPanel
-            :coin-name="coin.name"
-            :coin-ruler="coin.ruler"
-            :coin-denomination="coin.denomination"
-          />
-          </div>
-        </div>
+            <!-- AI Analysis -->
+            <div class="detail-ai">
+              <div class="ai-analysis-section">
+                <h3>AI Analysis</h3>
+                <div class="ai-analysis-content">
+                  <div class="ai-buttons">
+                    <button
+                      class="btn btn-primary btn-sm"
+                      :disabled="analyzing || !hasObverse || !ollamaAvailable"
+                      :title="!ollamaAvailable ? ollamaMessage : !hasObverse ? 'No obverse image' : ''"
+                      @click="handleAnalyze('obverse')"
+                    >
+                      {{ analyzingSide === 'obverse' ? 'Analyzing...' : 'Analyze Obverse' }}
+                    </button>
+                    <button
+                      class="btn btn-primary btn-sm"
+                      :disabled="analyzing || !hasReverse || !ollamaAvailable"
+                      :title="!ollamaAvailable ? ollamaMessage : !hasReverse ? 'No reverse image' : ''"
+                      @click="handleAnalyze('reverse')"
+                    >
+                      {{ analyzingSide === 'reverse' ? 'Analyzing...' : 'Analyze Reverse' }}
+                    </button>
+                  </div>
+                  <p v-if="!ollamaAvailable" class="ai-unavailable">AI unavailable — configure Ollama in Admin → AI Configuration</p>
 
-        <!-- AI Analysis -->
-        <div class="detail-ai">
-          <div class="ai-analysis-section">
-            <h3>AI Analysis</h3>
-            <div class="ai-analysis-content">
-              <div class="ai-buttons">
-                <button
-                  class="btn btn-primary btn-sm"
-                  :disabled="analyzing || !hasObverse || !ollamaAvailable"
-                  :title="!ollamaAvailable ? ollamaMessage : !hasObverse ? 'No obverse image' : ''"
-                  @click="handleAnalyze('obverse')"
-                >
-                  {{ analyzingSide === 'obverse' ? 'Analyzing...' : 'Analyze Obverse' }}
-                </button>
-                <button
-                  class="btn btn-primary btn-sm"
-                  :disabled="analyzing || !hasReverse || !ollamaAvailable"
-                  :title="!ollamaAvailable ? ollamaMessage : !hasReverse ? 'No reverse image' : ''"
-                  @click="handleAnalyze('reverse')"
-                >
-                  {{ analyzingSide === 'reverse' ? 'Analyzing...' : 'Analyze Reverse' }}
-                </button>
-              </div>
-              <p v-if="!ollamaAvailable" class="ai-unavailable">AI unavailable — configure Ollama in Admin → AI Configuration</p>
+                  <div v-if="coin.obverseAnalysis" class="ai-result-section">
+                    <div class="ai-result-header">
+                      <h5 class="ai-result-heading">Obverse Analysis</h5>
+                      <button class="btn btn-ghost btn-xs" @click="handleDeleteAnalysis('obverse')">Remove</button>
+                    </div>
+                    <div class="ai-content" v-html="renderedObverse"></div>
+                  </div>
 
-              <div v-if="coin.obverseAnalysis" class="ai-result-section">
-                <div class="ai-result-header">
-                  <h5 class="ai-result-heading">Obverse Analysis</h5>
-                  <button class="btn btn-ghost btn-xs" @click="handleDeleteAnalysis('obverse')">Remove</button>
+                  <div v-if="coin.reverseAnalysis" class="ai-result-section">
+                    <div class="ai-result-header">
+                      <h5 class="ai-result-heading">Reverse Analysis</h5>
+                      <button class="btn btn-ghost btn-xs" @click="handleDeleteAnalysis('reverse')">Remove</button>
+                    </div>
+                    <div class="ai-content" v-html="renderedReverse"></div>
+                  </div>
+
+                  <div v-if="coin.aiAnalysis && !coin.obverseAnalysis && !coin.reverseAnalysis" class="ai-result-section">
+                    <div class="ai-content" v-html="renderedLegacy"></div>
+                  </div>
+
+                  <p v-if="!coin.obverseAnalysis && !coin.reverseAnalysis && !coin.aiAnalysis && ollamaAvailable" class="ai-empty">
+                    Upload images and click an analyze button to get an expert assessment.
+                  </p>
                 </div>
-                <div class="ai-content" v-html="renderedObverse"></div>
               </div>
-
-              <div v-if="coin.reverseAnalysis" class="ai-result-section">
-                <div class="ai-result-header">
-                  <h5 class="ai-result-heading">Reverse Analysis</h5>
-                  <button class="btn btn-ghost btn-xs" @click="handleDeleteAnalysis('reverse')">Remove</button>
-                </div>
-                <div class="ai-content" v-html="renderedReverse"></div>
-              </div>
-
-              <div v-if="coin.aiAnalysis && !coin.obverseAnalysis && !coin.reverseAnalysis" class="ai-result-section">
-                <div class="ai-content" v-html="renderedLegacy"></div>
-              </div>
-
-              <p v-if="!coin.obverseAnalysis && !coin.reverseAnalysis && !coin.aiAnalysis && ollamaAvailable" class="ai-empty">
-                Upload images and click an analyze button to get an expert assessment.
-              </p>
             </div>
           </div>
         </div>
@@ -670,20 +673,27 @@ function formatCurrency(value: number) {
 <style scoped>
 .detail-layout {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 400px 1fr;
   gap: 2rem;
   align-items: start;
-  max-width: 1000px;
+  max-width: 1400px;
   margin-left: auto;
   margin-right: auto;
 }
 
-.detail-ai {
-  grid-column: 1 / -1;
+.detail-images {
+  position: sticky;
+  top: 1rem;
+  height: fit-content;
+  align-self: start;
 }
 
-.detail-actions {
-  grid-column: 1 / -1;
+/* Dashboard: Actions + AI side-by-side on desktop */
+.detail-dashboard {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
 }
 
 .detail-actions h2 {
@@ -1273,8 +1283,9 @@ function formatCurrency(value: number) {
   }
   .detail-images { order: 1; }
   .detail-info { order: 2; }
-  .detail-actions { order: 3; }
-  .detail-ai { order: 4; }
+  .detail-dashboard {
+    grid-template-columns: 1fr;
+  }
   .info-grid {
     grid-template-columns: 1fr 1fr;
   }
