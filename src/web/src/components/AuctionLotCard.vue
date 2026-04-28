@@ -42,6 +42,7 @@
 import type { AuctionLot } from '@/types'
 import { computed } from 'vue'
 import { Gavel, Check } from 'lucide-vue-next'
+import { formatCurrency } from '@/utils/format'
 
 const props = withDefaults(defineProps<{
   lot: AuctionLot
@@ -95,9 +96,7 @@ const saleCountdown = computed(() => {
   return `${hours}h away`
 })
 
-function formatCurrency(value: number, currency?: string) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD' }).format(value)
-}
+
 </script>
 
 <style scoped>

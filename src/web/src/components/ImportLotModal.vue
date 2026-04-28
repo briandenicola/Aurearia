@@ -50,6 +50,7 @@ import { ref } from 'vue'
 import { importAuctionLot, scrapeImage } from '@/api/client'
 import type { AuctionLot } from '@/types'
 import { X, Loader2 } from 'lucide-vue-next'
+import { formatCurrency } from '@/utils/format'
 
 const emit = defineEmits<{
   close: []
@@ -62,9 +63,6 @@ const importing = ref(false)
 const error = ref('')
 const preview = ref<AuctionLot | null>(null)
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
-}
 
 function proxiedUrl(imageUrl: string): string {
   if (!imageUrl) return ''

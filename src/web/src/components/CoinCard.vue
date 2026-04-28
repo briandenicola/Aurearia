@@ -91,6 +91,7 @@ import type { Coin, ImageType } from '@/types'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Coins, ShoppingCart, Check } from 'lucide-vue-next'
+import { formatCurrency } from '@/utils/format'
 
 const router = useRouter()
 
@@ -144,11 +145,7 @@ const cardInscription = computed(() => {
   return props.coin.obverseInscription || props.coin.reverseInscription || ''
 })
 
-const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
 
-function formatCurrency(value: number) {
-  return currencyFormatter.format(value)
-}
 </script>
 
 <style scoped>

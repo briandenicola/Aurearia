@@ -289,6 +289,7 @@ import { useRouter } from 'vue-router'
 import { getCoinValueHistory, getDistribution } from '@/api/client'
 import type { CoinValueHistory } from '@/types'
 import PullToRefresh from '@/components/PullToRefresh.vue'
+import { formatCurrency } from '@/utils/format'
 
 const store = useCoinsStore()
 const router = useRouter()
@@ -424,9 +425,6 @@ watch(selectedCoinId, async (id) => {
   }
 })
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value)
-}
 
 function formatShortDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })

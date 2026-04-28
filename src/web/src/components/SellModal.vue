@@ -50,6 +50,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import type { Coin } from '@/types'
+import { formatCurrency } from '@/utils/format'
 
 const props = defineProps<{
   coin: Coin
@@ -70,9 +71,7 @@ onMounted(() => {
   priceInput.value?.focus()
 })
 
-function formatCurrency(val: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val)
-}
+
 
 function handleSubmit() {
   error.value = ''

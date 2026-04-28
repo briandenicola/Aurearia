@@ -216,6 +216,7 @@ import ImportLotModal from '@/components/ImportLotModal.vue'
 import PullToRefresh from '@/components/PullToRefresh.vue'
 import { Plus, CirclePlus, X, ExternalLink, ArrowRightCircle, Trash2, RefreshCw, CalendarDays, CheckSquare } from 'lucide-vue-next'
 import { usePwa } from '@/composables/usePwa'
+import { formatCurrency } from '@/utils/format'
 
 const router = useRouter()
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
@@ -408,10 +409,6 @@ async function syncWatchlist() {
   } finally {
     syncing.value = false
   }
-}
-
-function formatCurrency(value: number, currency?: string) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD' }).format(value)
 }
 
 function formatDate(dateStr: string) {
