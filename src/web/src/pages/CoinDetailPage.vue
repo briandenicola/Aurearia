@@ -397,9 +397,13 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
     top: 76px;
     z-index: 10;
     background: var(--bg-primary);
-    padding: 0.75rem 0 1rem;
+    padding: 0.75rem 0 0.75rem;
     border-bottom: 1px solid var(--border-subtle);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    margin-bottom: 0;
+  }
+  .sticky-action-bar :deep(.detail-header) {
+    margin-bottom: 0;
   }
 }
 
