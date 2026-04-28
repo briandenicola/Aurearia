@@ -56,7 +56,7 @@ Ancient Coins is a full-stack PWA for managing a personal ancient coin collectio
 
 | Service | Tech Stack | Port | Path |
 |---------|-----------|------|------|
-| **Go API** | Go 1.26, Gin, GORM, SQLite | 8080 | `src/api/` |
+| **Go API** | Go 1.26.1, Gin, GORM, SQLite | 8080 | `src/api/` |
 | **Vue Frontend** | Vue 3, TypeScript, Pinia, Vite, PWA | (bundled) | `src/web/` |
 | **Python Agent** | Python 3.12, FastAPI, LangGraph, LangChain | 8081 | `src/agent/` |
 
@@ -185,7 +185,6 @@ All wiring happens in `main.go` following this sequence:
 ```
 config.Load()
     → database.Connect(cfg.DBPath)
-    → services.InitSettings(database.DB)
     → construct repositories (each takes *gorm.DB)
     → construct services (take repos + config)
     → construct handlers (take repos + services)
@@ -201,8 +200,8 @@ Three route groups with distinct auth levels:
 | Group | Prefix | Auth | Example Routes |
 |-------|--------|------|----------------|
 | `api` (public) | `/api` | None (rate-limited) | `/auth/login`, `/auth/register`, `/auth/refresh`, `/auth/webauthn/*`, `/showcase/:slug` |
-| `protected` | `/api` | JWT or API Key | `/coins`, `/agent/chat`, `/auctions`, `/stats`, `/social/*`, `/notifications` |
-| `admin` | `/api/admin` | JWT + admin role | `/users`, `/settings`, `/logs`, `/availability-runs`, `/valuation-runs` |
+| `protected` | `/api` | JWT or API Key | `/coins`, `/coins/bulk`, `/agent/chat`, `/agent/status`, `/auctions`, `/stats`, `/social/*`, `/notifications`, `/calendar/*`, `/alerts`, `/reminders`, `/showcases/*`, `/api-keys` |
+| `admin` | `/api/admin` | JWT + admin role | `/users`, `/settings`, `/logs`, `/availability-runs`, `/valuation-runs`, `/valuation-runs/trigger`, `/test-anthropic`, `/test-searxng` |
 
 ### Shared GORM Scopes
 

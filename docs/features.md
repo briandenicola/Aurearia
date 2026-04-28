@@ -8,18 +8,20 @@ Detailed feature documentation for Ancient Coins. For a quick overview, see the 
 
 The main collection page supports browsing your coins with filtering, search, and sorting:
 
-- **Card Gallery** — Responsive card grid showing each coin's primary image with name, ruler, denomination, and category. Supports filtering by category (Roman, Greek, Byzantine, Modern) and full-text search across all fields.
+- **Card Gallery** — Responsive card grid showing each coin's primary image with name, ruler, denomination, and category. Supports filtering by category (Roman, Greek, Byzantine, Modern), tag filter, and full-text search across all fields.
+- **Face Toggle** — Switch between obverse and reverse images on coin cards (grid mode).
 - **Sorting** — Sort by date added, date last updated, or current value (ascending or descending).
 - **Swipe / Grid Toggle** — Switch between a swipeable card carousel (ideal for mobile/PWA) and a traditional grid layout. Default view preference is configurable in Settings.
 - **Pagination** — Coins are loaded with pagination for large collections.
 - **Category Colors** — Each category has a distinct color accent: purple for Roman, olive for Greek, red for Byzantine, and steel blue for Modern.
+- **Bulk Select Mode** — Enter select mode to multi-select coins for batch operations (tagging, status changes, export). In PWA mode, a dedicated "Select" button appears in the header.
 
 ## Wish List
 
 Track coins you'd like to acquire with an AI-powered search agent:
 
 - **Add to Wish List** — When creating a coin, toggle the "Wishlist" flag. The coin appears in the dedicated Wish List view instead of the main collection.
-- **AI Coin Search Agent** — Click "Find Coins" to open a chat drawer powered by Anthropic Claude with web search. Describe the coins you're looking for (e.g., "Roman silver denarii of Julius Caesar under $500") and the agent searches the web for real listings and references. Results appear as cards with images, metadata, estimated prices, and source links — each with an "Add to Wishlist" button for one-click import.
+- **AI Coin Search Agent** — Click "Find Coins" to open a chat drawer powered by the AI agent service (Anthropic Claude or Ollama, configurable in Admin). Describe the coins you're looking for (e.g., "Roman silver denarii of Julius Caesar under $500") and the agent searches the web for real listings and references. Results appear as cards with images, metadata, estimated prices, and source links — each with an "Add to Wishlist" button for one-click import.
 - **Purchase** — Move a wishlist coin to your main collection when you acquire it. A styled purchase modal prompts for the purchase price and date, replacing the default browser confirm dialog.
 - **Wish List Gallery** — A separate page showing only wishlist items with sorting support.
 - **Availability Check** — Click "Check Availability" on the Wish List page to verify whether listed coins are still for sale. The system visits each coin's reference URL and uses HTTP status codes plus keyword heuristics (sold indicators, buy-now buttons) to determine listing status. Ambiguous results are escalated to the AI agent (Team 6) for deeper analysis. Results show as a summary banner (available / unavailable / unknown counts) and per-card status indicators (green dot, red "Unavailable" overlay, amber dot). Unavailable coins can be dismissed to clear the status.
@@ -72,7 +74,7 @@ To enable AI analysis:
 
 ## AI Coin Search Agent
 
-Chat with an AI agent that searches the web for coins matching your description. Powered by Anthropic Claude with the web search tool, the agent returns structured coin suggestions with names, categories, materials, price estimates, and source links. Each suggestion can be added to your wishlist with one click.
+Chat with an AI agent that searches the web for coins matching your description. Powered by the multi-agent Python service (supports Anthropic Claude with built-in web search or Ollama with SearXNG), the agent returns structured coin suggestions with names, categories, materials, price estimates, and source links. Each suggestion can be added to your wishlist with one click.
 
 Key features:
 
@@ -156,6 +158,7 @@ The first registered user is the admin. Admins can access **Admin** to manage:
 - **System** — Set the application log level (trace, debug, info, warn, error) and configure the Numista API key for catalog lookups.
 - **Logs** — View real-time application logs with level filtering, auto-refresh, and log export.
 - **Availability Checks** — Enable/disable automatic wishlist availability checking, configure the daily start time and repeat interval, and view paginated run history with per-coin drill-down results (URL, status, reason, HTTP code, whether the AI agent was used).
+- **Valuation Runs** — Scheduled collection valuation using the AI agent. Configurable interval (default: 7 days), start time (default: 03:00), and max coins per run (default: 50). View run history with per-coin results. Trigger or cancel runs manually.
 
 ## Authentication
 

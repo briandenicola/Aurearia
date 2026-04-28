@@ -70,7 +70,7 @@ service MUST respect strict boundary rules:
 
 | Service | Runtime | Responsibilities |
 |---------|---------|-----------------|
-| Go API | Go 1.26 / Gin | REST API, auth, data persistence, SSE proxy |
+| Go API | Go 1.26.1 / Gin | REST API, auth, data persistence, SSE proxy |
 | Vue SPA | Browser | UI, state management, PWA shell |
 | Python Agent | Python 3.12 / FastAPI | AI inference, LangGraph pipelines |
 
@@ -338,7 +338,7 @@ Source: `docs/authentication.md`, `docs/social-feature.md`.
 
 | Layer | Technology | Version | Path |
 |-------|-----------|---------|------|
-| Backend | Go, Gin, GORM, SQLite | Go 1.26 | `src/api/` |
+| Backend | Go, Gin, GORM, SQLite | Go 1.26.1 | `src/api/` |
 | Frontend | Vue 3, TypeScript, Pinia, Vite, PWA | Vue 3 | `src/web/` |
 | Agent | Python, FastAPI, LangGraph, LangChain | Python 3.12 | `src/agent/` |
 | Build | Multi-stage Docker, Taskfile | — | `Dockerfile`, `src/agent/Dockerfile` |

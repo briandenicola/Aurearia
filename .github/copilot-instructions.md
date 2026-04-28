@@ -9,7 +9,7 @@ Ancient Coins is a full-stack PWA for managing a personal ancient coin collectio
 
 | Layer | Tech | Path |
 |---|---|---|
-| Backend | Go 1.26, Gin, GORM, SQLite | `src/api/` |
+| Backend | Go 1.26.1, Gin, GORM, SQLite | `src/api/` |
 | Frontend | Vue 3, TypeScript, Pinia, Vite, PWA | `src/web/` |
 | Agent | Python 3.12, FastAPI, LangGraph, LangChain | `src/agent/` |
 | Build | Multi-stage Docker (2 containers) | `Dockerfile`, `src/agent/Dockerfile` |
@@ -154,12 +154,23 @@ All CSS values **must** use design tokens from `variables.css` and global classe
 | `--border-subtle` | gold 15% | Default borders |
 | `--border-accent` | gold 40% | Hover/active borders |
 | `--accent-gold` | `#c9a84c` | Primary accent, active states, links |
+| `--accent-bronze` | `#b08d57` | Secondary accent |
 | `--accent-gold-dim` | gold 30% | Active chip/pill backgrounds |
 | `--accent-gold-glow` | gold 15% | Focus rings, subtle backgrounds |
+| `--bg-card` | `#16213e` | Card backgrounds |
+| `--bg-card-hover` | `#1a2747` | Card hover state |
+| `--bg-input` | `#1e2a4a` | Input/textarea backgrounds |
 | `--text-primary` | `#e8e0d0` | Body text |
 | `--text-secondary` | `#a09880` | Secondary text, descriptions |
 | `--text-muted` | `#706858` | Labels, hints, placeholders |
 | `--text-heading` | `#d4b96a` | Headings (h1–h4) |
+| `--cat-roman` | `#9b59b6` | Roman category |
+| `--cat-greek` | `#6b8e23` | Greek category |
+| `--cat-byzantine` | `#c0392b` | Byzantine category |
+| `--cat-modern` | `#4682b4` | Modern category |
+| `--mat-gold/silver/bronze` | metal colors | Material indicators |
+| `--shadow-card` | box-shadow | Card elevation |
+| `--shadow-glow` | gold glow | Hover/focus glow effect |
 | `--transition-fast` | `0.2s ease` | Hover, focus |
 | `--transition-med` | `0.3s ease` | Layout changes |
 

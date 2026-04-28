@@ -91,7 +91,7 @@ The system provides:
 
 | Layer | Technology | Version |
 |---|---|---|
-| Backend API | Go, Gin, GORM | Go 1.26 |
+| Backend API | Go, Gin, GORM | Go 1.26.1 |
 | Frontend SPA | Vue 3, TypeScript, Pinia, Vite | Vue 3 |
 | Agent Service | Python, FastAPI, LangGraph, LangChain | Python 3.12 |
 | Database | SQLite (WAL mode) | — |
@@ -206,12 +206,13 @@ The Go API serves the Vue SPA as static files and proxies AI requests to the Pyt
 │            (shell, nav, theme)                │
 ├──────────────────────────────────────────────┤
 │                   Router                      │
-│         (auth guard, 16 routes)               │
+│         (auth guard, 23 routes)               │
 ├──────────────────────────────────────────────┤
 │                   Pages                       │
 │  Collection │ Detail │ Add/Edit │ Wishlist    │
 │  Sold │ Stats │ Timeline │ Settings │ Admin   │
 │  Followers │ Gallery │ Login │ Register       │
+│  Showcases │ Calendar │ Notifications │ Chat  │
 ├──────────────────────────────────────────────┤
 │                Components                     │
 │  CoinCard │ CoinForm │ CoinSearchChat         │

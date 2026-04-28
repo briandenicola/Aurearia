@@ -59,12 +59,18 @@ The Follow model tracks relationships between users with a **Status** field that
 
 Only **accepted followers** of **public users** can view the followed user's gallery. The gallery is read-only and limited to coin images and essential details (pricing/value and AI analysis are not shown), consistent with the original requirements.
 
+The Followers page has two tabs: **Following** (users you follow) and **Followers** (users who follow you). Pending/blocked states are surfaced in the UI with appropriate action buttons.
+
+Individual coins marked `isPrivate` are hidden from the follower gallery entirely, even for accepted followers.
+
 ### Comments & Star Ratings
 
 - Accepted followers can leave **comments** on coins belonging to users they follow.
 - Accepted followers can give a **star rating** (1–5) on coins.
 - The **coin owner** can also comment on their own coins.
 - Both the **commenter** and the **coin owner** can delete comments.
+- Comments and ratings are returned together on the follower coin detail endpoint.
+- **Private coins** (`isPrivate=true`) are blocked from follower access — comments and ratings cannot be left on private coins.
 
 > **Difference from original spec:** Star ratings (1–5) were added beyond the original requirement of comments only.
 
@@ -92,4 +98,5 @@ The following PWA layout changes from the original requirements were implemented
 ## Roadmap
 
 - Exchange or Request to Buy
-- Notification system
+
+> **Note:** The notification system listed in the original roadmap has been implemented — see `src/api/services/notification_service.go` and the notifications page in the frontend.
