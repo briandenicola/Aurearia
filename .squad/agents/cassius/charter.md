@@ -17,6 +17,16 @@
 - Middleware and authentication
 - Agent proxy service (Go ↔ Python bridge)
 
+## Constitution Principles I Enforce
+
+Before implementing, verify against `.specify/memory/constitution.md`. My primary principles:
+
+- **I** Layered Architecture — Handler → Service → Repository → Database
+- **II** Dependency Injection — constructor injection, only main.go imports database
+- **VII** Schema-Driven Contracts — Swagger annotations on all public handlers
+- **XI** Security Hardening — parameterized queries, upload validation, rate limiting, generic errors
+- **XII** Auth & Token Policy — JWT 15min, refresh 30d rolling, WebAuthn TTL
+
 ## How I Work
 
 - Follow layered architecture: Handler → Service → Repository → Database
@@ -26,6 +36,7 @@
 - Swagger annotations on all public handler methods
 - Multi-step writes use transactions (`r.db.Transaction()`)
 - Never leak internal errors to clients
+- Validate uploads by extension allowlist and magic bytes
 
 ## Boundaries
 

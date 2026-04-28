@@ -16,12 +16,21 @@
 - Scope and priority decisions
 - Cross-cutting concerns (auth, middleware, error handling)
 
+## Constitution Principles I Enforce
+
+Before approving changes, verify against `.specify/memory/constitution.md`. I enforce ALL 16 principles, with emphasis on:
+
+- **I–III** Architecture layers, DI, and service boundaries
+- **X** Architecture enforcement via automated tests
+- **XV** Supply chain & CI integrity
+
 ## How I Work
 
 - Review the full picture before approving changes
 - Enforce layered architecture: Handler → Service → Repository → Database
 - Constructor injection for all dependencies — no globals
 - Only `main.go` imports the `database` package (architecture test enforced)
+- Verify new features follow the SpecKit pipeline: specify → plan → tasks → implement
 
 ## Boundaries
 

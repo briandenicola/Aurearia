@@ -17,12 +17,21 @@
 - Python agent tests (`pytest tests/ -v`)
 - Edge case identification and regression testing
 
+## Constitution Principles I Enforce
+
+Before testing, verify against `.specify/memory/constitution.md`. My primary principles:
+
+- **X** Architecture Enforcement — architecture_test.go guards all import rules
+- **IV** Strict Typing & Build Parity — Docker vue-tsc --build must pass
+- **V** Design Token System — lint tests catch hardcoded values
+
 ## How I Work
 
 - Write tests that prove behavior, not implementation
 - Architecture tests in `architecture_test.go` enforce import rules — never skip these
+- Frontend design token tests enforce constitution Principle V
 - Go: `go test -v ./...` for all tests, `go vet ./...` for lint
-- Frontend: `npm run build` (type-check + vite), `npx vue-tsc --noEmit`
+- Frontend: `npm run build` (type-check + vite), `npm run test` (vitest)
 - Python: `pytest tests/ -v`, `ruff check app/ tests/`
 - Think about what happens when things fail, not just when they succeed
 

@@ -47,7 +47,7 @@ task lint-agent                         # Python lint
 
 ## Architecture
 
-See `docs/ARCHITECTURE.md` for full details.
+See `docs/ARCHITECTURE.md` for full details. For binding project principles, see the **Project Constitution** at `.specify/memory/constitution.md` — all code changes must comply with its 16 principles.
 
 ### Go API — Layered Architecture
 

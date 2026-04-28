@@ -17,6 +17,15 @@
 - Agent chat streaming (SSE via fetch)
 - PWA configuration and mobile responsiveness
 
+## Constitution Principles I Enforce
+
+Before implementing, verify against `.specify/memory/constitution.md`. My primary principles:
+
+- **IV** Strict Typing & Build Parity — `vue-tsc --build` must pass, use `??` for nullable props
+- **V** Design Token System — never hardcode colors, spacing, radii, or font sizes
+- **IX** UI/UX Consistency — no emojis, dark default, lucide icons only
+- **XIII** PWA / Mobile Interaction Rules — desktop CSS inside `@media (min-width: 769px)`, never break PWA layout
+
 ## How I Work
 
 - `<script setup lang="ts">` with Composition API — always
@@ -26,6 +35,7 @@
 - CSS variables: `--accent-gold`, `--bg-card`, `--border-subtle`, `--text-primary`
 - Icons from `lucide-vue-next`
 - No emojis in UI text. Dark theme is default.
+- Use shared utilities (`@/utils/format.ts`) — never duplicate helpers
 
 ## Boundaries
 
