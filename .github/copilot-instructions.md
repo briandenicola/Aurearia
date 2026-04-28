@@ -127,7 +127,7 @@ Users choose one provider in Admin Settings (`AIProvider` key):
 
 ### TypeScript / Vue
 - `<script setup lang="ts">` with Composition API
-- **Always** use optional chaining (`?.`) and nullish coalescing (`??`) on array index access — Docker builds use stricter TS checking than local `vue-tsc`
+- **Docker builds use stricter TS checking than local `vue-tsc`.** Always use optional chaining (`?.`) and nullish coalescing (`??`) on array index access. When passing nullable props (`string | null | undefined`) to a child component that expects non-nullable types (`string`), use `?? ''` (strings) or `?? 0` (numbers) at the call site. Local `vue-tsc --noEmit` may pass but Docker's `vue-tsc --build` will reject the mismatch.
 - All API calls go through `src/web/src/api/client.ts` (Axios with JWT interceptor and 401 refresh queue)
 - Agent chat streaming uses `fetch` + manual SSE parsing, not Axios
 - `sanitizeCoin()` in the API client normalizes `''`/`undefined` → `null` before sending
