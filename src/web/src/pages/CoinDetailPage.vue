@@ -104,7 +104,7 @@
             @dismissed="refreshCoin"
           />
 
-          <!-- Dashboard: Actions + AI Analysis side-by-side on desktop -->
+          <!-- Dashboard: Actions then AI Analysis stacked full-width -->
           <div class="detail-dashboard">
             <CoinActionsPanel
               :coin-id="coin.id"
@@ -307,10 +307,10 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
   align-self: start;
 }
 
-/* Dashboard: Actions + AI side-by-side on desktop */
+/* Dashboard: Actions then AI Analysis stacked full-width */
 .detail-dashboard {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 1.5rem;
   margin-top: 1.5rem;
 }
