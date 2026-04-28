@@ -401,11 +401,11 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
   }
 }
 
-/* Desktop: sticky image sidebar */
+/* Desktop: sticky image sidebar — clear navbar (76px) + action bar (~52px) */
 @media (min-width: 769px) {
   .detail-images {
     position: sticky;
-    top: 1rem;
+    top: 140px;
     height: fit-content;
   }
 }
