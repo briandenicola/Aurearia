@@ -186,15 +186,21 @@ const totalValue = computed(() =>
 async function loadCoins() {
   loading.value = true
   try {
-    // Fetch all non-wishlist coins (collection + sold)
-    const [collectionRes, soldRes] = await Promise.all([
-      getCoins({ limit: 9999, sort: 'purchase_date', order: 'desc' }),
-      getCoins({ limit: 9999, sold: 'true', sort: 'purchase_date', order: 'desc' }),
-    ])
-    const coinMap = new Map<number, Coin>()
-    for (const c of collectionRes.data.coins) coinMap.set(c.id, c)
-    for (const c of soldRes.data.coins) coinMap.set(c.id, c)
-    allCoins.value = Array.from(coinMap.values())
+    // Fetch all non-wishlist coins (collection + sold) in pages
+    const allFetched = new Map<number, Coin>()
+    for (const soldParam of [undefined, 'true'] as const) {
+      let page = 1
+      let hasMore = true
+      while (hasMore) {
+        const params: Record<string, unknown> = { limit: 100, page, sort: 'purchase_date', order: 'desc' }
+        if (soldParam) params.sold = soldParam
+        const res = await getCoins(params as Parameters<typeof getCoins>[0])
+        for (const c of res.data.coins) allFetched.set(c.id, c)
+        hasMore = res.data.coins.length === 100
+        page++
+      }
+    }
+    allCoins.value = Array.from(allFetched.values())
   } catch {
     allCoins.value = []
   } finally {
