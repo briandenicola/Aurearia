@@ -54,12 +54,12 @@
         <thead>
           <tr>
             <th>Date</th>
-            <th>Trigger</th>
+            <th class="hide-mobile">Trigger</th>
             <th>Checked</th>
-            <th>Avail</th>
+            <th class="hide-mobile">Avail</th>
             <th>Unavail</th>
-            <th>Unknown</th>
-            <th>Errors</th>
+            <th class="hide-mobile">Unknown</th>
+            <th class="hide-mobile">Errors</th>
             <th>Duration</th>
           </tr>
         </thead>
@@ -67,16 +67,16 @@
           <template v-for="run in availRuns" :key="run.id">
             <tr class="avail-row" :class="{ 'avail-row-expanded': expandedRunId === run.id }" @click="toggleRunDetail(run.id)">
               <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
-              <td>{{ run.triggerType }}</td>
+              <td class="hide-mobile">{{ run.triggerType }}</td>
               <td>{{ run.coinsChecked }}</td>
-              <td class="avail-count-available">{{ run.available }}</td>
+              <td class="hide-mobile avail-count-available">{{ run.available }}</td>
               <td class="avail-count-unavailable">{{ run.unavailable }}</td>
-              <td class="avail-count-unknown">{{ run.unknown }}</td>
-              <td>{{ run.errors }}</td>
+              <td class="hide-mobile avail-count-unknown">{{ run.unknown }}</td>
+              <td class="hide-mobile">{{ run.errors }}</td>
               <td>{{ formatDuration(run.durationMs) }}</td>
             </tr>
             <tr v-if="expandedRunId === run.id && expandedResults" class="avail-detail-row">
-              <td colspan="8">
+              <td :colspan="availColspan">
                 <div v-if="expandedLoading" class="loading-overlay"><div class="spinner"></div></div>
                 <table v-else-if="expandedResults.length" class="avail-detail-table">
                   <thead>
@@ -184,12 +184,12 @@
         <thead>
           <tr>
             <th>Date</th>
-            <th>Trigger</th>
+            <th class="hide-mobile">Trigger</th>
             <th>Status</th>
             <th>Checked</th>
-            <th>Updated</th>
-            <th>Skipped</th>
-            <th>Errors</th>
+            <th class="hide-mobile">Updated</th>
+            <th class="hide-mobile">Skipped</th>
+            <th class="hide-mobile">Errors</th>
             <th>Duration</th>
           </tr>
         </thead>
@@ -197,7 +197,7 @@
           <template v-for="run in valRuns" :key="run.id">
             <tr class="avail-row" :class="{ 'avail-row-expanded': valExpandedRunId === run.id }" @click="toggleValRunDetail(run.id)">
               <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
-              <td>{{ run.triggerType }}</td>
+              <td class="hide-mobile">{{ run.triggerType }}</td>
               <td>
                 <span class="val-status-badge" :class="'val-status-' + run.status">{{ run.status }}</span>
                 <span v-if="run.status === 'running' && run.totalCoins > 0" class="val-progress">
@@ -206,13 +206,13 @@
                 <button v-if="run.status === 'running'" class="btn-cancel-run" @click.stop="cancelRun(run.id)">Cancel</button>
               </td>
               <td>{{ run.coinsChecked }}</td>
-              <td class="avail-count-available">{{ run.coinsUpdated }}</td>
-              <td class="avail-count-unknown">{{ run.coinsSkipped }}</td>
-              <td class="avail-count-unavailable">{{ run.errors }}</td>
+              <td class="hide-mobile avail-count-available">{{ run.coinsUpdated }}</td>
+              <td class="hide-mobile avail-count-unknown">{{ run.coinsSkipped }}</td>
+              <td class="hide-mobile avail-count-unavailable">{{ run.errors }}</td>
               <td>{{ formatDuration(run.durationMs) }}</td>
             </tr>
             <tr v-if="valExpandedRunId === run.id && valExpandedResults" class="avail-detail-row">
-              <td colspan="8">
+              <td :colspan="valColspan">
                 <div v-if="valExpandedLoading" class="loading-overlay"><div class="spinner"></div></div>
                 <table v-else-if="valExpandedResults.length" class="avail-detail-table val-detail-table">
                   <thead>
@@ -258,7 +258,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   getAvailabilityRuns, getAvailabilityRunDetail,
   getValuationRuns, getValuationRunDetail, triggerValuation, cancelValuationRun,
@@ -281,6 +281,12 @@ const emit = defineEmits<{
 }>()
 
 // Availability
+const isMobile = ref(window.innerWidth <= 600)
+const availColspan = computed(() => isMobile.value ? 4 : 8)
+const valColspan = computed(() => isMobile.value ? 4 : 8)
+
+function onResize() { isMobile.value = window.innerWidth <= 600 }
+
 const availRuns = ref<AvailabilityRun[]>([])
 const availTotal = ref(0)
 const availPage = ref(1)
@@ -419,11 +425,13 @@ function truncateUrl(url: string) {
 }
 
 onMounted(() => {
+  window.addEventListener('resize', onResize)
   loadAvailRuns()
   loadValRuns()
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', onResize)
   if (valPollTimer) clearInterval(valPollTimer)
   timers.forEach(clearTimeout)
 })
@@ -795,4 +803,25 @@ onUnmounted(() => {
 .val-detail-table td:nth-child(5) { width: 10%; }
 .val-detail-table th:nth-child(6),
 .val-detail-table td:nth-child(6) { width: 34%; }
+
+/* Mobile responsive: hide non-essential columns */
+@media (max-width: 600px) {
+  .hide-mobile {
+    display: none !important;
+  }
+
+  .avail-table {
+    table-layout: auto;
+    font-size: 0.8rem;
+  }
+
+  .users-table th,
+  .users-table td {
+    padding: 0.5rem 0.35rem;
+  }
+
+  .date-cell {
+    font-size: 0.8rem;
+  }
+}
 </style>
