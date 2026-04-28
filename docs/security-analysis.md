@@ -9,12 +9,12 @@
 
 This analysis identified **25 findings** across three domains: backend API, frontend application, and supply chain/infrastructure. The most critical issues involve CORS misconfiguration, XSS via unsanitized HTML rendering, SQL injection risk, and supply chain concerns with unpinned CI/CD actions.
 
-| Severity | Count |
-|----------|-------|
-| 🔴 CRITICAL | 8 |
-| 🟠 HIGH | 8 |
-| 🟡 MEDIUM | 7 |
-| 🟢 LOW | 2 |
+| Severity | Count | Fixed |
+|----------|-------|-------|
+| 🔴 CRITICAL | 8 | 1 |
+| 🟠 HIGH | 8 | 3 |
+| 🟡 MEDIUM | 7 | 0 |
+| 🟢 LOW | 2 | 0 |
 
 ---
 
@@ -30,24 +30,14 @@ This analysis identified **25 findings** across three domains: backend API, fron
 
 ## 1. Backend API Findings
 
-### 🔴 B-1: CORS Accepts All Origins with Credentials
+### ✅ B-1: CORS Accepts All Origins with Credentials — FIXED
 
-**Severity:** CRITICAL
-**File:** `src/api/main.go` (lines 54–69)
+**Severity:** CRITICAL → **FIXED**
+**File:** `src/api/main.go` (lines 57–80), `src/api/config/config.go` (lines 48–65)
 
-The CORS middleware reflects any `Origin` header back with `Access-Control-Allow-Credentials: true`. This allows any website to make authenticated API requests on behalf of a logged-in user.
+~~The CORS middleware reflects any `Origin` header back with `Access-Control-Allow-Credentials: true`.~~
 
-```go
-AllowOriginFunc: func(origin string) bool { return true },
-AllowCredentials: true,
-```
-
-**Risk:** Cross-origin request forgery, session hijacking from any domain.
-
-**Recommendation:** Whitelist specific origins:
-```go
-AllowOrigins: []string{"https://coins.denicolafamily.com"},
-```
+**Fix:** CORS now uses `AllowedOrigins()` from config. The `CORS_ORIGINS` environment variable accepts a comma-separated allowlist; when unset, it falls back to WebAuthn origins plus `localhost:5173` and `localhost:8080`. Only listed origins receive `Access-Control-Allow-Origin`.
 
 ---
 
@@ -62,42 +52,38 @@ User-supplied column name is concatenated directly into a SQL query string witho
 
 ---
 
-### 🟠 B-3: Weak Default JWT Secret
+### ✅ B-3: Weak Default JWT Secret — FIXED
 
-**Severity:** HIGH
-**File:** `src/api/config/config.go` (line 17)
+**Severity:** HIGH → **FIXED**
+**File:** `src/api/config/config.go` (lines 21–34)
 
-The JWT secret has a weak default value. If the `JWT_SECRET` environment variable is not set in production, the application runs with the default, allowing token forgery.
+~~The JWT secret has a weak default value.~~
 
-**Recommendation:** Refuse to start if `JWT_SECRET` is not set, or require a minimum length/entropy check at startup.
-
----
-
-### 🟠 B-4: No File Extension Validation on Uploads
-
-**Severity:** HIGH
-**File:** `src/api/handlers/images.go` (lines 88–89, 104)
-
-Image uploads accept any file type without validating the extension or MIME type. An attacker could upload executable files, HTML files (stored XSS), or other dangerous content.
-
-**Recommendation:**
-- Validate file extension against an allowlist (`.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`)
-- Validate MIME type from file magic bytes, not just the `Content-Type` header
-- Store files with a generated name, not the original filename
+**Fix:** In release mode (`GIN_MODE=release`), the app calls `log.Fatal` if `JWT_SECRET` is missing or set to the dev default. A minimum length of 32 characters is enforced unconditionally (dev and production). In dev mode a warning is logged when the default secret is used.
 
 ---
 
-### 🟠 B-5: No Rate Limiting on Auth Endpoints
+### ✅ B-4: No File Extension Validation on Uploads — FIXED
 
-**Severity:** HIGH
-**File:** `src/api/main.go` (lines 110–119)
+**Severity:** HIGH → **FIXED**
+**File:** `src/api/handlers/images.go` (lines 67–73)
 
-Login, registration, and token refresh endpoints have no rate limiting. This enables brute-force password attacks and credential stuffing.
+~~Image uploads accept any file type without validating the extension or MIME type.~~
 
-**Recommendation:** Add rate limiting middleware (e.g., `gin-contrib/ratelimit` or a token bucket) to `/api/auth/*` endpoints. Suggested limits:
-- Login: 5 attempts per minute per IP
-- Registration: 3 per hour per IP
-- Token refresh: 10 per minute per user
+**Fix:** Uploads are now validated against an allowlist of extensions: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`. Files with other extensions are rejected with a `400 Bad Request`.
+
+**Remaining gap:** MIME-type validation via magic bytes is not yet implemented — the check is extension-only.
+
+---
+
+### ✅ B-5: No Rate Limiting on Auth Endpoints — FIXED
+
+**Severity:** HIGH → **FIXED**
+**File:** `src/api/main.go` (lines 122–134)
+
+~~Login, registration, and token refresh endpoints have no rate limiting.~~
+
+**Fix:** A `middleware.RateLimit(10, 1*time.Minute)` limiter is applied to registration, login, token refresh, and WebAuthn login begin/finish routes. This limits each IP to 10 requests per minute on auth endpoints.
 
 ---
 
@@ -397,7 +383,7 @@ The application demonstrates several good security practices:
 
 | ID | Finding | Effort |
 |----|---------|--------|
-| B-1 | CORS: restrict to specific origins | Small |
+| ~~B-1~~ | ~~CORS: restrict to specific origins~~ | ~~Small~~ ✅ FIXED |
 | F-1 | XSS: add DOMPurify to markdown rendering | Small |
 | F-2 | XSS: sanitize chat messages | Small |
 | SC-2 | Remove hardcoded secret from Taskfile | Small |
@@ -407,9 +393,9 @@ The application demonstrates several good security practices:
 | ID | Finding | Effort |
 |----|---------|--------|
 | B-2 | SQL injection: whitelist column names | Small |
-| B-3 | JWT: fail startup if secret not configured | Small |
-| B-4 | Uploads: validate file extensions/MIME | Medium |
-| B-5 | Add rate limiting to auth endpoints | Medium |
+| ~~B-3~~ | ~~JWT: fail startup if secret not configured~~ | ~~Small~~ ✅ FIXED |
+| ~~B-4~~ | ~~Uploads: validate file extensions/MIME~~ | ~~Medium~~ ✅ FIXED |
+| ~~B-5~~ | ~~Add rate limiting to auth endpoints~~ | ~~Medium~~ ✅ FIXED |
 | SC-1 | Pin GitHub Actions to commit SHAs | Small |
 | SC-4 | Update golang.org/x dependencies | Small |
 

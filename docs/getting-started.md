@@ -4,6 +4,18 @@ This guide walks you through setting up Ancient Coins for the first time, adding
 
 ## First-Time Setup
 
+### Required Environment Variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `JWT_SECRET` | **Yes** (production) | dev default | JWT signing key. Must be 32+ characters. In release mode (`GIN_MODE=release`), the app fatals on startup if missing. |
+| `WEBAUTHN_RP_ID` | No | `localhost` | Domain name for WebAuthn Relying Party ID |
+| `WEBAUTHN_ORIGIN` | No | `http://localhost:8080` | Full origin URL for WebAuthn (comma-separated for multiple) |
+| `CORS_ORIGINS` | No | *(smart defaults)* | Comma-separated allowed CORS origins. Falls back to WebAuthn origins + localhost |
+| `AGENT_SERVICE_URL` | No | `http://localhost:8081` | URL of the Python agent service |
+
+Run `task --list` to see all available Taskfile commands.
+
 ### 1. Start the Application
 
 Run the app using one of the methods described in the [README](../README.md):

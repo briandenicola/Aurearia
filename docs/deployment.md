@@ -14,7 +14,7 @@ Ancient Coins runs as **two Docker containers** orchestrated via `docker-compose
 The **app** container uses a 3-stage Dockerfile (`Dockerfile`) that builds through:
 
 1. **Node 24** — builds the Vue frontend (`npm run build`)
-2. **Go 1.26** — compiles the API binary and embeds the Vue dist
+2. **Go 1.26.1** — compiles the API binary and embeds the Vue dist
 3. **Alpine 3.21** — minimal runtime (~40 MB final image)
 
 The **agent** container uses a separate Dockerfile (`src/agent/Dockerfile`) to build the Python LangGraph service.
@@ -97,11 +97,14 @@ The app is now available at `http://localhost:8080`.
 | `WEBAUTHN_RP_ID` | `localhost` | WebAuthn Relying Party ID (your domain) |
 | `WEBAUTHN_ORIGIN` | `http://localhost:8080` | WebAuthn origin URL (supports comma-separated list) |
 | `AGENT_SERVICE_URL` | `http://agent:8081` | Python agent service URL |
+| `CORS_ORIGINS` | *(WebAuthn origins + localhost)* | Comma-separated list of allowed CORS origins. Falls back to `WEBAUTHN_ORIGIN` values plus `http://localhost:5173` and `http://localhost:8080` |
 | `AGENT_LOG_LEVEL` | `INFO` | Python agent log level |
+| `AGENT_DEBUG` | `false` | Enable debug mode on the agent container (exposes `/docs` endpoint) |
+| `AGENT_SEARXNG_URL` | — | SearXNG instance URL for Ollama web search (required when using Ollama provider) |
 
 ### Generating a JWT Secret
 
-The `task init` command generates a `.env` file with a random JWT secret automatically. To generate one manually:
+The `task init` command generates a `.env` file containing only `JWT_SECRET` (set to a random value via `openssl rand -base64 48`). To generate one manually:
 
 ```sh
 openssl rand -base64 48

@@ -240,7 +240,8 @@ curl -X DELETE http://localhost:8080/api/auth/webauthn/credentials/CREDENTIAL_ID
 ### Frontend Behavior
 
 - The login page **remembers the last username** in `localStorage` and shows a biometric login button when that user has registered WebAuthn credentials.
-- Session data for in-progress ceremonies is stored **in-memory** on the server. If the server restarts mid-ceremony, the user will need to start the registration or login flow again.
+- Session data for in-progress ceremonies is stored **in-memory** on the server (a Go `map`). If the server restarts mid-ceremony, the user will need to start the registration or login flow again.
+- **Known limitation:** In-memory ceremony sessions have **no TTL** — abandoned registration/login flows accumulate indefinitely. This is tracked as finding B-7 in the [security analysis](security-analysis.md).
 
 ---
 
@@ -317,6 +318,22 @@ The auth middleware in `src/api/middleware/auth.go` checks credentials in this o
 2. **JWT** — If no API key is provided, check the `Authorization: Bearer <token>` header. Validate the JWT signature and expiry.
 
 Both methods populate `userId` and `userRole` in the Gin context, so downstream handlers don't need to know which auth method was used.
+
+### JWT Query Parameter Fallback
+
+In addition to the `Authorization` header, the middleware accepts a `?token=` query parameter (`src/api/middleware/auth.go`, lines 35–51). This is used for image proxy URLs where a header cannot be set (e.g., `<img>` tags). The query param is internally converted to a `Bearer` header and follows the same validation path.
+
+### JWT Claim Fields
+
+The access token contains these claims (set in `src/api/services/auth_service.go`, lines 82–93):
+
+| Claim | Type | Description |
+|-------|------|-------------|
+| `userId` | number | Database user ID |
+| `username` | string | Login username |
+| `role` | string | `admin` or `user` |
+| `exp` | number | Expiry (Unix timestamp, 15 minutes from issue) |
+| `iat` | number | Issued-at (Unix timestamp) |
 
 ---
 
