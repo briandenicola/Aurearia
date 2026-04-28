@@ -128,6 +128,8 @@ func main() {
 	}
 
 	authRateLimit := middleware.RateLimit(10, 1*time.Minute)
+	apiRateLimit := middleware.RateLimit(120, 1*time.Minute)  // General API rate limit
+	writeRateLimit := middleware.RateLimit(30, 1*time.Minute) // Write operations
 
 	api := r.Group("/api")
 	{
@@ -164,6 +166,7 @@ func main() {
 
 	protected := api.Group("")
 	protected.Use(middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth))
+	protected.Use(apiRateLimit)
 	{
 		coinSvc := services.NewCoinService(coinRepo, notifSvc)
 		coinHandler := handlers.NewCoinHandler(coinRepo, coinSvc, logger)
@@ -202,15 +205,15 @@ func main() {
 		imageRepo := repository.NewImageRepository(database.DB)
 		imageSvc := services.NewImageService(imageRepo, cfg.UploadDir)
 		imageHandler := handlers.NewImageHandler(cfg.UploadDir, imageRepo, imageSvc, logger)
-		protected.POST("/coins/:id/images", imageHandler.Upload)
-		protected.POST("/coins/:id/images/base64", imageHandler.UploadBase64)
+		protected.POST("/coins/:id/images", writeRateLimit, imageHandler.Upload)
+		protected.POST("/coins/:id/images/base64", writeRateLimit, imageHandler.UploadBase64)
 		protected.DELETE("/coins/:id/images/:imageId", imageHandler.Delete)
 		protected.GET("/proxy-image", imageHandler.ProxyImage)
 		protected.GET("/scrape-image", imageHandler.ScrapeImage)
 
 		analysisRepo := repository.NewAnalysisRepository(database.DB)
 		analysisHandler := handlers.NewAnalysisHandler(analysisRepo, agentProxy, settingsSvc, logger)
-		protected.POST("/coins/:id/analyze", analysisHandler.Analyze)
+		protected.POST("/coins/:id/analyze", writeRateLimit, analysisHandler.Analyze)
 		protected.DELETE("/coins/:id/analyze", analysisHandler.DeleteAnalysis)
 		protected.POST("/extract-text", analysisHandler.ExtractText)
 		protected.GET("/ollama-status", analysisHandler.OllamaStatus)
@@ -233,8 +236,8 @@ func main() {
 		protected.PUT("/auctions/:id/event", auctionLotHandler.LinkEvent)
 		protected.POST("/auctions/:id/convert", auctionLotHandler.ConvertToCoin)
 		protected.DELETE("/auctions/:id", auctionLotHandler.Delete)
-		protected.POST("/auctions/import", auctionLotHandler.ImportFromURL)
-		protected.POST("/auctions/sync", auctionLotHandler.SyncWatchlist)
+		protected.POST("/auctions/import", writeRateLimit, auctionLotHandler.ImportFromURL)
+		protected.POST("/auctions/sync", writeRateLimit, auctionLotHandler.SyncWatchlist)
 		protected.POST("/auctions/validate-credentials", auctionLotHandler.ValidateNumisBids)
 
 		// Wishlist availability checking
@@ -245,8 +248,8 @@ func main() {
 		agentRepo := repository.NewAgentRepository(database.DB)
 		userRepo := repository.NewUserRepository(database.DB)
 		agentHandler := handlers.NewAgentHandler(agentRepo, userRepo, journalRepo, agentProxy, settingsSvc, logger)
-		protected.POST("/agent/chat", agentHandler.ChatStream)
-		protected.POST("/coins/:id/estimate-value", agentHandler.EstimateValue)
+		protected.POST("/agent/chat", writeRateLimit, agentHandler.ChatStream)
+		protected.POST("/coins/:id/estimate-value", writeRateLimit, agentHandler.EstimateValue)
 		protected.GET("/agent/models", agentHandler.ListModels)
 		protected.GET("/agent/coin-search-prompt", agentHandler.GetCoinSearchPrompt)
 		protected.GET("/agent/coin-shows-prompt", agentHandler.GetCoinShowsPrompt)
@@ -270,7 +273,7 @@ func main() {
 		protected.DELETE("/user/avatar", userHandler.DeleteAvatar)
 		protected.GET("/user/export", userHandler.ExportCollection)
 		protected.GET("/user/export/catalog", userHandler.ExportCatalogPDF)
-		protected.POST("/user/import", userHandler.ImportCollection)
+		protected.POST("/user/import", writeRateLimit, userHandler.ImportCollection)
 
 		// Social routes
 		socialSvc := services.NewSocialService(socialRepo)
