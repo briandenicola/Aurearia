@@ -16,11 +16,12 @@ from langgraph.graph import END, StateGraph
 from app.llm.provider import create_search_agent, get_chat_model, get_search_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
+from app.safety import with_safety
 from app.tools.search import fetch_dealer_page
 
 logger = logging.getLogger(__name__)
 
-SEARCH_PROMPT = """You are a numismatic search specialist. Search the web to find coins
+SEARCH_PROMPT = with_safety("""You are a numismatic search specialist. Search the web to find coins
 currently for sale that match the user's request.
 
 Search on these dealer sites:
@@ -34,9 +35,9 @@ Include the user's budget/price range in your searches if mentioned.
 Run at least 3-5 searches across different dealer sites.
 
 For each result you find, report the URL exactly as it appeared in the search results.
-Do NOT invent or modify URLs. Do not use emojis."""
+Do NOT invent or modify URLs. Do not use emojis.""")
 
-FORMAT_PROMPT = """You are a formatting specialist for a coin collecting application.
+FORMAT_PROMPT = with_safety("""You are a formatting specialist for a coin collecting application.
 You receive raw coin listing data extracted from dealer websites.
 Structure each listing into this exact JSON schema:
 
@@ -66,7 +67,7 @@ Rules:
 - If you cannot determine a field, use an empty string
 - Do not use emojis
 
-Output ONLY the JSON array wrapped in ```json and ``` markers."""
+Output ONLY the JSON array wrapped in ```json and ``` markers.""")
 
 NO_RESULTS_PROMPT = (
     "You are an assistant in a coin collecting application. "

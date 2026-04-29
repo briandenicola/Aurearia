@@ -15,10 +15,11 @@ from langgraph.graph import END, StateGraph
 from app.llm.provider import get_chat_model, get_search_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
+from app.safety import with_safety
 
 logger = logging.getLogger(__name__)
 
-SEARCH_PROMPT = """You are a numismatic market researcher. Search for recent auction results
+SEARCH_PROMPT = with_safety("""You are a numismatic market researcher. Search for recent auction results
 for the described coin type.
 
 Search for:
@@ -33,9 +34,9 @@ Find at least 5-10 recent results if possible. For each result note:
 - Hammer price (including buyer's premium if noted)
 - Any notable features
 
-Do not invent results. Only report data you actually find."""
+Do not invent results. Only report data you actually find.""")
 
-ANALYSIS_PROMPT = """You are a numismatic market analyst. Given the search results for auction prices,
+ANALYSIS_PROMPT = with_safety("""You are a numismatic market analyst. Given the search results for auction prices,
 provide a comprehensive price trend analysis.
 
 Structure your response:
@@ -48,7 +49,7 @@ Structure your response:
 6. **Collector Advisory** — Is now a good time to buy, sell, or hold?
 
 Use actual data from the search results. Do not fabricate prices.
-Do not use emojis. Format as clean markdown text."""
+Do not use emojis. Format as clean markdown text.""")
 
 
 class PriceTrendState(TypedDict):

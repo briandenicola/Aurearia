@@ -247,7 +247,8 @@ func main() {
 
 		agentRepo := repository.NewAgentRepository(database.DB)
 		userRepo := repository.NewUserRepository(database.DB)
-		agentHandler := handlers.NewAgentHandler(agentRepo, userRepo, journalRepo, agentProxy, settingsSvc, logger)
+		contentGuard := services.NewContentGuard(logger)
+		agentHandler := handlers.NewAgentHandler(agentRepo, userRepo, journalRepo, agentProxy, settingsSvc, contentGuard, logger)
 		protected.POST("/agent/chat", writeRateLimit, agentHandler.ChatStream)
 		protected.POST("/coins/:id/estimate-value", writeRateLimit, agentHandler.EstimateValue)
 		protected.GET("/agent/models", agentHandler.ListModels)

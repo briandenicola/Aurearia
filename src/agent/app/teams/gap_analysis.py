@@ -15,10 +15,11 @@ from langgraph.graph import END, StateGraph
 from app.llm.provider import get_chat_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig, PortfolioSummary
+from app.safety import with_safety
 
 logger = logging.getLogger(__name__)
 
-ANALYSIS_PROMPT = """You are a numismatic collection advisor analyzing a coin collection for gaps
+ANALYSIS_PROMPT = with_safety("""You are a numismatic collection advisor analyzing a coin collection for gaps
 and completeness.
 
 Given the collection summary, analyze:
@@ -36,9 +37,9 @@ Consider common collecting strategies:
 - By material type
 - By region
 
-Do not use emojis."""
+Do not use emojis.""")
 
-SUGGESTION_PROMPT = """You are a numismatic acquisition advisor. Based on the gap analysis provided,
+SUGGESTION_PROMPT = with_safety("""You are a numismatic acquisition advisor. Based on the gap analysis provided,
 suggest specific coins to acquire.
 
 For each suggestion, provide:
@@ -49,7 +50,7 @@ For each suggestion, provide:
 - **Where to Look** — auction houses, dealers, or marketplaces
 
 Provide 5-8 concrete suggestions ranked by priority.
-Do not use emojis. Format as clean text with markdown headers."""
+Do not use emojis. Format as clean text with markdown headers.""")
 
 
 class GapAnalysisState(TypedDict):

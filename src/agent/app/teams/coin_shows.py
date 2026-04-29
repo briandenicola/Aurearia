@@ -19,10 +19,11 @@ from langgraph.graph import END, StateGraph
 from app.llm.provider import create_search_agent, get_chat_model, get_search_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig, UserContext
+from app.safety import with_safety
 
 logger = logging.getLogger(__name__)
 
-SEARCH_PROMPT = """You are a coin show search specialist. Your ONLY job is to search for
+SEARCH_PROMPT = with_safety("""You are a coin show search specialist. Your ONLY job is to search for
 upcoming coin shows, numismatic conventions, and coin collecting events.
 
 CRITICAL RULES:
@@ -61,9 +62,9 @@ For each show found, output a JSON object with these fields:
 - dealers: notable dealers or "bourse" info if listed
 
 Output your results as a JSON array wrapped in ```json and ``` markers.
-If you find nothing at all, return an empty array: ```json\n[]\n```"""
+If you find nothing at all, return an empty array: ```json\n[]\n```""")
 
-DATE_VERIFY_PROMPT = """You are a date and location verification specialist for coin show events.
+DATE_VERIFY_PROMPT = with_safety("""You are a date and location verification specialist for coin show events.
 You will receive coin show data and the user's location context. Your job is to verify shows.
 
 Be INCLUSIVE, not exclusive. If there is reasonable evidence a show is happening
@@ -91,9 +92,9 @@ IMPORTANT: Preserve ALL URLs exactly as provided. Do NOT modify, construct, or
 
 Output the VERIFIED shows as a JSON array with the same fields.
 For recurring shows, update the "dates" field with the computed next occurrence.
-Wrap in ```json and ``` markers. If none pass verification, return an empty array."""
+Wrap in ```json and ``` markers. If none pass verification, return an empty array.""")
 
-FORMAT_PROMPT = """You are a formatting specialist for a coin collecting application.
+FORMAT_PROMPT = with_safety("""You are a formatting specialist for a coin collecting application.
 You receive verified coin show data. Structure each into this exact JSON schema:
 
 ```json
@@ -120,7 +121,7 @@ Rules:
 - If a field is unknown, use empty string or empty array
 - Sort by date (soonest first)
 
-Output ONLY the JSON array wrapped in ```json and ``` markers."""
+Output ONLY the JSON array wrapped in ```json and ``` markers.""")
 
 
 class CoinShowSearchState(TypedDict):

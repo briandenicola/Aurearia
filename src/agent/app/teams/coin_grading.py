@@ -15,10 +15,11 @@ from langgraph.graph import END, StateGraph
 from app.llm.provider import get_chat_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import CoinData, LLMConfig
+from app.safety import with_safety
 
 logger = logging.getLogger(__name__)
 
-GRADING_PROMPT = """You are a professional numismatic grading expert. Analyze the coin image(s)
+GRADING_PROMPT = with_safety("""You are a professional numismatic grading expert. Analyze the coin image(s)
 and provide a grade estimate using the Sheldon scale.
 
 Your assessment should cover:
@@ -33,9 +34,9 @@ Your assessment should cover:
 7. **Comparison Notes** — How this coin compares to typical examples at this grade level
 
 Use precise numismatic grading terminology. Be honest about limitations from photo quality.
-Do not use emojis."""
+Do not use emojis.""")
 
-FORMAT_PROMPT = """You are a formatting specialist for a coin grading application.
+FORMAT_PROMPT = with_safety("""You are a formatting specialist for a coin grading application.
 Structure the raw grading assessment into a clear, professional report.
 
 Rules:
@@ -46,7 +47,7 @@ Rules:
 - Do not add information not in the original assessment
 - Do not use emojis
 
-Output clean formatted text (not JSON)."""
+Output clean formatted text (not JSON).""")
 
 
 class GradingState(TypedDict):

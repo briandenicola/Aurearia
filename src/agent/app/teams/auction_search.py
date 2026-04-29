@@ -15,11 +15,12 @@ from langgraph.graph import END, StateGraph
 from app.llm.provider import get_chat_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
+from app.safety import with_safety
 from app.tools.numisbids import scrape_numisbids_lot, search_numisbids
 
 logger = logging.getLogger(__name__)
 
-FORMAT_PROMPT = """You are a formatting specialist for a coin auction tracking application.
+FORMAT_PROMPT = with_safety("""You are a formatting specialist for a coin auction tracking application.
 You receive raw auction lot data scraped from NumisBids.
 Structure each lot into this exact JSON schema:
 
@@ -47,9 +48,9 @@ Rules:
 - If a field is unknown, use an empty string
 - Do not use emojis
 
-Output ONLY the JSON array wrapped in ```json and ``` markers."""
+Output ONLY the JSON array wrapped in ```json and ``` markers.""")
 
-NO_RESULTS_PROMPT = (
+NO_RESULTS_PROMPT = with_safety(
     "You are an assistant in a coin collecting application. "
     "The user searched for auction lots on NumisBids but no results were found. "
     "Generate a brief, helpful response. Suggest different search terms or "

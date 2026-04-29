@@ -20,16 +20,18 @@ type AgentHandler struct {
 	journalRepo *repository.JournalRepository
 	proxy       *services.AgentProxy
 	settingsSvc *services.SettingsService
+	guard       *services.ContentGuard
 	logger      *services.Logger
 }
 
-func NewAgentHandler(repo *repository.AgentRepository, userRepo *repository.UserRepository, journalRepo *repository.JournalRepository, proxy *services.AgentProxy, settingsSvc *services.SettingsService, logger *services.Logger) *AgentHandler {
+func NewAgentHandler(repo *repository.AgentRepository, userRepo *repository.UserRepository, journalRepo *repository.JournalRepository, proxy *services.AgentProxy, settingsSvc *services.SettingsService, guard *services.ContentGuard, logger *services.Logger) *AgentHandler {
 	return &AgentHandler{
 		repo:        repo,
 		userRepo:    userRepo,
 		journalRepo: journalRepo,
 		proxy:       proxy,
 		settingsSvc: settingsSvc,
+		guard:       guard,
 		logger:      logger,
 	}
 }
@@ -163,20 +165,28 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		return
 	}
 
+	// Content moderation: validate message and history
+	if err := h.guard.ValidateMessage(req.Message, userID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Your message could not be processed. Please keep questions related to coin collecting."})
+		return
+	}
+	proxyHistory := make([]services.ChatMessageProxy, 0, len(req.History))
+	for _, msg := range req.History {
+		proxyHistory = append(proxyHistory, services.ChatMessageProxy{
+			Role:    msg.Role,
+			Content: msg.Content,
+		})
+	}
+	if err := h.guard.ValidateHistory(proxyHistory, userID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Conversation history could not be validated."})
+		return
+	}
+
 	// Resolve LLM provider from explicit setting
 	llmCfg, errMsg := h.resolveLLMConfig()
 	if errMsg != "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
 		return
-	}
-
-	// Build history for the proxy
-	history := make([]services.ChatMessageProxy, 0, len(req.History))
-	for _, msg := range req.History {
-		history = append(history, services.ChatMessageProxy{
-			Role:    msg.Role,
-			Content: msg.Content,
-		})
 	}
 
 	// Look up user zip code for location context
@@ -198,7 +208,7 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 			ZipCode: zipCode,
 		},
 		Message:          req.Message,
-		History:          history,
+		History:          proxyHistory,
 		CoinSearchPrompt: h.getCoinSearchPrompt(),
 		CoinShowsPrompt:  h.getCoinShowsPrompt(userID),
 		Portfolio:        portfolio,

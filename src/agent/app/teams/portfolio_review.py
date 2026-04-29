@@ -18,10 +18,11 @@ from langgraph.graph import END, StateGraph
 from app.llm.provider import get_chat_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig, PortfolioSummary
+from app.safety import with_safety
 
 logger = logging.getLogger(__name__)
 
-READER_PROMPT = """You are a portfolio data analyst for a coin collecting application.
+READER_PROMPT = with_safety("""You are a portfolio data analyst for a coin collecting application.
 You receive structured portfolio data (holdings, values, categories).
 
 Your job is to:
@@ -31,9 +32,9 @@ Your job is to:
 4. Prepare a structured summary for the valuation and analysis agents
 
 Output your summary as clear text with section headers.
-Do not make assumptions about values — report exactly what the data shows."""
+Do not make assumptions about values — report exactly what the data shows.""")
 
-VALUATION_PROMPT = """You are a numismatic valuation specialist for a coin collection.
+VALUATION_PROMPT = with_safety("""You are a numismatic valuation specialist for a coin collection.
 You receive a portfolio summary and your job is to assess current market conditions.
 
 Based on the portfolio data provided:
@@ -48,9 +49,9 @@ IMPORTANT: You do NOT have access to live market data. Base your assessment on:
 - Known trends in collecting areas represented in the portfolio
 
 Be honest about the limitations of your valuation. Recommend the user
-check specific dealers or auction results for precise current market values."""
+check specific dealers or auction results for precise current market values.""")
 
-ANALYSIS_PROMPT = """You are a portfolio analysis expert for a numismatic collection.
+ANALYSIS_PROMPT = with_safety("""You are a portfolio analysis expert for a numismatic collection.
 You receive a portfolio summary and valuation commentary.
 
 Produce a final narrative analysis covering:
@@ -66,7 +67,7 @@ Rules:
 - Be objective — highlight both strengths and weaknesses
 - End with 3-5 specific recommendations
 - Do not use emojis
-- Format with markdown bold headers"""
+- Format with markdown bold headers""")
 
 
 class PortfolioReviewState(TypedDict):

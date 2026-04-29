@@ -15,10 +15,11 @@ from langgraph.graph import END, StateGraph
 from app.llm.provider import get_chat_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
+from app.safety import with_safety
 
 logger = logging.getLogger(__name__)
 
-EVALUATION_PROMPT = """You are an expert numismatic photographer evaluating coin photographs.
+EVALUATION_PROMPT = with_safety("""You are an expert numismatic photographer evaluating coin photographs.
 
 Assess the image(s) on these criteria (rate each 1-10):
 
@@ -32,9 +33,9 @@ Assess the image(s) on these criteria (rate each 1-10):
 
 Provide an overall score (1-10) and note what's done well and what needs improvement.
 Be specific about issues — e.g., "shadow on the left side obscures the legend" not just "lighting could be better".
-Do not use emojis."""
+Do not use emojis.""")
 
-TIPS_PROMPT = """You are a coin photography advisor. Based on the evaluation, provide specific,
+TIPS_PROMPT = with_safety("""You are a coin photography advisor. Based on the evaluation, provide specific,
 actionable tips to improve the photos.
 
 Structure your response as:
@@ -45,7 +46,7 @@ Structure your response as:
 5. **Technique Tips** — Camera settings, positioning, workflow
 
 Keep tips practical and achievable with consumer equipment (phone cameras are fine).
-Do not use emojis. Format as clean markdown text."""
+Do not use emojis. Format as clean markdown text.""")
 
 
 class PhotoGuideState(TypedDict):

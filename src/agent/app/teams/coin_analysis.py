@@ -19,10 +19,11 @@ from langgraph.graph import END, StateGraph
 from app.llm.provider import get_chat_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import CoinData, LLMConfig
+from app.safety import with_safety
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_ANALYSIS_PROMPT = """You are a numismatic expert analyzing a coin image.
+DEFAULT_ANALYSIS_PROMPT = with_safety("""You are a numismatic expert analyzing a coin image.
 Provide a detailed analysis covering:
 
 1. **Identification** — ruler, denomination, mint, approximate date
@@ -32,9 +33,9 @@ Provide a detailed analysis covering:
 5. **Die Analysis** — die orientation, any die breaks, centering
 6. **Authenticity Indicators** — surface texture, style consistency, weight/flan observations
 
-Use precise numismatic terminology. Do not invent details you cannot observe in the image."""
+Use precise numismatic terminology. Do not invent details you cannot observe in the image.""")
 
-FORMAT_PROMPT = """You are a formatting specialist for a coin collecting application.
+FORMAT_PROMPT = with_safety("""You are a formatting specialist for a coin collecting application.
 You receive a raw coin analysis from a vision model. Your job is to clean up
 the formatting and ensure consistency.
 
@@ -46,7 +47,7 @@ Rules:
 - Do not add information not present in the original analysis
 - Do not use emojis
 
-Output the formatted analysis as clean text (not JSON)."""
+Output the formatted analysis as clean text (not JSON).""")
 
 
 class CoinAnalysisState(TypedDict):

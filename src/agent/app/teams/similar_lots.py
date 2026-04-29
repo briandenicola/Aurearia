@@ -15,10 +15,11 @@ from langgraph.graph import END, StateGraph
 from app.llm.provider import get_chat_model, get_search_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import CoinData, LLMConfig
+from app.safety import with_safety
 
 logger = logging.getLogger(__name__)
 
-SEARCH_PROMPT = """You are a numismatic auction researcher. Search for active auction lots
+SEARCH_PROMPT = with_safety("""You are a numismatic auction researcher. Search for active auction lots
 that are similar to the described coin.
 
 Search across:
@@ -34,9 +35,9 @@ For each lot found, note:
 - Lot URL if available
 - Key similarities to the user's coin
 
-Find 5-10 similar lots. Focus on matching: ruler/type, denomination, era, and category."""
+Find 5-10 similar lots. Focus on matching: ruler/type, denomination, era, and category.""")
 
-SCORING_PROMPT = """You are a numismatic similarity assessor. Given search results for auction lots
+SCORING_PROMPT = with_safety("""You are a numismatic similarity assessor. Given search results for auction lots
 similar to a specific coin, rank and format them.
 
 Structure your response:
@@ -50,7 +51,7 @@ For each lot (ranked by relevance):
 
 Start with a brief note about the search scope, then list results.
 Only include lots that genuinely match — do not pad with irrelevant results.
-Do not use emojis. Format as clean markdown text."""
+Do not use emojis. Format as clean markdown text.""")
 
 
 class SimilarLotState(TypedDict):

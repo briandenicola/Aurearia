@@ -15,6 +15,7 @@ from langgraph.graph import END, StateGraph
 from app.llm.provider import get_chat_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
+from app.safety import with_safety
 from app.models.responses import AvailabilityVerdict
 from app.tools.search import verify_url
 
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 MAX_ITEMS_PER_BATCH = 10
 
-ANALYSIS_PROMPT = """You are an expert at determining whether online coin listings are still available for purchase.
+ANALYSIS_PROMPT = with_safety("""You are an expert at determining whether online coin listings are still available for purchase.
 
 You will receive raw URL check data for one or more coin listings. Each entry includes:
 - HTTP status code
@@ -61,7 +62,7 @@ Output a JSON array with one object per URL:
 ]
 ```
 
-Output ONLY the JSON array wrapped in ```json and ``` markers. Do not use emojis."""
+Output ONLY the JSON array wrapped in ```json and ``` markers. Do not use emojis.""")
 
 
 class AvailabilityCheckState(TypedDict):
