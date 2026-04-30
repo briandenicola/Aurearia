@@ -39,6 +39,8 @@ type AvailabilityService struct {
 	availRepo   *repository.AvailabilityRepository
 	agentProxy  *AgentProxy
 	notifSvc    *NotificationService
+	pushoverSvc *PushoverService
+	userRepo    *repository.UserRepository
 	settingsSvc *SettingsService
 	logger      *Logger
 }
@@ -49,6 +51,8 @@ func NewAvailabilityService(
 	availRepo *repository.AvailabilityRepository,
 	agentProxy *AgentProxy,
 	notifSvc *NotificationService,
+	pushoverSvc *PushoverService,
+	userRepo *repository.UserRepository,
 	settingsSvc *SettingsService,
 	logger *Logger,
 ) *AvailabilityService {
@@ -57,6 +61,8 @@ func NewAvailabilityService(
 		availRepo:   availRepo,
 		agentProxy:  agentProxy,
 		notifSvc:    notifSvc,
+		pushoverSvc: pushoverSvc,
+		userRepo:    userRepo,
 		settingsSvc: settingsSvc,
 		logger:      logger,
 	}
@@ -227,6 +233,9 @@ func (s *AvailabilityService) CheckWishlistForUser(
 	s.logger.Info("availability", "Run %d complete: %d checked, %d available, %d unavailable, %d unknown (%dms)",
 		run.ID, len(coins), available, unavailable, unknown, run.DurationMs)
 
+	// Send Pushover notification if configured
+	s.notifyRunComplete(userID, run)
+
 	return run, nil
 }
 
@@ -289,4 +298,25 @@ func (s *AvailabilityService) escalateToAgent(
 	}
 
 	s.logger.Info("availability", "Agent resolved %d/%d ambiguous URLs", len(resp.Results), len(ambiguousItems))
+}
+
+// notifyRunComplete sends a Pushover notification with run details.
+func (s *AvailabilityService) notifyRunComplete(userID uint, run *models.AvailabilityRun) {
+	if s.pushoverSvc == nil || s.userRepo == nil {
+		return
+	}
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil || user == nil || !user.PushoverEnabled || user.PushoverUserKey == "" {
+		return
+	}
+
+	duration := time.Duration(run.DurationMs) * time.Millisecond
+	msg := fmt.Sprintf("Checked: %d | Available: %d | Unavailable: %d | Unknown: %d | Duration: %s",
+		run.CoinsChecked, run.Available, run.Unavailable, run.Unknown, duration.Round(time.Second))
+
+	go func() {
+		if err := s.pushoverSvc.SendNotification(user.PushoverUserKey, "Availability Check Complete", msg, ""); err != nil {
+			s.logger.Error("pushover", "Failed to send availability run notification: %v", err)
+		}
+	}()
 }

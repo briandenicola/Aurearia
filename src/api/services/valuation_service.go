@@ -31,6 +31,7 @@ type ValuationService struct {
 	valRepo     *repository.ValuationRepository
 	agentProxy  *AgentProxy
 	userRepo    *repository.UserRepository
+	pushoverSvc *PushoverService
 	settingsSvc *SettingsService
 	logger      *Logger
 	cancelMap   sync.Map
@@ -42,6 +43,7 @@ func NewValuationService(
 	valRepo *repository.ValuationRepository,
 	agentProxy *AgentProxy,
 	userRepo *repository.UserRepository,
+	pushoverSvc *PushoverService,
 	settingsSvc *SettingsService,
 	logger *Logger,
 ) *ValuationService {
@@ -50,6 +52,7 @@ func NewValuationService(
 		valRepo:     valRepo,
 		agentProxy:  agentProxy,
 		userRepo:    userRepo,
+		pushoverSvc: pushoverSvc,
 		settingsSvc: settingsSvc,
 		logger:      logger,
 	}
@@ -376,7 +379,31 @@ func (s *ValuationService) ValuateCollectionForUser(
 	s.logger.Info("valuation", "Run %d complete: %d checked, %d updated, %d skipped, %d errors (%dms)",
 		run.ID, checked, updated, skipped, errCount, run.DurationMs)
 
+	// Send Pushover notification if configured
+	s.notifyRunComplete(userID, run)
+
 	return run, nil
+}
+
+// notifyRunComplete sends a Pushover notification with valuation run details.
+func (s *ValuationService) notifyRunComplete(userID uint, run *models.ValuationRun) {
+	if s.pushoverSvc == nil || s.userRepo == nil {
+		return
+	}
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil || user == nil || !user.PushoverEnabled || user.PushoverUserKey == "" {
+		return
+	}
+
+	duration := time.Duration(run.DurationMs) * time.Millisecond
+	msg := fmt.Sprintf("Status: %s | Checked: %d | Updated: %d | Skipped: %d | Errors: %d | Duration: %s",
+		run.Status, run.CoinsChecked, run.CoinsUpdated, run.CoinsSkipped, run.Errors, duration.Round(time.Second))
+
+	go func() {
+		if err := s.pushoverSvc.SendNotification(user.PushoverUserKey, "Valuation Run Complete", msg, ""); err != nil {
+			s.logger.Error("pushover", "Failed to send valuation run notification: %v", err)
+		}
+	}()
 }
 
 // CancelRun signals a running valuation to stop after the current coin.
