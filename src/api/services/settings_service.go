@@ -22,6 +22,7 @@ const (
 	SettingCoinShowsPrompt      = "CoinShowsPrompt"
 	SettingValuationPrompt      = "ValuationPrompt"
 	SettingSearXNGURL           = "SearXNGURL"
+	SettingPushoverAppToken         = "PushoverAppToken"
 	SettingWishlistCheckEnabled    = "WishlistCheckEnabled"
 	SettingWishlistCheckInterval   = "WishlistCheckInterval"
 	SettingWishlistCheckStartTime  = "WishlistCheckStartTime"
@@ -69,6 +70,7 @@ var settingDefaults = map[string]string{
 	SettingCoinShowsPrompt:      "",
 	SettingValuationPrompt:      "",
 	SettingSearXNGURL:           "",
+	SettingPushoverAppToken:         "",
 	SettingWishlistCheckEnabled:     "false",
 	SettingWishlistCheckInterval:    "120",
 	SettingWishlistCheckStartTime:   "02:00",

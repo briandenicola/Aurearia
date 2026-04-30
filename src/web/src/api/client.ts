@@ -406,8 +406,8 @@ interface PublicKeyCredentialRequestOptionsJSON {
 // --- Social / Profile API ---
 
 // Profile
-export const updateProfile = (data: { email?: string; bio?: string; zipCode?: string; isPublic?: boolean; numisBidsUsername?: string; numisBidsPassword?: string }) =>
-  api.put<{ id: number; username: string; role: string; email: string; avatarPath: string; isPublic: boolean; bio: string; zipCode: string; numisBidsUsername: string; numisBidsConfigured: boolean }>('/user/profile', data)
+export const updateProfile = (data: { email?: string; bio?: string; zipCode?: string; isPublic?: boolean; numisBidsUsername?: string; numisBidsPassword?: string; pushoverUserKey?: string }) =>
+  api.put<{ id: number; username: string; role: string; email: string; avatarPath: string; isPublic: boolean; bio: string; zipCode: string; numisBidsUsername: string; numisBidsConfigured: boolean; pushoverEnabled: boolean }>('/user/profile', data)
 export const uploadAvatar = (file: File) => {
   const form = new FormData()
   form.append('avatar', file)
@@ -492,6 +492,10 @@ export const syncNumisBidsWatchlist = () =>
   api.post<{ synced: number; lots: AuctionLot[] }>('/auctions/sync')
 export const validateNumisBidsCredentials = (username: string, password: string) =>
   api.post<{ valid: boolean; error?: string }>('/auctions/validate-credentials', { username, password })
+
+// Pushover notifications
+export const testPushover = () =>
+  api.post<{ message: string }>('/notifications/test-pushover')
 
 // Availability checks
 export const checkWishlistAvailability = () =>

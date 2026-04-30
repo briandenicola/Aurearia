@@ -21,5 +21,7 @@ type User struct {
 	ZipCode           string    `gorm:"type:varchar(10)" json:"zipCode"`
 	NumisBidsUsername string    `gorm:"type:varchar(100)" json:"-"`
 	NumisBidsPassword string    `gorm:"type:varchar(100)" json:"-"`
+	PushoverUserKey   string    `gorm:"type:varchar(100)" json:"-"`
+	PushoverEnabled   bool      `gorm:"default:false" json:"pushoverEnabled"`
 	CreatedAt         time.Time `json:"createdAt"`
 }

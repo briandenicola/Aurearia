@@ -84,6 +84,7 @@ export interface User {
   zipCode: string
   numisBidsUsername?: string
   numisBidsConfigured?: boolean
+  pushoverEnabled?: boolean
 }
 
 export interface AuthResponse {

@@ -18,13 +18,14 @@ import (
 )
 
 type UserHandler struct {
-	UploadDir string
-	repo      *repository.UserRepository
-	logger    *services.Logger
+	UploadDir   string
+	repo        *repository.UserRepository
+	pushoverSvc *services.PushoverService
+	logger      *services.Logger
 }
 
-func NewUserHandler(uploadDir string, repo *repository.UserRepository, logger *services.Logger) *UserHandler {
-	return &UserHandler{UploadDir: uploadDir, repo: repo, logger: logger}
+func NewUserHandler(uploadDir string, repo *repository.UserRepository, pushoverSvc *services.PushoverService, logger *services.Logger) *UserHandler {
+	return &UserHandler{UploadDir: uploadDir, repo: repo, pushoverSvc: pushoverSvc, logger: logger}
 }
 
 // ChangePassword allows a user to change their own password.
@@ -115,6 +116,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 		"createdAt":           user.CreatedAt,
 		"numisBidsUsername":   user.NumisBidsUsername,
 		"numisBidsConfigured": user.NumisBidsUsername != "" && user.NumisBidsPassword != "",
+		"pushoverEnabled":     user.PushoverEnabled,
 	})
 }
 
@@ -224,6 +226,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		ZipCode           *string `json:"zipCode"`
 		NumisBidsUsername *string `json:"numisBidsUsername"`
 		NumisBidsPassword *string `json:"numisBidsPassword"`
+		PushoverUserKey   *string `json:"pushoverUserKey"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
@@ -266,6 +269,11 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	if req.NumisBidsPassword != nil {
 		updates["numis_bids_password"] = *req.NumisBidsPassword
 	}
+	if req.PushoverUserKey != nil {
+		key := strings.TrimSpace(*req.PushoverUserKey)
+		updates["pushover_user_key"] = key
+		updates["pushover_enabled"] = key != ""
+	}
 	if req.IsPublic != nil {
 		updates["is_public"] = *req.IsPublic
 		goingPrivate := !*req.IsPublic && user.IsPublic
@@ -303,6 +311,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		"zipCode":             user.ZipCode,
 		"numisBidsUsername":   user.NumisBidsUsername,
 		"numisBidsConfigured": user.NumisBidsUsername != "" && user.NumisBidsPassword != "",
+		"pushoverEnabled":     user.PushoverEnabled,
 	})
 }
 
@@ -381,4 +390,28 @@ func (h *UserHandler) DeleteAvatar(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Avatar removed"})
+}
+
+// TestPushover sends a test notification via Pushover to verify the user's configuration.
+func (h *UserHandler) TestPushover(c *gin.Context) {
+	userID := c.GetUint("userId")
+
+	user, err := h.repo.FindByID(userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	if !user.PushoverEnabled || user.PushoverUserKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Pushover is not configured"})
+		return
+	}
+
+	if err := h.pushoverSvc.SendNotification(user.PushoverUserKey, "Ancient Coins", "Pushover notifications are working!", ""); err != nil {
+		h.logger.Error("pushover", "Test notification failed for user %d: %v", userID, err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to send test notification"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Test notification sent"})
 }

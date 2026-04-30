@@ -69,6 +69,28 @@
     <div v-else-if="auth.user?.numisBidsConfigured" class="nb-status connected">
       NumisBids account connected
     </div>
+
+    <h3>Pushover Notifications</h3>
+    <p class="setting-desc" style="margin-bottom: 0.75rem">
+      Receive push notifications on your phone when wishlist items become unavailable or friends add new coins.
+    </p>
+    <div class="form-group">
+      <label class="form-label">Pushover User Key</label>
+      <input v-model="pushoverKey" type="password" class="form-input" placeholder="Your Pushover User Key" autocomplete="off" />
+      <span class="setting-desc" style="font-size: 0.8rem; margin-top: 0.25rem; display: block">Find your User Key in the Pushover app or dashboard.</span>
+    </div>
+    <div v-if="auth.user?.pushoverEnabled" class="nb-status connected" style="margin-bottom: 0.5rem">
+      Pushover notifications active
+    </div>
+    <button
+      class="btn btn-secondary btn-sm"
+      :disabled="pushoverTesting || !auth.user?.pushoverEnabled"
+      @click="handleTestPushover"
+      style="margin-bottom: 0.25rem"
+    >
+      {{ pushoverTesting ? 'Sending...' : 'Test Notification' }}
+    </button>
+    <p v-if="pushoverTestMsg" class="msg" :class="{ error: pushoverTestError }" style="margin-top: 0.25rem">{{ pushoverTestMsg }}</p>
     <div class="setting-item">
       <div class="setting-info">
         <span class="setting-label">Public Collection</span>
@@ -176,7 +198,8 @@ const { showConfirm } = useDialog()
 const {
   avatarUrl, handleAvatarUpload, handleAvatarDelete,
   profileEmail, profileBio, profileZipCode,
-  nbUsername, nbPassword, profilePublic, profileMsg, profileError, profileSaving,
+  nbUsername, nbPassword, pushoverKey, pushoverTesting, pushoverTestMsg, pushoverTestError,
+  handleTestPushover, profilePublic, profileMsg, profileError, profileSaving,
   showPrivacyWarning, onPublicToggle, confirmGoPrivate, cancelGoPrivate,
   nbValidating, nbValidationError, handleSaveProfile,
   currentPassword, newPassword, confirmPassword,

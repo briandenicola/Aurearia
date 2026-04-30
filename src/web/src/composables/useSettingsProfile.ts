@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   changePassword, uploadAvatar, deleteAvatar, updateProfile,
-  validateNumisBidsCredentials,
+  validateNumisBidsCredentials, testPushover,
 } from '@/api/client'
 
 export function useSettingsProfile() {
@@ -46,6 +46,10 @@ export function useSettingsProfile() {
   const profileZipCode = ref(auth.user?.zipCode || '')
   const nbUsername = ref(auth.user?.numisBidsUsername || '')
   const nbPassword = ref('')
+  const pushoverKey = ref('')
+  const pushoverTesting = ref(false)
+  const pushoverTestMsg = ref('')
+  const pushoverTestError = ref(false)
   const profilePublic = ref(auth.user?.isPublic || false)
   const profileMsg = ref('')
   const profileError = ref(false)
@@ -111,6 +115,9 @@ export function useSettingsProfile() {
       if (nbPassword.value) {
         data.numisBidsPassword = nbPassword.value
       }
+      if (pushoverKey.value !== '') {
+        data.pushoverUserKey = pushoverKey.value
+      }
       const res = await updateProfile(data as Parameters<typeof updateProfile>[0])
       if (auth.user) {
         auth.user.email = res.data.email
@@ -119,9 +126,11 @@ export function useSettingsProfile() {
         auth.user.isPublic = res.data.isPublic
         auth.user.numisBidsUsername = res.data.numisBidsUsername
         auth.user.numisBidsConfigured = res.data.numisBidsConfigured
+        auth.user.pushoverEnabled = res.data.pushoverEnabled
         localStorage.setItem('user', JSON.stringify(auth.user))
       }
       nbPassword.value = ''
+      pushoverKey.value = ''
       profileMsg.value = 'Profile saved'
     } catch {
       profileMsg.value = 'Failed to save profile'
@@ -164,6 +173,22 @@ export function useSettingsProfile() {
     }
   }
 
+  // Pushover test
+  async function handleTestPushover() {
+    pushoverTesting.value = true
+    pushoverTestMsg.value = ''
+    pushoverTestError.value = false
+    try {
+      await testPushover()
+      pushoverTestMsg.value = 'Test notification sent'
+    } catch {
+      pushoverTestMsg.value = 'Failed to send test notification'
+      pushoverTestError.value = true
+    } finally {
+      pushoverTesting.value = false
+    }
+  }
+
   return {
     // Avatar
     avatarUrl,
@@ -175,6 +200,11 @@ export function useSettingsProfile() {
     profileZipCode,
     nbUsername,
     nbPassword,
+    pushoverKey,
+    pushoverTesting,
+    pushoverTestMsg,
+    pushoverTestError,
+    handleTestPushover,
     profilePublic,
     profileMsg,
     profileError,

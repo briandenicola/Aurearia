@@ -155,10 +155,11 @@ func main() {
 	coinRepo := repository.NewCoinRepository(database.DB)
 	socialRepo := repository.NewSocialRepository(database.DB)
 	notifRepo := repository.NewNotificationRepository(database.DB)
-	notifSvc := services.NewNotificationService(notifRepo, socialRepo, logger)
-	availSvc := services.NewAvailabilityService(coinRepo, availRepo, agentProxy, notifSvc, settingsSvc, logger)
 	valRepo := repository.NewValuationRepository(database.DB)
 	userRepoForVal := repository.NewUserRepository(database.DB)
+	pushoverSvc := services.NewPushoverService(settingsSvc, logger)
+	notifSvc := services.NewNotificationService(notifRepo, socialRepo, userRepoForVal, pushoverSvc, logger)
+	availSvc := services.NewAvailabilityService(coinRepo, availRepo, agentProxy, notifSvc, settingsSvc, logger)
 	valSvc := services.NewValuationService(coinRepo, valRepo, agentProxy, userRepoForVal, settingsSvc, logger)
 
 	apiKeyRepo := repository.NewApiKeyRepository(database.DB)
@@ -266,7 +267,7 @@ func main() {
 		protected.DELETE("/agent/conversations/:id", convHandler.Delete)
 
 		// User self-service routes
-		userHandler := handlers.NewUserHandler(cfg.UploadDir, userRepo, logger)
+		userHandler := handlers.NewUserHandler(cfg.UploadDir, userRepo, pushoverSvc, logger)
 		protected.GET("/auth/me", userHandler.GetMe)
 		protected.POST("/auth/change-password", userHandler.ChangePassword)
 		protected.PUT("/user/profile", userHandler.UpdateProfile)
@@ -275,6 +276,7 @@ func main() {
 		protected.GET("/user/export", userHandler.ExportCollection)
 		protected.GET("/user/export/catalog", userHandler.ExportCatalogPDF)
 		protected.POST("/user/import", writeRateLimit, userHandler.ImportCollection)
+		protected.POST("/notifications/test-pushover", userHandler.TestPushover)
 
 		// Social routes
 		socialSvc := services.NewSocialService(socialRepo)

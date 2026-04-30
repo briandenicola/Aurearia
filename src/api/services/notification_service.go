@@ -9,21 +9,27 @@ import (
 
 // NotificationService handles creating and managing notifications.
 type NotificationService struct {
-	notifRepo  *repository.NotificationRepository
-	socialRepo *repository.SocialRepository
-	logger     *Logger
+	notifRepo   *repository.NotificationRepository
+	socialRepo  *repository.SocialRepository
+	userRepo    *repository.UserRepository
+	pushoverSvc *PushoverService
+	logger      *Logger
 }
 
 // NewNotificationService creates a new NotificationService.
 func NewNotificationService(
 	notifRepo *repository.NotificationRepository,
 	socialRepo *repository.SocialRepository,
+	userRepo *repository.UserRepository,
+	pushoverSvc *PushoverService,
 	logger *Logger,
 ) *NotificationService {
 	return &NotificationService{
-		notifRepo:  notifRepo,
-		socialRepo: socialRepo,
-		logger:     logger,
+		notifRepo:   notifRepo,
+		socialRepo:  socialRepo,
+		userRepo:    userRepo,
+		pushoverSvc: pushoverSvc,
+		logger:      logger,
 	}
 }
 
@@ -35,11 +41,14 @@ func (s *NotificationService) NotifyWishlistUnavailable(userID uint, coin models
 		coinName = "Unnamed coin"
 	}
 
+	title := "Wishlist item unavailable"
+	message := fmt.Sprintf("%s appears to no longer be available. %s", coinName, reason)
+
 	n := &models.Notification{
 		UserID:       userID,
 		Type:         "wishlist_unavailable",
-		Title:        "Wishlist item unavailable",
-		Message:      fmt.Sprintf("%s appears to no longer be available. %s", coinName, reason),
+		Title:        title,
+		Message:      message,
 		ReferenceID:  coin.ID,
 		ReferenceURL: coin.ReferenceURL,
 	}
@@ -47,6 +56,8 @@ func (s *NotificationService) NotifyWishlistUnavailable(userID uint, coin models
 	if err := s.notifRepo.Create(n); err != nil {
 		s.logger.Error("notifications", "Failed to create wishlist notification for user %d, coin %d: %v", userID, coin.ID, err)
 	}
+
+	go s.sendPushover(userID, title, message, coin.ReferenceURL)
 }
 
 // NotifyNewCoin creates notifications for all accepted followers when a user
@@ -88,7 +99,28 @@ func (s *NotificationService) NotifyNewCoin(ownerID uint, coin models.Coin) {
 		if err := s.notifRepo.Create(n); err != nil {
 			s.logger.Error("notifications", "Failed to notify follower %d about coin %d: %v", followerID, coin.ID, err)
 		}
+		go s.sendPushover(followerID, "New coin added", fmt.Sprintf("%s added %s to their collection.", ownerName, coinName), "")
 	}
 
 	s.logger.Debug("notifications", "Notified %d followers about new coin %d from user %d", len(followers), coin.ID, ownerID)
+}
+
+// sendPushover checks if the user has Pushover enabled and sends a push notification.
+func (s *NotificationService) sendPushover(userID uint, title, message, refURL string) {
+	if s.pushoverSvc == nil || s.userRepo == nil {
+		return
+	}
+
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil || user == nil {
+		return
+	}
+
+	if !user.PushoverEnabled || user.PushoverUserKey == "" {
+		return
+	}
+
+	if err := s.pushoverSvc.SendNotification(user.PushoverUserKey, title, message, refURL); err != nil {
+		s.logger.Error("pushover", "Failed to send Pushover notification to user %d: %v", userID, err)
+	}
 }
