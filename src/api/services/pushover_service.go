@@ -23,12 +23,15 @@ func NewPushoverService(settingsSvc *SettingsService, logger *Logger) *PushoverS
 	}
 }
 
+// ErrPushoverNotConfigured is returned when the Pushover app token is not set.
+var ErrPushoverNotConfigured = fmt.Errorf("pushover app token not configured")
+
 // SendNotification sends a push notification to the specified user via Pushover.
 func (s *PushoverService) SendNotification(userKey, title, message, refURL string) error {
 	appToken := s.settingsSvc.GetSetting(SettingPushoverAppToken)
 	if appToken == "" {
 		s.logger.Warn("pushover", "Pushover app token not configured, skipping notification")
-		return nil
+		return ErrPushoverNotConfigured
 	}
 
 	form := url.Values{}

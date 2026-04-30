@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -408,6 +409,10 @@ func (h *UserHandler) TestPushover(c *gin.Context) {
 	}
 
 	if err := h.pushoverSvc.SendNotification(user.PushoverUserKey, "Ancient Coins", "Pushover notifications are working!", ""); err != nil {
+		if errors.Is(err, services.ErrPushoverNotConfigured) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Pushover app token not configured. Ask your admin to set PushoverAppToken in Admin Settings."})
+			return
+		}
 		h.logger.Error("pushover", "Test notification failed for user %d: %v", userID, err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to send test notification"})
 		return
