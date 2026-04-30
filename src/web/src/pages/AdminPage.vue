@@ -62,6 +62,7 @@
       <AdminSystemSection
         v-if="activeTab === 'system'"
         :numista-api-key="settings.NumistaAPIKey ?? ''"
+        :pushover-app-token="settings.PushoverAppToken ?? ''"
         :log-level="settings.LogLevel ?? ''"
         :log-levels="LOG_LEVELS"
         :saving="settingsSaving"
@@ -236,9 +237,10 @@ function exportLogs() {
   URL.revokeObjectURL(url)
 }
 
-function onSystemSave(payload: { numistaApiKey: string; logLevel: string }) {
+function onSystemSave(payload: { numistaApiKey: string; logLevel: string; pushoverAppToken: string }) {
   settings.value.NumistaAPIKey = payload.numistaApiKey
   settings.value.LogLevel = payload.logLevel
+  settings.value.PushoverAppToken = payload.pushoverAppToken
   saveSettings()
 }
 

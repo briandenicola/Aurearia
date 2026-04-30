@@ -404,7 +404,7 @@ func (h *UserHandler) TestPushover(c *gin.Context) {
 	}
 
 	if !user.PushoverEnabled || user.PushoverUserKey == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Pushover is not configured"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Pushover is not configured. Save your User Key first."})
 		return
 	}
 

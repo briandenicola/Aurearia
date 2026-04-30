@@ -1,11 +1,16 @@
 <template>
   <section class="admin-section card">
     <h2>System Settings</h2>
-    <form @submit.prevent="$emit('save', { numistaApiKey: localNumistaApiKey, logLevel: localLogLevel })">
+    <form @submit.prevent="$emit('save', { numistaApiKey: localNumistaApiKey, logLevel: localLogLevel, pushoverAppToken: localPushoverAppToken })">
       <div class="form-group">
         <label class="form-label">Numista API Key</label>
         <input v-model="localNumistaApiKey" class="form-input" type="password" placeholder="Enter your Numista API key" />
         <span class="form-hint">Get a free key at <a href="https://en.numista.com/api/" target="_blank" rel="noopener">numista.com/api</a> (2,000 requests/month free)</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Pushover API Token</label>
+        <input v-model="localPushoverAppToken" class="form-input" type="password" placeholder="Enter your Pushover application API token" />
+        <span class="form-hint">Create an app at <a href="https://pushover.net/apps" target="_blank" rel="noopener">pushover.net/apps</a> to get a token. Users provide their own User Key in Account Settings.</span>
       </div>
       <div class="form-group">
         <label class="form-label">Log Level</label>
@@ -31,6 +36,7 @@ import { ref, watch } from 'vue'
 
 const props = defineProps<{
   numistaApiKey: string
+  pushoverAppToken: string
   logLevel: string
   logLevels: readonly string[]
   saving: boolean
@@ -41,13 +47,15 @@ const props = defineProps<{
 }>()
 
 defineEmits<{
-  save: [settings: { numistaApiKey: string; logLevel: string }]
+  save: [settings: { numistaApiKey: string; logLevel: string; pushoverAppToken: string }]
 }>()
 
 const localNumistaApiKey = ref(props.numistaApiKey)
+const localPushoverAppToken = ref(props.pushoverAppToken)
 const localLogLevel = ref(props.logLevel)
 
 watch(() => props.numistaApiKey, (v) => { localNumistaApiKey.value = v })
+watch(() => props.pushoverAppToken, (v) => { localPushoverAppToken.value = v })
 watch(() => props.logLevel, (v) => { localLogLevel.value = v })
 </script>
 
