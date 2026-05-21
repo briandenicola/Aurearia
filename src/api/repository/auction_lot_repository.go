@@ -193,3 +193,18 @@ func (r *AuctionLotRepository) ListByEventID(eventID, userID uint) ([]models.Auc
 		Order("lot_number ASC").Find(&lots).Error
 	return lots, err
 }
+
+// GetEndingToday returns all auction lots with BIDDING status whose sale date is today.
+// Groups results by user for notification processing.
+func (r *AuctionLotRepository) GetEndingToday() ([]models.AuctionLot, error) {
+	var lots []models.AuctionLot
+	now := time.Now()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	endOfDay := startOfDay.Add(24 * time.Hour)
+
+	err := r.db.Where("status = ? AND sale_date >= ? AND sale_date < ?",
+		models.AuctionStatusBidding, startOfDay, endOfDay).
+		Order("user_id ASC, sale_date ASC").
+		Find(&lots).Error
+	return lots, err
+}

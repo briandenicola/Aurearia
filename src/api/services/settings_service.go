@@ -26,10 +26,13 @@ const (
 	SettingWishlistCheckEnabled    = "WishlistCheckEnabled"
 	SettingWishlistCheckInterval   = "WishlistCheckInterval"
 	SettingWishlistCheckStartTime  = "WishlistCheckStartTime"
-	SettingValuationCheckEnabled   = "ValuationCheckEnabled"
-	SettingValuationCheckInterval  = "ValuationCheckIntervalDays"
-	SettingValuationCheckStartTime = "ValuationCheckStartTime"
-	SettingValuationMaxCoins       = "ValuationMaxCoins"
+	SettingValuationCheckEnabled      = "ValuationCheckEnabled"
+	SettingValuationCheckInterval     = "ValuationCheckIntervalDays"
+	SettingValuationCheckStartTime    = "ValuationCheckStartTime"
+	SettingValuationMaxCoins          = "ValuationMaxCoins"
+	SettingAuctionEndingCheckEnabled  = "AuctionEndingCheckEnabled"
+	SettingAuctionEndingCheckInterval = "AuctionEndingCheckInterval"
+	SettingAuctionEndingCheckStartTime = "AuctionEndingCheckStartTime"
 )
 
 const DefaultObversePrompt = `You are an expert numismatist specializing in ancient and modern coins. Analyze the obverse (front) of this coin and provide:
@@ -71,13 +74,16 @@ var settingDefaults = map[string]string{
 	SettingValuationPrompt:      "",
 	SettingSearXNGURL:           "",
 	SettingPushoverAppToken:     "",
-	SettingWishlistCheckEnabled:     "false",
-	SettingWishlistCheckInterval:    "120",
-	SettingWishlistCheckStartTime:   "02:00",
-	SettingValuationCheckEnabled:    "false",
-	SettingValuationCheckInterval:   "7",
-	SettingValuationCheckStartTime:  "03:00",
-	SettingValuationMaxCoins:        "50",
+	SettingWishlistCheckEnabled:      "false",
+	SettingWishlistCheckInterval:     "120",
+	SettingWishlistCheckStartTime:    "02:00",
+	SettingValuationCheckEnabled:     "false",
+	SettingValuationCheckInterval:    "7",
+	SettingValuationCheckStartTime:   "03:00",
+	SettingValuationMaxCoins:         "50",
+	SettingAuctionEndingCheckEnabled: "false",
+	SettingAuctionEndingCheckInterval: "1440",
+	SettingAuctionEndingCheckStartTime: "08:00",
 }
 
 // SettingsService provides access to application settings backed by the database.

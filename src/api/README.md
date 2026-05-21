@@ -94,6 +94,18 @@ All dependencies are wired via constructor injection in `main.go`. No global sta
 - `/api/alerts`, `/api/reminders` — Price alerts and bid reminders
 - `/api/wishlist/check-availability` — Wishlist availability checking
 
+## Background Schedulers
+
+The API runs three background schedulers that start automatically on server startup:
+
+1. **Wishlist Availability Scheduler** — Periodically checks if wishlist coins are still available at their reference URLs. Configured via `WishlistCheckEnabled`, `WishlistCheckStartTime`, and `WishlistCheckInterval` settings. Sends Pushover notifications when items become unavailable.
+
+2. **Collection Valuation Scheduler** — Periodically runs AI-powered valuation estimates for the user's collection. Configured via `ValuationCheckEnabled`, `ValuationCheckStartTime`, and `ValuationCheckIntervalDays` settings. Sends Pushover notifications with valuation summaries.
+
+3. **Auction Ending Scheduler** — Daily check for auction lots the user is bidding on that end today. Configured via `AuctionEndingCheckEnabled`, `AuctionEndingCheckStartTime`, and `AuctionEndingCheckInterval` settings. Sends consolidated Pushover notifications per user with all ending auctions. Uses in-memory idempotency tracking to avoid duplicate notifications within the same day.
+
+All schedulers respect user-level Pushover notification settings and gracefully handle disabled or missing configuration.
+
 ### `admin` — JWT + Admin Role Required
 
 - `/api/admin/users` — List/delete users, reset passwords

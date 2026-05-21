@@ -157,6 +157,7 @@ func main() {
 	notifRepo := repository.NewNotificationRepository(database.DB)
 	valRepo := repository.NewValuationRepository(database.DB)
 	userRepoForVal := repository.NewUserRepository(database.DB)
+	auctionLotRepo := repository.NewAuctionLotRepository(database.DB)
 	pushoverSvc := services.NewPushoverService(settingsSvc, logger)
 	notifSvc := services.NewNotificationService(notifRepo, socialRepo, userRepoForVal, pushoverSvc, logger)
 	availSvc := services.NewAvailabilityService(coinRepo, availRepo, agentProxy, notifSvc, pushoverSvc, userRepoForVal, settingsSvc, logger)
@@ -222,7 +223,6 @@ func main() {
 		numistaHandler := handlers.NewNumistaHandler(settingsSvc)
 		protected.GET("/numista/search", numistaHandler.Search)
 
-		auctionLotRepo := repository.NewAuctionLotRepository(database.DB)
 		auctionLotSvc := services.NewAuctionLotService(auctionLotRepo, coinRepo)
 		nbSvc := services.NewNumisBidsService()
 		auctionUserRepo := repository.NewUserRepository(database.DB)
@@ -405,6 +405,10 @@ func main() {
 	// Start collection valuation scheduler
 	valScheduler := services.NewValuationScheduler(valSvc, coinRepo, valRepo, settingsSvc, logger)
 	go valScheduler.Start()
+
+	// Start auction ending scheduler
+	auctionEndingScheduler := services.NewAuctionEndingScheduler(auctionLotRepo, userRepoForVal, pushoverSvc, settingsSvc, logger)
+	go auctionEndingScheduler.Start()
 
 	logger.Info("startup", "Application ready")
 	log.Println("Application ready")
