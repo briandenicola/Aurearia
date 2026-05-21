@@ -64,6 +64,8 @@ export function useAdminConfig() {
   // Schedule-tab save messages (cleared alongside main settingsMsg)
   const availSettingsMsg = ref('')
   const availSettingsError = ref(false)
+  const auctionSettingsMsg = ref('')
+  const auctionSettingsError = ref(false)
   const valSettingsMsg = ref('')
   const valSettingsError = ref(false)
 
@@ -75,6 +77,17 @@ export function useAdminConfig() {
       ])
       settingDefaults.value = { ...settingDefaults.value, ...defaultsRes.data }
       settings.value = { ...settings.value, ...settingsRes.data }
+
+      // Apply defaults for auction settings if not set
+      if (!settings.value.AuctionEndingCheckEnabled) {
+        settings.value.AuctionEndingCheckEnabled = 'false'
+      }
+      if (!settings.value.AuctionEndingCheckStartTime) {
+        settings.value.AuctionEndingCheckStartTime = '08:00'
+      }
+      if (!settings.value.AuctionEndingCheckInterval) {
+        settings.value.AuctionEndingCheckInterval = '1440'
+      }
 
       const [modelsRes, coinSearchRes, coinShowsRes, valPromptRes] = await Promise.all([
         getAnthropicModels().catch(() => null),
@@ -116,6 +129,8 @@ export function useAdminConfig() {
     settingsError.value = false
     availSettingsMsg.value = ''
     availSettingsError.value = false
+    auctionSettingsMsg.value = ''
+    auctionSettingsError.value = false
     valSettingsMsg.value = ''
     valSettingsError.value = false
     try {
@@ -123,14 +138,17 @@ export function useAdminConfig() {
       await updateAppSettings(entries)
       settingsMsg.value = 'Settings saved'
       availSettingsMsg.value = 'Settings saved'
+      auctionSettingsMsg.value = 'Settings saved'
       valSettingsMsg.value = 'Settings saved'
       if (saveTimerId) clearTimeout(saveTimerId)
-      saveTimerId = setTimeout(() => { availSettingsMsg.value = ''; valSettingsMsg.value = '' }, 3000)
+      saveTimerId = setTimeout(() => { availSettingsMsg.value = ''; auctionSettingsMsg.value = ''; valSettingsMsg.value = '' }, 3000)
     } catch {
       settingsMsg.value = 'Failed to save settings'
       settingsError.value = true
       availSettingsMsg.value = 'Failed to save settings'
       availSettingsError.value = true
+      auctionSettingsMsg.value = 'Failed to save settings'
+      auctionSettingsError.value = true
       valSettingsMsg.value = 'Failed to save settings'
       valSettingsError.value = true
     } finally {
@@ -209,6 +227,8 @@ export function useAdminConfig() {
     // Schedule messages
     availSettingsMsg,
     availSettingsError,
+    auctionSettingsMsg,
+    auctionSettingsError,
     valSettingsMsg,
     valSettingsError,
     // Functions

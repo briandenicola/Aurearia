@@ -4,6 +4,7 @@
 
     <!-- Wishlist Availability Check -->
     <h3 class="subsection-title">Wishlist Availability Check</h3>
+    <p class="subsection-desc">Monitors dealer sites for coins on your wishlist and sends alerts when availability changes.</p>
     <div class="avail-settings">
       <div class="form-group avail-toggle-row">
         <label class="form-label">Enable Automatic Checks</label>
@@ -115,6 +116,51 @@
         <button class="btn btn-secondary btn-sm" :disabled="availRuns.length < 5" @click="availPage++; loadAvailRuns()">Next</button>
       </div>
     </template>
+
+    <hr class="section-divider" />
+
+    <!-- Auction Ending Alerts -->
+    <h3 class="subsection-title">Auction Ending Alerts</h3>
+    <p class="subsection-desc">Sends a Pushover alert each day for auction lots you are bidding on that end today.</p>
+    <div class="avail-settings">
+      <div class="form-group avail-toggle-row">
+        <label class="form-label">Enable Automatic Alerts</label>
+        <label class="toggle-switch">
+          <input
+            type="checkbox"
+            :checked="settings.AuctionEndingCheckEnabled === 'true'"
+            @change="settings.AuctionEndingCheckEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
+          />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Start Time (daily anchor)</label>
+        <input
+          v-model="settings.AuctionEndingCheckStartTime"
+          class="form-input avail-interval-input"
+          type="time"
+        />
+        <span class="form-hint">The first check runs at this time each day.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Repeat Interval (minutes)</label>
+        <input
+          v-model="settings.AuctionEndingCheckInterval"
+          class="form-input avail-interval-input"
+          type="number"
+          min="60"
+          step="60"
+        />
+        <span class="form-hint">How often to repeat after the start time. Default 1440 (daily).</span>
+      </div>
+      <div class="avail-save-row">
+        <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
+          {{ settingsSaving ? 'Saving...' : 'Save Alert Settings' }}
+        </button>
+        <span v-if="auctionSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': auctionSettingsError }">{{ auctionSettingsMsg }}</span>
+      </div>
+    </div>
 
     <hr class="section-divider" />
 
@@ -270,6 +316,8 @@ const props = defineProps<{
   settingsSaving: boolean
   availSettingsMsg: string
   availSettingsError: boolean
+  auctionSettingsMsg: string
+  auctionSettingsError: boolean
   valSettingsMsg: string
   valSettingsError: boolean
 }>()

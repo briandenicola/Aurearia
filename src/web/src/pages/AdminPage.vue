@@ -93,6 +93,8 @@
         :settings-saving="settingsSaving"
         :avail-settings-msg="availSettingsMsg"
         :avail-settings-error="availSettingsError"
+        :auction-settings-msg="auctionSettingsMsg"
+        :auction-settings-error="auctionSettingsError"
         :val-settings-msg="valSettingsMsg"
         :val-settings-error="valSettingsError"
         @save="saveSettings"
@@ -189,7 +191,7 @@ const {
   anthropicTesting, anthropicTestResult, anthropicTestOk, anthropicModels,
   searxngTesting, searxngTestResult, searxngTestOk,
   coinSearchPromptDefault, coinShowsPromptDefault, valuationPromptDefault,
-  availSettingsMsg, availSettingsError, valSettingsMsg, valSettingsError,
+  availSettingsMsg, availSettingsError, auctionSettingsMsg, auctionSettingsError, valSettingsMsg, valSettingsError,
   loadSettings, saveSettings,
   testOllamaConnection, testAnthropicConn, testSearxngConn,
   cleanup: cleanupAdminConfig,

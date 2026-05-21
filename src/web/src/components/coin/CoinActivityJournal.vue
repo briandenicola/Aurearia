@@ -11,7 +11,7 @@
       />
       <button class="btn btn-primary btn-sm" :disabled="!input.trim()" @click="handleAdd">Add</button>
     </div>
-    <div v-if="entries.length" class="journal-list">
+    <div v-if="entries.length" class="journal-list" :class="{ 'journal-list-scrollable': entries.length > 3 }">
       <div v-for="entry in entries" :key="entry.id" class="journal-entry">
         <div class="journal-entry-content">
           <span class="journal-entry-text">{{ entry.entry }}</span>
@@ -77,6 +77,29 @@ function formatJournalDate(dateStr: string) {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+}
+
+.journal-list-scrollable {
+  max-height: 16.5rem;
+  overflow-y: auto;
+}
+
+.journal-list-scrollable::-webkit-scrollbar {
+  width: 8px;
+}
+
+.journal-list-scrollable::-webkit-scrollbar-track {
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+}
+
+.journal-list-scrollable::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.journal-list-scrollable::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-gold-dim);
 }
 
 .journal-entry {
