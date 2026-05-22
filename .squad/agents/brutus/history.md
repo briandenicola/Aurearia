@@ -23,3 +23,10 @@
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
 - **2026-05-21:** Auction-ending scheduler now available for testing. Cassius implemented backend (`services/auction_ending_scheduler.go`) with 3 new settings keys (enabled, start-time, interval). Aurelia completed admin panel UI in `AdminSchedulesSection.vue`. Pushover integration allows configurable alerts for upcoming auction ending dates. Ready for E2E test scenarios.
+
+- **2026-05-22:** Completed test coverage for auction ending manual-run and run log features. Created 16 new tests across 2 files: (1) `repository/auction_ending_repository_test.go` — 10 tests covering CreateRun, CompleteRun (success/error), ListRuns (pagination, empty, limit edge cases), GetRunByID (success/not found); (2) `handlers/auction_ending_admin_test.go` — 6 tests covering manual trigger endpoint (admin/user/no-auth), list runs endpoint (admin/pagination/no-auth). All tests pass. Cassius's implementation is clean: model (`AuctionEndingRun`), repository (`AuctionEndingRepository`), handler (`AuctionEndingAdminHandler`), scheduler `RunNow()` method, and wiring in `main.go` all follow established patterns. Test approach mirrors valuation run test pattern (in-memory SQLite, httptest+Gin, JWT middleware mocks). Repository tests verify CRUD, pagination defaults, empty slice vs nil. Handler tests verify auth/admin guards, response shape, pagination query params. No gaps found.
+
+## Team Updates
+
+- **2026-05-22:** Led quality assurance on auction-ending manual-run feature. Validated Cassius's backend implementation (16 comprehensive tests across repository and handler layers covering CRUD, pagination edge cases, error scenarios, and authorization guards). **Verdict: APPROVED** — implementation is production-ready, follows established patterns, no blocking issues. Coordinated with Aurelia on frontend integration; flagged endpoint URL alignment issue for follow-up fixup.
+

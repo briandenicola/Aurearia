@@ -103,6 +103,180 @@ Admin routes now protected. Can close code review backlog items #1–2.
 
 ---
 
+### 4. Activity Journal Scroll Limit & Auction Schedule UI (2026-05-01)
+
+**Author:** Aurelia (Frontend Dev)  
+**Date:** 2026-05-01  
+**Status:** Implemented  
+
+#### What
+
+Two independent UI improvements:
+
+**Task A — Activity Journal Scroll Limit**
+- Added scroll containment to CoinActivityJournal in coin detail page
+- Shows max 3 entries by default; rest accessible via internal vertical scroll
+- Used design tokens for scrollbar styling (--bg-card, --border-subtle, --accent-gold-dim)
+
+**Task B — Auction-Ending Schedule in Admin UI**
+- Added "Auction Ending Alerts" panel to AdminSchedulesSection mirroring wishlist pattern
+- Three new settings keys: AuctionEndingCheckEnabled, AuctionEndingCheckStartTime, AuctionEndingCheckInterval
+- Updated useAdminConfig composable to expose and manage auction settings state
+- Integrated into AdminPage with proper prop binding
+
+#### Why
+
+- Task A: Prevents Activity Journal from pushing content down page as history grows; keeps layout compact
+- Task B: Cassius building backend daily scheduler for auction-ending alerts; needs UI configuration in same location as wishlist/valuation schedulers
+
+#### Impact
+
+- Task A: Coin detail page remains compact with unbounded journal history
+- Task B: Users can enable and configure auction-ending scheduler alongside existing background schedulers
+
+#### Testing
+
+- vue-tsc passes clean (no TypeScript errors)
+- Nullish coalescing and optional chaining used correctly for Docker strictness
+- All design tokens applied (no hardcoded values)
+
+---
+
+### 5. Auction Ending Manual Trigger & Run Log — Backend Implementation (2026-06-10)
+
+**Author:** Cassius (Backend Dev)  
+**Date:** 2026-06-10  
+**Status:** Implemented  
+
+#### What
+
+Added manual run trigger and per-run logging to Auction Ending scheduler for parity with Valuation and Wishlist schedulers:
+
+1. **Model:** `models/auction_ending_run.go` — 10 fields (ID, TriggerType, TriggerUserID, Status, LotsChecked, AlertsSent, DurationMs, StartedAt, CompletedAt, ErrorMessage)
+2. **Repository:** `repository/auction_ending_repository.go` — CreateRun, CompleteRun, ListRuns (paginated), GetRunByID, PruneOldRuns
+3. **Service:** Refactored `services/auction_ending_scheduler.go` — Added RunNow(triggerUserID) method, extracted runCycleWithTrigger() to log every run
+4. **Handler:** `handlers/auction_ending_admin.go` — Two endpoints: POST /api/admin/auction-ending/run (manual trigger), GET /api/admin/auction-ending-runs (run history)
+5. **Wiring:** Updated main.go to instantiate scheduler early and pass to admin handler
+6. **Database:** Added AuctionEndingRun to AutoMigrate in database/database.go
+7. **Documentation:** Updated README.md Background Schedulers section
+
+#### Why
+
+Auction Ending scheduler needed manual-run capability and run logging to achieve feature parity with Valuation and Wishlist schedulers. Enables administrators to manually trigger checks and inspect historical run performance.
+
+#### API Contract
+
+**POST /api/admin/auction-ending/run** (admin only, returns 200 with run details on success)
+- Response: {runId, lotsChecked, alertsSent, status, durationMs}
+
+**GET /api/admin/auction-ending-runs?page=1&limit=20** (admin only, paginated)
+- Response: {runs: [...], total, page, limit}
+- Each run: {id, triggerType, triggerUserId, status, lotsChecked, alertsSent, durationMs, startedAt, completedAt, errorMessage, createdAt}
+
+#### Architecture Compliance
+
+- Model/Repository/Handler follow exact pattern of valuation_run (100% consistency)
+- Pagination enforces defaults (page≥1, limit 1-100, default 20)
+- Auto-pruning keeps 100 most recent runs
+- Transaction safety via Updates() with map in CompleteRun
+- Swagger annotations on both handler methods
+- Auth/admin guards on both endpoints
+
+#### Testing
+
+✅ All tests pass:
+- go vet clean
+- go test -v ./... passed
+- Architecture tests passed
+
+---
+
+### 6. Auction Ending Manual Trigger & Run Log — Frontend UI (2026-05-21)
+
+**Author:** Aurelia (Frontend Dev)  
+**Date:** 2026-05-21  
+**Status:** Implemented (minor follow-up fixup pending)
+
+#### What
+
+Implemented admin UI for manual trigger and run history display in AdminSchedulesSection:
+
+1. **API Client:** Added triggerAuctionEndingCheck(), getAuctionEndingRuns(), getAuctionEndingRunDetail() in client.ts
+2. **Types:** Added AuctionEndingRun and AuctionEndingResult interfaces in types/index.ts
+3. **Composable:** Extended useAdminConfig with auctionSettingsMsg, auctionSettingsError state; added defaults handling
+4. **Component:** 
+   - "Run Now" button in Auction Ending section
+   - Recent runs table with columns: Date, Trigger, Lots, Alerts, Status, Duration
+   - Expandable detail rows for error messages
+   - Pagination controls with loading state
+   - Responsive mobile layout
+
+#### Why
+
+Cassius implemented backend manual trigger and run log; frontend needed corresponding UI in AdminSchedulesSection to match Valuation/Wishlist patterns.
+
+#### Testing
+
+- npm run type-check passed
+- npm run build succeeded (production build)
+- All global design tokens used (no hardcodes)
+- Followed Composition API patterns from existing admin components
+
+#### Known Issue
+
+Aurelia guessed endpoint URL `/admin/auction-ending/runs` but Cassius's actual endpoint is `/admin/auction-ending-runs` (hyphenated). Follow-up fixup spawn (aurelia-auction-fixup) in flight to align client.ts URL.
+
+---
+
+### 7. Auction Ending Manual Trigger & Run Log — Test Coverage (2026-05-22)
+
+**Author:** Brutus (Tester/QA)  
+**Date:** 2026-05-22  
+**Status:** **APPROVED**  
+
+#### What
+
+Comprehensive test suite for Cassius's auction-ending manual-run and run-log implementation:
+
+**Repository Tests (10 tests in auction_ending_repository_test.go):**
+- CreateRun (ID assignment, timestamp population)
+- CompleteRun success and error paths (status, timestamps, error message persistence)
+- ListRuns (newest-first ordering, pagination, empty results)
+- ListRuns pagination edge cases (limit defaults, negative limits, zero limits)
+- GetRunByID (found and not-found paths)
+
+**Handler Tests (6 tests in auction_ending_admin_test.go):**
+- TriggerRun endpoint (admin authorization, user rejection, no-auth rejection)
+- ListRuns endpoint (admin authorization, pagination param handling, no-auth rejection)
+
+#### Why
+
+Cassius completed manual-run and run-log feature; comprehensive test coverage validates architecture compliance, error handling, authorization guards, and pagination safety.
+
+#### Quality Assessment
+
+✅ **Strengths:**
+- 100% pattern consistency with valuation/wishlist schedulers
+- Transaction safety via Updates() with map
+- Pagination defaults enforced (page≥1, limit 1-100, default 20)
+- Error handling and pruning strategy robust
+- Complete Swagger annotations
+- Auth/admin guards on both endpoints
+
+⚠️ **Minor Observations (not blocking):**
+- PruneOldRuns silently fails on error (suggest adding log line, low priority)
+- No cancel endpoint (acceptable for fast runs, flag for future if runs become long-running)
+
+#### Verdict
+
+**APPROVED** — All 16 tests pass. Architecture compliance excellent. No blocking issues. Production-ready.
+
+#### Recommendation
+
+Merge to main. Optional improvements (logging, E2E tests) can be backlog items for future sprint.
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus

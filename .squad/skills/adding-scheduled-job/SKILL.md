@@ -346,6 +346,318 @@ func (s *FeatureScheduler) notifyUser(userID uint, items []models.Feature) {
 2. **`services/valuation_scheduler.go`** — Collection valuation (7-day interval)
 3. **`services/auction_ending_scheduler.go`** — Auction ending alerts (24-hour interval, in-memory idempotency)
 
+## Adding a Manual Trigger + Run Log to an Existing Scheduler
+
+If you already have a scheduler that runs on a schedule, and you want to add:
+1. A manual "run now" admin endpoint
+2. A run log table that records every run (scheduled or manual)
+
+Follow this pattern (used by Valuation, Availability, and Auction Ending schedulers):
+
+### 1. Create Run Log Model
+
+**File:** `src/api/models/{feature}_run.go`
+
+**Pattern:**
+```go
+package models
+
+import "time"
+
+type FeatureRun struct {
+	ID            uint      `gorm:"primaryKey" json:"id"`
+	TriggerType   string    `gorm:"type:varchar(20);not null" json:"triggerType"`
+	TriggerUserID *uint     `json:"triggerUserId"`
+	Status        string    `gorm:"type:varchar(20);not null;default:'running'" json:"status"`
+	ItemsChecked  int       `json:"itemsChecked"`
+	ActionsCount  int       `json:"actionsCount"`
+	DurationMs    int64     `json:"durationMs"`
+	StartedAt     time.Time `gorm:"not null" json:"startedAt"`
+	CompletedAt   *time.Time `json:"completedAt"`
+	ErrorMessage  string    `gorm:"type:text" json:"errorMessage,omitempty"`
+	CreatedAt     time.Time `json:"createdAt"`
+}
+```
+
+**Field naming:**
+- `TriggerType` — "scheduled" or "manual"
+- `TriggerUserID` — nullable, set only for manual runs
+- `Status` — "running", "success", or "error"
+- `ItemsChecked`, `ActionsCount` — domain-specific counters (e.g., `LotsChecked`, `AlertsSent`)
+- `DurationMs` — run duration in milliseconds
+
+### 2. Add to AutoMigrate
+
+**File:** `src/api/database/database.go`
+
+Add your new model to the AutoMigrate list:
+```go
+err = DB.AutoMigrate(&models.User{}, ..., &models.FeatureRun{})
+```
+
+### 3. Create Run Log Repository
+
+**File:** `src/api/repository/{feature}_repository.go`
+
+**Methods:**
+- `CreateRun(run *models.FeatureRun) error`
+- `CompleteRun(run *models.FeatureRun) error`
+- `ListRuns(page, limit int) ([]models.FeatureRun, int64, error)`
+- `GetRunByID(runID uint) (*models.FeatureRun, error)` (optional)
+- `PruneOldRuns(keep int)` — prunes to keep N most recent runs
+
+**Example:**
+```go
+func (r *FeatureRepository) CreateRun(run *models.FeatureRun) error {
+	return r.db.Create(run).Error
+}
+
+func (r *FeatureRepository) CompleteRun(run *models.FeatureRun) error {
+	err := r.db.Model(run).Updates(map[string]interface{}{
+		"status":        run.Status,
+		"items_checked": run.ItemsChecked,
+		"actions_count": run.ActionsCount,
+		"duration_ms":   run.DurationMs,
+		"completed_at":  run.CompletedAt,
+		"error_message": run.ErrorMessage,
+	}).Error
+	if err == nil {
+		r.PruneOldRuns(100) // Keep 100 most recent
+	}
+	return err
+}
+
+func (r *FeatureRepository) ListRuns(page, limit int) ([]models.FeatureRun, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	var total int64
+	if err := r.db.Model(&models.FeatureRun{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var runs []models.FeatureRun
+	offset := (page - 1) * limit
+	err := r.db.Order("started_at DESC").Offset(offset).Limit(limit).Find(&runs).Error
+	return runs, total, err
+}
+```
+
+### 4. Refactor Scheduler to Log Runs
+
+**File:** `src/api/services/{feature}_scheduler.go`
+
+**Changes:**
+1. Add the run repository to the scheduler struct
+2. Extract the existing `runCycle()` logic into `runCycleWithTrigger(triggerType, triggerUserID)`
+3. Update `runCycle()` to call `runCycleWithTrigger("scheduled", nil)`
+4. Add `RunNow(triggerUserID)` method that calls `runCycleWithTrigger("manual", triggerUserID)`
+5. Wrap all logic in: create run → execute → finalize run
+
+**Pattern:**
+```go
+type FeatureScheduler struct {
+	repo        *repository.FeatureRepository
+	runLogRepo  *repository.FeatureRunRepository
+	settingsSvc *SettingsService
+	logger      *Logger
+	stopCh      chan struct{}
+	once        sync.Once
+}
+
+func (s *FeatureScheduler) runCycle() {
+	enabled := s.settingsSvc.GetSetting(SettingFeatureCheckEnabled)
+	if enabled != "true" {
+		s.logger.Debug("scheduler", "Feature check disabled, skipping cycle")
+		return
+	}
+	s.runCycleWithTrigger("scheduled", nil)
+}
+
+func (s *FeatureScheduler) RunNow(triggerUserID *uint) (*models.FeatureRun, error) {
+	return s.runCycleWithTrigger("manual", triggerUserID)
+}
+
+func (s *FeatureScheduler) runCycleWithTrigger(triggerType string, triggerUserID *uint) (*models.FeatureRun, error) {
+	s.logger.Info("scheduler", "Starting %s feature check cycle", triggerType)
+	startedAt := time.Now()
+
+	// Create run record
+	run := &models.FeatureRun{
+		TriggerType:   triggerType,
+		TriggerUserID: triggerUserID,
+		Status:        "running",
+		StartedAt:     startedAt,
+	}
+	if err := s.runLogRepo.CreateRun(run); err != nil {
+		s.logger.Error("scheduler", "Failed to create run record: %s", err)
+		return nil, err
+	}
+
+	// Execute business logic, count results
+	items, err := s.repo.GetItemsToCheck()
+	if err != nil {
+		now := time.Now()
+		run.Status = "error"
+		run.ErrorMessage = fmt.Sprintf("Failed to fetch items: %v", err)
+		run.CompletedAt = &now
+		run.DurationMs = time.Since(startedAt).Milliseconds()
+		s.runLogRepo.CompleteRun(run)
+		return run, err
+	}
+
+	run.ItemsChecked = len(items)
+	// ... process items, count actions ...
+	run.ActionsCount = actionsCount
+
+	// Finalize
+	now := time.Now()
+	run.Status = "success"
+	run.CompletedAt = &now
+	run.DurationMs = time.Since(startedAt).Milliseconds()
+	s.runLogRepo.CompleteRun(run)
+
+	return run, nil
+}
+```
+
+### 5. Create Admin Handler
+
+**File:** `src/api/handlers/{feature}_admin.go`
+
+**Endpoints:**
+1. `ListRuns(c *gin.Context)` — GET with pagination
+2. `TriggerRun(c *gin.Context)` — POST that calls `scheduler.RunNow()`
+
+**Pattern:**
+```go
+package handlers
+
+import (
+	"net/http"
+	"strconv"
+	"github.com/briandenicola/ancient-coins-api/repository"
+	"github.com/briandenicola/ancient-coins-api/services"
+	"github.com/gin-gonic/gin"
+)
+
+type FeatureAdminHandler struct {
+	runRepo   *repository.FeatureRunRepository
+	scheduler *services.FeatureScheduler
+	logger    *services.Logger
+}
+
+func NewFeatureAdminHandler(
+	runRepo *repository.FeatureRunRepository,
+	scheduler *services.FeatureScheduler,
+	logger *services.Logger,
+) *FeatureAdminHandler {
+	return &FeatureAdminHandler{runRepo: runRepo, scheduler: scheduler, logger: logger}
+}
+
+// @Summary List feature runs
+// @Tags Admin
+// @Produce json
+// @Param page query int false "Page number" default(1)
+// @Param limit query int false "Items per page" default(20)
+// @Success 200 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /admin/feature-runs [get]
+func (h *FeatureAdminHandler) ListRuns(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	runs, total, err := h.runRepo.ListRuns(page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list runs"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"runs":  runs,
+		"total": total,
+		"page":  page,
+		"limit": limit,
+	})
+}
+
+// @Summary Trigger manual feature check
+// @Tags Admin
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Security BearerAuth
+// @Router /admin/feature/run [post]
+func (h *FeatureAdminHandler) TriggerRun(c *gin.Context) {
+	triggerUserID := c.GetUint("userId")
+
+	run, err := h.scheduler.RunNow(&triggerUserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to run check"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"runId":        run.ID,
+		"itemsChecked": run.ItemsChecked,
+		"actionsCount": run.ActionsCount,
+		"status":       run.Status,
+		"durationMs":   run.DurationMs,
+	})
+}
+```
+
+### 6. Wire in main.go
+
+**Steps:**
+1. Create the run repository early (around line 158 where other repos are created)
+2. Create the scheduler **before** the admin route group (around line 165)
+3. Register admin routes inside the `admin := api.Group("/admin")` block
+
+**Example:**
+```go
+// Around line 158 — Create repositories
+auctionEndingRepo := repository.NewAuctionEndingRepository(database.DB)
+
+// Around line 165 — Create schedulers before routes
+auctionEndingScheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepoForVal, pushoverSvc, settingsSvc, logger)
+
+// Inside admin route group (around line 383)
+auctionEndingAdminHandler := handlers.NewAuctionEndingAdminHandler(auctionEndingRepo, auctionEndingScheduler, logger)
+admin.GET("/auction-ending-runs", auctionEndingAdminHandler.ListRuns)
+admin.POST("/auction-ending/run", auctionEndingAdminHandler.TriggerRun)
+
+// Around line 406 — Start schedulers
+go auctionEndingScheduler.Start()
+```
+
+### 7. Update README.md
+
+Add a note to the Background Schedulers section:
+```markdown
+3. **Feature Scheduler** — Brief description. Each run is logged in the `feature_runs` table. Runs can be manually triggered via `/admin/feature/run`.
+
+All schedulers honor the enabled flag. Run history is available via admin endpoints:
+- `GET /admin/availability-runs`
+- `GET /admin/valuation-runs`
+- `GET /admin/auction-ending-runs`
+```
+
+### Checklist
+
+- [ ] Created run log model (`models/{feature}_run.go`)
+- [ ] Added to AutoMigrate in `database/database.go`
+- [ ] Created run log repository with CreateRun, CompleteRun, ListRuns, PruneOldRuns
+- [ ] Refactored scheduler to wrap cycles in run logging
+- [ ] Added `RunNow(triggerUserID)` method to scheduler
+- [ ] Created admin handler with ListRuns and TriggerRun endpoints
+- [ ] Wired scheduler before admin routes in `main.go`
+- [ ] Registered admin routes under `admin` group
+- [ ] Updated README.md Background Schedulers section
+- [ ] `go vet ./...` passes
+- [ ] `go test -v ./...` passes
+
 ## Common Pitfalls
 
 1. **Forgetting `sync.Once` in Stop()** — Causes double-close panic on shutdown
