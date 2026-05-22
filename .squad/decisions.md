@@ -2,37 +2,7 @@
 
 ## Active Decisions
 
-### 1. Full-System Architecture Document
-
-**Author:** Maximus (Lead/Architect)  
-**Date:** 2025-07-18  
-**Status:** Implemented  
-
-#### What
-Rewrote `docs/ARCHITECTURE.md` from a Go-API-only document (~214 lines) to a comprehensive full-system architecture reference (~761 lines) covering all three services.
-
-#### Why
-The previous doc only covered the Go API layered architecture. Missing: frontend architecture, Python agent service, data flow diagrams, database schema, auth flow details, agent integration pattern, background schedulers, build pipeline, configuration reference, and design decision rationale.
-
-#### Scope
-- System overview and container topology diagram
-- Go API: layers, rules, package map, DI wiring, route groups, scopes, arch tests
-- Vue 3: structure, routing, Pinia stores, API client (401 refresh queue), composables, PWA config
-- Python agent: endpoints, supervisor routing, 11 team pipelines, LLM provider abstraction, SSE streaming
-- Data flow diagrams: standard request, agent chat SSE, auth flow, availability check
-- Database schema: 26 models across 6 categories
-- Authentication: JWT + API key + WebAuthn details
-- Background schedulers: availability + valuation
-- Docker multi-stage build for both containers
-- Configuration reference (env vars + runtime settings)
-- Key design decisions with rationale
-
-#### Impact
-All team members and AI agents now have a single reference for system architecture. No code changes — documentation only.
-
----
-
-### 2. Code Review & Quality Assessment (2026-04-24)
+### 1. Code Review & Quality Assessment (2026-04-24)
 
 **Authors:** Maximus (Architect), Cassius (Backend), Aurelia (Frontend), Brutus (Testing)  
 **Date:** 2026-04-24  
@@ -85,7 +55,7 @@ Establishes baseline quality metrics and prioritized backlog. Guides sprint plan
 
 ---
 
-### 3. P0 Fixes — Admin Route Guard & v-html (2026-07-22)
+### 2. P0 Fixes — Admin Route Guard & v-html (2026-07-22)
 
 **Author:** Aurelia (Frontend Dev)  
 **Date:** 2026-07-22  
@@ -103,7 +73,7 @@ Admin routes now protected. Can close code review backlog items #1–2.
 
 ---
 
-### 4. Activity Journal Scroll Limit & Auction Schedule UI (2026-05-01)
+### 3. Activity Journal Scroll Limit & Auction Schedule UI (2026-05-01)
 
 **Author:** Aurelia (Frontend Dev)  
 **Date:** 2026-05-01  
@@ -142,7 +112,7 @@ Two independent UI improvements:
 
 ---
 
-### 5. Auction Ending Manual Trigger & Run Log — Backend Implementation (2026-06-10)
+### 4. Auction Ending Manual Trigger & Run Log — Backend Implementation (2026-06-10)
 
 **Author:** Cassius (Backend Dev)  
 **Date:** 2026-06-10  
@@ -191,7 +161,7 @@ Auction Ending scheduler needed manual-run capability and run logging to achieve
 
 ---
 
-### 6. Auction Ending Manual Trigger & Run Log — Frontend UI (2026-05-21)
+### 5. Auction Ending Manual Trigger & Run Log — Frontend UI (2026-05-21)
 
 **Author:** Aurelia (Frontend Dev)  
 **Date:** 2026-05-21  
@@ -228,7 +198,7 @@ Aurelia guessed endpoint URL `/admin/auction-ending/runs` but Cassius's actual e
 
 ---
 
-### 7. Auction Ending Manual Trigger & Run Log — Test Coverage (2026-05-22)
+### 6. Auction Ending Manual Trigger & Run Log — Test Coverage (2026-05-22)
 
 **Author:** Brutus (Tester/QA)  
 **Date:** 2026-05-22  
@@ -274,6 +244,200 @@ Cassius completed manual-run and run-log feature; comprehensive test coverage va
 #### Recommendation
 
 Merge to main. Optional improvements (logging, E2E tests) can be backlog items for future sprint.
+
+---
+
+### 7. Auction Ending Scheduler Implementation
+
+**Author:** Cassius (Backend Dev)  
+**Date:** 2026-05-21  
+**Status:** Implemented  
+
+#### What
+
+Built a new background scheduler that notifies users via Pushover when auction lots they are bidding on have a sale date of today.
+
+#### Implementation Details
+
+**Files Created:**
+1. `src/api/services/auction_ending_scheduler.go` — Scheduler service following the exact pattern of `availability_scheduler.go`:
+   - `Start()` / `Stop()` lifecycle with `sync.Once` for safe shutdown
+   - `timeUntilNextRun()` calculates next run based on start time + interval
+   - `runCycle()` fetches ending auctions, groups by user, sends consolidated notifications
+   - In-memory idempotency tracking via `lastNotified map[uint]string` (userID → date string YYYY-MM-DD)
+
+2. `src/api/repository/auction_lot_repository_test.go` — Unit tests for the new repository method:
+   - `TestAuctionLotRepository_GetEndingToday` — Verifies only BIDDING lots with today's sale date are returned
+   - `TestAuctionLotRepository_GetEndingToday_MultipleUsers` — Verifies multi-user grouping and ordering
+
+**Files Modified:**
+1. `src/api/services/settings_service.go` — Added constants for scheduler settings:
+   - `SettingAuctionEndingCheckEnabled` (default: `"false"`)
+   - `SettingAuctionEndingCheckInterval` (default: `"1440"` — 24 hours in minutes)
+   - `SettingAuctionEndingCheckStartTime` (default: `"08:00"`)
+
+2. `src/api/repository/auction_lot_repository.go` — Added `GetEndingToday()` method:
+   - Returns all auction lots where `status = "bidding"` AND `sale_date >= startOfDay` AND `sale_date < endOfDay`
+   - Uses server's local timezone for "today" calculation
+   - Orders by `user_id ASC, sale_date ASC` for efficient grouping
+
+3. `src/api/main.go` — Wired scheduler startup alongside existing schedulers
+
+4. `src/api/README.md` — Added "Background Schedulers" section
+
+#### Idempotency Approach
+
+**Decision:** In-memory tracking via `lastNotified map[uint]string` on the scheduler struct.
+
+**Rationale:**
+- Simplest implementation — no schema changes, no DB writes on every check
+- Sufficient for daily cadence — map is cleared on server restart, acceptable for once-daily scheduler
+- Memory footprint negligible (one string per user)
+- Prevents duplicate notifications if scheduler runs multiple times in a day
+
+#### Notification Format
+
+**Title:** "Auctions Ending Today"
+
+**Message:** 
+```
+3 auction(s) you are bidding on end today:
+
+• Heritage Auctions - Long Beach Sale (Lot 42)
+• Stack's Bowers - ANA Auction (Lot 1205)
+• Roma Numismatics - E-Sale 99 (Lot 348)
+```
+
+#### Testing
+
+✅ All tests pass:
+- `TestAuctionLotRepository_GetEndingToday` — Filters by status and date correctly
+- `TestAuctionLotRepository_GetEndingToday_MultipleUsers` — Groups and orders correctly
+- All existing architecture tests pass
+
+---
+
+### 8. Auction Ending Scheduler — NULL Date Handling Fix
+
+**Author:** Cassius (Backend Dev)  
+**Date:** 2026-05-22  
+**Status:** Implemented  
+
+#### Problem
+
+Brian ran the auction ending scheduler manually on May 22, 2026. The scheduler reported 0 lots checked and 0 alerts sent, even though Brian has a Heritage Auctions Europe lot (Lot #8325, sale date May 22, 2026, status BIDDING) that should have been flagged.
+
+#### Root Cause
+
+The `AuctionLotRepository.GetEndingToday()` query only checked the `sale_date` field:
+
+```sql
+WHERE status = 'bidding' 
+  AND sale_date >= startOfDay 
+  AND sale_date < endOfDay
+```
+
+The `AuctionLot` model has TWO nullable date fields:
+- `SaleDate *time.Time` — the sale/auction day (populated by NumisBids scraper)
+- `AuctionEndTime *time.Time` — precise ending time (not used by NumisBids scraper)
+
+When `sale_date` is NULL, the SQL comparison evaluates to NULL (not TRUE), and the row is excluded from results — even if `auction_end_time` is set to today.
+
+**Why Brian's Heritage lot had `sale_date = NULL`:**
+1. Heritage Auctions URLs are not supported by the NumisBids scraper
+2. `ParseSaleDate()` only handles NumisBids date formats
+3. Lot may have been created manually via the UI or API
+4. Heritage auctions may populate `auction_end_time` but leave `sale_date` empty
+
+#### Solution
+
+Updated `AuctionLotRepository.GetEndingToday()` to check BOTH date fields with explicit NULL guards:
+
+```sql
+WHERE status = 'bidding' AND (
+  (sale_date IS NOT NULL AND sale_date >= startOfDay AND sale_date < endOfDay) OR
+  (auction_end_time IS NOT NULL AND auction_end_time >= startOfDay AND auction_end_time < endOfDay)
+)
+```
+
+**Logic:**
+- If `sale_date` is set and is today → include the lot
+- If `auction_end_time` is set and is today → include the lot
+- If both are set, include if either matches today (union, not intersection)
+- If both are NULL, exclude the lot
+
+#### Changes
+
+**Modified:**
+- `src/api/repository/auction_lot_repository.go` — Updated `GetEndingToday()` query with OR logic
+
+**Added:**
+- `src/api/repository/auction_lot_repository_test.go` — New test case: "bidding lot with auction_end_time today (no sale_date)"
+
+#### Testing
+
+✅ All tests pass (`go test -v ./...`):
+- Lot with `sale_date = today, auction_end_time = NULL` → included ✅
+- Lot with `sale_date = NULL, auction_end_time = today` → included ✅ (new test)
+- Lot with `sale_date = NULL, auction_end_time = NULL` → excluded ✅
+
+#### Impact
+
+**Positive:**
+- Fixes Heritage Auctions bug: lots with `auction_end_time` set but no `sale_date` are now detected
+- Future-proof: supports any auction source that uses `auction_end_time` instead of `sale_date`
+- No breaking changes: existing NumisBids lots continue to work exactly as before
+
+**Risks:** None identified. The OR logic is additive and doesn't change behavior for existing data.
+
+---
+
+### 9. PWA Service Worker Lifecycle Fix
+
+**Author:** Aurelia (Frontend Dev)  
+**Date:** 2026-05-23  
+**Status:** Implemented  
+
+#### What
+
+Fixed critical PWA service worker update failure that left users stuck with stale service workers trying to import non-existent workbox files.
+
+**Changes:**
+1. Added `import { registerSW } from 'virtual:pwa-register'` to `src/web/src/main.ts` with `immediate: true` to wire up vite-plugin-pwa's auto-update lifecycle
+2. Added hourly service worker update check (`setInterval` calling `registration.update()` every 60 minutes)
+3. Added `/// <reference types="vite-plugin-pwa/client" />` to `env.d.ts` for TypeScript support of virtual module
+4. Typed `onRegisteredSW` callback parameters to satisfy strict TypeScript checking
+
+**Icons verification:**
+- `pwa-192x192.png` and `pwa-512x512.png` already existed in `public/` (547 bytes and 1.9 KB respectively)
+- Manifest correctly references both icons plus maskable variant
+- No action needed on icon side — the browser error was a symptom of the stale SW issue
+
+#### Why
+
+**Root Cause:** The service worker registration was never initialized. `vite.config.ts` had all the correct configuration (`registerType: 'autoUpdate'`, `skipWaiting: true`, `clientsClaim: true`, `cleanupOutdatedCaches: true`), but `main.ts` didn't import the virtual module that triggers registration.
+
+**Impact on Users:** After a deploy, the build emitted a new `sw.js` and `workbox-{NEW_HASH}.js`, but users with the old `sw.js` in their cache kept trying to `importScripts('workbox-{OLD_HASH}.js')` — which no longer existed on the server. This violates the service worker spec (no new script imports post-install) and threw `NetworkError: Failed to import`.
+
+#### How It Works Now
+
+1. **On page load:** `registerSW({ immediate: true })` registers the service worker
+2. **On new deploy:** Browser detects `sw.js` has changed, downloads new SW, which `skipWaiting()` immediately activates and `clientsClaim()` takes control without waiting for tab close
+3. **Hourly update check:** `registration.update()` proactively checks for new SW versions even if user doesn't reload
+4. **Cleanup:** `cleanupOutdatedCaches: true` prunes old workbox-{hash}.js files from cache storage
+
+#### User-Facing Impact
+
+**Existing users on stale SW:** On their **next page load** after this deploy, the broken old SW will serve them one last time, fetch the new SW (which auto-activates), and then the new lifecycle takes over. They may see the error once more in the console but won't after the refresh.
+
+**Recommended:** Users can force-clear the issue immediately by opening DevTools → Application → Service Workers → Unregister, then hard refresh (Ctrl+Shift+R). For most users, a single refresh after deploy will resolve it.
+
+#### Testing
+
+✅ `npm run type-check` passes  
+✅ `npm run build` succeeds — generates fresh `sw.js` and `workbox-{HASH}.js`  
+✅ Icons present in `dist/` (192x192 and 512x512)  
+✅ Manifest correctly references both icon sizes and maskable variant
 
 ---
 
