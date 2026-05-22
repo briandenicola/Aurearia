@@ -390,6 +390,10 @@ func main() {
 		auctionEndingAdminHandler := handlers.NewAuctionEndingAdminHandler(auctionEndingRepo, auctionEndingScheduler, logger)
 		admin.GET("/auction-ending-runs", auctionEndingAdminHandler.ListRuns)
 		admin.POST("/auction-ending/run", auctionEndingAdminHandler.TriggerRun)
+
+		// Auction ending debug endpoint
+		auctionDebugHandler := handlers.NewAuctionEndingDebugHandler(database.DB, auctionLotRepo)
+		admin.GET("/auction-ending/debug", auctionDebugHandler.DebugGetAuctionEndingInfo)
 	}
 
 	log.Printf("Starting server on :%s", cfg.Port)

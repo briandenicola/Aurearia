@@ -216,3 +216,42 @@ func (r *AuctionLotRepository) GetEndingToday() ([]models.AuctionLot, error) {
 		Find(&lots).Error
 	return lots, err
 }
+
+// AuctionLotDebugInfo holds enriched lot data for debugging date/status issues.
+type AuctionLotDebugInfo struct {
+	ID             uint       `json:"id"`
+	LotNumber      int        `json:"lotNumber"`
+	Status         string     `json:"status"`
+	SaleDate       *time.Time `json:"saleDate"`
+	AuctionEndTime *time.Time `json:"auctionEndTime"`
+	EventID        *uint      `json:"eventId"`
+	EventEndDate   *time.Time `json:"eventEndDate,omitempty"`
+	AuctionHouse   string     `json:"auctionHouse"`
+	SaleName       string     `json:"saleName"`
+	UserID         uint       `json:"userId"`
+}
+
+// GetAllBiddingLotsWithEventDates returns all bidding lots with enriched date info (including event dates).
+// Joins with AuctionEvent to show event end dates for lots linked to calendar events.
+func (r *AuctionLotRepository) GetAllBiddingLotsWithEventDates() ([]AuctionLotDebugInfo, error) {
+	var lots []AuctionLotDebugInfo
+	query := `
+		SELECT 
+			al.id, 
+			al.lot_number, 
+			al.status, 
+			al.sale_date, 
+			al.auction_end_time, 
+			al.event_id,
+			ae.end_date as event_end_date,
+			al.auction_house,
+			al.sale_name,
+			al.user_id
+		FROM auction_lots al
+		LEFT JOIN auction_events ae ON al.event_id = ae.id
+		WHERE al.status = ?
+		ORDER BY al.user_id ASC, al.created_at DESC
+	`
+	err := r.db.Raw(query, models.AuctionStatusBidding).Scan(&lots).Error
+	return lots, err
+}
