@@ -194,24 +194,24 @@ func (r *AuctionLotRepository) ListByEventID(eventID, userID uint) ([]models.Auc
 	return lots, err
 }
 
-// GetEndingToday returns all auction lots with BIDDING status whose sale date is today.
-// Groups results by user for notification processing.
+// GetEndingSoon returns all auction lots with BIDDING status that end within the next 24 hours.
 // Checks both sale_date and auction_end_time fields to handle various auction sources.
-func (r *AuctionLotRepository) GetEndingToday() ([]models.AuctionLot, error) {
+// Uses a rolling 24-hour window from now to avoid timezone-related edge cases where lots
+// ending at midnight UTC are excluded for users in negative-offset timezones.
+func (r *AuctionLotRepository) GetEndingSoon() ([]models.AuctionLot, error) {
 	var lots []models.AuctionLot
 	now := time.Now()
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	endOfDay := startOfDay.Add(24 * time.Hour)
+	next24h := now.Add(24 * time.Hour)
 
-	// Match if sale_date OR auction_end_time is today
-	// COALESCE prioritizes auction_end_time (more precise) over sale_date
-	err := r.db.Where("status = ? AND ("+
-		"(sale_date IS NOT NULL AND sale_date >= ? AND sale_date < ?) OR "+
-		"(auction_end_time IS NOT NULL AND auction_end_time >= ? AND auction_end_time < ?)"+
+	// Match if sale_date OR auction_end_time is in the next 24 hours
+	// Use LOWER() for case-insensitive status comparison
+	err := r.db.Where("LOWER(status) = ? AND ("+
+		"(sale_date IS NOT NULL AND sale_date > ? AND sale_date <= ?) OR "+
+		"(auction_end_time IS NOT NULL AND auction_end_time > ? AND auction_end_time <= ?)"+
 		")",
-		models.AuctionStatusBidding,
-		startOfDay, endOfDay, // sale_date range
-		startOfDay, endOfDay). // auction_end_time range
+		string(models.AuctionStatusBidding),
+		now, next24h, // sale_date range: (now, now+24h]
+		now, next24h). // auction_end_time range: (now, now+24h]
 		Order("user_id ASC").
 		Find(&lots).Error
 	return lots, err

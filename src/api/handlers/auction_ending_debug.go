@@ -28,7 +28,7 @@ func NewAuctionEndingDebugHandler(db *gorm.DB, auctionRepo *repository.AuctionLo
 // DebugGetAuctionEndingInfo returns comprehensive diagnostic data for the auction ending scheduler.
 //
 // @Summary Debug auction ending scheduler
-// @Description Returns diagnostic info: today's date, total lots, lots by status, lots matching the scheduler query, and all BIDDING lots with all their date fields populated
+// @Description Returns diagnostic info: current time, next 24h window, total lots, lots by status, lots matching the scheduler query, and all BIDDING lots with all their date fields populated
 // @Tags admin
 // @Produce json
 // @Security ApiKeyAuth
@@ -38,8 +38,7 @@ func NewAuctionEndingDebugHandler(db *gorm.DB, auctionRepo *repository.AuctionLo
 // @Router /api/admin/auction-ending/debug [get]
 func (h *AuctionEndingDebugHandler) DebugGetAuctionEndingInfo(c *gin.Context) {
 	now := time.Now()
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	endOfDay := startOfDay.Add(24 * time.Hour)
+	next24h := now.Add(24 * time.Hour)
 
 	// 1. Total lots in DB
 	var totalLots int64
@@ -67,7 +66,7 @@ func (h *AuctionEndingDebugHandler) DebugGetAuctionEndingInfo(c *gin.Context) {
 	}
 
 	// 3. Lots matching the current scheduler query (delegates to repo)
-	lotsMatchingQuery, err := h.auctionRepo.GetEndingToday()
+	lotsMatchingQuery, err := h.auctionRepo.GetEndingSoon()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch matching lots"})
 		return
@@ -82,24 +81,23 @@ func (h *AuctionEndingDebugHandler) DebugGetAuctionEndingInfo(c *gin.Context) {
 
 	// 5. Build summary of query logic
 	querySummary := fmt.Sprintf(
-		"WHERE status = 'bidding' AND ((sale_date >= %s AND sale_date < %s) OR (auction_end_time >= %s AND auction_end_time < %s))",
-		startOfDay.Format("2006-01-02 15:04:05"),
-		endOfDay.Format("2006-01-02 15:04:05"),
-		startOfDay.Format("2006-01-02 15:04:05"),
-		endOfDay.Format("2006-01-02 15:04:05"),
+		"WHERE LOWER(status) = 'bidding' AND ((sale_date > %s AND sale_date <= %s) OR (auction_end_time > %s AND auction_end_time <= %s))",
+		now.Format("2006-01-02 15:04:05"),
+		next24h.Format("2006-01-02 15:04:05"),
+		now.Format("2006-01-02 15:04:05"),
+		next24h.Format("2006-01-02 15:04:05"),
 	)
 
 	c.JSON(http.StatusOK, gin.H{
 		"now":                  now.Format(time.RFC3339),
-		"today_start":          startOfDay.Format(time.RFC3339),
-		"today_end":            endOfDay.Format(time.RFC3339),
+		"next_24h":             next24h.Format(time.RFC3339),
 		"query_summary":        querySummary,
 		"total_lots_in_db":     totalLots,
 		"lots_by_status":       lotsByStatus,
 		"lots_matching_query":  lotsMatchingQuery,
 		"all_bidding_lots":     allBiddingLots,
 		"explanation": map[string]string{
-			"lots_matching_query": "These are the lots the current scheduler query would find (status=bidding AND (sale_date today OR auction_end_time today))",
+			"lots_matching_query": "These are the lots the current scheduler query would find (LOWER(status)='bidding' AND (sale_date within next 24h OR auction_end_time within next 24h))",
 			"all_bidding_lots":    "All lots with status=bidding, showing ALL date fields including event dates — helps identify which field actually holds the end date",
 		},
 	})

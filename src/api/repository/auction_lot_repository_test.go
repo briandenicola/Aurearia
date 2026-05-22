@@ -22,14 +22,17 @@ func setupAuctionTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func TestAuctionLotRepository_GetEndingToday(t *testing.T) {
+func TestAuctionLotRepository_GetEndingSoon(t *testing.T) {
 	db := setupAuctionTestDB(t)
 	repo := NewAuctionLotRepository(db)
 
 	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, now.Location())
-	yesterday := today.Add(-24 * time.Hour)
-	tomorrow := today.Add(24 * time.Hour)
+	// Test cases across the 24-hour rolling window
+	in23Hours := now.Add(23 * time.Hour)
+	in12Hours := now.Add(12 * time.Hour)
+	in2Hours := now.Add(2 * time.Hour)
+	in25Hours := now.Add(25 * time.Hour)
+	justEnded := now.Add(-1 * time.Hour)
 
 	tests := []struct {
 		name     string
@@ -37,86 +40,122 @@ func TestAuctionLotRepository_GetEndingToday(t *testing.T) {
 		expected bool
 	}{
 		{
-			name: "bidding lot ending today",
+			name: "bidding lot ending in 23 hours (near upper bound)",
 			lot: &models.AuctionLot{
 				NumisBidsURL: "https://example.com/lot1",
 				Title:        "Lot 1",
 				Status:       models.AuctionStatusBidding,
-				SaleDate:     &today,
+				SaleDate:     &in23Hours,
 				LotNumber:    1,
 				UserID:       1,
 			},
 			expected: true,
 		},
 		{
-			name: "watching lot ending today",
+			name: "bidding lot ending in 12 hours (Brian's exact case)",
 			lot: &models.AuctionLot{
 				NumisBidsURL: "https://example.com/lot2",
-				Title:        "Lot 2",
-				Status:       models.AuctionStatusWatching,
-				SaleDate:     &today,
-				LotNumber:    2,
+				Title:        "Lot 8325 - Heritage",
+				Status:       models.AuctionStatusBidding,
+				SaleDate:     &in12Hours,
+				LotNumber:    8325,
 				UserID:       1,
 			},
-			expected: false,
+			expected: true,
 		},
 		{
-			name: "bidding lot ending yesterday",
+			name: "bidding lot ending in 2 hours",
 			lot: &models.AuctionLot{
 				NumisBidsURL: "https://example.com/lot3",
 				Title:        "Lot 3",
 				Status:       models.AuctionStatusBidding,
-				SaleDate:     &yesterday,
+				SaleDate:     &in2Hours,
 				LotNumber:    3,
 				UserID:       1,
 			},
-			expected: false,
+			expected: true,
 		},
 		{
-			name: "bidding lot ending tomorrow",
+			name: "bidding lot ending in 25 hours (beyond 24h window)",
 			lot: &models.AuctionLot{
 				NumisBidsURL: "https://example.com/lot4",
 				Title:        "Lot 4",
 				Status:       models.AuctionStatusBidding,
-				SaleDate:     &tomorrow,
+				SaleDate:     &in25Hours,
 				LotNumber:    4,
 				UserID:       1,
 			},
 			expected: false,
 		},
 		{
-			name: "bidding lot with no sale date",
+			name: "bidding lot that just ended (1 hour ago)",
 			lot: &models.AuctionLot{
 				NumisBidsURL: "https://example.com/lot5",
 				Title:        "Lot 5",
 				Status:       models.AuctionStatusBidding,
-				SaleDate:     nil,
+				SaleDate:     &justEnded,
 				LotNumber:    5,
 				UserID:       1,
 			},
 			expected: false,
 		},
 		{
-			name: "bidding lot with auction_end_time today (no sale_date)",
+			name: "watching lot ending in 2 hours (wrong status)",
 			lot: &models.AuctionLot{
-				NumisBidsURL:   "https://example.com/lot5b",
-				Title:          "Lot 5b - Heritage",
+				NumisBidsURL: "https://example.com/lot6",
+				Title:        "Lot 6",
+				Status:       models.AuctionStatusWatching,
+				SaleDate:     &in2Hours,
+				LotNumber:    6,
+				UserID:       1,
+			},
+			expected: false,
+		},
+		{
+			name: "bidding lot with no dates",
+			lot: &models.AuctionLot{
+				NumisBidsURL: "https://example.com/lot7",
+				Title:        "Lot 7",
+				Status:       models.AuctionStatusBidding,
+				SaleDate:     nil,
+				LotNumber:    7,
+				UserID:       1,
+			},
+			expected: false,
+		},
+		{
+			name: "bidding lot with auction_end_time in 2 hours (no sale_date)",
+			lot: &models.AuctionLot{
+				NumisBidsURL:   "https://example.com/lot8",
+				Title:          "Lot 8 - Heritage",
 				Status:         models.AuctionStatusBidding,
 				SaleDate:       nil,
-				AuctionEndTime: &today,
-				LotNumber:      99,
+				AuctionEndTime: &in2Hours,
+				LotNumber:      8,
 				UserID:         1,
 			},
 			expected: true,
 		},
 		{
-			name: "won lot ending today",
+			name: "bidding lot with UPPERCASE status (case-insensitive test)",
 			lot: &models.AuctionLot{
-				NumisBidsURL: "https://example.com/lot6",
-				Title:        "Lot 6",
+				NumisBidsURL: "https://example.com/lot9",
+				Title:        "Lot 9",
+				Status:       "BIDDING", // Uppercase to test case-insensitive query
+				SaleDate:     &in12Hours,
+				LotNumber:    9,
+				UserID:       1,
+			},
+			expected: true,
+		},
+		{
+			name: "won lot ending in 2 hours (wrong status)",
+			lot: &models.AuctionLot{
+				NumisBidsURL: "https://example.com/lot10",
+				Title:        "Lot 10",
 				Status:       models.AuctionStatusWon,
-				SaleDate:     &today,
-				LotNumber:    6,
+				SaleDate:     &in2Hours,
+				LotNumber:    10,
 				UserID:       1,
 			},
 			expected: false,
@@ -131,9 +170,9 @@ func TestAuctionLotRepository_GetEndingToday(t *testing.T) {
 	}
 
 	// Run the query
-	lots, err := repo.GetEndingToday()
+	lots, err := repo.GetEndingSoon()
 	if err != nil {
-		t.Fatalf("GetEndingToday failed: %v", err)
+		t.Fatalf("GetEndingSoon failed: %v", err)
 	}
 
 	// Verify only the expected lots are returned
@@ -166,19 +205,19 @@ func TestAuctionLotRepository_GetEndingToday(t *testing.T) {
 	}
 }
 
-func TestAuctionLotRepository_GetEndingToday_MultipleUsers(t *testing.T) {
+func TestAuctionLotRepository_GetEndingSoon_MultipleUsers(t *testing.T) {
 	db := setupAuctionTestDB(t)
 	repo := NewAuctionLotRepository(db)
 
 	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 15, 0, 0, 0, now.Location())
+	inNext12Hours := now.Add(12 * time.Hour)
 
 	// Create lots for multiple users
 	lot1 := &models.AuctionLot{
 		NumisBidsURL: "https://example.com/user1-lot1",
 		Title:        "User 1 Lot 1",
 		Status:       models.AuctionStatusBidding,
-		SaleDate:     &today,
+		SaleDate:     &inNext12Hours,
 		LotNumber:    1,
 		UserID:       1,
 	}
@@ -186,7 +225,7 @@ func TestAuctionLotRepository_GetEndingToday_MultipleUsers(t *testing.T) {
 		NumisBidsURL: "https://example.com/user2-lot1",
 		Title:        "User 2 Lot 1",
 		Status:       models.AuctionStatusBidding,
-		SaleDate:     &today,
+		SaleDate:     &inNext12Hours,
 		LotNumber:    2,
 		UserID:       2,
 	}
@@ -194,7 +233,7 @@ func TestAuctionLotRepository_GetEndingToday_MultipleUsers(t *testing.T) {
 		NumisBidsURL: "https://example.com/user1-lot2",
 		Title:        "User 1 Lot 2",
 		Status:       models.AuctionStatusBidding,
-		SaleDate:     &today,
+		SaleDate:     &inNext12Hours,
 		LotNumber:    3,
 		UserID:       1,
 	}
@@ -209,9 +248,9 @@ func TestAuctionLotRepository_GetEndingToday_MultipleUsers(t *testing.T) {
 		t.Fatalf("failed to create lot3: %v", err)
 	}
 
-	lots, err := repo.GetEndingToday()
+	lots, err := repo.GetEndingSoon()
 	if err != nil {
-		t.Fatalf("GetEndingToday failed: %v", err)
+		t.Fatalf("GetEndingSoon failed: %v", err)
 	}
 
 	if len(lots) != 3 {

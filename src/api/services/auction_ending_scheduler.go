@@ -10,7 +10,7 @@ import (
 	"github.com/briandenicola/ancient-coins-api/repository"
 )
 
-// AuctionEndingScheduler runs periodic checks for auction lots ending today.
+// AuctionEndingScheduler runs periodic checks for auction lots ending within the next 24 hours.
 type AuctionEndingScheduler struct {
 	auctionRepo       *repository.AuctionLotRepository
 	auctionEndingRepo *repository.AuctionEndingRepository
@@ -154,9 +154,9 @@ func (s *AuctionEndingScheduler) runCycleWithTrigger(triggerType string, trigger
 	}
 
 	// Execute the check
-	lots, err := s.auctionRepo.GetEndingToday()
+	lots, err := s.auctionRepo.GetEndingSoon()
 	if err != nil {
-		s.logger.Error("scheduler", "Failed to fetch auction lots ending today: %s", err)
+		s.logger.Error("scheduler", "Failed to fetch auction lots ending soon: %s", err)
 		now := time.Now()
 		run.Status = "error"
 		run.ErrorMessage = fmt.Sprintf("Failed to fetch lots: %v", err)
@@ -169,7 +169,7 @@ func (s *AuctionEndingScheduler) runCycleWithTrigger(triggerType string, trigger
 	run.LotsChecked = len(lots)
 
 	if len(lots) == 0 {
-		s.logger.Info("scheduler", "No auction lots ending today")
+		s.logger.Info("scheduler", "No auction lots ending soon")
 		now := time.Now()
 		run.Status = "success"
 		run.CompletedAt = &now
@@ -184,7 +184,7 @@ func (s *AuctionEndingScheduler) runCycleWithTrigger(triggerType string, trigger
 		userLots[lot.UserID] = append(userLots[lot.UserID], lot)
 	}
 
-	s.logger.Info("scheduler", "Found %d lots ending today across %d users", len(lots), len(userLots))
+	s.logger.Info("scheduler", "Found %d lots ending soon across %d users", len(lots), len(userLots))
 
 	today := time.Now().Format("2006-01-02")
 	alertsSent := 0
@@ -238,8 +238,8 @@ func (s *AuctionEndingScheduler) notifyUser(userID uint, lots []models.AuctionLo
 	}
 
 	// Build consolidated message
-	title := "Auctions Ending Today"
-	message := fmt.Sprintf("%d auction(s) you are bidding on end today:\n\n", len(lots))
+	title := "Auctions Ending Soon"
+	message := fmt.Sprintf("%d auction(s) you are bidding on end within 24 hours:\n\n", len(lots))
 
 	for _, lot := range lots {
 		auctionHouse := lot.AuctionHouse
