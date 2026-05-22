@@ -441,6 +441,266 @@ Fixed critical PWA service worker update failure that left users stuck with stal
 
 ---
 
+### 10. Auction Ending Scheduler — Debug Endpoint for Ground-Truth Investigation
+
+**Author:** Cassius (Backend Dev)  
+**Date:** 2026-05-22  
+**Status:** Implemented — Awaiting Production Data  
+
+#### Problem
+
+Brian's Heritage Auctions lot (Lot #8325, displayed sale date May 22, 2026, status BIDDING) was not flagged by the auction ending scheduler. After the first bugfix (NULL-date handling for `sale_date` and `auction_end_time`), Brian redeployed and re-ran the manual trigger — **still 0 lots found**. Same 10ms execution time (suspiciously identical to the first failed run).
+
+#### Root Cause Analysis
+
+##### First-Pass Diagnosis (INCOMPLETE)
+
+The initial fix assumed the lot had either `sale_date` or `auction_end_time` populated. The query was updated to check both fields with NULL guards. This was a **guess based on schema**, not real data inspection.
+
+##### Second-Pass Audit (CRITICAL FINDINGS)
+
+**Exhaustive Date Field Inventory:**
+
+The `AuctionLot` model has **THREE** ways to represent an end date:
+
+1. **`SaleDate *time.Time`** — populated by NumisBids scraper
+2. **`AuctionEndTime *time.Time`** — precise ending timestamp (rarely used)
+3. **`EventID *uint`** — foreign key to `AuctionEvent` which has `StartDate` and `EndDate` fields
+
+**CRITICAL DISCOVERY:** Heritage lots likely have `EventID` set (linking to a calendar event) but both `SaleDate` and `AuctionEndTime` are NULL. **The displayed sale date in the UI comes from `AuctionEvent.EndDate`, NOT the lot's own date fields.**
+
+This means the current scheduler query (`WHERE (sale_date today OR auction_end_time today)`) **completely misses lots whose date is inherited from a parent event**.
+
+**Other Hypotheses Ruled Out:**
+
+- **Status mismatch:** `models.AuctionStatusBidding` constant is lowercase `"bidding"` — matches DB enum values
+- **User scope filter:** No user_id WHERE clause in scheduler query — iterates all users
+- **Case sensitivity:** SQLite is case-insensitive for string comparisons by default
+- **Time zone issues:** All date comparisons use `now.Location()` consistently
+
+#### Solution
+
+##### Debug Endpoint (Implemented)
+
+Added `GET /api/admin/auction-ending/debug` that returns:
+
+```json
+{
+  "now": "2026-05-22T19:09:00Z",
+  "today_start": "2026-05-22T00:00:00Z",
+  "today_end": "2026-05-23T00:00:00Z",
+  "query_summary": "WHERE status = 'bidding' AND ((sale_date >= X AND sale_date < Y) OR (auction_end_time >= X AND auction_end_time < Y))",
+  "total_lots_in_db": 42,
+  "lots_by_status": { "bidding": 3, "watching": 12, "won": 5, ... },
+  "lots_matching_query": [
+    { "id": 10, "lot_number": 1234, "status": "bidding", "sale_date": "2026-05-22T10:00:00Z", ... }
+  ],
+  "all_bidding_lots": [
+    { "id": 42, "lot_number": 8325, "status": "bidding", "sale_date": null, "auction_end_time": null, "event_id": 7, "event_end_date": "2026-05-22" }
+  ]
+}
+```
+
+**Key Design Decisions:**
+
+1. **Read-only:** No side effects, no notifications sent
+2. **Admin-only:** Requires admin role + JWT auth
+3. **Comprehensive data:** Includes ALL BIDDING lots with ALL date fields (including event dates via LEFT JOIN)
+4. **Architecture compliance:** All SQL queries delegated to repository layer (`AuctionLotRepository.GetAllBiddingLotsWithEventDates()`)
+5. **Swagger annotations:** Fully documented API contract
+
+##### SQL Query for Immediate Inspection
+
+Brian can run this query directly against the SQLite DB **right now** to confirm the hypothesis:
+
+```sql
+SELECT 
+  id, 
+  user_id, 
+  status, 
+  lot_number, 
+  sale_date, 
+  auction_end_time, 
+  event_id, 
+  created_at, 
+  updated_at 
+FROM auction_lots 
+WHERE lot_number = 8325 
+   OR status = 'bidding' 
+ORDER BY updated_at DESC 
+LIMIT 10;
+```
+
+**Expected result:** Lot 8325 has `sale_date = NULL`, `auction_end_time = NULL`, `event_id = <some_id>`. The end date is stored on the linked `AuctionEvent` row.
+
+#### Implementation Details
+
+**Files Created:**
+
+1. `src/api/handlers/auction_ending_debug.go` — Debug handler with `DebugGetAuctionEndingInfo()` method
+
+**Files Modified:**
+
+1. `src/api/repository/auction_lot_repository.go` — Added `GetAllBiddingLotsWithEventDates()` method (raw SQL with LEFT JOIN to auction_events)
+2. `src/api/main.go` — Wired debug handler into `/admin/auction-ending/debug` route
+
+**Architecture Compliance:**
+
+- ✅ All SQL queries in repository layer (no raw SQL in handlers)
+- ✅ Handler is thin (delegates to repo, returns JSON)
+- ✅ Admin route group enforces authorization
+- ✅ Swagger annotations present
+- ✅ All tests pass (`go vet` clean, `go test -v ./...` clean)
+
+#### Next Steps (DO NOT PROCEED WITHOUT DATA)
+
+**CRITICAL:** Do NOT modify `GetEndingToday()` again until Brian provides either:
+
+1. The output of the SQL query above, OR
+2. The response from `GET /api/admin/auction-ending/debug` from his deployed instance
+
+**Once we have ground truth, the fix will likely be:**
+
+```go
+// Option A: Check event end date in addition to lot dates
+func (r *AuctionLotRepository) GetEndingToday() ([]models.AuctionLot, error) {
+    var lots []models.AuctionLot
+    now := time.Now()
+    startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+    endOfDay := startOfDay.Add(24 * time.Hour)
+
+    query := `
+        SELECT al.* 
+        FROM auction_lots al
+        LEFT JOIN auction_events ae ON al.event_id = ae.id
+        WHERE al.status = ? AND (
+            (al.sale_date IS NOT NULL AND al.sale_date >= ? AND al.sale_date < ?) OR
+            (al.auction_end_time IS NOT NULL AND al.auction_end_time >= ? AND al.auction_end_time < ?) OR
+            (ae.end_date IS NOT NULL AND ae.end_date >= ? AND ae.end_date < ?)
+        )
+        ORDER BY al.user_id ASC
+    `
+    err := r.db.Raw(query, models.AuctionStatusBidding,
+        startOfDay, endOfDay,  // sale_date range
+        startOfDay, endOfDay,  // auction_end_time range
+        startOfDay, endOfDay). // event end_date range
+        Scan(&lots).Error
+    return lots, err
+}
+```
+
+**Test case to add:**
+
+```go
+// TestAuctionLotRepository_GetEndingToday_EventDate verifies lots linked to events
+// with end_date = today are included even if sale_date and auction_end_time are NULL
+func TestAuctionLotRepository_GetEndingToday_EventDate(t *testing.T) {
+    db := setupTestDB(t)
+    repo := repository.NewAuctionLotRepository(db)
+    
+    now := time.Now()
+    today := time.Date(now.Year(), now.Month(), now.Day(), 15, 0, 0, 0, time.UTC)
+    
+    // Create an auction event ending today
+    event := models.AuctionEvent{
+        UserID:       1,
+        Title:        "Heritage Auction 90",
+        AuctionHouse: "Heritage Auctions Europe",
+        EndDate:      &today,
+    }
+    db.Create(&event)
+    
+    // Create a bidding lot linked to the event, with NO sale_date or auction_end_time
+    lot := models.AuctionLot{
+        UserID:       1,
+        Status:       models.AuctionStatusBidding,
+        LotNumber:    8325,
+        EventID:      &event.ID,
+        SaleDate:     nil,
+        AuctionEndTime: nil,
+    }
+    db.Create(&lot)
+    
+    // GetEndingToday should find this lot via event join
+    lots, err := repo.GetEndingToday()
+    assert.NoError(t, err)
+    assert.Len(t, lots, 1)
+    assert.Equal(t, lot.ID, lots[0].ID)
+}
+```
+
+#### Lessons Learned
+
+**NEVER ship a query fix without inspecting real production data.**
+
+The first fix was based on schema assumptions, not reality. This second-pass added:
+
+1. A debug endpoint to expose ground truth
+2. A SQL query Brian can run immediately
+3. A commitment to NOT change the query again until we have confirmation
+
+This is the correct workflow for data-dependent bugfixes.
+
+#### API Contract
+
+##### GET /api/admin/auction-ending/debug
+
+**Auth:** Admin only (JWT or API key)  
+**Response:** 200 OK
+
+```json
+{
+  "now": "ISO8601 timestamp",
+  "today_start": "ISO8601 timestamp",
+  "today_end": "ISO8601 timestamp",
+  "query_summary": "Human-readable WHERE clause",
+  "total_lots_in_db": 42,
+  "lots_by_status": { "bidding": 3, "watching": 12, ... },
+  "lots_matching_query": [ /* array of AuctionLot */ ],
+  "all_bidding_lots": [
+    {
+      "id": 42,
+      "lotNumber": 8325,
+      "status": "bidding",
+      "saleDate": null,
+      "auctionEndTime": null,
+      "eventId": 7,
+      "eventEndDate": "2026-05-22T00:00:00Z",
+      "auctionHouse": "Heritage Auctions Europe",
+      "saleName": "Auction 90",
+      "userId": 1
+    }
+  ],
+  "explanation": {
+    "lots_matching_query": "...",
+    "all_bidding_lots": "..."
+  }
+}
+```
+
+**Error Responses:**
+- 401 Unauthorized — No auth token or API key
+- 403 Forbidden — User is not admin
+- 500 Internal Server Error — DB query failed
+
+#### Impact
+
+**Positive:**
+- Brian can immediately inspect his production data without waiting for another deploy
+- Debug endpoint is reusable for future scheduler issues
+- Prevents third failed fix by waiting for ground truth first
+
+**Risks:** None — endpoint is read-only and admin-only
+
+#### Testing
+
+✅ All tests pass:
+- `go vet` clean
+- `go test -v ./...` passed
+- Architecture tests passed (no raw SQL in handlers)
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus
