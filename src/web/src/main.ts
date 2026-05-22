@@ -8,6 +8,26 @@ import './assets/styles/main.css'
 const savedTheme = localStorage.getItem('theme') || 'dark'
 document.documentElement.setAttribute('data-theme', savedTheme)
 
+// Register service worker with auto-update
+import { registerSW } from 'virtual:pwa-register'
+registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    // New version available - auto reload on next page load
+  },
+  onOfflineReady() {
+    // App ready to work offline
+  },
+  onRegisteredSW(swScriptUrl: string, registration: ServiceWorkerRegistration | undefined) {
+    // Check for updates every hour
+    if (registration) {
+      setInterval(() => {
+        registration.update()
+      }, 60 * 60 * 1000)
+    }
+  },
+})
+
 const app = createApp(App)
 app.use(createPinia())
 app.use(router)
