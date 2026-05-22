@@ -158,9 +158,58 @@
         <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
           {{ settingsSaving ? 'Saving...' : 'Save Alert Settings' }}
         </button>
+        <button class="btn btn-secondary btn-sm" :disabled="auctionTriggerLoading" @click="triggerManualAuctionCheck()">
+          {{ auctionTriggerLoading ? 'Starting...' : 'Run Now' }}
+        </button>
         <span v-if="auctionSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': auctionSettingsError }">{{ auctionSettingsMsg }}</span>
       </div>
     </div>
+
+    <hr class="section-divider" />
+    <h3 class="subsection-title">Auction Ending Run History</h3>
+
+    <div v-if="auctionLoading" class="loading-overlay"><div class="spinner"></div></div>
+    <div v-else-if="auctionRuns.length === 0" class="logs-empty">No auction ending runs recorded yet.</div>
+    <template v-else>
+      <table class="users-table avail-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th class="hide-mobile">Trigger</th>
+            <th>Lots</th>
+            <th>Alerts</th>
+            <th class="hide-mobile">Status</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template v-for="run in auctionRuns" :key="run.id">
+            <tr>
+              <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
+              <td class="hide-mobile">
+                <span class="listing-status-badge" :class="run.triggerType === 'manual' ? 'listing-unavailable' : 'listing-unknown'">
+                  {{ run.triggerType }}
+                </span>
+              </td>
+              <td>{{ run.lotsChecked }}</td>
+              <td class="avail-count-available">{{ run.alertsSent }}</td>
+              <td class="hide-mobile">
+                <span class="listing-status-badge" :class="run.status === 'error' ? 'listing-unavailable' : (run.status === 'success' ? 'listing-available' : 'listing-unknown')">
+                  {{ run.status }}
+                </span>
+              </td>
+              <td>{{ formatDuration(run.durationMs) }}</td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+
+      <div class="avail-pagination">
+        <button class="btn btn-secondary btn-sm" :disabled="auctionPage <= 1" @click="auctionPage--; loadAuctionRuns()">Prev</button>
+        <span class="avail-page-info">Page {{ auctionPage }}</span>
+        <button class="btn btn-secondary btn-sm" :disabled="auctionRuns.length < 5" @click="auctionPage++; loadAuctionRuns()">Next</button>
+      </div>
+    </template>
 
     <hr class="section-divider" />
 
@@ -308,8 +357,9 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   getAvailabilityRuns, getAvailabilityRunDetail,
   getValuationRuns, getValuationRunDetail, triggerValuation, cancelValuationRun,
+  getAuctionEndingRuns, triggerAuctionEndingCheck,
 } from '@/api/client'
-import type { AppSettings, AvailabilityRun, ValuationRun } from '@/types'
+import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun } from '@/types'
 
 const props = defineProps<{
   settings: AppSettings
@@ -326,6 +376,8 @@ const emit = defineEmits<{
   save: []
   'update:valSettingsMsg': [val: string]
   'update:valSettingsError': [val: boolean]
+  'update:auctionSettingsMsg': [val: string]
+  'update:auctionSettingsError': [val: boolean]
 }>()
 
 // Availability
@@ -370,6 +422,48 @@ async function toggleRunDetail(runId: number) {
     expandedResults.value = []
   } finally {
     expandedLoading.value = false
+  }
+}
+
+// Auction Ending
+const auctionRuns = ref<AuctionEndingRun[]>([])
+const auctionTotal = ref(0)
+const auctionPage = ref(1)
+const auctionLoading = ref(false)
+const auctionTriggerLoading = ref(false)
+
+async function loadAuctionRuns() {
+  auctionLoading.value = true
+  try {
+    const res = await getAuctionEndingRuns(auctionPage.value, 5)
+    auctionRuns.value = res.data.runs ?? []
+    auctionTotal.value = res.data.total ?? 0
+  } catch { /* ignore */ } finally {
+    auctionLoading.value = false
+  }
+}
+
+async function triggerManualAuctionCheck() {
+  auctionTriggerLoading.value = true
+  emit('update:auctionSettingsMsg', '')
+  emit('update:auctionSettingsError', false)
+  try {
+    const res = await triggerAuctionEndingCheck()
+    const { runId, lotsChecked, alertsSent, status, durationMs } = res.data
+    if (status === 'error') {
+      emit('update:auctionSettingsMsg', `Run #${runId} failed`)
+      emit('update:auctionSettingsError', true)
+    } else {
+      const durationSec = (durationMs / 1000).toFixed(1)
+      emit('update:auctionSettingsMsg', `Run #${runId} completed — ${lotsChecked} lots checked, ${alertsSent} alerts sent in ${durationSec}s`)
+      timers.push(setTimeout(() => { emit('update:auctionSettingsMsg', '') }, 10000))
+    }
+    timers.push(setTimeout(() => { loadAuctionRuns() }, 2000))
+  } catch {
+    emit('update:auctionSettingsMsg', 'Failed to trigger auction ending check')
+    emit('update:auctionSettingsError', true)
+  } finally {
+    auctionTriggerLoading.value = false
   }
 }
 
@@ -475,6 +569,7 @@ function truncateUrl(url: string) {
 onMounted(() => {
   window.addEventListener('resize', onResize)
   loadAvailRuns()
+  loadAuctionRuns()
   loadValRuns()
 })
 
@@ -851,6 +946,19 @@ onUnmounted(() => {
 .val-detail-table td:nth-child(5) { width: 10%; }
 .val-detail-table th:nth-child(6),
 .val-detail-table td:nth-child(6) { width: 34%; }
+
+.auction-detail-table th:nth-child(1),
+.auction-detail-table td:nth-child(1) { width: 12%; }
+.auction-detail-table th:nth-child(2),
+.auction-detail-table td:nth-child(2) { width: 26%; }
+.auction-detail-table th:nth-child(3),
+.auction-detail-table td:nth-child(3) { width: 18%; }
+.auction-detail-table th:nth-child(4),
+.auction-detail-table td:nth-child(4) { width: 12%; }
+.auction-detail-table th:nth-child(5),
+.auction-detail-table td:nth-child(5) { width: 10%; }
+.auction-detail-table th:nth-child(6),
+.auction-detail-table td:nth-child(6) { width: 22%; }
 
 /* Mobile responsive: hide non-essential columns */
 @media (max-width: 600px) {

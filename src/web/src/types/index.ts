@@ -435,6 +435,20 @@ export interface ValuationRun {
   createdAt: string
 }
 
+export interface AuctionEndingRun {
+  id: number
+  triggerType: 'scheduled' | 'manual'
+  triggerUserId: number | null
+  status: 'running' | 'success' | 'error'
+  lotsChecked: number
+  alertsSent: number
+  durationMs: number
+  startedAt: string
+  completedAt: string | null
+  errorMessage: string
+  createdAt: string
+}
+
 export interface Notification {
   id: number
   userId: number

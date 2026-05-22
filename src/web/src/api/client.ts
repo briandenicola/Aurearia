@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatResponse, CoinSuggestion, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, Notification, NotificationListResponse, Tag, ValuationRun, CalendarEventDetail } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatResponse, CoinSuggestion, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, Notification, NotificationListResponse, Tag, ValuationRun, AuctionEndingRun, CalendarEventDetail } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -516,6 +516,12 @@ export const triggerValuation = () =>
   api.post<{ message: string; users: number }>('/admin/valuation-runs/trigger')
 export const cancelValuationRun = (runId: number) =>
   api.post<{ message: string }>(`/admin/valuation-runs/${runId}/cancel`)
+
+// Auction Ending Runs
+export const getAuctionEndingRuns = (page = 1, limit = 20) =>
+  api.get<{ runs: AuctionEndingRun[]; total: number; page: number; limit: number }>('/admin/auction-ending-runs', { params: { page, limit } })
+export const triggerAuctionEndingCheck = () =>
+  api.post<{ runId: number; lotsChecked: number; alertsSent: number; status: string; durationMs: number }>('/admin/auction-ending/run')
 
 // Notifications
 export const getNotifications = (page = 1, limit = 20) =>

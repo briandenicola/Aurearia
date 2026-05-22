@@ -98,6 +98,19 @@ All dependencies are wired via constructor injection in `main.go`. No global sta
 
 The API runs three background schedulers that start automatically on server startup:
 
+1. **Wishlist Availability Scheduler** — Checks if wishlist coins with reference URLs are still available for purchase. Configured via `WishlistCheckEnabled`, `WishlistCheckStartTime` (HH:MM), and `WishlistCheckInterval` (minutes). Default: every 2 hours starting at 02:00. Each run is logged in the `availability_runs` table.
+
+2. **Collection Valuation Scheduler** — Periodically re-values all owned coins using the AI agent. Configured via `ValuationCheckEnabled`, `ValuationCheckStartTime` (HH:MM), and `ValuationCheckIntervalDays` (days). Default: every 7 days at 03:00. Each run is logged in the `valuation_runs` table. Runs can be manually triggered via `/admin/valuation-runs/trigger` and cancelled via `/admin/valuation-runs/{id}/cancel`.
+
+3. **Auction Ending Scheduler** — Checks for auction lots ending today and sends consolidated Pushover notifications per user. Configured via `AuctionEndingCheckEnabled`, `AuctionEndingCheckStartTime` (HH:MM), and `AuctionEndingCheckInterval` (minutes). Default: every 24 hours at 08:00. Each run is logged in the `auction_ending_runs` table. Runs can be manually triggered via `/admin/auction-ending/run`.
+
+All schedulers honor the enabled flag — set to `"false"` to disable. Run history is available via admin endpoints:
+- `GET /admin/availability-runs` — Paginated list of availability check runs
+- `GET /admin/valuation-runs` — Paginated list of valuation runs
+- `GET /admin/auction-ending-runs` — Paginated list of auction ending runs
+
+## Pagination
+
 1. **Wishlist Availability Scheduler** — Periodically checks if wishlist coins are still available at their reference URLs. Configured via `WishlistCheckEnabled`, `WishlistCheckStartTime`, and `WishlistCheckInterval` settings. Sends Pushover notifications when items become unavailable.
 
 2. **Collection Valuation Scheduler** — Periodically runs AI-powered valuation estimates for the user's collection. Configured via `ValuationCheckEnabled`, `ValuationCheckStartTime`, and `ValuationCheckIntervalDays` settings. Sends Pushover notifications with valuation summaries.

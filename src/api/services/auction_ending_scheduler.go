@@ -12,33 +12,36 @@ import (
 
 // AuctionEndingScheduler runs periodic checks for auction lots ending today.
 type AuctionEndingScheduler struct {
-	auctionRepo *repository.AuctionLotRepository
-	userRepo    *repository.UserRepository
-	pushoverSvc *PushoverService
-	settingsSvc *SettingsService
-	logger      *Logger
-	stopCh      chan struct{}
-	once        sync.Once
-	lastNotified map[uint]string // userID -> date string (YYYY-MM-DD)
-	mu          sync.RWMutex
+	auctionRepo       *repository.AuctionLotRepository
+	auctionEndingRepo *repository.AuctionEndingRepository
+	userRepo          *repository.UserRepository
+	pushoverSvc       *PushoverService
+	settingsSvc       *SettingsService
+	logger            *Logger
+	stopCh            chan struct{}
+	once              sync.Once
+	lastNotified      map[uint]string // userID -> date string (YYYY-MM-DD)
+	mu                sync.RWMutex
 }
 
 // NewAuctionEndingScheduler creates a new scheduler.
 func NewAuctionEndingScheduler(
 	auctionRepo *repository.AuctionLotRepository,
+	auctionEndingRepo *repository.AuctionEndingRepository,
 	userRepo *repository.UserRepository,
 	pushoverSvc *PushoverService,
 	settingsSvc *SettingsService,
 	logger *Logger,
 ) *AuctionEndingScheduler {
 	return &AuctionEndingScheduler{
-		auctionRepo:  auctionRepo,
-		userRepo:     userRepo,
-		pushoverSvc:  pushoverSvc,
-		settingsSvc:  settingsSvc,
-		logger:       logger,
-		stopCh:       make(chan struct{}),
-		lastNotified: make(map[uint]string),
+		auctionRepo:       auctionRepo,
+		auctionEndingRepo: auctionEndingRepo,
+		userRepo:          userRepo,
+		pushoverSvc:       pushoverSvc,
+		settingsSvc:       settingsSvc,
+		logger:            logger,
+		stopCh:            make(chan struct{}),
+		lastNotified:      make(map[uint]string),
 	}
 }
 
@@ -125,17 +128,54 @@ func (s *AuctionEndingScheduler) runCycle() {
 		return
 	}
 
-	s.logger.Info("scheduler", "Starting scheduled auction ending check cycle")
+	s.runCycleWithTrigger("scheduled", nil)
+}
 
+// RunNow executes an immediate auction ending check for all users (manual trigger).
+func (s *AuctionEndingScheduler) RunNow(triggerUserID *uint) (*models.AuctionEndingRun, error) {
+	return s.runCycleWithTrigger("manual", triggerUserID)
+}
+
+// runCycleWithTrigger executes one full auction ending check and logs the run.
+func (s *AuctionEndingScheduler) runCycleWithTrigger(triggerType string, triggerUserID *uint) (*models.AuctionEndingRun, error) {
+	s.logger.Info("scheduler", "Starting %s auction ending check cycle", triggerType)
+	startedAt := time.Now()
+
+	// Create run record
+	run := &models.AuctionEndingRun{
+		TriggerType:   triggerType,
+		TriggerUserID: triggerUserID,
+		Status:        "running",
+		StartedAt:     startedAt,
+	}
+	if err := s.auctionEndingRepo.CreateRun(run); err != nil {
+		s.logger.Error("scheduler", "Failed to create run record: %s", err)
+		return nil, err
+	}
+
+	// Execute the check
 	lots, err := s.auctionRepo.GetEndingToday()
 	if err != nil {
 		s.logger.Error("scheduler", "Failed to fetch auction lots ending today: %s", err)
-		return
+		now := time.Now()
+		run.Status = "error"
+		run.ErrorMessage = fmt.Sprintf("Failed to fetch lots: %v", err)
+		run.CompletedAt = &now
+		run.DurationMs = time.Since(startedAt).Milliseconds()
+		s.auctionEndingRepo.CompleteRun(run)
+		return run, err
 	}
+
+	run.LotsChecked = len(lots)
 
 	if len(lots) == 0 {
 		s.logger.Info("scheduler", "No auction lots ending today")
-		return
+		now := time.Now()
+		run.Status = "success"
+		run.CompletedAt = &now
+		run.DurationMs = time.Since(startedAt).Milliseconds()
+		s.auctionEndingRepo.CompleteRun(run)
+		return run, nil
 	}
 
 	// Group lots by user
@@ -147,6 +187,7 @@ func (s *AuctionEndingScheduler) runCycle() {
 	s.logger.Info("scheduler", "Found %d lots ending today across %d users", len(lots), len(userLots))
 
 	today := time.Now().Format("2006-01-02")
+	alertsSent := 0
 
 	for userID, lots := range userLots {
 		// Check idempotency — don't notify same user twice for same day
@@ -159,28 +200,41 @@ func (s *AuctionEndingScheduler) runCycle() {
 			continue
 		}
 
-		s.notifyUser(userID, lots)
-
-		// Mark as notified
-		s.mu.Lock()
-		s.lastNotified[userID] = today
-		s.mu.Unlock()
+		sent := s.notifyUser(userID, lots)
+		if sent {
+			alertsSent++
+			// Mark as notified
+			s.mu.Lock()
+			s.lastNotified[userID] = today
+			s.mu.Unlock()
+		}
 	}
 
-	s.logger.Info("scheduler", "Scheduled auction ending check cycle complete")
+	run.AlertsSent = alertsSent
+
+	s.logger.Info("scheduler", "%s auction ending check cycle complete — %d lots checked, %d alerts sent", triggerType, run.LotsChecked, run.AlertsSent)
+
+	now := time.Now()
+	run.Status = "success"
+	run.CompletedAt = &now
+	run.DurationMs = time.Since(startedAt).Milliseconds()
+	s.auctionEndingRepo.CompleteRun(run)
+
+	return run, nil
 }
 
 // notifyUser sends a consolidated Pushover notification to one user for their ending auctions.
-func (s *AuctionEndingScheduler) notifyUser(userID uint, lots []models.AuctionLot) {
+// Returns true if a notification was sent, false otherwise.
+func (s *AuctionEndingScheduler) notifyUser(userID uint, lots []models.AuctionLot) bool {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil || user == nil {
 		s.logger.Warn("scheduler", "Failed to find user %d: %v", userID, err)
-		return
+		return false
 	}
 
 	if !user.PushoverEnabled || user.PushoverUserKey == "" {
 		s.logger.Debug("scheduler", "User %d does not have Pushover enabled", userID)
-		return
+		return false
 	}
 
 	// Build consolidated message
@@ -200,11 +254,12 @@ func (s *AuctionEndingScheduler) notifyUser(userID uint, lots []models.AuctionLo
 	}
 
 	// Send notification
-	go func() {
-		if err := s.pushoverSvc.SendNotification(user.PushoverUserKey, title, message, ""); err != nil {
-			s.logger.Error("pushover", "Failed to send auction ending notification to user %d: %v", userID, err)
-		} else {
-			s.logger.Info("scheduler", "Notified user %d of %d ending auctions", userID, len(lots))
-		}
-	}()
+	sent := false
+	if err := s.pushoverSvc.SendNotification(user.PushoverUserKey, title, message, ""); err != nil {
+		s.logger.Error("pushover", "Failed to send auction ending notification to user %d: %v", userID, err)
+	} else {
+		s.logger.Info("scheduler", "Notified user %d of %d ending auctions", userID, len(lots))
+		sent = true
+	}
+	return sent
 }

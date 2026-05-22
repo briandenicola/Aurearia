@@ -156,12 +156,18 @@ func main() {
 	socialRepo := repository.NewSocialRepository(database.DB)
 	notifRepo := repository.NewNotificationRepository(database.DB)
 	valRepo := repository.NewValuationRepository(database.DB)
+	auctionEndingRepo := repository.NewAuctionEndingRepository(database.DB)
 	userRepoForVal := repository.NewUserRepository(database.DB)
 	auctionLotRepo := repository.NewAuctionLotRepository(database.DB)
 	pushoverSvc := services.NewPushoverService(settingsSvc, logger)
 	notifSvc := services.NewNotificationService(notifRepo, socialRepo, userRepoForVal, pushoverSvc, logger)
 	availSvc := services.NewAvailabilityService(coinRepo, availRepo, agentProxy, notifSvc, pushoverSvc, userRepoForVal, settingsSvc, logger)
 	valSvc := services.NewValuationService(coinRepo, valRepo, agentProxy, userRepoForVal, pushoverSvc, settingsSvc, logger)
+
+	// Create schedulers before routes so they can be passed to admin handlers
+	availScheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, settingsSvc, logger)
+	valScheduler := services.NewValuationScheduler(valSvc, coinRepo, valRepo, settingsSvc, logger)
+	auctionEndingScheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepoForVal, pushoverSvc, settingsSvc, logger)
 
 	apiKeyRepo := repository.NewApiKeyRepository(database.DB)
 	apiKeyAuth := apiKeyRepo // implements middleware.ApiKeyAuthenticator
@@ -379,6 +385,11 @@ func main() {
 		admin.GET("/valuation-runs/:id", valAdminHandler.GetRunDetail)
 		admin.POST("/valuation-runs/trigger", valAdminHandler.TriggerValuation)
 		admin.POST("/valuation-runs/:id/cancel", valAdminHandler.CancelValuation)
+
+		// Auction ending run history and manual trigger
+		auctionEndingAdminHandler := handlers.NewAuctionEndingAdminHandler(auctionEndingRepo, auctionEndingScheduler, logger)
+		admin.GET("/auction-ending-runs", auctionEndingAdminHandler.ListRuns)
+		admin.POST("/auction-ending/run", auctionEndingAdminHandler.TriggerRun)
 	}
 
 	log.Printf("Starting server on :%s", cfg.Port)
@@ -398,16 +409,9 @@ func main() {
 		}
 	}()
 
-	// Start wishlist availability scheduler
-	scheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, settingsSvc, logger)
-	go scheduler.Start()
-
-	// Start collection valuation scheduler
-	valScheduler := services.NewValuationScheduler(valSvc, coinRepo, valRepo, settingsSvc, logger)
+	// Start schedulers
+	go availScheduler.Start()
 	go valScheduler.Start()
-
-	// Start auction ending scheduler
-	auctionEndingScheduler := services.NewAuctionEndingScheduler(auctionLotRepo, userRepoForVal, pushoverSvc, settingsSvc, logger)
 	go auctionEndingScheduler.Start()
 
 	logger.Info("startup", "Application ready")

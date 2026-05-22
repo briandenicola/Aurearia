@@ -100,6 +100,8 @@
         @save="saveSettings"
         @update:val-settings-msg="valSettingsMsg = $event"
         @update:val-settings-error="valSettingsError = $event"
+        @update:auction-settings-msg="auctionSettingsMsg = $event"
+        @update:auction-settings-error="auctionSettingsError = $event"
       />
 
       <!-- Reset Password Modal -->
