@@ -97,6 +97,19 @@ func TestAuctionLotRepository_GetEndingToday(t *testing.T) {
 			expected: false,
 		},
 		{
+			name: "bidding lot with auction_end_time today (no sale_date)",
+			lot: &models.AuctionLot{
+				NumisBidsURL:   "https://example.com/lot5b",
+				Title:          "Lot 5b - Heritage",
+				Status:         models.AuctionStatusBidding,
+				SaleDate:       nil,
+				AuctionEndTime: &today,
+				LotNumber:      99,
+				UserID:         1,
+			},
+			expected: true,
+		},
+		{
 			name: "won lot ending today",
 			lot: &models.AuctionLot{
 				NumisBidsURL: "https://example.com/lot6",

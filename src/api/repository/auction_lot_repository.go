@@ -196,15 +196,23 @@ func (r *AuctionLotRepository) ListByEventID(eventID, userID uint) ([]models.Auc
 
 // GetEndingToday returns all auction lots with BIDDING status whose sale date is today.
 // Groups results by user for notification processing.
+// Checks both sale_date and auction_end_time fields to handle various auction sources.
 func (r *AuctionLotRepository) GetEndingToday() ([]models.AuctionLot, error) {
 	var lots []models.AuctionLot
 	now := time.Now()
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	endOfDay := startOfDay.Add(24 * time.Hour)
 
-	err := r.db.Where("status = ? AND sale_date >= ? AND sale_date < ?",
-		models.AuctionStatusBidding, startOfDay, endOfDay).
-		Order("user_id ASC, sale_date ASC").
+	// Match if sale_date OR auction_end_time is today
+	// COALESCE prioritizes auction_end_time (more precise) over sale_date
+	err := r.db.Where("status = ? AND ("+
+		"(sale_date IS NOT NULL AND sale_date >= ? AND sale_date < ?) OR "+
+		"(auction_end_time IS NOT NULL AND auction_end_time >= ? AND auction_end_time < ?)"+
+		")",
+		models.AuctionStatusBidding,
+		startOfDay, endOfDay, // sale_date range
+		startOfDay, endOfDay). // auction_end_time range
+		Order("user_id ASC").
 		Find(&lots).Error
 	return lots, err
 }
