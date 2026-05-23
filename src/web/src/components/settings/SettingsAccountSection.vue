@@ -101,7 +101,7 @@
         <span class="toggle-slider"></span>
       </label>
     </div>
-    <div class="setting-row">
+    <div class="setting-item">
       <div class="setting-info">
         <span class="setting-label">Coin of the Day</span>
         <span class="setting-desc">Receive a daily featured coin notification from your collection</span>
@@ -493,10 +493,61 @@ defineExpose({ loadCredentials })
   background: #c0392b;
 }
 
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 28px;
+  transition: background 0.2s;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  left: 3px;
+  bottom: 3px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.toggle input:checked + .toggle-slider {
+  background: var(--accent-gold-dim);
+  border-color: var(--accent-gold);
+}
+
+.toggle input:checked + .toggle-slider::before {
+  transform: translateX(22px);
+  background: var(--accent-gold);
+}
+
 @media (max-width: 640px) {
   .setting-item {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .setting-item .toggle {
+    align-self: flex-start;
+    margin-top: 0.2rem;
   }
 }
 </style>
