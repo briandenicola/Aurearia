@@ -257,3 +257,74 @@ func TestCoinRepository_RecordValueSnapshot(t *testing.T) {
 }
 
 func ptrFloat(v float64) *float64 { return &v }
+
+
+func TestCoinRepository_List_RandomSort(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewCoinRepository(db)
+
+	// Insert 10 coins for the same user.
+	for i := 1; i <= 10; i++ {
+		if err := repo.Create(&models.Coin{
+			Name:     "Coin",
+			Category: models.CategoryRoman,
+			UserID:   1,
+		}); err != nil {
+			t.Fatalf("Create failed: %v", err)
+		}
+	}
+
+	listIDs := func(filters CoinListFilters) []uint {
+		coins, _, err := repo.List(1, filters)
+		if err != nil {
+			t.Fatalf("List failed: %v", err)
+		}
+		ids := make([]uint, len(coins))
+		for i, c := range coins {
+			ids[i] = c.ID
+		}
+		return ids
+	}
+
+	// Baseline: created_at desc (newest first) — should be 10, 9, 8, ... 1.
+	desc := listIDs(CoinListFilters{SortField: "created_at", SortOrder: "desc", Page: 1, Limit: 50})
+
+	// Same seed twice must yield the same order (deterministic).
+	seed := 12345
+	a := listIDs(CoinListFilters{SortField: "random", Seed: &seed, Page: 1, Limit: 50})
+	b := listIDs(CoinListFilters{SortField: "random", Seed: &seed, Page: 1, Limit: 50})
+	if len(a) != 10 || len(b) != 10 {
+		t.Fatalf("expected 10 coins, got %d and %d", len(a), len(b))
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			t.Fatalf("random sort not deterministic for same seed at index %d: %v vs %v", i, a, b)
+		}
+	}
+
+	// Random ordering must NOT equal the natural insertion / created_at order.
+	differs := false
+	for i := range a {
+		if a[i] != desc[i] {
+			differs = true
+			break
+		}
+	}
+	if !differs {
+		t.Fatalf("random sort produced the same order as created_at desc; the seed has no effect: %v", a)
+	}
+
+	// A different seed should produce a different ordering than the first seed.
+	seed2 := 99999
+	c := listIDs(CoinListFilters{SortField: "random", Seed: &seed2, Page: 1, Limit: 50})
+	differs = false
+	for i := range a {
+		if a[i] != c[i] {
+			differs = true
+			break
+		}
+	}
+	if !differs {
+		t.Fatalf("different seeds produced identical ordering; seed has no effect: %v", a)
+	}
+}

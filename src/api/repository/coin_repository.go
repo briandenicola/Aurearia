@@ -170,12 +170,17 @@ func (r *CoinRepository) List(userID uint, filters CoinListFilters) ([]models.Co
 	var coins []models.Coin
 
 	// Seeded deterministic random sort: same seed produces the same order across pages.
-	// Uses a SQLite-safe integer expression. Seed is bound via placeholder (no SQL injection).
+	// Hash mixes id with the seed and Knuth's golden-ratio multiplier (2654435761) so
+	// the modulo wraps for every row, producing a true permutation. Without the large
+	// multiplier, `id*seed + seed` is monotonic in id and degenerates to insertion
+	// order. abs() protects against any 64-bit overflow.
+	// Seed is bound via %d after being validated by strconv.Atoi in the handler — safe
+	// from SQL injection. Note: gorm.Expr placeholders inside Order() are silently
+	// dropped by this GORM build, so the int is formatted directly into the SQL.
 	if filters.SortField == "random" && filters.Seed != nil {
 		seed := *filters.Seed
-		// Multiply id by seed and add seed, modulo a large prime — produces a stable
-		// per-seed permutation across the result set.
-		if err := query.Order(gorm.Expr("((id * ?) + ?) % 2147483647", seed, seed)).Offset(offset).Limit(limit).Find(&coins).Error; err != nil {
+		orderExpr := fmt.Sprintf("abs((id * 2654435761) + (id * %d) + %d) %% 1000000", seed, seed)
+		if err := query.Order(orderExpr).Offset(offset).Limit(limit).Find(&coins).Error; err != nil {
 			return nil, 0, err
 		}
 		return coins, total, nil
