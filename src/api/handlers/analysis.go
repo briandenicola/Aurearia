@@ -344,3 +344,61 @@ func (h *AnalysisHandler) OllamaStatus(c *gin.Context) {
 		"message":   message,
 	})
 }
+
+// AIStatus checks availability of the currently configured AI provider.
+//
+//	@Summary		Check AI provider status
+//	@Description	Returns whether the configured AI provider (Anthropic or Ollama) is usable for coin analysis.
+//	@Tags			Analysis
+//	@Produce		json
+//	@Success		200	{object}	AIStatusResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/ai-status [get]
+func (h *AnalysisHandler) AIStatus(c *gin.Context) {
+	logger := h.logger
+	provider := h.settingsSvc.GetSetting(services.SettingAIProvider)
+
+	switch provider {
+	case "anthropic":
+		model := h.settingsSvc.GetSetting(services.SettingAnthropicModel)
+		apiKey := h.settingsSvc.GetSetting(services.SettingAnthropicAPIKey)
+		if apiKey == "" {
+			logger.Info("ai-status", "Anthropic selected but API key is missing")
+			c.JSON(http.StatusOK, gin.H{
+				"available": false,
+				"provider":  "anthropic",
+				"model":     model,
+				"message":   "Anthropic API key is not configured. Set it in Admin → AI Configuration.",
+			})
+			return
+		}
+		logger.Info("ai-status", "Anthropic configured, model=%s", model)
+		c.JSON(http.StatusOK, gin.H{
+			"available": true,
+			"provider":  "anthropic",
+			"model":     model,
+			"message":   fmt.Sprintf("Anthropic provider configured (model: %s)", model),
+		})
+	case "ollama":
+		ollamaURL := h.settingsSvc.GetSetting(services.SettingOllamaURL)
+		ollamaModel := h.settingsSvc.GetSetting(services.SettingOllamaModel)
+		ollamaSvc := services.NewOllamaService(ollamaURL, 10, h.logger)
+		available, message := ollamaSvc.CheckModel(ollamaModel)
+		logger.Info("ai-status", "Ollama available=%v, model=%s, message=%s", available, ollamaModel, message)
+		c.JSON(http.StatusOK, gin.H{
+			"available": available,
+			"provider":  "ollama",
+			"model":     ollamaModel,
+			"message":   message,
+		})
+	default:
+		logger.Info("ai-status", "No AI provider configured")
+		c.JSON(http.StatusOK, gin.H{
+			"available": false,
+			"provider":  "",
+			"model":     "",
+			"message":   "AI provider not configured. Choose Anthropic or Ollama in Admin → AI Configuration.",
+		})
+	}
+}

@@ -10,6 +10,7 @@
       <option value="created_at_asc">Oldest First</option>
       <option value="current_value_desc">Price: High → Low</option>
       <option value="current_value_asc">Price: Low → High</option>
+      <option value="random_desc">Random</option>
     </select>
   </div>
 </template>

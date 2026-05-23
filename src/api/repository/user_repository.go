@@ -74,3 +74,10 @@ func (r *UserRepository) UpdateProfileWithPrivacy(user *models.User, updates map
 		return tx.Model(user).Updates(updates).Error
 	})
 }
+
+// ListCoinOfDayEnabled returns all users who have opted in to the Coin of the Day feature.
+func (r *UserRepository) ListCoinOfDayEnabled() ([]models.User, error) {
+	var users []models.User
+	err := r.db.Where("coin_of_day_enabled = ?", true).Find(&users).Error
+	return users, err
+}

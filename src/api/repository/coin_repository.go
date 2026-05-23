@@ -17,6 +17,7 @@ type CoinListFilters struct {
 	TagID     *uint
 	SortField string
 	SortOrder string
+	Seed      *int // for SortField == "random"; deterministic per-seed shuffle
 	Page      int
 	Limit     int
 }
@@ -156,15 +157,6 @@ func (r *CoinRepository) List(userID uint, filters CoinListFilters) ([]models.Co
 		return nil, 0, err
 	}
 
-	col, ok := allowedSortFields[filters.SortField]
-	if !ok {
-		col = "updated_at"
-	}
-	order := filters.SortOrder
-	if order != "asc" && order != "desc" {
-		order = "desc"
-	}
-
 	page := filters.Page
 	if page < 1 {
 		page = 1
@@ -176,6 +168,28 @@ func (r *CoinRepository) List(userID uint, filters CoinListFilters) ([]models.Co
 	offset := (page - 1) * limit
 
 	var coins []models.Coin
+
+	// Seeded deterministic random sort: same seed produces the same order across pages.
+	// Uses a SQLite-safe integer expression. Seed is bound via placeholder (no SQL injection).
+	if filters.SortField == "random" && filters.Seed != nil {
+		seed := *filters.Seed
+		// Multiply id by seed and add seed, modulo a large prime — produces a stable
+		// per-seed permutation across the result set.
+		if err := query.Order(gorm.Expr("((id * ?) + ?) % 2147483647", seed, seed)).Offset(offset).Limit(limit).Find(&coins).Error; err != nil {
+			return nil, 0, err
+		}
+		return coins, total, nil
+	}
+
+	col, ok := allowedSortFields[filters.SortField]
+	if !ok {
+		col = "updated_at"
+	}
+	order := filters.SortOrder
+	if order != "asc" && order != "desc" {
+		order = "desc"
+	}
+
 	if err := query.Order(col + " " + order).Offset(offset).Limit(limit).Find(&coins).Error; err != nil {
 		return nil, 0, err
 	}

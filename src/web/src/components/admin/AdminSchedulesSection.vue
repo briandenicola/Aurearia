@@ -349,6 +349,43 @@
         <button class="btn btn-secondary btn-sm" :disabled="valRuns.length < 5" @click="valPage++; loadValRuns()">Next</button>
       </div>
     </template>
+
+    <hr class="section-divider" />
+
+    <!-- Coin of the Day -->
+    <h3 class="subsection-title">Coin of the Day</h3>
+    <p class="subsection-desc">Picks one coin per day from each user's collection and sends an in-app and Pushover notification. Each coin in a user's collection appears once before any coin repeats.</p>
+    <div class="avail-settings">
+      <div class="form-group avail-toggle-row">
+        <label class="form-label">Enable Daily Feature</label>
+        <label class="toggle-switch">
+          <input
+            type="checkbox"
+            :checked="settings.CoinOfDayEnabled === 'true'"
+            @change="settings.CoinOfDayEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
+          />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Start Time (daily)</label>
+        <input
+          v-model="settings.CoinOfDayStartTime"
+          class="form-input avail-interval-input"
+          type="time"
+        />
+        <span class="form-hint">Time of day when the daily featured coin is picked for each enrolled user.</span>
+      </div>
+      <div class="avail-save-row">
+        <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
+          {{ settingsSaving ? 'Saving...' : 'Save Coin of the Day Settings' }}
+        </button>
+        <button class="btn btn-secondary btn-sm" :disabled="cotdTriggerLoading" @click="triggerManualCoinOfDay()">
+          {{ cotdTriggerLoading ? 'Running...' : 'Run Now' }}
+        </button>
+        <span v-if="cotdSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': cotdSettingsError }">{{ cotdSettingsMsg }}</span>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -358,6 +395,7 @@ import {
   getAvailabilityRuns, getAvailabilityRunDetail,
   getValuationRuns, getValuationRunDetail, triggerValuation, cancelValuationRun,
   getAuctionEndingRuns, triggerAuctionEndingCheck,
+  triggerCoinOfDayRun,
 } from '@/api/client'
 import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun } from '@/types'
 
@@ -543,6 +581,28 @@ async function cancelRun(runId: number) {
   } catch {
     emit('update:valSettingsMsg', 'Failed to cancel run')
     emit('update:valSettingsError', true)
+  }
+}
+
+// Coin of the Day
+const cotdTriggerLoading = ref(false)
+const cotdSettingsMsg = ref('')
+const cotdSettingsError = ref(false)
+
+async function triggerManualCoinOfDay() {
+  cotdTriggerLoading.value = true
+  cotdSettingsMsg.value = ''
+  cotdSettingsError.value = false
+  try {
+    const res = await triggerCoinOfDayRun()
+    const { picked, skipped, errors } = res.data
+    cotdSettingsMsg.value = `Picked ${picked}, skipped ${skipped}${errors ? `, errors ${errors}` : ''}`
+    timers.push(setTimeout(() => { cotdSettingsMsg.value = '' }, 10000))
+  } catch {
+    cotdSettingsMsg.value = 'Failed to run Coin of the Day'
+    cotdSettingsError.value = true
+  } finally {
+    cotdTriggerLoading.value = false
   }
 }
 

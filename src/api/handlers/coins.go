@@ -16,12 +16,14 @@ import (
 
 // allowedListSortFields is the handler-level allowlist of sort fields for the
 // coin list endpoint. Matches the repository's allowedSortFields map.
+// "random" uses a seeded deterministic shuffle (see ?seed= query param).
 var allowedListSortFields = map[string]bool{
 	"created_at":    true,
 	"updated_at":    true,
 	"current_value": true,
 	"purchase_date": true,
 	"name":          true,
+	"random":        true,
 }
 
 type CoinHandler struct {
@@ -107,6 +109,20 @@ func (h *CoinHandler) List(c *gin.Context) {
 		SortOrder: sortOrder,
 		Page:      page,
 		Limit:     limit,
+	}
+	// Parse optional seed for deterministic random sort.
+	// Use strconv.Atoi to ensure it's a real integer (defense against SQL injection).
+	if sortField == "random" {
+		if seedStr := c.Query("seed"); seedStr != "" {
+			if seed, err := strconv.Atoi(seedStr); err == nil {
+				filters.Seed = &seed
+			}
+		}
+		if filters.Seed == nil {
+			// Default seed if none provided — based on current minute to vary slightly.
+			s := int(time.Now().Unix() % 1000000)
+			filters.Seed = &s
+		}
 	}
 	if w := c.Query("wishlist"); w == "true" {
 		v := true

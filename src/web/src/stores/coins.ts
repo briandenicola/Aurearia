@@ -24,6 +24,7 @@ export const useCoinsStore = defineStore('coins', () => {
     page?: number
     sort?: string
     order?: string
+    seed?: number
   }) {
     loading.value = true
     try {

@@ -101,6 +101,16 @@
         <span class="toggle-slider"></span>
       </label>
     </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <span class="setting-label">Coin of the Day</span>
+        <span class="setting-desc">Receive a daily featured coin notification from your collection</span>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" v-model="coinOfDayEnabled" />
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
     <button class="btn btn-primary btn-sm" @click="handleSaveProfile" :disabled="profileSaving || nbValidating" style="margin-top: 0.5rem">
       {{ nbValidating ? 'Validating...' : profileSaving ? 'Saving...' : 'Save Profile' }}
     </button>
@@ -201,7 +211,7 @@ const {
   nbUsername, nbPassword, pushoverKey, pushoverTesting, pushoverTestMsg, pushoverTestError,
   handleTestPushover, profilePublic, profileMsg, profileError, profileSaving,
   showPrivacyWarning, onPublicToggle, confirmGoPrivate, cancelGoPrivate,
-  nbValidating, nbValidationError, handleSaveProfile,
+  nbValidating, nbValidationError, handleSaveProfile, coinOfDayEnabled,
   currentPassword, newPassword, confirmPassword,
   passwordMsg, passwordError, passwordLoading, handleChangePassword,
 } = useSettingsProfile()

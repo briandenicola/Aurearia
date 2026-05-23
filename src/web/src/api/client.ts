@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatResponse, CoinSuggestion, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, Notification, NotificationListResponse, Tag, ValuationRun, AuctionEndingRun, CalendarEventDetail } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatResponse, CoinSuggestion, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, Notification, NotificationListResponse, Tag, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -100,10 +100,12 @@ export const getCoins = (params?: {
   search?: string
   wishlist?: string
   sold?: string
+  tag?: string
   page?: number
   limit?: number
   sort?: string
   order?: string
+  seed?: number
 }) => api.get<CoinListResponse>('/coins', { params })
 
 const NULLABLE_FIELDS: (keyof Coin)[] = ['weightGrams', 'diameterMm', 'purchasePrice', 'currentValue', 'purchaseDate']
@@ -292,6 +294,8 @@ export const extractText = (file: File) => {
 }
 export const getOllamaStatus = () =>
   api.get<{ available: boolean; model: string; url: string; message: string }>('/ollama-status')
+export const getAIStatus = () =>
+  api.get<{ available: boolean; provider: string; model: string; message: string }>('/ai-status')
 
 // Stats
 export const getStats = () => api.get<StatsResponse>('/stats')
@@ -406,8 +410,8 @@ interface PublicKeyCredentialRequestOptionsJSON {
 // --- Social / Profile API ---
 
 // Profile
-export const updateProfile = (data: { email?: string; bio?: string; zipCode?: string; isPublic?: boolean; numisBidsUsername?: string; numisBidsPassword?: string; pushoverUserKey?: string }) =>
-  api.put<{ id: number; username: string; role: string; email: string; avatarPath: string; isPublic: boolean; bio: string; zipCode: string; numisBidsUsername: string; numisBidsConfigured: boolean; pushoverEnabled: boolean }>('/user/profile', data)
+export const updateProfile = (data: { email?: string; bio?: string; zipCode?: string; isPublic?: boolean; numisBidsUsername?: string; numisBidsPassword?: string; pushoverUserKey?: string; coinOfDayEnabled?: boolean }) =>
+  api.put<{ id: number; username: string; role: string; email: string; avatarPath: string; isPublic: boolean; bio: string; zipCode: string; numisBidsUsername: string; numisBidsConfigured: boolean; pushoverEnabled: boolean; coinOfDayEnabled: boolean }>('/user/profile', data)
 export const uploadAvatar = (file: File) => {
   const form = new FormData()
   form.append('avatar', file)
@@ -522,6 +526,14 @@ export const getAuctionEndingRuns = (page = 1, limit = 20) =>
   api.get<{ runs: AuctionEndingRun[]; total: number; page: number; limit: number }>('/admin/auction-ending-runs', { params: { page, limit } })
 export const triggerAuctionEndingCheck = () =>
   api.post<{ runId: number; lotsChecked: number; alertsSent: number; status: string; durationMs: number }>('/admin/auction-ending/run')
+
+// Coin of the Day
+export const getLatestFeaturedCoin = () =>
+  api.get<FeaturedCoin>('/featured-coins/latest')
+export const getFeaturedCoin = (id: number) =>
+  api.get<FeaturedCoin>(`/featured-coins/${id}`)
+export const triggerCoinOfDayRun = () =>
+  api.post<{ picked: number; skipped: number; errors: number }>('/admin/coin-of-day/run')
 
 // Notifications
 export const getNotifications = (page = 1, limit = 20) =>

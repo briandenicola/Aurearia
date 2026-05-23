@@ -20,7 +20,7 @@
           {{ analyzingSide === 'reverse' ? 'Analyzing...' : 'Analyze Reverse' }}
         </button>
       </div>
-      <p v-if="!aiAvailable" class="ai-unavailable">AI unavailable — configure Ollama in Admin → AI Configuration</p>
+      <p v-if="!aiAvailable" class="ai-unavailable">{{ aiMessage || 'AI unavailable — configure a provider in Admin → AI Configuration' }}</p>
 
       <div v-if="obverseAnalysis" class="ai-result-section">
         <div class="ai-result-header">
@@ -51,7 +51,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { analyzeCoin, deleteAnalysis, getOllamaStatus } from '@/api/client'
+import { analyzeCoin, deleteAnalysis, getAIStatus } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
@@ -83,7 +83,7 @@ const renderedLegacy = computed(() => (props.aiAnalysis ? DOMPurify.sanitize(md.
 
 onMounted(async () => {
   try {
-    const res = await getOllamaStatus()
+    const res = await getAIStatus()
     aiAvailable.value = res.data.available
     aiMessage.value = res.data.message
   } catch {
@@ -99,7 +99,7 @@ async function handleAnalyze(side: 'obverse' | 'reverse') {
     await analyzeCoin(props.coinId, side)
     emit('analysisUpdated')
   } catch {
-    await showAlert(`AI analysis failed for ${side}. Ensure Ollama is running.`, { title: 'Analysis Failed' })
+    await showAlert(`AI analysis failed for ${side}. Check the configured AI provider in Admin → AI Configuration.`, { title: 'Analysis Failed' })
   } finally {
     analyzing.value = false
     analyzingSide.value = null

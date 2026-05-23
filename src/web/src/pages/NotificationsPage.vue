@@ -34,6 +34,7 @@
         <div class="notification-icon">
           <AlertTriangle v-if="n.type === 'wishlist_unavailable'" :size="20" />
           <UserPlus v-else-if="n.type === 'friend_new_coin'" :size="20" />
+          <Sparkles v-else-if="n.type === 'coin_of_day'" :size="20" />
           <Bell v-else :size="20" />
         </div>
         <div class="notification-body">
@@ -56,13 +57,19 @@
         </button>
       </div>
     </div>
+
+    <FeaturedCoinModal
+      v-if="featuredCoinModalId !== null"
+      :featured-coin-id="featuredCoinModalId"
+      @close="featuredCoinModalId = null"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Bell, BellOff, AlertTriangle, UserPlus, X } from 'lucide-vue-next'
+import { Bell, BellOff, AlertTriangle, UserPlus, Sparkles, X } from 'lucide-vue-next'
 import {
   getNotifications,
   markNotificationRead,
@@ -70,6 +77,7 @@ import {
   deleteNotification,
 } from '@/api/client'
 import { useNotifications } from '@/composables/useNotifications'
+import FeaturedCoinModal from '@/components/coin/FeaturedCoinModal.vue'
 import type { Notification } from '@/types'
 
 const router = useRouter()
@@ -79,6 +87,7 @@ const total = ref(0)
 const page = ref(1)
 const limit = 20
 const loading = ref(false)
+const featuredCoinModalId = ref<number | null>(null)
 
 const hasUnread = computed(() => notifications.value.some((n) => !n.isRead))
 const hasMore = computed(() => notifications.value.length < total.value)
@@ -110,6 +119,10 @@ async function handleClick(n: Notification) {
     refreshBadge()
   }
 
+  if (n.type === 'coin_of_day' && n.referenceId) {
+    featuredCoinModalId.value = n.referenceId
+    return
+  }
   if (n.type === 'wishlist_unavailable' && n.referenceId) {
     router.push(`/coin/${n.referenceId}`)
   } else if (n.type === 'friend_new_coin' && n.referenceId) {

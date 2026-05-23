@@ -51,6 +51,7 @@ export function useSettingsProfile() {
   const pushoverTestMsg = ref('')
   const pushoverTestError = ref(false)
   const profilePublic = ref(auth.user?.isPublic || false)
+  const coinOfDayEnabled = ref(auth.user?.coinOfDayEnabled ?? true)
   const profileMsg = ref('')
   const profileError = ref(false)
   const profileSaving = ref(false)
@@ -111,6 +112,7 @@ export function useSettingsProfile() {
         zipCode: profileZipCode.value,
         isPublic: profilePublic.value,
         numisBidsUsername: nbUsername.value,
+        coinOfDayEnabled: coinOfDayEnabled.value,
       }
       if (nbPassword.value) {
         data.numisBidsPassword = nbPassword.value
@@ -127,6 +129,7 @@ export function useSettingsProfile() {
         auth.user.numisBidsUsername = res.data.numisBidsUsername
         auth.user.numisBidsConfigured = res.data.numisBidsConfigured
         auth.user.pushoverEnabled = res.data.pushoverEnabled
+        auth.user.coinOfDayEnabled = res.data.coinOfDayEnabled
         localStorage.setItem('user', JSON.stringify(auth.user))
       }
       nbPassword.value = ''
@@ -216,6 +219,7 @@ export function useSettingsProfile() {
     nbValidating,
     nbValidationError,
     handleSaveProfile,
+    coinOfDayEnabled,
     // Password
     currentPassword,
     newPassword,

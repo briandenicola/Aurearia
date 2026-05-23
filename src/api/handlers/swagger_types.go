@@ -81,6 +81,13 @@ type OllamaStatusResponse struct {
 	Message   string `json:"message" example:"Model llava is available"`
 }
 
+type AIStatusResponse struct {
+	Available bool   `json:"available" example:"true"`
+	Provider  string `json:"provider" example:"anthropic"`
+	Model     string `json:"model" example:"claude-sonnet-4-20250514"`
+	Message   string `json:"message" example:"Anthropic provider configured (model: claude-sonnet-4-20250514)"`
+}
+
 type UserInfoResponse struct {
 	ID        uint   `json:"id" example:"1"`
 	Username  string `json:"username" example:"admin"`

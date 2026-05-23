@@ -118,6 +118,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 		"numisBidsUsername":   user.NumisBidsUsername,
 		"numisBidsConfigured": user.NumisBidsUsername != "" && user.NumisBidsPassword != "",
 		"pushoverEnabled":     user.PushoverEnabled,
+		"coinOfDayEnabled":    user.CoinOfDayEnabled,
 	})
 }
 
@@ -228,6 +229,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		NumisBidsUsername *string `json:"numisBidsUsername"`
 		NumisBidsPassword *string `json:"numisBidsPassword"`
 		PushoverUserKey   *string `json:"pushoverUserKey"`
+		CoinOfDayEnabled  *bool   `json:"coinOfDayEnabled"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
@@ -275,6 +277,9 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		updates["pushover_user_key"] = key
 		updates["pushover_enabled"] = key != ""
 	}
+	if req.CoinOfDayEnabled != nil {
+		updates["coin_of_day_enabled"] = *req.CoinOfDayEnabled
+	}
 	if req.IsPublic != nil {
 		updates["is_public"] = *req.IsPublic
 		goingPrivate := !*req.IsPublic && user.IsPublic
@@ -313,6 +318,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		"numisBidsUsername":   user.NumisBidsUsername,
 		"numisBidsConfigured": user.NumisBidsUsername != "" && user.NumisBidsPassword != "",
 		"pushoverEnabled":     user.PushoverEnabled,
+		"coinOfDayEnabled":    user.CoinOfDayEnabled,
 	})
 }
 

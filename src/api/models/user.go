@@ -23,5 +23,6 @@ type User struct {
 	NumisBidsPassword string    `gorm:"type:varchar(100)" json:"-"`
 	PushoverUserKey   string    `gorm:"type:varchar(100)" json:"-"`
 	PushoverEnabled   bool      `gorm:"default:false" json:"pushoverEnabled"`
+	CoinOfDayEnabled  bool      `gorm:"default:true" json:"coinOfDayEnabled"`
 	CreatedAt         time.Time `json:"createdAt"`
 }

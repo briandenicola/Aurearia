@@ -33,6 +33,8 @@ const (
 	SettingAuctionEndingCheckEnabled  = "AuctionEndingCheckEnabled"
 	SettingAuctionEndingCheckInterval = "AuctionEndingCheckInterval"
 	SettingAuctionEndingCheckStartTime = "AuctionEndingCheckStartTime"
+	SettingCoinOfDayEnabled            = "CoinOfDayEnabled"
+	SettingCoinOfDayStartTime          = "CoinOfDayStartTime"
 )
 
 const DefaultObversePrompt = `You are an expert numismatist specializing in ancient and modern coins. Analyze the obverse (front) of this coin and provide:
@@ -84,6 +86,8 @@ var settingDefaults = map[string]string{
 	SettingAuctionEndingCheckEnabled: "false",
 	SettingAuctionEndingCheckInterval: "1440",
 	SettingAuctionEndingCheckStartTime: "08:00",
+	SettingCoinOfDayEnabled:            "false",
+	SettingCoinOfDayStartTime:          "07:00",
 }
 
 // SettingsService provides access to application settings backed by the database.

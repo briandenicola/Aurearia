@@ -85,6 +85,7 @@ export interface User {
   numisBidsUsername?: string
   numisBidsConfigured?: boolean
   pushoverEnabled?: boolean
+  coinOfDayEnabled?: boolean
 }
 
 export interface AuthResponse {
@@ -169,6 +170,8 @@ export interface UserInfo {
   emailMissing: boolean
   numisBidsUsername: string
   numisBidsConfigured: boolean
+  pushoverEnabled?: boolean
+  coinOfDayEnabled?: boolean
   createdAt: string
 }
 
@@ -452,7 +455,7 @@ export interface AuctionEndingRun {
 export interface Notification {
   id: number
   userId: number
-  type: 'wishlist_unavailable' | 'friend_new_coin'
+  type: 'wishlist_unavailable' | 'friend_new_coin' | 'coin_of_day'
   title: string
   message: string
   referenceId: number
@@ -466,4 +469,14 @@ export interface NotificationListResponse {
   total: number
   page: number
   limit: number
+}
+
+export interface FeaturedCoin {
+  id: number
+  userId: number
+  coinId: number
+  coin?: Coin
+  summary: string
+  featuredAt: string
+  createdAt: string
 }

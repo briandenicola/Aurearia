@@ -28,6 +28,20 @@ export function useCollectionFilters() {
       : [sortKey.value.split('_')[0], sortKey.value.split('_')[1]]
     store.selectedCategory = selectedCategory.value
     store.searchQuery = search.value
+
+    // For random sort, generate a per-session seed (stable across pagination within a session)
+    let seed: number | undefined
+    if (sort === 'random') {
+      const key = 'coins:randomSeed'
+      const cached = sessionStorage.getItem(key)
+      if (cached) {
+        seed = parseInt(cached, 10)
+      } else {
+        seed = Math.floor(Math.random() * 1_000_000) + 1
+        sessionStorage.setItem(key, String(seed))
+      }
+    }
+
     store.fetchCoins({
       category: selectedCategory.value || undefined,
       search: search.value || undefined,
@@ -37,6 +51,7 @@ export function useCollectionFilters() {
       page: page.value,
       sort,
       order,
+      seed,
     })
   }
 
@@ -62,6 +77,11 @@ export function useCollectionFilters() {
   watch(sortKey, () => {
     store.activeSortKey = sortKey.value
     page.value = 1
+    // Reset the random seed when the user re-selects Random so the order shuffles.
+    const sort = sortKey.value.split('_').slice(0, -1).join('_')
+    if (sort === 'random') {
+      sessionStorage.setItem('coins:randomSeed', String(Math.floor(Math.random() * 1_000_000) + 1))
+    }
     loadCoins()
   })
 

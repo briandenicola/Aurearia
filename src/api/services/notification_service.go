@@ -105,6 +105,40 @@ func (s *NotificationService) NotifyNewCoin(ownerID uint, coin models.Coin) {
 	s.logger.Debug("notifications", "Notified %d followers about new coin %d from user %d", len(followers), coin.ID, ownerID)
 }
 
+// NotifyCoinOfDay creates an in-app notification and Pushover alert for the
+// user's daily featured coin. The ReferenceID points to the FeaturedCoin record
+// so the frontend can open the dedicated modal.
+func (s *NotificationService) NotifyCoinOfDay(userID uint, featuredCoinID uint, coinName, summary string) {
+	if coinName == "" {
+		coinName = "Today's coin"
+	}
+
+	title := "Coin of the Day"
+	message := coinName
+	if summary != "" {
+		// Keep notification message short — the modal shows the full summary.
+		preview := summary
+		if len(preview) > 140 {
+			preview = preview[:137] + "..."
+		}
+		message = fmt.Sprintf("%s — %s", coinName, preview)
+	}
+
+	n := &models.Notification{
+		UserID:      userID,
+		Type:        "coin_of_day",
+		Title:       title,
+		Message:     message,
+		ReferenceID: featuredCoinID,
+	}
+
+	if err := s.notifRepo.Create(n); err != nil {
+		s.logger.Error("notifications", "Failed to create coin-of-day notification for user %d: %v", userID, err)
+	}
+
+	go s.sendPushover(userID, title, message, "")
+}
+
 // sendPushover checks if the user has Pushover enabled and sends a push notification.
 func (s *NotificationService) sendPushover(userID uint, title, message, refURL string) {
 	if s.pushoverSvc == nil || s.userRepo == nil {

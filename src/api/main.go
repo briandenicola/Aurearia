@@ -168,6 +168,8 @@ func main() {
 	availScheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, settingsSvc, logger)
 	valScheduler := services.NewValuationScheduler(valSvc, coinRepo, valRepo, settingsSvc, logger)
 	auctionEndingScheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepoForVal, pushoverSvc, settingsSvc, logger)
+	featuredCoinRepo := repository.NewFeaturedCoinRepository(database.DB)
+	coinOfDayScheduler := services.NewCoinOfDayScheduler(featuredCoinRepo, userRepoForVal, coinRepo, notifSvc, settingsSvc, logger)
 
 	apiKeyRepo := repository.NewApiKeyRepository(database.DB)
 	apiKeyAuth := apiKeyRepo // implements middleware.ApiKeyAuthenticator
@@ -225,6 +227,12 @@ func main() {
 		protected.DELETE("/coins/:id/analyze", analysisHandler.DeleteAnalysis)
 		protected.POST("/extract-text", analysisHandler.ExtractText)
 		protected.GET("/ollama-status", analysisHandler.OllamaStatus)
+		protected.GET("/ai-status", analysisHandler.AIStatus)
+
+		// Coin of the Day (user-facing)
+		coinOfDayHandler := handlers.NewCoinOfDayHandler(featuredCoinRepo, logger)
+		protected.GET("/featured-coins/latest", coinOfDayHandler.Latest)
+		protected.GET("/featured-coins/:id", coinOfDayHandler.Get)
 
 		numistaHandler := handlers.NewNumistaHandler(settingsSvc)
 		protected.GET("/numista/search", numistaHandler.Search)
@@ -391,6 +399,10 @@ func main() {
 		admin.GET("/auction-ending-runs", auctionEndingAdminHandler.ListRuns)
 		admin.POST("/auction-ending/run", auctionEndingAdminHandler.TriggerRun)
 
+		// Coin of the Day manual trigger
+		coinOfDayAdminHandler := handlers.NewCoinOfDayAdminHandler(coinOfDayScheduler, logger)
+		admin.POST("/coin-of-day/run", coinOfDayAdminHandler.TriggerRun)
+
 		// Auction ending debug endpoint
 		auctionDebugHandler := handlers.NewAuctionEndingDebugHandler(database.DB, auctionLotRepo)
 		admin.GET("/auction-ending/debug", auctionDebugHandler.DebugGetAuctionEndingInfo)
@@ -417,6 +429,7 @@ func main() {
 	go availScheduler.Start()
 	go valScheduler.Start()
 	go auctionEndingScheduler.Start()
+	go coinOfDayScheduler.Start()
 
 	logger.Info("startup", "Application ready")
 	log.Println("Application ready")
