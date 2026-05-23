@@ -486,6 +486,20 @@ export const getAuctionLots = (params?: { status?: string; search?: string; sort
 export const getAuctionLotCounts = () =>
   api.get<{ counts: Record<string, number> }>('/auctions/counts')
 export const updateAuctionLotStatus = (id: number, status: string, maxBid?: number | null) => api.put<AuctionLot>(`/auctions/${id}/status`, { status, ...(maxBid != null ? { maxBid } : {}) })
+export const updateAuctionLot = (id: number, data: {
+  title?: string
+  numisBidsUrl?: string
+  auctionHouse?: string
+  saleName?: string
+  lotNumber?: number
+  saleDate?: string | null
+  auctionEndTime?: string | null
+  description?: string
+  notes?: string
+  category?: string
+  estimate?: number | null
+  currency?: string
+}) => api.put<AuctionLot>(`/auctions/${id}`, data)
 export const convertAuctionLotToCoin = (id: number) => api.post<Coin>(`/auctions/${id}/convert`)
 export const deleteAuctionLot = (id: number) => api.delete(`/auctions/${id}`)
 export const linkAuctionLotEvent = (id: number, eventId: number | null) => api.put<AuctionLot>(`/auctions/${id}/event`, { eventId })

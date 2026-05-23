@@ -23,6 +23,7 @@ type AuctionLot struct {
 	AuctionEndTime *time.Time       `json:"auctionEndTime"`
 	Title        string           `gorm:"not null" json:"title"`
 	Description  string           `gorm:"type:text" json:"description"`
+	Notes        string           `gorm:"type:text" json:"notes"`
 	Category     Category         `gorm:"type:varchar(20);default:'Other'" json:"category"`
 	Estimate     *float64         `json:"estimate"`
 	CurrentBid   *float64         `json:"currentBid"`

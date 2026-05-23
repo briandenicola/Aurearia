@@ -332,8 +332,10 @@ export interface AuctionLot {
   auctionHouse: string
   saleName: string
   saleDate: string | null
+  auctionEndTime: string | null
   title: string
   description: string
+  notes: string
   category: Category
   estimate: number | null
   currentBid: number | null

@@ -3,14 +3,19 @@
     <div class="lot-detail card">
       <div class="detail-header">
         <h2>{{ lot.title }}</h2>
-        <button class="btn-close" @click="$emit('close')"><X :size="18" /></button>
+        <div class="header-actions">
+          <button v-if="!isEditing" class="btn-icon" title="Edit details" @click="startEdit">
+            <Pencil :size="16" />
+          </button>
+          <button class="btn-close" @click="$emit('close')"><X :size="18" /></button>
+        </div>
       </div>
 
       <div v-if="lot.imageUrl" class="detail-image-container">
         <img :src="proxiedImageUrl" :alt="lot.title" class="detail-image" />
       </div>
 
-      <div class="detail-body">
+      <div v-if="!isEditing" class="detail-body">
         <div class="detail-row" v-if="lot.auctionHouse">
           <span class="detail-label">Auction House</span>
           <span>{{ lot.auctionHouse }}</span>
@@ -26,6 +31,10 @@
         <div class="detail-row" v-if="lot.saleDate">
           <span class="detail-label">Sale Date</span>
           <span>{{ formatDate(lot.saleDate) }}</span>
+        </div>
+        <div class="detail-row" v-if="lot.auctionEndTime">
+          <span class="detail-label">Ends</span>
+          <span>{{ formatDateTime(lot.auctionEndTime) }}</span>
         </div>
         <div class="detail-row" v-if="lot.estimate">
           <span class="detail-label">Estimate</span>
@@ -47,9 +56,74 @@
           <span class="detail-label">Description</span>
           <p>{{ lot.description }}</p>
         </div>
+        <div v-if="lot.notes" class="detail-description">
+          <span class="detail-label">Notes</span>
+          <p>{{ lot.notes }}</p>
+        </div>
       </div>
 
-      <div class="detail-actions">
+      <div v-else class="detail-body edit-body">
+        <div class="form-group">
+          <label class="detail-label">Title</label>
+          <input v-model="editForm.title" type="text" class="form-input" />
+        </div>
+        <div class="form-group">
+          <label class="detail-label">NumisBids URL</label>
+          <input v-model="editForm.numisBidsUrl" type="url" class="form-input" placeholder="https://..." />
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="detail-label">Auction House</label>
+            <input v-model="editForm.auctionHouse" type="text" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="detail-label">Sale Name</label>
+            <input v-model="editForm.saleName" type="text" class="form-input" />
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="detail-label">Lot #</label>
+            <input v-model.number="editForm.lotNumber" type="number" class="form-input" min="0" />
+          </div>
+          <div class="form-group">
+            <label class="detail-label">Estimate</label>
+            <input v-model.number="editForm.estimate" type="number" class="form-input" min="0" step="0.01" />
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="detail-label">Sale Date</label>
+            <input v-model="editForm.saleDate" type="date" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="detail-label">End Date / Time</label>
+            <input v-model="editForm.auctionEndTime" type="datetime-local" class="form-input" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="detail-label">Description</label>
+          <textarea v-model="editForm.description" class="form-input" rows="3" />
+        </div>
+        <div class="form-group">
+          <label class="detail-label">Notes</label>
+          <textarea
+            v-model="editForm.notes"
+            class="form-input"
+            rows="4"
+            placeholder="Personal notes about this auction lot..."
+          />
+        </div>
+        <p v-if="editError" class="edit-error">{{ editError }}</p>
+        <div class="edit-actions">
+          <button class="btn btn-secondary" :disabled="editSaving" @click="cancelEdit">Cancel</button>
+          <button class="btn btn-primary" :disabled="editSaving" @click="saveEdit">
+            {{ editSaving ? 'Saving...' : 'Save Changes' }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="!isEditing" class="detail-actions">
         <div class="action-row">
           <select v-model="newStatus" class="form-input status-select">
             <option value="watching">Watching</option>
@@ -108,11 +182,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { updateAuctionLotStatus, convertAuctionLotToCoin, deleteAuctionLot, listCalendarEvents, linkAuctionLotEvent } from '@/api/client'
+import { updateAuctionLotStatus, updateAuctionLot, convertAuctionLotToCoin, deleteAuctionLot, listCalendarEvents, linkAuctionLotEvent } from '@/api/client'
 import type { AuctionLot, AuctionLotStatus } from '@/types'
-import { X, ExternalLink, ArrowRightCircle, Trash2, CalendarDays } from 'lucide-vue-next'
+import { X, ExternalLink, ArrowRightCircle, Trash2, CalendarDays, Pencil } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
 
 const props = defineProps<{
@@ -140,6 +214,129 @@ const proxiedImageUrl = computed(() => {
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+function formatDateTime(dateStr: string) {
+  return new Date(dateStr).toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+// Edit mode
+const isEditing = ref(false)
+const editSaving = ref(false)
+const editError = ref('')
+
+interface EditForm {
+  title: string
+  numisBidsUrl: string
+  auctionHouse: string
+  saleName: string
+  lotNumber: number | null
+  saleDate: string
+  auctionEndTime: string
+  description: string
+  notes: string
+  estimate: number | null
+}
+
+const editForm = reactive<EditForm>({
+  title: '',
+  numisBidsUrl: '',
+  auctionHouse: '',
+  saleName: '',
+  lotNumber: null,
+  saleDate: '',
+  auctionEndTime: '',
+  description: '',
+  notes: '',
+  estimate: null,
+})
+
+function isoToDateInput(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+function isoToDateTimeLocalInput(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mi = String(d.getMinutes()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`
+}
+
+function startEdit() {
+  editError.value = ''
+  editForm.title = props.lot.title || ''
+  editForm.numisBidsUrl = props.lot.numisBidsUrl || ''
+  editForm.auctionHouse = props.lot.auctionHouse || ''
+  editForm.saleName = props.lot.saleName || ''
+  editForm.lotNumber = props.lot.lotNumber || null
+  editForm.saleDate = isoToDateInput(props.lot.saleDate)
+  editForm.auctionEndTime = isoToDateTimeLocalInput(props.lot.auctionEndTime)
+  editForm.description = props.lot.description || ''
+  editForm.notes = props.lot.notes || ''
+  editForm.estimate = props.lot.estimate
+  isEditing.value = true
+}
+
+function cancelEdit() {
+  isEditing.value = false
+  editError.value = ''
+}
+
+async function saveEdit() {
+  editError.value = ''
+  const title = editForm.title.trim()
+  const url = editForm.numisBidsUrl.trim()
+  if (!title) {
+    editError.value = 'Title is required'
+    return
+  }
+  if (!url) {
+    editError.value = 'URL is required'
+    return
+  }
+  if (!/^https?:\/\//i.test(url)) {
+    editError.value = 'URL must start with http:// or https://'
+    return
+  }
+
+  editSaving.value = true
+  try {
+    await updateAuctionLot(props.lot.id, {
+      title,
+      numisBidsUrl: url,
+      auctionHouse: editForm.auctionHouse.trim(),
+      saleName: editForm.saleName.trim(),
+      lotNumber: editForm.lotNumber ?? 0,
+      saleDate: editForm.saleDate ? new Date(editForm.saleDate).toISOString() : null,
+      auctionEndTime: editForm.auctionEndTime ? new Date(editForm.auctionEndTime).toISOString() : null,
+      description: editForm.description,
+      notes: editForm.notes,
+      estimate: editForm.estimate,
+    })
+    isEditing.value = false
+    emit('updated')
+  } catch {
+    editError.value = 'Failed to save changes'
+  } finally {
+    editSaving.value = false
+  }
 }
 
 async function fetchCalendarEvents() {
@@ -388,5 +585,77 @@ onMounted(fetchCalendarEvents)
 .btn-sm {
   padding: 0.35rem 0.7rem;
   font-size: 0.8rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.35rem;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.btn-icon:hover {
+  color: var(--accent-gold);
+  background: var(--accent-gold-glow);
+}
+
+.edit-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+}
+
+@media (max-width: 480px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.edit-body .form-input {
+  width: 100%;
+  font-size: 0.88rem;
+}
+
+.edit-body textarea.form-input {
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.45;
+}
+
+.edit-error {
+  color: #f87171;
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+.edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
 </style>

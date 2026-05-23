@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -164,6 +165,24 @@ func (h *AuctionLotHandler) Create(c *gin.Context) {
 //	@Failure		404		{object}	ErrorResponse
 //	@Security		BearerAuth
 //	@Router			/auctions/{id} [put]
+// UpdateLotRequest is the narrow set of fields a user may edit on an auction lot.
+// Fields like UserID, CoinID, EventID, Status, and computed fields are intentionally
+// excluded — those have dedicated endpoints with their own authorization rules.
+type UpdateLotRequest struct {
+	Title          *string    `json:"title"`
+	NumisBidsURL   *string    `json:"numisBidsUrl"`
+	AuctionHouse   *string    `json:"auctionHouse"`
+	SaleName       *string    `json:"saleName"`
+	LotNumber      *int       `json:"lotNumber"`
+	SaleDate       *time.Time `json:"saleDate"`
+	AuctionEndTime *time.Time `json:"auctionEndTime"`
+	Description    *string    `json:"description"`
+	Notes          *string    `json:"notes"`
+	Category       *string    `json:"category"`
+	Estimate       *float64   `json:"estimate"`
+	Currency       *string    `json:"currency"`
+}
+
 func (h *AuctionLotHandler) Update(c *gin.Context) {
 	userID := c.GetUint("userId")
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -182,13 +201,70 @@ func (h *AuctionLotHandler) Update(c *gin.Context) {
 		return
 	}
 
-	var updates models.AuctionLot
-	if err := c.ShouldBindJSON(&updates); err != nil {
+	var req UpdateLotRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
-	if err := h.repo.Update(existing, &updates); err != nil {
+	fields := map[string]interface{}{}
+	if req.Title != nil {
+		title := strings.TrimSpace(*req.Title)
+		if title == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Title cannot be empty"})
+			return
+		}
+		fields["title"] = title
+	}
+	if req.NumisBidsURL != nil {
+		url := strings.TrimSpace(*req.NumisBidsURL)
+		if url == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "URL cannot be empty"})
+			return
+		}
+		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "URL must start with http:// or https://"})
+			return
+		}
+		fields["numis_bids_url"] = url
+	}
+	if req.AuctionHouse != nil {
+		fields["auction_house"] = strings.TrimSpace(*req.AuctionHouse)
+	}
+	if req.SaleName != nil {
+		fields["sale_name"] = strings.TrimSpace(*req.SaleName)
+	}
+	if req.LotNumber != nil {
+		fields["lot_number"] = *req.LotNumber
+	}
+	if req.SaleDate != nil {
+		fields["sale_date"] = *req.SaleDate
+	}
+	if req.AuctionEndTime != nil {
+		fields["auction_end_time"] = *req.AuctionEndTime
+	}
+	if req.Description != nil {
+		fields["description"] = *req.Description
+	}
+	if req.Notes != nil {
+		fields["notes"] = *req.Notes
+	}
+	if req.Category != nil {
+		fields["category"] = models.Category(*req.Category)
+	}
+	if req.Estimate != nil {
+		fields["estimate"] = *req.Estimate
+	}
+	if req.Currency != nil {
+		fields["currency"] = strings.TrimSpace(*req.Currency)
+	}
+
+	if len(fields) == 0 {
+		c.JSON(http.StatusOK, existing)
+		return
+	}
+
+	if err := h.repo.UpdateFields(existing, fields); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update auction lot"})
 		return
 	}
