@@ -35,9 +35,7 @@
             </div>
           </div>
 
-          <div v-if="featured.summary" class="featured-summary">
-            <p v-for="(para, i) in summaryParagraphs" :key="i">{{ para }}</p>
-          </div>
+          <div v-if="featured.summary" class="featured-summary" v-html="renderedSummary"></div>
 
           <div class="featured-actions">
             <router-link
@@ -61,9 +59,13 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { Sparkles, X } from 'lucide-vue-next'
 import { getFeaturedCoin } from '@/api/client'
 import type { FeaturedCoin } from '@/types'
+import MarkdownIt from 'markdown-it'
+import DOMPurify from 'dompurify'
 
 const props = defineProps<{ featuredCoinId: number }>()
 const emit = defineEmits<{ close: [] }>()
+
+const md = new MarkdownIt({ html: false })
 
 const featured = ref<FeaturedCoin | null>(null)
 const loading = ref(false)
@@ -83,9 +85,10 @@ const images = computed(() => {
   })
 })
 
-const summaryParagraphs = computed(() => {
+const renderedSummary = computed(() => {
   const s = featured.value?.summary || ''
-  return s.split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
+  if (!s) return ''
+  return DOMPurify.sanitize(md.render(s))
 })
 
 function formatImageLabel(type: string) {
@@ -239,12 +242,77 @@ watch(() => props.featuredCoinId, load)
   line-height: 1.55;
 }
 
-.featured-summary p {
+.featured-summary :deep(h1),
+.featured-summary :deep(h2),
+.featured-summary :deep(h3),
+.featured-summary :deep(h4) {
+  color: var(--accent-gold);
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.featured-summary :deep(h1:first-child),
+.featured-summary :deep(h2:first-child),
+.featured-summary :deep(h3:first-child),
+.featured-summary :deep(h4:first-child) {
+  margin-top: 0;
+}
+
+.featured-summary :deep(strong) {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.featured-summary :deep(em) {
+  font-style: italic;
+}
+
+.featured-summary :deep(p) {
   margin: 0 0 0.75rem;
 }
 
-.featured-summary p:last-child {
+.featured-summary :deep(p:last-child) {
   margin-bottom: 0;
+}
+
+.featured-summary :deep(ul),
+.featured-summary :deep(ol) {
+  padding-left: 1.25rem;
+  margin: 0.5rem 0;
+}
+
+.featured-summary :deep(li) {
+  margin-bottom: 0.25rem;
+}
+
+.featured-summary :deep(code) {
+  background: var(--bg-input);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 0.85em;
+}
+
+.featured-summary :deep(pre) {
+  background: var(--bg-input);
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+
+.featured-summary :deep(blockquote) {
+  border-left: 3px solid var(--accent-gold);
+  padding-left: 1rem;
+  margin: 0.75rem 0;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.featured-summary :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  margin: 1rem 0;
 }
 
 .featured-actions {
