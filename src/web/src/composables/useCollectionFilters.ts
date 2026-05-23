@@ -1,10 +1,32 @@
-import { ref, onBeforeUnmount, watch } from 'vue'
+import { ref, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useCoinsStore } from '@/stores/coins'
 import { getTags } from '@/api/client'
+import { usePwa } from '@/composables/usePwa'
 import type { Tag } from '@/types'
+
+const RANDOM_SEED_KEY = 'coins:randomSeed'
+const PWA_RESUME_THRESHOLD_MS = 30_000
+
+function generateRandomSeed(): number {
+  return Math.floor(Math.random() * 1_000_000) + 1
+}
+
+// Module-level flag: true once any consumer of this composable has mounted in
+// the current app lifetime. Resets when JS modules reload (i.e., PWA relaunch
+// or full page reload).
+let appLifecycleStarted = false
 
 export function useCollectionFilters() {
   const store = useCoinsStore()
+  const { isPwa } = usePwa()
+
+  // On the first composable mount of a PWA's lifetime, treat it as a fresh
+  // launch and clear any cached random seed so the next random fetch reshuffles.
+  if (isPwa && !appLifecycleStarted) {
+    sessionStorage.removeItem(RANDOM_SEED_KEY)
+    store.galleryIndex = 0
+  }
+  appLifecycleStarted = true
 
   const selectedCategory = store.selectedCategory !== undefined ? ref(store.selectedCategory) : ref('')
   const search = ref(store.searchQuery)
@@ -14,6 +36,7 @@ export function useCollectionFilters() {
   const userTags = ref<Tag[]>([])
 
   let debounceTimer: ReturnType<typeof setTimeout>
+  let hiddenAt = 0
 
   async function fetchUserTags() {
     try {
@@ -32,13 +55,12 @@ export function useCollectionFilters() {
     // For random sort, generate a per-session seed (stable across pagination within a session)
     let seed: number | undefined
     if (sort === 'random') {
-      const key = 'coins:randomSeed'
-      const cached = sessionStorage.getItem(key)
+      const cached = sessionStorage.getItem(RANDOM_SEED_KEY)
       if (cached) {
         seed = parseInt(cached, 10)
       } else {
-        seed = Math.floor(Math.random() * 1_000_000) + 1
-        sessionStorage.setItem(key, String(seed))
+        seed = generateRandomSeed()
+        sessionStorage.setItem(RANDOM_SEED_KEY, String(seed))
       }
     }
 
@@ -80,13 +102,41 @@ export function useCollectionFilters() {
     // Reset the random seed when the user re-selects Random so the order shuffles.
     const sort = sortKey.value.split('_').slice(0, -1).join('_')
     if (sort === 'random') {
-      sessionStorage.setItem('coins:randomSeed', String(Math.floor(Math.random() * 1_000_000) + 1))
+      sessionStorage.setItem(RANDOM_SEED_KEY, String(generateRandomSeed()))
     }
     loadCoins()
   })
 
+  // In PWA mode, when the app resumes after being backgrounded for a while,
+  // treat it as a relaunch: reshuffle if currently sorted by Random.
+  function onVisibilityChange() {
+    if (document.visibilityState === 'hidden') {
+      hiddenAt = Date.now()
+      return
+    }
+    if (document.visibilityState !== 'visible' || hiddenAt === 0) return
+    const hiddenFor = Date.now() - hiddenAt
+    hiddenAt = 0
+    if (!isPwa || hiddenFor < PWA_RESUME_THRESHOLD_MS) return
+    const sort = sortKey.value.split('_').slice(0, -1).join('_')
+    if (sort !== 'random') return
+    sessionStorage.setItem(RANDOM_SEED_KEY, String(generateRandomSeed()))
+    store.galleryIndex = 0
+    page.value = 1
+    loadCoins()
+  }
+
+  if (isPwa) {
+    onMounted(() => {
+      document.addEventListener('visibilitychange', onVisibilityChange)
+    })
+  }
+
   onBeforeUnmount(() => {
     clearTimeout(debounceTimer)
+    if (isPwa) {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   })
 
   return {
