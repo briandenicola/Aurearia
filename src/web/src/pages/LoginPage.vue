@@ -94,7 +94,16 @@ async function handleBiometricLogin() {
     localStorage.setItem('lastUsername', username.value)
     router.push('/')
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : 'Biometric authentication failed'
+    // Handle different error types appropriately
+    if (e instanceof Error) {
+      error.value = e.message
+    } else if (typeof e === 'object' && e !== null && 'response' in e) {
+      // Axios error - extract server error message if available
+      const axiosError = e as { response?: { data?: { error?: string } } }
+      error.value = axiosError.response?.data?.error || 'Biometric authentication failed'
+    } else {
+      error.value = 'Biometric authentication failed'
+    }
   } finally {
     loading.value = false
   }

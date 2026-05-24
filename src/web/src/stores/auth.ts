@@ -36,32 +36,60 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function doWebAuthnLogin(username: string) {
-    // Begin ceremony — get challenge from server
-    const beginRes = await api.webauthnLoginBegin(username)
-    const { options } = beginRes.data
+    try {
+      // Begin ceremony — get challenge from server
+      const beginRes = await api.webauthnLoginBegin(username)
+      const { options } = beginRes.data
 
-    // Convert base64url challenge to ArrayBuffer
-    const challenge = base64urlToBuffer(options.challenge)
-    const allowCredentials = options.allowCredentials?.map((c: { id: string; type: string; transports?: string[] }) => ({
-      id: base64urlToBuffer(c.id),
-      type: c.type as PublicKeyCredentialType,
-      transports: c.transports as AuthenticatorTransport[] | undefined,
-    }))
+      // Convert base64url challenge to ArrayBuffer
+      const challenge = base64urlToBuffer(options.challenge)
+      const allowCredentials = options.allowCredentials?.map((c: { id: string; type: string; transports?: string[] }) => ({
+        id: base64urlToBuffer(c.id),
+        type: c.type as PublicKeyCredentialType,
+        transports: c.transports as AuthenticatorTransport[] | undefined,
+      }))
 
-    // Call browser WebAuthn API (triggers Face ID / fingerprint)
-    const credential = await navigator.credentials.get({
-      publicKey: {
-        challenge,
-        rpId: options.rpId,
-        allowCredentials,
-        userVerification: (options.userVerification as UserVerificationRequirement) || 'preferred',
-        timeout: options.timeout || 60000,
-      },
-    }) as PublicKeyCredential
+      // Call browser WebAuthn API (triggers Face ID / fingerprint)
+      const credential = await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          rpId: options.rpId,
+          allowCredentials,
+          userVerification: (options.userVerification as UserVerificationRequirement) || 'preferred',
+          timeout: options.timeout || 60000,
+        },
+      })
 
-    // Finish ceremony — send assertion to server, get tokens
-    const finishRes = await api.webauthnLoginFinish(username, credential)
-    setTokens(finishRes.data)
+      // Handle null return (user cancelled or no matching credential)
+      if (!credential) {
+        throw new Error('Biometric authentication was cancelled')
+      }
+
+      // Verify it's a PublicKeyCredential
+      if (!(credential instanceof PublicKeyCredential)) {
+        throw new Error('Invalid credential type returned')
+      }
+
+      // Finish ceremony — send assertion to server, get tokens
+      const finishRes = await api.webauthnLoginFinish(username, credential)
+      setTokens(finishRes.data)
+    } catch (error) {
+      // Handle WebAuthn-specific errors
+      if (error instanceof DOMException) {
+        switch (error.name) {
+          case 'NotAllowedError':
+            throw new Error('Biometric authentication was cancelled or timed out')
+          case 'InvalidStateError':
+            throw new Error('No matching biometric credential found')
+          case 'SecurityError':
+            throw new Error('Biometric authentication is not available on this device')
+          default:
+            throw new Error(`Biometric authentication failed: ${error.message}`)
+        }
+      }
+      // Re-throw other errors (axios errors, etc.)
+      throw error
+    }
   }
 
   function logout() {
