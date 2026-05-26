@@ -50,18 +50,18 @@
       />
     </div>
 
-    <div v-if="store.total > pageSize" class="pagination">
-      <button class="btn btn-secondary btn-sm" :disabled="page <= 1" @click="page--">← Previous</button>
-      <span class="page-info">Page {{ page }} of {{ Math.ceil(store.total / pageSize) }}</span>
-      <button class="btn btn-secondary btn-sm" :disabled="page * pageSize >= store.total" @click="page++">Next →</button>
-    </div>
-
     <div v-else class="empty-state">
       <h3>Your wishlist is empty</h3>
       <p>Add coins to your wishlist to track what you're looking for</p>
       <button class="btn btn-primary" @click="showChat = true" style="margin-top: 0.75rem">
         <Bot :size="16" /> Search for Coins with AI
       </button>
+    </div>
+
+    <div v-if="store.coins.length && store.total > pageSize" class="pagination">
+      <button class="btn btn-secondary btn-sm" :disabled="page <= 1" @click="page--">← Previous</button>
+      <span class="page-info">Page {{ page }} of {{ Math.ceil(store.total / pageSize) }}</span>
+      <button class="btn btn-secondary btn-sm" :disabled="page * pageSize >= store.total" @click="page++">Next →</button>
     </div>
 
     <PurchaseModal
