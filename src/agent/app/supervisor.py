@@ -14,6 +14,7 @@ The supervisor examines the user's message and delegates to:
 """
 
 import logging
+import re
 from typing import Literal
 
 from langchain_core.messages import AIMessage, SystemMessage
@@ -32,6 +33,16 @@ from app.teams.price_trends import create_price_trend_team
 from app.teams.similar_lots import create_similar_lot_team
 
 logger = logging.getLogger(__name__)
+
+GENERIC_LOCATION_TERMS = {
+    "me",
+    "my area",
+    "my location",
+    "here",
+    "near me",
+    "around me",
+    "close to me",
+}
 
 ROUTER_PROMPT = """You are a routing agent for a numismatic (coin collecting) application.
 Your ONLY job is to classify the user's request into exactly one category.
@@ -70,6 +81,103 @@ Respond with ONLY one of these words:
 - "general" — if the request doesn't fit the above categories, is off-topic, or is inappropriate
 
 Respond with ONLY the category word, nothing else."""
+
+
+def _extract_requested_distance(user_message: str) -> str | None:
+    """Extract explicit distance constraints like 'within 100 miles'."""
+    match = re.search(
+        r"\bwithin\s+(\d+)\s*(miles?|mi|kilometers?|kms?|km)\b",
+        user_message,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+
+    value = match.group(1)
+    unit = match.group(2).lower()
+    if unit in {"mi", "mile", "miles"}:
+        normalized_unit = "miles"
+    else:
+        normalized_unit = "km"
+    return f"{value} {normalized_unit}"
+
+
+def _extract_requested_location(user_message: str) -> str | None:
+    """Extract explicit location phrases from coin show search requests."""
+    patterns = [
+        r"\bwithin\s+\d+\s*(?:miles?|mi|kilometers?|kms?|km)\s+of\s+([^.!?]+)",
+        r"\b(?:near|around|close to)\s+([^.!?]+)",
+        r"\bin\s+([A-Za-z .'-]+,\s*[A-Za-z]{2}(?:\s+\d{5})?)\b",
+        r"\bin\s+(\d{5})\b",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, user_message, flags=re.IGNORECASE)
+        if not match:
+            continue
+        location = " ".join(match.group(1).strip().split())
+        location = re.split(
+            r"\b(?:instead of|rather than|please|thanks|thank you)\b",
+            location,
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )[0].strip(" ,")
+        lower_location = location.lower()
+        if not location:
+            continue
+        if any(
+            lower_location == term or lower_location.startswith(f"{term} ")
+            for term in GENERIC_LOCATION_TERMS
+        ):
+            continue
+        return location
+
+    zip_match = re.search(r"\b(\d{5})\b", user_message)
+    if zip_match:
+        return zip_match.group(1)
+    return None
+
+
+def _build_coin_show_location_context(user_message: str, user_context: UserContext | None) -> tuple[str, bool]:
+    """Build location context with override precedence for coin show searches."""
+    has_default_zip = bool(user_context and user_context.zip_code)
+    requested_location = _extract_requested_location(user_message)
+    requested_distance = _extract_requested_distance(user_message)
+
+    if requested_location:
+        distance_text = f" within {requested_distance}" if requested_distance else ""
+        default_zip_note = (
+            f" instead of their default ZIP code {user_context.zip_code}" if has_default_zip else ""
+        )
+        return (
+            "User explicitly requested coin shows near "
+            f"{requested_location}{distance_text}{default_zip_note}. "
+            "Confirm this override and use this location for this request's validation."
+        ), True
+
+    if has_default_zip:
+        distance_text = f" within {requested_distance}" if requested_distance else ""
+        return f"User is near ZIP code {user_context.zip_code}{distance_text}.", True
+
+    msg_lower = user_message.lower()
+    has_location_in_msg = bool(
+        re.search(
+            r"\b(?:near|in|around|close to|zip|zipcode|zip code)\b",
+            msg_lower,
+        )
+    )
+    has_zip_pattern = bool(re.search(r"\b\d{5}\b", user_message))
+    has_location_in_msg = has_location_in_msg or has_zip_pattern
+
+    if not has_location_in_msg:
+        return "", False
+
+    if requested_distance:
+        return (
+            f"User indicated their location in this request and asked for shows within {requested_distance}. "
+            f"Location details: {user_message}"
+        ), True
+    return f"User indicated their location as: {user_message}", True
 
 
 def create_router(llm_config: LLMConfig):
@@ -155,46 +263,21 @@ def create_supervisor(
         If the user has no ZIP code and hasn't provided a location in their
         message, ask them where they'd like to search before running the team.
         """
-        import re
-
-        has_zip = user_context and user_context.zip_code
-        if not has_zip:
-            msg_lower = user_message.lower()
-            location_keywords = [
-                "near ", "in ", "around ", "close to ",
-                "zip ", "zipcode", "zip code",
-            ]
-            has_location_in_msg = any(kw in msg_lower for kw in location_keywords)
-
-            # Also detect bare ZIP codes (5 digits) or city/state patterns
-            has_zip_pattern = bool(re.search(r'\b\d{5}\b', user_message))
-            has_location_in_msg = has_location_in_msg or has_zip_pattern
-
-            if not has_location_in_msg:
-                return {
-                    "messages": [
-                        AIMessage(
-                            content=(
-                                "I'd be happy to find upcoming coin shows for you. "
-                                "Could you tell me your city, state, or ZIP code so I "
-                                "can prioritize shows in your area?\n\n"
-                                "You can also set your ZIP code in **Settings** so I'll "
-                                "remember it for next time."
-                            )
+        location_ctx, has_location_context = _build_coin_show_location_context(user_message, user_context)
+        if not has_location_context:
+            return {
+                "messages": [
+                    AIMessage(
+                        content=(
+                            "I'd be happy to find upcoming coin shows for you. "
+                            "Could you tell me your city, state, or ZIP code so I "
+                            "can prioritize shows in your area?\n\n"
+                            "You can also set your ZIP code in **Settings** so I'll "
+                            "remember it for next time."
                         )
-                    ]
-                }
-
-        location_ctx = ""
-        if has_zip:
-            location_ctx = f"User is near ZIP code {user_context.zip_code}."
-        else:
-            # Extract location hint from the user's message
-            zip_match = re.search(r'\b(\d{5})\b', user_message)
-            if zip_match:
-                location_ctx = f"User is near ZIP code {zip_match.group(1)}."
-            else:
-                location_ctx = f"User indicated their location as: {user_message}"
+                    )
+                ]
+            }
 
         try:
             result = await coin_show_graph.ainvoke({

@@ -232,9 +232,20 @@ def create_coin_show_team(
 
         location_note = ""
         if loc_ctx:
+            distance_limit = "~50 miles"
+            distance_match = re.search(
+                r"\bwithin\s+(\d+)\s*(miles?|mi|kilometers?|kms?|km)\b",
+                loc_ctx,
+                flags=re.IGNORECASE,
+            )
+            if distance_match:
+                unit = distance_match.group(2).lower()
+                normalized_unit = "miles" if unit in {"mile", "miles", "mi"} else "km"
+                distance_limit = f"{distance_match.group(1)} {normalized_unit}"
             location_note = (
                 f"\n\nUser location context: {loc_ctx}\n"
-                "Filter out shows that are NOT within ~50 miles of this location."
+                f"Use a nearby radius of approximately {distance_limit}. "
+                "Filter out shows clearly outside this distance."
             )
 
         messages = [
