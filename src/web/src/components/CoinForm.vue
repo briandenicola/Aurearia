@@ -342,6 +342,10 @@ defineExpose({
   gap: 0.75rem;
 }
 
+.form-group {
+  min-width: 0;
+}
+
 .form-actions {
   display: flex;
   justify-content: flex-end;
