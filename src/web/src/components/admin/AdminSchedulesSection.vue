@@ -56,6 +56,7 @@
           <tr>
             <th>Date</th>
             <th class="hide-mobile">Trigger</th>
+            <th class="hide-mobile">User</th>
             <th>Checked</th>
             <th class="hide-mobile">Avail</th>
             <th>Unavail</th>
@@ -69,6 +70,7 @@
             <tr class="avail-row" :class="{ 'avail-row-expanded': expandedRunId === run.id }" @click="toggleRunDetail(run.id)">
               <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
               <td class="hide-mobile">{{ run.triggerType }}</td>
+              <td class="hide-mobile">{{ run.userName || '—' }}</td>
               <td>{{ run.coinsChecked }}</td>
               <td class="hide-mobile avail-count-available">{{ run.available }}</td>
               <td class="avail-count-unavailable">{{ run.unavailable }}</td>
@@ -420,7 +422,7 @@ const emit = defineEmits<{
 
 // Availability
 const isMobile = ref(window.innerWidth <= 600)
-const availColspan = computed(() => isMobile.value ? 4 : 8)
+const availColspan = computed(() => isMobile.value ? 4 : 9)
 const valColspan = computed(() => isMobile.value ? 4 : 8)
 
 function onResize() { isMobile.value = window.innerWidth <= 600 }

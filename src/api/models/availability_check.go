@@ -7,6 +7,7 @@ type AvailabilityRun struct {
 	ID            uint                 `gorm:"primaryKey" json:"id"`
 	UserID        uint                 `gorm:"not null" json:"userId"`
 	User          User                 `gorm:"foreignKey:UserID" json:"-"`
+	UserName      string               `gorm:"-" json:"userName"`
 	TriggerType   string               `gorm:"type:varchar(20);not null" json:"triggerType"`
 	TriggerUserID *uint                `json:"triggerUserId"`
 	CoinsChecked  int                  `json:"coinsChecked"`
