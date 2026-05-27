@@ -1,15 +1,18 @@
 <template>
   <div class="pwa-header">
     <SearchBar :modelValue="search" @update:modelValue="$emit('update:search', $event)" />
-    <button class="pwa-icon-btn" :class="{ active: selectMode }" @click="$emit('toggle-select-mode')" title="Select">
-      <CheckSquare :size="22" />
-    </button>
     <div class="hamburger-wrapper">
       <button class="hamburger-btn" @click="$emit('update:menuOpen', !menuOpen)" :class="{ active: menuOpen }">
         <SlidersHorizontal :size="22" />
       </button>
       <Transition name="menu-slide">
         <div v-if="menuOpen" class="pwa-menu">
+          <div class="pwa-menu-section">
+            <span class="pwa-menu-label">Selection</span>
+            <button class="menu-toggle-btn" :class="{ active: selectMode }" @click="$emit('toggle-select-mode')">
+              {{ selectMode ? 'Exit Selection Mode' : 'Enable Selection Mode' }}
+            </button>
+          </div>
           <div class="pwa-menu-section">
             <span class="pwa-menu-label">Category</span>
             <CategoryFilter :modelValue="selectedCategory" @update:modelValue="$emit('update:selectedCategory', $event)" />
@@ -57,7 +60,7 @@ import type { ImageType, Tag } from '@/types'
 import CategoryFilter from '@/components/CategoryFilter.vue'
 import SearchBar from '@/components/SearchBar.vue'
 import SortSelect from '@/components/SortSelect.vue'
-import { Layers, LayoutGrid, SlidersHorizontal, CheckSquare } from 'lucide-vue-next'
+import { Layers, LayoutGrid, SlidersHorizontal } from 'lucide-vue-next'
 
 defineProps<{
   search: string
@@ -192,6 +195,30 @@ defineEmits<{
 
 .pwa-tag-select {
   width: 100%;
+}
+
+.menu-toggle-btn {
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.menu-toggle-btn.active {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+  background: var(--accent-gold-dim);
+}
+
+.menu-toggle-btn:hover {
+  border-color: var(--accent-gold);
 }
 
 .view-toggle {

@@ -1,0 +1,18 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { describe, expect, it } from 'vitest'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const headerPath = path.resolve(__dirname, '../collection/PwaCollectionHeader.vue')
+
+describe('PwaCollectionHeader', () => {
+  it('keeps select mode in the menu instead of the top row', () => {
+    const source = fs.readFileSync(headerPath, 'utf8')
+
+    expect(source).not.toContain('class="pwa-icon-btn"')
+    expect(source).toContain('<span class="pwa-menu-label">Selection</span>')
+    expect(source).toContain("{{ selectMode ? 'Exit Selection Mode' : 'Enable Selection Mode' }}")
+  })
+})
