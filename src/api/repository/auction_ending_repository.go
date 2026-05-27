@@ -66,6 +66,17 @@ func (r *AuctionEndingRepository) GetRunByID(runID uint) (*models.AuctionEndingR
 	return &run, nil
 }
 
+// GetLastScheduledRun returns the most recent completed "scheduled" run, or nil if none.
+func (r *AuctionEndingRepository) GetLastScheduledRun() *models.AuctionEndingRun {
+	var run models.AuctionEndingRun
+	err := r.db.Where("trigger_type = ? AND completed_at IS NOT NULL", "scheduled").
+		Order("started_at DESC").Limit(1).First(&run).Error
+	if err != nil {
+		return nil
+	}
+	return &run
+}
+
 // PruneOldRuns keeps only the most recent `keep` runs, deleting older runs.
 func (r *AuctionEndingRepository) PruneOldRuns(keep int) {
 	var count int64
