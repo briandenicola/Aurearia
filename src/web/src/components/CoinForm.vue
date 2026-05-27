@@ -3,7 +3,7 @@
     <div class="form-grid">
       <!-- Basic Info -->
       <fieldset class="form-section">
-        <legend>Basic Information</legend>
+        <h2 class="form-section-title">Basic Information</h2>
         <div class="form-group">
           <label class="form-label">Name *</label>
           <AutocompleteInput v-model="form.name!" field="name" required placeholder="e.g. Augustus Denarius" />
@@ -46,7 +46,7 @@
 
       <!-- Physical Details -->
       <fieldset class="form-section">
-        <legend>Physical Details</legend>
+        <h2 class="form-section-title">Physical Details</h2>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Weight (grams)</label>
@@ -71,7 +71,7 @@
 
       <!-- Inscriptions, Images & Descriptions -->
       <fieldset class="form-section full-width">
-        <legend>Inscriptions & Descriptions</legend>
+        <h2 class="form-section-title">Inscriptions & Descriptions</h2>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Obverse Inscription</label>
@@ -126,7 +126,7 @@
 
       <!-- Purchase Info -->
       <fieldset class="form-section">
-        <legend>Purchase & Value</legend>
+        <h2 class="form-section-title">Purchase & Value</h2>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Purchase Price ($)</label>
@@ -151,7 +151,7 @@
 
       <!-- Links & Notes -->
       <fieldset class="form-section">
-        <legend>Reference & Notes</legend>
+        <h2 class="form-section-title">Reference & Notes</h2>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Reference URL</label>
@@ -320,6 +320,7 @@ defineExpose({
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 1.25rem;
+  margin: 0;
   background: var(--bg-card);
 }
 
@@ -327,12 +328,12 @@ defineExpose({
   grid-column: 1 / -1;
 }
 
-legend {
+.form-section-title {
   font-family: 'Cinzel', serif;
   color: var(--accent-gold);
-  font-size: 0.95rem;
+  font-size: 1.2rem;
   font-weight: 500;
-  padding: 0 0.5rem;
+  margin: 0 0 1rem;
 }
 
 .form-row {
