@@ -69,6 +69,16 @@
       @select="bulkTag"
       @close="showTagPicker = false"
     />
+
+    <!-- PWA floating add coin button -->
+    <router-link
+      v-if="isPwa && !selectMode"
+      to="/add"
+      class="add-fab"
+      aria-label="Add Coin"
+    >
+      <CirclePlus :size="24" />
+    </router-link>
   </div>
 </template>
 
@@ -87,6 +97,7 @@ import CollectionContent from '@/components/collection/CollectionContent.vue'
 import CollectionPagination from '@/components/CollectionPagination.vue'
 import BulkActionBar from '@/components/BulkActionBar.vue'
 import BulkTagPickerModal from '@/components/BulkTagPickerModal.vue'
+import { CirclePlus } from 'lucide-vue-next'
 
 const store = useCoinsStore()
 
@@ -234,5 +245,28 @@ async function bulkTag(tagId: number) {
   font-size: 0.75rem;
   color: var(--text-secondary);
   white-space: nowrap;
+}
+
+.add-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 88px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--accent-gold);
+  color: #1a1a2e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.add-fab:active {
+  transform: scale(0.92);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 </style>

@@ -4,9 +4,6 @@
     <button class="pwa-icon-btn" :class="{ active: selectMode }" @click="$emit('toggle-select-mode')" title="Select">
       <CheckSquare :size="22" />
     </button>
-    <router-link to="/add" class="pwa-add-btn">
-      <CirclePlus :size="22" />
-    </router-link>
     <div class="hamburger-wrapper">
       <button class="hamburger-btn" @click="$emit('update:menuOpen', !menuOpen)" :class="{ active: menuOpen }">
         <SlidersHorizontal :size="22" />
@@ -60,7 +57,7 @@ import type { ImageType, Tag } from '@/types'
 import CategoryFilter from '@/components/CategoryFilter.vue'
 import SearchBar from '@/components/SearchBar.vue'
 import SortSelect from '@/components/SortSelect.vue'
-import { Layers, LayoutGrid, CirclePlus, SlidersHorizontal, CheckSquare } from 'lucide-vue-next'
+import { Layers, LayoutGrid, SlidersHorizontal, CheckSquare } from 'lucide-vue-next'
 
 defineProps<{
   search: string
@@ -171,14 +168,6 @@ defineEmits<{
   gap: 0.5rem;
   align-items: center;
   flex-wrap: wrap;
-}
-
-.pwa-add-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  text-decoration: none;
 }
 
 .menu-slide-enter-active,

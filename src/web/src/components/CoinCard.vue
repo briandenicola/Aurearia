@@ -11,7 +11,7 @@
         @click.stop="emit('dismiss-status', coin.id)"
       >Dismiss</button>
       <div v-if="selectable" class="select-checkbox" :class="{ checked: selected }" @click.stop="emit('toggle-select', coin.id)">
-        <Check v-if="selected" :size="14" :stroke-width="3" />
+        <Check v-if="selected" :size="16" :stroke-width="3" />
       </div>
     </div>
     <div class="card-body">
@@ -436,8 +436,8 @@ const cardInscription = computed(() => {
   position: absolute;
   top: 0.5rem;
   left: 0.5rem;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.7);
   background: rgba(0, 0, 0, 0.4);
@@ -447,6 +447,14 @@ const cardInscription = computed(() => {
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
+}
+
+/* PWA: even larger checkbox for touch targets */
+@media (display-mode: standalone) {
+  .select-checkbox {
+    width: 36px;
+    height: 36px;
+  }
 }
 
 .select-checkbox.checked {
