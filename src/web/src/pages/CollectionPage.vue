@@ -250,7 +250,7 @@ async function bulkTag(tagId: number) {
 .add-fab {
   position: fixed;
   bottom: 24px;
-  right: 88px;
+  left: 24px;
   width: 52px;
   height: 52px;
   border-radius: 50%;
