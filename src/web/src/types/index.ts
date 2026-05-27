@@ -393,6 +393,7 @@ export interface AvailabilityResult {
 export interface AvailabilityRun {
   id: number
   userId: number
+  userName?: string
   triggerType: string
   triggerUserId: number | null
   coinsChecked: number

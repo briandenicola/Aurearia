@@ -51,6 +51,17 @@ func (r *AvailabilityRepository) UpdateResult(result *models.AvailabilityResult)
 	}).Error
 }
 
+// GetLastScheduledRun returns the most recent completed "scheduled" availability run, or nil if none.
+func (r *AvailabilityRepository) GetLastScheduledRun() *models.AvailabilityRun {
+	var run models.AvailabilityRun
+	err := r.db.Where("trigger_type = ? AND completed_at IS NOT NULL", "scheduled").
+		Order("started_at DESC").Limit(1).First(&run).Error
+	if err != nil {
+		return nil
+	}
+	return &run
+}
+
 // ListRuns returns paginated availability runs, newest first.
 func (r *AvailabilityRepository) ListRuns(page, limit int) ([]models.AvailabilityRun, int64, error) {
 	if page < 1 {
@@ -70,6 +81,13 @@ func (r *AvailabilityRepository) ListRuns(page, limit int) ([]models.Availabilit
 	err := r.db.Preload("User", func(db *gorm.DB) *gorm.DB {
 		return db.Select("id, username")
 	}).Order("started_at DESC").Offset(offset).Limit(limit).Find(&runs).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	// Populate UserName from preloaded User
+	for i := range runs {
+		runs[i].UserName = runs[i].User.Username
+	}
 	return runs, total, err
 }
 
@@ -82,6 +100,7 @@ func (r *AvailabilityRepository) GetRunWithResults(runID uint) (*models.Availabi
 	if err != nil {
 		return nil, err
 	}
+	run.UserName = run.User.Username
 	return &run, nil
 }
 

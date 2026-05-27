@@ -13,6 +13,7 @@ import (
 type AvailabilityScheduler struct {
 	svc         *AvailabilityService
 	coinRepo    *repository.CoinRepository
+	availRepo   *repository.AvailabilityRepository
 	settingsSvc *SettingsService
 	logger      *Logger
 	stopCh      chan struct{}
@@ -23,12 +24,14 @@ type AvailabilityScheduler struct {
 func NewAvailabilityScheduler(
 	svc *AvailabilityService,
 	coinRepo *repository.CoinRepository,
+	availRepo *repository.AvailabilityRepository,
 	settingsSvc *SettingsService,
 	logger *Logger,
 ) *AvailabilityScheduler {
 	return &AvailabilityScheduler{
 		svc:         svc,
 		coinRepo:    coinRepo,
+		availRepo:   availRepo,
 		settingsSvc: settingsSvc,
 		logger:      logger,
 		stopCh:      make(chan struct{}),
@@ -68,14 +71,28 @@ func (s *AvailabilityScheduler) Stop() {
 }
 
 // timeUntilNextRun calculates the delay until the next scheduled run.
-// Uses WishlistCheckStartTime (HH:MM) as the daily anchor and
-// WishlistCheckInterval (minutes) as the repeat cadence.
+// If there is a previous scheduled run, the interval is measured from that run's
+// start time so that app restarts do not reset the schedule. Falls back to the
+// start-time anchor calculation only when no run history exists.
 func (s *AvailabilityScheduler) timeUntilNextRun() time.Duration {
 	now := time.Now()
-	startHour, startMin := s.getStartTime()
 	interval := s.getInterval()
 
-	// Build today's anchor from the start time
+	// Anchor to the last actual scheduled run so the interval is always
+	// measured from the previous execution, regardless of restarts.
+	lastRun := s.availRepo.GetLastScheduledRun()
+	if lastRun != nil {
+		nextFromLast := lastRun.StartedAt.Add(interval)
+		if nextFromLast.Before(now) {
+			// Overdue — run immediately (catches up after a long outage)
+			s.logger.Info("scheduler", "Last scheduled run was %s ago, overdue — running now", now.Sub(lastRun.StartedAt).Round(time.Minute))
+			return 0
+		}
+		return nextFromLast.Sub(now)
+	}
+
+	// No previous run — use today's start-time as the anchor.
+	startHour, startMin := s.getStartTime()
 	anchor := time.Date(now.Year(), now.Month(), now.Day(), startHour, startMin, 0, 0, now.Location())
 
 	// If anchor is in the future, that's the next run

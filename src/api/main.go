@@ -165,7 +165,7 @@ func main() {
 	valSvc := services.NewValuationService(coinRepo, valRepo, agentProxy, userRepoForVal, pushoverSvc, settingsSvc, logger)
 
 	// Create schedulers before routes so they can be passed to admin handlers
-	availScheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, settingsSvc, logger)
+	availScheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, availRepo, settingsSvc, logger)
 	valScheduler := services.NewValuationScheduler(valSvc, coinRepo, valRepo, settingsSvc, logger)
 	auctionEndingScheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepoForVal, pushoverSvc, settingsSvc, logger)
 	featuredCoinRepo := repository.NewFeaturedCoinRepository(database.DB)
