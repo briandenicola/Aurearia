@@ -18,6 +18,8 @@ type AvailabilityScheduler struct {
 	logger      *Logger
 	stopCh      chan struct{}
 	once        sync.Once
+	statusMu    sync.RWMutex
+	isRunning   bool
 }
 
 // NewAvailabilityScheduler creates a new scheduler.
@@ -70,10 +72,31 @@ func (s *AvailabilityScheduler) Stop() {
 	s.once.Do(func() { close(s.stopCh) })
 }
 
+// RunNow executes one immediate availability cycle.
+func (s *AvailabilityScheduler) RunNow() error {
+	s.runCycleWithTrigger("manual", nil)
+	return nil
+}
+
+// GetStatus returns the scheduler runtime status.
+func (s *AvailabilityScheduler) GetStatus() SchedulerStatus {
+	s.statusMu.RLock()
+	running := s.isRunning
+	s.statusMu.RUnlock()
+
+	enabled := s.settingsSvc.GetSetting(SettingWishlistCheckEnabled) == "true"
+	return SchedulerStatus{
+		Name:      "availability",
+		Enabled:   enabled,
+		IsRunning: running,
+		NextRunIn: s.timeUntilNextRun(),
+	}
+}
+
 // timeUntilNextRun calculates the delay until the next scheduled run.
-// If there is a previous scheduled run, the interval is measured from that run's
-// start time so that app restarts do not reset the schedule. Falls back to the
-// start-time anchor calculation only when no run history exists.
+// If there is a previous completed scheduled run, the interval is measured from
+// that completion timestamp so app restarts do not reset the schedule. Falls
+// back to the start-time anchor calculation only when no run history exists.
 func (s *AvailabilityScheduler) timeUntilNextRun() time.Duration {
 	now := time.Now()
 	interval := s.getInterval()
@@ -81,11 +104,11 @@ func (s *AvailabilityScheduler) timeUntilNextRun() time.Duration {
 	// Anchor to the last actual scheduled run so the interval is always
 	// measured from the previous execution, regardless of restarts.
 	lastRun := s.availRepo.GetLastScheduledRun()
-	if lastRun != nil {
-		nextFromLast := lastRun.StartedAt.Add(interval)
+	if lastRun != nil && lastRun.CompletedAt != nil {
+		nextFromLast := lastRun.CompletedAt.Add(interval)
 		if nextFromLast.Before(now) {
 			// Overdue — run immediately (catches up after a long outage)
-			s.logger.Info("scheduler", "Last scheduled run was %s ago, overdue — running now", now.Sub(lastRun.StartedAt).Round(time.Minute))
+			s.logger.Info("scheduler", "Last scheduled run completed %s ago, overdue — running now", now.Sub(*lastRun.CompletedAt).Round(time.Minute))
 			return 0
 		}
 		return nextFromLast.Sub(now)
@@ -135,7 +158,20 @@ func (s *AvailabilityScheduler) runCycle() {
 		return
 	}
 
-	s.logger.Info("scheduler", "Starting scheduled availability check cycle")
+	s.runCycleWithTrigger("scheduled", nil)
+}
+
+func (s *AvailabilityScheduler) runCycleWithTrigger(triggerType string, triggerUserID *uint) {
+	s.statusMu.Lock()
+	s.isRunning = true
+	s.statusMu.Unlock()
+	defer func() {
+		s.statusMu.Lock()
+		s.isRunning = false
+		s.statusMu.Unlock()
+	}()
+
+	s.logger.Info("scheduler", "Starting %s availability check cycle", triggerType)
 
 	coins, err := s.coinRepo.GetAllWishlistWithURLs()
 	if err != nil {
@@ -157,11 +193,11 @@ func (s *AvailabilityScheduler) runCycle() {
 	s.logger.Info("scheduler", "Found %d coins across %d users", len(coins), len(userCoins))
 
 	for userID := range userCoins {
-		_, err := s.svc.CheckWishlistForUser(userID, "scheduled", nil)
+		_, err := s.svc.CheckWishlistForUser(userID, triggerType, triggerUserID)
 		if err != nil {
-			s.logger.Error("scheduler", "Scheduled check failed for user %d: %s", userID, err)
+			s.logger.Error("scheduler", "%s check failed for user %d: %s", triggerType, userID, err)
 		}
 	}
 
-	s.logger.Info("scheduler", "Scheduled availability check cycle complete")
+	s.logger.Info("scheduler", "%s availability check cycle complete", triggerType)
 }

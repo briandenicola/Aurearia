@@ -25,14 +25,14 @@ func (r *ValuationRepository) CreateRun(run *models.ValuationRun) error {
 // CompleteRun updates a run's stats and completion timestamp.
 func (r *ValuationRepository) CompleteRun(run *models.ValuationRun) error {
 	err := r.db.Model(run).Updates(map[string]interface{}{
-		"status":         run.Status,
-		"coins_checked":  run.CoinsChecked,
-		"coins_updated":  run.CoinsUpdated,
-		"coins_skipped":  run.CoinsSkipped,
-		"errors":         run.Errors,
-		"duration_ms":    run.DurationMs,
-		"completed_at":   run.CompletedAt,
-		"error_message":  run.ErrorMessage,
+		"status":        run.Status,
+		"coins_checked": run.CoinsChecked,
+		"coins_updated": run.CoinsUpdated,
+		"coins_skipped": run.CoinsSkipped,
+		"errors":        run.Errors,
+		"duration_ms":   run.DurationMs,
+		"completed_at":  run.CompletedAt,
+		"error_message": run.ErrorMessage,
 	}).Error
 	if err == nil {
 		r.PruneOldRuns(100)
@@ -145,7 +145,7 @@ func (r *ValuationRepository) GetUsersWithOwnedCoins() ([]uint, error) {
 // GetLastScheduledRun returns the most recent completed "scheduled" valuation run, or nil if none.
 func (r *ValuationRepository) GetLastScheduledRun() *models.ValuationRun {
 	var run models.ValuationRun
-	err := r.db.Where("trigger_type = ? AND status = ?", "scheduled", "completed").
+	err := r.db.Where("trigger_type = ? AND completed_at IS NOT NULL", "scheduled").
 		Order("started_at DESC").Limit(1).First(&run).Error
 	if err != nil {
 		return nil

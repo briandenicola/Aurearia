@@ -18,6 +18,8 @@ type ValuationScheduler struct {
 	logger      *Logger
 	stopCh      chan struct{}
 	once        sync.Once
+	statusMu    sync.RWMutex
+	isRunning   bool
 }
 
 // NewValuationScheduler creates a new scheduler.
@@ -74,10 +76,31 @@ func (s *ValuationScheduler) Stop() {
 	s.once.Do(func() { close(s.stopCh) })
 }
 
+// RunNow executes one immediate manual valuation cycle for all users.
+func (s *ValuationScheduler) RunNow() error {
+	s.runCycleWithTrigger("manual", nil)
+	return nil
+}
+
+// GetStatus returns the scheduler runtime status.
+func (s *ValuationScheduler) GetStatus() SchedulerStatus {
+	s.statusMu.RLock()
+	running := s.isRunning
+	s.statusMu.RUnlock()
+
+	enabled := s.settingsSvc.GetSetting(SettingValuationCheckEnabled) == "true"
+	return SchedulerStatus{
+		Name:      "valuation",
+		Enabled:   enabled,
+		IsRunning: running,
+		NextRunIn: s.timeUntilNextRun(),
+	}
+}
+
 // timeUntilNextRun calculates delay until the next scheduled run.
-// If there is a previous scheduled run, uses that as the anchor so that
-// app restarts don't reset the schedule. Falls back to the start-time
-// based calculation only when no run history exists.
+// If there is a previous completed scheduled run, uses that as the anchor so
+// app restarts don't reset the schedule. Falls back to the start-time based
+// calculation only when no run history exists.
 func (s *ValuationScheduler) timeUntilNextRun() time.Duration {
 	now := time.Now()
 	intervalDays := s.getIntervalDays()
@@ -85,11 +108,11 @@ func (s *ValuationScheduler) timeUntilNextRun() time.Duration {
 
 	// Check last completed scheduled run
 	lastRun := s.valRepo.GetLastScheduledRun()
-	if lastRun != nil {
-		nextFromLast := lastRun.StartedAt.Add(interval)
+	if lastRun != nil && lastRun.CompletedAt != nil {
+		nextFromLast := lastRun.CompletedAt.Add(interval)
 		if nextFromLast.Before(now) {
 			// Overdue — run immediately
-			s.logger.Info("valuation-scheduler", "Last scheduled run was %s ago, overdue — running now", now.Sub(lastRun.StartedAt).Round(time.Minute))
+			s.logger.Info("valuation-scheduler", "Last scheduled run completed %s ago, overdue — running now", now.Sub(*lastRun.CompletedAt).Round(time.Minute))
 			return 0
 		}
 		return nextFromLast.Sub(now)
@@ -138,7 +161,20 @@ func (s *ValuationScheduler) runCycle() {
 		return
 	}
 
-	s.logger.Info("valuation-scheduler", "Starting scheduled valuation cycle")
+	s.runCycleWithTrigger("scheduled", nil)
+}
+
+func (s *ValuationScheduler) runCycleWithTrigger(triggerType string, triggerUserID *uint) {
+	s.statusMu.Lock()
+	s.isRunning = true
+	s.statusMu.Unlock()
+	defer func() {
+		s.statusMu.Lock()
+		s.isRunning = false
+		s.statusMu.Unlock()
+	}()
+
+	s.logger.Info("valuation-scheduler", "Starting %s valuation cycle", triggerType)
 
 	// Get distinct user IDs that have owned coins
 	userIDs, err := s.svc.valRepo.GetUsersWithOwnedCoins()
@@ -155,11 +191,11 @@ func (s *ValuationScheduler) runCycle() {
 	s.logger.Info("valuation-scheduler", "Found %d users with owned coins", len(userIDs))
 
 	for _, userID := range userIDs {
-		_, err := s.svc.ValuateCollectionForUser(userID, "scheduled", nil)
+		_, err := s.svc.ValuateCollectionForUser(userID, triggerType, triggerUserID)
 		if err != nil {
-			s.logger.Error("valuation-scheduler", "Scheduled valuation failed for user %d: %s", userID, err)
+			s.logger.Error("valuation-scheduler", "%s valuation failed for user %d: %s", triggerType, userID, err)
 		}
 	}
 
-	s.logger.Info("valuation-scheduler", "Scheduled valuation cycle complete")
+	s.logger.Info("valuation-scheduler", "%s valuation cycle complete", triggerType)
 }

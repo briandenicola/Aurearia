@@ -76,7 +76,7 @@ func (h *AuctionEndingAdminHandler) ListRuns(c *gin.Context) {
 func (h *AuctionEndingAdminHandler) TriggerRun(c *gin.Context) {
 	triggerUserID := c.GetUint("userId")
 
-	run, err := h.scheduler.RunNow(&triggerUserID)
+	run, err := h.scheduler.RunNowWithTrigger(&triggerUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to run auction ending check"})
 		return

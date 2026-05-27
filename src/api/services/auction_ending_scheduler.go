@@ -22,6 +22,8 @@ type AuctionEndingScheduler struct {
 	once              sync.Once
 	lastNotified      map[uint]string // userID -> date string (YYYY-MM-DD)
 	mu                sync.RWMutex
+	statusMu          sync.RWMutex
+	isRunning         bool
 }
 
 // NewAuctionEndingScheduler creates a new scheduler.
@@ -77,15 +79,45 @@ func (s *AuctionEndingScheduler) Stop() {
 	s.once.Do(func() { close(s.stopCh) })
 }
 
+// RunNow executes one immediate auction-ending cycle.
+func (s *AuctionEndingScheduler) RunNow() error {
+	_, err := s.RunNowWithTrigger(nil)
+	return err
+}
+
+// GetStatus returns the scheduler runtime status.
+func (s *AuctionEndingScheduler) GetStatus() SchedulerStatus {
+	s.statusMu.RLock()
+	running := s.isRunning
+	s.statusMu.RUnlock()
+
+	enabled := s.settingsSvc.GetSetting(SettingAuctionEndingCheckEnabled) == "true"
+	return SchedulerStatus{
+		Name:      "auction-ending",
+		Enabled:   enabled,
+		IsRunning: running,
+		NextRunIn: s.timeUntilNextRun(),
+	}
+}
+
 // timeUntilNextRun calculates the delay until the next scheduled run.
-// Uses AuctionEndingCheckStartTime (HH:MM) as the daily anchor and
-// AuctionEndingCheckInterval (minutes) as the repeat cadence.
+// Uses the last completed scheduled run as the primary anchor and falls back
+// to AuctionEndingCheckStartTime (HH:MM) when no scheduled history exists.
 func (s *AuctionEndingScheduler) timeUntilNextRun() time.Duration {
 	now := time.Now()
-	startHour, startMin := s.getStartTime()
 	interval := s.getInterval()
 
-	// Build today's anchor from the start time
+	lastRun := s.auctionEndingRepo.GetLastScheduledRun()
+	if lastRun != nil && lastRun.CompletedAt != nil {
+		nextFromLast := lastRun.CompletedAt.Add(interval)
+		if nextFromLast.Before(now) {
+			s.logger.Info("scheduler", "Last auction ending run completed %s ago, overdue — running now", now.Sub(*lastRun.CompletedAt).Round(time.Minute))
+			return 0
+		}
+		return nextFromLast.Sub(now)
+	}
+
+	startHour, startMin := s.getStartTime()
 	anchor := time.Date(now.Year(), now.Month(), now.Day(), startHour, startMin, 0, 0, now.Location())
 
 	// If anchor is in the future, that's the next run
@@ -131,13 +163,22 @@ func (s *AuctionEndingScheduler) runCycle() {
 	s.runCycleWithTrigger("scheduled", nil)
 }
 
-// RunNow executes an immediate auction ending check for all users (manual trigger).
-func (s *AuctionEndingScheduler) RunNow(triggerUserID *uint) (*models.AuctionEndingRun, error) {
+// RunNowWithTrigger executes an immediate auction ending check for all users (manual trigger).
+func (s *AuctionEndingScheduler) RunNowWithTrigger(triggerUserID *uint) (*models.AuctionEndingRun, error) {
 	return s.runCycleWithTrigger("manual", triggerUserID)
 }
 
 // runCycleWithTrigger executes one full auction ending check and logs the run.
 func (s *AuctionEndingScheduler) runCycleWithTrigger(triggerType string, triggerUserID *uint) (*models.AuctionEndingRun, error) {
+	s.statusMu.Lock()
+	s.isRunning = true
+	s.statusMu.Unlock()
+	defer func() {
+		s.statusMu.Lock()
+		s.isRunning = false
+		s.statusMu.Unlock()
+	}()
+
 	s.logger.Info("scheduler", "Starting %s auction ending check cycle", triggerType)
 	startedAt := time.Now()
 

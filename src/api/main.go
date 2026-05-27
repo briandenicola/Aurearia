@@ -18,6 +18,20 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
+type SchedulerRegistry struct {
+	schedulers []services.Scheduler
+}
+
+func (r *SchedulerRegistry) Register(scheduler services.Scheduler) {
+	r.schedulers = append(r.schedulers, scheduler)
+}
+
+func (r *SchedulerRegistry) StartAll() {
+	for _, scheduler := range r.schedulers {
+		go scheduler.Start()
+	}
+}
+
 //	@title						Ancient Coins API
 //	@version					1.0
 //	@description				REST API for managing an ancient coin collection. Supports coin CRUD, image uploads, AI-powered analysis via Ollama, user management, and admin features.
@@ -170,6 +184,10 @@ func main() {
 	auctionEndingScheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepoForVal, pushoverSvc, settingsSvc, logger)
 	featuredCoinRepo := repository.NewFeaturedCoinRepository(database.DB)
 	coinOfDayScheduler := services.NewCoinOfDayScheduler(featuredCoinRepo, userRepoForVal, coinRepo, notifSvc, settingsSvc, logger)
+	schedulerRegistry := &SchedulerRegistry{}
+	schedulerRegistry.Register(availScheduler)
+	schedulerRegistry.Register(valScheduler)
+	schedulerRegistry.Register(auctionEndingScheduler)
 
 	apiKeyRepo := repository.NewApiKeyRepository(database.DB)
 	apiKeyAuth := apiKeyRepo // implements middleware.ApiKeyAuthenticator
@@ -426,9 +444,7 @@ func main() {
 	}()
 
 	// Start schedulers
-	go availScheduler.Start()
-	go valScheduler.Start()
-	go auctionEndingScheduler.Start()
+	schedulerRegistry.StartAll()
 	go coinOfDayScheduler.Start()
 
 	logger.Info("startup", "Application ready")

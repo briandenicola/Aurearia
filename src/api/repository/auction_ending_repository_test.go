@@ -293,3 +293,53 @@ func TestAuctionEndingRepository_GetRunByID_NotFound(t *testing.T) {
 		t.Error("expected error when fetching non-existent run")
 	}
 }
+
+func TestAuctionEndingRepository_GetLastScheduledRun(t *testing.T) {
+	db := setupAuctionEndingRepoTestDB(t)
+	repo := NewAuctionEndingRepository(db)
+
+	manualCompleted := time.Now().Add(-3 * time.Hour)
+	repo.CreateRun(&models.AuctionEndingRun{
+		TriggerType: "manual",
+		Status:      "success",
+		StartedAt:   manualCompleted,
+		CompletedAt: &manualCompleted,
+	})
+
+	scheduledOldCompleted := time.Now().Add(-2 * time.Hour)
+	repo.CreateRun(&models.AuctionEndingRun{
+		TriggerType: "scheduled",
+		Status:      "success",
+		StartedAt:   scheduledOldCompleted,
+		CompletedAt: &scheduledOldCompleted,
+	})
+
+	scheduledRunning := time.Now().Add(-1 * time.Hour)
+	repo.CreateRun(&models.AuctionEndingRun{
+		TriggerType: "scheduled",
+		Status:      "running",
+		StartedAt:   scheduledRunning,
+	})
+
+	scheduledLatestCompleted := time.Now().Add(-30 * time.Minute)
+	repo.CreateRun(&models.AuctionEndingRun{
+		TriggerType: "scheduled",
+		Status:      "success",
+		StartedAt:   scheduledLatestCompleted,
+		CompletedAt: &scheduledLatestCompleted,
+	})
+
+	lastRun := repo.GetLastScheduledRun()
+	if lastRun == nil {
+		t.Fatal("expected last scheduled run, got nil")
+	}
+	if lastRun.TriggerType != "scheduled" {
+		t.Fatalf("expected scheduled run, got %q", lastRun.TriggerType)
+	}
+	if lastRun.CompletedAt == nil {
+		t.Fatal("expected completed_at to be set")
+	}
+	if diff := lastRun.CompletedAt.Sub(scheduledLatestCompleted); diff < -time.Second || diff > time.Second {
+		t.Fatalf("expected latest completed scheduled run near %v, got %v", scheduledLatestCompleted, *lastRun.CompletedAt)
+	}
+}

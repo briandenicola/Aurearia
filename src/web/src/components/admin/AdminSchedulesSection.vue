@@ -113,9 +113,9 @@
       </table>
 
       <div class="avail-pagination">
-        <button class="btn btn-secondary btn-sm" :disabled="availPage <= 1" @click="availPage--; loadAvailRuns()">Prev</button>
+        <button class="btn btn-secondary btn-sm" :disabled="availPage <= 1" @click="prevAvailPage()">Prev</button>
         <span class="avail-page-info">Page {{ availPage }}</span>
-        <button class="btn btn-secondary btn-sm" :disabled="availRuns.length < 5" @click="availPage++; loadAvailRuns()">Next</button>
+        <button class="btn btn-secondary btn-sm" :disabled="availRuns.length < 5" @click="nextAvailPage()">Next</button>
       </div>
     </template>
 
@@ -207,9 +207,9 @@
       </table>
 
       <div class="avail-pagination">
-        <button class="btn btn-secondary btn-sm" :disabled="auctionPage <= 1" @click="auctionPage--; loadAuctionRuns()">Prev</button>
+        <button class="btn btn-secondary btn-sm" :disabled="auctionPage <= 1" @click="prevAuctionPage()">Prev</button>
         <span class="avail-page-info">Page {{ auctionPage }}</span>
-        <button class="btn btn-secondary btn-sm" :disabled="auctionRuns.length < 5" @click="auctionPage++; loadAuctionRuns()">Next</button>
+        <button class="btn btn-secondary btn-sm" :disabled="auctionRuns.length < 5" @click="nextAuctionPage()">Next</button>
       </div>
     </template>
 
@@ -346,9 +346,9 @@
       </table>
 
       <div class="avail-pagination">
-        <button class="btn btn-secondary btn-sm" :disabled="valPage <= 1" @click="valPage--; loadValRuns()">Prev</button>
+        <button class="btn btn-secondary btn-sm" :disabled="valPage <= 1" @click="prevValPage()">Prev</button>
         <span class="avail-page-info">Page {{ valPage }}</span>
-        <button class="btn btn-secondary btn-sm" :disabled="valRuns.length < 5" @click="valPage++; loadValRuns()">Next</button>
+        <button class="btn btn-secondary btn-sm" :disabled="valRuns.length < 5" @click="nextValPage()">Next</button>
       </div>
     </template>
 
@@ -399,6 +399,7 @@ import {
   getAuctionEndingRuns, triggerAuctionEndingCheck,
   triggerCoinOfDayRun,
 } from '@/api/client'
+import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'
 import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun } from '@/types'
 
 const props = defineProps<{
@@ -427,24 +428,21 @@ const valColspan = computed(() => isMobile.value ? 4 : 8)
 
 function onResize() { isMobile.value = window.innerWidth <= 600 }
 
-const availRuns = ref<AvailabilityRun[]>([])
-const availTotal = ref(0)
-const availPage = ref(1)
-const availLoading = ref(false)
+const {
+  runs: availRuns,
+  total: availTotal,
+  page: availPage,
+  loading: availLoading,
+  loadRuns: loadAvailRuns,
+  prevPage: prevAvailPage,
+  nextPage: nextAvailPage,
+} = useRunHistoryPagination<AvailabilityRun>(async (page, limit) => {
+  const res = await getAvailabilityRuns(page, limit)
+  return res.data ?? {}
+})
 const expandedRunId = ref<number | null>(null)
 const expandedResults = ref<AvailabilityRun['results']>(undefined)
 const expandedLoading = ref(false)
-
-async function loadAvailRuns() {
-  availLoading.value = true
-  try {
-    const res = await getAvailabilityRuns(availPage.value, 5)
-    availRuns.value = res.data.runs ?? []
-    availTotal.value = res.data.total ?? 0
-  } catch { /* ignore */ } finally {
-    availLoading.value = false
-  }
-}
 
 async function toggleRunDetail(runId: number) {
   if (expandedRunId.value === runId) {
@@ -466,22 +464,19 @@ async function toggleRunDetail(runId: number) {
 }
 
 // Auction Ending
-const auctionRuns = ref<AuctionEndingRun[]>([])
-const auctionTotal = ref(0)
-const auctionPage = ref(1)
-const auctionLoading = ref(false)
+const {
+  runs: auctionRuns,
+  total: auctionTotal,
+  page: auctionPage,
+  loading: auctionLoading,
+  loadRuns: loadAuctionRuns,
+  prevPage: prevAuctionPage,
+  nextPage: nextAuctionPage,
+} = useRunHistoryPagination<AuctionEndingRun>(async (page, limit) => {
+  const res = await getAuctionEndingRuns(page, limit)
+  return res.data ?? {}
+})
 const auctionTriggerLoading = ref(false)
-
-async function loadAuctionRuns() {
-  auctionLoading.value = true
-  try {
-    const res = await getAuctionEndingRuns(auctionPage.value, 5)
-    auctionRuns.value = res.data.runs ?? []
-    auctionTotal.value = res.data.total ?? 0
-  } catch { /* ignore */ } finally {
-    auctionLoading.value = false
-  }
-}
 
 async function triggerManualAuctionCheck() {
   auctionTriggerLoading.value = true
@@ -508,10 +503,18 @@ async function triggerManualAuctionCheck() {
 }
 
 // Valuation
-const valRuns = ref<ValuationRun[]>([])
-const valTotal = ref(0)
-const valPage = ref(1)
-const valLoading = ref(false)
+const {
+  runs: valRuns,
+  total: valTotal,
+  page: valPage,
+  loading: valLoading,
+  loadRuns: loadValRunsBase,
+  prevPage: prevValPage,
+  nextPage: nextValPage,
+} = useRunHistoryPagination<ValuationRun>(async (page, limit) => {
+  const res = await getValuationRuns(page, limit)
+  return res.data ?? {}
+})
 const valTriggerLoading = ref(false)
 const valExpandedRunId = ref<number | null>(null)
 const valExpandedResults = ref<ValuationRun['results']>(undefined)
@@ -520,11 +523,8 @@ let valPollTimer: ReturnType<typeof setInterval> | null = null
 const timers: ReturnType<typeof setTimeout>[] = []
 
 async function loadValRuns() {
-  valLoading.value = true
   try {
-    const res = await getValuationRuns(valPage.value, 5)
-    valRuns.value = res.data.runs ?? []
-    valTotal.value = res.data.total ?? 0
+    await loadValRunsBase()
 
     const hasRunning = valRuns.value.some(r => r.status === 'running')
     if (hasRunning && !valPollTimer) {
@@ -533,9 +533,7 @@ async function loadValRuns() {
       clearInterval(valPollTimer)
       valPollTimer = null
     }
-  } catch { /* ignore */ } finally {
-    valLoading.value = false
-  }
+  } catch { /* ignore */ }
 }
 
 async function toggleValRunDetail(runId: number) {
