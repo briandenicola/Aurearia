@@ -17,4 +17,12 @@ describe('CoinForm', () => {
     expect(source).toContain('font-size: 1.2rem;')
     expect(source).toContain('margin: 0 0 1rem;')
   })
+
+  it('allows purchase form fields to shrink within grid columns', () => {
+    const source = fs.readFileSync(coinFormPath, 'utf8')
+
+    expect(source).toContain('<input v-model="form.purchaseDate" class="form-input" type="date" />')
+    expect(source).toContain('.form-group {')
+    expect(source).toContain('min-width: 0;')
+  })
 })
