@@ -1,0 +1,21 @@
+docs: align governance with tech-inventory philosophy (Phase 2)
+
+Spec-driven workflow live on disk per Constitution §0 Hierarchy:
+- specs/README.md + specs/_backlog/{README,_TEMPLATE}.md scaffold
+- specs/_backlog/F001..F007 retroactive cards for shipped features
+- specs/001-foundation/{spec,plan,tasks}.md anchoring v1.0 surface
+  (all tasks checked — feature surface shipped)
+
+Session-protocol prompts (route through Squad ceremonies):
+- .github/prompts/load-context.prompt.md
+- .github/prompts/checkpoint.prompt.md
+- .github/prompts/handoff.prompt.md
+- .github/prompts/audit.prompt.md
+
+Manifest sync deferred — run `specify upgrade` to register the new
+prompts in .specify/integrations/copilot.manifest.json.
+
+Phase 3 (PRD, ADRs, threat-model split, openapi.yaml, gitleaks,
+quality-gate workflow) queued.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>

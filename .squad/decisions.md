@@ -107,6 +107,78 @@ Confirmed Phase 1 scope boundaries; Phase 2–4 deliverables queued. No ambiguit
 
 ---
 
+### 5. `specs/` scaffold + session-protocol prompts live (2026-05-28)
+
+**Author:** Maximus (Lead/Architect)  
+**Date:** 2026-05-28  
+**Status:** ACCEPTED — Phase 2A landed  
+
+#### What
+
+1. **`specs/` workflow is live on disk** (Constitution §0 Hierarchy items 3–6):
+   - `specs/NNN-feature-slug/` for active features (`spec.md` + `plan.md` + `tasks.md` required)
+   - `specs/_backlog/F0NN-feature-slug.md` for queued cards
+   - `specs/README.md` + `specs/_backlog/README.md` document layout, numbering (immutable), lifecycle, gates
+   - `specs/_backlog/_TEMPLATE.md` is canonical 15-field card (YAML frontmatter + body sections)
+
+2. **Promotion rule** (backlog → active): Card must be `status: triaged` with concrete acceptance criteria and named Principle + operational section. Lead assigns next free `NNN`, runs `/speckit.specify` to create `specs/NNN-slug/spec.md`, updates card to `status: promoted`, commits both in one PR.
+
+3. **Triage cadence:** Maximus reviews all backlog cards weekly; aim to advance or drop within two cycles.
+
+4. **4 session-protocol prompts registered** under `.github/prompts/`:
+   - `load-context.prompt.md` — Cold-start; constitution + decisions + active spec + agent charter
+   - `checkpoint.prompt.md` — Mid-session pause; Scribe writes to `.squad/log/{ts}-checkpoint.md`
+   - `handoff.prompt.md` — End of session; Scribe reconciles `tasks.md`, merges inbox, commits
+   - `audit.prompt.md` — §20 audit; findings → `docs/audits/YYYY-MM-DD.md`
+
+#### Rationale
+Constitution §0 needs concrete homes for Hierarchy items; 4 new prompts standardize Squad ceremonies (§18 Session Handoff). Manifest update deferred — run `specify upgrade` to register prompts in `.specify/integrations/copilot.manifest.json`.
+
+#### Unblocks
+- Retro `specs/001-foundation/` (Maximus follow-up)
+- New feature requests now have documented SpecKit entry point
+
+#### References
+Constitution §0 (Hierarchy), §17 (Quality Gate), §18 (AI Agent Operating Rules), §20 (Audit), §21 (DoD), §22 (Amendment).
+
+---
+
+### 6. `specs/001-foundation/` is the v1.0 SHIPPED anchor (2026-05-28)
+
+**Author:** Maximus (Lead/Architect)  
+**Date:** 2026-05-28  
+**Status:** ACCEPTED — Phase 2B landed  
+
+#### What
+
+`specs/001-foundation/` was created retroactively to document the v1.0 feature surface already shipped (Go API + Vue PWA + Python LangGraph agent, packaged as two Docker containers). It is the canonical "active feature spec" referenced by Constitution §0 Hierarchy item 3 from the moment v1.0 went live through whenever `specs/002-*/` opens.
+
+Three files authored:
+- **`spec.md` (162 lines)** — Problem, users, 6 prioritized user stories, FR-001 through FR-010, key entities, success criteria, assumptions, out-of-scope
+- **`plan.md` (139 lines)** — Three-service architecture, Constitution-check table (Principles I, II, III, IV, V, VI, X, XII, XIII all PASS), 9 key decisions, tech stack rationale
+- **`tasks.md` (86 lines)** — All checkboxes checked ✅ (SHIPPED), grouped by domain (Go API, Vue, Python Agent, Quality, Governance)
+
+**Total:** 387 lines, within Brian's 400–600 line budget.
+
+#### Rationale
+1. Constitution §0 Hierarchy item 3 ("active feature spec") needs concrete content — making it fully anchored, not aspirational.
+2. End-to-end SpecKit validation on known-good surface exercises the template before genuine `002-*` work.
+3. Audit trail: "What was in v1.0?" now has a one-file answer.
+
+#### Scope Boundary
+- **`001-foundation/` is historical.** Not edited again except for future Constitution amendments.
+- Forward-looking work opens at `specs/002-*/`, `specs/003-*/`, etc.
+- Backlog cards F001–F007 are cross-linked for traceability but NOT retroactively marked `promoted` — they document v1.0 surface, not pre-shipping promotions.
+
+#### Risk Mitigation
+- **Retroactive drift:** Keep `spec.md` at capability level (FR-001–FR-010), put volatile detail in `plan.md`, tasks list by name only.
+- **Retroactive precedent:** Explicitly noted in all three files — one-time anchor, not recurring practice. Future features spec-first via `/speckit.specify`.
+
+#### References
+Constitution §0 (Hierarchy of Authority, item 3), §18 (AI Agent Operating Rules), §22 (Amendment Process).
+
+---
+
 ### 5. Microsoft Foundry Agent Service Migration (January 2025)
 
 **Status:** NO-GO Recommendation (awaiting team review)  
