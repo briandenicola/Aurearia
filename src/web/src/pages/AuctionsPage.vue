@@ -1,83 +1,83 @@
 <template>
   <PullToRefresh :on-refresh="handleRefresh">
-  <div class="container">
-    <div class="page-header">
-      <h1>Auctions</h1>
-      <!-- PWA: icon-only buttons inline with title -->
-      <div v-if="isPwa" class="pwa-actions">
-        <button class="pwa-icon-btn" :disabled="syncing" @click="syncWatchlist" title="Sync Watchlist">
-          <RefreshCw :size="22" :class="{ spinning: syncing }" />
-        </button>
-        <button class="pwa-icon-btn" :class="{ active: selectMode }" @click="toggleSelectMode" title="Select">
-          <CheckSquare :size="22" />
-        </button>
-        <button class="pwa-icon-btn" @click="showImport = true" title="Add Lot">
-          <CirclePlus :size="22" />
+    <div class="container">
+      <div class="page-header">
+        <h1>Auctions</h1>
+        <!-- PWA: icon-only buttons inline with title -->
+        <div v-if="isPwa" class="pwa-actions">
+          <button class="pwa-icon-btn" :disabled="syncing" @click="syncWatchlist" title="Sync Watchlist">
+            <RefreshCw :size="22" :class="{ spinning: syncing }" />
+          </button>
+          <button class="pwa-icon-btn" :class="{ active: selectMode }" @click="toggleSelectMode" title="Select">
+            <CheckSquare :size="22" />
+          </button>
+          <button class="pwa-icon-btn" @click="showImport = true" title="Add Lot">
+            <CirclePlus :size="22" />
+          </button>
+        </div>
+        <!-- Desktop: full text buttons -->
+        <div v-else class="header-actions">
+          <button class="btn btn-secondary" :disabled="syncing" @click="syncWatchlist">
+            <RefreshCw :size="16" :class="{ spinning: syncing }" />
+            {{ syncing ? 'Syncing...' : 'Sync Watchlist' }}
+          </button>
+          <button class="btn" :class="selectMode ? 'btn-primary' : 'btn-secondary'" @click="toggleSelectMode">
+            <CheckSquare :size="16" /> {{ selectMode ? 'Cancel' : 'Select' }}
+          </button>
+          <button class="btn btn-primary" @click="showImport = true"><Plus :size="16" /> Add Lot</button>
+        </div>
+      </div>
+
+      <div v-if="syncMessage" class="sync-toast">{{ syncMessage }}</div>
+
+      <AuctionStatusFilter v-model="activeStatus" :counts="statusCounts" />
+
+      <div v-if="selectMode" class="select-controls">
+        <button class="btn btn-sm btn-secondary" @click="selectAllLots">Select All</button>
+        <button class="btn btn-sm btn-secondary" @click="deselectAllLots">Deselect All</button>
+        <span class="select-count">{{ selectedLotIds.size }} selected</span>
+      </div>
+
+      <div v-if="loading" class="loading-overlay">
+        <div class="spinner"></div>
+      </div>
+
+      <div v-else-if="lots.length" class="lots-grid">
+        <AuctionLotCard
+          v-for="lot in lots"
+          :key="lot.id"
+          :lot="lot"
+          :selectable="selectMode"
+          :selected="selectedLotIds.has(lot.id)"
+          @select="openLot"
+          @toggle-select="toggleLotSelect"
+        />
+      </div>
+
+      <div v-else class="empty-state">
+        <h3>No auction lots{{ activeStatus ? ` with status "${activeStatus}"` : '' }}</h3>
+        <p>Import lots from NumisBids to start tracking auctions</p>
+        <button class="btn btn-primary" @click="showImport = true" style="margin-top: 0.75rem">
+          <Plus :size="16" /> Import Your First Lot
         </button>
       </div>
-      <!-- Desktop: full text buttons -->
-      <div v-else class="header-actions">
-        <button class="btn btn-secondary" :disabled="syncing" @click="syncWatchlist">
-          <RefreshCw :size="16" :class="{ spinning: syncing }" />
-          {{ syncing ? 'Syncing...' : 'Sync Watchlist' }}
-        </button>
-        <button class="btn" :class="selectMode ? 'btn-primary' : 'btn-secondary'" @click="toggleSelectMode">
-          <CheckSquare :size="16" /> {{ selectMode ? 'Cancel' : 'Select' }}
-        </button>
-        <button class="btn btn-primary" @click="showImport = true"><Plus :size="16" /> Add Lot</button>
-      </div>
-    </div>
 
-    <div v-if="syncMessage" class="sync-toast">{{ syncMessage }}</div>
+      <ImportLotModal v-if="showImport" @close="showImport = false" @imported="handleImported" />
 
-    <AuctionStatusFilter v-model="activeStatus" :counts="statusCounts" />
+      <AuctionLotDetailModal
+        v-if="selectedLot"
+        :lot="selectedLot"
+        @close="selectedLot = null"
+        @updated="handleLotUpdated"
+      />
 
-    <div v-if="selectMode" class="select-controls">
-      <button class="btn btn-sm btn-secondary" @click="selectAllLots">Select All</button>
-      <button class="btn btn-sm btn-secondary" @click="deselectAllLots">Deselect All</button>
-      <span class="select-count">{{ selectedLotIds.size }} selected</span>
-    </div>
-
-    <div v-if="loading" class="loading-overlay">
-      <div class="spinner"></div>
-    </div>
-
-    <div v-else-if="lots.length" class="lots-grid">
-      <AuctionLotCard
-        v-for="lot in lots"
-        :key="lot.id"
-        :lot="lot"
-        :selectable="selectMode"
-        :selected="selectedLotIds.has(lot.id)"
-        @select="openLot"
-        @toggle-select="toggleLotSelect"
+      <AuctionBulkActionBar
+        v-if="selectMode"
+        :selected-count="selectedLotIds.size"
+        :calendar-events="calendarEvents"
+        @link-event="handleBulkLinkEvent"
       />
     </div>
-
-    <div v-else class="empty-state">
-      <h3>No auction lots{{ activeStatus ? ` with status "${activeStatus}"` : '' }}</h3>
-      <p>Import lots from NumisBids to start tracking auctions</p>
-      <button class="btn btn-primary" @click="showImport = true" style="margin-top: 0.75rem">
-        <Plus :size="16" /> Import Your First Lot
-      </button>
-    </div>
-
-    <ImportLotModal v-if="showImport" @close="showImport = false" @imported="handleImported" />
-
-    <AuctionLotDetailModal
-      v-if="selectedLot"
-      :lot="selectedLot"
-      @close="selectedLot = null"
-      @updated="handleLotUpdated"
-    />
-
-    <AuctionBulkActionBar
-      v-if="selectMode"
-      :selected-count="selectedLotIds.size"
-      :calendar-events="calendarEvents"
-      @link-event="handleBulkLinkEvent"
-    />
-  </div>
   </PullToRefresh>
 </template>
 

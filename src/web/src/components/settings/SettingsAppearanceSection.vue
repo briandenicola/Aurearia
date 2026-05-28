@@ -11,12 +11,16 @@
           class="theme-btn"
           :class="{ active: theme === 'dark' }"
           @click="$emit('set-theme', 'dark')"
-        >Dark</button>
+        >
+          Dark
+        </button>
         <button
           class="theme-btn"
           :class="{ active: theme === 'light' }"
           @click="$emit('set-theme', 'light')"
-        >Light</button>
+        >
+          Light
+        </button>
       </div>
     </div>
 
@@ -44,12 +48,16 @@
           class="theme-btn"
           :class="{ active: defaultView === 'swipe' }"
           @click="$emit('set-default-view', 'swipe')"
-        >Swipe</button>
+        >
+          Swipe
+        </button>
         <button
           class="theme-btn"
           :class="{ active: defaultView === 'grid' }"
           @click="$emit('set-default-view', 'grid')"
-        >Grid</button>
+        >
+          Grid
+        </button>
       </div>
     </div>
 

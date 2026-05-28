@@ -2,15 +2,15 @@
   <div class="desktop-sticky-header">
     <div class="page-header collection-header">
       <div class="header-spacer"></div>
-      <SearchBar :modelValue="search" @update:modelValue="$emit('update:search', $event)" />
+      <SearchBar :model-value="search" @update:model-value="$emit('update:search', $event)" />
       <div class="header-sort">
-        <SortSelect :modelValue="sortKey" @update:modelValue="$emit('update:sortKey', $event)" />
+        <SortSelect :model-value="sortKey" @update:model-value="$emit('update:sortKey', $event)" />
       </div>
     </div>
 
     <div class="collection-toolbar">
       <div class="toolbar-filters">
-        <CategoryFilter :modelValue="selectedCategory" @update:modelValue="$emit('update:selectedCategory', $event)" />
+        <CategoryFilter :model-value="selectedCategory" @update:model-value="$emit('update:selectedCategory', $event)" />
         <select v-if="userTags.length" :value="selectedTag" @change="$emit('update:selectedTag', ($event.target as HTMLSelectElement).value)" class="tag-filter-select">
           <option value="">All Tags</option>
           <option v-for="tag in userTags" :key="tag.id" :value="String(tag.id)">{{ tag.name }}</option>

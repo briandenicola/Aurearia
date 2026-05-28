@@ -1,92 +1,94 @@
 <template>
   <PullToRefresh :on-refresh="handleRefresh">
-  <div class="container">
-    <div class="page-header">
-      <h1>Settings</h1>
-      <div v-if="isPwa" class="settings-menu-wrapper">
-        <button class="btn btn-secondary btn-sm settings-menu-btn" @click="settingsMenuOpen = !settingsMenuOpen">
-          <component :is="tabIcons[activeTab]" :size="16" />
-          {{ tabs.find(t => t.id === activeTab)?.label }}
-          <Menu :size="16" />
-        </button>
-        <Transition name="fade">
-          <div v-if="settingsMenuOpen" class="settings-dropdown">
-            <button
-              v-for="tab in tabs"
-              :key="tab.id"
-              class="settings-dropdown-item"
-              :class="{ active: activeTab === tab.id }"
-              @click="selectTab(tab.id); settingsMenuOpen = false"
-            >
-              <component :is="tabIcons[tab.id]" :size="16" />
-              {{ tab.label }}
-            </button>
-          </div>
-        </Transition>
-      </div>
-    </div>
-
-    <div class="settings-layout">
-      <!-- Tab Nav (desktop only) -->
-      <div v-if="!isPwa" class="tab-nav">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          class="tab-btn"
-          :class="{ active: activeTab === tab.id }"
-          @click="selectTab(tab.id)"
-        ><component :is="tabIcons[tab.id]" :size="16" /> {{ tab.label }}</button>
+    <div class="container">
+      <div class="page-header">
+        <h1>Settings</h1>
+        <div v-if="isPwa" class="settings-menu-wrapper">
+          <button class="btn btn-secondary btn-sm settings-menu-btn" @click="settingsMenuOpen = !settingsMenuOpen">
+            <component :is="tabIcons[activeTab]" :size="16" />
+            {{ tabs.find(t => t.id === activeTab)?.label }}
+            <Menu :size="16" />
+          </button>
+          <Transition name="fade">
+            <div v-if="settingsMenuOpen" class="settings-dropdown">
+              <button
+                v-for="tab in tabs"
+                :key="tab.id"
+                class="settings-dropdown-item"
+                :class="{ active: activeTab === tab.id }"
+                @click="selectTab(tab.id); settingsMenuOpen = false"
+              >
+                <component :is="tabIcons[tab.id]" :size="16" />
+                {{ tab.label }}
+              </button>
+            </div>
+          </Transition>
+        </div>
       </div>
 
-      <!-- Account Tab -->
-      <SettingsAccountSection v-if="activeTab === 'account'" ref="accountSection" />
+      <div class="settings-layout">
+        <!-- Tab Nav (desktop only) -->
+        <div v-if="!isPwa" class="tab-nav">
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            class="tab-btn"
+            :class="{ active: activeTab === tab.id }"
+            @click="selectTab(tab.id)"
+          >
+            <component :is="tabIcons[tab.id]" :size="16" /> {{ tab.label }}
+          </button>
+        </div>
 
-      <!-- Appearance Tab -->
-      <SettingsAppearanceSection
-        v-if="activeTab === 'appearance'"
-        :theme="theme"
-        :timezone="timezone"
-        :timezones="timezones"
-        :default-view="defaultView"
-        :default-sort="defaultSort"
-        @set-theme="setTheme"
-        @save-timezone="(tz: string) => { timezone = tz; saveTimezone() }"
-        @set-default-view="setDefaultView"
-        @save-default-sort="(sort: string) => { defaultSort = sort; saveDefaultSort() }"
-      />
+        <!-- Account Tab -->
+        <SettingsAccountSection v-if="activeTab === 'account'" ref="accountSection" />
 
-      <!-- Data Tab -->
-      <SettingsDataSection v-if="activeTab === 'data'" ref="dataSection" />
+        <!-- Appearance Tab -->
+        <SettingsAppearanceSection
+          v-if="activeTab === 'appearance'"
+          :theme="theme"
+          :timezone="timezone"
+          :timezones="timezones"
+          :default-view="defaultView"
+          :default-sort="defaultSort"
+          @set-theme="setTheme"
+          @save-timezone="(tz: string) => { timezone = tz; saveTimezone() }"
+          @set-default-view="setDefaultView"
+          @save-default-sort="(sort: string) => { defaultSort = sort; saveDefaultSort() }"
+        />
 
-      <!-- Tools Tab -->
-      <SettingsToolsSection
-        v-if="activeTab === 'tools'"
-        :blocked-users="blockedUsers"
-        :blocked-loading="blockedLoading"
-        @saved="handleProcessSaved"
-        @unblock="handleUnblock"
-      />
+        <!-- Data Tab -->
+        <SettingsDataSection v-if="activeTab === 'data'" ref="dataSection" />
 
-      <!-- Conversations Tab -->
-      <SavedConversationsSection
-        v-if="activeTab === 'conversations'"
-        :conversations="conversations"
-        :loading="conversationsLoading"
-        @open="openConversation"
-        @delete="handleDeleteConversation"
-      />
+        <!-- Tools Tab -->
+        <SettingsToolsSection
+          v-if="activeTab === 'tools'"
+          :blocked-users="blockedUsers"
+          :blocked-loading="blockedLoading"
+          @saved="handleProcessSaved"
+          @unblock="handleUnblock"
+        />
 
-      <!-- Help Tab -->
-      <HelpSection v-if="activeTab === 'help'" />
+        <!-- Conversations Tab -->
+        <SavedConversationsSection
+          v-if="activeTab === 'conversations'"
+          :conversations="conversations"
+          :loading="conversationsLoading"
+          @open="openConversation"
+          @delete="handleDeleteConversation"
+        />
 
-      <CoinSearchChat
-        v-if="showChat"
-        :loadConversation="chatConversation"
-        @close="showChat = false; chatConversation = null"
-        @added="() => {}"
-      />
+        <!-- Help Tab -->
+        <HelpSection v-if="activeTab === 'help'" />
+
+        <CoinSearchChat
+          v-if="showChat"
+          :load-conversation="chatConversation"
+          @close="showChat = false; chatConversation = null"
+          @added="() => {}"
+        />
+      </div>
     </div>
-  </div>
   </PullToRefresh>
 </template>
 

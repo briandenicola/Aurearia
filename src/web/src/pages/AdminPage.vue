@@ -18,7 +18,9 @@
           class="tab-btn"
           :class="{ active: activeTab === tab.id }"
           @click="activeTab = tab.id"
-        ><component :is="tabIcons[tab.id]" :size="16" /> {{ tab.label }}</button>
+        >
+          <component :is="tabIcons[tab.id]" :size="16" /> {{ tab.label }}
+        </button>
       </div>
 
       <!-- Users Tab -->

@@ -1,71 +1,71 @@
 <template>
   <PullToRefresh :on-refresh="handleRefresh">
-  <div class="container">
-    <div class="page-header">
-      <h1>Collection Stats</h1>
+    <div class="container">
+      <div class="page-header">
+        <h1>Collection Stats</h1>
+      </div>
+
+      <div v-if="!stats" class="loading-overlay">
+        <div class="spinner"></div>
+      </div>
+
+      <div v-else class="stats-layout">
+        <StatsSummaryCards :stats="stats" />
+
+        <StatsBarChart
+          title="By Category"
+          :items="categoryItems"
+          :fill-class="(label: string) => `fill-${label.toLowerCase()}`"
+        >
+          <template #label="{ item }">
+            <span class="badge" :class="`badge-${item.label.toLowerCase()}`">{{ item.label }}</span>
+          </template>
+        </StatsBarChart>
+
+        <StatsBarChart
+          title="By Material"
+          :items="materialItems"
+          :fill-class="() => 'fill-material'"
+        >
+          <template #label="{ item }">
+            <span :class="`material-${item.label.toLowerCase()}`">{{ item.label }}</span>
+          </template>
+        </StatsBarChart>
+
+        <StatsBarChart
+          v-if="stats.byGrade?.length"
+          title="By Grade"
+          :items="gradeItems"
+          :fill-class="() => 'fill-grade'"
+        />
+
+        <StatsBarChart
+          v-if="stats.byEra?.length"
+          title="By Era"
+          :items="eraItems"
+          :fill-class="() => 'fill-era'"
+        />
+
+        <StatsBarChart
+          v-if="stats.byRuler?.length"
+          title="Top Rulers"
+          :items="rulerItems"
+          :fill-class="() => 'fill-ruler'"
+          :wide="true"
+        />
+
+        <StatsBarChart
+          v-if="stats.byPriceRange?.length"
+          title="Price Range Distribution"
+          :items="priceRangeItems"
+          :fill-class="() => 'fill-price'"
+        />
+
+        <StatsValueOverTime />
+        <StatsCoinValueTrend />
+        <StatsHeatMap ref="heatMapRef" />
+      </div>
     </div>
-
-    <div v-if="!stats" class="loading-overlay">
-      <div class="spinner"></div>
-    </div>
-
-    <div v-else class="stats-layout">
-      <StatsSummaryCards :stats="stats" />
-
-      <StatsBarChart
-        title="By Category"
-        :items="categoryItems"
-        :fill-class="(label: string) => `fill-${label.toLowerCase()}`"
-      >
-        <template #label="{ item }">
-          <span class="badge" :class="`badge-${item.label.toLowerCase()}`">{{ item.label }}</span>
-        </template>
-      </StatsBarChart>
-
-      <StatsBarChart
-        title="By Material"
-        :items="materialItems"
-        :fill-class="() => 'fill-material'"
-      >
-        <template #label="{ item }">
-          <span :class="`material-${item.label.toLowerCase()}`">{{ item.label }}</span>
-        </template>
-      </StatsBarChart>
-
-      <StatsBarChart
-        v-if="stats.byGrade?.length"
-        title="By Grade"
-        :items="gradeItems"
-        :fill-class="() => 'fill-grade'"
-      />
-
-      <StatsBarChart
-        v-if="stats.byEra?.length"
-        title="By Era"
-        :items="eraItems"
-        :fill-class="() => 'fill-era'"
-      />
-
-      <StatsBarChart
-        v-if="stats.byRuler?.length"
-        title="Top Rulers"
-        :items="rulerItems"
-        :fill-class="() => 'fill-ruler'"
-        :wide="true"
-      />
-
-      <StatsBarChart
-        v-if="stats.byPriceRange?.length"
-        title="Price Range Distribution"
-        :items="priceRangeItems"
-        :fill-class="() => 'fill-price'"
-      />
-
-      <StatsValueOverTime />
-      <StatsCoinValueTrend />
-      <StatsHeatMap ref="heatMapRef" />
-    </div>
-  </div>
   </PullToRefresh>
 </template>
 

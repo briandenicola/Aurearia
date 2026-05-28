@@ -9,7 +9,9 @@
         v-if="wishlist && coin.listingStatus === 'unavailable'"
         class="listing-dismiss-btn"
         @click.stop="emit('dismiss-status', coin.id)"
-      >Dismiss</button>
+      >
+        Dismiss
+      </button>
       <div v-if="selectable" class="select-checkbox" :class="{ checked: selected }" @click.stop="emit('toggle-select', coin.id)">
         <Check v-if="selected" :size="16" :stroke-width="3" />
       </div>

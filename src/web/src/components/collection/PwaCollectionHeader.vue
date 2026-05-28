@@ -1,6 +1,6 @@
 <template>
   <div class="pwa-header">
-    <SearchBar :modelValue="search" @update:modelValue="$emit('update:search', $event)" />
+    <SearchBar :model-value="search" @update:model-value="$emit('update:search', $event)" />
     <div class="hamburger-wrapper">
       <button class="hamburger-btn" @click="$emit('update:menuOpen', !menuOpen)" :class="{ active: menuOpen }">
         <SlidersHorizontal :size="22" />
@@ -15,7 +15,7 @@
           </div>
           <div class="pwa-menu-section">
             <span class="pwa-menu-label">Category</span>
-            <CategoryFilter :modelValue="selectedCategory" @update:modelValue="$emit('update:selectedCategory', $event)" />
+            <CategoryFilter :model-value="selectedCategory" @update:model-value="$emit('update:selectedCategory', $event)" />
           </div>
           <div v-if="userTags.length" class="pwa-menu-section">
             <span class="pwa-menu-label">Tag</span>
@@ -26,7 +26,7 @@
           </div>
           <div class="pwa-menu-section">
             <span class="pwa-menu-label">Sort</span>
-            <SortSelect :modelValue="sortKey" @update:modelValue="$emit('update:sortKey', $event)" />
+            <SortSelect :model-value="sortKey" @update:model-value="$emit('update:sortKey', $event)" />
           </div>
           <div class="pwa-menu-section">
             <span class="pwa-menu-label">View</span>

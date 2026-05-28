@@ -35,7 +35,9 @@
             @click.stop="flipCoin"
             :disabled="isFlipping"
             title="Flip coin"
-          >⟳</button>
+          >
+            ⟳
+          </button>
         </div>
         <div class="swipe-card-name">{{ currentCoin.name }}</div>
         <div class="swipe-hint left-hint" :style="{ opacity: leftHintOpacity }"><ChevronLeft :size="32" /></div>

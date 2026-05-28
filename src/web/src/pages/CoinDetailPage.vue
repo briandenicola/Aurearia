@@ -6,14 +6,14 @@
 
     <div v-else-if="coin" class="coin-detail">
       <div class="sticky-action-bar">
-      <CoinDetailHeaderActions
-        :is-wishlist="coin.isWishlist"
-        :is-sold="coin.isSold"
-        :coin-id="coin.id"
-        @purchase="showPurchaseModal = true"
-        @sell="showSellModal = true"
-        @delete="handleDelete"
-      />
+        <CoinDetailHeaderActions
+          :is-wishlist="coin.isWishlist"
+          :is-sold="coin.isSold"
+          :coin-id="coin.id"
+          @purchase="showPurchaseModal = true"
+          @sell="showSellModal = true"
+          @delete="handleDelete"
+        />
       </div>
 
       <div class="detail-layout">

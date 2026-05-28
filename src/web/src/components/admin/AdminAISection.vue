@@ -100,7 +100,9 @@
               class="btn btn-ghost btn-xs"
               :disabled="settings.CoinSearchPrompt === coinSearchPromptDefault"
               @click="settings.CoinSearchPrompt = coinSearchPromptDefault"
-            >Revert to Default</button>
+            >
+              Revert to Default
+            </button>
           </div>
           <textarea
             v-model="settings.CoinSearchPrompt"
@@ -117,7 +119,9 @@
               class="btn btn-ghost btn-xs"
               :disabled="settings.CoinShowsPrompt === coinShowsPromptDefault"
               @click="settings.CoinShowsPrompt = coinShowsPromptDefault"
-            >Revert to Default</button>
+            >
+              Revert to Default
+            </button>
           </div>
           <textarea
             v-model="settings.CoinShowsPrompt"
@@ -134,7 +138,9 @@
               class="btn btn-ghost btn-xs"
               :disabled="settings.ValuationPrompt === valuationPromptDefault"
               @click="settings.ValuationPrompt = valuationPromptDefault"
-            >Revert to Default</button>
+            >
+              Revert to Default
+            </button>
           </div>
           <textarea
             v-model="settings.ValuationPrompt"
@@ -152,7 +158,9 @@
               class="btn btn-ghost btn-xs"
               :disabled="settings.ObversePrompt === settingDefaults.ObversePrompt"
               @click="settings.ObversePrompt = settingDefaults.ObversePrompt"
-            >Revert to Default</button>
+            >
+              Revert to Default
+            </button>
           </div>
           <textarea
             v-model="settings.ObversePrompt"
@@ -169,7 +177,9 @@
               class="btn btn-ghost btn-xs"
               :disabled="settings.ReversePrompt === settingDefaults.ReversePrompt"
               @click="settings.ReversePrompt = settingDefaults.ReversePrompt"
-            >Revert to Default</button>
+            >
+              Revert to Default
+            </button>
           </div>
           <textarea
             v-model="settings.ReversePrompt"
@@ -186,7 +196,9 @@
               class="btn btn-ghost btn-xs"
               :disabled="settings.TextExtractionPrompt === settingDefaults.TextExtractionPrompt"
               @click="settings.TextExtractionPrompt = settingDefaults.TextExtractionPrompt"
-            >Revert to Default</button>
+            >
+              Revert to Default
+            </button>
           </div>
           <textarea
             v-model="settings.TextExtractionPrompt"

@@ -106,3 +106,21 @@ Promoted the constitution from v1.1.0 → v2.0.0 (MAJOR — governance restructu
 ## Learnings (2026-05-28 — Phase 3b operational scaffolding)
 
 - **2026-05-28 (Phase 3b complete):** Operational scaffolding phase landed. Delivered: clean security doc split (monolithic `docs/security-analysis.md` retired → three-home model: `security-principles.md` for durable controls, `threat-model.md` for live findings, `incident-response.md` for playbook), `docs/references.md` with pragmatic standards/frameworks/services/tooling bucketing, `.gitleaks.toml` with targeted allowlisting (Swagger artifacts, web build, test examples, no testdata dir needed), and `.pre-commit-config.yaml` for optional git hooks. Constitution updated (4 stale refs replaced). Decision #15: clean cut on retired file (no stub); three new docs become sole security surface. Collaborated with Cassius (CI gate) and Brutus (test strategy); Scribe merged all decisions.
+- **2026-04-24T12:56:00Z**: Foundry Agent Service migration spike completed. Research shows Microsoft Foundry Agent Service (launched April 2026) with Hosted Agents (preview) is viable alternative to current Python/LangGraph stack. Anthropic Claude models fully supported in Foundry catalog (no separate contract). Effort estimate: **Large** (full agent service rewrite in C#). Recommendation: **Phase approach** — complete PoC now (Python → C# MVP on local Docker), defer full production migration to Hosted Agents when it reaches GA (Q3 2026). Keep orchestration in C# code rather than Foundry Workflows (pipelines too programmatic for YAML definition). Full 500+ line analysis in `docs/spikes/foundry-agent-service.md` on branch `spike/foundry-agent-service` — pending leadership Go/No-Go decision.
+
+## Foundry Agent Service Migration Spike (January 2025)
+
+**Outcome:** NO-GO recommendation. Microsoft Foundry Agent Service is technically viable but migration cost ($115k, 3-4 months) does not justify replacing working Python/LangGraph solution.
+
+**Key Findings:**
+- Foundry supports Claude models (Opus/Sonnet/Haiku) via Azure serverless APIs
+- C# Agent Framework SDK provides streaming (IAsyncEnumerable → SSE) and multi-agent orchestration
+- Requires complete rewrite in C#, reimplementation of 10 team pipelines, stateful design pivot
+- Adds 20% operational overhead (~$50-100/month compute) vs. self-hosted Python
+- Technical risks: web search tool availability unconfirmed, quota issues during preview, SearXNG integration unclear
+
+**When to Reconsider:** Strategic Azure lock-in, enterprise support requirements, Claude GA with guaranteed quotas, or team grows 3x.
+
+**Alternative Recommended:** Stay on Python/LangGraph, incrementally adopt Azure AI Services for Anthropic endpoints (no code rewrite).
+
+**Spike Document:** `docs/spikes/foundry-agent-service.md` (comprehensive analysis with architecture diagrams, effort estimates, risk assessment).

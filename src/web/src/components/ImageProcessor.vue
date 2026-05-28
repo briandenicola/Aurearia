@@ -46,8 +46,10 @@
       <!-- Crop step -->
       <div v-if="step === 'crop' || step === 'done'" class="crop-panel">
         <div class="crop-workspace">
-          <canvas ref="cropCanvas" class="crop-canvas" @pointerdown="startCropDrag" @pointermove="onCropDrag"
-            @pointerup="endCropDrag" />
+          <canvas
+            ref="cropCanvas" class="crop-canvas" @pointerdown="startCropDrag" @pointermove="onCropDrag"
+            @pointerup="endCropDrag"
+          />
         </div>
         <div class="crop-controls">
           <button class="btn btn-secondary btn-sm" @click="autoCrop">Auto Crop</button>

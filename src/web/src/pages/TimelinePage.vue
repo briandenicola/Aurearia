@@ -1,94 +1,94 @@
 <template>
   <PullToRefresh :on-refresh="loadCoins">
-  <div class="container">
-    <div class="page-header">
-      <h1><Clock :size="24" /> Collection Timeline</h1>
-      <div class="header-controls">
-        <select v-model="filterType" class="form-input form-select">
-          <option value="all">All Coins</option>
-          <option value="collection">Collection Only</option>
-          <option value="sold">Sold Only</option>
-        </select>
-      </div>
-    </div>
-
-    <div v-if="loading" class="loading-state">
-      <div class="spinner" />
-      <p>Loading timeline...</p>
-    </div>
-
-    <div v-else-if="timelineGroups.length === 0" class="empty-state">
-      <Clock :size="48" />
-      <h3>No timeline data</h3>
-      <p>Add purchase dates to your coins to see them on the timeline.</p>
-    </div>
-
-    <div v-else class="timeline-container">
-      <!-- Summary bar -->
-      <div class="timeline-summary card">
-        <div class="summary-item">
-          <span class="summary-value">{{ totalCoins }}</span>
-          <span class="summary-label">Coins</span>
-        </div>
-        <div class="summary-item">
-          <span class="summary-value">{{ yearSpan }}</span>
-          <span class="summary-label">Year Span</span>
-        </div>
-        <div class="summary-item">
-          <span class="summary-value">${{ totalInvested.toLocaleString() }}</span>
-          <span class="summary-label">Invested</span>
-        </div>
-        <div class="summary-item">
-          <span class="summary-value">${{ totalValue.toLocaleString() }}</span>
-          <span class="summary-label">Current Value</span>
+    <div class="container">
+      <div class="page-header">
+        <h1><Clock :size="24" /> Collection Timeline</h1>
+        <div class="header-controls">
+          <select v-model="filterType" class="form-input form-select">
+            <option value="all">All Coins</option>
+            <option value="collection">Collection Only</option>
+            <option value="sold">Sold Only</option>
+          </select>
         </div>
       </div>
 
-      <!-- Timeline -->
-      <div class="timeline">
-        <div v-for="group in timelineGroups" :key="group.label" class="timeline-group">
-          <div class="timeline-marker">
-            <div class="marker-dot" />
-            <div class="marker-label">{{ group.label }}</div>
-            <div class="marker-count">{{ group.coins.length }} {{ group.coins.length === 1 ? 'coin' : 'coins' }}</div>
+      <div v-if="loading" class="loading-state">
+        <div class="spinner" />
+        <p>Loading timeline...</p>
+      </div>
+
+      <div v-else-if="timelineGroups.length === 0" class="empty-state">
+        <Clock :size="48" />
+        <h3>No timeline data</h3>
+        <p>Add purchase dates to your coins to see them on the timeline.</p>
+      </div>
+
+      <div v-else class="timeline-container">
+        <!-- Summary bar -->
+        <div class="timeline-summary card">
+          <div class="summary-item">
+            <span class="summary-value">{{ totalCoins }}</span>
+            <span class="summary-label">Coins</span>
           </div>
-          <div class="timeline-cards">
-            <router-link
-              v-for="coin in group.coins"
-              :key="coin.id"
-              :to="`/coin/${coin.id}`"
-              class="timeline-card card"
-            >
-              <img
-                v-if="getPrimaryImage(coin)"
-                :src="`/uploads/${getPrimaryImage(coin)}`"
-                :alt="coin.name"
-                class="card-image"
-              />
-              <div v-else class="card-image card-placeholder">
-                <ImageIcon :size="24" />
-              </div>
-              <div class="card-body">
-                <span class="card-name">{{ coin.name }}</span>
-                <span class="card-meta">
-                  <span class="card-category" :style="{ color: categoryColor(coin.category) }">{{ coin.category }}</span>
-                  <span v-if="coin.ruler" class="card-ruler">{{ coin.ruler }}</span>
-                </span>
-                <span v-if="coin.purchaseDate" class="card-date">{{ formatDate(coin.purchaseDate) }}</span>
-                <div class="card-values">
-                  <span v-if="coin.purchasePrice" class="card-price">
-                    ${{ coin.purchasePrice.toLocaleString() }}
-                  </span>
-                  <span v-if="coin.isSold" class="card-sold-badge">Sold</span>
-                  <span v-if="coin.grade" class="card-grade">{{ coin.grade }}</span>
+          <div class="summary-item">
+            <span class="summary-value">{{ yearSpan }}</span>
+            <span class="summary-label">Year Span</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-value">${{ totalInvested.toLocaleString() }}</span>
+            <span class="summary-label">Invested</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-value">${{ totalValue.toLocaleString() }}</span>
+            <span class="summary-label">Current Value</span>
+          </div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="timeline">
+          <div v-for="group in timelineGroups" :key="group.label" class="timeline-group">
+            <div class="timeline-marker">
+              <div class="marker-dot" />
+              <div class="marker-label">{{ group.label }}</div>
+              <div class="marker-count">{{ group.coins.length }} {{ group.coins.length === 1 ? 'coin' : 'coins' }}</div>
+            </div>
+            <div class="timeline-cards">
+              <router-link
+                v-for="coin in group.coins"
+                :key="coin.id"
+                :to="`/coin/${coin.id}`"
+                class="timeline-card card"
+              >
+                <img
+                  v-if="getPrimaryImage(coin)"
+                  :src="`/uploads/${getPrimaryImage(coin)}`"
+                  :alt="coin.name"
+                  class="card-image"
+                />
+                <div v-else class="card-image card-placeholder">
+                  <ImageIcon :size="24" />
                 </div>
-              </div>
-            </router-link>
+                <div class="card-body">
+                  <span class="card-name">{{ coin.name }}</span>
+                  <span class="card-meta">
+                    <span class="card-category" :style="{ color: categoryColor(coin.category) }">{{ coin.category }}</span>
+                    <span v-if="coin.ruler" class="card-ruler">{{ coin.ruler }}</span>
+                  </span>
+                  <span v-if="coin.purchaseDate" class="card-date">{{ formatDate(coin.purchaseDate) }}</span>
+                  <div class="card-values">
+                    <span v-if="coin.purchasePrice" class="card-price">
+                      ${{ coin.purchasePrice.toLocaleString() }}
+                    </span>
+                    <span v-if="coin.isSold" class="card-sold-badge">Sold</span>
+                    <span v-if="coin.grade" class="card-grade">{{ coin.grade }}</span>
+                  </div>
+                </div>
+              </router-link>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
   </PullToRefresh>
 </template>
 

@@ -2,15 +2,19 @@
   <div class="input-section card">
     <h3>Load Image</h3>
     <div class="input-methods">
-      <label class="drop-zone" :class="{ dragging }" @dragover.prevent="dragging = true"
-        @dragleave="dragging = false" @drop.prevent="onDrop">
+      <label
+        class="drop-zone" :class="{ dragging }" @dragover.prevent="dragging = true"
+        @dragleave="dragging = false" @drop.prevent="onDrop"
+      >
         <Upload :size="32" />
         <span>Drop an image here or click to browse</span>
         <input type="file" accept="image/*" hidden @change="onFileSelect" />
       </label>
       <div class="url-input-row">
-        <input v-model="url" type="url" class="form-input" placeholder="Or paste an image URL..."
-          @keydown.enter="onUrlLoad" />
+        <input
+          v-model="url" type="url" class="form-input" placeholder="Or paste an image URL..."
+          @keydown.enter="onUrlLoad"
+        />
         <button class="btn btn-primary btn-sm" :disabled="!url || urlLoading" @click="onUrlLoad">
           {{ urlLoading ? 'Loading...' : 'Fetch' }}
         </button>

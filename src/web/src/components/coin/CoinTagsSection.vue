@@ -20,7 +20,9 @@
           v-for="tag in availableTags"
           :key="tag.id"
           :value="tag.id"
-        >{{ tag.name }}</option>
+        >
+          {{ tag.name }}
+        </option>
       </select>
       <button class="btn-tag-cancel" @click="showTagPicker = false">Cancel</button>
     </div>

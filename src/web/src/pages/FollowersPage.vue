@@ -1,196 +1,196 @@
 <template>
   <PullToRefresh :on-refresh="handleRefresh">
-  <div class="container">
-    <div class="page-header">
-      <h1><Users :size="24" /> Followers</h1>
-      <button class="btn btn-primary btn-sm" @click="showSearchModal = true">
-        <UserPlus :size="16" /> Add
-      </button>
-    </div>
-
-    <div class="followers-layout">
-      <!-- Tab Nav -->
-      <div class="tab-nav">
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'following' }"
-          @click="activeTab = 'following'"
-        >
-          <UserPlus :size="16" /> Following
-          <span v-if="following.length" class="tab-count">{{ following.length }}</span>
-        </button>
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'followers' }"
-          @click="activeTab = 'followers'"
-        >
-          <Users :size="16" /> Followers
-          <span v-if="followers.length" class="tab-count">{{ followers.length }}</span>
+    <div class="container">
+      <div class="page-header">
+        <h1><Users :size="24" /> Followers</h1>
+        <button class="btn btn-primary btn-sm" @click="showSearchModal = true">
+          <UserPlus :size="16" /> Add
         </button>
       </div>
 
-      <!-- Loading -->
-      <div v-if="loading" class="loading-state">
-        <div class="spinner" />
-        <p>Loading...</p>
-      </div>
-
-      <!-- Following Tab -->
-      <div v-else-if="activeTab === 'following'">
-        <div v-if="following.length === 0" class="empty-state">
-          <Users :size="48" />
-          <h3>Not following anyone yet</h3>
-          <p>Search for users to follow and see their collections.</p>
-          <button class="btn btn-primary btn-sm" @click="showSearchModal = true">
-            <UserPlus :size="16" /> Find Users
+      <div class="followers-layout">
+        <!-- Tab Nav -->
+        <div class="tab-nav">
+          <button
+            class="tab-btn"
+            :class="{ active: activeTab === 'following' }"
+            @click="activeTab = 'following'"
+          >
+            <UserPlus :size="16" /> Following
+            <span v-if="following.length" class="tab-count">{{ following.length }}</span>
+          </button>
+          <button
+            class="tab-btn"
+            :class="{ active: activeTab === 'followers' }"
+            @click="activeTab = 'followers'"
+          >
+            <Users :size="16" /> Followers
+            <span v-if="followers.length" class="tab-count">{{ followers.length }}</span>
           </button>
         </div>
-        <div v-else class="user-grid">
-          <div v-for="user in following" :key="user.id" class="user-card card">
-            <div class="user-card-body">
-              <img
-                :src="user.avatarPath ? `/uploads/${user.avatarPath}` : '/coin-logo.jpg'"
-                :alt="user.username"
-                class="user-avatar"
-              />
-              <div class="user-info">
-                <span class="user-name">{{ user.username }}</span>
-                <p v-if="user.bio" class="user-bio">{{ truncate(user.bio, 80) }}</p>
-                <div class="user-meta">
-                  <span v-if="user.isPublic && user.coinCount > 0" class="coin-badge">
-                    {{ user.coinCount }} coins
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div class="user-card-actions">
-              <router-link
-                :to="`/followers/${user.username}/gallery`"
-                class="btn btn-secondary btn-sm"
-              >
-                <Eye :size="14" /> View Collection
-              </router-link>
-              <button
-                class="btn btn-danger btn-sm"
-                :disabled="actionLoading === user.id"
-                @click="handleUnfollow(user)"
-              >
-                Unfollow
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Followers Tab -->
-      <div v-else-if="activeTab === 'followers'">
-        <div v-if="followers.length === 0" class="empty-state">
-          <Users :size="48" />
-          <h3>No followers yet</h3>
-          <p>When other users follow you, they'll appear here.</p>
+        <!-- Loading -->
+        <div v-if="loading" class="loading-state">
+          <div class="spinner" />
+          <p>Loading...</p>
         </div>
-        <div v-else class="user-grid">
-          <div v-for="user in followers" :key="user.id" class="user-card card">
-            <div class="user-card-body">
-              <img
-                :src="user.avatarPath ? `/uploads/${user.avatarPath}` : '/coin-logo.jpg'"
-                :alt="user.username"
-                class="user-avatar"
-              />
-              <div class="user-info">
-                <span class="user-name">{{ user.username }}</span>
-                <p v-if="user.bio" class="user-bio">{{ truncate(user.bio, 80) }}</p>
-                <span v-if="user.status === 'pending'" class="status-badge pending">Pending</span>
-                <span v-else-if="user.status === 'accepted'" class="status-badge accepted">Accepted</span>
-              </div>
-            </div>
-            <div class="user-card-actions">
-              <button
-                v-if="user.status === 'pending'"
-                class="btn btn-primary btn-sm"
-                :disabled="actionLoading === user.id"
-                @click="handleAccept(user)"
-              >
-                <Check :size="14" /> Accept
-              </button>
-              <button
-                class="btn btn-danger btn-sm"
-                :disabled="actionLoading === user.id"
-                @click="handleBlock(user)"
-              >
-                <ShieldOff :size="14" /> Block
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- Search Modal -->
-    <Teleport to="body">
-      <div v-if="showSearchModal" class="modal-overlay" @click.self="closeSearchModal">
-        <div class="modal-content card">
-          <div class="modal-header">
-            <h2><Search :size="20" /> Find Users</h2>
-            <button class="modal-close" @click="closeSearchModal">
-              <X :size="20" />
+        <!-- Following Tab -->
+        <div v-else-if="activeTab === 'following'">
+          <div v-if="following.length === 0" class="empty-state">
+            <Users :size="48" />
+            <h3>Not following anyone yet</h3>
+            <p>Search for users to follow and see their collections.</p>
+            <button class="btn btn-primary btn-sm" @click="showSearchModal = true">
+              <UserPlus :size="16" /> Find Users
             </button>
           </div>
-          <div class="modal-body">
-            <p class="search-hint">Only users with public profiles appear in search results.</p>
-            <div class="search-input-wrap">
-              <Search :size="16" class="search-icon" />
-              <input
-                ref="searchInputRef"
-                v-model="searchQuery"
-                type="text"
-                class="form-input search-input"
-                placeholder="Search by username..."
-                @input="onSearchInput"
-              />
-            </div>
-            <div v-if="searchLoading" class="loading-state compact">
-              <div class="spinner" />
-            </div>
-            <div v-else-if="searchResults.length > 0" class="search-results">
-              <div v-for="user in searchResults" :key="user.id" class="user-card compact">
-                <div class="user-card-body">
-                  <img
-                    :src="user.avatarPath ? `/uploads/${user.avatarPath}` : '/coin-logo.jpg'"
-                    :alt="user.username"
-                    class="user-avatar"
-                  />
-                  <div class="user-info">
-                    <span class="user-name">{{ user.username }}</span>
-                    <p v-if="user.bio" class="user-bio">{{ truncate(user.bio, 60) }}</p>
+          <div v-else class="user-grid">
+            <div v-for="user in following" :key="user.id" class="user-card card">
+              <div class="user-card-body">
+                <img
+                  :src="user.avatarPath ? `/uploads/${user.avatarPath}` : '/coin-logo.jpg'"
+                  :alt="user.username"
+                  class="user-avatar"
+                />
+                <div class="user-info">
+                  <span class="user-name">{{ user.username }}</span>
+                  <p v-if="user.bio" class="user-bio">{{ truncate(user.bio, 80) }}</p>
+                  <div class="user-meta">
+                    <span v-if="user.isPublic && user.coinCount > 0" class="coin-badge">
+                      {{ user.coinCount }} coins
+                    </span>
                   </div>
                 </div>
-                <div class="user-card-actions">
-                  <span v-if="user.followStatus === 'pending'" class="status-badge pending">Pending</span>
-                  <span v-else-if="user.followStatus === 'accepted'" class="following-badge">Following</span>
-                  <span v-else-if="user.followStatus === 'blocked'" class="status-badge blocked">Blocked</span>
-                  <button
-                    v-else
-                    class="btn btn-primary btn-sm"
-                    :disabled="actionLoading === user.id"
-                    @click="handleFollow(user)"
-                  >
-                    <UserPlus :size="14" /> Follow
-                  </button>
-                </div>
+              </div>
+              <div class="user-card-actions">
+                <router-link
+                  :to="`/followers/${user.username}/gallery`"
+                  class="btn btn-secondary btn-sm"
+                >
+                  <Eye :size="14" /> View Collection
+                </router-link>
+                <button
+                  class="btn btn-danger btn-sm"
+                  :disabled="actionLoading === user.id"
+                  @click="handleUnfollow(user)"
+                >
+                  Unfollow
+                </button>
               </div>
             </div>
-            <div v-else-if="searchQuery.length >= 2 && !searchLoading" class="empty-state compact">
-              <p>No users found for "{{ searchQuery }}"</p>
-            </div>
-            <div v-else class="empty-state compact">
-              <p>Type at least 2 characters to search</p>
+          </div>
+        </div>
+
+        <!-- Followers Tab -->
+        <div v-else-if="activeTab === 'followers'">
+          <div v-if="followers.length === 0" class="empty-state">
+            <Users :size="48" />
+            <h3>No followers yet</h3>
+            <p>When other users follow you, they'll appear here.</p>
+          </div>
+          <div v-else class="user-grid">
+            <div v-for="user in followers" :key="user.id" class="user-card card">
+              <div class="user-card-body">
+                <img
+                  :src="user.avatarPath ? `/uploads/${user.avatarPath}` : '/coin-logo.jpg'"
+                  :alt="user.username"
+                  class="user-avatar"
+                />
+                <div class="user-info">
+                  <span class="user-name">{{ user.username }}</span>
+                  <p v-if="user.bio" class="user-bio">{{ truncate(user.bio, 80) }}</p>
+                  <span v-if="user.status === 'pending'" class="status-badge pending">Pending</span>
+                  <span v-else-if="user.status === 'accepted'" class="status-badge accepted">Accepted</span>
+                </div>
+              </div>
+              <div class="user-card-actions">
+                <button
+                  v-if="user.status === 'pending'"
+                  class="btn btn-primary btn-sm"
+                  :disabled="actionLoading === user.id"
+                  @click="handleAccept(user)"
+                >
+                  <Check :size="14" /> Accept
+                </button>
+                <button
+                  class="btn btn-danger btn-sm"
+                  :disabled="actionLoading === user.id"
+                  @click="handleBlock(user)"
+                >
+                  <ShieldOff :size="14" /> Block
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </Teleport>
-  </div>
+
+      <!-- Search Modal -->
+      <Teleport to="body">
+        <div v-if="showSearchModal" class="modal-overlay" @click.self="closeSearchModal">
+          <div class="modal-content card">
+            <div class="modal-header">
+              <h2><Search :size="20" /> Find Users</h2>
+              <button class="modal-close" @click="closeSearchModal">
+                <X :size="20" />
+              </button>
+            </div>
+            <div class="modal-body">
+              <p class="search-hint">Only users with public profiles appear in search results.</p>
+              <div class="search-input-wrap">
+                <Search :size="16" class="search-icon" />
+                <input
+                  ref="searchInputRef"
+                  v-model="searchQuery"
+                  type="text"
+                  class="form-input search-input"
+                  placeholder="Search by username..."
+                  @input="onSearchInput"
+                />
+              </div>
+              <div v-if="searchLoading" class="loading-state compact">
+                <div class="spinner" />
+              </div>
+              <div v-else-if="searchResults.length > 0" class="search-results">
+                <div v-for="user in searchResults" :key="user.id" class="user-card compact">
+                  <div class="user-card-body">
+                    <img
+                      :src="user.avatarPath ? `/uploads/${user.avatarPath}` : '/coin-logo.jpg'"
+                      :alt="user.username"
+                      class="user-avatar"
+                    />
+                    <div class="user-info">
+                      <span class="user-name">{{ user.username }}</span>
+                      <p v-if="user.bio" class="user-bio">{{ truncate(user.bio, 60) }}</p>
+                    </div>
+                  </div>
+                  <div class="user-card-actions">
+                    <span v-if="user.followStatus === 'pending'" class="status-badge pending">Pending</span>
+                    <span v-else-if="user.followStatus === 'accepted'" class="following-badge">Following</span>
+                    <span v-else-if="user.followStatus === 'blocked'" class="status-badge blocked">Blocked</span>
+                    <button
+                      v-else
+                      class="btn btn-primary btn-sm"
+                      :disabled="actionLoading === user.id"
+                      @click="handleFollow(user)"
+                    >
+                      <UserPlus :size="14" /> Follow
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div v-else-if="searchQuery.length >= 2 && !searchLoading" class="empty-state compact">
+                <p>No users found for "{{ searchQuery }}"</p>
+              </div>
+              <div v-else class="empty-state compact">
+                <p>Type at least 2 characters to search</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+    </div>
   </PullToRefresh>
 </template>
 
