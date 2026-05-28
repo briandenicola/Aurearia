@@ -1235,3 +1235,36 @@ User-flagged coding queue survives session boundaries. Next session / Ralph cycl
 
 ---
 
+
+## Decision #18 — F011 AI-driven browser testing deferred behind #163 audit
+
+**Date:** 2026-05-28  
+**Decided by:** Brian (in coordinator session)  
+**Status:** Recorded
+
+### Context
+
+Brian asked whether an LLM could find runtime UI bugs / edge cases. Coordinator presented 4 ranked options (Playwright MCP + vision model recommended). Brian wants to pursue it but **not before #163** so audit findings can scope which flows matter most.
+
+### Decision
+
+Create `specs/_backlog/F011-ai-driven-browser-testing.md` with `status: deferred` and `blocked_by: "#163"`. Brutus to draft full spec when #163 closes. No GitHub issue opened yet (avoids dashboard noise during audit cycle) — backlog card + this decision entry are the durable tracking artifacts.
+
+### Tracking layers (so this can't be forgotten)
+
+1. `specs/_backlog/F011-ai-driven-browser-testing.md` — primary card, surfaces in any backlog review
+2. This decision-log entry — surfaces in any decisions audit
+3. `docs/testing.md` already references F011 for the E2E gap (Phase 3b) — Brutus will see it when he revisits testing docs post-audit
+4. When `gh issue close 163` runs, next session's coordinator should grep `_backlog/` for `blocked_by: "#163"` and promote F011 automatically
+
+### Why Captured
+
+User explicitly asked "how do we track it?" — answer is multi-layered: card + decision + doc cross-ref + auto-trigger on #163 close.
+
+### References
+
+- `specs/_backlog/F011-ai-driven-browser-testing.md`
+- Issue #163 (blocking)
+- `docs/testing.md` (Phase 3b reference to F011)
+
+---
