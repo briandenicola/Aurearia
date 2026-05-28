@@ -927,6 +927,82 @@ This is the correct workflow for data-dependent bugfixes.
 
 ---
 
+### 11. ADR Practice Established (2026-05-28)
+
+**Author:** Maximus (Lead / Architect)  
+**Date:** 2026-05-28  
+**Status:** ACCEPTED — Phase 3a landed  
+
+#### What
+
+The project now has a formal Architecture Decision Record practice under `docs/adr/`, using the Michael Nygard format. Four ADRs landed in this batch:
+
+- **ADR 0001** — Record Architecture Decisions (the practice itself)
+- **ADR 0002** — Three-Service Architecture (Vue PWA / Go API / Python agent)
+- **ADR 0003** — JWT Auth with Refresh Tokens and WebAuthn Passkeys
+- **ADR 0004** — Design Token System (CSS custom properties, Tailwind rejected)
+
+ADRs 0002–0004 are retroactive — they document v1.0-era decisions that previously lived only in code, commit history, and oral tradition.
+
+#### Why This Matters
+
+Constitution v2.0.0 §22 (Amendment Process) mandates ADR-first for material design choices. Before today that requirement pointed at an empty directory. **§22 is now operational** — there is a real practice, a real template, a real index, and a real precedent.
+
+#### Rationale
+
+- §22 now has concrete operational precedent — any future material decision must open with an ADR PR
+- Retroactive ADRs 0002–0004 document v1.0-era decisions previously in code/commits only
+- Index location: `docs/adr/README.md` (process notes + numbered table)
+- ADR is cited from spec/plan/tasks and PR description per §17 Quality Gate
+
+#### References
+
+- Constitution §22 (Amendment Process)
+- Constitution §19 (Documentation Requirements)
+- Constitution Principles I, II, V, XII, XIII (referenced by the four ADRs)
+
+---
+
+### 12. README Trimmed; `docs/prd.md` is Product Source of Truth (2026-05-28)
+
+**Author:** Maximus (Lead / Architect)  
+**Date:** 2026-05-28  
+**Status:** ACCEPTED — Phase 3a landed  
+
+#### What
+
+1. **`docs/prd.md` is the product source of truth** per Constitution §0 item #2. All product narrative, personas, goals, non-goals, and functional-area descriptions live there. PRD is reviewed as **APPROVED** for this role as of v1 (2026-05-28).
+
+2. **`README.md` is a thin navigation surface only** — now contains: tagline, one-paragraph "what is this" → PRD link, compact three-service architecture diagram, Quick Start, Documentation index, Governance section, license. Size: **90 lines / ~5.8 KB** (down from 368 / 25.4 KB).
+
+3. **Product detail in README is now a §0 violation.** Any future product-level claims (feature lists, personas, scope) must land in `docs/prd.md`; README links to it.
+
+4. **No content orphaned.** Every removed detail was already in `docs/prd.md`, `docs/ARCHITECTURE.md`, `docs/features.md`, `docs/authentication.md`, `docs/deployment.md`, `docs/getting-started.md`, ADRs, or `specs/_backlog/F00N-*.md` cards.
+
+5. **PRD verdict: APPROVED.** Vision is substantive; three personas defined with goals/frustrations/success measures; eleven functional areas cross-link to F00N cards and `specs/001-foundation/spec.md`; constitution citations correct; no blocking gaps.
+
+#### Rationale
+
+- Constitution §0 Hierarchy ranks PRD as item #2 (second only to constitution); README is now observably subordinate
+- Reduces documentation drift — one place to update (PRD) and one place to cite (§17 Quality Gate)
+- New contributors follow single funnel: README → PRD / ARCHITECTURE / Constitution / Specs
+
+#### Consequences
+
+- **+** README is finally an entry point, not a competing source of truth
+- **+** Future PRs drifting product scope have one place to update
+- **+** §0 Hierarchy now observably enforced in top-level docs
+- **−** PRD is one click away (acceptable; audience is contributors)
+- **−** Documentation drift risk shifts to "PRD vs reality"; mitigation: PRD updates part of spec workflow (§19)
+
+#### References
+
+- Constitution §0 (Hierarchy of Authority), §17 (Quality Gate), §19 (Documentation Requirements), §22 (Amendment Process)
+- `docs/prd.md` v1 (2026-05-28)
+- ADR 0001 (record architecture decisions), ADR 0002 (three-service architecture), ADR 0004 (design token system)
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus

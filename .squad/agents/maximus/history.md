@@ -88,3 +88,17 @@ Promoted the constitution from v1.1.0 → v2.0.0 (MAJOR — governance restructu
 - `specs/001-foundation/` landed as the retroactive v1.0 anchor — three files (spec.md 162L, plan.md 139L, tasks.md 86L; 387L total) all marked SHIPPED with every tasks.md checkbox checked. Validates Constitution §0 Hierarchy item 3 ("active feature spec") with real content instead of a placeholder.
 - Backlog cards F001–F007 are cross-linked from spec.md so the audit trail from "queued idea → shipped feature" is dereferenceable in both directions; backlog cards themselves are unchanged (no retroactive `Promoted to:` rewrites, because they were authored *after* shipping — F001–F007 are extractions from the v1.0 surface, not promotions of pre-shipping ideas).
 - Convention going forward: forward-looking work opens at `specs/002-*/` and onward. `001-foundation/` is a historical anchor and is not edited again except via a `## History` entry if a future amendment materially restates the v1.0 surface. Phase 2 of the SpecKit rollout is complete; Scribe owns close-out next.
+
+## Learnings
+
+- **2026-05-28 — ADR practice established.** `docs/adr/` now exists with
+  four Nygard-format ADRs: 0001 (the practice itself), 0002 (three-service
+  architecture), 0003 (JWT + refresh + WebAuthn), 0004 (design token
+  system). 0002–0004 retroactively document v1.0 governance, architecture,
+  auth, and design decisions that previously lived only in code and oral
+  tradition. Going forward, **any material decision (principle change,
+  new third-party service, auth/security change, multi-service contract
+  change, data-model semantic migration, UI framework change) MUST open
+  with an ADR per Constitution §22**. The ADR index lives at
+  `docs/adr/README.md`.
+- **2026-05-28:** README trimmed from 368 → 90 lines (~25.4 KB → ~5.8 KB). Removed the long product feature list, the duplicated dev/prod architecture diagrams, the giant `Project Structure` tree, and the legacy completed-backlog checklist. Replaced with navigation + quick-start + governance pointers. Product narrative is now centralized in `docs/prd.md` per Constitution §19; per §0 (Hierarchy of Authority) the PRD is item #2 and the README is no longer allowed to restate product-level claims that conflict with it. Going forward, any product detail living in README is a §0 violation — escalate via `.squad/decisions/inbox/` rather than re-expanding the README. Decision: `.squad/decisions/inbox/maximus-readme-trim-prd-promoted.md`.
