@@ -153,14 +153,20 @@ Ancient Coins is a **personal-scale, self-hosted Progressive Web App** for manag
 
 ---
 
-## 8. Open Product Questions
+## 8. Resolved Product Questions
 
-1. **Public link sharing:** Do we want read-only gallery links without authentication (already implemented in showcases) to expand to ad-hoc coin sharing?
-2. **Portfolio valuation tracking:** Should we maintain a monthly price snapshot of the entire collection to track appreciation/depreciation over time? (Value-over-time is implemented; trend analysis could follow.)
-3. **Multi-user collections:** Do we ever want multiple collectors to share one account's coin ownership (e.g., husband + wife co-curated collection)? If yes, this requires schema changes.
-4. **Export formats beyond JSON/PDF:** Do we need CSV for spreadsheet import into Excel, or BIBTEX for academic reference?
-5. **Coin age verification:** Should coins marked "sold" ever be moved back to "active" for re-acquisition, or are sold coins immutable history?
-6. **Dealer/Source tracking:** Should we maintain a searchable database of dealers/auction houses to categorize purchase locations, or keep it as free-text fields?
+Triaged 2026-05-28. Items marked **Promoted** are now tracked in `specs/_backlog/`.
+
+| # | Question | Decision | Disposition |
+|---|---|---|---|
+| 1 | Expand read-only sharing from showcases to ad-hoc per-coin share links? | **Yes** | Promoted → `specs/_backlog/F008-public-coin-share-links.md` |
+| 2 | Monthly portfolio price snapshots for trend analysis? | **Yes** | Promoted → `specs/_backlog/F009-portfolio-monthly-snapshots.md` |
+| 3 | Multi-user shared collections (e.g., co-curators)? | **No** | Closed — single-user accounts only. Re-open requires constitution amendment. |
+| 4 | Export formats beyond JSON/PDF (CSV, BIBTEX)? | **No** | Closed — JSON + PDF cover the use cases. |
+| 5 | Allow sold coins to return to active? | **No** | Closed — sold coins are immutable history; re-acquired coins are recorded as new entries. |
+| 6 | Structured dealer/source database vs. free-text? | **Yes** | Promoted → `specs/_backlog/F010-dealer-source-database.md` |
+
+New product questions should be added below this table when they arise.
 
 ---
 

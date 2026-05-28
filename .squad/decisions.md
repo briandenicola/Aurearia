@@ -1003,6 +1003,60 @@ Constitution v2.0.0 §22 (Amendment Process) mandates ADR-first for material des
 
 ---
 
+### 13. PRD §8 Open-Question Triage + Manifest Correction (2026-05-28)
+
+**Status:** Decided
+**Owner:** Maximus (triage facilitation), Brian (decisions)
+
+#### What
+
+Two related housekeeping outcomes captured in one entry:
+
+**A. PRD §8 — six open product questions triaged with Brian:**
+
+| # | Question | Decision | Disposition |
+|---|---|---|---|
+| 1 | Public ad-hoc per-coin share links | **Yes** | Promoted → `specs/_backlog/F008-public-coin-share-links.md` |
+| 2 | Monthly portfolio valuation snapshots | **Yes** | Promoted → `specs/_backlog/F009-portfolio-monthly-snapshots.md` |
+| 3 | Multi-user shared collections | **No** | Closed; single-user accounts only |
+| 4 | Export formats beyond JSON/PDF (CSV, BIBTEX) | **No** | Closed; JSON + PDF are sufficient |
+| 5 | Sold coins re-acquirable | **No** | Closed; sold = immutable history (re-buys are new entries) |
+| 6 | Structured dealer/source database | **Yes** | Promoted → `specs/_backlog/F010-dealer-source-database.md` |
+
+`docs/prd.md` §8 rewritten as a "Resolved Product Questions" table; closed items reference this decision for re-open requirements.
+
+**B. `.specify/integrations/copilot.manifest.json` is NOT a prompt discovery file.**
+
+Prior session note suggested running `specify upgrade` to "register" the four new session-protocol prompts (`load-context`, `checkpoint`, `handoff`, `audit`). On inspection: the manifest is an inventory of SpecKit-installed files with SHA-256 hashes used by `specify check` for drift detection of SpecKit's own artifacts. Copilot CLI discovers prompts in `.github/prompts/` directly — manifest registration is neither required nor appropriate. Adding non-SpecKit files to the manifest would falsely claim SpecKit owns them and cause future `specify check` runs to flag drift incorrectly.
+
+**Verification:** `specify check` reports *"Specify CLI is ready to use!"* — no action needed. Our four custom prompts remain in `.github/prompts/` and are discoverable as-is.
+
+#### Rationale
+
+- Single-user product scope is preserved (Q3, Q5) — protects schema simplicity and Principle VI (Data Integrity & Immutability)
+- Export surface stays minimal (Q4) — avoids feature-creep that the existing PDF export already covers for offline use
+- Three Yes answers (Q1/Q2/Q6) each map to a single, scoped backlog card with constitution alignment notes — they enter the spec-driven workflow at the F-card stage, not as ad-hoc work
+- Manifest correction prevents a follow-on session from making an actively harmful "fix"
+
+#### Consequences
+
+- **+** PRD §8 is now a decision log, not a question list — future contributors see the answers
+- **+** F008/F009/F010 carry full constitution citations and open questions for the spec author to resolve at promotion time
+- **+** Decision record corrects the manifest misread before any commit acted on it
+- **−** Three new backlog items now compete for prioritization; addressed by P2/P2/P3 split (Q3 dealer DB is lowest)
+- **−** Re-opening Q3, Q4, or Q5 in the future requires either a constitution amendment (Q3 — schema implication) or a new PRD entry citing this decision
+
+#### References
+
+- `docs/prd.md` §8 (Resolved Product Questions)
+- `specs/_backlog/F008-public-coin-share-links.md`
+- `specs/_backlog/F009-portfolio-monthly-snapshots.md`
+- `specs/_backlog/F010-dealer-source-database.md`
+- `.specify/integrations/copilot.manifest.json` (left unchanged; verified via `specify check`)
+- Constitution §0 (Hierarchy), §19 (Documentation Requirements), §22 (Amendment Process)
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus
