@@ -8,7 +8,35 @@
 
 ## Learnings
 
-<!-- Append new learnings below. Each entry is something lasting about the project. -->
+- **2026-05-29 — Threat Model Reconciliation (Issue #206)**
+  
+  **Audit Results:** Reviewed `docs/threat-model.md` against current code implementation (input artifacts: analysis.go, CoinAIAnalysis.vue, FeaturedCoinModal.vue, useCoinSearchChat.ts, webauthn.go, Taskfile.yml, Dockerfile, GitHub workflows). Found 9 findings had been mitigated but status was stale.
+  
+  **Newly Marked Mitigated (changed from Open to Mitigated):**
+  - **B-2 (SQL injection):** User-controlled `side` parameter in `DeleteAnalysis()` now protected by explicit `columnMap` whitelist (lines 229–238 in analysis.go). Also validates in `Analyze()` switch statement (lines 175–185).
+  - **B-6 (Request size):** `MaxMultipartMemory` configured in main.go (~line 130 per middleware). Issue #201 tracks implementation.
+  - **B-7 (WebAuthn TTL):** Session TTL hardened to 5 minutes (`const webauthnSessionTTL = 5 * time.Minute`, lines ~20–30 in webauthn.go). Cleanup logic prevents accumulation.
+  - **B-8 (WebAuthn origin):** Dynamic origin trust removed; now restricts to configured RP origins only. Issue #202 tracks hardening.
+  - **F-1 (AI analysis XSS):** `CoinAIAnalysis.vue` lines 80–82 sanitize with `DOMPurify.sanitize(md.render(...))`.
+  - **F-2 (Chat XSS):** `useCoinSearchChat.ts` line 252 sanitizes via `formatMessage()` → `DOMPurify.sanitize(html, {...})` before injection.
+  - **F-4 (Sanitizer dependency):** DOMPurify ^3.4.1 now in `package.json` and applied at all HTML injection points (CoinAIAnalysis.vue, useCoinSearchChat.ts, FeaturedCoinModal.vue).
+  - **SC-1 (GitHub Actions):** All workflow `uses:` statements pinned to commit SHAs in docker-publish.yml and docker-publish-beta.yml (verified 10 pinned actions). Issue #204 tracks implementation.
+  - **SC-2 (Hardcoded JWT):** Taskfile.yml `gen-env` task (lines 143–145) generates random JWT secret into `.env` (not tracked). Config enforces 32-char minimum and fails fast if unset.
+  
+  **Status Counts Updated:**
+  - Backend: 4 → 8 Mitigated, 5 → 1 Open
+  - Frontend: 0 → 3 Mitigated, 7 → 4 Open
+  - Supply chain: 0 → 2 Mitigated, 7 → 5 Open
+  - **Total: 4 → 13 Mitigated, 19 → 10 Open, 1 Accepted**
+  
+  **Open Findings (10 total):** All now have issue links (most to #163, security audit umbrella).
+  - Backend: B-9 only (error response detail leakage)
+  - Frontend: F-3 (localStorage tokens), F-5 (JSON refresh body), F-6 (Cache-Control headers), F-7 (username in query string)
+  - Supply chain: SC-3 (@imgly CDN models), SC-4 (golang.org/x/ versions), SC-5 (branch protection not enforced), SC-6 (Dockerfile base image digests), SC-7 (Dockerfile non-root user)
+  
+  **Key Insight:** Recent commits (especially "Fix 16 critical and high security findings" SHA 65fbc00) and closed issues #201–204 had already implemented most mitigations; threat-model was simply stale. Codebase is ahead of documentation. The reconciliation catches docs up and ensures all open items are tracked under issue #163 (Code & security audit).
+
+## Learnings
 
 - **2025-07-18**: Rewrote `docs/ARCHITECTURE.md` from API-only doc (214 lines) to full-system architecture (761 lines) covering all three services, data flows, DB schema, auth, agent integration, schedulers, build pipeline, and design decisions. Derived entirely from codebase inspection.
 - Key file paths: `src/api/main.go` (composition root, ~400 lines of DI wiring), `src/agent/app/supervisor.py` (11-team LLM router), `src/web/src/api/client.ts` (Axios + SSE + 401 refresh queue), `src/api/services/agent_proxy.go` (SSE proxy pattern).
