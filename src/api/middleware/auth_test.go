@@ -249,7 +249,7 @@ func TestAuthMiddleware_RevokedAPIKey(t *testing.T) {
 
 // --- Token via query param ---
 
-func TestAuthMiddleware_TokenQueryParam(t *testing.T) {
+func TestAuthMiddleware_TokenQueryParamRejected(t *testing.T) {
 	db := setupMiddlewareTestDB(t)
 
 	gin.SetMode(gin.TestMode)
@@ -266,7 +266,7 @@ func TestAuthMiddleware_TokenQueryParam(t *testing.T) {
 
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200 with query param token, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 when token is provided via query param, got %d: %s", w.Code, w.Body.String())
 	}
 }

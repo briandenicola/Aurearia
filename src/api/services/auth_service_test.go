@@ -1,6 +1,8 @@
 package services
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,7 +18,8 @@ const testJWTSecret = "test-secret-key-for-unit-tests"
 
 func setupAuthTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:auth_test_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
@@ -320,6 +323,61 @@ func TestRotateTokens_OldTokenRevoked(t *testing.T) {
 	_, _, _, err = svc.RotateTokens(plainToken)
 	if err != ErrInvalidRefreshToken {
 		t.Errorf("expected ErrInvalidRefreshToken for revoked token, got %v", err)
+	}
+}
+
+func TestRotateTokens_ConcurrentSingleUse(t *testing.T) {
+	db := setupAuthTestDB(t)
+	svc := newTestAuthService(db)
+
+	user := models.User{ID: 1, Username: "raceuser", Role: models.RoleUser}
+	db.Create(&user)
+
+	plainToken, err := svc.GenerateRefreshToken(user)
+	if err != nil {
+		t.Fatalf("setup: GenerateRefreshToken failed: %v", err)
+	}
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var wg sync.WaitGroup
+
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, _, _, rotateErr := svc.RotateTokens(plainToken)
+			results <- rotateErr
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var successCount, invalidCount int
+	for rotateErr := range results {
+		switch rotateErr {
+		case nil:
+			successCount++
+		case ErrInvalidRefreshToken:
+			invalidCount++
+		default:
+			t.Fatalf("expected nil or ErrInvalidRefreshToken, got %v", rotateErr)
+		}
+	}
+
+	if successCount != 1 || invalidCount != 1 {
+		t.Fatalf("expected exactly one success and one invalid token error, got success=%d invalid=%d", successCount, invalidCount)
+	}
+
+	var activeCount int64
+	db.Model(&models.RefreshToken{}).
+		Where("user_id = ? AND revoked_at IS NULL", user.ID).
+		Count(&activeCount)
+	if activeCount != 1 {
+		t.Fatalf("expected exactly one active refresh token after concurrent rotate, got %d", activeCount)
 	}
 }
 

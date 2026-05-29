@@ -33,10 +33,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import type { CoinSuggestion } from '@/types'
 import { CirclePlus, ExternalLink } from 'lucide-vue-next'
-import { scrapeImage } from '@/api/client'
+import { proxyImage, scrapeImage } from '@/api/client'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 defineProps<{
@@ -51,33 +51,64 @@ defineEmits<{
 }>()
 
 const scrapedImages = ref<Map<string, string>>(new Map())
+const proxiedImages = ref<Map<string, string>>(new Map())
+const pendingProxyLoads = new Set<string>()
+const objectUrls = new Set<string>()
 
-function proxyImageUrl(url: string): string {
+async function loadProxiedImage(url: string) {
+  if (!url || pendingProxyLoads.has(url)) return
+  pendingProxyLoads.add(url)
+  try {
+    const res = await proxyImage(url)
+    const blob = res.data
+    if (!(blob instanceof Blob) || blob.size === 0) {
+      proxiedImages.value.set(url, '')
+      return
+    }
+    const objectUrl = URL.createObjectURL(blob)
+    objectUrls.add(objectUrl)
+    proxiedImages.value.set(url, objectUrl)
+  } catch (err) {
+    console.warn('Failed to proxy suggestion image', err)
+    proxiedImages.value.set(url, '')
+  } finally {
+    pendingProxyLoads.delete(url)
+  }
+}
+
+function getOrLoadProxiedUrl(url: string): string {
   if (!url) return ''
-  return `/api/proxy-image?url=${encodeURIComponent(url)}`
+  const cached = proxiedImages.value.get(url)
+  if (cached !== undefined) return cached
+  proxiedImages.value.set(url, '')
+  void loadProxiedImage(url)
+  return ''
 }
 
 function getSuggestionImageUrl(coin: CoinSuggestion): string {
   if (coin.sourceUrl) {
     const cached = scrapedImages.value.get(coin.sourceUrl)
-    if (cached) return proxyImageUrl(cached)
+    if (cached) return getOrLoadProxiedUrl(cached)
     if (cached === undefined) {
       scrapedImages.value.set(coin.sourceUrl, '')
       scrapeImage(coin.sourceUrl).then((res) => {
         if (res.data.imageUrl) {
           scrapedImages.value.set(coin.sourceUrl, res.data.imageUrl)
+          void loadProxiedImage(res.data.imageUrl)
         } else if (coin.imageUrl) {
           scrapedImages.value.set(coin.sourceUrl, coin.imageUrl)
+          void loadProxiedImage(coin.imageUrl)
         }
       }).catch(() => {
         if (coin.imageUrl) {
           scrapedImages.value.set(coin.sourceUrl, coin.imageUrl)
+          void loadProxiedImage(coin.imageUrl)
         }
       })
     }
     return ''
   }
-  if (coin.imageUrl) return proxyImageUrl(coin.imageUrl)
+  if (coin.imageUrl) return getOrLoadProxiedUrl(coin.imageUrl)
   return ''
 }
 
@@ -85,6 +116,16 @@ function handleImgError(e: Event) {
   const img = e.target as HTMLImageElement
   img.style.display = 'none'
 }
+
+onBeforeUnmount(() => {
+  for (const objectUrl of objectUrls) {
+    URL.revokeObjectURL(objectUrl)
+  }
+  objectUrls.clear()
+  pendingProxyLoads.clear()
+  proxiedImages.value.clear()
+  scrapedImages.value.clear()
+})
 </script>
 
 <style scoped>

@@ -22,8 +22,8 @@
         <div v-if="error" class="error-msg">{{ error }}</div>
 
         <div v-if="preview" class="import-preview">
-          <div class="preview-image-container" v-if="preview.imageUrl">
-            <img :src="proxiedUrl(preview.imageUrl)" :alt="preview.title" class="preview-image" />
+          <div class="preview-image-container" v-if="preview.imageUrl && proxiedImageUrl">
+            <img :src="proxiedImageUrl" :alt="preview.title" class="preview-image" />
           </div>
           <div class="preview-details">
             <h4>{{ preview.title }}</h4>
@@ -46,8 +46,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { importAuctionLot, scrapeImage } from '@/api/client'
+import { useProxiedImage } from '@/composables/useProxiedImage'
 import type { AuctionLot } from '@/types'
 import { X, Loader2 } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
@@ -57,18 +58,12 @@ const emit = defineEmits<{
   imported: [lot: AuctionLot]
 }>()
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 const url = ref('')
 const importing = ref(false)
 const error = ref('')
 const preview = ref<AuctionLot | null>(null)
-
-
-function proxiedUrl(imageUrl: string): string {
-  if (!imageUrl) return ''
-  const token = localStorage.getItem('token') ?? ''
-  return `${API_BASE}/api/proxy-image?url=${encodeURIComponent(imageUrl)}&token=${encodeURIComponent(token)}`
-}
+const previewSourceUrl = computed(() => preview.value?.imageUrl ?? '')
+const { proxiedImageUrl } = useProxiedImage(previewSourceUrl)
 
 async function handleImport() {
   if (!url.value) return

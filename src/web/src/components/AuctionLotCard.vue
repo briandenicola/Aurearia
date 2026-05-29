@@ -1,7 +1,7 @@
 <template>
   <div class="lot-card card" :class="{ 'lot-card-selected': selectable && selected }" @click="handleClick">
     <div class="lot-image-container">
-      <img v-if="lot.imageUrl" :src="proxiedImageUrl" :alt="lot.title" class="lot-image" loading="lazy" />
+      <img v-if="proxiedImageUrl" :src="proxiedImageUrl" :alt="lot.title" class="lot-image" loading="lazy" />
       <div v-else class="lot-image-placeholder"><Gavel :size="48" :stroke-width="1" /></div>
       <span class="lot-status-badge" :class="`status-${lot.status}`">{{ statusLabel }}</span>
       <div v-if="selectable" class="select-checkbox" :class="{ checked: selected }" @click.stop="emit('toggle-select', lot.id)">
@@ -44,6 +44,7 @@ import type { AuctionLot } from '@/types'
 import { computed } from 'vue'
 import { Gavel, Check } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
+import { useProxiedImage } from '@/composables/useProxiedImage'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 const props = withDefaults(defineProps<{
@@ -67,13 +68,8 @@ function handleClick() {
   }
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
-
-const proxiedImageUrl = computed(() => {
-  if (!props.lot.imageUrl) return ''
-  const token = localStorage.getItem('token') ?? ''
-  return `${API_BASE}/api/proxy-image?url=${encodeURIComponent(props.lot.imageUrl)}&token=${encodeURIComponent(token)}`
-})
+const lotImageSource = computed(() => props.lot.imageUrl ?? '')
+const { proxiedImageUrl } = useProxiedImage(lotImageSource)
 const statusLabel = computed(() => {
   const labels: Record<string, string> = {
     watching: 'Watching',

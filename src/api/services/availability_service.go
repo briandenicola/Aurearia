@@ -13,7 +13,9 @@ import (
 const (
 	availabilityHTTPTimeout = 10 * time.Second
 	availabilityRateDelay   = 750 * time.Millisecond
-	availabilityUserAgent   = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+	// Keep in sync with src/agent/app/models/requests.py MAX_AVAILABILITY_ITEMS.
+	availabilityAgentBatchSize = 10
+	availabilityUserAgent      = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
 		"AppleWebKit/537.36 (KHTML, like Gecko) " +
 		"Chrome/131.0.0.0 Safari/537.36"
 )
@@ -151,6 +153,7 @@ func (s *AvailabilityService) CheckWishlistForUser(
 	// Track results and ambiguous items for agent escalation
 	var allResults []coinResult
 	var ambiguousItems []AvailabilityCheckProxyItem
+	seenAmbiguousURLs := make(map[string]struct{})
 
 	for i, coin := range coins {
 		result, _ := s.CheckURL(coin.ReferenceURL)
@@ -174,10 +177,13 @@ func (s *AvailabilityService) CheckWishlistForUser(
 
 		// Collect ambiguous results for agent escalation
 		if result.Status == "unknown" && result.HttpStatus != nil && *result.HttpStatus == 200 {
-			ambiguousItems = append(ambiguousItems, AvailabilityCheckProxyItem{
-				URL:      coin.ReferenceURL,
-				CoinName: coin.Name,
-			})
+			if _, exists := seenAmbiguousURLs[coin.ReferenceURL]; !exists {
+				ambiguousItems = append(ambiguousItems, AvailabilityCheckProxyItem{
+					URL:      coin.ReferenceURL,
+					CoinName: coin.Name,
+				})
+				seenAmbiguousURLs[coin.ReferenceURL] = struct{}{}
+			}
 		}
 
 		s.logger.Debug("availability", "Coin %d (%s): %s — %s", coin.ID, coin.Name, result.Status, result.Reason)
@@ -261,43 +267,53 @@ func (s *AvailabilityService) escalateToAgent(
 		SearXNGURL: s.settingsSvc.GetSetting(SettingSearXNGURL),
 	}
 
-	req := AvailabilityCheckProxyRequest{
-		LLM:   llmConfig,
-		Items: ambiguousItems,
-	}
+	resolvedURLs := make(map[string]struct{})
+	for start := 0; start < len(ambiguousItems); start += availabilityAgentBatchSize {
+		end := start + availabilityAgentBatchSize
+		if end > len(ambiguousItems) {
+			end = len(ambiguousItems)
+		}
+		batch := ambiguousItems[start:end]
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
+		req := AvailabilityCheckProxyRequest{
+			LLM:   llmConfig,
+			Items: batch,
+		}
 
-	resp, err := s.agentProxy.CheckAvailability(ctx, req)
-	if err != nil {
-		s.logger.Warn("availability", "Agent escalation failed (graceful fallback): %s", err)
-		return
-	}
-
-	// Build a lookup from URL → agent verdict
-	verdictMap := make(map[string]AvailabilityVerdictProxy)
-	for _, v := range resp.Results {
-		verdictMap[v.URL] = v
-	}
-
-	// Update allResults with agent verdicts
-	for i := range allResults {
-		cr := &allResults[i]
-		verdict, ok := verdictMap[cr.coin.ReferenceURL]
-		if !ok {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		resp, err := s.agentProxy.CheckAvailability(ctx, req)
+		cancel()
+		if err != nil {
+			s.logger.Warn("availability", "Agent escalation batch %d-%d failed (graceful fallback): %s", start+1, end, err)
 			continue
 		}
 
-		cr.dbResult.Status = verdict.Status
-		cr.dbResult.Reason = fmt.Sprintf("[Agent] %s", verdict.Reason)
-		cr.dbResult.AgentUsed = true
+		// Build a lookup from URL → agent verdict for this batch.
+		verdictMap := make(map[string]AvailabilityVerdictProxy)
+		for _, v := range resp.Results {
+			verdictMap[v.URL] = v
+		}
 
-		// Update the DB result record
-		s.availRepo.UpdateResult(cr.dbResult)
+		// Update allResults with agent verdicts.
+		for i := range allResults {
+			cr := &allResults[i]
+			verdict, ok := verdictMap[cr.coin.ReferenceURL]
+			if !ok {
+				continue
+			}
+
+			cr.dbResult.Status = verdict.Status
+			cr.dbResult.Reason = fmt.Sprintf("[Agent] %s", verdict.Reason)
+			cr.dbResult.AgentUsed = true
+			resolvedURLs[cr.coin.ReferenceURL] = struct{}{}
+
+			if err := s.availRepo.UpdateResult(cr.dbResult); err != nil {
+				s.logger.Warn("availability", "Failed to persist agent verdict for coin %d: %s", cr.coin.ID, err)
+			}
+		}
 	}
 
-	s.logger.Info("availability", "Agent resolved %d/%d ambiguous URLs", len(resp.Results), len(ambiguousItems))
+	s.logger.Info("availability", "Agent resolved %d/%d ambiguous URLs", len(resolvedURLs), len(ambiguousItems))
 }
 
 // notifyRunComplete sends a Pushover notification with run details.

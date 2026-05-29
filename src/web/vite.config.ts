@@ -61,10 +61,11 @@ export default defineConfig({
             method: 'DELETE',
           },
           {
-            urlPattern: /^https?:\/\/.*\/api\//,
+            // Cache only public showcase reads; all authenticated API reads stay network-only.
+            urlPattern: /^https?:\/\/.*\/api\/showcase(?:\/.*)?$/,
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'api-cache',
+              cacheName: 'showcase-api-cache',
               expiration: {
                 maxEntries: 50,
                 maxAgeSeconds: 300,

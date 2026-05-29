@@ -33,48 +33,54 @@ function processQueue(error: unknown, token: string | null) {
   failedQueue = []
 }
 
+async function refreshAccessToken(): Promise<string> {
+  const refreshToken = localStorage.getItem('refreshToken')
+  if (!refreshToken) {
+    clearAuth()
+    throw new Error('Missing refresh token')
+  }
+
+  if (isRefreshing) {
+    return new Promise((resolve, reject) => {
+      failedQueue.push({ resolve, reject })
+    })
+  }
+
+  isRefreshing = true
+  try {
+    const res = await axios.post<AuthResponse>(`${API_BASE}/api/auth/refresh`, { refreshToken })
+    const { token, refreshToken: newRefresh, user } = res.data
+    localStorage.setItem('token', token)
+    localStorage.setItem('refreshToken', newRefresh)
+    localStorage.setItem('user', JSON.stringify(user))
+    _onTokenRefreshed?.(res.data)
+    processQueue(null, token)
+    return token
+  } catch (refreshError) {
+    processQueue(refreshError, null)
+    clearAuth()
+    throw refreshError
+  } finally {
+    isRefreshing = false
+  }
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
     if (error.response?.status === 401 && !originalRequest._retry) {
-      const refreshToken = localStorage.getItem('refreshToken')
-      if (!refreshToken) {
-        clearAuth()
-        return Promise.reject(error)
-      }
-
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({
-            resolve: (token: string) => {
-              originalRequest.headers.Authorization = `Bearer ${token}`
-              resolve(api(originalRequest))
-            },
-            reject,
-          })
-        })
-      }
-
       originalRequest._retry = true
-      isRefreshing = true
 
       try {
-        const res = await axios.post<AuthResponse>(`${API_BASE}/api/auth/refresh`, { refreshToken })
-        const { token, refreshToken: newRefresh, user } = res.data
-        localStorage.setItem('token', token)
-        localStorage.setItem('refreshToken', newRefresh)
-        localStorage.setItem('user', JSON.stringify(user))
-        _onTokenRefreshed?.(res.data)
-        processQueue(null, token)
-        originalRequest.headers.Authorization = `Bearer ${token}`
+        const token = await refreshAccessToken()
+        originalRequest.headers = {
+          ...(originalRequest.headers ?? {}),
+          Authorization: `Bearer ${token}`,
+        }
         return api(originalRequest)
-      } catch (refreshError) {
-        processQueue(refreshError, null)
-        clearAuth()
+      } catch (refreshError: unknown) {
         return Promise.reject(refreshError)
-      } finally {
-        isRefreshing = false
       }
     }
     return Promise.reject(error)
@@ -181,14 +187,31 @@ export async function agentChatStream(
   onError: (error: string) => void,
   onStatus?: (status: string) => void,
 ) {
-  const token = localStorage.getItem('token')
   const baseURL = import.meta.env.VITE_API_BASE_URL || ''
+
+  async function fetchWithAuthRetry(url: string, init: RequestInit): Promise<Response> {
+    const firstHeaders = new Headers(init.headers ?? {})
+    const token = localStorage.getItem('token')
+    if (token) {
+      firstHeaders.set('Authorization', `Bearer ${token}`)
+    }
+
+    const firstResp = await fetch(url, { ...init, headers: firstHeaders })
+    if (firstResp.status !== 401) {
+      return firstResp
+    }
+
+    const refreshedToken = await refreshAccessToken()
+    const retryHeaders = new Headers(init.headers ?? {})
+    retryHeaders.set('Authorization', `Bearer ${refreshedToken}`)
+    return fetch(url, { ...init, headers: retryHeaders })
+  }
+
   try {
-    const resp = await fetch(`${baseURL}/api/agent/chat`, {
+    const resp = await fetchWithAuthRetry(`${baseURL}/api/agent/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ message, history }),
     })
@@ -204,6 +227,42 @@ export async function agentChatStream(
 
     const decoder = new TextDecoder()
     let buffer = ''
+    let accumulatedText = ''
+    let terminalSent = false
+
+    const sendDone = (finalMessage?: string, suggestions?: CoinSuggestion[]) => {
+      if (terminalSent) return
+      terminalSent = true
+      onDone(finalMessage || accumulatedText, Array.isArray(suggestions) ? suggestions : [])
+    }
+
+    const sendError = (message: string) => {
+      if (terminalSent) return
+      terminalSent = true
+      onError(message)
+    }
+
+    const handleDataLine = (line: string) => {
+      if (!line.startsWith('data:')) return
+      const data = line.replace(/^data:\s*/, '').trim()
+      if (!data || data === '[DONE]') return
+
+      try {
+        const event = JSON.parse(data)
+        if (event.type === 'text' && typeof event.text === 'string') {
+          accumulatedText += event.text
+          onText(event.text)
+        } else if (event.type === 'status' && typeof event.message === 'string') {
+          onStatus?.(event.message)
+        } else if (event.type === 'done') {
+          sendDone(typeof event.message === 'string' ? event.message : undefined, event.suggestions)
+        } else if (event.type === 'error') {
+          sendError(typeof event.message === 'string' ? event.message : 'Agent stream error')
+        }
+      } catch {
+        // Ignore malformed stream chunks.
+      }
+    }
 
     while (true) {
       const { done, value } = await reader.read()
@@ -215,20 +274,20 @@ export async function agentChatStream(
       buffer = lines.pop() || ''
 
       for (const line of lines) {
-        if (!line.startsWith('data: ')) continue
-        const data = line.slice(6).trim()
-        if (!data || data === '[DONE]') continue
+        handleDataLine(line)
+      }
+    }
 
-        try {
-          const event = JSON.parse(data)
-          if (event.type === 'text') {
-            onText(event.text)
-          } else if (event.type === 'status') {
-            onStatus?.(event.message)
-          } else if (event.type === 'done') {
-            onDone(event.message, event.suggestions || [])
-          }
-        } catch { /* skip malformed events */ }
+    buffer += decoder.decode()
+    if (buffer.trim()) {
+      handleDataLine(buffer.trim())
+    }
+
+    if (!terminalSent) {
+      if (accumulatedText.trim()) {
+        sendDone(accumulatedText, [])
+      } else {
+        sendError('Stream ended unexpectedly')
       }
     }
   } catch (err: unknown) {

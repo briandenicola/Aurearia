@@ -69,8 +69,14 @@ func (r *AuthRepository) CreateRefreshToken(rt *models.RefreshToken) error {
 func (r *AuthRepository) RotateRefreshToken(old *models.RefreshToken, newToken *models.RefreshToken) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
-		if err := tx.Model(old).Update("revoked_at", &now).Error; err != nil {
-			return err
+		update := tx.Model(&models.RefreshToken{}).
+			Where("id = ? AND revoked_at IS NULL", old.ID).
+			Update("revoked_at", &now)
+		if update.Error != nil {
+			return update.Error
+		}
+		if update.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
 		}
 		return tx.Create(newToken).Error
 	})

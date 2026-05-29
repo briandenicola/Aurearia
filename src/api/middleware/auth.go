@@ -31,13 +31,8 @@ func AuthRequired(jwtSecret string, apiKeyAuth ApiKeyAuthenticator) gin.HandlerF
 			return
 		}
 
-		// Fall back to JWT bearer auth (header or query param for image proxy)
+		// Fall back to JWT bearer auth
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			if tokenParam := c.Query("token"); tokenParam != "" {
-				authHeader = "Bearer " + tokenParam
-			}
-		}
 		if authHeader == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
 			return

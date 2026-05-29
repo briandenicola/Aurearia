@@ -11,7 +11,7 @@
         </div>
       </div>
 
-      <div v-if="lot.imageUrl" class="detail-image-container">
+      <div v-if="proxiedImageUrl" class="detail-image-container">
         <img :src="proxiedImageUrl" :alt="lot.title" class="detail-image" />
       </div>
 
@@ -185,6 +185,7 @@
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { updateAuctionLotStatus, updateAuctionLot, convertAuctionLotToCoin, deleteAuctionLot, listCalendarEvents, linkAuctionLotEvent } from '@/api/client'
+import { useProxiedImage } from '@/composables/useProxiedImage'
 import type { AuctionLot, AuctionLotStatus } from '@/types'
 import { X, ExternalLink, ArrowRightCircle, Trash2, CalendarDays, Pencil } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
@@ -200,18 +201,14 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
-const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
 const newStatus = ref<AuctionLotStatus>(props.lot.status)
 const maxBidInput = ref<number | null>(props.lot.maxBid ?? null)
 const calendarEvents = ref<Array<{ id: number; title: string; auctionHouse: string; startDate: string | null }>>([])
 const selectedEventId = ref<number | string>(props.lot.eventId ?? '')
 
-const proxiedImageUrl = computed(() => {
-  if (!props.lot.imageUrl) return ''
-  const token = localStorage.getItem('token') ?? ''
-  return `${API_BASE}/api/proxy-image?url=${encodeURIComponent(props.lot.imageUrl)}&token=${encodeURIComponent(token)}`
-})
+const lotImageSource = computed(() => props.lot.imageUrl ?? '')
+const { proxiedImageUrl } = useProxiedImage(lotImageSource)
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })

@@ -61,8 +61,8 @@
           <h3 class="group-title lot-accent">Auction Lots</h3>
           <div v-for="lot in lots" :key="'lot-' + lot.id" class="card event-card">
             <div class="event-card-body">
-              <div v-if="lot.imageUrl" class="lot-thumb-container">
-                <img :src="lot.imageUrl" class="lot-thumb" alt="" />
+              <div v-if="getProxiedImageUrl(lot.imageUrl)" class="lot-thumb-container">
+                <img :src="getProxiedImageUrl(lot.imageUrl)" class="lot-thumb" alt="" />
               </div>
               <div class="event-info">
                 <h4>{{ lot.title }}</h4>
@@ -162,8 +162,8 @@
           <h3 class="linked-lots-title">Linked Auction Lots <span v-if="linkedLots.length" class="linked-count">{{ linkedLots.length }}</span></h3>
           <div v-if="linkedLots.length" class="linked-lots-list">
             <div v-for="lot in linkedLots" :key="lot.id" class="linked-lot-item">
-              <div v-if="lot.imageUrl" class="lot-thumb-container">
-                <img :src="proxiedUrl(lot.imageUrl)" class="lot-thumb" alt="" />
+              <div v-if="getProxiedImageUrl(lot.imageUrl)" class="lot-thumb-container">
+                <img :src="getProxiedImageUrl(lot.imageUrl)" class="lot-thumb" alt="" />
               </div>
               <div class="linked-lot-info">
                 <span class="linked-lot-title">{{ lot.title }}</span>
@@ -230,12 +230,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import {
   Plus, ChevronLeft, ChevronRight, X, Trash2,
   ExternalLink, Building, Calendar as CalendarIcon
 } from 'lucide-vue-next'
-import { getCalendar, getCalendarEvent, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '@/api/client'
+import { getCalendar, getCalendarEvent, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, proxyImage } from '@/api/client'
 import type { AuctionLot } from '@/types'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
@@ -288,6 +288,9 @@ const selectedEvent = ref<CalendarEvent | null>(null)
 const linkedLots = ref<AuctionLot[]>([])
 const savingEvent = ref(false)
 const editEvent = ref({ title: '', auctionHouse: '', startDate: '', endDate: '', url: '', notes: '' })
+const proxiedImageBySource = ref<Map<string, string>>(new Map())
+const pendingProxyLoads = new Set<string>()
+const objectUrls = new Set<string>()
 
 const newEvent = ref({
   title: '',
@@ -443,11 +446,36 @@ async function handleDeleteEvent(id: number) {
   }
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+async function loadProxiedImage(imageUrl: string) {
+  if (!imageUrl || pendingProxyLoads.has(imageUrl)) return
+  pendingProxyLoads.add(imageUrl)
+  try {
+    const res = await proxyImage(imageUrl)
+    const blob = res.data
+    if (!(blob instanceof Blob) || blob.size === 0) {
+      proxiedImageBySource.value.set(imageUrl, '')
+      return
+    }
+    const objectUrl = URL.createObjectURL(blob)
+    objectUrls.add(objectUrl)
+    proxiedImageBySource.value.set(imageUrl, objectUrl)
+  } catch (err) {
+    console.warn('Failed to proxy calendar image', err)
+    proxiedImageBySource.value.set(imageUrl, '')
+  } finally {
+    pendingProxyLoads.delete(imageUrl)
+  }
+}
 
-function proxiedUrl(imageUrl: string) {
-  const token = localStorage.getItem('token') ?? ''
-  return `${API_BASE}/api/proxy-image?url=${encodeURIComponent(imageUrl)}&token=${encodeURIComponent(token)}`
+function getProxiedImageUrl(imageUrl: string | undefined) {
+  if (!imageUrl) return ''
+  const cached = proxiedImageBySource.value.get(imageUrl)
+  if (cached !== undefined) {
+    return cached
+  }
+  proxiedImageBySource.value.set(imageUrl, '')
+  void loadProxiedImage(imageUrl)
+  return ''
 }
 
 function toDateInput(dateStr?: string | null): string {
@@ -496,6 +524,15 @@ async function handleUpdateEvent() {
 watch([currentYear, currentMonth], () => loadCalendar())
 
 onMounted(loadCalendar)
+
+onBeforeUnmount(() => {
+  for (const objectUrl of objectUrls) {
+    URL.revokeObjectURL(objectUrl)
+  }
+  objectUrls.clear()
+  pendingProxyLoads.clear()
+  proxiedImageBySource.value.clear()
+})
 
 const pullContainer = ref<HTMLElement | null>(null)
 const { pullDistance, refreshing } = usePullToRefresh(pullContainer, async () => {

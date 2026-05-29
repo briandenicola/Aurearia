@@ -11,6 +11,7 @@ import (
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 const (
@@ -19,10 +20,10 @@ const (
 )
 
 var (
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrUsernameExists     = errors.New("username already exists")
-	ErrHashingFailed      = errors.New("failed to hash password")
-	ErrTokenGeneration    = errors.New("failed to generate token")
+	ErrInvalidCredentials  = errors.New("invalid credentials")
+	ErrUsernameExists      = errors.New("username already exists")
+	ErrHashingFailed       = errors.New("failed to hash password")
+	ErrTokenGeneration     = errors.New("failed to generate token")
 	ErrInvalidRefreshToken = errors.New("invalid refresh token")
 	ErrRefreshTokenExpired = errors.New("refresh token expired")
 )
@@ -150,6 +151,9 @@ func (s *AuthService) RotateTokens(oldPlainToken string) (*models.User, string, 
 	}
 
 	if err := s.repo.RotateRefreshToken(rt, &newRT); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, "", "", ErrInvalidRefreshToken
+		}
 		return nil, "", "", err
 	}
 
