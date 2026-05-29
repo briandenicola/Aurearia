@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -19,14 +21,32 @@ import (
 )
 
 type WebAuthnHandler struct {
-	webAuthn  *webauthn.WebAuthn
-	auth      *AuthHandler
-	repo      *repository.WebAuthnRepository
-	rpID      string
-	rpOrigins []string
-	sessions  map[string]*webauthn.SessionData
-	sessionMu sync.RWMutex
-	logger    *services.Logger
+	webAuthn   *webauthn.WebAuthn
+	auth       *AuthHandler
+	repo       *repository.WebAuthnRepository
+	rpID       string
+	rpOrigins  []string
+	sessions   map[string]webauthnCeremonySession
+	sessionMu  sync.RWMutex
+	sessionTTL time.Duration
+	now        func() time.Time
+	logger     *services.Logger
+}
+
+type webauthnSessionState int
+
+const (
+	webauthnSessionStateMissing webauthnSessionState = iota
+	webauthnSessionStateExpired
+)
+
+const webauthnSessionTTL = 5 * time.Minute
+
+var errWebAuthnOriginNotAllowed = errors.New("webauthn origin not allowed")
+
+type webauthnCeremonySession struct {
+	data      *webauthn.SessionData
+	expiresAt time.Time
 }
 
 // webAuthnUser wraps our User model to satisfy the webauthn.User interface.
@@ -44,8 +64,8 @@ func (u *webAuthnUser) WebAuthnID() []byte {
 	return buf
 }
 
-func (u *webAuthnUser) WebAuthnName() string        { return u.user.Username }
-func (u *webAuthnUser) WebAuthnDisplayName() string  { return u.user.Username }
+func (u *webAuthnUser) WebAuthnName() string                       { return u.user.Username }
+func (u *webAuthnUser) WebAuthnDisplayName() string                { return u.user.Username }
 func (u *webAuthnUser) WebAuthnCredentials() []webauthn.Credential { return u.credentials }
 
 func NewWebAuthnHandler(rpID, rpOrigin string, authHandler *AuthHandler, repo *repository.WebAuthnRepository, logger *services.Logger) (*WebAuthnHandler, error) {
@@ -72,20 +92,19 @@ func NewWebAuthnHandler(rpID, rpOrigin string, authHandler *AuthHandler, repo *r
 	}
 
 	return &WebAuthnHandler{
-		webAuthn:  w,
-		auth:      authHandler,
-		repo:      repo,
-		rpID:      rpID,
-		rpOrigins: origins,
-		sessions:  make(map[string]*webauthn.SessionData),
-		logger:    logger,
+		webAuthn:   w,
+		auth:       authHandler,
+		repo:       repo,
+		rpID:       rpID,
+		rpOrigins:  origins,
+		sessions:   make(map[string]webauthnCeremonySession),
+		sessionTTL: webauthnSessionTTL,
+		now:        time.Now,
+		logger:     logger,
 	}, nil
 }
 
-// getWebAuthnForRequest returns a WebAuthn instance configured with the request's
-// actual origin. This handles cases where the app is accessed from a different
-// origin than the configured default (e.g., PWA on a mobile device).
-func (h *WebAuthnHandler) getWebAuthnForRequest(c *gin.Context) *webauthn.WebAuthn {
+func (h *WebAuthnHandler) requestOrigin(c *gin.Context) string {
 	origin := c.GetHeader("Origin")
 	if origin == "" {
 		// Derive origin from the request
@@ -97,38 +116,79 @@ func (h *WebAuthnHandler) getWebAuthnForRequest(c *gin.Context) *webauthn.WebAut
 		}
 		origin = scheme + "://" + c.Request.Host
 	}
+	return origin
+}
 
-	// Check if the origin is already in the configured list
+func (h *WebAuthnHandler) isOriginAllowed(origin string) bool {
 	for _, o := range h.rpOrigins {
 		if o == origin {
-			return h.webAuthn
+			return true
 		}
 	}
+	return false
+}
 
-	// Origin not in configured list — create instance with this origin included
-	logger := h.logger
-	logger.Info("webauthn", "Request origin %q not in configured origins %v, adding dynamically", origin, h.rpOrigins)
-
-	allOrigins := append([]string{}, h.rpOrigins...)
-	allOrigins = append(allOrigins, origin)
-
-	wconfig := &webauthn.Config{
-		RPDisplayName: "Ancient Coins",
-		RPID:          h.rpID,
-		RPOrigins:     allOrigins,
-		AuthenticatorSelection: protocol.AuthenticatorSelection{
-			AuthenticatorAttachment: protocol.Platform,
-			ResidentKey:             protocol.ResidentKeyRequirementPreferred,
-			UserVerification:        protocol.VerificationPreferred,
-		},
+func (h *WebAuthnHandler) validateRequestOrigin(c *gin.Context) error {
+	origin := h.requestOrigin(c)
+	if h.isOriginAllowed(origin) {
+		return nil
 	}
 
-	w, err := webauthn.New(wconfig)
-	if err != nil {
-		logger.Error("webauthn", "Failed to create WebAuthn with origin %q: %v", origin, err)
-		return h.webAuthn
+	h.logger.Warn("webauthn", "Rejected request from disallowed origin %q; allowed origins: %v", origin, h.rpOrigins)
+	return fmt.Errorf("%w: %s", errWebAuthnOriginNotAllowed, origin)
+}
+
+func (h *WebAuthnHandler) cleanupExpiredSessionsLocked(now time.Time) {
+	for key, session := range h.sessions {
+		if !session.expiresAt.After(now) {
+			delete(h.sessions, key)
+		}
 	}
-	return w
+}
+
+func (h *WebAuthnHandler) storeSession(key string, session *webauthn.SessionData) {
+	now := h.now()
+	expiresAt := now.Add(h.sessionTTL)
+	if !session.Expires.IsZero() && session.Expires.Before(expiresAt) {
+		expiresAt = session.Expires
+	}
+
+	h.sessionMu.Lock()
+	defer h.sessionMu.Unlock()
+
+	h.cleanupExpiredSessionsLocked(now)
+	h.sessions[key] = webauthnCeremonySession{
+		data:      session,
+		expiresAt: expiresAt,
+	}
+}
+
+func (h *WebAuthnHandler) loadSession(key string) (*webauthn.SessionData, webauthnSessionState, bool) {
+	now := h.now()
+
+	h.sessionMu.Lock()
+	defer h.sessionMu.Unlock()
+
+	session, ok := h.sessions[key]
+	if !ok {
+		h.cleanupExpiredSessionsLocked(now)
+		return nil, webauthnSessionStateMissing, false
+	}
+
+	if !session.expiresAt.After(now) {
+		delete(h.sessions, key)
+		h.cleanupExpiredSessionsLocked(now)
+		return nil, webauthnSessionStateExpired, false
+	}
+
+	h.cleanupExpiredSessionsLocked(now)
+	return session.data, 0, true
+}
+
+func (h *WebAuthnHandler) deleteSession(key string) {
+	h.sessionMu.Lock()
+	defer h.sessionMu.Unlock()
+	delete(h.sessions, key)
 }
 
 func (h *WebAuthnHandler) loadCredentials(userID uint) []webauthn.Credential {
@@ -183,9 +243,7 @@ func (h *WebAuthnHandler) RegisterBegin(c *gin.Context) {
 	}
 
 	// Store session keyed by user ID
-	h.sessionMu.Lock()
-	h.sessions[sessionKey("reg", userID)] = session
-	h.sessionMu.Unlock()
+	h.storeSession(sessionKey("reg", userID), session)
 
 	c.JSON(http.StatusOK, options)
 }
@@ -200,8 +258,9 @@ func (h *WebAuthnHandler) RegisterBegin(c *gin.Context) {
 //	@Param			body	body		map[string]interface{}	true	"Credential attestation response"
 //	@Success		200		{object}	map[string]interface{}
 //	@Failure		400		{object}	ErrorResponse
-//	@Failure		401		{object}	ErrorResponse
-//	@Failure		500		{object}	ErrorResponse
+//	@Failure		403	{object}	ErrorResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
 //	@Security		BearerAuth
 //	@Router			/auth/webauthn/register/finish [post]
 func (h *WebAuthnHandler) RegisterFinish(c *gin.Context) {
@@ -216,11 +275,24 @@ func (h *WebAuthnHandler) RegisterFinish(c *gin.Context) {
 	}
 	user = *found
 
-	h.sessionMu.RLock()
-	session, ok := h.sessions[sessionKey("reg", userID)]
-	h.sessionMu.RUnlock()
+	sessionKey := sessionKey("reg", userID)
+	session, state, ok := h.loadSession(sessionKey)
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No registration session found"})
+		switch state {
+		case webauthnSessionStateExpired:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Registration session expired. Please start registration again."})
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Registration session missing. Please start registration again."})
+		}
+		return
+	}
+
+	if err := h.validateRequestOrigin(c); err != nil {
+		if errors.Is(err, errWebAuthnOriginNotAllowed) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "WebAuthn origin not allowed"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request origin"})
 		return
 	}
 
@@ -238,8 +310,7 @@ func (h *WebAuthnHandler) RegisterFinish(c *gin.Context) {
 	}
 	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 
-	w := h.getWebAuthnForRequest(c)
-	credential, err := w.FinishRegistration(wUser, *session, c.Request)
+	credential, err := h.webAuthn.FinishRegistration(wUser, *session, c.Request)
 	if err != nil {
 		logger.Error("webauthn", "Registration failed for user %s: %v", user.Username, err)
 		respondError(c, http.StatusBadRequest, "Registration failed", err)
@@ -247,9 +318,7 @@ func (h *WebAuthnHandler) RegisterFinish(c *gin.Context) {
 	}
 
 	// Clean up session
-	h.sessionMu.Lock()
-	delete(h.sessions, sessionKey("reg", userID))
-	h.sessionMu.Unlock()
+	h.deleteSession(sessionKey)
 
 	// Parse optional name from the pre-read body
 	credName := "Biometric key"
@@ -325,9 +394,7 @@ func (h *WebAuthnHandler) LoginBegin(c *gin.Context) {
 		return
 	}
 
-	h.sessionMu.Lock()
-	h.sessions[sessionKey("login", user.ID)] = session
-	h.sessionMu.Unlock()
+	h.storeSession(sessionKey("login", user.ID), session)
 
 	// Include username so the frontend can pass it back
 	c.JSON(http.StatusOK, gin.H{
@@ -346,6 +413,7 @@ func (h *WebAuthnHandler) LoginBegin(c *gin.Context) {
 //	@Param			body	body		map[string]interface{}	true	"Credential assertion response"
 //	@Success		200		{object}	AuthResponse
 //	@Failure		400		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		500		{object}	ErrorResponse
 //	@Router			/auth/webauthn/login/finish [post]
@@ -367,11 +435,24 @@ func (h *WebAuthnHandler) LoginFinish(c *gin.Context) {
 	}
 	user = *found
 
-	h.sessionMu.RLock()
-	session, ok := h.sessions[sessionKey("login", user.ID)]
-	h.sessionMu.RUnlock()
+	sessionKey := sessionKey("login", user.ID)
+	session, state, ok := h.loadSession(sessionKey)
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No login session found"})
+		switch state {
+		case webauthnSessionStateExpired:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Login session expired. Please start login again."})
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Login session missing. Please start login again."})
+		}
+		return
+	}
+
+	if err := h.validateRequestOrigin(c); err != nil {
+		if errors.Is(err, errWebAuthnOriginNotAllowed) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "WebAuthn origin not allowed"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request origin"})
 		return
 	}
 
@@ -380,8 +461,7 @@ func (h *WebAuthnHandler) LoginFinish(c *gin.Context) {
 		credentials: h.loadCredentials(user.ID),
 	}
 
-	w := h.getWebAuthnForRequest(c)
-	credential, err := w.FinishLogin(wUser, *session, c.Request)
+	credential, err := h.webAuthn.FinishLogin(wUser, *session, c.Request)
 	if err != nil {
 		logger.Error("webauthn", "Login failed for user %s: %v", username, err)
 		respondError(c, http.StatusUnauthorized, "Authentication failed", err)
@@ -389,9 +469,7 @@ func (h *WebAuthnHandler) LoginFinish(c *gin.Context) {
 	}
 
 	// Clean up session
-	h.sessionMu.Lock()
-	delete(h.sessions, sessionKey("login", user.ID))
-	h.sessionMu.Unlock()
+	h.deleteSession(sessionKey)
 
 	// Update sign count
 	credID := base64.RawURLEncoding.EncodeToString(credential.ID)
