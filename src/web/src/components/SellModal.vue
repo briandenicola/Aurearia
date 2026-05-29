@@ -52,7 +52,8 @@ import { ref, onMounted } from 'vue'
 import type { Coin } from '@/types'
 import { formatCurrency } from '@/utils/format'
 
-const props = defineProps<{
+// Props are type-checked but not referenced directly in script
+const _props = defineProps<{
   coin: Coin
 }>()
 

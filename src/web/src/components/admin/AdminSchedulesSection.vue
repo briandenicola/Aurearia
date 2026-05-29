@@ -402,7 +402,8 @@ import {
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'
 import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun } from '@/types'
 
-const props = defineProps<{
+// Props are type-checked but not referenced directly in script
+const _props = defineProps<{
   settings: AppSettings
   settingsSaving: boolean
   availSettingsMsg: string
@@ -430,7 +431,7 @@ function onResize() { isMobile.value = window.innerWidth <= 600 }
 
 const {
   runs: availRuns,
-  total: availTotal,
+  total: _availTotal,
   page: availPage,
   loading: availLoading,
   loadRuns: loadAvailRuns,
@@ -466,7 +467,7 @@ async function toggleRunDetail(runId: number) {
 // Auction Ending
 const {
   runs: auctionRuns,
-  total: auctionTotal,
+  total: _auctionTotal,
   page: auctionPage,
   loading: auctionLoading,
   loadRuns: loadAuctionRuns,
@@ -505,7 +506,7 @@ async function triggerManualAuctionCheck() {
 // Valuation
 const {
   runs: valRuns,
-  total: valTotal,
+  total: _valTotal,
   page: valPage,
   loading: valLoading,
   loadRuns: loadValRunsBase,

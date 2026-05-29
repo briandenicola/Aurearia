@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest'
-import axios from 'axios'
+import type { InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios'
 import type { AuthResponse, Coin } from '@/types'
 
 // We need to mock axios BEFORE importing client
@@ -7,22 +7,28 @@ vi.mock('axios', async () => {
   const create = vi.fn()
 
   // Interceptor registries — we capture the handlers so we can invoke them in tests
-  const requestHandlers: Array<(config: any) => any> = []
-  const responseHandlers: Array<{ onFulfilled: (res: any) => any; onRejected: (err: any) => any }> = []
+  const requestHandlers: Array<(config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig> = []
+  const responseHandlers: Array<{
+    onFulfilled: (res: AxiosResponse) => AxiosResponse
+    onRejected: (err: AxiosError) => Promise<never>
+  }> = []
 
-  const mockInstance: any = {
+  const mockInstance: Record<string, unknown> = {
     get: vi.fn(),
     post: vi.fn(),
     put: vi.fn(),
     delete: vi.fn(),
     interceptors: {
       request: {
-        use: vi.fn((handler: any) => {
+        use: vi.fn((handler: (config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig) => {
           requestHandlers.push(handler)
         }),
       },
       response: {
-        use: vi.fn((onFulfilled: any, onRejected: any) => {
+        use: vi.fn((
+          onFulfilled: (res: AxiosResponse) => AxiosResponse,
+          onRejected: (err: AxiosError) => Promise<never>,
+        ) => {
           responseHandlers.push({ onFulfilled, onRejected })
         }),
       },
@@ -45,8 +51,16 @@ vi.mock('axios', async () => {
 })
 
 // Import after mock is established
+interface MockedAxiosModule {
+  __mockInstance: Record<string, unknown>
+  __requestHandlers: Array<(config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig>
+  __responseHandlers: Array<{
+    onFulfilled: (res: AxiosResponse) => AxiosResponse
+    onRejected: (err: AxiosError) => Promise<never>
+  }>
+}
 const { __mockInstance: mockApi, __requestHandlers: requestHandlers, __responseHandlers: responseHandlers } =
-  await import('axios') as any
+  (await import('axios')) as unknown as MockedAxiosModule
 
 // Now import the client — this triggers interceptor registration
 const client = await import('../client')
@@ -101,11 +115,11 @@ describe('API Client', () => {
 
       const coin: Partial<Coin> = {
         name: 'Denarius',
-        weightGrams: '' as any,
-        diameterMm: '' as any,
-        purchasePrice: '' as any,
-        currentValue: '' as any,
-        purchaseDate: '' as any,
+        weightGrams: '' as unknown as number,
+        diameterMm: '' as unknown as number,
+        purchasePrice: '' as unknown as number,
+        currentValue: '' as unknown as number,
+        purchaseDate: '' as unknown as string,
       }
 
       await client.createCoin(coin)
@@ -177,7 +191,7 @@ describe('API Client', () => {
       const coin: Partial<Coin> = {
         name: 'Tetradrachm',
         purchasePrice: 500,
-        currentValue: '' as any,
+        currentValue: '' as unknown as number,
       }
 
       await client.createCoin(coin)
@@ -191,8 +205,8 @@ describe('API Client', () => {
 
       const coin: Partial<Coin> = {
         name: 'Mystery Coin',
-        purchasePrice: '' as any,
-        currentValue: '' as any,
+        purchasePrice: '' as unknown as number,
+        currentValue: '' as unknown as number,
       }
 
       await client.createCoin(coin)
@@ -235,7 +249,7 @@ describe('API Client', () => {
 
       const coin: Partial<Coin> = {
         name: 'Immutable Coin',
-        weightGrams: '' as any,
+        weightGrams: '' as unknown as number,
         purchaseDate: '2024-01-01',
       }
 
@@ -250,7 +264,7 @@ describe('API Client', () => {
 
       const coin: Partial<Coin> = {
         name: 'Updated Coin',
-        weightGrams: '' as any,
+        weightGrams: '' as unknown as number,
       }
 
       await client.updateCoin(42, coin)
@@ -268,7 +282,7 @@ describe('API Client', () => {
     it('adds Authorization header when token exists in localStorage', () => {
       storageMock['token'] = 'my-jwt-token'
       const interceptor = getRequestInterceptor()
-      const config = { headers: {} as any }
+      const config = { headers: {} } as InternalAxiosRequestConfig
 
       const result = interceptor(config)
 
@@ -277,7 +291,7 @@ describe('API Client', () => {
 
     it('does not add Authorization header when no token', () => {
       const interceptor = getRequestInterceptor()
-      const config = { headers: {} as any }
+      const config = { headers: {} } as InternalAxiosRequestConfig
 
       const result = interceptor(config)
 
@@ -317,12 +331,7 @@ describe('API Client', () => {
       ;(defaultAxios.post as Mock).mockResolvedValue({ data: newAuth })
       mockApi.mockImplementation?.(() => Promise.resolve({ data: 'retried' }))
 
-      // Make mockApi callable for the retry
-      const originalPost = mockApi.post
-      const callableMock = Object.assign(
-        vi.fn().mockResolvedValue({ data: 'retried' }),
-        mockApi,
-      )
+      // Note: callableMock setup omitted — difficult to test full retry flow with mockApi
 
       const error = {
         response: { status: 401 },

@@ -28,7 +28,8 @@
 import { ref } from 'vue'
 import { Upload } from 'lucide-vue-next'
 
-const props = defineProps<{
+// Props are type-checked but not referenced directly in script
+const _props = defineProps<{
   sourceImage: string | null
   urlLoading: boolean
   inputError: string

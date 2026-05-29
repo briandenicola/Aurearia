@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
+import type { AxiosResponse } from 'axios'
 import type { AuthResponse, User } from '@/types'
 
 // Mock the API client module
@@ -117,7 +118,7 @@ describe('Auth Store', () => {
 
   describe('doLogin', () => {
     it('calls api.login and sets auth state', async () => {
-      vi.mocked(api.login).mockResolvedValue({ data: mockAuthResponse } as any)
+      vi.mocked(api.login).mockResolvedValue({ data: mockAuthResponse } as AxiosResponse<AuthResponse>)
       const store = useAuthStore()
 
       await store.doLogin('testuser', 'password123')
@@ -129,7 +130,7 @@ describe('Auth Store', () => {
     })
 
     it('persists token, refreshToken, and user to localStorage', async () => {
-      vi.mocked(api.login).mockResolvedValue({ data: mockAuthResponse } as any)
+      vi.mocked(api.login).mockResolvedValue({ data: mockAuthResponse } as AxiosResponse<AuthResponse>)
       const store = useAuthStore()
 
       await store.doLogin('testuser', 'password123')
@@ -156,8 +157,8 @@ describe('Auth Store', () => {
       }
 
       vi.mocked(api.login)
-        .mockResolvedValueOnce({ data: firstAuth } as any)
-        .mockResolvedValueOnce({ data: secondAuth } as any)
+        .mockResolvedValueOnce({ data: firstAuth } as AxiosResponse<AuthResponse>)
+        .mockResolvedValueOnce({ data: secondAuth } as AxiosResponse<AuthResponse>)
 
       const store = useAuthStore()
       await store.doLogin('user1', 'pw')
@@ -172,7 +173,7 @@ describe('Auth Store', () => {
 
   describe('doRegister', () => {
     it('calls api.register and sets auth state', async () => {
-      vi.mocked(api.register).mockResolvedValue({ data: mockAuthResponse } as any)
+      vi.mocked(api.register).mockResolvedValue({ data: mockAuthResponse } as AxiosResponse<AuthResponse>)
       const store = useAuthStore()
 
       await store.doRegister('newuser', 'password123', 'new@example.com')
@@ -183,7 +184,7 @@ describe('Auth Store', () => {
     })
 
     it('works without optional email', async () => {
-      vi.mocked(api.register).mockResolvedValue({ data: mockAuthResponse } as any)
+      vi.mocked(api.register).mockResolvedValue({ data: mockAuthResponse } as AxiosResponse<AuthResponse>)
       const store = useAuthStore()
 
       await store.doRegister('newuser', 'password123')
@@ -194,7 +195,7 @@ describe('Auth Store', () => {
 
   describe('logout', () => {
     it('clears all auth state', async () => {
-      vi.mocked(api.login).mockResolvedValue({ data: mockAuthResponse } as any)
+      vi.mocked(api.login).mockResolvedValue({ data: mockAuthResponse } as AxiosResponse<AuthResponse>)
       const store = useAuthStore()
       await store.doLogin('testuser', 'password123')
 
@@ -206,7 +207,7 @@ describe('Auth Store', () => {
     })
 
     it('removes all auth keys from localStorage', async () => {
-      vi.mocked(api.login).mockResolvedValue({ data: mockAuthResponse } as any)
+      vi.mocked(api.login).mockResolvedValue({ data: mockAuthResponse } as AxiosResponse<AuthResponse>)
       const store = useAuthStore()
       await store.doLogin('testuser', 'password123')
 
