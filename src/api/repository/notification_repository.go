@@ -68,3 +68,13 @@ func (r *NotificationRepository) Delete(id, userID uint) error {
 	}
 	return result.Error
 }
+
+// ReplaceByUserAndType removes existing notifications of the same type for a user and creates the new one.
+func (r *NotificationRepository) ReplaceByUserAndType(n *models.Notification) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ? AND type = ?", n.UserID, n.Type).Delete(&models.Notification{}).Error; err != nil {
+			return err
+		}
+		return tx.Create(n).Error
+	})
+}

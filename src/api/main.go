@@ -421,6 +421,10 @@ func main() {
 		coinOfDayAdminHandler := handlers.NewCoinOfDayAdminHandler(coinOfDayScheduler, logger)
 		admin.POST("/coin-of-day/run", coinOfDayAdminHandler.TriggerRun)
 
+		// API key rotation notification trigger
+		apiKeyAdminHandler := handlers.NewApiKeyAdminHandler(apiKeyRepo, notifSvc, logger)
+		admin.POST("/api-keys/notify-rotation", apiKeyAdminHandler.NotifyRotationRequired)
+
 		// Auction ending debug endpoint
 		auctionDebugHandler := handlers.NewAuctionEndingDebugHandler(database.DB, auctionLotRepo)
 		admin.GET("/auction-ending/debug", auctionDebugHandler.DebugGetAuctionEndingInfo)

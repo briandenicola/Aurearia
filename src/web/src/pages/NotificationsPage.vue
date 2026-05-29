@@ -35,6 +35,7 @@
           <AlertTriangle v-if="n.type === 'wishlist_unavailable'" :size="20" />
           <UserPlus v-else-if="n.type === 'friend_new_coin'" :size="20" />
           <Sparkles v-else-if="n.type === 'coin_of_day'" :size="20" />
+          <Key v-else-if="n.type === 'api_key_rotation_required'" :size="20" />
           <Bell v-else :size="20" />
         </div>
         <div class="notification-body">
@@ -69,7 +70,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Bell, BellOff, AlertTriangle, UserPlus, Sparkles, X } from 'lucide-vue-next'
+import { Bell, BellOff, AlertTriangle, UserPlus, Sparkles, Key, X } from 'lucide-vue-next'
 import {
   getNotifications,
   markNotificationRead,
@@ -127,6 +128,10 @@ async function handleClick(n: Notification) {
     router.push(`/coin/${n.referenceId}`)
   } else if (n.type === 'friend_new_coin' && n.referenceId) {
     router.push(`/coin/${n.referenceId}`)
+  } else if (n.type === 'api_key_rotation_required') {
+    router.push('/settings')
+  } else if (n.referenceUrl && n.referenceUrl.startsWith('/')) {
+    router.push(n.referenceUrl)
   }
 }
 

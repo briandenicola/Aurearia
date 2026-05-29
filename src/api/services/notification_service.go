@@ -2,6 +2,8 @@ package services
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -137,6 +139,45 @@ func (s *NotificationService) NotifyCoinOfDay(userID uint, featuredCoinID uint, 
 	}
 
 	go s.sendPushover(userID, title, message, "")
+}
+
+// NotifyAPIKeyRotationRequired creates a single actionable notification that lists
+// active API key names that must be recreated.
+func (s *NotificationService) NotifyAPIKeyRotationRequired(userID uint, keyNames []string) error {
+	if len(keyNames) == 0 {
+		return nil
+	}
+
+	normalized := make([]string, 0, len(keyNames))
+	seen := make(map[string]struct{}, len(keyNames))
+	for _, keyName := range keyNames {
+		name := strings.TrimSpace(keyName)
+		if name == "" {
+			continue
+		}
+		if _, exists := seen[name]; exists {
+			continue
+		}
+		seen[name] = struct{}{}
+		normalized = append(normalized, name)
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	sort.Strings(normalized)
+
+	n := &models.Notification{
+		UserID:       userID,
+		Type:         "api_key_rotation_required",
+		Title:        "Action required: Recreate API keys",
+		Message:      fmt.Sprintf("Recreate these API keys in Settings: %s", strings.Join(normalized, ", ")),
+		ReferenceURL: "/settings",
+	}
+	if err := s.notifRepo.ReplaceByUserAndType(n); err != nil {
+		s.logger.Error("notifications", "Failed to create API key rotation notification for user %d: %v", userID, err)
+		return err
+	}
+	return nil
 }
 
 // sendPushover checks if the user has Pushover enabled and sends a push notification.

@@ -31,6 +31,15 @@ func (r *ApiKeyRepository) ListByUser(userID uint) ([]models.ApiKey, error) {
 	return keys, nil
 }
 
+// ListActive returns all non-revoked API keys across users.
+func (r *ApiKeyRepository) ListActive() ([]models.ApiKey, error) {
+	var keys []models.ApiKey
+	if err := r.db.Where("revoked_at IS NULL").Order("user_id ASC").Order("created_at ASC").Find(&keys).Error; err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
+
 // FindByIDAndUser finds an API key by its ID and owning user.
 func (r *ApiKeyRepository) FindByIDAndUser(keyID uint, userID uint) (*models.ApiKey, error) {
 	var apiKey models.ApiKey

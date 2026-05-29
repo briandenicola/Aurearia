@@ -458,7 +458,7 @@ export interface AuctionEndingRun {
 export interface Notification {
   id: number
   userId: number
-  type: 'wishlist_unavailable' | 'friend_new_coin' | 'coin_of_day'
+  type: 'wishlist_unavailable' | 'friend_new_coin' | 'coin_of_day' | 'api_key_rotation_required'
   title: string
   message: string
   referenceId: number
