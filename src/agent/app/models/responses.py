@@ -1,6 +1,8 @@
 """Response models returned to the Go API proxy."""
 
-from pydantic import BaseModel
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, StringConstraints
 
 
 class CoinSuggestion(BaseModel):
@@ -54,11 +56,11 @@ class AgentResponse(BaseModel):
 class AvailabilityVerdict(BaseModel):
     """AI-determined availability verdict for a single URL."""
 
-    url: str
-    coin_name: str = ""
-    status: str  # "available", "unavailable", "unknown"
-    reason: str = ""
-    confidence: str = "medium"  # "low", "medium", "high"
+    url: Annotated[str, StringConstraints(min_length=1, max_length=2048)]
+    coin_name: Annotated[str, StringConstraints(max_length=300)] = ""
+    status: Literal["available", "unavailable", "unknown"]
+    reason: Annotated[str, StringConstraints(max_length=1000)] = ""
+    confidence: Literal["low", "medium", "high"] = "medium"
 
 
 class AvailabilityCheckResponse(BaseModel):

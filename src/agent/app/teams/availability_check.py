@@ -7,10 +7,11 @@ Phase 2: Use LLM to reason about ambiguous results and produce structured verdic
 import asyncio
 import json
 import logging
-from typing import Annotated, TypedDict
+from typing import Annotated, Sequence, TypedDict
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
+from pydantic import TypeAdapter, ValidationError
 
 from app.llm.provider import get_chat_model
 from app.llm.retry import ainvoke_with_retry
@@ -75,6 +76,17 @@ class AvailabilityCheckState(TypedDict):
     verdicts: str
 
 
+class AvailabilityVerdictParseError(ValueError):
+    """Raised when LLM verdict output is not valid for availability checks."""
+
+
+class AvailabilityCheckInputError(ValueError):
+    """Raised when availability check input violates expected constraints."""
+
+
+_VERDICTS_ADAPTER = TypeAdapter(list[AvailabilityVerdict])
+
+
 def create_availability_check_team(llm_config: LLMConfig):
     """Create the availability check pipeline.
 
@@ -88,8 +100,10 @@ def create_availability_check_team(llm_config: LLMConfig):
         if not items:
             return {"raw_checks": "", "messages": []}
 
-        # Limit batch size
-        items = items[:MAX_ITEMS_PER_BATCH]
+        if len(items) > MAX_ITEMS_PER_BATCH:
+            raise AvailabilityCheckInputError(
+                f"received {len(items)} items; maximum supported is {MAX_ITEMS_PER_BATCH}",
+            )
         logger.debug("[availability] check_urls_node — checking %d URLs", len(items))
 
         # Run verify_url in parallel
@@ -150,26 +164,49 @@ def create_availability_check_team(llm_config: LLMConfig):
     return graph.compile()
 
 
-def parse_verdicts(raw_response: str) -> list[AvailabilityVerdict]:
-    """Extract AvailabilityVerdict objects from the LLM's JSON response."""
-    # Find JSON block
+def _extract_json_payload(raw_response: str) -> str:
+    """Extract the JSON section from fenced or raw LLM output."""
     start = raw_response.find("```json")
     if start != -1:
         start += len("```json")
         end = raw_response.find("```", start)
         if end != -1:
-            json_str = raw_response[start:end].strip()
-        else:
-            json_str = raw_response[start:].strip()
-    else:
-        # Try parsing the whole thing as JSON
-        json_str = raw_response.strip()
+            return raw_response[start:end].strip()
+        return raw_response[start:].strip()
+
+    return raw_response.strip()
+
+
+def parse_verdicts(
+    raw_response: str,
+    expected_items: Sequence[dict[str, str]] | None = None,
+) -> list[AvailabilityVerdict]:
+    """Extract AvailabilityVerdict objects from the LLM's JSON response."""
+    json_str = _extract_json_payload(raw_response)
 
     try:
         data = json.loads(json_str)
-        if isinstance(data, list):
-            return [AvailabilityVerdict(**item) for item in data]
-    except (json.JSONDecodeError, TypeError, ValueError) as e:
-        logger.warning("Failed to parse availability verdicts: %s", e)
+    except json.JSONDecodeError as e:
+        raise AvailabilityVerdictParseError("invalid JSON in verdict output") from e
 
-    return []
+    try:
+        verdicts = _VERDICTS_ADAPTER.validate_python(data)
+    except ValidationError as e:
+        raise AvailabilityVerdictParseError("verdict JSON failed schema validation") from e
+
+    if expected_items is None:
+        return verdicts
+
+    expected_urls = [item["url"] for item in expected_items]
+    actual_urls = [verdict.url for verdict in verdicts]
+
+    if len(verdicts) != len(expected_urls):
+        raise AvailabilityVerdictParseError(
+            f"expected {len(expected_urls)} verdicts but received {len(verdicts)}",
+        )
+    if len(set(actual_urls)) != len(actual_urls):
+        raise AvailabilityVerdictParseError("verdict output contains duplicate URLs")
+    if set(actual_urls) != set(expected_urls):
+        raise AvailabilityVerdictParseError("verdict URLs did not match requested URLs")
+
+    return verdicts

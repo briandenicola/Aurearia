@@ -1,10 +1,14 @@
 """Tests for the availability check endpoint and team pipeline."""
 
+import logging
+
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models.requests import MAX_AVAILABILITY_ITEMS
 from app.models.responses import AvailabilityVerdict
-from app.teams.availability_check import parse_verdicts
+from app.teams.availability_check import AvailabilityVerdictParseError, parse_verdicts
 
 client = TestClient(app)
 
@@ -25,6 +29,17 @@ def test_check_availability_returns_empty_for_no_items():
     assert resp.status_code == 200
     data = resp.json()
     assert data["results"] == []
+
+
+def test_check_availability_rejects_items_over_limit():
+    resp = client.post(
+        "/api/check-availability",
+        json={
+            "llm": {"provider": "anthropic", "api_key": "k", "model": "m"},
+            "items": [{"url": f"https://example.com/{i}"} for i in range(MAX_AVAILABILITY_ITEMS + 1)],
+        },
+    )
+    assert resp.status_code == 422
 
 
 def test_parse_verdicts_valid_json():
@@ -56,8 +71,8 @@ def test_parse_verdicts_valid_json():
 
 
 def test_parse_verdicts_invalid_json():
-    verdicts = parse_verdicts("This is not JSON at all")
-    assert verdicts == []
+    with pytest.raises(AvailabilityVerdictParseError):
+        parse_verdicts("This is not JSON at all")
 
 
 def test_parse_verdicts_no_code_fence():
@@ -65,6 +80,50 @@ def test_parse_verdicts_no_code_fence():
     verdicts = parse_verdicts(raw)
     assert len(verdicts) == 1
     assert verdicts[0].status == "unknown"
+
+
+def test_parse_verdicts_rejects_schema_mismatch():
+    raw = '[{"url": "https://x.com", "status": "maybe", "reason": "ambiguous"}]'
+    with pytest.raises(AvailabilityVerdictParseError):
+        parse_verdicts(raw)
+
+
+def test_parse_verdicts_rejects_unexpected_urls():
+    raw = '[{"url": "https://x.com", "status": "unknown", "reason": "ambiguous"}]'
+    with pytest.raises(AvailabilityVerdictParseError):
+        parse_verdicts(raw, expected_items=[{"url": "https://expected.com", "coin_name": "Expected"}])
+
+
+def test_check_availability_logs_and_fallbacks_on_parse_error(monkeypatch, caplog):
+    class DummyGraph:
+        async def ainvoke(self, _state):
+            return {
+                "verdicts": '[{"url": "https://example.com/coin/1", "status": "maybe", "reason": "???"}]',
+            }
+
+    monkeypatch.setattr("app.routes.create_availability_check_team", lambda _llm: DummyGraph())
+
+    with caplog.at_level(logging.ERROR):
+        resp = client.post(
+            "/api/check-availability",
+            json={
+                "llm": {"provider": "anthropic", "api_key": "k", "model": "m"},
+                "items": [{"url": "https://example.com/coin/1", "coin_name": "Roman Denarius"}],
+            },
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["results"] == [
+        {
+            "url": "https://example.com/coin/1",
+            "coin_name": "Roman Denarius",
+            "status": "unknown",
+            "reason": "Agent response failed schema validation",
+            "confidence": "low",
+        },
+    ]
+    assert any("Availability verdict parse failure:" in rec.message for rec in caplog.records)
 
 
 def test_availability_verdict_model():

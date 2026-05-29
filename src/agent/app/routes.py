@@ -16,7 +16,11 @@ from app.models.requests import (
 from app.models.responses import AgentResponse, AvailabilityCheckResponse, AvailabilityVerdict
 from app.streaming import stream_graph_events
 from app.supervisor import create_supervisor
-from app.teams.availability_check import create_availability_check_team, parse_verdicts
+from app.teams.availability_check import (
+    AvailabilityVerdictParseError,
+    create_availability_check_team,
+    parse_verdicts,
+)
 from app.teams.coin_analysis import create_coin_analysis_team
 
 logger = logging.getLogger(__name__)
@@ -190,19 +194,23 @@ async def check_availability(request: AvailabilityCheckRequest):
         )
 
     verdicts_raw = result.get("verdicts", "")
-    verdicts = parse_verdicts(verdicts_raw)
-
-    if not verdicts:
+    try:
+        verdicts = parse_verdicts(verdicts_raw, expected_items=items_data)
+    except AvailabilityVerdictParseError as exc:
+        logger.error(
+            "Availability verdict parse failure: %s. Raw snippet=%r",
+            exc,
+            verdicts_raw[:300],
+        )
         verdicts = [
             AvailabilityVerdict(
                 url=item.url,
                 coin_name=item.coin_name,
                 status="unknown",
-                reason="Could not parse agent response",
+                reason="Agent response failed schema validation",
                 confidence="low",
             )
             for item in request.items
         ]
 
     return AvailabilityCheckResponse(results=verdicts)
-

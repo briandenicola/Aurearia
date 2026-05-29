@@ -4,7 +4,39 @@ The Go API enriches each request with settings, user context, and data
 so this service remains stateless with no direct DB access.
 """
 
-from pydantic import BaseModel, field_validator
+from typing import Annotated, Any, Literal
+
+from pydantic import BaseModel, Field, StringConstraints, field_validator
+
+MAX_MESSAGE_LENGTH = 4000
+MAX_HISTORY_MESSAGES = 50
+MAX_HISTORY_TOTAL_CHARS = 100000
+MAX_PROMPT_LENGTH = 12000
+MAX_IMAGE_COUNT = 20
+MAX_IMAGE_BASE64_LENGTH = 12000000
+MAX_URL_LENGTH = 2048
+MAX_NAME_LENGTH = 300
+MAX_NOTES_LENGTH = 10000
+MAX_PORTFOLIO_MAP_ITEMS = 200
+MAX_PORTFOLIO_LIST_ITEMS = 200
+MAX_TOP_COINS = 100
+MAX_AVAILABILITY_ITEMS = 10
+
+BoundedMessage = Annotated[str, StringConstraints(max_length=MAX_MESSAGE_LENGTH)]
+BoundedPrompt = Annotated[str, StringConstraints(max_length=MAX_PROMPT_LENGTH)]
+BoundedName = Annotated[str, StringConstraints(max_length=MAX_NAME_LENGTH)]
+BoundedNotes = Annotated[str, StringConstraints(max_length=MAX_NOTES_LENGTH)]
+BoundedURL = Annotated[str, StringConstraints(min_length=1, max_length=MAX_URL_LENGTH)]
+BoundedImageBase64 = Annotated[str, StringConstraints(max_length=MAX_IMAGE_BASE64_LENGTH)]
+
+
+def _validate_history_total_chars(history: list["ChatMessage"]) -> list["ChatMessage"]:
+    total_chars = sum(len(msg.content) for msg in history)
+    if total_chars > MAX_HISTORY_TOTAL_CHARS:
+        raise ValueError(
+            f"history content exceeds {MAX_HISTORY_TOTAL_CHARS} total characters",
+        )
+    return history
 
 
 class LLMConfig(BaseModel):
@@ -21,25 +53,25 @@ class UserContext(BaseModel):
     """User context for personalizing agent behavior."""
 
     user_id: int
-    zip_code: str = ""
+    zip_code: Annotated[str, StringConstraints(max_length=32)] = ""
 
 
 class ChatMessage(BaseModel):
     """A single message in conversation history."""
 
-    role: str  # "user" or "assistant"
-    content: str
+    role: Literal["user", "assistant"]
+    content: BoundedMessage
 
 
 class PortfolioCoin(BaseModel):
     """Summarized coin for portfolio review."""
 
-    name: str
-    category: str = ""
-    material: str = ""
-    era: str = ""
-    ruler: str = ""
-    grade: str = ""
+    name: BoundedName
+    category: BoundedName = ""
+    material: BoundedName = ""
+    era: BoundedName = ""
+    ruler: BoundedName = ""
+    grade: Annotated[str, StringConstraints(max_length=64)] = ""
     purchase_price: float = 0
     current_value: float = 0
 
@@ -50,11 +82,11 @@ class PortfolioSummary(BaseModel):
     total_coins: int = 0
     total_value: float = 0
     total_invested: float = 0
-    categories: dict[str, int] = {}
-    materials: dict[str, int] = {}
-    eras: list[dict] = []
-    rulers: list[dict] = []
-    top_coins: list[PortfolioCoin] = []
+    categories: dict[str, int] = Field(default_factory=dict, max_length=MAX_PORTFOLIO_MAP_ITEMS)
+    materials: dict[str, int] = Field(default_factory=dict, max_length=MAX_PORTFOLIO_MAP_ITEMS)
+    eras: list[dict[str, Any]] = Field(default_factory=list, max_length=MAX_PORTFOLIO_LIST_ITEMS)
+    rulers: list[dict[str, Any]] = Field(default_factory=list, max_length=MAX_PORTFOLIO_LIST_ITEMS)
+    top_coins: list[PortfolioCoin] = Field(default_factory=list, max_length=MAX_TOP_COINS)
 
     @field_validator("categories", "materials", mode="before")
     @classmethod
@@ -74,11 +106,16 @@ class CoinSearchRequest(BaseModel):
 
     llm: LLMConfig
     user: UserContext
-    message: str
-    history: list[ChatMessage] = []
-    coin_search_prompt: str = ""
-    coin_shows_prompt: str = ""
+    message: BoundedMessage
+    history: list[ChatMessage] = Field(default_factory=list, max_length=MAX_HISTORY_MESSAGES)
+    coin_search_prompt: BoundedPrompt = ""
+    coin_shows_prompt: BoundedPrompt = ""
     portfolio: PortfolioSummary | None = None
+
+    @field_validator("history")
+    @classmethod
+    def validate_history_total_chars(cls, history: list[ChatMessage]) -> list[ChatMessage]:
+        return _validate_history_total_chars(history)
 
 
 class CoinShowSearchRequest(BaseModel):
@@ -86,26 +123,31 @@ class CoinShowSearchRequest(BaseModel):
 
     llm: LLMConfig
     user: UserContext
-    message: str
-    history: list[ChatMessage] = []
-    coin_search_prompt: str = ""
-    coin_shows_prompt: str = ""
+    message: BoundedMessage
+    history: list[ChatMessage] = Field(default_factory=list, max_length=MAX_HISTORY_MESSAGES)
+    coin_search_prompt: BoundedPrompt = ""
+    coin_shows_prompt: BoundedPrompt = ""
+
+    @field_validator("history")
+    @classmethod
+    def validate_history_total_chars(cls, history: list[ChatMessage]) -> list[ChatMessage]:
+        return _validate_history_total_chars(history)
 
 
 class CoinData(BaseModel):
     """Coin data passed from Go for analysis or valuation."""
 
     id: int
-    name: str = ""
-    ruler: str = ""
-    era: str = ""
-    denomination: str = ""
-    material: str = ""
-    category: str = ""
-    grade: str = ""
+    name: BoundedName = ""
+    ruler: BoundedName = ""
+    era: BoundedName = ""
+    denomination: BoundedName = ""
+    material: BoundedName = ""
+    category: BoundedName = ""
+    grade: Annotated[str, StringConstraints(max_length=64)] = ""
     purchase_price: float = 0
     current_value: float = 0
-    notes: str = ""
+    notes: BoundedNotes = ""
 
 
 class AnalyzeRequest(BaseModel):
@@ -113,9 +155,9 @@ class AnalyzeRequest(BaseModel):
 
     llm: LLMConfig
     coin: CoinData
-    images: list[str] = []  # Base64-encoded images
-    side: str = ""  # "obverse", "reverse", or "" for both
-    prompt: str = ""  # Analysis prompt from admin settings
+    images: list[BoundedImageBase64] = Field(default_factory=list, max_length=MAX_IMAGE_COUNT)
+    side: Annotated[str, StringConstraints(max_length=16)] = ""  # "obverse", "reverse", or "" for both
+    prompt: BoundedPrompt = ""  # Analysis prompt from admin settings
 
 
 class PortfolioReviewRequest(BaseModel):
@@ -124,9 +166,9 @@ class PortfolioReviewRequest(BaseModel):
     llm: LLMConfig
     user: UserContext
     portfolio: PortfolioSummary
-    message: str = ""
-    history: list[ChatMessage] = []
-    valuation_prompt: str = ""
+    message: BoundedMessage = ""
+    history: list[ChatMessage] = Field(default_factory=list, max_length=MAX_HISTORY_MESSAGES)
+    valuation_prompt: BoundedPrompt = ""
 
     @field_validator("history", mode="before")
     @classmethod
@@ -134,16 +176,29 @@ class PortfolioReviewRequest(BaseModel):
         """Go serializes nil slices as null — convert to empty list."""
         return v if v is not None else []
 
+    @field_validator("history")
+    @classmethod
+    def validate_history_total_chars(cls, history: list[ChatMessage]) -> list[ChatMessage]:
+        return _validate_history_total_chars(history)
+
 
 class AvailabilityCheckItem(BaseModel):
     """A single coin URL to check for availability."""
 
-    url: str
-    coin_name: str = ""
+    url: BoundedURL
+    coin_name: BoundedName = ""
 
 
 class AvailabilityCheckRequest(BaseModel):
     """Request to check listing availability for multiple URLs."""
 
     llm: LLMConfig
-    items: list[AvailabilityCheckItem] = []
+    items: list[AvailabilityCheckItem] = Field(default_factory=list, max_length=MAX_AVAILABILITY_ITEMS)
+
+    @field_validator("items")
+    @classmethod
+    def validate_unique_urls(cls, items: list[AvailabilityCheckItem]) -> list[AvailabilityCheckItem]:
+        urls = [item.url for item in items]
+        if len(set(urls)) != len(urls):
+            raise ValueError("items contain duplicate URLs")
+        return items

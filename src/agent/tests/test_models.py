@@ -1,6 +1,18 @@
 """Tests for request/response Pydantic models."""
 
+import pytest
+from pydantic import ValidationError
+
 from app.models.requests import (
+    MAX_AVAILABILITY_ITEMS,
+    MAX_HISTORY_MESSAGES,
+    MAX_HISTORY_TOTAL_CHARS,
+    MAX_IMAGE_BASE64_LENGTH,
+    MAX_IMAGE_COUNT,
+    AnalyzeRequest,
+    AvailabilityCheckRequest,
+    CoinData,
+    CoinSearchRequest,
     LLMConfig,
     PortfolioCoin,
     PortfolioSummary,
@@ -60,3 +72,58 @@ def test_portfolio_summary_null_lists_become_empty():
     assert summary.eras == []
     assert summary.rulers == []
     assert summary.top_coins == []
+
+
+def test_coin_search_request_rejects_history_over_limit():
+    with pytest.raises(ValidationError):
+        CoinSearchRequest(
+            llm=LLMConfig(provider="anthropic"),
+            user=UserContext(user_id=1),
+            message="hello",
+            history=[{"role": "user", "content": "x"}] * (MAX_HISTORY_MESSAGES + 1),
+        )
+
+
+def test_coin_search_request_rejects_history_char_over_limit():
+    oversized = "x" * (MAX_HISTORY_TOTAL_CHARS + 1)
+    with pytest.raises(ValidationError):
+        CoinSearchRequest(
+            llm=LLMConfig(provider="anthropic"),
+            user=UserContext(user_id=1),
+            message="hello",
+            history=[{"role": "user", "content": oversized}],
+        )
+
+
+def test_analyze_request_rejects_image_count_over_limit():
+    with pytest.raises(ValidationError):
+        AnalyzeRequest(
+            llm=LLMConfig(provider="anthropic"),
+            coin=CoinData(id=1, name="Coin"),
+            images=["a"] * (MAX_IMAGE_COUNT + 1),
+        )
+
+
+def test_analyze_request_rejects_oversized_base64_image():
+    with pytest.raises(ValidationError):
+        AnalyzeRequest(
+            llm=LLMConfig(provider="anthropic"),
+            coin=CoinData(id=1, name="Coin"),
+            images=["a" * (MAX_IMAGE_BASE64_LENGTH + 1)],
+        )
+
+
+def test_availability_check_request_rejects_items_over_limit():
+    with pytest.raises(ValidationError):
+        AvailabilityCheckRequest(
+            llm=LLMConfig(provider="anthropic"),
+            items=[{"url": f"https://example.com/{i}"} for i in range(MAX_AVAILABILITY_ITEMS + 1)],
+        )
+
+
+def test_availability_check_request_rejects_duplicate_urls():
+    with pytest.raises(ValidationError):
+        AvailabilityCheckRequest(
+            llm=LLMConfig(provider="anthropic"),
+            items=[{"url": "https://example.com/1"}, {"url": "https://example.com/1"}],
+        )
