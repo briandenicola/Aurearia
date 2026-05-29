@@ -67,6 +67,7 @@ func main() {
 	logger.Debug("startup", "Upload directory: %s", cfg.UploadDir)
 
 	r := gin.Default()
+	r.MaxMultipartMemory = middleware.DefaultMultipartMemoryBytes
 
 	// CORS middleware — restrict to configured origins
 	allowedOrigins := cfg.AllowedOrigins()
@@ -146,6 +147,7 @@ func main() {
 	writeRateLimit := middleware.RateLimit(30, 1*time.Minute) // Write operations
 
 	api := r.Group("/api")
+	api.Use(middleware.RequestBodyLimit(middleware.DefaultRequestBodyLimitBytes))
 	{
 		api.GET("/auth/setup", authHandler.NeedsSetup)
 		api.POST("/auth/register", authRateLimit, authHandler.Register)

@@ -3,13 +3,10 @@ package handlers
 import (
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/briandenicola/ancient-coins-api/services"
@@ -270,15 +267,13 @@ func (h *ImageHandler) ProxyImage(c *gin.Context) {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "image/*, */*")
 
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			_, redirectErr := validateOutboundURL(req.URL.String())
-			return redirectErr
-		},
-	}
+	client := outboundHTTPClientFactory()
 	resp, err := client.Do(req)
 	if err != nil {
+		if isOutboundTargetBlockedError(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "URL target is not allowed"})
+			return
+		}
 		logger.Warn("images", "Failed to fetch image from %s: %v", imageURL, err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to fetch image"})
 		return
@@ -365,15 +360,13 @@ func (h *ImageHandler) ScrapeImage(c *gin.Context) {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
-	client := &http.Client{
-		Timeout: 15 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			_, redirectErr := validateOutboundURL(req.URL.String())
-			return redirectErr
-		},
-	}
+	client := outboundHTTPClientFactory()
 	resp, err := client.Do(req)
 	if err != nil {
+		if isOutboundTargetBlockedError(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "URL target is not allowed"})
+			return
+		}
 		logger.Warn("images", "Failed to fetch page %s: %v", pageURL, err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to fetch page"})
 		return
@@ -421,32 +414,6 @@ func (h *ImageHandler) ScrapeImage(c *gin.Context) {
 
 	logger.Info("images", "Scraped image URL from %s: %s", pageURL, imageURL)
 	c.JSON(http.StatusOK, gin.H{"imageUrl": imageURL})
-}
-
-func validateOutboundURL(rawURL string) (*url.URL, error) {
-	parsed, err := url.ParseRequestURI(rawURL)
-	if err != nil {
-		return nil, err
-	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return nil, fmt.Errorf("unsupported scheme")
-	}
-	hostname := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
-	if hostname == "" || hostname == "localhost" {
-		return nil, fmt.Errorf("disallowed hostname")
-	}
-
-	resolvedIPs, err := net.LookupIP(hostname)
-	if err != nil || len(resolvedIPs) == 0 {
-		return nil, fmt.Errorf("failed to resolve host")
-	}
-	for _, ip := range resolvedIPs {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
-			return nil, fmt.Errorf("disallowed address")
-		}
-	}
-
-	return parsed, nil
 }
 
 // extractImageFromHTML walks the HTML tree looking for image URLs in meta tags.
