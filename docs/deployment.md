@@ -282,6 +282,8 @@ Two images are published per build:
 | `DOCKERHUB_USERNAME` | Docker Hub username for authentication |
 | `DOCKERHUB_TOKEN` | Docker Hub access token |
 
+**Workflow action pin maintenance:** Workflow `uses:` entries in `.github/workflows/` are pinned to commit SHAs. When updating an action version, resolve the new tag to a commit SHA (for example: `git ls-remote https://github.com/<owner>/<repo> refs/tags/<tag>`) and keep the version comment (for example `# v4`) beside the SHA.
+
 ---
 
 ## Backup & Restore
