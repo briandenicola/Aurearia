@@ -14,51 +14,51 @@
 
 | Domain | Findings | Mitigated | Open | Accepted |
 |---|---:|---:|---:|---:|
-| Backend API | 9 | 4 | 5 | 0 |
-| Frontend | 8 | 0 | 7 | 1 |
-| Supply chain & infrastructure | 7 | 0 | 7 | 0 |
-| **Total** | **24 enumerated** | **4** | **19** | **1** |
+| Backend API | 9 | 8 | 1 | 0 |
+| Frontend | 8 | 3 | 4 | 1 |
+| Supply chain & infrastructure | 7 | 2 | 5 | 0 |
+| **Total** | **24 enumerated** | **13** | **10** | **1** |
 
-> The legacy executive summary says 25 findings, but the source document enumerates 24 finding IDs (`B-1`…`B-9`, `F-1`…`F-8`, `SC-1`…`SC-7`). This split preserves the enumerated record and flags the count mismatch for the next audit refresh.
+**Last reconciliation:** 2026-05-29. Recent mitigations include B-2 (SQL injection whitelist), B-6/B-7/B-8 (request size limits, WebAuthn TTL and origin validation), F-1/F-2/F-4 (DOMPurify sanitization for XSS), SC-1/SC-2 (GitHub Actions SHA pins, Taskfile secret generation). Status table reflects current code state.
 
 ## Backend API findings
 
 | ID | Severity | Status | Location | Description | Recommended remediation |
 |---|---|---|---|---|---|
 | B-1 | Critical | Mitigated | `src/api/main.go`, `src/api/config/config.go` | CORS previously reflected arbitrary origins while allowing credentials. | Keep `CORS_ORIGINS` allowlisted and review any new origin-handling logic against Principle XI. |
-| B-2 | Critical | Open (P1) | `src/api/handlers/analysis.go` | A user-controlled column name is concatenated into a query path, creating a classical SQL-injection shape even if exploitability is constrained. | Replace dynamic column usage with an explicit whitelist or fixed query map. |
+| B-2 | Critical | Mitigated | `src/api/handlers/analysis.go` | A user-controlled column name was previously concatenated into a query, but is now protected by an explicit whitelist map in `DeleteAnalysis()` (lines 229–238) and switch-based validation in `Analyze()` (lines 175–185). | Maintain the whitelist pattern for any future dynamic column handling. |
 | B-3 | High | Mitigated | `src/api/config/config.go` | The application previously allowed a weak default JWT secret. | Preserve the startup fail-fast and minimum-length checks; never weaken them for convenience. |
 | B-4 | High | Mitigated | `src/api/handlers/images.go` | Uploads now enforce an extension allowlist, but the original finding still has a residual MIME-validation gap. | Add magic-byte validation so uploads are checked by content, not extension alone. |
 | B-5 | High | Mitigated | `src/api/main.go` | Auth endpoints previously allowed unlimited brute-force attempts. | Keep auth rate limiting in place and extend it to new auth-adjacent endpoints when added. |
-| B-6 | Medium | Open (P2) | `src/api/main.go` | Request bodies and multipart uploads lack explicit size caps, enabling avoidable memory pressure or DoS risk. | Set `MaxMultipartMemory` and add JSON body-size middleware. |
-| B-7 | Medium | Open (P2) | `src/api/handlers/webauthn.go` | In-memory WebAuthn ceremony sessions never expire, so abandoned sessions can accumulate indefinitely. | Add a short TTL and periodic cleanup for challenge state. |
-| B-8 | Medium | Open (P2) | `src/api/handlers/webauthn.go` | WebAuthn origin validation dynamically trusts the request origin, weakening relying-party protections. | Restrict allowed origins to configured values only. |
-| B-9 | Low | Open (P3) | `src/api/handlers/numista.go` | Some error responses expose more internal detail than clients need. | Return generic client-facing errors and keep specifics in logs only. |
+| B-6 | Medium | Mitigated | `src/api/main.go` (line ~130: `r.MaxMultipartMemory = middleware.DefaultMultipartMemoryBytes`), middleware | Request bodies and multipart uploads now have explicit size caps enforced by Gin. | Maintain the configured memory limit; document enforcement in deployment documentation. See issue #201. |
+| B-7 | Medium | Mitigated | `src/api/handlers/webauthn.go` (lines ~20–30: `const webauthnSessionTTL = 5 * time.Minute`, cleanup logic) | In-memory WebAuthn ceremony sessions now expire after 5 minutes and are automatically cleaned up. | Maintain periodic cleanup; adjust TTL if UX feedback warrants it. See issue #202. |
+| B-8 | Medium | Mitigated | `src/api/handlers/webauthn.go` | WebAuthn origin validation now restricts to configured RP origins; dynamic trust from request headers removed. | Ensure RP origin configuration is correct at deployment time; document in security-principles.md. See issue #202. |
+| B-9 | Low | Open (P3) | `src/api/handlers/numista.go` | Some error responses expose more internal detail than clients need. | Return generic client-facing errors and keep specifics in logs only. [#163](https://github.com/briandenicola/coin-collection-app/issues/163) |
 
 ## Frontend findings
 
 | ID | Severity | Status | Location | Description | Recommended remediation |
 |---|---|---|---|---|---|
-| F-1 | Critical | Open (P0) | `src/web/src/pages/CoinDetailPage.vue` | AI analysis Markdown is rendered through `v-html` without a sanitizer, creating an XSS path. | Sanitize rendered HTML before injection. |
-| F-2 | Critical | Open (P0) | `src/web/src/components/CoinSearchChat.vue` | Chat messages are transformed into HTML and injected without sanitization. | Sanitize message output before `v-html`. |
-| F-3 | Critical | Open (P3) | `src/web/src/stores/auth.ts` | JWT and refresh tokens live in `localStorage`, which turns any XSS into token theft. | Short term: eliminate XSS sinks. Long term: evaluate `HttpOnly` cookie transport with an ADR. |
-| F-4 | High | Open (P1) | `src/web/package.json` | Rich-text rendering existed without a dedicated sanitization dependency. | Keep a maintained sanitizer dependency in the web surface and use it consistently. |
-| F-5 | High | Open (P3) | `src/web/src/api/client.ts` | Refresh tokens travel in a JSON body rather than an `HttpOnly` cookie-based flow. | Revisit transport if auth is redesigned; document the trade-off in ADRs. |
-| F-6 | Medium | Open (P2) | frontend auth responses | Sensitive responses are not explicitly marked `Cache-Control: no-store`. | Set no-store headers on auth and token-bearing responses. |
-| F-7 | Medium | Open (P2) | `src/web/src/api/client.ts` | WebAuthn login finish sends the username in the query string, leaking it into histories and logs. | Move the username into the request body. |
+| F-1 | Critical | Mitigated | `src/web/src/components/coin/CoinAIAnalysis.vue` | AI analysis Markdown was rendered unsanitized, but is now passed through `DOMPurify.sanitize()` before injection (lines 33–35). | Keep DOMPurify pinned to a stable version and monitor upstream security advisories. |
+| F-2 | Critical | Mitigated | `src/web/src/composables/useCoinSearchChat.ts` | Chat messages were transformed and injected without sanitization, but `formatMessage()` now sanitizes all HTML via `DOMPurify.sanitize()` before rendering in `CoinSearchChat.vue` line 31. | Ensure all HTML rendering paths go through the sanitization function. |
+| F-3 | Critical | Open (P3) | `src/web/src/stores/auth.ts` | JWT and refresh tokens live in `localStorage`, which turns any XSS into token theft. | Short term: eliminate XSS sinks (F-1/F-2/F-4 mitigations complete the path). Long term: evaluate `HttpOnly` cookie transport with an ADR. [#163](https://github.com/briandenicola/coin-collection-app/issues/163) |
+| F-4 | High | Mitigated | `src/web/package.json` (DOMPurify ^3.4.1), `src/web/src/composables/useCoinSearchChat.ts`, `src/web/src/components/coin/CoinAIAnalysis.vue`, `src/web/src/components/coin/FeaturedCoinModal.vue` | Rich-text rendering is now backed by DOMPurify (`@types/dompurify` ^3.2.0) and sanitized at all HTML injection points. | Keep DOMPurify pinned and monitor for updates; audit any new HTML rendering paths to confirm sanitization. See security-principles.md Principle XI. |
+| F-5 | High | Open (P3) | `src/web/src/api/client.ts` | Refresh tokens travel in a JSON body rather than an `HttpOnly` cookie-based flow. | Revisit transport if auth is redesigned; document the trade-off in ADRs. [#163](https://github.com/briandenicola/coin-collection-app/issues/163) |
+| F-6 | Medium | Open (P2) | frontend auth responses (Go API: `src/api/handlers/auth.go`; Vue client proxies responses) | Sensitive responses are not explicitly marked `Cache-Control: no-store`. | Set no-store headers on auth and token-bearing responses at the Go API level (handlers) and confirm Vue client respects them. [#163](https://github.com/briandenicola/coin-collection-app/issues/163) |
+| F-7 | Medium | Open (P2) | `src/web/src/api/client.ts` (line 385: `/auth/webauthn/login/finish?username=${...}`), `src/api/handlers/webauthn.go` (line ~480: `username` param in URL) | WebAuthn login finish sends the username in the query string, leaking it into histories and logs. | Move username from query param to request body in both client (client.ts) and handler (webauthn.go). [#163](https://github.com/briandenicola/coin-collection-app/issues/163) |
 | F-8 | Low | Accepted (platform limitation) | `src/web/src/pages/LoginPage.vue` | Password state cannot be meaningfully scrubbed from browser memory after use in a reliable, portable way. | Accept the platform limit; keep lifetime short in reactive state and avoid unnecessary copies. |
 
 ## Supply chain and infrastructure findings
 
 | ID | Severity | Status | Location | Description | Recommended remediation |
 |---|---|---|---|---|---|
-| SC-1 | Critical | Open (P1) | `.github/workflows/docker-publish*.yml` | GitHub Actions use mutable tags instead of immutable SHAs, exposing the CI chain to supply-chain drift or maintainer compromise. | Pin every action by commit SHA. |
-| SC-2 | Critical | Open (P0) | `Taskfile.yml` | A development JWT secret is hardcoded in a tracked file, which means it is already in git history. | Move the secret to ignored local env files and assess whether history cleanup is warranted. |
-| SC-3 | Critical | Open (P2) | `src/web/package.json` | `@imgly/background-removal` downloads large runtime models from external CDNs without integrity verification. | Evaluate bundling, server-side processing, or a lower-risk alternative. |
-| SC-4 | High | Open (P1) | `src/api/go.mod` | `golang.org/x/*` dependencies were called out for lagging current versions in the original review. | Re-check with `govulncheck` / dependency review and upgrade deliberately. |
-| SC-5 | High | Open (P2) | GitHub repository settings | Branch protection is not documented as enforced for `main`/`beta`. | Require PR reviews, required checks, and restricted direct pushes. |
-| SC-6 | Medium | Open (P2) | `Dockerfile` | Base images use mutable tags instead of fully reproducible digests or patch pins. | Pin trusted base images more tightly for production builds. |
-| SC-7 | Medium | Open (P2) | `Dockerfile` | Final application containers run as root by default. | Create and switch to a non-root runtime user. |
+| SC-1 | Critical | Mitigated | `.github/workflows/docker-publish.yml`, `.github/workflows/docker-publish-beta.yml` (all `uses:` pinned to commit SHAs, verified lines 20, 23, 26, 33, 46, 65, 68, 71, 78, 87) | GitHub Actions are now pinned to immutable commit SHAs, eliminating supply-chain drift risk from action maintainer compromise. | Establish a quarterly audit cadence to review for action updates (check action repos for security advisories). See issue #204 for implementation details. |
+| SC-2 | Critical | Mitigated | `Taskfile.yml`, `src/api/config/config.go` | JWT secret was previously hardcoded, but is now injected via environment variable at runtime. The `gen-env` task generates a random secret and stores it in a `.env` file (Taskfile.yml lines 143–145). Config enforces minimum 32-character length and fails fast if unset (config.go lines 21–33). | Maintain the env-based pattern; document that production deployments must set `JWT_SECRET` in CI/CD secrets before container start. |
+| SC-3 | Critical | Open (P2) | `src/web/package.json` (@imgly/background-removal dependency) | `@imgly/background-removal` downloads large runtime models from external CDNs without integrity verification. | Evaluate bundling, server-side processing, or a lower-risk alternative. [#163](https://github.com/briandenicola/coin-collection-app/issues/163) |
+| SC-4 | High | Open (P1) | `src/api/go.mod` | `golang.org/x/*` dependencies were called out for lagging current versions in the original review. | Re-check with `govulncheck` / dependency review and upgrade deliberately. [#163](https://github.com/briandenicola/coin-collection-app/issues/163) |
+| SC-5 | High | Open (P2) | GitHub repository settings | Branch protection is not documented as enforced for `main`/`beta`. | Require PR reviews, required checks, and restricted direct pushes in GitHub Settings → Branches. [#163](https://github.com/briandenicola/coin-collection-app/issues/163) |
+| SC-6 | Medium | Open (P2) | `Dockerfile` (lines 2, 15, 23: base image tags) | Base images (`node:24-alpine`, `golang:1.26-alpine`, `alpine:3.21`) use pinned minor versions but not reproducible digests (full image SHA). | Pin each base image to a specific digest (e.g., `alpine:3.21@sha256:...`) for production builds. [#163](https://github.com/briandenicola/coin-collection-app/issues/163) |
+| SC-7 | Medium | Open (P2) | `Dockerfile` (line 33: ENTRYPOINT runs as root, no USER directive) | Final application containers run as root by default, widening the attack surface if image is compromised. | Create a non-root build user (e.g., `RUN addgroup -g 1000 app && adduser -D -u 1000 -G app app`) and switch before ENTRYPOINT. [#163](https://github.com/briandenicola/coin-collection-app/issues/163) |
 
 ## Related documents
 
