@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
 	"strconv"
@@ -14,12 +13,13 @@ import (
 )
 
 type ApiKeyHandler struct {
-	repo   *repository.ApiKeyRepository
-	logger *services.Logger
+	repo       *repository.ApiKeyRepository
+	logger     *services.Logger
+	hashSecret string
 }
 
-func NewApiKeyHandler(repo *repository.ApiKeyRepository, logger *services.Logger) *ApiKeyHandler {
-	return &ApiKeyHandler{repo: repo, logger: logger}
+func NewApiKeyHandler(repo *repository.ApiKeyRepository, logger *services.Logger, hashSecret string) *ApiKeyHandler {
+	return &ApiKeyHandler{repo: repo, logger: logger, hashSecret: hashSecret}
 }
 
 type generateApiKeyRequest struct {
@@ -66,8 +66,7 @@ func (h *ApiKeyHandler) Generate(c *gin.Context) {
 	plainKey := "ak_" + hex.EncodeToString(rawKey)
 
 	// Hash for storage
-	hash := sha256.Sum256([]byte(plainKey))
-	keyHash := hex.EncodeToString(hash[:])
+	keyHash := services.HashAPIKey(plainKey, h.hashSecret)
 
 	// Last 8 chars as prefix for display
 	keyPrefix := plainKey[len(plainKey)-8:]

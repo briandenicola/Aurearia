@@ -71,7 +71,7 @@ func (h *ValuationAdminHandler) ListRuns(c *gin.Context) {
 //	@Security		BearerAuth
 //	@Router			/admin/valuation-runs/{id} [get]
 func (h *ValuationAdminHandler) GetRunDetail(c *gin.Context) {
-	runID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	runID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid run ID"})
 		return
@@ -139,7 +139,7 @@ func (h *ValuationAdminHandler) TriggerValuation(c *gin.Context) {
 //	@Security		BearerAuth
 //	@Router			/admin/valuation-runs/{id}/cancel [post]
 func (h *ValuationAdminHandler) CancelValuation(c *gin.Context) {
-	runID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	runID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid run ID"})
 		return

@@ -17,6 +17,8 @@ var (
 	ErrCoinNotFound      = errors.New("coin not found")
 	ErrImageNotFound     = errors.New("image not found")
 	ErrInvalidBase64     = errors.New("invalid base64 image data")
+	ErrInvalidImageType  = errors.New("invalid image type")
+	ErrInvalidFileExt    = errors.New("invalid file extension")
 	ErrImageTooLarge     = errors.New("image exceeds 20MB limit")
 	ErrDirectoryCreation = errors.New("failed to create upload directory")
 	ErrFileSave          = errors.New("failed to save image")
@@ -39,14 +41,27 @@ func (s *ImageService) UploadImage(coinID, userID uint, fileData []byte, ext str
 	if _, err := s.repo.FindCoinByOwner(coinID, userID); err != nil {
 		return nil, ErrCoinNotFound
 	}
+	safeExt, err := normalizeImageExt(ext)
+	if err != nil {
+		return nil, err
+	}
+	safeImageType, err := normalizeImageType(imageType)
+	if err != nil {
+		return nil, err
+	}
 
 	coinDir := filepath.Join(s.uploadDir, fmt.Sprintf("coin-%d", coinID))
 	if err := os.MkdirAll(coinDir, 0755); err != nil {
 		return nil, ErrDirectoryCreation
 	}
 
-	filename := fmt.Sprintf("%d-%s%s", time.Now().UnixNano(), imageType, ext)
-	filePath := filepath.Join(coinDir, filename)
+	filename := fmt.Sprintf("%d-%s%s", time.Now().UnixNano(), safeImageType, safeExt)
+	filePath := filepath.Clean(filepath.Join(coinDir, filename))
+	coinDirClean := filepath.Clean(coinDir)
+	rel, err := filepath.Rel(coinDirClean, filePath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return nil, ErrFileSave
+	}
 
 	if err := os.WriteFile(filePath, fileData, 0644); err != nil {
 		return nil, ErrFileSave
@@ -55,7 +70,7 @@ func (s *ImageService) UploadImage(coinID, userID uint, fileData []byte, ext str
 	image := models.CoinImage{
 		CoinID:    coinID,
 		FilePath:  filepath.ToSlash(filepath.Join(fmt.Sprintf("coin-%d", coinID), filename)),
-		ImageType: models.ImageType(imageType),
+		ImageType: safeImageType,
 		IsPrimary: isPrimary,
 	}
 
@@ -94,6 +109,35 @@ func (s *ImageService) UploadBase64Image(coinID, userID uint, base64Data string,
 	}
 
 	return s.UploadImage(coinID, userID, decoded, ext, imageType, isPrimary)
+}
+
+func normalizeImageType(imageType string) (models.ImageType, error) {
+	switch strings.ToLower(strings.TrimSpace(imageType)) {
+	case string(models.ImageTypeObverse):
+		return models.ImageTypeObverse, nil
+	case string(models.ImageTypeReverse):
+		return models.ImageTypeReverse, nil
+	case string(models.ImageTypeDetail):
+		return models.ImageTypeDetail, nil
+	case "", string(models.ImageTypeOther):
+		return models.ImageTypeOther, nil
+	default:
+		return "", ErrInvalidImageType
+	}
+}
+
+func normalizeImageExt(ext string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(ext))
+	if !strings.HasPrefix(normalized, ".") {
+		normalized = "." + normalized
+	}
+
+	switch normalized {
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp":
+		return normalized, nil
+	default:
+		return "", ErrInvalidFileExt
+	}
 }
 
 // DeleteImage removes an image file from disk and its DB record.

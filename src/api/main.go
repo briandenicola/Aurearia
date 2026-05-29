@@ -340,7 +340,7 @@ func main() {
 		protected.DELETE("/notifications/:id", notifHandler.Delete)
 
 		// API key management
-		apiKeyHandler := handlers.NewApiKeyHandler(apiKeyRepo, logger)
+		apiKeyHandler := handlers.NewApiKeyHandler(apiKeyRepo, logger, cfg.JWTSecret)
 		protected.POST("/auth/api-keys", apiKeyHandler.Generate)
 		protected.GET("/auth/api-keys", apiKeyHandler.List)
 		protected.DELETE("/auth/api-keys/:id", apiKeyHandler.Revoke)

@@ -137,7 +137,7 @@ func (l *Logger) GetLogs(limit int) []LogEntry {
 		limit = l.count
 	}
 
-	result := make([]LogEntry, 0, limit)
+	result := make([]LogEntry, 0)
 
 	// Calculate start index: oldest entry within the requested limit
 	start := (l.writeIdx - limit + l.maxSize) % l.maxSize

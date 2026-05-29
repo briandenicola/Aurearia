@@ -77,8 +77,6 @@ type AgentChatResponse struct {
 	Suggestions []CoinSuggestion `json:"suggestions"`
 }
 
-
-
 const DefaultCoinSearchPrompt = `You are a numismatic search specialist focused on Greek and Roman coinage up through the Byzantine Era. You specialize in finding that rare gem of a coin for just the right price.
 
 CRITICAL RULES:
@@ -380,7 +378,7 @@ func (h *AgentHandler) PortfolioSummary(c *gin.Context) {
 	})
 }
 
-const DefaultValuationPrompt= `You are an expert numismatist and coin appraiser. Estimate the current fair market value of a coin.
+const DefaultValuationPrompt = `You are an expert numismatist and coin appraiser. Estimate the current fair market value of a coin.
 
 Instructions:
 1. Search for CURRENT listings and RECENT sales of comparable coins.
@@ -420,7 +418,7 @@ func (h *AgentHandler) getValuationPrompt() string {
 func (h *AgentHandler) EstimateValue(c *gin.Context) {
 	logger := h.logger
 
-	coinID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	coinID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid coin ID"})
 		return

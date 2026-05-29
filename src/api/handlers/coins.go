@@ -139,7 +139,7 @@ func (h *CoinHandler) List(c *gin.Context) {
 		filters.Sold = &v
 	}
 	if t := c.Query("tag"); t != "" {
-		if tagID, err := strconv.ParseUint(t, 10, 64); err == nil {
+		if tagID, err := strconv.ParseUint(t, 10, strconv.IntSize); err == nil {
 			v := uint(tagID)
 			filters.TagID = &v
 		}

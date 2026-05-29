@@ -164,7 +164,7 @@ func (h *TagHandler) Update(c *gin.Context) {
 // Delete removes a tag and all its coin associations.
 func (h *TagHandler) Delete(c *gin.Context) {
 	userID := c.GetUint("userId")
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	id, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tag ID"})
 		return
@@ -180,7 +180,7 @@ func (h *TagHandler) Delete(c *gin.Context) {
 // AttachToCoin adds a tag to a coin.
 func (h *TagHandler) AttachToCoin(c *gin.Context) {
 	userID := c.GetUint("userId")
-	coinID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	coinID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid coin ID"})
 		return
@@ -204,12 +204,12 @@ func (h *TagHandler) AttachToCoin(c *gin.Context) {
 // DetachFromCoin removes a tag from a coin.
 func (h *TagHandler) DetachFromCoin(c *gin.Context) {
 	userID := c.GetUint("userId")
-	coinID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	coinID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid coin ID"})
 		return
 	}
-	tagID, err := strconv.ParseUint(c.Param("tagId"), 10, 64)
+	tagID, err := strconv.ParseUint(c.Param("tagId"), 10, strconv.IntSize)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tag ID"})
 		return

@@ -88,7 +88,7 @@ func (h *NotificationHandler) UnreadCount(c *gin.Context) {
 //	@Router			/notifications/{id}/read [put]
 func (h *NotificationHandler) MarkRead(c *gin.Context) {
 	userID := c.GetUint("userId")
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	id, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid notification ID"})
 		return
@@ -130,7 +130,7 @@ func (h *NotificationHandler) MarkAllRead(c *gin.Context) {
 //	@Router			/notifications/{id} [delete]
 func (h *NotificationHandler) Delete(c *gin.Context) {
 	userID := c.GetUint("userId")
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	id, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid notification ID"})
 		return

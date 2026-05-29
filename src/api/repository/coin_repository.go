@@ -6,6 +6,7 @@ import (
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // CoinListFilters holds optional filters for listing coins.
@@ -74,9 +75,9 @@ type SoldSummary struct {
 
 // CollectionStats holds all aggregate statistics for a user's collection.
 type CollectionStats struct {
-	TotalCoins    int64          `json:"totalCoins"`
-	TotalWishlist int64          `json:"totalWishlist"`
-	TotalSold     int64          `json:"totalSold"`
+	TotalCoins    int64           `json:"totalCoins"`
+	TotalWishlist int64           `json:"totalWishlist"`
+	TotalSold     int64           `json:"totalSold"`
 	ByCategory    []CategoryCount `json:"byCategory"`
 	ByMaterial    []MaterialCount `json:"byMaterial"`
 	ByGrade       []GradeCount    `json:"byGrade"`
@@ -195,7 +196,14 @@ func (r *CoinRepository) List(userID uint, filters CoinListFilters) ([]models.Co
 		order = "desc"
 	}
 
-	if err := query.Order(col + " " + order).Offset(offset).Limit(limit).Find(&coins).Error; err != nil {
+	if err := query.
+		Order(clause.OrderByColumn{
+			Column: clause.Column{Name: col},
+			Desc:   order != "asc",
+		}).
+		Offset(offset).
+		Limit(limit).
+		Find(&coins).Error; err != nil {
 		return nil, 0, err
 	}
 	return coins, total, nil
@@ -381,7 +389,7 @@ func (r *CoinRepository) GetStats(userID uint) (*CollectionStats, error) {
 			WHEN purchase_price >= 200 AND purchase_price < 500 THEN '$200 - $500'
 			WHEN purchase_price >= 500 AND purchase_price < 1000 THEN '$500 - $1K'
 			ELSE '$1K+'
-		END as ` + "`range`" + `, count(*) as count`).
+		END as `+"`range`"+`, count(*) as count`).
 		Where("user_id = ? AND is_wishlist = ? AND is_sold = ? AND purchase_price IS NOT NULL", userID, false, false).
 		Group("`range`").
 		Scan(&stats.ByPriceRange)

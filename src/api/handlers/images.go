@@ -3,7 +3,9 @@ package handlers
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -94,6 +96,10 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 		switch err {
 		case services.ErrCoinNotFound:
 			c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
+		case services.ErrInvalidImageType:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "imageType must be one of: obverse, reverse, detail, other"})
+		case services.ErrInvalidFileExt:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "File type not allowed. Accepted: .jpg, .jpeg, .png, .gif, .webp"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload image"})
 		}
@@ -169,6 +175,10 @@ func (h *ImageHandler) UploadBase64(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid base64 image data"})
 		case services.ErrImageTooLarge:
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Image exceeds 20MB limit"})
+		case services.ErrInvalidImageType:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "imageType must be one of: obverse, reverse, detail, other"})
+		case services.ErrInvalidFileExt:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "fileExtension must be one of: .jpg, .jpeg, .png, .gif, .webp"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload image"})
 		}
@@ -243,15 +253,15 @@ func (h *ImageHandler) ProxyImage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "url parameter is required"})
 		return
 	}
-
-	if !strings.HasPrefix(imageURL, "http://") && !strings.HasPrefix(imageURL, "https://") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "URL must start with http:// or https://"})
+	parsedImageURL, err := validateOutboundURL(imageURL)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or disallowed URL"})
 		return
 	}
 
-	logger.Debug("images", "Proxying image from %s", imageURL)
+	logger.Debug("images", "Proxying image from %s", parsedImageURL.String())
 
-	req, err := http.NewRequest("GET", imageURL, nil)
+	req, err := http.NewRequest("GET", parsedImageURL.String(), nil)
 	if err != nil {
 		logger.Warn("images", "Failed to build proxy request for %s: %v", imageURL, err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to build request"})
@@ -260,7 +270,13 @@ func (h *ImageHandler) ProxyImage(c *gin.Context) {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "image/*, */*")
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			_, redirectErr := validateOutboundURL(req.URL.String())
+			return redirectErr
+		},
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.Warn("images", "Failed to fetch image from %s: %v", imageURL, err)
@@ -332,15 +348,15 @@ func (h *ImageHandler) ScrapeImage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "url parameter is required"})
 		return
 	}
-
-	if !strings.HasPrefix(pageURL, "http://") && !strings.HasPrefix(pageURL, "https://") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "URL must start with http:// or https://"})
+	parsedPageURL, err := validateOutboundURL(pageURL)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or disallowed URL"})
 		return
 	}
 
-	logger.Debug("images", "Scraping image from page %s", pageURL)
+	logger.Debug("images", "Scraping image from page %s", parsedPageURL.String())
 
-	req, err := http.NewRequest("GET", pageURL, nil)
+	req, err := http.NewRequest("GET", parsedPageURL.String(), nil)
 	if err != nil {
 		logger.Warn("images", "Failed to build scrape request for %s: %v", pageURL, err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to build request"})
@@ -349,13 +365,20 @@ func (h *ImageHandler) ScrapeImage(c *gin.Context) {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			_, redirectErr := validateOutboundURL(req.URL.String())
+			return redirectErr
+		},
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.Warn("images", "Failed to fetch page %s: %v", pageURL, err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to fetch page"})
 		return
 	}
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -398,6 +421,32 @@ func (h *ImageHandler) ScrapeImage(c *gin.Context) {
 
 	logger.Info("images", "Scraped image URL from %s: %s", pageURL, imageURL)
 	c.JSON(http.StatusOK, gin.H{"imageUrl": imageURL})
+}
+
+func validateOutboundURL(rawURL string) (*url.URL, error) {
+	parsed, err := url.ParseRequestURI(rawURL)
+	if err != nil {
+		return nil, err
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return nil, fmt.Errorf("unsupported scheme")
+	}
+	hostname := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
+	if hostname == "" || hostname == "localhost" {
+		return nil, fmt.Errorf("disallowed hostname")
+	}
+
+	resolvedIPs, err := net.LookupIP(hostname)
+	if err != nil || len(resolvedIPs) == 0 {
+		return nil, fmt.Errorf("failed to resolve host")
+	}
+	for _, ip := range resolvedIPs {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+			return nil, fmt.Errorf("disallowed address")
+		}
+	}
+
+	return parsed, nil
 }
 
 // extractImageFromHTML walks the HTML tree looking for image URLs in meta tags.

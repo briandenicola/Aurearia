@@ -1,13 +1,12 @@
 package middleware
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
+	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -24,7 +23,7 @@ func AuthRequired(jwtSecret string, apiKeyAuth ApiKeyAuthenticator) gin.HandlerF
 		// Try API key auth first
 		apiKey := c.GetHeader("X-API-Key")
 		if apiKey != "" {
-			if authenticateApiKey(c, apiKey, apiKeyAuth) {
+			if authenticateApiKey(c, apiKey, jwtSecret, apiKeyAuth) {
 				c.Next()
 				return
 			}
@@ -82,10 +81,8 @@ func AuthRequired(jwtSecret string, apiKeyAuth ApiKeyAuthenticator) gin.HandlerF
 	}
 }
 
-func authenticateApiKey(c *gin.Context, plainKey string, auth ApiKeyAuthenticator) bool {
-	hash := sha256.Sum256([]byte(plainKey))
-	keyHash := hex.EncodeToString(hash[:])
-
+func authenticateApiKey(c *gin.Context, plainKey string, hashSecret string, auth ApiKeyAuthenticator) bool {
+	keyHash := services.HashAPIKey(plainKey, hashSecret)
 	apiKey, err := auth.FindActiveByHash(keyHash)
 	if err != nil {
 		return false

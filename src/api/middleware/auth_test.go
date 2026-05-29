@@ -1,8 +1,6 @@
 package middleware
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,6 +8,7 @@ import (
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
+	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/golang-jwt/jwt/v5"
@@ -180,8 +179,7 @@ func TestAuthMiddleware_ValidAPIKey(t *testing.T) {
 	db.Create(&user)
 
 	plainKey := "ak_test_valid_key_12345"
-	hash := sha256.Sum256([]byte(plainKey))
-	keyHash := hex.EncodeToString(hash[:])
+	keyHash := services.HashAPIKey(plainKey, testSecret)
 
 	apiKey := models.ApiKey{
 		UserID:    user.ID,
@@ -225,8 +223,7 @@ func TestAuthMiddleware_RevokedAPIKey(t *testing.T) {
 	db.Create(&user)
 
 	plainKey := "ak_test_revoked_key"
-	hash := sha256.Sum256([]byte(plainKey))
-	keyHash := hex.EncodeToString(hash[:])
+	keyHash := services.HashAPIKey(plainKey, testSecret)
 
 	now := time.Now()
 	apiKey := models.ApiKey{

@@ -48,7 +48,7 @@ func (h *AvailabilityHandler) CheckAvailability(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"runId":       run.ID,
+		"runId":        run.ID,
 		"coinsChecked": run.CoinsChecked,
 		"available":    run.Available,
 		"unavailable":  run.Unavailable,
@@ -74,7 +74,7 @@ func (h *AvailabilityHandler) CheckAvailability(c *gin.Context) {
 //	@Router			/coins/{id}/listing-status [put]
 func (h *AvailabilityHandler) UpdateListingStatus(c *gin.Context) {
 	userID := c.GetUint("userId")
-	coinID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	coinID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid coin ID"})
 		return
@@ -158,7 +158,7 @@ func (h *AvailabilityHandler) ListRuns(c *gin.Context) {
 //	@Security		BearerAuth
 //	@Router			/admin/availability-runs/{id} [get]
 func (h *AvailabilityHandler) GetRunDetail(c *gin.Context) {
-	runID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	runID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid run ID"})
 		return

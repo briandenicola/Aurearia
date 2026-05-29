@@ -5,6 +5,7 @@ import (
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // AuctionLotRepository encapsulates all auction-lot-related database operations.
@@ -79,7 +80,14 @@ func (r *AuctionLotRepository) List(userID uint, filters AuctionLotListFilters) 
 	}
 	offset := (page - 1) * limit
 
-	err := query.Order(sortField + " " + sortOrder).Limit(limit).Offset(offset).Find(&lots).Error
+	err := query.
+		Order(clause.OrderByColumn{
+			Column: clause.Column{Name: sortField},
+			Desc:   sortOrder != "asc",
+		}).
+		Limit(limit).
+		Offset(offset).
+		Find(&lots).Error
 	return lots, total, err
 }
 

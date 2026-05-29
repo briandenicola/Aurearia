@@ -46,7 +46,7 @@ func (r *ApiKeyRepository) Revoke(apiKey *models.ApiKey) error {
 	return r.db.Model(apiKey).Update("revoked_at", &now).Error
 }
 
-// FindActiveByHash returns an active (non-revoked) API key by its SHA-256 hash.
+// FindActiveByHash returns an active (non-revoked) API key by its stored hash digest.
 func (r *ApiKeyRepository) FindActiveByHash(keyHash string) (*models.ApiKey, error) {
 	var apiKey models.ApiKey
 	err := r.db.Where("key_hash = ? AND revoked_at IS NULL", keyHash).First(&apiKey).Error

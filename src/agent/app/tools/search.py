@@ -7,6 +7,7 @@
 
 import logging
 import re
+from html.parser import HTMLParser
 
 import httpx
 from langchain_core.tools import tool
@@ -29,6 +30,13 @@ TRUSTED_DOMAINS = [
     "pngdealers.org",
     "nyinc.info",
 ]
+
+
+def _domain_matches(domain: str, expected_domain: str) -> bool:
+    """Return True for exact host matches or subdomains of expected_domain."""
+    clean_domain = domain.strip(".").lower()
+    clean_expected = expected_domain.strip(".").lower()
+    return clean_domain == clean_expected or clean_domain.endswith(f".{clean_expected}")
 
 
 def create_searxng_search(searxng_url: str = ""):
@@ -95,8 +103,8 @@ async def verify_url(url: str) -> str:
     from urllib.parse import urlparse
 
     parsed = urlparse(url)
-    domain = parsed.netloc.lower().lstrip("www.")
-    is_trusted = any(d in domain for d in TRUSTED_DOMAINS)
+    domain = (parsed.hostname or "").lower().lstrip("www.")
+    is_trusted = any(_domain_matches(domain, d) for d in TRUSTED_DOMAINS)
 
     # Detect search/category page URLs (not individual listings)
     path_lower = parsed.path.lower() + "?" + (parsed.query or "").lower()
@@ -168,12 +176,12 @@ async def fetch_dealer_page(url: str) -> str:
         html = resp.text
         from urllib.parse import urlparse
 
-        domain = urlparse(url).netloc.lower()
+        domain = (urlparse(url).hostname or "").lower().lstrip("www.")
 
         # Extract listings based on the dealer site
-        if "vcoins.com" in domain:
+        if _domain_matches(domain, "vcoins.com"):
             return _parse_vcoins(html, url)
-        elif "ma-shops.com" in domain:
+        elif _domain_matches(domain, "ma-shops.com"):
             return _parse_mashops(html, url)
         else:
             return _parse_generic(html, url)
@@ -266,32 +274,73 @@ def _parse_generic(html: str, base_url: str) -> str:
     """Generic HTML parser — extract links, prices, and text from any dealer page."""
     from urllib.parse import urljoin
 
-    # Strip scripts and styles
-    clean = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
-    clean = re.sub(r"<style[^>]*>.*?</style>", "", clean, flags=re.DOTALL | re.IGNORECASE)
+    class DealerPageParser(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.in_script_or_style = 0
+            self.in_title = False
+            self.title_parts: list[str] = []
+            self.text_parts: list[str] = []
+            self.current_href = ""
+            self.current_link_parts: list[str] = []
+            self.links: list[dict[str, str]] = []
 
-    # Extract all links with text
-    link_pattern = re.compile(r'<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>', re.DOTALL | re.IGNORECASE)
-    links = []
-    for match in link_pattern.finditer(clean):
-        href = match.group(1)
-        text = re.sub(r"<[^>]+>", "", match.group(2)).strip()
-        text = re.sub(r"\s+", " ", text)
-        if text and len(text) > 15 and not href.startswith("#") and not href.startswith("javascript"):
-            abs_url = urljoin(base_url, href)
-            links.append({"title": text[:200], "url": abs_url})
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            lower_tag = tag.lower()
+            if lower_tag in {"script", "style"}:
+                self.in_script_or_style += 1
+                return
+            if self.in_script_or_style > 0:
+                return
+            if lower_tag == "title":
+                self.in_title = True
+            elif lower_tag == "a":
+                self.current_href = ""
+                self.current_link_parts = []
+                for key, value in attrs:
+                    if key.lower() == "href" and value:
+                        self.current_href = value
+                        break
+
+        def handle_endtag(self, tag: str) -> None:
+            lower_tag = tag.lower()
+            if lower_tag in {"script", "style"}:
+                if self.in_script_or_style > 0:
+                    self.in_script_or_style -= 1
+                return
+            if self.in_script_or_style > 0:
+                return
+            if lower_tag == "title":
+                self.in_title = False
+            elif lower_tag == "a" and self.current_href:
+                text = re.sub(r"\s+", " ", "".join(self.current_link_parts)).strip()
+                if text and len(text) > 15 and not self.current_href.startswith(("#", "javascript")):
+                    abs_url = urljoin(base_url, self.current_href)
+                    self.links.append({"title": text[:200], "url": abs_url})
+                self.current_href = ""
+                self.current_link_parts = []
+
+        def handle_data(self, data: str) -> None:
+            if self.in_script_or_style > 0:
+                return
+            if self.in_title:
+                self.title_parts.append(data)
+            self.text_parts.append(data)
+            if self.current_href:
+                self.current_link_parts.append(data)
+
+    parser = DealerPageParser()
+    parser.feed(html)
+    links = parser.links
 
     # Find prices
     price_pattern = re.compile(r'(?:US\s*)?\$[\d,]+(?:\.\d{2})?|EUR\s*[\d,]+(?:\.\d{2})?|GBP\s*[\d,]+(?:\.\d{2})?')
     prices = price_pattern.findall(html)
 
-    # Also extract page title
-    title_match = re.search(r"<title[^>]*>(.*?)</title>", html, re.DOTALL | re.IGNORECASE)
-    page_title = re.sub(r"<[^>]+>", "", title_match.group(1)).strip() if title_match else "Unknown"
+    page_title = re.sub(r"\s+", " ", "".join(parser.title_parts)).strip() or "Unknown"
 
     # Get text-only version for context (first 2000 chars)
-    text_only = re.sub(r"<[^>]+>", " ", clean)
-    text_only = re.sub(r"\s+", " ", text_only).strip()[:2000]
+    text_only = re.sub(r"\s+", " ", "".join(parser.text_parts)).strip()[:2000]
 
     result = f"Page title: {page_title}\n"
     result += f"Base URL: {base_url}\n\n"
