@@ -78,3 +78,21 @@ func (r *NotificationRepository) ReplaceByUserAndType(n *models.Notification) er
 		return tx.Create(n).Error
 	})
 }
+
+// ListUserIDsByType returns distinct user IDs that currently have notifications of the given type.
+func (r *NotificationRepository) ListUserIDsByType(notificationType string) ([]uint, error) {
+	var userIDs []uint
+	if err := r.db.
+		Model(&models.Notification{}).
+		Where("type = ?", notificationType).
+		Distinct("user_id").
+		Pluck("user_id", &userIDs).Error; err != nil {
+		return nil, err
+	}
+	return userIDs, nil
+}
+
+// DeleteByUserAndType removes all notifications of a given type for a user.
+func (r *NotificationRepository) DeleteByUserAndType(userID uint, notificationType string) error {
+	return r.db.Where("user_id = ? AND type = ?", userID, notificationType).Delete(&models.Notification{}).Error
+}

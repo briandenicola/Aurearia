@@ -910,6 +910,35 @@ info:
   title: Ancient Coins API
   version: "1.0"
 paths:
+  /admin/api-keys/notify-rotation:
+    post:
+      description: Notifies each user with active API keys and lists key names that
+        must be recreated. Replaces existing notifications of this type.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create API key rotation notifications
+      tags:
+      - Admin
   /admin/auction-ending-runs:
     get:
       description: Returns paginated history of auction ending check runs.

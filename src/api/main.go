@@ -451,6 +451,11 @@ func main() {
 	schedulerRegistry.StartAll()
 	go coinOfDayScheduler.Start()
 
+	// Startup API key rotation sync:
+	// keep notifying users with pre-cutoff keys until those keys are revoked/recreated.
+	apiKeyRotationSvc := services.NewAPIKeyRotationService(apiKeyRepo, notifRepo, notifSvc, settingsSvc, logger)
+	apiKeyRotationSvc.SyncFromStartup()
+
 	logger.Info("startup", "Application ready")
 	log.Println("Application ready")
 

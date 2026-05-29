@@ -168,7 +168,7 @@ func (s *NotificationService) NotifyAPIKeyRotationRequired(userID uint, keyNames
 
 	n := &models.Notification{
 		UserID:       userID,
-		Type:         "api_key_rotation_required",
+		Type:         NotificationTypeAPIKeyRotationRequired,
 		Title:        "Action required: Recreate API keys",
 		Message:      fmt.Sprintf("Recreate these API keys in Settings: %s", strings.Join(normalized, ", ")),
 		ReferenceURL: "/settings",
