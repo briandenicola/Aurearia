@@ -14,9 +14,9 @@
         </div>
         <div class="suggestion-price" v-if="coin.estPrice">{{ coin.estPrice }}</div>
         <div class="suggestion-actions">
-          <a v-if="coin.sourceUrl" :href="coin.sourceUrl" target="_blank" rel="noopener" class="source-link">
+          <SafeExternalLink v-if="coin.sourceUrl" :href="coin.sourceUrl" target="_blank" rel="noopener" class="source-link">
             <ExternalLink :size="12" /> {{ coin.sourceName || 'Source' }}
-          </a>
+          </SafeExternalLink>
           <button
             v-if="coin.era || coin.material || coin.denomination"
             class="btn btn-primary btn-sm add-btn"
@@ -37,6 +37,7 @@ import { ref } from 'vue'
 import type { CoinSuggestion } from '@/types'
 import { CirclePlus, ExternalLink } from 'lucide-vue-next'
 import { scrapeImage } from '@/api/client'
+import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 defineProps<{
   suggestions: CoinSuggestion[]

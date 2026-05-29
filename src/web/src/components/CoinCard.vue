@@ -67,7 +67,7 @@
       <div v-if="wishlist && (coin.currentValue || coin.purchasePrice)" class="card-value">
         {{ formatCurrency(coin.currentValue || coin.purchasePrice || 0) }}
       </div>
-      <a
+      <SafeExternalLink
         v-if="wishlist && coin.referenceUrl"
         :href="coin.referenceUrl"
         class="card-reference"
@@ -76,7 +76,7 @@
         @click.stop
       >
         {{ coin.referenceText || coin.referenceUrl }}
-      </a>
+      </SafeExternalLink>
       <button
         v-if="wishlist"
         class="btn btn-primary btn-sm card-purchase-btn"
@@ -94,6 +94,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Coins, ShoppingCart, Check } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
+import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 const router = useRouter()
 

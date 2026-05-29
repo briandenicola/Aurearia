@@ -25,7 +25,8 @@
         <div v-if="lot.maxBid" class="lot-max-bid">Max: {{ formatCurrency(lot.maxBid, lot.currency) }}</div>
       </div>
       <div v-if="saleCountdown" class="lot-countdown">{{ saleCountdown }}</div>
-      <a
+      <SafeExternalLink
+        v-if="lot.numisBidsUrl"
         :href="lot.numisBidsUrl"
         class="lot-link"
         target="_blank"
@@ -33,7 +34,7 @@
         @click.stop
       >
         View on NumisBids
-      </a>
+      </SafeExternalLink>
     </div>
   </div>
 </template>
@@ -43,6 +44,7 @@ import type { AuctionLot } from '@/types'
 import { computed } from 'vue'
 import { Gavel, Check } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
+import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 const props = withDefaults(defineProps<{
   lot: AuctionLot

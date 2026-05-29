@@ -2,9 +2,9 @@
   <div class="suggestions-grid">
     <div v-for="(show, j) in shows" :key="j" class="show-card">
       <div class="show-body">
-        <a v-if="show.url" :href="show.url" target="_blank" rel="noopener" class="show-name-link">
+        <SafeExternalLink v-if="safeShowUrl(show.url)" :href="show.url" target="_blank" rel="noopener" class="show-name-link">
           <h4>{{ show.name }} <ExternalLink :size="12" /></h4>
-        </a>
+        </SafeExternalLink>
         <h4 v-else>{{ show.name }}</h4>
         <div class="show-details">
           <span v-if="show.dates" class="show-detail"><Calendar :size="13" /> {{ show.dates }}</span>
@@ -32,6 +32,8 @@
 <script setup lang="ts">
 import type { CoinShow } from '@/types'
 import { Calendar, MapPin, Ticket, CalendarPlus, ExternalLink } from 'lucide-vue-next'
+import SafeExternalLink from '@/components/SafeExternalLink.vue'
+import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 
 defineProps<{
   shows: CoinShow[]
@@ -45,6 +47,10 @@ defineEmits<{
 
 function showKey(show: CoinShow): string {
   return `${show.name}|${show.dates}`
+}
+
+function safeShowUrl(url: string | null | undefined): string | null {
+  return sanitizeExternalUrl(url)
 }
 </script>
 

@@ -48,18 +48,20 @@
             @tags-changed="refreshCoin"
           />
 
-          <div v-if="coin.purchaseDate || coin.purchaseLocation || coin.referenceUrl" class="purchase-meta">
+          <div v-if="coin.purchaseDate || coin.purchaseLocation || safeReferenceUrl" class="purchase-meta">
             <span v-if="coin.purchaseDate">Purchased {{ new Date(coin.purchaseDate).toLocaleDateString() }}</span>
             <template v-if="coin.purchaseLocation">
               <span>{{ coin.purchaseDate ? ' from ' : 'Purchased from ' }}</span>
-              <a v-if="coin.referenceUrl" :href="coin.referenceUrl" target="_blank" rel="noopener" class="store-link">{{ coin.purchaseLocation }} ↗</a>
+              <SafeExternalLink v-if="safeReferenceUrl" :href="safeReferenceUrl" target="_blank" rel="noopener" class="store-link">
+                {{ coin.purchaseLocation }} ↗
+              </SafeExternalLink>
               <span v-else>{{ coin.purchaseLocation }}</span>
             </template>
-            <template v-if="coin.referenceUrl && !coin.purchaseLocation">
+            <template v-if="safeReferenceUrl && !coin.purchaseLocation">
               <span v-if="coin.purchaseDate"> · </span>
-              <a :href="coin.referenceUrl" target="_blank" rel="noopener" class="store-link">
+              <SafeExternalLink :href="safeReferenceUrl" target="_blank" rel="noopener" class="store-link">
                 {{ coin.referenceText || 'View Listing' }} ↗
-              </a>
+              </SafeExternalLink>
             </template>
           </div>
 
@@ -154,11 +156,13 @@ import CoinActionsPanel from '@/components/coin/CoinActionsPanel.vue'
 import CoinAIAnalysis from '@/components/coin/CoinAIAnalysis.vue'
 import CoinListingStatus from '@/components/coin/CoinListingStatus.vue'
 import CoinActivityJournal from '@/components/coin/CoinActivityJournal.vue'
+import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { uploadImage, deleteCoin, deleteImage, purchaseCoin, sellCoin, getJournalEntries, addJournalEntry, deleteJournalEntry, getCoinValueHistory } from '@/api/client'
 import { removeBackground as removeBg } from '@imgly/background-removal'
 import type { CoinImage, CoinJournal, CoinValueHistory as CoinValueHistoryType } from '@/types'
 import { useDialog } from '@/composables/useDialog'
 import { usePwa } from '@/composables/usePwa'
+import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 
 const { showConfirm, showAlert } = useDialog()
 const route = useRoute()
@@ -173,6 +177,7 @@ const journalEntries = ref<CoinJournal[]>([])
 const coinValueHistory = ref<CoinValueHistoryType[]>([])
 
 const coin = computed(() => store.currentCoin)
+const safeReferenceUrl = computed(() => sanitizeExternalUrl(coin.value?.referenceUrl))
 
 onMounted(() => {
   const id = Number(route.params['id'])

@@ -71,7 +71,15 @@
           <div v-if="valueEstimate.comparables?.length" class="estimate-comparables">
             <h4>Comparable Listings</h4>
             <div v-for="(comp, i) in valueEstimate.comparables" :key="i" class="comparable-item">
-              <a v-if="comp.url" :href="comp.url" target="_blank" rel="noopener" class="comparable-source">{{ comp.source }}</a>
+              <SafeExternalLink
+                v-if="safeComparableUrl(comp.url)"
+                :href="comp.url"
+                target="_blank"
+                rel="noopener"
+                class="comparable-source"
+              >
+                {{ comp.source }}
+              </SafeExternalLink>
               <span v-else class="comparable-source">{{ comp.source }}</span>
               <span class="comparable-price">{{ comp.price }}</span>
             </div>
@@ -101,8 +109,10 @@ import { ref } from 'vue'
 import { uploadImage, proxyImage, estimateCoinValue, updateCoin } from '@/api/client'
 import { formatCurrency } from '@/utils/format'
 import CoinNumistaPanel from '@/components/coin/CoinNumistaPanel.vue'
+import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { Camera } from 'lucide-vue-next'
 import { useDialog } from '@/composables/useDialog'
+import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 import type { ValueEstimate } from '@/types'
 
 const props = defineProps<{
@@ -129,6 +139,10 @@ const urlLoading = ref(false)
 const estimating = ref(false)
 const valueEstimate = ref<ValueEstimate | null>(null)
 const estimateError = ref('')
+
+function safeComparableUrl(url: string | null | undefined): string | null {
+  return sanitizeExternalUrl(url)
+}
 
 async function handleImageUpload(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]

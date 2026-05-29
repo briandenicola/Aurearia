@@ -12,10 +12,10 @@
     </div>
     <p v-if="error" class="numista-error">{{ error }}</p>
     <div v-if="results.length" class="numista-results">
-      <a
+      <SafeExternalLink
         v-for="item in results"
         :key="item.id"
-        :href="`https://en.numista.com/catalogue/pieces${item.id}.html`"
+        :href="numistaPieceUrl(item.id)"
         target="_blank"
         rel="noopener"
         class="numista-card"
@@ -28,7 +28,7 @@
             <template v-if="item.min_year"> · {{ item.min_year }}<template v-if="item.max_year && item.max_year !== item.min_year">–{{ item.max_year }}</template></template>
           </span>
         </div>
-      </a>
+      </SafeExternalLink>
     </div>
   </div>
 </template>
@@ -37,6 +37,7 @@
 import { ref } from 'vue'
 import { searchNumista } from '@/api/client'
 import type { NumistaType } from '@/types'
+import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 const props = defineProps<{
   coinName: string
@@ -47,6 +48,10 @@ const props = defineProps<{
 const searching = ref(false)
 const results = ref<NumistaType[]>([])
 const error = ref('')
+
+function numistaPieceUrl(pieceId: number): string {
+  return `https://en.numista.com/catalogue/pieces${pieceId}.html`
+}
 
 async function handleSearch() {
   searching.value = true

@@ -72,9 +72,9 @@
                   <span v-if="lot.currentBid" class="bid-info">Current bid: {{ lot.currentBid }}</span>
                   <span v-if="lot.estimate" class="estimate-info">Est: {{ lot.estimate }}</span>
                 </div>
-                <a v-if="lot.numisBidsUrl" :href="lot.numisBidsUrl" target="_blank" rel="noopener" class="lot-link">
+                <SafeExternalLink v-if="lot.numisBidsUrl" :href="lot.numisBidsUrl" target="_blank" rel="noopener" class="lot-link">
                   <ExternalLink :size="13" /> View on NumisBids
-                </a>
+                </SafeExternalLink>
               </div>
             </div>
           </div>
@@ -96,9 +96,9 @@
                   </span>
                 </div>
                 <p v-if="ev.notes" class="event-notes">{{ ev.notes }}</p>
-                <a v-if="ev.url" :href="ev.url" target="_blank" rel="noopener" class="lot-link" @click.stop>
+                <SafeExternalLink v-if="ev.url" :href="ev.url" target="_blank" rel="noopener" class="lot-link" @click.stop>
                   <ExternalLink :size="13" /> Visit
-                </a>
+                </SafeExternalLink>
               </div>
               <button class="btn-remove" @click.stop="handleDeleteEvent(ev.id)" title="Delete event">
                 <Trash2 :size="16" />
@@ -173,9 +173,9 @@
                   <span class="status-tag" :class="`status-${lot.status}`">{{ lot.status }}</span>
                 </span>
               </div>
-              <a v-if="lot.numisBidsUrl" :href="lot.numisBidsUrl" target="_blank" rel="noopener" class="lot-ext-link" @click.stop>
+              <SafeExternalLink v-if="lot.numisBidsUrl" :href="lot.numisBidsUrl" target="_blank" rel="noopener" class="lot-ext-link" @click.stop>
                 <ExternalLink :size="13" />
-              </a>
+              </SafeExternalLink>
             </div>
           </div>
           <p v-else class="no-linked-lots">No auction lots linked to this event. Link lots from the Auctions page.</p>
@@ -238,6 +238,7 @@ import {
 import { getCalendar, getCalendarEvent, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '@/api/client'
 import type { AuctionLot } from '@/types'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
+import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 interface CalendarLot {
   id: number

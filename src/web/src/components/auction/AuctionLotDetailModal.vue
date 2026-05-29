@@ -166,9 +166,9 @@
           </div>
         </div>
         <div class="action-row">
-          <a :href="lot.numisBidsUrl" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
+          <SafeExternalLink v-if="lot.numisBidsUrl" :href="lot.numisBidsUrl" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
             <ExternalLink :size="14" /> View on NumisBids
-          </a>
+          </SafeExternalLink>
           <button v-if="lot.status === 'won'" class="btn btn-primary" @click="convertToCoin">
             <ArrowRightCircle :size="14" /> Add to Collection
           </button>
@@ -188,6 +188,7 @@ import { updateAuctionLotStatus, updateAuctionLot, convertAuctionLotToCoin, dele
 import type { AuctionLot, AuctionLotStatus } from '@/types'
 import { X, ExternalLink, ArrowRightCircle, Trash2, CalendarDays, Pencil } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
+import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 const props = defineProps<{
   lot: AuctionLot

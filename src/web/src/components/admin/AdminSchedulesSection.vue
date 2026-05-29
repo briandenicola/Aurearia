@@ -95,7 +95,19 @@
                   <tbody>
                     <tr v-for="r in expandedResults" :key="r.id">
                       <td>{{ r.coinName }}</td>
-                      <td><a v-if="r.url" :href="r.url" target="_blank" rel="noopener" class="avail-link" @click.stop>{{ truncateUrl(r.url) }}</a><span v-else class="text-muted">--</span></td>
+                      <td>
+                        <SafeExternalLink
+                          v-if="safeRunUrl(r.url)"
+                          :href="r.url"
+                          target="_blank"
+                          rel="noopener"
+                          class="avail-link"
+                          @click.stop
+                        >
+                          {{ truncateUrl(r.url) }}
+                        </SafeExternalLink>
+                        <span v-else class="text-muted">--</span>
+                      </td>
                       <td>
                         <span class="listing-status-badge" :class="'listing-' + r.status">{{ r.status }}</span>
                       </td>
@@ -400,6 +412,8 @@ import {
   triggerCoinOfDayRun,
 } from '@/api/client'
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'
+import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
+import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun } from '@/types'
 
 // Props are type-checked but not referenced directly in script
@@ -426,6 +440,10 @@ const emit = defineEmits<{
 const isMobile = ref(window.innerWidth <= 600)
 const availColspan = computed(() => isMobile.value ? 4 : 9)
 const valColspan = computed(() => isMobile.value ? 4 : 8)
+
+function safeRunUrl(url: string | null | undefined): string | null {
+  return sanitizeExternalUrl(url)
+}
 
 function onResize() { isMobile.value = window.innerWidth <= 600 }
 
