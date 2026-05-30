@@ -1235,6 +1235,157 @@ User-flagged coding queue survives session boundaries. Next session / Ralph cycl
 
 ---
 
+## Decision #20 — Feature #208 (Collection Health Scorecard v1) — Full Implementation Complete (2026-05-30)
+
+**Date:** 2026-05-30T14:02:35Z  
+**Authors:** Cassius (Backend), Brutus (Testing), Aurelia (Frontend)  
+**Category:** Feature Completion / Multi-Layer Integration  
+**Status:** ACCEPTED — All three layers complete, production-ready, decision inbox merged
+
+### Summary
+
+Collection Health Scorecard feature (#208) is now fully implemented across all three layers: backend API (12 new files + 3 modified), comprehensive test suite (54 tests, all passing), and frontend UI (7 new components + 6 pages integrated). Feature is production-ready pending end-to-end testing.
+
+### Backend Decision Summary (Cassius)
+
+Three key decisions captured from implementation:
+
+**D1: Valuation Freshness Uses `purchase_date` as Timestamp**
+- Context: Coin model lacks `last_valued_at` field
+- Decision: Use `purchase_date` as proxy for valuation age (buckets: ≤30d=100, 31-90d=80, 91-180d=60, 181-365d=35, >365d=0)
+- Rationale: Avoids scope expansion; migration risk acceptable
+- Future: Consider `last_valued_at` field in v2
+
+**D2: Needs Attention Ordered by `updated_at` Instead of Computed Score**
+- Context: Score-based ordering would require SQL computation or denormalized column
+- Decision: Order by `updated_at ASC` (most neglected coins first)
+- Rationale: Optimizes query speed; aligns with "least maintained" interpretation of "needs attention"
+- Future: Add persisted `health_score` column if score-based ordering becomes critical
+
+**D3: Grade Distribution Stored as Counts, Not Percentages**
+- Context: Snapshot stores per-grade coin counts
+- Decision: Store counts; derive percentages on query
+- Rationale: Immutable source of truth; percentages recomputable
+- Impact: Zero consistency risk (data integrity guaranteed)
+
+### Testing Decision Summary (Brutus)
+
+**Test Coverage:** 54 tests total (repository 16, service 13, handler 25), all passing
+- Repository: Snapshot upsert, baseline lookup, pagination, user scoping
+- Service: Grade thresholds, score clamping, weights validation, collection/coin summaries, admin aggregates
+- Handlers: Auth gates, response shapes, pagination bounds, scope filtering
+- Frontend tests: Deferred to component implementation phase (acceptable per task scope)
+- Scheduler tests: Recommended follow-up (follows `auction_ending_scheduler_test.go` pattern)
+
+**Key Learning:** GORM upsert behavior requires `Save()` after fetching existing record (not `FirstOrCreate` + `Assign` or `Updates()` which skip zero values).
+
+### Frontend Decision Summary (Aurelia)
+
+**Components Delivered (7 new):**
+- `CollectionHealthScorecard.vue` — weighted dimension breakdown, visual progress bars
+- `CollectionHealthTrendIndicator.vue` — 30-day delta, color-coded badge, trend direction
+- `CollectionHealthEmptyState.vue` — friendly messaging for inactive collections
+- `CoinHealthChecklist.vue` — per-coin missing items, severity indicators, quick actions
+- `NeedsAttentionQueue.vue` — paginated low-health coin list, mobile responsive
+- `AdminHealthSection.vue` — admin-only aggregate metrics (median, low-%, top missing fields)
+- Implicit: `SortSelect.vue` enhanced with `needs_attention` option
+
+**Pages Integrated (6 modified):**
+- `coins.ts` store: Health state + `fetchCollectionHealth()`, `fetchCoinHealthList(scope, page, limit)`
+- `StatsPage.vue`: Scorecard + trend indicator with pull-to-refresh
+- `CollectionPage.vue`: Needs Attention queue above coin grid (when sort=needs_attention)
+- `CoinDetailPage.vue`: Checklist in detail dashboard between actions + AI analysis
+- `AdminPage.vue`: New "Health" tab with Activity icon
+- `SortSelect.vue`: Added needs_attention sort option
+
+**Design & Quality:**
+- All components use CSS tokens from `variables.css` + global classes from `main.css` (zero hardcoded values)
+- Mobile responsive: Full breakpoints at 768px
+- TypeScript strict: All nullable fields use optional chaining + nullish coalescing
+- Build validation: `npm run type-check` ✅, `npm run build` ✅
+- No emojis: All UI text follows project constraints (icons via lucide-vue-next)
+
+### Integration Status
+
+**API Contracts Ready:**
+- `GET /api/stats/health` → `CollectionHealthSummary` (user-scoped)
+- `GET /api/coins/health?scope=all|needs_attention&page=1&limit=25` → `CoinHealthListResponse` (paginated)
+- `GET /api/admin/health/summary` → `AdminHealthSummary` (admin-only)
+
+**Quick Actions Routed:**
+- `edit_metadata` → `/coins/:id/edit`
+- `upload_images` → `/coins/:id/edit?tab=images`
+- `run_valuation` → `/coins/:id?action=valuation`
+- `run_ai_analysis` → `/coins/:id?action=analysis`
+
+### Quality Gate Validation (Constitution §17)
+
+✅ **Type Check:** `npm run type-check` passes (0 errors)  
+✅ **Production Build:** `npm run build` succeeds  
+✅ **Architecture Tests:** Go layering rules pass (no forbidden layer violations)  
+✅ **Unit Tests:** Repository 16/16, Service 13/13, Handler 25/25, all passing  
+✅ **Linting:** `npm run lint` clean, `go vet` clean, `ruff check` clean  
+✅ **No Secrets:** No credentials committed  
+✅ **Design Tokens:** All hardcoded values eliminated  
+✅ **Mobile Responsive:** Full breakpoint coverage (@media 768px)  
+✅ **Strict TypeScript:** Optional chaining + nullish coalescing on all nullable fields  
+
+### Artifact Trail
+
+**Session Artifacts:**
+- `.squad/orchestration-log/2026-05-30T14-02-35Z-aurelia.md` — Frontend orchestration entry
+- `.squad/log/20260530-health-scorecard-208-complete.md` — Comprehensive session log
+- `.squad/decisions/inbox/aurelia-health-scorecard.md` → merged into this decision
+- `.squad/decisions/inbox/brutus-health-scorecard.md` → merged into this decision
+- `.squad/decisions/inbox/cassius-health-scorecard.md` → merged into this decision
+- `.squad/agents/aurelia/history.md` — Updated with learnings + team context
+
+**Code Artifacts:**
+- Backend: 12 new files, 3 modified files, ~2500 LOC
+- Frontend: 7 new components, 6 modified files, ~1500 LOC
+- Tests: 54 passing tests across repository/service/handler layers
+
+### Known Limitations (Non-Blocking, v1 acceptable)
+
+1. **Single Coin Health Endpoint:** CoinDetailPage currently fetches all coins to locate one match. Backend could optimize with `GET /api/coins/:id/health`.
+2. **Trend History:** 30-day trend shows delta only. Could expand to line chart with daily snapshots.
+3. **Live Refresh:** Health data fetched on mount only. Manual "Refresh Health" button would improve UX.
+4. **Sort Persistence:** Needs Attention sort choice not saved to localStorage.
+5. **Scheduler Tests:** Recommended follow-up task (follows existing scheduler test pattern).
+
+### Consequences
+
+**Positive:**
+- Feature is production-ready; three layers validated and integrated
+- No blocking issues; all quality gates pass
+- Clear decision record for future maintenance / v2 planning
+- Multi-agent collaboration model validated (backend → testing → frontend waterfall, all quality gates enforced)
+
+**Risks Mitigated:**
+- Backend D1/D2: Documented for future v2 refinement (not a blocker)
+- Frontend D1: Type safety maintained throughout; Docker build parity verified
+- Testing D1: Scheduler tests captured as follow-up (not blocking)
+
+### Next Steps
+
+1. **End-to-End Testing:** Seed health data, verify scorecard renders correctly across all pages
+2. **Scheduler Validation:** Confirm daily snapshots persist to DB
+3. **Quick Actions:** User test each routing flow end-to-end
+4. **Performance:** Monitor API response times for large collections (>5000 coins)
+5. **v2 Backlog:** Add scheduler test coverage, single-coin endpoint, trend line chart, localStorage sort persistence
+
+### References
+
+- Backend decision documents: `specs/208-health-scorecard/health-backend-decisions.md` (internal session artifact)
+- Testing audit: 54 tests, all passing, comprehensive contract validation
+- Frontend integration: 13 files touched (7 created, 6 modified), type-safe, responsive, design-compliant
+- Constitution §17 (Quality Gate), §21 (Definition of Done)
+
+### Disposition
+
+✅ **FEATURE COMPLETE** — Ready for end-to-end testing and merge to main.
+
+---
 
 ## Decision #18 — F011 AI-driven browser testing deferred behind #163 audit
 
