@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, CoinSuggestion, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, CoinSuggestion, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, AdminHealthSummaryResponse } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -360,6 +360,9 @@ export const getAIStatus = () =>
 export const getStats = () => api.get<StatsResponse>('/stats')
 export const getDistribution = () => api.get<{ cells: { era: string; category: string; count: number }[] }>('/stats/distribution')
 export const getValueHistory = () => api.get<ValueSnapshot[]>('/value-history')
+export const getCollectionHealthSummary = () => api.get<CollectionHealthSummary>('/stats/health')
+export const getCoinHealthList = (params?: { scope?: 'all' | 'needs_attention'; page?: number; limit?: number }) =>
+  api.get<CoinHealthListResponse>('/coins/health', { params })
 
 // Autocomplete suggestions
 export const getSuggestions = (field: string, q: string) =>
@@ -403,6 +406,8 @@ export const testAnthropicConnection = () =>
   api.get<ConnectivityResult>('/admin/test-anthropic')
 export const testSearXNGConnection = () =>
   api.get<ConnectivityResult>('/admin/test-searxng')
+export const getAdminHealthSummary = () =>
+  api.get<AdminHealthSummaryResponse>('/admin/health/summary')
 
 // Agent status
 export const getAgentStatus = () =>
