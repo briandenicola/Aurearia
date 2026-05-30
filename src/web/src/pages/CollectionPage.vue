@@ -31,6 +31,19 @@
       @toggle-select-mode="toggleSelectMode"
     />
 
+    <!-- Needs Attention Queue (when filter is active) -->
+    <div v-if="showNeedsAttention && !selectMode" class="needs-attention-wrapper">
+      <NeedsAttentionQueue
+        :coins="store.coinHealthList"
+        :loading="store.healthLoading"
+        :total="healthTotal"
+        :page="healthPage"
+        :limit="healthLimit"
+        @quick-action="handleHealthQuickAction"
+        @page-change="handleHealthPageChange"
+      />
+    </div>
+
     <CollectionContent
       :loading="store.loading"
       :coins="store.coins"
@@ -83,9 +96,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useCoinsStore } from '@/stores/coins'
-import type { ImageType } from '@/types'
+import type { ImageType, HealthQuickAction } from '@/types'
 import { bulkAction } from '@/api/client'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useBulkSelect } from '@/composables/useBulkSelect'
@@ -97,9 +111,11 @@ import CollectionContent from '@/components/collection/CollectionContent.vue'
 import CollectionPagination from '@/components/CollectionPagination.vue'
 import BulkActionBar from '@/components/BulkActionBar.vue'
 import BulkTagPickerModal from '@/components/BulkTagPickerModal.vue'
+import NeedsAttentionQueue from '@/components/collection/NeedsAttentionQueue.vue'
 import { CirclePlus } from 'lucide-vue-next'
 
 const store = useCoinsStore()
+const router = useRouter()
 
 const {
   selectedCategory, search, page, sortKey, selectedTag, userTags,
@@ -109,6 +125,49 @@ const {
 const menuOpen = ref(false)
 
 onMounted(fetchUserTags)
+
+// Health queue state
+const showNeedsAttention = computed(() => sortKey.value === 'needs_attention')
+const healthPage = ref(1)
+const healthLimit = ref(25)
+const healthTotal = ref(0)
+
+watch(showNeedsAttention, (show) => {
+  if (show) {
+    fetchHealthQueue()
+  }
+})
+
+async function fetchHealthQueue() {
+  try {
+    const res = await store.fetchCoinHealthList('needs_attention', healthPage.value, healthLimit.value)
+    healthTotal.value = res.pagination.total
+  } catch (err) {
+    console.error('Failed to fetch health queue:', err)
+  }
+}
+
+function handleHealthPageChange(newPage: number) {
+  healthPage.value = newPage
+  fetchHealthQueue()
+}
+
+function handleHealthQuickAction(coinId: number, action: HealthQuickAction) {
+  switch (action) {
+    case 'edit_metadata':
+      router.push(`/coins/${coinId}/edit`)
+      break
+    case 'upload_images':
+      router.push(`/coins/${coinId}/edit?tab=images`)
+      break
+    case 'run_valuation':
+      router.push(`/coins/${coinId}?action=valuation`)
+      break
+    case 'run_ai_analysis':
+      router.push(`/coins/${coinId}?action=analysis`)
+      break
+  }
+}
 
 const savedView = localStorage.getItem('defaultView') as 'grid' | 'swipe' | null
 const { isPwa } = usePwa()
@@ -203,6 +262,10 @@ async function bulkTag(tagId: number) {
 </script>
 
 <style scoped>
+.needs-attention-wrapper {
+  margin-bottom: 1.5rem;
+}
+
 .pull-indicator {
   position: fixed;
   left: 50%;

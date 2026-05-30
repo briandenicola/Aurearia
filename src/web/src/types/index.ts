@@ -125,6 +125,82 @@ export interface StatsResponse {
   }
 }
 
+export type HealthGrade = 'A' | 'B' | 'C' | 'D' | 'F'
+export type HealthTrendDirection = 'up' | 'flat' | 'down' | 'unavailable'
+export type HealthChecklistDimension = 'metadata' | 'images' | 'valuation' | 'ai'
+export type HealthChecklistSeverity = 'high' | 'medium' | 'low'
+export type HealthQuickAction = 'edit_metadata' | 'upload_images' | 'run_valuation' | 'run_ai_analysis'
+
+export interface HealthWeights {
+  metadata: number
+  imageCoverage: number
+  valuationFreshness: number
+  aiCoverage: number
+}
+
+export interface HealthDimensions {
+  metadata: number
+  imageCoverage: number
+  valuationFreshness: number
+  aiCoverage: number
+}
+
+export interface CollectionHealthTrend {
+  status: 'available' | 'unavailable'
+  delta: number | null
+  direction: HealthTrendDirection
+}
+
+export interface CollectionHealthSummary {
+  score: number
+  grade: HealthGrade
+  eligibleCoinCount: number
+  weights: HealthWeights
+  dimensions: HealthDimensions
+  trend30d: CollectionHealthTrend
+}
+
+export interface MissingChecklistItem {
+  key: string
+  dimension: HealthChecklistDimension
+  label: string
+  severity: HealthChecklistSeverity
+  actionHint: HealthQuickAction
+}
+
+export interface CoinHealthItem {
+  coinId: number
+  title: string
+  score: number
+  grade: HealthGrade
+  dimensions: HealthDimensions
+  missingItems: MissingChecklistItem[]
+  quickActions: HealthQuickAction[]
+}
+
+export interface CoinHealthListResponse {
+  coins: CoinHealthItem[]
+  pagination: {
+    page: number
+    limit: number
+    total: number
+  }
+}
+
+export interface MissingFieldStat {
+  key: string
+  count: number
+  percentage: number
+}
+
+export interface AdminHealthSummaryResponse {
+  medianScore: number
+  lowScorePercentage: number
+  lowScoreThreshold: number
+  eligibleCoinCount: number
+  topMissingFields: MissingFieldStat[]
+}
+
 export interface ValueSnapshot {
   id: number
   userId: number

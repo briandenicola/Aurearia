@@ -117,6 +117,43 @@ Promoted the constitution from v1.1.0 → v2.0.0 (MAJOR — governance restructu
 - Backlog cards F001–F007 are cross-linked from spec.md so the audit trail from "queued idea → shipped feature" is dereferenceable in both directions; backlog cards themselves are unchanged (no retroactive `Promoted to:` rewrites, because they were authored *after* shipping — F001–F007 are extractions from the v1.0 surface, not promotions of pre-shipping ideas).
 - Convention going forward: forward-looking work opens at `specs/002-*/` and onward. `001-foundation/` is a historical anchor and is not edited again except via a `## History` entry if a future amendment materially restates the v1.0 surface. Phase 2 of the SpecKit rollout is complete; Scribe owns close-out next.
 
+## 2026-05-30 — Feature #208 Collection Health Scorecard — Completion Lead Audit
+
+**Session Type**: Completion lead audit (monitoring implementation against plan/spec)  
+**Feature**: #208 Collection Health Scorecard v1  
+**Scope**: Baseline audit + risk + acceptance criteria + code review gates
+
+**Findings**:
+- **Backend scaffolding**: 100% structure in place (models, types, handlers, routes, scheduler wired to main.go)
+- **Scoring logic**: STUB (returns hardcoded F grade, 0 score; no weighting, no checklist generation, no trend calc)
+- **Frontend**: 0% started (no components, no type stubs)
+- **Test coverage**: Fixtures only (no unit tests for logic)
+- **Tasks**: 52 total identified; 10 done (19%), 3 in_progress (6%), 39 pending (75%)
+
+**Critical Blockers**:
+1. **T012 Scoring Logic** — must implement weighted dimensions (40/20/20/20), checklist generation, trend calc, grade mapping. Currently skeleton. Blocks 39 downstream tasks.
+2. **T011 Service Tests** — 0 unit tests exist. Must achieve >85% coverage per Constitution §17. Must accompany T012.
+3. **T006 Frontend Types** — no TypeScript types/API client methods. Blocks all Phase 3 UI work.
+
+**Go/No-Go**: **CONDITIONAL GO** — Backend structure solid; phase 2 completion is critical blocker. Can proceed with:
+- Phase 2 completion (T011 + T012) with architecture checkpoints below
+- Phase 3 frontend (T006 types start in parallel with Phase 2)
+
+**Acceptance Criteria**: 13-item MVP checklist (score+grade render, trend displays, queue ordering, endpoint auth, >85% coverage, TS type-check pass, perf budgets met, empty collection handled, formula documented). Documented in decision card.
+
+**Code Review Checkpoints** (3 gates):
+1. Phase 2: Scoring formula (40/20/20/20), all thresholds tested, empty collection edge case, trend "insufficient history", checklist taxonomy
+2. Phase 3: Handlers thin (Principle I), API schema matches contract, Vue types exact match backend DTOs
+3. Feature complete: Constitution §17 Quality Gate, ADR if patterns introduced, swagger committed, no breaking changes
+
+**Risk Register**: 6 risks documented (2 HIGH: scoring bugs, empty collection crash; 4 MEDIUM: ordering unclear, trend calc, component complexity, admin perf).
+
+**Coordinator Actions Delivered**: Audit baseline + 52 task-status database + checklist + risk register + 3 checkpoint rubrics. **Next**: Accept/reject Phase 2 work when code lands; verify checkpoint criteria before advancing phases.
+
+**Artifacts**:
+- `.audit-208-status.md` — 300-line comprehensive report (phases, blockers, acceptance criteria, risks, checkpoints)
+- `.squad/decisions/inbox/maximus-208-completion-lead-audit.md` — decision card with go/no-go, MVP criteria, code review gates
+
 ## Learnings
 
 - **2026-05-28 — ADR practice established.** `docs/adr/` now exists with
@@ -152,3 +189,29 @@ Promoted the constitution from v1.1.0 → v2.0.0 (MAJOR — governance restructu
 **Alternative Recommended:** Stay on Python/LangGraph, incrementally adopt Azure AI Services for Anthropic endpoints (no code rewrite).
 
 **Spike Document:** `docs/spikes/foundry-agent-service.md` (comprehensive analysis with architecture diagrams, effort estimates, risk assessment).
+
+- **2026-05-30 — Feature #208 Completion Lead Audit (Session)**
+  
+  **Objective:** Baseline assessment of feature #208 (Collection Health Scorecard v1) against plan and tasks.
+  
+  **Scope:** Full audit of spec.md, plan.md, tasks.md (52 tasks total) and architecture review.
+  
+  **Key Findings:**
+  - Status: 10/52 tasks done (19%), 3 in progress (6%), 39 pending (75%)
+  - Critical blockers: T012 (scoring logic) and T011 (service unit tests) are blocking 39 downstream tasks
+  - T006 (frontend type stubs) should start immediately in parallel to unblock Phase 3
+  - Two HIGH-severity risks: (R1) Scoring calculation bugs, (R6) Empty collection crashes
+  
+  **Acceptance Criteria:** 10 MVP mandatory criteria defined, plus 4 post-MVP criteria
+  
+  **Code Review Checkpoints:** 3 checkpoints with explicit rubrics:
+  - Checkpoint 1 (Phase 2): Scoring formula 40/20/20/20 weights, grade thresholds 90/80/70/60, empty collection handling, test coverage >85%
+  - Checkpoint 2 (Phase 3): Thin handlers, API schema parity, Composition API + TypeScript
+  - Checkpoint 3 (Feature complete): §17 Quality Gate passing, no breaking changes, Swagger committed
+  
+  **Decision:** CONDITIONAL GO on feature #208 with blocking condition on Phase 2 completion (T012 + T011)
+  
+  **Confidence:** HIGH (full codebase and spec audit performed)
+  
+  **Decision Entry:** Decision #19 in `.squad/decisions.md`
+

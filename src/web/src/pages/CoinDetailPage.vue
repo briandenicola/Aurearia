@@ -121,6 +121,15 @@
               @estimate-applied="handleEstimateApplied"
             />
 
+            <!-- Health Checklist (if coin is active and has health data) -->
+            <CoinHealthChecklist
+              v-if="coinHealth && !coin.isWishlist && !coin.isSold"
+              :score="coinHealth.score"
+              :grade="coinHealth.grade"
+              :missing-items="coinHealth.missingItems"
+              @quick-action="handleHealthQuickAction"
+            />
+
             <div class="detail-ai">
               <CoinAIAnalysis
                 :coin-id="coin.id"
@@ -156,10 +165,11 @@ import CoinActionsPanel from '@/components/coin/CoinActionsPanel.vue'
 import CoinAIAnalysis from '@/components/coin/CoinAIAnalysis.vue'
 import CoinListingStatus from '@/components/coin/CoinListingStatus.vue'
 import CoinActivityJournal from '@/components/coin/CoinActivityJournal.vue'
+import CoinHealthChecklist from '@/components/coin/CoinHealthChecklist.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
-import { uploadImage, deleteCoin, deleteImage, purchaseCoin, sellCoin, getJournalEntries, addJournalEntry, deleteJournalEntry, getCoinValueHistory } from '@/api/client'
+import { uploadImage, deleteCoin, deleteImage, purchaseCoin, sellCoin, getJournalEntries, addJournalEntry, deleteJournalEntry, getCoinValueHistory, getCoinHealthList } from '@/api/client'
 import { removeBackground as removeBg } from '@imgly/background-removal'
-import type { CoinImage, CoinJournal, CoinValueHistory as CoinValueHistoryType } from '@/types'
+import type { CoinImage, CoinJournal, CoinValueHistory as CoinValueHistoryType, CoinHealthItem, HealthQuickAction } from '@/types'
 import { useDialog } from '@/composables/useDialog'
 import { usePwa } from '@/composables/usePwa'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
@@ -175,6 +185,7 @@ const showSellModal = ref(false)
 const showPurchaseModal = ref(false)
 const journalEntries = ref<CoinJournal[]>([])
 const coinValueHistory = ref<CoinValueHistoryType[]>([])
+const coinHealth = ref<CoinHealthItem | null>(null)
 
 const coin = computed(() => store.currentCoin)
 const safeReferenceUrl = computed(() => sanitizeExternalUrl(coin.value?.referenceUrl))
@@ -184,10 +195,45 @@ onMounted(() => {
   store.fetchCoin(id)
   loadJournal(id)
   loadValueHistory(id)
+  loadCoinHealth(id)
 })
 
+async function loadCoinHealth(coinId: number) {
+  try {
+    const res = await getCoinHealthList({ page: 1, limit: 1 })
+    const match = res.data.coins.find(c => c.coinId === coinId)
+    coinHealth.value = match ?? null
+  } catch (err) {
+    console.error('Failed to load coin health:', err)
+  }
+}
+
+function handleHealthQuickAction(action: HealthQuickAction) {
+  if (!coin.value) return
+  
+  switch (action) {
+    case 'edit_metadata':
+      router.push(`/coins/${coin.value.id}/edit`)
+      break
+    case 'upload_images':
+      router.push(`/coins/${coin.value.id}/edit?tab=images`)
+      break
+    case 'run_valuation':
+      // Trigger valuation action (handled by CoinActionsPanel)
+      showAlert('Run valuation via the Actions panel')
+      break
+    case 'run_ai_analysis':
+      // Trigger AI analysis action (handled by CoinAIAnalysis)
+      showAlert('Run AI analysis via the AI Analysis panel')
+      break
+  }
+}
+
 function refreshCoin() {
-  if (coin.value) store.fetchCoin(coin.value.id)
+  if (coin.value) {
+    store.fetchCoin(coin.value.id)
+    loadCoinHealth(coin.value.id)
+  }
 }
 
 function handleEstimateApplied() {

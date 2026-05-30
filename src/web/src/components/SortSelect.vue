@@ -11,6 +11,7 @@
       <option value="current_value_desc">Price: High → Low</option>
       <option value="current_value_asc">Price: Low → High</option>
       <option value="random_desc">Random</option>
+      <option value="needs_attention">Needs Attention</option>
     </select>
   </div>
 </template>

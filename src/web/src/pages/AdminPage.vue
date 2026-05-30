@@ -106,6 +106,9 @@
         @update:auction-settings-error="auctionSettingsError = $event"
       />
 
+      <!-- Health Tab -->
+      <AdminHealthSection v-if="activeTab === 'health'" />
+
       <!-- Reset Password Modal -->
       <ResetPasswordModal :user="resetTarget" @close="resetTarget = null" />
     </div>
@@ -126,9 +129,10 @@ import AdminSystemSection from '@/components/admin/AdminSystemSection.vue'
 import AdminLogsSection from '@/components/admin/AdminLogsSection.vue'
 import AdminAISection from '@/components/admin/AdminAISection.vue'
 import AdminSchedulesSection from '@/components/admin/AdminSchedulesSection.vue'
-import { Users, Cpu, Wrench, ScrollText, CalendarClock } from 'lucide-vue-next'
+import AdminHealthSection from '@/components/admin/AdminHealthSection.vue'
+import { Users, Cpu, Wrench, ScrollText, CalendarClock, Activity } from 'lucide-vue-next'
 
-const tabIcons: Record<string, Component> = { users: Users, ai: Cpu, system: Wrench, logs: ScrollText, schedules: CalendarClock }
+const tabIcons: Record<string, Component> = { users: Users, ai: Cpu, system: Wrench, logs: ScrollText, schedules: CalendarClock, health: Activity }
 
 const { showConfirm, showAlert } = useDialog()
 const auth = useAuthStore()
@@ -154,6 +158,7 @@ const tabs = [
   { id: 'system', icon: 'wrench', label: 'System' },
   { id: 'logs', icon: 'scroll-text', label: 'Logs' },
   { id: 'schedules', icon: 'calendar-clock', label: 'Schedules' },
+  { id: 'health', icon: 'activity', label: 'Health' },
 ]
 const activeTab = ref('users')
 
