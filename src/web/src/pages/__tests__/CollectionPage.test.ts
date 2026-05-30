@@ -8,11 +8,9 @@ const __dirname = path.dirname(__filename)
 const collectionPagePath = path.resolve(__dirname, '../CollectionPage.vue')
 
 describe('CollectionPage', () => {
-  it('anchors the PWA add button on the left side of the screen', () => {
+  it('does not include a floating add button in PWA mode', () => {
     const source = fs.readFileSync(collectionPagePath, 'utf8')
-    const addFabStyle = source.match(/\.add-fab\s*\{[\s\S]*?\n\}/)?.[0]
-
-    expect(addFabStyle).toContain('left: 24px;')
-    expect(addFabStyle).not.toContain('right: 88px;')
+    expect(source).not.toContain('class="add-fab"')
+    expect(source).not.toMatch(/\.add-fab\s*\{/)
   })
 })

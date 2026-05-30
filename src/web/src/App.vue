@@ -7,10 +7,15 @@
           <img src="/coin-logo.jpg" alt="Ancient Coins" class="nav-logo" />
           <span class="nav-title">Coin Collection</span>
         </button>
-        <router-link to="/notifications" class="nav-bell" aria-label="Notifications">
-          <Bell :size="20" />
-          <span v-if="unreadCount > 0" class="nav-bell-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
-        </router-link>
+        <div class="nav-actions">
+          <router-link v-if="isPwa" to="/add" class="nav-bell nav-add" aria-label="Add Coin">
+            <Plus :size="20" />
+          </router-link>
+          <router-link to="/notifications" class="nav-bell" aria-label="Notifications">
+            <Bell :size="20" />
+            <span v-if="unreadCount > 0" class="nav-bell-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+          </router-link>
+        </div>
       </div>
     </nav>
 
@@ -121,7 +126,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, markRaw, type Component } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Clock, Bot, Gavel, X, Bell, CalendarDays, Share2, GripVertical, BookOpen } from 'lucide-vue-next'
+import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Clock, Bot, Gavel, X, Bell, Plus, CalendarDays, Share2, GripVertical, BookOpen } from 'lucide-vue-next'
 import { updateProfile, getMe } from '@/api/client'
 import { useNotifications } from '@/composables/useNotifications'
 import { useBulkSelect } from '@/composables/useBulkSelect'
@@ -423,6 +428,12 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
   transition: color var(--transition-fast), background var(--transition-fast);
   text-decoration: none;
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .nav-bell:hover {
