@@ -389,6 +389,15 @@ definitions:
     required:
     - status
     type: object
+  handlers.UpdateUserRoleRequest:
+    properties:
+      role:
+        allOf:
+        - $ref: '#/definitions/models.UserRole'
+        example: admin
+    required:
+    - role
+    type: object
   handlers.UserDTO:
     properties:
       createdAt:
@@ -1352,6 +1361,58 @@ paths:
       security:
       - BearerAuth: []
       summary: Reset user password
+      tags:
+      - Admin
+  /admin/users/{id}/role:
+    put:
+      consumes:
+      - application/json
+      description: Updates the role for the specified user. Cannot update your own
+        role. Admin only.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Role update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateUserRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update user role
       tags:
       - Admin
   /admin/valuation-runs:
