@@ -1342,3 +1342,61 @@ Review:
 
 **Confidence**: HIGH (full codebase and spec audit performed)  
 **Next Action**: Await backend agent T011 + T012 implementation; begin T006 (frontend types) in parallel
+
+---
+
+## 18. OpenAPI Snapshot Drift Resolution (2026-05-30)
+
+**Author:** Cassius (Backend Dev)  
+**Date:** 2026-05-30  
+**Status:** APPROVED  
+**CI Run:** 26656552925 (Job: 78568056509)  
+
+### Context
+
+Quality Gate verification step **Verify OpenAPI snapshot** failed. CI regenerated Swagger artifacts and detected drift in:
+- `src/api/docs/docs.go`
+- `src/api/docs/swagger.json`
+- `src/api/docs/swagger.yaml`
+- `docs/openapi.json`
+
+### Root Cause
+
+Swagger annotations in `src/api/handlers/webauthn.go` already include `@Failure 403` decorators for:
+- `POST /auth/webauthn/login/finish`
+- `POST /auth/webauthn/register/finish`
+
+Generated artifacts were **not regenerated and committed** before push, so CI snapshot verification failed on `git diff`.
+
+### Decision
+
+**After any Swagger annotation changes** (`@Summary`, `@Failure`, `@Param`, `@Success`, etc.), regenerate and commit OpenAPI artifacts using `task openapi` (equivalent: `swag init -g main.go -o ./docs --parseDependency --parseInternal` + sync `docs/openapi.json` from `swagger.json`) **before pushing**.
+
+### Verification
+
+- ✅ `go build ./...` — compilation successful  
+- ✅ `go vet ./...` — linting clean  
+- ✅ `go test ./...` — all tests pass  
+- ✅ OpenAPI snapshot verification — green after regeneration  
+- ✅ Commit `e396c84` — all artifacts committed  
+
+### Operationalization
+
+**Development workflow:**
+1. Edit Swagger annotations in any handler
+2. Run `task openapi` to regenerate artifacts
+3. Review changes in `src/api/docs/` and `docs/openapi.json`
+4. Commit regenerated artifacts alongside code changes
+5. Push — Quality Gate snapshot check now passes
+
+**CI:** No changes — snapshot verification already enforces this via `git diff` on generated files.
+
+### Impact
+
+- ✅ Quality Gate restored to green
+- ✅ No production impact — purely artifact synchronization
+- ✅ Lesson captured for all future handler annotation changes
+
+**Confidence:** HIGH (root cause identified, fix validated, full test suite passes)
+
+---
