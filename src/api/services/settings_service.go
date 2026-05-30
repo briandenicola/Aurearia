@@ -7,34 +7,36 @@ import (
 )
 
 const (
-	SettingAIProvider           = "AIProvider"
-	SettingOllamaURL            = "OllamaURL"
-	SettingOllamaModel          = "OllamaModel"
-	SettingObversePrompt        = "ObversePrompt"
-	SettingReversePrompt        = "ReversePrompt"
-	SettingTextExtractionPrompt = "TextExtractionPrompt"
-	SettingOllamaTimeout        = "OllamaTimeout"
-	SettingLogLevel             = "LogLevel"
-	SettingNumistaAPIKey        = "NumistaAPIKey"
-	SettingAnthropicAPIKey      = "AnthropicAPIKey"
-	SettingAnthropicModel       = "AnthropicModel"
-	SettingCoinSearchPrompt     = "CoinSearchPrompt"
-	SettingCoinShowsPrompt      = "CoinShowsPrompt"
-	SettingValuationPrompt      = "ValuationPrompt"
-	SettingSearXNGURL           = "SearXNGURL"
-	SettingPushoverAppToken     = "PushoverAppToken"
-	SettingWishlistCheckEnabled    = "WishlistCheckEnabled"
-	SettingWishlistCheckInterval   = "WishlistCheckInterval"
-	SettingWishlistCheckStartTime  = "WishlistCheckStartTime"
-	SettingValuationCheckEnabled      = "ValuationCheckEnabled"
-	SettingValuationCheckInterval     = "ValuationCheckIntervalDays"
-	SettingValuationCheckStartTime    = "ValuationCheckStartTime"
-	SettingValuationMaxCoins          = "ValuationMaxCoins"
-	SettingAuctionEndingCheckEnabled  = "AuctionEndingCheckEnabled"
-	SettingAuctionEndingCheckInterval = "AuctionEndingCheckInterval"
-	SettingAuctionEndingCheckStartTime = "AuctionEndingCheckStartTime"
-	SettingCoinOfDayEnabled            = "CoinOfDayEnabled"
-	SettingCoinOfDayStartTime          = "CoinOfDayStartTime"
+	SettingAIProvider                         = "AIProvider"
+	SettingOllamaURL                          = "OllamaURL"
+	SettingOllamaModel                        = "OllamaModel"
+	SettingObversePrompt                      = "ObversePrompt"
+	SettingReversePrompt                      = "ReversePrompt"
+	SettingTextExtractionPrompt               = "TextExtractionPrompt"
+	SettingOllamaTimeout                      = "OllamaTimeout"
+	SettingLogLevel                           = "LogLevel"
+	SettingNumistaAPIKey                      = "NumistaAPIKey"
+	SettingAnthropicAPIKey                    = "AnthropicAPIKey"
+	SettingAnthropicModel                     = "AnthropicModel"
+	SettingCoinSearchPrompt                   = "CoinSearchPrompt"
+	SettingCoinShowsPrompt                    = "CoinShowsPrompt"
+	SettingValuationPrompt                    = "ValuationPrompt"
+	SettingSearXNGURL                         = "SearXNGURL"
+	SettingPushoverAppToken                   = "PushoverAppToken"
+	SettingWishlistCheckEnabled               = "WishlistCheckEnabled"
+	SettingWishlistCheckInterval              = "WishlistCheckInterval"
+	SettingWishlistCheckStartTime             = "WishlistCheckStartTime"
+	SettingValuationCheckEnabled              = "ValuationCheckEnabled"
+	SettingValuationCheckInterval             = "ValuationCheckIntervalDays"
+	SettingValuationCheckStartTime            = "ValuationCheckStartTime"
+	SettingValuationMaxCoins                  = "ValuationMaxCoins"
+	SettingAuctionEndingCheckEnabled          = "AuctionEndingCheckEnabled"
+	SettingAuctionEndingCheckInterval         = "AuctionEndingCheckInterval"
+	SettingAuctionEndingCheckStartTime        = "AuctionEndingCheckStartTime"
+	SettingCoinOfDayEnabled                   = "CoinOfDayEnabled"
+	SettingCoinOfDayStartTime                 = "CoinOfDayStartTime"
+	SettingCollectionHealthSnapshotsEnabled   = "CollectionHealthSnapshotsEnabled"
+	SettingCollectionHealthSnapshotsStartTime = "CollectionHealthSnapshotsStartTime"
 )
 
 const DefaultObversePrompt = `You are an expert numismatist specializing in ancient and modern coins. Analyze the obverse (front) of this coin and provide:
@@ -60,34 +62,36 @@ Include store name, coin description, price, grade, reference numbers, dates, an
 Return ONLY the extracted text, no commentary.`
 
 var settingDefaults = map[string]string{
-	SettingAIProvider:           "",
-	SettingOllamaURL:            "http://localhost:11434",
-	SettingOllamaModel:          "llava",
-	SettingObversePrompt:        DefaultObversePrompt,
-	SettingReversePrompt:        DefaultReversePrompt,
-	SettingTextExtractionPrompt: DefaultTextExtractionPrompt,
-	SettingOllamaTimeout:        "300",
-	SettingLogLevel:             "info",
-	SettingNumistaAPIKey:        "",
-	SettingAnthropicAPIKey:      "",
-	SettingAnthropicModel:       "claude-sonnet-4-20250514",
-	SettingCoinSearchPrompt:     "",
-	SettingCoinShowsPrompt:      "",
-	SettingValuationPrompt:      "",
-	SettingSearXNGURL:           "",
-	SettingPushoverAppToken:     "",
-	SettingWishlistCheckEnabled:      "false",
-	SettingWishlistCheckInterval:     "120",
-	SettingWishlistCheckStartTime:    "02:00",
-	SettingValuationCheckEnabled:     "false",
-	SettingValuationCheckInterval:    "7",
-	SettingValuationCheckStartTime:   "03:00",
-	SettingValuationMaxCoins:         "50",
-	SettingAuctionEndingCheckEnabled: "false",
-	SettingAuctionEndingCheckInterval: "1440",
-	SettingAuctionEndingCheckStartTime: "08:00",
-	SettingCoinOfDayEnabled:            "false",
-	SettingCoinOfDayStartTime:          "07:00",
+	SettingAIProvider:                         "",
+	SettingOllamaURL:                          "http://localhost:11434",
+	SettingOllamaModel:                        "llava",
+	SettingObversePrompt:                      DefaultObversePrompt,
+	SettingReversePrompt:                      DefaultReversePrompt,
+	SettingTextExtractionPrompt:               DefaultTextExtractionPrompt,
+	SettingOllamaTimeout:                      "300",
+	SettingLogLevel:                           "info",
+	SettingNumistaAPIKey:                      "",
+	SettingAnthropicAPIKey:                    "",
+	SettingAnthropicModel:                     "claude-sonnet-4-20250514",
+	SettingCoinSearchPrompt:                   "",
+	SettingCoinShowsPrompt:                    "",
+	SettingValuationPrompt:                    "",
+	SettingSearXNGURL:                         "",
+	SettingPushoverAppToken:                   "",
+	SettingWishlistCheckEnabled:               "false",
+	SettingWishlistCheckInterval:              "120",
+	SettingWishlistCheckStartTime:             "02:00",
+	SettingValuationCheckEnabled:              "false",
+	SettingValuationCheckInterval:             "7",
+	SettingValuationCheckStartTime:            "03:00",
+	SettingValuationMaxCoins:                  "50",
+	SettingAuctionEndingCheckEnabled:          "false",
+	SettingAuctionEndingCheckInterval:         "1440",
+	SettingAuctionEndingCheckStartTime:        "08:00",
+	SettingCoinOfDayEnabled:                   "false",
+	SettingCoinOfDayStartTime:                 "07:00",
+	SettingCollectionHealthSnapshotsEnabled:   "false",
+	SettingCollectionHealthSnapshotsStartTime: "04:30",
 }
 
 // SettingsService provides access to application settings backed by the database.

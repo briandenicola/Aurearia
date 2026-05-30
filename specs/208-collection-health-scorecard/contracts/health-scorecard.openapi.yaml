@@ -1,0 +1,273 @@
+openapi: 3.0.3
+info:
+  title: Collection Health Scorecard API
+  version: "1.0"
+  description: API contract for Feature #208 Collection Health Scorecard (v1).
+servers:
+  - url: /api
+paths:
+  /stats/health:
+    get:
+      summary: Get collection health summary for current user
+      tags: [Health]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Collection health summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CollectionHealthSummaryResponse"
+        "401":
+          description: Unauthorized
+  /coins/health:
+    get:
+      summary: List per-coin health scores
+      tags: [Health]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [all, needs_attention]
+            default: all
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        "200":
+          description: Paginated coin health list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoinHealthListResponse"
+        "401":
+          description: Unauthorized
+  /admin/health/summary:
+    get:
+      summary: Get admin aggregate health metrics
+      tags: [Admin Health]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Admin aggregate metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminHealthSummaryResponse"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden (admin required)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    CollectionHealthSummaryResponse:
+      type: object
+      required:
+        - score
+        - grade
+        - eligibleCoinCount
+        - weights
+        - dimensions
+        - trend30d
+      properties:
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        grade:
+          type: string
+          enum: [A, B, C, D, F]
+        eligibleCoinCount:
+          type: integer
+          minimum: 0
+        weights:
+          type: object
+          required: [metadata, imageCoverage, valuationFreshness, aiCoverage]
+          properties:
+            metadata:
+              type: integer
+              enum: [40]
+            imageCoverage:
+              type: integer
+              enum: [20]
+            valuationFreshness:
+              type: integer
+              enum: [20]
+            aiCoverage:
+              type: integer
+              enum: [20]
+        dimensions:
+          type: object
+          required: [metadata, imageCoverage, valuationFreshness, aiCoverage]
+          properties:
+            metadata:
+              type: integer
+              minimum: 0
+              maximum: 100
+            imageCoverage:
+              type: integer
+              minimum: 0
+              maximum: 100
+            valuationFreshness:
+              type: integer
+              minimum: 0
+              maximum: 100
+            aiCoverage:
+              type: integer
+              minimum: 0
+              maximum: 100
+        trend30d:
+          type: object
+          required: [status]
+          properties:
+            status:
+              type: string
+              enum: [available, unavailable]
+            delta:
+              type: integer
+              nullable: true
+            direction:
+              type: string
+              enum: [up, flat, down, unavailable]
+
+    CoinHealthListResponse:
+      type: object
+      required: [coins, pagination]
+      properties:
+        coins:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoinHealthItem"
+        pagination:
+          type: object
+          required: [page, limit, total]
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+            total:
+              type: integer
+    CoinHealthItem:
+      type: object
+      required:
+        - coinId
+        - title
+        - score
+        - grade
+        - dimensions
+        - missingItems
+        - quickActions
+      properties:
+        coinId:
+          type: integer
+        title:
+          type: string
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        grade:
+          type: string
+          enum: [A, B, C, D, F]
+        dimensions:
+          type: object
+          required: [metadata, imageCoverage, valuationFreshness, aiCoverage]
+          properties:
+            metadata:
+              type: integer
+            imageCoverage:
+              type: integer
+            valuationFreshness:
+              type: integer
+            aiCoverage:
+              type: integer
+        missingItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/MissingChecklistItem"
+        quickActions:
+          type: array
+          items:
+            type: string
+            enum: [edit_metadata, upload_images, run_valuation, run_ai_analysis]
+
+    MissingChecklistItem:
+      type: object
+      required: [key, dimension, label, severity, actionHint]
+      properties:
+        key:
+          type: string
+        dimension:
+          type: string
+          enum: [metadata, images, valuation, ai]
+        label:
+          type: string
+        severity:
+          type: string
+          enum: [high, medium, low]
+        actionHint:
+          type: string
+          enum: [edit_metadata, upload_images, run_valuation, run_ai_analysis]
+
+    AdminHealthSummaryResponse:
+      type: object
+      required:
+        - medianScore
+        - lowScorePercentage
+        - lowScoreThreshold
+        - eligibleCoinCount
+        - topMissingFields
+      properties:
+        medianScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        lowScorePercentage:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+        lowScoreThreshold:
+          type: integer
+          enum: [60]
+        eligibleCoinCount:
+          type: integer
+          minimum: 0
+        topMissingFields:
+          type: array
+          items:
+            type: object
+            required: [key, count, percentage]
+            properties:
+              key:
+                type: string
+              count:
+                type: integer
+                minimum: 0
+              percentage:
+                type: number
+                format: float
+                minimum: 0
+                maximum: 100

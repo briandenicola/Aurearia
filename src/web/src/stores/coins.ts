@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Coin, StatsResponse, ValueSnapshot } from '@/types'
+import type { Coin, StatsResponse, ValueSnapshot, CollectionHealthSummary, CoinHealthItem } from '@/types'
 import * as api from '@/api/client'
 
 export const useCoinsStore = defineStore('coins', () => {
@@ -14,6 +14,9 @@ export const useCoinsStore = defineStore('coins', () => {
   const searchQuery = ref('')
   const activeSortKey = ref('')
   const galleryIndex = ref(0)
+  const collectionHealth = ref<CollectionHealthSummary | null>(null)
+  const coinHealthList = ref<CoinHealthItem[]>([])
+  const healthLoading = ref(false)
 
   async function fetchCoins(params?: {
     category?: string
@@ -71,6 +74,30 @@ export const useCoinsStore = defineStore('coins', () => {
     valueHistory.value = res.data
   }
 
+  async function fetchCollectionHealth() {
+    healthLoading.value = true
+    try {
+      const res = await api.getCollectionHealthSummary()
+      collectionHealth.value = res.data
+    } catch (error) {
+      collectionHealth.value = null
+      throw error
+    } finally {
+      healthLoading.value = false
+    }
+  }
+
+  async function fetchCoinHealthList(scope?: 'all' | 'needs_attention', page = 1, limit = 25) {
+    healthLoading.value = true
+    try {
+      const res = await api.getCoinHealthList({ scope, page, limit })
+      coinHealthList.value = res.data.coins
+      return res.data
+    } finally {
+      healthLoading.value = false
+    }
+  }
+
   return {
     coins,
     currentCoin,
@@ -82,6 +109,9 @@ export const useCoinsStore = defineStore('coins', () => {
     searchQuery,
     activeSortKey,
     galleryIndex,
+    collectionHealth,
+    coinHealthList,
+    healthLoading,
     fetchCoins,
     fetchCoin,
     addCoin,
@@ -89,5 +119,7 @@ export const useCoinsStore = defineStore('coins', () => {
     removeCoin,
     fetchStats,
     fetchValueHistory,
+    fetchCollectionHealth,
+    fetchCoinHealthList,
   }
 })

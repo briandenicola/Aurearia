@@ -179,17 +179,21 @@ func main() {
 	notifSvc := services.NewNotificationService(notifRepo, socialRepo, userRepoForVal, pushoverSvc, logger)
 	availSvc := services.NewAvailabilityService(coinRepo, availRepo, agentProxy, notifSvc, pushoverSvc, userRepoForVal, settingsSvc, logger)
 	valSvc := services.NewValuationService(coinRepo, valRepo, agentProxy, userRepoForVal, pushoverSvc, settingsSvc, logger)
+	healthRepo := repository.NewHealthRepository(database.DB)
+	healthSvc := services.NewHealthService(healthRepo, logger)
 
 	// Create schedulers before routes so they can be passed to admin handlers
 	availScheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, availRepo, settingsSvc, logger)
 	valScheduler := services.NewValuationScheduler(valSvc, coinRepo, valRepo, settingsSvc, logger)
 	auctionEndingScheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepoForVal, pushoverSvc, settingsSvc, logger)
+	healthScheduler := services.NewCollectionHealthScheduler(healthSvc, settingsSvc, logger)
 	featuredCoinRepo := repository.NewFeaturedCoinRepository(database.DB)
 	coinOfDayScheduler := services.NewCoinOfDayScheduler(featuredCoinRepo, userRepoForVal, coinRepo, notifSvc, settingsSvc, logger)
 	schedulerRegistry := &SchedulerRegistry{}
 	schedulerRegistry.Register(availScheduler)
 	schedulerRegistry.Register(valScheduler)
 	schedulerRegistry.Register(auctionEndingScheduler)
+	schedulerRegistry.Register(healthScheduler)
 
 	apiKeyRepo := repository.NewApiKeyRepository(database.DB)
 	apiKeyAuth := apiKeyRepo // implements middleware.ApiKeyAuthenticator
@@ -227,6 +231,9 @@ func main() {
 		protected.DELETE("/coins/:id/journal/:entryId", journalHandler.DeleteEntry)
 
 		protected.GET("/stats", coinHandler.Stats)
+		healthHandler := handlers.NewHealthHandler(healthSvc, logger)
+		protected.GET("/stats/health", healthHandler.CollectionSummary)
+		protected.GET("/coins/health", healthHandler.ListCoinHealth)
 		protected.GET("/stats/distribution", coinHandler.Distribution)
 		protected.GET("/value-history", coinHandler.ValueHistory)
 		protected.GET("/coins/:id/value-history", coinHandler.CoinValueHistory)
@@ -422,6 +429,10 @@ func main() {
 		// Coin of the Day manual trigger
 		coinOfDayAdminHandler := handlers.NewCoinOfDayAdminHandler(coinOfDayScheduler, logger)
 		admin.POST("/coin-of-day/run", coinOfDayAdminHandler.TriggerRun)
+
+		// Aggregate health metrics
+		adminHealthHandler := handlers.NewAdminHealthHandler(healthSvc, logger)
+		admin.GET("/health/summary", adminHealthHandler.Summary)
 
 		// API key rotation notification trigger
 		apiKeyAdminHandler := handlers.NewApiKeyAdminHandler(apiKeyRepo, notifSvc, logger)

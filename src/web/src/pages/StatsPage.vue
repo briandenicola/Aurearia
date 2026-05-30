@@ -12,6 +12,13 @@
       <div v-else class="stats-layout">
         <StatsSummaryCards :stats="stats" />
 
+        <!-- Collection Health Section -->
+        <CollectionHealthEmptyState v-if="!healthLoading && !collectionHealth" />
+        <template v-else-if="collectionHealth">
+          <CollectionHealthScorecard :summary="collectionHealth" />
+          <CollectionHealthTrendIndicator :trend="collectionHealth.trend30d" />
+        </template>
+
         <StatsBarChart
           title="By Category"
           :items="categoryItems"
@@ -79,9 +86,14 @@ import type { BarItem } from '@/components/stats/StatsBarChart.vue'
 import StatsValueOverTime from '@/components/stats/StatsValueOverTime.vue'
 import StatsCoinValueTrend from '@/components/stats/StatsCoinValueTrend.vue'
 import StatsHeatMap from '@/components/stats/StatsHeatMap.vue'
+import CollectionHealthScorecard from '@/components/stats/CollectionHealthScorecard.vue'
+import CollectionHealthTrendIndicator from '@/components/stats/CollectionHealthTrendIndicator.vue'
+import CollectionHealthEmptyState from '@/components/stats/CollectionHealthEmptyState.vue'
 
 const store = useCoinsStore()
 const stats = computed(() => store.stats)
+const collectionHealth = computed(() => store.collectionHealth)
+const healthLoading = computed(() => store.healthLoading)
 const heatMapRef = ref<InstanceType<typeof StatsHeatMap>>()
 
 const priceRangeOrder = ['Under $50', '$50 - $200', '$200 - $500', '$500 - $1K', '$1K+']
@@ -112,6 +124,7 @@ async function handleRefresh() {
   await Promise.all([
     store.fetchStats(),
     store.fetchValueHistory(),
+    store.fetchCollectionHealth().catch(() => {}),
     heatMapRef.value?.fetchDistribution(),
   ])
 }
@@ -119,6 +132,7 @@ async function handleRefresh() {
 onMounted(() => {
   store.fetchStats()
   store.fetchValueHistory()
+  store.fetchCollectionHealth().catch(() => {})
   heatMapRef.value?.fetchDistribution()
   if (!store.coins.length) store.fetchCoins()
 })
