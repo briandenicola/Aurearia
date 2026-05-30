@@ -86,3 +86,112 @@ Establishes baseline quality metrics and prioritized backlog. Guides sprint plan
 - **P3 (Low):** 22 items — performance, form validation, API polish
 
 ---
+
+---
+
+### 1. Governance Restructure — tech-inventory alignment (2026-05-28)
+
+**Authors:** Maximus (Lead/Architect), Brian  
+**Date:** 2026-05-28  
+**Status:** ACCEPTED — Phase 1 landed  
+
+Adopted tech-inventory governance philosophy (operational scaffolding adapted to Go/Vue/Python). Constitution v1.1.0 → v2.0.0 with eight new operational sections (§0–§23): Hierarchy of Authority, Quality Gate, AI Agent Operating Rules, Documentation Requirements, Audit Cadence, Definition of Done, Amendment Process, Revision History. All 16 original Principles preserved verbatim.
+
+Key Decisions: Constitution MAJOR version bump (16 principles untouched, operational restructure warrants MAJOR); Seed `specs/001-foundation/` retroactively; `docs/prd.md` becomes product source of truth; Split legacy security review into three files; Signed commits NOT required (single-developer hobby project); Conventional Commits + Co-authored-by trailer remain mandatory.
+
+Impact: Establishes unambiguous document hierarchy, single Definition of Done, mechanically enforceable quality gate.
+
+---
+
+### 2. copilot-instructions Restructure + PR Template (2026-05-28)
+
+**Author:** Maximus (Lead/Architect)  
+**Date:** 2026-05-28  
+**Status:** ACCEPTED — Phase 1 landed  
+
+Restructured `.github/copilot-instructions.md` to cite the constitution rather than restate it. Added Document Hierarchy (§0), Session Protocol (§18), Constitution Compliance (§21). Created `.github/pull_request_template.md` with Summary, Constitution self-check, Linked work, then §21 Definition of Done as 14-item executable checklist.
+
+Impact: Agents read constitution once; PR template gates every merge on §21 self-check. Reduces documentation drift.
+
+---
+
+### 3. Governance Scaffolding — SECURITY.md, CODEOWNERS, Templates (2026-05-28)
+
+**Authors:** Scribe, Maximus  
+**Date:** 2026-05-28  
+**Status:** ACCEPTED — Phase 1 landed  
+
+Created governance infrastructure: SECURITY.md (30-day disclosure window), .github/CODEOWNERS (review routing), bug.md and feature.md issue templates.
+
+Impact: Security reporters know where to send disclosures; maintainers enforce review gates; users file better-structured issues.
+
+---
+
+### 4. Five User Decisions — tech-inventory Alignment Direction (2026-05-28)
+
+**Author:** Brian (via Squad coordinator)  
+**Date:** 2026-05-28  
+**Status:** ACCEPTED — Phase 1 planning confirmed  
+
+Five user decisions: Constitution v1.1.0 → v2.0.0 (MAJOR); Yes to retroactive specs/001-foundation/; docs/prd.md as product source of truth; Security analysis split; Signed commits SKIP (single-developer project).
+
+Impact: Confirmed Phase 1 scope boundaries; Phase 2–4 deliverables queued.
+
+---
+
+### 5. `specs/` scaffold + session-protocol prompts live (2026-05-28)
+
+**Author:** Maximus (Lead/Architect)  
+**Date:** 2026-05-28  
+**Status:** ACCEPTED — Phase 2A landed  
+
+specs/ workflow live on disk (specs/NNN-feature-slug/ for active features, specs/_backlog/F0NN-*.md for queued cards). Promotion rule: triaged card with concrete acceptance criteria → specs/NNN-slug/spec.md. Four session-protocol prompts under .github/prompts/ (load-context, checkpoint, handoff, audit).
+
+Impact: Constitution §0 Hierarchy items have concrete homes; Squad ceremonies standardized.
+
+---
+
+### 6. `specs/001-foundation/` is the v1.0 SHIPPED anchor (2026-05-28)
+
+**Author:** Maximus (Lead/Architect)  
+**Date:** 2026-05-28  
+**Status:** ACCEPTED — Phase 2B landed  
+
+specs/001-foundation/ created retroactively to document v1.0 feature surface: spec.md (162 lines), plan.md (139 lines), tasks.md (86 lines, all ✅ SHIPPED). Total 387 lines within budget.
+
+Rationale: Constitution §0 Hierarchy item 3 needs concrete content; end-to-end SpecKit validation; audit trail for "What was in v1.0?"
+
+Scope boundary: 001-foundation/ is historical; forward-looking work opens at specs/002-*/, specs/003-*/, etc.
+
+Impact: Establishes v1.0 feature surface as reference point for future iterations.
+
+---
+
+### 7. Code Review & Quality Assessment (2026-04-24)
+
+**Authors:** Maximus (Architect), Cassius (Backend), Aurelia (Frontend), Brutus (Testing)  
+**Date:** 2026-04-24  
+**Status:** Assessed — Backlog Created  
+
+Comprehensive review of all three services. Generated 77 backlog items across P0–P3 priorities. Key findings:
+- Architecture (Grade: B+): Clean 3-service separation; 3 package-level globals undermining DI
+- Backend (Grade: B-): Most handlers thin; some logic leaks; sentinel errors used in 4 services; many silently drop errors
+- Frontend (Grade: B-): Good Composition API; some god-components; TypeScript strong; accessibility D+; PWA quality C+
+- Testing (Grade: D): 3.5-4.6% Go coverage; zero frontend tests; 31 Python tests but zero team pipeline tests
+
+Impact: Establishes baseline quality metrics and prioritized backlog.
+
+---
+
+### 8. Phase 3b operational scaffolding: CI workflow + security scans (2026-05-28)
+
+**Author:** Cassius (Backend Dev)  
+**Date:** 2026-05-28  
+**Status:** ACCEPTED — Phase 3b landed  
+
+Kept workflow file as `.github/workflows/ci.yml` while renaming the workflow itself to "Quality Gate" (for stability). Added separate `.github/workflows/security-scan.yml` for advisory scans. Expanded Quality Gate to full §17 coverage (Go/Vue/Python/OpenAPI checks).
+
+Decision: Kept `ci.yml` filename while renaming workflow to "Quality Gate" to avoid cross-workstream churn.
+
+Impact: Quality Gate enforces §17 requirements mechanically; security scans decouple from main CI; OpenAPI export to docs/openapi.json.
+
