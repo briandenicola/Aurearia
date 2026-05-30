@@ -313,7 +313,7 @@ func main() {
 		protected.POST("/notifications/test-pushover", userHandler.TestPushover)
 
 		// Social routes
-		socialSvc := services.NewSocialService(socialRepo)
+		socialSvc := services.NewSocialService(socialRepo, notifSvc)
 		socialHandler := handlers.NewSocialHandler(socialRepo, socialSvc, logger)
 		protected.POST("/social/follow/:userId", socialHandler.FollowUser)
 		protected.DELETE("/social/follow/:userId", socialHandler.UnfollowUser)

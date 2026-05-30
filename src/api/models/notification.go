@@ -6,7 +6,7 @@ type Notification struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
 	UserID       uint      `gorm:"not null;index" json:"userId"`
 	User         User      `gorm:"foreignKey:UserID" json:"-"`
-	Type         string    `gorm:"not null;index" json:"type"` // wishlist_unavailable, friend_new_coin
+	Type         string    `gorm:"not null;index" json:"type"` // wishlist_unavailable, friend_new_coin, follow_request
 	Title        string    `gorm:"not null" json:"title"`
 	Message      string    `gorm:"type:text;not null" json:"message"`
 	ReferenceID  uint      `gorm:"default:0" json:"referenceId"`

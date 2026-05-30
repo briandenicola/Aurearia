@@ -18,6 +18,8 @@ type NotificationService struct {
 	logger      *Logger
 }
 
+const NotificationTypeFollowRequest = "follow_request"
+
 // NewNotificationService creates a new NotificationService.
 func NewNotificationService(
 	notifRepo *repository.NotificationRepository,
@@ -105,6 +107,38 @@ func (s *NotificationService) NotifyNewCoin(ownerID uint, coin models.Coin) {
 	}
 
 	s.logger.Debug("notifications", "Notified %d followers about new coin %d from user %d", len(followers), coin.ID, ownerID)
+}
+
+// NotifyFollowRequest creates a notification for a user who received a new
+// follower request.
+func (s *NotificationService) NotifyFollowRequest(followerID, targetID uint) {
+	if followerID == 0 || targetID == 0 || followerID == targetID {
+		return
+	}
+
+	followerName := fmt.Sprintf("User #%d", followerID)
+	if user, err := s.socialRepo.GetUserByID(followerID); err == nil && user != nil {
+		followerName = user.Username
+	}
+
+	title := "New follower request"
+	message := fmt.Sprintf("%s requested to follow you.", followerName)
+
+	n := &models.Notification{
+		UserID:       targetID,
+		Type:         NotificationTypeFollowRequest,
+		Title:        title,
+		Message:      message,
+		ReferenceID:  followerID,
+		ReferenceURL: "/followers",
+	}
+
+	if err := s.notifRepo.Create(n); err != nil {
+		s.logger.Error("notifications", "Failed to create follow-request notification for user %d from follower %d: %v", targetID, followerID, err)
+		return
+	}
+
+	go s.sendPushover(targetID, title, message, "/followers")
 }
 
 // NotifyCoinOfDay creates an in-app notification and Pushover alert for the

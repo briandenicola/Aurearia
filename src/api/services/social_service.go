@@ -43,12 +43,13 @@ type PublicProfile struct {
 
 // SocialService handles social interaction business logic.
 type SocialService struct {
-	repo *repository.SocialRepository
+	repo     *repository.SocialRepository
+	notifSvc *NotificationService
 }
 
 // NewSocialService creates a new SocialService.
-func NewSocialService(repo *repository.SocialRepository) *SocialService {
-	return &SocialService{repo: repo}
+func NewSocialService(repo *repository.SocialRepository, notifSvc *NotificationService) *SocialService {
+	return &SocialService{repo: repo, notifSvc: notifSvc}
 }
 
 // FollowUser processes a follow request. Returns the follow status
@@ -85,6 +86,10 @@ func (s *SocialService) FollowUser(followerID, targetID uint) (string, error) {
 
 	if err := s.repo.CreateFollow(&follow); err != nil {
 		return "", ErrAlreadyFollowing
+	}
+
+	if s.notifSvc != nil {
+		s.notifSvc.NotifyFollowRequest(followerID, targetID)
 	}
 
 	return "pending", nil

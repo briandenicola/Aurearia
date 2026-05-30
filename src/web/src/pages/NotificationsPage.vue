@@ -19,7 +19,7 @@
       <BellOff :size="48" class="empty-icon" />
       <p>No notifications yet</p>
       <p class="empty-desc">
-        You will be notified when a wishlist item becomes unavailable or a user you follow adds a new coin.
+        You will be notified about follower requests, wishlist changes, and new coins from users you follow.
       </p>
     </div>
 
@@ -33,7 +33,7 @@
       >
         <div class="notification-icon">
           <AlertTriangle v-if="n.type === 'wishlist_unavailable'" :size="20" />
-          <UserPlus v-else-if="n.type === 'friend_new_coin'" :size="20" />
+          <UserPlus v-else-if="n.type === 'friend_new_coin' || n.type === 'follow_request'" :size="20" />
           <Sparkles v-else-if="n.type === 'coin_of_day'" :size="20" />
           <Key v-else-if="n.type === 'api_key_rotation_required'" :size="20" />
           <Bell v-else :size="20" />
@@ -122,6 +122,10 @@ async function handleClick(n: Notification) {
 
   if (n.type === 'coin_of_day' && n.referenceId) {
     featuredCoinModalId.value = n.referenceId
+    return
+  }
+  if (n.type === 'follow_request') {
+    router.push('/followers')
     return
   }
   if (n.type === 'wishlist_unavailable' && n.referenceId) {
