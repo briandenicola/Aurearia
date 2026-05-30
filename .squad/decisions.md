@@ -1268,3 +1268,151 @@ User explicitly asked "how do we track it?" — answer is multi-layered: card + 
 - `docs/testing.md` (Phase 3b reference to F011)
 
 ---
+
+## Decision #19 — Feature #208 (Collection Health Scorecard v1) Completion Lead Audit
+
+**Date**: 2026-05-30T08:52:44.749-05:00  
+**Owner**: Maximus (Lead/Architect)  
+**Category**: Project Management / Architecture Review  
+**Status**: ACCEPTED — Audit baseline captured; awaiting Phase 2 implementation
+
+### Summary
+
+Completed comprehensive baseline audit of feature #208 (Collection Health Scorecard v1) against implementation plan and task breakdown. Identified critical blockers, acceptance criteria, and remaining work breakdown by phase and team.
+
+### Decision
+
+**CONDITIONAL GO** on feature #208 completion with the following conditions:
+
+1. **Phase 2 completion is CRITICAL BLOCKER** — T012 (scoring logic) + T011 (service tests) must be fully implemented and tested before ANY Phase 3+ work begins. These tasks are blocking 39 other tasks across all downstream phases.
+
+2. **Code review gates for three areas**:
+   - **Architecture**: T012 scoring logic must follow Principle I (service layer owns business logic, handlers are thin)
+   - **Test Coverage**: T011 unit tests must achieve >85% coverage on health_service.go per Constitution §17
+   - **Spec Parity**: Scoring algorithm must exactly match data-model.md (40/20/20/20 weights, grade thresholds 90/80/70/60)
+
+3. **Frontend types must precede UI components** — T006 (frontend type stubs) should start immediately in parallel with Phase 2 to unblock Phase 3 by providing contract surface.
+
+4. **Risk mitigation required** for two HIGH-severity items:
+   - R1 (Scoring bugs): T011 tests must exercise all grade thresholds, empty collection edge case, and trend "insufficient history" cases
+   - R6 (Empty collection crashes): Explicit zero-check + frontend graceful empty state
+
+### Remaining Work (52 Tasks Total)
+
+**Status Summary**:
+- ✅ Done: 10 tasks (19%)
+- 🔄 In Progress: 3 tasks (6%)
+- ⏳ Pending: 39 tasks (75%)
+
+**Critical Path**:
+1. **Phase 2 (Blocking Everything)**: 7 tasks, 4/7 complete
+   - 🔴 **T012** (Scoring logic) — currently stub; CRITICAL
+   - 🔴 **T011** (Service unit tests) — no tests exist; CRITICAL
+   - ⏳ T009 (Repository tests) — can proceed independently
+   - ✅ T007, T008, T010, T013 done
+
+2. **Phase 3 (MVP Dashboard)**: 13 tasks, 1/13 complete (blocked by Phase 2)
+   - ⏳ T019–T024 (Frontend UI) — blocked by T006 type stubs
+   - ⏳ T014–T018 (Backend endpoints) — blocked by T012 scoring
+
+3. **Phase 4 (MVP Queue)**: 12 tasks, 0/12 complete (blocked by Phase 2)
+   - ⏳ All tasks blocked by T012 + T006
+
+4. **Phase 5 (Admin)**: 9 tasks, 1/9 complete (blocked by Phase 2 + T041 aggregate logic)
+
+5. **Phase 6 (Polish)**: 5 tasks, 0/5 complete (blocked by user stories)
+
+**Can Proceed in Parallel**:
+- **T006** (Frontend types) — start NOW
+- **T009** (Repository tests) — start NOW
+- **T002** (Test fixtures) — minor, can finalize once T011 test cases defined
+- **T048–T050** (Docs drafts) — can start from design artifacts, finalize after code
+
+### Acceptance Criteria for Feature Complete
+
+**MVP Criteria (MANDATORY before merge)**:
+- [ ] Dashboard scorecard + trend render with correct score, grade, dimensions
+- [ ] Needs Attention queue sorts lowest score first with deterministic tie-breaks
+- [ ] Quick actions route to existing edit/image/valuation/analysis flows
+- [ ] All endpoints return correct response shapes (schema validation)
+- [ ] Admin endpoints reject non-admin users with 403 Forbidden
+- [ ] `go test ./...` passes with >85% coverage on health_service.go
+- [ ] `npm run type-check` passes (no TypeScript errors)
+- [ ] Dashboard <1.5s p95 for 500 coins; queue <2s p95
+- [ ] Empty collection edge case handled gracefully (no crash)
+- [ ] Scoring formula + thresholds documented in code
+
+**Post-MVP (User Story 3 + Polish)**:
+- [ ] Admin aggregate metrics (median, low-score %, top missing fields)
+- [ ] Swagger artifacts regenerated and committed
+- [ ] `docs/features.md` + `docs/api-reference.md` updated
+- [ ] Quickstart validation checklist passing
+
+### Checkpoints for Code Review
+
+**Checkpoint 1: Phase 2 Completion**  
+Before: Any Phase 3 frontend work or T017 endpoint implementation  
+Review:
+- ✅ Scoring formula implements 40/20/20/20 weights per spec
+- ✅ All grade thresholds (90/80/70/60) exercised in tests
+- ✅ Empty collection returns F grade, empty trend (not crash)
+- ✅ Trend calc handles "insufficient history" (null baseline)
+- ✅ Per-coin checklist buckets correctly (metadata/images/valuation/AI)
+- ✅ No direct DB access in service layer (DI verified)
+
+**Checkpoint 2: Phase 3 Completion**  
+Before: Any Phase 4 work or Phase 5 frontend UI  
+Review:
+- ✅ Handler methods thin (business logic in services per Principle I)
+- ✅ API response schema matches CollectionHealthSummary contract exactly
+- ✅ Vue components use Composition API + types from stores
+- ✅ Frontend types exactly match backend DTOs (no fabrication)
+
+**Checkpoint 3: Feature Complete**  
+Before: Merge to main  
+Review:
+- ✅ Constitution §17 Quality Gate: `task test`, `npm run build`, `npm run lint` all pass
+- ✅ PR description cites Principles affected (Principle I, §17 Quality Gate)
+- ✅ No breaking changes to existing endpoints/models
+- ✅ Swagger docs auto-generated and committed
+
+### Risk Register
+
+| Risk | Severity | Mitigation | Owner |
+|------|----------|-----------|-------|
+| **R1: Scoring calculation bugs** | 🔴 HIGH | T011 tests must exercise all thresholds + edge cases | Backend agent |
+| **R2: Needs-attention ordering unclear** | 🟡 MEDIUM | Clarify T029 scope: lowest score first, tie-break by updated_at+ID | Product |
+| **R3: Trend insufficient history** | 🟡 MEDIUM | Handle null baseline gracefully; return "insufficient" status | Backend agent (T012) |
+| **R4: Component complexity** | 🟡 MEDIUM | Small, testable hooks; break scorecard/trend/queue | Frontend agent |
+| **R5: Admin query performance** | 🟡 MEDIUM | Use indexed snapshots; verify <2s p95 for 500+ coins | Backend agent (T041) |
+| **R6: Empty collection crash** | 🔴 HIGH | Explicit zero-check + frontend graceful empty state | Backend + Frontend agents |
+
+### Coordinator Responsibilities
+
+**Already Complete**:
+- ✅ Audit baseline captured
+- ✅ 52 tasks categorized + status-tracked
+- ✅ Critical paths identified
+- ✅ Acceptance criteria defined
+
+**Ongoing (as code lands)**:
+- Verify T011 + T012: scoring formula, thresholds, edge cases
+- Verify T009: repository test coverage
+- Verify T006: frontend types defined before Phase 3
+- Flag architecture violations (Principle I, DI, test coverage)
+- Update task status weekly in `.squad/decisions/inbox/`
+- Accept/reject Phase 2 completion per checkpoint rubric above
+
+### References
+
+- Feature spec: `specs/208-collection-health-scorecard/spec.md`
+- Design doc: `specs/208-collection-health-scorecard/data-model.md`
+- API contract: `specs/208-collection-health-scorecard/contracts/health-scorecard.openapi.yaml`
+- Implementation plan: `specs/208-collection-health-scorecard/plan.md`
+- Quickstart: `specs/208-collection-health-scorecard/quickstart.md`
+- Task list: `specs/208-collection-health-scorecard/tasks.md`
+
+---
+
+**Confidence**: HIGH (full codebase and spec audit performed)  
+**Next Action**: Await backend agent T011 + T012 implementation; begin T006 (frontend types) in parallel
