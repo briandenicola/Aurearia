@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+if ! command -v task >/dev/null 2>&1; then
+  echo "OpenAPI pre-push check requires 'task' (go-task). Install it and retry."
+  exit 1
+fi
+
+task openapi >/dev/null
+
+if ! git diff --quiet -- docs/openapi.json src/api/docs/docs.go src/api/docs/swagger.json src/api/docs/swagger.yaml; then
+  echo "OpenAPI artifacts are out of sync."
+  echo "Run: task openapi && git add docs/openapi.json src/api/docs/docs.go src/api/docs/swagger.json src/api/docs/swagger.yaml"
+  exit 1
+fi
