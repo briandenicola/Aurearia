@@ -402,6 +402,7 @@ func main() {
 		admin.GET("/users", adminHandler.ListUsers)
 		admin.DELETE("/users/:id", adminHandler.DeleteUser)
 		admin.POST("/users/:id/reset-password", adminHandler.ResetPassword)
+		admin.PUT("/users/:id/role", adminHandler.UpdateUserRole)
 		admin.GET("/settings", adminHandler.GetSettings)
 		admin.GET("/settings/defaults", adminHandler.GetSettingDefaults)
 		admin.PUT("/settings", adminHandler.UpdateSettings)

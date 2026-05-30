@@ -25,11 +25,8 @@
           <td class="date-cell">{{ formatDate(user.createdAt) }}</td>
           <td>
             <div v-if="user.id !== currentUserId" class="action-btns">
-              <button class="btn btn-secondary btn-sm" @click="$emit('reset', user)">
-                Reset
-              </button>
-              <button class="btn btn-danger btn-sm" @click="$emit('delete', user)">
-                Delete
+              <button class="btn btn-secondary btn-sm" @click="$emit('edit', user)">
+                Edit
               </button>
             </div>
             <span v-else class="text-muted">—</span>
@@ -50,8 +47,7 @@ defineProps<{
 }>()
 
 defineEmits<{
-  reset: [user: UserInfo]
-  delete: [user: UserInfo]
+  edit: [user: UserInfo]
 }>()
 
 function formatDate(dateStr: string) {

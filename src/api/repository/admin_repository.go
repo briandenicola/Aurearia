@@ -84,3 +84,9 @@ func (r *AdminRepository) ResetPassword(userID uint, passwordHash string) (int64
 	result := r.db.Model(&models.User{}).Where("id = ?", userID).Update("password_hash", passwordHash)
 	return result.RowsAffected, result.Error
 }
+
+// UpdateUserRole updates a user's role. Returns rows affected.
+func (r *AdminRepository) UpdateUserRole(userID uint, role models.UserRole) (int64, error) {
+	result := r.db.Model(&models.User{}).Where("id = ?", userID).Update("role", role)
+	return result.RowsAffected, result.Error
+}

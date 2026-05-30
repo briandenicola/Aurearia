@@ -36,11 +36,11 @@ type CoinListResponse struct {
 }
 
 type StatsResponse struct {
-	TotalCoins    int64            `json:"totalCoins" example:"25"`
-	TotalWishlist int64            `json:"totalWishlist" example:"5"`
-	ByCategory    []CategoryCount  `json:"byCategory"`
-	ByMaterial    []MaterialCount  `json:"byMaterial"`
-	Values        ValueSummary     `json:"values"`
+	TotalCoins    int64           `json:"totalCoins" example:"25"`
+	TotalWishlist int64           `json:"totalWishlist" example:"5"`
+	ByCategory    []CategoryCount `json:"byCategory"`
+	ByMaterial    []MaterialCount `json:"byMaterial"`
+	Values        ValueSummary    `json:"values"`
 }
 
 type CategoryCount struct {
@@ -147,4 +147,8 @@ type ChangePasswordRequest struct {
 
 type ResetPasswordRequest struct {
 	NewPassword string `json:"newPassword" binding:"required,min=6" example:"newpass456"`
+}
+
+type UpdateUserRoleRequest struct {
+	Role models.UserRole `json:"role" binding:"required" example:"admin"`
 }

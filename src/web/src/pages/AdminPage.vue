@@ -37,7 +37,6 @@
 
       <div class="settings-content">
         <header class="settings-content-header card">
-          <p class="section-label">{{ activeTabMeta.groupLabel }}</p>
           <h2>{{ activeTabMeta.label }}</h2>
         </header>
 
@@ -47,8 +46,7 @@
           :users="users"
           :loading="usersLoading"
           :current-user-id="auth.user?.id ?? 0"
-          @reset="openResetModal"
-          @delete="handleDeleteUser"
+          @edit="openEditModal"
         />
 
         <!-- AI Tab -->
@@ -128,8 +126,13 @@
         />
       </div>
 
-      <!-- Reset Password Modal -->
-      <ResetPasswordModal :user="resetTarget" @close="resetTarget = null" />
+      <AdminUserEditModal
+        :user="editTarget"
+        :current-user-id="auth.user?.id ?? 0"
+        @close="editTarget = null"
+        @role-updated="handleRoleUpdated"
+        @deleted="handleUserDeleted"
+      />
     </div>
   </div>
 </template>
@@ -138,12 +141,11 @@
 import { ref, computed, watch, onMounted, onUnmounted, type Component } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRoute, useRouter } from 'vue-router'
-import { getUsers, deleteUser, getAdminLogs } from '@/api/client'
+import { getUsers, getAdminLogs } from '@/api/client'
 import { LOG_LEVELS } from '@/types'
 import type { UserInfo, LogEntry } from '@/types'
-import { useDialog } from '@/composables/useDialog'
 import { useAdminConfig } from '@/composables/useAdminConfig'
-import ResetPasswordModal from '@/components/admin/ResetPasswordModal.vue'
+import AdminUserEditModal from '@/components/admin/AdminUserEditModal.vue'
 import AdminUsersSection from '@/components/admin/AdminUsersSection.vue'
 import AdminSystemSection from '@/components/admin/AdminSystemSection.vue'
 import AdminLogsSection from '@/components/admin/AdminLogsSection.vue'
@@ -197,7 +199,6 @@ function normalizeTab(value: unknown): AdminTabId | null {
   return tabAliasMap.get(tab.toLowerCase()) ?? null
 }
 
-const { showConfirm, showAlert } = useDialog()
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
@@ -233,10 +234,7 @@ const tabGroups = computed(() => ([
 const fallbackTab = tabs[0] as AdminTab
 const activeTabMeta = computed(() => {
   const active = tabs.find(tab => tab.id === activeTab.value) ?? fallbackTab
-  return {
-    ...active,
-    groupLabel: groupLabels[active.group],
-  }
+  return active
 })
 
 // Users
@@ -253,21 +251,23 @@ async function loadUsers() {
   }
 }
 
-async function handleDeleteUser(user: UserInfo) {
-  if (!await showConfirm(`Delete user "${user.username}" and all their data? This cannot be undone.`, { title: 'Delete User', variant: 'danger' })) return
-  try {
-    await deleteUser(user.id)
-    users.value = users.value.filter((u) => u.id !== user.id)
-  } catch {
-    await showAlert('Failed to delete user', { title: 'Error' })
-  }
+const editTarget = ref<UserInfo | null>(null)
+
+function openEditModal(user: UserInfo) {
+  editTarget.value = user
 }
 
-// Reset password modal
-const resetTarget = ref<UserInfo | null>(null)
+function handleRoleUpdated(payload: { userId: number; role: UserInfo['role'] }) {
+  users.value = users.value.map((user) =>
+    user.id === payload.userId
+      ? { ...user, role: payload.role }
+      : user
+  )
+}
 
-function openResetModal(user: UserInfo) {
-  resetTarget.value = user
+function handleUserDeleted(userId: number) {
+  users.value = users.value.filter((user) => user.id !== userId)
+  editTarget.value = null
 }
 
 // Settings (from composable)

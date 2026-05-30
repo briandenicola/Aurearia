@@ -391,6 +391,8 @@ export const getUsers = () => api.get<UserInfo[]>('/admin/users')
 export const deleteUser = (id: number) => api.delete(`/admin/users/${id}`)
 export const resetUserPassword = (id: number, newPassword: string) =>
   api.post(`/admin/users/${id}/reset-password`, { newPassword })
+export const updateUserRole = (id: number, role: UserInfo['role']) =>
+  api.put(`/admin/users/${id}/role`, { role })
 export const getAppSettings = () => api.get<AppSettings>('/admin/settings')
 export const getAppSettingDefaults = () => api.get<AppSettings>('/admin/settings/defaults')
 export const updateAppSettings = (settings: { key: string; value: string }[]) =>

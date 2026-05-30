@@ -150,6 +150,62 @@ func (h *AdminHandler) ResetPassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Password reset"})
 }
 
+// UpdateUserRole allows admin to change a user's role.
+//
+//	@Summary		Update user role
+//	@Description	Updates the role for the specified user. Cannot update your own role. Admin only.
+//	@Tags			Admin
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int						true	"User ID"
+//	@Param			body	body		UpdateUserRoleRequest	true	"Role update payload"
+//	@Success		200		{object}	map[string]string
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/admin/users/{id}/role [put]
+func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
+	adminID := c.GetUint("userId")
+	targetID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	if uint(targetID) == adminID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change your own role"})
+		return
+	}
+
+	var req struct {
+		Role models.UserRole `json:"role" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
+		return
+	}
+
+	if req.Role != models.RoleAdmin && req.Role != models.RoleUser {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role"})
+		return
+	}
+
+	result, err := h.repo.UpdateUserRole(uint(targetID), req.Role)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user role"})
+		return
+	}
+	if result == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Role updated", "role": req.Role})
+}
+
 // GetSettings returns all app settings.
 //
 //	@Summary		Get application settings
@@ -348,11 +404,9 @@ func (h *AdminHandler) TestSearXNGConnection(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode >= 200&& resp.StatusCode < 400 {
+	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 		c.JSON(http.StatusOK, gin.H{"available": true, "message": fmt.Sprintf("SearXNG is reachable at %s", searxngURL)})
 	} else {
 		c.JSON(http.StatusOK, gin.H{"available": false, "message": fmt.Sprintf("SearXNG returned HTTP %d", resp.StatusCode)})
 	}
 }
-
-
