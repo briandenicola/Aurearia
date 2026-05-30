@@ -36,7 +36,7 @@
         </div>
         <div class="metric-content">
           <div class="metric-label">Low-Score Coins</div>
-          <div class="metric-value">{{ summary.lowScorePercentage }}%</div>
+          <div class="metric-value">{{ summary.lowScorePercentage.toFixed(1) }}%</div>
           <div class="metric-detail">
           Below {{ summary.lowScoreThreshold }}
           </div>

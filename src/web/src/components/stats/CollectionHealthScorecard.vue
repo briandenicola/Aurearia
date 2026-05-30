@@ -21,7 +21,7 @@
           <div class="dimension-bar">
             <div
               class="dimension-fill"
-              :class="`fill-${key}`"
+              :class="getDimensionFillClass(key)"
               :style="{ width: `${value}%` }"
             ></div>
           </div>
@@ -55,11 +55,21 @@ defineProps<{
 function formatDimensionLabel(key: string): string {
   const labels: Record<string, string> = {
     metadata: 'Metadata',
-    images: 'Images',
-    valuation: 'Valuation',
-    ai: 'AI Analysis',
+    imageCoverage: 'Image Coverage',
+    valuationFreshness: 'Valuation Freshness',
+    aiCoverage: 'AI Coverage',
   }
   return labels[key] || key
+}
+
+function getDimensionFillClass(key: string): string {
+  const cssMap: Record<string, string> = {
+    metadata: 'fill-metadata',
+    imageCoverage: 'fill-images',
+    valuationFreshness: 'fill-valuation',
+    aiCoverage: 'fill-ai',
+  }
+  return cssMap[key] || `fill-${key}`
 }
 </script>
 
@@ -149,7 +159,7 @@ function formatDimensionLabel(key: string): string {
 
 .dimension-item {
   display: grid;
-  grid-template-columns: 100px 1fr 50px;
+  grid-template-columns: auto 1fr 50px;
   align-items: center;
   gap: 0.75rem;
 }
@@ -158,6 +168,7 @@ function formatDimensionLabel(key: string): string {
   font-size: 0.85rem;
   color: var(--text-secondary);
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .dimension-bar {
@@ -227,7 +238,7 @@ function formatDimensionLabel(key: string): string {
 
 @media (max-width: 768px) {
   .dimension-item {
-    grid-template-columns: 80px 1fr 45px;
+    grid-template-columns: auto 1fr 45px;
     gap: 0.5rem;
   }
 
