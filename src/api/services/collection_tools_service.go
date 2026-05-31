@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,24 +21,8 @@ var (
 	ErrProposalTokenInvalid    = errors.New("proposal token is invalid")
 	ErrProposalStateConflict   = errors.New("proposal is not pending")
 	ErrProposalConfirmationReq = errors.New("explicit confirmation is required")
+	ErrInvalidFieldChanges     = errors.New("one or more field changes are invalid")
 )
-
-var (
-	coinIDPattern         = regexp.MustCompile(`(?i)\b(?:coin\s*#|coin\s+id\s*)(\d+)\b`)
-	topNPattern           = regexp.MustCompile(`(?i)\btop\s+(\d+)\b`)
-	valueUpdatePattern    = regexp.MustCompile(`(?i)\b(?:current\s+value|value)\s+(?:to|as|=)\s*\$?\s*([0-9]+(?:\.[0-9]{1,2})?)`)
-	gradeUpdatePattern    = regexp.MustCompile(`(?i)\bgrade\s+(?:to|as|=)\s+([a-z0-9+\-\/ ]{1,40})`)
-	notesUpdatePattern    = regexp.MustCompile(`(?i)\bnotes?\s+(?:to|as|=)\s+(.+)$`)
-	refTextUpdatePattern  = regexp.MustCompile(`(?i)\breference\s+text\s+(?:to|as|=)\s+(.+)$`)
-	refURLUpdatePattern   = regexp.MustCompile(`(?i)\breference\s+url\s+(?:to|as|=)\s+(\S+)$`)
-	tagsUpdatePattern     = regexp.MustCompile(`(?i)\btags?\s+(?:to|as|=)\s+(.+)$`)
-	disallowedFieldTokens = regexp.MustCompile(`(?i)\b(name|category|material|denomination|mint|purchase\s+price|purchase\s+date|sold\s+price|sold\s+date|obverse|reverse|rarity|weight|diameter|images?)\b`)
-)
-
-type CollectionChatContext struct {
-	Route        string `json:"route,omitempty"`
-	ActiveCoinID *uint  `json:"activeCoinId,omitempty"`
-}
 
 type CollectionCoinSummary struct {
 	ID           uint     `json:"id"`
@@ -59,18 +42,6 @@ type CollectionAggregateSummary struct {
 	TotalPurchaseUSD float64 `json:"totalPurchaseUsd"`
 }
 
-type CollectionReadResult struct {
-	ResultType string                      `json:"resultType"`
-	Total      int64                       `json:"total,omitempty"`
-	Coins      []CollectionCoinSummary     `json:"coins,omitempty"`
-	Aggregate  *CollectionAggregateSummary `json:"aggregate,omitempty"`
-}
-
-type CollectionDisambiguation struct {
-	Message    string                  `json:"message"`
-	Candidates []CollectionCoinSummary `json:"candidates"`
-}
-
 type CollectionProposalPreview struct {
 	ProposalID    string         `json:"proposalId"`
 	ProposalToken string         `json:"proposalToken"`
@@ -79,15 +50,6 @@ type CollectionProposalPreview struct {
 	ChangedFields []string       `json:"changedFields"`
 	Changes       map[string]any `json:"changes"`
 	ExpiresAt     time.Time      `json:"expiresAt"`
-}
-
-type CollectionChatResponse struct {
-	Kind           string                     `json:"kind"`
-	Message        string                     `json:"message"`
-	ReadResult     *CollectionReadResult      `json:"readResult,omitempty"`
-	Disambiguation *CollectionDisambiguation  `json:"disambiguation,omitempty"`
-	Proposal       *CollectionProposalPreview `json:"proposal,omitempty"`
-	ErrorCode      string                     `json:"errorCode,omitempty"`
 }
 
 type CommitCollectionProposalResult struct {
@@ -121,77 +83,219 @@ func NewCollectionToolsService(
 	}
 }
 
-// ShouldHandleCollection returns true when the prompt is a collection read/write intent.
-// Catches both explicit collection references ("my collection", "my coins") and
-// ownership-question patterns ("do I have any X", "which of my coins", etc.)
-func (s *CollectionToolsService) ShouldHandleCollection(message string) bool {
-	lower := strings.ToLower(strings.TrimSpace(message))
-	if lower == "" {
-		return false
-	}
-
-	// Exclude queries that belong to other teams (coin_search, coin_shows, auction_search, price_trends)
-	// BUT be careful with "buy" → "to buy" is shopping, "did I buy" is ownership history
-	// AND "dealer" alone isn't enough → "dealer listings" is shopping, "from that dealer" is history
-	searchTokens := []string{
-		"for sale", "to buy", "dealer listing", "vcoins", "ma-shops",
-		"coin show", "upcoming show", "auction", "near me",
-	}
-	for _, token := range searchTokens {
-		if strings.Contains(lower, token) {
-			return false
+// SearchMyCollection searches the user's active collection by filters.
+// Returns up to 'limit' matching coins (default 5, max 20).
+func (s *CollectionToolsService) SearchMyCollection(userID uint, query string, limit *int) ([]CollectionCoinSummary, error) {
+	searchLimit := 5
+	if limit != nil {
+		if *limit > 20 {
+			searchLimit = 20
+		} else if *limit > 0 {
+			searchLimit = *limit
 		}
 	}
 
-	// Explicit collection/possession noun tokens
-	collectionTokens := []string{
-		"my collection", "my coins", "i own", "holdings", "wishlist", "sold coins",
-		"coin #", "coin id", "how many", "top ", "total value", "update ", "change ", "set ",
-		"note ", "notes ", "grade ", "reference ",
-	}
-	for _, token := range collectionTokens {
-		if strings.Contains(lower, token) {
-			return true
-		}
+	filters := repository.OwnedCoinFilters{
+		Search: strings.TrimSpace(query),
 	}
 
-	// Ownership-question patterns: "do I have", "do I own", "have I got", "is there a ... in my"
-	ownershipPatterns := []string{
-		"do i have", "do i own", "have i got", "have i gotten",
-		"did i buy", "which of my", "show me my", "find in my",
-		"any of my", "are any of my", "is there a", "are there any",
-	}
-	for _, pattern := range ownershipPatterns {
-		if strings.Contains(lower, pattern) {
-			// Additional heuristic: if combined with "coins" or first-person possessive context, it's likely collection-read
-			// "do I have any moose coins" → collection
-			// "is there a denarius in my collection" → collection
-			// But "do i have to pay shipping" → not collection (would be filtered contextually by LLM, but gate should pass likely collection queries)
-			// We lean toward matching these because the Python fallback can handle edge cases if mis-routed.
-			return true
-		}
+	lower := strings.ToLower(query)
+	// Category
+	if strings.Contains(lower, "roman") {
+		filters.Category = string(models.CategoryRoman)
+	} else if strings.Contains(lower, "greek") {
+		filters.Category = string(models.CategoryGreek)
+	} else if strings.Contains(lower, "byzantine") {
+		filters.Category = string(models.CategoryByzantine)
+	} else if strings.Contains(lower, "modern") {
+		filters.Category = string(models.CategoryModern)
 	}
 
-	return false
+	// Material
+	if strings.Contains(lower, "gold") {
+		filters.Material = string(models.MaterialGold)
+	} else if strings.Contains(lower, "silver") {
+		filters.Material = string(models.MaterialSilver)
+	} else if strings.Contains(lower, "bronze") {
+		filters.Material = string(models.MaterialBronze)
+	} else if strings.Contains(lower, "copper") {
+		filters.Material = string(models.MaterialCopper)
+	} else if strings.Contains(lower, "electrum") {
+		filters.Material = string(models.MaterialElectrum)
+	}
+
+	// Era
+	if strings.Contains(lower, "ancient") {
+		filters.Era = string(models.EraAncient)
+	} else if strings.Contains(lower, "medieval") {
+		filters.Era = string(models.EraMedieval)
+	}
+
+	// Status
+	if strings.Contains(lower, "wishlist") {
+		v := true
+		filters.Wishlist = &v
+	}
+	if strings.Contains(lower, "sold") {
+		v := true
+		filters.Sold = &v
+	}
+
+	coins, err := s.coinRepo.ListOwnedByFilters(userID, filters, searchLimit)
+	if err != nil {
+		return nil, err
+	}
+
+	summaries := make([]CollectionCoinSummary, 0, len(coins))
+	for _, coin := range coins {
+		summaries = append(summaries, toCoinSummary(coin))
+	}
+
+	return summaries, nil
 }
 
-func (s *CollectionToolsService) HandleChat(userID uint, message string, ctx *CollectionChatContext) (*CollectionChatResponse, error) {
-	trimmed := strings.TrimSpace(message)
-	if trimmed == "" {
-		return &CollectionChatResponse{
-			Kind:      "validation_error",
-			Message:   "Please enter a message.",
-			ErrorCode: "empty_message",
-		}, nil
+// GetCoin retrieves a single coin by ID from the user's collection.
+func (s *CollectionToolsService) GetCoin(userID uint, coinID uint) (*CollectionCoinSummary, error) {
+	coin, err := s.coinRepo.FindByID(coinID, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrCoinNotFound
+		}
+		return nil, err
 	}
 
-	if isWriteIntent(trimmed) {
-		return s.handleWriteIntent(userID, trimmed, ctx)
-	}
-
-	return s.handleReadIntent(userID, trimmed, ctx)
+	summary := toCoinSummary(*coin)
+	return &summary, nil
 }
 
+// CollectionSummary returns aggregate statistics for the user's collection.
+func (s *CollectionToolsService) CollectionSummary(userID uint) (*CollectionAggregateSummary, error) {
+	stats, err := s.coinRepo.GetStats(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CollectionAggregateSummary{
+		TotalCoins:       stats.TotalCoins,
+		TotalWishlist:    stats.TotalWishlist,
+		TotalSold:        stats.TotalSold,
+		TotalCurrentUSD:  stats.Values.TotalCurrentValue,
+		TotalPurchaseUSD: stats.Values.TotalPurchasePrice,
+	}, nil
+}
+
+// TopCoinsByValue returns the top coins by current value (default 3, max 10).
+func (s *CollectionToolsService) TopCoinsByValue(userID uint, limit *int) ([]CollectionCoinSummary, error) {
+	valueLimit := 3
+	if limit != nil {
+		if *limit > 10 {
+			valueLimit = 10
+		} else if *limit > 0 {
+			valueLimit = *limit
+		}
+	}
+
+	coins, err := s.coinRepo.TopOwnedByCurrentValue(userID, valueLimit)
+	if err != nil {
+		return nil, err
+	}
+
+	summaries := make([]CollectionCoinSummary, 0, len(coins))
+	for _, coin := range coins {
+		summaries = append(summaries, toCoinSummary(coin))
+	}
+
+	return summaries, nil
+}
+
+// ProposeUpdate creates a write proposal for the given coin with allowlisted field changes.
+// Returns a proposal with a token that must be used to commit the changes.
+func (s *CollectionToolsService) ProposeUpdate(userID uint, coinID uint, changes map[string]any) (*CollectionProposalPreview, error) {
+	// Validate that only allowlisted fields are present
+	allowlistedFields := map[string]bool{
+		"grade":         true,
+		"currentValue":  true,
+		"notes":         true,
+		"tags":          true,
+		"referenceText": true,
+		"referenceUrl":  true,
+	}
+
+	for key := range changes {
+		if !allowlistedFields[key] {
+			return nil, fmt.Errorf("%w: field '%s' is not allowlisted", ErrInvalidFieldChanges, key)
+		}
+	}
+
+	if len(changes) == 0 {
+		return nil, fmt.Errorf("%w: no changes provided", ErrInvalidFieldChanges)
+	}
+
+	coin, err := s.coinRepo.FindByID(coinID, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrCoinNotFound
+		}
+		return nil, err
+	}
+
+	fields := sortedMapKeys(changes)
+	changesJSON, err := json.Marshal(changes)
+	if err != nil {
+		return nil, err
+	}
+	fieldsJSON, err := json.Marshal(fields)
+	if err != nil {
+		return nil, err
+	}
+
+	proposalID, err := randomHex(12)
+	if err != nil {
+		return nil, err
+	}
+	tokenPlain, err := randomHex(16)
+	if err != nil {
+		return nil, err
+	}
+	expiresAt := time.Now().UTC().Add(15 * time.Minute)
+	proposal := &models.CollectionUpdateProposal{
+		ID:            "cup_" + proposalID,
+		UserID:        userID,
+		CoinID:        coin.ID,
+		TokenHash:     sha256Hex(tokenPlain),
+		Status:        models.CollectionUpdateProposalPending,
+		ChangesJSON:   string(changesJSON),
+		ChangedFields: string(fieldsJSON),
+		ExpiresAt:     expiresAt,
+	}
+
+	if err := s.proposalRepo.CreateProposal(proposal); err != nil {
+		return nil, err
+	}
+
+	return &CollectionProposalPreview{
+		ProposalID:    proposal.ID,
+		ProposalToken: tokenPlain,
+		CoinID:        coin.ID,
+		CoinName:      coin.Name,
+		ChangedFields: fields,
+		Changes:       changes,
+		ExpiresAt:     expiresAt,
+	}, nil
+}
+
+// CommitUpdate commits a previously created proposal with explicit confirmation.
+func (s *CollectionToolsService) CommitUpdate(
+	userID uint,
+	proposalID string,
+	proposalToken string,
+	confirm bool,
+) (*CommitCollectionProposalResult, error) {
+	return s.CommitProposal(userID, proposalID, proposalToken, confirm)
+}
+
+// CommitProposal is the underlying implementation for CommitUpdate.
+// KEPT for backwards compatibility if frontend still uses public commit/cancel endpoints.
 func (s *CollectionToolsService) CommitProposal(
 	userID uint,
 	proposalID string,
@@ -272,6 +376,7 @@ func (s *CollectionToolsService) CommitProposal(
 	}, nil
 }
 
+// CancelProposal cancels a pending proposal. KEPT if frontend still uses it.
 func (s *CollectionToolsService) CancelProposal(
 	userID uint,
 	proposalID string,
@@ -293,416 +398,7 @@ func (s *CollectionToolsService) CancelProposal(
 	}, nil
 }
 
-func (s *CollectionToolsService) handleReadIntent(
-	userID uint,
-	message string,
-	ctx *CollectionChatContext,
-) (*CollectionChatResponse, error) {
-	if id, ok := extractCoinID(message, ctx); ok {
-		coin, err := s.coinRepo.FindByID(id, userID)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return &CollectionChatResponse{
-					Kind:       "read_result",
-					Message:    "I couldn't find that coin in your collection.",
-					ReadResult: &CollectionReadResult{ResultType: "coin", Total: 0},
-				}, nil
-			}
-			return nil, err
-		}
-		msg := fmt.Sprintf(
-			"**%s** — %s %s, %s. Current value: %s.",
-			coin.Name, coin.Category, coin.Denomination, coin.Ruler, formatCurrency(coin.CurrentValue),
-		)
-		return &CollectionChatResponse{
-			Kind:    "read_result",
-			Message: msg,
-			ReadResult: &CollectionReadResult{
-				ResultType: "coin",
-				Total:      1,
-				Coins:      []CollectionCoinSummary{toCoinSummary(*coin)},
-			},
-		}, nil
-	}
-
-	lower := strings.ToLower(message)
-	if strings.Contains(lower, "top") && strings.Contains(lower, "value") {
-		limit := extractTopLimit(message)
-		coins, err := s.coinRepo.TopOwnedByCurrentValue(userID, limit)
-		if err != nil {
-			return nil, err
-		}
-		if len(coins) == 0 {
-			return &CollectionChatResponse{
-				Kind:       "read_result",
-				Message:    "I couldn't find any valued coins in your active collection.",
-				ReadResult: &CollectionReadResult{ResultType: "top_value", Total: 0},
-			}, nil
-		}
-		summaries := make([]CollectionCoinSummary, 0, len(coins))
-		lines := make([]string, 0, len(coins))
-		for idx, coin := range coins {
-			summaries = append(summaries, toCoinSummary(coin))
-			lines = append(lines, fmt.Sprintf("%d. %s — %s", idx+1, coin.Name, formatCurrency(coin.CurrentValue)))
-		}
-		return &CollectionChatResponse{
-			Kind:    "read_result",
-			Message: "Top coins by current value:\n" + strings.Join(lines, "\n"),
-			ReadResult: &CollectionReadResult{
-				ResultType: "top_value",
-				Total:      int64(len(summaries)),
-				Coins:      summaries,
-			},
-		}, nil
-	}
-
-	if strings.Contains(lower, "total value") || strings.Contains(lower, "collection summary") || strings.Contains(lower, "summary") {
-		stats, err := s.coinRepo.GetStats(userID)
-		if err != nil {
-			return nil, err
-		}
-		msg := fmt.Sprintf(
-			"You have %d active coins, %d wishlist coins, and %d sold coins. Current active value is %s.",
-			stats.TotalCoins, stats.TotalWishlist, stats.TotalSold, formatCurrencyValue(stats.Values.TotalCurrentValue),
-		)
-		return &CollectionChatResponse{
-			Kind:    "read_result",
-			Message: msg,
-			ReadResult: &CollectionReadResult{
-				ResultType: "aggregate",
-				Aggregate: &CollectionAggregateSummary{
-					TotalCoins:       stats.TotalCoins,
-					TotalWishlist:    stats.TotalWishlist,
-					TotalSold:        stats.TotalSold,
-					TotalCurrentUSD:  stats.Values.TotalCurrentValue,
-					TotalPurchaseUSD: stats.Values.TotalPurchasePrice,
-				},
-			},
-		}, nil
-	}
-
-	filters := parseOwnedFilters(message)
-	if strings.Contains(lower, "how many") || strings.HasPrefix(lower, "count ") {
-		count, err := s.coinRepo.CountOwnedByFilters(userID, filters)
-		if err != nil {
-			return nil, err
-		}
-		if count == 0 {
-			return &CollectionChatResponse{
-				Kind:       "read_result",
-				Message:    "No coins matched that query in your collection.",
-				ReadResult: &CollectionReadResult{ResultType: "count", Total: 0},
-			}, nil
-		}
-		return &CollectionChatResponse{
-			Kind:    "read_result",
-			Message: fmt.Sprintf("You have %d coin(s) matching that query.", count),
-			ReadResult: &CollectionReadResult{
-				ResultType: "count",
-				Total:      count,
-			},
-		}, nil
-	}
-
-	coins, err := s.coinRepo.ListOwnedByFilters(userID, filters, 5)
-	if err != nil {
-		return nil, err
-	}
-	if len(coins) == 0 {
-		return &CollectionChatResponse{
-			Kind:       "read_result",
-			Message:    "No coins matched that query in your collection.",
-			ReadResult: &CollectionReadResult{ResultType: "query", Total: 0},
-		}, nil
-	}
-
-	summaries := make([]CollectionCoinSummary, 0, len(coins))
-	lines := make([]string, 0, len(coins))
-	for _, coin := range coins {
-		summaries = append(summaries, toCoinSummary(coin))
-		lines = append(lines, fmt.Sprintf("- #%d %s (%s, %s)", coin.ID, coin.Name, coin.Category, coin.Ruler))
-	}
-
-	return &CollectionChatResponse{
-		Kind:    "read_result",
-		Message: "Here are matching coins from your collection:\n" + strings.Join(lines, "\n"),
-		ReadResult: &CollectionReadResult{
-			ResultType: "query",
-			Total:      int64(len(summaries)),
-			Coins:      summaries,
-		},
-	}, nil
-}
-
-func (s *CollectionToolsService) handleWriteIntent(
-	userID uint,
-	message string,
-	ctx *CollectionChatContext,
-) (*CollectionChatResponse, error) {
-	if disallowedFieldTokens.MatchString(message) {
-		return &CollectionChatResponse{
-			Kind:      "validation_error",
-			Message:   "This chat update can only change: grade, current value, notes, tags, reference text, and reference URL.",
-			ErrorCode: "non_allowlisted_field",
-		}, nil
-	}
-
-	changes := parseAllowedFieldChanges(message)
-	if len(changes) == 0 {
-		return &CollectionChatResponse{
-			Kind:      "validation_error",
-			Message:   "I couldn't detect an allowed field update. Try: `set coin #123 grade to VF`.",
-			ErrorCode: "missing_allowed_fields",
-		}, nil
-	}
-
-	targetCoin, disambiguation, err := s.resolveTargetCoin(userID, message, ctx)
-	if err != nil {
-		return nil, err
-	}
-	if disambiguation != nil {
-		return &CollectionChatResponse{
-			Kind:           "disambiguation",
-			Message:        disambiguation.Message,
-			Disambiguation: disambiguation,
-		}, nil
-	}
-	if targetCoin == nil {
-		return &CollectionChatResponse{
-			Kind:      "validation_error",
-			Message:   "Please specify which coin to update (for example: `update coin #123 notes to ...`).",
-			ErrorCode: "missing_target",
-		}, nil
-	}
-
-	fields := sortedMapKeys(changes)
-	changesJSON, err := json.Marshal(changes)
-	if err != nil {
-		return nil, err
-	}
-	fieldsJSON, err := json.Marshal(fields)
-	if err != nil {
-		return nil, err
-	}
-
-	proposalID, err := randomHex(12)
-	if err != nil {
-		return nil, err
-	}
-	tokenPlain, err := randomHex(16)
-	if err != nil {
-		return nil, err
-	}
-	expiresAt := time.Now().UTC().Add(15 * time.Minute)
-	proposal := &models.CollectionUpdateProposal{
-		ID:            "cup_" + proposalID,
-		UserID:        userID,
-		CoinID:        targetCoin.ID,
-		TokenHash:     sha256Hex(tokenPlain),
-		Status:        models.CollectionUpdateProposalPending,
-		ChangesJSON:   string(changesJSON),
-		ChangedFields: string(fieldsJSON),
-		ExpiresAt:     expiresAt,
-	}
-	if err := s.proposalRepo.CreateProposal(proposal); err != nil {
-		return nil, err
-	}
-
-	return &CollectionChatResponse{
-		Kind:    "proposal",
-		Message: fmt.Sprintf("I prepared an update proposal for **%s**. Review and confirm to apply it.", targetCoin.Name),
-		Proposal: &CollectionProposalPreview{
-			ProposalID:    proposal.ID,
-			ProposalToken: tokenPlain,
-			CoinID:        targetCoin.ID,
-			CoinName:      targetCoin.Name,
-			ChangedFields: fields,
-			Changes:       changes,
-			ExpiresAt:     expiresAt,
-		},
-	}, nil
-}
-
-func (s *CollectionToolsService) resolveTargetCoin(
-	userID uint,
-	message string,
-	ctx *CollectionChatContext,
-) (*models.Coin, *CollectionDisambiguation, error) {
-	if id, ok := extractCoinID(message, ctx); ok {
-		coin, err := s.coinRepo.FindByID(id, userID)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, &CollectionDisambiguation{
-					Message:    "I couldn't find that coin in your collection.",
-					Candidates: []CollectionCoinSummary{},
-				}, nil
-			}
-			return nil, nil, err
-		}
-		return coin, nil, nil
-	}
-
-	targetName := extractCoinNameHint(message)
-	if targetName == "" {
-		return nil, nil, nil
-	}
-
-	candidates, err := s.coinRepo.FindOwnedByNameCandidates(userID, targetName, 5)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(candidates) == 0 {
-		return nil, &CollectionDisambiguation{
-			Message:    "I couldn't find a matching coin name. Try using a coin ID like `coin #123`.",
-			Candidates: []CollectionCoinSummary{},
-		}, nil
-	}
-	if len(candidates) == 1 {
-		coin, err := s.coinRepo.FindByID(candidates[0].ID, userID)
-		return coin, nil, err
-	}
-
-	summaries := make([]CollectionCoinSummary, 0, len(candidates))
-	for _, coin := range candidates {
-		summaries = append(summaries, toCoinSummary(coin))
-	}
-	return nil, &CollectionDisambiguation{
-		Message:    "I found multiple possible coins. Select one to continue.",
-		Candidates: summaries,
-	}, nil
-}
-
-func extractCoinID(message string, ctx *CollectionChatContext) (uint, bool) {
-	if match := coinIDPattern.FindStringSubmatch(message); len(match) == 2 {
-		value, err := strconv.ParseUint(match[1], 10, 32)
-		if err == nil {
-			return uint(value), true
-		}
-	}
-	if ctx != nil && ctx.ActiveCoinID != nil {
-		lower := strings.ToLower(message)
-		if strings.Contains(lower, "this coin") || strings.Contains(lower, "this one") {
-			return *ctx.ActiveCoinID, true
-		}
-	}
-	return 0, false
-}
-
-func extractTopLimit(message string) int {
-	if match := topNPattern.FindStringSubmatch(message); len(match) == 2 {
-		if n, err := strconv.Atoi(match[1]); err == nil && n > 0 {
-			if n > 10 {
-				return 10
-			}
-			return n
-		}
-	}
-	return 3
-}
-
-func extractCoinNameHint(message string) string {
-	lower := strings.ToLower(message)
-	fieldMarkers := []string{" notes", " note", " grade", " value", " tags", " tag", " reference"}
-	start := strings.Index(lower, "my ")
-	if start == -1 {
-		return ""
-	}
-	remaining := message[start+3:]
-	remainingLower := lower[start+3:]
-	end := len(remaining)
-	for _, marker := range fieldMarkers {
-		if idx := strings.Index(remainingLower, marker); idx != -1 && idx < end {
-			end = idx
-		}
-	}
-	hint := strings.TrimSpace(remaining[:end])
-	hint = strings.Trim(hint, `"'.`)
-	if len(hint) < 2 {
-		return ""
-	}
-	return hint
-}
-
-func parseOwnedFilters(message string) repository.OwnedCoinFilters {
-	lower := strings.ToLower(message)
-	filters := repository.OwnedCoinFilters{
-		Search: strings.TrimSpace(extractCoinNameHint(message)),
-	}
-
-	switch {
-	case strings.Contains(lower, "roman"):
-		filters.Category = string(models.CategoryRoman)
-	case strings.Contains(lower, "greek"):
-		filters.Category = string(models.CategoryGreek)
-	case strings.Contains(lower, "byzantine"):
-		filters.Category = string(models.CategoryByzantine)
-	case strings.Contains(lower, "modern"):
-		filters.Category = string(models.CategoryModern)
-	}
-
-	switch {
-	case strings.Contains(lower, "gold"):
-		filters.Material = string(models.MaterialGold)
-	case strings.Contains(lower, "silver"):
-		filters.Material = string(models.MaterialSilver)
-	case strings.Contains(lower, "bronze"):
-		filters.Material = string(models.MaterialBronze)
-	case strings.Contains(lower, "copper"):
-		filters.Material = string(models.MaterialCopper)
-	case strings.Contains(lower, "electrum"):
-		filters.Material = string(models.MaterialElectrum)
-	}
-
-	switch {
-	case strings.Contains(lower, "ancient"):
-		filters.Era = string(models.EraAncient)
-	case strings.Contains(lower, "medieval"):
-		filters.Era = string(models.EraMedieval)
-	case strings.Contains(lower, "modern"):
-		filters.Era = string(models.EraModern)
-	}
-
-	if strings.Contains(lower, "wishlist") {
-		v := true
-		filters.Wishlist = &v
-	}
-	if strings.Contains(lower, "sold") {
-		v := true
-		filters.Sold = &v
-	}
-
-	return filters
-}
-
-func parseAllowedFieldChanges(message string) map[string]any {
-	changes := map[string]any{}
-
-	if match := valueUpdatePattern.FindStringSubmatch(message); len(match) == 2 {
-		if v, err := strconv.ParseFloat(match[1], 64); err == nil {
-			changes["currentValue"] = v
-		}
-	}
-	if match := gradeUpdatePattern.FindStringSubmatch(message); len(match) == 2 {
-		changes["grade"] = strings.TrimSpace(match[1])
-	}
-	if match := notesUpdatePattern.FindStringSubmatch(message); len(match) == 2 {
-		changes["notes"] = strings.TrimSpace(match[1])
-	}
-	if match := refTextUpdatePattern.FindStringSubmatch(message); len(match) == 2 {
-		changes["referenceText"] = strings.TrimSpace(match[1])
-	}
-	if match := refURLUpdatePattern.FindStringSubmatch(message); len(match) == 2 {
-		changes["referenceUrl"] = strings.TrimSpace(match[1])
-	}
-	if match := tagsUpdatePattern.FindStringSubmatch(message); len(match) == 2 {
-		tags := splitTags(match[1])
-		if len(tags) > 0 {
-			changes["tags"] = tags
-		}
-	}
-
-	return changes
-}
+// ---- Helper functions ----
 
 func applyAllowedFieldChanges(tx *gorm.DB, coin *models.Coin, userID uint, changes map[string]any) error {
 	updates := map[string]interface{}{}
@@ -808,33 +504,6 @@ func replaceCoinTags(tx *gorm.DB, coinID, userID uint, rawTags any) error {
 	return nil
 }
 
-func isWriteIntent(message string) bool {
-	lower := strings.ToLower(message)
-	writeTokens := []string{
-		"update", "change", "set", "edit", "mark",
-		"notes", "note", "grade", "value", "reference", "tags",
-	}
-	for _, token := range writeTokens {
-		if strings.Contains(lower, token) {
-			return true
-		}
-	}
-	return false
-}
-
-func splitTags(raw string) []string {
-	raw = strings.ReplaceAll(raw, " and ", ",")
-	parts := strings.Split(raw, ",")
-	tags := make([]string, 0, len(parts))
-	for _, part := range parts {
-		tag := strings.TrimSpace(strings.Trim(part, `"'`))
-		if tag != "" {
-			tags = append(tags, tag)
-		}
-	}
-	return tags
-}
-
 func randomHex(n int) (string, error) {
 	buf := make([]byte, n)
 	if _, err := rand.Read(buf); err != nil {
@@ -858,17 +527,6 @@ func toCoinSummary(coin models.Coin) CollectionCoinSummary {
 		Material:     string(coin.Material),
 		CurrentValue: coin.CurrentValue,
 	}
-}
-
-func formatCurrency(value *float64) string {
-	if value == nil {
-		return "n/a"
-	}
-	return formatCurrencyValue(*value)
-}
-
-func formatCurrencyValue(value float64) string {
-	return fmt.Sprintf("$%.2f", value)
 }
 
 func sortedMapKeys(values map[string]any) []string {

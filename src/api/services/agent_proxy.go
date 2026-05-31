@@ -20,6 +20,11 @@ type AgentProxy struct {
 	logger        *Logger
 }
 
+type CollectionChatContext struct {
+	Route        string `json:"route,omitempty"`
+	ActiveCoinID *uint  `json:"activeCoinId,omitempty"`
+}
+
 func NewAgentProxy(baseURL string, logger *Logger) *AgentProxy {
 	return &AgentProxy{
 		baseURL:       strings.TrimRight(baseURL, "/"),
@@ -58,6 +63,8 @@ type AgentChatProxyRequest struct {
 	CoinSearchPrompt string                 `json:"coin_search_prompt"`
 	CoinShowsPrompt  string                 `json:"coin_shows_prompt"`
 	Portfolio        *PortfolioData         `json:"portfolio,omitempty"`
+	InternalToken    string                 `json:"internal_token,omitempty"`
+	ToolsBaseURL     string                 `json:"tools_base_url,omitempty"`
 }
 
 type CandidateReferenceProxy struct {

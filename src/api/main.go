@@ -57,6 +57,9 @@ func main() {
 	settingsSvc := services.NewSettingsService(settingsRepo)
 	settingsSvc.SyncLogLevel(logger)
 
+	// Create internal token service for Python agent callbacks
+	internalTokenSvc := services.NewInternalTokenService(cfg.JWTSecret)
+
 	logger.Info("startup", "Application starting")
 	logger.Info("startup", "Database connected: %s", cfg.DBPath)
 
@@ -198,6 +201,11 @@ func main() {
 	apiKeyRepo := repository.NewApiKeyRepository(database.DB)
 	apiKeyAuth := apiKeyRepo // implements middleware.ApiKeyAuthenticator
 
+	// Create shared repositories for cross-group access
+	journalRepo := repository.NewJournalRepository(database.DB)
+	collectionProposalRepo := repository.NewCollectionUpdateRepository(database.DB)
+	collectionSvc := services.NewCollectionToolsService(coinRepo, collectionProposalRepo)
+
 	protected := api.Group("")
 	protected.Use(middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth))
 	protected.Use(apiRateLimit)
@@ -237,7 +245,6 @@ func main() {
 		protected.POST("/coins/:id/tags", tagHandler.AttachToCoin)
 		protected.DELETE("/coins/:id/tags/:tagId", tagHandler.DetachFromCoin)
 
-		journalRepo := repository.NewJournalRepository(database.DB)
 		journalHandler := handlers.NewJournalHandler(journalRepo)
 		protected.GET("/coins/:id/journal", journalHandler.ListEntries)
 		protected.POST("/coins/:id/journal", journalHandler.AddEntry)
@@ -301,11 +308,9 @@ func main() {
 		protected.PUT("/coins/:id/listing-status", availHandler.UpdateListingStatus)
 
 		agentRepo := repository.NewAgentRepository(database.DB)
-		collectionProposalRepo := repository.NewCollectionUpdateRepository(database.DB)
-		collectionSvc := services.NewCollectionToolsService(coinRepo, collectionProposalRepo)
 		userRepo := repository.NewUserRepository(database.DB)
 		contentGuard := services.NewContentGuard(logger)
-		agentHandler := handlers.NewAgentHandler(agentRepo, userRepo, journalRepo, agentProxy, collectionSvc, settingsSvc, contentGuard, logger)
+		agentHandler := handlers.NewAgentHandler(agentRepo, userRepo, journalRepo, agentProxy, collectionSvc, settingsSvc, internalTokenSvc, contentGuard, logger, cfg.AgentInternalCallbackURL)
 		protected.POST("/agent/chat", writeRateLimit, agentHandler.ChatStream)
 		protected.POST("/agent/collection/proposals/:proposalId/commit", writeRateLimit, agentHandler.CommitCollectionProposal)
 		protected.POST("/agent/collection/proposals/:proposalId/cancel", writeRateLimit, agentHandler.CancelCollectionProposal)
@@ -459,6 +464,19 @@ func main() {
 		// Auction ending debug endpoint
 		auctionDebugHandler := handlers.NewAuctionEndingDebugHandler(database.DB, auctionLotRepo)
 		admin.GET("/auction-ending/debug", auctionDebugHandler.DebugGetAuctionEndingInfo)
+	}
+
+	// Internal tools (protected by internal token for Python agent callbacks)
+	internal := r.Group("/api/internal/tools")
+	internal.Use(middleware.InternalTokenRequired(internalTokenSvc))
+	{
+		internalToolsHandler := handlers.NewInternalToolsHandler(collectionSvc, logger)
+		internal.POST("/search_my_collection", internalToolsHandler.SearchMyCollection)
+		internal.POST("/get_coin", internalToolsHandler.GetCoin)
+		internal.POST("/collection_summary", internalToolsHandler.CollectionSummary)
+		internal.POST("/top_coins_by_value", internalToolsHandler.TopCoinsByValue)
+		internal.POST("/propose_update", internalToolsHandler.ProposeUpdate)
+		internal.POST("/commit_update", internalToolsHandler.CommitUpdate)
 	}
 
 	log.Printf("Starting server on :%s", cfg.Port)

@@ -23,8 +23,10 @@ type AgentHandler struct {
 	proxy         *services.AgentProxy
 	collectionSvc *services.CollectionToolsService
 	settingsSvc   *services.SettingsService
+	tokenSvc      *services.InternalTokenService
 	guard         *services.ContentGuard
 	logger        *services.Logger
+	toolsBaseURL  string
 }
 
 func NewAgentHandler(
@@ -34,8 +36,10 @@ func NewAgentHandler(
 	proxy *services.AgentProxy,
 	collectionSvc *services.CollectionToolsService,
 	settingsSvc *services.SettingsService,
+	tokenSvc *services.InternalTokenService,
 	guard *services.ContentGuard,
 	logger *services.Logger,
+	toolsBaseURL string,
 ) *AgentHandler {
 	return &AgentHandler{
 		repo:          repo,
@@ -44,8 +48,10 @@ func NewAgentHandler(
 		proxy:         proxy,
 		collectionSvc: collectionSvc,
 		settingsSvc:   settingsSvc,
+		tokenSvc:      tokenSvc,
 		guard:         guard,
 		logger:        logger,
+		toolsBaseURL:  toolsBaseURL,
 	}
 }
 
@@ -96,9 +102,8 @@ type CandidateReferenceDTORef struct {
 }
 
 type AgentChatResponse struct {
-	Message     string                           `json:"message"`
-	Suggestions []CoinSuggestion                 `json:"suggestions"`
-	Collection  *services.CollectionChatResponse `json:"collection,omitempty"`
+	Message     string           `json:"message"`
+	Suggestions []CoinSuggestion `json:"suggestions"`
 }
 
 const DefaultCoinSearchPrompt = `You are a numismatic search specialist focused on Greek and Roman coinage up through the Byzantine Era. You specialize in finding that rare gem of a coin for just the right price.
@@ -204,14 +209,11 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		return
 	}
 
-	if h.collectionSvc != nil && h.collectionSvc.ShouldHandleCollection(req.Message) {
-		resp, err := h.collectionSvc.HandleChat(userID, req.Message, req.AppContext)
-		if err != nil {
-			logger.Error("agent", "collection chat handling failed: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Collection chat request failed"})
-			return
-		}
-		h.streamCollectionResponse(c, resp)
+	// Mint internal token for Python agent to call back into collection tools
+	internalToken, err := h.tokenSvc.Mint(userID)
+	if err != nil {
+		logger.Error("agent", "failed to mint internal token: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Service error"})
 		return
 	}
 
@@ -246,6 +248,8 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		CoinSearchPrompt: h.getCoinSearchPrompt(),
 		CoinShowsPrompt:  h.getCoinShowsPrompt(userID),
 		Portfolio:        portfolio,
+		InternalToken:    internalToken,
+		ToolsBaseURL:     h.toolsBaseURL,
 	}
 
 	if err := h.proxy.StreamChat(c.Request.Context(), c.Writer, proxyReq); err != nil {
@@ -254,38 +258,6 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		if !c.Writer.Written() {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Agent service unavailable"})
 		}
-	}
-}
-
-func (h *AgentHandler) streamCollectionResponse(c *gin.Context, response *services.CollectionChatResponse) {
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Status(http.StatusOK)
-
-	flusher, ok := c.Writer.(http.Flusher)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Streaming not supported"})
-		return
-	}
-
-	status := map[string]string{
-		"type":    "status",
-		"message": "Reviewing your collection...",
-	}
-	if statusBytes, err := json.Marshal(status); err == nil {
-		_, _ = fmt.Fprintf(c.Writer, "data: %s\n\n", statusBytes)
-		flusher.Flush()
-	}
-
-	done := map[string]interface{}{
-		"type":       "done",
-		"message":    response.Message,
-		"collection": response,
-	}
-	if doneBytes, err := json.Marshal(done); err == nil {
-		_, _ = fmt.Fprintf(c.Writer, "data: %s\n\n", doneBytes)
-		flusher.Flush()
 	}
 }
 
