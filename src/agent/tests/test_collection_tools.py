@@ -1,6 +1,6 @@
 """Tests for collection tools HTTP wrappers."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 import pytest
@@ -42,10 +42,11 @@ async def test_search_my_collection_makes_correct_request(mock_tools):
     search_tool = next(t for t in mock_tools if t.name == "search_my_collection")
 
     with patch("app.tools.collection_tools.httpx.AsyncClient") as MockClient:
-        mock_response = AsyncMock()
+        # Response methods are SYNC in httpx, so use regular Mock
+        mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"coins": [{"id": 1, "name": "Test Coin"}]}
-        mock_response.raise_for_status = AsyncMock()
+        mock_response.json = Mock(return_value={"coins": [{"id": 1, "name": "Test Coin"}]})
+        mock_response.raise_for_status = Mock(return_value=None)
 
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value = mock_client
@@ -90,10 +91,11 @@ async def test_collection_summary_no_args(mock_tools):
     summary_tool = next(t for t in mock_tools if t.name == "collection_summary")
 
     with patch("app.tools.collection_tools.httpx.AsyncClient") as MockClient:
-        mock_response = AsyncMock()
+        # Response methods are SYNC in httpx, so use regular Mock
+        mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"summary": {"total_coins": 10, "total_value": 1000.0}}
-        mock_response.raise_for_status = AsyncMock()
+        mock_response.json = Mock(return_value={"summary": {"total_coins": 10, "total_value": 1000.0}})
+        mock_response.raise_for_status = Mock(return_value=None)
 
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value = mock_client
@@ -117,16 +119,17 @@ async def test_propose_update_returns_proposal(mock_tools):
     propose_tool = next(t for t in mock_tools if t.name == "propose_update")
 
     with patch("app.tools.collection_tools.httpx.AsyncClient") as MockClient:
-        mock_response = AsyncMock()
+        # Response methods are SYNC in httpx, so use regular Mock
+        mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
+        mock_response.json = Mock(return_value={
             "proposal": {
                 "proposal_id": "prop-123",
                 "token": "token-abc",
                 "changes": {"notes": "Updated"},
             }
-        }
-        mock_response.raise_for_status = AsyncMock()
+        })
+        mock_response.raise_for_status = Mock(return_value=None)
 
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value = mock_client
