@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, CoinSuggestion, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, AdminHealthSummaryResponse } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, CoinSuggestion, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -103,6 +103,7 @@ export const register = (username: string, password: string, email?: string) =>
 // Coins
 export const getCoins = (params?: {
   category?: string
+  era?: string
   search?: string
   wishlist?: string
   sold?: string
@@ -116,7 +117,7 @@ export const getCoins = (params?: {
 
 const NULLABLE_FIELDS: (keyof Coin)[] = ['weightGrams', 'diameterMm', 'purchasePrice', 'currentValue', 'purchaseDate']
 
-function sanitizeCoin(coin: Partial<Coin>): Partial<Coin> {
+function sanitizeCoin(coin: CoinMutationPayload): CoinMutationPayload {
   const clean: Record<string, unknown> = { ...coin }
   for (const field of NULLABLE_FIELDS) {
     if (clean[field] === '' || clean[field] === undefined) {
@@ -131,18 +132,25 @@ function sanitizeCoin(coin: Partial<Coin>): Partial<Coin> {
   if (typeof clean.purchaseDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(clean.purchaseDate)) {
     clean.purchaseDate = clean.purchaseDate + 'T00:00:00Z'
   }
-  return clean as Partial<Coin>
+  return clean as CoinMutationPayload
 }
 
 export const getCoin = (id: number) => api.get<Coin>(`/coins/${id}`)
-export const createCoin = (coin: Partial<Coin>) => api.post<Coin>('/coins', sanitizeCoin(coin))
-export const updateCoin = (id: number, coin: Partial<Coin>, params?: Record<string, string>) =>
+export const createCoin = (coin: CoinMutationPayload) => api.post<Coin>('/coins', sanitizeCoin(coin))
+export const updateCoin = (id: number, coin: CoinMutationPayload, params?: Record<string, string>) =>
   api.put<Coin>(`/coins/${id}`, sanitizeCoin(coin), { params })
 export const purchaseCoin = (id: number, data?: { purchasePrice?: number; purchaseDate?: string; purchaseLocation?: string }) =>
   api.post<Coin>(`/coins/${id}/purchase`, data || {})
 export const sellCoin = (id: number, soldPrice: number | null, soldTo: string) =>
   api.post<Coin>(`/coins/${id}/sell`, { soldPrice, soldTo })
 export const deleteCoin = (id: number) => api.delete(`/coins/${id}`)
+export const getCoinReferences = (coinId: number) => api.get<CoinReference[]>(`/coins/${coinId}/references`)
+export const createCoinReference = (coinId: number, reference: CoinReferenceInput) =>
+  api.post<CoinReference>(`/coins/${coinId}/references`, reference)
+export const updateCoinReference = (coinId: number, referenceId: number, reference: CoinReferenceInput) =>
+  api.put<CoinReference>(`/coins/${coinId}/references/${referenceId}`, reference)
+export const deleteCoinReference = (coinId: number, referenceId: number) =>
+  api.delete(`/coins/${coinId}/references/${referenceId}`)
 
 // Tags
 export const getTags = () => api.get<{ tags: Tag[] }>('/tags')

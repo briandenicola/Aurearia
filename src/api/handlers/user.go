@@ -125,7 +125,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 // ExportCollection exports the current user's coins and images as a zip archive.
 //
 //	@Summary		Export collection
-//	@Description	Downloads all coins and images as a ZIP archive containing coins.json and image files.
+//	@Description	Downloads all coins and images as a ZIP archive containing coins.json (including era and structured references) and image files.
 //	@Tags			User
 //	@Produce		application/zip
 //	@Success		200	"ZIP archive"
@@ -145,7 +145,7 @@ func (h *UserHandler) ExportCollection(c *gin.Context) {
 // ExportCatalogPDF generates a styled PDF catalog of the user's collection.
 //
 //	@Summary		Export PDF catalog
-//	@Description	Generates a PDF catalog with photos, grades, provenance, and valuations.
+//	@Description	Generates a PDF catalog with photos, grades, provenance, valuations, and structured references.
 //	@Tags			User
 //	@Produce		application/pdf
 //	@Success		200	"PDF document"

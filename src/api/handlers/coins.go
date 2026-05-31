@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -50,6 +51,7 @@ type PurchaseRequest struct {
 //	@Tags			Coins
 //	@Produce		json
 //	@Param			category	query		string	false	"Filter by category (Roman, Greek, Byzantine, Modern, Other)"
+//	@Param			era			query		string	false	"Filter by era (ancient, medieval, modern)"
 //	@Param			search		query		string	false	"Search across name, denomination, ruler, era, mint, inscriptions, notes"
 //	@Param			wishlist	query		string	false	"Filter by wishlist status"	Enums(true, false)
 //	@Param			sold		query		string	false	"Filter by sold status"	Enums(true, false)
@@ -104,6 +106,7 @@ func (h *CoinHandler) List(c *gin.Context) {
 
 	filters := repository.CoinListFilters{
 		Category:  c.Query("category"),
+		Era:       c.Query("era"),
 		Search:    c.Query("search"),
 		SortField: sortField,
 		SortOrder: sortOrder,
@@ -224,6 +227,9 @@ func (h *CoinHandler) Create(c *gin.Context) {
 	logger.Debug("coins", "Creating coin '%s' for user %d", coin.Name, userID)
 
 	if err := h.svc.CreateCoin(&coin); err != nil {
+		if handleCoinMutationError(c, err) {
+			return
+		}
 		logger.Error("coins", "Failed to create coin: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create coin"})
 		return
@@ -274,6 +280,9 @@ func (h *CoinHandler) Update(c *gin.Context) {
 
 	source := c.Query("source")
 	if err := h.svc.UpdateCoin(existing, &updates, userID, source); err != nil {
+		if handleCoinMutationError(c, err) {
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update coin"})
 		return
 	}
@@ -588,4 +597,21 @@ func (h *CoinHandler) CoinValueHistory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, entries)
+}
+
+func handleCoinMutationError(c *gin.Context, err error) bool {
+	switch {
+	case errors.Is(err, services.ErrReferenceCatalogRequired),
+		errors.Is(err, services.ErrReferenceNumberRequired),
+		errors.Is(err, services.ErrReferenceVolumeRequired),
+		errors.Is(err, services.ErrReferenceUnknownCatalog),
+		errors.Is(err, services.ErrReferenceDuplicate):
+		respondError(c, http.StatusBadRequest, err.Error(), err)
+		return true
+	case isUniqueConstraintError(err):
+		respondError(c, http.StatusBadRequest, services.ErrReferenceDuplicate.Error(), err)
+		return true
+	default:
+		return false
+	}
 }

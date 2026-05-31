@@ -2719,6 +2719,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "description": "Filter by era (ancient, medieval, modern)",
+                        "name": "era",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
                         "description": "Search across name, denomination, ruler, era, mint, inscriptions, notes",
                         "name": "search",
                         "in": "query"
@@ -3731,6 +3737,275 @@ const docTemplate = `{
                 }
             }
         },
+        "/coins/{id}/references": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all structured references for a user-owned coin.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coin References"
+                ],
+                "summary": "List coin references",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/handlers.CoinReferenceDTO"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Adds a structured catalog reference to a user-owned coin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coin References"
+                ],
+                "summary": "Create coin reference",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Reference payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CoinReferenceUpsertRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CoinReferenceDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/coins/{id}/references/{referenceId}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates one structured reference on a user-owned coin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coin References"
+                ],
+                "summary": "Update coin reference",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Reference ID",
+                        "name": "referenceId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Reference payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CoinReferenceUpsertRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CoinReferenceDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes one structured reference from a user-owned coin.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coin References"
+                ],
+                "summary": "Delete coin reference",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Reference ID",
+                        "name": "referenceId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/coins/{id}/sell": {
             "post": {
                 "security": [
@@ -4486,7 +4761,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Downloads all coins and images as a ZIP archive containing coins.json and image files.",
+                "description": "Downloads all coins and images as a ZIP archive containing coins.json (including era and structured references) and image files.",
                 "produces": [
                     "application/zip"
                 ],
@@ -4514,7 +4789,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Generates a PDF catalog with photos, grades, provenance, and valuations.",
+                "description": "Generates a PDF catalog with photos, grades, provenance, valuations, and structured references.",
                 "produces": [
                     "application/pdf"
                 ],
@@ -4833,6 +5108,26 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.CandidateReferenceDTORef": {
+            "type": "object",
+            "properties": {
+                "catalog": {
+                    "type": "string"
+                },
+                "certainty": {
+                    "type": "string"
+                },
+                "number": {
+                    "type": "string"
+                },
+                "uri": {
+                    "type": "string"
+                },
+                "volume": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.CategoryCount": {
             "type": "object",
             "properties": {
@@ -4896,9 +5191,81 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.CoinReferenceDTO": {
+            "type": "object",
+            "properties": {
+                "catalog": {
+                    "type": "string",
+                    "example": "RIC"
+                },
+                "certainty": {
+                    "type": "string",
+                    "example": "probable"
+                },
+                "coinId": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "createdAt": {
+                    "type": "string",
+                    "example": "2025-01-15T12:00:00Z"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "number": {
+                    "type": "string",
+                    "example": "234"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2025-01-15T12:00:00Z"
+                },
+                "uri": {
+                    "type": "string",
+                    "example": "https://numismatics.org/ocre/id/ric.2.tr.234"
+                },
+                "volume": {
+                    "type": "string",
+                    "example": "III"
+                }
+            }
+        },
+        "handlers.CoinReferenceUpsertRequest": {
+            "type": "object",
+            "properties": {
+                "catalog": {
+                    "type": "string",
+                    "example": "RIC"
+                },
+                "certainty": {
+                    "type": "string",
+                    "example": "probable"
+                },
+                "number": {
+                    "type": "string",
+                    "example": "234"
+                },
+                "uri": {
+                    "type": "string",
+                    "example": "https://numismatics.org/ocre/id/ric.2.tr.234"
+                },
+                "volume": {
+                    "type": "string",
+                    "example": "III"
+                }
+            }
+        },
         "handlers.CoinSuggestion": {
             "type": "object",
             "properties": {
+                "candidateReferences": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.CandidateReferenceDTORef"
+                    }
+                },
                 "category": {
                     "type": "string"
                 },
@@ -5668,8 +6035,16 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "era": {
-                    "type": "string",
-                    "maxLength": 200
+                    "enum": [
+                        "ancient",
+                        "medieval",
+                        "modern"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Era"
+                        }
+                    ]
                 },
                 "grade": {
                     "type": "string",
@@ -5749,6 +6124,12 @@ const docTemplate = `{
                 "referenceUrl": {
                     "type": "string",
                     "maxLength": 2000
+                },
+                "references": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.CoinReference"
+                    }
                 },
                 "reverseAnalysis": {
                     "type": "string"
@@ -5834,6 +6215,47 @@ const docTemplate = `{
                 }
             }
         },
+        "models.CoinReference": {
+            "type": "object",
+            "required": [
+                "catalog",
+                "number"
+            ],
+            "properties": {
+                "catalog": {
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "certainty": {
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "coinId": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "number": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "uri": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "volume": {
+                    "type": "string",
+                    "maxLength": 64
+                }
+            }
+        },
         "models.CoinValueHistory": {
             "type": "object",
             "properties": {
@@ -5856,6 +6278,19 @@ const docTemplate = `{
                     "type": "number"
                 }
             }
+        },
+        "models.Era": {
+            "type": "string",
+            "enum": [
+                "ancient",
+                "medieval",
+                "modern"
+            ],
+            "x-enum-varnames": [
+                "EraAncient",
+                "EraMedieval",
+                "EraModern"
+            ]
         },
         "models.FeaturedCoin": {
             "type": "object",

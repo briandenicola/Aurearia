@@ -1400,3 +1400,339 @@ Generated artifacts were **not regenerated and committed** before push, so CI sn
 **Confidence:** HIGH (root cause identified, fix validated, full test suite passes)
 
 ---
+
+---
+
+## 19. Threat Model Issue-Link Mechanism (Issue #206) — Brutus Proposal (2026-05-28)
+
+**Author:** Brutus (QA)  
+**Date:** 2026-05-28  
+**Status:** Proposed  
+**Issue:** #206
+
+### Context
+
+Issue #206 requires that **all OPEN threat-model findings have GitHub issue links for execution tracking**. Audit of `docs/threat-model.md` revealed:
+- **15 OPEN findings** (after audit corrections)
+- **0 issue links** currently in document
+- No mechanism or template for linking findings to tracking issues
+
+### Problem
+
+Without explicit issue links:
+1. Open findings have no accountability — no way to know if they're being tracked or who owns them
+2. Finding → issue mapping is implicit and manual, prone to loss during backlog churn
+3. PR workflow has no way to validate that a finding is addressed in code without externally searching issues
+
+### Solution
+
+Add a **Findings Tracker** column to each finding table entry that:
+1. **Format:** Add issue link as `#NNNN` in the Description or Status column (requires decision on UX)
+2. **Policy:** Every OPEN finding must have a corresponding open GitHub issue with label `security-finding` and reference in threat-model.md
+3. **CI Gate:** Linter (or manual PR checklist item) verifies no OPEN status without issue link
+4. **Lifecycle:** When finding is MITIGATED, issue is closed with reference to the PR that fixed it
+
+### Alternative (Rejected)
+
+Keep finding descriptions generic and maintain a separate mapping document (`docs/security-findings-backlog.md`) — rejected because it decouples source of truth and creates duplicate work.
+
+### Acceptance Criteria
+
+1. ✗ Create 15 tracking issues for existing OPEN findings (separate effort, outside #206 scope)
+2. ✓ Update threat-model.md template (§ How to add a new threat finding) to require issue link for Open status
+3. ✗ Add PR template checklist item (if not already present in `.github/pull_request_template.md`)
+
+### Timeline
+
+- Issue link creation: tracked in **new issue #XXX** (TBD by Coordinator)
+- Template update: included in **#206 PR**
+- CI automation: **phase 3c backlog** (SECURITY.md enforcement)
+
+### Team Input Needed
+
+- **Maximus (arch):** Should issue link live in the Description cell or a separate column?
+- **Scribe:** Which issue labels to use for security findings backlog?
+- **Ralph (CI):** Can we add a linter check for threat-model.md format in pre-commit?
+
+---
+
+## 20. Threat Model Reconciliation Complete (Issue #206) — Maximus Audit (2026-05-29)
+
+**Author:** Maximus (Architect)  
+**Date:** 2026-05-29  
+**Status:** Completed  
+**Issue:** #206
+
+### Context
+
+Issue #206 requested audit of `docs/threat-model.md` against current code implementation.
+
+### Summary
+
+Completed full audit of all 24 threat findings (B-1..B-9, F-1..F-8, SC-1..SC-7). Found 9 findings had been mitigated in code but status was stale in documentation.
+
+### Outcome
+
+✅ **Updated threat-model.md with current state:**
+- **13 findings now Mitigated** (was 8): B-2, B-6, B-7, B-8 + F-1, F-2, F-4 + SC-1, SC-2
+- **10 findings remain Open** (was 15): B-9 + F-3, F-5, F-6, F-7 + SC-3, SC-4, SC-5, SC-6, SC-7
+- **1 finding Accepted** (unchanged): F-8 (platform limitation)
+
+**All open findings now have issue links** for execution tracking (mostly #163, security audit umbrella; specific remediations linked to #201, #202, #204).
+
+### Key Mitigations Identified
+
+#### Backend (B-2, B-6, B-7, B-8)
+- **B-2 SQL injection:** Explicit whitelist map in `DeleteAnalysis()` + switch validation in `Analyze()`
+- **B-6 DoS:** `MaxMultipartMemory` configured in main.go
+- **B-7 WebAuthn TTL:** 5-minute TTL, cleanup logic preventing session accumulation
+- **B-8 WebAuthn origin:** Dynamic origin trust removed, now restricted to configured RP origins
+
+#### Frontend (F-1, F-2, F-4)
+- **F-1/F-2 XSS:** DOMPurify.sanitize() applied in CoinAIAnalysis.vue, useCoinSearchChat.ts, FeaturedCoinModal.vue
+- **F-4 Sanitizer:** DOMPurify ^3.4.1 and @types/dompurify ^3.2.0 pinned in package.json
+
+#### Supply Chain (SC-1, SC-2)
+- **SC-1 GitHub Actions:** All `uses:` statements pinned to commit SHAs (10 actions verified)
+- **SC-2 Hardcoded secret:** Taskfile.yml `gen-env` task generates random JWT secret; config enforces 32-char minimum
+
+### Remaining Work
+
+10 open findings remain in scope for future remediation:
+- **B-9** (error response detail): Generic error handling
+- **F-3, F-5** (auth): JWT in localStorage vs HttpOnly cookies (architectural decision)
+- **F-6, F-7** (auth responses): Cache-Control headers, username in query string
+- **SC-3, SC-4, SC-5, SC-6, SC-7** (supply chain): CDN integrity, dependency versions, branch protection, Dockerfile hardening
+
+All tracked under issue #163 (Code & security audit).
+
+### Evidence
+
+- Commit: 434f159 (docs: reconcile threat-model with current code state)
+- Audit artifacts: input files analyzed (analysis.go, CoinAIAnalysis.vue, webauthn.go, Taskfile.yml, Dockerfile, GitHub workflows)
+- Verification: Manual inspection of mitigated code paths + GitHub issue references (#201–204 closed issues)
+
+### Decisions
+
+1. **Documentation follows code:** Threat-model reflects current implementation as the single source of truth for security status.
+2. **All open findings tracked:** Issue #163 is the umbrella tracker; specific issues (#201–204) document closed remediations.
+3. **No architectural changes required:** All mitigations fit within current design; no ADRs needed (per Constitution §22).
+
+### Next Steps
+
+→ Scribe: Merge this decision into `.squad/decisions.md` under **Security Governance**.  
+→ Brian: Review issue #163 for prioritization of 10 remaining open findings.  
+→ Maximus: Quarterly threat-model audits per Constitution §20 (Audit cadence).
+
+---
+
+## 21. Issue #214 Structured Numismatic References — Phase 1/2 Implementation Review (2026-05-30)
+
+**Author:** Cassius (Backend Dev)  
+**Date:** 2026-05-30  
+**Status:** Proposed  
+**Issue:** #214  
+**Scope:** Phase 1/2 validation and gap closure (non-breaking; prepares for Phase 3 MVP)
+
+### Summary
+
+Non-destructive analysis of #214 Phase 1/2 foundational scaffolding identified **four critical gaps and two optional improvements** that must be closed before Phase 3 user stories can be delivered. All model/persistence layers are correct; implementation is 95% complete but unreachable (routes not wired) and partially untested (Era validation missing, era filtering absent).
+
+### Implementation Status: Phase 1/2
+
+#### ✅ IMPLEMENTED (Correct)
+
+| Component | Status | Notes |
+|---|---|---|
+| `CoinReference` model | ✅ | All 5 fields: catalog, volume, number, certainty, uri; PK, FKs, indices correct |
+| `CatalogRegistry` model | ✅ | Catalog code (unique), DisplayName, Era, VolumeRequired flag all present |
+| `Coin.Era` field | ✅ | Era type constants (ancient\|medieval\|modern) defined in models/coin.go |
+| CoinReferenceRepository | ✅ | Full CRUD: ListByCoin, GetByID, Create, CreateBatch, Update, Delete, ReplaceForCoin; user scoping via OwnedBy scope |
+| CatalogRegistryRepository | ✅ | List, FindByCatalog (with normalization) |
+| CoinReferenceService | ✅ | NormalizeAndValidateOne, NormalizeAndValidate, ReplaceForCoin; deduplication logic (catalog\|volume\|number) |
+| CoinReferenceHandler | ✅ | List, Create, Update, Delete endpoints with validation routing |
+| CoinRepository preloads | ✅ | References loaded on FindByID, List, and all coin queries |
+| Database migrations | ✅ | CoinReference and CatalogRegistry in AutoMigrate |
+| Seed data | ✅ | 12 catalogs (RIC, RPC, SEAR, CRAWFORD, SNG, SPINK, DUPLESSY, CNI, KM, Y, CRAIG, REDBOOK) with era + volume-required rules |
+
+### ❌ CRITICAL GAPS (Must close for Phase 3)
+
+#### **GAP 1: Routes Not Registered [T020 — CRITICAL]**
+
+**Status**: ❌ Not implemented  
+**Impact**: Endpoints exist but are unreachable from API; Phase 3 cannot ship.  
+**Location**: `main.go` (missing route wiring)  
+**Details**:
+- CoinReferenceHandler methods exist but routes are not registered.
+- Expected routes missing:
+  - `GET /api/coins/:id/references` (List)
+  - `POST /api/coins/:id/references` (Create)
+  - `PUT /api/coins/:id/references/:referenceId` (Update)
+  - `DELETE /api/coins/:id/references/:referenceId` (Delete)
+- Pattern: Must be under `protected` route group (JWT required), same as coin CRUD.
+
+#### **GAP 2: Era Enum Validation on Coin Binding [T021 — CRITICAL]**
+
+**Status**: ❌ Not implemented  
+**Impact**: Invalid era values can enter DB; Phase 4 UI filter will fail on bad data.  
+**Location**: `handlers/coins.go` (Create/Update methods)  
+**Details**:
+- Coin model defines Era constants: `ancient`, `medieval`, `modern`.
+- However, Create/Update handlers do NOT validate the era field is one of these values.
+- `ShouldBindJSON` accepts any string for Era (binding tag is just `max=20`).
+- Result: Can save coins with `era="invalid"` or `era=null`, breaking Phase 4 era filtering UI.
+
+#### **GAP 3: Era Scope & Filter Not in CoinRepository [T016 — IMPORTANT]**
+
+**Status**: ⚠️ Partial (scope exists conceptually, not implemented)  
+**Impact**: Phase 4 era filtering endpoint cannot be wired; list queries cannot filter by era.  
+**Location**: `repository/scopes.go` (missing scope), `repository/coin_repository.go` (missing filter support)  
+**Details**:
+- Spec FR-009: "System MUST provide UI filtering by era."
+- Plan Phase 4, Task T030-T033: Era filter integration in collection page.
+- Currently: CoinListFilters struct has no Era field; no ByEra scope in scopes.go.
+- Result: Phase 4 cannot wire `?era=ancient` query param to coin list.
+
+#### **GAP 4: Swagger DTOs/Schema Not Defined [T017/T024 — IMPORTANT]**
+
+**Status**: ❌ Not implemented  
+**Impact**: Swagger documentation incomplete; no schema for reference payloads; generated docs miss reference endpoints.  
+**Location**: `handlers/swagger_types.go`  
+**Details**:
+- Reference endpoints have no Swagger annotations (no `@Summary`, `@Param`, `@Success` tags).
+- swagger_types.go has no CoinReference or CatalogRegistry response types for Swagger code generation.
+- Result: Generated swagger.json/swagger.yaml missing reference schemas and endpoints.
+
+### ⚠️ OPTIONAL IMPROVEMENTS (Do not block Phase 2/3, prevent rework in Phase 5)
+
+#### **OPT-A: Define CertaintyEnum Type [Prevents Phase 5 Rework]**
+
+**Status**: ⚠️ Optional but recommended  
+**Risk If Deferred**: Phase 5 AI discovery (T034) expects structured certainty (high|medium|low|unknown). Currently free-form string; can lead to inconsistent data and late normalization.  
+
+#### **OPT-B: Add Authority URL Metadata to CatalogRegistry [Prevents Phase 5 Rework]**
+
+**Status**: ⚠️ Optional but recommended  
+**Risk If Deferred**: Phase 5 (T035) "Add OCRE/RPC authority URI lookup helper" — currently authority URIs are hardcoded or missing from schema.  
+
+### Files Affected by Recommended Changes
+
+| File | Tasks | Changes |
+|---|---|---|
+| `src/api/main.go` | T020 | Register 4 CoinReferenceHandler routes under protected group |
+| `src/api/handlers/coins.go` | T021 | Add Era enum validation in Create/Update methods |
+| `src/api/repository/coin_repository.go` | T016 | Add Era field to CoinListFilters; apply ByEra scope in List query |
+| `src/api/repository/scopes.go` | T016 | Add ByEra(era) scope function |
+| `src/api/handlers/swagger_types.go` | T017 | Add CoinReferenceResponse and CatalogRegistryResponse types |
+| `src/api/handlers/coin_references.go` | T024 | Add Swagger annotations to all handler methods |
+| `src/api/models/coin_reference.go` | OPT-A | Define CertaintyLevel enum (optional) |
+| `src/api/models/catalog_registry.go` | OPT-B | Add AuthorityURL, Authority fields (optional) |
+
+### Risk Assessment
+
+#### Critical (Blocks Phase 3 MVP)
+- **Routes not wired** → API endpoints are unreachable.
+- **Era validation missing** → Invalid data enters DB, Phase 4 filtering breaks.
+- **Era scope missing** → Phase 4 cannot filter by era.
+
+#### High (Incomplete Phase 2 deliverables)
+- **Swagger DTOs missing** → Generated OpenAPI incomplete, external API docs fail.
+
+#### Medium (Deferred to Phase 5 with rework cost)
+- **CertaintyEnum not defined** → Phase 5 AI discovery will need to normalize strings later.
+- **Authority metadata not in registry** → Phase 5 URI lookup hardcoded or deferred.
+
+### Acceptance Criteria
+
+- [ ] **T020**: Reference routes registered and reachable via `curl` (test all 4 operations).
+- [ ] **T021**: Era validation in coin create/update; rejected requests return HTTP 400 with error message.
+- [ ] **T016**: CoinListFilters.Era field added; `?era=ancient` filters coins correctly (verified via repository test).
+- [ ] **T017**: swagger_types.go contains CoinReferenceResponse and CatalogRegistryResponse.
+- [ ] **T024**: CoinReferenceHandler methods annotated with Swagger tags; `task openapi` regenerates without errors.
+- [ ] All Phase 1/2 code passes `go test ./...`, `go vet ./...`, and architecture tests.
+
+### Dependency on Other Tasks
+
+- T020 (routes) depends on T005 (reference service scaffold) ✓ **ready**.
+- T016 (era filtering) depends on T009 (Coin.Era field) ✓ **ready**.
+- T017/T024 (Swagger) depends on all handlers ✓ **ready**.
+
+### Decision
+
+**Recommend**: Close all four critical gaps before Phase 3 MVP (within current sprint if possible). Optional improvements (CertaintyEnum, AuthorityURL) can be deferred to Phase 5 with documented rework cost.
+
+### Next Steps
+
+1. Cassius implements T020 + T021 + T016 + T017 route/validation/scope fixes (estimated 2–3 hours).
+2. Brutus adds test coverage for era validation and era filtering (estimated 1–2 hours).
+3. Run full Phase 1/2 validation: `go test ./...`, `task openapi`, manual API tests.
+4. Merge to main branch; Phase 3 frontend/handler work can proceed.
+
+---
+
+## 22. GPT-5.3-Codex Runtime Audit — Cross-Cutting Decisions Needed (2026-05-29)
+
+### Authors
+
+- **Cassius** (Backend Dev): Principal-engineer audit of Go API + Python agent runtime risks
+- **Brutus** (QA): Cross-system QA audit across web, API, agent, and threat-model.md
+
+**Date:** 2026-05-29  
+**Status:** Proposed (awaiting team input)  
+**Scope:** Cross-cutting runtime, auth, and scheduler policies
+
+### Context
+
+Comprehensive audit of Go API + Python agent surfaced cross-cutting runtime risks that need team-level direction because fixes affect auth contracts, outbound network policy, and scheduler behavior. Implementing piecemeal risks breaking compatibility or creating contradictory timeout/retry behavior.
+
+### Cassius: Runtime Audit Decision Requests
+
+1. **Auth token transport hardening**
+   - Adopt policy: JWTs are accepted only via `Authorization: Bearer` for protected API routes.
+   - Keep query-param token support only for explicitly carved-out legacy endpoints (if any), with sunset date.
+
+2. **One-time refresh rotation semantics**
+   - Enforce single-use refresh token rotation with atomic DB revoke (conditional `revoked_at IS NULL`) + uniqueness-safe retry path.
+   - Define expected client behavior for concurrent refresh attempts (one success, one 401).
+
+3. **Unified outbound HTTP safety profile**
+   - Require all user-influenced outbound calls (Go + Python) to share baseline controls: URL scheme allowlist, private-IP/localhost denylist, redirect revalidation, explicit timeout budget, and bounded response reads.
+   - Apply first to availability checks and NumisBids ingestion paths.
+
+4. **Scheduler idempotency persistence standard**
+   - For user-facing alerts, require DB-backed idempotency keying (date/user/type) rather than process memory maps to survive restarts and multi-instance deployment.
+
+5. **Operational reliability guardrails**
+   - Add mandatory tests for: refresh race, repeated cancel calls, SSRF blocking, and scheduler restart duplicate suppression.
+
+### Brutus: Cross-System Reliability Decisions Needed
+
+1. **Define a single streaming resilience contract (web↔api↔agent).**  
+   Require: token refresh support for streaming endpoints, client-side abort/timeout handling, and guaranteed terminal SSE semantics (`done` or explicit `error`) so UI cannot remain indefinitely loading.
+
+2. **Define scheduler concurrency policy for manual vs scheduled runs.**  
+   Require: explicit single-flight behavior (lock or DB guard) per scheduler type so overlapping triggers cannot create duplicate notifications or duplicate run records.
+
+3. **Enforce cross-service payload caps at both boundaries.**  
+   For availability checks, chunk Go→agent requests to respect agent `MAX_AVAILABILITY_ITEMS` and add tests proving behavior when wishlist URLs exceed one payload.
+
+4. **Promote mitigated security controls to tested invariants.**  
+   For threat-model findings marked Mitigated (notably DOMPurify render paths and auth rate-limit behavior), require at least one automated regression assertion per control.
+
+### Why Team Decision Is Needed
+
+These changes cross service boundaries and alter externally observable behavior (auth refresh outcomes, accepted token transport, alert delivery semantics, streaming reliability, and scheduler concurrency). Aligning now avoids piecemeal fixes and regressions. All items are interdependent and require coordinated owner decisions (frontend + API + agent + threat-model enforcement).
+
+### Recommended Timeline
+
+- **Week of 2026-06-02**: Team sync on policy decisions (1 hour; decision owners only)
+- **Week of 2026-06-09**: Implementation planning + task breakdown (Cassius + Brutus; 2 hours)
+- **Week of 2026-06-16**: Begin implementation across services (targeted sprints; ~40 story points total)
+
+### References
+
+- **Audit inputs:** src/web, src/api, src/agent (all three services analyzed)
+- **Threat-model:** docs/threat-model.md (10 open findings; Brutus highlights DOMPurify + rate-limit invariants)
+- **Related decisions:** #163 (security audit umbrella), #206 (threat-model governance)
+
+---

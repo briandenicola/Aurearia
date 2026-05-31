@@ -110,6 +110,19 @@ definitions:
     required:
     - lotIds
     type: object
+  handlers.CandidateReferenceDTORef:
+    properties:
+      catalog:
+        type: string
+      certainty:
+        type: string
+      number:
+        type: string
+      uri:
+        type: string
+      volume:
+        type: string
+    type: object
   handlers.CategoryCount:
     properties:
       category:
@@ -154,8 +167,60 @@ definitions:
         example: 42
         type: integer
     type: object
+  handlers.CoinReferenceDTO:
+    properties:
+      catalog:
+        example: RIC
+        type: string
+      certainty:
+        example: probable
+        type: string
+      coinId:
+        example: 1
+        type: integer
+      createdAt:
+        example: "2025-01-15T12:00:00Z"
+        type: string
+      id:
+        example: 42
+        type: integer
+      number:
+        example: "234"
+        type: string
+      updatedAt:
+        example: "2025-01-15T12:00:00Z"
+        type: string
+      uri:
+        example: https://numismatics.org/ocre/id/ric.2.tr.234
+        type: string
+      volume:
+        example: III
+        type: string
+    type: object
+  handlers.CoinReferenceUpsertRequest:
+    properties:
+      catalog:
+        example: RIC
+        type: string
+      certainty:
+        example: probable
+        type: string
+      number:
+        example: "234"
+        type: string
+      uri:
+        example: https://numismatics.org/ocre/id/ric.2.tr.234
+        type: string
+      volume:
+        example: III
+        type: string
+    type: object
   handlers.CoinSuggestion:
     properties:
+      candidateReferences:
+        items:
+          $ref: '#/definitions/handlers.CandidateReferenceDTORef'
+        type: array
       category:
         type: string
       denomination:
@@ -678,8 +743,12 @@ definitions:
       diameterMm:
         type: number
       era:
-        maxLength: 200
-        type: string
+        allOf:
+        - $ref: '#/definitions/models.Era'
+        enum:
+        - ancient
+        - medieval
+        - modern
       grade:
         maxLength: 100
         type: string
@@ -736,6 +805,10 @@ definitions:
       referenceUrl:
         maxLength: 2000
         type: string
+      references:
+        items:
+          $ref: '#/definitions/models.CoinReference'
+        type: array
       reverseAnalysis:
         type: string
       reverseDescription:
@@ -792,6 +865,35 @@ definitions:
       userId:
         type: integer
     type: object
+  models.CoinReference:
+    properties:
+      catalog:
+        maxLength: 32
+        type: string
+      certainty:
+        maxLength: 32
+        type: string
+      coinId:
+        type: integer
+      createdAt:
+        type: string
+      id:
+        type: integer
+      number:
+        maxLength: 128
+        type: string
+      updatedAt:
+        type: string
+      uri:
+        maxLength: 2000
+        type: string
+      volume:
+        maxLength: 64
+        type: string
+    required:
+    - catalog
+    - number
+    type: object
   models.CoinValueHistory:
     properties:
       coinId:
@@ -807,6 +909,16 @@ definitions:
       value:
         type: number
     type: object
+  models.Era:
+    enum:
+    - ancient
+    - medieval
+    - modern
+    type: string
+    x-enum-varnames:
+    - EraAncient
+    - EraMedieval
+    - EraModern
   models.FeaturedCoin:
     properties:
       coin:
@@ -2664,6 +2776,10 @@ paths:
         in: query
         name: category
         type: string
+      - description: Filter by era (ancient, medieval, modern)
+        in: query
+        name: era
+        type: string
       - description: Search across name, denomination, ruler, era, mint, inscriptions,
           notes
         in: query
@@ -3310,6 +3426,180 @@ paths:
       summary: Mark coin as purchased
       tags:
       - Coins
+  /coins/{id}/references:
+    get:
+      description: Returns all structured references for a user-owned coin.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.CoinReferenceDTO'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List coin references
+      tags:
+      - Coin References
+    post:
+      consumes:
+      - application/json
+      description: Adds a structured catalog reference to a user-owned coin.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Reference payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CoinReferenceUpsertRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.CoinReferenceDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create coin reference
+      tags:
+      - Coin References
+  /coins/{id}/references/{referenceId}:
+    delete:
+      description: Deletes one structured reference from a user-owned coin.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Reference ID
+        in: path
+        name: referenceId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete coin reference
+      tags:
+      - Coin References
+    put:
+      consumes:
+      - application/json
+      description: Updates one structured reference on a user-owned coin.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Reference ID
+        in: path
+        name: referenceId
+        required: true
+        type: integer
+      - description: Reference payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CoinReferenceUpsertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.CoinReferenceDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update coin reference
+      tags:
+      - Coin References
   /coins/{id}/sell:
     post:
       consumes:
@@ -3826,7 +4116,7 @@ paths:
   /user/export:
     get:
       description: Downloads all coins and images as a ZIP archive containing coins.json
-        and image files.
+        (including era and structured references) and image files.
       produces:
       - application/zip
       responses:
@@ -3843,7 +4133,8 @@ paths:
       - User
   /user/export/catalog:
     get:
-      description: Generates a PDF catalog with photos, grades, provenance, and valuations.
+      description: Generates a PDF catalog with photos, grades, provenance, valuations,
+        and structured references.
       produces:
       - application/pdf
       responses:

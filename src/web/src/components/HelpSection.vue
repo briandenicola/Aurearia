@@ -29,11 +29,12 @@
             <tr><td><code>name</code></td><td>text</td><td>Required</td></tr>
             <tr><td><code>category</code></td><td>text</td><td>Roman, Greek, Byzantine, Modern, Other</td></tr>
             <tr><td><code>material</code></td><td>text</td><td>Gold, Silver, Bronze, Copper, Electrum, Other</td></tr>
-            <tr><td><code>denomination</code>, <code>ruler</code>, <code>era</code>, <code>mint</code>, <code>grade</code></td><td>text</td><td>Free text fields</td></tr>
+            <tr><td><code>denomination</code>, <code>ruler</code>, <code>mint</code>, <code>grade</code></td><td>text</td><td>Free text fields</td></tr>
+            <tr><td><code>era</code></td><td>text</td><td>Allowed values: <code>ancient</code>, <code>medieval</code>, <code>modern</code></td></tr>
             <tr><td><code>weightGrams</code>, <code>diameterMm</code>, <code>purchasePrice</code>, <code>currentValue</code></td><td>number</td><td>Use decimal values</td></tr>
             <tr><td><code>purchaseDate</code>, <code>soldDate</code></td><td>date</td><td>Use <code>YYYY-MM-DD</code></td></tr>
             <tr><td><code>isWishlist</code>, <code>isSold</code>, <code>isPrivate</code></td><td>boolean</td><td>Use true/false</td></tr>
-            <tr><td><code>notes</code>, <code>referenceUrl</code>, <code>referenceText</code></td><td>text</td><td>Optional metadata</td></tr>
+            <tr><td><code>notes</code>, <code>referenceUrl</code>, <code>referenceText</code></td><td>text</td><td>Optional metadata (legacy reference fallback fields)</td></tr>
           </tbody>
         </table>
 
@@ -155,6 +156,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           <li><strong>162</strong> — The specific type number in that volume</li>
         </ul>
         <p>Always include the volume number when citing RIC, since type numbers restart in each volume.</p>
+        <p>In coin details, use the structured <strong>Catalog References</strong> section for normalized references (catalog, volume, number, certainty, authority URI). The legacy <code>referenceUrl</code>/<code>referenceText</code> fields are still supported for marketplace listing links and backward compatibility.</p>
       </div>
     </details>
 

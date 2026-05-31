@@ -13,25 +13,25 @@ import (
 )
 
 const (
-	pageW      = 210.0 // A4 width mm
-	pageH      = 297.0 // A4 height mm
-	margin     = 15.0
-	contentW   = pageW - 2*margin
-	goldR      = 191
-	goldG      = 155
-	goldB      = 48
-	darkR      = 30
-	darkG      = 30
-	darkB      = 34
-	cardBgR    = 42
-	cardBgG    = 42
-	cardBgB    = 46
-	textR      = 220
-	textG      = 220
-	textB      = 224
-	mutedR     = 160
-	mutedG     = 160
-	mutedB     = 164
+	pageW    = 210.0 // A4 width mm
+	pageH    = 297.0 // A4 height mm
+	margin   = 15.0
+	contentW = pageW - 2*margin
+	goldR    = 191
+	goldG    = 155
+	goldB    = 48
+	darkR    = 30
+	darkG    = 30
+	darkB    = 34
+	cardBgR  = 42
+	cardBgG  = 42
+	cardBgB  = 46
+	textR    = 220
+	textG    = 220
+	textB    = 224
+	mutedR   = 160
+	mutedG   = 160
+	mutedB   = 164
 )
 
 // writeCatalogPDF generates a styled PDF catalog for the given coins.
@@ -116,7 +116,7 @@ func writeCoinPage(pdf *fpdf.Fpdf, coin models.Coin, uploadDir string, index int
 		meta = append(meta, string(coin.Category))
 	}
 	if coin.Era != "" {
-		meta = append(meta, coin.Era)
+		meta = append(meta, string(coin.Era))
 	}
 	if coin.Grade != "" {
 		meta = append(meta, "Grade: "+coin.Grade)
@@ -227,6 +227,9 @@ func writeDetailsCard(pdf *fpdf.Fpdf, coin models.Coin, startY float64) float64 
 	}
 	if coin.CurrentValue != nil {
 		rows = append(rows, struct{ label, value string }{"Current Value", fmt.Sprintf("$%.2f", *coin.CurrentValue)})
+	}
+	if refs := formatReferenceSummary(coin.References); refs != "" {
+		rows = append(rows, struct{ label, value string }{"References", refs})
 	}
 
 	if len(rows) == 0 {
@@ -458,4 +461,38 @@ func safeStr(s string) string {
 		}
 		return r
 	}, s)
+}
+
+func formatReferenceSummary(refs []models.CoinReference) string {
+	if len(refs) == 0 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		catalog := strings.TrimSpace(ref.Catalog)
+		number := strings.TrimSpace(ref.Number)
+		if catalog == "" || number == "" {
+			continue
+		}
+		segment := catalog
+		if v := strings.TrimSpace(ref.Volume); v != "" {
+			segment += " " + v
+		}
+		segment += " " + number
+		parts = append(parts, segment)
+		if len(parts) == 3 {
+			break
+		}
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	summary := strings.Join(parts, "; ")
+	if len(refs) > len(parts) {
+		summary += fmt.Sprintf(" (+%d more)", len(refs)-len(parts))
+	}
+	return summary
 }

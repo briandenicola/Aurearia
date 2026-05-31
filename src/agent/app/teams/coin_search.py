@@ -6,6 +6,7 @@ Phase 2: We fetch dealer pages from the URLs found and extract real listings.
 Phase 3: Format the extracted listings into the CoinSuggestion JSON schema.
 """
 
+import json
 import logging
 import re
 from typing import Annotated, TypedDict
@@ -17,6 +18,7 @@ from app.llm.provider import create_search_agent, get_chat_model, get_search_mod
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
 from app.safety import with_safety
+from app.tools.numismatic_authority import normalize_candidate_references
 from app.tools.search import fetch_dealer_page
 
 logger = logging.getLogger(__name__)
@@ -54,7 +56,16 @@ Structure each listing into this exact JSON schema:
     "estPrice": "Listed price e.g. $150.00",
     "imageUrl": "",
     "sourceUrl": "The exact URL from the listing data — never fabricate",
-    "sourceName": "Dealer or site name"
+    "sourceName": "Dealer or site name",
+    "candidateReferences": [
+      {
+        "catalog": "RIC",
+        "volume": "VII",
+        "number": "162",
+        "certainty": "high|probable|low",
+        "uri": ""
+      }
+    ]
   }
 ]
 ```
@@ -64,7 +75,10 @@ Rules:
 - sourceUrl MUST be copied exactly from the data. NEVER fabricate URLs.
 - Set imageUrl to "" (the frontend handles images)
 - Infer category, era, ruler, material, denomination from the listing text
+- Add candidateReferences only when a catalog reference appears in the listing text
+- candidateReferences items require catalog and number; volume, certainty, and uri are optional
 - If you cannot determine a field, use an empty string
+- If no candidate references are present, return "candidateReferences": []
 - Do not use emojis
 
 Output ONLY the JSON array wrapped in ```json and ``` markers.""")
@@ -193,6 +207,7 @@ def create_coin_search_team(llm_config: LLMConfig, search_prompt: str = ""):
         ]
         response = await ainvoke_with_retry(model, messages)
         formatted = response.content if isinstance(response.content, str) else str(response.content)
+        formatted = _enrich_references_with_authority_links(formatted)
 
         summary = (
             "I found some coins matching your search. "
@@ -224,3 +239,28 @@ def _extract_urls(text: str) -> list[str]:
             seen.add(url)
             unique.append(url)
     return unique
+
+
+def _enrich_references_with_authority_links(text: str) -> str:
+    """Normalize candidate references and fill authority URIs when possible."""
+    match = re.search(r"```json\s*\n(.*?)\n```", text, flags=re.DOTALL)
+    if not match:
+        return text
+
+    json_block = match.group(1).strip()
+    try:
+        payload = json.loads(json_block)
+    except json.JSONDecodeError:
+        return text
+
+    if not isinstance(payload, list):
+        return text
+
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        raw_refs = item.get("candidateReferences")
+        item["candidateReferences"] = normalize_candidate_references(raw_refs if isinstance(raw_refs, list) else [])
+
+    enriched = json.dumps(payload, ensure_ascii=False, indent=2)
+    return f"{text[:match.start()]}```json\n{enriched}\n```{text[match.end():]}"

@@ -59,17 +59,26 @@ type AgentChatMessage struct {
 }
 
 type CoinSuggestion struct {
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	Category     string `json:"category"`
-	Era          string `json:"era"`
-	Ruler        string `json:"ruler"`
-	Material     string `json:"material"`
-	Denomination string `json:"denomination"`
-	EstPrice     string `json:"estPrice"`
-	ImageURL     string `json:"imageUrl"`
-	SourceURL    string `json:"sourceUrl"`
-	SourceName   string `json:"sourceName"`
+	Name                string                     `json:"name"`
+	Description         string                     `json:"description"`
+	Category            string                     `json:"category"`
+	Era                 string                     `json:"era"`
+	Ruler               string                     `json:"ruler"`
+	Material            string                     `json:"material"`
+	Denomination        string                     `json:"denomination"`
+	EstPrice            string                     `json:"estPrice"`
+	ImageURL            string                     `json:"imageUrl"`
+	SourceURL           string                     `json:"sourceUrl"`
+	SourceName          string                     `json:"sourceName"`
+	CandidateReferences []CandidateReferenceDTORef `json:"candidateReferences,omitempty"`
+}
+
+type CandidateReferenceDTORef struct {
+	Catalog   string `json:"catalog"`
+	Volume    string `json:"volume,omitempty"`
+	Number    string `json:"number"`
+	Certainty string `json:"certainty,omitempty"`
+	URI       string `json:"uri,omitempty"`
 }
 
 type AgentChatResponse struct {
@@ -526,7 +535,7 @@ func buildPortfolioData(s *repository.PortfolioSummary) *services.PortfolioData 
 		coins = append(coins, services.PortfolioCoinProxy{
 			Name:         tc.Name,
 			Category:     tc.Category,
-			Era:          tc.Era,
+			Era:          string(tc.Era),
 			Ruler:        tc.Ruler,
 			Grade:        tc.Grade,
 			CurrentValue: cv,
