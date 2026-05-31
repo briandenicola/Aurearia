@@ -49,6 +49,52 @@
             :message-index="i"
             @add-to-wishlist="addToWishlist"
           />
+
+          <div v-if="msg.role === 'assistant' && msg.collection" class="collection-panel">
+            <div v-if="msg.collection.kind === 'proposal' && msg.collection.proposal">
+              <div class="section-label">Pending collection update</div>
+              <div class="collection-target">#{{ msg.collection.proposal.coinId }} {{ msg.collection.proposal.coinName }}</div>
+              <div class="collection-proposal-rows">
+                <div v-for="field in msg.collection.proposal.changedFields" :key="field" class="collection-proposal-row">
+                  <span>{{ field }}</span>
+                  <strong>{{ formatProposalChange(msg.collection, field) }}</strong>
+                </div>
+              </div>
+              <div class="collection-expiry">Expires {{ formatExpiry(msg.collection.proposal.expiresAt) }}</div>
+              <div class="collection-actions">
+                <button class="btn btn-xs btn-primary" @click="confirmCollectionProposal(msg)">Confirm update</button>
+                <button class="btn btn-xs btn-ghost" @click="cancelCollectionProposalMessage(msg)">Cancel</button>
+              </div>
+            </div>
+
+            <div v-else-if="msg.collection.kind === 'disambiguation' && msg.collection.disambiguation">
+              <div class="section-label">Choose a coin</div>
+              <div class="collection-candidates">
+                <button
+                  v-for="candidate in msg.collection.disambiguation.candidates"
+                  :key="candidate.id"
+                  class="btn btn-xs btn-secondary"
+                  @click="pickDisambiguationCandidate(candidate.id)"
+                >
+                  #{{ candidate.id }} {{ candidate.name }}
+                </button>
+              </div>
+            </div>
+
+            <div v-else-if="msg.collection.kind === 'read_result'">
+              <div v-if="msg.collection.readResult?.aggregate" class="collection-aggregate">
+                <span class="chip-sm">Active: {{ msg.collection.readResult.aggregate.totalCoins }}</span>
+                <span class="chip-sm">Wishlist: {{ msg.collection.readResult.aggregate.totalWishlist }}</span>
+                <span class="chip-sm">Sold: {{ msg.collection.readResult.aggregate.totalSold }}</span>
+                <span class="chip-sm">Value: {{ formatUsd(msg.collection.readResult.aggregate.totalCurrentUsd) }}</span>
+              </div>
+              <div v-if="msg.collection.readResult?.coins?.length" class="collection-candidates">
+                <span v-for="coin in msg.collection.readResult.coins" :key="coin.id" class="chip-sm">
+                  #{{ coin.id }} {{ coin.name }}
+                </span>
+              </div>
+            </div>
+          </div>
         </template>
 
         <div v-if="loading && !messages[messages.length-1]?.streaming" class="chat-bubble assistant">
@@ -109,6 +155,9 @@ const {
   sendPortfolioAnalysis,
   handleSave,
   addToWishlist,
+  confirmCollectionProposal,
+  cancelCollectionProposalMessage,
+  pickDisambiguationCandidate,
   formatMessage,
   isCoinShowResults,
   saveShowToCalendar,
@@ -118,6 +167,24 @@ const {
   inputBarEl,
   onAdded: () => emit('added'),
 })
+
+function formatProposalChange(collection: { proposal?: { changes: Record<string, unknown> } }, field: string): string {
+  const value = collection.proposal?.changes?.[field]
+  if (typeof value === 'number') return formatUsd(value)
+  if (Array.isArray(value)) return value.join(', ')
+  if (value === null || value === undefined) return 'n/a'
+  return String(value)
+}
+
+function formatExpiry(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString()
+}
+
+function formatUsd(value: number): string {
+  return `$${value.toFixed(2)}`
+}
 </script>
 
 <style scoped>
@@ -219,6 +286,61 @@ const {
   content: '▊';
   animation: blink 1s step-end infinite;
   color: var(--accent-gold);
+}
+
+.collection-panel {
+  margin-top: -0.3rem;
+  margin-bottom: 0.3rem;
+  align-self: flex-start;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: 85%;
+}
+
+.collection-target {
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.collection-proposal-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.collection-proposal-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.collection-proposal-row strong {
+  color: var(--accent-gold);
+  font-weight: 500;
+}
+
+.collection-expiry {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.collection-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.collection-candidates,
+.collection-aggregate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
 /* Markdown inside chat bubbles */

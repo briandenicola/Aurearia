@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,27 +13,39 @@ import (
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type AgentHandler struct {
-	repo        *repository.AgentRepository
-	userRepo    *repository.UserRepository
-	journalRepo *repository.JournalRepository
-	proxy       *services.AgentProxy
-	settingsSvc *services.SettingsService
-	guard       *services.ContentGuard
-	logger      *services.Logger
+	repo          *repository.AgentRepository
+	userRepo      *repository.UserRepository
+	journalRepo   *repository.JournalRepository
+	proxy         *services.AgentProxy
+	collectionSvc *services.CollectionToolsService
+	settingsSvc   *services.SettingsService
+	guard         *services.ContentGuard
+	logger        *services.Logger
 }
 
-func NewAgentHandler(repo *repository.AgentRepository, userRepo *repository.UserRepository, journalRepo *repository.JournalRepository, proxy *services.AgentProxy, settingsSvc *services.SettingsService, guard *services.ContentGuard, logger *services.Logger) *AgentHandler {
+func NewAgentHandler(
+	repo *repository.AgentRepository,
+	userRepo *repository.UserRepository,
+	journalRepo *repository.JournalRepository,
+	proxy *services.AgentProxy,
+	collectionSvc *services.CollectionToolsService,
+	settingsSvc *services.SettingsService,
+	guard *services.ContentGuard,
+	logger *services.Logger,
+) *AgentHandler {
 	return &AgentHandler{
-		repo:        repo,
-		userRepo:    userRepo,
-		journalRepo: journalRepo,
-		proxy:       proxy,
-		settingsSvc: settingsSvc,
-		guard:       guard,
-		logger:      logger,
+		repo:          repo,
+		userRepo:      userRepo,
+		journalRepo:   journalRepo,
+		proxy:         proxy,
+		collectionSvc: collectionSvc,
+		settingsSvc:   settingsSvc,
+		guard:         guard,
+		logger:        logger,
 	}
 }
 
@@ -49,8 +62,9 @@ func (h *AgentHandler) resolveLLMConfig() (services.LLMConfig, string) {
 // Chat request/response types
 
 type AgentChatRequest struct {
-	Message string             `json:"message" binding:"required"`
-	History []AgentChatMessage `json:"history"`
+	Message    string                          `json:"message" binding:"required"`
+	History    []AgentChatMessage              `json:"history"`
+	AppContext *services.CollectionChatContext `json:"appContext,omitempty"`
 }
 
 type AgentChatMessage struct {
@@ -82,8 +96,9 @@ type CandidateReferenceDTORef struct {
 }
 
 type AgentChatResponse struct {
-	Message     string           `json:"message"`
-	Suggestions []CoinSuggestion `json:"suggestions"`
+	Message     string                           `json:"message"`
+	Suggestions []CoinSuggestion                 `json:"suggestions"`
+	Collection  *services.CollectionChatResponse `json:"collection,omitempty"`
 }
 
 const DefaultCoinSearchPrompt = `You are a numismatic search specialist focused on Greek and Roman coinage up through the Byzantine Era. You specialize in finding that rare gem of a coin for just the right price.
@@ -189,6 +204,17 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		return
 	}
 
+	if h.collectionSvc != nil && h.collectionSvc.ShouldHandleCollection(req.Message) {
+		resp, err := h.collectionSvc.HandleChat(userID, req.Message, req.AppContext)
+		if err != nil {
+			logger.Error("agent", "collection chat handling failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Collection chat request failed"})
+			return
+		}
+		h.streamCollectionResponse(c, resp)
+		return
+	}
+
 	// Resolve LLM provider from explicit setting
 	llmCfg, errMsg := h.resolveLLMConfig()
 	if errMsg != "" {
@@ -216,6 +242,7 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		},
 		Message:          req.Message,
 		History:          proxyHistory,
+		AppContext:       req.AppContext,
 		CoinSearchPrompt: h.getCoinSearchPrompt(),
 		CoinShowsPrompt:  h.getCoinShowsPrompt(userID),
 		Portfolio:        portfolio,
@@ -228,6 +255,109 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Agent service unavailable"})
 		}
 	}
+}
+
+func (h *AgentHandler) streamCollectionResponse(c *gin.Context, response *services.CollectionChatResponse) {
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Status(http.StatusOK)
+
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Streaming not supported"})
+		return
+	}
+
+	status := map[string]string{
+		"type":    "status",
+		"message": "Reviewing your collection...",
+	}
+	if statusBytes, err := json.Marshal(status); err == nil {
+		_, _ = fmt.Fprintf(c.Writer, "data: %s\n\n", statusBytes)
+		flusher.Flush()
+	}
+
+	done := map[string]interface{}{
+		"type":       "done",
+		"message":    response.Message,
+		"collection": response,
+	}
+	if doneBytes, err := json.Marshal(done); err == nil {
+		_, _ = fmt.Fprintf(c.Writer, "data: %s\n\n", doneBytes)
+		flusher.Flush()
+	}
+}
+
+type CommitCollectionProposalRequest struct {
+	ProposalToken string `json:"proposalToken" binding:"required"`
+	Confirm       bool   `json:"confirm"`
+}
+
+// CommitCollectionProposal commits a pending collection update proposal.
+func (h *AgentHandler) CommitCollectionProposal(c *gin.Context) {
+	if h.collectionSvc == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Collection tools unavailable"})
+		return
+	}
+
+	var req CommitCollectionProposalRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "proposalToken and confirm are required"})
+		return
+	}
+	if !req.Confirm {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Explicit confirmation is required"})
+		return
+	}
+
+	userID := c.GetUint("userId")
+	proposalID := c.Param("proposalId")
+	result, err := h.collectionSvc.CommitProposal(userID, proposalID, req.ProposalToken, req.Confirm)
+	if err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "Proposal not found"})
+		case errors.Is(err, services.ErrProposalTokenInvalid):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid proposal token"})
+		case errors.Is(err, services.ErrProposalConfirmationReq):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Explicit confirmation is required"})
+		case errors.Is(err, services.ErrProposalStateConflict):
+			c.JSON(http.StatusConflict, gin.H{"error": "Proposal is no longer pending"})
+		default:
+			h.logger.Error("agent", "commit proposal failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit proposal"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// CancelCollectionProposal cancels a pending collection update proposal.
+func (h *AgentHandler) CancelCollectionProposal(c *gin.Context) {
+	if h.collectionSvc == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Collection tools unavailable"})
+		return
+	}
+
+	userID := c.GetUint("userId")
+	proposalID := c.Param("proposalId")
+	result, err := h.collectionSvc.CancelProposal(userID, proposalID)
+	if err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "Proposal not found"})
+		case errors.Is(err, services.ErrProposalStateConflict):
+			c.JSON(http.StatusConflict, gin.H{"error": "Proposal is no longer pending"})
+		default:
+			h.logger.Error("agent", "cancel proposal failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cancel proposal"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // AgentStatus returns the current AI provider configuration status.

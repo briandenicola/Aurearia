@@ -13,11 +13,11 @@ As a collector, I want to ask questions about my collection in chat so I can qui
 
 **Why this priority**: Read access is the foundational value for collection chat and the prerequisite for safe write proposals.
 
-**Independent Test**: Open chat in collection mode, ask inventory and aggregate questions, and verify answers are derived from authenticated user-scoped coin data.
+**Independent Test**: Open chat from anywhere in the app, ask inventory and aggregate questions, and verify collection-intent prompts are routed to authenticated user-scoped collection tools.
 
 **Acceptance Scenarios**:
 
-1. **Given** an authenticated user with coins, **When** they ask a collection question in collection mode, **Then** chat returns a data-backed answer from `get_coin`, `query_coins`, or `aggregate`.
+1. **Given** an authenticated user with coins, **When** they ask a collection question in chat, **Then** intent routing sends the prompt to `collection_chat` behavior and returns a data-backed answer from `get_coin`, `query_coins`, or `aggregate`.
 2. **Given** no matching records for a query, **When** collection chat responds, **Then** it returns a clear no-results response and does not invent coin data.
 3. **Given** a prompt attempting cross-user access, **When** collection tools execute, **Then** the request is denied by server-side scope enforcement.
 
@@ -43,13 +43,13 @@ As a collector, I want write requests to produce a proposal token and require ex
 
 As a collector, I want ambiguous coin references to trigger disambiguation while still using the existing chat drawer experience.
 
-**Why this priority**: Disambiguation and UX continuity prevent unsafe writes and reduce friction in adopting collection mode.
+**Why this priority**: Disambiguation and UX continuity prevent unsafe writes and reduce friction in adopting intent-routed collection chat.
 
-**Independent Test**: Use the existing chat drawer, switch to collection mode, issue an ambiguous update request, resolve with user selection, and complete a confirmed write.
+**Independent Test**: Use the existing chat drawer from any app page, issue an ambiguous update request, resolve with user selection, and complete a confirmed write.
 
 **Acceptance Scenarios**:
 
-1. **Given** the existing chat drawer, **When** collection mode is selected, **Then** messages route to `collection_chat` behavior without breaking current coin-search chat flows.
+1. **Given** the existing chat drawer, **When** a user sends prompts that are collection-oriented vs market-search-oriented, **Then** intent routing sends each prompt to the appropriate behavior without breaking existing coin-search chat flows.
 2. **Given** an ambiguous target (multiple possible coins), **When** a write is requested, **Then** system returns disambiguation choices and withholds proposal creation until resolved.
 3. **Given** a write request against non-allowlisted fields, **When** tool validation runs, **Then** system rejects the request with a deterministic safe error.
 
@@ -67,7 +67,7 @@ As a collector, I want ambiguous coin references to trigger disambiguation while
 
 - **FR-001**: System MUST add a transport-agnostic Go collection tool layer with operations `get_coin`, `query_coins`, `aggregate`, `propose_update`, and `commit_update`.
 - **FR-002**: System MUST enforce authenticated user scoping server-side for all collection tool operations.
-- **FR-003**: System MUST add a collection mode in existing chat flow and route collection-mode requests through `collection_chat`.
+- **FR-003**: System MUST keep chat app-wide and route each prompt by intent to the appropriate behavior (`collection_chat` for collection prompts, existing coin-search behavior for find-coin prompts).
 - **FR-004**: System MUST return structured, deterministic read results for collection queries (single coin, list query, aggregate).
 - **FR-005**: System MUST gate write operations with two-phase flow: `propose_update` first, `commit_update` second.
 - **FR-006**: System MUST require a proposal token plus explicit confirmation input for `commit_update`.
@@ -75,7 +75,7 @@ As a collector, I want ambiguous coin references to trigger disambiguation while
 - **FR-008**: System MUST require disambiguation resolution before proposal creation when target selection is ambiguous.
 - **FR-009**: System MUST reject invalid/expired/already-used proposal tokens with deterministic errors and no writes.
 - **FR-010**: System MUST journal each successful commit with source tag `collection_chat`.
-- **FR-011**: System MUST preserve existing coin-search chat behavior for non-collection mode.
+- **FR-011**: System MUST preserve existing coin-search chat behavior when prompt intent is discovery/search.
 - **FR-012**: System MUST present proposal preview details (target coin, field diffs, expiry) before commit.
 
 ### Key Entities *(include if feature involves data)*
@@ -98,6 +98,6 @@ As a collector, I want ambiguous coin references to trigger disambiguation while
 
 ## Assumptions
 
-- Existing `/api/agent/chat` SSE infrastructure remains the host path, extended with collection-mode semantics.
+- Existing `/api/agent/chat` SSE infrastructure remains the host path, extended with intent-routing semantics.
 - Issue #217 scopes in-app collection chat; external tool server parity is handled by issue #218.
 - Initial write allowlist is intentionally narrow and can be expanded in later iterations after audit confidence.
