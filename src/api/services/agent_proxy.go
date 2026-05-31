@@ -50,13 +50,14 @@ type ChatMessageProxy struct {
 }
 
 type AgentChatProxyRequest struct {
-	LLM              LLMConfig          `json:"llm"`
-	User             UserContextProxy   `json:"user"`
-	Message          string             `json:"message"`
-	History          []ChatMessageProxy `json:"history"`
-	CoinSearchPrompt string             `json:"coin_search_prompt"`
-	CoinShowsPrompt  string             `json:"coin_shows_prompt"`
-	Portfolio        *PortfolioData     `json:"portfolio,omitempty"`
+	LLM              LLMConfig              `json:"llm"`
+	User             UserContextProxy       `json:"user"`
+	Message          string                 `json:"message"`
+	History          []ChatMessageProxy     `json:"history"`
+	AppContext       *CollectionChatContext `json:"app_context,omitempty"`
+	CoinSearchPrompt string                 `json:"coin_search_prompt"`
+	CoinShowsPrompt  string                 `json:"coin_shows_prompt"`
+	Portfolio        *PortfolioData         `json:"portfolio,omitempty"`
 }
 
 type CandidateReferenceProxy struct {

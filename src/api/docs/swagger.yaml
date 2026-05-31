@@ -24,6 +24,8 @@ definitions:
     type: object
   handlers.AgentChatRequest:
     properties:
+      appContext:
+        $ref: '#/definitions/services.CollectionChatContext'
       history:
         items:
           $ref: '#/definitions/handlers.AgentChatMessage'
@@ -35,6 +37,8 @@ definitions:
     type: object
   handlers.AgentChatResponse:
     properties:
+      collection:
+        $ref: '#/definitions/services.CollectionChatResponse'
       message:
         type: string
       suggestions:
@@ -1023,6 +1027,100 @@ definitions:
         type: integer
       era:
         type: string
+    type: object
+  services.CollectionAggregateSummary:
+    properties:
+      totalCoins:
+        type: integer
+      totalCurrentUsd:
+        type: number
+      totalPurchaseUsd:
+        type: number
+      totalSold:
+        type: integer
+      totalWishlist:
+        type: integer
+    type: object
+  services.CollectionChatContext:
+    properties:
+      activeCoinId:
+        type: integer
+      route:
+        type: string
+    type: object
+  services.CollectionChatResponse:
+    properties:
+      disambiguation:
+        $ref: '#/definitions/services.CollectionDisambiguation'
+      errorCode:
+        type: string
+      kind:
+        type: string
+      message:
+        type: string
+      proposal:
+        $ref: '#/definitions/services.CollectionProposalPreview'
+      readResult:
+        $ref: '#/definitions/services.CollectionReadResult'
+    type: object
+  services.CollectionCoinSummary:
+    properties:
+      category:
+        type: string
+      currentValue:
+        type: number
+      era:
+        type: string
+      id:
+        type: integer
+      material:
+        type: string
+      name:
+        type: string
+      ruler:
+        type: string
+    type: object
+  services.CollectionDisambiguation:
+    properties:
+      candidates:
+        items:
+          $ref: '#/definitions/services.CollectionCoinSummary'
+        type: array
+      message:
+        type: string
+    type: object
+  services.CollectionProposalPreview:
+    properties:
+      changedFields:
+        items:
+          type: string
+        type: array
+      changes:
+        additionalProperties: {}
+        type: object
+      coinId:
+        type: integer
+      coinName:
+        type: string
+      expiresAt:
+        type: string
+      proposalId:
+        type: string
+      proposalToken:
+        type: string
+    type: object
+  services.CollectionReadResult:
+    properties:
+      aggregate:
+        $ref: '#/definitions/services.CollectionAggregateSummary'
+      coins:
+        items:
+          $ref: '#/definitions/services.CollectionCoinSummary'
+        type: array
+      resultType:
+        type: string
+      total:
+        type: integer
     type: object
 info:
   contact: {}

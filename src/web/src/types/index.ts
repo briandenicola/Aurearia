@@ -360,6 +360,60 @@ export interface AgentChatMessage {
   content: string
 }
 
+export interface AgentChatAppContext {
+  route?: string
+  activeCoinId?: number
+}
+
+export interface CollectionCoinSummary {
+  id: number
+  name: string
+  category?: string
+  era?: string
+  ruler?: string
+  material?: string
+  currentValue?: number | null
+}
+
+export interface CollectionAggregateSummary {
+  totalCoins: number
+  totalWishlist: number
+  totalSold: number
+  totalCurrentUsd: number
+  totalPurchaseUsd: number
+}
+
+export interface CollectionReadResult {
+  resultType: string
+  total?: number
+  coins?: CollectionCoinSummary[]
+  aggregate?: CollectionAggregateSummary
+}
+
+export interface CollectionDisambiguation {
+  message: string
+  candidates: CollectionCoinSummary[]
+}
+
+export interface CollectionProposalPreview {
+  proposalId: string
+  proposalToken: string
+  coinId: number
+  coinName: string
+  changedFields: string[]
+  changes: Record<string, unknown>
+  expiresAt: string
+}
+
+export interface CollectionChatResponse {
+  kind: 'read_result' | 'proposal' | 'disambiguation' | 'validation_error'
+  message: string
+  readResult?: CollectionReadResult
+  disambiguation?: CollectionDisambiguation
+  proposal?: CollectionProposalPreview
+  errorCode?: string
+}
+
 export interface CoinSuggestion {
   name: string
   description: string
@@ -378,6 +432,7 @@ export interface CoinSuggestion {
 export interface AgentChatResponse {
   message: string
   suggestions: CoinSuggestion[]
+  collection?: CollectionChatResponse
 }
 
 export interface FollowUser {
