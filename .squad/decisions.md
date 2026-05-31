@@ -27,56 +27,183 @@
 
 ---
 
-### 6. Code Review & Quality Assessment (2026-04-24)
+### 13. Feature #219: Image Lightbox with Remove Background (2026-05-31)
 
-**Authors:** Maximus (Architect), Cassius (Backend), Aurelia (Frontend), Brutus (Testing)  
-**Date:** 2026-04-24  
-**Status:** Assessed — Backlog Created  
+# Feature #219: Image Lightbox with Remove Background
 
-#### What
-Comprehensive review of all three services covering architecture, code quality, testing, security, and accessibility. Generated 77 backlog items across P0–P3 priorities.
+**Agent:** Aurelia (Frontend Developer)  
+**Date:** 2026-05-31  
+**Status:** Implemented  
+**Commit:** 6096a38
 
-#### Key Findings
+## What
 
-**Architecture (Grade: B+)**
-- Clean 3-service separation and excellent documentation (761-line ARCHITECTURE.md)
-- Layered Go API enforced by architecture tests; handlers→services→repositories enforced
-- DI pattern used but undermined by 3 package-level globals: `AppLogger`, `GetSetting()`, `cancelMap`
-- API key middleware bypasses repository abstraction
+Restored Remove Background control lost in the #219 dual-hero redesign by creating a click-to-open image lightbox with background removal functionality.
 
-**Backend (Grade: B-)**
-- Most handlers thin; some leak business logic (analysis.go, agent.go, coins.go, admin.go)
-- Sentinel errors used in 4 services; many repos silently drop errors (7+ locations in social.go)
-- Non-atomic multi-step writes without transactions (auction lot, social, availability)
-- Input validation sparse; page/limit defaults silently instead of validating
+## Implementation
 
-**Frontend (Grade: B-)**
-- Good Composition API; 6 components exceed 400 lines (need splitting: AdminPage 1378, SettingsPage 1371, CoinDetailPage 1242)
-- TypeScript discipline strong; very few `any` casts
-- State management too lean (coins store lacks error state; auth store drifts after refresh)
-- Critical gap: accessibility D+ (no ARIA, no focus traps, clickable divs not keyboard-accessible)
-- PWA quality C+ (missing icons pwa-192×192 and pwa-512×512; no offline fallback, no update prompt)
+### New Component: ImageLightbox.vue
+- Full-page overlay modal (Teleport to body)
+- Header: image type title + X close button (lucide icon)
+- Body: large-scale image display OR processing spinner with message
+- Actions: "Remove Background" button (Eraser icon) → "Reset" + "Save" buttons after processing
+- Accessible: role="dialog", aria-label, Esc key listener, focus management
+- Mobile-friendly: full-screen on mobile (@media max-width 768px removes border-radius)
 
-**Testing (Grade: D)**
-- Go: 3.5-4.6% coverage; only CoinRepository and CoinService tested; zero handler tests
-- Frontend: ZERO test files, no framework
-- Python: 31 tests passing; but zero tests for 11 team pipelines, supervisors, LLM provider, search tools
-- No test plan, no coverage thresholds, no CI enforcement
+### Modal Pattern
+Followed existing FeaturedCoinModal.vue structure:
+- z-index: 1000
+- Overlay: rgba(0,0,0,0.85) with backdrop-filter: blur(4px)
+- Card styling: var(--bg-card) + var(--border-accent) + var(--shadow-glow)
+- Close affordances: X button, click backdrop, Esc key
 
-**Security Issues (P0)**
-- XSS risk in v-html AI content (Aurelia confirmed DOMPurify is used; can close)
-- SQL injection in coin_repository Suggestions() method (whitelist in handler but not repo; needs defense-in-depth)
-- Admin route accessible to any authenticated user (no role guard)
-- Double-close panic risk in scheduler Stop() methods
+### Background Removal Flow
+1. User clicks hero image (obverse or reverse) in CoinDetailPage
+2. ImageLightbox opens showing full-scale image
+3. User clicks "Remove Background" → calls `removeBackground()` from useImageProcessor.ts
+4. Shows loading overlay: spinner + "Removing background..." + hint ("This may take 30-60 seconds...")
+5. After processing, shows "Reset" and "Save" buttons
+6. Save calls `uploadImage(coinId, file, imageType, isPrimary)` API
+7. On success, emits `saved` event → CoinDetailPage calls `refreshCoin()` to reload coin data
+8. Modal closes
 
-#### Impact
-Establishes baseline quality metrics and prioritized backlog. Guides sprint planning for next 2–3 quarters. Addresses security (P0), DI debt (P1), god-page decomposition (P2), and testing coverage expansion (ongoing).
+### Persistence Path
+- API: `POST /api/coins/{coinId}/images` with FormData (multipart/form-data)
+- Function: `uploadImage(coinId, file, imageType, isPrimary)` in src/web/src/api/client.ts
+- After save: coin store's `fetchCoin(coinId)` reloads the coin with new image
+- Same persistence flow used by AddCoinPage.vue and Settings Tools section
 
-#### Backlog Structure
-- **P0 (Critical):** 8 items — security, panic bugs, auth tests
-- **P1 (High):** 19 items — DI refactor, transaction safety, memory leaks, frontend testing setup
-- **P2 (Medium):** 28 items — error audit, accessibility, god-page splits, test expansion
-- **P3 (Low):** 22 items — performance, form validation, API polish
+### Design Token Compliance (Principle V)
+All values use design tokens from variables.css:
+- Radii: var(--radius-md), var(--radius-sm)
+- Colors: var(--accent-gold), var(--bg-card), var(--bg-input), var(--border-accent), var(--border-subtle), var(--text-heading), var(--text-primary), var(--text-secondary), var(--text-muted)
+- Shadows: var(--shadow-glow)
+- Transitions: var(--transition-fast)
+- NO hardcoded colors, spacing, or radii
+
+### UI/UX Compliance (Principle IX)
+- NO emojis (old ImageGallery.vue used ✨ emoji — replaced with lucide Eraser icon)
+- Icons from lucide-vue-next: X (close), Eraser (remove bg), RotateCcw (reset), Save
+- Dark theme: background removal spinner uses gold accent (--accent-gold) for progress indicator
+
+### PWA/Mobile Compliance (Principle XIII)
+- Responsive: max-width 90% on desktop, 100% on mobile
+- Mobile breakpoint: @media (max-width: 768px)
+- Full-screen mode on mobile: removes border-radius, adds flex-wrap to action buttons
+- Touch-friendly: large clickable areas for buttons and images
+
+## Changes
+
+**Modified Files:**
+- `src/web/src/pages/CoinDetailPage.vue`
+  - Added imports: ImageLightbox, CoinImage type
+  - Added state: `lightboxImage: ref<CoinImage | null>(null)`
+  - Added click handlers: `@click="openLightbox(obverseImage)"` / `@click="openLightbox(reverseImage)"`
+  - Added CSS: cursor:pointer + opacity:0.85 hover on .hero-image for visual affordance
+  - Added functions: `openLightbox(image)`, `handleImageSaved()` (calls `refreshCoin()`)
+  - Wired ImageLightbox component in template with close/saved event handlers
+
+**New Files:**
+- `src/web/src/components/ImageLightbox.vue` (267 lines)
+
+**Deleted Files:**
+- `src/web/src/components/ImageGallery.vue` (orphaned after #219 dual-hero redesign — zero consumers)
+
+## Validation
+
+- ✅ `npm run lint` — 0 errors, 5 pre-existing warnings in other files
+- ✅ `npm run build` (vue-tsc --build + vite build) — clean, 8.46s
+- ✅ Design tokens: all colors, radii, spacing from variables.css (grep verified)
+- ✅ No emojis: lucide icons only (X, Eraser, RotateCcw, Save)
+- ✅ Mobile-friendly: @media breakpoints, full-screen on mobile
+- ✅ Accessible: role="dialog", aria-label, Esc key, focus handling
+
+## Impact
+
+- **Functionality restored:** Users can now remove background from coin images again (feature existed in old ImageGallery but was lost in #219 dual-hero redesign)
+- **Better UX:** Large-scale image viewing with clear modal pattern (click image → see full detail)
+- **Persistence works:** Background-removed images save back to the coin and survive reload
+- **Consistent pattern:** Reuses existing modal structure (FeaturedCoinModal), API flow (uploadImage), and composable (useImageProcessor)
+- **Clean code:** Removed dead code (ImageGallery.vue had zero consumers post-#219)
+
+## Notes
+
+- Background removal is CPU-intensive — typical processing time is 30-60 seconds on first run (downloads ~40MB ML model from @imgly/background-removal)
+- Model caching means subsequent runs are faster
+- User sees spinner + progress message during processing — no silent failures
+- If processing fails, alert dialog shows clear error message
+- Save operation is idempotent — replaces the existing image of that type (obverse/reverse)
+
+---
+
+### 14. Intake Card Image Authority Fix (2026-05-31)
+
+# Intake Card Image Authority Fix
+
+**Feature:** #216 Camera-First AI Intake  
+**Author:** Cassius (Backend Developer)  
+**Date:** 2026-05-31  
+**Status:** Implemented — commit `a7b6a04`
+
+## Problem
+
+When the user photographs a coin's collector card (the flip/holder with catalog text), the intake AI should heavily use that card for field extraction. Brian tested a worn Byzantine coin whose card had all the info (ruler, denomination, mint, references), yet the AI returned everything "unknown". The card text was ignored.
+
+## Root Cause
+
+In `src/agent/app/teams/coin_intake.py`, the `generate_intake_draft()` function built the `human_content` message as:
+1. INTAKE_PROMPT text
+2. ALL observation images (coin photos)
+3. Card image (`coin_card_image`)
+
+All images were appended to the same flat list with NO label distinguishing the card from the coin photos. The `INTAKE_PROMPT` only mentioned "optional coin-card image" without instructing the model to transcribe the card or treat its text as authoritative.
+
+**Result:** The model couldn't identify which image was the card and gave up when the coin was worn, returning "unknown" for fields that were clearly printed on the card.
+
+## Solution
+
+Modified `src/agent/app/teams/coin_intake.py`:
+
+### 1. Explicit Image Labeling
+
+Inserted text content parts to label images:
+
+- **Before coin photos:** "The following image(s) are PHOTOGRAPHS OF THE PHYSICAL COIN (obverse/reverse). The coin may be worn or hard to read:"
+- **Before card image:** "The following image is the COIN CARD / collector's flip — an AUTHORITATIVE catalog reference written by an expert. Transcribe ALL text on it:"
+
+### 2. Strengthened INTAKE_PROMPT
+
+Added a dedicated **COIN CARD HANDLING** section:
+- OCR and transcribe ALL text on the coin card
+- Extract ruler, denomination, material, mint, era/date, category, and any catalog references (e.g., Sear/SB, RIC, RPC, DOC numbers), grade, and provenance
+- Treat the coin card text as the PRIMARY authoritative source — prefer card data over uncertain visual readings of worn coins
+- Only mark a field unknown if NEITHER the coin images NOR the card provides it
+- Record card-derived facts in the evidence array with `type: "coin_card"` and confidence typically medium or high (card is expert-written)
+
+### 3. No Contract Changes
+
+The JSON output shape (`IntakeDraftResponse` schema) remains exactly as-is. Only instructions and image labeling changed.
+
+## Validation
+
+- **Lint:** `ruff check app/ tests/` — clean
+- **Tests:** `pytest tests/ -v` — 47 passed
+- **Commit:** `a7b6a04` on `beta`
+
+## Impact
+
+Worn coins with high-quality collector cards will now extract fields accurately. The model understands the card is the expert source, not just another image.
+
+## Pattern for Future Vision Tasks
+
+When sending multiple images with different authority levels to a vision model:
+1. **Label each image type explicitly** in text content parts
+2. **Define authority hierarchy** in the prompt (which source is primary, which is fallback)
+3. **Instruct OCR/transcription** when text is expected
+
+## Principle Addressed
+
+**Principle VII** (Schema-Driven Contracts) — response schema unchanged; only instructions and labeling improved.
 
 ---
 
