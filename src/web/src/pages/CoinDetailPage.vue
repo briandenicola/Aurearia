@@ -139,6 +139,7 @@
     <ImageLightbox
       v-if="lightboxImage && coin"
       :coin-id="coin.id"
+      :image-id="lightboxImage.id"
       :image-path="lightboxImage.filePath"
       :image-type="lightboxImage.imageType"
       @close="lightboxImage = null"

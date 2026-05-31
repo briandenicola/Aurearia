@@ -62,10 +62,11 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { X, Eraser, RotateCcw, Save } from 'lucide-vue-next'
 import { removeBackground } from '@imgly/background-removal'
-import { uploadImage } from '@/api/client'
+import { uploadImage, deleteImage } from '@/api/client'
 
 const props = defineProps<{
   coinId: number
+  imageId: number
   imagePath: string
   imageType: string
 }>()
@@ -122,6 +123,9 @@ async function saveProcessedImage() {
     const file = new File([blob], `${props.imageType}.png`, { type: 'image/png' })
     const isPrimary = props.imageType === 'obverse'
     await uploadImage(props.coinId, file, props.imageType, isPrimary)
+    // Replace semantics: the upload appends a new record, so remove the
+    // original image of this type to avoid duplicate obverse/reverse entries.
+    await deleteImage(props.coinId, props.imageId)
     emit('saved')
     close()
   } catch (err) {
