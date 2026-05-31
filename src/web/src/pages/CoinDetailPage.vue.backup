@@ -17,47 +17,16 @@
       </div>
 
       <div class="detail-layout">
-        <!-- T009-T011: Dual-side hero media -->
-        <div class="detail-hero-media">
-          <div class="hero-media-grid">
-            <div class="hero-slot">
-              <img
-                v-if="obverseImage"
-                :src="`/uploads/${obverseImage.filePath}`"
-                alt="Obverse"
-                class="hero-image"
-              />
-              <div v-else class="hero-placeholder">
-                <span class="placeholder-label">Obverse</span>
-                <span class="placeholder-text">No image</span>
-              </div>
-            </div>
-            <div class="hero-slot">
-              <img
-                v-if="reverseImage"
-                :src="`/uploads/${reverseImage.filePath}`"
-                alt="Reverse"
-                class="hero-image"
-              />
-              <div v-else class="hero-placeholder">
-                <span class="placeholder-label">Reverse</span>
-                <span class="placeholder-text">No image</span>
-              </div>
-            </div>
-          </div>
+        <!-- Images -->
+        <div class="detail-images">
+          <ImageGallery :images="coin.images || []" :processing="removingBg" @remove-bg="handleRemoveBackground" @delete-image="handleDeleteImage" />
         </div>
 
         <!-- Info -->
         <div class="detail-info">
-          <!-- T012: Title hierarchy -->
           <div class="detail-title-section">
             <h1>{{ coin.name }}</h1>
             <p v-if="coin.ruler" class="detail-ruler">{{ coin.ruler }}</p>
-            <div v-if="coin.category" class="title-badges">
-              <span class="badge" :class="`badge-${coin.category.toLowerCase()}`">{{ coin.category }}</span>
-              <span v-if="coin.isWishlist" class="chip-sm">Wishlist</span>
-              <span v-if="coin.isSold" class="chip-sm">Sold</span>
-            </div>
           </div>
 
           <div v-if="coin.obverseInscription || coin.reverseInscription" class="inscriptions-section">
@@ -96,8 +65,18 @@
             </template>
           </div>
 
-          <!-- T014-T016: Metadata table -->
-          <CoinDetailMetadataTable v-if="metadataRows.length" :rows="metadataRows" />
+          <CoinInfoGrid
+            :purchase-price="coin.purchasePrice"
+            :current-value="coin.currentValue"
+            :denomination="coin.denomination"
+            :era="coin.era"
+            :mint="coin.mint"
+            :material="coin.material"
+            :weight-grams="coin.weightGrams"
+            :diameter-mm="coin.diameterMm"
+            :grade="coin.grade"
+            :rarity-rating="coin.rarityRating"
+          />
 
           <CoinReferencesSection
             :coin-id="coin.id"
@@ -113,6 +92,20 @@
             </div>
           </div>
 
+          <div v-if="coin.notes" class="notes-section">
+            <h3>Notes</h3>
+            <div class="section-content-card">
+              <p>{{ coin.notes }}</p>
+            </div>
+          </div>
+
+          <CoinActivityJournal
+            :entries="journalEntries"
+            :coin-id="coin.id"
+            @add="handleAddJournalEntry"
+            @delete="handleDeleteJournalEntry"
+          />
+
           <CoinListingStatus
             :coin-id="coin.id"
             :listing-status="coin.listingStatus"
@@ -121,10 +114,39 @@
             @dismissed="refreshCoin"
           />
 
-          <!-- T019: Settings-style section links -->
-          <div class="sections-list">
-            <h3>Details</h3>
-            <CoinDetailSectionLinks :coin-id="coin.id" />
+          <!-- Dashboard: Actions then AI Analysis stacked full-width -->
+          <div class="detail-dashboard">
+            <CoinActionsPanel
+              :coin-id="coin.id"
+              :coin-name="coin.name"
+              :coin-ruler="coin.ruler"
+              :coin-denomination="coin.denomination"
+              :image-count="coin.images?.length ?? 0"
+              :is-pwa="isPwa"
+              @images-changed="refreshCoin"
+              @estimate-applied="handleEstimateApplied"
+            />
+
+            <!-- Health Checklist (if coin is active and has health data) -->
+            <CoinHealthChecklist
+              v-if="coinHealth && !coin.isWishlist && !coin.isSold"
+              :score="coinHealth.score"
+              :grade="coinHealth.grade"
+              :missing-items="coinHealth.missingItems"
+              @quick-action="handleHealthQuickAction"
+            />
+
+            <div class="detail-ai">
+              <CoinAIAnalysis
+                :coin-id="coin.id"
+                :obverse-analysis="coin.obverseAnalysis"
+                :reverse-analysis="coin.reverseAnalysis"
+                :ai-analysis="coin.aiAnalysis"
+                :has-obverse="coin.images?.some(i => i.imageType === 'obverse') ?? false"
+                :has-reverse="coin.images?.some(i => i.imageType === 'reverse') ?? false"
+                @analysis-updated="refreshCoin"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -139,49 +161,161 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCoinsStore } from '@/stores/coins'
+import ImageGallery from '@/components/ImageGallery.vue'
 import SellModal from '@/components/SellModal.vue'
 import PurchaseModal from '@/components/PurchaseModal.vue'
 import CoinDetailHeaderActions from '@/components/coin/CoinDetailHeaderActions.vue'
 import CoinTagsSection from '@/components/coin/CoinTagsSection.vue'
-import CoinDetailMetadataTable from '@/components/coin/CoinDetailMetadataTable.vue'
-import CoinDetailSectionLinks from '@/components/coin/CoinDetailSectionLinks.vue'
+import CoinInfoGrid from '@/components/coin/CoinInfoGrid.vue'
+import CoinActionsPanel from '@/components/coin/CoinActionsPanel.vue'
+import CoinAIAnalysis from '@/components/coin/CoinAIAnalysis.vue'
 import CoinListingStatus from '@/components/coin/CoinListingStatus.vue'
+import CoinActivityJournal from '@/components/coin/CoinActivityJournal.vue'
+import CoinHealthChecklist from '@/components/coin/CoinHealthChecklist.vue'
 import CoinReferencesSection from '@/components/coin/CoinReferencesSection.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
-import { deleteCoin, purchaseCoin, sellCoin } from '@/api/client'
+import { uploadImage, deleteCoin, deleteImage, purchaseCoin, sellCoin, getJournalEntries, addJournalEntry, deleteJournalEntry, getCoinValueHistory, getCoinHealthList } from '@/api/client'
+import { removeBackground as removeBg } from '@imgly/background-removal'
+import type { CoinImage, CoinJournal, CoinValueHistory as CoinValueHistoryType, CoinHealthItem, HealthQuickAction } from '@/types'
 import { useDialog } from '@/composables/useDialog'
+import { usePwa } from '@/composables/usePwa'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
-import { useCoinDetailMetadataRows } from '@/composables/useCoinDetailMetadataRows'
 
 const { showConfirm, showAlert } = useDialog()
 const route = useRoute()
 const router = useRouter()
 const store = useCoinsStore()
+const { isPwa } = usePwa()
 
+const removingBg = ref(false)
 const showSellModal = ref(false)
 const showPurchaseModal = ref(false)
+const journalEntries = ref<CoinJournal[]>([])
+const coinValueHistory = ref<CoinValueHistoryType[]>([])
+const coinHealth = ref<CoinHealthItem | null>(null)
 
 const coin = computed(() => store.currentCoin)
 const safeReferenceUrl = computed(() => sanitizeExternalUrl(coin.value?.referenceUrl))
 
-// T010: Deterministic media slot logic
-const obverseImage = computed(() => coin.value?.images?.find(i => i.imageType === 'obverse') ?? null)
-const reverseImage = computed(() => coin.value?.images?.find(i => i.imageType === 'reverse') ?? null)
-
-// T015: Metadata rows
-const metadataRows = computed(() => {
-  if (!coin.value) return []
-  return useCoinDetailMetadataRows(coin.value).rows.value
-})
-
 onMounted(() => {
-  const id = Number(route.params.id)
+  const id = Number(route.params['id'])
   store.fetchCoin(id)
+  loadJournal(id)
+  loadValueHistory(id)
+  loadCoinHealth(id)
 })
+
+async function loadCoinHealth(coinId: number) {
+  try {
+    const res = await getCoinHealthList({ page: 1, limit: 1 })
+    const match = res.data.coins.find(c => c.coinId === coinId)
+    coinHealth.value = match ?? null
+  } catch (err) {
+    console.error('Failed to load coin health:', err)
+  }
+}
+
+function handleHealthQuickAction(action: HealthQuickAction) {
+  if (!coin.value) return
+  
+  switch (action) {
+    case 'edit_metadata':
+      router.push(`/coins/${coin.value.id}/edit`)
+      break
+    case 'upload_images':
+      router.push(`/coins/${coin.value.id}/edit?tab=images`)
+      break
+    case 'run_valuation':
+      // Trigger valuation action (handled by CoinActionsPanel)
+      showAlert('Run valuation via the Actions panel')
+      break
+    case 'run_ai_analysis':
+      // Trigger AI analysis action (handled by CoinAIAnalysis)
+      showAlert('Run AI analysis via the AI Analysis panel')
+      break
+  }
+}
 
 function refreshCoin() {
   if (coin.value) {
     store.fetchCoin(coin.value.id)
+    loadCoinHealth(coin.value.id)
+  }
+}
+
+function handleEstimateApplied() {
+  if (!coin.value) return
+  store.fetchCoin(coin.value.id)
+  loadValueHistory(coin.value.id)
+  loadJournal(coin.value.id)
+}
+
+async function loadValueHistory(coinId: number) {
+  try {
+    const res = await getCoinValueHistory(coinId)
+    coinValueHistory.value = res.data || []
+  } catch {
+    coinValueHistory.value = []
+  }
+}
+
+async function loadJournal(coinId: number) {
+  try {
+    const res = await getJournalEntries(coinId)
+    journalEntries.value = res.data || []
+  } catch {
+    journalEntries.value = []
+  }
+}
+
+async function handleAddJournalEntry(entry: string) {
+  if (!coin.value || !entry) return
+  try {
+    await addJournalEntry(coin.value.id, entry)
+    loadJournal(coin.value.id)
+  } catch {
+    await showAlert('Failed to add journal entry', { title: 'Error' })
+  }
+}
+
+async function handleDeleteJournalEntry(entryId: number) {
+  if (!coin.value) return
+  try {
+    await deleteJournalEntry(coin.value.id, entryId)
+    loadJournal(coin.value.id)
+  } catch {
+    await showAlert('Failed to delete journal entry', { title: 'Error' })
+  }
+}
+
+async function handleRemoveBackground(image: CoinImage) {
+  if (!coin.value) return
+  removingBg.value = true
+
+  try {
+    const response = await fetch(`/uploads/${image.filePath}`)
+    const srcBlob = await response.blob()
+    const resultBlob = await removeBg(srcBlob, {
+      output: { format: 'image/png', quality: 1 },
+    })
+    const file = new File([resultBlob], `${image.imageType}-processed.png`, { type: 'image/png' })
+    await uploadImage(coin.value.id, file, image.imageType, image.isPrimary)
+    await deleteImage(coin.value.id, image.id)
+    store.fetchCoin(coin.value.id)
+  } catch (err) {
+    console.error('Background removal failed:', err)
+  } finally {
+    removingBg.value = false
+  }
+}
+
+async function handleDeleteImage(image: CoinImage) {
+  if (!coin.value || !await showConfirm(`Delete this ${image.imageType} image?`, { title: 'Delete Image', variant: 'danger' })) return
+  try {
+    await deleteImage(coin.value.id, image.id)
+    store.fetchCoin(coin.value.id)
+  } catch {
+    await showAlert('Failed to delete image', { title: 'Error' })
   }
 }
 
@@ -226,56 +360,18 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
   margin-right: auto;
 }
 
-.detail-hero-media {
+.detail-images {
   align-self: start;
 }
 
-/* T011: Hero media grid for dual-side default display */
-.hero-media-grid {
+/* Dashboard: Actions then AI Analysis stacked full-width */
+.detail-dashboard {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1rem;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
 }
 
-.hero-slot {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-}
-
-.hero-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.hero-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  gap: 0.5rem;
-}
-
-.placeholder-label {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.placeholder-text {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-/* T012: Title hierarchy */
 .detail-title-section {
   margin-bottom: 1.5rem;
 }
@@ -288,13 +384,6 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
   color: var(--text-secondary);
   font-size: 1.1rem;
   margin-top: 0.25rem;
-}
-
-.title-badges {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-  flex-wrap: wrap;
 }
 
 .purchase-meta {
@@ -320,13 +409,13 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
 
 .inscriptions-section,
 .descriptions-section,
-.sections-list {
+.notes-section {
   margin-bottom: 1.5rem;
 }
 
 .inscriptions-section h3,
 .descriptions-section h3,
-.sections-list h3 {
+.notes-section h3 {
   margin-bottom: 0.75rem;
   font-size: 1rem;
 }
@@ -352,7 +441,14 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
   margin-bottom: 0.4rem;
 }
 
-/* T013: Desktop-only sticky behavior */
+.notes-section p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  margin-bottom: 0;
+}
+
+/* Desktop: sticky action bar below fixed navbar (nav-content is 60px + 1px border = 61px) */
 @media (min-width: 769px) {
   .sticky-action-bar {
     position: sticky;
@@ -363,20 +459,23 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
     border-bottom: 1px solid var(--border-subtle);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
+}
 
-  .detail-hero-media {
+/* Desktop: sticky image sidebar — clear navbar (61px) + action bar (~60px) */
+@media (min-width: 769px) {
+  .detail-images {
     position: sticky;
     top: 125px;
     height: fit-content;
   }
 }
 
-/* T013: Mobile - single-column, no sticky */
+/* Mobile: single-column, no sticky */
 @media (max-width: 768px) {
   .detail-layout {
     grid-template-columns: 1fr;
   }
-  .detail-hero-media { order: 1; }
+  .detail-images { order: 1; }
   .detail-info { order: 2; }
 }
 </style>

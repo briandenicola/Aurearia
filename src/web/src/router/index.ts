@@ -30,6 +30,30 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/coin/:id/journal',
+      name: 'coin-detail-journal',
+      component: () => import('@/pages/CoinDetailJournalPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/coin/:id/notes',
+      name: 'coin-detail-notes',
+      component: () => import('@/pages/CoinDetailNotesPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/coin/:id/actions',
+      name: 'coin-detail-actions',
+      component: () => import('@/pages/CoinDetailActionsPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/coin/:id/analysis',
+      name: 'coin-detail-analysis',
+      component: () => import('@/pages/CoinDetailAnalysisPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/add',
       name: 'add-coin',
       component: () => import('@/pages/AddCoinPage.vue'),

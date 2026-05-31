@@ -215,3 +215,30 @@ Promoted the constitution from v1.1.0 → v2.0.0 (MAJOR — governance restructu
   
   **Decision Entry:** Decision #19 in `.squad/decisions.md`
 
+### 2026-05-31 — Feature #219 Acceptance Checklist & Validation Gates
+
+**Scope Audit:** Front-end-only UI refinement (CoinDetailPage.vue + 4 new dedicated section pages). No API schema changes, no Go backend modifications.
+
+**Acceptance Framework Created:**
+  - 36 functional/UX/design gates organized by US1/US2/US3/polish
+  - 8 top-risk categories with severity and mitigation strategy (auth bypass, media layout, metadata overflow, sticky regression, etc.)
+  - 3 constitution compliance checkpoints (Principle V/IX/XIII, §17 Quality Gate)
+  - 12-point tester handoff checklist in 3 validation phases (critical path → regression → polish)
+
+**Gate Highlights:**
+  - **F1.1–F1.3**: Dual-side media render by default + graceful fallback (single-side, no-image)
+  - **F2.1–F2.4**: Metadata table rows replace boxed cards; empty-value handling; legacy UI removed
+  - **F3.1–F3.13**: Settings-style link navigation; 4 dedicated section pages; auth guards; back navigation context
+  - **P1–P9**: Build success, type parity, PWA non-sticky enforcement, regression baseline, accessibility
+
+**Constitution Risks (Most Likely to Fail):**
+  - **Principle V (Tokens)**: Hardcoded colors/spacing in new table/link rows instead of design tokens (DS1.1, DS2.1, DS3.1)
+  - **Principle XIII (PWA)**: Sticky/fixed positioning leaks into mobile/PWA mode, violating non-sticky guarantee (UX1.2, P7)
+  - **§17 (Build Gate)**: Code passes local type-check but fails Docker `vue-tsc --build` (P1, P2)
+
+**Decision:** No team-level ADR required. Feature operates within constitutional bounds (UI-only, no layering changes, no auth modifications, no data persistence rules altered). Standard PR checklist applies per §17/§21.
+
+**Output:** Comprehensive validation artifact written to `.squad/decisions/inbox/maximus-feature-219-gates.md` (40 gates + 8 risks + 3 constitution constraints + tester handoff). Ready for Brutus test phase.
+
+**Confidence:** HIGH (full spec, plan, tasks, contracts, and quickstart audited; design patterns consistent with existing coin-detail and settings-style UI surfaces)
+
