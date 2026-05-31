@@ -242,3 +242,5 @@ Promoted the constitution from v1.1.0 → v2.0.0 (MAJOR — governance restructu
 
 **Confidence:** HIGH (full spec, plan, tasks, contracts, and quickstart audited; design patterns consistent with existing coin-detail and settings-style UI surfaces)
 
+
+- **2026-05-31:** Feature #219 acceptance gates and validation plan delivered. Prepared comprehensive 37-gate acceptance checklist spanning US1 (dual-side media), US2 (metadata tables), US3 (section pages), and polish scope. Three-phase tester handoff: Phase 1 critical path (5 gates including dual-side render, route wiring, auth guards, build success, journal CRUD), Phase 2 regression (4 gates covering edge cases and Constitution compliance), Phase 3 design polish (3 gates). Identified 8 top risks with mitigation strategies and mapped Constitution Principle V/IX/XIII to specific checkpoints. Determined no team ADR needed (UI-only, within constitutional bounds). Handed off to Brutus for execution. Brutus validated all gates; verdict APPROVE.

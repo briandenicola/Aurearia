@@ -3,6 +3,30 @@
 ## Active Decisions
 
 ### 1. Governance Restructure — tech-inventory alignment (2026-05-28)
+### 2. Feature #219 Acceptance Checklist & Validation Gates (2026-05-31)
+
+**Feature**: Refine Coin Details Page for PWA and Desktop  
+**Spec**: `specs/219-refine-coin-details-page/spec.md`  
+**Author**: Maximus (Lead)  
+**Date**: 2026-05-31  
+**Status**: APPROVED
+
+**Summary**: 37+ validation gates defined across US1 (dual-side media), US2 (metadata tables), US3 (dedicated section pages), and polish scope. Three-phase tester handoff plan; no team ADR required (UI-only, within constitutional bounds). Constitution compliance verified on Principles V, IX, XIII.
+
+---
+
+### 3. Feature #219 Coin Detail Page Refinements — QA Verdict (2026-05-31)
+
+**Author:** Brutus (Tester)  
+**Date:** 2026-05-31  
+**Status:** APPROVED
+
+**Summary**: Full QA validation completed. 12/12 functional requirements met; zero regressions. Type-check + production build pass cleanly. Feature is **ship-ready**.
+
+**Verdict**: ✅ APPROVE — All user stories and functional requirements satisfied. Awaiting merge to main.
+
+---
+
 ### 6. Code Review & Quality Assessment (2026-04-24)
 
 **Authors:** Maximus (Architect), Cassius (Backend), Aurelia (Frontend), Brutus (Testing)  
