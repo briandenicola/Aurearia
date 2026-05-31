@@ -2909,6 +2909,136 @@
                 }
             }
         },
+        "/coins/intake/commit": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Explicitly confirms and commits an intake draft into a persistent coin record.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Commit coin intake draft",
+                "parameters": [
+                    {
+                        "description": "Commit request with explicit confirmation and optional overrides",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.IntakeDraftCommitRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.IntakeDraftCommitResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/coins/intake/draft": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Uploads one or more coin images and optionally a coin card image, then returns an editable draft.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Create coin intake draft",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Coin images (use multiple files)",
+                        "name": "images",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Optional coin card image",
+                        "name": "coinCardImage",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.IntakeDraftCreateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/coins/{id}": {
             "get": {
                 "security": [
@@ -5400,6 +5530,124 @@
                 "message": {
                     "type": "string",
                     "example": "Import complete"
+                }
+            }
+        },
+        "handlers.IntakeConfidenceSummary": {
+            "type": "object",
+            "properties": {
+                "overall": {
+                    "type": "string",
+                    "example": "medium"
+                },
+                "uncertainFields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handlers.IntakeDraftCommitRequest": {
+            "type": "object",
+            "required": [
+                "confirm",
+                "draftId"
+            ],
+            "properties": {
+                "confirm": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "draftId": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "overrides": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
+        "handlers.IntakeDraftCommitResponse": {
+            "type": "object",
+            "properties": {
+                "coinId": {
+                    "type": "integer",
+                    "example": 314
+                },
+                "draftId": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "status": {
+                    "type": "string",
+                    "example": "confirmed"
+                }
+            }
+        },
+        "handlers.IntakeDraftCreateResponse": {
+            "type": "object",
+            "properties": {
+                "coin": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "confidenceSummary": {
+                    "$ref": "#/definitions/handlers.IntakeConfidenceSummary"
+                },
+                "draftId": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "evidence": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.IntakeEvidenceItem"
+                    }
+                },
+                "expiresAt": {
+                    "type": "string",
+                    "example": "2026-01-15T12:00:00Z"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "drafted"
+                },
+                "unresolvedFields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handlers.IntakeEvidenceItem": {
+            "type": "object",
+            "properties": {
+                "confidence": {
+                    "type": "string",
+                    "example": "medium"
+                },
+                "field": {
+                    "type": "string",
+                    "example": "ruler"
+                },
+                "notes": {
+                    "type": "string",
+                    "example": "Legend partially visible"
+                },
+                "source": {
+                    "type": "string",
+                    "example": "obverse"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "vision"
+                },
+                "value": {
+                    "type": "string",
+                    "example": "Trajan"
                 }
             }
         },

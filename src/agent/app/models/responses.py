@@ -81,3 +81,42 @@ class AvailabilityCheckResponse(BaseModel):
     """Response from the availability check endpoint."""
 
     results: list[AvailabilityVerdict] = []
+
+
+class IntakeConfidenceSummary(BaseModel):
+    """Confidence rollup for the generated intake draft."""
+
+    overall: Literal["low", "medium", "high"] = "low"
+    uncertain_fields: list[str] = Field(
+        default_factory=list,
+        validation_alias="uncertainFields",
+        serialization_alias="uncertainFields",
+    )
+
+
+class IntakeEvidenceItem(BaseModel):
+    """Evidence item mapping extracted signal to an output field."""
+
+    type: str = ""
+    source: str = ""
+    field: str = ""
+    value: str = ""
+    confidence: Literal["low", "medium", "high"] = "low"
+    notes: str = ""
+
+
+class IntakeDraftResponse(BaseModel):
+    """Structured draft output for the intake flow."""
+
+    coin: dict = Field(default_factory=dict)
+    confidence_summary: IntakeConfidenceSummary = Field(
+        default_factory=IntakeConfidenceSummary,
+        validation_alias="confidenceSummary",
+        serialization_alias="confidenceSummary",
+    )
+    evidence: list[IntakeEvidenceItem] = Field(default_factory=list)
+    unresolved_fields: list[str] = Field(
+        default_factory=list,
+        validation_alias="unresolvedFields",
+        serialization_alias="unresolvedFields",
+    )

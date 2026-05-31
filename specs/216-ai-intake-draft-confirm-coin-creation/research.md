@@ -39,3 +39,27 @@
 - **Alternatives considered**:
   - Separate intake audit table only (rejected: duplicates audit surfaces and fragments history).
   - No journal entry for AI-created coins (rejected: fails acceptance criterion and traceability).
+
+## Decision 6: Keep manual entry as an explicit first-class bypass
+
+- **Decision**: Add Coin keeps a direct manual path that bypasses intake draft/commit; AI intake remains optional.
+- **Rationale**: Desktop-heavy workflows still rely on fast manual entry and should not be forced through AI mediation.
+- **Alternatives considered**:
+  - Force intake-first for all users (rejected: unnecessary friction for experienced users).
+  - Hide manual mode behind advanced settings (rejected: discoverability and speed regressions).
+
+## Decision 7: Replace free-form prompt input with optional coin-card upload
+
+- **Decision**: Intake draft input uses coin images plus optional coin-card image rather than an optional free-form prompt field.
+- **Rationale**: Coin cards contain structured attribution clues that improve extraction quality and provenance.
+- **Alternatives considered**:
+  - Keep prompt-only third input (rejected: lower-quality and less verifiable than card evidence).
+  - Require coin-card upload (rejected: not always available; must remain optional).
+
+## Decision 8: PWA defaults to camera-first agentic entry with manual fallback link
+
+- **Decision**: In PWA mode, Add Coin opens directly into the agentic intake camera view; upload remains available and a visible `Use Manual Mode instead` link is shown under the camera surface.
+- **Rationale**: Mobile capture is the primary PWA workflow and benefits from immediate camera readiness while still preserving user control to bypass AI.
+- **Alternatives considered**:
+  - Keep neutral mode picker in PWA (rejected: extra tap/friction for the dominant mobile path).
+  - Force camera with no manual link (rejected: violates optional AI and accessibility expectations).

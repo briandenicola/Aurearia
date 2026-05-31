@@ -13,6 +13,7 @@ from app.models.requests import (
     AvailabilityCheckRequest,
     CoinData,
     CoinSearchRequest,
+    IntakeDraftRequest,
     LLMConfig,
     PortfolioCoin,
     PortfolioSummary,
@@ -110,6 +111,14 @@ def test_analyze_request_rejects_oversized_base64_image():
             llm=LLMConfig(provider="anthropic"),
             coin=CoinData(id=1, name="Coin"),
             images=["a" * (MAX_IMAGE_BASE64_LENGTH + 1)],
+        )
+
+
+def test_intake_request_requires_at_least_one_image():
+    with pytest.raises(ValidationError):
+        IntakeDraftRequest(
+            llm=LLMConfig(provider="anthropic"),
+            images=[],
         )
 
 

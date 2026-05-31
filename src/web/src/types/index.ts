@@ -66,6 +66,44 @@ export type CoinMutationPayload = Partial<Omit<Coin, 'references'>> & {
   references?: CoinReferenceInput[]
 }
 
+export type IntakeConfidenceLevel = 'low' | 'medium' | 'high'
+
+export interface IntakeConfidenceSummary {
+  overall: IntakeConfidenceLevel
+  uncertainFields: string[]
+}
+
+export interface IntakeEvidenceItem {
+  type: string
+  source: string
+  field: string
+  value: string
+  confidence: IntakeConfidenceLevel
+  notes?: string
+}
+
+export interface IntakeDraft {
+  draftId: number
+  status: 'drafted' | 'confirmed' | 'discarded' | 'expired'
+  coin: CoinMutationPayload
+  confidenceSummary: IntakeConfidenceSummary
+  evidence: IntakeEvidenceItem[]
+  unresolvedFields: string[]
+  expiresAt: string
+}
+
+export interface IntakeCommitRequest {
+  draftId: number
+  confirm: boolean
+  overrides?: CoinMutationPayload
+}
+
+export interface IntakeCommitResponse {
+  draftId: number
+  status: 'confirmed'
+  coinId: number
+}
+
 export interface CoinImage {
   id: number
   coinId: number

@@ -56,3 +56,8 @@ def test_analyze_stub():
 def test_portfolio_review_rejects_invalid_body():
     resp = client.post("/api/portfolio/review", json={})
     assert resp.status_code == 422
+
+
+def test_intake_draft_rejects_invalid_body():
+    resp = client.post("/api/intake/draft", json={})
+    assert resp.status_code == 422

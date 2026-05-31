@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -137,6 +137,21 @@ function sanitizeCoin(coin: CoinMutationPayload): CoinMutationPayload {
 
 export const getCoin = (id: number) => api.get<Coin>(`/coins/${id}`)
 export const createCoin = (coin: CoinMutationPayload) => api.post<Coin>('/coins', sanitizeCoin(coin))
+export async function createIntakeDraft(images: File[], coinCardImage?: File) {
+  const formData = new FormData()
+  for (const image of images) {
+    formData.append('images', image)
+  }
+  if (coinCardImage) {
+    formData.append('coinCardImage', coinCardImage)
+  }
+  return api.post<IntakeDraft>('/coins/intake/draft', formData)
+}
+export const commitIntakeDraft = (request: IntakeCommitRequest) =>
+  api.post<IntakeCommitResponse>('/coins/intake/commit', {
+    ...request,
+    overrides: request.overrides ? sanitizeCoin(request.overrides) : undefined,
+  })
 export const updateCoin = (id: number, coin: CoinMutationPayload, params?: Record<string, string>) =>
   api.put<Coin>(`/coins/${id}`, sanitizeCoin(coin), { params })
 export const purchaseCoin = (id: number, data?: { purchasePrice?: number; purchaseDate?: string; purchaseLocation?: string }) =>

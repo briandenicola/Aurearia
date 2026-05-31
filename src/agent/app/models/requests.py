@@ -160,6 +160,21 @@ class AnalyzeRequest(BaseModel):
     prompt: BoundedPrompt = ""  # Analysis prompt from admin settings
 
 
+class IntakeDraftRequest(BaseModel):
+    """Request to generate an intake draft from observation images."""
+
+    llm: LLMConfig
+    images: list[BoundedImageBase64] = Field(default_factory=list, max_length=MAX_IMAGE_COUNT)
+    coin_card_image: BoundedImageBase64 = ""
+
+    @field_validator("images")
+    @classmethod
+    def validate_images_present(cls, images: list[str]) -> list[str]:
+        if not images:
+            raise ValueError("at least one observation image is required")
+        return images
+
+
 class PortfolioReviewRequest(BaseModel):
     """Request to review a portfolio."""
 
