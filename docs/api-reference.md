@@ -167,10 +167,12 @@ List coins in the collection with filtering, sorting, and pagination.
 | Param | Type | Default | Description |
 | ----- | ---- | ------- | ----------- |
 | `category` | string | — | Filter by category (`Roman`, `Greek`, `Byzantine`, `Modern`, `Other`) |
+| `era` | string | — | Filter by era (`ancient`, `medieval`, `modern`) |
 | `search` | string | — | Full-text search across name, ruler, denomination, and other fields |
 | `wishlist` | string | — | `true` for wishlist only, `false` for collection only |
-| `sort` | string | `createdAt` | Field name to sort by (e.g., `name`, `purchasePrice`, `currentValue`, `createdAt`) |
+| `sort` | string | `updated_at` | Field name to sort by (e.g., `name`, `purchase_date`, `current_value`, `updated_at`, `random`) |
 | `order` | string | `desc` | Sort direction: `asc` or `desc` |
+| `seed` | int | — | Optional deterministic seed used when `sort=random` |
 | `page` | int | `1` | Page number (1-indexed) |
 | `limit` | int | `50` | Results per page |
 
@@ -213,10 +215,20 @@ Create a new coin. Only `name` is required; all other fields are optional. See t
 {
   "name": "Nero Sestertius - Port of Ostia",
   "category": "Roman",
+  "era": "ancient",
   "material": "Bronze",
   "denomination": "Sestertius",
   "ruler": "Nero",
   "purchasePrice": 1200.00,
+  "references": [
+    {
+      "catalog": "RIC",
+      "volume": "I",
+      "number": "180",
+      "certainty": "high",
+      "uri": "https://numismatics.org/ocre/results?q=RIC+I+180"
+    }
+  ],
   "isWishlist": false
 }
 ```
@@ -235,6 +247,34 @@ curl -X POST http://localhost:8080/api/coins \
 Update an existing coin. Send any fields you want to change.
 
 **Request Body:** Same schema as create — only include the fields you want to update.
+
+#### GET /api/coins/:id/references
+
+List structured catalog references for a user-owned coin.
+
+#### POST /api/coins/:id/references
+
+Add a structured catalog reference to a user-owned coin.
+
+**Request Body:**
+
+```json
+{
+  "catalog": "RIC",
+  "volume": "VII",
+  "number": "162",
+  "certainty": "probable",
+  "uri": "https://numismatics.org/ocre/results?q=RIC+VII+162"
+}
+```
+
+#### PUT /api/coins/:id/references/:referenceId
+
+Update an existing structured reference.
+
+#### DELETE /api/coins/:id/references/:referenceId
+
+Delete an existing structured reference.
 
 #### POST /api/coins/:id/purchase
 
@@ -736,14 +776,17 @@ Change the current user's password.
 
 #### GET /api/user/export
 
-Export the entire collection as a JSON file download. The response has `Content-Disposition: attachment` headers.
+Export the entire collection as a ZIP download containing:
+
+- `coins.json` (full coin records including `era`, structured `references`, and legacy `referenceUrl` / `referenceText`)
+- `images/*` (all attached coin images)
 
 **Example:**
 
 ```sh
 curl http://localhost:8080/api/user/export \
   -H "Authorization: Bearer $TOKEN" \
-  --output my-collection.json
+  --output my-collection.zip
 ```
 
 #### POST /api/user/import
@@ -2138,7 +2181,7 @@ Delete a bid reminder.
 
 ### GET /api/user/export/catalog
 
-Download a PDF catalog of the authenticated user's coin collection. The PDF includes photos, grades, provenance, and valuations for each coin.
+Download a PDF catalog of the authenticated user's coin collection. The PDF includes photos, grades, provenance, valuations, era, and structured reference summaries for each coin.
 
 **Response:** `Content-Type: application/pdf` with `Content-Disposition: attachment` headers.
 

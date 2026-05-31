@@ -10,6 +10,7 @@
       v-model:search="search"
       v-model:menu-open="menuOpen"
       v-model:selected-category="selectedCategory"
+      v-model:selected-era="selectedEra"
       v-model:selected-tag="selectedTag"
       v-model:sort-key="sortKey"
       v-model:view-mode="viewMode"
@@ -23,6 +24,7 @@
       v-if="!isPwa"
       v-model:search="search"
       v-model:selected-category="selectedCategory"
+      v-model:selected-era="selectedEra"
       v-model:selected-tag="selectedTag"
       v-model:sort-key="sortKey"
       v-model:grid-side="gridSide"
@@ -53,7 +55,7 @@
       :is-pwa="isPwa"
       :view-mode="viewMode"
       :grid-side="gridSide"
-      :has-filters="!!(search || selectedCategory)"
+      :has-filters="!!(search || selectedCategory || selectedEra)"
       @select-all="selectAll"
       @deselect-all="deselectAll"
       @toggle-coin-select="toggleCoinSelect"
@@ -109,6 +111,7 @@ const router = useRouter()
 
 const {
   selectedCategory, search, page, sortKey, selectedTag, userTags,
+  selectedEra,
   fetchUserTags, loadCoins,
 } = useCollectionFilters()
 

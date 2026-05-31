@@ -17,6 +17,10 @@
             <span class="pwa-menu-label">Category</span>
             <CategoryFilter :model-value="selectedCategory" @update:model-value="$emit('update:selectedCategory', $event)" />
           </div>
+          <div class="pwa-menu-section">
+            <span class="pwa-menu-label">Era</span>
+            <EraFilter :model-value="selectedEra" @update:model-value="$emit('update:selectedEra', $event)" />
+          </div>
           <div v-if="userTags.length" class="pwa-menu-section">
             <span class="pwa-menu-label">Tag</span>
             <select :value="selectedTag" @change="$emit('update:selectedTag', ($event.target as HTMLSelectElement).value)" class="tag-filter-select pwa-tag-select">
@@ -58,6 +62,7 @@
 <script setup lang="ts">
 import type { ImageType, Tag } from '@/types'
 import CategoryFilter from '@/components/CategoryFilter.vue'
+import EraFilter from '@/components/collection/EraFilter.vue'
 import SearchBar from '@/components/SearchBar.vue'
 import SortSelect from '@/components/SortSelect.vue'
 import { Layers, LayoutGrid, SlidersHorizontal } from 'lucide-vue-next'
@@ -67,6 +72,7 @@ defineProps<{
   selectMode: boolean
   menuOpen: boolean
   selectedCategory: string
+  selectedEra: string
   selectedTag: string
   userTags: Tag[]
   sortKey: string
@@ -78,6 +84,7 @@ defineEmits<{
   'update:search': [value: string]
   'update:menuOpen': [value: boolean]
   'update:selectedCategory': [value: string]
+  'update:selectedEra': [value: string]
   'update:selectedTag': [value: string]
   'update:sortKey': [value: string]
   'update:viewMode': [value: 'grid' | 'swipe']

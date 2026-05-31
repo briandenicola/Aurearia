@@ -36,9 +36,34 @@ export interface Coin {
   listingCheckReason: string
   userId: number
   images: CoinImage[]
+  references?: CoinReference[]
   tags?: Tag[]
   createdAt: string
   updatedAt: string
+}
+
+export interface CoinReference {
+  id: number
+  coinId: number
+  catalog: string
+  volume: string
+  number: string
+  certainty: string
+  uri: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CoinReferenceInput {
+  catalog: string
+  volume?: string
+  number: string
+  certainty?: string
+  uri?: string
+}
+
+export type CoinMutationPayload = Partial<Omit<Coin, 'references'>> & {
+  references?: CoinReferenceInput[]
 }
 
 export interface CoinImage {
@@ -60,10 +85,12 @@ export interface Tag {
 export type Category = 'Roman' | 'Greek' | 'Byzantine' | 'Modern' | 'Other'
 export type Material = 'Gold' | 'Silver' | 'Bronze' | 'Copper' | 'Electrum' | 'Other'
 export type ImageType = 'obverse' | 'reverse' | 'detail' | 'other'
+export type CoinEra = 'ancient' | 'medieval' | 'modern'
 
 export const CATEGORIES: Category[] = ['Roman', 'Greek', 'Byzantine', 'Modern', 'Other']
 export const MATERIALS: Material[] = ['Gold', 'Silver', 'Bronze', 'Copper', 'Electrum', 'Other']
 export const IMAGE_TYPES: ImageType[] = ['obverse', 'reverse', 'detail', 'other']
+export const COIN_ERAS: CoinEra[] = ['ancient', 'medieval', 'modern']
 
 export const CATEGORY_COLORS: Record<Category, string> = {
   Roman: '#7b2d8e',
@@ -345,6 +372,7 @@ export interface CoinSuggestion {
   imageUrl: string
   sourceUrl: string
   sourceName: string
+  candidateReferences?: CoinReferenceInput[]
 }
 
 export interface AgentChatResponse {

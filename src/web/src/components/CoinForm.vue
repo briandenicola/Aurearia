@@ -39,7 +39,10 @@
           </div>
           <div class="form-group">
             <label class="form-label">Era</label>
-            <AutocompleteInput v-model="form.era!" field="era" placeholder="e.g. 27 BC - 14 AD" />
+            <select v-model="form.era" class="form-select">
+              <option value="">Unspecified</option>
+              <option v-for="era in COIN_ERAS" :key="era" :value="era">{{ era }}</option>
+            </select>
           </div>
         </div>
       </fieldset>
@@ -197,7 +200,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount } from 'vue'
-import { CATEGORIES, MATERIALS } from '@/types'
+import { CATEGORIES, COIN_ERAS, MATERIALS } from '@/types'
 import type { Coin } from '@/types'
 import AutocompleteInput from '@/components/AutocompleteInput.vue'
 import { X, Camera } from 'lucide-vue-next'

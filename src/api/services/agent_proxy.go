@@ -59,6 +59,29 @@ type AgentChatProxyRequest struct {
 	Portfolio        *PortfolioData     `json:"portfolio,omitempty"`
 }
 
+type CandidateReferenceProxy struct {
+	Catalog   string `json:"catalog"`
+	Volume    string `json:"volume,omitempty"`
+	Number    string `json:"number"`
+	Certainty string `json:"certainty,omitempty"`
+	URI       string `json:"uri,omitempty"`
+}
+
+type CoinSuggestionProxy struct {
+	Name                string                    `json:"name"`
+	Description         string                    `json:"description"`
+	Category            string                    `json:"category"`
+	Era                 string                    `json:"era"`
+	Ruler               string                    `json:"ruler"`
+	Material            string                    `json:"material"`
+	Denomination        string                    `json:"denomination"`
+	EstPrice            string                    `json:"estPrice"`
+	ImageURL            string                    `json:"imageUrl"`
+	SourceURL           string                    `json:"sourceUrl"`
+	SourceName          string                    `json:"sourceName"`
+	CandidateReferences []CandidateReferenceProxy `json:"candidateReferences,omitempty"`
+}
+
 type PortfolioData struct {
 	TotalCoins    int                  `json:"total_coins"`
 	TotalValue    float64              `json:"total_value"`

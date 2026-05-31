@@ -2,7 +2,17 @@
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints
+
+
+class CandidateReference(BaseModel):
+    """A potential structured catalog reference extracted from listing text."""
+
+    catalog: str
+    volume: str = ""
+    number: str
+    certainty: str = ""
+    uri: str = ""
 
 
 class CoinSuggestion(BaseModel):
@@ -19,6 +29,10 @@ class CoinSuggestion(BaseModel):
     image_url: str = ""
     source_url: str  # Required — must be a verified live URL
     source_name: str = ""
+    candidate_references: list[CandidateReference] = Field(
+        default_factory=list,
+        serialization_alias="candidateReferences",
+    )
 
 
 class CoinShow(BaseModel):

@@ -168,6 +168,15 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
     try {
       const category = VALID_CATEGORIES.includes(coin.category) ? coin.category as Category : 'Other'
       const material = VALID_MATERIALS.includes(coin.material) ? coin.material as Material : 'Other'
+      const candidateReferences = (coin.candidateReferences ?? [])
+        .filter((ref) => !!ref.catalog?.trim() && !!ref.number?.trim())
+        .map((ref) => ({
+          catalog: ref.catalog.trim(),
+          volume: ref.volume?.trim() || '',
+          number: ref.number.trim(),
+          certainty: ref.certainty?.trim() || '',
+          uri: ref.uri?.trim() || '',
+        }))
 
       const created = await createCoin({
         name: coin.name,
@@ -181,6 +190,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
         referenceText: coin.sourceName || '',
         isWishlist: true,
         currentValue: parsePrice(coin.estPrice),
+        references: candidateReferences,
       })
 
       let imageAttached = false

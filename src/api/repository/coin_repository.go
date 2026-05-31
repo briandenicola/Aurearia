@@ -12,6 +12,7 @@ import (
 // CoinListFilters holds optional filters for listing coins.
 type CoinListFilters struct {
 	Category  string
+	Era       string
 	Search    string
 	Wishlist  *bool
 	Sold      *bool
@@ -130,10 +131,13 @@ var searchFields = []string{
 
 // List returns a paginated, filtered list of coins for a user.
 func (r *CoinRepository) List(userID uint, filters CoinListFilters) ([]models.Coin, int64, error) {
-	query := r.db.Scopes(OwnedBy(userID)).Preload("Images").Preload("Tags")
+	query := r.db.Scopes(OwnedBy(userID)).Preload("Images").Preload("Tags").Preload("References")
 
 	if filters.Category != "" {
 		query = query.Where("category = ?", filters.Category)
+	}
+	if filters.Era != "" {
+		query = query.Where("era = ?", filters.Era)
 	}
 	if filters.Wishlist != nil {
 		query = query.Where("is_wishlist = ?", *filters.Wishlist)
@@ -212,7 +216,7 @@ func (r *CoinRepository) List(userID uint, filters CoinListFilters) ([]models.Co
 // FindByID returns a single coin owned by the user, with images preloaded.
 func (r *CoinRepository) FindByID(id uint, userID uint) (*models.Coin, error) {
 	var coin models.Coin
-	err := r.db.Scopes(OwnedByID(id, userID)).Preload("Images").Preload("Tags").First(&coin).Error
+	err := r.db.Scopes(OwnedByID(id, userID)).Preload("Images").Preload("Tags").Preload("References").First(&coin).Error
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +228,7 @@ func (r *CoinRepository) Create(coin *models.Coin) error {
 	if err := r.db.Create(coin).Error; err != nil {
 		return err
 	}
-	return r.db.Preload("Images").First(coin, coin.ID).Error
+	return r.db.Preload("Images").Preload("References").First(coin, coin.ID).Error
 }
 
 // Update applies changes to an existing coin and reloads it with images.
@@ -232,7 +236,7 @@ func (r *CoinRepository) Update(existing *models.Coin, updates *models.Coin) err
 	if err := r.db.Model(existing).Updates(updates).Error; err != nil {
 		return err
 	}
-	return r.db.Preload("Images").First(existing, existing.ID).Error
+	return r.db.Preload("Images").Preload("References").First(existing, existing.ID).Error
 }
 
 // UpdateField updates a single field on a coin.
@@ -240,7 +244,7 @@ func (r *CoinRepository) UpdateField(coin *models.Coin, field string, value inte
 	if err := r.db.Model(coin).Update(field, value).Error; err != nil {
 		return err
 	}
-	return r.db.Preload("Images").First(coin, coin.ID).Error
+	return r.db.Preload("Images").Preload("References").First(coin, coin.ID).Error
 }
 
 // UpdateFields updates multiple fields on a coin using a map.
@@ -248,7 +252,7 @@ func (r *CoinRepository) UpdateFields(coin *models.Coin, updates map[string]inte
 	if err := r.db.Model(coin).Updates(updates).Error; err != nil {
 		return err
 	}
-	return r.db.Preload("Images").First(coin, coin.ID).Error
+	return r.db.Preload("Images").Preload("References").First(coin, coin.ID).Error
 }
 
 // Delete removes a coin and all associated data (images, journals, value
@@ -341,7 +345,7 @@ func (r *CoinRepository) BulkMarkSold(coinIDs []uint, userID uint) (int64, error
 func (r *CoinRepository) GetByIDs(coinIDs []uint, userID uint) ([]models.Coin, error) {
 	var coins []models.Coin
 	err := r.db.Where("id IN ? AND user_id = ?", coinIDs, userID).
-		Preload("Images").Preload("Tags").Find(&coins).Error
+		Preload("Images").Preload("Tags").Preload("References").Find(&coins).Error
 	return coins, err
 }
 
