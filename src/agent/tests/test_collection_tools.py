@@ -59,7 +59,7 @@ async def test_search_my_collection_makes_correct_request(mock_tools):
         # Verify HTTP call
         mock_client.post.assert_called_once()
         call_args = mock_client.post.call_args
-        assert call_args[0][0] == "http://test-api:8080/internal/tools/search_my_collection"
+        assert call_args[0][0] == "http://test-api:8080/api/internal/tools/search_my_collection"
         assert call_args[1]["json"] == {"query": "Roman silver", "limit": 5}
         assert call_args[1]["headers"]["Authorization"] == "Bearer test-token-12345"
 

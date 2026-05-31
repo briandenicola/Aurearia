@@ -1,7 +1,7 @@
 """Collection tools — HTTP wrappers for Go internal endpoints.
 
 Each tool makes an authenticated HTTP POST request to the Go API's
-/internal/tools/{operation} endpoints. The internal token is short-lived
+/api/internal/tools/{operation} endpoints. The internal token is short-lived
 (30s) and provides identity for user-scoped operations — NEVER send a
 userID from Python (Principle XI + XII).
 """
@@ -63,6 +63,7 @@ def build_collection_tools(tools_base_url: str, internal_token: str) -> list[Str
 
     Args:
         tools_base_url: Base URL for internal tool endpoints (e.g., "http://localhost:8080")
+                        Routes are at /api/internal/tools/{operation}
         internal_token: Short-lived internal JWT token (30s expiry)
 
     Returns:
@@ -73,7 +74,7 @@ def build_collection_tools(tools_base_url: str, internal_token: str) -> list[Str
 
     async def _http_post(operation: str, body: dict) -> dict:
         """Make authenticated POST request to internal tool endpoint."""
-        url = f"{tools_base_url}/internal/tools/{operation}"
+        url = f"{tools_base_url}/api/internal/tools/{operation}"
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 logger.debug("[collection_tools] POST %s", url)

@@ -10,7 +10,7 @@ Examples:
 - "Do I have moose coins AND how much are they worth?" → both tools in one turn
 - "Update my Constantine coin's notes to..." → propose_update → commit_update
 
-The agent uses the internal tool layer (Go /internal/tools endpoints) via
+The agent uses the internal tool layer (Go /api/internal/tools endpoints) via
 build_collection_tools. Identity flows through the short-lived internal token.
 """
 
