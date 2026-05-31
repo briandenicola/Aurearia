@@ -25,58 +25,123 @@
       </div>
 
       <section v-if="entryMode === 'agentic'" class="agentic-layout">
-        <div class="intake-card">
-          <h2 class="form-section-title">Observe Coin</h2>
-          <p class="intake-copy">
-            Add obverse and reverse photos to generate an intake draft you can review before saving.
-          </p>
+        <!-- Loading overlay for AI analysis -->
+        <div v-if="intakeLoading" class="intake-loading-overlay">
+          <div class="loading-card">
+            <div class="spinner-container">
+              <div class="spinner"></div>
+            </div>
+            <p class="loading-text">Analyzing your coin…</p>
+          </div>
+        </div>
 
-          <video
-            v-if="isPwa && cameraReady"
-            ref="cameraVideo"
-            class="camera-preview"
-            autoplay
-            playsinline
-            muted
-          />
-          <p v-if="isPwa && cameraError" class="status-text status-warning">{{ cameraError }}</p>
+        <div v-if="isPwa" class="camera-first-card">
+          <div class="camera-container">
+            <video
+              ref="cameraVideo"
+              class="camera-preview"
+              v-show="cameraStream !== null"
+              autoplay
+              playsinline
+              muted
+              @loadedmetadata="onVideoMetadataLoaded"
+            />
+            <div v-if="!cameraStream" class="camera-placeholder">
+              <Camera :size="48" />
+              <p>Camera starting...</p>
+            </div>
+            <div v-if="cameraError" class="camera-error-banner">{{ cameraError }}</div>
+          </div>
 
-          <div v-if="isPwa" class="capture-actions">
-            <button type="button" class="btn btn-secondary btn-sm" @click="captureFromCamera('obverse')">
-              Capture Obverse
+          <div class="capture-slots">
+            <div class="capture-slot" :class="{ filled: obverseFile, next: nextCaptureTarget === 'obverse' }">
+              <div v-if="obverseFile" class="slot-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(obverseFile)})` }">
+                <button type="button" class="slot-clear-btn" @click="clearCapturedImage('obverse')" aria-label="Clear obverse">×</button>
+              </div>
+              <div v-else class="slot-empty">
+                <span class="slot-label">Obverse</span>
+              </div>
+            </div>
+
+            <div class="capture-slot" :class="{ filled: reverseFile, next: nextCaptureTarget === 'reverse' }">
+              <div v-if="reverseFile" class="slot-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(reverseFile)})` }">
+                <button type="button" class="slot-clear-btn" @click="clearCapturedImage('reverse')" aria-label="Clear reverse">×</button>
+              </div>
+              <div v-else class="slot-empty">
+                <span class="slot-label">Reverse</span>
+              </div>
+            </div>
+
+            <div class="capture-slot optional" :class="{ filled: cardFile, next: nextCaptureTarget === 'card' }">
+              <div v-if="cardFile" class="slot-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(cardFile)})` }">
+                <button type="button" class="slot-clear-btn" @click="clearCapturedImage('card')" aria-label="Clear card">×</button>
+              </div>
+              <div v-else class="slot-empty">
+                <span class="slot-label">Card (Opt)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="camera-actions">
+            <button
+              type="button"
+              class="shutter-btn"
+              :disabled="!cameraReady"
+              @click="captureFromCamera()"
+              aria-label="Capture photo"
+            >
+              <Camera :size="32" />
             </button>
-            <button type="button" class="btn btn-secondary btn-sm" @click="captureFromCamera('reverse')">
-              Capture Reverse
+            <button
+              type="button"
+              class="upload-icon-btn"
+              @click="triggerFileInput(nextCaptureTarget)"
+              aria-label="Upload from library"
+            >
+              <Upload :size="20" />
             </button>
           </div>
 
-          <a
-            v-if="isPwa"
-            href="#"
-            class="manual-mode-link"
-            @click.prevent="switchToManualMode"
-          >
-            Use Manual Mode instead
-          </a>
+          <div class="camera-footer">
+            <button
+              type="button"
+              class="btn btn-primary"
+              :disabled="intakeLoading || observationImages.length === 0"
+              @click="generateDraft"
+            >
+              Generate Intake Draft
+            </button>
+            <a
+              href="#"
+              class="manual-mode-link"
+              @click.prevent="switchToManualMode"
+            >
+              Use Manual Mode instead
+            </a>
+          </div>
+          <p v-if="intakeError" class="status-text status-warning">{{ intakeError }}</p>
         </div>
 
-        <div class="intake-card">
+        <div v-else class="intake-card">
           <h2 class="form-section-title">Upload Photos</h2>
+          <p class="intake-copy">
+            Add obverse and reverse photos to generate an intake draft you can review before saving.
+          </p>
           <div class="upload-grid">
             <label class="upload-field">
               <span class="section-label">Obverse Image</span>
               <input type="file" accept="image/*" @change="onObservationFile('obverse', $event)">
-              <span class="file-name">{{ obverseFile?.name || 'Not selected' }}</span>
+              <span class="file-name">{{ obverseFile?.name ?? 'Not selected' }}</span>
             </label>
             <label class="upload-field">
               <span class="section-label">Reverse Image</span>
               <input type="file" accept="image/*" @change="onObservationFile('reverse', $event)">
-              <span class="file-name">{{ reverseFile?.name || 'Not selected' }}</span>
+              <span class="file-name">{{ reverseFile?.name ?? 'Not selected' }}</span>
             </label>
             <label class="upload-field full-width">
               <span class="section-label">Coin Card (Optional)</span>
               <input type="file" accept="image/*,.pdf" @change="onCardFile($event)">
-              <span class="file-name">{{ cardFile?.name || 'Not selected' }}</span>
+              <span class="file-name">{{ cardFile?.name ?? 'Not selected' }}</span>
             </label>
           </div>
           <div class="draft-actions">
@@ -206,7 +271,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { COIN_ERAS, CATEGORIES, MATERIALS } from '@/types'
 import type { Category, Coin, CoinMutationPayload, IntakeDraft, Material } from '@/types'
@@ -221,9 +286,10 @@ import { useCoinsStore } from '@/stores/coins'
 import CoinForm from '@/components/CoinForm.vue'
 import { useDialog } from '@/composables/useDialog'
 import { usePwa } from '@/composables/usePwa'
+import { Camera, Upload } from 'lucide-vue-next'
 
 type EntryMode = 'manual' | 'agentic'
-type CaptureTarget = 'obverse' | 'reverse'
+type CaptureTarget = 'obverse' | 'reverse' | 'card'
 
 const route = useRoute()
 const router = useRouter()
@@ -246,6 +312,8 @@ const cardFile = ref<File | null>(null)
 const cameraVideo = ref<HTMLVideoElement | null>(null)
 const cameraStream = ref<MediaStream | null>(null)
 const cameraError = ref('')
+const videoReady = ref(false)
+const nextCaptureTarget = ref<CaptureTarget>('obverse')
 
 const draft = ref<IntakeDraft | null>(null)
 
@@ -283,12 +351,16 @@ const form = reactive<Partial<Coin>>(createEmptyForm('Roman', 'Silver'))
 const reviewForm = reactive<Partial<Coin>>(createEmptyForm('Other', 'Other'))
 
 const observationImages = computed(() => [obverseFile.value, reverseFile.value].filter(Boolean) as File[])
-const cameraReady = computed(() => cameraStream.value !== null)
+const cameraReady = computed(() => cameraStream.value !== null && videoReady.value)
 
 const confidenceClass = computed(() => {
   const level = draft.value?.confidenceSummary?.overall ?? 'low'
   return `confidence-${level}`
 })
+
+function getFileUrl(file: File | null): string {
+  return file ? URL.createObjectURL(file) : ''
+}
 
 function toRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object') return {}
@@ -428,12 +500,31 @@ async function startCamera() {
     })
     cameraStream.value = stream
     cameraError.value = ''
+    videoReady.value = false
+    
+    // Wait for DOM to update before assigning srcObject
+    await nextTick()
+    
     if (cameraVideo.value) {
       cameraVideo.value.srcObject = stream
       await cameraVideo.value.play()
     }
-  } catch {
-    cameraError.value = 'Camera permission was denied. You can still upload images.'
+  } catch (error) {
+    const err = error as { name?: string }
+    if (err.name === 'NotAllowedError') {
+      cameraError.value = 'Camera permission was denied. You can still upload images.'
+    } else if (err.name === 'NotFoundError') {
+      cameraError.value = 'No camera found on this device.'
+    } else {
+      cameraError.value = 'Camera is unavailable. You can still upload images.'
+    }
+  }
+}
+
+function onVideoMetadataLoaded() {
+  const video = cameraVideo.value
+  if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+    videoReady.value = true
   }
 }
 
@@ -443,14 +534,18 @@ function stopCamera() {
     track.stop()
   }
   cameraStream.value = null
+  videoReady.value = false
 }
 
-async function captureFromCamera(target: CaptureTarget) {
+async function captureFromCamera(target?: CaptureTarget) {
   const video = cameraVideo.value
   if (!video || !cameraReady.value || video.videoWidth === 0 || video.videoHeight === 0) {
     cameraError.value = 'Camera is not ready yet. Try again in a moment.'
     return
   }
+  
+  const actualTarget = target ?? nextCaptureTarget.value
+  
   const canvas = document.createElement('canvas')
   canvas.width = video.videoWidth
   canvas.height = video.videoHeight
@@ -462,19 +557,51 @@ async function captureFromCamera(target: CaptureTarget) {
     cameraError.value = 'Could not capture image from camera.'
     return
   }
-  const file = new File([blob], `${target}-${Date.now()}.jpg`, { type: 'image/jpeg' })
-  if (target === 'obverse') obverseFile.value = file
-  if (target === 'reverse') reverseFile.value = file
+  const file = new File([blob], `${actualTarget}-${Date.now()}.jpg`, { type: 'image/jpeg' })
+  if (actualTarget === 'obverse') obverseFile.value = file
+  if (actualTarget === 'reverse') reverseFile.value = file
+  if (actualTarget === 'card') cardFile.value = file
+  
+  // Update next capture target
+  updateNextCaptureTarget()
+}
+
+function updateNextCaptureTarget() {
+  if (!obverseFile.value) {
+    nextCaptureTarget.value = 'obverse'
+  } else if (!reverseFile.value) {
+    nextCaptureTarget.value = 'reverse'
+  } else {
+    nextCaptureTarget.value = 'card'
+  }
 }
 
 function onObservationFile(target: CaptureTarget, event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0] ?? null
   if (target === 'obverse') obverseFile.value = file
   if (target === 'reverse') reverseFile.value = file
+  if (target === 'card') cardFile.value = file
+  updateNextCaptureTarget()
 }
 
 function onCardFile(event: Event) {
   cardFile.value = (event.target as HTMLInputElement).files?.[0] ?? null
+  updateNextCaptureTarget()
+}
+
+function triggerFileInput(target: CaptureTarget) {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.onchange = (e) => onObservationFile(target, e)
+  input.click()
+}
+
+function clearCapturedImage(target: CaptureTarget) {
+  if (target === 'obverse') obverseFile.value = null
+  if (target === 'reverse') reverseFile.value = null
+  if (target === 'card') cardFile.value = null
+  updateNextCaptureTarget()
 }
 
 function switchToManualMode() {
@@ -571,7 +698,12 @@ watch(entryMode, async (mode) => {
   stopCamera()
 })
 
+watch([obverseFile, reverseFile, cardFile], () => {
+  updateNextCaptureTarget()
+})
+
 onMounted(async () => {
+  updateNextCaptureTarget()
   if (isPwa && entryMode.value === 'agentic') {
     await startCamera()
   }
@@ -600,6 +732,253 @@ onBeforeUnmount(() => {
 .agentic-layout {
   display: grid;
   gap: 1rem;
+  position: relative;
+}
+
+.intake-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--overlay-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.loading-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  max-width: 20rem;
+}
+
+.spinner-container {
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 3px solid var(--border-subtle);
+  border-top-color: var(--accent-gold);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.camera-first-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.camera-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #000;
+  border: 2px solid var(--border-subtle);
+}
+
+.camera-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.camera-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+}
+
+.camera-error-banner {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--error-bg);
+  color: #fff;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.capture-slots {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.capture-slot {
+  width: 5rem;
+  height: 5rem;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border-subtle);
+  overflow: hidden;
+  background: var(--bg-input);
+  position: relative;
+  transition: border-color var(--transition-fast);
+}
+
+.capture-slot.next {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 2px var(--accent-gold-focus);
+}
+
+.capture-slot.optional {
+  opacity: 0.7;
+}
+
+.slot-thumbnail {
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+.slot-clear-btn {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.15rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--overlay-dark);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  line-height: 1;
+  transition: background var(--transition-fast);
+}
+
+.slot-clear-btn:hover {
+  background: var(--error-bg);
+}
+
+.slot-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slot-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.camera-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.shutter-btn {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
+  border: 3px solid var(--border-white-dim);
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-gold-soft);
+}
+
+.shutter-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-gold-hover);
+}
+
+.shutter-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.upload-icon-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.upload-icon-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
+.camera-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.camera-footer .btn-primary {
+  width: 100%;
+}
+
+.manual-mode-link {
+  display: inline-block;
+  color: var(--accent-gold);
+  font-size: 0.8rem;
+  text-decoration: underline;
 }
 
 .intake-card {
@@ -613,28 +992,6 @@ onBeforeUnmount(() => {
   margin: 0 0 0.75rem;
   color: var(--text-secondary);
   font-size: 0.85rem;
-}
-
-.camera-preview {
-  width: 100%;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-  background: #000;
-  margin-bottom: 0.75rem;
-}
-
-.capture-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.manual-mode-link {
-  display: inline-block;
-  margin-top: 0.75rem;
-  color: var(--accent-gold);
-  font-size: 0.8rem;
-  text-decoration: underline;
 }
 
 .upload-grid {
@@ -715,7 +1072,7 @@ onBeforeUnmount(() => {
 }
 
 .status-warning {
-  color: #f5c36a;
+  color: var(--text-warning);
 }
 
 .confidence-chip {
@@ -724,18 +1081,18 @@ onBeforeUnmount(() => {
 }
 
 .confidence-high {
-  border-color: #69b77f;
-  color: #69b77f;
+  border-color: var(--confidence-high);
+  color: var(--confidence-high);
 }
 
 .confidence-medium {
-  border-color: #f0c261;
-  color: #f0c261;
+  border-color: var(--confidence-medium);
+  color: var(--confidence-medium);
 }
 
 .confidence-low {
-  border-color: #e08d8d;
-  color: #e08d8d;
+  border-color: var(--confidence-low);
+  color: var(--confidence-low);
 }
 
 .form-actions {
