@@ -2051,3 +2051,181 @@ These changes cross service boundaries and alter externally observable behavior 
 **Result:** All token paths verified. No issues found. Ready for production.
 
 ---
+
+---
+
+### 13. Feature #217 Python ReAct Collection Agent (2026-05-31)
+
+**Author:** Cassius (Backend Developer)  
+**Date:** 2026-05-31  
+**Status:** Implemented — commit `3bc04de` on `beta`  
+**Related:** Decision #11 (LLM-intent directive), commit c3e8c2b (Go side)
+
+## What
+
+Completed the Python half of #217 Shared Collection Tool Layer: built a ReAct agent using LangGraph's `create_react_agent` that calls 6 internal Go tool endpoints over HTTP. This enables LLM-driven, multi-intent collection queries (e.g., "do I have moose coins AND how much are they worth?") to execute multiple tool calls in one turn, fixing the single-category misrouting bug.
+
+## Implementation
+
+### 1. `app/tools/collection_tools.py`
+
+Factory function `build_collection_tools(tools_base_url, internal_token)` returns 6 LangChain `StructuredTool`s:
+
+| Tool | Operation | Go Endpoint | Args | Returns |
+|---|---|---|---|---|
+| `search_my_collection` | Search user's collection | `/api/internal/tools/search_my_collection` | `{query, limit?}` | Array of coin summaries |
+| `get_coin` | Get single coin | `/api/internal/tools/get_coin` | `{coin_id}` | Full coin details |
+| `collection_summary` | Aggregate stats | `/api/internal/tools/collection_summary` | `{}` | Total coins, value, invested, categories, materials |
+| `top_coins_by_value` | Top N by value | `/api/internal/tools/top_coins_by_value` | `{limit?}` | Sorted array of coins |
+| `propose_update` | Create update proposal | `/api/internal/tools/propose_update` | `{coin_id, changes}` | Proposal ID + token + preview |
+| `commit_update` | Commit proposal | `/api/internal/tools/commit_update` | `{proposal_id, token, confirm}` | Commit result |
+
+Each tool:
+- Makes an async HTTP POST via `httpx.AsyncClient`
+- Includes `Authorization: Bearer {internal_token}` header (30s JWT from Go)
+- Returns concise string output on success or structured error on failure (never raises)
+- Identity flows ONLY via the signed token — Python never sends or trusts a userID (Principle XI + XII)
+
+### 2. `app/teams/collection_chat.py`
+
+ReAct agent factory `create_collection_chat_team(llm_config, tools_base_url, internal_token)`:
+
+- Uses `get_chat_model(llm_config)` (NO web search)
+- Builds collection tools bound to the request's `internal_token` + `tools_base_url`
+- Creates agent via `create_react_agent(model, tools, prompt=COLLECTION_AGENT_PROMPT)`
+- System prompt instructs:
+  - Answer questions about coins the user ALREADY OWNS
+  - Call MULTIPLE tools in one turn for compound questions
+  - Never invent data — only report tool results
+  - For updates, use propose_update → surface proposal → require user confirmation → commit_update
+
+Returns a compiled LangGraph agent that supports streaming via `ainvoke({"messages": [...]})`.
+
+### 3. `app/supervisor.py` — Collection Routing
+
+**Added `collection` category to `ROUTER_PROMPT`:**
+
+- `"collection"` — questions/actions about coins the user ALREADY OWNS: "do I have…", "how many…", "search my collection", "what's in my collection", "update/change this coin", AND compound questions combining ownership lookup with valuation (e.g., "do I have moose coins and how much are they worth"). This is the multi-intent home.
+- `"portfolio"` — aggregate portfolio ANALYSIS or valuation narrative of the ENTIRE collection (high-level summary and trends). Prefer `collection` for ownership lookups and compound questions about specific coins they own.
+
+**Router now distinguishes these correctly**, fixing the single-category misrouting bug that sent compound queries to `portfolio` (which doesn't support tool calling).
+
+**Supervisor signature:**
+
+```python
+def create_supervisor(
+    llm_config: LLMConfig,
+    ...,
+    tools_base_url: str = "",
+    internal_token: str = "",
+):
+```
+
+- Builds `collection_graph` via `create_collection_chat_team(llm_config, tools_base_url, internal_token)` (closure per request)
+- If `tools_base_url` or `internal_token` is empty, collection node returns "not available" message gracefully
+
+### 4. Request Threading
+
+**`app/models/requests.py`:**
+
+```python
+class CoinSearchRequest(BaseModel):
+    ...
+    internal_token: str = ""
+    tools_base_url: str = ""
+```
+
+**`app/routes.py`:**
+
+```python
+graph = create_supervisor(
+    request.llm,
+    ...,
+    tools_base_url=request.tools_base_url,
+    internal_token=request.internal_token,
+)
+```
+
+The Go proxy (`agent_proxy.go`) already sends these fields in the request body.
+
+### 5. Tests
+
+- `tests/test_collection_tools.py` (7 tests): tool building, HTTP request structure, header verification, error handling
+- `tests/test_collection_integration.py` (6 tests): team creation, supervisor routing, request model threading
+
+**Result:** 60/60 tests passed after mocking fixes (see session log), ruff clean, go build/vet/test clean.
+
+## Delta from Decision #11
+
+Decision #11 defined the LLM-intent directive but did not specify the Python ReAct agent implementation. This decision documents:
+
+- Use of LangGraph's `create_react_agent` (not a custom graph)
+- The `prompt` parameter replaces older `state_modifier` API
+- HTTP tool wrapper pattern via `httpx.AsyncClient` + closure binding
+- Supervisor routing guidance for `collection` vs `portfolio` disambiguation
+
+No conflict with Decision #11 — this is the implementation detail.
+
+## Why This Works
+
+**Multi-intent support:**
+
+The ReAct agent (`create_react_agent`) lets the LLM:
+1. Read the user's compound question
+2. Decide which tools to call (may be multiple)
+3. Call all needed tools in one turn
+4. Synthesize a single response
+
+Example: "Do I have moose coins and how much are they worth?"
+- Tool call 1: `search_my_collection(query="moose")`
+- Tool call 2: `top_coins_by_value(limit=5)` OR extract values from search results
+- Response: "Yes, you have 3 moose-themed coins worth $X, $Y, $Z."
+
+**Security:**
+
+- Identity is ONLY in the `internal_token` (short-lived 30s JWT minted by Go per request)
+- Python never sends a `userID` — the Go middleware (`InternalTokenRequired`) reads `userId` from the token's claims
+- All 6 tool endpoints are user-scoped via the token; Python just forwards the token
+
+## Endpoint Path Correction
+
+**Important:** Decision #11 initially listed internal tool endpoints as `/internal/tools/{operation}`. The canonical path is **`/api/internal/tools/{operation}`** (registered in `main.go:470` under the `/api` route group). All tool invocations use this `/api/internal/tools/` prefix. This was discovered and corrected during Maximus's review gate (commit a69a574).
+
+## Remaining Work (Feature #218)
+
+External adapter pattern for non-collection tools (search, shows, auction, etc.) is deferred to #218. The internal tool layer (this PR) is a separate, isolated pattern.
+
+## Validation
+
+- **Lint:** `ruff check app/ tests/` — clean
+- **Tests:** `pytest tests/ -v` — 60/60 passed (fixed httpx mock sync response handling; see session log)
+- **Go build:** `go build ./...` ✓, `go vet ./...` ✓, `go test ./...` ✓
+
+## Review Gate (Maximus)
+
+**Initial Review:** BLOCK — Python posted to `{base}/internal/tools/{op}` but Go serves `/api/internal/tools/{op}`, causing 404 on all 6 tools.  
+**Fix Applied:** Commit `a69a574` — corrected `tools_base_url` construction to use `/api/internal/tools` path.  
+**Re-Review:** CLEARED — endpoint path confirmed canonical.
+
+**Non-blocking Follow-ups** (raised by Maximus, acknowledged for future #217 hardening):
+1. Add explicit leaked-internal-token guard in `streaming.py` for defense-in-depth (currently safe by construction)
+2. Consider separate HMAC secret for internal tokens instead of reusing `cfg.JWTSecret` (currently safe due to format difference: JWT `.`-delimited vs internal `:`-delimited)
+
+## Commits
+
+**Hash:** `3bc04de`  
+**Branch:** `beta`  
+**Message:** `feat(#217): Python ReAct collection agent over internal tool layer (multi-intent)`
+
+**Related fixes this batch:**
+- `f95fb39` — fix: corrected httpx response mocks (response `.json()`/`.raise_for_status()` are SYNC in httpx; tests were AsyncMock → coroutine TypeError). Tests: 57/60 → 60/60.
+- `a69a574` — fix(#217): align Python internal tool URL to `/api/internal/tools` (was `/internal/tools` → 404 on all 6 tools). Maximus review BLOCK → CLEARED.
+
+Feature #217 is now **end-to-end complete**. Go side landed in c3e8c2b, Python side in 3bc04de.
+
+## Constitution Compliance
+
+- **Principle XI (Security Hardening):** Identity flows only via signed internal token; Python never sends userID
+- **Principle XII (Authentication & Token Policy):** Short-lived (30s) internal token minted per request by Go
+- **Decision #11:** LLM-intent directive — no keyword gating, LLM router + ReAct tool-calling decides intent
+
