@@ -1760,3 +1760,167 @@ These changes cross service boundaries and alter externally observable behavior 
 - **Related decisions:** #163 (security audit umbrella), #206 (threat-model governance)
 
 ---
+
+### 4. Feature #219 Refinements — Implementation Complete (2026-05-31)
+
+**Author:** Aurelia (Frontend Dev)  
+**Date:** 2026-05-31  
+**Commits:** 127c75b (main refinements), 70bd409 (follow-up duplicates)  
+**Status:** APPROVED — Shipped to `beta`
+
+**Scope:** Post-merge TLC items from Brian's annotated screenshot review of #219 coin-detail redesign.
+
+**What Changed:**
+
+1. **Duplicate "Actions" heading** → Removed from CoinActionsPanel.vue (shell already renders it)
+2. **Duplicate category badge + tag ambiguity** → Removed duplicate from CoinTagsSection.vue; added "Tags" label to distinguish categories from user tags
+3. **Obverse/reverse images side-by-side** → Changed grid from `1fr` (stacked) to `1fr 1fr` per Brian's reference
+4. **Details card missing heading** → Added "Details" heading above metadata table
+5. **Follow-up deduplication (70bd409)** → Removed duplicate section headings from CoinActivityJournal and CoinAIAnalysis
+
+**Validation:**
+- npm run lint: 5 pre-existing warnings, zero new
+- npm run build: clean (8.96s, vue-tsc + vite)
+- Type check: zero errors
+
+**Key Learnings:**
+- When a page shell renders a section title, child components should NOT render their own heading
+- Category badges (single per coin) vs. user tags (pills) need visual separation — use `.badge` for categories, `.chip-sm` + section label for tags
+- Simple grid change from `1fr` to `1fr 1fr` switches dual images from stacked to side-by-side on desktop
+
+**Result:** Feature #219 ship-ready. Awaiting merge to main.
+
+---
+
+### 5. User Directive: Collection Chat LLM Intent Classification (2026-05-31)
+
+**Author:** Brian (via Copilot)  
+**Date:** 2026-05-31  
+**Status:** DIRECTIVE (drives #217 routing redesign)
+
+**What:** The collection-chat feature (#217) must use LLM-based intent classification instead of hardcoded keyword matching. Brian wants to chat about ANY question regarding his collection, and have an agent figure out his intent "like any chatbot would."
+
+**Why:** Current keyword gate in `ShouldHandleCollection()` missed "Do I have any moose coins and how much are they worth?" (routed to portfolio instead of collection). User explicitly rejects keyword-based approach.
+
+**Impact:** Drives replacement of `ShouldHandleCollection` keyword gate with LLM intent classification in Python supervisor.
+
+---
+
+### 8. Feature #216 Camera-First AI Intake — Maximus RE-REVIEW (2026-05-31)
+
+**Author:** Maximus (Architect)  
+**Date:** 2026-05-31  
+**Status:** APPROVED — Principle V block lifted
+
+**Scope:** Design Token System compliance (Principle V) — 14 flagged color values.
+
+**Verdict:** **APPROVE** — All 14 hardcoded values tokenized or approved as exceptions (white/black for contrast). Only 4 contrast-safe exceptions remain (lines 808, 835, 883, 927).
+
+**Validation:**
+- 12 new tokens defined in variables.css (consistent naming, no duplicates)
+- npm run lint: 0 errors
+- npm run build: clean (8.35s)
+- Constitution Principle V: **PASS**
+
+**Result:** #216 ready to land. Principle V block cleared.
+
+---
+
+### 9. Feature #216 Camera & Intake QA Verdict (2026-05-31)
+
+**Author:** Brutus (Tester)  
+**Date:** 2026-05-31  
+**Status:** APPROVED
+
+**Scope:** Full functional and regression testing of camera-first UI redesign + AI-assist intake flow.
+
+**Findings:**
+- 16/16 functional requirements met
+- Zero regressions
+- Type-check + production build pass cleanly
+- Token refresh in camera flow tested
+- Error handling (no camera, network fail, analysis timeout) verified
+
+**Verdict:** ✅ APPROVE — Camera-first intake ready for production.
+
+---
+
+### 10. Feature #216 Camera-First Intake — Design Token Refactor (2026-05-31)
+
+**Author:** Aurelia (Frontend Dev)  
+**Date:** 2026-05-31  
+**Status:** Completed
+
+**Scope:** Retrofitted 14 hardcoded color values in AddCoinPage.vue to use design tokens from variables.css.
+
+**Changes:**
+- Tokenized `.intake-loading-overlay`, `.camera-error-banner`, `.capture-slot`, `.slot-clear-btn`, `.shutter-btn`, `.status-warning`, `.confidence-*` values
+- Approved 4 contrast-safe exceptions: `#000` (black bg/text), `#fff` (white text/contrast)
+- Added 12 new design tokens: `--overlay-full`, `--error-bg`, `--accent-gold-focus`, `--overlay-dark`, `--border-white-dim`, `--shadow-gold-soft`, `--shadow-gold-hover`, `--text-warning`, `--confidence-high/medium/low`
+
+**Files Changed:** src/web/src/assets/styles/variables.css, src/web/src/pages/AddCoinPage.vue
+
+**Validation:** npm run build clean, type-check passes
+
+**Result:** Principle V compliance achieved.
+
+---
+
+### 11. Feature #217 & #218 — Shared Collection Tool Layer Design (2026-05-31)
+
+**Author:** Maximus (Architect)  
+**Date:** 2026-05-31  
+**Features:** #217 (In-App Multi-Intent), #218 (External Tool Server)  
+**Status:** PROPOSAL — Awaiting implementation planning
+
+**Summary:** Brian approved LLM-based intent classification (kills keyword gate) and chose a **tool-based approach** over single routed-node. Specifies a shared, transport-agnostic collection tool layer serving both #217 (Python tools) and #218 (future MCP/OpenAPI adapter).
+
+**Architecture:**
+- **6 discrete operations** (read/write) exposed as LangChain tools
+- **Go API** owns all tool logic via `collection_tools_service.go` and `/internal/tools/*` endpoints
+- **Python agent** consumes via HTTP with signed internal tokens (30s TTL)
+- **Internal HTTP endpoints** return JSON (not SSE); Python converts to SSE events
+
+**Key Changes from Prior Option B:**
+- Collection operations become **LangChain tools** (not a dedicated `collection` route)
+- **ReAct agent** wraps collection tools + valuation tools + general reasoning
+- Internal-token auth mechanism **survives** (Principles XI/XII)
+- Keyword gate `ShouldHandleCollection` **deleted**
+
+**Operations Defined:**
+| Operation | Schema | Type |
+|---|---|---|
+| `search_my_collection` | `{query, limit?}` | read |
+| `get_coin` | `{coin_id}` | read |
+| `collection_summary` | `{}` | read |
+| `top_coins_by_value` | `{limit?}` | read |
+| `propose_update` | `{coin_id, changes}` | write |
+| `commit_update` | `{proposal_id, token, confirm}` | write |
+
+**Files Involved:**
+- `src/api/handlers/internal_tools.go` (NEW)
+- `src/api/services/collection_tools_service.go` (refactor to export)
+- `src/agent/app/tools/collection_tools.py` (NEW)
+
+**Status:** Ready for Cassius + team implementation planning. Supersedes `maximus-217-intent-routing-design.md`.
+
+---
+
+### 12. Feature #216 Token Remediation QA (2026-05-31)
+
+**Author:** Brutus (Tester)  
+**Date:** 2026-05-31  
+**Status:** APPROVED
+
+**Scope:** Verify token refresh behavior in camera-first intake flow and error conditions.
+
+**Tests Verified:**
+- Token refresh during long-running AI analysis
+- Concurrent analysis requests with token expiry
+- Camera stream cancellation on token revocation
+- Error handling (expired token, network timeout)
+- 12+ test cases all pass green
+
+**Result:** All token paths verified. No issues found. Ready for production.
+
+---
