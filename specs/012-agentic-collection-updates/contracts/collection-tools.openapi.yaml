@@ -1,0 +1,300 @@
+openapi: 3.0.3
+info:
+  title: Agentic Collection Tools API
+  version: "0.1.0"
+  description: >
+    Contract for Epic F012: structured references, intake draft/commit,
+    collection chat tool operations, and external tool parity.
+servers:
+  - url: /api
+security:
+  - BearerAuth: []
+
+paths:
+  /coins/{id}/references:
+    get:
+      summary: List structured references for a coin
+      tags: [References]
+      parameters:
+        - $ref: "#/components/parameters/CoinId"
+      responses:
+        "200":
+          description: Structured references
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CoinReference"
+    post:
+      summary: Add structured reference to a coin
+      tags: [References]
+      parameters:
+        - $ref: "#/components/parameters/CoinId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCoinReferenceRequest"
+      responses:
+        "201":
+          description: Reference created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoinReference"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+  /coins/intake/draft:
+    post:
+      summary: Create AI intake draft
+      tags: [Intake]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CoinIntakeDraftRequest"
+      responses:
+        "200":
+          description: Draft payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoinIntakeDraft"
+
+  /coins/intake/commit:
+    post:
+      summary: Confirm and persist intake draft
+      tags: [Intake]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CoinIntakeCommitRequest"
+      responses:
+        "201":
+          description: Coin created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoinCreatedResponse"
+        "409":
+          description: Draft expired or already committed
+
+  /agent/collection/tools/{operation}:
+    post:
+      summary: Execute in-app collection tool operation
+      tags: [CollectionTools]
+      parameters:
+        - name: operation
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [get_coin, query_coins, aggregate, propose_update, commit_update]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CollectionToolRequest"
+      responses:
+        "200":
+          description: Tool operation response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CollectionToolResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "403":
+          description: Forbidden by scope or allowlist
+
+  /external/collection/tools/{operation}:
+    post:
+      summary: Execute external tool operation with API key
+      tags: [ExternalCollectionTools]
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: operation
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [get_coin, query_coins, aggregate, propose_update, commit_update]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CollectionToolRequest"
+      responses:
+        "200":
+          description: Tool operation response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CollectionToolResponse"
+        "401":
+          description: Invalid API key
+        "403":
+          description: Capability denied or unsafe update request
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  parameters:
+    CoinId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: uint32
+
+  responses:
+    ValidationError:
+      description: Request validation error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+  schemas:
+    CoinReference:
+      type: object
+      required: [id, coinId, catalog, referenceNumber, displayLabel, source]
+      properties:
+        id:
+          type: integer
+        coinId:
+          type: integer
+        catalog:
+          type: string
+        referenceNumber:
+          type: string
+        displayLabel:
+          type: string
+        authorityUri:
+          type: string
+          nullable: true
+        confidence:
+          type: string
+          enum: [high, medium, low]
+        source:
+          type: string
+          enum: [manual, coin_intake, collection_chat, external_tool_server]
+
+    CreateCoinReferenceRequest:
+      type: object
+      required: [catalog, referenceNumber]
+      properties:
+        catalog:
+          type: string
+        referenceNumber:
+          type: string
+        authorityUri:
+          type: string
+          nullable: true
+
+    CoinIntakeDraftRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+            description: base64 image payload or URL
+
+    CoinIntakeDraft:
+      type: object
+      required: [draftId, status, coin, confidence, evidence]
+      properties:
+        draftId:
+          type: string
+        status:
+          type: string
+          enum: [drafted]
+        confidence:
+          type: string
+          enum: [high, medium, low]
+        coin:
+          type: object
+          additionalProperties: true
+        evidence:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    CoinIntakeCommitRequest:
+      type: object
+      required: [draftId]
+      properties:
+        draftId:
+          type: string
+        overrides:
+          type: object
+          additionalProperties: true
+
+    CoinCreatedResponse:
+      type: object
+      required: [coinId, message]
+      properties:
+        coinId:
+          type: integer
+        message:
+          type: string
+
+    CollectionToolRequest:
+      type: object
+      required: [arguments]
+      properties:
+        arguments:
+          type: object
+          additionalProperties: true
+
+    CollectionToolResponse:
+      type: object
+      required: [operation, data]
+      properties:
+        operation:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+        proposal:
+          $ref: "#/components/schemas/UpdateProposal"
+
+    UpdateProposal:
+      type: object
+      required: [proposalId, expiresAt, fields]
+      properties:
+        proposalId:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        fields:
+          type: array
+          items:
+            type: string
