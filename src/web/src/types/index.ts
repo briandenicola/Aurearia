@@ -398,6 +398,22 @@ export interface AgentChatMessage {
   content: string
 }
 
+// T002: Coin detail page types for #219
+export interface CoinDetailSectionLink {
+  id: string
+  title: string
+  description: string
+  route: string
+  icon?: string
+}
+
+export interface CoinDetailMetadataRow {
+  key: string
+  label: string
+  value: string
+  valueClass?: string
+}
+
 export interface AgentChatAppContext {
   route?: string
   activeCoinId?: number
