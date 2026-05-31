@@ -57,7 +57,19 @@ Rules:
 - Leave unknown values as empty strings; do not invent data
 - Keep notes concise and practical
 - Do not use markdown or code fences in the final output
-- Do not use emojis""")
+- Do not use emojis
+
+COIN CARD HANDLING (when card is present):
+- OCR and transcribe ALL text on the coin card (collector's flip)
+- Extract ruler, denomination, material, mint, era/date, category, and
+  any catalog references (e.g., Sear/SB, RIC, RPC, DOC numbers), grade,
+  and provenance from the card
+- Treat the coin card text as the PRIMARY authoritative source — prefer
+  card data over uncertain visual readings of worn coins
+- Only mark a field unknown if NEITHER the coin images NOR the card
+  provides it
+- Record card-derived facts in the evidence array with type: "coin_card"
+  and confidence typically medium or high (card is expert-written)""")
 
 
 def _extract_json_payload(raw: str) -> str:
@@ -82,8 +94,27 @@ async def generate_intake_draft(
 
     model = get_chat_model(llm_config)
     human_content = [{"type": "text", "text": INTAKE_PROMPT}]
+
+    # Label coin observation images explicitly
+    human_content.append({
+        "type": "text",
+        "text": (
+            "The following image(s) are PHOTOGRAPHS OF THE PHYSICAL COIN "
+            "(obverse/reverse). The coin may be worn or hard to read:"
+        ),
+    })
     human_content.extend(_build_image_contents(images))
+
+    # Label coin card as authoritative reference if present
     if coin_card_image:
+        human_content.append({
+            "type": "text",
+            "text": (
+                "The following image is the COIN CARD / collector's flip "
+                "— an AUTHORITATIVE catalog reference written by an expert. "
+                "Transcribe ALL text on it:"
+            ),
+        })
         human_content.extend(_build_image_contents([coin_card_image]))
 
     messages = [
