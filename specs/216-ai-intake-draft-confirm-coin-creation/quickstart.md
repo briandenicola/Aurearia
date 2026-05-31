@@ -5,11 +5,21 @@
 - Go API, Vue web app, and Python agent service are running (`task up-all` from repo root).
 - Authenticated test user with add-coin access.
 - At least one coin image set suitable for OCR/visual attribution.
+- Optional: one coin-card image containing dealer/attribution details.
+- PWA test context available (standalone display mode or installed app) with controllable camera permissions.
+
+## Scenario 0: PWA default entry behavior
+
+1. Open Add Coin in PWA mode.
+2. If camera permission is granted, verify agentic intake opens by default with camera-ready capture.
+3. Verify image upload remains available in the same intake surface.
+4. Verify a link labeled `Use Manual Mode instead` appears below camera view.
+5. Click the link and verify existing manual Add Coin form opens with no intake commit call.
 
 ## Scenario 1: Generate intake draft
 
 1. Open Add Coin page.
-2. Upload obverse/reverse images and provide optional intake prompt.
+2. Upload obverse/reverse images and optionally upload coin-card image.
 3. Trigger AI draft generation.
 4. Verify response contains:
    - structured draft payload (coin candidate fields),
@@ -37,8 +47,11 @@
 2. Attempt commit on expired/discarded draft -> verify rejection and no coin created.
 3. Attempt duplicate commit for already-confirmed draft -> verify no duplicate coin write.
 4. Attempt cross-user draft commit (different auth context) -> verify unauthorized/not-found behavior.
+5. Submit invalid coin-card upload format -> verify deterministic validation error response.
+6. Deny camera permission in PWA mode -> verify upload-based intake and manual-mode link remain usable.
 
-## Compatibility Check
+## Compatibility Check (Manual Bypass)
 
-1. Create a coin manually (without intake) using existing Add Coin flow.
+1. In desktop viewport, create a coin manually (without intake) using existing Add Coin flow.
 2. Verify manual flow remains unchanged and successful.
+3. Verify user can switch to manual mode immediately without generating intake draft first.

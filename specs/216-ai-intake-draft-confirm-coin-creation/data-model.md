@@ -38,7 +38,7 @@ Evidence/provenance attached to draft confidence and review UI.
 
 ### Fields
 
-- `type` (enum: `ocr|visual|catalog_lookup|user_input`)
+- `type` (enum: `ocr|visual|catalog_lookup|user_input|coin_card`)
 - `source` (string, required; tool/source label or URI)
 - `field` (string, optional; target coin field)
 - `value` (string, optional; extracted/cited value)
@@ -50,6 +50,20 @@ Evidence/provenance attached to draft confidence and review UI.
 - `source` is required and non-empty.
 - `confidence` is required and constrained to enum values.
 - If `field` is present, it must be a known intake field key.
+
+## Value Object: CoinIntakeDraftRequest
+
+Client payload for AI draft generation.
+
+### Fields
+
+- `images` (array of URIs, required; coin photos)
+- `coinCardImage` (URI, optional; dealer/collector card image with metadata)
+
+### Validation Rules
+
+- `images` must contain at least one valid image URI.
+- `coinCardImage` is optional, but when provided it must be a valid image URI.
 
 ## Value Object: CoinIntakeCommitRequest
 
@@ -66,6 +80,22 @@ Client payload for explicit draft confirmation.
 - `draftId` must reference an existing `drafted` status draft owned by authenticated user.
 - `confirm=false` is rejected.
 - `overrides` keys must be allowlisted to coin-create fields.
+
+## UI Value Object: IntakeEntryState
+
+Client-side entry workflow state for Add Coin intake path selection.
+
+### Fields
+
+- `entryMode` (enum: `agentic|manual`, required)
+- `pwaMode` (boolean, required)
+- `cameraPermission` (enum: `prompt|granted|denied|unavailable`, required)
+
+### Validation Rules
+
+- In PWA mode, default `entryMode` is `agentic`.
+- When `cameraPermission` is `denied|unavailable`, upload intake remains enabled.
+- `entryMode=manual` bypasses intake draft/commit operations unless user re-enters agentic mode.
 
 ## Existing Entity Extension: CoinJournal
 

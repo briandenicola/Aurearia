@@ -5,7 +5,7 @@
 
 ## Summary
 
-Implement issue #216 as a confirm-gated AI intake flow: Python `coin_intake` generates structured draft payloads with confidence/evidence, Go persists drafts and exposes draft/commit endpoints, and Vue provides review/edit UX where users explicitly confirm before coin creation and AI-tagged journal audit.
+Implement issue #216 as a confirm-gated AI intake flow with an explicit manual bypass and PWA camera-first entry: Python `coin_intake` generates structured draft payloads with confidence/evidence from coin images plus optional coin-card upload, Go persists drafts and exposes draft/commit endpoints, and Vue provides review/edit UX where users explicitly confirm before coin creation and AI-tagged journal audit while preserving direct manual entry and auto-opening camera-ready intake in PWA mode.
 
 ## Technical Context
 
@@ -16,7 +16,7 @@ Implement issue #216 as a confirm-gated AI intake flow: Python `coin_intake` gen
 **Target Platform**: Linux-hosted web app + PWA client  
 **Project Type**: Web application (Go API + Vue frontend + Python agent service)  
 **Performance Goals**: Intake draft generation UX parity with existing AI analysis flows; commit path stays transactional and near existing manual coin-create latency  
-**Constraints**: Explicit confirmation required for writes; Go API remains sole writer; authenticated owner scoping enforced; manual add-coin flow remains intact  
+**Constraints**: Explicit confirmation required for writes; Go API remains sole writer; authenticated owner scoping enforced; manual add-coin flow remains intact and bypassable; optional coin-card upload augments intake evidence without becoming required; PWA mode defaults to camera-ready intake with upload/manual fallbacks  
 **Scale/Scope**: Single feature scope across API, frontend, and agent for draft/review/confirm lifecycle
 
 ## Constitution Check
@@ -105,7 +105,7 @@ src/web/src/
 
 1. `data-model.md` defines `CoinIntakeDraft`, `IntakeEvidenceItem`, commit request shape, validations, and lifecycle transitions.
 2. `contracts/intake-flow.openapi.yaml` defines draft/commit endpoint contracts and schemas.
-3. `quickstart.md` defines scenario-driven validation for draft/review/confirm flows and negative cases.
+3. `quickstart.md` defines scenario-driven validation for draft/review/confirm flows, PWA camera-first entry behavior, manual bypass path, and negative cases.
 4. Agent context updated via `.specify/scripts/powershell/update-agent-context.ps1 -AgentType copilot`.
 
 ## Post-Design Constitution Check

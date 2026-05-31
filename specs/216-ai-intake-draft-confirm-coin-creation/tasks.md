@@ -40,6 +40,8 @@ description: "Task breakdown for issue #216 AI intake draft + confirm coin creat
 - [ ] T016 [P] Add intake draft/commit DTOs for Swagger serialization in `src/api/handlers/swagger_types.go`
 - [ ] T017 [P] Add intake API client methods (`createDraft`, `commitDraft`) in `src/web/src/api/client.ts`
 - [ ] T018 [P] Add frontend intake domain interfaces (`CoinIntakeDraft`, `IntakeEvidenceItem`, `IntakeCommitRequest`) in `src/web/src/types/index.ts`
+- [ ] T048 [P] Add optional `coinCardImage` field to intake draft DTOs in `src/api/handlers/swagger_types.go` and `src/web/src/types/index.ts`
+- [ ] T053 [P] Add intake entry mode and camera permission state types in `src/web/src/types/index.ts` and `src/web/src/composables/useCoinIntake.ts`
 
 **Checkpoint**: Intake domain primitives and contracts are in place.
 
@@ -47,9 +49,9 @@ description: "Task breakdown for issue #216 AI intake draft + confirm coin creat
 
 ## Phase 3: User Story 1 - Generate structured AI intake drafts (Priority: P1) 🎯 MVP
 
-**Goal**: Produce a structured draft from photos/OCR/lookups with confidence and source evidence.
+**Goal**: Produce a structured draft from camera/upload photos, OCR/lookups, and optional coin-card input with confidence and source evidence.
 
-**Independent Test**: Submit intake prompt + images, receive structured draft payload with confidence bucket and evidence items.
+**Independent Test**: In PWA mode, verify camera-first intake opens by default (permission granted), upload remains available, and submitted images plus optional coin-card produce structured draft payload with confidence/evidence.
 
 ### Implementation for User Story 1
 
@@ -62,6 +64,10 @@ description: "Task breakdown for issue #216 AI intake draft + confirm coin creat
 - [ ] T025 [P] [US1] Implement draft request state machine (`idle/loading/success/error`) in `src/web/src/composables/useCoinIntake.ts`
 - [ ] T026 [US1] Add “Generate AI Draft” action and request wiring in `src/web/src/pages/AddCoinPage.vue`
 - [ ] T027 [US1] Map unresolved field keys into UI-consumable state in `src/web/src/composables/useCoinIntake.ts`
+- [ ] T049 [US1] Add optional coin-card upload input and payload binding in `src/web/src/pages/AddCoinPage.vue`
+- [ ] T050 [US1] Pass coin-card evidence through agent intake pipeline and response mapping in `src/agent/app/teams/coin_intake.py` and `src/api/services/coin_intake_service.go`
+- [ ] T054 [US1] Detect PWA mode and auto-open agentic intake surface on Add Coin page in `src/web/src/pages/AddCoinPage.vue`
+- [ ] T055 [US1] Initialize camera-ready observe capture when permission is granted, with upload fallback when not granted, in `src/web/src/pages/AddCoinPage.vue`
 
 **Checkpoint**: User Story 1 works end-to-end with draft generation and persistence.
 
@@ -82,6 +88,8 @@ description: "Task breakdown for issue #216 AI intake draft + confirm coin creat
 - [ ] T032 [US2] Return uncertain-field metadata from Go draft response mapping in `src/api/services/coin_intake_service.go`
 - [ ] T033 [US2] Surface low-confidence markers and evidence details in `src/web/src/components/coin/CoinIntakeReviewPanel.vue`
 - [ ] T034 [US2] Ensure cancel/close review path does not call commit endpoint in `src/web/src/pages/AddCoinPage.vue`
+- [ ] T051 [US2] Add explicit manual-entry bypass mode on Add Coin page that skips intake review/commit workflow in `src/web/src/pages/AddCoinPage.vue`
+- [ ] T056 [US2] Add `Use Manual Mode instead` link beneath PWA camera view and route to manual flow in `src/web/src/pages/AddCoinPage.vue`
 
 **Checkpoint**: User can fully review and edit draft content before commit.
 
@@ -117,6 +125,8 @@ description: "Task breakdown for issue #216 AI intake draft + confirm coin creat
 - [ ] T045 Add feature-specific validation notes for issue #216 in `specs/216-ai-intake-draft-confirm-coin-creation/quickstart.md`
 - [ ] T046 Preserve manual add-coin compatibility notes in `src/web/src/pages/AddCoinPage.vue`
 - [ ] T047 Regenerate OpenAPI artifacts via project task workflow in `src/api/docs/swagger.yaml`
+- [ ] T052 Validate desktop-focused manual bypass UX copy/affordance in `src/web/src/pages/AddCoinPage.vue`
+- [ ] T057 Validate PWA camera-first default and manual-link fallback behavior in `src/web/src/pages/AddCoinPage.vue`
 
 ---
 
