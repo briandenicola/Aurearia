@@ -1,6 +1,7 @@
 import { ref, nextTick, onMounted, onBeforeUnmount, type Ref } from 'vue'
-import { agentChatStream, createCoin, proxyImage, scrapeImage, uploadImage, saveConversation, getPortfolioSummary, getAgentStatus, createCalendarEvent } from '@/api/client'
-import type { CoinSuggestion, CoinShow, AgentChatMessage, Category, Material } from '@/types'
+import { useRoute } from 'vue-router'
+import { agentChatStream, cancelCollectionProposal, commitCollectionProposal, createCoin, proxyImage, scrapeImage, uploadImage, saveConversation, getPortfolioSummary, getAgentStatus, createCalendarEvent } from '@/api/client'
+import type { CoinSuggestion, CoinShow, AgentChatAppContext, AgentChatMessage, Category, CollectionChatResponse, Material } from '@/types'
 import { useDialog } from '@/composables/useDialog'
 import DOMPurify from 'dompurify'
 import MarkdownIt from 'markdown-it'
@@ -11,6 +12,7 @@ export interface ChatMsg {
   role: 'user' | 'assistant'
   content: string
   suggestions?: ChatSuggestion[]
+  collection?: CollectionChatResponse
   streaming?: boolean
   statusText?: string
 }
@@ -28,6 +30,7 @@ const VALID_MATERIALS = ['Gold', 'Silver', 'Bronze', 'Copper', 'Electrum', 'Othe
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 
 export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
+  const route = useRoute()
   const { showAlert } = useDialog()
 
   const messages = ref<ChatMsg[]>([])
@@ -58,6 +61,20 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
       .map(m => ({ role: m.role, content: m.content }))
   }
 
+  function buildAppContext(): AgentChatAppContext {
+    const idParam = route.params.id
+    const activeCoinId = typeof idParam === 'string'
+      ? Number.parseInt(idParam, 10)
+      : Array.isArray(idParam) && typeof idParam[0] === 'string'
+        ? Number.parseInt(idParam[0], 10)
+        : undefined
+
+    return {
+      route: route.fullPath,
+      activeCoinId: Number.isFinite(activeCoinId ?? NaN) ? activeCoinId : undefined,
+    }
+  }
+
   async function sendMessage() {
     const text = input.value.trim()
     if (!text || loading.value) return
@@ -81,10 +98,11 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
         msg.content += chunk
         scrollToBottom()
       },
-      (message: string, suggestions: CoinSuggestion[]) => {
+      (message: string, suggestions: CoinSuggestion[], collection?: CollectionChatResponse) => {
         const msg = messages.value[assistantIdx]!
         msg.content = message
         msg.suggestions = suggestions
+        msg.collection = collection
         msg.streaming = false
         msg.statusText = ''
         loading.value = false
@@ -105,6 +123,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
           scrollToBottom()
         }
       },
+      buildAppContext(),
     )
   }
 
@@ -346,6 +365,52 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
     }
   }
 
+  async function confirmCollectionProposal(msg: ChatMsg) {
+    const proposal = msg.collection?.proposal
+    if (!proposal) return
+
+    try {
+      const res = await commitCollectionProposal(proposal.proposalId, proposal.proposalToken)
+      messages.value.push({
+        role: 'assistant',
+        content: res.data?.message || 'Update committed.',
+      })
+      msg.collection = {
+        kind: 'read_result',
+        message: 'Proposal committed.',
+      }
+      scrollToBottom()
+    } catch {
+      await showAlert('Failed to commit collection update proposal.', { title: 'Error' })
+    }
+  }
+
+  async function cancelCollectionProposalMessage(msg: ChatMsg) {
+    const proposal = msg.collection?.proposal
+    if (!proposal) return
+
+    try {
+      const res = await cancelCollectionProposal(proposal.proposalId)
+      messages.value.push({
+        role: 'assistant',
+        content: res.data?.message || 'Proposal cancelled.',
+      })
+      msg.collection = {
+        kind: 'read_result',
+        message: 'Proposal cancelled.',
+      }
+      scrollToBottom()
+    } catch {
+      await showAlert('Failed to cancel collection update proposal.', { title: 'Error' })
+    }
+  }
+
+  function pickDisambiguationCandidate(coinId: number) {
+    if (loading.value) return
+    input.value = `Use coin #${coinId} for that update.`
+    sendMessage()
+  }
+
   function handleViewportResize() {
     const overlay = document.querySelector('.chat-overlay') as HTMLElement | null
     if (!overlay || !window.visualViewport) return
@@ -400,6 +465,9 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
     sendPortfolioAnalysis,
     handleSave,
     addToWishlist,
+    confirmCollectionProposal,
+    cancelCollectionProposalMessage,
+    pickDisambiguationCandidate,
     formatMessage,
     isCoinShowResults,
     saveShowToCalendar,

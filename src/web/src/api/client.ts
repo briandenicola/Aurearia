@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, CoinSuggestion, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -206,9 +206,10 @@ export async function agentChatStream(
   message: string,
   history: AgentChatMessage[],
   onText: (text: string) => void,
-  onDone: (message: string, suggestions: CoinSuggestion[]) => void,
+  onDone: (message: string, suggestions: CoinSuggestion[], collection?: CollectionChatResponse) => void,
   onError: (error: string) => void,
   onStatus?: (status: string) => void,
+  appContext?: AgentChatAppContext,
 ) {
   const baseURL = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -236,7 +237,7 @@ export async function agentChatStream(
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ message, history }),
+      body: JSON.stringify({ message, history, appContext }),
     })
 
     if (!resp.ok) {
@@ -253,10 +254,14 @@ export async function agentChatStream(
     let accumulatedText = ''
     let terminalSent = false
 
-    const sendDone = (finalMessage?: string, suggestions?: CoinSuggestion[]) => {
+    const sendDone = (
+      finalMessage?: string,
+      suggestions?: CoinSuggestion[],
+      collection?: CollectionChatResponse,
+    ) => {
       if (terminalSent) return
       terminalSent = true
-      onDone(finalMessage || accumulatedText, Array.isArray(suggestions) ? suggestions : [])
+      onDone(finalMessage || accumulatedText, Array.isArray(suggestions) ? suggestions : [], collection)
     }
 
     const sendError = (message: string) => {
@@ -278,7 +283,11 @@ export async function agentChatStream(
         } else if (event.type === 'status' && typeof event.message === 'string') {
           onStatus?.(event.message)
         } else if (event.type === 'done') {
-          sendDone(typeof event.message === 'string' ? event.message : undefined, event.suggestions)
+          sendDone(
+            typeof event.message === 'string' ? event.message : undefined,
+            event.suggestions,
+            event.collection,
+          )
         } else if (event.type === 'error') {
           sendError(typeof event.message === 'string' ? event.message : 'Agent stream error')
         }
@@ -317,6 +326,15 @@ export async function agentChatStream(
     onError(err instanceof Error ? err.message : 'Stream failed')
   }
 }
+
+export const commitCollectionProposal = (proposalId: string, proposalToken: string) =>
+  api.post(`/agent/collection/proposals/${proposalId}/commit`, {
+    proposalToken,
+    confirm: true,
+  })
+
+export const cancelCollectionProposal = (proposalId: string) =>
+  api.post(`/agent/collection/proposals/${proposalId}/cancel`, {})
 
 export interface AnthropicModel {
   id: string

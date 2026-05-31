@@ -12,10 +12,10 @@ security:
 paths:
   /agent/chat:
     post:
-      summary: Stream chat response (search or collection mode)
+      summary: Stream chat response with intent-based routing
       description: |
-        Existing SSE chat endpoint with mode-aware routing.
-        `mode=collection` routes to collection-aware tool behavior.
+        Existing SSE chat endpoint with per-prompt intent routing.
+        Collection-oriented prompts route to collection-aware behavior; discovery prompts keep existing coin-search behavior.
       tags: [agent-chat]
       requestBody:
         required: true
@@ -107,10 +107,6 @@ components:
         message:
           type: string
           minLength: 1
-        mode:
-          type: string
-          enum: [search, collection]
-          default: search
         history:
           type: array
           items:

@@ -8,7 +8,7 @@
 
 ## Scenario 1: Read-only collection Q&A in chat
 
-1. Open chat drawer and switch to **Collection** mode.
+1. Open chat drawer from any app page.
 2. Ask:
    - "How many Roman silver coins do I own?"
    - "Show my top 3 highest-value coins."
@@ -48,6 +48,5 @@
 
 ## Compatibility Check
 
-1. Switch chat back to default search mode.
-2. Run a normal coin marketplace search request.
-3. Verify existing search chat behavior and suggestion rendering remain unchanged.
+1. Run a normal coin marketplace search request in the same chat surface.
+2. Verify intent routing keeps existing search chat behavior and suggestion rendering unchanged.
