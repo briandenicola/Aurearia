@@ -111,6 +111,8 @@ class CoinSearchRequest(BaseModel):
     coin_search_prompt: BoundedPrompt = ""
     coin_shows_prompt: BoundedPrompt = ""
     portfolio: PortfolioSummary | None = None
+    internal_token: str = ""
+    tools_base_url: str = ""
 
     @field_validator("history")
     @classmethod
