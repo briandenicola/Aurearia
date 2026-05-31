@@ -847,7 +847,7 @@ onBeforeUnmount(() => {
 .capture-slot {
   width: 5rem;
   height: 5rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
   border: 2px solid var(--border-subtle);
   overflow: hidden;
   background: var(--bg-input);
