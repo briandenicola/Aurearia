@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Coin, StatsResponse, ValueSnapshot, CollectionHealthSummary, CoinHealthItem } from '@/types'
+import type { Coin, CoinMutationPayload, StatsResponse, ValueSnapshot, CollectionHealthSummary, CoinHealthItem } from '@/types'
 import * as api from '@/api/client'
 
 export const useCoinsStore = defineStore('coins', () => {
@@ -11,6 +11,7 @@ export const useCoinsStore = defineStore('coins', () => {
   const stats = ref<StatsResponse | null>(null)
   const valueHistory = ref<ValueSnapshot[]>([])
   const selectedCategory = ref('')
+  const selectedEra = ref('')
   const searchQuery = ref('')
   const activeSortKey = ref('')
   const galleryIndex = ref(0)
@@ -20,6 +21,7 @@ export const useCoinsStore = defineStore('coins', () => {
 
   async function fetchCoins(params?: {
     category?: string
+    era?: string
     search?: string
     wishlist?: string
     sold?: string
@@ -49,12 +51,12 @@ export const useCoinsStore = defineStore('coins', () => {
     }
   }
 
-  async function addCoin(coin: Partial<Coin>) {
+  async function addCoin(coin: CoinMutationPayload) {
     const res = await api.createCoin(coin)
     return res.data
   }
 
-  async function editCoin(id: number, coin: Partial<Coin>) {
+  async function editCoin(id: number, coin: CoinMutationPayload) {
     const res = await api.updateCoin(id, coin)
     return res.data
   }
@@ -106,6 +108,7 @@ export const useCoinsStore = defineStore('coins', () => {
     stats,
     valueHistory,
     selectedCategory,
+    selectedEra,
     searchQuery,
     activeSortKey,
     galleryIndex,

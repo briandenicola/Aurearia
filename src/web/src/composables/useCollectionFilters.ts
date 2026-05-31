@@ -29,6 +29,7 @@ export function useCollectionFilters() {
   appLifecycleStarted = true
 
   const selectedCategory = store.selectedCategory !== undefined ? ref(store.selectedCategory) : ref('')
+  const selectedEra = store.selectedEra !== undefined ? ref(store.selectedEra) : ref('')
   const search = ref(store.searchQuery)
   const page = ref(1)
   const sortKey = ref(store.activeSortKey || localStorage.getItem('defaultSort') || 'updated_at_desc')
@@ -50,6 +51,7 @@ export function useCollectionFilters() {
       ? [sortKey.value.split('_').slice(0, 2).join('_'), sortKey.value.split('_')[2]]
       : [sortKey.value.split('_')[0], sortKey.value.split('_')[1]]
     store.selectedCategory = selectedCategory.value
+    store.selectedEra = selectedEra.value
     store.searchQuery = search.value
 
     // For random sort, generate a per-session seed (stable across pagination within a session)
@@ -66,6 +68,7 @@ export function useCollectionFilters() {
 
     store.fetchCoins({
       category: selectedCategory.value || undefined,
+      era: selectedEra.value || undefined,
       search: search.value || undefined,
       tag: selectedTag.value || undefined,
       wishlist: 'false',
@@ -83,6 +86,11 @@ export function useCollectionFilters() {
   })
 
   watch(selectedTag, () => {
+    page.value = 1
+    loadCoins()
+  })
+
+  watch(selectedEra, () => {
     page.value = 1
     loadCoins()
   })
@@ -141,6 +149,7 @@ export function useCollectionFilters() {
 
   return {
     selectedCategory,
+    selectedEra,
     search,
     page,
     sortKey,

@@ -30,6 +30,7 @@ const form = reactive<Partial<Coin>>({
   material: 'Silver',
   denomination: '',
   mint: '',
+  era: '',
   weightGrams: null,
   diameterMm: null,
   grade: '',

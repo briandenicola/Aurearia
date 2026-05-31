@@ -78,6 +78,12 @@
             :rarity-rating="coin.rarityRating"
           />
 
+          <CoinReferencesSection
+            :coin-id="coin.id"
+            :references="coin.references ?? []"
+            @changed="refreshCoin"
+          />
+
           <div v-if="coin.obverseDescription || coin.reverseDescription" class="descriptions-section">
             <h3>Description</h3>
             <div class="section-content-card">
@@ -166,6 +172,7 @@ import CoinAIAnalysis from '@/components/coin/CoinAIAnalysis.vue'
 import CoinListingStatus from '@/components/coin/CoinListingStatus.vue'
 import CoinActivityJournal from '@/components/coin/CoinActivityJournal.vue'
 import CoinHealthChecklist from '@/components/coin/CoinHealthChecklist.vue'
+import CoinReferencesSection from '@/components/coin/CoinReferencesSection.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { uploadImage, deleteCoin, deleteImage, purchaseCoin, sellCoin, getJournalEntries, addJournalEntry, deleteJournalEntry, getCoinValueHistory, getCoinHealthList } from '@/api/client'
 import { removeBackground as removeBg } from '@imgly/background-removal'

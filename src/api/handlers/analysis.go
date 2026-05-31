@@ -146,7 +146,7 @@ func (h *AnalysisHandler) Analyze(c *gin.Context) {
 			ID:            int(coin.ID),
 			Name:          coin.Name,
 			Ruler:         coin.Ruler,
-			Era:           coin.Era,
+			Era:           string(coin.Era),
 			Denomination:  coin.Denomination,
 			Material:      string(coin.Material),
 			Category:      string(coin.Category),

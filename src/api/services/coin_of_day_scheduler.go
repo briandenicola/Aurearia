@@ -235,7 +235,7 @@ func buildCoinSummary(coin *models.Coin) string {
 		bits = append(bits, "of "+coin.Ruler)
 	}
 	if coin.Era != "" {
-		bits = append(bits, "("+coin.Era+")")
+		bits = append(bits, "("+string(coin.Era)+")")
 	}
 	if coin.Mint != "" {
 		bits = append(bits, "minted at "+coin.Mint)

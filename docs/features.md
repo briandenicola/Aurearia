@@ -52,12 +52,13 @@ Track auction lots from NumisBids through a complete bidding lifecycle:
 
 Each coin can store:
 
-- **Core fields** — Name, denomination, ruler/authority, year/era, category, material, weight, diameter
+- **Core fields** — Name, denomination, ruler/authority, era (`ancient`, `medieval`, `modern`), category, material, weight, diameter
 - **Numismatic details** — Mint mark, obverse/reverse inscriptions, grade, RIC number, rarity rating
 - **Financial data** — Purchase price, current value, acquisition date, dealer/source
 - **Images** — Multiple image uploads per coin (obverse, reverse, edge, detail, full) with a gallery viewer. Supports file upload, paste-from-URL (fetched via server proxy), and direct camera capture in PWA mode.
 - **Camera Capture (PWA)** — In PWA/mobile mode, a "Photo" button appears on upload sections letting you take coin photos directly with the rear camera. Available on the coin detail page and the add/edit form.
 - **AI Analysis** — Markdown-formatted analysis from Ollama, stored with the coin (obverse and reverse analyzed separately)
+- **Structured Catalog References** — Add and manage normalized references per coin (`catalog`, `volume`, `number`, `certainty`, optional authority URI) directly in coin detail.
 - **Activity Journal** — Timestamped log entries per coin (e.g., "cleaned", "sent to NGC for grading", "displayed at coin show"). Add and delete entries directly from the detail page.
 - **Numista Catalog Lookup** — Search the Numista coin catalog directly from a coin's detail page. Results show thumbnails, title, issuer, and year range with links to the full Numista catalog entry.
 - **Notes** — Free-text notes field
@@ -74,7 +75,7 @@ To enable AI analysis:
 
 ## AI Coin Search Agent
 
-Chat with an AI agent that searches the web for coins matching your description. Powered by the multi-agent Python service (supports Anthropic Claude with built-in web search or Ollama with SearXNG), the agent returns structured coin suggestions with names, categories, materials, price estimates, and source links. Each suggestion can be added to your wishlist with one click.
+Chat with an AI agent that searches the web for coins matching your description. Powered by the multi-agent Python service (supports Anthropic Claude with built-in web search or Ollama with SearXNG), the agent returns structured coin suggestions with names, categories, materials, price estimates, source links, and candidate catalog references. Each suggestion can be added to your wishlist with one click.
 
 Key features:
 
@@ -83,6 +84,7 @@ Key features:
 - **SSE Progress Events** — The agent streams structured progress events so the frontend can display step-by-step status updates.
 - **Multi-team Architecture** — The agent uses specialized teams: coin search finds listings, coin shows finds upcoming events, portfolio review analyzes your collection, coin analysis examines uploaded images, coin grading estimates grades from photos, gap analysis identifies missing coins in your collection, photo guide critiques your coin photography, price trends analyzes market direction from auction history, and similar lots finds matching active auction listings.
 - **Automatic Image Extraction** — When you add a coin to your wishlist, the system automatically extracts the listing's primary image using `og:image` meta tag scraping from the source page. Falls back to the agent-provided image URL if scraping finds nothing.
+- **Candidate Catalog References** — Suggestions can include structured candidate references (`catalog`, `volume`, `number`, `certainty`, optional authority `uri`) which are carried into wishlist coin creation.
 - **Paste Image URL** — If automatic extraction misses an image, you can paste an image URL directly on the coin detail page to fetch and attach it.
 - **Save Conversations** — Save search conversations for later reference. Saved chats appear in the Settings → Conversations tab where you can reopen or delete them.
 - **Configurable Model & Prompt** — Admins can select the Claude model from a dropdown populated from the Anthropic API, and customize the agent's system prompt.
@@ -144,7 +146,7 @@ All authenticated users can access **Settings**, organized in a tabbed layout:
 
 - **Account** — Change password (requires current password), register WebAuthn/FIDO2 passkeys for passwordless login, manage avatar and profile settings.
 - **Appearance** — Switch between dark (museum) and light theme, set time zone, choose default gallery view (swipe or grid), and default sort order. Preferences persist across sessions.
-- **Data** — Export your entire collection as JSON, import coins from a JSON file, download an insurance/provenance PDF catalog of your collection (with photos, grades, provenance, and valuations), and manage API keys for programmatic access. See the [Getting Started Guide](getting-started.md#import--export) for the full import file format.
+- **Data** — Export your entire collection as JSON, import coins from a JSON file, download an insurance/provenance PDF catalog of your collection (with photos, grades, provenance, valuations, and structured references), and manage API keys for programmatic access. See the [Getting Started Guide](getting-started.md#import--export) for the full import file format.
 - **Conversations** — View, reopen, or delete saved AI search agent conversations.
 - **Tags** — Create, rename, and delete custom tags with color selection. Tags created here can be attached to any coin in your collection.
 - **Help** — Beginner's guide to ancient coin collecting.
@@ -288,7 +290,7 @@ An in-app notification system with an unread badge count in the navigation bar.
 
 ## Insurance / Provenance PDF Export
 
-Generate a downloadable PDF catalog of your collection with photos, grades, provenance details, and valuations. Useful for insurance documentation or sharing with dealers.
+Generate a downloadable PDF catalog of your collection with photos, grades, provenance details, valuations, era, and structured catalog references. Useful for insurance documentation or sharing with dealers.
 
 - **Download from Settings** — Available in **Settings → Data** as a one-click download.
 - **API Endpoint** — `GET /user/export/catalog`.

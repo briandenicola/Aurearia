@@ -13,11 +13,23 @@ import (
 type CoinService struct {
 	repo     *repository.CoinRepository
 	notifSvc *NotificationService
+	refRepo  *repository.CoinReferenceRepository
+	refSvc   *CoinReferenceService
 }
 
 // NewCoinService creates a new CoinService.
 func NewCoinService(repo *repository.CoinRepository, notifSvc *NotificationService) *CoinService {
 	return &CoinService{repo: repo, notifSvc: notifSvc}
+}
+
+// WithReferenceSupport enables structured reference orchestration during coin create/update workflows.
+func (s *CoinService) WithReferenceSupport(
+	refRepo *repository.CoinReferenceRepository,
+	refSvc *CoinReferenceService,
+) *CoinService {
+	s.refRepo = refRepo
+	s.refSvc = refSvc
+	return s
 }
 
 // CreateCoin creates a coin and records a value snapshot in a single transaction.
@@ -27,6 +39,25 @@ func (s *CoinService) CreateCoin(coin *models.Coin) error {
 		if err := txRepo.Create(coin); err != nil {
 			return err
 		}
+
+		if s.refRepo != nil && s.refSvc != nil && coin.References != nil {
+			normalized, err := s.refSvc.NormalizeAndValidate(coin.References)
+			if err != nil {
+				return err
+			}
+
+			for i := range normalized {
+				normalized[i].CoinID = coin.ID
+			}
+
+			txRefRepo := s.refRepo.WithTx(tx)
+			if err := txRefRepo.CreateBatch(normalized); err != nil {
+				return err
+			}
+
+			coin.References = normalized
+		}
+
 		return txRepo.RecordValueSnapshot(coin.UserID)
 	})
 	if err != nil {
@@ -52,6 +83,20 @@ func (s *CoinService) UpdateCoin(existing *models.Coin, updates *models.Coin, us
 
 		if err := txRepo.Update(existing, updates); err != nil {
 			return err
+		}
+
+		if s.refRepo != nil && s.refSvc != nil && updates.References != nil {
+			normalized, err := s.refSvc.NormalizeAndValidate(updates.References)
+			if err != nil {
+				return err
+			}
+
+			txRefRepo := s.refRepo.WithTx(tx)
+			if err := txRefRepo.ReplaceForCoin(existing.ID, userID, normalized); err != nil {
+				return err
+			}
+
+			existing.References = normalized
 		}
 
 		if updates.CurrentValue != nil {

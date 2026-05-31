@@ -15,7 +15,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("failed to open test db: %v", err)
 	}
 	err = db.AutoMigrate(
-		&models.User{}, &models.Coin{}, &models.CoinImage{},
+		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{},
 		&models.ValueSnapshot{}, &models.CoinJournal{},
 		&models.CoinValueHistory{}, &models.CoinComment{},
 		&models.AvailabilityResult{}, &models.AuctionLot{},
@@ -257,7 +257,6 @@ func TestCoinRepository_RecordValueSnapshot(t *testing.T) {
 }
 
 func ptrFloat(v float64) *float64 { return &v }
-
 
 func TestCoinRepository_List_RandomSort(t *testing.T) {
 	db := setupTestDB(t)
