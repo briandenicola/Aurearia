@@ -4975,6 +4975,9 @@
                 "message"
             ],
             "properties": {
+                "appContext": {
+                    "$ref": "#/definitions/services.CollectionChatContext"
+                },
                 "history": {
                     "type": "array",
                     "items": {
@@ -4989,6 +4992,9 @@
         "handlers.AgentChatResponse": {
             "type": "object",
             "properties": {
+                "collection": {
+                    "$ref": "#/definitions/services.CollectionChatResponse"
+                },
                 "message": {
                     "type": "string"
                 },
@@ -6433,6 +6439,150 @@
                 },
                 "era": {
                     "type": "string"
+                }
+            }
+        },
+        "services.CollectionAggregateSummary": {
+            "type": "object",
+            "properties": {
+                "totalCoins": {
+                    "type": "integer"
+                },
+                "totalCurrentUsd": {
+                    "type": "number"
+                },
+                "totalPurchaseUsd": {
+                    "type": "number"
+                },
+                "totalSold": {
+                    "type": "integer"
+                },
+                "totalWishlist": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.CollectionChatContext": {
+            "type": "object",
+            "properties": {
+                "activeCoinId": {
+                    "type": "integer"
+                },
+                "route": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.CollectionChatResponse": {
+            "type": "object",
+            "properties": {
+                "disambiguation": {
+                    "$ref": "#/definitions/services.CollectionDisambiguation"
+                },
+                "errorCode": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "proposal": {
+                    "$ref": "#/definitions/services.CollectionProposalPreview"
+                },
+                "readResult": {
+                    "$ref": "#/definitions/services.CollectionReadResult"
+                }
+            }
+        },
+        "services.CollectionCoinSummary": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "currentValue": {
+                    "type": "number"
+                },
+                "era": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "material": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ruler": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.CollectionDisambiguation": {
+            "type": "object",
+            "properties": {
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.CollectionCoinSummary"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.CollectionProposalPreview": {
+            "type": "object",
+            "properties": {
+                "changedFields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "changes": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "coinId": {
+                    "type": "integer"
+                },
+                "coinName": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "proposalId": {
+                    "type": "string"
+                },
+                "proposalToken": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.CollectionReadResult": {
+            "type": "object",
+            "properties": {
+                "aggregate": {
+                    "$ref": "#/definitions/services.CollectionAggregateSummary"
+                },
+                "coins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.CollectionCoinSummary"
+                    }
+                },
+                "resultType": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         }
