@@ -1,6 +1,6 @@
 <template>
   <CoinDetailSectionPageShell section-title="Activity Journal">
-    <template #default="{ coin, refresh }">
+    <template #default="{ coin }">
       <CoinActivityJournal
         :entries="journalEntries"
         :coin-id="coin.id"
