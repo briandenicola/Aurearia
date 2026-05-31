@@ -74,7 +74,6 @@
 
           <CoinTagsSection
             :tags="coin.tags ?? []"
-            :category="coin.category"
             :coin-id="coin.id"
             @tags-changed="refreshCoin"
           />
@@ -97,7 +96,10 @@
           </div>
 
           <!-- T014-T016: Metadata table -->
-          <CoinDetailMetadataTable v-if="metadataRows.length" :rows="metadataRows" />
+          <div v-if="metadataRows.length" class="metadata-section">
+            <h3>Details</h3>
+            <CoinDetailMetadataTable :rows="metadataRows" />
+          </div>
 
           <CoinReferencesSection
             :coin-id="coin.id"
@@ -233,7 +235,7 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
 /* T011: Hero media grid for dual-side default display */
 .hero-media-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 1rem;
 }
 
@@ -320,12 +322,14 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
 
 .inscriptions-section,
 .descriptions-section,
+.metadata-section,
 .sections-list {
   margin-bottom: 1.5rem;
 }
 
 .inscriptions-section h3,
 .descriptions-section h3,
+.metadata-section h3,
 .sections-list h3 {
   margin-bottom: 0.75rem;
   font-size: 1rem;

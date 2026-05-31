@@ -1,7 +1,7 @@
 <template>
   <div class="detail-tags-section">
+    <h4 class="section-label">Tags</h4>
     <div class="detail-tags">
-      <span class="badge" :class="`badge-${category.toLowerCase()}`">{{ category }}</span>
       <span
         v-for="tag in tags"
         :key="tag.id"
@@ -36,7 +36,6 @@ import type { Tag } from '@/types'
 
 const props = defineProps<{
   tags: Tag[]
-  category: string
   coinId: number
 }>()
 
@@ -81,6 +80,10 @@ async function handleRemoveTag(tagId: number) {
 <style scoped>
 .detail-tags-section {
   margin-bottom: 1rem;
+}
+
+.section-label {
+  margin-bottom: 0.5rem;
 }
 
 .detail-tags {
