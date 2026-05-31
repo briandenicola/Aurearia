@@ -4,41 +4,42 @@ description: "Task breakdown for issue #216 AI intake draft + confirm coin creat
 
 # Tasks: AI Intake Draft + Confirm Coin Creation
 
-**Input**: Design documents from `/specs/012-agentic-collection-updates/` and GitHub issue `#216`  
-**Prerequisites**: `plan.md`, `spec.md`, `data-model.md`, `contracts/collection-tools.openapi.yaml`, `research.md`
+**Input**: Design documents from `/specs/216-ai-intake-draft-confirm-coin-creation/`  
+**Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/intake-flow.openapi.yaml`, `quickstart.md`
 
-**Tests**: No explicit TDD requirement in the issue/spec. Tasks focus on implementation slices with independent story-level validation.
+**Tests**: No explicit TDD requirement in the feature spec; no mandatory test-first tasks are included.
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-**Purpose**: Create scaffolding for intake draft/confirm flow across API, agent, and web.
+**Purpose**: Create file scaffolds and typed boundaries for intake draft/commit flow.
 
 - [ ] T001 Create intake draft model scaffold in `src/api/models/coin_intake_draft.go`
 - [ ] T002 [P] Create intake draft repository scaffold in `src/api/repository/coin_intake_draft_repository.go`
 - [ ] T003 [P] Create intake service scaffold in `src/api/services/coin_intake_service.go`
 - [ ] T004 [P] Create intake handler scaffold in `src/api/handlers/coin_intake.go`
 - [ ] T005 [P] Create Python intake team scaffold in `src/agent/app/teams/coin_intake.py`
-- [ ] T006 [P] Create web intake composable scaffold in `src/web/src/composables/useCoinIntake.ts`
-- [ ] T007 [P] Add intake type placeholders in `src/web/src/types/index.ts`
+- [ ] T006 [P] Create intake composable scaffold in `src/web/src/composables/useCoinIntake.ts`
+- [ ] T007 [P] Create intake review component scaffold in `src/web/src/components/coin/CoinIntakeReviewPanel.vue`
+- [ ] T008 [P] Add intake placeholder types in `src/web/src/types/index.ts`
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: Build core schemas, persistence, proxy plumbing, and contracts before user stories.
+**Purpose**: Implement persistent draft domain, schema plumbing, and route contracts that block all stories.
 
 **⚠️ CRITICAL**: Complete this phase before starting user stories.
 
-- [ ] T008 Implement persisted `CoinIntakeDraft` fields (`draftPayload`, `evidence`, `confidenceSummary`, `status`, `expiresAt`) in `src/api/models/coin_intake_draft.go`
-- [ ] T009 Register `CoinIntakeDraft` migration in `src/api/database/database.go`
-- [ ] T010 Implement intake draft repository methods (`CreateDraft`, `FindDraftByID`, `UpdateStatus`, `MarkExpired`) in `src/api/repository/coin_intake_draft_repository.go`
-- [ ] T011 [P] Extend intake proxy request/response structs and HTTP methods in `src/api/services/agent_proxy.go`
-- [ ] T012 [P] Add intake request schemas to agent models in `src/agent/app/models/requests.py`
-- [ ] T013 [P] Add intake response schemas (`confidence`, `evidence`, `uncertainties`) in `src/agent/app/models/responses.py`
-- [ ] T014 Implement `/api/intake/draft` route wiring in `src/agent/app/routes.py`
-- [ ] T015 Implement typed web intake API methods in `src/web/src/api/client.ts`
-- [ ] T016 [P] Add frontend `CoinIntakeDraft`/`CoinIntakeCommitRequest` interfaces in `src/web/src/types/index.ts`
-- [ ] T017 Add intake Swagger DTOs in `src/api/handlers/swagger_types.go`
+- [ ] T009 Implement `CoinIntakeDraft` fields and enum state constraints in `src/api/models/coin_intake_draft.go`
+- [ ] T010 Register `CoinIntakeDraft` migration and auto-migrate wiring in `src/api/database/database.go`
+- [ ] T011 Implement draft repository methods (`CreateDraft`, `FindOwnedDraft`, `UpdateStatus`, `MarkExpired`) in `src/api/repository/coin_intake_draft_repository.go`
+- [ ] T012 [P] Add intake draft/commit request and response schema types in `src/agent/app/models/requests.py`
+- [ ] T013 [P] Add intake confidence/evidence response models in `src/agent/app/models/responses.py`
+- [ ] T014 [P] Extend Go agent proxy DTOs and intake transport methods in `src/api/services/agent_proxy.go`
+- [ ] T015 Implement agent route registration for intake draft generation in `src/agent/app/routes.py`
+- [ ] T016 [P] Add intake draft/commit DTOs for Swagger serialization in `src/api/handlers/swagger_types.go`
+- [ ] T017 [P] Add intake API client methods (`createDraft`, `commitDraft`) in `src/web/src/api/client.ts`
+- [ ] T018 [P] Add frontend intake domain interfaces (`CoinIntakeDraft`, `IntakeEvidenceItem`, `IntakeCommitRequest`) in `src/web/src/types/index.ts`
 
 **Checkpoint**: Intake domain primitives and contracts are in place.
 
@@ -52,14 +53,15 @@ description: "Task breakdown for issue #216 AI intake draft + confirm coin creat
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Implement `coin_intake` team pipeline (OCR/lookups/field extraction/evidence capture) in `src/agent/app/teams/coin_intake.py`
-- [ ] T019 [US1] Invoke intake team from route handler and return typed payload in `src/agent/app/routes.py`
-- [ ] T020 [US1] Implement draft orchestration service (proxy call + draft persistence) in `src/api/services/coin_intake_service.go`
-- [ ] T021 [US1] Implement `POST /api/coins/intake/draft` handler validation and mapping in `src/api/handlers/coin_intake.go`
-- [ ] T022 [US1] Register protected intake draft route in `src/api/main.go`
-- [ ] T023 [US1] Add draft endpoint Swagger annotations and schema references in `src/api/handlers/coin_intake.go`
-- [ ] T024 [P] [US1] Implement draft-request flow in `src/web/src/composables/useCoinIntake.ts`
-- [ ] T025 [US1] Add “Generate AI Draft” flow entry in `src/web/src/pages/AddCoinPage.vue`
+- [ ] T019 [US1] Implement `coin_intake` extraction pipeline with structured draft output in `src/agent/app/teams/coin_intake.py`
+- [ ] T020 [US1] Return typed draft payload from intake route handler in `src/agent/app/routes.py`
+- [ ] T021 [US1] Implement draft orchestration service (agent call + persistence + expiry) in `src/api/services/coin_intake_service.go`
+- [ ] T022 [US1] Implement `POST /api/coins/intake/draft` handler binding, validation, and response mapping in `src/api/handlers/coin_intake.go`
+- [ ] T023 [US1] Register authenticated intake draft route in `src/api/main.go`
+- [ ] T024 [US1] Add Swagger annotations for draft endpoint in `src/api/handlers/coin_intake.go`
+- [ ] T025 [P] [US1] Implement draft request state machine (`idle/loading/success/error`) in `src/web/src/composables/useCoinIntake.ts`
+- [ ] T026 [US1] Add “Generate AI Draft” action and request wiring in `src/web/src/pages/AddCoinPage.vue`
+- [ ] T027 [US1] Map unresolved field keys into UI-consumable state in `src/web/src/composables/useCoinIntake.ts`
 
 **Checkpoint**: User Story 1 works end-to-end with draft generation and persistence.
 
@@ -73,12 +75,13 @@ description: "Task breakdown for issue #216 AI intake draft + confirm coin creat
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] Build intake review panel for confidence + evidence rendering in `src/web/src/components/coin/CoinIntakeReviewPanel.vue`
-- [ ] T027 [US2] Implement draft-to-form mapper and override state management in `src/web/src/composables/useCoinIntake.ts`
-- [ ] T028 [US2] Integrate review panel with editable `CoinForm` workflow in `src/web/src/pages/AddCoinPage.vue`
-- [ ] T029 [P] [US2] Add uncertainty/evidence typing for review rendering in `src/web/src/types/index.ts`
-- [ ] T030 [US2] Return uncertain-field metadata from API draft response in `src/api/services/coin_intake_service.go` and `src/api/handlers/coin_intake.go`
-- [ ] T031 [US2] Surface low-confidence indicators in form review UI in `src/web/src/components/coin/CoinIntakeReviewPanel.vue` and `src/web/src/components/CoinForm.vue`
+- [ ] T028 [US2] Build intake review panel for confidence and evidence rendering in `src/web/src/components/coin/CoinIntakeReviewPanel.vue`
+- [ ] T029 [US2] Implement draft-to-form mapper and editable override state in `src/web/src/composables/useCoinIntake.ts`
+- [ ] T030 [US2] Integrate intake review panel with Add Coin page form workflow in `src/web/src/pages/AddCoinPage.vue`
+- [ ] T031 [P] [US2] Add field-level uncertainty and evidence display props in `src/web/src/types/index.ts`
+- [ ] T032 [US2] Return uncertain-field metadata from Go draft response mapping in `src/api/services/coin_intake_service.go`
+- [ ] T033 [US2] Surface low-confidence markers and evidence details in `src/web/src/components/coin/CoinIntakeReviewPanel.vue`
+- [ ] T034 [US2] Ensure cancel/close review path does not call commit endpoint in `src/web/src/pages/AddCoinPage.vue`
 
 **Checkpoint**: User can fully review and edit draft content before commit.
 
@@ -92,13 +95,14 @@ description: "Task breakdown for issue #216 AI intake draft + confirm coin creat
 
 ### Implementation for User Story 3
 
-- [ ] T032 [US3] Implement `POST /api/coins/intake/commit` handler request binding and responses in `src/api/handlers/coin_intake.go`
-- [ ] T033 [US3] Implement commit transaction (`draft` lock, apply overrides, create coin) in `src/api/services/coin_intake_service.go`
-- [ ] T034 [US3] Implement draft status transitions (`drafted -> confirmed|discarded|expired`) in `src/api/repository/coin_intake_draft_repository.go`
-- [ ] T035 [US3] Write AI source-tagged coin journal entry on successful commit in `src/api/services/coin_intake_service.go`
-- [ ] T036 [US3] Register protected intake commit route in `src/api/main.go`
-- [ ] T037 [P] [US3] Implement frontend commit API call and override payload submission in `src/web/src/api/client.ts` and `src/web/src/composables/useCoinIntake.ts`
-- [ ] T038 [US3] Complete post-commit UX (success state + redirect to coin detail + draft reset) in `src/web/src/pages/AddCoinPage.vue`
+- [ ] T035 [US3] Implement `POST /api/coins/intake/commit` handler binding and deterministic error mapping in `src/api/handlers/coin_intake.go`
+- [ ] T036 [US3] Implement transactional commit flow (ownership check, draft lock, coin create, status update) in `src/api/services/coin_intake_service.go`
+- [ ] T037 [US3] Implement draft lifecycle transitions (`drafted -> confirmed|discarded|expired`) in `src/api/repository/coin_intake_draft_repository.go`
+- [ ] T038 [US3] Record AI source-tagged coin journal entry (`coin_intake`) on successful commit in `src/api/services/coin_intake_service.go`
+- [ ] T039 [US3] Register authenticated intake commit route in `src/api/main.go`
+- [ ] T040 [US3] Guard duplicate commit attempts and return conflict semantics in `src/api/services/coin_intake_service.go`
+- [ ] T041 [P] [US3] Implement frontend commit payload submission and confirm flag enforcement in `src/web/src/composables/useCoinIntake.ts`
+- [ ] T042 [US3] Complete post-commit UX (success, reset draft state, redirect to detail) in `src/web/src/pages/AddCoinPage.vue`
 
 **Checkpoint**: Draft confirm flow persists coin only after explicit user confirmation.
 
@@ -108,10 +112,11 @@ description: "Task breakdown for issue #216 AI intake draft + confirm coin creat
 
 **Purpose**: Finalize docs, compatibility notes, and API artifacts.
 
-- [ ] T039 [P] Document intake draft/review/confirm UX in `docs/features.md`
-- [ ] T040 [P] Document intake draft/commit request-response examples in `docs/api-reference.md`
-- [ ] T041 Add issue-216 validation steps to feature quickstart in `specs/012-agentic-collection-updates/quickstart.md`
-- [ ] T042 Regenerate OpenAPI artifacts in `src/api/docs/swagger.yaml`, `src/api/docs/swagger.json`, `src/api/docs/docs.go`, and `docs/openapi.json`
+- [ ] T043 [P] Document intake draft/review/confirm UX in `docs/features.md`
+- [ ] T044 [P] Document intake draft/commit request-response examples in `docs/api-reference.md`
+- [ ] T045 Add feature-specific validation notes for issue #216 in `specs/216-ai-intake-draft-confirm-coin-creation/quickstart.md`
+- [ ] T046 Preserve manual add-coin compatibility notes in `src/web/src/pages/AddCoinPage.vue`
+- [ ] T047 Regenerate OpenAPI artifacts via project task workflow in `src/api/docs/swagger.yaml`
 
 ---
 
@@ -123,7 +128,7 @@ description: "Task breakdown for issue #216 AI intake draft + confirm coin creat
 - **Phase 2 (Foundational)**: Depends on Phase 1; blocks all story work.
 - **Phase 3 (US1)**: Depends on Phase 2; MVP slice.
 - **Phase 4 (US2)**: Depends on US1 draft payload availability.
-- **Phase 5 (US3)**: Depends on US1+US2 commit payload and review flow.
+- **Phase 5 (US3)**: Depends on US1 and US2 review/override payload readiness.
 - **Phase 6 (Polish)**: Depends on completion of desired stories.
 
 ### External Dependency Note
@@ -138,10 +143,10 @@ Setup -> Foundational -> US1 (Draft generation) -> US2 (Review/edit) -> US3 (Con
 
 ### Within-Story Ordering Rules
 
-- Agent/team schema work before Go handler wiring.
-- Go service/repository implementation before route registration.
-- API client typing before UI integration.
-- Commit transaction logic before UI post-commit behavior.
+- Agent extraction + schema work before Go draft endpoint wiring.
+- Repository/service lifecycle handling before commit route exposure.
+- API/composable wiring before page-level integration.
+- Commit transaction + journal work before post-commit UX wiring.
 
 ---
 
@@ -150,25 +155,25 @@ Setup -> Foundational -> US1 (Draft generation) -> US2 (Review/edit) -> US3 (Con
 ### User Story 1 (US1)
 
 ```bash
-Task T018: Implement coin_intake team in src/agent/app/teams/coin_intake.py
-Task T021: Implement draft endpoint handler in src/api/handlers/coin_intake.go
-Task T024: Implement draft request composable in src/web/src/composables/useCoinIntake.ts
+Task T019: Implement coin_intake pipeline in src/agent/app/teams/coin_intake.py
+Task T022: Implement draft endpoint handler in src/api/handlers/coin_intake.go
+Task T025: Implement draft state machine in src/web/src/composables/useCoinIntake.ts
 ```
 
 ### User Story 2 (US2)
 
 ```bash
-Task T026: Build CoinIntakeReviewPanel.vue
-Task T029: Add uncertainty/evidence types in src/web/src/types/index.ts
-Task T030: Return uncertain-field metadata from Go intake service/handler
+Task T028: Build CoinIntakeReviewPanel.vue
+Task T031: Add uncertainty/evidence view types in src/web/src/types/index.ts
+Task T032: Return uncertain metadata from src/api/services/coin_intake_service.go
 ```
 
 ### User Story 3 (US3)
 
 ```bash
-Task T033: Implement commit transaction in src/api/services/coin_intake_service.go
-Task T034: Implement draft status transitions in src/api/repository/coin_intake_draft_repository.go
-Task T037: Implement frontend commit payload submission in client.ts/useCoinIntake.ts
+Task T036: Implement commit transaction in src/api/services/coin_intake_service.go
+Task T037: Implement draft status transitions in src/api/repository/coin_intake_draft_repository.go
+Task T041: Implement frontend commit submission in src/web/src/composables/useCoinIntake.ts
 ```
 
 ---
@@ -179,7 +184,7 @@ Task T037: Implement frontend commit payload submission in client.ts/useCoinInta
 
 1. Complete Setup and Foundational phases.
 2. Deliver US1 draft-generation end-to-end.
-3. Validate structured draft output (confidence + evidence) before moving to edit/commit.
+3. Validate structured draft output (confidence + evidence + unresolved fields) before moving to edit/commit.
 
 ### Incremental Delivery
 
@@ -190,6 +195,6 @@ Task T037: Implement frontend commit payload submission in client.ts/useCoinInta
 
 ### Squad Parallelization
 
-1. **Backend/API**: T008-T023, T032-T036, T042.
-2. **Agent**: T012-T014, T018-T019.
-3. **Frontend**: T015-T016, T024-T031, T037-T038.
+1. **Backend/API**: T009-T024, T035-T040, T047.
+2. **Agent**: T012-T015, T019-T020.
+3. **Frontend**: T017-T018, T025-T034, T041-T042.
