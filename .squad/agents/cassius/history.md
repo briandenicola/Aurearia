@@ -146,3 +146,18 @@ Every coin processed records its outcome in CoinJournal:
 
 **Related:** Aurelia building parallel UI in Settings → Data with result counts and error handling.
 
+## 2026-06-01 — Per-Coin Metadata Health Endpoint (BUG FIX)
+
+Fixed the Metadata Health subpage always showing "No health data available for this coin yet." by adding a direct per-coin health endpoint. The existing paginated list endpoint caused the frontend to fetch limit=1000 and filter client-side, breaking when the target coin wasn't on that page.
+
+**Implementation:**
+- `repository/health_repository.go` — added `GetSingleEligibleCoin(coinID, userID)` using `ActiveCollection` scope
+- `services/health_service.go` — added `GetCoinHealth(coinID, userID)` that reuses existing scoring logic: `scoreCoinMetadata`, `scoreCoinImages`, `scoreCoinValuationFreshness`, `scoreCoinAICoverage`, `computeWeightedScore`, `generateCoinChecklist`, `extractQuickActions`
+- `handlers/health.go` — added `GetCoinHealth(c *gin.Context)` handler with Swagger annotation
+- `main.go` — wired `protected.GET("/coins/:id/health", healthHandler.GetCoinHealth)`
+- Frontend: `src/web/src/api/client.ts` added `getCoinHealth(coinId)`, `CoinDetailHealthPage.vue` now calls it directly instead of list+filter
+
+**Key Learning:** Health data is COMPUTED from coin fields (not stored), so every existing active collection coin always has a score/grade/checklist. The per-coin endpoint validates user ownership (404 if not found or not user's coin) and returns the same `CoinHealthItem` shape the list uses.
+
+**Verification:** go build/vet/test pass, npm run build pass, commit 5bd36e9.
+
