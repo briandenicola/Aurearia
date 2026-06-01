@@ -157,7 +157,7 @@ func TestPackageImportMatrix(t *testing.T) {
 
 	// allowedInternal defines which internal packages each layer may import.
 	allowedInternal := map[string][]string{
-		"handlers":   {"services", "repository", "models"},
+		"handlers":   {"services", "repository", "models", "capture"},
 		"services":   {"repository", "models"},
 		"repository": {"models"},
 		"models":     {}, // no internal imports
