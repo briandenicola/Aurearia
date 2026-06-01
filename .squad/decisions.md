@@ -4107,3 +4107,32 @@ Any new sections on CoinDetailPage should follow this pattern:
 **Verdict:** ✅ APPROVE — Type-check + lint pass clean. Ready for merge.
 
 ---
+
+### 16. Feature #219: Purchase Location Row — Store-Only with Optional Link (2026-06-01)
+
+**Agent:** Aurelia (Frontend Developer)  
+**Feature:** Coin Detail Page — Purchase metadata refinement  
+**Status:** APPROVED  
+**Date:** 2026-06-01
+
+**Summary:** Refined the full-width purchase location row display in the Details table. Now shows ONLY the store name (`coin.purchaseLocation`), removing the redundant date and "Purchased from" prefix. Purchase date is already displayed in its own labeled row ("Purchase Date") in the table, making a second date display redundant.
+
+**Implementation:**
+- **Type Extension** (`src/web/src/types/index.ts`) — Added optional `url?: string | null` field to `CoinDetailMetadataRow` interface
+- **Composable** (`src/web/src/composables/useCoinDetailMetadataRows.ts`) — Row rendered only when `coin.purchaseLocation` is present; `value` is bare store name; `url` set to `sanitizeExternalUrl(coin.referenceUrl)` (may be null if no URL or invalid)
+- **Table Rendering** (`src/web/src/components/coin/CoinDetailMetadataTable.vue`) — Conditional rendering: `SafeExternalLink` component when `row.url` present (clickable, opens in new tab, `rel="noopener"`); plain text otherwise. Store link styled with `--accent-gold` → `--accent-bronze` on hover
+
+**Reuse Pattern:** Leveraged existing `SafeExternalLink` component and `sanitizeExternalUrl` helper from `@/composables/useSafeExternalLink` — no duplication of URL sanitization logic
+
+**Design Compliance:**
+- Uses existing design tokens and components per Principle V & IX
+- No hardcoded values; reuses established SafeExternalLink styling patterns
+- Maintains table structure consistency
+
+**Validation:**
+- ✅ `npm run type-check` — clean
+- ✅ `npm run lint` — clean (5 pre-existing warnings, no new issues)
+
+**Verdict:** ✅ APPROVE — Type-check + lint pass clean. Ready for merge.
+
+---
