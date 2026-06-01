@@ -2229,3 +2229,95 @@ Feature #217 is now **end-to-end complete**. Go side landed in c3e8c2b, Python s
 - **Principle XII (Authentication & Token Policy):** Short-lived (30s) internal token minted per request by Go
 - **Decision #11:** LLM-intent directive — no keyword gating, LLM router + ReAct tool-calling decides intent
 
+
+---
+
+## Decision #21 — Feature #216 (Circular Capture Clip) — Integration Contract & Implementation Complete (2026-05-31)
+
+**Issue:** #216 (Circular coin capture)  
+**Author:** Maximus (Lead/Architect) — Contract; Cassius (Backend) — Implementation; Aurelia (Frontend) — Implementation  
+**Date:** 2026-05-31  
+**Status:** APPROVED & LANDED  
+
+### Context
+
+Feature #216 defines the end-to-end flow for auto-clipping camera-captured coin images to a circle with transparent background and corners. The feature is now fully implemented, tested, reviewed, and hardened against a security concern.
+
+### Contract Summary
+
+**Hook Point:** `POST /coins/:id/images` (multipart) and `POST /coins/:id/images/base64` (JSON)
+
+**New Field:** `circleClip` (bool, default false)
+- **When true + imageType=obverse|reverse:** Decode, clip to circle using `capture.DefaultGuide` (center 50%/52%, 74% width, 360px cap), store as transparent PNG
+- **When true + imageType=card|detail|other:** Still clips (no restriction), but FE should not send this (card must remain rectangular for OCR)
+- **Default (false or absent):** Current behavior unchanged; no clipping
+
+**Geometry Contract (CRITICAL):**
+- FE must compute a cover-crop rectangle matching the displayed 4:3 container box (where `<video object-fit: cover>` crops the native stream)
+- FE draws ONLY the cover-cropped region to canvas before upload
+- BE trusts FE pre-crop and applies `DefaultGuide` (center 50%/52% of the **uploaded** image)
+- Result: on-screen circle overlay matches the clipped output exactly
+
+**Storage:**
+- Clipped output: PNG with RGBA (alpha channel for transparency)
+- Filename extension: `.png` (passed to `ImageService.UploadImage`)
+- `imageType` unchanged (stored as `obverse` / `reverse`)
+- Ownership validated BEFORE decode/clip (security hardening per Maximus review note)
+
+**Not Clipped:**
+- Card images (used by intake flow → Python for OCR; must remain rectangular)
+- Manual gallery uploads (no `circleClip` param)
+- Detail/other image types (FE never sends `circleClip=true` for these)
+
+### Batch Implementation
+
+| Agent | Commits | Details |
+|-------|---------|---------|
+| Cassius (Backend) | 0a19708 | Standalone `src/api/capture/` package: `ClipToCircle()` primitive with anti-aliased edge, `ClipBytesToCirclePNG()` encoder, `DefaultGuide` (50%/52% center, 74% width, 360px cap). 11 tests. |
+| Aurelia (Frontend) | 234e31c | Redesigned capture controls as tiles + soft gradient vignette focus-guide overlay in AddCoinPage.vue (design tokens only, "Opt" badge, primary CTA + ghost link). |
+| Cassius (Backend) | 460441a | Wired `circleClip` flag into Upload + UploadBase64 handlers. Clips obverse/reverse → transparent PNG; card/others unchanged. Decode-error → log-and-continue with original. Added `images_clip_test.go` (7 tests). Updated `architecture_test.go` to allow `handlers/` → `capture/`. |
+| Aurelia (Frontend) | df65020 + e3b3f8d | Implemented `computeCoverCropRect()` replicating CSS object-fit:cover so uploaded image matches on-screen guide. Threads `circleClip=true` only for camera-captured obverse/reverse via `client.ts uploadImage()`. Manual/file-picker + card uploads unaffected. |
+| Cassius (Backend) | 5d5df83 | **Ownership-before-decode hardening:** Added early `FindCoinByOwner()` check in both Upload/UploadBase64 handlers before file read or base64 decode when `circleClip=true`. Prevents CPU-intensive decode on non-owned coins. Added early 20MB size check in multipart path. 2 new non-owner tests (total 9 clip tests). Full suite green. Resolves Maximus review note. |
+
+### Review Gate
+
+**Reviewer:** Brutus (QA)  
+**Verdict:** ✅ **QA PASS**  
+- 14 tests green (clip tests + integration)
+- Build clean (go build/vet/test ✓)
+- No blockers
+- **Flagged (advisory):** Decode-before-ownership as acceptable; ownership check now implemented in hardening phase (commit 5d5df83)
+- **On-device visual checks (user responsibility):** Frame coin in guide → captured clip matches guide with no offset; smooth anti-aliased circle/transparent corners; portrait + landscape modes; manual gallery upload stays unclipped
+
+**Reviewer:** Maximus (Principal Architect)  
+**Verdict:** ✅ **APPROVE**  
+- Contract well-defined and honored
+- Geometry logic sound (cover-crop + center-fixed DefaultGuide)
+- **Non-blocking note:** Original implementation decoded before checking ownership (Principle XI violation). **Resolved by commit 5d5df83** with explicit pre-check.
+
+### Validation
+
+- ✅ `go build ./...` — clean
+- ✅ `go vet ./...` — clean  
+- ✅ `go test -v ./...` — all tests pass (architecture + unit + clip + ownership)
+- ✅ `npm run lint` — clean
+- ✅ `npm run build` (vue-tsc + vite) — clean
+- ✅ Design tokens used throughout (no hardcoded colors/radii)
+- ✅ PWA-compliant (mobile viewport testing ready for Brian)
+
+### Constitution Compliance
+
+- **Principle I (Layered Architecture):** Handlers gate ownership before decode; service layer unchanged. Clip logic is in standalone `capture/` package (stdlib-only utility). Architecture test updated to allow `handlers/` → `capture/` import.
+- **Principle XI (Security Hardening):** Input validation ✓ (ownership pre-check, 20MB early fail-fast). Output encoding ✓ (PNG with alpha). Decode safety ✓ (ownership gate before CPU-intensive operations).
+- **§17 Quality Gate:** All tests pass; build clean; conventional commit + trailer applied.
+
+### Outstanding Work (User Responsibility)
+
+Brian to perform on-device visual verification:
+1. Frame a coin in the capture guide
+2. Verify the clipped output matches the guide position with no offset
+3. Confirm smooth anti-aliased circle and transparent corners
+4. Test both portrait and landscape orientation
+5. Verify manual gallery uploads remain unclipped
+
+**Status at merge:** Feature #216 complete end-to-end. Security hardened. Ready for manual on-device validation.
