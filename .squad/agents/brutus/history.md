@@ -8,7 +8,17 @@
 
 ## Learnings
 
-- **2025-07-18:** Maximus completed comprehensive `docs/ARCHITECTURE.md` covering full-system architecture (Go API, Vue frontend, Python agent service, data flows, DB schema, auth, agent integration, Docker, design decisions). This is the authoritative reference for all agents and team members.
+### Core Context (Consolidated from P0/P1 test expansion)
+
+**Test Coverage Baseline (2026-04-24):** Comprehensive review identified critical gaps: Go API had only 18 tests (3 arch, 9 repo, 7 service) covering 2 repos/services with 3.5-4.6% coverage; 20+ repos/services untested; handlers untested. Python agent had 31 tests (models, streaming, validation) but zero team pipeline tests. Frontend had zero test framework. Created 25-item prioritized backlog.
+
+**P0 Auth Security Tests (2026-04-24):** Added 34 new tests across auth/middleware/handler/coin layers: `auth_service_test.go` (15 tests), `auth_test.go` (10 tests middleware), `auth_handler_test.go` (13 tests HTTP), `coin_handler_test.go` (11 tests CRUD+ownership). Pattern: real SQLite+bcrypt, httptest+Gin, 52/52 pass.
+
+**P1 Frontend/Parser/Settings (2026-04-24):** Vitest configured for Vue (7 passing on CollectionPagination), ValuationParser (18 table-driven tests), SettingsService (10 tests), Architecture import matrix test added to `architecture_test.go` enforcing handler→service/repo/models hierarchy via AST. Auth store tests (17 tests) and API client tests (24 tests) cover localStorage persistence, 401 refresh queue, token rotation, sanitizeCoin normalization. All 48 Vitest pass.
+
+---
+
+## Learnings Detail
 
 - **2026-04-24:** Full test coverage review completed. Go API: 18 tests pass (2 arch, 9 repo, 7 service), measured coverage 3.5-4.6%. Only CoinRepository and CoinService have tests — 20+ repos, 15+ services, all handlers untested. Python agent: 31 tests pass, covers models/retry/streaming/validation but zero team pipeline tests. Frontend: zero test files, no framework configured, 60+ components untested. Architecture tests enforce no-database-import and no-raw-SQL-in-handlers but not the full import matrix. Auth/middleware is the highest-risk gap. Report written to `.squad/decisions/inbox/brutus-code-review.md` with 25 prioritized backlog items.
 

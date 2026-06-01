@@ -2,7 +2,18 @@
 
 ## Active Decisions
 
-### 1. Governance Restructure — tech-inventory alignment (2026-05-28)
+### 1. Collection Chat Callback URL Documentation & Startup Warning (2026-06-01)
+
+**Agent:** Cassius (Backend)  
+**Feature:** #217 Collection Chat — multi-container deployment  
+**Status:** APPROVED  
+**Date:** 2026-06-01
+
+**Summary:** Fixed multi-container Docker deployment issue where collection chat failed with "All connection attempts failed". Root cause: `AGENT_INTERNAL_CALLBACK_URL` defaults to `localhost:8080` (unreachable in containers; must point to API service name on network). Changes: documented env var in `docs/deployment.md`, added startup warning in `src/api/main.go` when running in release mode with localhost URL. All Go tests passed. User validation: Docker Compose with `AGENT_INTERNAL_CALLBACK_URL=http://coins:8080` resolves issue.
+
+---
+
+### 2. Governance Restructure — tech-inventory alignment (2026-05-28)
 ### 2. Feature #219 Acceptance Checklist & Validation Gates (2026-05-31)
 
 **Feature**: Refine Coin Details Page for PWA and Desktop  
@@ -225,44 +236,6 @@ Admin routes now protected. Can close code review backlog items #1–2.
 
 ---
 
-### 8. Activity Journal Scroll Limit & Auction Schedule UI (2026-05-01)
-
-**Author:** Aurelia (Frontend Dev)  
-**Date:** 2026-05-01  
-**Status:** Implemented  
-
-#### What
-
-Two independent UI improvements:
-
-**Task A — Activity Journal Scroll Limit**
-- Added scroll containment to CoinActivityJournal in coin detail page
-- Shows max 3 entries by default; rest accessible via internal vertical scroll
-- Used design tokens for scrollbar styling (--bg-card, --border-subtle, --accent-gold-dim)
-
-**Task B — Auction-Ending Schedule in Admin UI**
-- Added "Auction Ending Alerts" panel to AdminSchedulesSection mirroring wishlist pattern
-- Three new settings keys: AuctionEndingCheckEnabled, AuctionEndingCheckStartTime, AuctionEndingCheckInterval
-- Updated useAdminConfig composable to expose and manage auction settings state
-- Integrated into AdminPage with proper prop binding
-
-#### Why
-
-- Task A: Prevents Activity Journal from pushing content down page as history grows; keeps layout compact
-- Task B: Cassius building backend daily scheduler for auction-ending alerts; needs UI configuration in same location as wishlist/valuation schedulers
-
-#### Impact
-
-- Task A: Coin detail page remains compact with unbounded journal history
-- Task B: Users can enable and configure auction-ending scheduler alongside existing background schedulers
-
-#### Testing
-
-- vue-tsc passes clean (no TypeScript errors)
-- Nullish coalescing and optional chaining used correctly for Docker strictness
-- All design tokens applied (no hardcoded values)
-
----
 
 ### 4. Auction Ending Manual Trigger & Run Log — Backend Implementation (2026-06-10)
 

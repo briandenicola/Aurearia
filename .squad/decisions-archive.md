@@ -56,3 +56,43 @@ Establishes baseline quality metrics and prioritized backlog. Guides sprint plan
 - **P3 (Low):** 22 items — performance, form validation, API polish
 
 ---
+
+### 8. Activity Journal Scroll Limit & Auction Schedule UI (2026-05-01)
+
+**Author:** Aurelia (Frontend Dev)  
+**Date:** 2026-05-01  
+**Status:** Implemented  
+
+#### What
+
+Two independent UI improvements:
+
+**Task A — Activity Journal Scroll Limit**
+- Added scroll containment to CoinActivityJournal in coin detail page
+- Shows max 3 entries by default; rest accessible via internal vertical scroll
+- Used design tokens for scrollbar styling (--bg-card, --border-subtle, --accent-gold-dim)
+
+**Task B — Auction-Ending Schedule in Admin UI**
+- Added "Auction Ending Alerts" panel to AdminSchedulesSection mirroring wishlist pattern
+- Three new settings keys: AuctionEndingCheckEnabled, AuctionEndingCheckStartTime, AuctionEndingCheckInterval
+- Updated useAdminConfig composable to expose and manage auction settings state
+- Integrated into AdminPage with proper prop binding
+
+#### Why
+
+- Task A: Prevents Activity Journal from pushing content down page as history grows; keeps layout compact
+- Task B: Cassius building backend daily scheduler for auction-ending alerts; needs UI configuration in same location as wishlist/valuation schedulers
+
+#### Impact
+
+- Task A: Coin detail page remains compact with unbounded journal history
+- Task B: Users can enable and configure auction-ending scheduler alongside existing background schedulers
+
+#### Testing
+
+- vue-tsc passes clean (no TypeScript errors)
+- Nullish coalescing and optional chaining used correctly for Docker strictness
+- All design tokens applied (no hardcoded values)
+
+---
+

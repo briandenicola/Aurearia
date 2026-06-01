@@ -8,7 +8,17 @@
 
 ## Learnings
 
-- **2026-05-29 — Threat Model Reconciliation (Issue #206)**
+### Core Context (Consolidated from early investigations)
+
+**Foundation Architecture (2025-07-18):** Rewrote architecture docs to cover full system (761 lines) across API (26 GORM models, 22 repos, 17 services), Frontend (21 Vue pages, 10 composables), and Agent (LLM routing + team pipelines). Stack: Go 1.26 + Gin + SQLite, Vue 3 + TypeScript, Python FastAPI + LangGraph. DI via main.go composition; 3 background schedulers (availability, valuation, auction-ending).
+
+**Code Quality Baseline (2026-04-24):** Comprehensive review across 11 areas graded A- to C+. Key issues: 3 package-level globals undermining DI, silent errors in social.go, frontend god-pages (1200-1400 lines), missing agent tests. Error handling C+, documentation A-. 20-item backlog created.
+
+**Governance Alignment (2026-05-28):** Adopted tech-inventory's operational framework (§0–§23 constitution, numbered hierarchy of authority, DoD checklist, CI Quality Gate, ADR practice, specs/ on-disk). Ratified v2.0.0 with 8 new operational sections; principles preserved verbatim.
+
+---
+
+## Learnings Detail
   
   **Audit Results:** Reviewed `docs/threat-model.md` against current code implementation (input artifacts: analysis.go, CoinAIAnalysis.vue, FeaturedCoinModal.vue, useCoinSearchChat.ts, webauthn.go, Taskfile.yml, Dockerfile, GitHub workflows). Found 9 findings had been mitigated but status was stale.
   

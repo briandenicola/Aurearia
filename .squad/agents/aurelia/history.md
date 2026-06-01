@@ -169,3 +169,12 @@ Issue #216 established distinct visual weight for action buttons:
 **Placement:** Inserted immediately before "Helpful Resources" accordion — positioned as an app-setup topic rather than coin-collecting content.
 
 **Validation:** `npm run build` (type-check passed), `npm run lint` (HelpSection.vue warnings fixed, exit 0).
+
+### Multi-Container Deployment Note (2026-06-01)
+
+Related to Issue #217 (Collection Chat) and #218 (External Tool Server), Cassius documented multi-container deployment requirements:
+
+- **AGENT_INTERNAL_CALLBACK_URL** environment variable required for collection chat to work across containers (defaults to `localhost:8080`, unreachable in Docker networks)
+- Set to API service name: `http://coins:8080` or `http://app:8080` depending on your docker-compose setup
+- Documented in `docs/deployment.md` with startup warning in release mode
+- Your external tool server work (#218) depends on this multi-container layer functioning correctly
