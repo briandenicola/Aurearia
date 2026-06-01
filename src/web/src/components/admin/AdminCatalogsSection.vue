@@ -30,18 +30,19 @@
           <tr>
             <th>Code</th>
             <th>Display Name</th>
-            <th>Era</th>
             <th class="hide-mobile">Volume Required</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="cat in catalogs" :key="cat.id">
-            <td class="catalog-code">{{ cat.catalog }}</td>
-            <td>{{ cat.displayName }}</td>
             <td>
-              <span class="chip-sm era-badge" :class="`era-${cat.era}`">{{ cat.era }}</span>
+              <div class="catalog-code-cell">
+                <div class="catalog-code">{{ cat.catalog }}</div>
+                <span class="chip-sm era-badge" :class="`era-${cat.era}`">{{ cat.era }}</span>
+              </div>
             </td>
+            <td>{{ cat.displayName }}</td>
             <td class="hide-mobile">
               <label class="toggle">
                 <input
@@ -343,6 +344,13 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.catalog-code-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+
 .catalog-code {
   font-weight: 600;
   color: var(--accent-gold);
@@ -422,8 +430,10 @@ onMounted(() => {
 }
 
 .action-buttons {
-  display: inline-flex;
+  display: flex;
   gap: 0.35rem;
+  flex-shrink: 0;
+  justify-content: flex-end;
 }
 
 .hide-mobile {
