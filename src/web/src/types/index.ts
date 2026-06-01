@@ -413,6 +413,8 @@ export interface CoinDetailMetadataRow {
   label: string
   value: string
   valueClass?: string
+  fullWidth?: boolean
+  url?: string | null
 }
 
 export interface AgentChatAppContext {

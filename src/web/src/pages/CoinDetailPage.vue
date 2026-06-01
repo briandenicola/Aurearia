@@ -74,23 +74,6 @@
             </div>
           </div>
 
-          <div v-if="coin.purchaseDate || coin.purchaseLocation || safeReferenceUrl" class="purchase-meta">
-            <span v-if="coin.purchaseDate">Purchased {{ new Date(coin.purchaseDate).toLocaleDateString() }}</span>
-            <template v-if="coin.purchaseLocation">
-              <span>{{ coin.purchaseDate ? ' from ' : 'Purchased from ' }}</span>
-              <SafeExternalLink v-if="safeReferenceUrl" :href="safeReferenceUrl" target="_blank" rel="noopener" class="store-link">
-                {{ coin.purchaseLocation }} ↗
-              </SafeExternalLink>
-              <span v-else>{{ coin.purchaseLocation }}</span>
-            </template>
-            <template v-if="safeReferenceUrl && !coin.purchaseLocation">
-              <span v-if="coin.purchaseDate"> · </span>
-              <SafeExternalLink :href="safeReferenceUrl" target="_blank" rel="noopener" class="store-link">
-                {{ coin.referenceText || 'View Listing' }} ↗
-              </SafeExternalLink>
-            </template>
-          </div>
-
           <!-- T014-T016: Metadata table -->
           <div v-if="metadataRows.length" class="metadata-section">
             <h3>Details</h3>
@@ -161,10 +144,8 @@ import CoinDetailMetadataTable from '@/components/coin/CoinDetailMetadataTable.v
 import CoinDetailSectionLinks from '@/components/coin/CoinDetailSectionLinks.vue'
 import CoinListingStatus from '@/components/coin/CoinListingStatus.vue'
 import CoinReferencesSection from '@/components/coin/CoinReferencesSection.vue'
-import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { deleteCoin, purchaseCoin, sellCoin } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
-import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 import { useCoinDetailMetadataRows } from '@/composables/useCoinDetailMetadataRows'
 import type { CoinImage } from '@/types'
 
@@ -178,7 +159,6 @@ const showPurchaseModal = ref(false)
 const lightboxImage = ref<CoinImage | null>(null)
 
 const coin = computed(() => store.currentCoin)
-const safeReferenceUrl = computed(() => sanitizeExternalUrl(coin.value?.referenceUrl))
 
 // T010: Deterministic media slot logic
 const obverseImage = computed(() => coin.value?.images?.find(i => i.imageType === 'obverse') ?? null)
@@ -325,28 +305,6 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
   gap: 0.5rem;
   margin-top: 0.75rem;
   flex-wrap: wrap;
-}
-
-.purchase-meta {
-  margin-bottom: 0.75rem;
-  color: var(--text-secondary);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.25rem;
-  font-style: italic;
-}
-
-.store-link {
-  color: var(--accent-gold);
-  font-size: 0.85rem;
-  text-decoration: none;
-  margin-left: 0.5rem;
-  white-space: nowrap;
-}
-
-.store-link:hover {
-  text-decoration: underline;
 }
 
 .inscriptions-section,

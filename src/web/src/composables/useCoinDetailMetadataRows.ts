@@ -4,6 +4,7 @@
 import { computed } from 'vue'
 import type { Coin, CoinDetailMetadataRow } from '@/types'
 import { formatCurrency } from '@/utils/format'
+import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 
 export function useCoinDetailMetadataRows(coin: Coin | null) {
   const rows = computed<CoinDetailMetadataRow[]>(() => {
@@ -100,6 +101,18 @@ export function useCoinDetailMetadataRows(coin: Coin | null) {
         key: 'rarity',
         label: 'Rarity / RIC',
         value: coin.rarityRating,
+      })
+    }
+
+    // Purchase location (full-width last row, optional link)
+    if (coin.purchaseLocation) {
+      const safeUrl = sanitizeExternalUrl(coin.referenceUrl)
+      result.push({
+        key: 'purchaseLocation',
+        label: '',
+        value: coin.purchaseLocation,
+        fullWidth: true,
+        url: safeUrl,
       })
     }
 
