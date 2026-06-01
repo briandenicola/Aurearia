@@ -4136,3 +4136,92 @@ Any new sections on CoinDetailPage should follow this pattern:
 **Verdict:** ✅ APPROVE — Type-check + lint pass clean. Ready for merge.
 
 ---
+
+---
+
+# Decision: Store Prefix Label in Purchase Location Row
+
+**Date:** 2026-06-01  
+**Agent:** Aurelia (Frontend Developer)  
+**Context:** Issue #219 metadata table refinement
+
+## Problem
+
+The coin detail metadata table's purchase location row displayed only the store name (with optional link). User requested adding a "Store: " prefix for better clarity and consistency with other labeled fields.
+
+## Decision
+
+Added conditional "Store: " prefix to the purchase location full-width row in `CoinDetailMetadataTable.vue`.
+
+**Implementation:**
+- Check `row.key === 'purchaseLocation'` to identify the purchase location row
+- Render `<span class="store-prefix">Store: </span>` before the store name/link
+- Prefix styling: `font-style: italic; color: var(--text-muted)` (matches full-width row styling)
+- Store name remains either plain text or `SafeExternalLink` depending on `row.url` presence
+- When linked, only the store name is clickable (gold accent) — prefix stays plain text
+
+**Files Changed:**
+- `src/web/src/components/coin/CoinDetailMetadataTable.vue` (template + styles)
+
+**Result:**
+Row now displays as:
+- No link: "Store: Example Dealer" (all italic, secondary text)
+- With link: "Store: " (italic muted) + "Example Dealer" (italic gold link)
+
+## Rationale
+
+- Provides clear context for the purchase location field
+- Maintains visual hierarchy: prefix is muted, store name/link is more prominent
+- Keeps all styling within the existing full-width row pattern (italic, design tokens)
+- No composable changes needed (row already has `key: 'purchaseLocation'`)
+
+## Validation
+
+- `npm run type-check` — pass
+- `npm run lint` — pass (no new warnings)
+- Design tokens: `--text-muted`, `--accent-gold`, `--accent-bronze`, `--text-secondary`
+
+---
+
+# Decision: Storage Location as Per-User Lookup Table
+
+**Date:** 2026-06-01  
+**Owner:** Maximus  
+**Status:** Proposed
+
+## Context
+
+Brian wants a new coin detail property, **Storage Location**, shown as a dropdown on the coin detail/edit form. Users must be able to define the available options themselves, similar to tags. Brian asked whether there is a structured way to handle this like the reference inventory/catalog pattern.
+
+## Findings
+
+- Tags are per-user (`Tag.UserID`) with uniqueness per user and are managed in Settings → Data (`SettingsDataSection.vue`). Tags attach to coins through the `CoinTag` many-to-many join table.
+- Structured numismatic references use `CoinReference` records plus `CatalogRegistry` for seeded, global catalog validation rules. `CatalogRegistry` is not user-scoped and is not currently exposed as a user-managed lookup list.
+- `AppSetting` is key-value admin configuration and is not appropriate for per-user collection metadata.
+
+## Decision
+
+Implement **Storage Location** as a dedicated, per-user lookup model:
+
+- `StorageLocation` table: `id`, `user_id`, `name`, optional `sort_order`, timestamps.
+- `Coin` gets nullable `storage_location_id` and a preloaded `StorageLocation` association.
+- One coin has zero or one storage location. This matches Brian's dropdown/single-select language and avoids tag-like many-to-many semantics.
+- Locations are user-owned, matching tags and coins.
+- Rename edits update the lookup row, so every coin using that location reflects the new name.
+- Deleting a referenced location should be blocked with `409 Conflict` by default unless a future explicit “remove from all coins” flow is added.
+
+## Rationale
+
+This preserves structured data and referential integrity while supporting user-defined options. It mirrors tags for user ownership and Settings-based management, but uses a single nullable FK instead of a join table because storage location is an attribute, not a classification set. The catalog registry pattern is useful conceptually—dedicated table plus repository/service validation—but its global seeded nature should not be reused directly for personal storage locations.
+
+## Implementation Scope
+
+Backend follows Constitution Principle I/II and the Add-a-New-API-Feature sequence: model → AutoMigrate → repository → service → handler → main.go routes → OpenAPI. Frontend adds types/API client methods, Settings management UI beside Tags, dropdown in `CoinForm.vue`, and detail display through metadata rows.
+
+## Edge Policy
+
+- Duplicate location names: reject case-insensitively per user.
+- Empty/too-long names: reject.
+- Delete while in use: reject with count/message.
+- Rename: allowed.
+- Ordering: start with `sort_order`, then `name ASC`; UI can expose manual ordering later.
