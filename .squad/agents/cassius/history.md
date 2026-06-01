@@ -18,6 +18,7 @@
 - **2026-06-01:** #218 external tool server foundational stack implemented: API key capabilities, enablement toggle, capability middleware, per-key rate limit, `/api/v1/tools` route group, handlers, OpenAPI discovery, and external commit journal metadata. Build/vet/test passed.
 - **2026-06-01:** Collection chat multi-container callback issue documented. `AGENT_INTERNAL_CALLBACK_URL` must point from agent container to API service (e.g. `http://coins:8080`), not default localhost; startup warning added for release+localhost.
 - **2026-06-01:** v1→v2 migration audit found only additive schema changes; AutoMigrate/backfill safe and rollback-safe.
+- **2026-06-01:** Frontend navigation convention established: parent hub pages (CoinDetailPage) with multiple child subpages use absolute `router.push('/')` to grandparent list view, not relative `router.back()`. Single-child forms (EditCoinPage) use `router.back()` after save. Subpages return to hub via `router.push('/coin/:id')` to allow continued exploration. This convention prevents history-stack pollution when users navigate through sibling subpages and avoids trapping users in subpage cycles (Aurelia fixed this in commit 6747a6d). Relevant for any backend feature that might create multi-child detail structures.
 
 ## Learnings
 

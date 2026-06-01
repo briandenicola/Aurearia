@@ -4671,3 +4671,237 @@ Implement as a guarded startup backfill in `src/api/database/database.go`, reusi
 - Once approved: Cassius to implement the backfill in the next batch.
 - Decision will move to **Accepted/Implemented** status after code lands.
 
+---
+
+# Decision: Coin Detail Back Navigation Pattern
+
+**Date:** 2026-06-01  
+**Agent:** Aurelia (Frontend Dev)  
+**Status:** IMPLEMENTED  
+**Commit:** 9ca10ea
+
+## Context
+
+Users reported that after editing a coin from the detail view, the "Back" button would incorrectly navigate to the Edit page instead of returning to the Gallery/collection view.
+
+**Reproduction:**
+1. Gallery → Coin Detail → Back: ✅ Returns to Gallery (correct)
+2. Gallery → Coin Detail → Edit → Save → Detail → Back: ❌ Lands on Edit page (wrong)
+
+## Root Cause
+
+The Edit page used `router.replace('/coin/:id')` after successful save. Vue Router interpreted this path-based replace as creating a NEW Detail entry rather than returning to the existing one in the history stack.
+
+**Resulting stack:**
+```
+[Gallery, Detail_original, Detail_new]
+```
+
+When the user clicked "Back" from `Detail_new`, `router.back()` correctly popped to `Detail_original`, which was still in the stack, creating the appearance of being stuck.
+
+## Decision
+
+Changed `EditCoinPage.vue` line 102 from:
+```typescript
+router.replace(`/coin/${coinId}`)
+```
+
+to:
+```typescript
+router.back()
+```
+
+## Rationale
+
+Using `router.back()` properly pops the Edit entry off the stack and returns to the original Detail entry that was pushed when the user navigated from Gallery to Detail. This preserves the natural navigation flow:
+
+**Correct stack after fix:**
+```
+Gallery → Detail → Edit (push)
+Edit → Detail (back, removes Edit)
+Detail → Gallery (back)
+```
+
+The pattern: **when a child form/edit view saves and should return to its parent, prefer `router.back()` over `router.replace()` to avoid creating duplicate parent entries in the history stack.**
+
+## Alternatives Considered
+
+1. **Use `router.replace({ name: 'coin-detail', params: { id } })`** — Would still create a new Detail entry; doesn't solve the root issue.
+2. **Change Detail's Back button to explicit Gallery navigation** — Would break deep-linking (landing directly on Detail URL) and violate expected browser back-button semantics.
+3. **Track entry point in state and navigate accordingly** — Overcomplicated; `router.back()` is the idiomatic Vue Router solution.
+
+## Impact
+
+- ✅ Fixes the reported navigation bug
+- ✅ Preserves correct behavior for deep-linked Detail URLs
+- ✅ Maintains consistency with Cancel button (already uses `$router.back()`)
+- ✅ No breaking changes to other navigation flows
+
+## Verification
+
+- `npm run type-check` — ✅ passes (vue-tsc --build)
+- `npm run build` — ✅ passes  
+- `npm run lint` — ✅ passes (5 pre-existing warnings unrelated)
+- Manual trace through both navigation paths confirms correct stack behavior
+
+## Related Patterns
+
+- **Section pages** (journal, health, notes, actions, analysis) use explicit `router.push('/coin/:id')` via `navigateToOverview()` composable — correct, as these are sibling pages, not parent-child
+- **CoinForm Cancel button** uses `$router.back()` — consistent with this fix
+- **Detail page Back button** uses `router.back()` — relies on correct stack maintenance
+
+## Constitution Compliance
+
+- **Principle IV (Strict Typing & Build Parity):** vue-tsc --build passes
+- **Principle IX (UI/UX Consistency):** Preserves expected back-button behavior across the app
+
+---
+
+# Decision: Coin Detail Back Button Uses Absolute Gallery Navigation
+
+**Date:** 2026-06-01  
+**Agent:** Aurelia  
+**Status:** SHIPPED  
+**Commit:** 6747a6d  
+
+## Context
+
+After fixing the EditCoinPage→CoinDetail back navigation bug with `router.back()`, a new instance of the same class of bug appeared: when users navigate from Coin Details to a subpage (journal, health, analysis, notes, actions), click "Back to Overview" on that subpage (which pushes back to Detail), then click the Detail page's "Back" button, `router.back()` incorrectly pops them to the subpage instead of the gallery.
+
+**Navigation flow that exposed the bug:**
+1. Gallery → Coin Detail (push)
+2. Coin Detail → Journal (push)
+3. Journal → Coin Detail via "Back to Overview" (push — adds another Detail entry)
+4. Coin Detail → Back button (router.back() — pops to Journal instead of Gallery)
+
+**Stack state after step 3:** `[Gallery, Detail_1, Journal, Detail_2]`
+
+When the user clicks Back on `Detail_2`, `router.back()` returns to Journal, not Gallery.
+
+## Decision
+
+Changed the Coin Detail page's "Back" button in `CoinDetailHeaderActions.vue`:
+- **Label:** "Back" → "Back to Gallery"
+- **Action:** `router.back()` → `router.push('/')`
+
+## Rationale
+
+**Parent pages with multiple child subpages should use absolute nav to their list view, not `router.back()`.**
+
+The EditCoinPage fix (using `router.back()` for child→parent after save) was correct for **single-child** scenarios where the child must not leave itself in the stack. But Coin Detail is a **hub page** with multiple siblings/children (journal, health, analysis, edit, etc.). The "Back to Overview" buttons on subpages correctly push back to Detail to allow continued subpage exploration. This means the Detail page's own back button can't rely on relative history — it must always navigate absolutely to the gallery.
+
+## Implementation
+
+**File:** `src/web/src/components/coin/CoinDetailHeaderActions.vue`
+
+```diff
+- <button class="btn btn-secondary btn-sm" @click="router.back()">← Back</button>
++ <button class="btn btn-secondary btn-sm" @click="router.push('/')">← Back to Gallery</button>
+```
+
+## Verification
+
+- `npm run type-check` — pass
+- `npm run build` — pass
+- Manual flow: Gallery → Detail → Journal → Back to Overview → Back to Gallery — ✅ correct
+
+## Pattern for Future Reference
+
+- **Child form pages** (EditCoinPage, AddCoinPage) → use `router.back()` after save to pop cleanly
+- **Parent hub pages** (CoinDetailPage) with multiple child subpages → use absolute `router.push()` to grandparent list view
+- **Subpages returning to hub** ("Back to Overview") → use `router.push('/coin/:id')` to allow continued exploration without trapping the user
+
+## Related
+
+- Prior fix: EditCoinPage back-nav bug (commit 9ca10ea)
+- Skill: `.squad/skills/vue-router-parent-child-navigation/SKILL.md` (updated)
+
+---
+
+# Decision: Per-Coin Metadata Health Endpoint
+
+**Agent:** Cassius (Backend Developer)  
+**Date:** 2026-06-01  
+**Commit:** 5bd36e9  
+**Status:** Shipped
+
+## Problem
+
+The Metadata Health subpage on Coin Detail (`/coin/:id/health`) always showed "No health data available for this coin yet." even for existing coins with complete metadata. A screenshot from Brian showed a real coin (Alexios III Angelus Komneus) displaying the empty-state message instead of its health score and missing-items checklist.
+
+Root cause: The frontend called `getCoinHealthList({ page: 1, limit: 1000 })` (a paginated endpoint) and then filtered client-side for `c.coinId === coinId`. If the collection had more than 1000 coins or the target coin wasn't on that page, the filter found nothing → "No health data available."
+
+This approach was fundamentally fragile and inefficient (fetching ALL coins just to get one coin's health).
+
+## Solution
+
+Added a user-scoped single-coin health endpoint: `GET /coins/:id/health` (protected group, JWT required).
+
+### Backend Implementation
+
+**Repository (`repository/health_repository.go`):**
+- `GetSingleEligibleCoin(coinID, userID uint) (*EligibleCoinRow, error)` — fetches one coin's health data using the `ActiveCollection(userID)` scope (non-wishlist, non-sold, user-owned), same SELECT clause as the list query (includes subqueries for `image_count`, `primary_image_count`).
+
+**Service (`services/health_service.go`):**
+- `GetCoinHealth(coinID, userID uint) (*CoinHealthItem, error)` — reuses ALL existing scoring logic:
+  - `scoreCoinMetadata(row)` — 7 fields (denomination, ruler, era, mint, category, material, grade), 0-100
+  - `scoreCoinImages(row)` — image_count: 0=0, 1=50, ≥2=100
+  - `scoreCoinValuationFreshness(row)` — current_value + purchase_date age: ≤30d=100, ≤90d=80, ≤180d=60, ≤365d=35, >365d=0
+  - `scoreCoinAICoverage(row)` — ai_analysis, obverse_analysis, reverse_analysis: 0=0, 1=33, 2=66, 3=100
+  - `computeWeightedScore(metadata, image, valuation, ai)` — weighted average (metadata 40%, image 20%, valuation 20%, AI 20%)
+  - `generateCoinChecklist(row)` — missing-items checklist (dimension, label, severity, actionHint)
+  - `extractQuickActions(checklist)` — unique action hints for quick-fix buttons
+- Returns the same `CoinHealthItem` shape the list endpoint uses (coinId, title, score, grade, dimensions, missingItems, quickActions).
+
+**Handler (`handlers/health.go`):**
+- `GetCoinHealth(c *gin.Context)` — thin handler:
+  - Extracts `userID` from JWT context
+  - Parses `coinID` from URL param (validates integer)
+  - Calls `healthSvc.GetCoinHealth(coinID, userID)`
+  - Returns 404 "Coin not found or not in active collection" if GORM returns `ErrRecordNotFound` (coin doesn't exist, is wishlist/sold, or isn't the user's)
+  - Returns 200 with `CoinHealthItem` JSON
+- Swagger annotation: `@Summary Get metadata health for a single coin`, `@Security BearerAuth`, `@Param id path int true "Coin ID"`, `@Success 200 {object} services.CoinHealthItem`
+
+**Route Wiring (`main.go`):**
+- `protected.GET("/coins/:id/health", healthHandler.GetCoinHealth)` — placed after `GET /coins/health` (list) to avoid route collision
+
+### Frontend Implementation
+
+**API Client (`src/web/src/api/client.ts`):**
+- Added `getCoinHealth(coinId: number)` function: `api.get<CoinHealthItem>(\`/coins/${coinId}/health\`)`
+- Added `CoinHealthItem` to the types import list (was exported from `@/types` but missing from the import)
+
+**Coin Detail Health Page (`src/web/src/pages/CoinDetailHealthPage.vue`):**
+- Replaced `getCoinHealthList({ page: 1, limit: 1000 })` + client-side filter with direct `getCoinHealth(coinId)` call
+- Same loading/error/empty-state logic (only shows empty state when the API genuinely returns null, which for an existing owned coin should never happen since health is computed)
+- No changes to `CoinHealthChecklist.vue` component (already expects `score`, `grade`, `missingItems` props)
+
+## Architecture Compliance
+
+- **Principle I (Layered Architecture):** Handler → Service → Repository → Database. Health computation logic stays in service layer, repository encapsulates GORM query.
+- **Principle VII (Schema-Driven Contracts):** Swagger annotation on handler, OpenAPI artifacts regenerated.
+- **Principle XI (Security Hardening):** User ownership validated via `ActiveCollection(userID)` scope; returns 404 (not 403) if coin isn't found/owned to avoid leaking existence.
+
+## Key Insights
+
+1. **Health is COMPUTED, not stored:** Every active collection coin has a score/grade/checklist (even if score=0). The data is derived from coin fields on-the-fly, so the endpoint never returns "no data" for an existing owned coin.
+2. **Scope reuse:** `ActiveCollection(userID)` scope (`is_wishlist=false AND is_sold=false AND user_id=userID`) is the canonical filter for all health queries. Reusing it ensures consistent ownership validation.
+3. **Scoring logic reuse:** The single-coin endpoint calls the exact same scoring functions (`scoreCoinMetadata`, `scoreCoinImages`, etc.) that the list endpoint uses. No logic duplication, no drift risk.
+4. **Empty-state semantics:** The "No health data available" message should only show for wishlist/sold coins (which are explicitly excluded by the scope). For active collection coins, there is always a score.
+
+## Verification
+
+- Backend: `go build ./...`, `go vet ./...`, `go test ./...` — all pass including `architecture_test.go` (TestNoDirectDatabaseImports)
+- Frontend: `npm run build` — type-check + vite build pass
+- Pre-push hook: OpenAPI artifacts regenerated (`task openapi`), committed with `docs.go`, `swagger.json`, `swagger.yaml`, `docs/openapi.json`
+
+## Related Work
+
+- Aurelia is concurrently fixing a SEPARATE navigation bug touching `src/web/src/router/index.ts`, the Coin Detail page's back button, and the Coin Edit page. This fix deliberately avoided those files to prevent merge conflicts.
+- If the health subpage still shows empty state after this fix, the coin is either wishlist/sold (intentional behavior) or there's a different bug (e.g., routing, component lifecycle). The API now reliably returns health data for all active collection coins.
+
+## Future Considerations
+
+- Consider adding per-coin health to the main coin detail response (preload health data when fetching `GET /coins/:id`) to avoid an extra round-trip. Current implementation is acceptable (one extra call per health subpage view) but could be optimized if the health subpage becomes a primary navigation target.
+- If the collection grows to 10,000+ coins, the `getCoinHealthList` endpoint's pagination logic (page/limit) will be essential. The new per-coin endpoint bypasses that concern but doesn't replace the list endpoint (which powers the standalone Health List view).
+
