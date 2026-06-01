@@ -17,9 +17,9 @@
 
 **Purpose**: Introduce shared constants/types/styles needed by all story phases.
 
-- [ ] T001 Create coin detail section constants in `src/web/src/constants/coinDetailSections.ts`
-- [ ] T002 [P] Add section link and metadata-row view types in `src/web/src/types/index.ts`
-- [ ] T003 [P] Add shared table-row and settings-link utility styles in `src/web/src/assets/styles/main.css`
+- [x] T001 Create coin detail section constants in `src/web/src/constants/coinDetailSections.ts`
+- [x] T002 [P] Add section link and metadata-row view types in `src/web/src/types/index.ts`
+- [x] T003 [P] Add shared table-row and settings-link utility styles in `src/web/src/assets/styles/main.css`
 
 ---
 
@@ -29,11 +29,11 @@
 
 **⚠️ CRITICAL**: Complete this phase before starting user story implementation.
 
-- [ ] T004 Add authenticated detail subsection routes (`/coin/:id/journal`, `/coin/:id/notes`, `/coin/:id/actions`, `/coin/:id/analysis`) in `src/web/src/router/index.ts`
-- [ ] T005 Create reusable section links component in `src/web/src/components/coin/CoinDetailSectionLinks.vue`
-- [ ] T006 Create reusable metadata table component in `src/web/src/components/coin/CoinDetailMetadataTable.vue`
-- [ ] T007 Create shared coin detail context composable for coin loading and section page reuse in `src/web/src/composables/useCoinDetailContext.ts`
-- [ ] T008 Create shared section page shell component in `src/web/src/components/coin/CoinDetailSectionPageShell.vue`
+- [x] T004 Add authenticated detail subsection routes (`/coin/:id/journal`, `/coin/:id/notes`, `/coin/:id/actions`, `/coin/:id/analysis`) in `src/web/src/router/index.ts`
+- [x] T005 Create reusable section links component in `src/web/src/components/coin/CoinDetailSectionLinks.vue`
+- [x] T006 Create reusable metadata table component in `src/web/src/components/coin/CoinDetailMetadataTable.vue`
+- [x] T007 Create shared coin detail context composable for coin loading and section page reuse in `src/web/src/composables/useCoinDetailContext.ts`
+- [x] T008 Create shared section page shell component in `src/web/src/components/coin/CoinDetailSectionPageShell.vue`
 
 **Checkpoint**: Foundation complete — user story work can begin.
 
@@ -45,11 +45,11 @@
 
 **Independent Test**: Open `/coin/{id}` for coins with two images, one image, and no images; verify dual-slot default rendering and PWA-safe behavior.
 
-- [ ] T009 [US1] Refactor overview media area to always render obverse/reverse slots by default in `src/web/src/pages/CoinDetailPage.vue`
-- [ ] T010 [US1] Add deterministic missing-side placeholder logic for hero slots in `src/web/src/pages/CoinDetailPage.vue`
-- [ ] T011 [P] [US1] Add hero media grid and fallback style rules for desktop/PWA in `src/web/src/assets/styles/main.css`
-- [ ] T012 [US1] Apply new hero hierarchy classes (title/subtitle/ownership chip) in `src/web/src/pages/CoinDetailPage.vue`
-- [ ] T013 [US1] Preserve non-sticky PWA behavior while keeping desktop behavior intact in `src/web/src/pages/CoinDetailPage.vue`
+- [x] T009 [US1] Refactor overview media area to always render obverse/reverse slots by default in `src/web/src/pages/CoinDetailPage.vue`
+- [x] T010 [US1] Add deterministic missing-side placeholder logic for hero slots in `src/web/src/pages/CoinDetailPage.vue`
+- [x] T011 [P] [US1] Add hero media grid and fallback style rules for desktop/PWA in `src/web/src/assets/styles/main.css`
+- [x] T012 [US1] Apply new hero hierarchy classes (title/subtitle/ownership chip) in `src/web/src/pages/CoinDetailPage.vue`
+- [x] T013 [US1] Preserve non-sticky PWA behavior while keeping desktop behavior intact in `src/web/src/pages/CoinDetailPage.vue`
 
 **Checkpoint**: Overview defaults to dual-side media and is independently reviewable.
 
@@ -61,11 +61,11 @@
 
 **Independent Test**: Open `/coin/{id}` and verify metadata displays as consistent label/value rows with proper empty-value handling across desktop and PWA.
 
-- [ ] T014 [P] [US2] Implement row schema rendering and label/value row structure in `src/web/src/components/coin/CoinDetailMetadataTable.vue`
-- [ ] T015 [P] [US2] Implement metadata row mapping/formatting helper (dates, units, fallbacks) in `src/web/src/composables/useCoinDetailMetadataRows.ts`
-- [ ] T016 [US2] Replace `CoinInfoGrid` usage with `CoinDetailMetadataTable` in `src/web/src/pages/CoinDetailPage.vue`
-- [ ] T017 [US2] Remove legacy boxed-info layout hooks from overview in `src/web/src/pages/CoinDetailPage.vue`
-- [ ] T018 [US2] Tune responsive spacing/typography for table rows in `src/web/src/assets/styles/main.css`
+- [x] T014 [P] [US2] Implement row schema rendering and label/value row structure in `src/web/src/components/coin/CoinDetailMetadataTable.vue`
+- [x] T015 [P] [US2] Implement metadata row mapping/formatting helper (dates, units, fallbacks) in `src/web/src/composables/useCoinDetailMetadataRows.ts`
+- [x] T016 [US2] Replace `CoinInfoGrid` usage with `CoinDetailMetadataTable` in `src/web/src/pages/CoinDetailPage.vue`
+- [x] T017 [US2] Remove legacy boxed-info layout hooks from overview in `src/web/src/pages/CoinDetailPage.vue`
+- [x] T018 [US2] Tune responsive spacing/typography for table rows in `src/web/src/assets/styles/main.css`
 
 **Checkpoint**: Overview metadata is fully table-based and independently reviewable.
 
@@ -77,13 +77,13 @@
 
 **Independent Test**: Navigate from `/coin/{id}` to each section page and direct-load each URL; verify section content works and back navigation returns to overview context.
 
-- [ ] T019 [US3] Replace inline section blocks with settings-style section links in `src/web/src/pages/CoinDetailPage.vue`
-- [ ] T020 [US3] Implement journal section page using existing journal capabilities in `src/web/src/pages/CoinDetailJournalPage.vue`
-- [ ] T021 [P] [US3] Implement notes section page with existing note behavior in `src/web/src/pages/CoinDetailNotesPage.vue`
-- [ ] T022 [P] [US3] Implement actions section page using `CoinActionsPanel` in `src/web/src/pages/CoinDetailActionsPage.vue`
-- [ ] T023 [P] [US3] Implement analysis section page using `CoinAIAnalysis` in `src/web/src/pages/CoinDetailAnalysisPage.vue`
-- [ ] T024 [US3] Wire section pages to shared coin detail context and route params in `src/web/src/composables/useCoinDetailContext.ts`
-- [ ] T025 [US3] Remove relocated section state/imports from overview page in `src/web/src/pages/CoinDetailPage.vue`
+- [x] T019 [US3] Replace inline section blocks with settings-style section links in `src/web/src/pages/CoinDetailPage.vue`
+- [x] T020 [US3] Implement journal section page using existing journal capabilities in `src/web/src/pages/CoinDetailJournalPage.vue`
+- [x] T021 [P] [US3] Implement notes section page with existing note behavior in `src/web/src/pages/CoinDetailNotesPage.vue`
+- [x] T022 [P] [US3] Implement actions section page using `CoinActionsPanel` in `src/web/src/pages/CoinDetailActionsPage.vue`
+- [x] T023 [P] [US3] Implement analysis section page using `CoinAIAnalysis` in `src/web/src/pages/CoinDetailAnalysisPage.vue`
+- [x] T024 [US3] Wire section pages to shared coin detail context and route params in `src/web/src/composables/useCoinDetailContext.ts`
+- [x] T025 [US3] Remove relocated section state/imports from overview page in `src/web/src/pages/CoinDetailPage.vue`
 
 **Checkpoint**: Section pages are route-driven and independently functional.
 
@@ -93,9 +93,9 @@
 
 **Purpose**: Final cleanup, validation, and removal of preview-only scaffolding.
 
-- [ ] T026 [P] Remove preview-only routes/pages after approval in `src/web/src/router/index.ts`, `src/web/src/pages/CoinDetailPreviewPage.vue`, and `src/web/src/pages/CoinDetailPreviewSectionPage.vue`
-- [ ] T027 [P] Update validation walkthrough for final route surface in `specs/219-refine-coin-details-page/quickstart.md`
-- [ ] T028 Run frontend production build/type-check workflow defined in `src/web/package.json`
+- [x] T026 [P] Remove preview-only routes/pages after approval in `src/web/src/router/index.ts`, `src/web/src/pages/CoinDetailPreviewPage.vue`, and `src/web/src/pages/CoinDetailPreviewSectionPage.vue`
+- [x] T027 [P] Update validation walkthrough for final route surface in `specs/219-refine-coin-details-page/quickstart.md`
+- [x] T028 Run frontend production build/type-check workflow defined in `src/web/package.json`
 
 ---
 
