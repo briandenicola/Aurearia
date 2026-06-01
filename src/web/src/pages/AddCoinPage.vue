@@ -51,33 +51,44 @@
               <p>Camera starting...</p>
             </div>
             <div v-if="cameraError" class="camera-error-banner">{{ cameraError }}</div>
+            
+            <!-- Circular focus-guide overlay (only when camera active) -->
+            <div v-if="cameraStream !== null" class="focus-overlay">
+              <div class="focus-mask"></div>
+              <div class="focus-ring"></div>
+              <p class="focus-instruction">Focus one coin in the circle</p>
+            </div>
           </div>
 
           <div class="capture-slots">
-            <div class="capture-slot" :class="{ filled: obverseFile, next: nextCaptureTarget === 'obverse' }">
-              <div v-if="obverseFile" class="slot-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(obverseFile)})` }">
-                <button type="button" class="slot-clear-btn" @click="clearCapturedImage('obverse')" aria-label="Clear obverse">×</button>
+            <div class="capture-tile" :class="{ filled: obverseFile, active: nextCaptureTarget === 'obverse' }">
+              <div v-if="obverseFile" class="tile-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(obverseFile)})` }">
+                <button type="button" class="tile-clear-btn" @click="clearCapturedImage('obverse')" aria-label="Clear obverse">×</button>
               </div>
-              <div v-else class="slot-empty">
-                <span class="slot-label">Obverse</span>
-              </div>
-            </div>
-
-            <div class="capture-slot" :class="{ filled: reverseFile, next: nextCaptureTarget === 'reverse' }">
-              <div v-if="reverseFile" class="slot-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(reverseFile)})` }">
-                <button type="button" class="slot-clear-btn" @click="clearCapturedImage('reverse')" aria-label="Clear reverse">×</button>
-              </div>
-              <div v-else class="slot-empty">
-                <span class="slot-label">Reverse</span>
+              <div v-else class="tile-empty">
+                <span class="tile-dot"></span>
+                <span class="tile-label">Obverse</span>
               </div>
             </div>
 
-            <div class="capture-slot optional" :class="{ filled: cardFile, next: nextCaptureTarget === 'card' }">
-              <div v-if="cardFile" class="slot-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(cardFile)})` }">
-                <button type="button" class="slot-clear-btn" @click="clearCapturedImage('card')" aria-label="Clear card">×</button>
+            <div class="capture-tile" :class="{ filled: reverseFile, active: nextCaptureTarget === 'reverse' }">
+              <div v-if="reverseFile" class="tile-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(reverseFile)})` }">
+                <button type="button" class="tile-clear-btn" @click="clearCapturedImage('reverse')" aria-label="Clear reverse">×</button>
               </div>
-              <div v-else class="slot-empty">
-                <span class="slot-label">Card (Opt)</span>
+              <div v-else class="tile-empty">
+                <span class="tile-dot"></span>
+                <span class="tile-label">Reverse</span>
+              </div>
+            </div>
+
+            <div class="capture-tile" :class="{ filled: cardFile, active: nextCaptureTarget === 'card' }">
+              <span class="tile-opt-badge">Opt</span>
+              <div v-if="cardFile" class="tile-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(cardFile)})` }">
+                <button type="button" class="tile-clear-btn" @click="clearCapturedImage('card')" aria-label="Clear card">×</button>
+              </div>
+              <div v-else class="tile-empty">
+                <span class="tile-dot"></span>
+                <span class="tile-label">Card</span>
               </div>
             </div>
           </div>
@@ -111,13 +122,13 @@
             >
               Generate Intake Draft
             </button>
-            <a
-              href="#"
+            <button
+              type="button"
               class="manual-mode-link"
-              @click.prevent="switchToManualMode"
+              @click="switchToManualMode"
             >
-              Use Manual Mode instead
-            </a>
+              Use manual mode instead
+            </button>
           </div>
           <p v-if="intakeError" class="status-text status-warning">{{ intakeError }}</p>
         </div>
@@ -806,7 +817,7 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-sm);
   overflow: hidden;
   background: #000;
-  border: 2px solid var(--border-subtle);
+  border: 1px solid var(--border-subtle);
 }
 
 .camera-preview {
@@ -836,46 +847,110 @@ onBeforeUnmount(() => {
   padding: 0.5rem 0.75rem;
   font-size: 0.8rem;
   text-align: center;
+  z-index: 10;
+}
+
+/* Circular focus-guide overlay */
+.focus-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.focus-mask {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 52%,
+    transparent 0%,
+    transparent 36%,
+    rgba(10, 12, 20, 0.2) 37%,
+    rgba(10, 12, 20, 0.62) 100%
+  );
+}
+
+.focus-ring {
+  position: absolute;
+  top: 52%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 74%;
+  max-width: 360px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+}
+
+.focus-instruction {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 20px);
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: center;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+  margin: 0;
 }
 
 .capture-slots {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 0.5rem;
-  justify-content: center;
 }
 
-.capture-slot {
-  width: 5rem;
-  height: 5rem;
-  border-radius: var(--radius-full);
-  border: 2px solid var(--border-subtle);
-  overflow: hidden;
-  background: var(--bg-input);
+.capture-tile {
   position: relative;
-  transition: border-color var(--transition-fast);
+  min-height: 5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+  background: var(--bg-card);
+  transition: all var(--transition-fast);
 }
 
-.capture-slot.next {
+.capture-tile.active {
+  background: var(--accent-gold-glow);
   border-color: var(--accent-gold);
-  box-shadow: 0 0 0 2px var(--accent-gold-focus);
 }
 
-.capture-slot.optional {
-  opacity: 0.7;
+.capture-tile.filled {
+  min-height: 6rem;
 }
 
-.slot-thumbnail {
+.tile-opt-badge {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  background: var(--bg-input);
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-sm);
+  z-index: 2;
+}
+
+.tile-thumbnail {
   width: 100%;
   height: 100%;
+  min-height: 6rem;
   background-size: cover;
   background-position: center;
   position: relative;
 }
 
-.slot-clear-btn {
+.tile-clear-btn {
   position: absolute;
-  top: 0.15rem;
-  right: 0.15rem;
+  top: 0.35rem;
+  right: 0.35rem;
   width: 1.5rem;
   height: 1.5rem;
   border-radius: 50%;
@@ -889,21 +964,38 @@ onBeforeUnmount(() => {
   font-size: 1.2rem;
   line-height: 1;
   transition: background var(--transition-fast);
+  z-index: 2;
 }
 
-.slot-clear-btn:hover {
+.tile-clear-btn:hover {
   background: var(--error-bg);
 }
 
-.slot-empty {
+.tile-empty {
   width: 100%;
   height: 100%;
+  min-height: 5rem;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.35rem;
 }
 
-.slot-label {
+.tile-dot {
+  display: block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: background var(--transition-fast);
+}
+
+.capture-tile.active .tile-dot {
+  background: var(--accent-gold);
+}
+
+.tile-label {
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -923,19 +1015,19 @@ onBeforeUnmount(() => {
   height: 4rem;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
-  border: 3px solid var(--border-white-dim);
+  border: 2px solid var(--border-white-dim);
   color: #000;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all var(--transition-fast);
-  box-shadow: var(--shadow-gold-soft);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .shutter-btn:hover:not(:disabled) {
   transform: scale(1.05);
-  box-shadow: var(--shadow-gold-hover);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .shutter-btn:disabled {
@@ -975,10 +1067,18 @@ onBeforeUnmount(() => {
 }
 
 .manual-mode-link {
-  display: inline-block;
-  color: var(--accent-gold);
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
   font-size: 0.8rem;
-  text-decoration: underline;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  padding: 0.25rem 0;
+  transition: color var(--transition-fast);
+}
+
+.manual-mode-link:hover {
+  color: var(--text-secondary);
 }
 
 .intake-card {
