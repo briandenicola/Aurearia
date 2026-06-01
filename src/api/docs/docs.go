@@ -276,6 +276,207 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/catalogs": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new catalog registry entry.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalogs"
+                ],
+                "summary": "Create catalog",
+                "parameters": [
+                    {
+                        "description": "Catalog data",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.catalogCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.CatalogRegistry"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/catalogs/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates an existing catalog registry entry.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalogs"
+                ],
+                "summary": "Update catalog",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Catalog data",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.catalogUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.CatalogRegistry"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes a catalog registry entry if not in use.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalogs"
+                ],
+                "summary": "Delete catalog",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Catalog ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/coin-of-day/run": {
             "post": {
                 "security": [
@@ -2682,6 +2883,43 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/catalogs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all catalog registry entries.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalogs"
+                ],
+                "summary": "List catalogs",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.catalogListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -6463,9 +6701,6 @@ const docTemplate = `{
                 "catalog": {
                     "type": "string"
                 },
-                "certainty": {
-                    "type": "string"
-                },
                 "number": {
                     "type": "string"
                 },
@@ -6547,10 +6782,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "RIC"
                 },
-                "certainty": {
-                    "type": "string",
-                    "example": "probable"
-                },
                 "coinId": {
                     "type": "integer",
                     "example": 1
@@ -6562,6 +6793,10 @@ const docTemplate = `{
                 "id": {
                     "type": "integer",
                     "example": 42
+                },
+                "invoiceNumber": {
+                    "type": "string",
+                    "example": "INV-2024-001"
                 },
                 "number": {
                     "type": "string",
@@ -6588,9 +6823,9 @@ const docTemplate = `{
                     "type": "string",
                     "example": "RIC"
                 },
-                "certainty": {
+                "invoiceNumber": {
                     "type": "string",
-                    "example": "probable"
+                    "example": "INV-2024-001"
                 },
                 "number": {
                     "type": "string",
@@ -7293,6 +7528,61 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.catalogCreateRequest": {
+            "type": "object",
+            "required": [
+                "catalog",
+                "displayName",
+                "era"
+            ],
+            "properties": {
+                "catalog": {
+                    "type": "string"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "era": {
+                    "$ref": "#/definitions/models.Era"
+                },
+                "volumeRequired": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handlers.catalogListResponse": {
+            "type": "object",
+            "properties": {
+                "catalogs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.CatalogRegistry"
+                    }
+                }
+            }
+        },
+        "handlers.catalogUpdateRequest": {
+            "type": "object",
+            "required": [
+                "catalog",
+                "displayName",
+                "era"
+            ],
+            "properties": {
+                "catalog": {
+                    "type": "string"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "era": {
+                    "$ref": "#/definitions/models.Era"
+                },
+                "volumeRequired": {
+                    "type": "boolean"
+                }
+            }
+        },
         "handlers.generateApiKeyRequest": {
             "type": "object",
             "required": [
@@ -7594,6 +7884,38 @@ const docTemplate = `{
                 "AuctionStatusPassed"
             ]
         },
+        "models.CatalogRegistry": {
+            "type": "object",
+            "required": [
+                "catalog",
+                "displayName"
+            ],
+            "properties": {
+                "catalog": {
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "displayName": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "era": {
+                    "$ref": "#/definitions/models.Era"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "volumeRequired": {
+                    "type": "boolean"
+                }
+            }
+        },
         "models.Category": {
             "type": "string",
             "enum": [
@@ -7831,10 +8153,6 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 32
                 },
-                "certainty": {
-                    "type": "string",
-                    "maxLength": 32
-                },
                 "coinId": {
                     "type": "integer"
                 },
@@ -7843,6 +8161,10 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "invoiceNumber": {
+                    "type": "string",
+                    "maxLength": 64
                 },
                 "number": {
                     "type": "string",

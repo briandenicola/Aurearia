@@ -116,8 +116,6 @@ definitions:
     properties:
       catalog:
         type: string
-      certainty:
-        type: string
       number:
         type: string
       uri:
@@ -174,9 +172,6 @@ definitions:
       catalog:
         example: RIC
         type: string
-      certainty:
-        example: probable
-        type: string
       coinId:
         example: 1
         type: integer
@@ -186,6 +181,9 @@ definitions:
       id:
         example: 42
         type: integer
+      invoiceNumber:
+        example: INV-2024-001
+        type: string
       number:
         example: "234"
         type: string
@@ -204,8 +202,8 @@ definitions:
       catalog:
         example: RIC
         type: string
-      certainty:
-        example: probable
+      invoiceNumber:
+        example: INV-2024-001
         type: string
       number:
         example: "234"
@@ -682,6 +680,43 @@ definitions:
     - fileExtension
     - image
     type: object
+  handlers.catalogCreateRequest:
+    properties:
+      catalog:
+        type: string
+      displayName:
+        type: string
+      era:
+        $ref: '#/definitions/models.Era'
+      volumeRequired:
+        type: boolean
+    required:
+    - catalog
+    - displayName
+    - era
+    type: object
+  handlers.catalogListResponse:
+    properties:
+      catalogs:
+        items:
+          $ref: '#/definitions/models.CatalogRegistry'
+        type: array
+    type: object
+  handlers.catalogUpdateRequest:
+    properties:
+      catalog:
+        type: string
+      displayName:
+        type: string
+      era:
+        $ref: '#/definitions/models.Era'
+      volumeRequired:
+        type: boolean
+    required:
+    - catalog
+    - displayName
+    - era
+    type: object
   handlers.generateApiKeyRequest:
     properties:
       name:
@@ -886,6 +921,28 @@ definitions:
     - AuctionStatusWon
     - AuctionStatusLost
     - AuctionStatusPassed
+  models.CatalogRegistry:
+    properties:
+      catalog:
+        maxLength: 32
+        type: string
+      createdAt:
+        type: string
+      displayName:
+        maxLength: 128
+        type: string
+      era:
+        $ref: '#/definitions/models.Era'
+      id:
+        type: integer
+      updatedAt:
+        type: string
+      volumeRequired:
+        type: boolean
+    required:
+    - catalog
+    - displayName
+    type: object
   models.Category:
     enum:
     - Roman
@@ -1047,15 +1104,15 @@ definitions:
       catalog:
         maxLength: 32
         type: string
-      certainty:
-        maxLength: 32
-        type: string
       coinId:
         type: integer
       createdAt:
         type: string
       id:
         type: integer
+      invoiceNumber:
+        maxLength: 64
+        type: string
       number:
         maxLength: 128
         type: string
@@ -1493,6 +1550,135 @@ paths:
       summary: Get availability run detail
       tags:
       - Admin
+  /admin/catalogs:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new catalog registry entry.
+      parameters:
+      - description: Catalog data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.catalogCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.CatalogRegistry'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create catalog
+      tags:
+      - Catalogs
+  /admin/catalogs/{id}:
+    delete:
+      description: Deletes a catalog registry entry if not in use.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete catalog
+      tags:
+      - Catalogs
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing catalog registry entry.
+      parameters:
+      - description: Catalog ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Catalog data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.catalogUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.CatalogRegistry'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update catalog
+      tags:
+      - Catalogs
   /admin/coin-of-day/run:
     post:
       description: Picks one coin per opted-in user and sends notifications. Runs
@@ -3060,6 +3246,29 @@ paths:
       summary: Finish WebAuthn registration
       tags:
       - WebAuthn
+  /catalogs:
+    get:
+      description: Returns all catalog registry entries.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.catalogListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List catalogs
+      tags:
+      - Catalogs
   /coins:
     get:
       description: Returns a paginated, filterable list of coins belonging to the
