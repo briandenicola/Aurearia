@@ -80,6 +80,37 @@ Use `replace` only when you want to **replace the current entry** without being 
 - Login → Dashboard (don't allow back to login after authenticated)
 - Redirect flows (e.g., `/process-image` → `/settings?tab=process`)
 
+### ⚠️ Hub Pages with Multiple Subpages: Use Absolute Navigation
+
+**NEW (2026-06-01):** When a parent page has multiple child subpages that return via "Back to Overview" buttons, the parent's own back button **must use absolute navigation** to avoid history pollution.
+
+**Problem:** Subpages correctly use `router.push('/coin/:id')` to return to the parent hub, allowing continued exploration. This adds the hub page to the stack multiple times. If the hub's back button uses `router.back()`, it pops to the most recent subpage instead of the grandparent list.
+
+**Example:** Coin Detail page with journal/health/analysis subpages:
+
+```typescript
+// ❌ WRONG: CoinDetailHeaderActions.vue
+<button @click="router.back()">← Back</button>
+
+// Stack after Gallery → Detail → Journal → "Back to Overview":
+// [Gallery, Detail_1, Journal, Detail_2]
+// Clicking Back on Detail_2 goes to Journal ❌
+
+// ✅ CORRECT: Use absolute navigation to gallery
+<button @click="router.push('/')">← Back to Gallery</button>
+
+// Now Back always goes to Gallery regardless of subpage history ✅
+```
+
+**When to apply this pattern:**
+- Parent page is a **hub** with multiple child subpages (detail sections, settings tabs, etc.)
+- Subpages use "Back to Overview" buttons that push back to the hub
+- Hub's back button should always return to a specific grandparent (gallery, list, etc.)
+
+**Implementation (commit 6747a6d):**
+- `CoinDetailHeaderActions.vue` changed from `router.back()` to `router.push('/')`
+- Button label changed from "Back" to "Back to Gallery" for clarity
+
 ## Edge Case: Deep Linking
 
 If a user lands directly on an edit page (e.g., via bookmark or external link), `router.back()` may have nowhere to go. Consider:
