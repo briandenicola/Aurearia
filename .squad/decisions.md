@@ -4391,3 +4391,24 @@ Backend follows Constitution Principle I/II and the Add-a-New-API-Feature sequen
 - Delete while in use: reject with count/message.
 - Rename: allowed.
 - Ordering: start with `sort_order`, then `name ASC`; UI can expose manual ordering later.
+
+
+---
+
+# Decision: SQLite-safe nullable Coin foreign keys
+
+## Context
+
+Adding `Coin.StorageLocationID` introduced a nullable association from the existing `coins` table to the new `storage_locations` table. On SQLite, adding a physical foreign-key constraint to an existing table can make GORM rebuild the table. With `PRAGMA foreign_keys=ON`, dropping the old `coins` table during that rebuild fails when existing child rows such as `coin_images` or `coin_tags` still reference it.
+
+## Decision
+
+For new nullable associations added to the existing `Coin` model, keep the scalar `*_id` column and GORM association for assignment and preload behavior, but disable physical DB constraint migration on that new association with `constraint:-` unless a dedicated migration plan safely handles SQLite table rebuilds.
+
+`storage_locations` must be migrated before `coins` in `database.Connect` so fresh databases create the lookup table before coin rows can reference it at the application layer.
+
+## Consequences
+
+- Startup `AutoMigrate` stays additive for existing databases and does not drop/rebuild `coins` just to add the nullable lookup column.
+- Application/service validation remains responsible for ownership and referential correctness.
+- If a future feature requires a physical SQLite foreign key on `coins`, it needs an explicit migration strategy that disables FK checks only for the rebuild window and verifies data integrity afterward.
