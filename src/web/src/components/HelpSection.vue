@@ -303,6 +303,79 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
     </details>
 
     <details class="help-accordion">
+      <summary class="help-summary">Connecting AI Tools (External Tool Server)</summary>
+      <div class="help-content">
+        <p>The External Tool Server exposes your collection to external AI clients (OpenWebUI, LibreChat, n8n, and MCP-compatible clients) over a secure API. External clients can search your collection, retrieve statistics, and optionally propose updates through a two-phase confirmation workflow.</p>
+        <p>For the complete technical walkthrough, see <code>docs/external-tool-server.md</code> in the repository.</p>
+
+        <h4>For Admins</h4>
+        <p><strong>Enabling the Server:</strong> The external tool server is disabled by default. To enable it:</p>
+        <ol>
+          <li>Navigate to <strong>Admin → System Settings</strong></li>
+          <li>Toggle <strong>External Tool Server Enabled</strong> to ON</li>
+          <li>The OpenAPI spec and tool endpoints become available immediately</li>
+        </ol>
+        <p>When disabled, all external tool requests fail with <code>503 Service Unavailable</code>. This default-off posture protects your instance until you explicitly choose to expose the API.</p>
+        <p><strong>What to Tell Users:</strong> Once enabled, users can create scoped API keys in <strong>Settings → Data → API Keys</strong>. Each key can be read-only (safe for exploration) or read+write (for trusted automation). External writes are journaled and appear in each coin's activity log.</p>
+
+        <h4>For Users</h4>
+        <p><strong>Creating an API Key:</strong> To connect an external AI client to your collection:</p>
+        <ol>
+          <li>Navigate to <strong>Settings → Data → API Keys</strong></li>
+          <li>Enter a descriptive name (e.g., "OpenWebUI Read-Only")</li>
+          <li>
+            Choose a capability:
+            <ul>
+              <li><strong>Read</strong> (default) — Allows queries: search, get coin, summaries, top coins</li>
+              <li><strong>Read/Write</strong> — Allows queries plus update proposals and commits</li>
+            </ul>
+          </li>
+          <li>Click <strong>Generate</strong></li>
+          <li>Copy the displayed key (starts with <code>ak_</code>; shown only once)</li>
+        </ol>
+        <p><strong>Connecting to a Client:</strong> In your external AI client (OpenWebUI, LibreChat, n8n):</p>
+        <ol>
+          <li>
+            Import the OpenAPI URL:
+            <pre class="help-code">http://your-ancient-coins-host:8080/api/v1/tools/openapi.json</pre>
+          </li>
+          <li>
+            Add a custom header:
+            <ul>
+              <li><strong>Header Name:</strong> <code>X-API-Key</code></li>
+              <li><strong>Header Value:</strong> <code>ak_your_key_here</code></li>
+            </ul>
+          </li>
+          <li>The six collection tools appear in your tool list</li>
+        </ol>
+        <p><strong>Write Safety:</strong> If you created a read+write key, external writes require two steps: first propose the change (returns a preview), then commit with <code>confirm=true</code>. This prevents accidental auto-writes during casual conversation. All commits are journaled.</p>
+
+        <h4>For Developers</h4>
+        <p><strong>Base Path:</strong> <code>/api/v1/tools/*</code></p>
+        <p><strong>Authentication:</strong> Send your API key in the <code>X-API-Key</code> header.</p>
+        <p><strong>Available Tools:</strong></p>
+        <table class="help-table">
+          <thead>
+            <tr><th>Tool</th><th>Capability</th><th>Purpose</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>search_my_collection</code></td><td>read</td><td>Search coins by query string</td></tr>
+            <tr><td><code>get_coin</code></td><td>read</td><td>Retrieve a single coin by ID</td></tr>
+            <tr><td><code>collection_summary</code></td><td>read</td><td>Aggregate statistics (total coins, value)</td></tr>
+            <tr><td><code>top_coins_by_value</code></td><td>read</td><td>Top coins sorted by current value</td></tr>
+            <tr><td><code>propose_update</code></td><td>write</td><td>Phase 1: Propose allowlisted field changes</td></tr>
+            <tr><td><code>commit_update</code></td><td>write</td><td>Phase 2: Commit with <code>confirm=true</code></td></tr>
+          </tbody>
+        </table>
+        <p><strong>OpenAPI Spec:</strong> <code>GET /api/v1/tools/openapi.json</code> returns the full schema (unauthenticated, respects admin kill switch only).</p>
+        <p><strong>MCP Compatibility:</strong> Wrap the OpenAPI spec with <a href="https://github.com/QuantGeekDev/mcpo" target="_blank" rel="noopener">mcpo</a> to expose tools to MCP clients (Claude Desktop, Cline):</p>
+        <pre class="help-code">mcpo --openapi http://localhost:8080/api/v1/tools/openapi.json \
+     --header "X-API-Key: ak_your_key_here"</pre>
+        <p><strong>Security:</strong> All operations are user-scoped (tenant isolation). Rate limited at 50 requests/minute per key. External writes are restricted to the same allowlist as in-app updates (grade, currentValue, notes, tags, references). Identity fields are rejected.</p>
+      </div>
+    </details>
+
+    <details class="help-accordion">
       <summary class="help-summary">Helpful Resources</summary>
       <div class="help-content">
         <h4>Online Databases & References</h4>

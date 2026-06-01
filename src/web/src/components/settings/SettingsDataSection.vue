@@ -48,6 +48,26 @@
         placeholder="Key name (e.g. My Script)"
         :disabled="generatingKey"
       />
+      <div class="apikey-scope-selector">
+        <button
+          type="button"
+          class="chip"
+          :class="{ active: apiKeyScope === 'read' }"
+          @click="apiKeyScope = 'read'"
+          :disabled="generatingKey"
+        >
+          Read
+        </button>
+        <button
+          type="button"
+          class="chip"
+          :class="{ active: apiKeyScope === 'read,write' }"
+          @click="apiKeyScope = 'read,write'"
+          :disabled="generatingKey"
+        >
+          Read/Write
+        </button>
+      </div>
       <button
         class="btn btn-primary btn-sm"
         :disabled="!apiKeyName.trim() || generatingKey"
@@ -79,7 +99,12 @@
         :class="{ revoked: key.revokedAt }"
       >
         <div class="apikey-item-info">
-          <span class="apikey-item-name">{{ key.name }}</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="apikey-item-name">{{ key.name }}</span>
+            <span class="chip-sm capability-badge" :class="capabilityClass(key.capabilities)">
+              {{ capabilityLabel(key.capabilities) }}
+            </span>
+          </div>
           <span class="apikey-item-meta">
             ...{{ key.keyPrefix }}
             · Created {{ formatDate(key.createdAt) }}
@@ -485,6 +510,7 @@ async function handleImport(e: Event) {
 // API Keys
 const apiKeys = ref<ApiKey[]>([])
 const apiKeyName = ref('')
+const apiKeyScope = ref<'read' | 'read,write'>('read')
 const newlyGeneratedKey = ref('')
 const keyCopied = ref(false)
 const generatingKey = ref(false)
@@ -510,9 +536,10 @@ async function handleGenerateKey() {
   keyCopied.value = false
 
   try {
-    const res = await generateApiKey(apiKeyName.value.trim())
+    const res = await generateApiKey(apiKeyName.value.trim(), apiKeyScope.value)
     newlyGeneratedKey.value = res.data.key
     apiKeyName.value = ''
+    apiKeyScope.value = 'read' // Reset to default after generating
     await loadApiKeys()
   } catch {
     apiKeyMsg.value = 'Failed to generate API key'
@@ -550,6 +577,14 @@ async function handleRevokeKey(id: number) {
     apiKeyMsg.value = 'Failed to revoke key'
     apiKeyError.value = true
   }
+}
+
+function capabilityLabel(capabilities: string): string {
+  return capabilities === 'read,write' ? 'Read/Write' : 'Read'
+}
+
+function capabilityClass(capabilities: string): string {
+  return capabilities === 'read,write' ? 'capability-readwrite' : 'capability-read'
 }
 
 // Tag management
@@ -706,11 +741,18 @@ defineExpose({ loadApiKeys, loadTags })
   gap: 0.75rem;
   align-items: center;
   margin-bottom: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .apikey-generate .form-input {
   flex: 1;
-  max-width: 280px;
+  min-width: 200px;
+}
+
+.apikey-scope-selector {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
 }
 
 .apikey-reveal {
@@ -783,6 +825,22 @@ defineExpose({ loadApiKeys, loadTags })
 .apikey-item-meta {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.capability-badge {
+  flex-shrink: 0;
+}
+
+.capability-badge.capability-read {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.capability-badge.capability-readwrite {
+  background: var(--accent-gold-glow);
+  color: var(--accent-gold);
+  border: 1px solid var(--accent-gold-dim);
 }
 
 .revoked-badge {

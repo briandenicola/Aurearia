@@ -388,6 +388,7 @@ export interface ApiKey {
   userId: number
   keyPrefix: string
   name: string
+  capabilities: string // "read" or "read,write"
   createdAt: string
   lastUsedAt: string | null
   revokedAt: string | null

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -71,3 +72,28 @@ func RateLimit(limit int, window time.Duration) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// ExternalAPIKeyRateLimit returns middleware that enforces stricter per-key rate limiting
+// for external tool server endpoints. Keys by API key ID (preferred) or falls back to client IP.
+// Provides a single unified bucket; read/write distinction is a future enhancement.
+func ExternalAPIKeyRateLimit(limit int, window time.Duration) gin.HandlerFunc {
+	rl := newRateLimiter(limit, window)
+	return func(c *gin.Context) {
+		// Key by API key ID if available, fallback to client IP
+		keyIdentifier := c.ClientIP()
+		if apiKeyId, exists := c.Get("apiKeyId"); exists {
+			if id, ok := apiKeyId.(uint); ok {
+				keyIdentifier = fmt.Sprintf("apikey:%d", id)
+			}
+		}
+
+		if !rl.allow(keyIdentifier) {
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+				"error": "Too many requests. Please try again later.",
+			})
+			return
+		}
+		c.Next()
+	}
+}
+

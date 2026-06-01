@@ -1,0 +1,303 @@
+openapi: 3.0.3
+info:
+  title: Ancient Coins — External Collection Tool Server
+  version: "1.0.0"
+  description: |
+    Issue #218 (Epic F012, Card 4). External, OpenAPI-first surface that re-exposes
+    the in-app collection tool layer (issue #217) with full read/write parity.
+
+    Authentication: per-user API key via the `X-API-Key` header. Identity is derived
+    server-side from the key; clients never supply a user id. Keys carry a capability
+    scope: read tools require `read`; write tools require `write`.
+
+    Writes are two-phase: `propose_update` returns a proposal id + token + preview;
+    `commit_update` requires the token and explicit `confirm=true`. External commits
+    are journaled with source `external_tool_server`.
+
+    The entire surface is gated by the admin setting `ExternalToolServerEnabled`
+    (default off). This scoped document is served for client auto-import at
+    `/api/v1/tools/openapi.json`.
+servers:
+  - url: /api/v1/tools
+security:
+  - ApiKeyAuth: []
+paths:
+  /openapi.json:
+    get:
+      operationId: getToolServerOpenApi
+      summary: Fetch the scoped OpenAPI document for this tool server
+      security: []
+      tags: [discovery]
+      responses:
+        "200":
+          description: OpenAPI 3.0 document describing the /v1/tools/* surface
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /search_my_collection:
+    post:
+      operationId: searchMyCollection
+      summary: Search the authenticated key owner's collection
+      description: Requires a key with `read` capability.
+      tags: [read]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchMyCollectionRequest"
+      responses:
+        "200":
+          description: Owner-scoped coin summaries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoinListResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "503": { $ref: "#/components/responses/Disabled" }
+
+  /get_coin:
+    post:
+      operationId: getCoin
+      summary: Get a single coin owned by the key owner
+      description: Requires a key with `read` capability.
+      tags: [read]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetCoinRequest"
+      responses:
+        "200":
+          description: Coin detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoinResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/Disabled" }
+
+  /collection_summary:
+    post:
+      operationId: collectionSummary
+      summary: Aggregate statistics for the key owner's collection
+      description: Requires a key with `read` capability.
+      tags: [read]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Aggregate summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SummaryResponse"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "503": { $ref: "#/components/responses/Disabled" }
+
+  /top_coins_by_value:
+    post:
+      operationId: topCoinsByValue
+      summary: Top coins by current value for the key owner
+      description: Requires a key with `read` capability.
+      tags: [read]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopCoinsByValueRequest"
+      responses:
+        "200":
+          description: Owner-scoped coin summaries sorted by value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoinListResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "503": { $ref: "#/components/responses/Disabled" }
+
+  /propose_update:
+    post:
+      operationId: proposeUpdate
+      summary: Stage an allowlisted update to a coin (phase 1 of 2)
+      description: |
+        Requires a key with `write` capability. Returns a proposal id + token + preview.
+        No coin write occurs until `commit_update` confirms. Only allowlisted fields are
+        accepted (grade, currentValue, notes, tags, referenceText, referenceUrl,
+        references); identity fields are rejected.
+      tags: [write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProposeUpdateRequest"
+      responses:
+        "200":
+          description: Proposal preview with token and expiry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProposalResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/Disabled" }
+
+  /commit_update:
+    post:
+      operationId: commitUpdate
+      summary: Commit a staged update with explicit confirmation (phase 2 of 2)
+      description: |
+        Requires a key with `write` capability, the proposal token, and `confirm=true`.
+        Persists the change and journals it with source `external_tool_server`.
+      tags: [write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommitUpdateRequest"
+      responses:
+        "200":
+          description: Commit result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Proposal is not pending or has expired
+        "503": { $ref: "#/components/responses/Disabled" }
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  responses:
+    BadRequest:
+      description: Invalid request or disallowed field change
+    Unauthorized:
+      description: Missing/invalid/revoked API key
+    Forbidden:
+      description: Insufficient capability (e.g. read-only key on a write tool) or cross-user access denied
+    NotFound:
+      description: Coin or proposal not found within the key owner's scope
+    Disabled:
+      description: External tool server is disabled (ExternalToolServerEnabled is off)
+  schemas:
+    SearchMyCollectionRequest:
+      type: object
+      required: [query]
+      properties:
+        query: { type: string }
+        limit: { type: integer, minimum: 1, maximum: 50 }
+    GetCoinRequest:
+      type: object
+      required: [coin_id]
+      properties:
+        coin_id: { type: integer }
+    TopCoinsByValueRequest:
+      type: object
+      properties:
+        limit: { type: integer, minimum: 1, maximum: 10, default: 3 }
+    ProposeUpdateRequest:
+      type: object
+      required: [coin_id, changes]
+      properties:
+        coin_id: { type: integer }
+        changes:
+          type: object
+          description: Allowlisted field changes only.
+          additionalProperties: true
+    CommitUpdateRequest:
+      type: object
+      required: [proposal_id, token, confirm]
+      properties:
+        proposal_id: { type: string }
+        token: { type: string }
+        confirm: { type: boolean, enum: [true] }
+    CoinSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        category: { type: string }
+        era: { type: string }
+        ruler: { type: string }
+        material: { type: string }
+        currentValue: { type: number, nullable: true }
+    CoinListResponse:
+      type: object
+      properties:
+        coins:
+          type: array
+          items: { $ref: "#/components/schemas/CoinSummary" }
+    CoinResponse:
+      type: object
+      properties:
+        coin: { $ref: "#/components/schemas/CoinSummary" }
+    SummaryResponse:
+      type: object
+      properties:
+        summary:
+          type: object
+          properties:
+            totalCoins: { type: integer }
+            totalWishlist: { type: integer }
+            totalSold: { type: integer }
+            totalCurrentUsd: { type: number }
+            totalPurchaseUsd: { type: number }
+    ProposalResponse:
+      type: object
+      properties:
+        proposal:
+          type: object
+          properties:
+            proposalId: { type: string }
+            proposalToken: { type: string }
+            coinId: { type: integer }
+            coinName: { type: string }
+            changedFields:
+              type: array
+              items: { type: string }
+            changes:
+              type: object
+              additionalProperties: true
+            expiresAt: { type: string, format: date-time }
+    CommitResponse:
+      type: object
+      properties:
+        result:
+          type: object
+          properties:
+            proposalId: { type: string }
+            status: { type: string, example: committed }
+            coinId: { type: integer }
+            changedFields:
+              type: array
+              items: { type: string }
+            journalSource: { type: string, example: external_tool_server }
+            message: { type: string }

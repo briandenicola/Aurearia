@@ -676,6 +676,9 @@ definitions:
         example: My Script
         maxLength: 100
         type: string
+      scope:
+        example: read
+        type: string
     required:
     - name
     type: object
@@ -741,6 +744,8 @@ definitions:
     type: object
   models.ApiKey:
     properties:
+      capabilities:
+        type: string
       createdAt:
         type: string
       id:
@@ -2442,10 +2447,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a new API key. The key is returned once and cannot be retrieved
-        again.
+      description: Creates a new API key with optional capability scope ('read' or
+        'read,write'). Defaults to 'read'. The key is returned once and cannot be
+        retrieved again.
       parameters:
-      - description: Key name for identification
+      - description: Key name and optional scope
         in: body
         name: body
         required: true
@@ -4683,6 +4689,342 @@ paths:
       summary: Import collection
       tags:
       - User
+  /v1/tools/collection_summary:
+    post:
+      consumes:
+      - application/json
+      description: Retrieve aggregate statistics for the authenticated API key owner's
+        collection. Requires 'read' capability.
+      parameters:
+      - description: API key (e.g., ak_...)
+        in: header
+        name: X-API-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'summary: aggregate summary'
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get collection aggregate summary (external)
+      tags:
+      - External Tools
+  /v1/tools/commit_update:
+    post:
+      consumes:
+      - application/json
+      description: Commit a previously created proposal with explicit confirmation.
+        Requires 'write' capability and valid proposal token. Journals with source
+        'external_tool_server'.
+      parameters:
+      - description: API key (e.g., ak_...)
+        in: header
+        name: X-API-Key
+        required: true
+        type: string
+      - description: Proposal ID, token, and confirmation
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CommitUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'result: commit result'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Commit an update proposal (external)
+      tags:
+      - External Tools
+  /v1/tools/get_coin:
+    post:
+      consumes:
+      - application/json
+      description: Retrieve a coin from the authenticated API key owner's collection.
+        Requires 'read' capability.
+      parameters:
+      - description: API key (e.g., ak_...)
+        in: header
+        name: X-API-Key
+        required: true
+        type: string
+      - description: Coin ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.GetCoinRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'coin: coin summary'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get a single coin by ID (external)
+      tags:
+      - External Tools
+  /v1/tools/openapi.json:
+    get:
+      description: Returns the OpenAPI 3.0 document describing the /v1/tools/* surface,
+        suitable for client auto-import.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OpenAPI 3.0 document
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Fetch the external tool server OpenAPI document
+      tags:
+      - External Tools
+  /v1/tools/propose_update:
+    post:
+      consumes:
+      - application/json
+      description: Create a proposal to update allowlisted fields on a coin. Requires
+        'write' capability. Returns proposal preview with token; no coin write occurs
+        yet.
+      parameters:
+      - description: API key (e.g., ak_...)
+        in: header
+        name: X-API-Key
+        required: true
+        type: string
+      - description: Coin ID and changes
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ProposeUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'proposal: proposal preview with token'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Create an update proposal (external)
+      tags:
+      - External Tools
+  /v1/tools/search_my_collection:
+    post:
+      consumes:
+      - application/json
+      description: Search the authenticated API key owner's collection by query filters.
+        Requires 'read' capability.
+      parameters:
+      - description: API key (e.g., ak_...)
+        in: header
+        name: X-API-Key
+        required: true
+        type: string
+      - description: Search parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.SearchMyCollectionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'coins: array of coin summaries'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Search user's collection (external)
+      tags:
+      - External Tools
+  /v1/tools/top_coins_by_value:
+    post:
+      consumes:
+      - application/json
+      description: Retrieve the top coins by current value from the authenticated
+        API key owner's collection. Requires 'read' capability.
+      parameters:
+      - description: API key (e.g., ak_...)
+        in: header
+        name: X-API-Key
+        required: true
+        type: string
+      - description: Limit (default 3, max 10)
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/handlers.TopCoinsByValueRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'coins: array of coin summaries'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get top coins by current value (external)
+      tags:
+      - External Tools
   /value-history:
     get:
       description: Returns value snapshots over time for charting collection value

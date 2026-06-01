@@ -812,7 +812,7 @@ curl -X POST http://localhost:8080/api/user/import \
 
 ### API Keys
 
-Manage API keys for programmatic access. API keys are an alternative to JWT tokens and are useful for scripts, integrations, and automation.
+Manage API keys for programmatic access. API keys are an alternative to JWT tokens and are useful for scripts, integrations, and automation. Each key has a capability scope: `read` (default) or `read,write`, which controls access to the external tool server.
 
 #### POST /api/auth/api-keys
 
@@ -821,10 +821,16 @@ Generate a new API key. The full key is returned **only once** in the response �
 **Request Body:**
 
 ```json
-{ "name": "My Integration" }
+{
+  "name": "My Integration",
+  "scope": "read,write"
+}
 ```
 
-The `name` field is optional and helps you identify the key later.
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `name` | string | No | Descriptive name to help identify the key |
+| `scope` | string | No | Capability scope: `read` (default) or `read,write`. Controls external tool server access. |
 
 **Response:**
 
@@ -834,6 +840,7 @@ The `name` field is optional and helps you identify the key later.
   "name": "My Integration",
   "key": "ak_abc123def456...",
   "prefix": "ak_abc1",
+  "capabilities": "read,write",
   "createdAt": "2024-03-15T10:30:00Z"
 }
 ```
@@ -841,24 +848,256 @@ The `name` field is optional and helps you identify the key later.
 **Example:**
 
 ```sh
-# Generate a key
+# Generate a read+write key for external tool access
 curl -X POST http://localhost:8080/api/auth/api-keys \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name": "Backup Script"}'
+  -d '{"name": "LibreChat", "scope": "read,write"}'
 
-# Use the key
+# Use the key for normal API access
 curl http://localhost:8080/api/coins \
   -H "X-API-Key: ak_abc123def456..."
 ```
 
 #### GET /api/auth/api-keys
 
-List all API keys for the current user. Only the key prefix is shown (not the full key).
+List all API keys for the current user. Only the key prefix is shown (not the full key). Each key includes its capability scope (`read` or `read,write`).
+
+**Response:**
+
+```json
+{
+  "apiKeys": [
+    {
+      "id": 1,
+      "name": "LibreChat",
+      "prefix": "ak_abc1",
+      "capabilities": "read,write",
+      "lastUsedAt": "2024-03-15T13:45:00Z",
+      "createdAt": "2024-03-15T10:30:00Z"
+    }
+  ]
+}
+```
 
 #### DELETE /api/auth/api-keys/:id
 
 Revoke an API key. The key will immediately stop working.
+
+---
+
+## External Tool Server
+
+The External Tool Server exposes collection operations to external AI clients over a public, versioned HTTP API under `/api/v1/tools/*`. All endpoints require API key authentication (`X-API-Key` header) and are gated by an admin kill switch that defaults to OFF. For full setup instructions, security model, and client integration guides, see the [External Tool Server Guide](external-tool-server.md).
+
+### Key Differences from Main API
+
+- **Admin Kill Switch** — The entire surface is disabled by default. Must be enabled in Admin → System Settings → External Tool Server Enabled.
+- **Scoped API Keys** — External tools respect API key capability: `read` keys can only query; `read,write` keys can propose and commit updates.
+- **Two-Phase Writes** — Updates require `propose_update` (returns preview + token) followed by `commit_update` (with explicit `confirm=true`). No single-call writes.
+- **Field Allowlist** — External writes are restricted to `grade`, `currentValue`, `notes`, `tags`, `referenceText`, `referenceUrl`, `references`. Identity fields are rejected.
+- **Stricter Rate Limiting** — 50 requests per minute per API key (vs. 120 req/min for in-app).
+- **Journaled Audit Trail** — External commits write journal entries with source `external_tool_server`, API key name, and changed fields.
+
+### GET /api/v1/tools/openapi.json
+
+Returns the OpenAPI 3.0 specification describing all external tool endpoints. This endpoint is **unauthenticated** (respects only the kill-switch gate) and is suitable for client auto-import (OpenWebUI, LibreChat, n8n).
+
+**Response:** JSON-formatted OpenAPI document with request/response schemas, capability requirements, and error codes.
+
+### POST /api/v1/tools/search_my_collection
+
+Search your collection by query string. Requires API key with `read` capability.
+
+**Request Body:**
+
+```json
+{
+  "query": "denarius augustus",
+  "limit": 10
+}
+```
+
+**Response:**
+
+```json
+{
+  "coins": [
+    {
+      "id": 42,
+      "name": "Denarius of Augustus",
+      "category": "Roman",
+      "era": "ancient",
+      "ruler": "Augustus",
+      "material": "silver",
+      "currentValue": 450.00
+    }
+  ]
+}
+```
+
+### POST /api/v1/tools/get_coin
+
+Retrieve a single coin by ID. Requires API key with `read` capability.
+
+**Request Body:**
+
+```json
+{
+  "coin_id": 42
+}
+```
+
+**Response:**
+
+```json
+{
+  "coin": {
+    "id": 42,
+    "name": "Denarius of Augustus",
+    "category": "Roman"
+  }
+}
+```
+
+### POST /api/v1/tools/collection_summary
+
+Get aggregate statistics. Requires API key with `read` capability.
+
+**Request Body:**
+
+```json
+{}
+```
+
+**Response:**
+
+```json
+{
+  "summary": {
+    "totalCoins": 127,
+    "totalWishlist": 8,
+    "totalSold": 12,
+    "totalCurrentUsd": 34500.00,
+    "totalPurchaseUsd": 28200.00
+  }
+}
+```
+
+### POST /api/v1/tools/top_coins_by_value
+
+Retrieve top coins by current value. Requires API key with `read` capability.
+
+**Request Body:**
+
+```json
+{
+  "limit": 5
+}
+```
+
+**Response:**
+
+```json
+{
+  "coins": [
+    {
+      "id": 15,
+      "name": "Aureus of Nero",
+      "currentValue": 5200.00
+    }
+  ]
+}
+```
+
+### POST /api/v1/tools/propose_update
+
+Propose changes to allowlisted fields on a coin (phase 1 of 2). Returns a proposal preview and token without persisting changes. Requires API key with `write` capability.
+
+**Request Body:**
+
+```json
+{
+  "coin_id": 42,
+  "changes": {
+    "grade": "EF",
+    "notes": "Re-graded by NGC",
+    "currentValue": 480.00
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "proposal": {
+    "proposalId": "prop_1234567890abcdef",
+    "proposalToken": "tok_abcdef1234567890",
+    "coinId": 42,
+    "coinName": "Denarius of Augustus",
+    "changedFields": ["grade", "notes", "currentValue"],
+    "changes": {
+      "grade": "EF",
+      "notes": "Re-graded by NGC",
+      "currentValue": 480.00
+    },
+    "expiresAt": "2026-06-01T08:46:00Z"
+  }
+}
+```
+
+**Errors:**
+
+- `400` — Invalid or disallowed field change
+- `404` — Coin not found or cross-user access denied
+
+### POST /api/v1/tools/commit_update
+
+Commit a proposal with explicit confirmation (phase 2 of 2). Persists changes and journals the write. Requires API key with `write` capability.
+
+**Request Body:**
+
+```json
+{
+  "proposal_id": "prop_1234567890abcdef",
+  "token": "tok_abcdef1234567890",
+  "confirm": true
+}
+```
+
+**Response:**
+
+```json
+{
+  "result": {
+    "proposalId": "prop_1234567890abcdef",
+    "status": "committed",
+    "coinId": 42,
+    "changedFields": ["grade", "notes", "currentValue"],
+    "journalSource": "external_tool_server",
+    "message": "Update committed successfully"
+  }
+}
+```
+
+**Errors:**
+
+- `400` — `confirm` is not `true`
+- `401` — Invalid or mismatched token
+- `409` — Proposal expired or already committed
+
+### External Tool Server Error Codes
+
+| Status | Meaning |
+|---|---|
+| `400` | Invalid request, disallowed field, or missing confirmation |
+| `401` | Invalid, revoked, or mismatched API key/token |
+| `403` | Insufficient capability (read-only key on write tool) |
+| `404` | Coin/proposal not found or cross-user access denied |
+| `409` | Proposal not in pending state or expired |
+| `429` | Per-key rate limit exceeded (50 req/min) |
+| `503` | External tool server is disabled (admin toggle OFF) |
 
 ---
 

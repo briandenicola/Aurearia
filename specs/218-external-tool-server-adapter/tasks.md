@@ -28,8 +28,8 @@ Web app: Go API in `src/api/`, Vue frontend in `src/web/`, docs in `docs/`.
 
 **Purpose**: Confirm prerequisites and stage the additive schema change.
 
-- [ ] T001 Verify the #217 tool layer is present and exported (`SearchMyCollection`, `GetCoin`, `CollectionSummary`, `TopCoinsByValue`, `ProposeUpdate`, `CommitProposal`) in `src/api/services/collection_tools_service.go`; note the current hardcoded `JournalSource: "collection_chat"`.
-- [ ] T002 Confirm the existing API-key auth path (`X-API-Key` → `userId`) and key model fields in `src/api/middleware/auth.go` and `src/api/models/api_key.go`.
+- [x] T001 Verify the #217 tool layer is present and exported (`SearchMyCollection`, `GetCoin`, `CollectionSummary`, `TopCoinsByValue`, `ProposeUpdate`, `CommitProposal`) in `src/api/services/collection_tools_service.go`; note the current hardcoded `JournalSource: "collection_chat"`.
+- [x] T002 Confirm the existing API-key auth path (`X-API-Key` → `userId`) and key model fields in `src/api/middleware/auth.go` and `src/api/models/api_key.go`.
 
 ---
 
@@ -39,15 +39,15 @@ Web app: Go API in `src/api/`, Vue frontend in `src/web/`, docs in `docs/`.
 
 **⚠️ CRITICAL**: No user-story work can begin until this phase is complete.
 
-- [ ] T003 Add a `Capabilities` string field (default `read`) with `HasRead()`/`HasWrite()` helpers to `src/api/models/api_key.go`.
-- [ ] T004 Update `AutoMigrate` so the `api_keys.capabilities` column is added with default `'read'` and existing rows backfill to read-only, in `src/api/database/database.go`.
-- [ ] T005 [P] Add capability persistence + create-with-validated-scope (default `read`) and capability lookups to `src/api/repository/api_key_repository.go`.
-- [ ] T006 [P] Add `SettingExternalToolServerEnabled = "ExternalToolServerEnabled"` (default `"false"`) to the settings constants/defaults in `src/api/services/settings_service.go`.
-- [ ] T007 Extend the API-key auth path to set resolved capabilities in the Gin context alongside `userId`, in `src/api/middleware/auth.go`.
-- [ ] T008 [P] Add `RequireCapability(scope string)` middleware returning 403 on insufficient capability in `src/api/middleware/capability.go`.
-- [ ] T009 [P] Add an `ExternalToolServerEnabled` gate middleware returning 503 when disabled (reads `settingsSvc`) in `src/api/middleware/external_tools_gate.go`.
-- [ ] T010 [P] Add a per-key external rate limiter (separate, stricter read vs write buckets) in `src/api/middleware/ratelimit.go`.
-- [ ] T011 Register the public route group `api.Group("/v1/tools")` with the chain gate(T009) → `AuthRequired` (X-API-Key) → external rate limiter(T010) in `src/api/main.go` (routes added per story).
+- [x] T003 Add a `Capabilities` string field (default `read`) with `HasRead()`/`HasWrite()` helpers to `src/api/models/api_key.go`.
+- [x] T004 Update `AutoMigrate` so the `api_keys.capabilities` column is added with default `'read'` and existing rows backfill to read-only, in `src/api/database/database.go`.
+- [x] T005 [P] Add capability persistence + create-with-validated-scope (default `read`) and capability lookups to `src/api/repository/api_key_repository.go`.
+- [x] T006 [P] Add `SettingExternalToolServerEnabled = "ExternalToolServerEnabled"` (default `"false"`) to the settings constants/defaults in `src/api/services/settings_service.go`.
+- [x] T007 Extend the API-key auth path to set resolved capabilities in the Gin context alongside `userId`, in `src/api/middleware/auth.go`.
+- [x] T008 [P] Add `RequireCapability(scope string)` middleware returning 403 on insufficient capability in `src/api/middleware/capability.go`.
+- [x] T009 [P] Add an `ExternalToolServerEnabled` gate middleware returning 503 when disabled (reads `settingsSvc`) in `src/api/middleware/external_tools_gate.go`.
+- [x] T010 [P] Add a per-key external rate limiter (separate, stricter read vs write buckets) in `src/api/middleware/ratelimit.go`.
+- [x] T011 Register the public route group `api.Group("/v1/tools")` with the chain gate(T009) → `AuthRequired` (X-API-Key) → external rate limiter(T010) in `src/api/main.go` (routes added per story).
 
 **Checkpoint**: Capability-aware, kill-switch-gated, rate-limited external surface skeleton is ready.
 
@@ -61,9 +61,9 @@ Web app: Go API in `src/api/`, Vue frontend in `src/web/`, docs in `docs/`.
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] Create `external_tools.go` with read handlers (`SearchMyCollection`, `GetCoin`, `CollectionSummary`, `TopCoinsByValue`) delegating to `CollectionToolsService`, deriving `userId` from context, in `src/api/handlers/external_tools.go`.
-- [ ] T013 [US1] Wire the four read routes under `/api/v1/tools` with `RequireCapability("read")` (Swagger annotations on each) in `src/api/main.go`.
-- [ ] T014 [US1] Add request binding, deterministic error responses (400/401/403/404/503), and logging for the read handlers in `src/api/handlers/external_tools.go`.
+- [x] T012 [US1] Create `external_tools.go` with read handlers (`SearchMyCollection`, `GetCoin`, `CollectionSummary`, `TopCoinsByValue`) delegating to `CollectionToolsService`, deriving `userId` from context, in `src/api/handlers/external_tools.go`.
+- [x] T013 [US1] Wire the four read routes under `/api/v1/tools` with `RequireCapability("read")` (Swagger annotations on each) in `src/api/main.go`.
+- [x] T014 [US1] Add request binding, deterministic error responses (400/401/403/404/503), and logging for the read handlers in `src/api/handlers/external_tools.go`.
 
 **Checkpoint**: External read parity works end-to-end with a read-only key (MVP).
 
@@ -77,10 +77,10 @@ Web app: Go API in `src/api/`, Vue frontend in `src/web/`, docs in `docs/`.
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] Thread a journal-source argument (and originating actor metadata) through the commit path so external commits journal `external_tool_server` while the internal path keeps `collection_chat`, in `src/api/services/collection_tools_service.go`; update internal callers in `src/api/handlers/internal_tools.go`.
-- [ ] T016 [US2] Add `ProposeUpdate` and `CommitUpdate` handlers (require `write` capability; pass `external_tool_server` source + key id/name/capability on commit) to `src/api/handlers/external_tools.go`.
-- [ ] T017 [US2] Wire the two write routes under `/api/v1/tools` with `RequireCapability("write")` (Swagger annotations) in `src/api/main.go`.
-- [ ] T018 [US2] Ensure the commit journal entry records the originating API key id/name and capability (reuse the in-app field-diff entry builder) in `src/api/services/collection_tools_service.go`.
+- [x] T015 [US2] Thread a journal-source argument (and originating actor metadata) through the commit path so external commits journal `external_tool_server` while the internal path keeps `collection_chat`, in `src/api/services/collection_tools_service.go`; update internal callers in `src/api/handlers/internal_tools.go`.
+- [x] T016 [US2] Add `ProposeUpdate` and `CommitUpdate` handlers (require `write` capability; pass `external_tool_server` source + key id/name/capability on commit) to `src/api/handlers/external_tools.go`.
+- [x] T017 [US2] Wire the two write routes under `/api/v1/tools` with `RequireCapability("write")` (Swagger annotations) in `src/api/main.go`.
+- [x] T018 [US2] Ensure the commit journal entry records the originating API key id/name and capability (reuse the in-app field-diff entry builder) in `src/api/services/collection_tools_service.go`.
 
 **Checkpoint**: External write parity (two-phase, allowlisted, journaled) works independently alongside US1.
 
@@ -94,11 +94,11 @@ Web app: Go API in `src/api/`, Vue frontend in `src/web/`, docs in `docs/`.
 
 ### Implementation for User Story 3
 
-- [ ] T019 [P] [US3] Add an `openapi.json` handler that serves the scoped external OpenAPI document for `/v1/tools/*` in `src/api/handlers/external_tools_openapi.go`.
-- [ ] T020 [US3] Wire unauthenticated `GET /api/v1/tools/openapi.json` to the served-spec handler in `src/api/main.go`.
-- [ ] T021 [US3] Accept an optional validated `scope` (default read-only) on key creation and include `capabilities` in list responses in `src/api/handlers/api_keys.go`.
-- [ ] T022 [P] [US3] Add `capabilities`/scope to the `ApiKey` type and the create-key request payload in `src/web/src/types/index.ts` and `src/web/src/api/client.ts`.
-- [ ] T023 [US3] Add a read-only vs read+write scope selector to the API-key creation UI and display each key's scope in the list, in the API-key management component under `src/web/src/components/settings/`.
+- [x] T019 [P] [US3] Add an `openapi.json` handler that serves the scoped external OpenAPI document for `/v1/tools/*` in `src/api/handlers/external_tools_openapi.go`.
+- [x] T020 [US3] Wire unauthenticated `GET /api/v1/tools/openapi.json` to the served-spec handler in `src/api/main.go`.
+- [x] T021 [US3] Accept an optional validated `scope` (default read-only) on key creation and include `capabilities` in list responses in `src/api/handlers/api_keys.go`.
+- [x] T022 [P] [US3] Add `capabilities`/scope to the `ApiKey` type and the create-key request payload in `src/web/src/types/index.ts` and `src/web/src/api/client.ts`.
+- [x] T023 [US3] Add a read-only vs read+write scope selector to the API-key creation UI and display each key's scope in the list, in the API-key management component under `src/web/src/components/settings/`.
 
 **Checkpoint**: All three user stories are independently functional.
 
@@ -108,14 +108,14 @@ Web app: Go API in `src/api/`, Vue frontend in `src/web/`, docs in `docs/`.
 
 **Purpose**: Documentation, contract sync, validation, and optional targeted tests.
 
-- [ ] T024 [P] Create `docs/external-tool-server.md`: enabling the admin toggle, creating scoped keys, the served OpenAPI URL, `mcpo` (MCP-compatible) wrapping, and OpenWebUI/Ollama, LibreChat, and n8n walkthroughs.
-- [ ] T025 [P] Mention the external tool server in `docs/features.md` and add the `/v1/tools/*` surface + scoped OpenAPI URL to `docs/api-reference.md`.
-- [ ] T026 [P] Update `docs/threat-model.md` for the external surface (API-key write path, capability scopes, default-off toggle, per-key rate limiting, journaling).
-- [ ] T027 [P] Add an optional Go unit test for `RequireCapability` (read vs write, missing capability) in `src/api/middleware/capability_test.go`.
-- [ ] T028 Regenerate OpenAPI artifacts via `task openapi` and confirm `docs/openapi.json` is in sync.
-- [ ] T029 Run `go build ./... && go vet ./... && go test ./...` from `src/api/` (architecture test handlers→services→repository must pass).
-- [ ] T030 [P] Run `npm run build && npm run lint` from `src/web/`.
-- [ ] T031 Execute `quickstart.md` scenarios A–C and negative cases N1–N6; confirm SC-001…SC-007.
+- [x] T024 [P] Create `docs/external-tool-server.md`: enabling the admin toggle, creating scoped keys, the served OpenAPI URL, `mcpo` (MCP-compatible) wrapping, and OpenWebUI/Ollama, LibreChat, and n8n walkthroughs.
+- [x] T025 [P] Mention the external tool server in `docs/features.md` and add the `/v1/tools/*` surface + scoped OpenAPI URL to `docs/api-reference.md`.
+- [x] T026 [P] Update `docs/threat-model.md` for the external surface (API-key write path, capability scopes, default-off toggle, per-key rate limiting, journaling).
+- [x] T027 [P] Add an optional Go unit test for `RequireCapability` (read vs write, missing capability) in `src/api/middleware/capability_test.go`.
+- [x] T028 Regenerate OpenAPI artifacts via `task openapi` and confirm `docs/openapi.json` is in sync.
+- [x] T029 Run `go build ./... && go vet ./... && go test ./...` from `src/api/` (architecture test handlers→services→repository must pass).
+- [x] T030 [P] Run `npm run build && npm run lint` from `src/web/`.
+- [x] T031 Execute `quickstart.md` scenarios A–C and negative cases N1–N6; confirm SC-001…SC-007.
 
 ---
 

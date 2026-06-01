@@ -29,6 +29,10 @@ func Connect(dbPath string) {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 
+	// Backfill existing api_keys with default read-only capability
+	DB.Exec("UPDATE api_keys SET capabilities='read' WHERE capabilities IS NULL OR capabilities=''")
+
+
 	if err := seedCatalogRegistry(DB); err != nil {
 		log.Fatalf("Failed to seed catalog registry: %v", err)
 	}

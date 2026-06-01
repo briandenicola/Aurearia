@@ -23,7 +23,8 @@ func NewApiKeyHandler(repo *repository.ApiKeyRepository, logger *services.Logger
 }
 
 type generateApiKeyRequest struct {
-	Name string `json:"name" binding:"required,max=100" example:"My Script"`
+	Name  string `json:"name" binding:"required,max=100" example:"My Script"`
+	Scope string `json:"scope" example:"read"`
 }
 
 type generateApiKeyResponse struct {
@@ -34,11 +35,11 @@ type generateApiKeyResponse struct {
 // Generate creates a new API key for the authenticated user.
 //
 //	@Summary		Generate an API key
-//	@Description	Creates a new API key. The key is returned once and cannot be retrieved again.
+//	@Description	Creates a new API key with optional capability scope ('read' or 'read,write'). Defaults to 'read'. The key is returned once and cannot be retrieved again.
 //	@Tags			API Keys
 //	@Accept			json
 //	@Produce		json
-//	@Param			body	body		generateApiKeyRequest	true	"Key name for identification"
+//	@Param			body	body		generateApiKeyRequest	true	"Key name and optional scope"
 //	@Success		201		{object}	generateApiKeyResponse
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
@@ -52,6 +53,16 @@ func (h *ApiKeyHandler) Generate(c *gin.Context) {
 	var req generateApiKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
+		return
+	}
+
+	// Validate scope if provided
+	scope := req.Scope
+	if scope == "" {
+		scope = "read"
+	}
+	if err := repository.ValidateCapabilities(scope); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scope: must be 'read' or 'read,write'"})
 		return
 	}
 
@@ -78,13 +89,13 @@ func (h *ApiKeyHandler) Generate(c *gin.Context) {
 		Name:      req.Name,
 	}
 
-	if err := h.repo.Create(&apiKey); err != nil {
+	if err := h.repo.CreateWithCapabilities(&apiKey, scope); err != nil {
 		logger.Error("api-keys", "Failed to save API key: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create API key"})
 		return
 	}
 
-	logger.Info("api-keys", "Generated API key '%s' (prefix: ...%s) for user %d", req.Name, keyPrefix, userID)
+	logger.Info("api-keys", "Generated API key '%s' (prefix: ...%s, capabilities: %s) for user %d", req.Name, keyPrefix, apiKey.Capabilities, userID)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"key":    plainKey,

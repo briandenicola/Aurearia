@@ -285,13 +285,32 @@ func (s *CollectionToolsService) ProposeUpdate(userID uint, coinID uint, changes
 }
 
 // CommitUpdate commits a previously created proposal with explicit confirmation.
+// Uses "collection_chat" as the journal source (internal).
 func (s *CollectionToolsService) CommitUpdate(
 	userID uint,
 	proposalID string,
 	proposalToken string,
 	confirm bool,
 ) (*CommitCollectionProposalResult, error) {
-	return s.CommitProposal(userID, proposalID, proposalToken, confirm)
+	return s.commitProposalWithSource(userID, proposalID, proposalToken, confirm, "collection_chat", nil)
+}
+
+// CommitUpdateExternal commits a proposal from an external tool server with API key metadata.
+func (s *CollectionToolsService) CommitUpdateExternal(
+	userID uint,
+	proposalID string,
+	proposalToken string,
+	confirm bool,
+	apiKeyID uint,
+	apiKeyName string,
+	apiKeyCapabilities string,
+) (*CommitCollectionProposalResult, error) {
+	metadata := map[string]any{
+		"apiKeyId":           apiKeyID,
+		"apiKeyName":         apiKeyName,
+		"apiKeyCapabilities": apiKeyCapabilities,
+	}
+	return s.commitProposalWithSource(userID, proposalID, proposalToken, confirm, "external_tool_server", metadata)
 }
 
 // CommitProposal is the underlying implementation for CommitUpdate.
@@ -301,6 +320,18 @@ func (s *CollectionToolsService) CommitProposal(
 	proposalID string,
 	proposalToken string,
 	confirm bool,
+) (*CommitCollectionProposalResult, error) {
+	return s.commitProposalWithSource(userID, proposalID, proposalToken, confirm, "collection_chat", nil)
+}
+
+// commitProposalWithSource is the core commit implementation that accepts a journal source and optional metadata.
+func (s *CollectionToolsService) commitProposalWithSource(
+	userID uint,
+	proposalID string,
+	proposalToken string,
+	confirm bool,
+	journalSource string,
+	metadata map[string]any,
 ) (*CommitCollectionProposalResult, error) {
 	if !confirm {
 		return nil, ErrProposalConfirmationReq
@@ -355,7 +386,7 @@ func (s *CollectionToolsService) CommitProposal(
 		if err := txCoinRepo.CreateJournalEntry(&models.CoinJournal{
 			CoinID: coin.ID,
 			UserID: userID,
-			Entry:  buildCollectionChatJournalEntry(changes),
+			Entry:  buildJournalEntry(journalSource, changes, metadata),
 		}); err != nil {
 			return err
 		}
@@ -371,7 +402,7 @@ func (s *CollectionToolsService) CommitProposal(
 		Status:        string(models.CollectionUpdateProposalCommitted),
 		CoinID:        proposal.CoinID,
 		ChangedFields: changedFields,
-		JournalSource: "collection_chat",
+		JournalSource: journalSource,
 		Message:       "Update committed.",
 	}, nil
 }
@@ -538,7 +569,18 @@ func sortedMapKeys(values map[string]any) []string {
 	return keys
 }
 
-func buildCollectionChatJournalEntry(changes map[string]any) string {
+func buildJournalEntry(source string, changes map[string]any, metadata map[string]any) string {
 	keys := sortedMapKeys(changes)
-	return fmt.Sprintf("collection_chat: committed updates (%s)", strings.Join(keys, ", "))
+	entry := fmt.Sprintf("%s: committed updates (%s)", source, strings.Join(keys, ", "))
+	
+	// For external sources, append API key metadata if present
+	if source == "external_tool_server" && metadata != nil {
+		if apiKeyID, ok := metadata["apiKeyId"].(uint); ok {
+			if apiKeyName, ok := metadata["apiKeyName"].(string); ok {
+				entry += fmt.Sprintf(" [API key #%d '%s']", apiKeyID, apiKeyName)
+			}
+		}
+	}
+	
+	return entry
 }

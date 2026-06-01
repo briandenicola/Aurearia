@@ -94,5 +94,8 @@ func authenticateApiKey(c *gin.Context, plainKey string, hashSecret string, auth
 
 	c.Set("userId", apiKey.UserID)
 	c.Set("userRole", string(user.Role))
+	c.Set("apiKeyCapabilities", apiKey.Capabilities)
+	c.Set("apiKeyId", apiKey.ID)
+	c.Set("apiKeyName", apiKey.Name)
 	return true
 }

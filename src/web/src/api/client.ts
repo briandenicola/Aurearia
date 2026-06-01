@@ -425,8 +425,8 @@ export const scrapeImage = (url: string) =>
 export const importCollection = (coins: Partial<Coin>[]) => api.post('/user/import', coins)
 
 // API Keys
-export const generateApiKey = (name: string) =>
-  api.post<{ key: string; apiKey: ApiKey }>('/auth/api-keys', { name })
+export const generateApiKey = (name: string, scope?: 'read' | 'read,write') =>
+  api.post<{ key: string; apiKey: ApiKey }>('/auth/api-keys', { name, scope })
 export const listApiKeys = () => api.get<ApiKey[]>('/auth/api-keys')
 export const revokeApiKey = (id: number) => api.delete(`/auth/api-keys/${id}`)
 

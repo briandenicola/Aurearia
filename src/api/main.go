@@ -466,6 +466,45 @@ func main() {
 		admin.GET("/auction-ending/debug", auctionDebugHandler.DebugGetAuctionEndingInfo)
 	}
 
+	// #218 external tool server - public versioned route group
+	// Middleware chain: kill-switch gate → API-key auth → per-key rate limiter
+	externalToolsRateLimit := middleware.ExternalAPIKeyRateLimit(50, 1*time.Minute)
+	
+	// Unauthenticated OpenAPI spec endpoint (respects kill-switch only)
+	toolsSpec := api.Group("/v1/tools")
+	toolsSpec.Use(middleware.ExternalToolServerEnabled(settingsSvc))
+	{
+		openapiHandler := handlers.NewExternalToolsOpenAPIHandler()
+		toolsSpec.GET("/openapi.json", openapiHandler.GetOpenAPISpec)
+	}
+	
+	// Authenticated tool endpoints (auth + rate limit)
+	v1Tools := api.Group("/v1/tools")
+	v1Tools.Use(middleware.ExternalToolServerEnabled(settingsSvc))
+	v1Tools.Use(middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth))
+	v1Tools.Use(externalToolsRateLimit)
+	{
+		externalToolsHandler := handlers.NewExternalToolsHandler(collectionSvc)
+		
+		// Read tools (require 'read' capability)
+		readTools := v1Tools.Group("")
+		readTools.Use(middleware.RequireCapability("read"))
+		{
+			readTools.POST("/search_my_collection", externalToolsHandler.SearchMyCollection)
+			readTools.POST("/get_coin", externalToolsHandler.GetCoin)
+			readTools.POST("/collection_summary", externalToolsHandler.CollectionSummary)
+			readTools.POST("/top_coins_by_value", externalToolsHandler.TopCoinsByValue)
+		}
+		
+		// Write tools (require 'write' capability)
+		writeTools := v1Tools.Group("")
+		writeTools.Use(middleware.RequireCapability("write"))
+		{
+			writeTools.POST("/propose_update", externalToolsHandler.ProposeUpdate)
+			writeTools.POST("/commit_update", externalToolsHandler.CommitUpdate)
+		}
+	}
+
 	// Internal tools (protected by internal token for Python agent callbacks)
 	internal := r.Group("/api/internal/tools")
 	internal.Use(middleware.InternalTokenRequired(internalTokenSvc))
