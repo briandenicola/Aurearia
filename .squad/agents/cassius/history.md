@@ -24,7 +24,7 @@ Between 2026-04-24 and 2026-05-22, Cassius completed critical backend P0/P1/P2 f
 
 7. **Ground-Truth Diagnostics (2026-05-22):** Built debug endpoint GET /api/admin/auction-ending/debug returning (a) total lots, (b) lots by status, (c) lots matching scheduler query, (d) ALL BIDDING lots with ALL date fields including linked AuctionEvent dates (via LEFT JOIN). Provided SQL query for immediate inspection. Lesson: never ship a query fix without inspecting real production data first.
 
-**Key Patterns Established:** (a) Time-sensitive queries use rolling (now, now+24h] window, not calendar-day boundaries. (b) Case-sensitive enums need LOWER() in SQL. (c) Multi-field date logic requires explicit NULL guards and JOIN diagnostics. (d) Scheduler run logging via TriggerType + run history table enables production audit and manual testing. (e) Interface parity across schedulers: Valuation/Wishlist/AuctionEnding all follow same manual-trigger + run-log pattern.
+**Key Patterns Established:** (a) Time-sensitive queries use rolling (now, now+24h] window, not calendar-day boundaries. (b) Case-sensitive enums need LOWER() in SQL. (c) Multi-field date logic requires explicit NULL guards and JOIN diagnostics. (d) Scheduler run logging via TriggerType + run history table enables production audit and manual testing. (e) Interface parity across schedulers: Valuation/Wishlist/AuctionEnding all follow same manual-trigger + run-log pattern. (f) Governance infrastructure (2026-05-28): Constitution v2.0.0, tech-inventory alignment (specs/ workflow + `.squad/` handoff), ADR pattern for design choices, Quality Gate enforces go vet/test on all PRs.
 
 ## Team Updates
 
@@ -32,11 +32,6 @@ Between 2026-04-24 and 2026-05-22, Cassius completed critical backend P0/P1/P2 f
 
 - **2026-05-22:** Collaborated with Aurelia (frontend) and Brutus (testing) on auction-ending manual-run feature. Brutus's comprehensive test suite (16 tests) APPROVED. Aurelia implementing corresponding UI; follow-up endpoint URL fixup aligning with actual contract.
 
-- **2026-05-28:** Constitution v2.0.0 landed. Read `.specify/memory/constitution.md`. §17 Quality Gate gates every PR (includes go vet/test). §21 DoD is a 14-item checklist. §18 forbids SESSION-NOTES.md — Squad handoff is `.squad/log/` + history + decisions.md. Principle I (Layered Architecture) enforced by architecture_test.go; import rules: handlers→services→repository→models.
-
-- **2026-05-28 (Phase 2):** Phase 2 of tech-inventory alignment landed. `specs/` is on-disk home for SpecKit workflow. Backlog in `specs/_backlog/`, active features in `specs/NNN-slug/`, retroactive anchor in `specs/001-foundation/spec.md`. Four session-protocol prompts in `.github/prompts/`.
-
-- **2026-05-28 (Phase 3a):** Phase 3a landed. docs/prd.md is product source of truth. Four ADRs in docs/adr/ documenting v1.0 architecture. Any new material design choice requires an ADR per §22.
 
 - **2026-05-31:** Feature #217 Go-side Shared Collection Tool Layer (commit c3e8c2b) — internal token service + middleware + 6 internal tool endpoints (search_my_collection, get_coin, collection_summary, top_coins_by_value, propose_update, commit_update) + removed keyword gate. Tool definitions live in Go; Python ReAct agent integration PENDING (next-session pickup). Feature #216 Intake Card Authority Fix (commit a7b6a04) — explicit image labeling in generate_intake_draft() distinguishes coin photos from collector card, strengthened INTAKE_PROMPT with dedicated card handling section, treats card text as PRIMARY authoritative source. Response schema unchanged (Principle VII). All tests pass: go vet clean, go test -v ./..., pytest 47/47 passed. Decision inbox entries merged to decisions.md.
 
