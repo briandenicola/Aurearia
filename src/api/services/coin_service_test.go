@@ -18,7 +18,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	}
 	err = db.AutoMigrate(
 		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{},
-		&models.ValueSnapshot{}, &models.CoinJournal{},
+		&models.StorageLocation{}, &models.ValueSnapshot{}, &models.CoinJournal{},
 		&models.CoinValueHistory{}, &models.CoinComment{},
 		&models.AvailabilityResult{}, &models.AuctionLot{},
 		&models.Tag{}, &models.CoinTag{},

@@ -18,7 +18,7 @@ func NewAnalysisRepository(db *gorm.DB) *AnalysisRepository {
 // FindCoinWithImages finds a coin by ID and user ID with images preloaded.
 func (r *AnalysisRepository) FindCoinWithImages(coinID uint, userID uint) (*models.Coin, error) {
 	var coin models.Coin
-	if err := r.db.Where("id = ? AND user_id = ?", coinID, userID).Preload("Images").First(&coin).Error; err != nil {
+	if err := r.db.Where("id = ? AND user_id = ?", coinID, userID).Preload("Images").Preload("StorageLocation").First(&coin).Error; err != nil {
 		return nil, err
 	}
 	return &coin, nil
@@ -32,7 +32,7 @@ func (r *AnalysisRepository) UpdateCoinField(coin *models.Coin, field string, va
 // ReloadCoinWithImages reloads a coin by ID with images preloaded.
 func (r *AnalysisRepository) ReloadCoinWithImages(coinID uint) (*models.Coin, error) {
 	var coin models.Coin
-	if err := r.db.Where("id = ?", coinID).Preload("Images").First(&coin).Error; err != nil {
+	if err := r.db.Where("id = ?", coinID).Preload("Images").Preload("StorageLocation").First(&coin).Error; err != nil {
 		return nil, err
 	}
 	return &coin, nil

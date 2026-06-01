@@ -19,6 +19,8 @@ export interface Coin {
   currentValue: number | null
   purchaseDate: string | null
   purchaseLocation: string
+  storageLocationId: number | null
+  storageLocation: Pick<StorageLocation, 'id' | 'name'> | null
   notes: string
   aiAnalysis: string
   obverseAnalysis: string
@@ -62,7 +64,7 @@ export interface CoinReferenceInput {
   uri?: string
 }
 
-export type CoinMutationPayload = Partial<Omit<Coin, 'references'>> & {
+export type CoinMutationPayload = Partial<Omit<Coin, 'references' | 'storageLocation'>> & {
   references?: CoinReferenceInput[]
 }
 
@@ -118,6 +120,13 @@ export interface Tag {
   userId: number
   name: string
   color: string
+}
+
+export interface StorageLocation {
+  id: number
+  userId?: number
+  name: string
+  sortOrder?: number
 }
 
 export type Category = 'Roman' | 'Greek' | 'Byzantine' | 'Modern' | 'Other'

@@ -2,6 +2,172 @@
 
 ## Active Decisions
 
+### Settings Reorganization — Backups & Keys Tab
+
+**Agent:** Aurelia (Frontend Developer)  
+**Date:** 2026-06-01  
+**Status:** Implemented
+
+## Decision
+
+Settings now separates collection metadata management from backup/API access management.
+
+## Structure
+
+- `Data` tab: Tags and Storage Locations only.
+- `backups` tab, labeled `Backups & Keys`: collection ZIP export, PDF catalog export, JSON/CSV import, CSV template/guide, and API key create/revoke flows.
+
+## Implementation Notes
+
+- New component: `src/web/src/components/settings/SettingsBackupsSection.vue`.
+- `SettingsPage.vue` registers the new tab in both desktop and PWA tab lists via the shared `tabs` data.
+- The `loadApiKeys()` exposed method moved from `SettingsDataSection.vue` to `SettingsBackupsSection.vue`; pull-to-refresh now calls the backups section ref.
+
+---
+
+### Decision: Storage Location Frontend UI Placement
+
+**Date:** 2026-06-01  
+**Owner:** Aurelia  
+**Status:** Implemented
+
+## Context
+
+Brian approved a new per-user **Storage Location** lookup table for coins. The backend contract is being built by Cassius with JWT-protected CRUD endpoints at `/storage-locations` and nullable `storageLocationId` on coin mutations.
+
+## UI Placement
+
+- **Settings → Data:** Storage Locations are managed beside Tags in `src/web/src/components/settings/SettingsDataSection.vue` using the same add/list/edit/delete patterns and global button/chip classes.
+- **Coin form:** `src/web/src/components/CoinForm.vue` includes a single-select **Storage Location** dropdown in Basic Information with a **None** option.
+- **Coin detail:** `src/web/src/composables/useCoinDetailMetadataRows.ts` adds a **Storage Location** metadata row using `coin.storageLocation?.name ?? '—'`.
+
+## Contract Assumptions
+
+Frontend is aligned to Cassius's planned contract:
+
+- `GET /storage-locations` returns `{ storageLocations: StorageLocation[] }`.
+- `POST /storage-locations`, `PUT /storage-locations/:id`, and `DELETE /storage-locations/:id` are JWT-protected.
+- `StorageLocation` shape is `{ id, userId?, name, sortOrder? }`.
+- Coin mutations send `storageLocationId: number | null`; coin responses may include read-only `storageLocation`.
+- Delete conflicts return HTTP 409 with an error/message; the UI surfaces that message and falls back to “Can't delete — this location is used by coins. Reassign them first.”
+
+## Validation Notes
+
+`npm run build` and `npm run lint` pass in `src/web/`. Full `npm test` is blocked by pre-existing design-token budget failures whose violation counts are unchanged from HEAD.
+
+---
+
+### Decision: Storage Location API Contract
+
+**Date:** 2026-06-01  
+**Owner:** Cassius  
+**Status:** Implemented
+
+## Summary
+
+The backend implements Storage Location as a per-user lookup table with a single nullable `Coin.storageLocationId` foreign key. All storage-location routes require JWT/API authentication through the protected `/api` route group.
+
+## Model Shape
+
+`StorageLocation` response fields:
+
+```json
+{
+  "id": 1,
+  "userId": 1,
+  "name": "Safe Drawer A",
+  "sortOrder": 0,
+  "createdAt": "2026-06-01T00:00:00Z",
+  "updatedAt": "2026-06-01T00:00:00Z"
+}
+```
+
+`Coin` responses now include:
+
+```json
+{
+  "storageLocationId": 1,
+  "storageLocation": { "id": 1, "userId": 1, "name": "Safe Drawer A", "sortOrder": 0 }
+}
+```
+
+When no location is assigned, `storageLocationId` and `storageLocation` are `null`.
+
+## Endpoints
+
+### `GET /api/storage-locations`
+
+Returns locations owned by the authenticated user, ordered by `sortOrder ASC, name ASC`.
+
+Response `200`:
+
+```json
+{
+  "storageLocations": [
+    { "id": 1, "userId": 1, "name": "Safe Drawer A", "sortOrder": 0 }
+  ]
+}
+```
+
+### `POST /api/storage-locations`
+
+Request:
+
+```json
+{ "name": "Safe Drawer A", "sortOrder": 0 }
+```
+
+Responses:
+- `201` with `StorageLocation`
+- `400` when name is empty or longer than 100 characters
+- `409` when a case-insensitive duplicate exists for the user, or the user has reached 100 locations
+
+### `PUT /api/storage-locations/:id`
+
+Request (all fields optional):
+
+```json
+{ "name": "Updated Drawer", "sortOrder": 10 }
+```
+
+Responses:
+- `200` with updated `StorageLocation`
+- `400` when name is empty or longer than 100 characters
+- `404` when the location is not owned by the user
+- `409` when a case-insensitive duplicate exists for the user
+
+### `DELETE /api/storage-locations/:id`
+
+Responses:
+- `200` `{ "message": "Storage location deleted" }`
+- `404` when the location is not owned by the user
+- `409` when any owned coins still reference the location. Body error text includes the count: `Storage location is used by N coin(s); reassign those coins before deleting it`.
+
+## Coin Assignment Contract
+
+Existing coin create/update payloads accept nullable `storageLocationId`:
+
+```json
+{ "storageLocationId": 1 }
+```
+
+Rules:
+- Non-null `storageLocationId` must belong to the authenticated user or the coin mutation returns `400`.
+- `storageLocationId: null` on `PUT /api/coins/:id` clears the assignment.
+- Coin list/detail/export/public-showcase/social payloads preload and return `storageLocation` where coin associations are already returned.
+
+## Backend Validation
+
+Quality gate passed after implementation:
+
+- `task openapi`
+- `go build ./...`
+- `go vet ./...`
+- `go test -v ./...`
+
+---
+
+
 ### 1. Collection Chat Callback URL Documentation & Startup Warning (2026-06-01)
 
 **Agent:** Cassius (Backend)  

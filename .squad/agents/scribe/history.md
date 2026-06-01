@@ -9,6 +9,8 @@ Agent Scribe initialized and ready for work.
 
 ## Recent Updates
 
+- **2026-06-01:** Logged storage-location/settings batch, merged Cassius/Aurelia decision inbox entries, and committed feature plus squad handoff state.
+
 📌 Team initialized on 2026-04-24
 
 ## Learnings

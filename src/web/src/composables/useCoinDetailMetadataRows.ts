@@ -38,6 +38,12 @@ export function useCoinDetailMetadataRows(coin: Coin | null) {
       })
     }
 
+    result.push({
+      key: 'storageLocation',
+      label: 'Storage Location',
+      value: coin.storageLocation?.name ?? '—',
+    })
+
     // Physical attributes
     if (coin.denomination) {
       result.push({

@@ -727,6 +727,29 @@ definitions:
     - password
     - username
     type: object
+  handlers.storageLocationCreateRequest:
+    properties:
+      name:
+        type: string
+      sortOrder:
+        type: integer
+    required:
+    - name
+    type: object
+  handlers.storageLocationListResponse:
+    properties:
+      storageLocations:
+        items:
+          $ref: '#/definitions/models.StorageLocation'
+        type: array
+    type: object
+  handlers.storageLocationUpdateRequest:
+    properties:
+      name:
+        type: string
+      sortOrder:
+        type: integer
+    type: object
   models.AgentConversation:
     properties:
       createdAt:
@@ -964,6 +987,10 @@ definitions:
         type: number
       soldTo:
         type: string
+      storageLocation:
+        $ref: '#/definitions/models.StorageLocation'
+      storageLocationId:
+        type: integer
       tags:
         items:
           $ref: '#/definitions/models.Tag'
@@ -1102,6 +1129,21 @@ definitions:
     - MaterialCopper
     - MaterialElectrum
     - MaterialOther
+  models.StorageLocation:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      sortOrder:
+        type: integer
+      updatedAt:
+        type: string
+      userId:
+        type: integer
+    type: object
   models.Tag:
     properties:
       color:
@@ -4574,6 +4616,158 @@ paths:
       summary: Get collection distribution
       tags:
       - Coins
+  /storage-locations:
+    get:
+      description: Returns all storage locations belonging to the authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.storageLocationListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List storage locations
+      tags:
+      - Storage Locations
+    post:
+      consumes:
+      - application/json
+      description: Creates a user-owned storage location.
+      parameters:
+      - description: Storage location data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.storageLocationCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.StorageLocation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create storage location
+      tags:
+      - Storage Locations
+  /storage-locations/{id}:
+    delete:
+      description: Deletes a storage location. Deletion is blocked while any coins
+        still reference it.
+      parameters:
+      - description: Storage location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete storage location
+      tags:
+      - Storage Locations
+    put:
+      consumes:
+      - application/json
+      description: Updates a user-owned storage location.
+      parameters:
+      - description: Storage location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Storage location updates
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.storageLocationUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.StorageLocation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update storage location
+      tags:
+      - Storage Locations
   /suggestions:
     get:
       description: Returns distinct values for the specified field, optionally filtered

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -80,6 +80,9 @@ api.interceptors.response.use(
         }
         return api(originalRequest)
       } catch (refreshError: unknown) {
+        if (refreshError instanceof Error && refreshError.message === 'Missing refresh token') {
+          return Promise.reject(error)
+        }
         return Promise.reject(refreshError)
       }
     }
@@ -115,7 +118,7 @@ export const getCoins = (params?: {
   seed?: number
 }) => api.get<CoinListResponse>('/coins', { params })
 
-const NULLABLE_FIELDS: (keyof Coin)[] = ['weightGrams', 'diameterMm', 'purchasePrice', 'currentValue', 'purchaseDate']
+const NULLABLE_FIELDS: (keyof Coin)[] = ['weightGrams', 'diameterMm', 'purchasePrice', 'currentValue', 'purchaseDate', 'storageLocationId']
 
 function sanitizeCoin(coin: CoinMutationPayload): CoinMutationPayload {
   const clean: Record<string, unknown> = { ...coin }
@@ -124,6 +127,7 @@ function sanitizeCoin(coin: CoinMutationPayload): CoinMutationPayload {
       clean[field] = null
     }
   }
+  delete clean.storageLocation
   // Default currentValue to purchasePrice if not set (preserve 0 as valid)
   if (clean.currentValue == null && clean.purchasePrice != null) {
     clean.currentValue = clean.purchasePrice
@@ -174,6 +178,12 @@ export const updateTag = (id: number, data: { name?: string; color?: string }) =
 export const deleteTag = (id: number) => api.delete(`/tags/${id}`)
 export const addTagToCoin = (coinId: number, tagId: number) => api.post(`/coins/${coinId}/tags`, { tagId })
 export const removeTagFromCoin = (coinId: number, tagId: number) => api.delete(`/coins/${coinId}/tags/${tagId}`)
+
+// Storage Locations
+export const getStorageLocations = () => api.get<{ storageLocations: StorageLocation[] }>('/storage-locations')
+export const createStorageLocation = (data: { name: string; sortOrder?: number }) => api.post<StorageLocation>('/storage-locations', data)
+export const updateStorageLocation = (id: number, data: { name?: string; sortOrder?: number }) => api.put<StorageLocation>(`/storage-locations/${id}`, data)
+export const deleteStorageLocation = (id: number) => api.delete(`/storage-locations/${id}`)
 
 // Bulk Operations
 export const bulkAction = (coinIds: number[], action: string, tagId?: number) =>

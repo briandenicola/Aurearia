@@ -60,6 +60,9 @@
         <!-- Data Tab -->
         <SettingsDataSection v-if="activeTab === 'data'" ref="dataSection" />
 
+        <!-- Backups Tab -->
+        <SettingsBackupsSection v-if="activeTab === 'backups'" ref="backupsSection" />
+
         <!-- Tools Tab -->
         <SettingsToolsSection
           v-if="activeTab === 'tools'"
@@ -110,14 +113,16 @@ import HelpSection from '@/components/HelpSection.vue'
 import SettingsAccountSection from '@/components/settings/SettingsAccountSection.vue'
 import SettingsAppearanceSection from '@/components/settings/SettingsAppearanceSection.vue'
 import SettingsDataSection from '@/components/settings/SettingsDataSection.vue'
+import SettingsBackupsSection from '@/components/settings/SettingsBackupsSection.vue'
 import SavedConversationsSection from '@/components/settings/SavedConversationsSection.vue'
 import SettingsToolsSection from '@/components/settings/SettingsToolsSection.vue'
-import { User, Palette, Database, MessageSquare, HelpCircle, Wrench, Menu, ShieldCheck } from 'lucide-vue-next'
+import { User, Palette, Database, MessageSquare, HelpCircle, Wrench, Menu, ShieldCheck, Archive } from 'lucide-vue-next'
 
 const tabIcons: Record<string, Component> = {
   account: User,
   appearance: Palette,
   data: Database,
+  backups: Archive,
   tools: Wrench,
   conversations: MessageSquare,
   help: HelpCircle,
@@ -135,11 +140,13 @@ const auth = useAuthStore()
 
 const accountSection = ref<InstanceType<typeof SettingsAccountSection> | null>(null)
 const dataSection = ref<InstanceType<typeof SettingsDataSection> | null>(null)
+const backupsSection = ref<InstanceType<typeof SettingsBackupsSection> | null>(null)
 
 const baseTabs = [
   { id: 'account', label: 'Account' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'data', label: 'Data' },
+  { id: 'backups', label: 'Backups & Keys' },
   { id: 'tools', label: 'Tools' },
   { id: 'conversations', label: 'Conversations' },
   { id: 'help', label: 'Help' },
@@ -152,6 +159,7 @@ const tabs = computed(() => {
       { id: 'admin', label: 'Admin' },
       { id: 'appearance', label: 'Appearance' },
       { id: 'data', label: 'Data' },
+      { id: 'backups', label: 'Backups & Keys' },
       { id: 'tools', label: 'Tools' },
       { id: 'conversations', label: 'Conversations' },
       { id: 'help', label: 'Help' },
@@ -295,7 +303,7 @@ async function handleDeleteConversation(id: number) {
 
 async function handleRefresh() {
   await Promise.all([
-    dataSection.value?.loadApiKeys() ?? Promise.resolve(),
+    backupsSection.value?.loadApiKeys() ?? Promise.resolve(),
     loadConversations(),
     loadBlockedUsers(),
     accountSection.value?.loadCredentials() ?? Promise.resolve(),

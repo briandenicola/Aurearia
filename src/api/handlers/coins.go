@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -223,6 +226,7 @@ func (h *CoinHandler) Create(c *gin.Context) {
 
 	coin.UserID = userID
 	coin.ID = 0
+	coin.StorageLocation = nil
 
 	logger.Debug("coins", "Creating coin '%s' for user %d", coin.Name, userID)
 
@@ -269,6 +273,18 @@ func (h *CoinHandler) Update(c *gin.Context) {
 		return
 	}
 
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
+		return
+	}
+	var raw map[string]json.RawMessage
+	storageLocationProvided := false
+	if err := json.Unmarshal(bodyBytes, &raw); err == nil {
+		_, storageLocationProvided = raw["storageLocationId"]
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
 	var updates models.Coin
 	if err := c.ShouldBindJSON(&updates); err != nil {
 		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
@@ -277,9 +293,10 @@ func (h *CoinHandler) Update(c *gin.Context) {
 
 	updates.ID = existing.ID
 	updates.UserID = userID
+	updates.StorageLocation = nil
 
 	source := c.Query("source")
-	if err := h.svc.UpdateCoin(existing, &updates, userID, source); err != nil {
+	if err := h.svc.UpdateCoin(existing, &updates, userID, source, storageLocationProvided); err != nil {
 		if handleCoinMutationError(c, err) {
 			return
 		}
@@ -605,7 +622,8 @@ func handleCoinMutationError(c *gin.Context, err error) bool {
 		errors.Is(err, services.ErrReferenceNumberRequired),
 		errors.Is(err, services.ErrReferenceVolumeRequired),
 		errors.Is(err, services.ErrReferenceUnknownCatalog),
-		errors.Is(err, services.ErrReferenceDuplicate):
+		errors.Is(err, services.ErrReferenceDuplicate),
+		errors.Is(err, services.ErrStorageLocationNotFound):
 		respondError(c, http.StatusBadRequest, err.Error(), err)
 		return true
 	case isUniqueConstraintError(err):

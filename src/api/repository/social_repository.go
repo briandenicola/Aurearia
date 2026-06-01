@@ -217,6 +217,7 @@ func (r *SocialRepository) GetPublicCoins(userID uint) ([]models.Coin, error) {
 	var coins []models.Coin
 	err := r.db.Scopes(PublicCoins(userID)).
 		Preload("Images").
+		Preload("StorageLocation").
 		Order("updated_at DESC").
 		Find(&coins).Error
 	return coins, err
@@ -226,7 +227,7 @@ func (r *SocialRepository) GetPublicCoins(userID uint) ([]models.Coin, error) {
 func (r *SocialRepository) FindPublicCoin(coinID, userID uint) (*models.Coin, error) {
 	var coin models.Coin
 	err := r.db.Where("id = ? AND user_id = ? AND is_private = false AND is_wishlist = false AND is_sold = false", coinID, userID).
-		Preload("Images").First(&coin).Error
+		Preload("Images").Preload("StorageLocation").First(&coin).Error
 	return &coin, err
 }
 

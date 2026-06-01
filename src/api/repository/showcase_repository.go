@@ -65,6 +65,7 @@ func (r *ShowcaseRepository) GetShowcaseCoins(showcaseID uint) ([]models.Coin, e
 		Where("showcase_coins.showcase_id = ?", showcaseID).
 		Preload("Images").
 		Preload("Tags").
+		Preload("StorageLocation").
 		Order("showcase_coins.sort_order ASC").
 		Find(&coins).Error
 	return coins, err

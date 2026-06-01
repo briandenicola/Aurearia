@@ -11,10 +11,11 @@ import (
 
 // CoinService handles coin business logic and orchestrates repository calls.
 type CoinService struct {
-	repo     *repository.CoinRepository
-	notifSvc *NotificationService
-	refRepo  *repository.CoinReferenceRepository
-	refSvc   *CoinReferenceService
+	repo                *repository.CoinRepository
+	notifSvc            *NotificationService
+	refRepo             *repository.CoinReferenceRepository
+	refSvc              *CoinReferenceService
+	storageLocationRepo *repository.StorageLocationRepository
 }
 
 // NewCoinService creates a new CoinService.
@@ -32,8 +33,17 @@ func (s *CoinService) WithReferenceSupport(
 	return s
 }
 
+// WithStorageLocationSupport enables storage-location ownership validation during coin create/update workflows.
+func (s *CoinService) WithStorageLocationSupport(storageLocationRepo *repository.StorageLocationRepository) *CoinService {
+	s.storageLocationRepo = storageLocationRepo
+	return s
+}
+
 // CreateCoin creates a coin and records a value snapshot in a single transaction.
 func (s *CoinService) CreateCoin(coin *models.Coin) error {
+	if err := s.validateStorageLocation(coin.StorageLocationID, coin.UserID); err != nil {
+		return err
+	}
 	err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)
 		if err := txRepo.Create(coin); err != nil {
@@ -75,14 +85,25 @@ func (s *CoinService) CreateCoin(coin *models.Coin) error {
 // UpdateCoin applies updates to an existing coin. If the current value changed
 // and the source is not "estimate", it records a value history entry and a
 // journal entry. A value snapshot is always recorded afterward.
-func (s *CoinService) UpdateCoin(existing *models.Coin, updates *models.Coin, userID uint, source string) error {
+func (s *CoinService) UpdateCoin(existing *models.Coin, updates *models.Coin, userID uint, source string, storageLocationProvided ...bool) error {
 	oldValue := existing.CurrentValue
+	updateStorageLocation := len(storageLocationProvided) > 0 && storageLocationProvided[0]
+	if updateStorageLocation {
+		if err := s.validateStorageLocation(updates.StorageLocationID, userID); err != nil {
+			return err
+		}
+	}
 
 	return s.repo.DB().Transaction(func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)
 
 		if err := txRepo.Update(existing, updates); err != nil {
 			return err
+		}
+		if updateStorageLocation {
+			if err := txRepo.UpdateStorageLocationID(existing, updates.StorageLocationID); err != nil {
+				return err
+			}
 		}
 
 		if s.refRepo != nil && s.refSvc != nil && updates.References != nil {
@@ -176,4 +197,21 @@ func (s *CoinService) SellCoin(coin *models.Coin, updates map[string]interface{}
 		}
 		return txRepo.RecordValueSnapshot(userID)
 	})
+}
+
+func (s *CoinService) validateStorageLocation(storageLocationID *uint, userID uint) error {
+	if storageLocationID == nil || s.storageLocationRepo == nil {
+		return nil
+	}
+	if *storageLocationID == 0 {
+		return ErrStorageLocationNotFound
+	}
+	exists, err := s.storageLocationRepo.ExistsByID(*storageLocationID, userID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrStorageLocationNotFound
+	}
+	return nil
 }

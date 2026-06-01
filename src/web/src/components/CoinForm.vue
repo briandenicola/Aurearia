@@ -45,6 +45,20 @@
             </select>
           </div>
         </div>
+        <div class="form-group">
+          <label class="form-label">Storage Location</label>
+          <select v-model="storageLocationIdModel" class="form-select" :disabled="storageLocationsLoading">
+            <option value="">None</option>
+            <option
+              v-for="location in storageLocations"
+              :key="location.id"
+              :value="String(location.id)"
+            >
+              {{ location.name }}
+            </option>
+          </select>
+          <p v-if="storageLocationError" class="form-hint form-hint-error">{{ storageLocationError }}</p>
+        </div>
       </fieldset>
 
       <!-- Physical Details -->
@@ -199,9 +213,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { getStorageLocations } from '@/api/client'
 import { CATEGORIES, COIN_ERAS, MATERIALS } from '@/types'
-import type { Coin } from '@/types'
+import type { Coin, StorageLocation } from '@/types'
 import AutocompleteInput from '@/components/AutocompleteInput.vue'
 import { X, Camera } from 'lucide-vue-next'
 import { usePwa } from '@/composables/usePwa'
@@ -228,6 +243,29 @@ const reverseInput = ref<HTMLInputElement | null>(null)
 const cardInput = ref<HTMLInputElement | null>(null)
 const removedObverseId = ref<number | null>(null)
 const removedReverseId = ref<number | null>(null)
+const storageLocations = ref<StorageLocation[]>([])
+const storageLocationsLoading = ref(false)
+const storageLocationError = ref('')
+
+const storageLocationIdModel = computed({
+  get: () => props.form.storageLocationId == null ? '' : String(props.form.storageLocationId),
+  set: (value: string) => {
+    props.form.storageLocationId = value === '' ? null : Number(value)
+  },
+})
+
+onMounted(async () => {
+  storageLocationsLoading.value = true
+  try {
+    const res = await getStorageLocations()
+    storageLocations.value = res.data?.storageLocations ?? []
+  } catch {
+    storageLocations.value = []
+    storageLocationError.value = 'Storage locations are unavailable'
+  } finally {
+    storageLocationsLoading.value = false
+  }
+})
 
 const existingObverse = computed(() => {
   if (removedObverseId.value) return null
@@ -418,6 +456,11 @@ defineExpose({
   font-size: 0.85rem;
   color: var(--text-muted);
   margin-bottom: 0.5rem;
+}
+
+.form-hint-error {
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
 }
 
 @media (max-width: 768px) {

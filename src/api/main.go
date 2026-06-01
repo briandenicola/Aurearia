@@ -212,10 +212,11 @@ func main() {
 	protected.Use(apiRateLimit)
 	{
 		coinReferenceRepo := repository.NewCoinReferenceRepository(database.DB)
+		storageLocationRepo := repository.NewStorageLocationRepository(database.DB)
 		catalogRegistryRepo := repository.NewCatalogRegistryRepository(database.DB)
 		intakeDraftRepo := repository.NewCoinIntakeDraftRepository(database.DB)
 		coinReferenceSvc := services.NewCoinReferenceService(coinReferenceRepo, catalogRegistryRepo)
-		coinSvc := services.NewCoinService(coinRepo, notifSvc).WithReferenceSupport(coinReferenceRepo, coinReferenceSvc)
+		coinSvc := services.NewCoinService(coinRepo, notifSvc).WithReferenceSupport(coinReferenceRepo, coinReferenceSvc).WithStorageLocationSupport(storageLocationRepo)
 		coinHandler := handlers.NewCoinHandler(coinRepo, coinSvc, logger)
 		coinReferenceHandler := handlers.NewCoinReferenceHandler(coinReferenceRepo, coinReferenceSvc)
 		coinIntakeSvc := services.NewCoinIntakeService(intakeDraftRepo, coinRepo, agentProxy, settingsSvc)
@@ -233,6 +234,13 @@ func main() {
 		protected.POST("/coins/:id/purchase", coinHandler.Purchase)
 		protected.POST("/coins/:id/sell", coinHandler.Sell)
 		protected.DELETE("/coins/:id", coinHandler.Delete)
+
+		storageLocationSvc := services.NewStorageLocationService(storageLocationRepo)
+		storageLocationHandler := handlers.NewStorageLocationHandler(storageLocationSvc)
+		protected.GET("/storage-locations", storageLocationHandler.List)
+		protected.POST("/storage-locations", storageLocationHandler.Create)
+		protected.PUT("/storage-locations/:id", storageLocationHandler.Update)
+		protected.DELETE("/storage-locations/:id", storageLocationHandler.Delete)
 
 		tagRepo := repository.NewTagRepository(database.DB)
 		tagHandler := handlers.NewTagHandler(tagRepo)
@@ -470,7 +478,7 @@ func main() {
 	// #218 external tool server - public versioned route group
 	// Middleware chain: kill-switch gate → API-key auth → per-key rate limiter
 	externalToolsRateLimit := middleware.ExternalAPIKeyRateLimit(50, 1*time.Minute)
-	
+
 	// Unauthenticated OpenAPI spec endpoint (respects kill-switch only)
 	toolsSpec := api.Group("/v1/tools")
 	toolsSpec.Use(middleware.ExternalToolServerEnabled(settingsSvc))
@@ -478,7 +486,7 @@ func main() {
 		openapiHandler := handlers.NewExternalToolsOpenAPIHandler()
 		toolsSpec.GET("/openapi.json", openapiHandler.GetOpenAPISpec)
 	}
-	
+
 	// Authenticated tool endpoints (auth + rate limit)
 	v1Tools := api.Group("/v1/tools")
 	v1Tools.Use(middleware.ExternalToolServerEnabled(settingsSvc))
@@ -486,7 +494,7 @@ func main() {
 	v1Tools.Use(externalToolsRateLimit)
 	{
 		externalToolsHandler := handlers.NewExternalToolsHandler(collectionSvc)
-		
+
 		// Read tools (require 'read' capability)
 		readTools := v1Tools.Group("")
 		readTools.Use(middleware.RequireCapability("read"))
@@ -496,7 +504,7 @@ func main() {
 			readTools.POST("/collection_summary", externalToolsHandler.CollectionSummary)
 			readTools.POST("/top_coins_by_value", externalToolsHandler.TopCoinsByValue)
 		}
-		
+
 		// Write tools (require 'write' capability)
 		writeTools := v1Tools.Group("")
 		writeTools.Use(middleware.RequireCapability("write"))
