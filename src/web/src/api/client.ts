@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, LegacyMigrationResult } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, LegacyMigrationResult, CatalogRegistry } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -186,6 +186,17 @@ export const getStorageLocations = () => api.get<{ storageLocations: StorageLoca
 export const createStorageLocation = (data: { name: string; sortOrder?: number }) => api.post<StorageLocation>('/storage-locations', data)
 export const updateStorageLocation = (id: number, data: { name?: string; sortOrder?: number }) => api.put<StorageLocation>(`/storage-locations/${id}`, data)
 export const deleteStorageLocation = (id: number) => api.delete(`/storage-locations/${id}`)
+
+// Catalog Registry
+export const listCatalogs = async () => {
+  const res = await api.get<{ catalogs: CatalogRegistry[] }>('/catalogs')
+  return res.data.catalogs ?? []
+}
+export const adminCreateCatalog = (payload: { catalog: string; displayName: string; era: string; volumeRequired: boolean }) =>
+  api.post<CatalogRegistry>('/admin/catalogs', payload)
+export const adminUpdateCatalog = (id: number, payload: { catalog: string; displayName: string; era: string; volumeRequired: boolean }) =>
+  api.put<CatalogRegistry>(`/admin/catalogs/${id}`, payload)
+export const adminDeleteCatalog = (id: number) => api.delete(`/admin/catalogs/${id}`)
 
 // Bulk Operations
 export const bulkAction = (coinIds: number[], action: string, tagId?: number) =>

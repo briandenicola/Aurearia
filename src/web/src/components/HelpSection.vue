@@ -156,7 +156,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           <li><strong>162</strong> — The specific type number in that volume</li>
         </ul>
         <p>Always include the volume number when citing RIC, since type numbers restart in each volume.</p>
-        <p>In coin details, use the structured <strong>Catalog References</strong> section for normalized references (catalog, volume, number, certainty, authority URI). The legacy <code>referenceUrl</code>/<code>referenceText</code> fields are still supported for marketplace listing links and backward compatibility.</p>
+        <p>In coin details, use the structured <strong>Catalog References</strong> section for normalized references (catalog, volume, number, invoice number, authority URI). The legacy <code>referenceUrl</code>/<code>referenceText</code> fields are still supported for marketplace listing links and backward compatibility.</p>
       </div>
     </details>
 

@@ -50,7 +50,7 @@ export interface CoinReference {
   catalog: string
   volume: string
   number: string
-  certainty: string
+  invoiceNumber: string
   uri: string
   createdAt: string
   updatedAt: string
@@ -60,8 +60,18 @@ export interface CoinReferenceInput {
   catalog: string
   volume?: string
   number: string
-  certainty?: string
+  invoiceNumber?: string
   uri?: string
+}
+
+export interface CatalogRegistry {
+  id: number
+  catalog: string
+  displayName: string
+  era: 'ancient' | 'medieval' | 'modern'
+  volumeRequired: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface LegacyMigrationResult {

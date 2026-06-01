@@ -20,12 +20,15 @@
         <template v-if="editing?.mode === 'edit' && editing.id === ref.id">
           <form class="reference-form" @submit.prevent="saveEdit">
             <div class="reference-grid">
-              <input v-model.trim="draft.catalog" class="form-input" placeholder="Catalog (e.g. RIC)" />
+              <select v-model="draft.catalog" class="form-input">
+                <option value="" disabled>Select catalog</option>
+                <option v-for="opt in editingCatalogOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
               <input v-model.trim="draft.volume" class="form-input" placeholder="Volume (optional)" />
               <input v-model.trim="draft.number" class="form-input" placeholder="Number" />
             </div>
             <div class="reference-grid reference-grid-two">
-              <input v-model.trim="draft.certainty" class="form-input" placeholder="Certainty (optional)" />
+              <input v-model.trim="draft.invoiceNumber" class="form-input" placeholder="Invoice Number (optional)" />
               <input v-model.trim="draft.uri" class="form-input" placeholder="URI (optional)" />
             </div>
             <div class="reference-actions">
@@ -41,7 +44,7 @@
             <span class="reference-value">
               <template v-if="ref.volume">{{ ref.volume }} </template>{{ ref.number }}
             </span>
-            <span v-if="ref.certainty" class="reference-certainty">{{ ref.certainty }}</span>
+            <span v-if="ref.invoiceNumber" class="reference-invoice">{{ ref.invoiceNumber }}</span>
           </div>
           <div class="reference-actions">
             <a
@@ -66,12 +69,15 @@
       <article v-if="editing?.mode === 'create'" class="reference-card">
         <form class="reference-form" @submit.prevent="saveCreate">
           <div class="reference-grid">
-            <input v-model.trim="draft.catalog" class="form-input" placeholder="Catalog (e.g. RIC)" />
+            <select v-model="draft.catalog" class="form-input">
+              <option value="" disabled>Select catalog</option>
+              <option v-for="c in catalogs" :key="c.id" :value="c.catalog">{{ c.catalog }} — {{ c.displayName }}</option>
+            </select>
             <input v-model.trim="draft.volume" class="form-input" placeholder="Volume (optional)" />
             <input v-model.trim="draft.number" class="form-input" placeholder="Number" />
           </div>
           <div class="reference-grid reference-grid-two">
-            <input v-model.trim="draft.certainty" class="form-input" placeholder="Certainty (optional)" />
+            <input v-model.trim="draft.invoiceNumber" class="form-input" placeholder="Invoice Number (optional)" />
             <input v-model.trim="draft.uri" class="form-input" placeholder="URI (optional)" />
           </div>
           <div class="reference-actions">
@@ -85,16 +91,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { createCoinReference, deleteCoinReference, updateCoinReference } from '@/api/client'
-import type { CoinReference } from '@/types'
+import { computed, ref, watch, onMounted } from 'vue'
+import { createCoinReference, deleteCoinReference, updateCoinReference, listCatalogs } from '@/api/client'
+import type { CoinReference, CatalogRegistry } from '@/types'
 import { useDialog } from '@/composables/useDialog'
 
 type ReferenceDraft = {
   catalog: string
   volume: string
   number: string
-  certainty: string
+  invoiceNumber: string
   uri: string
 }
 
@@ -110,13 +116,14 @@ const emit = defineEmits<{
 const { showAlert, showConfirm } = useDialog()
 
 const localReferences = ref<CoinReference[]>([])
+const catalogs = ref<CatalogRegistry[]>([])
 const saving = ref(false)
 const editing = ref<{ mode: 'create' } | { mode: 'edit'; id: number } | null>(null)
 const draft = ref<ReferenceDraft>({
   catalog: '',
   volume: '',
   number: '',
-  certainty: '',
+  invoiceNumber: '',
   uri: '',
 })
 
@@ -126,6 +133,22 @@ const rows = computed(() =>
     return a.number.localeCompare(b.number)
   }),
 )
+
+const editingCatalogOptions = computed(() => {
+  const opts = catalogs.value.map(c => ({ value: c.catalog, label: `${c.catalog} — ${c.displayName}` }))
+  if (draft.value.catalog && !catalogs.value.some(c => c.catalog === draft.value.catalog)) {
+    opts.push({ value: draft.value.catalog, label: `${draft.value.catalog} (legacy)` })
+  }
+  return opts
+})
+
+onMounted(async () => {
+  try {
+    catalogs.value = await listCatalogs()
+  } catch {
+    // ignore catalog load failure
+  }
+})
 
 watch(
   () => props.references,
@@ -145,7 +168,7 @@ function resetDraft(value?: Partial<CoinReference>) {
     catalog: value?.catalog ?? '',
     volume: value?.volume ?? '',
     number: value?.number ?? '',
-    certainty: value?.certainty ?? '',
+    invoiceNumber: value?.invoiceNumber ?? '',
     uri: value?.uri ?? '',
   }
 }
@@ -290,7 +313,7 @@ function getErrorMessage(error: unknown): string {
   color: var(--text-primary);
 }
 
-.reference-certainty {
+.reference-invoice {
   font-size: 0.75rem;
   color: var(--text-secondary);
 }

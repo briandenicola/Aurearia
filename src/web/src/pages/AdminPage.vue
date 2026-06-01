@@ -87,6 +87,9 @@
           @save="onSystemSave"
         />
 
+        <!-- Catalogs Tab -->
+        <AdminCatalogsSection v-if="activeTab === 'catalogs'" />
+
         <!-- Schedules Tab -->
         <AdminSchedulesSection
           v-if="activeTab === 'schedules'"
@@ -148,9 +151,10 @@ import AdminLogsSection from '@/components/admin/AdminLogsSection.vue'
 import AdminAISection from '@/components/admin/AdminAISection.vue'
 import AdminSchedulesSection from '@/components/admin/AdminSchedulesSection.vue'
 import AdminHealthSection from '@/components/admin/AdminHealthSection.vue'
-import { Users, Cpu, Wrench, ScrollText, CalendarClock, Activity, ChevronRight } from 'lucide-vue-next'
+import AdminCatalogsSection from '@/components/admin/AdminCatalogsSection.vue'
+import { Users, Cpu, Wrench, ScrollText, CalendarClock, Activity, ChevronRight, BookMarked } from 'lucide-vue-next'
 
-type AdminTabId = 'users' | 'ai' | 'system' | 'schedules' | 'health' | 'logs'
+type AdminTabId = 'users' | 'ai' | 'system' | 'catalogs' | 'schedules' | 'health' | 'logs'
 type AdminGroupId = 'configuration' | 'operations'
 type AdminTab = {
   id: AdminTabId
@@ -163,6 +167,7 @@ const tabIcons: Record<AdminTabId, Component> = {
   users: Users,
   ai: Cpu,
   system: Wrench,
+  catalogs: BookMarked,
   schedules: CalendarClock,
   health: Activity,
   logs: ScrollText,
@@ -172,6 +177,7 @@ const tabs: AdminTab[] = [
   { id: 'users', label: 'Users', group: 'configuration' },
   { id: 'ai', label: 'AI', group: 'configuration' },
   { id: 'system', label: 'System', group: 'configuration' },
+  { id: 'catalogs', label: 'Catalogs', group: 'configuration' },
   { id: 'schedules', label: 'Schedules', group: 'operations', aliases: ['schedule'] },
   { id: 'health', label: 'Health', group: 'operations' },
   { id: 'logs', label: 'Logs', group: 'operations', aliases: ['log'] },

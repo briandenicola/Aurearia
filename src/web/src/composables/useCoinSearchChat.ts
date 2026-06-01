@@ -193,7 +193,6 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
           catalog: ref.catalog.trim(),
           volume: ref.volume?.trim() || '',
           number: ref.number.trim(),
-          certainty: ref.certainty?.trim() || '',
           uri: ref.uri?.trim() || '',
         }))
 
