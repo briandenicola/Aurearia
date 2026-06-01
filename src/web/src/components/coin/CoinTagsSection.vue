@@ -1,6 +1,6 @@
 <template>
-  <div class="detail-tags-section">
-    <h4 class="section-label">Tags</h4>
+  <section class="tags-section">
+    <h3>Tags</h3>
     <div class="detail-tags">
       <span
         v-for="tag in tags"
@@ -26,7 +26,7 @@
       </select>
       <button class="btn-tag-cancel" @click="showTagPicker = false">Cancel</button>
     </div>
-  </div>
+  </section>
 </template>
 
 <script setup lang="ts">
@@ -78,29 +78,30 @@ async function handleRemoveTag(tagId: number) {
 </script>
 
 <style scoped>
-.detail-tags-section {
-  margin-bottom: 1rem;
+.tags-section {
+  margin-bottom: 1.5rem;
 }
 
-.section-label {
-  margin-bottom: 0.5rem;
+.tags-section h3 {
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
 }
 
 .detail-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 0.5rem;
   align-items: center;
 }
 
 .detail-tag-chip {
-  font-size: 0.75rem;
-  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.85rem;
   border-radius: var(--radius-full);
   border: 1px solid;
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.35rem;
 }
 
 .tag-remove {
@@ -108,7 +109,7 @@ async function handleRemoveTag(tagId: number) {
   border: none;
   color: inherit;
   cursor: pointer;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   padding: 0;
   opacity: 0.6;
   line-height: 1;
@@ -123,8 +124,8 @@ async function handleRemoveTag(tagId: number) {
   border: 1px dashed var(--border-subtle);
   border-radius: var(--radius-full);
   color: var(--text-secondary);
-  font-size: 0.75rem;
-  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.85rem;
   cursor: pointer;
 }
 
@@ -137,11 +138,11 @@ async function handleRemoveTag(tagId: number) {
   display: flex;
   gap: 0.5rem;
   align-items: center;
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
 }
 
 .tag-picker-select {
-  padding: 0.3rem 0.5rem;
+  padding: 0.35rem 0.6rem;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: var(--bg-card);

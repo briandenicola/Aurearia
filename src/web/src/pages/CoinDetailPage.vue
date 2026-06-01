@@ -74,12 +74,6 @@
             </div>
           </div>
 
-          <CoinTagsSection
-            :tags="coin.tags ?? []"
-            :coin-id="coin.id"
-            @tags-changed="refreshCoin"
-          />
-
           <div v-if="coin.purchaseDate || coin.purchaseLocation || safeReferenceUrl" class="purchase-meta">
             <span v-if="coin.purchaseDate">Purchased {{ new Date(coin.purchaseDate).toLocaleDateString() }}</span>
             <template v-if="coin.purchaseLocation">
@@ -102,6 +96,12 @@
             <h3>Details</h3>
             <CoinDetailMetadataTable :rows="metadataRows" />
           </div>
+
+          <CoinTagsSection
+            :tags="coin.tags ?? []"
+            :coin-id="coin.id"
+            @tags-changed="refreshCoin"
+          />
 
           <CoinReferencesSection
             :coin-id="coin.id"
@@ -334,6 +334,7 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.25rem;
+  font-style: italic;
 }
 
 .store-link {
