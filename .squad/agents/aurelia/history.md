@@ -73,3 +73,30 @@ Removed legacy free-text Rarity/RIC surface from coin detail metadata and coin f
 
 **Related:**
 - Cassius proposed a design for migrating legacy `rarityRating` values into `CoinReference` records (PROPOSED/PENDING Brian approval)
+
+## 2026-06-01 — Catalog Registry Admin Frontend + CoinReference Certainty → InvoiceNumber
+
+Completed frontend deployment of catalog registry feature in parallel with Cassius's backend work.
+
+**Changes:**
+- **Types:** Renamed `CoinReference.certainty` → `invoiceNumber` in `src/web/src/types/index.ts`. Added `CatalogRegistry` interface.
+- **API Client:** Added `listCatalogs()`, `adminCreateCatalog()`, `adminUpdateCatalog()`, `adminDeleteCatalog()` in `src/web/src/api/client.ts`.
+- **Coin References UI:** Converted free-text catalog input to `<select>` dropdown from `listCatalogs()` with legacy fallback option; replaced `certainty` input with `invoiceNumber` input (placeholder updated).
+- **Agent Chat:** Removed `certainty` field from candidate reference mapping in `useCoinSearchChat.ts` (AI no longer provides this).
+- **Admin UI:** New `AdminCatalogsSection.vue` CRUD interface following existing admin patterns (table with code/name/era/toggle, modal form, 409 conflict handling for in-use catalogs).
+- **Admin Page:** Registered `catalogs` tab in `AdminPage.vue` (configuration group, BookMarked icon, positioned after System).
+- **Help Text:** Updated `HelpSection.vue` reference field list "(catalog, volume, number, certainty, authority URI)" → "(catalog, volume, number, invoice number, authority URI)".
+
+**Design decisions:**
+- Dropdown ensures catalog consistency; legacy fallback prevents data loss when editing references with removed catalogs
+- Invoice number semantics: field repurposed from unused "certainty" → manual purchase invoice tracking
+- Admin placement: catalogs are configuration (not operational), grouped with Users/AI/System
+- Delete 409 handling: friendly error message ("in use by X coins") rather than raw API error
+
+**Verification:** npm run build ✅, npm run lint ✅ (no new warnings). Commit 0de29af.
+
+**Backend integration:** Cassius implemented CRUD + field rename + AI concept removal. Commit d0d3db1.
+
+**OpenAPI:** Coordinator regenerated. Commit 100087f. All three commits pushed to origin/main.
+
+**Prior batch (unlogged):** Promoted CatalogArchives in HelpSection helpful resources + refined description (commit 1e0de0d).

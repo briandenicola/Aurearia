@@ -4905,3 +4905,139 @@ Added a user-scoped single-coin health endpoint: `GET /coins/:id/health` (protec
 - Consider adding per-coin health to the main coin detail response (preload health data when fetching `GET /coins/:id`) to avoid an extra round-trip. Current implementation is acceptable (one extra call per health subpage view) but could be optimized if the health subpage becomes a primary navigation target.
 - If the collection grows to 10,000+ coins, the `getCoinHealthList` endpoint's pagination logic (page/limit) will be essential. The new per-coin endpoint bypasses that concern but doesn't replace the list endpoint (which powers the standalone Health List view).
 
+
+---
+
+### Decision: Catalog Registry Backend — CRUD + Reference Field Rename
+
+**Date:** 2026-06-01  
+**Agent:** Cassius (Backend)  
+**Status:** Implemented
+
+## Context
+
+Backend changes coupling three related concerns: reference field semantics, AI confidence removal, and catalog management.
+
+## Changes
+
+#### 1. CoinReference.Certainty → InvoiceNumber
+
+Repurposed the unused `certainty` field (originally for AI confidence scoring) as a manual invoice number field. The AI agent no longer emits certainty scores, so the field was available for reuse.
+
+- **Model:** `varchar(64)` to allow longer invoice numbers (was 32)
+- **Migration:** Idempotent column rename in `database.go` (checks existence via `PRAGMA table_info`)
+- **JSON tag:** `invoiceNumber` (camelCase for frontend)
+
+Legacy imports no longer set `certainty = "legacy-import"` — that metadata is not needed.
+
+#### 2. Remove AI Certainty/Confidence Concept
+
+The user no longer tracks AI confidence on candidate references. Removed from:
+- Go proxy structs (`CandidateReferenceProxy`, `CandidateReferenceDTORef`)
+- Python models (`CandidateReference`)
+- Agent prompts and normalization logic
+
+The `ValueEstimate.confidence` and `AvailabilityVerdict.confidence` fields remain — those are different contexts (valuation and availability checks).
+
+#### 3. Catalog Registry Admin Management
+
+Added full CRUD for `CatalogRegistry` with layered architecture:
+
+- **Repository:** `Create`, `Update`, `Delete`, `FindByID`, `CountReferencesUsing` (checks `coin_references` usage)
+- **Service:** `CatalogRegistryService` with validation (era ∈ {ancient, medieval, modern}, code required, duplicate check, in-use check on delete)
+- **Handler:** `CatalogRegistryHandler` with Swagger annotations. Protected route `GET /catalogs` for read, admin routes `POST/PUT/DELETE /admin/catalogs/:id` for management.
+- **Seed additions:** PRICE, BM, VENÈRA (preserves diacritic — `strings.ToUpper("venèra")` → "VENÈRA")
+
+Sentinel errors: `ErrCatalogNotFound`, `ErrCatalogDuplicate`, `ErrCatalogInUse`, `ErrCatalogInvalidEra`, `ErrCatalogCodeRequired`, `ErrCatalogNameRequired`.
+
+## Verification
+
+- `go build ./...` ✅
+- `go vet ./...` ✅
+- `go test ./...` ✅ (architecture_test passes)
+- `ruff check app/ tests/` ✅
+- `pytest tests/ -v` ✅ (60/60 passed)
+
+## Architecture Compliance
+
+- **Principle I (Layered Architecture):** Handler → Service → Repository → Database. No `database` import outside `main.go`.
+- **Principle X (Architecture Testing):** `architecture_test.go` confirms import rules enforced.
+- **Principle VIII (Commits):** Co-authored-by trailer present.
+
+## Notes
+
+- The invoice number is optional — users enter it manually when they have a purchase invoice to track.
+- The catalog code is stored uppercase and validated on input; the diacritic in VENÈRA is preserved per Go's `strings.ToUpper`.
+- The migration is safe to run multiple times (idempotent column check).
+
+---
+
+### Decision: Catalog Registry Admin Frontend
+
+**Date:** 2026-06-01  
+**Agent:** Aurelia (Frontend)  
+**Status:** Implemented
+
+## Context
+
+Frontend implementation for catalog registry feature (backend in parallel).
+
+## Changes
+
+#### Types (`src/web/src/types/index.ts`)
+
+- Renamed `CoinReference.certainty` → `invoiceNumber` (string field)
+- Renamed `CoinReferenceInput.certainty` → `invoiceNumber` (optional)
+- Added `CatalogRegistry` interface: `id`, `catalog`, `displayName`, `era` (ancient/medieval/modern), `volumeRequired` (boolean)
+
+#### API Client (`src/web/src/api/client.ts`)
+
+- `listCatalogs()`: GET `/catalogs` → `CatalogRegistry[]` (unpacked from `{ catalogs }` response)
+- `adminCreateCatalog(payload)`: POST `/admin/catalogs`
+- `adminUpdateCatalog(id, payload)`: PUT `/admin/catalogs/:id`
+- `adminDeleteCatalog(id)`: DELETE `/admin/catalogs/:id` (returns 409 if in use)
+
+#### Coin References UI (`CoinReferencesSection.vue`)
+
+- Replaced free-text catalog input with `<select>` dropdown populated from `listCatalogs()`
+- Edit mode: dropdown includes legacy fallback option if editing a reference with a catalog code no longer in registry
+- Replaced `certainty` input (placeholder "Certainty (optional)") with `invoiceNumber` input (placeholder "Invoice Number (optional)")
+- Display: changed `ref.certainty` → `ref.invoiceNumber` in template, CSS class `.reference-certainty` → `.reference-invoice`
+- Draft type: `ReferenceDraft.certainty` → `invoiceNumber`
+
+#### Agent Chat (`useCoinSearchChat.ts`)
+
+- Removed `certainty: ref.certainty?.trim() || ''` from candidate reference mapping (AI no longer provides this field; `invoiceNumber` is optional and omitted for AI suggestions)
+
+#### Admin UI (`AdminCatalogsSection.vue`)
+
+- New CRUD interface for catalog management following existing admin section patterns:
+  - Table: code (gold accent), display name, era badge, volume-required toggle (disabled), edit/delete actions
+  - Modal form: catalog code (required, disabled when editing), display name (required), era dropdown (required), volume-required toggle
+  - Delete: shows 409 alert ("This catalog is in use by one or more coins and cannot be deleted.") on conflict
+- Styling: mirrors `AdminHealthSection` / `AdminSchedulesSection` structure, uses design tokens, 50×28px toggle convention
+- No emojis, dark theme, `BookMarked` icon
+
+#### Admin Page Registration (`AdminPage.vue`)
+
+- Added `catalogs` to `AdminTabId` type union
+- Added `{ id: 'catalogs', label: 'Catalogs', group: 'configuration' }` to `tabs` array (after System, before Schedules)
+- Added `catalogs: BookMarked` to `tabIcons` map
+- Rendered `<AdminCatalogsSection v-if="activeTab === 'catalogs'" />`
+
+#### Help Text (`HelpSection.vue`)
+
+- Updated catalog reference field list from "(catalog, volume, number, certainty, authority URI)" → "(catalog, volume, number, invoice number, authority URI)"
+
+## Design Decisions
+
+1. **Dropdown vs. free text**: Dropdown ensures catalog consistency but retains legacy fallback when editing references with removed catalogs (prevents data loss).
+2. **Invoice number semantics**: The field was never about "certainty" — it's for tracking purchase invoices. Naming now matches actual use case.
+3. **Admin placement**: Catalogs are configuration (like tags/storage locations), not operational (like schedules/health), so grouped with Users/AI/System.
+4. **Delete 409 handling**: Friendly error message ("in use by X coins") instead of raw API error — matches existing patterns in tag/location management.
+
+## Verification
+
+- `npm run build` passed (vue-tsc + vite)
+- `npm run lint` passed (1 pre-existing warning in this component, 5 pre-existing warnings in other files — none new)
+- Docker stricter type-checking addressed via nullable prop handling patterns already in codebase

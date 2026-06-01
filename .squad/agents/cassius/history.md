@@ -162,3 +162,21 @@ Fixed the Metadata Health subpage always showing "No health data available for t
 
 **Verification:** go build/vet/test pass, npm run build pass, commit 5bd36e9.
 
+
+## 2026-06-01 — Catalog Registry Backend CRUD + CoinReference.Certainty → InvoiceNumber
+
+Completed backend deployment of catalog registry feature in parallel with Aurelia's frontend work.
+
+**Changes:**
+- Renamed `CoinReference.certainty` → `invoiceNumber` (repurposed unused field from AI confidence scoring). Migration idempotent via PRAGMA column check.
+- Removed AI certainty/confidence concept from Go proxy structs (`CandidateReferenceProxy`, `CandidateReferenceDTORef`) and Python agent models (`CandidateReference`). Noted that `ValueEstimate.confidence` and `AvailabilityVerdict.confidence` remain (different contexts).
+- Implemented full CRUD for `CatalogRegistry`: repository (`Create`, `Update`, `Delete`, `FindByID`, `CountReferencesUsing`), service with validation (era ∈ {ancient, medieval, modern}, code required, duplicate/in-use checks), handler, routes (`GET /catalogs`, admin `POST/PUT/DELETE /admin/catalogs/:id`).
+- Seeded PRICE, BM, VENÈRA catalogs (diacritic preserved in uppercase).
+
+**Sentinel errors:** `ErrCatalogNotFound`, `ErrCatalogDuplicate`, `ErrCatalogInUse`, `ErrCatalogInvalidEra`, `ErrCatalogCodeRequired`, `ErrCatalogNameRequired`.
+
+**Verification:** go build/vet/test all pass (architecture_test.go ✅), ruff + 60/60 pytest ✅. Commit d0d3db1.
+
+**Frontend integration:** Aurelia built dropdown UI sourced from `GET /catalogs` with legacy fallback, new `AdminCatalogsSection.vue` CRUD interface, and help text updates. Commit 0de29af.
+
+**OpenAPI:** Coordinator regenerated for GET/admin /catalogs + invoiceNumber. Commit 100087f. All three commits pushed to origin/main.
