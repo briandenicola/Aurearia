@@ -45,6 +45,7 @@ services:
       - DB_PATH=/app/data/ancientcoins.db
       - PORT=8080
       - AGENT_SERVICE_URL=http://agent:8081
+      - AGENT_INTERNAL_CALLBACK_URL=http://app:8080
     ports:
       - "8080:8080"
     volumes:
@@ -84,6 +85,12 @@ docker compose up -d
 
 The app is now available at `http://localhost:8080`.
 
+> **⚠️ Multi-container networking:** The API and agent communicate bidirectionally:
+> - `AGENT_SERVICE_URL` (API → agent): used for all AI features
+> - `AGENT_INTERNAL_CALLBACK_URL` (agent → API): used only by collection chat (#217)
+>
+> In containerized deployments, both **must** use Docker service names (e.g., `http://app:8080`, `http://agent:8081`) instead of `localhost`. The `AGENT_INTERNAL_CALLBACK_URL` defaults to `localhost:8080` for local `task up-all` development; **set it explicitly** in compose/k8s environments or collection chat will fail with "All connection attempts failed".
+
 ---
 
 ## Environment Variables
@@ -96,7 +103,8 @@ The app is now available at `http://localhost:8080`.
 | `UPLOAD_DIR` | `./uploads` | Directory for uploaded coin images |
 | `WEBAUTHN_RP_ID` | `localhost` | WebAuthn Relying Party ID (your domain) |
 | `WEBAUTHN_ORIGIN` | `http://localhost:8080` | WebAuthn origin URL (supports comma-separated list) |
-| `AGENT_SERVICE_URL` | `http://agent:8081` | Python agent service URL |
+| `AGENT_SERVICE_URL` | `http://agent:8081` | Python agent service URL (API → agent) |
+| `AGENT_INTERNAL_CALLBACK_URL` | `http://localhost:8080` | URL the Python agent uses to call back into the Go API for collection-chat tools (#217). **In multi-container deployments, must be set to the API container's network address** (e.g., `http://app:8080`), **not `localhost`**, or collection chat fails with "All connection attempts failed" |
 | `CORS_ORIGINS` | *(WebAuthn origins + localhost)* | Comma-separated list of allowed CORS origins. Falls back to `WEBAUTHN_ORIGIN` values plus `http://localhost:5173` and `http://localhost:8080` |
 | `AGENT_LOG_LEVEL` | `INFO` | Python agent log level |
 | `AGENT_DEBUG` | `false` | Enable debug mode on the agent container (exposes `/docs` endpoint) |

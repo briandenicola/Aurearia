@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/config"
@@ -521,6 +522,11 @@ func main() {
 	log.Printf("Starting server on :%s", cfg.Port)
 	logger.Info("startup", "Server starting on port %s", cfg.Port)
 	logger.Info("startup", "Log level: %s", logger.GetLevel())
+
+	// Warn if callback URL is likely misconfigured in release mode
+	if os.Getenv("GIN_MODE") == "release" && strings.Contains(cfg.AgentInternalCallbackURL, "localhost") {
+		logger.Warn("startup", "AGENT_INTERNAL_CALLBACK_URL is set to '%s' in release mode. Collection chat (#217) will fail in multi-container deployments. Set it to the API container's network address (e.g., http://app:8080).", cfg.AgentInternalCallbackURL)
+	}
 
 	// Check Ollama connectivity at startup (blocks until complete)
 	func() {
