@@ -651,6 +651,9 @@ definitions:
     type: object
   handlers.base64ImageRequest:
     properties:
+      circleClip:
+        example: false
+        type: boolean
       fileExtension:
         example: .jpg
         type: string
@@ -3257,6 +3260,14 @@ paths:
         - "false"
         in: formData
         name: isPrimary
+        type: string
+      - default: "false"
+        description: Clip to circular transparent PNG
+        enum:
+        - "true"
+        - "false"
+        in: formData
+        name: circleClip
         type: string
       produces:
       - application/json

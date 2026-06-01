@@ -3407,6 +3407,17 @@ const docTemplate = `{
                         "description": "Set as primary image",
                         "name": "isPrimary",
                         "in": "formData"
+                    },
+                    {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
+                        "type": "string",
+                        "default": "false",
+                        "description": "Clip to circular transparent PNG",
+                        "name": "circleClip",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -6420,6 +6431,10 @@ const docTemplate = `{
                 "image"
             ],
             "properties": {
+                "circleClip": {
+                    "type": "boolean",
+                    "example": false
+                },
                 "fileExtension": {
                     "type": "string",
                     "example": ".jpg"
