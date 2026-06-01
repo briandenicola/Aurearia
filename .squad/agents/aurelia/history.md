@@ -28,6 +28,31 @@
 
 - **2026-06-01:** Legacy catalog reference migration UI added to Settings → Data. New bordered section with Database and RefreshCw icons from lucide-vue-next, explanatory text (non-destructive, keeps originals, records outcomes in journal), trigger button with loading state, and result counts grid showing Succeeded (gold accent), Skipped, Failed (amber). Client function `migrateLegacyReferences()` calls `POST /references/migrate-legacy` and returns `LegacyMigrationResult { succeeded, skipped, failed, message? }` type. Results display uses design tokens (`--accent-gold`, `--text-muted`, `--bg-input`, `--border-subtle`, `--radius-sm`) and mobile-responsive stacked layout. Build and lint pass (no new warnings).
 
+## 2026-06-01 — Legacy Catalog Reference Migration UI (SHIPPED)
+
+Added a bordered section to Settings → Data for triggering the legacy RIC→CoinReference migration endpoint and displaying result counts (succeeded/skipped/failed).
+
+**Implementation:**
+- `src/web/src/types/index.ts` — `LegacyMigrationResult` interface with `succeeded`, `skipped`, `failed` counts and optional `message`
+- `src/web/src/api/client.ts` — `migrateLegacyReferences()` function calling `POST /references/migrate-legacy`
+- `src/web/src/components/settings/SettingsDataSection.vue` — new migration card with:
+  - Database icon + "Catalog Reference Migration" heading
+  - Explanatory text (non-destructive, keeps originals, records in journal)
+  - Trigger button (RefreshCw icon, spinning during request)
+  - 3-column result grid: Succeeded (gold), Skipped (muted), Failed (amber)
+  - Error handling with `apiErrorText()` helper
+
+**Design System Compliance:**
+- ✅ All tokens: `--accent-gold`, `--text-muted`, `--bg-input`, `--border-subtle`, `--radius-sm`, `--text-secondary`
+- ✅ Global `.btn` / `.btn-primary` classes
+- ✅ Lucide-vue-next icons only (Database, RefreshCw)
+- ✅ No emojis
+- ✅ Mobile-responsive (result grid stacks on narrow viewports)
+
+**Verification:** npm run build/lint pass; no new warnings; commit 978eb23.
+
+**Related:** Cassius implemented parallel backend endpoint with per-coin journaling.
+
 ## 2026-06-01 — Free-Text Rarity/RIC UI Removal
 
 Removed legacy free-text Rarity/RIC surface from coin detail metadata and coin form. The structured Catalog References section now serves as the canonical UI for numismatic references.

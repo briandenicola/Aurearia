@@ -118,3 +118,31 @@ Refactored the legacy reference migration from an auto-startup backfill to a use
 - Handlers thin, constructor injection pattern
 - All tests pass including `TestNoDirectDatabaseImports`
 
+## 2026-06-01 — User-Triggered Legacy RIC→Reference Migration Endpoint (SHIPPED)
+
+Refactored the legacy `Coin.RarityRating` → `CoinReference` migration from auto-startup backfill to user-triggered endpoint per Brian's request. Migration is now user-scoped (protected group) and journals every coin's outcome (succeeded/skipped/failed).
+
+**Implementation:**
+- `services/reference_migration_service.go` — refactored migration logic with `MigrateLegacyReferences(userID uint)` method
+- `services/reference_migration_service_test.go` — 19 parser tests + 4 integration tests (user-scoped, idempotency, existing-ref, volume-0 sentinel)
+- `handlers/coin_references.go` — new `MigrateLegacy()` handler
+- `main.go:225` — endpoint wired as `POST /references/migrate-legacy` in protected group
+- Removed startup wiring from `database/database.go` (lines 40-42)
+
+**Endpoint Contract:**
+- Method: `POST /references/migrate-legacy`
+- Auth: JWT required (protected group)
+- Scope: Authenticated user's coins only
+- Response: `{ "succeeded": int, "skipped": int, "failed": int }`
+
+**Per-Coin Journaling:**
+Every coin processed records its outcome in CoinJournal:
+- Success: "Legacy reference migrated: RIC II 207 → catalog RIC, vol II, no. 207"
+- Skip: "Already has matching reference: ..." or "No parseable reference in rarity_rating field"
+- Fail: "Failed to parse legacy reference: ..." or "Failed to create reference: ..."
+- Manual review: Extra journal note for volume=0 sentinel
+
+**Verification:** go build/vet/test all pass; commit 978eb23.
+
+**Related:** Aurelia building parallel UI in Settings → Data with result counts and error handling.
+

@@ -2,6 +2,166 @@
 
 ## Active Decisions
 
+### Decision: Legacy Reference Migration Endpoint
+
+**Date:** 2026-06-01  
+**Agent:** Cassius (Backend Developer)  
+**Status:** Implemented
+
+## Context
+
+The legacy RIC → structured CoinReference migration was previously implemented as an auto-startup backfill in `database/database.go`. This violated Principle I (Layered Architecture) by placing business logic in the database package and failed to meet user requirements.
+
+## Decision
+
+Refactored migration to a user-triggered, user-scoped endpoint:
+- **Path:** `POST /references/migrate-legacy`
+- **Auth:** JWT required, protected group
+- **Scope:** Operates only on the authenticated user's coins
+- **Response:** `{ "succeeded": 12, "skipped": 45, "failed": 3 }` (exact lowercase field names)
+
+## Implementation
+
+**Service Layer:**
+- `services/reference_migration_service.go` — migration logic with `MigrateLegacyReferences(userID uint) (*MigrationResult, error)`
+- `services/reference_migration_service_test.go` — 19 parser tests + 4 integration tests
+
+**Handler Layer:**
+- `handlers/coin_references.go` — `MigrateLegacy()` method on `CoinReferenceHandler`
+- `handlers/swagger_types.go` — `MigrationResultDTO` for OpenAPI
+
+**Route Wiring:**
+- `main.go:225` — `protected.POST("/references/migrate-legacy", coinReferenceHandler.MigrateLegacy)`
+
+**Removed:**
+- `database/database.go:40-42` — startup backfill call deleted
+- `database/database.go:86-343` — parser functions moved to service
+- `database/reference_migration_test.go` — relocated to services package
+
+## Behavior
+
+**Per-Coin Journaling:**
+- Success → "Legacy reference migrated: RIC II 207 → catalog RIC, vol II, no. 207"
+- Skip → "Already has matching reference: ..." or "No parseable reference in rarity_rating field"
+- Fail → "Failed to parse legacy reference: ..." or "Failed to create reference: ..."
+- Manual review → Extra journal note for volume=0 sentinel
+
+**Parser Rules (unchanged):**
+- Parse FIRST reference only from semicolon-delimited strings
+- Catalog aliases: Sear/SRCV→SEAR, Spink→SPINK, Duplessy→DUPLESSY
+- Volume extraction: Roman numerals, 1-3 digit numbers, alphabetic tokens for SNG
+- Volume=0 sentinel when volume missing on volume-required catalog (RIC/RPC/SNG)
+- Certainty: `"legacy-import"`
+
+**Re-run Safety:**
+- Coins with existing matching `(coin_id, catalog, volume, number)` references are skipped
+- Journal records every run per coin (one skip note is fine, not spammed)
+
+## Architecture Compliance
+
+- ✅ Business logic in service layer (not database package)
+- ✅ Thin handler with constructor injection
+- ✅ Repository methods for DB access
+- ✅ All tests pass including `TestNoDirectDatabaseImports`
+
+## Frontend Contract
+
+Aurelia building UI in parallel against this exact contract:
+- Endpoint: `POST /references/migrate-legacy`
+- No request body
+- Response: `{ "succeeded": int, "skipped": int, "failed": int }` (lowercase, required)
+
+## Alternatives Considered
+
+1. **Keep auto-startup backfill** — Rejected: violates layered architecture, not user-scoped, Brian specifically requested user-triggered from Settings → Data
+2. **Admin-only endpoint** — Rejected: migration is per-user data, should be self-service like Tags/Storage Locations
+3. **Batch job CLI** — Rejected: adds ops complexity, doesn't match existing UI/UX patterns
+
+## References
+
+- Task directive: Brian's message (2026-06-01)
+- Constitution: Principle I (Layered Architecture)
+- Related: Storage Location per-user pattern (history.md Learnings section)
+
+## User Directives
+
+- **2026-06-01:** User-triggered migration (not startup backfill) — captured for team memory
+- **2026-06-01:** Per-coin journaling for every processed coin — captured for team memory
+
+---
+
+### Decision: Legacy Catalog Reference Migration UI
+
+**Agent:** Aurelia  
+**Date:** 2026-06-01  
+**Status:** Implemented
+
+## Context
+
+Brian requested a UI in Settings → Data to trigger the backend legacy RIC → structured Catalog Reference migration and display the result counts (succeeded/skipped/failed).
+
+## Decision
+
+Added a new bordered section to `SettingsDataSection.vue` below the Tags/Storage Locations managers.
+
+### Implementation Details
+
+**Type Definition** (`src/web/src/types/index.ts`):
+```typescript
+export interface LegacyMigrationResult {
+  succeeded: number
+  skipped: number
+  failed: number
+  message?: string
+}
+```
+
+**API Client** (`src/web/src/api/client.ts`):
+```typescript
+export const migrateLegacyReferences = () =>
+  api.post<LegacyMigrationResult>('/references/migrate-legacy')
+```
+- No request body required
+- Protected endpoint (JWT attached automatically by Axios interceptor)
+
+**UI Component** (`src/web/src/components/settings/SettingsDataSection.vue`):
+- **Section header:** Database icon from lucide-vue-next + "Catalog Reference Migration" heading
+- **Explanatory text:** States the migration is non-destructive, keeps originals, records outcomes in journal (no emojis per UI/UX rules)
+- **Trigger button:** `.btn .btn-primary` with RefreshCw icon, spinning animation during request, disabled while running
+- **Result display:** 3-column grid (stacks on mobile) showing:
+  - **SUCCEEDED** (uppercase label, gold value via `--accent-gold`)
+  - **SKIPPED** (uppercase label, muted text)
+  - **FAILED** (uppercase label, amber `#f59e0b`)
+- **Error handling:** Shows backend message if request fails, uses existing `apiErrorText()` helper
+- All CSS uses design tokens: `--accent-gold`, `--text-muted`, `--bg-input`, `--border-subtle`, `--radius-sm`, `--text-secondary`
+- Uppercase labels use standard pattern: `0.7rem`, weight 600, `letter-spacing: 0.08em`
+
+### Design System Compliance
+
+- ✅ No hardcoded colors, spacing, or radii
+- ✅ Global `.btn` / `.btn-primary` classes
+- ✅ Lucide-vue-next icons only (Database, RefreshCw)
+- ✅ No emojis in UI text
+- ✅ Mobile-responsive (result grid stacks on narrow viewports)
+- ✅ Loading states with meaningful feedback
+- ✅ Graceful error messages
+
+### Verification
+
+- `npm run build` — passed (type-check + vite build clean)
+- `npm run lint` — passed (no new warnings; 5 pre-existing warnings in other files unchanged)
+
+## Rationale
+
+This completes the user-facing migration flow for the legacy RIC → structured references feature. The UI follows all constitution principles (IV Strict Typing, V Design Token System, IX UI/UX Consistency, XIII PWA/Mobile Rules) and matches the existing Settings → Data style (bordered sections, descriptive text, action buttons, result summaries). The API contract is exact as specified by Cassius (backend team).
+
+## Related
+
+- Backend endpoint: `POST /references/migrate-legacy` (Cassius building in parallel)
+- Complements the earlier free-text Rarity/RIC UI removal (history.md entry 2026-06-01)
+
+---
+
 ### Settings Reorganization — Backups & Keys Tab
 
 **Agent:** Aurelia (Frontend Developer)  
