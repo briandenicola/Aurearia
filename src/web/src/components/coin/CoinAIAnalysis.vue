@@ -1,6 +1,5 @@
 <template>
   <div class="ai-analysis-section">
-    <h3>AI Analysis</h3>
     <div class="ai-analysis-content">
       <div class="ai-buttons">
         <button
@@ -120,11 +119,6 @@ async function handleDeleteAnalysis(side: 'obverse' | 'reverse') {
 <style scoped>
 .ai-analysis-section {
   margin-bottom: 1.5rem;
-}
-
-.ai-analysis-section h3 {
-  margin-bottom: 0.75rem;
-  font-size: 1rem;
 }
 
 .ai-analysis-content {

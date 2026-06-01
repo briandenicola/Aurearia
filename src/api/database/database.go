@@ -24,10 +24,14 @@ func Connect(dbPath string) {
 	DB.Exec("PRAGMA journal_mode=WAL")
 	DB.Exec("PRAGMA foreign_keys=ON")
 
-	err = DB.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{}, &models.ApiKey{}, &models.RefreshToken{}, &models.WebAuthnCredential{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.AgentConversation{}, &models.Follow{}, &models.CoinComment{}, &models.CoinValueHistory{}, &models.AuctionLot{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.Notification{}, &models.Tag{}, &models.CoinTag{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.AuctionEvent{}, &models.PriceAlert{}, &models.BidReminder{}, &models.ValuationRun{}, &models.ValuationResult{}, &models.AuctionEndingRun{}, &models.FeaturedCoin{}, &models.CollectionHealthSnapshot{})
+	err = DB.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{}, &models.ApiKey{}, &models.RefreshToken{}, &models.WebAuthnCredential{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.CoinIntakeDraft{}, &models.AgentConversation{}, &models.CollectionUpdateProposal{}, &models.Follow{}, &models.CoinComment{}, &models.CoinValueHistory{}, &models.AuctionLot{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.Notification{}, &models.Tag{}, &models.CoinTag{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.AuctionEvent{}, &models.PriceAlert{}, &models.BidReminder{}, &models.ValuationRun{}, &models.ValuationResult{}, &models.AuctionEndingRun{}, &models.FeaturedCoin{}, &models.CollectionHealthSnapshot{})
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
+
+	// Backfill existing api_keys with default read-only capability
+	DB.Exec("UPDATE api_keys SET capabilities='read' WHERE capabilities IS NULL OR capabilities=''")
+
 
 	if err := seedCatalogRegistry(DB); err != nil {
 		log.Fatalf("Failed to seed catalog registry: %v", err)

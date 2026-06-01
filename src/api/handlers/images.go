@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/briandenicola/ancient-coins-api/capture"
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
@@ -36,6 +38,7 @@ func NewImageHandler(uploadDir string, repo *repository.ImageRepository, svc *se
 //	@Param			image		formData	file	true	"Image file"
 //	@Param			imageType	formData	string	false	"Image type"	Enums(obverse, reverse, detail, other)	default(other)
 //	@Param			isPrimary	formData	string	false	"Set as primary image"	Enums(true, false)	default(false)
+//	@Param			circleClip	formData	string	false	"Clip to circular transparent PNG"	Enums(true, false)	default(false)
 //	@Success		201			{object}	models.CoinImage
 //	@Failure		400			{object}	ErrorResponse
 //	@Failure		401			{object}	ErrorResponse
@@ -71,6 +74,21 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 		return
 	}
 
+	// Verify coin ownership BEFORE reading/decoding file data
+	if _, err := h.repo.FindCoinByOwner(uint(coinID), userID); err != nil {
+		logger.Warn("images", "Ownership check failed for coin %d (user %d): %v", coinID, userID, err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
+		return
+	}
+
+	// Optional early size check before reading full file
+	const maxSize = 20 * 1024 * 1024
+	if file.Size > int64(maxSize) {
+		logger.Warn("images", "Upload rejected: file size %d exceeds limit %d", file.Size, maxSize)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Image exceeds 20MB limit"})
+		return
+	}
+
 	f, err := file.Open()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read uploaded file"})
@@ -86,6 +104,19 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 
 	imageType := c.DefaultPostForm("imageType", "other")
 	isPrimary := c.DefaultPostForm("isPrimary", "false") == "true"
+	circleClipStr := c.DefaultPostForm("circleClip", "false")
+	circleClip := circleClipStr == "true" || circleClipStr == "1"
+
+	// Apply circular clipping if requested for obverse/reverse (ownership already verified)
+	if circleClip && (imageType == "obverse" || imageType == "reverse") {
+		clippedData, clipErr := capture.ClipBytesToCirclePNG(fileData, capture.DefaultGuide)
+		if clipErr != nil {
+			logger.Warn("images", "Failed to clip image for coin %d: %v, storing original", coinID, clipErr)
+		} else {
+			fileData = clippedData
+			ext = ".png"
+		}
+	}
 
 	image, err := h.svc.UploadImage(uint(coinID), userID, fileData, ext, imageType, isPrimary)
 	if err != nil {
@@ -112,6 +143,7 @@ type base64ImageRequest struct {
 	FileExtension string `json:"fileExtension" binding:"required" example:".jpg"`
 	ImageType     string `json:"imageType" example:"obverse"`
 	IsPrimary     bool   `json:"isPrimary" example:"false"`
+	CircleClip    bool   `json:"circleClip" example:"false"`
 }
 
 // UploadBase64 adds an image to a coin from a base64-encoded string.
@@ -162,6 +194,45 @@ func (h *ImageHandler) UploadBase64(c *gin.Context) {
 		imageType = req.ImageType
 	}
 
+	// Verify coin ownership BEFORE decoding/clipping base64 data
+	if _, err := h.repo.FindCoinByOwner(uint(coinID), userID); err != nil {
+		logger.Warn("images", "Ownership check failed for coin %d (user %d): %v", coinID, userID, err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
+		return
+	}
+
+	// If clipping requested for obverse/reverse, decode and clip (ownership already verified)
+	if req.CircleClip && (imageType == "obverse" || imageType == "reverse") {
+		decoded, decodeErr := h.decodeBase64(req.Image)
+		if decodeErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid base64 image data"})
+			return
+		}
+
+		const maxSize = 20 * 1024 * 1024
+		if len(decoded) > maxSize {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Image exceeds 20MB limit"})
+			return
+		}
+
+		clippedData, clipErr := capture.ClipBytesToCirclePNG(decoded, capture.DefaultGuide)
+		if clipErr != nil {
+			logger.Warn("images", "Failed to clip base64 image for coin %d: %v, storing original", coinID, clipErr)
+			// Fall through to normal service call with original data
+		} else {
+			// Use clipped PNG data
+			image, err := h.svc.UploadImage(uint(coinID), userID, clippedData, ".png", imageType, req.IsPrimary)
+			if err != nil {
+				handleUploadError(c, logger, coinID, err)
+				return
+			}
+			logger.Info("images", "Uploaded clipped base64 %s image for coin %d: %s", imageType, coinID, image.FilePath)
+			c.JSON(http.StatusCreated, image)
+			return
+		}
+	}
+
+	// Standard path (no clipping)
 	image, err := h.svc.UploadBase64Image(uint(coinID), userID, req.Image, ext, imageType, req.IsPrimary)
 	if err != nil {
 		logger.Error("images", "Base64 upload failed for coin %d: %v", coinID, err)
@@ -184,6 +255,37 @@ func (h *ImageHandler) UploadBase64(c *gin.Context) {
 
 	logger.Info("images", "Uploaded base64 %s image for coin %d: %s", imageType, coinID, image.FilePath)
 	c.JSON(http.StatusCreated, image)
+}
+
+// decodeBase64 decodes base64 string, trying both standard and raw URL encoding.
+func (h *ImageHandler) decodeBase64(base64Data string) ([]byte, error) {
+	decoded, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		decoded, err = base64.RawStdEncoding.DecodeString(base64Data)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return decoded, nil
+}
+
+// handleUploadError centralizes error response for upload failures.
+func handleUploadError(c *gin.Context, logger *services.Logger, coinID uint64, err error) {
+	logger.Error("images", "Base64 upload failed for coin %d: %v", coinID, err)
+	switch err {
+	case services.ErrCoinNotFound:
+		c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
+	case services.ErrInvalidBase64:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid base64 image data"})
+	case services.ErrImageTooLarge:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Image exceeds 20MB limit"})
+	case services.ErrInvalidImageType:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "imageType must be one of: obverse, reverse, detail, other"})
+	case services.ErrInvalidFileExt:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "fileExtension must be one of: .jpg, .jpeg, .png, .gif, .webp"})
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload image"})
+	}
 }
 
 // Delete removes an image from a coin.

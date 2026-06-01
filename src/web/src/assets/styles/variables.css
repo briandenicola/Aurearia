@@ -35,8 +35,25 @@
   /* Borders & shadows */
   --border-subtle: rgba(201, 168, 76, 0.15);
   --border-accent: rgba(201, 168, 76, 0.4);
+  --border-white-dim: rgba(255, 255, 255, 0.2);
   --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
   --shadow-glow: 0 0 20px rgba(201, 168, 76, 0.1);
+  --shadow-gold-soft: 0 4px 12px rgba(201, 168, 76, 0.3);
+  --shadow-gold-hover: 0 6px 16px rgba(201, 168, 76, 0.4);
+
+  /* Overlays */
+  --overlay-dark: rgba(0, 0, 0, 0.7);
+  --overlay-full: rgba(0, 0, 0, 0.85);
+
+  /* Feedback colors */
+  --error-bg: rgba(224, 141, 141, 0.9);
+  --text-warning: #f5c36a;
+  --accent-gold-focus: rgba(201, 168, 76, 0.2);
+
+  /* Confidence indicators */
+  --confidence-high: #69b77f;
+  --confidence-medium: #f0c261;
+  --confidence-low: #e08d8d;
 
   /* Radius */
   --radius-sm: 8px;

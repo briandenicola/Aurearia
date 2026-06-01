@@ -2,57 +2,219 @@
 
 ## Active Decisions
 
-### 1. Governance Restructure — tech-inventory alignment (2026-05-28)
-### 6. Code Review & Quality Assessment (2026-04-24)
+### 1. Collection Chat Callback URL Documentation & Startup Warning (2026-06-01)
 
-**Authors:** Maximus (Architect), Cassius (Backend), Aurelia (Frontend), Brutus (Testing)  
-**Date:** 2026-04-24  
-**Status:** Assessed — Backlog Created  
+**Agent:** Cassius (Backend)  
+**Feature:** #217 Collection Chat — multi-container deployment  
+**Status:** APPROVED  
+**Date:** 2026-06-01
 
-#### What
-Comprehensive review of all three services covering architecture, code quality, testing, security, and accessibility. Generated 77 backlog items across P0–P3 priorities.
+**Summary:** Fixed multi-container Docker deployment issue where collection chat failed with "All connection attempts failed". Root cause: `AGENT_INTERNAL_CALLBACK_URL` defaults to `localhost:8080` (unreachable in containers; must point to API service name on network). Changes: documented env var in `docs/deployment.md`, added startup warning in `src/api/main.go` when running in release mode with localhost URL. All Go tests passed. User validation: Docker Compose with `AGENT_INTERNAL_CALLBACK_URL=http://coins:8080` resolves issue.
 
-#### Key Findings
+---
 
-**Architecture (Grade: B+)**
-- Clean 3-service separation and excellent documentation (761-line ARCHITECTURE.md)
-- Layered Go API enforced by architecture tests; handlers→services→repositories enforced
-- DI pattern used but undermined by 3 package-level globals: `AppLogger`, `GetSetting()`, `cancelMap`
-- API key middleware bypasses repository abstraction
+### 2. Governance Restructure — tech-inventory alignment (2026-05-28)
+### 2. Feature #219 Acceptance Checklist & Validation Gates (2026-05-31)
 
-**Backend (Grade: B-)**
-- Most handlers thin; some leak business logic (analysis.go, agent.go, coins.go, admin.go)
-- Sentinel errors used in 4 services; many repos silently drop errors (7+ locations in social.go)
-- Non-atomic multi-step writes without transactions (auction lot, social, availability)
-- Input validation sparse; page/limit defaults silently instead of validating
+**Feature**: Refine Coin Details Page for PWA and Desktop  
+**Spec**: `specs/219-refine-coin-details-page/spec.md`  
+**Author**: Maximus (Lead)  
+**Date**: 2026-05-31  
+**Status**: APPROVED
 
-**Frontend (Grade: B-)**
-- Good Composition API; 6 components exceed 400 lines (need splitting: AdminPage 1378, SettingsPage 1371, CoinDetailPage 1242)
-- TypeScript discipline strong; very few `any` casts
-- State management too lean (coins store lacks error state; auth store drifts after refresh)
-- Critical gap: accessibility D+ (no ARIA, no focus traps, clickable divs not keyboard-accessible)
-- PWA quality C+ (missing icons pwa-192×192 and pwa-512×512; no offline fallback, no update prompt)
+**Summary**: 37+ validation gates defined across US1 (dual-side media), US2 (metadata tables), US3 (dedicated section pages), and polish scope. Three-phase tester handoff plan; no team ADR required (UI-only, within constitutional bounds). Constitution compliance verified on Principles V, IX, XIII.
 
-**Testing (Grade: D)**
-- Go: 3.5-4.6% coverage; only CoinRepository and CoinService tested; zero handler tests
-- Frontend: ZERO test files, no framework
-- Python: 31 tests passing; but zero tests for 11 team pipelines, supervisors, LLM provider, search tools
-- No test plan, no coverage thresholds, no CI enforcement
+---
 
-**Security Issues (P0)**
-- XSS risk in v-html AI content (Aurelia confirmed DOMPurify is used; can close)
-- SQL injection in coin_repository Suggestions() method (whitelist in handler but not repo; needs defense-in-depth)
-- Admin route accessible to any authenticated user (no role guard)
-- Double-close panic risk in scheduler Stop() methods
+### 3. Feature #219 Coin Detail Page Refinements — QA Verdict (2026-05-31)
 
-#### Impact
-Establishes baseline quality metrics and prioritized backlog. Guides sprint planning for next 2–3 quarters. Addresses security (P0), DI debt (P1), god-page decomposition (P2), and testing coverage expansion (ongoing).
+**Author:** Brutus (Tester)  
+**Date:** 2026-05-31  
+**Status:** APPROVED
 
-#### Backlog Structure
-- **P0 (Critical):** 8 items — security, panic bugs, auth tests
-- **P1 (High):** 19 items — DI refactor, transaction safety, memory leaks, frontend testing setup
-- **P2 (Medium):** 28 items — error audit, accessibility, god-page splits, test expansion
-- **P3 (Low):** 22 items — performance, form validation, API polish
+**Summary**: Full QA validation completed. 12/12 functional requirements met; zero regressions. Type-check + production build pass cleanly. Feature is **ship-ready**.
+
+**Verdict**: ✅ APPROVE — All user stories and functional requirements satisfied. Awaiting merge to main.
+
+---
+
+### 13. Feature #219: Image Lightbox with Remove Background (2026-05-31)
+
+# Feature #219: Image Lightbox with Remove Background
+
+**Agent:** Aurelia (Frontend Developer)  
+**Date:** 2026-05-31  
+**Status:** Implemented  
+**Commit:** 6096a38
+
+## What
+
+Restored Remove Background control lost in the #219 dual-hero redesign by creating a click-to-open image lightbox with background removal functionality.
+
+## Implementation
+
+### New Component: ImageLightbox.vue
+- Full-page overlay modal (Teleport to body)
+- Header: image type title + X close button (lucide icon)
+- Body: large-scale image display OR processing spinner with message
+- Actions: "Remove Background" button (Eraser icon) → "Reset" + "Save" buttons after processing
+- Accessible: role="dialog", aria-label, Esc key listener, focus management
+- Mobile-friendly: full-screen on mobile (@media max-width 768px removes border-radius)
+
+### Modal Pattern
+Followed existing FeaturedCoinModal.vue structure:
+- z-index: 1000
+- Overlay: rgba(0,0,0,0.85) with backdrop-filter: blur(4px)
+- Card styling: var(--bg-card) + var(--border-accent) + var(--shadow-glow)
+- Close affordances: X button, click backdrop, Esc key
+
+### Background Removal Flow
+1. User clicks hero image (obverse or reverse) in CoinDetailPage
+2. ImageLightbox opens showing full-scale image
+3. User clicks "Remove Background" → calls `removeBackground()` from useImageProcessor.ts
+4. Shows loading overlay: spinner + "Removing background..." + hint ("This may take 30-60 seconds...")
+5. After processing, shows "Reset" and "Save" buttons
+6. Save calls `uploadImage(coinId, file, imageType, isPrimary)` API
+7. On success, emits `saved` event → CoinDetailPage calls `refreshCoin()` to reload coin data
+8. Modal closes
+
+### Persistence Path
+- API: `POST /api/coins/{coinId}/images` with FormData (multipart/form-data)
+- Function: `uploadImage(coinId, file, imageType, isPrimary)` in src/web/src/api/client.ts
+- After save: coin store's `fetchCoin(coinId)` reloads the coin with new image
+- Same persistence flow used by AddCoinPage.vue and Settings Tools section
+
+### Design Token Compliance (Principle V)
+All values use design tokens from variables.css:
+- Radii: var(--radius-md), var(--radius-sm)
+- Colors: var(--accent-gold), var(--bg-card), var(--bg-input), var(--border-accent), var(--border-subtle), var(--text-heading), var(--text-primary), var(--text-secondary), var(--text-muted)
+- Shadows: var(--shadow-glow)
+- Transitions: var(--transition-fast)
+- NO hardcoded colors, spacing, or radii
+
+### UI/UX Compliance (Principle IX)
+- NO emojis (old ImageGallery.vue used ✨ emoji — replaced with lucide Eraser icon)
+- Icons from lucide-vue-next: X (close), Eraser (remove bg), RotateCcw (reset), Save
+- Dark theme: background removal spinner uses gold accent (--accent-gold) for progress indicator
+
+### PWA/Mobile Compliance (Principle XIII)
+- Responsive: max-width 90% on desktop, 100% on mobile
+- Mobile breakpoint: @media (max-width: 768px)
+- Full-screen mode on mobile: removes border-radius, adds flex-wrap to action buttons
+- Touch-friendly: large clickable areas for buttons and images
+
+## Changes
+
+**Modified Files:**
+- `src/web/src/pages/CoinDetailPage.vue`
+  - Added imports: ImageLightbox, CoinImage type
+  - Added state: `lightboxImage: ref<CoinImage | null>(null)`
+  - Added click handlers: `@click="openLightbox(obverseImage)"` / `@click="openLightbox(reverseImage)"`
+  - Added CSS: cursor:pointer + opacity:0.85 hover on .hero-image for visual affordance
+  - Added functions: `openLightbox(image)`, `handleImageSaved()` (calls `refreshCoin()`)
+  - Wired ImageLightbox component in template with close/saved event handlers
+
+**New Files:**
+- `src/web/src/components/ImageLightbox.vue` (267 lines)
+
+**Deleted Files:**
+- `src/web/src/components/ImageGallery.vue` (orphaned after #219 dual-hero redesign — zero consumers)
+
+## Validation
+
+- ✅ `npm run lint` — 0 errors, 5 pre-existing warnings in other files
+- ✅ `npm run build` (vue-tsc --build + vite build) — clean, 8.46s
+- ✅ Design tokens: all colors, radii, spacing from variables.css (grep verified)
+- ✅ No emojis: lucide icons only (X, Eraser, RotateCcw, Save)
+- ✅ Mobile-friendly: @media breakpoints, full-screen on mobile
+- ✅ Accessible: role="dialog", aria-label, Esc key, focus handling
+
+## Impact
+
+- **Functionality restored:** Users can now remove background from coin images again (feature existed in old ImageGallery but was lost in #219 dual-hero redesign)
+- **Better UX:** Large-scale image viewing with clear modal pattern (click image → see full detail)
+- **Persistence works:** Background-removed images save back to the coin and survive reload
+- **Consistent pattern:** Reuses existing modal structure (FeaturedCoinModal), API flow (uploadImage), and composable (useImageProcessor)
+- **Clean code:** Removed dead code (ImageGallery.vue had zero consumers post-#219)
+
+## Notes
+
+- Background removal is CPU-intensive — typical processing time is 30-60 seconds on first run (downloads ~40MB ML model from @imgly/background-removal)
+- Model caching means subsequent runs are faster
+- User sees spinner + progress message during processing — no silent failures
+- If processing fails, alert dialog shows clear error message
+- Save operation is idempotent — replaces the existing image of that type (obverse/reverse)
+
+---
+
+### 14. Intake Card Image Authority Fix (2026-05-31)
+
+# Intake Card Image Authority Fix
+
+**Feature:** #216 Camera-First AI Intake  
+**Author:** Cassius (Backend Developer)  
+**Date:** 2026-05-31  
+**Status:** Implemented — commit `a7b6a04`
+
+## Problem
+
+When the user photographs a coin's collector card (the flip/holder with catalog text), the intake AI should heavily use that card for field extraction. Brian tested a worn Byzantine coin whose card had all the info (ruler, denomination, mint, references), yet the AI returned everything "unknown". The card text was ignored.
+
+## Root Cause
+
+In `src/agent/app/teams/coin_intake.py`, the `generate_intake_draft()` function built the `human_content` message as:
+1. INTAKE_PROMPT text
+2. ALL observation images (coin photos)
+3. Card image (`coin_card_image`)
+
+All images were appended to the same flat list with NO label distinguishing the card from the coin photos. The `INTAKE_PROMPT` only mentioned "optional coin-card image" without instructing the model to transcribe the card or treat its text as authoritative.
+
+**Result:** The model couldn't identify which image was the card and gave up when the coin was worn, returning "unknown" for fields that were clearly printed on the card.
+
+## Solution
+
+Modified `src/agent/app/teams/coin_intake.py`:
+
+### 1. Explicit Image Labeling
+
+Inserted text content parts to label images:
+
+- **Before coin photos:** "The following image(s) are PHOTOGRAPHS OF THE PHYSICAL COIN (obverse/reverse). The coin may be worn or hard to read:"
+- **Before card image:** "The following image is the COIN CARD / collector's flip — an AUTHORITATIVE catalog reference written by an expert. Transcribe ALL text on it:"
+
+### 2. Strengthened INTAKE_PROMPT
+
+Added a dedicated **COIN CARD HANDLING** section:
+- OCR and transcribe ALL text on the coin card
+- Extract ruler, denomination, material, mint, era/date, category, and any catalog references (e.g., Sear/SB, RIC, RPC, DOC numbers), grade, and provenance
+- Treat the coin card text as the PRIMARY authoritative source — prefer card data over uncertain visual readings of worn coins
+- Only mark a field unknown if NEITHER the coin images NOR the card provides it
+- Record card-derived facts in the evidence array with `type: "coin_card"` and confidence typically medium or high (card is expert-written)
+
+### 3. No Contract Changes
+
+The JSON output shape (`IntakeDraftResponse` schema) remains exactly as-is. Only instructions and image labeling changed.
+
+## Validation
+
+- **Lint:** `ruff check app/ tests/` — clean
+- **Tests:** `pytest tests/ -v` — 47 passed
+- **Commit:** `a7b6a04` on `beta`
+
+## Impact
+
+Worn coins with high-quality collector cards will now extract fields accurately. The model understands the card is the expert source, not just another image.
+
+## Pattern for Future Vision Tasks
+
+When sending multiple images with different authority levels to a vision model:
+1. **Label each image type explicitly** in text content parts
+2. **Define authority hierarchy** in the prompt (which source is primary, which is fallback)
+3. **Instruct OCR/transcription** when text is expected
+
+## Principle Addressed
+
+**Principle VII** (Schema-Driven Contracts) — response schema unchanged; only instructions and labeling improved.
 
 ---
 
@@ -74,44 +236,6 @@ Admin routes now protected. Can close code review backlog items #1–2.
 
 ---
 
-### 8. Activity Journal Scroll Limit & Auction Schedule UI (2026-05-01)
-
-**Author:** Aurelia (Frontend Dev)  
-**Date:** 2026-05-01  
-**Status:** Implemented  
-
-#### What
-
-Two independent UI improvements:
-
-**Task A — Activity Journal Scroll Limit**
-- Added scroll containment to CoinActivityJournal in coin detail page
-- Shows max 3 entries by default; rest accessible via internal vertical scroll
-- Used design tokens for scrollbar styling (--bg-card, --border-subtle, --accent-gold-dim)
-
-**Task B — Auction-Ending Schedule in Admin UI**
-- Added "Auction Ending Alerts" panel to AdminSchedulesSection mirroring wishlist pattern
-- Three new settings keys: AuctionEndingCheckEnabled, AuctionEndingCheckStartTime, AuctionEndingCheckInterval
-- Updated useAdminConfig composable to expose and manage auction settings state
-- Integrated into AdminPage with proper prop binding
-
-#### Why
-
-- Task A: Prevents Activity Journal from pushing content down page as history grows; keeps layout compact
-- Task B: Cassius building backend daily scheduler for auction-ending alerts; needs UI configuration in same location as wishlist/valuation schedulers
-
-#### Impact
-
-- Task A: Coin detail page remains compact with unbounded journal history
-- Task B: Users can enable and configure auction-ending scheduler alongside existing background schedulers
-
-#### Testing
-
-- vue-tsc passes clean (no TypeScript errors)
-- Nullish coalescing and optional chaining used correctly for Docker strictness
-- All design tokens applied (no hardcoded values)
-
----
 
 ### 4. Auction Ending Manual Trigger & Run Log — Backend Implementation (2026-06-10)
 
@@ -1736,3 +1860,2142 @@ These changes cross service boundaries and alter externally observable behavior 
 - **Related decisions:** #163 (security audit umbrella), #206 (threat-model governance)
 
 ---
+
+### 4. Feature #219 Refinements — Implementation Complete (2026-05-31)
+
+**Author:** Aurelia (Frontend Dev)  
+**Date:** 2026-05-31  
+**Commits:** 127c75b (main refinements), 70bd409 (follow-up duplicates)  
+**Status:** APPROVED — Shipped to `beta`
+
+**Scope:** Post-merge TLC items from Brian's annotated screenshot review of #219 coin-detail redesign.
+
+**What Changed:**
+
+1. **Duplicate "Actions" heading** → Removed from CoinActionsPanel.vue (shell already renders it)
+2. **Duplicate category badge + tag ambiguity** → Removed duplicate from CoinTagsSection.vue; added "Tags" label to distinguish categories from user tags
+3. **Obverse/reverse images side-by-side** → Changed grid from `1fr` (stacked) to `1fr 1fr` per Brian's reference
+4. **Details card missing heading** → Added "Details" heading above metadata table
+5. **Follow-up deduplication (70bd409)** → Removed duplicate section headings from CoinActivityJournal and CoinAIAnalysis
+
+**Validation:**
+- npm run lint: 5 pre-existing warnings, zero new
+- npm run build: clean (8.96s, vue-tsc + vite)
+- Type check: zero errors
+
+**Key Learnings:**
+- When a page shell renders a section title, child components should NOT render their own heading
+- Category badges (single per coin) vs. user tags (pills) need visual separation — use `.badge` for categories, `.chip-sm` + section label for tags
+- Simple grid change from `1fr` to `1fr 1fr` switches dual images from stacked to side-by-side on desktop
+
+**Result:** Feature #219 ship-ready. Awaiting merge to main.
+
+---
+
+### 5. User Directive: Collection Chat LLM Intent Classification (2026-05-31)
+
+**Author:** Brian (via Copilot)  
+**Date:** 2026-05-31  
+**Status:** DIRECTIVE (drives #217 routing redesign)
+
+**What:** The collection-chat feature (#217) must use LLM-based intent classification instead of hardcoded keyword matching. Brian wants to chat about ANY question regarding his collection, and have an agent figure out his intent "like any chatbot would."
+
+**Why:** Current keyword gate in `ShouldHandleCollection()` missed "Do I have any moose coins and how much are they worth?" (routed to portfolio instead of collection). User explicitly rejects keyword-based approach.
+
+**Impact:** Drives replacement of `ShouldHandleCollection` keyword gate with LLM intent classification in Python supervisor.
+
+---
+
+### 8. Feature #216 Camera-First AI Intake — Maximus RE-REVIEW (2026-05-31)
+
+**Author:** Maximus (Architect)  
+**Date:** 2026-05-31  
+**Status:** APPROVED — Principle V block lifted
+
+**Scope:** Design Token System compliance (Principle V) — 14 flagged color values.
+
+**Verdict:** **APPROVE** — All 14 hardcoded values tokenized or approved as exceptions (white/black for contrast). Only 4 contrast-safe exceptions remain (lines 808, 835, 883, 927).
+
+**Validation:**
+- 12 new tokens defined in variables.css (consistent naming, no duplicates)
+- npm run lint: 0 errors
+- npm run build: clean (8.35s)
+- Constitution Principle V: **PASS**
+
+**Result:** #216 ready to land. Principle V block cleared.
+
+---
+
+### 9. Feature #216 Camera & Intake QA Verdict (2026-05-31)
+
+**Author:** Brutus (Tester)  
+**Date:** 2026-05-31  
+**Status:** APPROVED
+
+**Scope:** Full functional and regression testing of camera-first UI redesign + AI-assist intake flow.
+
+**Findings:**
+- 16/16 functional requirements met
+- Zero regressions
+- Type-check + production build pass cleanly
+- Token refresh in camera flow tested
+- Error handling (no camera, network fail, analysis timeout) verified
+
+**Verdict:** ✅ APPROVE — Camera-first intake ready for production.
+
+---
+
+### 10. Feature #216 Camera-First Intake — Design Token Refactor (2026-05-31)
+
+**Author:** Aurelia (Frontend Dev)  
+**Date:** 2026-05-31  
+**Status:** Completed
+
+**Scope:** Retrofitted 14 hardcoded color values in AddCoinPage.vue to use design tokens from variables.css.
+
+**Changes:**
+- Tokenized `.intake-loading-overlay`, `.camera-error-banner`, `.capture-slot`, `.slot-clear-btn`, `.shutter-btn`, `.status-warning`, `.confidence-*` values
+- Approved 4 contrast-safe exceptions: `#000` (black bg/text), `#fff` (white text/contrast)
+- Added 12 new design tokens: `--overlay-full`, `--error-bg`, `--accent-gold-focus`, `--overlay-dark`, `--border-white-dim`, `--shadow-gold-soft`, `--shadow-gold-hover`, `--text-warning`, `--confidence-high/medium/low`
+
+**Files Changed:** src/web/src/assets/styles/variables.css, src/web/src/pages/AddCoinPage.vue
+
+**Validation:** npm run build clean, type-check passes
+
+**Result:** Principle V compliance achieved.
+
+---
+
+### 11. Feature #217 & #218 — Shared Collection Tool Layer Design (2026-05-31)
+
+**Author:** Maximus (Architect)  
+**Date:** 2026-05-31  
+**Features:** #217 (In-App Multi-Intent), #218 (External Tool Server)  
+**Status:** PROPOSAL — Awaiting implementation planning
+
+**Summary:** Brian approved LLM-based intent classification (kills keyword gate) and chose a **tool-based approach** over single routed-node. Specifies a shared, transport-agnostic collection tool layer serving both #217 (Python tools) and #218 (future MCP/OpenAPI adapter).
+
+**Architecture:**
+- **6 discrete operations** (read/write) exposed as LangChain tools
+- **Go API** owns all tool logic via `collection_tools_service.go` and `/internal/tools/*` endpoints
+- **Python agent** consumes via HTTP with signed internal tokens (30s TTL)
+- **Internal HTTP endpoints** return JSON (not SSE); Python converts to SSE events
+
+**Key Changes from Prior Option B:**
+- Collection operations become **LangChain tools** (not a dedicated `collection` route)
+- **ReAct agent** wraps collection tools + valuation tools + general reasoning
+- Internal-token auth mechanism **survives** (Principles XI/XII)
+- Keyword gate `ShouldHandleCollection` **deleted**
+
+**Operations Defined:**
+| Operation | Schema | Type |
+|---|---|---|
+| `search_my_collection` | `{query, limit?}` | read |
+| `get_coin` | `{coin_id}` | read |
+| `collection_summary` | `{}` | read |
+| `top_coins_by_value` | `{limit?}` | read |
+| `propose_update` | `{coin_id, changes}` | write |
+| `commit_update` | `{proposal_id, token, confirm}` | write |
+
+**Files Involved:**
+- `src/api/handlers/internal_tools.go` (NEW)
+- `src/api/services/collection_tools_service.go` (refactor to export)
+- `src/agent/app/tools/collection_tools.py` (NEW)
+
+**Status:** Ready for Cassius + team implementation planning. Supersedes `maximus-217-intent-routing-design.md`.
+
+---
+
+### 12. Feature #216 Token Remediation QA (2026-05-31)
+
+**Author:** Brutus (Tester)  
+**Date:** 2026-05-31  
+**Status:** APPROVED
+
+**Scope:** Verify token refresh behavior in camera-first intake flow and error conditions.
+
+**Tests Verified:**
+- Token refresh during long-running AI analysis
+- Concurrent analysis requests with token expiry
+- Camera stream cancellation on token revocation
+- Error handling (expired token, network timeout)
+- 12+ test cases all pass green
+
+**Result:** All token paths verified. No issues found. Ready for production.
+
+---
+
+---
+
+### 13. Feature #217 Python ReAct Collection Agent (2026-05-31)
+
+**Author:** Cassius (Backend Developer)  
+**Date:** 2026-05-31  
+**Status:** Implemented — commit `3bc04de` on `beta`  
+**Related:** Decision #11 (LLM-intent directive), commit c3e8c2b (Go side)
+
+## What
+
+Completed the Python half of #217 Shared Collection Tool Layer: built a ReAct agent using LangGraph's `create_react_agent` that calls 6 internal Go tool endpoints over HTTP. This enables LLM-driven, multi-intent collection queries (e.g., "do I have moose coins AND how much are they worth?") to execute multiple tool calls in one turn, fixing the single-category misrouting bug.
+
+## Implementation
+
+### 1. `app/tools/collection_tools.py`
+
+Factory function `build_collection_tools(tools_base_url, internal_token)` returns 6 LangChain `StructuredTool`s:
+
+| Tool | Operation | Go Endpoint | Args | Returns |
+|---|---|---|---|---|
+| `search_my_collection` | Search user's collection | `/api/internal/tools/search_my_collection` | `{query, limit?}` | Array of coin summaries |
+| `get_coin` | Get single coin | `/api/internal/tools/get_coin` | `{coin_id}` | Full coin details |
+| `collection_summary` | Aggregate stats | `/api/internal/tools/collection_summary` | `{}` | Total coins, value, invested, categories, materials |
+| `top_coins_by_value` | Top N by value | `/api/internal/tools/top_coins_by_value` | `{limit?}` | Sorted array of coins |
+| `propose_update` | Create update proposal | `/api/internal/tools/propose_update` | `{coin_id, changes}` | Proposal ID + token + preview |
+| `commit_update` | Commit proposal | `/api/internal/tools/commit_update` | `{proposal_id, token, confirm}` | Commit result |
+
+Each tool:
+- Makes an async HTTP POST via `httpx.AsyncClient`
+- Includes `Authorization: Bearer {internal_token}` header (30s JWT from Go)
+- Returns concise string output on success or structured error on failure (never raises)
+- Identity flows ONLY via the signed token — Python never sends or trusts a userID (Principle XI + XII)
+
+### 2. `app/teams/collection_chat.py`
+
+ReAct agent factory `create_collection_chat_team(llm_config, tools_base_url, internal_token)`:
+
+- Uses `get_chat_model(llm_config)` (NO web search)
+- Builds collection tools bound to the request's `internal_token` + `tools_base_url`
+- Creates agent via `create_react_agent(model, tools, prompt=COLLECTION_AGENT_PROMPT)`
+- System prompt instructs:
+  - Answer questions about coins the user ALREADY OWNS
+  - Call MULTIPLE tools in one turn for compound questions
+  - Never invent data — only report tool results
+  - For updates, use propose_update → surface proposal → require user confirmation → commit_update
+
+Returns a compiled LangGraph agent that supports streaming via `ainvoke({"messages": [...]})`.
+
+### 3. `app/supervisor.py` — Collection Routing
+
+**Added `collection` category to `ROUTER_PROMPT`:**
+
+- `"collection"` — questions/actions about coins the user ALREADY OWNS: "do I have…", "how many…", "search my collection", "what's in my collection", "update/change this coin", AND compound questions combining ownership lookup with valuation (e.g., "do I have moose coins and how much are they worth"). This is the multi-intent home.
+- `"portfolio"` — aggregate portfolio ANALYSIS or valuation narrative of the ENTIRE collection (high-level summary and trends). Prefer `collection` for ownership lookups and compound questions about specific coins they own.
+
+**Router now distinguishes these correctly**, fixing the single-category misrouting bug that sent compound queries to `portfolio` (which doesn't support tool calling).
+
+**Supervisor signature:**
+
+```python
+def create_supervisor(
+    llm_config: LLMConfig,
+    ...,
+    tools_base_url: str = "",
+    internal_token: str = "",
+):
+```
+
+- Builds `collection_graph` via `create_collection_chat_team(llm_config, tools_base_url, internal_token)` (closure per request)
+- If `tools_base_url` or `internal_token` is empty, collection node returns "not available" message gracefully
+
+### 4. Request Threading
+
+**`app/models/requests.py`:**
+
+```python
+class CoinSearchRequest(BaseModel):
+    ...
+    internal_token: str = ""
+    tools_base_url: str = ""
+```
+
+**`app/routes.py`:**
+
+```python
+graph = create_supervisor(
+    request.llm,
+    ...,
+    tools_base_url=request.tools_base_url,
+    internal_token=request.internal_token,
+)
+```
+
+The Go proxy (`agent_proxy.go`) already sends these fields in the request body.
+
+### 5. Tests
+
+- `tests/test_collection_tools.py` (7 tests): tool building, HTTP request structure, header verification, error handling
+- `tests/test_collection_integration.py` (6 tests): team creation, supervisor routing, request model threading
+
+**Result:** 60/60 tests passed after mocking fixes (see session log), ruff clean, go build/vet/test clean.
+
+## Delta from Decision #11
+
+Decision #11 defined the LLM-intent directive but did not specify the Python ReAct agent implementation. This decision documents:
+
+- Use of LangGraph's `create_react_agent` (not a custom graph)
+- The `prompt` parameter replaces older `state_modifier` API
+- HTTP tool wrapper pattern via `httpx.AsyncClient` + closure binding
+- Supervisor routing guidance for `collection` vs `portfolio` disambiguation
+
+No conflict with Decision #11 — this is the implementation detail.
+
+## Why This Works
+
+**Multi-intent support:**
+
+The ReAct agent (`create_react_agent`) lets the LLM:
+1. Read the user's compound question
+2. Decide which tools to call (may be multiple)
+3. Call all needed tools in one turn
+4. Synthesize a single response
+
+Example: "Do I have moose coins and how much are they worth?"
+- Tool call 1: `search_my_collection(query="moose")`
+- Tool call 2: `top_coins_by_value(limit=5)` OR extract values from search results
+- Response: "Yes, you have 3 moose-themed coins worth $X, $Y, $Z."
+
+**Security:**
+
+- Identity is ONLY in the `internal_token` (short-lived 30s JWT minted by Go per request)
+- Python never sends a `userID` — the Go middleware (`InternalTokenRequired`) reads `userId` from the token's claims
+- All 6 tool endpoints are user-scoped via the token; Python just forwards the token
+
+## Endpoint Path Correction
+
+**Important:** Decision #11 initially listed internal tool endpoints as `/internal/tools/{operation}`. The canonical path is **`/api/internal/tools/{operation}`** (registered in `main.go:470` under the `/api` route group). All tool invocations use this `/api/internal/tools/` prefix. This was discovered and corrected during Maximus's review gate (commit a69a574).
+
+## Remaining Work (Feature #218)
+
+External adapter pattern for non-collection tools (search, shows, auction, etc.) is deferred to #218. The internal tool layer (this PR) is a separate, isolated pattern.
+
+## Validation
+
+- **Lint:** `ruff check app/ tests/` — clean
+- **Tests:** `pytest tests/ -v` — 60/60 passed (fixed httpx mock sync response handling; see session log)
+- **Go build:** `go build ./...` ✓, `go vet ./...` ✓, `go test ./...` ✓
+
+## Review Gate (Maximus)
+
+**Initial Review:** BLOCK — Python posted to `{base}/internal/tools/{op}` but Go serves `/api/internal/tools/{op}`, causing 404 on all 6 tools.  
+**Fix Applied:** Commit `a69a574` — corrected `tools_base_url` construction to use `/api/internal/tools` path.  
+**Re-Review:** CLEARED — endpoint path confirmed canonical.
+
+**Non-blocking Follow-ups** (raised by Maximus, acknowledged for future #217 hardening):
+1. Add explicit leaked-internal-token guard in `streaming.py` for defense-in-depth (currently safe by construction)
+2. Consider separate HMAC secret for internal tokens instead of reusing `cfg.JWTSecret` (currently safe due to format difference: JWT `.`-delimited vs internal `:`-delimited)
+
+## Commits
+
+**Hash:** `3bc04de`  
+**Branch:** `beta`  
+**Message:** `feat(#217): Python ReAct collection agent over internal tool layer (multi-intent)`
+
+**Related fixes this batch:**
+- `f95fb39` — fix: corrected httpx response mocks (response `.json()`/`.raise_for_status()` are SYNC in httpx; tests were AsyncMock → coroutine TypeError). Tests: 57/60 → 60/60.
+- `a69a574` — fix(#217): align Python internal tool URL to `/api/internal/tools` (was `/internal/tools` → 404 on all 6 tools). Maximus review BLOCK → CLEARED.
+
+Feature #217 is now **end-to-end complete**. Go side landed in c3e8c2b, Python side in 3bc04de.
+
+## Constitution Compliance
+
+- **Principle XI (Security Hardening):** Identity flows only via signed internal token; Python never sends userID
+- **Principle XII (Authentication & Token Policy):** Short-lived (30s) internal token minted per request by Go
+- **Decision #11:** LLM-intent directive — no keyword gating, LLM router + ReAct tool-calling decides intent
+
+
+---
+
+## Decision #21 — Feature #216 (Circular Capture Clip) — Integration Contract & Implementation Complete (2026-05-31)
+
+**Issue:** #216 (Circular coin capture)  
+**Author:** Maximus (Lead/Architect) — Contract; Cassius (Backend) — Implementation; Aurelia (Frontend) — Implementation  
+**Date:** 2026-05-31  
+**Status:** APPROVED & LANDED  
+
+### Context
+
+Feature #216 defines the end-to-end flow for auto-clipping camera-captured coin images to a circle with transparent background and corners. The feature is now fully implemented, tested, reviewed, and hardened against a security concern.
+
+### Contract Summary
+
+**Hook Point:** `POST /coins/:id/images` (multipart) and `POST /coins/:id/images/base64` (JSON)
+
+**New Field:** `circleClip` (bool, default false)
+- **When true + imageType=obverse|reverse:** Decode, clip to circle using `capture.DefaultGuide` (center 50%/52%, 74% width, 360px cap), store as transparent PNG
+- **When true + imageType=card|detail|other:** Still clips (no restriction), but FE should not send this (card must remain rectangular for OCR)
+- **Default (false or absent):** Current behavior unchanged; no clipping
+
+**Geometry Contract (CRITICAL):**
+- FE must compute a cover-crop rectangle matching the displayed 4:3 container box (where `<video object-fit: cover>` crops the native stream)
+- FE draws ONLY the cover-cropped region to canvas before upload
+- BE trusts FE pre-crop and applies `DefaultGuide` (center 50%/52% of the **uploaded** image)
+- Result: on-screen circle overlay matches the clipped output exactly
+
+**Storage:**
+- Clipped output: PNG with RGBA (alpha channel for transparency)
+- Filename extension: `.png` (passed to `ImageService.UploadImage`)
+- `imageType` unchanged (stored as `obverse` / `reverse`)
+- Ownership validated BEFORE decode/clip (security hardening per Maximus review note)
+
+**Not Clipped:**
+- Card images (used by intake flow → Python for OCR; must remain rectangular)
+- Manual gallery uploads (no `circleClip` param)
+- Detail/other image types (FE never sends `circleClip=true` for these)
+
+### Batch Implementation
+
+| Agent | Commits | Details |
+|-------|---------|---------|
+| Cassius (Backend) | 0a19708 | Standalone `src/api/capture/` package: `ClipToCircle()` primitive with anti-aliased edge, `ClipBytesToCirclePNG()` encoder, `DefaultGuide` (50%/52% center, 74% width, 360px cap). 11 tests. |
+| Aurelia (Frontend) | 234e31c | Redesigned capture controls as tiles + soft gradient vignette focus-guide overlay in AddCoinPage.vue (design tokens only, "Opt" badge, primary CTA + ghost link). |
+| Cassius (Backend) | 460441a | Wired `circleClip` flag into Upload + UploadBase64 handlers. Clips obverse/reverse → transparent PNG; card/others unchanged. Decode-error → log-and-continue with original. Added `images_clip_test.go` (7 tests). Updated `architecture_test.go` to allow `handlers/` → `capture/`. |
+| Aurelia (Frontend) | df65020 + e3b3f8d | Implemented `computeCoverCropRect()` replicating CSS object-fit:cover so uploaded image matches on-screen guide. Threads `circleClip=true` only for camera-captured obverse/reverse via `client.ts uploadImage()`. Manual/file-picker + card uploads unaffected. |
+| Cassius (Backend) | 5d5df83 | **Ownership-before-decode hardening:** Added early `FindCoinByOwner()` check in both Upload/UploadBase64 handlers before file read or base64 decode when `circleClip=true`. Prevents CPU-intensive decode on non-owned coins. Added early 20MB size check in multipart path. 2 new non-owner tests (total 9 clip tests). Full suite green. Resolves Maximus review note. |
+
+### Review Gate
+
+**Reviewer:** Brutus (QA)  
+**Verdict:** ✅ **QA PASS**  
+- 14 tests green (clip tests + integration)
+- Build clean (go build/vet/test ✓)
+- No blockers
+- **Flagged (advisory):** Decode-before-ownership as acceptable; ownership check now implemented in hardening phase (commit 5d5df83)
+- **On-device visual checks (user responsibility):** Frame coin in guide → captured clip matches guide with no offset; smooth anti-aliased circle/transparent corners; portrait + landscape modes; manual gallery upload stays unclipped
+
+**Reviewer:** Maximus (Principal Architect)  
+**Verdict:** ✅ **APPROVE**  
+- Contract well-defined and honored
+- Geometry logic sound (cover-crop + center-fixed DefaultGuide)
+- **Non-blocking note:** Original implementation decoded before checking ownership (Principle XI violation). **Resolved by commit 5d5df83** with explicit pre-check.
+
+### Validation
+
+- ✅ `go build ./...` — clean
+- ✅ `go vet ./...` — clean  
+- ✅ `go test -v ./...` — all tests pass (architecture + unit + clip + ownership)
+- ✅ `npm run lint` — clean
+- ✅ `npm run build` (vue-tsc + vite) — clean
+- ✅ Design tokens used throughout (no hardcoded colors/radii)
+- ✅ PWA-compliant (mobile viewport testing ready for Brian)
+
+### Constitution Compliance
+
+- **Principle I (Layered Architecture):** Handlers gate ownership before decode; service layer unchanged. Clip logic is in standalone `capture/` package (stdlib-only utility). Architecture test updated to allow `handlers/` → `capture/` import.
+- **Principle XI (Security Hardening):** Input validation ✓ (ownership pre-check, 20MB early fail-fast). Output encoding ✓ (PNG with alpha). Decode safety ✓ (ownership gate before CPU-intensive operations).
+- **§17 Quality Gate:** All tests pass; build clean; conventional commit + trailer applied.
+
+### Outstanding Work (User Responsibility)
+
+Brian to perform on-device visual verification:
+1. Frame a coin in the capture guide
+2. Verify the clipped output matches the guide position with no offset
+3. Confirm smooth anti-aliased circle and transparent corners
+4. Test both portrait and landscape orientation
+5. Verify manual gallery uploads remain unclipped
+
+**Status at merge:** Feature #216 complete end-to-end. Security hardened. Ready for manual on-device validation.
+
+---
+
+# Decision: External Tool Server Foundational Infrastructure (Issue #218 Phase 2)
+
+**Date**: 2026-06-01  
+**Author**: Cassius  
+**Status**: Implemented  
+**Related**: Issue #218, Epic F012 Card 4, specs/218-external-tool-server-adapter/
+
+## Context
+
+Issue #218 establishes a public HTTP adapter that re-exposes the issue #217 shared collection tool layer to external clients (OpenWebUI, LibreChat, n8n) over `/api/v1/tools/*` with read/write parity. Phase 2 (tasks T003–T011) delivers the foundational infrastructure ALL user stories (US1 read, US2 write, US3 discovery) depend on: API-key capability scoping, the admin kill switch, capability enforcement middleware, per-key rate limiting, and the public route group skeleton with wired middleware stack.
+
+## Decision
+
+### 1. Capability Model (T003–T005)
+
+**Chosen**: String-based normalized representation stored directly on `ApiKey`.
+
+- **Field**: `ApiKey.Capabilities` (string, gorm: `not null;default:read`).
+- **Allowed values**: `"read"` (read-only) or `"read,write"` (read + write). Write implies read.
+- **Helpers**: `HasRead()` returns true if capabilities contains `read` OR `write`. `HasWrite()` returns true if capabilities contains `write`.
+- **Validation**: `repository.ValidateCapabilities(scope)` rejects any value other than `"read"` or `"read,write"`.
+- **Default**: New keys default to `read` (least privilege, per spec FR-003 and data-model.md R12).
+- **Migration**: Column added via `AutoMigrate` with default `'read'`; defensive backfill `UPDATE api_keys SET capabilities='read' WHERE capabilities IS NULL OR capabilities=''` after migration (T004).
+
+**Rationale**: String-based storage avoids a join table in v1, keeps the migration trivial (single TEXT column), and aligns with the existing `AppSetting` key-value pattern elsewhere in the codebase. Helpers encapsulate the "write implies read" logic so capability checks remain simple.
+
+**Files**:
+- `src/api/models/api_key.go` — `Capabilities` field + `HasRead()` / `HasWrite()` methods.
+- `src/api/database/database.go` — `AutoMigrate` + backfill SQL after migration.
+- `src/api/repository/api_key_repository.go` — `ValidateCapabilities()` + `CreateWithCapabilities(apiKey, scope)` helper (default `read`).
+
+### 2. Admin Kill Switch (T006, T009)
+
+**Setting key**: `SettingExternalToolServerEnabled` (default `"false"`, mirrors `SettingCoinOfDayEnabled` pattern).
+
+**Middleware**: `middleware/external_tools_gate.go` — `ExternalToolServerEnabled(settingsSvc *services.SettingsService) gin.HandlerFunc` returns 503 (generic JSON error, `{"error":"External tool server is disabled"}`) when the setting is not `"true"`.
+
+**Placement**: First in the `/api/v1/tools` middleware chain (before auth and rate limiting) so disabled state short-circuits all processing.
+
+**Files**:
+- `src/api/services/settings_service.go` — constant + default.
+- `src/api/middleware/external_tools_gate.go` — gate middleware reading `settingsSvc`.
+
+### 3. API-Key Auth Context Extension (T007)
+
+Extended the existing `authenticateApiKey()` in `middleware/auth.go` to set THREE additional context values when a request authenticates via `X-API-Key`:
+
+1. `c.Set("apiKeyCapabilities", apiKey.Capabilities)` — for capability enforcement.
+2. `c.Set("apiKeyId", apiKey.ID)` — for rate limiting and journaling.
+3. `c.Set("apiKeyName", apiKey.Name)` — for journaling.
+
+**JWT path unchanged**: These context values are only set for API-key auth; JWT-authenticated requests do NOT have `apiKeyCapabilities` in context.
+
+**File**: `src/api/middleware/auth.go` — modified `authenticateApiKey()` only.
+
+### 4. Capability Enforcement Middleware (T008)
+
+**Middleware**: `middleware/capability.go` — `RequireCapability(scope string) gin.HandlerFunc` enforces read/write capability for API-key authenticated requests.
+
+**Logic**:
+- `scope="read"`: requires capabilities to contain `read` OR `write` (write implies read).
+- `scope="write"`: requires capabilities to contain `write`.
+- Missing `apiKeyCapabilities` in context → 403 (guards the API-key surface; JWT requests have no capabilities set, so they are rejected if this middleware is applied — intended for `/api/v1/tools` only).
+- Invalid scope → 403.
+
+**Error response**: Generic JSON `{"error":"Insufficient capability"}` (Principle XI).
+
+**File**: `src/api/middleware/capability.go`
+
+### 5. Per-Key External Rate Limiter (T010)
+
+**Middleware**: `ExternalAPIKeyRateLimit(limit int, window time.Duration) gin.HandlerFunc` added to `middleware/ratelimit.go`.
+
+**Keying**: Keys by `apiKeyId` (from context) if present, falls back to client IP. Format: `apikey:<uint_id>`.
+
+**Bucket strategy (v1)**: Single unified bucket per key (no read vs write distinction in v1). Documented in code comment as a future enhancement.
+
+**Rate limit**: Constructed in `main.go` as `ExternalAPIKeyRateLimit(50, 1*time.Minute)` — stricter than the in-app `apiRateLimit` (100/min) per design.
+
+**File**: `src/api/middleware/ratelimit.go` — added factory consistent with existing `RateLimit()` style.
+
+### 6. Public Route Group Registration (T011)
+
+**Route group**: `/api/v1/tools` under the existing `api := r.Group("/api")` parent.
+
+**Middleware chain (in order)**:
+1. `ExternalToolServerEnabled(settingsSvc)` — kill switch (503 when disabled).
+2. `AuthRequired(cfg.JWTSecret, apiKeyAuth)` — API-key auth (reused existing middleware).
+3. `ExternalAPIKeyRateLimit(50, 1*time.Minute)` — per-key rate limiter.
+
+**Route handlers**: NONE wired yet. T011 creates the group skeleton only; tool routes are added in US1/US2/US3 (later spawn).
+
+**File**: `src/api/main.go` — added `v1Tools := api.Group("/v1/tools")` with middleware chain, clear `// #218 external tool server` comment.
+
+## Middleware Signatures Summary
+
+For the next spawn (US1/US2/US3 handlers):
+
+- `middleware.RequireCapability("read")` — guards read tool routes.
+- `middleware.RequireCapability("write")` — guards write tool routes (`propose_update`, `commit_update`).
+- `v1Tools` group already has kill-switch gate + API-key auth + per-key rate limiting — handlers can register routes directly under `v1Tools` with `RequireCapability` as needed.
+
+## Build & Test Results
+
+All commands passed:
+
+```bash
+cd src/api/
+go build ./...  # clean
+go vet ./...    # clean
+go test ./...   # all tests pass (architecture test + unit tests + integration tests)
+```
+
+The architecture test validates the layered import rules (Principle I); no violations from the foundational changes.
+
+## Next Steps (Phase 3–5)
+
+- **US1 (P1)**: Add read handlers (`SearchMyCollection`, `GetCoin`, `CollectionSummary`, `TopCoinsByValue`) delegating to `CollectionToolsService`, wire under `v1Tools` with `RequireCapability("read")`.
+- **US2 (P1)**: Thread journal source through `CommitProposal()`, add write handlers (`ProposeUpdate`, `CommitUpdate`) passing `external_tool_server` source + key id/name, wire with `RequireCapability("write")`.
+- **US3 (P2)**: Serve scoped OpenAPI doc, add scope selector to API-key creation UI, expose `capabilities` in list responses.
+- **Polish**: Docs, threat model, contract sync, quality gate.
+
+## References
+
+- Spec: `specs/218-external-tool-server-adapter/spec.md`
+- Plan: `specs/218-external-tool-server-adapter/plan.md`
+- Data model: `specs/218-external-tool-server-adapter/data-model.md`
+- Tasks: `specs/218-external-tool-server-adapter/tasks.md` (T003–T011)
+- Constitution Principles: I (Layered Architecture), XI (Security Hardening), XII (Auth & Token Policy)
+# Decision: External Tool Server Handlers & Routes (Issue #218 Phase 3)
+
+**Date:** 2026-06-01  
+**Author:** Cassius (Backend Developer)  
+**Status:** Implemented  
+
+## Context
+
+Issue #218 Phase 3 implements the external tool server handlers and routes (User Stories 1-3, tasks T012-T021) on top of the Phase 2 foundational layer (capabilities model, kill switch, middleware stack, public route group). The external surface re-exposes the #217 shared `CollectionToolsService` with full read/write parity to the in-app collection chat.
+
+## Decision
+
+### External Tool Endpoints (Full Route Table)
+
+All routes under `/api/v1/tools` are gated by `ExternalToolServerEnabled` kill switch, authenticated with API key (`X-API-Key`), and rate-limited at 50 req/min per key.
+
+| Method | Path | Capability | Handler |
+|---|---|---|---|
+| GET | `/openapi.json` | none (unauthenticated) | `ExternalToolsOpenAPIHandler.GetOpenAPISpec` |
+| POST | `/search_my_collection` | `read` | `ExternalToolsHandler.SearchMyCollection` |
+| POST | `/get_coin` | `read` | `ExternalToolsHandler.GetCoin` |
+| POST | `/collection_summary` | `read` | `ExternalToolsHandler.CollectionSummary` |
+| POST | `/top_coins_by_value` | `read` | `ExternalToolsHandler.TopCoinsByValue` |
+| POST | `/propose_update` | `write` | `ExternalToolsHandler.ProposeUpdate` |
+| POST | `/commit_update` | `write` | `ExternalToolsHandler.CommitUpdate` |
+
+**Route Registration Pattern:**
+- Unauthenticated `/openapi.json` is in a separate group with only the gate middleware (no auth/rate-limit).
+- Authenticated tool routes are split into two nested groups under `/api/v1/tools` (auth + rate-limit chain):
+  - `readTools` group with `RequireCapability("read")` middleware for the four read operations.
+  - `writeTools` group with `RequireCapability("write")` middleware for the two write operations.
+
+### Handler Implementation (`handlers/external_tools.go`)
+
+**Constructor:** `NewExternalToolsHandler(collectionSvc *services.CollectionToolsService)`
+
+**Read Handlers (Tasks T012-T014):**
+- Delegate to `CollectionToolsService.{SearchMyCollection, GetCoin, CollectionSummary, TopCoinsByValue}`.
+- Reuse internal request/response structs (`SearchMyCollectionRequest`, `GetCoinRequest`, etc.) defined in `handlers/internal_tools.go`.
+- Error mapping: 400 (bad request), 401 (unauthorized), 403 (insufficient capability), 404 (not found / cross-user denial), 503 (kill-switch gated).
+- Service layer already enforces user-scoping; cross-user coin access returns `services.ErrCoinNotFound` → handler returns 404.
+
+**Write Handlers (Tasks T016-T018):**
+- `ProposeUpdate`: calls `collectionSvc.ProposeUpdate(userID, coinID, changes)` — returns proposal preview with token, no write occurs yet.
+- `CommitUpdate`: extracts API key metadata (`apiKeyId`, `apiKeyName`, `apiKeyCapabilities`) from Gin context (set by `middleware/auth.go` on API key auth), calls `collectionSvc.CommitUpdateExternal(userID, proposalID, token, confirm, apiKeyID, apiKeyName, apiKeyCap)`.
+- Allowlisted field validation and proposal state checks are done in the service; handlers surface correct HTTP status codes (400 for bad request/invalid field, 409 for expired/replayed token, 401 for invalid token).
+
+### Journal-Source Threading (Task T015)
+
+**New Service Signatures:**
+```go
+// Internal (existing behavior unchanged)
+CommitUpdate(userID uint, proposalID string, proposalToken string, confirm bool) (*CommitCollectionProposalResult, error)
+
+// External (new for #218)
+CommitUpdateExternal(userID uint, proposalID string, proposalToken string, confirm bool, apiKeyID uint, apiKeyName string, apiKeyCapabilities string) (*CommitCollectionProposalResult, error)
+```
+
+**Internal Implementation:**
+- Both delegate to new private method `commitProposalWithSource(userID, proposalID, token, confirm, journalSource string, metadata map[string]any)`.
+- `CommitUpdate()` passes source `"collection_chat"`, metadata `nil`.
+- `CommitUpdateExternal()` passes source `"external_tool_server"`, metadata map with API key id/name/capabilities.
+- Refactored journal entry builder `buildJournalEntry(source, changes, metadata)` (was `buildCollectionChatJournalEntry(changes)`) to support source + metadata. For external commits, appends `[API key #N 'name']` to the journal entry.
+
+**Internal Caller Update:**
+- `handlers/internal_tools.go` unchanged — still calls `CommitUpdate()`, which hardcodes `"collection_chat"` source.
+
+### Served OpenAPI Spec (Tasks T019-T020)
+
+**Handler:** `handlers/external_tools_openapi.go`  
+**Embedded Spec:** `specs/218-external-tool-server-adapter/contracts/external-tool-server.openapi.yaml` copied to `handlers/contracts/external-tool-server.openapi.yaml` and embedded via `go:embed`.  
+**Route:** Unauthenticated `GET /api/v1/tools/openapi.json` returns the YAML spec parsed to JSON via `gopkg.in/yaml.v3`.
+
+**Architecture Test Update:**
+- Added `gopkg.in/yaml.v3` to handlers layer `allowedExternalPrefixes` in `architecture_test.go` (YAML parsing is self-contained, no external dependencies beyond stdlib + yaml parser).
+
+### API Key Scope Parameter (Task T021)
+
+**Updated Handler:** `handlers/api_keys.go`  
+**Request Payload:** Added optional `scope` field to `generateApiKeyRequest` (example: `"read"` or `"read,write"`).  
+**Validation:** If `scope` is empty, defaults to `"read"`. Calls `repository.ValidateCapabilities(scope)` — returns 400 if scope is not `"read"` or `"read,write"`.  
+**Persistence:** Calls `repo.CreateWithCapabilities(apiKey, scope)` instead of `repo.Create(apiKey)`.  
+**List Response:** Already surfaces `capabilities` field (added in Phase 2 migration).
+
+## Consequences
+
+### Positive
+- Full read/write parity with in-app collection chat via the external surface.
+- Two-phase proposal+commit flow prevents auto-write from external clients.
+- Journal entries distinguish internal vs. external commits and record originating API key metadata for audit.
+- Served OpenAPI spec is client-agnostic and importable into OpenWebUI, LibreChat, n8n (no MCP server needed in v1).
+- API key scopes are user-selectable at creation time (defaults to read-only for least privilege).
+
+### Negative
+- Architecture test now allows `gopkg.in/yaml.v3` in handlers layer (previously only Gin, WebAuthn, PDF, crypto, gorm). Rationale: YAML parsing is self-contained and needed for OpenAPI embed/serve pattern. Alternative would be to pre-generate JSON (adds build step).
+
+### Trade-offs
+- OpenAPI spec is embedded and served via `go:embed` instead of serving from filesystem or building JSON programmatically. Embedded approach requires copying the contract file to handlers at build time but ensures the served spec is always in sync with the repo source.
+- Unified rate limiter for read/write (50 req/min per key). Distinction deferred to v2 per middleware comment.
+
+## Alternatives Considered
+
+1. **Separate handlers for internal and external surfaces** — Rejected. Both surfaces call the same `CollectionToolsService` ops; only the journal source differs. Duplication would violate DRY.
+2. **Journal source as a service constructor parameter** — Rejected. Service is shared by internal and external adapters. Source must be per-commit, not per-instance.
+3. **Serve OpenAPI spec from filesystem** — Rejected. Embedding ensures the spec is bundled in the binary and cannot drift from repo source.
+4. **Generate OpenAPI JSON programmatically** — Rejected. Maintaining two contracts (YAML source + generated JSON) is error-prone. YAML → JSON parsing at runtime is negligible overhead and keeps a single source of truth.
+
+## Implementation Notes
+
+- External handler methods reuse internal request/response structs to ensure contract parity.
+- Cross-user access is denied by the service layer (returns `ErrCoinNotFound`); handler surfaces 404 (no data leak).
+- Proposal token validation, expiry checks, and allowlist enforcement are all service-layer concerns — handlers focus on HTTP contract and error mapping.
+- Journal metadata map is optional; internal commits pass `nil`, external commits pass API key metadata.
+- OpenAPI spec is served as JSON (not YAML) to match client expectations (most OpenAPI importers prefer JSON).
+
+## Testing
+
+- `go build ./...` — clean
+- `go vet ./...` — clean
+- `go test ./...` — all tests pass (architecture test updated for yaml.v3 allowlist)
+- `task openapi` — regenerated Swagger docs successfully
+
+## Next Steps
+
+- Frontend (Aurelia) already implemented Tasks T022-T023 (key creation UI with scope selector, OpenAPI URL display).
+- Documentation (quickstart guide, client setup walkthroughs) per spec `quickstart.md`.
+- Manual testing: create read/write keys, import served spec into OpenWebUI/LibreChat/n8n, verify tool calls and journal entries.
+
+## References
+
+- Spec: `specs/218-external-tool-server-adapter/spec.md` (User Stories 1-3)
+- Contract: `specs/218-external-tool-server-adapter/contracts/external-tool-server.openapi.yaml`
+- Foundation: `.squad/agents/cassius/history.md` (Phase 2 foundational layer, 2026-06-01)
+- Shared tool layer: Issue #217 `CollectionToolsService` (landed 2026-05-31)
+# Decision: API Key Scope Selector UX (Issue #218, T022/T023)
+
+**Date:** 2026-06-01  
+**Author:** Aurelia (Frontend Dev)  
+**Status:** Implemented (awaiting backend T021)
+
+## Context
+
+Issue #218 Phase 5 / User Story 3 adds scoped API keys (read-only vs read+write) to enable external tool server integration. This decision documents the frontend UX contract built anticipatorily against the agreed backend contract.
+
+## Backend Contract (T021, Cassius)
+
+**ApiKey model extension:**
+- New field: `capabilities` (string) — either `"read"` or `"read,write"`
+
+**Create API key request:**
+- Endpoint: `POST /auth/api-keys`
+- Payload: `{ name: string, scope?: "read" | "read,write" }`
+- Scope is optional; backend defaults to `"read"` when omitted
+- Response unchanged: `{ key: string, apiKey: ApiKey }`
+
+## Frontend Implementation
+
+### TypeScript Types (T022)
+
+**File:** `src/web/src/types/index.ts`
+```typescript
+export interface ApiKey {
+  id: number
+  userId: number
+  keyPrefix: string
+  name: string
+  capabilities: string // "read" or "read,write"  ← ADDED
+  createdAt: string
+  lastUsedAt: string | null
+  revokedAt: string | null
+}
+```
+
+**File:** `src/web/src/api/client.ts`
+```typescript
+export const generateApiKey = (name: string, scope?: 'read' | 'read,write') =>
+  api.post<{ key: string; apiKey: ApiKey }>('/auth/api-keys', { name, scope })
+```
+
+### UI Components (T023)
+
+**Location:** `SettingsDataSection.vue` (Data Management settings, API Keys section)
+
+**Scope Selector:**
+- Chip-based toggle using global `.chip` class
+- Two buttons: "Read" (default) | "Read/Write"
+- Positioned between the name input and "Generate Key" button
+- State: `apiKeyScope = ref<'read' | 'read,write'>('read')`
+- Resets to "read" after successful generation
+
+**Capability Display:**
+- Small `.chip-sm` badge inline with key name in the list
+- Two color variants:
+  - **Read:** Blue accent (`rgba(59, 130, 246, 0.1)` background, `#3b82f6` text, blue border)
+  - **Read/Write:** Gold accent (`--accent-gold-glow` background, `--accent-gold` text/border)
+- Helper functions:
+  - `capabilityLabel(capabilities)` → "Read" | "Read/Write"
+  - `capabilityClass(capabilities)` → "capability-read" | "capability-readwrite"
+
+## Design Token Compliance
+
+All colors, spacing, and radii use design tokens:
+- Scope selector chips: global `.chip` class
+- Capability badges: `.chip-sm` sizing (0.75rem font, 0.15rem 0.5rem padding)
+- Read badge: Custom blue accent (no existing token for info/read-only)
+- Read/Write badge: `--accent-gold-glow` background, `--accent-gold` text/border
+- Border radius: `var(--radius-full)` (inherited from `.chip-sm`)
+
+## Validation
+
+- `npm run build` — PASS (vue-tsc type-check clean, production build successful)
+- `npm run lint` — PASS (0 errors; 5 warnings are pre-existing, not related to this change)
+
+## Forward Compatibility
+
+When Cassius lands T021 (backend scope enforcement):
+1. Backend will accept the `scope` field as designed
+2. Backend will populate `capabilities` on new keys
+3. Frontend will render capabilities for all keys (old keys backfilled to "read" per migration default)
+4. No frontend changes required
+
+## Alternatives Considered
+
+1. **Radio buttons instead of chips:** Rejected — chips are more visually consistent with the app's filter/tag patterns and more compact.
+2. **Dropdown/select:** Rejected — overkill for a binary choice; chips are more accessible and mobile-friendly.
+3. **Text labels for capability (not badges):** Rejected — badges provide better visual hierarchy and mobile tap targets.
+
+## References
+
+- Spec: `specs/218-external-tool-server-adapter/spec.md` § User Story 3
+- Data model: `specs/218-external-tool-server-adapter/data-model.md`
+- Frontend files: `src/web/src/types/index.ts`, `src/web/src/api/client.ts`, `src/web/src/components/settings/SettingsDataSection.vue`
+# Code Review: Issue #218 — External Tool Server Adapter
+
+**Reviewer:** Maximus (Lead/Architect)  
+**Review Date:** 2026-06-01  
+**Branch:** beta  
+**Status:** **BLOCK**
+
+---
+
+## Overall Verdict: BLOCK
+
+The implementation demonstrates strong architectural discipline and correctly implements the security model, tenant isolation, and journal-source threading requirements. However, ONE CRITICAL type assertion panic risk prevents approval.
+
+---
+
+## Findings
+
+### 1. **BLOCKING** — Type Assertion Panic Risk in CommitUpdate Handler
+
+**File:** `src/api/handlers/external_tools.go:247-259`  
+**Severity:** BLOCK  
+
+**Problem:**  
+The `CommitUpdate` handler performs unchecked type assertions on context values that could theoretically be nil or the wrong type. While the middleware chain should guarantee these values exist, defensive coding requires validation before type assertion to prevent server panics.
+
+```go
+// Lines 247-259
+apiKeyID, _ := c.Get("apiKeyId")
+apiKeyName, _ := c.Get("apiKeyName")
+apiKeyCap, _ := c.Get("apiKeyCapabilities")
+
+result, err := h.collectionSvc.CommitUpdateExternal(
+    userID.(uint),
+    req.ProposalID,
+    req.Token,
+    req.Confirm,
+    apiKeyID.(uint),        // PANIC if apiKeyID is nil or wrong type
+    apiKeyName.(string),    // PANIC if apiKeyName is nil or wrong type
+    apiKeyCap.(string),     // PANIC if apiKeyCap is nil or wrong type
+)
+```
+
+**Evidence:**  
+The second return value from `c.Get()` is discarded with `_`, and no existence/type check is performed before the type assertions. If the middleware chain is bypassed, reordered, or if auth behavior changes, the server will panic with a runtime error instead of returning a controlled HTTP error.
+
+**Fix:**  
+Add defensive checks before type assertions:
+
+```go
+apiKeyID, exists := c.Get("apiKeyId")
+if !exists {
+    c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occurred"})
+    return
+}
+apiKeyIDUint, ok := apiKeyID.(uint)
+if !ok {
+    c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occurred"})
+    return
+}
+
+apiKeyName, exists := c.Get("apiKeyName")
+if !exists {
+    c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occurred"})
+    return
+}
+apiKeyNameStr, ok := apiKeyName.(string)
+if !ok {
+    c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occurred"})
+    return
+}
+
+apiKeyCap, exists := c.Get("apiKeyCapabilities")
+if !exists {
+    c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occurred"})
+    return
+}
+apiKeyCapStr, ok := apiKeyCap.(string)
+if !ok {
+    c.JSON(http.StatusInternalServerError, gin.H{"error": "An error occurred"})
+    return
+}
+
+result, err := h.collectionSvc.CommitUpdateExternal(
+    userID.(uint),
+    req.ProposalID,
+    req.Token,
+    req.Confirm,
+    apiKeyIDUint,
+    apiKeyNameStr,
+    apiKeyCapStr,
+)
+```
+
+---
+
+## Positive Observations
+
+### Security & Least Privilege (✓ PASS)
+- Default read-only capability correctly enforced via database default (`gorm:"not null;default:read"`)
+- Backfill migration correctly sets existing keys to `read`
+- Write capability requires explicit opt-in (`read,write`)
+- `RequireCapability` middleware correctly blocks requests without `apiKeyCapabilities` context value (returns 403)
+- Capability validation is strict: only `"read"` and `"read,write"` are accepted
+- JWT tokens are correctly rejected at the capability layer (they lack `apiKeyCapabilities` context)
+
+### Tenant Isolation (✓ PASS)
+- All external tool handlers extract `userId` from auth context (lines 41-44, 79-82, 118-121, 148-151, 186-189, 233-236)
+- Service layer methods accept `userID` as first parameter and pass it through to repository
+- No client-supplied user IDs; cross-user coin access correctly returns 404 via service layer ownership checks
+
+### Journal-Source Threading (✓ PASS)
+- External commits correctly journal with source `external_tool_server` (via `CommitUpdateExternal`)
+- Internal handler still calls `CommitUpdate` which journals `collection_chat` (line 270 of internal_tools.go)
+- Journal entry includes API key metadata for external commits: `[API key #X 'name']`
+- No behavioral regression for internal path
+
+### Two-Phase Write Correctness (✓ PASS)
+- `ProposeUpdate` does NOT write to database (returns preview + token)
+- `CommitUpdate` requires `confirm=true`, valid `proposal_id`, and unexpired `proposal_token`
+- Expired/replayed proposals correctly return 409 conflict via `ErrProposalStateConflict`
+- Only allowlisted fields accepted (validation in service layer)
+
+### Layered Architecture (✓ PASS)
+- Handlers → services → repository flow maintained
+- No direct database access in handlers
+- The `gopkg.in/yaml.v3` allowlist addition for handlers is justified and minimal (used only in `external_tools_openapi.go` to parse embedded YAML spec)
+
+### Error Hygiene (✓ PASS)
+- Generic client error messages ("An error occurred", "Insufficient capability")
+- No SQL or internal detail leakage
+- Correct HTTP status mapping: 400/401/403/404/409/503
+
+### Auth & Token Policy (✓ PASS)
+- API key auth correctly sets context values: `userId`, `userRole`, `apiKeyCapabilities`, `apiKeyId`, `apiKeyName`
+- Kill switch (`ExternalToolServerEnabled`) gates ALL `/api/v1/tools/*` routes INCLUDING `openapi.json`
+- Rate limiting correctly keys by API key ID when available, falls back to client IP
+
+### Frontend Build Parity (✓ PASS)
+- Design tokens used for capability badges (`--accent-gold`, `--bg-card`, etc.)
+- No hardcoded colors or border radii
+- `chip-sm` class exists in `main.css:141`
+- Nullable handling: `capabilities: string` field added to `ApiKey` interface
+- No emojis
+
+---
+
+## Quality Gate & Definition of Done Assessment
+
+**§17 Quality Gate (Principle XIII):**  
+- ✓ Code compiles (Go architecture test passes)
+- ✓ Layered architecture preserved
+- ✓ No prohibited emojis or hardcoded styles in frontend
+- ✗ **Type safety violation** (unchecked type assertions in external_tools.go)
+
+**§21 Definition of Done:**  
+- ✓ Capability-scoped API keys implemented
+- ✓ Two-phase write with journal attribution
+- ✓ Kill switch implemented and default-off
+- ✓ OpenAPI document served
+- ✓ Frontend management UI with scope selector
+- ✗ **Critical bug blocks merge** (panic risk)
+
+---
+
+## Recommendation
+
+**BLOCK** until the type assertion issue in `external_tools.go:247-259` is resolved. Once fixed, the implementation will satisfy all security, isolation, and architectural requirements and can proceed to merge.
+
+All other aspects of the implementation are sound and demonstrate excellent adherence to the constitution's principles (least privilege, defense in depth, structured error handling, layered architecture).
+
+---
+
+**Next Steps:**  
+1. Fix type assertions in `CommitUpdate` handler
+2. Re-submit for review
+3. Approved changes can merge to beta
+
+---
+
+_Review conducted under Constitution §18.2 (Strict Lockout authority)._
+# Decision: Issue #218 Polish-Phase Validation (T027–T031)
+
+**Date**: 2026-06-01  
+**Agent**: Brutus (Tester)  
+**Status**: Complete — APPROVED  
+**Related**: Issue #218 (External Tool Server Adapter), specs/218-external-tool-server-adapter/
+
+## Context
+
+Validated the backend implementation of issue #218 (external tool server adapter) through Polish-phase tasks T027 (unit tests), T029 (Go build/vet/test), T030 (frontend build/lint), and T031 (quickstart traceability).
+
+## T027: Capability Middleware Test Coverage
+
+**Created**: `src/api/middleware/capability_test.go` (10 tests, 196 lines)
+
+**Test coverage**:
+1. `TestRequireCapability_ReadKeyAllowsRead` — read-scoped key (`"read"`) passes `RequireCapability("read")` → 200
+2. `TestRequireCapability_ReadKeyDeniesWrite` — read-scoped key denied by `RequireCapability("write")` → 403
+3. `TestRequireCapability_WriteKeyAllowsWrite` — write-scoped key (`"read,write"`) passes `RequireCapability("write")` → 200
+4. `TestRequireCapability_WriteKeyAllowsRead` — write-scoped key passes `RequireCapability("read")` → 200 (write implies read)
+5. `TestRequireCapability_NoCapabilityDenied` — no capability in context (JWT-style) → 403
+6. `TestRequireCapability_EmptyCapabilityDenied` — empty string capability → 403
+7. `TestRequireCapability_InvalidScopeDenied` — invalid scope parameter (not `"read"`/`"write"`) → 403
+8. `TestRequireCapability_NonStringCapabilityDenied` — non-string value in context (type mismatch) → 403
+9. `TestRequireCapability_HandlerNotExecutedOnDeny` — protected handler does not execute when check fails
+10. `TestRequireCapability_HandlerExecutedOnAllow` — protected handler executes when check succeeds
+
+**Key findings**:
+- Context key verified: `"apiKeyCapabilities"` (set by `middleware/auth.go` API-key path, read by `capability.go`)
+- All tests pass (10/10), matches existing middleware test style (`auth_test.go`, `request_size_limit_test.go`)
+- Uses Gin test mode + httptest pattern
+
+## T029: Go Build/Vet/Test Results
+
+**Commands executed** (from `src/api/`):
+```bash
+go build ./...   # ✅ PASS
+go vet ./...     # ✅ PASS
+go test ./...    # ✅ PASS
+```
+
+**Test summary** (7 packages with tests):
+- `github.com/briandenicola/ancient-coins-api` (architecture tests): ok
+- `github.com/briandenicola/ancient-coins-api/capture`: ok
+- `github.com/briandenicola/ancient-coins-api/handlers`: ok (1.329s)
+- `github.com/briandenicola/ancient-coins-api/middleware`: ok (0.024s) — **23 tests total** (10 auth, 10 capability, 3 request-size)
+- `github.com/briandenicola/ancient-coins-api/repository`: ok (0.104s)
+- `github.com/briandenicola/ancient-coins-api/services`: ok (0.763s)
+
+**Result**: All tests pass. No regressions. The new `capability_test.go` integrates cleanly.
+
+## T030: Frontend Build/Lint Results
+
+**Commands executed** (from `src/web/`):
+```bash
+npm run build    # ✅ PASS (6.73s)
+npm run lint     # ✅ PASS (0 errors, 5 warnings)
+```
+
+**Build output**: 94 precache entries (2988.95 KiB), PWA service worker generated, 0 errors.
+
+**Lint output**: 0 errors, 5 pre-existing warnings unrelated to #218:
+- `AdminHealthSection.vue` (2 indentation warnings)
+- `CoinReferencesSection.vue` (1 template-shadow warning)
+- `useCoinDetailContext.ts` (1 unused-vars warning)
+- `CollectionPage.vue` (1 multiline-html warning)
+
+**Result**: Frontend builds and lints cleanly. No impact from #218 (backend-only feature).
+
+## T031: Quickstart Scenario Traceability
+
+### Scenario A — External read (read-only key)
+
+**Quickstart operations**:
+- `POST /api/v1/tools/search_my_collection` (read key)
+- `POST /api/v1/tools/get_coin` (read key)
+- `POST /api/v1/tools/collection_summary` (read key)
+- `POST /api/v1/tools/top_coins_by_value` (read key)
+
+**Code trace**: ✅ PASS
+- **Routes** (`src/api/main.go` L490–497): All four routes wired under `readTools.Use(middleware.RequireCapability("read"))`
+- **Handlers** (`src/api/handlers/external_tools.go`): Each handler extracts `userID` from context, delegates to `CollectionToolsService` with user scoping
+- **Service** (`src/api/services/collection_tools_service.go`): All read methods (`SearchMyCollection`, `GetCoin`, `CollectionSummary`, `TopCoinsByValue`) apply `repository.OwnedBy(userID)` or equivalent scoping → **SC-001 satisfied** (100% scoped to key owner)
+- **Cross-user protection**: Service-layer `OwnedBy` scoping → `404` on non-owned coins → **SC-002 satisfied** (0 cross-user reads)
+
+### Scenario B — Two-phase external write (write key)
+
+**Quickstart operations**:
+- `POST /api/v1/tools/propose_update` (write key) → proposal + token
+- `POST /api/v1/tools/commit_update` (write key + token + `confirm:true`) → persisted write + journal
+
+**Code trace**: ✅ PASS
+- **Routes** (`src/api/main.go` L500–505): Both routes wired under `writeTools.Use(middleware.RequireCapability("write"))`
+- **Proposal handler** (`src/api/handlers/external_tools.go` L186–214): Calls `collectionSvc.ProposeUpdate(userID, coinID, changes)` → returns preview with token, no write → **SC-003 satisfied** (two-phase flow enforced)
+- **Commit handler** (`src/api/handlers/external_tools.go` L233–270): Extracts API key metadata (`apiKeyId`, `apiKeyName`, `apiKeyCapabilities`) from Gin context, calls `collectionSvc.CommitUpdateExternal(userID, proposalID, token, confirm, apiKeyID, apiKeyName, apiKeyCap)` → writes and journals → **SC-004 satisfied** (journal source `external_tool_server` with API key metadata)
+- **Allowlisted fields**: `CollectionToolsService.ProposeUpdate` validates changes against allowlist → non-allowlisted fields rejected with `ErrInvalidFieldChanges` → negative scenario N3 covered
+- **Token validation**: `CommitUpdateExternal` verifies token + proposal state → invalid/expired tokens rejected → negative scenario N4 covered
+
+### Scenario C — Client discovery & MCP
+
+**Quickstart operations**:
+- `GET /api/v1/tools/openapi.json` → OpenAPI document
+
+**Code trace**: ✅ PASS
+- **Route** (`src/api/main.go` L474–479): Unauthenticated route `GET /openapi.json` under `toolsSpec.Use(middleware.ExternalToolServerEnabled(settingsSvc))` (kill-switch gate only, no auth/rate-limit)
+- **Handler** (`src/api/handlers/external_tools_openapi.go`): Embeds `contracts/external-tool-server.openapi.yaml` via `go:embed`, serves as JSON → **SC-007 satisfied** (OpenAPI served, describes all 6 tools)
+- **Client integration**: Documented in `quickstart.md` for OpenWebUI, LibreChat, n8n, mcpo → **CANNOT-VERIFY-RUNTIME** (requires live server + client setup)
+
+### Negative Scenarios
+
+| Scenario | Expected | Code Trace | Status |
+|---|---|---|---|
+| **N1**: Read-only key → write | 403 | `middleware.RequireCapability("write")` on write routes → 403 when `capabilities="read"` | ✅ PASS (SC-005) |
+| **N2**: Cross-user access | 404/403 | `repository.OwnedBy(userID)` scoping in service layer → no data leak | ✅ PASS (SC-002) |
+| **N3**: Non-allowlisted field | 400 | `CollectionToolsService.validateChanges()` allowlist check → `ErrInvalidFieldChanges` | ✅ PASS |
+| **N4**: Token replay/expiry | 409/401 | `CommitUpdateExternal` state/token check → denial | ✅ PASS |
+| **N5**: Kill switch off | 503 | `middleware.ExternalToolServerEnabled` on all routes → 503 when `SettingExternalToolServerEnabled="false"` | ✅ PASS (SC-006) |
+| **N6**: Per-key rate limit | 429 | `middleware.ExternalAPIKeyRateLimit(50, 1min)` per-key limiter | ✅ PASS |
+
+### Success Criteria Mapping
+
+| Criterion | Supporting Code | Status |
+|---|---|---|
+| **SC-001**: 100% external reads scoped to key owner | Service methods use `OwnedBy(userID)` | ✅ PASS |
+| **SC-002**: 0 cross-user reads/writes | Service scoping + `404` on non-owned | ✅ PASS |
+| **SC-003**: 100% writes require proposal + `confirm=true` | Two-phase flow enforced in handlers + service | ✅ PASS |
+| **SC-004**: 100% commits journal with `external_tool_server` + API key | `CommitUpdateExternal` + `buildJournalEntry` | ✅ PASS |
+| **SC-005**: 100% write attempts with read-key denied | `RequireCapability("write")` middleware | ✅ PASS |
+| **SC-006**: Kill switch off → 100% calls rejected | `ExternalToolServerEnabled` on all routes | ✅ PASS |
+| **SC-007**: OpenAPI served, imports into clients | `GET /openapi.json` + embedded YAML | ✅ PASS (server-side), CANNOT-VERIFY-RUNTIME (client imports) |
+
+## Manual Runtime Verification Steps (for Brian)
+
+The following items require a live server + API keys to validate end-to-end:
+
+### 1. Admin kill-switch toggle
+```bash
+# Start server: cd /home/brian/code/coin-collection-app && task up
+# In Admin Settings UI: toggle ExternalToolServerEnabled ON
+# Verify setting persists: curl -s http://localhost:8080/api/v1/tools/openapi.json | jq .
+# Toggle OFF, verify 503: curl -s -w "%{http_code}" http://localhost:8080/api/v1/tools/openapi.json
+```
+
+### 2. API key creation with scopes
+```bash
+# In Settings → API Keys UI:
+#   - Create READ_KEY (read-only scope — default)
+#   - Create WRITE_KEY (read+write scope)
+# Verify capabilities field in list response
+```
+
+### 3. Scenario A (read operations)
+```bash
+# Set READ_KEY=<your-read-key>, COIN_ID=<owned-coin-id>
+curl -X POST http://localhost:8080/api/v1/tools/search_my_collection \
+  -H "X-API-Key: $READ_KEY" -H "Content-Type: application/json" \
+  -d '{"query":"denarius","limit":5}'
+
+curl -X POST http://localhost:8080/api/v1/tools/get_coin \
+  -H "X-API-Key: $READ_KEY" -H "Content-Type: application/json" \
+  -d "{\"coin_id\": $COIN_ID}"
+
+curl -X POST http://localhost:8080/api/v1/tools/collection_summary \
+  -H "X-API-Key: $READ_KEY" -H "Content-Type: application/json" -d '{}'
+
+curl -X POST http://localhost:8080/api/v1/tools/top_coins_by_value \
+  -H "X-API-Key: $READ_KEY" -H "Content-Type: application/json" -d '{"limit":3}'
+```
+**Expected**: All return 200 with user-scoped data only.
+
+### 4. Scenario B (two-phase write)
+```bash
+# Phase 1: propose (write key)
+PROP=$(curl -s -X POST http://localhost:8080/api/v1/tools/propose_update \
+  -H "X-API-Key: $WRITE_KEY" -H "Content-Type: application/json" \
+  -d "{\"coin_id\": $COIN_ID, \"changes\": {\"notes\": \"verified via external client\"}}")
+echo "$PROP" | jq .
+
+# Extract proposalId and proposalToken from $PROP
+
+# Phase 2: commit with confirmation
+curl -X POST http://localhost:8080/api/v1/tools/commit_update \
+  -H "X-API-Key: $WRITE_KEY" -H "Content-Type: application/json" \
+  -d "{\"proposal_id\":\"<ID>\",\"token\":\"<TOKEN>\",\"confirm\":true}"
+```
+**Expected**: Commit returns `journalSource: "external_tool_server"`, journal entry created with API key metadata.
+
+### 5. Negative scenario N1 (read-key → write)
+```bash
+curl -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8080/api/v1/tools/propose_update \
+  -H "X-API-Key: $READ_KEY" -H "Content-Type: application/json" \
+  -d "{\"coin_id\": $COIN_ID, \"changes\": {\"notes\":\"x\"}}"
+```
+**Expected**: `403` (insufficient capability).
+
+### 6. Negative scenario N2 (cross-user access)
+```bash
+# Use WRITE_KEY owned by user A, COIN_ID owned by user B
+curl -X POST http://localhost:8080/api/v1/tools/get_coin \
+  -H "X-API-Key: $WRITE_KEY" -H "Content-Type: application/json" \
+  -d "{\"coin_id\": <OTHER_USER_COIN_ID>}"
+```
+**Expected**: `404` or `403`, no data leak.
+
+### 7. Negative scenario N3 (non-allowlisted field)
+```bash
+curl -X POST http://localhost:8080/api/v1/tools/propose_update \
+  -H "X-API-Key: $WRITE_KEY" -H "Content-Type: application/json" \
+  -d "{\"coin_id\": $COIN_ID, \"changes\": {\"category\":\"Roman\"}}"
+```
+**Expected**: `400` (invalid field change).
+
+### 8. Negative scenario N4 (token replay)
+```bash
+# Use same proposal_id + token from step 4 twice
+curl -X POST http://localhost:8080/api/v1/tools/commit_update \
+  -H "X-API-Key: $WRITE_KEY" -H "Content-Type: application/json" \
+  -d "{\"proposal_id\":\"<ID>\",\"token\":\"<TOKEN>\",\"confirm\":true}"
+```
+**Expected**: `409` (not pending) or `401` (invalid token).
+
+### 9. Negative scenario N6 (rate limit)
+```bash
+# Exceed 50 requests/minute on a single key
+for i in {1..51}; do
+  curl -X POST http://localhost:8080/api/v1/tools/collection_summary \
+    -H "X-API-Key: $READ_KEY" -H "Content-Type: application/json" -d '{}'
+done
+```
+**Expected**: First 50 succeed (200), 51st returns `429 Too Many Requests`.
+
+### 10. Client discovery (OpenWebUI/LibreChat/n8n/mcpo)
+```bash
+# Fetch OpenAPI spec
+curl -s http://localhost:8080/api/v1/tools/openapi.json > external-tools.openapi.json
+
+# Import into:
+#   - OpenWebUI: Tools → Add OpenAPI → paste URL http://localhost:8080/api/v1/tools/openapi.json, set X-API-Key header
+#   - LibreChat: similar OpenAPI import flow
+#   - n8n: HTTP Request node → import OpenAPI → set auth header
+#   - mcpo: run `mcpo --openapi http://localhost:8080/api/v1/tools/openapi.json --header "X-API-Key: $WRITE_KEY"`
+```
+**Expected**: All 6 tools appear, operate correctly against collection.
+
+## Decision
+
+**APPROVED**. Issue #218 backend implementation is production-ready:
+- Unit tests: 10/10 pass, comprehensive capability coverage
+- Build/test: clean pass across all Go packages
+- Frontend: builds and lints cleanly, no impact from backend-only feature
+- Quickstart traceability: all scenarios A–C, negative N1–N6, success criteria SC-001–SC-007 satisfied in code
+
+**Gaps**: None blocking. Manual runtime verification steps documented above.
+
+**Follow-up**: Once Brian completes manual verification of scenarios 1–10, #218 can be merged to main.
+# Decision: Issue #218 External Tool Server Documentation (Scribe)
+
+**Date:** 2026-06-01  
+**Author:** Scribe  
+**Status:** Complete  
+**Related:** Issue #218 (Epic F012, Card 4), specs/218-external-tool-server-adapter/
+
+## Context
+
+Issue #218 backend and frontend implementation is complete and merged into the `beta` branch (per the decision files `cassius-218-foundational.md` and `cassius-218-handlers.md`, and the UI decision `aurelia-218-keyscope-ui.md`). Tasks T024–T026 require comprehensive end-user and API documentation covering the security model, setup instructions, client integration guides, and threat model updates for the external tool server surface.
+
+This decision records the documentation artifacts created, sources consulted, and any assumptions or gaps encountered during documentation.
+
+## Decision
+
+Created three documentation files covering the external tool server feature:
+
+### T024: docs/external-tool-server.md
+
+Created a comprehensive standalone guide covering:
+
+- **Security Model** — Default-off admin toggle, scoped API keys (read vs read,write), two-phase write protection (propose → commit with explicit confirm), journaling audit trail (source `external_tool_server` + API key id/name/capabilities), tenant isolation (server-side user scoping), per-key rate limiting (50 req/min), field allowlist (identity fields rejected).
+- **Enabling the Server** — Admin toggle location and immediate effect.
+- **Creating API Keys** — Step-by-step for read-only (default) and read+write keys, managing keys in Settings → Data → API Keys.
+- **Available Tools** — Complete reference for all six endpoints (four read: `search_my_collection`, `get_coin`, `collection_summary`, `top_coins_by_value`; two write: `propose_update`, `commit_update`) with request/response examples, parameter definitions, and error codes.
+- **OpenAPI Document** — The unauthenticated `/api/v1/tools/openapi.json` endpoint for client auto-import.
+- **MCP Compatibility** — Documentation-only approach using `mcpo` to wrap the OpenAPI spec (no first-party MCP server in v1).
+- **Client Setup Guides** — Step-by-step integration instructions for OpenWebUI/Ollama, LibreChat, and n8n with testing examples.
+- **Error Responses** — Full error code reference table (400/401/403/404/409/429/503).
+- **Best Practices** — Least-privilege keys, rate limit awareness, proposal expiry, field allowlist, journal review.
+- **Troubleshooting** — Common issues (503 disabled, 401 invalid key, 403 insufficient capability, 409 expired proposal, 404 cross-user access).
+- **Security Considerations** — Reference to threat-model.md.
+- **Related Documentation** — Links to api-reference, features, threat-model, authentication, getting-started.
+
+**Sources:** `specs/218-external-tool-server-adapter/spec.md`, `plan.md`, `quickstart.md`, `contracts/external-tool-server.openapi.yaml`, decision files `cassius-218-foundational.md` and `cassius-218-handlers.md`, `src/api/handlers/external_tools.go`, `external_tools_openapi.go`, `src/api/main.go` (lines 469–506 route wiring).
+
+**Assumptions:**
+- Default rate limit of 50 req/min per key is correct (verified in `main.go` line 471: `ExternalAPIKeyRateLimit(50, 1*time.Minute)`).
+- Proposal expiry TTL is 5 minutes (mentioned in quickstart.md as configurable; not hardcoded in visible handler code, assumed service-level default).
+- The setting key is `ExternalToolServerEnabled` (verified in `cassius-218-foundational.md` as `SettingExternalToolServerEnabled` constant).
+
+### T025: Updated docs/features.md and docs/api-reference.md
+
+**features.md:**
+- Added a new `## External Tool Server` section after the Authentication section (lines ~173–202 in the updated file).
+- Includes key features summary (default-off, scoped keys, two-phase writes, journaling, tenant isolation, per-key rate limiting, field allowlist, OpenAPI-first, MCP compatible), available tools list, and link to the full external-tool-server.md guide.
+
+**api-reference.md:**
+- Updated the `### API Keys` section to document the new `scope` field on key creation (`read` default or `read,write`), showing `capabilities` in list responses, and example usage.
+- Added a new `## External Tool Server` section documenting the `/api/v1/tools/*` surface with key differences from the main API (kill switch, scoped keys, two-phase writes, field allowlist, stricter rate limiting, journaled audit trail).
+- Documented all seven external endpoints: `GET /api/v1/tools/openapi.json` (unauthenticated) and the six tool operations (`search_my_collection`, `get_coin`, `collection_summary`, `top_coins_by_value`, `propose_update`, `commit_update`) with request/response examples.
+- Added external tool server error code reference table.
+
+**Sources:** Existing `docs/features.md` and `docs/api-reference.md` for style and structure; `specs/218-external-tool-server-adapter/spec.md` and `contracts/external-tool-server.openapi.yaml` for endpoint details; `src/api/handlers/external_tools.go` for handler logic verification.
+
+**Style Match:** Both updates follow the existing doc style (no emojis, consistent heading hierarchy, code blocks with language tags, table formatting for parameters/errors).
+
+### T026: Updated docs/threat-model.md
+
+**Changes:**
+1. Updated status summary table (Backend API findings: 9 → 10 total, 8 → 9 mitigated; overall: 24 → 25 total, 13 → 14 mitigated).
+2. Updated last reconciliation date to 2026-06-01 and added B-10 (external tool server) to the mitigation summary.
+3. Added new backend finding `B-10` (High severity, Mitigated) documenting the external tool server as a public write surface with layered defenses:
+   - Admin kill switch (`ExternalToolServerEnabled`, default OFF)
+   - API key capability scopes (`read` default, `read,write` opt-in)
+   - Two-phase proposal+confirm flow (no auto-writes)
+   - Field allowlist (identity fields rejected)
+   - Per-key rate limiting (50 req/min)
+   - Journaled audit trail (source `external_tool_server`, API key id/name/capabilities)
+   - Server-side tenant isolation (user identity derived from key, no cross-user access)
+   - Location: `src/api/handlers/external_tools.go`, `src/api/middleware/external_tools_gate.go`, `src/api/middleware/capability.go`, `src/api/main.go` (lines 469–506), `src/api/models/api_key.go`
+   - Recommended remediation: Maintain layered defenses, monitor audit logs, periodically review/revoke keys. Issue #218.
+
+**Sources:** `specs/218-external-tool-server-adapter/spec.md` security requirements (FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, FR-010), `cassius-218-foundational.md` (capability model, kill switch, per-key rate limiting), `cassius-218-handlers.md` (journal-source threading), `src/api/handlers/external_tools.go` (commit logic), `src/api/middleware/` (gate and capability middleware).
+
+**Style Match:** Followed existing threat-model.md structure (status table update, backend findings table with ID/severity/status/location/description/remediation columns, references to issue numbers and other docs).
+
+## Artifacts Created
+
+1. **docs/external-tool-server.md** — 16,342 characters, comprehensive user guide
+2. **docs/features.md** — Updated with External Tool Server section (~30 lines added)
+3. **docs/api-reference.md** — Updated API Keys section with `scope` field, added External Tool Server section documenting `/api/v1/tools/*` surface (~200 lines added)
+4. **docs/threat-model.md** — Added B-10 finding, updated status table and reconciliation date
+
+## Gaps and Unresolved Items
+
+No gaps or inaccuracies identified. All documented endpoints, settings, field names, and error codes match the implementation in `src/api/handlers/external_tools.go`, `external_tools_openapi.go`, and `main.go`. The OpenAPI contract in `specs/218-external-tool-server-adapter/contracts/external-tool-server.openapi.yaml` was the authoritative source for request/response schemas.
+
+**Minor assumption:** Proposal expiry TTL is documented as "configurable, default 5 minutes" based on quickstart.md. The handler code does not expose the TTL constant, so the actual value is assumed to be set at the service layer (from issue #217 `CollectionUpdateProposal` model). This assumption is safe because the TTL appears in the proposal preview response (`expiresAt`), so clients observe the actual expiry regardless of the default.
+
+## Consequences
+
+### Positive
+- Users have a complete external tool server guide covering security model, setup, and client integrations.
+- API reference now documents the `/api/v1/tools/*` surface with request/response examples consistent with the main API style.
+- Threat model records the external write surface and its layered defenses, establishing a baseline for future security reviews.
+- Features page now mentions the external tool server, making the feature discoverable from the main feature list.
+
+### Negative
+- None identified.
+
+## Related Documents
+
+- Spec: `specs/218-external-tool-server-adapter/spec.md`
+- Contract: `specs/218-external-tool-server-adapter/contracts/external-tool-server.openapi.yaml`
+- Quickstart: `specs/218-external-tool-server-adapter/quickstart.md`
+- Decision: `.squad/decisions/inbox/cassius-218-foundational.md`
+- Decision: `.squad/decisions/inbox/cassius-218-handlers.md`
+- Decision: `.squad/decisions/inbox/aurelia-218-keyscope-ui.md`
+- Constitution Principles: I (Layered Architecture), VII (Schema-Driven Contracts), XI (Security Hardening), XII (Auth & Token Policy)
+- Constitution Operational: §17 (Quality Gate), §21 (Definition of Done)
+# BLOCK Fix: Type Assertion Panic Risk (Issue #218)
+
+**Author:** Brutus (Tester/QA)  
+**Date:** 2026-06-01  
+**Context:** Strict Lockout fix per Constitution §18.2  
+**Original Author:** Cassius (BLOCKED by Maximus)  
+**Reviewer:** Maximus (Lead/Architect)  
+**Status:** Ready for Re-review
+
+---
+
+## The BLOCK
+
+**File:** `src/api/handlers/external_tools.go`  
+**Severity:** CRITICAL (availability risk)  
+**Finding:** Maximus identified unchecked type assertions on Gin context values that would PANIC the server if middleware chain is bypassed, reordered, or if a context value is missing or the wrong type.
+
+**Original Code (CommitUpdate handler, lines 247-259):**
+```go
+apiKeyID, _ := c.Get("apiKeyId")        // Discarded existence check
+apiKeyName, _ := c.Get("apiKeyName")
+apiKeyCap, _ := c.Get("apiKeyCapabilities")
+
+result, err := h.collectionSvc.CommitUpdateExternal(
+    userID.(uint),        // PANIC if not uint
+    req.ProposalID,
+    req.Token,
+    req.Confirm,
+    apiKeyID.(uint),      // PANIC if nil or wrong type
+    apiKeyName.(string),  // PANIC if nil or wrong type
+    apiKeyCap.(string),   // PANIC if nil or wrong type
+)
+```
+
+**Risk:** If auth middleware is bypassed, reordered, or if implementation changes, the server will crash with a runtime panic instead of returning a controlled HTTP error.
+
+---
+
+## The Fix
+
+Applied comma-ok idiom defensive guards to **ALL six handlers** in `external_tools.go`:
+
+### 1. SearchMyCollection (lines 40-59)
+**Before:**
+```go
+coins, err := h.collectionSvc.SearchMyCollection(userID.(uint), req.Query, req.Limit)
+```
+
+**After:**
+```go
+userID, exists := c.Get("userId")
+if !exists {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+userIDUint, ok := userID.(uint)
+if !ok {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+coins, err := h.collectionSvc.SearchMyCollection(userIDUint, req.Query, req.Limit)
+```
+
+### 2. GetCoin (lines 78-101)
+**Before:**
+```go
+coin, err := h.collectionSvc.GetCoin(userID.(uint), req.CoinID)
+```
+
+**After:**
+```go
+userID, exists := c.Get("userId")
+if !exists {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+userIDUint, ok := userID.(uint)
+if !ok {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+coin, err := h.collectionSvc.GetCoin(userIDUint, req.CoinID)
+```
+
+### 3. CollectionSummary (lines 117-130)
+**Before:**
+```go
+summary, err := h.collectionSvc.CollectionSummary(userID.(uint))
+```
+
+**After:**
+```go
+userID, exists := c.Get("userId")
+if !exists {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+userIDUint, ok := userID.(uint)
+if !ok {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+summary, err := h.collectionSvc.CollectionSummary(userIDUint)
+```
+
+### 4. TopCoinsByValue (lines 148-167)
+**Before:**
+```go
+coins, err := h.collectionSvc.TopCoinsByValue(userID.(uint), req.Limit)
+```
+
+**After:**
+```go
+userID, exists := c.Get("userId")
+if !exists {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+userIDUint, ok := userID.(uint)
+if !ok {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+coins, err := h.collectionSvc.TopCoinsByValue(userIDUint, req.Limit)
+```
+
+### 5. ProposeUpdate (lines 186-213)
+**Before:**
+```go
+proposal, err := h.collectionSvc.ProposeUpdate(userID.(uint), req.CoinID, req.Changes)
+```
+
+**After:**
+```go
+userID, exists := c.Get("userId")
+if !exists {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+userIDUint, ok := userID.(uint)
+if !ok {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+proposal, err := h.collectionSvc.ProposeUpdate(userIDUint, req.CoinID, req.Changes)
+```
+
+### 6. CommitUpdate (lines 233-278) — THE BLOCKING HANDLER
+**Before:**
+```go
+apiKeyID, _ := c.Get("apiKeyId")
+apiKeyName, _ := c.Get("apiKeyName")
+apiKeyCap, _ := c.Get("apiKeyCapabilities")
+
+result, err := h.collectionSvc.CommitUpdateExternal(
+    userID.(uint),
+    req.ProposalID,
+    req.Token,
+    req.Confirm,
+    apiKeyID.(uint),
+    apiKeyName.(string),
+    apiKeyCap.(string),
+)
+```
+
+**After:**
+```go
+userID, exists := c.Get("userId")
+if !exists {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+userIDUint, ok := userID.(uint)
+if !ok {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+
+// API key metadata with defensive checks
+apiKeyID, exists := c.Get("apiKeyId")
+if !exists {
+    c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient capability"})
+    return
+}
+apiKeyIDUint, ok := apiKeyID.(uint)
+if !ok {
+    c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient capability"})
+    return
+}
+
+apiKeyName, exists := c.Get("apiKeyName")
+if !exists {
+    c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient capability"})
+    return
+}
+apiKeyNameStr, ok := apiKeyName.(string)
+if !ok {
+    c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient capability"})
+    return
+}
+
+apiKeyCap, exists := c.Get("apiKeyCapabilities")
+if !exists {
+    c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient capability"})
+    return
+}
+apiKeyCapStr, ok := apiKeyCap.(string)
+if !ok {
+    c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient capability"})
+    return
+}
+
+result, err := h.collectionSvc.CommitUpdateExternal(
+    userIDUint,
+    req.ProposalID,
+    req.Token,
+    req.Confirm,
+    apiKeyIDUint,
+    apiKeyNameStr,
+    apiKeyCapStr,
+)
+```
+
+---
+
+## Design Decisions
+
+### Error Response Mapping
+
+| Context Value | Missing/Wrong Type → HTTP Status | Message |
+|---|---|---|
+| `userId` | 401 Unauthorized | `{"error":"Unauthorized"}` |
+| `apiKeyId` | 403 Forbidden | `{"error":"Insufficient capability"}` |
+| `apiKeyName` | 403 Forbidden | `{"error":"Insufficient capability"}` |
+| `apiKeyCapabilities` | 403 Forbidden | `{"error":"Insufficient capability"}` |
+
+**Rationale:**
+- `userId` missing/wrong type indicates auth failure → 401
+- API key context values are set by `APIKeyAuth` + `RequireCapability` middleware that guard external tool routes. If these values are missing/wrong type, the request bypassed the expected API-key surface → 403 (fail closed, no details leaked per Principle XI)
+- Generic error messages prevent internal state leakage (Principle XI)
+
+### Why 403 for API Key Context (not 500)?
+
+While middleware **should** guarantee these values exist with correct types, defensive coding requires us to handle the "impossible" case gracefully. Returning 403 instead of 500:
+1. **Fails closed** — treats unexpected state as insufficient authorization
+2. **Protects availability** — no server panic
+3. **Generic messaging** — no internal detail leakage
+4. **Aligns with security posture** — if middleware chain was bypassed/broken, the request is not sufficiently authorized
+
+---
+
+## Validation Results
+
+From `src/api/`:
+
+### Go Build
+```bash
+$ go build ./...
+# (exit code 0, no output)
+```
+
+### Go Vet
+```bash
+$ go vet ./...
+# (exit code 0, no output)
+```
+
+### Go Test (Full Suite)
+```bash
+$ go test ./...
+ok  	github.com/briandenicola/ancient-coins-api	0.022s
+ok  	github.com/briandenicola/ancient-coins-api/capture	(cached)
+?   	github.com/briandenicola/ancient-coins-api/config	[no test files]
+?   	github.com/briandenicola/ancient-coins-api/database	[no test files]
+?   	github.com/briandenicola/ancient-coins-api/docs	[no test files]
+ok  	github.com/briandenicola/ancient-coins-api/handlers	(cached)
+ok  	github.com/briandenicola/ancient-coins-api/middleware	(cached)
+?   	github.com/briandenicola/ancient-coins-api/models	[no test files]
+ok  	github.com/briandenicola/ancient-coins-api/repository	(cached)
+ok  	github.com/briandenicola/ancient-coins-api/services	(cached)
+```
+
+**Result:** ✅ All packages compile, no vet warnings, all tests pass (including architecture tests and middleware capability tests).
+
+---
+
+## Behavior Preservation
+
+**For valid requests (middleware chain intact):**
+- All context values will exist with correct types
+- All comma-ok checks will pass
+- Service layer receives identical parameters
+- **Zero behavioral change** — success path unchanged
+
+**For invalid/malformed requests:**
+- **Before:** Server panic (availability failure)
+- **After:** Controlled HTTP error response (401 or 403)
+- Server remains available
+
+---
+
+## Principle Alignment
+
+- **Principle XI (Security Hardening):** Defensive coding, fail closed, generic error messages
+- **Principle I (Layered Architecture):** Handler-only change, no service/repo modifications
+- **Constitution §17 Quality Gate:** Build + vet + test all pass
+- **Constitution §18.2 Strict Lockout:** Independent fix by blocked author's teammate (Brutus) after BLOCK by reviewer (Maximus)
+
+---
+
+## Recommendation
+
+**UNBLOCK** — All six handlers in `external_tools.go` now use comma-ok defensive guards. Server will return controlled HTTP errors instead of panicking if context values are missing or wrong type. All tests pass. No regression risk for valid requests.
+
+Ready for Maximus re-review and merge to beta.
+# Re-Review Verdict: Issue #218 — BLOCK CLEARED
+
+**Reviewer:** Maximus (Lead/Architect)  
+**Re-Review Date:** 2026-06-01  
+**Branch:** beta  
+**Status:** ✅ **APPROVED — LOCKOUT CLEARED**
+
+---
+
+## Summary
+
+**VERDICT: APPROVE**
+
+The BLOCKING issue from my initial review (unchecked type assertions in `src/api/handlers/external_tools.go`) has been **FULLY RESOLVED**. Brutus (Tester/QA) applied defensive comma-ok guards to all six handlers, eliminating the panic/availability risk. The fix is surgical, correct, and introduces no regressions.
+
+**Strict Lockout Status:** ✅ **CLEARED**  
+- Original author (Cassius) was blocked per Constitution §18.2  
+- Brutus (independent team member) applied the fix  
+- Fix verified and approved — lockout lifted, change ready to ship
+
+---
+
+## Verification Summary
+
+### 1. BLOCKING Issue — Type Assertion Panic Risk
+
+**Original Problem (my first review):**  
+`CommitUpdate` handler (lines 247-259) performed unchecked type assertions on Gin context values:
+- `userID.(uint)` — would panic if nil or wrong type
+- `apiKeyID.(uint)` — would panic if nil or wrong type
+- `apiKeyName.(string)` — would panic if nil or wrong type
+- `apiKeyCap.(string)` — would panic if nil or wrong type
+
+**Risk:** If auth/capability middleware is bypassed, reordered, or implementation changes, the server would crash with a runtime panic instead of returning a controlled HTTP error.
+
+**Fix Applied by Brutus:**  
+✅ **ALL SIX HANDLERS** now use comma-ok defensive guards:
+
+#### SearchMyCollection (lines 41-50)
+```go
+userID, exists := c.Get("userId")
+if !exists {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+userIDUint, ok := userID.(uint)
+if !ok {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+```
+
+#### GetCoin (lines 84-93)
+Same pattern — userID existence + type checked, 401 on failure.
+
+#### CollectionSummary (lines 128-137)
+Same pattern — userID existence + type checked, 401 on failure.
+
+#### TopCoinsByValue (lines 164-173)
+Same pattern — userID existence + type checked, 401 on failure.
+
+#### ProposeUpdate (lines 207-216)
+Same pattern — userID existence + type checked, 401 on failure.
+
+#### CommitUpdate (lines 259-308) — THE CRITICAL FIX
+```go
+// userID check (lines 259-268)
+userID, exists := c.Get("userId")
+if !exists {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+userIDUint, ok := userID.(uint)
+if !ok {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+    return
+}
+
+// apiKeyID check (lines 277-286)
+apiKeyID, exists := c.Get("apiKeyId")
+if !exists {
+    c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient capability"})
+    return
+}
+apiKeyIDUint, ok := apiKeyID.(uint)
+if !ok {
+    c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient capability"})
+    return
+}
+
+// apiKeyName check (lines 288-297)
+apiKeyName, exists := c.Get("apiKeyName")
+if !exists {
+    c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient capability"})
+    return
+}
+apiKeyNameStr, ok := apiKeyName.(string)
+if !ok {
+    c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient capability"})
+    return
+}
+
+// apiKeyCapabilities check (lines 299-308)
+apiKeyCap, exists := c.Get("apiKeyCapabilities")
+if !exists {
+    c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient capability"})
+    return
+}
+apiKeyCapStr, ok := apiKeyCap.(string)
+if !ok {
+    c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient capability"})
+    return
+}
+
+// Safe call with validated values
+result, err := h.collectionSvc.CommitUpdateExternal(
+    userIDUint,
+    req.ProposalID,
+    req.Token,
+    req.Confirm,
+    apiKeyIDUint,
+    apiKeyNameStr,
+    apiKeyCapStr,
+)
+```
+
+**Result:** ✅ **BLOCK CLEARED**  
+- All context values now checked for existence before use  
+- All type assertions use comma-ok idiom  
+- Server will return controlled HTTP errors (401/403) instead of panicking  
+- Fail-closed design: missing/wrong-type context values treated as auth failure  
+- Generic error messages (Principle XI compliance)
+
+---
+
+### 2. Error Response Mapping
+
+| Context Value | Missing/Wrong Type → HTTP Status | Message |
+|---|---|---|
+| `userId` | 401 Unauthorized | `{"error":"Unauthorized"}` |
+| `apiKeyId` | 403 Forbidden | `{"error":"Insufficient capability"}` |
+| `apiKeyName` | 403 Forbidden | `{"error":"Insufficient capability"}` |
+| `apiKeyCapabilities` | 403 Forbidden | `{"error":"Insufficient capability"}` |
+
+**Rationale (Brutus's design decision, which I verify as correct):**
+- `userId` missing/wrong type indicates authentication failure → 401
+- API key context values should be set by `APIKeyAuth` + `RequireCapability` middleware. If missing/wrong type, the request bypassed the expected middleware chain → fail closed with 403
+- Generic error messages prevent internal state leakage (Principle XI)
+- Using 403 (not 500) for "impossible" middleware state treats unexpected conditions as authorization failures, maintaining fail-closed security posture
+
+---
+
+### 3. Behavior Preservation
+
+**For valid requests (middleware chain intact):**
+- All context values will exist with correct types  
+- All comma-ok checks will pass  
+- Service layer receives identical parameters  
+- **Zero behavioral change** — success path unchanged
+
+**For invalid/malformed requests:**
+- **Before:** Server panic (availability failure)  
+- **After:** Controlled HTTP error response (401 or 403)  
+- Server remains available
+
+---
+
+### 4. Build, Vet, and Test Results
+
+Executed from `src/api/`:
+
+#### Go Build
+```bash
+$ go build ./...
+# (exit code 0, no output)
+```
+✅ **PASS** — All packages compile cleanly.
+
+#### Go Vet
+```bash
+$ go vet ./...
+# (exit code 0, no output)
+```
+✅ **PASS** — No static analysis warnings.
+
+#### Go Test (Full Suite)
+```bash
+$ go test ./...
+ok  	github.com/briandenicola/ancient-coins-api	(cached)
+ok  	github.com/briandenicola/ancient-coins-api/capture	(cached)
+?   	github.com/briandenicola/ancient-coins-api/config	[no test files]
+?   	github.com/briandenicola/ancient-coins-api/database	[no test files]
+?   	github.com/briandenicola/ancient-coins-api/docs	[no test files]
+ok  	github.com/briandenicola/ancient-coins-api/handlers	(cached)
+ok  	github.com/briandenicola/ancient-coins-api/middleware	(cached)
+?   	github.com/briandenicola/ancient-coins-api/models	[no test files]
+ok  	github.com/briandenicola/ancient-coins-api/repository	(cached)
+ok  	github.com/briandenicola/ancient-coins-api/services	(cached)
+```
+✅ **PASS** — All tests pass, including:
+- Architecture tests (layering enforcement)  
+- `middleware/capability_test.go` (capability-scoped auth)  
+- All existing handler, service, and repository tests
+
+---
+
+### 5. Regression Check
+
+**Scope of fix:** Handler-layer defensive guards ONLY (`external_tools.go`)
+
+**Service layer unchanged:** `services/collection_tools_service.go` changes are from the original #218 implementation (journal-source threading with `CommitUpdateExternal` method), not from Brutus's fix. Verified by diff inspection — no new service changes introduced by the fix.
+
+**Middleware unchanged:** `middleware/capability.go` is a new untracked file from original #218 (not modified by fix). Verified by `git diff` (exit code 0).
+
+**No new files introduced by fix:** Only `external_tools.go` handler modified.
+
+**Conclusion:** ✅ **NO REGRESSIONS** — Fix is surgical and scoped to the originally blocked handler guards.
+
+---
+
+### 6. Previously Approved Items (Sanity Check)
+
+In my original review, I explicitly APPROVED:
+- ✓ Security & Least Privilege (capability model, default read-only)  
+- ✓ Tenant Isolation (userID threading)  
+- ✓ Journal-Source Threading (external vs. internal commit sources)  
+- ✓ Two-Phase Write Correctness (propose → commit with token validation)  
+- ✓ Layered Architecture (handlers → services → repository)  
+- ✓ Error Hygiene (generic messages, no detail leakage)  
+- ✓ Auth & Token Policy (API key auth, kill switch)  
+- ✓ Frontend Build Parity (design tokens, no emojis)
+
+**Status after fix:** ✅ **ALL STILL VALID** — No regressions detected in any previously approved area.
+
+---
+
+## Quality Gate & Definition of Done
+
+**§17 Quality Gate (Principle XIII):**  
+- ✅ Code compiles (Go architecture test passes)  
+- ✅ Layered architecture preserved  
+- ✅ No prohibited emojis or hardcoded styles in frontend  
+- ✅ **Type safety RESOLVED** (all type assertions now checked)
+
+**§21 Definition of Done:**  
+- ✅ Capability-scoped API keys implemented  
+- ✅ Two-phase write with journal attribution  
+- ✅ Kill switch implemented and default-off  
+- ✅ OpenAPI document served  
+- ✅ Frontend management UI with scope selector  
+- ✅ **Critical bug RESOLVED** (panic risk eliminated)
+
+---
+
+## Principle Alignment
+
+- **Principle XI (Security Hardening):** ✅ Defensive coding applied, fail-closed design, generic error messages  
+- **Principle I (Layered Architecture):** ✅ Handler-only change, no service/repo modifications by fix  
+- **Principle XIII (Quality Gate):** ✅ Build + vet + test all pass  
+- **Constitution §18.2 (Strict Lockout):** ✅ Independent fix by Brutus (not blocked author Cassius)
+
+---
+
+## Final Verdict
+
+**APPROVE** ✅
+
+The blocking type assertion panic risk has been fully resolved. All six handlers in `external_tools.go` now implement defensive comma-ok guards with fail-closed error handling. The server will return controlled HTTP errors instead of crashing if context values are missing or the wrong type.
+
+**Strict Lockout Status:** ✅ **CLEARED**  
+Cassius (original author) may resume normal contribution. The #218 external tool server adapter is approved for merge to beta.
+
+**Build/Vet/Test:** All pass (exit code 0).
+
+**Regression Risk:** None detected.
+
+**Ready to Ship:** YES
+
+---
+
+_Re-review conducted under Constitution §18.2 (Strict Lockout authority). Original BLOCK issued 2026-06-01, fixed by Brutus (independent team member), re-reviewed and APPROVED 2026-06-01._
+# Decision: In-App External Tool Server Documentation (Issue #218)
+
+**Author:** Aurelia (Frontend Developer)  
+**Date:** 2026-06-01  
+**Status:** IMPLEMENTED  
+**Feature:** #218 (External Tool Server)  
+**Files Changed:** `src/web/src/components/HelpSection.vue`
+
+## Summary
+
+Added comprehensive in-app documentation for the External Tool Server feature to `HelpSection.vue` — a new accordion titled "Connecting AI Tools (External Tool Server)" that teaches users and admins how to enable, configure, and use the external API without leaving the app.
+
+## Motivation
+
+The external tool server exposes collection tools to external AI clients (OpenWebUI, LibreChat, n8n, MCP clients). Users and admins need to understand:
+
+1. How to enable the server (admin toggle)
+2. How to create scoped API keys (read vs read/write)
+3. How to connect external clients (OpenAPI import, X-API-Key header)
+4. The security model (two-phase writes, tenant isolation, journaling)
+
+While `docs/external-tool-server.md` provides the complete technical reference, an in-app quick-start guide keeps users in-context and improves discoverability.
+
+## Design
+
+### Three-Perspective Structure
+
+The accordion is organized into three sections using `<h4>` sub-headings:
+
+1. **For Admins**
+   - How to enable the server in Admin → System Settings
+   - Default-off security posture (503 when disabled)
+   - What to communicate to users about API keys and journaling
+
+2. **For Users**
+   - Step-by-step: Create an API key in Settings → Data
+   - Choosing between read-only and read+write scopes
+   - Importing the OpenAPI URL into external clients (OpenWebUI, LibreChat, n8n)
+   - Understanding the two-phase write confirmation flow
+
+3. **For Developers**
+   - Base path: `/api/v1/tools/*`
+   - Authentication: `X-API-Key` header
+   - Six available tools (table with capability requirements):
+     - `search_my_collection`, `get_coin`, `collection_summary`, `top_coins_by_value` (read)
+     - `propose_update`, `commit_update` (write, two-phase)
+   - OpenAPI spec endpoint: `GET /api/v1/tools/openapi.json`
+   - MCP compatibility via mcpo wrapper
+   - Security model: tenant isolation, rate limiting (50 req/min per key), field allowlist
+
+### Content Source
+
+All facts verified against `docs/external-tool-server.md` — the canonical technical reference. No contradictions introduced.
+
+### Styling
+
+- Uses existing `.help-accordion`, `.help-summary`, `.help-content` classes
+- `.help-table` for the six-tool capability table
+- `.help-code` for code blocks (OpenAPI URL, mcpo command)
+- No emojis (constitution-compliant)
+- No hardcoded colors/spacing (all design tokens)
+
+### Placement
+
+Inserted immediately before the "Helpful Resources" accordion — grouped with app-setup topics rather than coin-collecting educational content. Logical position for users who've just enabled the feature and need setup guidance.
+
+## Validation
+
+**Build:** `npm run build` — ✅ Passed (6.21s, type-check clean)  
+**Lint:** `npm run lint` — ✅ All HelpSection.vue warnings fixed (exit 0)  
+**Pre-existing warnings** (AdminHealthSection, CoinReferencesSection, useCoinDetailContext, CollectionPage) remain unchanged.
+
+## User Journey
+
+1. Admin enables External Tool Server in Admin Settings
+2. Admin or user opens "Getting Started" (sidebar) → Help Section
+3. User expands "Connecting AI Tools" accordion
+4. User follows "For Users" steps:
+   - Create API key in Settings → Data
+   - Copy key
+   - Import OpenAPI URL into external client
+   - Add X-API-Key header
+5. User tests tool calls from external client (e.g., "What is my collection's total value?")
+6. External client calls `collection_summary` → response displayed
+
+For advanced users/developers, the "For Developers" section provides the technical surface (endpoints, auth, security) and links to the full technical doc for deep-dive scenarios.
+
+## Related Work
+
+- **Scoped API Key UI** (Aurelia, T022/T023): Chip-based scope selector in `SettingsDataSection.vue`
+- **Backend Implementation** (Cassius, T020/T021): `/api/v1/tools/*` handlers, OpenAPI spec generation
+- **Technical Docs** (Scribe, T025): `docs/external-tool-server.md`
+- **Constitution §17 (Quality Gate)**: Build + lint validated before submission
+
+## Follow-Up
+
+None. Documentation complete and self-contained.
+# Scribe: Issue #218 External Tool Server Documentation Reorganization
+
+**Date:** 2026-06-01  
+**Agent:** Copilot CLI  
+**Task:** Restructure `docs/external-tool-server.md` to explicitly cover three audiences (administrators, users, developers)  
+**Files Modified:** 2
+
+---
+
+## Changes Made
+
+### 1. `docs/external-tool-server.md` — Complete Reorganization
+
+**Structure Added:**
+- Added "Audience Guide" section immediately after intro (line 12–16) directing readers to the appropriate section based on role
+- Reorganized entire document into three top-level audience sections:
+  - **For Administrators** (lines 19–75) — Enabling the server, security posture overview, monitoring and revocation
+  - **For Users** (lines 77–138) — Creating API keys (read-only and read+write), managing keys, getting OpenAPI URL, available operations
+  - **For Developers** (lines 140–end) — Full API surface reference, error codes, MCP wrapping, client setup guides, best practices, troubleshooting
+
+**Content Preserved:**
+- All endpoint definitions (`search_my_collection`, `get_coin`, `collection_summary`, `top_coins_by_value`, `propose_update`, `commit_update`) — unchanged
+- All error codes and status responses — unchanged
+- All client setup guides (OpenWebUI, LibreChat, n8n) — moved to Developers section as reference material
+- All best practices and troubleshooting — consolidated under "Best Practices & Troubleshooting" in Developers section
+- Security Model section — preserved at top (lines 9–66) as foundational for all audiences
+- Related Documentation links — preserved at end
+
+**Content Reorganized (No Facts Changed):**
+- Admin toggle description split: admin-focused content moved to "For Administrators" section
+- API key creation steps moved to "For Users" section
+- Two-phase write flow explanation moved to Developers section with developer context
+- OpenAPI document reference moved to Developers section
+
+### 2. `docs/features.md` — Updated External Tool Server Blurb
+
+**Change:** Updated line 196 to mention that the guide is organized by three audiences and directs readers based on role:
+
+> For setup instructions, security model, and client integration guides, see the [External Tool Server Guide](external-tool-server.md). The guide is organized by audience: administrators (enabling/managing the server), users (creating API keys and connecting clients), and developers (API reference and error handling).
+
+**Rationale:** Light touch; preserves feature summary while pointing users to the role-specific sections in the detailed guide.
+
+---
+
+## Fact Verification
+
+No facts, endpoints, settings, fields, or error codes were changed. All technical content is identical to the original:
+
+- Admin toggle: `ExternalToolServerEnabled` — unchanged
+- Default scopes: `read` and `read,write` — unchanged
+- Rate limit: 50 requests per minute per API key — unchanged
+- Allowlisted fields: `grade`, `currentValue`, `notes`, `tags`, `referenceText`, `referenceUrl`, `references` — unchanged
+- Proposal TTL: default 5 minutes — unchanged
+- All six tool endpoints and request/response schemas — unchanged
+- All error status codes and meanings — unchanged
+- Client setup procedures (OpenWebUI, LibreChat, n8n) — unchanged
+- MCP wrapping approach via `mcpo` — unchanged
+- Two-phase propose/commit flow — unchanged
+
+---
+
+## Structure Summary
+
+The new three-section architecture of `external-tool-server.md`:
+
+1. **Intro + Audience Guide** (lines 1–18)
+2. **Security Model** (lines 19–66) — Shared foundation for all audiences
+3. **For Administrators** (lines 68–144) — Enabling, security posture, monitoring, revocation
+4. **For Users** (lines 146–239) — Key creation, management, operations overview, OpenAPI URL
+5. **For Developers** (lines 241–end) — Full API reference, MCP, client guides, best practices, troubleshooting
+6. **Security Considerations + Related Docs** (end) — Unchanged
+
+---
+
+## No Deleted Content
+
+All prior content has been reorganized into one of the three sections. No accurate information was removed. The document is at least as complete as before, with clearer audience targeting.
+
+---
+
+### 4. v1→v2 Database Migration Safety (2026-06-01)
+
+**Agent:** Cassius (Backend Developer)  
+**Task:** Audit v1→v2 database migration for beta→main release merge  
+**Date:** 2026-06-01  
+**Status:** ✅ APPROVED
+
+**Summary:** v1→v2 database migration is **safe, automatic, and requires no manual steps**. Schema changes are additive; rollback-safe. Key safeguard: explicit backfill UPDATE for `api_keys.capabilities` column ensures no undefined states.
+
+**Schema Delta:**
+- 2 new tables: `coin_intake_drafts` (#216), `collection_update_proposals` (#217) — clean schema, no data migration
+- 1 modified table: `api_keys` — added `Capabilities` column with GORM default `"read"` + explicit backfill (`UPDATE api_keys SET capabilities='read' WHERE capabilities IS NULL OR capabilities=''`) in `database.go:32`
+- 1 new AppSetting: `ExternalToolServerEnabled` — lazy-created with `GetWithDefault()`, in-memory fallback, no seeding required
+
+**Guarantees:**
+- No destructive changes (no removed columns, type narrowing, new NOT NULL without defaults, new UNIQUE constraints)
+- GORM AutoMigrate is additive-only
+- v1 binary ignores unknown columns/tables — rollback-safe
+- Empirical test: beta binary boots clean, AutoMigrate + backfill executes without errors
+
+**Verdict:** ✅ Proceed with beta→main merge. All gates cleared for v2 release.
+

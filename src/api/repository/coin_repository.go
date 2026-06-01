@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -22,6 +23,17 @@ type CoinListFilters struct {
 	Seed      *int // for SortField == "random"; deterministic per-seed shuffle
 	Page      int
 	Limit     int
+}
+
+// OwnedCoinFilters are lightweight scoped filters used by collection chat tools.
+type OwnedCoinFilters struct {
+	Category string
+	Material string
+	Era      string
+	Ruler    string
+	Wishlist *bool
+	Sold     *bool
+	Search   string
 }
 
 // CategoryCount holds a category name and its coin count.
@@ -114,6 +126,35 @@ func (r *CoinRepository) WithTx(tx *gorm.DB) *CoinRepository {
 // DB exposes the underlying *gorm.DB so callers can create transactions.
 func (r *CoinRepository) DB() *gorm.DB {
 	return r.db
+}
+
+func applyOwnedFilterConditions(query *gorm.DB, filters OwnedCoinFilters) *gorm.DB {
+	if filters.Category != "" {
+		query = query.Where("category = ?", filters.Category)
+	}
+	if filters.Material != "" {
+		query = query.Where("material = ?", filters.Material)
+	}
+	if filters.Era != "" {
+		query = query.Where("era = ?", filters.Era)
+	}
+	if filters.Ruler != "" {
+		query = query.Where("LOWER(ruler) LIKE LOWER(?)", "%"+filters.Ruler+"%")
+	}
+	if filters.Wishlist != nil {
+		query = query.Where("is_wishlist = ?", *filters.Wishlist)
+	}
+	if filters.Sold != nil {
+		query = query.Where("is_sold = ?", *filters.Sold)
+	}
+	if filters.Search != "" {
+		term := "%" + strings.TrimSpace(filters.Search) + "%"
+		query = query.Where(
+			"name LIKE ? OR denomination LIKE ? OR ruler LIKE ? OR notes LIKE ?",
+			term, term, term, term,
+		)
+	}
+	return query
 }
 
 var allowedSortFields = map[string]string{
@@ -221,6 +262,63 @@ func (r *CoinRepository) FindByID(id uint, userID uint) (*models.Coin, error) {
 		return nil, err
 	}
 	return &coin, nil
+}
+
+// FindOwnedByNameCandidates returns up to limit owned coins with name matches.
+func (r *CoinRepository) FindOwnedByNameCandidates(userID uint, name string, limit int) ([]models.Coin, error) {
+	if limit < 1 {
+		limit = 5
+	}
+	var coins []models.Coin
+	err := r.db.Model(&models.Coin{}).
+		Scopes(OwnedBy(userID)).
+		Where("LOWER(name) LIKE LOWER(?)", "%"+strings.TrimSpace(name)+"%").
+		Order("name ASC").
+		Limit(limit).
+		Find(&coins).Error
+	return coins, err
+}
+
+// ListOwnedByFilters returns owner-scoped coins filtered for collection chat queries.
+func (r *CoinRepository) ListOwnedByFilters(userID uint, filters OwnedCoinFilters, limit int) ([]models.Coin, error) {
+	if limit < 1 {
+		limit = 5
+	}
+	var coins []models.Coin
+	query := r.db.Model(&models.Coin{}).Scopes(OwnedBy(userID))
+	query = applyOwnedFilterConditions(query, filters)
+	err := query.
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "updated_at"}, Desc: true}).
+		Limit(limit).
+		Find(&coins).Error
+	return coins, err
+}
+
+// CountOwnedByFilters counts owner-scoped coins matching collection chat filters.
+func (r *CoinRepository) CountOwnedByFilters(userID uint, filters OwnedCoinFilters) (int64, error) {
+	var count int64
+	query := r.db.Model(&models.Coin{}).Scopes(OwnedBy(userID))
+	query = applyOwnedFilterConditions(query, filters)
+	err := query.Count(&count).Error
+	return count, err
+}
+
+// TopOwnedByCurrentValue returns the top N active collection coins by current value.
+func (r *CoinRepository) TopOwnedByCurrentValue(userID uint, limit int) ([]models.Coin, error) {
+	if limit < 1 {
+		limit = 3
+	}
+	if limit > 10 {
+		limit = 10
+	}
+	var coins []models.Coin
+	err := r.db.Model(&models.Coin{}).
+		Scopes(ActiveCollection(userID)).
+		Where("current_value IS NOT NULL").
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "current_value"}, Desc: true}).
+		Limit(limit).
+		Find(&coins).Error
+	return coins, err
 }
 
 // Create inserts a new coin and returns it with images preloaded.

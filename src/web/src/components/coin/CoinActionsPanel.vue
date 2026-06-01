@@ -1,7 +1,5 @@
 <template>
   <div class="detail-actions">
-    <h2>Actions</h2>
-
     <div class="section-content-card">
       <div class="upload-section">
         <h3>Upload Images</h3>
@@ -226,12 +224,6 @@ async function handleApplyEstimate() {
 </script>
 
 <style scoped>
-.detail-actions h2 {
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
 .upload-section {
   margin-bottom: 1.5rem;
 }

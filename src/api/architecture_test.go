@@ -157,7 +157,7 @@ func TestPackageImportMatrix(t *testing.T) {
 
 	// allowedInternal defines which internal packages each layer may import.
 	allowedInternal := map[string][]string{
-		"handlers":   {"services", "repository", "models"},
+		"handlers":   {"services", "repository", "models", "capture"},
 		"services":   {"repository", "models"},
 		"repository": {"models"},
 		"models":     {}, // no internal imports
@@ -165,7 +165,7 @@ func TestPackageImportMatrix(t *testing.T) {
 
 	// allowedExternalPrefixes defines non-stdlib prefixes each layer may use.
 	allowedExternalPrefixes := map[string][]string{
-		"handlers":   {"github.com/gin-gonic/gin", "github.com/go-webauthn/webauthn", "github.com/go-pdf/fpdf", "golang.org/x/crypto", "golang.org/x/net", "gorm.io/gorm"},
+		"handlers":   {"github.com/gin-gonic/gin", "github.com/go-webauthn/webauthn", "github.com/go-pdf/fpdf", "golang.org/x/crypto", "golang.org/x/net", "gorm.io/gorm", "gopkg.in/yaml.v3"},
 		"services":   {"gorm.io/gorm", "github.com/golang-jwt/jwt", "golang.org/x/crypto", "golang.org/x/net", "golang.org/x/text"},
 		"repository": {"gorm.io/gorm"},
 		"models":     {},

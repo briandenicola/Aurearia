@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -17,8 +18,30 @@ func NewApiKeyRepository(db *gorm.DB) *ApiKeyRepository {
 	return &ApiKeyRepository{db: db}
 }
 
+// ValidateCapabilities validates that the provided capability string is valid.
+// Only "read" and "read,write" are allowed.
+func ValidateCapabilities(capabilities string) error {
+	if capabilities != "read" && capabilities != "read,write" {
+		return fmt.Errorf("invalid capabilities: must be 'read' or 'read,write'")
+	}
+	return nil
+}
+
 // Create persists a new API key.
 func (r *ApiKeyRepository) Create(apiKey *models.ApiKey) error {
+	return r.db.Create(apiKey).Error
+}
+
+// CreateWithCapabilities creates a new API key with validated capabilities.
+// If capabilities is empty, defaults to "read".
+func (r *ApiKeyRepository) CreateWithCapabilities(apiKey *models.ApiKey, capabilities string) error {
+	if capabilities == "" {
+		capabilities = "read"
+	}
+	if err := ValidateCapabilities(capabilities); err != nil {
+		return err
+	}
+	apiKey.Capabilities = capabilities
 	return r.db.Create(apiKey).Error
 }
 

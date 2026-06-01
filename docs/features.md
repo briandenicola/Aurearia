@@ -172,6 +172,29 @@ The application supports multiple authentication methods for flexibility and sec
 
 For a detailed walkthrough of each auth method, see the [Authentication Guide](authentication.md).
 
+## External Tool Server
+
+The External Tool Server exposes your collection to external AI clients (OpenWebUI, LibreChat, n8n, MCP-compatible clients) over a versioned HTTP API. External clients can query your collection, analyze statistics, and optionally propose updates through a secure two-phase commit flow.
+
+**Key Features:**
+
+- **Default-Off** — Admin must enable in System Settings. Disabled by default for security.
+- **Scoped API Keys** — Each key has `read` (default) or `read,write` capability. Write must be explicitly chosen at key creation.
+- **Two-Phase Writes** — External writes require `propose_update` (returns preview + token) followed by `commit_update` (with explicit confirm). No auto-writes.
+- **Journaling** — External commits write audit entries with source `external_tool_server`, API key name, and changed fields.
+- **Tenant Isolation** — Every operation is scoped to the API key owner. No cross-user access.
+- **Per-Key Rate Limiting** — Stricter rate limits (50 req/min) prevent abuse from external clients.
+- **Field Allowlist** — External writes restricted to `grade`, `currentValue`, `notes`, `tags`, `referenceText`, `referenceUrl`, `references`. Identity fields are rejected.
+- **OpenAPI-First** — Served OpenAPI document at `/api/v1/tools/openapi.json` for client auto-import.
+- **MCP Compatible** — Wrap the OpenAPI spec with `mcpo` to expose tools to MCP clients like Claude Desktop.
+
+**Available Tools:**
+
+- Read: `search_my_collection`, `get_coin`, `collection_summary`, `top_coins_by_value`
+- Write: `propose_update`, `commit_update`
+
+For setup instructions, security model, and client integration guides, see the [External Tool Server Guide](external-tool-server.md). The guide is organized by audience: administrators (enabling/managing the server), users (creating API keys and connecting clients), and developers (API reference and error handling).
+
 ## PWA Features
 
 The app is a Progressive Web App installable on iOS, Android, and desktop:

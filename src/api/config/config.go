@@ -7,14 +7,15 @@ import (
 )
 
 type Config struct {
-	DBPath          string
-	JWTSecret       string
-	Port            string
-	UploadDir       string
-	WebAuthnID      string
-	WebAuthnOrigin  string
-	CORSOrigins     string
-	AgentServiceURL string
+	DBPath                     string
+	JWTSecret                  string
+	Port                       string
+	UploadDir                  string
+	WebAuthnID                 string
+	WebAuthnOrigin             string
+	CORSOrigins                string
+	AgentServiceURL            string
+	AgentInternalCallbackURL   string
 }
 
 func Load() *Config {
@@ -34,14 +35,15 @@ func Load() *Config {
 	}
 
 	return &Config{
-		DBPath:          getEnv("DB_PATH", "./ancientcoins.db"),
-		JWTSecret:       jwtSecret,
-		Port:            getEnv("PORT", "8080"),
-		UploadDir:       getEnv("UPLOAD_DIR", "./uploads"),
-		WebAuthnID:      getEnv("WEBAUTHN_RP_ID", "localhost"),
-		WebAuthnOrigin:  getEnv("WEBAUTHN_ORIGIN", "http://localhost:8080"),
-		CORSOrigins:     getEnv("CORS_ORIGINS", ""),
-		AgentServiceURL: getEnv("AGENT_SERVICE_URL", "http://localhost:8081"),
+		DBPath:                   getEnv("DB_PATH", "./ancientcoins.db"),
+		JWTSecret:                jwtSecret,
+		Port:                     getEnv("PORT", "8080"),
+		UploadDir:                getEnv("UPLOAD_DIR", "./uploads"),
+		WebAuthnID:               getEnv("WEBAUTHN_RP_ID", "localhost"),
+		WebAuthnOrigin:           getEnv("WEBAUTHN_ORIGIN", "http://localhost:8080"),
+		CORSOrigins:              getEnv("CORS_ORIGINS", ""),
+		AgentServiceURL:          getEnv("AGENT_SERVICE_URL", "http://localhost:8081"),
+		AgentInternalCallbackURL: getEnv("AGENT_INTERNAL_CALLBACK_URL", "http://localhost:8080"),
 	}
 }
 

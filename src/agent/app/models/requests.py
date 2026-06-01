@@ -111,6 +111,8 @@ class CoinSearchRequest(BaseModel):
     coin_search_prompt: BoundedPrompt = ""
     coin_shows_prompt: BoundedPrompt = ""
     portfolio: PortfolioSummary | None = None
+    internal_token: str = ""
+    tools_base_url: str = ""
 
     @field_validator("history")
     @classmethod
@@ -158,6 +160,21 @@ class AnalyzeRequest(BaseModel):
     images: list[BoundedImageBase64] = Field(default_factory=list, max_length=MAX_IMAGE_COUNT)
     side: Annotated[str, StringConstraints(max_length=16)] = ""  # "obverse", "reverse", or "" for both
     prompt: BoundedPrompt = ""  # Analysis prompt from admin settings
+
+
+class IntakeDraftRequest(BaseModel):
+    """Request to generate an intake draft from observation images."""
+
+    llm: LLMConfig
+    images: list[BoundedImageBase64] = Field(default_factory=list, max_length=MAX_IMAGE_COUNT)
+    coin_card_image: BoundedImageBase64 = ""
+
+    @field_validator("images")
+    @classmethod
+    def validate_images_present(cls, images: list[str]) -> list[str]:
+        if not images:
+            raise ValueError("at least one observation image is required")
+        return images
 
 
 class PortfolioReviewRequest(BaseModel):

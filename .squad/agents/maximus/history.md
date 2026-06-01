@@ -8,7 +8,17 @@
 
 ## Learnings
 
-- **2026-05-29 — Threat Model Reconciliation (Issue #206)**
+### Core Context (Consolidated from early investigations)
+
+**Foundation Architecture (2025-07-18):** Rewrote architecture docs to cover full system (761 lines) across API (26 GORM models, 22 repos, 17 services), Frontend (21 Vue pages, 10 composables), and Agent (LLM routing + team pipelines). Stack: Go 1.26 + Gin + SQLite, Vue 3 + TypeScript, Python FastAPI + LangGraph. DI via main.go composition; 3 background schedulers (availability, valuation, auction-ending).
+
+**Code Quality Baseline (2026-04-24):** Comprehensive review across 11 areas graded A- to C+. Key issues: 3 package-level globals undermining DI, silent errors in social.go, frontend god-pages (1200-1400 lines), missing agent tests. Error handling C+, documentation A-. 20-item backlog created.
+
+**Governance Alignment (2026-05-28):** Adopted tech-inventory's operational framework (§0–§23 constitution, numbered hierarchy of authority, DoD checklist, CI Quality Gate, ADR practice, specs/ on-disk). Ratified v2.0.0 with 8 new operational sections; principles preserved verbatim.
+
+---
+
+## Learnings Detail
   
   **Audit Results:** Reviewed `docs/threat-model.md` against current code implementation (input artifacts: analysis.go, CoinAIAnalysis.vue, FeaturedCoinModal.vue, useCoinSearchChat.ts, webauthn.go, Taskfile.yml, Dockerfile, GitHub workflows). Found 9 findings had been mitigated but status was stale.
   
@@ -98,6 +108,55 @@ Promoted the constitution from v1.1.0 → v2.0.0 (MAJOR — governance restructu
 
 - **Verbatim preservation worked cleanly** — splitting "principles" (stable, stack-specific) from "operational sections" (governance, portable across repos) lets us crib tech-inventory's discipline without dragging .NET idioms into a Go/Vue/Python repo. This is the cross-repo governance philosophy Brian wants: same scaffolding shape, different domain content.
 - **Signed-commit divergence is intentional** — tech-inventory mandates signed commits on `main`; we explicitly do NOT. The Conventional Commits prefix + Copilot co-author trailer is sufficient signal for a single-developer hobby project. Future agents must not "fix" this back to tech-inventory's default.
+
+---
+
+### 2026-05-31: Feature #216 Camera-First AI Intake — Design Token Compliance
+
+**Context:** Reviewed Aurelia's AddCoinPage.vue fixes for three critical bugs (iPhone camera readiness, camera-first UI redesign, AI analysis indicator).
+
+**Functional Assessment:** ⭐⭐⭐⭐⭐ (5/5)  
+- iPhone camera readiness bug **correctly fixed**: `v-show` + `await nextTick()` + `@loadedmetadata` handler gates `videoReady` on `videoWidth > 0`
+- Track teardown properly implemented in `onBeforeUnmount` → `stopCamera()` → `getTracks().forEach(track => track.stop())`
+- Error handling distinguishes `NotAllowedError`, `NotFoundError`, generic errors with user-friendly messages
+- iOS attributes present: `autoplay`, `playsinline`, `muted`
+- Camera-first UI: large 4:3 preview, three capture slots (obverse/reverse/card), prominent shutter button, upload demoted to icon
+- AI analysis indicator: full-screen overlay with spinner, "Analyzing your coin…" text (no emoji), interactions disabled
+- Type safety: all nullable props use `??` coalescing (Principle IV compliance)
+- No emojis (grep check passed)
+- lucide-vue-next icons throughout (`Camera`, `Upload`)
+
+**Build & Type Safety:** ✅ PASS  
+- `npm run lint`: PASS (5 warnings unrelated to AddCoinPage.vue)
+- `npm run build`: PASS (8.73s, vue-tsc --build succeeded, PWA bundle generated cleanly)
+
+**Constitution Violation — Principle V (Design Token System):**  
+🚨 **BLOCKING**: 14 instances of hardcoded color values across 10 unique colors:
+- `rgba(0, 0, 0, 0.85)` — overlay background (line 744)
+- `#000` — video placeholder background (line 808) [borderline acceptable]
+- `rgba(224, 141, 141, 0.9)` — error banner background (lines 834, 895)
+- `#fff` — contrast text on dark backgrounds (lines 835, 883) [acceptable for contrast]
+- `rgba(201, 168, 76, 0.2)` — gold glow (line 860)
+- `rgba(0, 0, 0, 0.7)` — slot clear button overlay (line 882)
+- `rgba(255, 255, 255, 0.2)` — shutter button border (line 926)
+- `rgba(201, 168, 76, 0.3)` / `0.4` — gold shadow (lines 933, 938)
+- `#f5c36a` — warning text (line 1075)
+- `#69b77f`, `#f0c261`, `#e08d8d` — confidence colors (lines 1084–1095)
+
+**Verdict:** **BLOCK** — Aurelia to extract hardcoded colors into design tokens in `variables.css`, then resubmit for expedited re-review.
+
+**Remediation Path:**  
+1. Define 12 missing color tokens in `src/web/src/assets/variables.css` (e.g., `--error-bg`, `--text-warning`, `--confidence-high`, `--overlay-dark`, `--shadow-gold-soft`, etc.)
+2. Replace 14 hardcoded color instances in `AddCoinPage.vue`
+3. Re-run `npm run lint && npm run build` (must pass)
+4. Notify Maximus for expedited re-review (estimated 20–30 min revision)
+
+**Key Learning:**  
+- Constitution Principle V is **absolute**: "Never hardcode raw values when a token exists." Even functionally excellent code must comply with design token discipline for theme consistency and maintainability.
+- `rgba()` with hardcoded RGB values is a violation even when alpha channel is needed — define semantic tokens like `--accent-gold-glow: rgba(201, 168, 76, 0.2);` in `variables.css`.
+- Review sequencing: functional correctness first, then constitution compliance. Blocking on compliance prevents technical debt accumulation.
+
+**Alignment with Brutus's QA Checklist:** 13/14 sections passed; §16 (Progress Indicator Styling) and §27 (Design Token Usage) flagged for hardcoded colors.
 - **`SESSION-NOTES.md` / `.copilot-state.md` are now constitutionally forbidden** — §18.5 explicitly routes session handoff to Scribe + per-agent `history.md`. This protects the richer Squad ceremony system from regression by future agents who might try to mirror tech-inventory's flatter pattern.
 - **Sync Impact Report header is now the contract for amendments** — Phase 3 amendments (PRD, ADR 0001, etc.) MUST update this header in the same PR that introduces them. The §22 semver rules and §23 revision-history table make the audit trail mechanical, not interpretive.
 - **Round 2 gates**: `.github/copilot-instructions.md` needs a Document Hierarchy block (cite §0) + Session Protocol block (cite §18). `.github/pull_request_template.md` needs the §21 DoD checklist inlined. Both are Maximus-owned in Round 2 per the plan.
@@ -214,4 +273,103 @@ Promoted the constitution from v1.1.0 → v2.0.0 (MAJOR — governance restructu
   **Confidence:** HIGH (full codebase and spec audit performed)
   
   **Decision Entry:** Decision #19 in `.squad/decisions.md`
+
+### 2026-05-31 — Feature #219 Acceptance Checklist & Validation Gates
+
+**Scope Audit:** Front-end-only UI refinement (CoinDetailPage.vue + 4 new dedicated section pages). No API schema changes, no Go backend modifications.
+
+**Acceptance Framework Created:**
+  - 36 functional/UX/design gates organized by US1/US2/US3/polish
+  - 8 top-risk categories with severity and mitigation strategy (auth bypass, media layout, metadata overflow, sticky regression, etc.)
+  - 3 constitution compliance checkpoints (Principle V/IX/XIII, §17 Quality Gate)
+  - 12-point tester handoff checklist in 3 validation phases (critical path → regression → polish)
+
+**Gate Highlights:**
+  - **F1.1–F1.3**: Dual-side media render by default + graceful fallback (single-side, no-image)
+  - **F2.1–F2.4**: Metadata table rows replace boxed cards; empty-value handling; legacy UI removed
+  - **F3.1–F3.13**: Settings-style link navigation; 4 dedicated section pages; auth guards; back navigation context
+  - **P1–P9**: Build success, type parity, PWA non-sticky enforcement, regression baseline, accessibility
+
+**Constitution Risks (Most Likely to Fail):**
+  - **Principle V (Tokens)**: Hardcoded colors/spacing in new table/link rows instead of design tokens (DS1.1, DS2.1, DS3.1)
+  - **Principle XIII (PWA)**: Sticky/fixed positioning leaks into mobile/PWA mode, violating non-sticky guarantee (UX1.2, P7)
+  - **§17 (Build Gate)**: Code passes local type-check but fails Docker `vue-tsc --build` (P1, P2)
+
+**Decision:** No team-level ADR required. Feature operates within constitutional bounds (UI-only, no layering changes, no auth modifications, no data persistence rules altered). Standard PR checklist applies per §17/§21.
+
+**Output:** Comprehensive validation artifact written to `.squad/decisions/inbox/maximus-feature-219-gates.md` (40 gates + 8 risks + 3 constitution constraints + tester handoff). Ready for Brutus test phase.
+
+**Confidence:** HIGH (full spec, plan, tasks, contracts, and quickstart audited; design patterns consistent with existing coin-detail and settings-style UI surfaces)
+
+
+- **2026-05-31:** Feature #219 acceptance gates and validation plan delivered. Prepared comprehensive 37-gate acceptance checklist spanning US1 (dual-side media), US2 (metadata tables), US3 (section pages), and polish scope. Three-phase tester handoff: Phase 1 critical path (5 gates including dual-side render, route wiring, auth guards, build success, journal CRUD), Phase 2 regression (4 gates covering edge cases and Constitution compliance), Phase 3 design polish (3 gates). Identified 8 top risks with mitigation strategies and mapped Constitution Principle V/IX/XIII to specific checkpoints. Determined no team ADR needed (UI-only, within constitutional bounds). Handed off to Brutus for execution. Brutus validated all gates; verdict APPROVE.
+
+### 2026-05-31 — Feature #217 Collection Intent Routing Design
+
+**Problem:** The `ShouldHandleCollection()` keyword gate in Go (`collection_tools_service.go`) uses hardcoded substring matching to route collection questions. Brian explicitly rejected this approach—directive captured in `.squad/decisions/inbox/copilot-directive-20260531T203103Z.md`: "must NOT rely on a hardcoded keyword/token list... use real LLM-based intent classification."
+
+**Architectural Tension Resolved:** Collection tools (owner-scoped DB access, GORM, auth context, confirm-gated writes) live in Go. The LLM intent router (11-category `ROUTER_PROMPT`) lives in the stateless Python agent. Two options evaluated:
+
+- **Option A (Classify in Go):** Add an LLM call from Go to classify collection-vs-not before routing. Rejected — adds latency (extra LLM round-trip on every chat), splits routing logic across two services.
+
+- **Option B (Unified Python Router):** Add `collection` as a 12th route in Python supervisor. When classified as `collection`, Python calls back to a new Go `/internal/collection/chat` endpoint with a signed short-lived token carrying `userID`. **Recommended.**
+
+**Design Highlights:**
+1. Single LLM classification pass (no latency penalty)
+2. Internal callback auth via 30-second JWT with `userID` claim — Go validates token, extracts userID from claims (never trust Python's request body)
+3. `ShouldHandleCollection()` keyword gate **deleted entirely** — all routing via LLM
+4. SSE contract preserved — Python `collection_node` emits `{"type":"done","collection":...}` matching frontend expectations
+5. 10 files touched: `supervisor.py` (add route/node), `agent.go` (generate internal token, remove keyword branch), new `internal_token_service.go`, new `internal_agent.go`
+
+**Security (Principles XI/XII):**
+- Internal token is short-lived (30s), signed by Go, audience-scoped
+- userID from token claims, not from Python request
+- `/internal/` route rejects requests without valid token
+- Existing confirm-gated write flow unchanged
+
+**Implementation Order:** InternalTokenService → internal endpoint → wire token in ChatStream → Python model update → router update → collection_node → delete keyword gate → full QA
+
+**Design Artifact:** `.squad/decisions/inbox/maximus-217-intent-routing-design.md` (15KB comprehensive spec ready for Cassius implementation)
+
+## Learnings (2026-05-31 — #216 token remediation re-review)
+- Re-reviewed Brutus's Principle V remediation of AddCoinPage.vue. VERDICT: APPROVE — block lifted.
+- All 14 originally-flagged hardcoded colors now resolve through tokens; 12 new tokens added to variables.css matching my prescribed values exactly.
+- The 4 remaining raw colors (`#000`@808, `#fff`@835, `#fff`@883, `#000`@927) are precisely the contrast-safe exceptions I approved in the original review — no scope creep.
+- Brutus improved on my spec: `--shadow-gold-soft/hover` defined as full box-shadow values (consistent with existing `--shadow-card`/`--shadow-glow`), and consolidated my redundant `--error-bg`/`--error-bg-alpha` into a single `--error-bg`. No duplicate tokens, naming consistent with `:root` convention.
+- Light-theme (`[data-theme="light"]`) does NOT override the new confidence/feedback tokens — but this matches existing convention (`--cat-*`/`--mat-*` indicator colors are also theme-constant), so not a defect.
+- Independently verified: `npm run lint` 0 errors (5 pre-existing unrelated warnings), `npm run build` clean (vue-tsc + vite, 8.35s).
+
+## Learnings (2026-05-31 — #217/#218 Shared Tool Layer Revision)
+
+**Context:** Brian approved LLM-based intent classification (kill keyword gate) but **rejected** my prior Option B (single `collection` routed-node) in favor of a **tool-based approach**. The reason: Brian's real query is multi-intent — "Do I have any moose coins AND how much are they worth" = collection lookup + valuation in ONE reasoning turn. A dedicated route can't compose.
+
+**Design Revision — Key Changes from Option B:**
+- ~~`collection` as 12th route~~ → Collection operations become **LangChain tools** callable during agent reasoning
+- ~~`collection_node` calls Go callback~~ → A **ReAct agent** wraps collection tools + reasoning, can call multiple tools per turn
+- Internal-token auth mechanism **survives** (Principles XI/XII unchanged)
+- Keyword gate `ShouldHandleCollection` still deleted
+
+**Shared Tool Layer Architecture:**
+- 6 discrete operations: `search_my_collection`, `get_coin`, `collection_summary`, `top_coins_by_value`, `propose_update`, `commit_update`
+- Go service layer (`CollectionToolsService`) owns all logic
+- `/internal/tools/*` endpoints for Python agent (#217)
+- `/external/tools/*` endpoints for MCP/API-key clients (#218 — DEFERRED)
+- Same service methods, different transport adapters = no logic duplication
+
+**Phasing Decision:**
+- **#217 (NOW):** Internal tool endpoints + Python LangChain tools + ReAct agent + supervisor integration
+- **#218 (DEFERRED):** External OpenAPI/MCP adapter + API-key capability controls + external journaling
+- **The seam:** `CollectionToolsService` methods are transport-agnostic; adapters call the same layer
+
+**Why Tool-Based Wins:**
+1. Multi-intent queries compose naturally (ownership + valuation in one turn)
+2. Aligns with existing LangChain/LangGraph patterns (`create_react_agent`)
+3. External clients (#218) can call the same operations — no throwaway work
+4. ReAct agent can decide when to call collection tools vs. other tools (emergent routing)
+
+**Design Artifact:** `.squad/decisions/inbox/maximus-217-218-shared-tool-layer-design.md` (supersedes `maximus-217-intent-routing-design.md`)
+
+**Key Architectural Insight:** When the user's real query is multi-intent, routing to a single specialized node breaks composition. Tools let the agent reason across capabilities within one turn. This is the "like any chatbot would" Brian described.
+
+- **2026-05-31 (Team Orchestration):** Authored decision documents for pending features and critical design reviews. (1) **#219 Refinements Requirements** (`copilot-219-refinements.md`): Captured Brian's annotated screenshot review of merged coin-detail redesign — 5 TLC items flagged for implementation (duplicate "Actions" heading, duplicate category badge, images side-by-side, Details card needs heading, "+ Add Reference" confirmation). (2) **#216 Camera-First Token Remediation** (`brutus-216-token-remediation.md`): Specified comprehensive token refresh test coverage during AI analysis and error scenarios. (3) **Feature #217/#218 Shared Collection Tool Layer** (proposal document): Designed transport-agnostic collection tool layer serving both in-app (#217) and external (#218) consumers; specified 6 operations (search, get, summary, top-value, propose, commit) as LangChain tools; rejected single-routed-node Option B in favor of tool-based approach supporting multi-intent queries. Document supersedes intent-routing design and awaits Cassius implementation planning. All documents merged into `.squad/decisions.md` (Decisions #4-12) by Scribe. Decisions capture team consensus and drive next implementation phase.
 

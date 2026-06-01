@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,27 +13,45 @@ import (
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type AgentHandler struct {
-	repo        *repository.AgentRepository
-	userRepo    *repository.UserRepository
-	journalRepo *repository.JournalRepository
-	proxy       *services.AgentProxy
-	settingsSvc *services.SettingsService
-	guard       *services.ContentGuard
-	logger      *services.Logger
+	repo          *repository.AgentRepository
+	userRepo      *repository.UserRepository
+	journalRepo   *repository.JournalRepository
+	proxy         *services.AgentProxy
+	collectionSvc *services.CollectionToolsService
+	settingsSvc   *services.SettingsService
+	tokenSvc      *services.InternalTokenService
+	guard         *services.ContentGuard
+	logger        *services.Logger
+	toolsBaseURL  string
 }
 
-func NewAgentHandler(repo *repository.AgentRepository, userRepo *repository.UserRepository, journalRepo *repository.JournalRepository, proxy *services.AgentProxy, settingsSvc *services.SettingsService, guard *services.ContentGuard, logger *services.Logger) *AgentHandler {
+func NewAgentHandler(
+	repo *repository.AgentRepository,
+	userRepo *repository.UserRepository,
+	journalRepo *repository.JournalRepository,
+	proxy *services.AgentProxy,
+	collectionSvc *services.CollectionToolsService,
+	settingsSvc *services.SettingsService,
+	tokenSvc *services.InternalTokenService,
+	guard *services.ContentGuard,
+	logger *services.Logger,
+	toolsBaseURL string,
+) *AgentHandler {
 	return &AgentHandler{
-		repo:        repo,
-		userRepo:    userRepo,
-		journalRepo: journalRepo,
-		proxy:       proxy,
-		settingsSvc: settingsSvc,
-		guard:       guard,
-		logger:      logger,
+		repo:          repo,
+		userRepo:      userRepo,
+		journalRepo:   journalRepo,
+		proxy:         proxy,
+		collectionSvc: collectionSvc,
+		settingsSvc:   settingsSvc,
+		tokenSvc:      tokenSvc,
+		guard:         guard,
+		logger:        logger,
+		toolsBaseURL:  toolsBaseURL,
 	}
 }
 
@@ -49,8 +68,9 @@ func (h *AgentHandler) resolveLLMConfig() (services.LLMConfig, string) {
 // Chat request/response types
 
 type AgentChatRequest struct {
-	Message string             `json:"message" binding:"required"`
-	History []AgentChatMessage `json:"history"`
+	Message    string                          `json:"message" binding:"required"`
+	History    []AgentChatMessage              `json:"history"`
+	AppContext *services.CollectionChatContext `json:"appContext,omitempty"`
 }
 
 type AgentChatMessage struct {
@@ -189,6 +209,14 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		return
 	}
 
+	// Mint internal token for Python agent to call back into collection tools
+	internalToken, err := h.tokenSvc.Mint(userID)
+	if err != nil {
+		logger.Error("agent", "failed to mint internal token: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Service error"})
+		return
+	}
+
 	// Resolve LLM provider from explicit setting
 	llmCfg, errMsg := h.resolveLLMConfig()
 	if errMsg != "" {
@@ -216,9 +244,12 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		},
 		Message:          req.Message,
 		History:          proxyHistory,
+		AppContext:       req.AppContext,
 		CoinSearchPrompt: h.getCoinSearchPrompt(),
 		CoinShowsPrompt:  h.getCoinShowsPrompt(userID),
 		Portfolio:        portfolio,
+		InternalToken:    internalToken,
+		ToolsBaseURL:     h.toolsBaseURL,
 	}
 
 	if err := h.proxy.StreamChat(c.Request.Context(), c.Writer, proxyReq); err != nil {
@@ -228,6 +259,77 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Agent service unavailable"})
 		}
 	}
+}
+
+type CommitCollectionProposalRequest struct {
+	ProposalToken string `json:"proposalToken" binding:"required"`
+	Confirm       bool   `json:"confirm"`
+}
+
+// CommitCollectionProposal commits a pending collection update proposal.
+func (h *AgentHandler) CommitCollectionProposal(c *gin.Context) {
+	if h.collectionSvc == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Collection tools unavailable"})
+		return
+	}
+
+	var req CommitCollectionProposalRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "proposalToken and confirm are required"})
+		return
+	}
+	if !req.Confirm {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Explicit confirmation is required"})
+		return
+	}
+
+	userID := c.GetUint("userId")
+	proposalID := c.Param("proposalId")
+	result, err := h.collectionSvc.CommitProposal(userID, proposalID, req.ProposalToken, req.Confirm)
+	if err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "Proposal not found"})
+		case errors.Is(err, services.ErrProposalTokenInvalid):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid proposal token"})
+		case errors.Is(err, services.ErrProposalConfirmationReq):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Explicit confirmation is required"})
+		case errors.Is(err, services.ErrProposalStateConflict):
+			c.JSON(http.StatusConflict, gin.H{"error": "Proposal is no longer pending"})
+		default:
+			h.logger.Error("agent", "commit proposal failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit proposal"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// CancelCollectionProposal cancels a pending collection update proposal.
+func (h *AgentHandler) CancelCollectionProposal(c *gin.Context) {
+	if h.collectionSvc == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Collection tools unavailable"})
+		return
+	}
+
+	userID := c.GetUint("userId")
+	proposalID := c.Param("proposalId")
+	result, err := h.collectionSvc.CancelProposal(userID, proposalID)
+	if err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "Proposal not found"})
+		case errors.Is(err, services.ErrProposalStateConflict):
+			c.JSON(http.StatusConflict, gin.H{"error": "Proposal is no longer pending"})
+		default:
+			h.logger.Error("agent", "cancel proposal failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cancel proposal"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // AgentStatus returns the current AI provider configuration status.

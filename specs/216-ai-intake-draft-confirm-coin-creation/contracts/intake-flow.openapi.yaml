@@ -11,7 +11,7 @@ paths:
   /coins/intake/draft:
     post:
       summary: Create AI intake draft
-      description: Generate and persist a draft candidate with confidence and evidence.
+      description: Generate and persist a draft candidate with confidence and evidence from coin images and optional coin-card upload.
       tags: [coin-intake]
       requestBody:
         required: true
@@ -62,14 +62,17 @@ components:
       type: object
       required: [images]
       properties:
-        prompt:
-          type: string
         images:
           type: array
           minItems: 1
+          description: Coin image URIs sourced from camera capture and/or file upload.
           items:
             type: string
             format: uri
+        coinCardImage:
+          type: string
+          format: uri
+          description: Optional metadata card image URI.
     IntakeDraftResponse:
       type: object
       required: [draftId, status, coin, confidenceSummary, evidence]
@@ -106,7 +109,7 @@ components:
       properties:
         type:
           type: string
-          enum: [ocr, visual, catalog_lookup, user_input]
+          enum: [ocr, visual, catalog_lookup, user_input, coin_card]
         source:
           type: string
         field:

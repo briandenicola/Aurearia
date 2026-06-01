@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/config"
@@ -56,6 +57,9 @@ func main() {
 	settingsRepo := repository.NewSettingsRepository(database.DB)
 	settingsSvc := services.NewSettingsService(settingsRepo)
 	settingsSvc.SyncLogLevel(logger)
+
+	// Create internal token service for Python agent callbacks
+	internalTokenSvc := services.NewInternalTokenService(cfg.JWTSecret)
 
 	logger.Info("startup", "Application starting")
 	logger.Info("startup", "Database connected: %s", cfg.DBPath)
@@ -198,19 +202,29 @@ func main() {
 	apiKeyRepo := repository.NewApiKeyRepository(database.DB)
 	apiKeyAuth := apiKeyRepo // implements middleware.ApiKeyAuthenticator
 
+	// Create shared repositories for cross-group access
+	journalRepo := repository.NewJournalRepository(database.DB)
+	collectionProposalRepo := repository.NewCollectionUpdateRepository(database.DB)
+	collectionSvc := services.NewCollectionToolsService(coinRepo, collectionProposalRepo)
+
 	protected := api.Group("")
 	protected.Use(middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth))
 	protected.Use(apiRateLimit)
 	{
 		coinReferenceRepo := repository.NewCoinReferenceRepository(database.DB)
 		catalogRegistryRepo := repository.NewCatalogRegistryRepository(database.DB)
+		intakeDraftRepo := repository.NewCoinIntakeDraftRepository(database.DB)
 		coinReferenceSvc := services.NewCoinReferenceService(coinReferenceRepo, catalogRegistryRepo)
 		coinSvc := services.NewCoinService(coinRepo, notifSvc).WithReferenceSupport(coinReferenceRepo, coinReferenceSvc)
 		coinHandler := handlers.NewCoinHandler(coinRepo, coinSvc, logger)
 		coinReferenceHandler := handlers.NewCoinReferenceHandler(coinReferenceRepo, coinReferenceSvc)
+		coinIntakeSvc := services.NewCoinIntakeService(intakeDraftRepo, coinRepo, agentProxy, settingsSvc)
+		coinIntakeHandler := handlers.NewCoinIntakeHandler(coinIntakeSvc, logger)
 		protected.GET("/coins", coinHandler.List)
 		protected.GET("/coins/:id", coinHandler.Get)
 		protected.POST("/coins", coinHandler.Create)
+		protected.POST("/coins/intake/draft", writeRateLimit, coinIntakeHandler.CreateDraft)
+		protected.POST("/coins/intake/commit", writeRateLimit, coinIntakeHandler.CommitDraft)
 		protected.PUT("/coins/:id", coinHandler.Update)
 		protected.GET("/coins/:id/references", coinReferenceHandler.List)
 		protected.POST("/coins/:id/references", coinReferenceHandler.Create)
@@ -232,7 +246,6 @@ func main() {
 		protected.POST("/coins/:id/tags", tagHandler.AttachToCoin)
 		protected.DELETE("/coins/:id/tags/:tagId", tagHandler.DetachFromCoin)
 
-		journalRepo := repository.NewJournalRepository(database.DB)
 		journalHandler := handlers.NewJournalHandler(journalRepo)
 		protected.GET("/coins/:id/journal", journalHandler.ListEntries)
 		protected.POST("/coins/:id/journal", journalHandler.AddEntry)
@@ -298,8 +311,10 @@ func main() {
 		agentRepo := repository.NewAgentRepository(database.DB)
 		userRepo := repository.NewUserRepository(database.DB)
 		contentGuard := services.NewContentGuard(logger)
-		agentHandler := handlers.NewAgentHandler(agentRepo, userRepo, journalRepo, agentProxy, settingsSvc, contentGuard, logger)
+		agentHandler := handlers.NewAgentHandler(agentRepo, userRepo, journalRepo, agentProxy, collectionSvc, settingsSvc, internalTokenSvc, contentGuard, logger, cfg.AgentInternalCallbackURL)
 		protected.POST("/agent/chat", writeRateLimit, agentHandler.ChatStream)
+		protected.POST("/agent/collection/proposals/:proposalId/commit", writeRateLimit, agentHandler.CommitCollectionProposal)
+		protected.POST("/agent/collection/proposals/:proposalId/cancel", writeRateLimit, agentHandler.CancelCollectionProposal)
 		protected.POST("/coins/:id/estimate-value", writeRateLimit, agentHandler.EstimateValue)
 		protected.GET("/agent/models", agentHandler.ListModels)
 		protected.GET("/agent/coin-search-prompt", agentHandler.GetCoinSearchPrompt)
@@ -452,9 +467,66 @@ func main() {
 		admin.GET("/auction-ending/debug", auctionDebugHandler.DebugGetAuctionEndingInfo)
 	}
 
+	// #218 external tool server - public versioned route group
+	// Middleware chain: kill-switch gate → API-key auth → per-key rate limiter
+	externalToolsRateLimit := middleware.ExternalAPIKeyRateLimit(50, 1*time.Minute)
+	
+	// Unauthenticated OpenAPI spec endpoint (respects kill-switch only)
+	toolsSpec := api.Group("/v1/tools")
+	toolsSpec.Use(middleware.ExternalToolServerEnabled(settingsSvc))
+	{
+		openapiHandler := handlers.NewExternalToolsOpenAPIHandler()
+		toolsSpec.GET("/openapi.json", openapiHandler.GetOpenAPISpec)
+	}
+	
+	// Authenticated tool endpoints (auth + rate limit)
+	v1Tools := api.Group("/v1/tools")
+	v1Tools.Use(middleware.ExternalToolServerEnabled(settingsSvc))
+	v1Tools.Use(middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth))
+	v1Tools.Use(externalToolsRateLimit)
+	{
+		externalToolsHandler := handlers.NewExternalToolsHandler(collectionSvc)
+		
+		// Read tools (require 'read' capability)
+		readTools := v1Tools.Group("")
+		readTools.Use(middleware.RequireCapability("read"))
+		{
+			readTools.POST("/search_my_collection", externalToolsHandler.SearchMyCollection)
+			readTools.POST("/get_coin", externalToolsHandler.GetCoin)
+			readTools.POST("/collection_summary", externalToolsHandler.CollectionSummary)
+			readTools.POST("/top_coins_by_value", externalToolsHandler.TopCoinsByValue)
+		}
+		
+		// Write tools (require 'write' capability)
+		writeTools := v1Tools.Group("")
+		writeTools.Use(middleware.RequireCapability("write"))
+		{
+			writeTools.POST("/propose_update", externalToolsHandler.ProposeUpdate)
+			writeTools.POST("/commit_update", externalToolsHandler.CommitUpdate)
+		}
+	}
+
+	// Internal tools (protected by internal token for Python agent callbacks)
+	internal := r.Group("/api/internal/tools")
+	internal.Use(middleware.InternalTokenRequired(internalTokenSvc))
+	{
+		internalToolsHandler := handlers.NewInternalToolsHandler(collectionSvc, logger)
+		internal.POST("/search_my_collection", internalToolsHandler.SearchMyCollection)
+		internal.POST("/get_coin", internalToolsHandler.GetCoin)
+		internal.POST("/collection_summary", internalToolsHandler.CollectionSummary)
+		internal.POST("/top_coins_by_value", internalToolsHandler.TopCoinsByValue)
+		internal.POST("/propose_update", internalToolsHandler.ProposeUpdate)
+		internal.POST("/commit_update", internalToolsHandler.CommitUpdate)
+	}
+
 	log.Printf("Starting server on :%s", cfg.Port)
 	logger.Info("startup", "Server starting on port %s", cfg.Port)
 	logger.Info("startup", "Log level: %s", logger.GetLevel())
+
+	// Warn if callback URL is likely misconfigured in release mode
+	if os.Getenv("GIN_MODE") == "release" && strings.Contains(cfg.AgentInternalCallbackURL, "localhost") {
+		logger.Warn("startup", "AGENT_INTERNAL_CALLBACK_URL is set to '%s' in release mode. Collection chat (#217) will fail in multi-container deployments. Set it to the API container's network address (e.g., http://app:8080).", cfg.AgentInternalCallbackURL)
+	}
 
 	// Check Ollama connectivity at startup (blocks until complete)
 	func() {

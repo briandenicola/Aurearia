@@ -408,3 +408,80 @@ a:hover {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* T003: Coin detail page utilities for #219 */
+
+/* Metadata table row — standardized label/value structure */
+.metadata-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+  gap: 1rem;
+}
+
+.metadata-row:last-child {
+  border-bottom: none;
+}
+
+.metadata-row .row-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  flex-shrink: 0;
+  min-width: 120px;
+}
+
+.metadata-row .row-value {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  text-align: right;
+  word-break: break-word;
+}
+
+.metadata-row .row-value.gold {
+  color: var(--accent-gold);
+}
+
+/* Settings-style section link row — tappable row with chevron */
+.section-link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.section-link-row:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-accent);
+}
+
+.section-link-row .section-link-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.section-link-row .section-link-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.section-link-row .section-link-description {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.section-link-row .section-link-chevron {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}

@@ -1,6 +1,5 @@
 <template>
   <div class="journal-section">
-    <h3>Activity Journal</h3>
     <div class="journal-add">
       <input
         v-model="input"
@@ -56,11 +55,6 @@ function formatJournalDate(dateStr: string) {
 <style scoped>
 .journal-section {
   margin-bottom: 1.5rem;
-}
-
-.journal-section h3 {
-  margin-bottom: 0.75rem;
-  font-size: 1rem;
 }
 
 .journal-add {

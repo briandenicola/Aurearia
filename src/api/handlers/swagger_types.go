@@ -155,6 +155,42 @@ type SettingsUpdateResponse struct {
 	Message string `json:"message" example:"Settings updated"`
 }
 
+type IntakeConfidenceSummary struct {
+	Overall         string   `json:"overall" example:"medium"`
+	UncertainFields []string `json:"uncertainFields"`
+}
+
+type IntakeEvidenceItem struct {
+	Type       string `json:"type" example:"vision"`
+	Source     string `json:"source" example:"obverse"`
+	Field      string `json:"field" example:"ruler"`
+	Value      string `json:"value" example:"Trajan"`
+	Confidence string `json:"confidence" example:"medium"`
+	Notes      string `json:"notes,omitempty" example:"Legend partially visible"`
+}
+
+type IntakeDraftCreateResponse struct {
+	DraftID           uint                   `json:"draftId" example:"42"`
+	Status            string                 `json:"status" example:"drafted"`
+	Coin              map[string]interface{} `json:"coin"`
+	ConfidenceSummary IntakeConfidenceSummary `json:"confidenceSummary"`
+	Evidence          []IntakeEvidenceItem   `json:"evidence"`
+	UnresolvedFields  []string               `json:"unresolvedFields"`
+	ExpiresAt         string                 `json:"expiresAt" example:"2026-01-15T12:00:00Z"`
+}
+
+type IntakeDraftCommitRequest struct {
+	DraftID   uint                   `json:"draftId" binding:"required" example:"42"`
+	Confirm   bool                   `json:"confirm" binding:"required" example:"true"`
+	Overrides map[string]interface{} `json:"overrides"`
+}
+
+type IntakeDraftCommitResponse struct {
+	DraftID uint   `json:"draftId" example:"42"`
+	Status  string `json:"status" example:"confirmed"`
+	CoinID  uint   `json:"coinId" example:"314"`
+}
+
 type SettingInput struct {
 	Key   string `json:"key" example:"OllamaURL"`
 	Value string `json:"value" example:"http://localhost:11434"`

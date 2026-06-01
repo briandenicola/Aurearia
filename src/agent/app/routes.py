@@ -11,9 +11,15 @@ from app.models.requests import (
     AvailabilityCheckRequest,
     CoinSearchRequest,
     CoinShowSearchRequest,
+    IntakeDraftRequest,
     PortfolioReviewRequest,
 )
-from app.models.responses import AgentResponse, AvailabilityCheckResponse, AvailabilityVerdict
+from app.models.responses import (
+    AgentResponse,
+    AvailabilityCheckResponse,
+    AvailabilityVerdict,
+    IntakeDraftResponse,
+)
 from app.streaming import stream_graph_events
 from app.supervisor import create_supervisor
 from app.teams.availability_check import (
@@ -22,6 +28,7 @@ from app.teams.availability_check import (
     parse_verdicts,
 )
 from app.teams.coin_analysis import create_coin_analysis_team
+from app.teams.coin_intake import generate_intake_draft
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +68,8 @@ async def search_coins(request: CoinSearchRequest):
         coin_shows_prompt=request.coin_shows_prompt,
         user_context=request.user,
         portfolio=request.portfolio,
+        tools_base_url=request.tools_base_url,
+        internal_token=request.internal_token,
     )
 
     async def event_stream():
@@ -131,6 +140,23 @@ async def analyze_coin(request: AnalyzeRequest):
             analysis_text = msgs[-1].content if hasattr(msgs[-1], "content") else str(msgs[-1])
 
     return AgentResponse(analysis=analysis_text)
+
+
+@router.post("/intake/draft", response_model=IntakeDraftResponse)
+async def intake_draft(request: IntakeDraftRequest):
+    """Generate a structured coin intake draft from image evidence."""
+    logger.info(
+        "POST /intake/draft — provider=%s, model=%s, images=%d, coin_card=%s",
+        request.llm.provider,
+        request.llm.model,
+        len(request.images),
+        "yes" if request.coin_card_image else "no",
+    )
+    return await generate_intake_draft(
+        llm_config=request.llm,
+        images=request.images,
+        coin_card_image=request.coin_card_image,
+    )
 
 
 @router.post("/portfolio/review")

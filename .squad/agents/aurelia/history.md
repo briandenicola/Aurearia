@@ -6,51 +6,175 @@
 - **Architecture:** Layered — Handler → Service → Repository → Database. Enforced by architecture_test.go.
 - **Created:** 2026-04-24
 
+## Core Context
+
+Between 2025-07-18 and 2026-05-23, Aurelia completed critical frontend infrastructure work across 5 focus areas:
+
+1. **Code Quality & Security (2026-04-24):** Frontend codebase audited at grade B-. Identified (a) v-html XSS risk in AI content rendering, (b) widespread setTimeout/setInterval memory leaks (15+ files), (c) missing admin role guard on /admin route, (d) auth store sync drift after token refresh, (e) missing PWA icons breaking installability, (f) weak accessibility (no ARIA/focus traps/keyboard support), (g) three 1200+ line pages needing decomposition. 19 backlog items created.
+
+2. **P0 Security Fixes (2026-07-22):** Confirmed all v-html bindings already use DOMPurify (no action needed). Added admin role guard to router — `/admin` route now checks `auth.isAdmin` and redirects non-admins.
+
+3. **P1 Timer & Memory Cleanup (2026-04-24):** Audited and fixed all 15 files with uncleared timers. Pattern: composables expose `cleanup()` function; pages call on unmount. SwipeGallery uses array tracking. CoinForm fixed URL.revokeObjectURL on replacement/unmount. PWA icons (192x192, 512x512) verified in public/manifest.
+
+4. **Token Refresh & State Sync (2026-04-24):** Added `onTokenRefreshed` callback in client.ts — auth store registers itself for post-refresh sync, avoiding circular imports via callback pattern.
+
+5. **Design & Layout (2025-07-24):** Desktop layout redesigned: 1400px grid, 400px sticky image column, 1fr info column. Actions and AI Analysis moved into 2-column dashboard sub-grid for side-by-side desktop display. Mobile unchanged via media query.
+
+6. **Format & Currency (2026-04-28):** Consolidated 6 duplicate `formatCurrency()` implementations into centralized `src/web/src/utils/formatters.ts`. Enhanced signature with optional currency parameter. All callers (6 files) updated.
+
+7. **PWA & Service Worker (2026-05-23):** Fixed PWA auto-update: added missing `registerSW` import to main.ts with hourly checks. Icons already present in public/ and referenced correctly in vite.config.ts. `vite-plugin-pwa` config was correct but registration never initialized.
+
+**Key Patterns Established:** (a) Design tokens from variables.css, global classes from main.css — no hardcoded values. (b) Accessible modals follow FeaturedCoinModal structure (Teleport, role="dialog", Esc/backdrop close, focus mgmt). (c) Composables return cleanup functions; pages call on unmount.
+
+## Team Updates
+
+- **2026-05-01:** Activity journal scroll limit and auction-ending schedule UI. Added max-3 scrollable journal in CoinActivityJournal.vue. Added AuctionEnding panel to AdminSchedulesSection.vue with settings keys for enable/start-time/interval.
+
+- **2026-05-21:** Added manual "Run Now" button and recent runs log to Auction Ending admin panel. New TypeScript interfaces and API client functions for trigger and log retrieval. Full UI with pagination and expandable detail rows. All design tokens used, type-check passes.
+
+- **2026-05-22:** Collaborated with Cassius (backend) on auction-ending manual-run feature. Endpoint URL mismatch detected (client guessed `/admin/auction-ending/runs` vs actual `/admin/auction-ending-runs`). Fixup queued.
+
+- **2026-05-22 (fixup):** Aligned frontend client code with Cassius's actual backend contract. Fixed list endpoint URL, trigger response fields, removed non-existent detail expansion. AuctionEndingRun interface updated to match backend. Type-check passes.
+
+- **2026-05-28:** Constitution v2.0.0 landed. Read `.specify/memory/constitution.md`. §17 Quality Gate gates every PR (includes npm run build / type-check). §21 DoD is a 14-item checklist. §18 forbids SESSION-NOTES.md — Squad handoff is `.squad/log/` + history + decisions.md. Design system rules (Principle V) unchanged: variables.css tokens + main.css global classes.
+
+- **2026-05-28 (Phase 2):** Phase 2 of tech-inventory alignment landed. `specs/` is on-disk home for SpecKit workflow. Backlog in `specs/_backlog/`, active features in `specs/NNN-slug/`, retroactive anchor in `specs/001-foundation/spec.md`. New session-protocol prompts in `.github/prompts/`.
+
+- **2026-05-28 (Phase 3a):** Phase 3a landed. docs/prd.md is product source of truth. Four ADRs in docs/adr/ documenting v1.0 architecture. README trimmed 368→90 lines.
+
+- **2026-05-31:** Feature #219 Image Lightbox with Remove Background (commit 6096a38) + Replace Semantics Fix (commit 8623071) + Feature #216 Styling (commit 0215635). ImageLightbox.vue new component (267 lines) with full-page modal, Remove Background button, processing spinner, Save/Reset actions. Follows FeaturedCoinModal pattern + design token compliance + PWA/mobile support (full-screen on mobile, responsive buttons). ImageGallery.vue (orphaned) deleted. Production build + type-check verified clean. Design decision merged to decisions.md.
+
 ## Learnings
 
-- **2025-07-18:** Maximus completed comprehensive `docs/ARCHITECTURE.md` covering full-system architecture (Go API, Vue frontend, Python agent service, data flows, DB schema, auth, agent integration, Docker, design decisions). This is the authoritative reference for all agents and team members.
+### Tile-Based Capture Controls Pattern
 
-- **2026-04-24:** Completed deep frontend code quality review. Key findings: (1) `v-html` XSS risk in AI content rendering — needs DOMPurify, (2) 15+ files have uncleared setTimeout/setInterval — memory leak pattern is widespread, (3) Router has no admin role guard — only UI-hidden, (4) Auth store drifts from localStorage after silent token refresh, (5) PWA icons missing from public/ breaking installability, (6) Accessibility is the weakest area — almost no ARIA, no focus traps, clickable divs without keyboard support. Three pages exceed 1200+ lines and need splitting. Overall grade: B-. 19 backlog items created in `.squad/decisions/inbox/aurelia-code-review.md`.
+Issue #216 established a reusable tile-grid capture pattern for camera workflows:
 
-- **2025-07-22:** P0 security fixes. (1) Confirmed all 4 `v-html` bindings already use DOMPurify — `CoinSearchChat.vue` via `formatMessage()` in `useCoinSearchChat.ts` (strict allowlist), `CoinDetailPage.vue` via `DOMPurify.sanitize(md.render(...))` on all three AI analysis computeds. No additional work needed. (2) Added admin role guard to router: `/admin` route now has `meta.requiresAdmin`, `beforeEach` checks `auth.isAdmin` and redirects non-admins to collection page. TypeScript + production build verified clean.
+**Structure:**
+- 3-col grid layout (`grid-template-columns: repeat(3, 1fr)`)
+- Each tile: status dot + uppercase label, vertically centered
+- Tiles use `min-height: 5rem` (empty), `6rem` (filled) for consistency
+- Active state: `--accent-gold-glow` background + `--accent-gold` border (tonal, not saturated)
+- Status dots: `.tile-dot` (0.5rem circle, `--text-muted` default, `--accent-gold` when active)
 
-- **2026-04-24:** P1 fixes batch. (1) Auth store drift: added `onTokenRefreshed` callback in `client.ts` — the auth store registers itself to stay in sync after silent token refresh, using a callback pattern to avoid circular imports between store and API client. (2) Timer cleanup: audited all 15 files with setTimeout/setInterval, added tracking and onUnmounted/onBeforeUnmount cleanup across 13 files (composables return cleanup functions, pages call them). Key pattern: composables like useAdminConfig expose a `cleanup()` function; SwipeGallery uses an array to track animation timers. (3) CoinForm object URLs: all three `URL.createObjectURL` calls now have matching `revokeObjectURL` on replacement and unmount. (4) PWA icons: generated solid-color placeholder PNGs (192x192, 512x512) matching manifest refs in vite.config.ts. All changes pass vue-tsc and production build clean.
+**Corner badges:**
+- Optional indicators (like "Opt") positioned absolute at top-right
+- Must NOT disrupt label baseline alignment across tiles
+- Use uppercase-label spec: `font-size: 0.7rem`, `font-weight: 600`, `letter-spacing: 0.08em`, `color: var(--text-muted)`
 
-- **2025-07-23:** Fixed sanitizeCoin() truthiness bug (#28). `!clean.currentValue` treated `0` as falsy, overwriting it with purchasePrice. Changed to `== null` / `!= null` checks so `0` is preserved as a valid numeric value. Also removed `as any` casts by typing NULLABLE_FIELDS as `(keyof Coin)[]` and using `Record<string, unknown>` for the working copy (backlog #63). Production build verified clean.
+**Token mapping:**
+- Tile border: `1px solid var(--border-subtle)` (hairline, not 2px)
+- Tile background: `var(--bg-card)` default
+- Active fill: `var(--accent-gold-glow)` (tonal) + `var(--accent-gold)` border
+- Tile radius: `var(--radius-md)` (12px)
 
-- **2025-07-24:** Implemented Option A desktop layout redesign for CoinDetailPage. Key changes: (1) Grid widened from 1000px to 1400px with 400px fixed image column + 1fr info column, (2) Image column is now sticky (`position: sticky; top: 1rem`), (3) Actions and AI Analysis moved inside `detail-info` and wrapped in a `.detail-dashboard` 2-column sub-grid so they display side-by-side on desktop, (4) Mobile layout unchanged — dashboard collapses to single column via media query. Template restructure approach: sections moved into DOM flow inside info column rather than using `grid-column: 1 / -1` spanning. Both vue-tsc and production build pass clean.
+### Circular Focus-Guide Overlay Pattern
 
-- **2025-07-25:** Consolidated all local `formatCurrency` definitions into the shared `src/web/src/utils/format.ts` utility. Updated the shared signature to `(value: number, currency?: string)` to support the auction files that pass a currency code (e.g., `lot.currency`). Replaced local copies in 6 files: AuctionLotCard, AuctionsPage, CoinCard (which also had a `currencyFormatter` const), StatsPage (had `maximumFractionDigits: 0` — now uses standard cents format), SellModal, ImportLotModal. CoinActionsPanel and CoinInfoGrid already imported from shared. vue-tsc passes clean.
+Camera viewfinder overlay for guiding user focus (Issue #216):
 
-- **2026-04-28:** Format currency refactor (Aurelia background task). Consolidated 6 remaining duplicate `formatCurrency()` implementations into centralized `src/web/src/utils/formatters.ts`. Enhanced shared function signature with optional currency parameter for flexibility. Updated all callers: `CoinCard.vue`, `coins.ts` store, `StatsPage.vue`, `AdminPage.vue`, `CoinDetailPage.vue`, `FollowersPage.vue`. Type check passes clean. Committed to main.
+**Layers (all `position: absolute; pointer-events: none`):**
+1. `.focus-mask`: Soft gradient vignette via `radial-gradient(circle at 50% 52%, transparent 0%, transparent 36%, rgba(10,12,20,0.2) 37%, rgba(10,12,20,0.62) 100%)`
+2. `.focus-ring`: Circular border (`border-radius: 50%`, `aspect-ratio: 1`) at `top: 52%, left: 50%, transform: translate(-50%, -50%)`, width `74%`, `max-width: 360px`, border `2px solid rgba(255,255,255,0.55)`
+3. `.focus-instruction`: Text at `top: calc(env(safe-area-inset-top) + 20px)`, centered, white with `text-shadow: 0 2px 8px rgba(0,0,0,0.7)`
 
-- **2026-05-01:** Activity journal scroll limit and auction-ending schedule UI. (Task A) Added scroll limit to `CoinActivityJournal.vue` — shows max 3 entries before scrolling, uses conditional class `.journal-list-scrollable` with `max-height: 16.5rem` and custom scrollbar styling matching design tokens (--border-subtle track, --accent-gold-dim hover). Empty state collapses cleanly. (Task B) Added "Auction Ending Alerts" panel to `AdminSchedulesSection.vue` mirroring the wishlist pattern — three settings keys `AuctionEndingCheckEnabled`, `AuctionEndingCheckStartTime`, `AuctionEndingCheckInterval` with defaults false/08:00/1440. Updated `useAdminConfig` composable to expose `auctionSettingsMsg` and `auctionSettingsError` state, and applied defaults in `loadSettings()`. Parent `AdminPage.vue` now passes auction props to child. Subsection description added for clarity. Type-check passes clean.
+**Conditional rendering:**
+- Only display when camera active: `v-if="cameraStream !== null"`
+- Must NOT block controls or user interaction (pointer-events: none)
 
-- **2026-05-21:** Added manual "Run Now" button and recent runs log to Auction Ending admin panel, mirroring existing Valuation and Wishlist patterns. Added `AuctionEndingRun` and `AuctionEndingResult` TypeScript interfaces in `types/index.ts`. Added API client functions `triggerAuctionEndingCheck()`, `getAuctionEndingRuns()`, and `getAuctionEndingRunDetail()` in `api/client.ts` (expected endpoints: `POST /api/admin/auction-ending/run`, `GET /api/admin/auction-ending/runs`). Updated `AdminSchedulesSection.vue` with "Run Now" button next to Save button, recent runs table showing Date, Trigger, Lots, Alerts, Errors, Duration columns with expandable detail rows, loading state, pagination, and responsive mobile layout. Wired emit handlers in `AdminPage.vue` for `update:auctionSettingsMsg` and `update:auctionSettingsError`. All design tokens used (no hardcoded values). Type-check and production build pass clean.
+**iOS safe areas:**
+- Use `env(safe-area-inset-top)` for instruction text positioning
+- Ensure `viewport-fit=cover` in index.html meta viewport tag
+- Video element must have `playsinline` and `muted` attributes
 
-## Team Updates
+### CTA Hierarchy: Primary vs Ghost Link
 
-- **2026-05-22:** Collaborated with Cassius (backend) and Brutus (testing) on auction-ending manual-run feature. Cassius's APPROVED implementation delivered endpoints: POST /api/admin/auction-ending/run (manual trigger), GET /api/admin/auction-ending-runs (run history). Brutus wrote and approved 16 comprehensive tests. Follow-up fixup planned to align frontend endpoint URLs (client.ts currently guesses `/admin/auction-ending/runs` instead of actual `/admin/auction-ending-runs`).
+Issue #216 established distinct visual weight for action buttons:
 
-- **2026-05-22 (fixup):** Aligned frontend client code with Cassius's actual backend contract. Key mismatches fixed: (1) Changed list endpoint URL from `/admin/auction-ending/runs` to `/admin/auction-ending-runs` (hyphenated, no `/runs` suffix — note this differs from trigger endpoint which is `/admin/auction-ending/run`). (2) Updated trigger response type to `{ runId, lotsChecked, alertsSent, status, durationMs }` instead of `{ message, users }`. (3) Added `page` and `limit` fields to list response type. (4) Removed non-existent `getAuctionEndingRunDetail()` function and all detail expansion UI (Cassius's contract provides no per-run detail endpoint, only aggregate counts). (5) Fixed `AuctionEndingRun` interface to match exact backend fields (removed `userId`, `errors`, `results`, changed `errorMessage` from optional to required string). (6) Updated trigger success message to show meaningful stats: "Run #42 completed — 15 lots checked, 3 alerts sent in 1.2s". Type-check and build pass clean.
+**Primary CTA:**
+- Highest contrast (`.btn .btn-primary`)
+- Gold gradient fill: `linear-gradient(135deg, var(--accent-gold), var(--accent-bronze))`
+- Dark text (`var(--bg-primary)`)
+- Stands out as the main path forward
 
-- **2026-05-23:** Fixed PWA service worker lifecycle and verified icon availability. Root cause: `main.ts` never imported `virtual:pwa-register`, so `vite-plugin-pwa`'s auto-update logic wasn't wired up — users kept stale service workers that tried to import outdated workbox-{hash}.js files. Added `import { registerSW } from 'virtual:pwa-register'` with `immediate: true` and hourly update checks. Added `/// <reference types="vite-plugin-pwa/client" />` to `env.d.ts` for type support. Icons (`pwa-192x192.png`, `pwa-512x512.png`) already existed in `public/` and were correctly referenced in manifest — no action needed. `vite.config.ts` already had `registerType: 'autoUpdate'`, `skipWaiting: true`, `clientsClaim: true`, `cleanupOutdatedCaches: true` — configuration was correct but registration wasn't initialized. Type-check and production build pass clean.
+**Ghost link (recessive secondary action):**
+- `background: transparent`
+- `border: none`
+- `color: var(--text-muted)` default
+- `color: var(--text-secondary)` on hover
+- No underline, no border — true ghost treatment
+- Use for "escape hatch" actions like "Use manual mode instead"
 
-## Team Updates
+### Capture Button Styling
 
-- **2026-05-22:** PWA service worker successfully registered on app startup for the first time (commit 557ce02). Users will now receive automatic cache updates on app reload. Stale workbox errors eliminated.
+**Subtle gradient treatment (no glow halo):**
+- Background: `linear-gradient(135deg, var(--accent-gold), var(--accent-bronze))`
+- Border: `2px solid var(--border-white-dim)` (down from 3px)
+- Shadow: `0 2px 8px rgba(0,0,0,0.15)` (low-opacity drop shadow)
+- Hover: `0 4px 12px rgba(0,0,0,0.2)` + `scale(1.05)`
+- NO radiating gold glow — keeps visual hierarchy clean
 
-<!-- Append new learnings below. Each entry is something lasting about the project. -->
+### Reusable Design Token Mappings
 
-- **2026-05-28:** Constitution v2.0.0 landed today. Read `.specify/memory/constitution.md` before next task. Key changes: (1) §0 Hierarchy of Authority defines 8-tier document precedence (Constitution → PRD → specs → plans → tasks → backlog → decisions → agent judgment), (2) §17 Quality Gate now gates every PR (includes npm run build / type-check), (3) §21 Definition of Done is a 14-item checklist in `.github/pull_request_template.md` that you must satisfy on every PR, (4) §18 AI Agent Operating Rules forbids `SESSION-NOTES.md` and `.copilot-state.md` — the Squad handoff surface is `.squad/log/` + per-agent history + `.squad/decisions.md`. Governance scaffolding added: SECURITY.md, CODEOWNERS, issue/PR templates. copilot-instructions restructured to cite the constitution rather than restate principles. Design system rules (Principle V) remain unchanged: variables.css tokens + main.css global classes, Cinzel/Inter typography scale, chip/button/badge hierarchy. No component changes yet — Phase 2 starts with retroactive `specs/001-foundation/` seeding.
+| Use Case | Token | Value |
+|---|---|---|
+| Tonal active fill | `--accent-gold-glow` | rgba(201,168,76,0.15) |
+| Active border | `--accent-gold` | #c9a84c |
+| Inactive border | `--border-subtle` | rgba(201,168,76,0.15) |
+| Tile radius | `--radius-md` | 12px |
+| Label text | `--text-muted` | #706858 |
+| Active dot | `--accent-gold` | #c9a84c |
+| Inactive dot | `--text-muted` | #706858 |
+| Ghost link | `--text-muted` → `--text-secondary` on hover | #706858 → #a09880 |
+| Card background | `--bg-card` | #16213e |
+| Input background | `--bg-input` | #1e2a4a |
+| Transition | `--transition-fast` | 0.2s ease |
 
-- **2026-05-28 (Phase 2 complete):** Phase 2 of tech-inventory alignment landed. `specs/` is now the on-disk home for SpecKit workflow (§0 Hierarchy items 3–6 now have concrete directories). Backlog cards in `specs/_backlog/F001-F007-*.md`, active features in `specs/NNN-slug/`, retroactive anchor in `specs/001-foundation/spec.md` (v1.0 surface documented with plan + shipped tasks). Four new session-protocol prompts available in `.github/prompts/`: `/load-context` (cold-start), `/checkpoint` (mid-session pause), `/handoff` (end-of-session merge), `/audit` (§20 audit). Use `/speckit.specify`, `/speckit.plan`, `/speckit.tasks` for new features. Manifest sync deferred — run `specify upgrade` to register prompts. Phase 3 (PRD, ADRs, threat-model split, openapi.yaml, gitleaks, quality-gate workflows) queued.
+### API Key Scope Management (Issue #218, T022/T023)
 
-- **2026-05-28 (Phase 3a complete):** Phase 3a landed today. docs/prd.md is now the product source of truth (Constitution §0 item #2). Four ADRs in docs/adr/ retroactively document v1.0 architecture (0001: ADR practice itself, 0002: three-service architecture, 0003: JWT+refresh+WebAuthn, 0004: design token system). README trimmed 368→90 lines (now setup/links only; consult docs/prd.md for product detail). Any new material design choice requires an ADR per §22.
+**Location:** API key management UI is in `SettingsDataSection.vue` (Data Management settings section).
 
-- **2026-05-28 (ESLint cleanup):** Cleared all 608 ESLint warnings in src/web (commits f0df844 + 7f4c621). Phase 1: `npm run lint -- --fix` auto-fixed 566 formatting warnings (indentation, attribute hyphenation, multiline content, closing brackets). Phase 2: manually fixed 42 warnings — replaced 31 `any` types with proper axios types (`InternalAxiosRequestConfig`, `AxiosResponse<T>`, `AxiosError`) in test files, removed 11 unused vars by prefixing with `_` or deleting. Key learning: test mocks that intentionally bypass type safety (e.g., passing `''` for numeric fields in sanitizeCoin tests) should use `as unknown as T` instead of `as any` for clarity. Also fixed pre-existing TS error: upgraded tsconfig.app.json to ES2022 (from ES2020) to support `Error.cause` used in auth store's WebAuthn error handling. All changes pass Constitution §17 Quality Gate (type-check, build, tests).
+**Scope control pattern:**
+- Chip-based toggle selector using global `.chip` class
+- Two options: "Read" (default) and "Read/Write"
+- Positioned between name input and generate button
+- State: `apiKeyScope = ref<'read' | 'read,write'>('read')`
+- Resets to "read" after successful key generation
 
-- **2026-05-29 (Principal frontend audit):** High-risk runtime edges remain in the frontend: (1) `agentChatStream` has no abort/cancellation and no guaranteed terminal state when SSE closes without a `done` event, so chat can hang in loading state; (2) auth refresh interceptor force-logs users out on any refresh failure (including transient network errors), causing brittle session drops; (3) multiple components pass JWT in `proxy-image` query strings (`...&token=`), creating credential exposure in logs/devtools and bypassing normal auth-header flow; (4) Workbox caches GET `/api/*` responses for 5 minutes, which risks stale or cross-account data replay on shared devices/offline fallback. Add targeted tests around stream teardown, refresh-failure behavior, and service-worker caching boundaries before next frontend release.
+**Create payload contract:**
+- `generateApiKey(name: string, scope?: 'read' | 'read,write')`
+- Optional `scope` field passed to `POST /auth/api-keys`
+- Backend defaults to "read" when omitted
 
-- **2026-05-30 (Collection Health Scorecard):** Completed full frontend implementation for feature #208 Collection Health Scorecard (v1). Created 7 new components (CollectionHealthScorecard, CollectionHealthTrendIndicator, CollectionHealthEmptyState, CoinHealthChecklist, NeedsAttentionQueue, AdminHealthSection) and modified 6 existing files (coins store, StatsPage, CollectionPage, CoinDetailPage, AdminPage, SortSelect). All components use design tokens (variables.css + main.css) with no hardcoded values, follow typography scale (Cinzel/Inter), and include mobile-responsive breakpoints. Integrated health state/actions into Pinia store (`fetchCollectionHealth`, `fetchCoinHealthList`). Quick actions route users to edit/upload/valuation/analysis flows. Admin health tab shows aggregate metrics (median score, low-score %, top missing fields). Type check and production build both pass clean. Ready for backend API integration testing. Key learnings: (1) CollectionHealthTrend type has `delta` and `status`, not `baselineScore`, (2) CoinHealthListResponse has nested `pagination.total`, not top-level `total`, (3) CoinHealthItem has `title` not `coinName`, (4) AdminHealthSummaryResponse has `eligibleCoinCount` not `totalCoins`. All discovered via type-check feedback and corrected before build. Feature #208 frontend is complete; merged decision to `.squad/decisions.md` as Decision #20.
+**Capability display:**
+- Small `.chip-sm` badge next to key name in list
+- Two variants:  
+  - Read: Blue accent (`rgba(59, 130, 246, 0.1)` bg, `#3b82f6` text)
+  - Read/Write: Gold accent (`--accent-gold-glow` bg, `--accent-gold` text/border)
+- Helper functions: `capabilityLabel()` → "Read" | "Read/Write", `capabilityClass()` → CSS class
+- Badge uses design tokens and `.chip-sm` sizing (0.75rem font, 0.15rem 0.5rem padding)
 
+### In-App External Tool Server Documentation (Issue #218, 2026-06-01)
+
+**Location:** `src/web/src/components/HelpSection.vue` — new accordion titled "Connecting AI Tools (External Tool Server)".
+
+**Structure:** Three-perspective documentation (Admin, User, Developer) in a single accordion:
+- **For Admins:** How to enable the server via Admin Settings (`ExternalToolServerEnabled`), default-off security posture, what to tell users about scoped API keys and journaled writes
+- **For Users:** Step-by-step guide to create scoped API keys (read vs read/write), import the OpenAPI URL into external clients (OpenWebUI, LibreChat, n8n), and understand the two-phase write confirmation flow
+- **For Developers:** Base path `/api/v1/tools/*`, `X-API-Key` auth, six available tools (four read, two write), OpenAPI spec endpoint, mcpo wrapper for MCP compatibility, security model (tenant isolation, rate limiting, field allowlist)
+
+**Content source:** `docs/external-tool-server.md` — authoritative technical reference.
+
+**Styling:** Uses existing `.help-accordion`, `.help-content`, `.help-table`, `.help-code` classes. No emojis, no hardcoded values. Includes table of six tools with capability requirements.
+
+**Placement:** Inserted immediately before "Helpful Resources" accordion — positioned as an app-setup topic rather than coin-collecting content.
+
+**Validation:** `npm run build` (type-check passed), `npm run lint` (HelpSection.vue warnings fixed, exit 0).
+
+### Multi-Container Deployment Note (2026-06-01)
+
+Related to Issue #217 (Collection Chat) and #218 (External Tool Server), Cassius documented multi-container deployment requirements:
+
+- **AGENT_INTERNAL_CALLBACK_URL** environment variable required for collection chat to work across containers (defaults to `localhost:8080`, unreachable in Docker networks)
+- Set to API service name: `http://coins:8080` or `http://app:8080` depending on your docker-compose setup
+- Documented in `docs/deployment.md` with startup warning in release mode
+- Your external tool server work (#218) depends on this multi-container layer functioning correctly

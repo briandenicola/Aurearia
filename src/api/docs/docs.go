@@ -1993,7 +1993,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Creates a new API key. The key is returned once and cannot be retrieved again.",
+                "description": "Creates a new API key with optional capability scope ('read' or 'read,write'). Defaults to 'read'. The key is returned once and cannot be retrieved again.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2006,7 +2006,7 @@ const docTemplate = `{
                 "summary": "Generate an API key",
                 "parameters": [
                     {
-                        "description": "Key name for identification",
+                        "description": "Key name and optional scope",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2916,6 +2916,136 @@ const docTemplate = `{
                 }
             }
         },
+        "/coins/intake/commit": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Explicitly confirms and commits an intake draft into a persistent coin record.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Commit coin intake draft",
+                "parameters": [
+                    {
+                        "description": "Commit request with explicit confirmation and optional overrides",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.IntakeDraftCommitRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.IntakeDraftCommitResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/coins/intake/draft": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Uploads one or more coin images and optionally a coin card image, then returns an editable draft.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Create coin intake draft",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Coin images (use multiple files)",
+                        "name": "images",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Optional coin card image",
+                        "name": "coinCardImage",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.IntakeDraftCreateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/coins/{id}": {
             "get": {
                 "security": [
@@ -3276,6 +3406,17 @@ const docTemplate = `{
                         "default": "false",
                         "description": "Set as primary image",
                         "name": "isPrimary",
+                        "in": "formData"
+                    },
+                    {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
+                        "type": "string",
+                        "default": "false",
+                        "description": "Clip to circular transparent PNG",
+                        "name": "circleClip",
                         "in": "formData"
                     }
                 ],
@@ -4263,6 +4404,388 @@ const docTemplate = `{
                 }
             }
         },
+        "/internal/tools/collection_summary": {
+            "post": {
+                "description": "Retrieve aggregate statistics for the authenticated user's collection",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal"
+                ],
+                "summary": "Get collection aggregate summary",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer {internal_token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "summary: aggregate summary",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/tools/commit_update": {
+            "post": {
+                "description": "Commit a previously created proposal with explicit confirmation",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal"
+                ],
+                "summary": "Commit an update proposal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer {internal_token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Proposal ID, token, and confirmation",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CommitUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "result: commit result",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/tools/get_coin": {
+            "post": {
+                "description": "Retrieve a coin from the authenticated user's collection",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal"
+                ],
+                "summary": "Get a single coin by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer {internal_token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Coin ID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.GetCoinRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "coin: coin summary",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/tools/propose_update": {
+            "post": {
+                "description": "Create a proposal to update allowlisted fields on a coin",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal"
+                ],
+                "summary": "Create an update proposal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer {internal_token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Coin ID and changes",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ProposeUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "proposal: proposal preview with token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/tools/search_my_collection": {
+            "post": {
+                "description": "Search the authenticated user's collection by query filters",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal"
+                ],
+                "summary": "Search user's collection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer {internal_token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Search parameters",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SearchMyCollectionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "coins: array of coin summaries",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/tools/top_coins_by_value": {
+            "post": {
+                "description": "Retrieve the top coins by current value from the authenticated user's collection",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal"
+                ],
+                "summary": "Get top coins by current value",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer {internal_token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Limit (default 3, max 10)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.TopCoinsByValueRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "coins: array of coin summaries",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/notifications": {
             "get": {
                 "security": [
@@ -4870,6 +5393,495 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/tools/collection_summary": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Retrieve aggregate statistics for the authenticated API key owner's collection. Requires 'read' capability.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "External Tools"
+                ],
+                "summary": "Get collection aggregate summary (external)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "API key (e.g., ak_...)",
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "summary: aggregate summary",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/tools/commit_update": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Commit a previously created proposal with explicit confirmation. Requires 'write' capability and valid proposal token. Journals with source 'external_tool_server'.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "External Tools"
+                ],
+                "summary": "Commit an update proposal (external)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "API key (e.g., ak_...)",
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Proposal ID, token, and confirmation",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CommitUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "result: commit result",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/tools/get_coin": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Retrieve a coin from the authenticated API key owner's collection. Requires 'read' capability.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "External Tools"
+                ],
+                "summary": "Get a single coin by ID (external)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "API key (e.g., ak_...)",
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Coin ID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.GetCoinRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "coin: coin summary",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/tools/openapi.json": {
+            "get": {
+                "description": "Returns the OpenAPI 3.0 document describing the /v1/tools/* surface, suitable for client auto-import.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "External Tools"
+                ],
+                "summary": "Fetch the external tool server OpenAPI document",
+                "responses": {
+                    "200": {
+                        "description": "OpenAPI 3.0 document",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/tools/propose_update": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Create a proposal to update allowlisted fields on a coin. Requires 'write' capability. Returns proposal preview with token; no coin write occurs yet.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "External Tools"
+                ],
+                "summary": "Create an update proposal (external)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "API key (e.g., ak_...)",
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Coin ID and changes",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ProposeUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "proposal: proposal preview with token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/tools/search_my_collection": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Search the authenticated API key owner's collection by query filters. Requires 'read' capability.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "External Tools"
+                ],
+                "summary": "Search user's collection (external)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "API key (e.g., ak_...)",
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Search parameters",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SearchMyCollectionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "coins: array of coin summaries",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/tools/top_coins_by_value": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Retrieve the top coins by current value from the authenticated API key owner's collection. Requires 'read' capability.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "External Tools"
+                ],
+                "summary": "Get top coins by current value (external)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "API key (e.g., ak_...)",
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Limit (default 3, max 10)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.TopCoinsByValueRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "coins: array of coin summaries",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/value-history": {
             "get": {
                 "security": [
@@ -4982,6 +5994,9 @@ const docTemplate = `{
                 "message"
             ],
             "properties": {
+                "appContext": {
+                    "$ref": "#/definitions/services.CollectionChatContext"
+                },
                 "history": {
                     "type": "array",
                     "items": {
@@ -5301,6 +6316,25 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.CommitUpdateRequest": {
+            "type": "object",
+            "required": [
+                "confirm",
+                "proposal_id",
+                "token"
+            ],
+            "properties": {
+                "confirm": {
+                    "type": "boolean"
+                },
+                "proposal_id": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.ConversationSummary": {
             "type": "object",
             "properties": {
@@ -5341,6 +6375,17 @@ const docTemplate = `{
                 "text": {
                     "type": "string",
                     "example": "CAESAR AVGVSTVS"
+                }
+            }
+        },
+        "handlers.GetCoinRequest": {
+            "type": "object",
+            "required": [
+                "coin_id"
+            ],
+            "properties": {
+                "coin_id": {
+                    "type": "integer"
                 }
             }
         },
@@ -5401,6 +6446,124 @@ const docTemplate = `{
                 "message": {
                     "type": "string",
                     "example": "Import complete"
+                }
+            }
+        },
+        "handlers.IntakeConfidenceSummary": {
+            "type": "object",
+            "properties": {
+                "overall": {
+                    "type": "string",
+                    "example": "medium"
+                },
+                "uncertainFields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handlers.IntakeDraftCommitRequest": {
+            "type": "object",
+            "required": [
+                "confirm",
+                "draftId"
+            ],
+            "properties": {
+                "confirm": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "draftId": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "overrides": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
+        "handlers.IntakeDraftCommitResponse": {
+            "type": "object",
+            "properties": {
+                "coinId": {
+                    "type": "integer",
+                    "example": 314
+                },
+                "draftId": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "status": {
+                    "type": "string",
+                    "example": "confirmed"
+                }
+            }
+        },
+        "handlers.IntakeDraftCreateResponse": {
+            "type": "object",
+            "properties": {
+                "coin": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "confidenceSummary": {
+                    "$ref": "#/definitions/handlers.IntakeConfidenceSummary"
+                },
+                "draftId": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "evidence": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.IntakeEvidenceItem"
+                    }
+                },
+                "expiresAt": {
+                    "type": "string",
+                    "example": "2026-01-15T12:00:00Z"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "drafted"
+                },
+                "unresolvedFields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handlers.IntakeEvidenceItem": {
+            "type": "object",
+            "properties": {
+                "confidence": {
+                    "type": "string",
+                    "example": "medium"
+                },
+                "field": {
+                    "type": "string",
+                    "example": "ruler"
+                },
+                "notes": {
+                    "type": "string",
+                    "example": "Legend partially visible"
+                },
+                "source": {
+                    "type": "string",
+                    "example": "obverse"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "vision"
+                },
+                "value": {
+                    "type": "string",
+                    "example": "Trajan"
                 }
             }
         },
@@ -5500,6 +6663,22 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.ProposeUpdateRequest": {
+            "type": "object",
+            "required": [
+                "changes",
+                "coin_id"
+            ],
+            "properties": {
+                "changes": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "coin_id": {
+                    "type": "integer"
+                }
+            }
+        },
         "handlers.PurchaseRequest": {
             "type": "object",
             "properties": {
@@ -5524,6 +6703,20 @@ const docTemplate = `{
                     "type": "string",
                     "minLength": 6,
                     "example": "newpass456"
+                }
+            }
+        },
+        "handlers.SearchMyCollectionRequest": {
+            "type": "object",
+            "required": [
+                "query"
+            ],
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "query": {
+                    "type": "string"
                 }
             }
         },
@@ -5596,6 +6789,14 @@ const docTemplate = `{
                     }
                 },
                 "synced": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.TopCoinsByValueRequest": {
+            "type": "object",
+            "properties": {
+                "limit": {
                     "type": "integer"
                 }
             }
@@ -5719,6 +6920,10 @@ const docTemplate = `{
                 "image"
             ],
             "properties": {
+                "circleClip": {
+                    "type": "boolean",
+                    "example": false
+                },
                 "fileExtension": {
                     "type": "string",
                     "example": ".jpg"
@@ -5747,6 +6952,10 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 100,
                     "example": "My Script"
+                },
+                "scope": {
+                    "type": "string",
+                    "example": "read"
                 }
             }
         },
@@ -5840,6 +7049,9 @@ const docTemplate = `{
         "models.ApiKey": {
             "type": "object",
             "properties": {
+                "capabilities": {
+                    "type": "string"
+                },
                 "createdAt": {
                     "type": "string"
                 },
@@ -6439,6 +7651,17 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "era": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.CollectionChatContext": {
+            "type": "object",
+            "properties": {
+                "activeCoinId": {
+                    "type": "integer"
+                },
+                "route": {
                     "type": "string"
                 }
             }

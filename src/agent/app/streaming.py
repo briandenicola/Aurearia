@@ -71,6 +71,12 @@ async def stream_graph_events(graph, input_data: dict, config: dict | None = Non
                     yield format_sse({"type": "status", "message": "Processing search results..."})
 
             elif kind == "on_chat_model_stream":
+                # Skip streaming LLM output from the router node — it's an internal classification decision
+                # (e.g., "portfolio", "coin_search") that should never appear in user-visible output.
+                tags = event.get("tags", [])
+                if "router" in tags:
+                    continue
+
                 chunk = event.get("data", {}).get("chunk")
                 if isinstance(chunk, AIMessageChunk) and chunk.content:
                     # String content = normal text tokens
@@ -105,6 +111,11 @@ async def stream_graph_events(graph, input_data: dict, config: dict | None = Non
                                 yield format_sse({"type": "text", "text": text})
 
             elif kind == "on_chat_model_end":
+                # Skip router node's LLM output (internal routing decision)
+                tags = event.get("tags", [])
+                if "router" in tags:
+                    continue
+
                 output = event.get("data", {}).get("output")
                 if isinstance(output, AIMessage) and output.content:
                     if isinstance(output.content, str):

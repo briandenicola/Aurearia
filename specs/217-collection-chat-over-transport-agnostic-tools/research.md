@@ -8,13 +8,13 @@
   - Implement tool logic in Python team code (rejected: violates service boundary and DB ownership rules).
   - Duplicate read/write logic per chat adapter (rejected: drift risk and higher maintenance).
 
-## Decision 2: Extend existing chat endpoint with explicit collection mode routing
+## Decision 2: Extend existing chat endpoint with automatic prompt-intent routing
 
-- **Decision**: Keep `/api/agent/chat` as the entry point and add request semantics for `mode=collection` so backend routes to collection chat behavior.
-- **Rationale**: Reuses current SSE pipeline and avoids introducing a second chat surface.
+- **Decision**: Keep `/api/agent/chat` as the entry point and classify each prompt intent so backend routes to collection chat behavior or existing coin-search behavior without a manual mode switch.
+- **Rationale**: Reuses current SSE pipeline, preserves global chat availability, and aligns routing with natural-language user intent.
 - **Alternatives considered**:
   - Create a separate collection-chat endpoint and UI route (rejected: fragmented UX and duplicated chat state).
-  - Auto-detect mode only from intent with no explicit mode (rejected: weaker user control and ambiguous routing).
+  - Require explicit UI mode selection (rejected: adds friction and conflicts with desired “chat from anywhere” workflow).
 
 ## Decision 3: Enforce protocol-level two-phase writes with short-lived proposal tokens
 

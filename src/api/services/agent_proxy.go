@@ -20,6 +20,11 @@ type AgentProxy struct {
 	logger        *Logger
 }
 
+type CollectionChatContext struct {
+	Route        string `json:"route,omitempty"`
+	ActiveCoinID *uint  `json:"activeCoinId,omitempty"`
+}
+
 func NewAgentProxy(baseURL string, logger *Logger) *AgentProxy {
 	return &AgentProxy{
 		baseURL:       strings.TrimRight(baseURL, "/"),
@@ -50,13 +55,16 @@ type ChatMessageProxy struct {
 }
 
 type AgentChatProxyRequest struct {
-	LLM              LLMConfig          `json:"llm"`
-	User             UserContextProxy   `json:"user"`
-	Message          string             `json:"message"`
-	History          []ChatMessageProxy `json:"history"`
-	CoinSearchPrompt string             `json:"coin_search_prompt"`
-	CoinShowsPrompt  string             `json:"coin_shows_prompt"`
-	Portfolio        *PortfolioData     `json:"portfolio,omitempty"`
+	LLM              LLMConfig              `json:"llm"`
+	User             UserContextProxy       `json:"user"`
+	Message          string                 `json:"message"`
+	History          []ChatMessageProxy     `json:"history"`
+	AppContext       *CollectionChatContext `json:"app_context,omitempty"`
+	CoinSearchPrompt string                 `json:"coin_search_prompt"`
+	CoinShowsPrompt  string                 `json:"coin_shows_prompt"`
+	Portfolio        *PortfolioData         `json:"portfolio,omitempty"`
+	InternalToken    string                 `json:"internal_token,omitempty"`
+	ToolsBaseURL     string                 `json:"tools_base_url,omitempty"`
 }
 
 type CandidateReferenceProxy struct {
@@ -139,6 +147,33 @@ type AnalyzeProxyResponse struct {
 	Analysis string `json:"analysis"`
 }
 
+type IntakeProxyDraftRequest struct {
+	LLM           LLMConfig `json:"llm"`
+	Images        []string  `json:"images"`
+	CoinCardImage *string   `json:"coin_card_image,omitempty"`
+}
+
+type IntakeProxyConfidenceSummary struct {
+	Overall         string   `json:"overall"`
+	UncertainFields []string `json:"uncertainFields"`
+}
+
+type IntakeProxyEvidence struct {
+	Type       string `json:"type"`
+	Source     string `json:"source"`
+	Field      string `json:"field"`
+	Value      string `json:"value"`
+	Confidence string `json:"confidence"`
+	Notes      string `json:"notes,omitempty"`
+}
+
+type IntakeProxyDraftResponse struct {
+	Coin              map[string]interface{}       `json:"coin"`
+	ConfidenceSummary IntakeProxyConfidenceSummary `json:"confidenceSummary"`
+	Evidence          []IntakeProxyEvidence        `json:"evidence"`
+	UnresolvedFields  []string                     `json:"unresolvedFields"`
+}
+
 // AvailabilityCheckProxyItem represents a single coin URL to check.
 type AvailabilityCheckProxyItem struct {
 	URL      string `json:"url"`
@@ -215,6 +250,43 @@ func (p *AgentProxy) AnalyzeCoin(ctx context.Context, req AnalyzeProxyRequest) (
 		return "", fmt.Errorf("parse analyze response: %w", err)
 	}
 	return result.Analysis, nil
+}
+
+func (p *AgentProxy) GenerateIntakeDraft(llmConfig LLMConfig, images []string, coinCardImage *string) (*IntakeProxyDraftResponse, error) {
+	body, err := json.Marshal(IntakeProxyDraftRequest{
+		LLM:           llmConfig,
+		Images:        images,
+		CoinCardImage: coinCardImage,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal intake draft request: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", p.baseURL+"/api/intake/draft", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create intake draft request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.requestClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("intake draft request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("intake draft failed with HTTP %d", resp.StatusCode)
+	}
+
+	var draft IntakeProxyDraftResponse
+	if err := json.Unmarshal(respBody, &draft); err != nil {
+		return nil, fmt.Errorf("parse intake draft response: %w", err)
+	}
+	return &draft, nil
 }
 
 // CheckAvailability POSTs to the Python agent's /api/check-availability endpoint.

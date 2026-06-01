@@ -1,0 +1,165 @@
+openapi: 3.0.3
+info:
+  title: Coin Detail UI Navigation Contract
+  version: 0.1.0
+  description: |
+    UI-level contract for #219 defining coin detail overview and section-route behavior.
+    This contract documents frontend route and interaction expectations rather than new API endpoints.
+paths:
+  /coin/{id}:
+    get:
+      summary: Render streamlined coin detail overview
+      description: |
+        Overview page MUST show obverse and reverse media by default (when available),
+        render metadata in row/table format, and expose settings-style links to section pages.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Overview renders successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoinDetailOverviewContract"
+        "401":
+          description: Authentication required
+        "404":
+          description: Coin not found
+
+  /coin/{id}/journal:
+    get:
+      summary: Render coin journal section page
+      parameters:
+        - $ref: "#/components/parameters/CoinId"
+      responses:
+        "200":
+          description: Journal section page renders with coin context
+        "401":
+          description: Authentication required
+        "404":
+          description: Coin not found
+
+  /coin/{id}/notes:
+    get:
+      summary: Render coin notes section page
+      parameters:
+        - $ref: "#/components/parameters/CoinId"
+      responses:
+        "200":
+          description: Notes section page renders with coin context
+        "401":
+          description: Authentication required
+        "404":
+          description: Coin not found
+
+  /coin/{id}/actions:
+    get:
+      summary: Render coin actions section page
+      parameters:
+        - $ref: "#/components/parameters/CoinId"
+      responses:
+        "200":
+          description: Actions section page renders with coin context
+        "401":
+          description: Authentication required
+        "404":
+          description: Coin not found
+
+  /coin/{id}/analysis:
+    get:
+      summary: Render coin AI analysis section page
+      parameters:
+        - $ref: "#/components/parameters/CoinId"
+      responses:
+        "200":
+          description: AI analysis section page renders with coin context
+        "401":
+          description: Authentication required
+        "404":
+          description: Coin not found
+
+components:
+  parameters:
+    CoinId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+  schemas:
+    CoinDetailOverviewContract:
+      type: object
+      required:
+        - coinId
+        - media
+        - metadataRows
+        - sectionLinks
+      properties:
+        coinId:
+          type: integer
+        media:
+          type: object
+          required:
+            - obverse
+            - reverse
+          properties:
+            obverse:
+              $ref: "#/components/schemas/MediaSlot"
+            reverse:
+              $ref: "#/components/schemas/MediaSlot"
+        metadataRows:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetadataRow"
+        sectionLinks:
+          type: array
+          items:
+            $ref: "#/components/schemas/SectionLink"
+
+    MediaSlot:
+      type: object
+      required:
+        - state
+      properties:
+        state:
+          type: string
+          enum: [image, placeholder]
+        imageUrl:
+          type: string
+          nullable: true
+
+    MetadataRow:
+      type: object
+      required:
+        - key
+        - label
+        - value
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        value:
+          type: string
+
+    SectionLink:
+      type: object
+      required:
+        - id
+        - title
+        - route
+      properties:
+        id:
+          type: string
+          enum: [journal, notes, actions, analysis]
+        title:
+          type: string
+        route:
+          type: string

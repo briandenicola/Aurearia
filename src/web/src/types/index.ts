@@ -66,6 +66,44 @@ export type CoinMutationPayload = Partial<Omit<Coin, 'references'>> & {
   references?: CoinReferenceInput[]
 }
 
+export type IntakeConfidenceLevel = 'low' | 'medium' | 'high'
+
+export interface IntakeConfidenceSummary {
+  overall: IntakeConfidenceLevel
+  uncertainFields: string[]
+}
+
+export interface IntakeEvidenceItem {
+  type: string
+  source: string
+  field: string
+  value: string
+  confidence: IntakeConfidenceLevel
+  notes?: string
+}
+
+export interface IntakeDraft {
+  draftId: number
+  status: 'drafted' | 'confirmed' | 'discarded' | 'expired'
+  coin: CoinMutationPayload
+  confidenceSummary: IntakeConfidenceSummary
+  evidence: IntakeEvidenceItem[]
+  unresolvedFields: string[]
+  expiresAt: string
+}
+
+export interface IntakeCommitRequest {
+  draftId: number
+  confirm: boolean
+  overrides?: CoinMutationPayload
+}
+
+export interface IntakeCommitResponse {
+  draftId: number
+  status: 'confirmed'
+  coinId: number
+}
+
 export interface CoinImage {
   id: number
   coinId: number
@@ -350,6 +388,7 @@ export interface ApiKey {
   userId: number
   keyPrefix: string
   name: string
+  capabilities: string // "read" or "read,write"
   createdAt: string
   lastUsedAt: string | null
   revokedAt: string | null
@@ -358,6 +397,76 @@ export interface ApiKey {
 export interface AgentChatMessage {
   role: 'user' | 'assistant'
   content: string
+}
+
+// T002: Coin detail page types for #219
+export interface CoinDetailSectionLink {
+  id: string
+  title: string
+  description: string
+  route: string
+  icon?: string
+}
+
+export interface CoinDetailMetadataRow {
+  key: string
+  label: string
+  value: string
+  valueClass?: string
+}
+
+export interface AgentChatAppContext {
+  route?: string
+  activeCoinId?: number
+}
+
+export interface CollectionCoinSummary {
+  id: number
+  name: string
+  category?: string
+  era?: string
+  ruler?: string
+  material?: string
+  currentValue?: number | null
+}
+
+export interface CollectionAggregateSummary {
+  totalCoins: number
+  totalWishlist: number
+  totalSold: number
+  totalCurrentUsd: number
+  totalPurchaseUsd: number
+}
+
+export interface CollectionReadResult {
+  resultType: string
+  total?: number
+  coins?: CollectionCoinSummary[]
+  aggregate?: CollectionAggregateSummary
+}
+
+export interface CollectionDisambiguation {
+  message: string
+  candidates: CollectionCoinSummary[]
+}
+
+export interface CollectionProposalPreview {
+  proposalId: string
+  proposalToken: string
+  coinId: number
+  coinName: string
+  changedFields: string[]
+  changes: Record<string, unknown>
+  expiresAt: string
+}
+
+export interface CollectionChatResponse {
+  kind: 'read_result' | 'proposal' | 'disambiguation' | 'validation_error'
+  message: string
+  readResult?: CollectionReadResult
+  disambiguation?: CollectionDisambiguation
+  proposal?: CollectionProposalPreview
+  errorCode?: string
 }
 
 export interface CoinSuggestion {
@@ -378,6 +487,7 @@ export interface CoinSuggestion {
 export interface AgentChatResponse {
   message: string
   suggestions: CoinSuggestion[]
+  collection?: CollectionChatResponse
 }
 
 export interface FollowUser {
