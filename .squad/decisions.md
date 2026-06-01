@@ -4079,3 +4079,31 @@ Any new sections on CoinDetailPage should follow this pattern:
 **Verdict:** ✅ APPROVE — Type-check + lint pass clean. Ready for merge.
 
 ---
+
+### 15. Feature #219: Purchase Metadata Moved to Details Table (2026-06-01)
+
+**Agent:** Aurelia (Frontend Developer)  
+**Feature:** Coin Detail Page — Purchase metadata consolidation  
+**Status:** APPROVED  
+**Date:** 2026-06-01
+
+**Summary:** Moved standalone "Purchased {date} from {store}" line from above the Details section into the Details metadata table as the final full-width row. Extends CoinDetailMetadataRow interface with `fullWidth?: boolean` property. Full-width row renders as italic secondary text spanning both columns, eliminating label-value split for prose-style content. Consolidates all metadata into one visual container per Principle V & IX.
+
+**Implementation:**
+- `src/web/src/types/index.ts` — added `fullWidth?: boolean` to CoinDetailMetadataRow interface
+- `src/web/src/components/coin/CoinDetailMetadataTable.vue` — conditional label rendering; `.full-width` CSS class with `grid-column: 1 / -1`
+- `src/web/src/composables/useCoinDetailMetadataRows.ts` — purchase row generation logic
+- `src/web/src/pages/CoinDetailPage.vue` — removed `.purchase-meta` standalone section and unused `SafeExternalLink` import
+
+**Design Compliance:**
+- Uses `var(--text-secondary)` for text color per Principle V
+- Maintains italic styling from original design per Principle IX
+- No hardcoded values; grid layout via CSS class only
+
+**Validation:**
+- ✅ `npm run type-check` — pass
+- ✅ `npm run lint` — pass (5 pre-existing warnings, no new issues)
+
+**Verdict:** ✅ APPROVE — Type-check + lint pass clean. Ready for merge.
+
+---
