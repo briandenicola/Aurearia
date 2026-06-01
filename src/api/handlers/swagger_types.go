@@ -32,6 +32,12 @@ type CoinReferenceUpsertRequest struct {
 	URI       string `json:"uri,omitempty" example:"https://numismatics.org/ocre/id/ric.2.tr.234"`
 }
 
+type MigrationResultDTO struct {
+	Succeeded int `json:"succeeded" example:"12"`
+	Skipped   int `json:"skipped" example:"45"`
+	Failed    int `json:"failed" example:"3"`
+}
+
 type AuthResponse struct {
 	Token        string       `json:"token" example:"eyJhbGciOiJIUzI1NiIs..."`
 	RefreshToken string       `json:"refreshToken" example:"rt_a1b2c3d4..."`

@@ -5097,6 +5097,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/references/migrate-legacy": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Migrates legacy rarity_rating text to structured CoinReference records for the authenticated user's coins. Non-destructive operation.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coin References"
+                ],
+                "summary": "Migrate legacy references",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MigrationResultDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/scrape-image": {
             "get": {
                 "security": [
@@ -6866,6 +6903,23 @@ const docTemplate = `{
                 "message": {
                     "type": "string",
                     "example": "Operation successful"
+                }
+            }
+        },
+        "handlers.MigrationResultDTO": {
+            "type": "object",
+            "properties": {
+                "failed": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "skipped": {
+                    "type": "integer",
+                    "example": 45
+                },
+                "succeeded": {
+                    "type": "integer",
+                    "example": 12
                 }
             }
         },

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, LegacyMigrationResult } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -170,6 +170,8 @@ export const updateCoinReference = (coinId: number, referenceId: number, referen
   api.put<CoinReference>(`/coins/${coinId}/references/${referenceId}`, reference)
 export const deleteCoinReference = (coinId: number, referenceId: number) =>
   api.delete(`/coins/${coinId}/references/${referenceId}`)
+export const migrateLegacyReferences = () =>
+  api.post<LegacyMigrationResult>('/references/migrate-legacy')
 
 // Tags
 export const getTags = () => api.get<{ tags: Tag[] }>('/tags')

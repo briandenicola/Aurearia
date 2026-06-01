@@ -55,3 +55,66 @@ Conducted a design review for migrating legacy free-text `Coin.RarityRating` val
 **Related decisions:** 
 - Aurelia removed the free-text RIC UI surface (decision: "Remove Free-Text Rarity/RIC UI")
 - Non-destructive requirement aligned with SQLite foreign-key migration gotchas documented earlier
+
+## 2026-06-01 — Legacy Rarity/RIC Reference Migration Implementation
+
+Implemented the approved one-time backfill migration that parses legacy `Coin.RarityRating` text into structured `CoinReference` records. Migration runs at startup after AutoMigrate and seedCatalogRegistry, guarded by AppSetting marker `LegacyRarityRatingReferenceBackfillV1` for idempotency.
+
+**Key files:**
+- `src/api/database/database.go` — added `backfillLegacyRarityRatingReferences()`, `parseLegacyReference()`, helper functions
+- `src/api/database/reference_migration_test.go` — comprehensive parser tests, idempotency tests, sentinel volume tests
+
+**Parser rules implemented:**
+- Parses FIRST reference only from multi-reference strings (semicolon-delimited)
+- Catalog normalization: RIC/RPC/SNG/CRAWFORD/CNI/KM/Y/CRAIG/REDBOOK exact; Sear/SRCV→SEAR; Spink→SPINK; Duplessy→DUPLESSY
+- Volume extraction for volume-required catalogs (RIC/RPC/SNG): Roman numerals (I, II, VII, etc.), numeric volumes (1-3 digits), or alphabetic tokens (e.g., "Cop" for SNG Copenhagen)
+- Volume=0 sentinel + journal note when volume is missing/unparseable on volume-required catalog
+- Certainty: "legacy-import" on all backfilled references
+- Existing structured references win (no overwrite)
+- Non-destructive: preserves `rarity_rating`, `reference_text`, `reference_url` columns
+
+**Approved rules from Brian:**
+1. Missing/unparseable volume on volume-required catalog → `volume="0"` + CoinJournal entry for manual review
+2. Multiple references in one field → parse FIRST only, ignore rest
+3. Certainty value → `"legacy-import"`
+
+**Validation:**
+- All tests pass: `go build ./...`, `go vet ./...`, `go test -v ./...`
+- Parser handles: "RIC II 207", "RIC VII 162", "Sear 1625", "SNG Cop 123", bare "RIC 207" (→ volume 0 + journal), multi-refs, unrecognized catalogs, empty/whitespace
+- Idempotency verified: re-running backfill is a no-op once marker is set
+- Existing references preserved: backfill skips coins that already have matching structured references
+
+## 2026-06-01 — Legacy Reference Migration Refactor: Startup → User-Triggered Endpoint
+
+Refactored the legacy reference migration from an auto-startup backfill to a user-triggered, user-scoped endpoint per Principle I layered architecture requirements.
+
+**Changes:**
+- **Removed** startup wiring from `database/database.go` (lines 40-42): deleted `backfillLegacyRarityRatingReferences()` call and all parser logic (previously ~lines 86-343)
+- **Created** `services/reference_migration_service.go`: migration logic moved to service layer with `MigrateLegacyReferences(userID)` method
+- **Created** `services/reference_migration_service_test.go`: relocated 19 parser tests + 4 integration tests (user-scoped, idempotency, existing-ref, volume-0 sentinel)
+- **Extended** `handlers/coin_references.go`: added `MigrateLegacy()` handler method with Swagger annotation
+- **Wired** new route in `main.go`: `POST /references/migrate-legacy` under protected group
+- **Added** `handlers/swagger_types.go`: `MigrationResultDTO` type for OpenAPI
+
+**Endpoint Contract (FIXED, Aurelia building against this):**
+- Method/path: `POST /references/migrate-legacy`
+- Auth: JWT required, operates on authenticated user's coins only
+- Request body: none
+- Response 200: `{ "succeeded": 12, "skipped": 45, "failed": 3 }` (lowercase field names, integers)
+
+**Behavior:**
+- User-scoped: migrates ONLY the requesting user's coins (like Tags/Storage Locations)
+- Journals every coin: success → reference created; skip → reason (already exists, no text, etc.); fail → error message
+- Re-run safe: coins with existing matching references are skipped with journal note
+- Non-destructive: never drops or nulls legacy columns, additive inserts only
+
+**Parser rules unchanged:**
+- Parse FIRST reference only; volume=0 sentinel + manual-review journal when volume missing on volume-required catalog
+- Catalog aliases: Sear/SRCV→SEAR, Spink→SPINK, Duplessy→DUPLESSY
+- Certainty: `"legacy-import"`
+
+**Architecture compliance:**
+- Migration logic now in service layer (not database package)
+- Handlers thin, constructor injection pattern
+- All tests pass including `TestNoDirectDatabaseImports`
+

@@ -64,6 +64,13 @@ export interface CoinReferenceInput {
   uri?: string
 }
 
+export interface LegacyMigrationResult {
+  succeeded: number
+  skipped: number
+  failed: number
+  message?: string
+}
+
 export type CoinMutationPayload = Partial<Omit<Coin, 'references' | 'storageLocation'>> & {
   references?: CoinReferenceInput[]
 }

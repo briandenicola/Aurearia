@@ -100,17 +100,60 @@
         <p v-else class="empty-tags">No storage locations created yet. Create your first location above.</p>
       </section>
     </div>
+
+    <!-- Migration Section -->
+    <section class="migration-section" aria-labelledby="migration-heading">
+      <div class="migration-header">
+        <Database :size="20" />
+        <h3 id="migration-heading">Catalog Reference Migration</h3>
+      </div>
+      <p class="setting-desc">
+        Convert legacy free-text Rarity/RIC values into structured Catalog References.
+        This is non-destructive (originals are kept) and records outcomes in each coin's journal.
+      </p>
+      
+      <button
+        class="btn btn-primary"
+        :disabled="migrationRunning"
+        @click="handleMigrate"
+      >
+        <RefreshCw :size="16" :class="{ spinning: migrationRunning }" />
+        {{ migrationRunning ? 'Migrating...' : 'Run Migration' }}
+      </button>
+
+      <div v-if="migrationResult" class="migration-result">
+        <div class="result-grid">
+          <div class="result-item">
+            <span class="result-label">SUCCEEDED</span>
+            <span class="result-value success">{{ migrationResult.succeeded }}</span>
+          </div>
+          <div class="result-item">
+            <span class="result-label">SKIPPED</span>
+            <span class="result-value">{{ migrationResult.skipped }}</span>
+          </div>
+          <div class="result-item">
+            <span class="result-label">FAILED</span>
+            <span class="result-value warn">{{ migrationResult.failed }}</span>
+          </div>
+        </div>
+        <p v-if="migrationResult.message" class="result-message">{{ migrationResult.message }}</p>
+      </div>
+
+      <p v-if="migrationError" class="tag-error">{{ migrationError }}</p>
+    </section>
   </section>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { Database, RefreshCw } from 'lucide-vue-next'
 import {
   getTags, createTag, updateTag as updateTagApi, deleteTag,
   getStorageLocations, createStorageLocation, updateStorageLocation, deleteStorageLocation,
+  migrateLegacyReferences,
 } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
-import type { Tag, StorageLocation } from '@/types'
+import type { Tag, StorageLocation, LegacyMigrationResult } from '@/types'
 
 const { showConfirm } = useDialog()
 // Tag management
@@ -272,6 +315,26 @@ async function handleDeleteStorageLocation(location: StorageLocation) {
   }
 }
 
+// Migration
+const migrationRunning = ref(false)
+const migrationResult = ref<LegacyMigrationResult | null>(null)
+const migrationError = ref('')
+
+async function handleMigrate() {
+  migrationRunning.value = true
+  migrationError.value = ''
+  migrationResult.value = null
+  
+  try {
+    const res = await migrateLegacyReferences()
+    migrationResult.value = res.data
+  } catch (error: unknown) {
+    migrationError.value = apiErrorText(error, 'Migration failed. Please try again.')
+  } finally {
+    migrationRunning.value = false
+  }
+}
+
 onMounted(() => {
   loadTags()
   loadStorageLocations()
@@ -411,6 +474,100 @@ defineExpose({ loadTags, loadStorageLocations })
 @media (max-width: 768px) {
   .lookup-manager-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Migration Section */
+.migration-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.migration-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.migration-header h3 {
+  margin: 0;
+}
+
+.migration-section .btn {
+  margin-top: 1rem;
+}
+
+.migration-result {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.result-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  text-align: center;
+}
+
+.result-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.result-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.result-value.success {
+  color: var(--accent-gold);
+}
+
+.result-value.warn {
+  color: #f59e0b;
+}
+
+.result-message {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 768px) {
+  .result-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
   }
 }
 </style>

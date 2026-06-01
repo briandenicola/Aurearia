@@ -462,6 +462,18 @@ definitions:
         example: Operation successful
         type: string
     type: object
+  handlers.MigrationResultDTO:
+    properties:
+      failed:
+        example: 3
+        type: integer
+      skipped:
+        example: 45
+        type: integer
+      succeeded:
+        example: 12
+        type: integer
+    type: object
   handlers.OllamaStatusResponse:
     properties:
       available:
@@ -4539,6 +4551,30 @@ paths:
       summary: Proxy an external image
       tags:
       - Images
+  /references/migrate-legacy:
+    post:
+      description: Migrates legacy rarity_rating text to structured CoinReference
+        records for the authenticated user's coins. Non-destructive operation.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MigrationResultDTO'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Migrate legacy references
+      tags:
+      - Coin References
   /scrape-image:
     get:
       description: Fetches a web page and extracts image URL from og:image, twitter:image,

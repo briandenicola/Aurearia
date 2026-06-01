@@ -13,16 +13,18 @@ import (
 
 // CoinReferenceHandler handles structured reference CRUD endpoints.
 type CoinReferenceHandler struct {
-	repo *repository.CoinReferenceRepository
-	svc  *services.CoinReferenceService
+	repo           *repository.CoinReferenceRepository
+	svc            *services.CoinReferenceService
+	migrationSvc   *services.ReferenceMigrationService
 }
 
 // NewCoinReferenceHandler creates a new CoinReferenceHandler.
 func NewCoinReferenceHandler(
 	repo *repository.CoinReferenceRepository,
 	svc *services.CoinReferenceService,
+	migrationSvc *services.ReferenceMigrationService,
 ) *CoinReferenceHandler {
-	return &CoinReferenceHandler{repo: repo, svc: svc}
+	return &CoinReferenceHandler{repo: repo, svc: svc, migrationSvc: migrationSvc}
 }
 
 // List returns all references for a coin.
@@ -228,4 +230,27 @@ func (h *CoinReferenceHandler) respondReferenceValidationError(c *gin.Context, e
 	default:
 		respondError(c, http.StatusInternalServerError, "Failed to validate reference", err)
 	}
+}
+
+// MigrateLegacy migrates legacy rarity_rating fields to structured references for the authenticated user.
+//
+//	@Summary		Migrate legacy references
+//	@Description	Migrates legacy rarity_rating text to structured CoinReference records for the authenticated user's coins. Non-destructive operation.
+//	@Tags			Coin References
+//	@Produce		json
+//	@Success		200	{object}	MigrationResultDTO
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/references/migrate-legacy [post]
+func (h *CoinReferenceHandler) MigrateLegacy(c *gin.Context) {
+	userID := c.GetUint("userId")
+
+	result, err := h.migrationSvc.MigrateLegacyReferences(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Migration failed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }
