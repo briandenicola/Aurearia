@@ -383,8 +383,8 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           <li><a href="https://www.wildwinds.com" target="_blank" rel="noopener"><strong>WildWinds</strong></a> — Free database of ancient coin images organized by ruler and catalog reference</li>
           <li><a href="https://en.numista.com" target="_blank" rel="noopener"><strong>Numista</strong></a> — Collaborative coin catalog with detailed type information (integrated into this app)</li>
           <li><a href="https://www.acsearch.info" target="_blank" rel="noopener"><strong>ACSearch</strong></a> — Auction archives with realized prices — essential for valuation</li>
+          <li><a href="https://www.coinarchives.com" target="_blank" rel="noopener"><strong>CoinArchives</strong></a> — Searchable archive of past auction lots with images and realized prices — great for valuation and attribution</li>
           <li><a href="https://rpc.ashmus.ox.ac.uk" target="_blank" rel="noopener"><strong>RPC Online</strong></a> — Free searchable database of Roman Provincial coins</li>
-          <li><a href="https://www.coinarchives.com" target="_blank" rel="noopener"><strong>CoinArchives</strong></a> — Auction results archive for price research</li>
           <li><a href="https://www.forumancientcoins.com" target="_blank" rel="noopener"><strong>Forum Ancient Coins</strong></a> — Dealer, educational articles, and community discussion forum</li>
         </ul>
 
