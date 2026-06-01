@@ -13,23 +13,23 @@ type MessageResponse struct {
 }
 
 type CoinReferenceDTO struct {
-	ID        uint   `json:"id" example:"42"`
-	CoinID    uint   `json:"coinId" example:"1"`
-	Catalog   string `json:"catalog" example:"RIC"`
-	Volume    string `json:"volume,omitempty" example:"III"`
-	Number    string `json:"number" example:"234"`
-	Certainty string `json:"certainty,omitempty" example:"probable"`
-	URI       string `json:"uri,omitempty" example:"https://numismatics.org/ocre/id/ric.2.tr.234"`
-	CreatedAt string `json:"createdAt" example:"2025-01-15T12:00:00Z"`
-	UpdatedAt string `json:"updatedAt" example:"2025-01-15T12:00:00Z"`
+	ID            uint   `json:"id" example:"42"`
+	CoinID        uint   `json:"coinId" example:"1"`
+	Catalog       string `json:"catalog" example:"RIC"`
+	Volume        string `json:"volume,omitempty" example:"III"`
+	Number        string `json:"number" example:"234"`
+	InvoiceNumber string `json:"invoiceNumber,omitempty" example:"INV-2024-001"`
+	URI           string `json:"uri,omitempty" example:"https://numismatics.org/ocre/id/ric.2.tr.234"`
+	CreatedAt     string `json:"createdAt" example:"2025-01-15T12:00:00Z"`
+	UpdatedAt     string `json:"updatedAt" example:"2025-01-15T12:00:00Z"`
 }
 
 type CoinReferenceUpsertRequest struct {
-	Catalog   string `json:"catalog" example:"RIC"`
-	Volume    string `json:"volume,omitempty" example:"III"`
-	Number    string `json:"number" example:"234"`
-	Certainty string `json:"certainty,omitempty" example:"probable"`
-	URI       string `json:"uri,omitempty" example:"https://numismatics.org/ocre/id/ric.2.tr.234"`
+	Catalog       string `json:"catalog" example:"RIC"`
+	Volume        string `json:"volume,omitempty" example:"III"`
+	Number        string `json:"number" example:"234"`
+	InvoiceNumber string `json:"invoiceNumber,omitempty" example:"INV-2024-001"`
+	URI           string `json:"uri,omitempty" example:"https://numismatics.org/ocre/id/ric.2.tr.234"`
 }
 
 type MigrationResultDTO struct {

@@ -94,11 +94,10 @@ type CoinSuggestion struct {
 }
 
 type CandidateReferenceDTORef struct {
-	Catalog   string `json:"catalog"`
-	Volume    string `json:"volume,omitempty"`
-	Number    string `json:"number"`
-	Certainty string `json:"certainty,omitempty"`
-	URI       string `json:"uri,omitempty"`
+	Catalog string `json:"catalog"`
+	Volume  string `json:"volume,omitempty"`
+	Number  string `json:"number"`
+	URI     string `json:"uri,omitempty"`
 }
 
 type AgentChatResponse struct {

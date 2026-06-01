@@ -24,6 +24,11 @@ func Connect(dbPath string) {
 	DB.Exec("PRAGMA journal_mode=WAL")
 	DB.Exec("PRAGMA foreign_keys=ON")
 
+	// Migrate certainty → invoice_number column in coin_references (idempotent)
+	if err := migrateCoinReferenceCertaintyColumn(DB); err != nil {
+		log.Fatalf("Failed to migrate coin_references column: %v", err)
+	}
+
 	err = DB.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{}, &models.ApiKey{}, &models.RefreshToken{}, &models.WebAuthnCredential{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.CoinIntakeDraft{}, &models.AgentConversation{}, &models.CollectionUpdateProposal{}, &models.Follow{}, &models.CoinComment{}, &models.CoinValueHistory{}, &models.AuctionLot{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.Notification{}, &models.Tag{}, &models.CoinTag{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.AuctionEvent{}, &models.PriceAlert{}, &models.BidReminder{}, &models.ValuationRun{}, &models.ValuationResult{}, &models.AuctionEndingRun{}, &models.FeaturedCoin{}, &models.CollectionHealthSnapshot{})
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
@@ -37,6 +42,38 @@ func Connect(dbPath string) {
 	}
 
 	log.Println("Database connected and migrated")
+}
+
+// migrateCoinReferenceCertaintyColumn renames certainty → invoice_number if needed (idempotent).
+func migrateCoinReferenceCertaintyColumn(db *gorm.DB) error {
+	var columns []struct {
+		Name string
+	}
+	if err := db.Raw("PRAGMA table_info(coin_references)").Scan(&columns).Error; err != nil {
+		// Table doesn't exist yet — fresh install, nothing to migrate
+		return nil
+	}
+
+	hasCertainty := false
+	hasInvoiceNumber := false
+	for _, col := range columns {
+		if col.Name == "certainty" {
+			hasCertainty = true
+		}
+		if col.Name == "invoice_number" {
+			hasInvoiceNumber = true
+		}
+	}
+
+	// Rename only if old column exists and new one doesn't
+	if hasCertainty && !hasInvoiceNumber {
+		if err := db.Exec("ALTER TABLE coin_references RENAME COLUMN certainty TO invoice_number").Error; err != nil {
+			return err
+		}
+		log.Println("Migrated coin_references.certainty → invoice_number")
+	}
+
+	return nil
 }
 
 func seedCatalogRegistry(db *gorm.DB) error {
@@ -53,6 +90,9 @@ func seedCatalogRegistry(db *gorm.DB) error {
 		{Catalog: "Y", DisplayName: "Y Number", Era: models.EraModern, VolumeRequired: false},
 		{Catalog: "CRAIG", DisplayName: "Craig", Era: models.EraMedieval, VolumeRequired: false},
 		{Catalog: "REDBOOK", DisplayName: "Red Book", Era: models.EraModern, VolumeRequired: false},
+		{Catalog: "PRICE", DisplayName: "Price (Coinage of Alexander the Great)", Era: models.EraAncient, VolumeRequired: false},
+		{Catalog: "BM", DisplayName: "British Museum Catalogue", Era: models.EraAncient, VolumeRequired: false},
+		{Catalog: "VENÈRA", DisplayName: "La Venèra Hoard", Era: models.EraAncient, VolumeRequired: false},
 	}
 
 	for _, entry := range seed {

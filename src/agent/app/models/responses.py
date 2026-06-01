@@ -11,7 +11,6 @@ class CandidateReference(BaseModel):
     catalog: str
     volume: str = ""
     number: str
-    certainty: str = ""
     uri: str = ""
 
 

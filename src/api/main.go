@@ -217,6 +217,8 @@ func main() {
 		intakeDraftRepo := repository.NewCoinIntakeDraftRepository(database.DB)
 		coinReferenceSvc := services.NewCoinReferenceService(coinReferenceRepo, catalogRegistryRepo)
 		referenceMigrationSvc := services.NewReferenceMigrationService(database.DB, coinReferenceRepo, catalogRegistryRepo, journalRepo)
+		catalogRegistrySvc := services.NewCatalogRegistryService(catalogRegistryRepo)
+		catalogRegistryHandler := handlers.NewCatalogRegistryHandler(catalogRegistrySvc)
 		coinSvc := services.NewCoinService(coinRepo, notifSvc).WithReferenceSupport(coinReferenceRepo, coinReferenceSvc).WithStorageLocationSupport(storageLocationRepo)
 		coinHandler := handlers.NewCoinHandler(coinRepo, coinSvc, logger)
 		coinReferenceHandler := handlers.NewCoinReferenceHandler(coinReferenceRepo, coinReferenceSvc, referenceMigrationSvc)
@@ -236,6 +238,7 @@ func main() {
 		protected.POST("/coins/:id/purchase", coinHandler.Purchase)
 		protected.POST("/coins/:id/sell", coinHandler.Sell)
 		protected.DELETE("/coins/:id", coinHandler.Delete)
+		protected.GET("/catalogs", catalogRegistryHandler.List)
 
 		storageLocationSvc := services.NewStorageLocationService(storageLocationRepo)
 		storageLocationHandler := handlers.NewStorageLocationHandler(storageLocationSvc)
@@ -443,6 +446,14 @@ func main() {
 		admin.GET("/logs", adminHandler.GetLogs)
 		admin.GET("/test-anthropic", adminHandler.TestAnthropicConnection)
 		admin.GET("/test-searxng", adminHandler.TestSearXNGConnection)
+
+		// Catalog registry management (shared handler from protected scope)
+		catalogRegistryRepo := repository.NewCatalogRegistryRepository(database.DB)
+		catalogRegistrySvc := services.NewCatalogRegistryService(catalogRegistryRepo)
+		catalogRegistryHandler := handlers.NewCatalogRegistryHandler(catalogRegistrySvc)
+		admin.POST("/catalogs", catalogRegistryHandler.Create)
+		admin.PUT("/catalogs/:id", catalogRegistryHandler.Update)
+		admin.DELETE("/catalogs/:id", catalogRegistryHandler.Delete)
 
 		// Availability check run history (reuse availRepo from outer scope)
 		adminAvailHandler := handlers.NewAvailabilityHandler(nil, availRepo, nil)

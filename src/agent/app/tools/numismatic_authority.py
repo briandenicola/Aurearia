@@ -47,7 +47,6 @@ def normalize_candidate_references(raw_refs: list[dict] | None) -> list[dict]:
         catalog = str(raw.get("catalog", "")).strip().upper()
         volume = str(raw.get("volume", "")).strip()
         number = str(raw.get("number", "")).strip()
-        certainty = str(raw.get("certainty", "")).strip().lower()
         uri = lookup_authority_uri(
             catalog=catalog,
             volume=volume,
@@ -68,7 +67,6 @@ def normalize_candidate_references(raw_refs: list[dict] | None) -> list[dict]:
                 "catalog": catalog,
                 "volume": volume,
                 "number": number,
-                "certainty": certainty,
                 "uri": uri,
             }
         )

@@ -81,7 +81,6 @@ func (s *ReferenceMigrationService) MigrateLegacyReferences(userID uint) (*Migra
 		}
 
 		ref.CoinID = coin.ID
-		ref.Certainty = "legacy-import"
 
 		var existing models.CoinReference
 		err := s.db.Where("coin_id = ? AND catalog = ? AND volume = ? AND number = ?",

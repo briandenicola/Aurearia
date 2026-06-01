@@ -62,7 +62,6 @@ Structure each listing into this exact JSON schema:
         "catalog": "RIC",
         "volume": "VII",
         "number": "162",
-        "certainty": "high|probable|low",
         "uri": ""
       }
     ]
@@ -76,7 +75,7 @@ Rules:
 - Set imageUrl to "" (the frontend handles images)
 - Infer category, era, ruler, material, denomination from the listing text
 - Add candidateReferences only when a catalog reference appears in the listing text
-- candidateReferences items require catalog and number; volume, certainty, and uri are optional
+- candidateReferences items require catalog and number; volume and uri are optional
 - If you cannot determine a field, use an empty string
 - If no candidate references are present, return "candidateReferences": []
 - Do not use emojis
