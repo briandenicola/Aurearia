@@ -1216,12 +1216,105 @@ definitions:
       era:
         type: string
     type: object
+  services.ChecklistDimension:
+    enum:
+    - metadata
+    - images
+    - valuation
+    - ai
+    type: string
+    x-enum-varnames:
+    - ChecklistDimensionMetadata
+    - ChecklistDimensionImages
+    - ChecklistDimensionValuation
+    - ChecklistDimensionAI
+  services.ChecklistSeverity:
+    enum:
+    - high
+    - medium
+    - low
+    type: string
+    x-enum-varnames:
+    - ChecklistSeverityHigh
+    - ChecklistSeverityMedium
+    - ChecklistSeverityLow
+  services.CoinHealthItem:
+    properties:
+      coinId:
+        type: integer
+      dimensions:
+        $ref: '#/definitions/services.HealthDimensionScores'
+      grade:
+        $ref: '#/definitions/services.HealthGrade'
+      missingItems:
+        items:
+          $ref: '#/definitions/services.MissingChecklistItem'
+        type: array
+      quickActions:
+        items:
+          $ref: '#/definitions/services.HealthActionHint'
+        type: array
+      score:
+        type: integer
+      title:
+        type: string
+    type: object
   services.CollectionChatContext:
     properties:
       activeCoinId:
         type: integer
       route:
         type: string
+    type: object
+  services.HealthActionHint:
+    enum:
+    - edit_metadata
+    - upload_images
+    - run_valuation
+    - run_ai_analysis
+    type: string
+    x-enum-varnames:
+    - HealthActionEditMetadata
+    - HealthActionUploadImages
+    - HealthActionRunValuation
+    - HealthActionRunAIAnalysis
+  services.HealthDimensionScores:
+    properties:
+      aiCoverage:
+        type: integer
+      imageCoverage:
+        type: integer
+      metadata:
+        type: integer
+      valuationFreshness:
+        type: integer
+    type: object
+  services.HealthGrade:
+    enum:
+    - A
+    - B
+    - C
+    - D
+    - F
+    type: string
+    x-enum-varnames:
+    - HealthGradeA
+    - HealthGradeB
+    - HealthGradeC
+    - HealthGradeD
+    - HealthGradeF
+  services.MissingChecklistItem:
+    properties:
+      actionHint:
+        $ref: '#/definitions/services.HealthActionHint'
+      dimension:
+        $ref: '#/definitions/services.ChecklistDimension'
+      key:
+        type: string
+      label:
+        type: string
+      severity:
+        $ref: '#/definitions/services.ChecklistSeverity'
     type: object
 info:
   contact: {}
@@ -3286,6 +3379,47 @@ paths:
       summary: Analyze coin images
       tags:
       - Analysis
+  /coins/{id}/health:
+    get:
+      description: Returns the computed metadata health score, grade, dimension scores,
+        and checklist of missing items for a specific coin owned by the authenticated
+        user
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.CoinHealthItem'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get metadata health for a single coin
+      tags:
+      - Health
   /coins/{id}/images:
     post:
       consumes:

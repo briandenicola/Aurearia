@@ -265,6 +265,7 @@ func main() {
 		healthHandler := handlers.NewHealthHandler(healthSvc, logger)
 		protected.GET("/stats/health", healthHandler.CollectionSummary)
 		protected.GET("/coins/health", healthHandler.ListCoinHealth)
+		protected.GET("/coins/:id/health", healthHandler.GetCoinHealth)
 		protected.GET("/stats/distribution", coinHandler.Distribution)
 		protected.GET("/value-history", coinHandler.ValueHistory)
 		protected.GET("/coins/:id/value-history", coinHandler.CoinValueHistory)

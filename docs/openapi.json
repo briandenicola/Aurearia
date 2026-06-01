@@ -3344,6 +3344,67 @@
                 }
             }
         },
+        "/coins/{id}/health": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the computed metadata health score, grade, dimension scores, and checklist of missing items for a specific coin owned by the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Health"
+                ],
+                "summary": "Get metadata health for a single coin",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.CoinHealthItem"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/coins/{id}/images": {
             "post": {
                 "security": [
@@ -8003,6 +8064,66 @@
                 }
             }
         },
+        "services.ChecklistDimension": {
+            "type": "string",
+            "enum": [
+                "metadata",
+                "images",
+                "valuation",
+                "ai"
+            ],
+            "x-enum-varnames": [
+                "ChecklistDimensionMetadata",
+                "ChecklistDimensionImages",
+                "ChecklistDimensionValuation",
+                "ChecklistDimensionAI"
+            ]
+        },
+        "services.ChecklistSeverity": {
+            "type": "string",
+            "enum": [
+                "high",
+                "medium",
+                "low"
+            ],
+            "x-enum-varnames": [
+                "ChecklistSeverityHigh",
+                "ChecklistSeverityMedium",
+                "ChecklistSeverityLow"
+            ]
+        },
+        "services.CoinHealthItem": {
+            "type": "object",
+            "properties": {
+                "coinId": {
+                    "type": "integer"
+                },
+                "dimensions": {
+                    "$ref": "#/definitions/services.HealthDimensionScores"
+                },
+                "grade": {
+                    "$ref": "#/definitions/services.HealthGrade"
+                },
+                "missingItems": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.MissingChecklistItem"
+                    }
+                },
+                "quickActions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.HealthActionHint"
+                    }
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "services.CollectionChatContext": {
             "type": "object",
             "properties": {
@@ -8011,6 +8132,75 @@
                 },
                 "route": {
                     "type": "string"
+                }
+            }
+        },
+        "services.HealthActionHint": {
+            "type": "string",
+            "enum": [
+                "edit_metadata",
+                "upload_images",
+                "run_valuation",
+                "run_ai_analysis"
+            ],
+            "x-enum-varnames": [
+                "HealthActionEditMetadata",
+                "HealthActionUploadImages",
+                "HealthActionRunValuation",
+                "HealthActionRunAIAnalysis"
+            ]
+        },
+        "services.HealthDimensionScores": {
+            "type": "object",
+            "properties": {
+                "aiCoverage": {
+                    "type": "integer"
+                },
+                "imageCoverage": {
+                    "type": "integer"
+                },
+                "metadata": {
+                    "type": "integer"
+                },
+                "valuationFreshness": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.HealthGrade": {
+            "type": "string",
+            "enum": [
+                "A",
+                "B",
+                "C",
+                "D",
+                "F"
+            ],
+            "x-enum-varnames": [
+                "HealthGradeA",
+                "HealthGradeB",
+                "HealthGradeC",
+                "HealthGradeD",
+                "HealthGradeF"
+            ]
+        },
+        "services.MissingChecklistItem": {
+            "type": "object",
+            "properties": {
+                "actionHint": {
+                    "$ref": "#/definitions/services.HealthActionHint"
+                },
+                "dimension": {
+                    "$ref": "#/definitions/services.ChecklistDimension"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "severity": {
+                    "$ref": "#/definitions/services.ChecklistSeverity"
                 }
             }
         }

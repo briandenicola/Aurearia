@@ -121,6 +121,38 @@ func (s *HealthService) ListCoinHealth(userID uint, page, limit int, scope strin
 	}, nil
 }
 
+// GetCoinHealth returns health data for a single coin.
+func (s *HealthService) GetCoinHealth(coinID, userID uint) (*CoinHealthItem, error) {
+	row, err := s.repo.GetSingleEligibleCoin(coinID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	metadataScore := s.scoreCoinMetadata(row)
+	imageScore := s.scoreCoinImages(row)
+	valuationScore := s.scoreCoinValuationFreshness(row)
+	aiScore := s.scoreCoinAICoverage(row)
+	totalScore := s.computeWeightedScore(metadataScore, imageScore, valuationScore, aiScore)
+
+	checklist := s.generateCoinChecklist(row)
+	quickActions := s.extractQuickActions(checklist)
+
+	return &CoinHealthItem{
+		CoinID: row.CoinID,
+		Title:  row.Title,
+		Score:  totalScore,
+		Grade:  HealthGradeFromScore(totalScore),
+		Dimensions: HealthDimensionScores{
+			Metadata:           metadataScore,
+			ImageCoverage:      imageScore,
+			ValuationFreshness: valuationScore,
+			AICoverage:         aiScore,
+		},
+		MissingItems: checklist,
+		QuickActions: quickActions,
+	}, nil
+}
+
 // GetAdminHealthSummary returns aggregate health metrics for admin views.
 func (s *HealthService) GetAdminHealthSummary() (*AdminHealthSummary, error) {
 	allCoins, err := s.repo.ListAllEligibleCoins()

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, LegacyMigrationResult } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, ValuationRun, AuctionEndingRun, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, LegacyMigrationResult } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -419,6 +419,9 @@ export const getValueHistory = () => api.get<ValueSnapshot[]>('/value-history')
 export const getCollectionHealthSummary = () => api.get<CollectionHealthSummary>('/stats/health')
 export const getCoinHealthList = (params?: { scope?: 'all' | 'needs_attention'; page?: number; limit?: number }) =>
   api.get<CoinHealthListResponse>('/coins/health', { params })
+
+export const getCoinHealth = (coinId: number) =>
+  api.get<CoinHealthItem>(`/coins/${coinId}/health`)
 
 // Autocomplete suggestions
 export const getSuggestions = (field: string, q: string) =>

@@ -67,3 +67,36 @@ func (h *HealthHandler) ListCoinHealth(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, list)
 }
+
+// GetCoinHealth godoc
+//
+//	@Summary		Get metadata health for a single coin
+//	@Description	Returns the computed metadata health score, grade, dimension scores, and checklist of missing items for a specific coin owned by the authenticated user
+//	@Tags			Health
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			id	path		int	true	"Coin ID"
+//	@Success		200	{object}	services.CoinHealthItem
+//	@Failure		400	{object}	map[string]string
+//	@Failure		404	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Router			/coins/{id}/health [get]
+func (h *HealthHandler) GetCoinHealth(c *gin.Context) {
+	userID := c.GetUint("userId")
+
+	coinIDStr := c.Param("id")
+	coinID, err := strconv.ParseUint(coinIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid coin ID"})
+		return
+	}
+
+	health, err := h.svc.GetCoinHealth(uint(coinID), userID)
+	if err != nil {
+		h.logger.Warn("health", "Failed to fetch coin health for coin %d, user %d: %v", coinID, userID, err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found or not in active collection"})
+		return
+	}
+
+	c.JSON(http.StatusOK, health)
+}

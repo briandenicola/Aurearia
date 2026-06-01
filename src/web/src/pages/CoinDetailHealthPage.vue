@@ -23,7 +23,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import CoinDetailSectionPageShell from '@/components/coin/CoinDetailSectionPageShell.vue'
 import CoinHealthChecklist from '@/components/coin/CoinHealthChecklist.vue'
-import { getCoinHealthList } from '@/api/client'
+import { getCoinHealth } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
 import type { CoinHealthItem, HealthQuickAction } from '@/types'
 
@@ -40,8 +40,8 @@ onMounted(() => {
 async function loadCoinHealth() {
   const coinId = Number(route.params.id)
   try {
-    const res = await getCoinHealthList({ page: 1, limit: 1000 })
-    coinHealth.value = res.data.coins.find(c => c.coinId === coinId) ?? null
+    const res = await getCoinHealth(coinId)
+    coinHealth.value = res.data
   } catch (err) {
     console.error('Failed to load coin health:', err)
     coinHealth.value = null

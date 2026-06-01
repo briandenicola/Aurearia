@@ -168,3 +168,21 @@ func (r *HealthRepository) ListAllEligibleCoins() ([]EligibleCoinRow, error) {
 	return rows, nil
 }
 
+// GetSingleEligibleCoin returns a single coin's health data for the requesting user.
+func (r *HealthRepository) GetSingleEligibleCoin(coinID, userID uint) (*EligibleCoinRow, error) {
+	var row EligibleCoinRow
+	err := r.db.Model(&models.Coin{}).
+		Scopes(ActiveCollection(userID)).
+		Where("id = ?", coinID).
+		Select(
+			"id AS coin_id, name AS title, category, denomination, ruler, era, mint, material, grade, reference_url, purchase_date, current_value, ai_analysis, obverse_analysis, reverse_analysis, updated_at, "+
+				"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id AND is_primary = true) AS primary_image_count, "+
+				"(SELECT COUNT(*) FROM coin_images WHERE coin_id = coins.id) AS image_count",
+		).
+		First(&row).Error
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
