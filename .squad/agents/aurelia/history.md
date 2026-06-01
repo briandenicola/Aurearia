@@ -20,7 +20,25 @@
 
 ## Learnings
 
+- **2026-06-01:** Free-text Rarity/RIC UI removed in favor of the structured Catalog References section. Removed the Details metadata row from `src/web/src/composables/useCoinDetailMetadataRows.ts`, the legacy info-grid card from `src/web/src/components/coin/CoinInfoGrid.vue`, and the Rarity Rating (RIC) input from `src/web/src/components/CoinForm.vue`; data plumbing remains intact.
 - **2026-06-01:** Storage Location frontend integration completed. Added `StorageLocation` types and API client CRUD methods (`getStorageLocations`, `createStorageLocation`, `updateStorageLocation`, `deleteStorageLocation`) in `src/web/src/api/client.ts`; `sanitizeCoin()` now normalizes `storageLocationId` and strips read-only `storageLocation`. Settings → Data now shows a two-column lookup manager with Tags and Storage Locations side by side in `SettingsDataSection.vue`; storage-location delete surfaces backend 409 conflict messages so users know to reassign coins first. `CoinForm.vue` loads `/storage-locations` and binds a single-select “Storage Location” dropdown with a “None” option; `useCoinDetailMetadataRows.ts` displays the chosen location as a Details row with `coin.storageLocation?.name ?? '—'`. Build and lint pass; full `npm test` remains blocked by pre-existing design-token budget failures unchanged from HEAD.
 - **2026-06-01:** Settings reorganization completed. Added `src/web/src/components/settings/SettingsBackupsSection.vue` for collection export/PDF/import backups plus API key generation/revoke flows; moved `loadApiKeys()` exposure there. Settings now has tab id `backups` labeled “Backups & Keys” with the Archive icon, and the Data tab now contains only Tags + Storage Locations metadata management.
 
 - **2026-06-01:** Backend storage-location migration convention: nullable `Coin` lookup FKs may exist without physical SQLite constraints (`constraint:-`) to avoid destructive rebuilds; frontend should continue treating `storageLocationId` as nullable and rely on API validation/errors.
+
+## 2026-06-01 — Free-Text Rarity/RIC UI Removal
+
+Removed legacy free-text Rarity/RIC surface from coin detail metadata and coin form. The structured Catalog References section now serves as the canonical UI for numismatic references.
+
+**Files modified:**
+- `src/web/src/composables/useCoinDetailMetadataRows.ts` — removed the `Rarity / RIC` metadata row backed by `coin.rarityRating`
+- `src/web/src/components/CoinForm.vue` — removed the `Rarity Rating (RIC)` input field from the coin add/edit form  
+- `src/web/src/components/coin/CoinInfoGrid.vue` — removed legacy `Rarity / RIC` fallback info card
+
+**Notes:**
+- TypeScript types and API client sanitization remain intact for backward compatibility
+- Backend free-text `coin.rarityRating` persists; structured `CoinReference` records are the future canonical storage
+- Commit: be84843
+
+**Related:**
+- Cassius proposed a design for migrating legacy `rarityRating` values into `CoinReference` records (PROPOSED/PENDING Brian approval)

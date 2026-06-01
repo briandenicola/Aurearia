@@ -4412,3 +4412,102 @@ For new nullable associations added to the existing `Coin` model, keep the scala
 - Startup `AutoMigrate` stays additive for existing databases and does not drop/rebuild `coins` just to add the nullable lookup column.
 - Application/service validation remains responsible for ownership and referential correctness.
 - If a future feature requires a physical SQLite foreign key on `coins`, it needs an explicit migration strategy that disables FK checks only for the rebuild window and verifies data integrity afterward.
+
+---
+
+# Decision: Remove Free-Text Rarity/RIC UI
+
+**Date:** 2026-06-01  
+**Agent:** Aurelia (Frontend Developer)  
+**Status:** Implemented
+
+## Summary
+
+Removed the legacy free-text Rarity/RIC user interface from coin detail metadata, coin edit/add form, and fallback info card. The structured Catalog References section remains the canonical UI for numismatic catalog references.
+
+## Files Modified
+
+- `src/web/src/composables/useCoinDetailMetadataRows.ts` — removed the Rarity/RIC metadata row backed by `coin.rarityRating`
+- `src/web/src/components/CoinForm.vue` — removed the Rarity Rating (RIC) input field from coin add/edit forms
+- `src/web/src/components/coin/CoinInfoGrid.vue` — removed legacy Rarity/RIC fallback info card
+
+## Notes
+
+- TypeScript types, API client sanitization, and the structured `CoinReferencesSection.vue` remain intact
+- Existing stored data and catalog-reference workflows continue to work unchanged
+- Commit: be84843
+
+## Rationale
+
+The structured Catalog References feature provides proper validation, volume requirements, and URI storage that the legacy free-text field lacked. Removing this redundant UI surface simplifies the coin detail/form while preserving the canonical reference workflow.
+
+---
+
+# Decision: Legacy Rarity/RIC to Catalog References Migration (Proposal)
+
+**Date:** 2026-06-01  
+**Agent:** Cassius (Backend Developer)  
+**Status:** Proposed; awaiting Brian approval before implementation
+
+## Context
+
+With the free-text Rarity/RIC UI removed (decision above), the question arises: should existing legacy `Coin.RarityRating` values be backfilled into structured `CoinReference` records?
+
+Cassius conducted a design review of the schema, catalog validation rules, and migration approach.
+
+## Key Findings
+
+- Legacy field: `Coin.RarityRating` (string, DB column `rarity_rating`). Historically labeled "Rarity/RIC" in the UI; documented as a catalog reference field (e.g., "RIC 207", "Sear 1625").
+- Modern storage: `CoinReference` table with `(coin_id, catalog, volume, number, certainty, uri)` and unique constraint on `(coin_id, catalog, volume, number)`.
+- Validation: `CatalogRegistry` enforces supported catalog names and volume requirements (e.g., RIC/RPC/SNG require volume; SEAR/CRAWFORD/etc. do not).
+- Fallback fields: `Coin.ReferenceText` and `Coin.ReferenceURL` are external-link fallbacks, not the primary RIC storage.
+- Current dev state: 0 coins, 0 coin references (seed-only database).
+
+## Proposed Migration Design
+
+A one-time, idempotent backfill operation guarded by an `app_settings` marker (`LegacyRarityRatingReferenceBackfillV1`), placed after `AutoMigrate` and `seedCatalogRegistry` in `database.Connect()`.
+
+### Parser Rules
+
+For each coin where `trim(rarity_rating) <> ''`:
+
+1. **Parse** one or more reference fragments (delimited by semicolon if multi-reference is approved).
+2. **Normalize** catalog aliases:
+   - Exact codes: RIC, RPC, SNG, CRAWFORD, CNI, KM, Y, CRAIG, REDBOOK
+   - Aliases: Sear/SRCV → SEAR; Spink → SPINK; Duplessy → DUPLESSY
+3. **Volume extraction** (for catalogs that require it):
+   - Example: `RIC II 207` → `{catalog:"RIC", volume:"II", number:"207"}`
+   - Example: `RIC VII 162` → `{catalog:"RIC", volume:"VII", number:"162"}`
+4. **Non-volume catalogs:**
+   - Example: `Sear 1625` → `{catalog:"SEAR", number:"1625"}`
+5. **Preserve** string qualifiers in the number field (e.g., `256a`, `cf. 88`).
+6. **Validate** each candidate through `CoinReferenceService.NormalizeAndValidateOne`.
+7. **Insert** only if `(coin_id, catalog, volume, number)` does not already exist. Existing structured references win.
+8. **Log** every skipped value with coin id, original text, and skip reason. Do not fail startup for an unparseable value. Fail only on database errors.
+
+### Ambiguous Value Policy
+
+**Skip and log** ambiguous values instead of inventing structure. Example: bare `RIC 207` should be skipped because the current catalog registry requires RIC volume. Creating an unverified reference without volume would conflict with the existing validation contract.
+
+## Open Questions (Awaiting Brian Approval)
+
+1. **Bare RIC 207 handling:** Should bare "RIC 207" be skipped (per ambiguous-value policy), or should Brian approve a manual-review pathway (e.g., storing it as a note for later human triage)?
+
+2. **Multi-reference support:** Should the parser support multiple references per field (`RIC II 207; Cohen 15; SEAR 1625`)? If yes, should unsupported catalogs be logged only or also surfaced in an admin report UI?
+
+3. **Certainty value:** Use `certainty:"legacy-import"` for all backfilled references, or reuse existing UI certainty values (e.g., `probable`, `high`)?
+
+## Placement Recommendation
+
+Implement as a guarded startup backfill in `src/api/database/database.go`, reusing the same idempotent pattern as `seedCatalogRegistry` and existing data maintenance. This aligns with the codebase's startup-time data consistency approach and avoids deployment friction from standalone CLI commands.
+
+## Non-Destructive Requirement
+
+**Do not drop** `rarity_rating`, `reference_text`, or `reference_url` columns during or after the migration. SQLite column drops require table rebuilds that risk data loss on the `coins` table and its dependent child tables (`coin_images`, `coin_tags`, etc.). Column removal should be a later, explicit decision with a copy-tested SQLite migration.
+
+## Next Steps
+
+- Brian to approve/reject the proposal and provide answers to the 3 open questions.
+- Once approved: Cassius to implement the backfill in the next batch.
+- Decision will move to **Accepted/Implemented** status after code lands.
+
