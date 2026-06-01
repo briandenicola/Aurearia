@@ -7,10 +7,23 @@
       :class="{ 'full-width': row.fullWidth }"
     >
       <span v-if="!row.fullWidth" class="row-label">{{ row.label }}</span>
-      <span v-if="!row.url" class="row-value" :class="row.valueClass">{{ row.value }}</span>
-      <SafeExternalLink v-else :href="row.url" class="row-value row-link" :class="row.valueClass">
-        {{ row.value }}
-      </SafeExternalLink>
+      
+      <!-- Purchase location row with Store: prefix -->
+      <template v-if="row.key === 'purchaseLocation'">
+        <span class="store-prefix">Store: </span>
+        <span v-if="!row.url" class="row-value" :class="row.valueClass">{{ row.value }}</span>
+        <SafeExternalLink v-else :href="row.url" class="row-value row-link" :class="row.valueClass">
+          {{ row.value }}
+        </SafeExternalLink>
+      </template>
+      
+      <!-- Standard rows -->
+      <template v-else>
+        <span v-if="!row.url" class="row-value" :class="row.valueClass">{{ row.value }}</span>
+        <SafeExternalLink v-else :href="row.url" class="row-value row-link" :class="row.valueClass">
+          {{ row.value }}
+        </SafeExternalLink>
+      </template>
     </div>
   </div>
 </template>
@@ -48,5 +61,10 @@ defineProps<{
 
 .metadata-row.full-width .row-link:hover {
   color: var(--accent-bronze);
+}
+
+.store-prefix {
+  font-style: italic;
+  color: var(--text-muted);
 }
 </style>
