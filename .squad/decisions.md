@@ -3999,3 +3999,62 @@ All prior content has been reorganized into one of the three sections. No accura
 
 **Verdict:** ✅ Proceed with beta→main merge. All gates cleared for v2 release.
 
+---
+
+### 5. Feature #219: Coin Detail Tags Section UI Update (2026-06-01)
+
+**Agent:** Aurelia (Frontend Developer)  
+**Date:** 2026-06-01  
+**Status:** Implemented  
+**Task:** UI tweaks — Tags section promotion & repositioning
+
+## Summary
+
+Promoted Tags section on CoinDetailPage to match visual hierarchy of other full sections (Details, Description, Inscriptions). Relocated tags in page flow for better information architecture: now sits after Details and before Catalog Reference.
+
+## Changes
+
+1. **Promoted Tags to Full Section**
+   - Changed `<h4 class="section-label">Tags</h4>` → `<h3>Tags</h3>` in CoinTagsSection.vue
+   - Renamed wrapper from `.detail-tags-section` → `.tags-section`
+   - Applied consistent section styling: `margin-bottom: 1.5rem`, heading `margin-bottom: 0.75rem`, `font-size: 1rem`
+   - Now visually matches other sections like Details, Description, Inscriptions
+
+2. **Repositioned Tags in Page Flow**
+   - Moved `<CoinTagsSection>` from after Inscriptions to after Details (metadata-section)
+   - New order: Inscriptions → Purchase Meta → **Details** → **Tags** → Catalog References → Description
+   - Improves information flow: structured metadata (Details) followed by user-managed metadata (Tags) before catalog references
+
+3. **Enlarged Tag Pills for Mobile**
+   - Upgraded pills from `.chip-sm` size (0.75rem/0.15rem 0.5rem) to `.chip` size (0.8rem/0.35rem 0.85rem)
+   - Proportional updates: `.btn-tag-add` now matches `.chip` sizing, `.detail-tags` gap increased to `0.5rem`, `.tag-picker` margin-top to `0.75rem`
+   - Better mobile touch targets, consistent with other interactive elements
+
+4. **Italicized Purchase Line**
+   - Added `font-style: italic;` to `.purchase-meta` in CoinDetailPage.vue
+   - Distinguishes purchase provenance visually from other metadata
+
+## Validation
+
+- ✅ `npm run type-check` — clean
+- ✅ `npm run build` — clean (6.54s)
+- ✅ Design tokens only — no hardcoded values
+- ✅ Mobile/PWA layout preserved
+
+## Design System Compliance
+
+- Uses `.chip` size from design system (0.8rem/0.35rem 0.85rem)
+- Uses `var(--radius-full)` for pill border-radius
+- Section spacing matches Principle V: 1.5rem between sections, 0.75rem within
+- `<h3>` treatment matches sibling sections (Inscriptions, Description, References)
+
+## Pattern for Future Detail Sections
+
+Any new sections on CoinDetailPage should follow this pattern:
+- Wrapper: `.xxx-section` with `margin-bottom: 1.5rem`
+- Heading: `<h3>` with `margin-bottom: 0.75rem`, `font-size: 1rem`
+- Interactive pills use `.chip` size (0.8rem/0.35rem 0.85rem)
+- Static badges use `.chip-sm` size (0.75rem/0.15rem 0.5rem)
+
+**Verdict:** ✅ APPROVE — Type-check + build clean. Ready for merge.
+

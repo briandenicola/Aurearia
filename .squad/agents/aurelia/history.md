@@ -178,3 +178,33 @@ Related to Issue #217 (Collection Chat) and #218 (External Tool Server), Cassius
 - Set to API service name: `http://coins:8080` or `http://app:8080` depending on your docker-compose setup
 - Documented in `docs/deployment.md` with startup warning in release mode
 - Your external tool server work (#218) depends on this multi-container layer functioning correctly
+
+### Coin Detail Section Organization (2026-06-01)
+
+**Section ordering pattern on CoinDetailPage.vue:**
+1. Title hierarchy (name, ruler, category/status badges)
+2. Inscriptions (obverse/reverse)
+3. Purchase metadata (date, store, reference URL) — italicized
+4. Details (metadata table — material, denomination, mint, weight, etc.)
+5. **Tags** (user tags with add/remove)
+6. Catalog References (RIC, etc.)
+7. Description (obverse/reverse descriptions)
+8. Listing Status (availability check banner)
+9. Detail section links (settings-style navigation)
+
+**Tags as full section (not a sub-heading):**
+- Changed from `<h4 class="section-label">Tags</h4>` to `<h3>Tags</h3>` to match sibling sections (Details, Description, Inscriptions)
+- Section wrapper renamed from `.detail-tags-section` to `.tags-section` with `margin-bottom: 1.5rem` (full section spacing)
+- Heading gets `margin-bottom: 0.75rem`, `font-size: 1rem` (consistent with other `<h3>` in page)
+- This pattern applies to any future detail-page sections: use `<h3>` inside a `.xxx-section` wrapper with 1.5rem bottom margin
+
+**Tag pill sizing — .chip vs .chip-sm:**
+- `.chip` size (interactive filter pills): `font-size: 0.8rem; padding: 0.35rem 0.85rem`
+- `.chip-sm` size (static tag/label): `font-size: 0.75rem; padding: 0.15rem 0.5rem`
+- Tags on detail page are now `.chip`-sized (larger, more tappable) for better mobile interaction and visual consistency with other interactive elements
+- Button controls (`.btn-tag-add`, `.tag-picker`) bumped to match: `0.8rem` font, `0.35rem 0.85rem` padding for `.btn-tag-add`, `gap: 0.5rem` in `.detail-tags` row, `margin-top: 0.75rem` for `.tag-picker`
+- Use `.chip-sm` only for static badges (like "Wishlist", "Sold" chips in title area)
+
+## Team Updates
+
+- **2026-06-01:** Feature #219 Tags UI refinements completed. Promoted Tags to full section (h3 heading, 1.5rem spacing, .chip-sized pills), repositioned after Details and before Catalog Reference. Purchase metadata line italicized for visual distinction. Type-check + build pass clean. Ready for merge. Decision merged to decisions.md.
