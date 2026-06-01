@@ -4058,3 +4058,24 @@ Any new sections on CoinDetailPage should follow this pattern:
 
 **Verdict:** ✅ APPROVE — Type-check + build clean. Ready for merge.
 
+
+### 14. AddCoinPage Camera Button Layout (2026-06-01)
+
+**Agent:** Aurelia (Frontend Developer)  
+**Feature:** Minor AddCoinPage.vue UI refinements  
+**Status:** APPROVED  
+**Date:** 2026-06-01
+
+**Summary:** Camera action buttons (`.camera-actions`) repositioned using a 3-column grid layout matching the `.capture-slots` tile structure above. Shutter button (Camera icon) centered under REVERSE tile (column 2). Photo selection button repositioned right-aligned under CARD tile (column 3), with icon changed from `Upload` to `Images` (lucide-vue-next) for semantic clarity. All design tokens used; vue-tsc --build passes clean.
+
+**Implementation:**
+- `.camera-actions`: `display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem`
+- `.shutter-btn`: `grid-column: 2; justify-self: center`
+- `.upload-icon-btn`: `grid-column: 3; justify-self: end`
+- Icon: `Upload` → `Images`
+
+**Compliance:** Principle V (Design Tokens), Principle IX (UI/UX Consistency), Principle IV (Strict Typing)
+
+**Verdict:** ✅ APPROVE — Type-check + lint pass clean. Ready for merge.
+
+---

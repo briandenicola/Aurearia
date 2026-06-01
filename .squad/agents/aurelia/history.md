@@ -208,3 +208,11 @@ Related to Issue #217 (Collection Chat) and #218 (External Tool Server), Cassius
 ## Team Updates
 
 - **2026-06-01:** Feature #219 Tags UI refinements completed. Promoted Tags to full section (h3 heading, 1.5rem spacing, .chip-sized pills), repositioned after Details and before Catalog Reference. Purchase metadata line italicized for visual distinction. Type-check + build pass clean. Ready for merge. Decision merged to decisions.md.
+
+- **2026-06-01:** AddCoinPage camera controls layout updated. Changed `.camera-actions` to 3-column grid matching `.capture-slots` for precise column alignment. Shutter button (Camera icon) centered under REVERSE tile (column 2). Photo selection button (Images icon, replaced Upload) aligned right under CARD tile (column 3). Icon swap provides better semantic match for photo library access. Type-check + lint pass clean. Decision in inbox.
+
+## Learnings
+
+- **FeaturedCoinModal**: New modal component integrated into App.vue with EventBus listening for `openFeaturedCoinModal` events from NotificationPopup clicks. Modal fetches coin + featured record via `/featured-coins/:id` endpoint, displays cached summary + coin images. Supports "close-this-modal-only" pattern via direct `showFeaturedCoinModal.value = false` and "close-all-modals" via EventBus `closeAllModals` + Escape key. Daily featured coin notification type is `coin_of_day`, referenceId is FeaturedCoin.ID (not coin id). Modal uses design tokens, no emojis, lucide icons, dark theme. Positioned after NotificationPopup in App.vue `z-index` stack (below dialogs/prompts, above popups).
+
+- **AddCoinPage Camera Controls Layout**: Camera action buttons now use a 3-column grid (`display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem`) matching `.capture-slots` tile grid for precise vertical alignment. Shutter button (`.shutter-btn`) positioned in column 2 (`grid-column: 2; justify-self: center`) under the REVERSE tile. Photo selection button (`.upload-icon-btn`) positioned in column 3 (`grid-column: 3; justify-self: end`) aligned to the right edge of the CARD tile. Column 1 remains empty. Icon changed from `Upload` to `Images` (lucide `Images` icon for photo library access). This layout ensures camera controls visually align with their corresponding capture targets above.

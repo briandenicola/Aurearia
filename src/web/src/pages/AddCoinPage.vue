@@ -109,7 +109,7 @@
               @click="triggerFileInput(nextCaptureTarget)"
               aria-label="Upload from library"
             >
-              <Upload :size="20" />
+              <Images :size="20" />
             </button>
           </div>
 
@@ -297,7 +297,7 @@ import { useCoinsStore } from '@/stores/coins'
 import CoinForm from '@/components/CoinForm.vue'
 import { useDialog } from '@/composables/useDialog'
 import { usePwa } from '@/composables/usePwa'
-import { Camera, Upload } from 'lucide-vue-next'
+import { Camera, Images } from 'lucide-vue-next'
 
 type EntryMode = 'manual' | 'agentic'
 type CaptureTarget = 'obverse' | 'reverse' | 'card'
@@ -1085,13 +1085,15 @@ onBeforeUnmount(() => {
 }
 
 .camera-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
   align-items: center;
-  justify-content: center;
-  gap: 1rem;
 }
 
 .shutter-btn {
+  grid-column: 2;
+  justify-self: center;
   width: 4rem;
   height: 4rem;
   border-radius: 50%;
@@ -1117,6 +1119,8 @@ onBeforeUnmount(() => {
 }
 
 .upload-icon-btn {
+  grid-column: 3;
+  justify-self: end;
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 50%;
