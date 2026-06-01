@@ -3974,3 +3974,28 @@ The new three-section architecture of `external-tool-server.md`:
 ## No Deleted Content
 
 All prior content has been reorganized into one of the three sections. No accurate information was removed. The document is at least as complete as before, with clearer audience targeting.
+
+---
+
+### 4. v1→v2 Database Migration Safety (2026-06-01)
+
+**Agent:** Cassius (Backend Developer)  
+**Task:** Audit v1→v2 database migration for beta→main release merge  
+**Date:** 2026-06-01  
+**Status:** ✅ APPROVED
+
+**Summary:** v1→v2 database migration is **safe, automatic, and requires no manual steps**. Schema changes are additive; rollback-safe. Key safeguard: explicit backfill UPDATE for `api_keys.capabilities` column ensures no undefined states.
+
+**Schema Delta:**
+- 2 new tables: `coin_intake_drafts` (#216), `collection_update_proposals` (#217) — clean schema, no data migration
+- 1 modified table: `api_keys` — added `Capabilities` column with GORM default `"read"` + explicit backfill (`UPDATE api_keys SET capabilities='read' WHERE capabilities IS NULL OR capabilities=''`) in `database.go:32`
+- 1 new AppSetting: `ExternalToolServerEnabled` — lazy-created with `GetWithDefault()`, in-memory fallback, no seeding required
+
+**Guarantees:**
+- No destructive changes (no removed columns, type narrowing, new NOT NULL without defaults, new UNIQUE constraints)
+- GORM AutoMigrate is additive-only
+- v1 binary ignores unknown columns/tables — rollback-safe
+- Empirical test: beta binary boots clean, AutoMigrate + backfill executes without errors
+
+**Verdict:** ✅ Proceed with beta→main merge. All gates cleared for v2 release.
+
