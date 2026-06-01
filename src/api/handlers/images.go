@@ -74,6 +74,21 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 		return
 	}
 
+	// Verify coin ownership BEFORE reading/decoding file data
+	if _, err := h.repo.FindCoinByOwner(uint(coinID), userID); err != nil {
+		logger.Warn("images", "Ownership check failed for coin %d (user %d): %v", coinID, userID, err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
+		return
+	}
+
+	// Optional early size check before reading full file
+	const maxSize = 20 * 1024 * 1024
+	if file.Size > int64(maxSize) {
+		logger.Warn("images", "Upload rejected: file size %d exceeds limit %d", file.Size, maxSize)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Image exceeds 20MB limit"})
+		return
+	}
+
 	f, err := file.Open()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read uploaded file"})
@@ -92,7 +107,7 @@ func (h *ImageHandler) Upload(c *gin.Context) {
 	circleClipStr := c.DefaultPostForm("circleClip", "false")
 	circleClip := circleClipStr == "true" || circleClipStr == "1"
 
-	// Apply circular clipping if requested for obverse/reverse
+	// Apply circular clipping if requested for obverse/reverse (ownership already verified)
 	if circleClip && (imageType == "obverse" || imageType == "reverse") {
 		clippedData, clipErr := capture.ClipBytesToCirclePNG(fileData, capture.DefaultGuide)
 		if clipErr != nil {
@@ -179,7 +194,14 @@ func (h *ImageHandler) UploadBase64(c *gin.Context) {
 		imageType = req.ImageType
 	}
 
-	// If clipping requested for obverse/reverse, decode and clip before passing to service
+	// Verify coin ownership BEFORE decoding/clipping base64 data
+	if _, err := h.repo.FindCoinByOwner(uint(coinID), userID); err != nil {
+		logger.Warn("images", "Ownership check failed for coin %d (user %d): %v", coinID, userID, err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
+		return
+	}
+
+	// If clipping requested for obverse/reverse, decode and clip (ownership already verified)
 	if req.CircleClip && (imageType == "obverse" || imageType == "reverse") {
 		decoded, decodeErr := h.decodeBase64(req.Image)
 		if decodeErr != nil {

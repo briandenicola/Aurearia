@@ -501,3 +501,140 @@ func TestUploadBase64_CircleClip_UndecodableData(t *testing.T) {
 		t.Errorf("stored data does not match original after clip failure")
 	}
 }
+
+// TestUploadMultipart_CircleClip_NonOwner verifies that ownership is checked BEFORE decode/clip,
+// so attempting to upload with circleClip=true for a non-owned coin returns 404 without decoding.
+func TestUploadMultipart_CircleClip_NonOwner(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupClipTestDB(t)
+
+	// Create test user 1 and their coin
+	user1 := models.User{Username: "user1", Email: "user1@example.com"}
+	if err := db.Create(&user1).Error; err != nil {
+		t.Fatalf("failed to create user1: %v", err)
+	}
+	coin1 := models.Coin{UserID: user1.ID, Name: "User1 Coin"}
+	if err := db.Create(&coin1).Error; err != nil {
+		t.Fatalf("failed to create coin1: %v", err)
+	}
+
+	// Create test user 2 (attacker)
+	user2 := models.User{Username: "user2", Email: "user2@example.com"}
+	if err := db.Create(&user2).Error; err != nil {
+		t.Fatalf("failed to create user2: %v", err)
+	}
+
+	uploadDir := t.TempDir()
+	repo := repository.NewImageRepository(db)
+	imgSvc := services.NewImageService(repo, uploadDir)
+	logger := services.NewLogger(100)
+	handler := NewImageHandler(uploadDir, repo, imgSvc, logger)
+
+	router := gin.New()
+	// User 2 is authenticated
+	router.Use(func(c *gin.Context) {
+		c.Set("userId", user2.ID)
+		c.Next()
+	})
+	router.POST("/coins/:id/images", handler.Upload)
+
+	jpegData := makeSyntheticJPEG(300, 300)
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, _ := writer.CreateFormFile("image", "test.jpg")
+	part.Write(jpegData)
+	writer.WriteField("imageType", "obverse")
+	writer.WriteField("circleClip", "true")
+	writer.Close()
+
+	// User 2 tries to upload to User 1's coin
+	req := httptest.NewRequest(http.MethodPost, "/coins/"+fmt.Sprint(coin1.ID)+"/images", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+makeClipTestJWT(user2.ID))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// Should return 404 (not found) because User 2 doesn't own coin1
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 (ownership check failed), got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify NO file was written (clip never executed)
+	coinDir := filepath.Join(uploadDir, fmt.Sprintf("coin-%d", coin1.ID))
+	if _, err := os.Stat(coinDir); err == nil {
+		entries, _ := os.ReadDir(coinDir)
+		if len(entries) > 0 {
+			t.Errorf("expected no files written, but found %d entries in %s", len(entries), coinDir)
+		}
+	}
+}
+
+// TestUploadBase64_CircleClip_NonOwner verifies that ownership is checked BEFORE decode/clip
+// in base64 upload path as well.
+func TestUploadBase64_CircleClip_NonOwner(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupClipTestDB(t)
+
+	// Create test user 1 and their coin
+	user1 := models.User{Username: "user1", Email: "user1@example.com"}
+	if err := db.Create(&user1).Error; err != nil {
+		t.Fatalf("failed to create user1: %v", err)
+	}
+	coin1 := models.Coin{UserID: user1.ID, Name: "User1 Coin"}
+	if err := db.Create(&coin1).Error; err != nil {
+		t.Fatalf("failed to create coin1: %v", err)
+	}
+
+	// Create test user 2 (attacker)
+	user2 := models.User{Username: "user2", Email: "user2@example.com"}
+	if err := db.Create(&user2).Error; err != nil {
+		t.Fatalf("failed to create user2: %v", err)
+	}
+
+	uploadDir := t.TempDir()
+	repo := repository.NewImageRepository(db)
+	imgSvc := services.NewImageService(repo, uploadDir)
+	logger := services.NewLogger(100)
+	handler := NewImageHandler(uploadDir, repo, imgSvc, logger)
+
+	router := gin.New()
+	// User 2 is authenticated
+	router.Use(func(c *gin.Context) {
+		c.Set("userId", user2.ID)
+		c.Next()
+	})
+	router.POST("/coins/:id/images/base64", handler.UploadBase64)
+
+	jpegData := makeSyntheticJPEG(300, 300)
+	b64Data := base64.StdEncoding.EncodeToString(jpegData)
+
+	reqBody := base64ImageRequest{
+		Image:         b64Data,
+		FileExtension: ".jpg",
+		ImageType:     "obverse",
+		CircleClip:    true,
+	}
+	bodyBytes, _ := json.Marshal(reqBody)
+
+	// User 2 tries to upload to User 1's coin
+	req := httptest.NewRequest(http.MethodPost, "/coins/"+fmt.Sprint(coin1.ID)+"/images/base64", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+makeClipTestJWT(user2.ID))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// Should return 404 (not found) because User 2 doesn't own coin1
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 (ownership check failed), got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify NO file was written (clip never executed)
+	coinDir := filepath.Join(uploadDir, fmt.Sprintf("coin-%d", coin1.ID))
+	if _, err := os.Stat(coinDir); err == nil {
+		entries, _ := os.ReadDir(coinDir)
+		if len(entries) > 0 {
+			t.Errorf("expected no files written, but found %d entries in %s", len(entries), coinDir)
+		}
+	}
+}
