@@ -1,6 +1,6 @@
 <template>
   <div class="detail-header">
-    <button class="btn btn-secondary btn-sm" @click="router.back()">← Back</button>
+    <button class="btn btn-secondary btn-sm" @click="router.push('/')">← Back to Gallery</button>
     <div class="detail-actions">
       <button v-if="isWishlist" class="btn btn-primary btn-sm" @click="$emit('purchase')">Mark as Purchased</button>
       <button v-if="!isWishlist && !isSold" class="btn btn-secondary btn-sm" @click="$emit('sell')">Sell</button>
