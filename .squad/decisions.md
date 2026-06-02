@@ -5126,3 +5126,212 @@ Frontend implementation for catalog registry feature (backend in parallel).
 - `npm run build` passed (vue-tsc + vite)
 - `npm run lint` passed (1 pre-existing warning in this component, 5 pre-existing warnings in other files — none new)
 - Docker stricter type-checking addressed via nullable prop handling patterns already in codebase
+
+---
+
+### Decision: CoinDetailPage UI Refinements
+
+**Date:** 2026-06-01  
+**Agent:** Aurelia (Frontend Dev)  
+**Status:** Implemented  
+**Principle:** Constitution Principle IX (UI/UX Consistency)
+
+## Summary
+
+Three UI refinements to `CoinDetailPage.vue` to improve clarity and information hierarchy on the coin detail overview.
+
+## Changes
+
+#### 1. Renamed "Details" → "Additional Details"
+
+The `.sections-list` heading (above Activity Journal) was renamed from "Details" to "Additional Details" to disambiguate it from the metadata table (which remains "Details"). This clarifies that the section links lead to additional detail pages, not the core metadata.
+
+#### 2. Tags Section Moved Below Catalog References
+
+Swapped the order so Catalog References appears before Tags. The new section order after the metadata table is:
+- Catalog References
+- Tags
+- Listing Status
+- Additional Details (section links)
+
+#### 3. Merged Inscription + Description into Single "Inscription" Block
+
+Previously, inscriptions and descriptions were shown in two separate sections. They are now merged into a single "Inscription" section with:
+- Title: `<h3>Inscription</h3>` (singular, positioned before the Details metadata table)
+- Layout: Dual-side subsections (Obverse | Reverse) within a `.section-content-card`
+- For each side:
+  - Side heading (`<h4>Obverse</h4>` or `<h4>Reverse</h4>`)
+  - "Inscription:" labeled line (if inscription exists)
+  - Description prose (if description exists)
+- Conditional rendering:
+  - Whole block renders only if ANY of the four fields (obverse/reverse inscription/description) is non-empty
+  - Each side subsection renders only if that side has an inscription OR description
+  - Within a side, inscription and description lines render independently based on field presence
+- Mobile-responsive: `.inscription-grid` stacks to single column on narrow viewports
+
+#### Final Section Order
+
+1. Title (name, ruler, category badges)
+2. **Inscription** (obverse + reverse inscription + description)
+3. **Details** (metadata table)
+4. **Catalog References**
+5. **Tags**
+6. **Listing Status**
+7. **Additional Details** (section links)
+
+## Implementation
+
+**File:** `src/web/src/pages/CoinDetailPage.vue`
+
+**CSS Changes:**
+- Renamed `.inscriptions-section` / `.descriptions-section` → `.inscription-section`
+- Added `.section-content-card`, `.inscription-grid`, `.inscription-side`, `.side-heading`, `.inscription-line`, `.description-text` classes
+- All styles use design tokens (`--bg-card`, `--border-subtle`, `--radius-sm`, `--text-heading`, `--text-secondary`, `--text-muted`)
+- Mobile responsive: `.inscription-grid` changes from 2-column to 1-column below 768px
+
+## Verification
+
+- ✅ `npm run type-check` — pass
+- ✅ `npm run build` — pass
+- ✅ `npm run lint` — pass (no new warnings)
+
+## Rationale
+
+- "Additional Details" heading more accurately describes the section links to journal/health/analysis/notes subpages
+- Catalog References before Tags aligns with metadata hierarchy (references are numismatic identifiers, tags are user classification)
+- Merged Inscription block reduces visual fragmentation and keeps all per-side textual data together (inscription + description are both prose about the same coin face)
+
+**Note:** Code is UNCOMMITTED, awaiting Brian's approval to merge.
+
+---
+
+### Decision: PWA Tap-Blocking Bug — Root Cause & Fix (pull-to-refresh)
+
+**Date:** 2026-06-01  
+**Agent:** Squad (Coordinator)  
+**Status:** FIXED (commit `9f906bf`, pushed to origin/main)  
+**Principle:** Constitution Principle XIII (PWA / Mobile Interaction Rules)
+
+## Problem
+
+**User report:** "When using the app in PWA mode a lot, at certain times if I search for a coin, I am unable to click on it. And if it has a reverse image, I can't rotate the image either."
+
+**Key diagnostic:** Brian confirmed the screen "looks normal/bright — no dimming, taps just do nothing." That ruled out every dimmed backdrop overlay (`CoinSearchChat` `.chat-overlay`, sidebar overlay) and pointed at an *invisible* tap-killer.
+
+## Root Cause
+
+`src/web/src/composables/usePullToRefresh.ts`. The handler set `pulling=true` on `touchstart` but only cleared it on `touchend`. There was **no `touchcancel` handler**. When the OS/browser hijacks a gesture (notification, multitouch, system back-swipe — common in heavy PWA use), `touchcancel` fires instead of `touchend`, so `pulling` stuck `true`.
+
+Its `touchmove` listener is registered `{ passive: false }` and called `e.preventDefault()` whenever `pulling && atTop && dy >= 0`. With `pulling` stuck true, every later tap at scroll-top hit that `preventDefault()` on the first tiny touchmove, which **suppresses the synthesized click** on mobile. Both the global image-rotation control and every grid card died at once, while nothing looked wrong on screen.
+
+## Fix
+
+- Added a `touchcancel` handler that resets `pulling`, `engaged`, and `pullDistance`.
+- Added an `ENGAGE_SLOP` (10px) so `preventDefault()` only fires once a real pull is underway — taps and small drifts are never `preventDefault()`'d.
+- Defensive state reset on `touchstart`.
+
+## Two Earlier Theories Were WRONG (Corrected)
+
+1. **`showChat` overlay reset** — `App.vue.onMounted` runs once at app boot when `showChat` is already `false`; the added `showChat.value = false` was a no-op and was **reverted**.
+2. **`bulkSelectActive` module-level leak** — real bug, but it only hid the agent FAB; `CoinCard` uses the passed `selectable` prop, not the global ref, so it could not block taps. That fix was **kept** (see decision below) as a separate improvement.
+
+## Pattern (Durable)
+
+A non-passive `touchmove` that calls `preventDefault()` MUST be paired with a `touchcancel` handler that resets gesture state, and must never `preventDefault()` on a stationary tap — otherwise stuck gesture state silently kills clicks app-wide.
+
+## Files Modified
+
+- `src/web/src/composables/usePullToRefresh.ts` — touchcancel handler + slop guard
+- `src/web/src/pages/CollectionPage.vue` — kept `bulkSelectActive` mount/unmount reset (separate FAB fix)
+- `src/web/src/App.vue` — reverted the no-op `showChat.value = false`
+
+## Verification
+
+- ✅ `npm run type-check`
+- ✅ `npm run build`
+- ✅ `npm run lint` (0 errors)
+- 3 pre-existing design-token font-budget test failures unchanged from HEAD (TimelinePage.vue)
+
+---
+
+### Decision: PWA Stuck Tap Bug (PARTIAL) — `bulkSelectActive` Module-Level State Leak
+
+**Date:** 2026-06-01  
+**Agent:** Aurelia (Frontend Dev)  
+**Status:** FIXED (kept in solution to the real tap bug above)  
+**Principle:** Constitution Principle IV (Strict Typing & Build Parity), IX (UI/UX Consistency)
+
+## Problem
+
+After heavy PWA usage, coin cards in the gallery and search results became intermittently unresponsive to tap/click. The agent FAB would also stay hidden even after navigating away from the collection page.
+
+**User Report:**
+> "When using the app in PWA mode a lot, at certain times if I search for a coin, I am unable to click on it. And if it has a reverse image, I can't rotate the image either."
+
+## What This Fix Actually Addressed
+
+This fix resolved a **module-level state leak** in `useBulkSelect.ts` that caused the **agent FAB to stay hidden** after exiting bulk-select mode. But it did **NOT** fix the reported tap-blocking bug.
+
+**Real root cause of reported bug:** See `Decision: PWA Tap-Blocking Bug — Root Cause & Fix (pull-to-refresh)` above — it was the pull-to-refresh handler in `src/web/src/composables/usePullToRefresh.ts` leaving `pulling=true` after a `touchcancel`, so a non-passive `touchmove` `preventDefault()` suppressed tap clicks. (An earlier `showChat` overlay theory was wrong and reverted.)
+
+## Root Cause (of the FAB Hiding Bug)
+
+**Module-level state leak in `useBulkSelect.ts`**
+
+The composable exports a module-level `ref(false)` that persists across all component instances and navigation. When CollectionPage activates bulk select mode:
+
+1. `selectMode` (local ref in CollectionPage) = `true`
+2. `bulkSelectActive` (module-level ref in useBulkSelect) = `true`
+3. User navigates away → CollectionPage unmounts
+4. `selectMode` is destroyed (local ref lifecycle)
+5. **`bulkSelectActive` stays `true` forever** (module-level ref persists)
+6. When user returns to gallery, fresh CollectionPage mounts with `selectMode = false`
+7. But `bulkSelectActive` is still `true` from before → desync
+8. Agent FAB in `App.vue` reads `bulkSelectActive` and stays hidden (`v-if="!bulkSelectActive"`)
+
+The coin click bug was a red herring—CoinCard correctly uses the passed `selectable` prop, not the global ref. The real issue was the hidden FAB and potential for future bugs from stale global state.
+
+## Fix
+
+Added lifecycle hooks to CollectionPage:
+
+1. **`onMounted()`** — Defensively reset `bulkSelectActive = false` on every mount to ensure clean state
+2. **`onUnmounted()`** — Clean up by resetting `bulkSelectActive = false` when navigating away if select mode was active
+
+## Files Modified
+
+- `src/web/src/pages/CollectionPage.vue` — added `onUnmounted` import and cleanup logic
+
+## Alternative Solutions Considered
+
+1. **Move to Pinia store** — Overkill for this simple flag; would require proper reset logic anyway
+2. **Remove module-level ref entirely** — Would require refactoring all consumers; breaking change
+3. **Watch route changes** — More complex; lifecycle hooks are cleaner and more explicit
+
+## Pattern for Future
+
+**Rule:** Module-level refs (exported from composables) do NOT respect component lifecycle. When a module-level ref gates global UI state or interaction behavior:
+
+- The owning component MUST reset the ref in `onUnmounted()` when navigating away
+- Defensively reset in `onMounted()` to ensure clean state
+- Document cleanup contract in composable
+- OR avoid module-level refs for interaction-gating state—use Pinia or pass via props/emits
+
+**When to use module-level refs:**
+- Truly global config that should persist (e.g., user theme preference)
+- Singletons with explicit lifecycle management (e.g., WebSocket connections)
+
+**When NOT to use module-level refs:**
+- Component-specific UI state that affects other components (use Pinia instead)
+- Interaction modes that should reset on navigation (scope locally or manage lifecycle explicitly)
+
+## Verification
+
+- ✅ `npm run type-check` — Pass
+- ✅ `npm run build` — Pass
+- ✅ `npm run lint` — Pass (no new warnings)
+
+## Related
+
+- AuctionsPage does NOT have this bug—it uses only local `selectMode` ref, no global state
+- If we add more pages with select mode, they must follow the same cleanup pattern

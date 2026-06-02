@@ -85,6 +85,8 @@ Added a bordered section to Settings → Data for triggering the legacy RIC→Co
 
 **Related:** Cassius implemented parallel backend endpoint with per-coin journaling.
 
+- **2026-06-01:** CoinDetailPage UI refinements completed: "Details" heading in sections-list renamed to "Additional Details" to disambiguate from metadata table; Tags section moved below Catalog References; Inscription and Description sections merged into a single "Inscription" block with dual-side layout (Obverse/Reverse subsections showing inscription + description prose for each side), wrapped in `.section-content-card` with mobile-responsive stacking. Final section order: Title → Inscription → Details (metadata table) → Catalog References → Tags → Listing Status → Additional Details (section links to Activity Journal, Health, Analysis, Notes). All CSS uses design tokens; type-check, build, and lint pass with no new warnings.
+
 ## 2026-06-01 — Free-Text Rarity/RIC UI Removal
 
 Removed legacy free-text Rarity/RIC surface from coin detail metadata and coin form. The structured Catalog References section now serves as the canonical UI for numismatic references.
@@ -159,3 +161,20 @@ Module-level refs (exported from composables) do NOT reset on component unmount.
 3. If module-level is required, document cleanup contract and enforce via lifecycle hooks
 
 **Verification:** npm run type-check ✅, npm run build ✅, npm run lint ✅ (no new warnings).
+
+## 2026-06-02 — Coin Detail UI Refinements (CoinDetailPage reordering + Inscription consolidation)
+
+Completed three UI refinements to `CoinDetailPage.vue`:
+1. **Heading disambiguation:** "Details" → "Additional Details" (above Activity Journal) to clarify these section links lead to detail subpages, not the core metadata table
+2. **Section reordering:** Catalog References now precedes Tags (aligns with metadata hierarchy: numismatic identifiers before user classification)
+3. **Inscription consolidation:** Merged separate "Inscriptions" + "Description" sections into a single "Inscription" block positioned at page top with:
+   - Dual-side layout (Obverse | Reverse subsections via `.inscription-grid`)
+   - Each side conditionally shows "Inscription:" line + description prose
+   - Mobile-responsive stacking (2-column on desktop, 1-column on mobile)
+   - CSS: all design tokens (`--bg-card`, `--border-subtle`, `--radius-sm`, `--text-*`); dead CSS removed
+
+**Final Section Order:** Title → Inscription → Details (metadata) → Catalog References → Tags → Listing Status → Additional Details
+
+**Verification:** npm run type-check ✅, npm run build ✅, npm run lint ✅ (no new warnings)
+
+**Status:** Code change UNCOMMITTED, awaiting Brian's approval. Decision merged to `.squad/decisions.md`.
