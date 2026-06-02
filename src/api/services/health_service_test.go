@@ -446,3 +446,125 @@ func TestFixtureCoinHealthItem_ValidStructure(t *testing.T) {
 		t.Errorf("expected action=edit_metadata, got %s", item.QuickActions[0])
 	}
 }
+
+// --- T012: Valuation freshness scoring with CurrentValueUpdatedAt ---
+
+func TestScoreCoinValuationFreshness_WithCurrentValueUpdatedAt(t *testing.T) {
+	svc := &HealthService{}
+	now := time.Now()
+
+	tests := []struct {
+		name              string
+		currentValue      *float64
+		updatedAt         *time.Time
+		purchaseDate      *time.Time
+		expectedScore     int
+		expectedChecklist bool // should valuation.freshness appear?
+	}{
+		{
+			name:              "Recent valuation (today) scores 100, no checklist item",
+			currentValue:      ptrFloat(100.0),
+			updatedAt:         ptrTime(now),
+			purchaseDate:      ptrTime(now.AddDate(-1, 0, 0)), // old purchase
+			expectedScore:     100,
+			expectedChecklist: false,
+		},
+		{
+			name:              "Valuation 20 days old scores 100",
+			currentValue:      ptrFloat(100.0),
+			updatedAt:         ptrTime(now.AddDate(0, 0, -20)),
+			purchaseDate:      ptrTime(now.AddDate(-1, 0, 0)),
+			expectedScore:     100,
+			expectedChecklist: false,
+		},
+		{
+			name:              "Valuation 60 days old scores 80",
+			currentValue:      ptrFloat(100.0),
+			updatedAt:         ptrTime(now.AddDate(0, 0, -60)),
+			purchaseDate:      ptrTime(now.AddDate(-1, 0, 0)),
+			expectedScore:     80,
+			expectedChecklist: false,
+		},
+		{
+			name:              "Valuation 120 days old scores 60",
+			currentValue:      ptrFloat(100.0),
+			updatedAt:         ptrTime(now.AddDate(0, 0, -120)),
+			purchaseDate:      ptrTime(now.AddDate(-1, 0, 0)),
+			expectedScore:     60,
+			expectedChecklist: false,
+		},
+		{
+			name:              "Valuation 200 days old scores 35",
+			currentValue:      ptrFloat(100.0),
+			updatedAt:         ptrTime(now.AddDate(0, 0, -200)),
+			purchaseDate:      ptrTime(now.AddDate(-1, 0, 0)),
+			expectedScore:     35,
+			expectedChecklist: true, // >180 days triggers checklist
+		},
+		{
+			name:              "Valuation 400 days old scores 0",
+			currentValue:      ptrFloat(100.0),
+			updatedAt:         ptrTime(now.AddDate(0, 0, -400)),
+			purchaseDate:      ptrTime(now.AddDate(-1, 0, 0)),
+			expectedScore:     0,
+			expectedChecklist: true,
+		},
+		{
+			name:              "Nil CurrentValueUpdatedAt falls back to PurchaseDate (legacy behavior)",
+			currentValue:      ptrFloat(100.0),
+			updatedAt:         nil,
+			purchaseDate:      ptrTime(now.AddDate(0, 0, -60)),
+			expectedScore:     80,
+			expectedChecklist: false,
+		},
+		{
+			name:              "Nil CurrentValueUpdatedAt with old PurchaseDate scores 35",
+			currentValue:      ptrFloat(100.0),
+			updatedAt:         nil,
+			purchaseDate:      ptrTime(now.AddDate(0, 0, -200)),
+			expectedScore:     35,
+			expectedChecklist: true,
+		},
+		{
+			name:              "No CurrentValue scores 0",
+			currentValue:      nil,
+			updatedAt:         ptrTime(now),
+			purchaseDate:      ptrTime(now),
+			expectedScore:     0,
+			expectedChecklist: false, // different checklist item: valuation.value
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			coin := &repository.EligibleCoinRow{
+				CoinID:                1,
+				CurrentValue:          tt.currentValue,
+				CurrentValueUpdatedAt: tt.updatedAt,
+				PurchaseDate:          tt.purchaseDate,
+			}
+
+			score := svc.scoreCoinValuationFreshness(coin)
+			if score != tt.expectedScore {
+				t.Errorf("score = %d, want %d", score, tt.expectedScore)
+			}
+
+			// Check checklist generation
+			checklist := svc.generateCoinChecklist(coin)
+			hasValuationFreshnessItem := false
+			for _, item := range checklist {
+				if item.Key == "valuation.freshness" {
+					hasValuationFreshnessItem = true
+					break
+				}
+			}
+			if hasValuationFreshnessItem != tt.expectedChecklist {
+				t.Errorf("valuation.freshness in checklist = %v, want %v", hasValuationFreshnessItem, tt.expectedChecklist)
+			}
+		})
+	}
+}
+
+func ptrTime(t time.Time) *time.Time {
+	return &t
+}

@@ -34,6 +34,9 @@ func Connect(dbPath string) {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 
+	// Note: CurrentValueUpdatedAt is a new nullable time.Time column.
+	// SQLite AutoMigrate adds it as a plain NULL column without FK constraints — safe additive change.
+
 	// Backfill existing api_keys with default read-only capability
 	DB.Exec("UPDATE api_keys SET capabilities='read' WHERE capabilities IS NULL OR capabilities=''")
 

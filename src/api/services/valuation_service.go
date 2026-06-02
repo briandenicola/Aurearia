@@ -422,9 +422,13 @@ func (s *ValuationService) CancelRun(runID uint) bool {
 // a value history entry and journal entry.
 func (s *ValuationService) updateCoinValuation(coin *models.Coin, userID uint, estimate *ValueEstimate) {
 	newValue := estimate.EstimatedValue
+	now := time.Now()
 
-	// Update the coin's current value
-	if err := s.coinRepo.UpdateField(coin, "current_value", newValue); err != nil {
+	// Update the coin's current value and timestamp
+	if err := s.coinRepo.UpdateFields(coin, map[string]interface{}{
+		"current_value":            newValue,
+		"current_value_updated_at": now,
+	}); err != nil {
 		s.logger.Error("valuation", "Failed to update current value for coin %d: %v", coin.ID, err)
 		return
 	}
@@ -435,7 +439,7 @@ func (s *ValuationService) updateCoinValuation(coin *models.Coin, userID uint, e
 		UserID:     userID,
 		Value:      newValue,
 		Confidence: estimate.Confidence,
-		RecordedAt: time.Now(),
+		RecordedAt: now,
 	})
 
 	// Record journal entry

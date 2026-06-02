@@ -344,17 +344,26 @@ func (s *HealthService) scoreCoinImages(coin *repository.EligibleCoinRow) int {
 }
 
 // scoreCoinValuationFreshness computes valuation freshness (0-100).
+// Measures age from CurrentValueUpdatedAt when available; falls back to PurchaseDate for legacy coins.
 func (s *HealthService) scoreCoinValuationFreshness(coin *repository.EligibleCoinRow) int {
 	if coin.CurrentValue == nil {
 		return 0
 	}
 
 	now := time.Now()
-	if coin.PurchaseDate == nil {
+
+	// Use CurrentValueUpdatedAt if available (new behavior)
+	var referenceTime *time.Time
+	if coin.CurrentValueUpdatedAt != nil {
+		referenceTime = coin.CurrentValueUpdatedAt
+	} else if coin.PurchaseDate != nil {
+		// Fallback: for legacy coins valued before CurrentValueUpdatedAt existed, use PurchaseDate
+		referenceTime = coin.PurchaseDate
+	} else {
 		return 0
 	}
 
-	age := now.Sub(*coin.PurchaseDate)
+	age := now.Sub(*referenceTime)
 	days := int(age.Hours() / 24)
 
 	if days <= 30 {
@@ -528,8 +537,16 @@ func (s *HealthService) generateCoinChecklist(coin *repository.EligibleCoinRow) 
 			ActionHint: HealthActionRunValuation,
 		})
 	} else {
+		// Check valuation freshness from CurrentValueUpdatedAt (or fallback to PurchaseDate for legacy coins)
 		now := time.Now()
-		age := now.Sub(*coin.PurchaseDate)
+		var referenceTime *time.Time
+		if coin.CurrentValueUpdatedAt != nil {
+			referenceTime = coin.CurrentValueUpdatedAt
+		} else {
+			referenceTime = coin.PurchaseDate
+		}
+
+		age := now.Sub(*referenceTime)
 		days := int(age.Hours() / 24)
 		if days > 180 {
 			items = append(items, MissingChecklistItem{

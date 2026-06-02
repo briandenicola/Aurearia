@@ -127,12 +127,19 @@ func (s *CoinService) UpdateCoin(existing *models.Coin, updates *models.Coin, us
 				oldVal = *oldValue
 			}
 			if newVal != oldVal && source != "estimate" {
+				// Update CurrentValueUpdatedAt whenever CurrentValue changes manually
+				now := time.Now()
+				existing.CurrentValueUpdatedAt = &now
+				if err := txRepo.UpdateField(existing, "current_value_updated_at", now); err != nil {
+					return err
+				}
+
 				if err := txRepo.RecordValueHistory(&models.CoinValueHistory{
 					CoinID:     existing.ID,
 					UserID:     userID,
 					Value:      newVal,
 					Confidence: "manual",
-					RecordedAt: time.Now(),
+					RecordedAt: now,
 				}); err != nil {
 					return err
 				}
