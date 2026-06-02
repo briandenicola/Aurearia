@@ -184,3 +184,45 @@ Completed backend deployment of catalog registry feature in parallel with Aureli
 ## Learnings
 
 - **Bulk Assign Storage Location (2026-06-01):** Added `"assign-location"` action to the existing bulk coin operations (`POST /coins/bulk`). Request body now accepts an optional `storageLocationId` field (nullable uint). When action is `"assign-location"`, the handler validates ownership of the location (if non-null/non-zero) via `StorageLocationRepository.ExistsByID`, then calls the new `CoinRepository.BulkAssignLocation(coinIDs, storageLocationID, userID)` method. The repository method uses GORM `.Update("storage_location_id", storageLocationID)` to correctly handle nil pointer writes as SQL NULL (GORM's `.Updates()` with a map can skip nil/zero values). A nil or omitted `storageLocationId` clears the location on all selected coins. Response follows the existing bulk action pattern: `{ "message": "Storage location assigned", "affected": <int> }`. Wiring: `BulkHandler` constructor now takes `StorageLocationRepository` as third parameter, wired in `main.go` line 256.
+
+## 2026-06-02 — Metadata Health Valuation Freshness Fix
+
+Fixed health scoring to measure valuation freshness from when the value was last updated, not from purchase date. Before the fix, a coin bought years ago but valued today would still show as stale.
+
+**Changes:**
+- **Model:** Added nullable `Coin.CurrentValueUpdatedAt *time.Time` field (DB: `current_value_updated_at`)
+- **Migration:** Safe additive nullable column in `database.Connect()` AutoMigrate; no FK constraints needed
+- **Repository:** Updated all `EligibleCoinRow` SELECT queries (`ListEligibleCoins`, `ListEligibleCoinsPaged`, `ListAllEligibleCoins`, `GetSingleEligibleCoin`) to include `current_value_updated_at`
+- **Health Scoring:** `scoreCoinValuationFreshness` and `generateCoinChecklist` now measure age from `CurrentValueUpdatedAt` when present, fallback to `PurchaseDate` for legacy coins (non-regressive)
+- **Valuation Writes:** 
+  - `ValuationService.updateCoinValuation` sets both `current_value` and `current_value_updated_at` (scheduled valuations)
+  - `CoinService.UpdateCoin` sets `current_value_updated_at` when `CurrentValue` changes manually (UI edits)
+- **Tests:** Added comprehensive `TestScoreCoinValuationFreshness_WithCurrentValueUpdatedAt` covering fresh/stale/legacy fallback paths
+
+**AI Coverage Investigation:**
+Confirmed obverse/reverse analysis is correctly persisted to `coins.obverse_analysis` / `coins.reverse_analysis` columns (see `AnalysisHandler.Analyze` lines 177-181). Health scoring reads the correct source. No bug found; if Brian's coin shows "ai.coverage" warning but has analysis present, it's likely the per-side analysis (obverse OR reverse missing), which is a Low-severity item and working as designed.
+
+**Learnings:**
+- Metadata health scoring architecture: `HealthService` scoring functions (`scoreCoinMetadata`, `scoreCoinValuationFreshness`, etc.) + `generateCoinChecklist` read from `EligibleCoinRow`, which is populated by `HealthRepository` SELECT queries that read `coins.*` columns directly (no joins to other tables for analysis text).
+- The `current_value_updated_at` field is now the source of truth for valuation freshness; fallback to `PurchaseDate` preserves legacy behavior for coins valued before this field existed.
+- All CurrentValue writes now set the timestamp atomically.
+
+## 2026-06-02 — Metadata Health Valuation Freshness Fix (Complete + Shipped)
+
+Fixed health scoring to measure valuation freshness from when value was last updated, not purchase date.
+
+**Implementation:**
+- Added nullable `Coin.CurrentValueUpdatedAt *time.Time` field (DB: `current_value_updated_at`)
+- Safe additive nullable column via AutoMigrate
+- All health repository SELECT queries updated to fetch new field
+- Scoring logic (`scoreCoinValuationFreshness`, `generateCoinChecklist`) measures from `CurrentValueUpdatedAt` with fallback to `PurchaseDate` for legacy coins (non-regressive)
+- Valuation writes set timestamp atomically: scheduled (ValuationService) and manual (CoinService)
+- Added comprehensive tests: `TestScoreCoinValuationFreshness_WithCurrentValueUpdatedAt` with 9 cases
+
+**AI Coverage Investigation:** No bug found; analysis correctly persists to obverse/reverse columns. If coin shows ai.coverage warning despite analysis, it's missing one side (working as designed).
+
+**Verification:** go build/vet/test all pass ✅
+
+**Commit:** 7357599
+
+**Cross-agent note:** Aurelia shipped camera modal extraction (`CameraCaptureModal.vue`) for Coin Details; now reusable for future features needing in-app capture with circular focus + cover-crop.

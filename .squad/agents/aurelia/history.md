@@ -36,6 +36,8 @@
 
 - **2026-06-01:** Coin detail "Back" button changed to absolute gallery navigation. Renamed from "Back" to "Back to Gallery" and changed from `router.back()` to `router.push('/')` in `CoinDetailHeaderActions.vue`. This prevents history pollution when users navigate from Coin Details to subpages (journal, health, analysis, etc.), click "Back to Overview" (which pushes back to Detail), then click the Detail page's back button. Without absolute navigation, `router.back()` would incorrectly pop to the subpage instead of the gallery. Parent pages with multiple child subpages should use absolute nav to their list view, not `router.back()`.
 
+- **2026-06-02:** Camera architecture learned from AddCoinPage integration. AddCoinPage camera is implemented inline with: live `<video>` preview, circular `.focus-overlay` with `.focus-ring` and `.focus-mask` radial gradient, `startCamera()` using `navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })`, permission error handling (NotAllowedError/NotFoundError), `stopCamera()` releasing all tracks, `computeCoverCropRect()` to handle object-fit:cover source rectangle, and `captureFromCamera()` drawing the cover-cropped region to canvas then `canvas.toBlob('image/jpeg', 0.92)`. The circular clipping itself is SERVER-SIDE: `uploadImage()` accepts an optional `circleClip` flag that the Go backend (`src/api/handlers/images.go`) uses to clip obverse/reverse images to circular transparent PNGs; card images are never clipped by the backend even if the flag is set. `CameraCaptureModal.vue` is now the reusable in-app camera component. CoinActionsPanel "Photo" button now opens this modal and passes `circleClip=true` for obverse/reverse, `false` for other types. AddCoinPage intentionally left unchanged this iteration to avoid refactoring the working multi-slot guided flow.
+
 ## Archived Sessions (2026-06-01)
 
 Prior session work consolidated here for reference. See `.squad/decisions.md` for detailed records of:
@@ -99,3 +101,21 @@ Split the monolithic "Backups & Keys" Settings tab into two focused tabs: **Back
 - npm run lint ✅ (0 errors, 5 pre-existing warnings unchanged from HEAD)
 
 **Status:** Code change uncommitted, awaiting Brian's approval. Decision logged to `.squad/decisions/inbox/`.
+
+
+## 2026-06-02 — Camera Capture Modal Extraction (Complete + Shipped)
+
+Unified camera capture UX: Coin Details "Photo" button now uses same in-app circular camera modal as Add Coin flow.
+
+**Implementation:**
+- Extracted camera logic from AddCoinPage into reusable `CameraCaptureModal.vue`
+- Live preview + circular focus overlay, cover-crop capture to JPEG (0.92 quality)
+- Permission handling with friendly errors; lifecycle cleanup prevents stream leaks
+- `CoinActionsPanel.vue` replaced native `<input capture>` with modal trigger
+- Type-driven clipping: `circleClip=true` for obverse/reverse, `false` for other types
+
+**Verification:** npm run type-check/build/lint ✅
+
+**Commit:** 7a0eb40
+
+**Cross-agent note:** Cassius added `Coin.CurrentValueUpdatedAt` field (API response now includes `currentValueUpdatedAt`). Available for future UX showing valuation timestamps.

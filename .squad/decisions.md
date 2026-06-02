@@ -2,6 +2,141 @@
 
 ## Active Decisions
 
+### Decision: Camera Capture Modal Extraction
+
+**Date:** 2026-06-02  
+**Agent:** Aurelia (Frontend Developer)  
+**Status:** Complete
+
+## Problem
+
+The Coin Details "Photo" button used a native OS camera input (`<input capture="environment">`), which uploaded raw photos without circular framing or clipping. This differed from the Add Coin flow, which has an in-app camera with a circular focus guide and server-side circular clipping for obverse/reverse images.
+
+## Solution
+
+Extracted the camera logic from `AddCoinPage.vue` into a reusable `CameraCaptureModal.vue` component:
+
+- **Live camera preview:** `<video>` element with `autoplay`, `playsinline`, `muted` (iOS PWA compatibility)
+- **Circular focus overlay:** `.focus-ring` + `.focus-mask` with radial gradient (matches AddCoinPage styling)
+- **Permission handling:** Friendly error messages for `NotAllowedError` / `NotFoundError`
+- **Cover-crop capture:** `computeCoverCropRect()` matches what the user sees (object-fit: cover), `canvas.toBlob('image/jpeg', 0.92)`
+- **Lifecycle management:** Start camera on modal open, stop on close/capture/unmount (no leaked camera streams)
+
+**CoinActionsPanel integration:**
+
+- Replaced native `<label>` + `<input capture>` with `<button @click="showCameraModal = true">`
+- Added `handleCameraCaptured(file)` handler that calls `uploadImage(coinId, file, uploadType, isPrimary, circleClip)`
+- **Type-driven clipping:** `circleClip = uploadType === 'obverse' || uploadType === 'reverse'` (backend clips obverse/reverse only, never card)
+- Circular overlay still shows for all types during capture — it's just a framing guide
+
+**AddCoinPage unchanged:** The multi-slot guided camera flow remains inline; no refactoring this pass to avoid regressions.
+
+## Key Decisions
+
+1. **Single-shot, type-driven UX:** Modal captures one photo for the currently selected dropdown type (obverse/reverse/detail/other). No multi-slot flow.
+2. **Circular overlay always visible:** Even when capturing card/detail images, the circular guide shows — it helps frame the shot. Server-side clipping honors the `circleClip` flag (only obverse/reverse are clipped).
+3. **Backend already supports `circleClip`:** The flag is optional in `uploadImage()` API; Go backend handles clipping in `handlers/images.go`.
+
+## Architecture Notes
+
+- Camera stream control is CRITICAL: always stop tracks on unmount, close, capture, or error — no leaked green lights
+- `computeCoverCropRect()` ensures the captured image matches what the user sees on screen (object-fit: cover crops video frames)
+- Server-side clipping: frontend passes `circleClip=true/false`, backend clips to circular transparent PNG for obverse/reverse only
+- `CameraCaptureModal.vue` is now the canonical reusable camera component for future features
+
+## Files Changed
+
+- `src/web/src/components/CameraCaptureModal.vue` (new)
+- `src/web/src/components/coin/CoinActionsPanel.vue` (updated: replaced native camera input with modal, added `handleCameraCaptured()`)
+
+## Verification
+
+- `npm run type-check` ✅
+- `npm run build` ✅ (clean build, no new chunks)
+- `npm run lint` ✅ (5 pre-existing warnings unchanged from HEAD)
+
+## Constitution Compliance
+
+- **Principle IV (Strict Typing & Build Parity):** Optional chaining (`?.`) and nullish coalescing (`??`) used on all nullable access
+- **Principle V (Design Token System):** All CSS uses tokens (`--accent-gold`, `--bg-card`, `--border-subtle`, `--radius-md`, `--text-*`, `--transition-fast`)
+- **Principle IX (UI/UX Consistency):** No emojis, lucide icons only (`Camera`, `X`), dark theme, PWA-friendly
+- **Principle XIII (PWA / Mobile Interaction Rules):** `playsinline`, `muted`, `autoplay` for iOS; no leaked media streams
+
+---
+
+### Decision: Valuation Freshness Now Measured from CurrentValueUpdatedAt
+
+**Date:** 2026-06-02  
+**Author:** Cassius (Backend Dev)  
+**Status:** Implemented  
+
+## Problem
+
+Health scoring flagged coins as having stale valuations based on `PurchaseDate` age, not when the valuation was last updated. Concrete example: a coin purchased 1 year ago but valued today (via AI Value Estimate) still showed "Needs Attention: valuation.freshness (>180 days old)" and scored poorly.
+
+## Root Cause
+
+- `health_service.go` `scoreCoinValuationFreshness()` computed `age := now.Sub(*coin.PurchaseDate)` — measuring age from purchase, not from when `CurrentValue` was last set.
+- `generateCoinChecklist()` had the same bug: `valuation.freshness` checklist item was derived from `PurchaseDate` age.
+- The `Coin` model had `CurrentValue *float64` but no timestamp for when that value was set.
+
+## Solution
+
+Added nullable `Coin.CurrentValueUpdatedAt *time.Time` field (`json:"currentValueUpdatedAt"`, DB: `current_value_updated_at`) to track when the valuation was last updated.
+
+### Changes
+
+1. **Model:**
+   - Added `CurrentValueUpdatedAt *time.Time` to `models/coin.go`
+   - Migration: safe additive nullable column via AutoMigrate (no FK constraints, SQLite-safe)
+
+2. **Repository:**
+   - Updated `EligibleCoinRow` struct to include `CurrentValueUpdatedAt *time.Time`
+   - Updated all health SELECT queries (`ListEligibleCoins`, `ListEligibleCoinsPaged`, `ListAllEligibleCoins`, `GetSingleEligibleCoin`) to include `current_value_updated_at`
+
+3. **Health Scoring:**
+   - `scoreCoinValuationFreshness`: measures age from `CurrentValueUpdatedAt` when present; **fallback** to `PurchaseDate` for legacy coins (non-regressive)
+   - `generateCoinChecklist`: same fallback logic for `valuation.freshness` checklist item (>180 days triggers Medium severity)
+
+4. **Valuation Writes:**
+   - **Scheduled valuations:** `ValuationService.updateCoinValuation` now updates both `current_value` and `current_value_updated_at` atomically via `UpdateFields`
+   - **Manual edits:** `CoinService.UpdateCoin` sets `current_value_updated_at` when `CurrentValue` changes (when `source != "estimate"` to avoid double-stamping)
+
+5. **Tests:**
+   - Added `TestScoreCoinValuationFreshness_WithCurrentValueUpdatedAt` with 9 test cases covering fresh/stale/legacy fallback paths
+
+### Fallback Rationale
+
+Coins valued before this field existed have `CurrentValueUpdatedAt = nil`. Falling back to `PurchaseDate` preserves the old behavior (non-regressive) so existing coins don't suddenly become "unvalued." Once a coin receives a fresh valuation (scheduled or manual), the timestamp is set and freshness is measured correctly.
+
+## AI Coverage Investigation
+
+**Finding:** No bug. Analysis is correctly persisted:
+- `AnalysisHandler.Analyze` writes to `coins.obverse_analysis` / `coins.reverse_analysis` columns (lines 177-181 via `UpdateCoinField`)
+- `EligibleCoinRow` reads those columns in its SELECT
+- `scoreCoinAICoverage` and `generateCoinChecklist` read from the correct source
+
+If Brian's coin shows `ai.coverage` warning despite having analysis, it's likely missing one side (obverse OR reverse), which triggers the **Low-severity** "Complete AI analysis (obverse + reverse)" checklist item. This is working as designed.
+
+## Related Files
+
+- `src/api/models/coin.go`
+- `src/api/database/database.go` (AutoMigrate + migration comment)
+- `src/api/repository/health_repository.go` (EligibleCoinRow + 4 SELECT queries)
+- `src/api/services/health_service.go` (scoring + checklist logic)
+- `src/api/services/valuation_service.go` (updateCoinValuation)
+- `src/api/services/coin_service.go` (UpdateCoin manual value change path)
+- `src/api/services/health_service_test.go` (new test cases)
+
+## Validation
+
+- `go build ./...` — ✅ Pass
+- `go vet ./...` — ✅ Pass
+- `go test ./...` — ✅ All tests pass (including new valuation freshness tests)
+- Architecture tests pass (no layer violations)
+
+---
+
 ### Decision: Bulk Assign Storage Location Action
 
 **Date:** 2026-06-01  
