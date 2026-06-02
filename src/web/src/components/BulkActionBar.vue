@@ -6,6 +6,9 @@
         <button class="bulk-btn bulk-btn-tag" @click="$emit('tag')">
           <TagIcon :size="16" /> Tag
         </button>
+        <button class="bulk-btn" @click="$emit('location')">
+          <MapPin :size="16" /> Assign Location
+        </button>
         <button class="bulk-btn bulk-btn-sell" @click="$emit('sell')">
           <DollarSign :size="16" /> Mark Sold
         </button>
@@ -18,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { Tag as TagIcon, DollarSign, Trash2 } from 'lucide-vue-next'
+import { Tag as TagIcon, DollarSign, Trash2, MapPin } from 'lucide-vue-next'
 
 defineProps<{
   visible: boolean
@@ -27,6 +30,7 @@ defineProps<{
 
 defineEmits<{
   tag: []
+  location: []
   sell: []
   delete: []
 }>()

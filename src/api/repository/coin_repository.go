@@ -447,6 +447,14 @@ func (r *CoinRepository) BulkMarkSold(coinIDs []uint, userID uint) (int64, error
 	return result.RowsAffected, result.Error
 }
 
+// BulkAssignLocation assigns a storage location to multiple coins. A nil storageLocationID clears the location.
+func (r *CoinRepository) BulkAssignLocation(coinIDs []uint, storageLocationID *uint, userID uint) (int64, error) {
+	result := r.db.Model(&models.Coin{}).
+		Where("id IN ? AND user_id = ?", coinIDs, userID).
+		Update("storage_location_id", storageLocationID)
+	return result.RowsAffected, result.Error
+}
+
 // GetByIDs returns coins matching the given IDs for the given user.
 func (r *CoinRepository) GetByIDs(coinIDs []uint, userID uint) ([]models.Coin, error) {
 	var coins []models.Coin

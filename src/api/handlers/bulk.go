@@ -9,26 +9,28 @@ import (
 
 // BulkActionRequest is the request body for bulk coin actions.
 type BulkActionRequest struct {
-	CoinIDs []uint `json:"coinIds" binding:"required"`
-	Action  string `json:"action" binding:"required"`
-	TagID   *uint  `json:"tagId"`
+	CoinIDs           []uint `json:"coinIds" binding:"required"`
+	Action            string `json:"action" binding:"required"`
+	TagID             *uint  `json:"tagId"`
+	StorageLocationID *uint  `json:"storageLocationId"`
 }
 
 // BulkHandler handles bulk operations on coins.
 type BulkHandler struct {
-	coinRepo *repository.CoinRepository
-	tagRepo  *repository.TagRepository
+	coinRepo            *repository.CoinRepository
+	tagRepo             *repository.TagRepository
+	storageLocationRepo *repository.StorageLocationRepository
 }
 
 // NewBulkHandler creates a new BulkHandler.
-func NewBulkHandler(coinRepo *repository.CoinRepository, tagRepo *repository.TagRepository) *BulkHandler {
-	return &BulkHandler{coinRepo: coinRepo, tagRepo: tagRepo}
+func NewBulkHandler(coinRepo *repository.CoinRepository, tagRepo *repository.TagRepository, storageLocationRepo *repository.StorageLocationRepository) *BulkHandler {
+	return &BulkHandler{coinRepo: coinRepo, tagRepo: tagRepo, storageLocationRepo: storageLocationRepo}
 }
 
 // BulkAction performs a bulk operation on the selected coins.
 //
 //	@Summary		Bulk coin action
-//	@Description	Performs a bulk action (tag, delete, sell, export) on selected coins.
+//	@Description	Performs a bulk action (tag, delete, sell, export, assign-location) on selected coins.
 //	@Tags			Coins
 //	@Accept			json
 //	@Produce		json
@@ -92,7 +94,27 @@ func (h *BulkHandler) BulkAction(c *gin.Context) {
 		}
 		c.JSON(http.StatusOK, gin.H{"coins": coins, "total": len(coins)})
 
+	case "assign-location":
+		// Validate ownership if a non-nil location ID is provided
+		if req.StorageLocationID != nil && *req.StorageLocationID != 0 {
+			exists, err := h.storageLocationRepo.ExistsByID(*req.StorageLocationID, userID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate storage location"})
+				return
+			}
+			if !exists {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Storage location not found"})
+				return
+			}
+		}
+		affected, err := h.coinRepo.BulkAssignLocation(req.CoinIDs, req.StorageLocationID, userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign storage location"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Storage location assigned", "affected": affected})
+
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid action. Must be: tag, delete, sell, or export"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid action. Must be: tag, delete, sell, export, or assign-location"})
 	}
 }

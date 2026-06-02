@@ -74,6 +74,7 @@
       :visible="selectMode && selectedCoinIds.size > 0"
       :selected-count="selectedCoinIds.size"
       @tag="showTagPicker = true"
+      @location="showLocationPicker = true"
       @sell="bulkSell"
       @delete="bulkDelete"
     />
@@ -85,6 +86,12 @@
       @close="showTagPicker = false"
     />
 
+    <BulkLocationPickerModal
+      :open="showLocationPicker"
+      :locations="storageLocations"
+      @select="bulkAssignLocation"
+      @close="showLocationPicker = false"
+    />
   </div>
 </template>
 
@@ -92,8 +99,8 @@
 import { ref, watch, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCoinsStore } from '@/stores/coins'
-import type { ImageType, HealthQuickAction } from '@/types'
-import { bulkAction } from '@/api/client'
+import type { ImageType, HealthQuickAction, StorageLocation } from '@/types'
+import { bulkAction, getStorageLocations } from '@/api/client'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useBulkSelect } from '@/composables/useBulkSelect'
 import { usePwa } from '@/composables/usePwa'
@@ -104,6 +111,7 @@ import CollectionContent from '@/components/collection/CollectionContent.vue'
 import CollectionPagination from '@/components/CollectionPagination.vue'
 import BulkActionBar from '@/components/BulkActionBar.vue'
 import BulkTagPickerModal from '@/components/BulkTagPickerModal.vue'
+import BulkLocationPickerModal from '@/components/BulkLocationPickerModal.vue'
 import NeedsAttentionQueue from '@/components/collection/NeedsAttentionQueue.vue'
 
 const store = useCoinsStore()
@@ -117,7 +125,10 @@ const {
 
 const menuOpen = ref(false)
 
-onMounted(fetchUserTags)
+onMounted(() => {
+  fetchUserTags()
+  fetchStorageLocations()
+})
 
 // Health queue state
 const showNeedsAttention = computed(() => sortKey.value === 'needs_attention')
@@ -183,7 +194,18 @@ loadCoins()
 const selectMode = ref(false)
 const selectedCoinIds = ref(new Set<number>())
 const showTagPicker = ref(false)
+const showLocationPicker = ref(false)
+const storageLocations = ref<StorageLocation[]>([])
 const { bulkSelectActive } = useBulkSelect()
+
+async function fetchStorageLocations() {
+  try {
+    const res = await getStorageLocations()
+    storageLocations.value = res.data.storageLocations ?? []
+  } catch {
+    // Silent failure - locations will be empty if request fails
+  }
+}
 
 function toggleSelectMode() {
   selectMode.value = !selectMode.value
@@ -191,6 +213,7 @@ function toggleSelectMode() {
   if (!selectMode.value) {
     selectedCoinIds.value = new Set()
     showTagPicker.value = false
+    showLocationPicker.value = false
   }
 }
 
@@ -242,7 +265,7 @@ async function bulkSell() {
 
 async function bulkTag(tagId: number) {
   try {
-    await bulkAction([...selectedCoinIds.value], 'tag', tagId)
+    await bulkAction([...selectedCoinIds.value], 'tag', { tagId })
     showTagPicker.value = false
     selectedCoinIds.value = new Set()
     selectMode.value = false
@@ -250,6 +273,19 @@ async function bulkTag(tagId: number) {
     loadCoins()
   } catch {
     alert('Failed to apply tag')
+  }
+}
+
+async function bulkAssignLocation(locationId: number | null) {
+  try {
+    await bulkAction([...selectedCoinIds.value], 'assign-location', { storageLocationId: locationId })
+    showLocationPicker.value = false
+    selectedCoinIds.value = new Set()
+    selectMode.value = false
+    bulkSelectActive.value = false
+    loadCoins()
+  } catch {
+    alert('Failed to assign location')
   }
 }
 </script>

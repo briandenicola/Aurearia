@@ -199,8 +199,19 @@ export const adminUpdateCatalog = (id: number, payload: { catalog: string; displ
 export const adminDeleteCatalog = (id: number) => api.delete(`/admin/catalogs/${id}`)
 
 // Bulk Operations
-export const bulkAction = (coinIds: number[], action: string, tagId?: number) =>
-  api.post<{ message: string; affected: number; coins?: Coin[] }>('/coins/bulk', { coinIds, action, tagId })
+export const bulkAction = (
+  coinIds: number[],
+  action: string,
+  opts?: { tagId?: number; storageLocationId?: number | null }
+) => {
+  const payload: { coinIds: number[]; action: string; tagId?: number; storageLocationId?: number | null } = {
+    coinIds,
+    action,
+  }
+  if (opts?.tagId !== undefined) payload.tagId = opts.tagId
+  if (opts?.storageLocationId !== undefined) payload.storageLocationId = opts.storageLocationId
+  return api.post<{ message: string; affected: number; coins?: Coin[] }>('/coins/bulk', payload)
+}
 
 // Journal
 export const getJournalEntries = (coinId: number) => api.get<CoinJournal[]>(`/coins/${coinId}/journal`)
