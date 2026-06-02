@@ -30,7 +30,7 @@
             <component :is="getSeverityIcon(item.severity)" :size="14" />
           </div>
           <div class="item-details">
-            <div class="item-key">{{ item.key }}</div>
+            <div class="item-key">{{ item.label }}</div>
             <div class="item-dimension">{{ formatDimension(item.dimension) }}</div>
           </div>
           <button

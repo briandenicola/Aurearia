@@ -226,3 +226,76 @@ Fixed health scoring to measure valuation freshness from when value was last upd
 **Commit:** 7357599
 
 **Cross-agent note:** Aurelia shipped camera modal extraction (`CameraCaptureModal.vue`) for Coin Details; now reusable for future features needing in-app capture with circular focus + cover-crop.
+
+## 2026-06-02 — Metadata Health AI Coverage Fix (Corrected Logic)
+
+Fixed AI coverage scoring and checklist generation to properly credit combined `ai_analysis` as covering both coin faces, eliminating false "Needs Attention" warnings on fully-analyzed coins.
+
+**The Bug (Brian's pushback):**
+Previous implementation was "unduly harsh and not taking all data into account." It treated the three analysis fields (`ai_analysis`, `obverse_analysis`, `reverse_analysis`) as independent fields to count: 1/3 = 33%, 2/3 = 66%, 3/3 = 100%. But combined analysis (`ai_analysis`) describes BOTH faces — so a coin with only combined analysis should score 100%, not 33%. Similarly, the checklist was emitting `ai.coverage` ("Complete AI analysis (obverse + reverse)") whenever `ObverseAnalysis == "" || ReverseAnalysis == ""`, completely ignoring whether a combined `AIAnalysis` existed. This was the "not taking all data into account" issue.
+
+**The Fix:**
+Redesigned both `scoreCoinAICoverage` and `generateCoinChecklist` to reflect the semantic model: "does this coin have meaningful AI analysis covering both faces?"
+
+**New Scoring Logic (`scoreCoinAICoverage`):**
+```go
+hasCombined := coin.AIAnalysis != ""
+hasObverse := coin.ObverseAnalysis != ""
+hasReverse := coin.ReverseAnalysis != ""
+
+// Combined analysis covers both faces
+obverseCovered := hasObverse || hasCombined
+reverseCovered := hasReverse || hasCombined
+
+if !obverseCovered && !reverseCovered {
+    return 0  // No analysis at all
+} else if obverseCovered && reverseCovered {
+    return 100  // Full coverage (both sides OR combined)
+}
+return 50  // Partial: one side only, no combined
+```
+
+**New Checklist Logic:**
+- Emit `ai.analysis` (Medium severity) ONLY when there is NO analysis of any kind (no combined, no obverse, no reverse)
+- Emit `ai.coverage` (Low severity) ONLY when there is partial per-side analysis with a genuine gap AND no combined analysis to fill it: `!hasCombined && (hasObverse != hasReverse)` (XOR pattern)
+- If a combined `ai_analysis` exists, do NOT emit `ai.coverage` at all — coverage is satisfied
+
+**Net Effect:**
+- Coin with combined `ai_analysis` only → score 100, no checklist items ✅
+- Coin with both `obverse_analysis` + `reverse_analysis` → score 100, no checklist items ✅
+- Coin with only `obverse_analysis`, no reverse, no combined → score 50, emits `ai.coverage` ✅
+- Coin with nothing → score 0, emits `ai.analysis` ✅
+- Coin with combined + one per-side → score 100, no checklist items ✅
+
+**Tests Added:**
+Five new test functions in `health_service_test.go`:
+1. `TestScoreCoinAICoverage_CombinedAnalysisOnly` — combined only → 100, no items
+2. `TestScoreCoinAICoverage_BothPerSideOnly` — obverse+reverse → 100, no items
+3. `TestScoreCoinAICoverage_OnlyObverseNoReverse` — obverse only → 50, ai.coverage item
+4. `TestScoreCoinAICoverage_NoAnalysisAtAll` — nothing → 0, ai.analysis item
+5. `TestScoreCoinAICoverage_CombinedPlusOneSide` — combined+obverse → 100, no items
+
+**Validation:** go build/vet/test all pass ✅
+
+**Learnings:**
+- The corrected AI-coverage model: combined `ai_analysis` counts as covering both faces; `ai.coverage` no longer fires when a combined analysis exists.
+- The two touch points for AI health logic are `scoreCoinAICoverage` (scoring) and the AI checklist block in `generateCoinChecklist` (around line 562-578).
+- Always read the spec correctly: "harsh" + "not taking all data into account" means the existing logic is counting fields independently instead of treating combined analysis as satisfying both-face coverage semantically.
+
+## 2026-06-02 — AI Coverage Fix CORRECTION (Obverse + Reverse only)
+
+Superseded the "combined counts as both faces" approach above per Brian's explicit
+clarification: "that's all I care about for the AI analysis scoring - obverse and reverse".
+
+**Final model:** AI coverage is measured ONLY by per-side `obverse_analysis` +
+`reverse_analysis`. Legacy combined `ai_analysis` is NOT counted (UI only offers
+per-side Analyze buttons; combined is legacy). Score: both=100, one=50, none=0.
+
+**Checklist now explains the gap:** `ai.coverage` label dynamically names the missing
+side, e.g. "Run AI analysis on the reverse (obverse already done)". Frontend
+`CoinHealthChecklist.vue` was rendering the raw `item.key` ("ai.coverage") — switched
+to render `item.label` so every Needs-Attention row explains what's missing.
+
+**Learning:** Don't over-generalize a "too harsh" complaint into crediting a legacy
+field. Confirm the intended scoring axis with the actual UI workflow — here the per-side
+buttons confirmed obverse/reverse is the real coverage signal.

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -562,6 +563,158 @@ func TestScoreCoinValuationFreshness_WithCurrentValueUpdatedAt(t *testing.T) {
 				t.Errorf("valuation.freshness in checklist = %v, want %v", hasValuationFreshnessItem, tt.expectedChecklist)
 			}
 		})
+	}
+}
+
+// --- AI Coverage Scoring and Checklist Tests ---
+
+// Combined (legacy) AIAnalysis is NOT counted toward coverage; only per-side
+// obverse/reverse analysis matters.
+func TestScoreCoinAICoverage_CombinedAnalysisOnly(t *testing.T) {
+	db := setupHealthServiceTestDB(t)
+	svc := setupHealthService(t, db)
+
+	coin := &repository.EligibleCoinRow{
+		AIAnalysis:      "Full combined analysis of both obverse and reverse",
+		ObverseAnalysis: "",
+		ReverseAnalysis: "",
+	}
+
+	score := svc.scoreCoinAICoverage(coin)
+	if score != 0 {
+		t.Errorf("combined analysis only: score = %d, want 0 (combined not counted)", score)
+	}
+
+	checklist := svc.generateCoinChecklist(coin)
+	hasAnalysisItem := false
+	for _, item := range checklist {
+		if item.Key == "ai.analysis" {
+			hasAnalysisItem = true
+		}
+		if item.Key == "ai.coverage" {
+			t.Errorf("combined analysis only: should have ai.analysis, not ai.coverage")
+		}
+	}
+	if !hasAnalysisItem {
+		t.Errorf("combined analysis only: expected ai.analysis checklist item")
+	}
+}
+
+func TestScoreCoinAICoverage_BothPerSideOnly(t *testing.T) {
+	db := setupHealthServiceTestDB(t)
+	svc := setupHealthService(t, db)
+
+	coin := &repository.EligibleCoinRow{
+		AIAnalysis:      "",
+		ObverseAnalysis: "Obverse shows portrait",
+		ReverseAnalysis: "Reverse shows eagle",
+	}
+
+	score := svc.scoreCoinAICoverage(coin)
+	if score != 100 {
+		t.Errorf("both per-side only: score = %d, want 100", score)
+	}
+
+	checklist := svc.generateCoinChecklist(coin)
+	for _, item := range checklist {
+		if item.Key == "ai.analysis" || item.Key == "ai.coverage" {
+			t.Errorf("both per-side only: unexpected checklist item %s", item.Key)
+		}
+	}
+}
+
+func TestScoreCoinAICoverage_OnlyObverseNoReverse(t *testing.T) {
+	db := setupHealthServiceTestDB(t)
+	svc := setupHealthService(t, db)
+
+	coin := &repository.EligibleCoinRow{
+		AIAnalysis:      "",
+		ObverseAnalysis: "Obverse shows portrait",
+		ReverseAnalysis: "",
+	}
+
+	score := svc.scoreCoinAICoverage(coin)
+	if score != 50 {
+		t.Errorf("obverse only: score = %d, want 50", score)
+	}
+
+	checklist := svc.generateCoinChecklist(coin)
+	hasCoverageItem := false
+	for _, item := range checklist {
+		if item.Key == "ai.coverage" {
+			hasCoverageItem = true
+		}
+		if item.Key == "ai.analysis" {
+			t.Errorf("obverse only: should not have ai.analysis item")
+		}
+	}
+	if !hasCoverageItem {
+		t.Errorf("obverse only: expected ai.coverage checklist item")
+	}
+}
+
+func TestScoreCoinAICoverage_NoAnalysisAtAll(t *testing.T) {
+	db := setupHealthServiceTestDB(t)
+	svc := setupHealthService(t, db)
+
+	coin := &repository.EligibleCoinRow{
+		AIAnalysis:      "",
+		ObverseAnalysis: "",
+		ReverseAnalysis: "",
+	}
+
+	score := svc.scoreCoinAICoverage(coin)
+	if score != 0 {
+		t.Errorf("no analysis: score = %d, want 0", score)
+	}
+
+	checklist := svc.generateCoinChecklist(coin)
+	hasAnalysisItem := false
+	for _, item := range checklist {
+		if item.Key == "ai.analysis" {
+			hasAnalysisItem = true
+		}
+		if item.Key == "ai.coverage" {
+			t.Errorf("no analysis: should have ai.analysis, not ai.coverage")
+		}
+	}
+	if !hasAnalysisItem {
+		t.Errorf("no analysis: expected ai.analysis checklist item")
+	}
+}
+
+// Combined analysis plus one per-side: combined ignored, so this scores as
+// "one side only" (obverse done, reverse missing).
+func TestScoreCoinAICoverage_CombinedPlusOneSide(t *testing.T) {
+	db := setupHealthServiceTestDB(t)
+	svc := setupHealthService(t, db)
+
+	coin := &repository.EligibleCoinRow{
+		AIAnalysis:      "Full combined analysis",
+		ObverseAnalysis: "Additional obverse detail",
+		ReverseAnalysis: "",
+	}
+
+	score := svc.scoreCoinAICoverage(coin)
+	if score != 50 {
+		t.Errorf("combined + obverse only: score = %d, want 50", score)
+	}
+
+	checklist := svc.generateCoinChecklist(coin)
+	hasCoverageItem := false
+	for _, item := range checklist {
+		if item.Key == "ai.coverage" {
+			hasCoverageItem = true
+			if !strings.Contains(item.Label, "reverse") {
+				t.Errorf("combined + obverse only: label should name missing reverse side, got %q", item.Label)
+			}
+		}
+		if item.Key == "ai.analysis" {
+			t.Errorf("combined + obverse only: should not have ai.analysis item")
+		}
+	}
+	if !hasCoverageItem {
+		t.Errorf("combined + obverse only: expected ai.coverage checklist item")
 	}
 }
 

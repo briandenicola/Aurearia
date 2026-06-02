@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -379,30 +380,20 @@ func (s *HealthService) scoreCoinValuationFreshness(coin *repository.EligibleCoi
 }
 
 // scoreCoinAICoverage computes AI analysis coverage (0-100).
+// Coverage is measured solely by per-side analysis: obverse and reverse.
+// Both sides analyzed = 100, one side = 50, neither = 0. The legacy combined
+// AIAnalysis field is intentionally not counted.
 func (s *HealthService) scoreCoinAICoverage(coin *repository.EligibleCoinRow) int {
-	hasAI := coin.AIAnalysis != ""
 	hasObverse := coin.ObverseAnalysis != ""
 	hasReverse := coin.ReverseAnalysis != ""
 
-	count := 0
-	if hasAI {
-		count++
+	if hasObverse && hasReverse {
+		return 100
 	}
-	if hasObverse {
-		count++
+	if hasObverse || hasReverse {
+		return 50
 	}
-	if hasReverse {
-		count++
-	}
-
-	if count == 0 {
-		return 0
-	} else if count == 1 {
-		return 33
-	} else if count == 2 {
-		return 66
-	}
-	return 100
+	return 0
 }
 
 // computeWeightedScore combines dimension scores using fixed weights.
@@ -559,19 +550,28 @@ func (s *HealthService) generateCoinChecklist(coin *repository.EligibleCoinRow) 
 		}
 	}
 
-	if coin.AIAnalysis == "" && coin.ObverseAnalysis == "" && coin.ReverseAnalysis == "" {
+	hasObverse := coin.ObverseAnalysis != ""
+	hasReverse := coin.ReverseAnalysis != ""
+
+	if !hasObverse && !hasReverse {
+		// No per-side AI analysis at all
 		items = append(items, MissingChecklistItem{
 			Key:        "ai.analysis",
 			Dimension:  ChecklistDimensionAI,
-			Label:      "AI analysis",
+			Label:      "Run AI analysis on the obverse and reverse",
 			Severity:   ChecklistSeverityMedium,
 			ActionHint: HealthActionRunAIAnalysis,
 		})
-	} else if coin.ObverseAnalysis == "" || coin.ReverseAnalysis == "" {
+	} else if !hasObverse || !hasReverse {
+		// One side is analyzed; name the side that still needs analysis
+		missingSide, doneSide := "reverse", "obverse"
+		if !hasObverse {
+			missingSide, doneSide = "obverse", "reverse"
+		}
 		items = append(items, MissingChecklistItem{
 			Key:        "ai.coverage",
 			Dimension:  ChecklistDimensionAI,
-			Label:      "Complete AI analysis (obverse + reverse)",
+			Label:      fmt.Sprintf("Run AI analysis on the %s (%s already done)", missingSide, doneSide),
 			Severity:   ChecklistSeverityLow,
 			ActionHint: HealthActionRunAIAnalysis,
 		})
