@@ -178,3 +178,31 @@ Completed three UI refinements to `CoinDetailPage.vue`:
 **Verification:** npm run type-check ✅, npm run build ✅, npm run lint ✅ (no new warnings)
 
 **Status:** Code change UNCOMMITTED, awaiting Brian's approval. Decision merged to `.squad/decisions.md`.
+
+## 2026-06-02 — Settings Tab Split: Backups & API Keys Now Separate
+
+Split the monolithic "Backups & Keys" Settings tab into two focused tabs: **Backups** (export/PDF/import) and **API Keys** (key generation/revocation).
+
+### Implementation
+
+**Component split:**
+- Kept `SettingsBackupsSection.vue` with backups-only logic (export ZIP, PDF catalog, CSV/JSON import with template + guide links)
+- Created new `SettingsApiKeysSection.vue` with full API key lifecycle (generate w/ scope selector, reveal box, list w/ capability badges, revoke)
+- Removed `loadApiKeys()` exposure from SettingsBackupsSection; added it to SettingsApiKeysSection
+
+**SettingsPage.vue wiring:**
+- Added `apikeys` tab to both `baseTabs` array and PWA-admin `tabs` computed (keeping them in sync per existing pattern)
+- Changed backups tab label from `'Backups & Keys'` → `'Backups'`
+- Added `KeyRound` icon to `tabIcons` map for `apikeys`; kept `Archive` for `backups`
+- Imported `SettingsApiKeysSection` and rendered it conditionally (`v-if="activeTab === 'apikeys'"`)
+- Added `apiKeysSection` ref; moved `loadApiKeys()` call in `handleRefresh` from `backupsSection` → `apiKeysSection`
+- `validTabIds` auto-derives from `baseTabs`, so deep-linking (`?tab=apikeys`) works without extra code
+
+**Key pattern learned:** Settings tab structure requires dual maintenance: `baseTabs` array (desktop + general cases) AND `tabs` computed (PWA with admin case). Both must stay in sync for consistent rendering. `tabIcons` map provides icon-per-tab. Refs call exposed methods (`loadApiKeys()`) on mount/refresh. `validTabIds` auto-derives from `baseTabs` for deep-link validation.
+
+### Verification
+- npm run type-check ✅
+- npm run build ✅ (no new chunks, clean output)
+- npm run lint ✅ (0 errors, 5 pre-existing warnings unchanged from HEAD)
+
+**Status:** Code change uncommitted, awaiting Brian's approval. Decision logged to `.squad/decisions/inbox/`.

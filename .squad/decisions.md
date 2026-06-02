@@ -5335,3 +5335,86 @@ Added lifecycle hooks to CollectionPage:
 
 - AuctionsPage does NOT have this bug—it uses only local `selectMode` ref, no global state
 - If we add more pages with select mode, they must follow the same cleanup pattern
+
+---
+
+### Decision: Split Settings "Backups & Keys" into Two Tabs
+
+**Date:** 2026-06-02  
+**Agent:** Aurelia (Frontend Developer)  
+**Status:** Implemented, awaiting approval
+
+## Context
+
+The Settings "Backups & Keys" tab bundled two unrelated concerns: data export/import tooling (backups) and API key generation/revocation (developer access). Brian requested splitting them into separate, focused tabs.
+
+## Decision
+
+Split the monolithic `SettingsBackupsSection.vue` into two components, each with its own Settings tab:
+1. **Backups** — Export Collection (ZIP), PDF Catalog, Import Collection (JSON/CSV) with template + guide
+2. **API Keys** — Generate keys with scope selector (read/read-write), reveal box, list with capability badges, revoke
+
+## Implementation
+
+### Component Split
+
+**`SettingsBackupsSection.vue` (Backups only):**
+- Retained: Export ZIP, Export PDF, Import (file picker), CSV Template download, Guide link
+- Removed: All API key logic (generate form, reveal box, key list, revoke, `loadApiKeys()` exposure)
+- Removed unused imports: `Check`, `Clipboard`, `KeyRound` icons; `generateApiKey`, `listApiKeys`, `revokeApiKey` client functions; `ApiKey` type; `onMounted`
+- Removed styles: `.api-key-description`, `.no-api-keys`, `.apikey-*` classes
+
+**`SettingsApiKeysSection.vue` (New component):**
+- Full API key lifecycle: name input, scope selector (Read/Read-Write chips), Generate button with KeyRound icon
+- Reveal box with copy-to-clipboard (Check/Clipboard icons), warning text
+- Key list with capability badges (Read/Read-Write), revoke buttons, revoked state styling
+- Exposes `loadApiKeys()` for parent refresh calls
+- All styles scoped; uses design tokens only
+
+### SettingsPage.vue Wiring
+
+**Tab registration (dual maintenance pattern):**
+- `baseTabs` array: Changed `{ id: 'backups', label: 'Backups & Keys' }` → `{ id: 'backups', label: 'Backups' }` and added `{ id: 'apikeys', label: 'API Keys' }` immediately after
+- `tabs` computed (PWA + admin case): Duplicated the same two-tab split to keep mobile menu in sync
+- `tabIcons` map: Added `apikeys: KeyRound`; kept `backups: Archive`
+- `validTabIds` auto-derives from `baseTabs`, so `?tab=apikeys` deep-linking works without extra logic
+
+**Rendering:**
+- Imported `SettingsApiKeysSection` component
+- Added `<SettingsApiKeysSection v-if="activeTab === 'apikeys'" ref="apiKeysSection" />`
+- Added `apiKeysSection` ref declaration
+
+**Refresh wiring:**
+- Moved `loadApiKeys()` call in `handleRefresh` from `backupsSection.value?.loadApiKeys()` → `apiKeysSection.value?.loadApiKeys()`
+
+## Architecture Compliance
+
+- ✅ **Principle IV (Strict Typing):** `<script setup lang="ts">`, all refs typed, `?.` chaining on ref methods
+- ✅ **Principle V (Design Token System):** All CSS uses tokens (`--accent-gold`, `--bg-card`, `--border-subtle`, `--radius-sm`, `--text-*`)
+- ✅ **Principle IX (UI/UX Consistency):** No emojis, lucide icons only (KeyRound, Check, Clipboard, Archive), dark default
+
+## Pattern Learned
+
+**Settings tab structure requires dual maintenance:**
+- `baseTabs` array (desktop + non-admin cases)
+- `tabs` computed (PWA + admin cases, adds "Admin" tab dynamically)
+- Both must stay in sync or desktop/mobile UIs diverge
+- `tabIcons` map provides icon-per-tab ID
+- `validTabIds` auto-derives from `baseTabs.map(t => t.id).concat('admin')` for route validation
+- Refs with exposed methods (`loadApiKeys()`) are called on mount/refresh
+
+## Verification
+
+- `npm run type-check` ✅ (no errors)
+- `npm run build` ✅ (clean output, no new chunks)
+- `npm run lint` ✅ (0 errors, 5 pre-existing warnings unchanged from HEAD)
+
+## Files Modified
+
+- `src/web/src/components/settings/SettingsBackupsSection.vue` — removed API key logic, updated heading to "Backups"
+- `src/web/src/components/settings/SettingsApiKeysSection.vue` — **NEW** component with full API key UI
+- `src/web/src/pages/SettingsPage.vue` — added `apikeys` tab, imported new component, wired ref + loadApiKeys call
+
+## User Directive
+
+**2026-06-02:** Split "Backups & Keys" tab into "Backups" (export/import) and "API Keys" (generation/revocation) — implemented.
