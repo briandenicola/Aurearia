@@ -15,10 +15,14 @@
               Choose File
               <input type="file" accept="image/*" hidden @change="handleImageUpload" />
             </label>
-            <label v-if="isPwa" class="btn btn-secondary btn-sm upload-btn camera-btn">
+            <button
+              v-if="isPwa"
+              type="button"
+              class="btn btn-secondary btn-sm upload-btn camera-btn"
+              @click="showCameraModal = true"
+            >
               <Camera :size="14" /> Photo
-              <input type="file" accept="image/*" capture="environment" hidden @change="handleImageUpload" />
-            </label>
+            </button>
           </div>
 
           <div class="url-upload-row">
@@ -99,6 +103,12 @@
         :coin-denomination="coinDenomination ?? ''"
       />
     </div>
+    
+    <CameraCaptureModal
+      :is-open="showCameraModal"
+      @close="showCameraModal = false"
+      @captured="handleCameraCaptured"
+    />
   </div>
 </template>
 
@@ -107,6 +117,7 @@ import { ref } from 'vue'
 import { uploadImage, proxyImage, estimateCoinValue, updateCoin } from '@/api/client'
 import { formatCurrency } from '@/utils/format'
 import CoinNumistaPanel from '@/components/coin/CoinNumistaPanel.vue'
+import CameraCaptureModal from '@/components/CameraCaptureModal.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { Camera } from 'lucide-vue-next'
 import { useDialog } from '@/composables/useDialog'
@@ -137,6 +148,7 @@ const urlLoading = ref(false)
 const estimating = ref(false)
 const valueEstimate = ref<ValueEstimate | null>(null)
 const estimateError = ref('')
+const showCameraModal = ref(false)
 
 function safeComparableUrl(url: string | null | undefined): string | null {
   return sanitizeExternalUrl(url)
@@ -151,6 +163,22 @@ async function handleImageUpload(e: Event) {
 
   try {
     await uploadImage(props.coinId, file, uploadType.value, props.imageCount === 0)
+    uploadStatus.value = 'Upload complete!'
+    emit('imagesChanged')
+  } catch {
+    uploadStatus.value = 'Upload failed'
+    uploadError.value = true
+  }
+}
+
+async function handleCameraCaptured(file: File) {
+  uploadStatus.value = 'Uploading...'
+  uploadError.value = false
+
+  try {
+    // Pass circleClip=true for obverse/reverse, false for other types
+    const shouldCircleClip = uploadType.value === 'obverse' || uploadType.value === 'reverse'
+    await uploadImage(props.coinId, file, uploadType.value, props.imageCount === 0, shouldCircleClip)
     uploadStatus.value = 'Upload complete!'
     emit('imagesChanged')
   } catch {
