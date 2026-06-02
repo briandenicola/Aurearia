@@ -96,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, computed } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCoinsStore } from '@/stores/coins'
 import type { ImageType, HealthQuickAction, StorageLocation } from '@/types'
@@ -128,6 +128,8 @@ const menuOpen = ref(false)
 onMounted(() => {
   fetchUserTags()
   fetchStorageLocations()
+  // Reset bulkSelectActive on mount to prevent stale state from previous navigation
+  bulkSelectActive.value = false
 })
 
 // Health queue state
@@ -288,6 +290,13 @@ async function bulkAssignLocation(locationId: number | null) {
     alert('Failed to assign location')
   }
 }
+
+onUnmounted(() => {
+  // Clean up module-level state when navigating away
+  if (selectMode.value) {
+    bulkSelectActive.value = false
+  }
+})
 </script>
 
 <style scoped>
