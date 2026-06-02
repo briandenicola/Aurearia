@@ -3115,7 +3115,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Performs a bulk action (tag, delete, sell, export) on selected coins.",
+                "description": "Performs a bulk action (tag, delete, sell, export, assign-location) on selected coins.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6672,6 +6672,9 @@ const docTemplate = `{
                     "items": {
                         "type": "integer"
                     }
+                },
+                "storageLocationId": {
+                    "type": "integer"
                 },
                 "tagId": {
                     "type": "integer"

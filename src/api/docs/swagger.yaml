@@ -95,6 +95,8 @@ definitions:
         items:
           type: integer
         type: array
+      storageLocationId:
+        type: integer
       tagId:
         type: integer
     required:
@@ -4232,8 +4234,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Performs a bulk action (tag, delete, sell, export) on selected
-        coins.
+      description: Performs a bulk action (tag, delete, sell, export, assign-location)
+        on selected coins.
       parameters:
       - description: Bulk action request
         in: body
