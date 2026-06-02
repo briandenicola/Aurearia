@@ -62,15 +62,27 @@
             </div>
           </div>
 
-          <div v-if="coin.obverseInscription || coin.reverseInscription" class="inscriptions-section">
-            <h3>Inscriptions</h3>
-            <div v-if="coin.obverseInscription" class="inscription">
-              <span class="inscription-label">Obverse:</span>
-              <span class="inscription-text">{{ coin.obverseInscription }}</span>
-            </div>
-            <div v-if="coin.reverseInscription" class="inscription">
-              <span class="inscription-label">Reverse:</span>
-              <span class="inscription-text">{{ coin.reverseInscription }}</span>
+          <div v-if="coin.obverseInscription || coin.reverseInscription || coin.obverseDescription || coin.reverseDescription" class="inscription-section">
+            <h3>Inscription</h3>
+            <div class="section-content-card">
+              <div class="inscription-grid">
+                <div v-if="coin.obverseInscription || coin.obverseDescription" class="inscription-side">
+                  <h4 class="side-heading">Obverse</h4>
+                  <div v-if="coin.obverseInscription" class="inscription-line">
+                    <span class="inscription-label">Inscription:</span>
+                    <span class="inscription-text">{{ coin.obverseInscription }}</span>
+                  </div>
+                  <p v-if="coin.obverseDescription" class="description-text">{{ coin.obverseDescription }}</p>
+                </div>
+                <div v-if="coin.reverseInscription || coin.reverseDescription" class="inscription-side">
+                  <h4 class="side-heading">Reverse</h4>
+                  <div v-if="coin.reverseInscription" class="inscription-line">
+                    <span class="inscription-label">Inscription:</span>
+                    <span class="inscription-text">{{ coin.reverseInscription }}</span>
+                  </div>
+                  <p v-if="coin.reverseDescription" class="description-text">{{ coin.reverseDescription }}</p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -80,25 +92,17 @@
             <CoinDetailMetadataTable :rows="metadataRows" />
           </div>
 
-          <CoinTagsSection
-            :tags="coin.tags ?? []"
-            :coin-id="coin.id"
-            @tags-changed="refreshCoin"
-          />
-
           <CoinReferencesSection
             :coin-id="coin.id"
             :references="coin.references ?? []"
             @changed="refreshCoin"
           />
 
-          <div v-if="coin.obverseDescription || coin.reverseDescription" class="descriptions-section">
-            <h3>Description</h3>
-            <div class="section-content-card">
-              <p v-if="coin.obverseDescription"><strong>Obverse:</strong> {{ coin.obverseDescription }}</p>
-              <p v-if="coin.reverseDescription"><strong>Reverse:</strong> {{ coin.reverseDescription }}</p>
-            </div>
-          </div>
+          <CoinTagsSection
+            :tags="coin.tags ?? []"
+            :coin-id="coin.id"
+            @tags-changed="refreshCoin"
+          />
 
           <CoinListingStatus
             :coin-id="coin.id"
@@ -110,7 +114,7 @@
 
           <!-- T019: Settings-style section links -->
           <div class="sections-list">
-            <h3>Details</h3>
+            <h3>Additional Details</h3>
             <CoinDetailSectionLinks :coin-id="coin.id" />
           </div>
         </div>
@@ -307,40 +311,75 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
   flex-wrap: wrap;
 }
 
-.inscriptions-section,
-.descriptions-section,
+.inscription-section,
 .metadata-section,
 .sections-list {
   margin-bottom: 1.5rem;
 }
 
-.inscriptions-section h3,
-.descriptions-section h3,
+.inscription-section h3,
 .metadata-section h3,
 .sections-list h3 {
   margin-bottom: 0.75rem;
   font-size: 1rem;
 }
 
-.inscription {
-  margin-bottom: 0.4rem;
+.section-content-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+}
+
+.inscription-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.inscription-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.side-heading {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-heading);
+  margin: 0;
+}
+
+.inscription-line {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .inscription-label {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
-  margin-right: 0.4rem;
+  font-weight: 500;
 }
 
 .inscription-text {
   font-style: italic;
   color: var(--text-secondary);
+  font-size: 0.9rem;
 }
 
-.descriptions-section p {
+.description-text {
   font-size: 0.9rem;
   color: var(--text-secondary);
-  margin-bottom: 0.4rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .inscription-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
 }
 
 /* T013: Desktop-only sticky behavior */
