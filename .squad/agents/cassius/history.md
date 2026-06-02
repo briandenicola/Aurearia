@@ -299,3 +299,17 @@ to render `item.label` so every Needs-Attention row explains what's missing.
 **Learning:** Don't over-generalize a "too harsh" complaint into crediting a legacy
 field. Confirm the intended scoring axis with the actual UI workflow — here the per-side
 buttons confirmed obverse/reverse is the real coverage signal.
+
+---
+
+## 2026-06-02 12:31:33Z: AI Coverage Health Scoring Fix — Decision Merged
+
+**Status:** Merged to decisions.md
+
+AI-coverage model finalized: **obverse + reverse only** (legacy combined field not counted). Both sides → 100, one → 50, none → 0. Checklist items now render human-readable labels naming the missing side.
+
+**Files:** `services/health_service.go`, `health_service_test.go`. Frontend coordinator updated `CoinHealthChecklist.vue` to render `item.label`.
+
+**Cross-agent:** Aurelia (frontend) will benefit from camera permissions pre-check; no backend impact.
+
+**Commit:** fcfe401

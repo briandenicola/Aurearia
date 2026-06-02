@@ -5553,3 +5553,155 @@ Split the monolithic `SettingsBackupsSection.vue` into two components, each with
 ## User Directive
 
 **2026-06-02:** Split "Backups & Keys" tab into "Backups" (export/import) and "API Keys" (generation/revocation) — implemented.
+
+---
+
+## Decision: AI Coverage Health Scoring = Obverse + Reverse Only
+
+**Date:** 2026-06-02
+**Author:** Cassius (Backend) + Coordinator
+**Status:** Implemented
+**Related Issues:** Metadata Health issue #2 (ai.coverage)
+
+### Context
+
+Metadata Health AI scoring was "unduly harsh and not taking all data into account."
+An initial fix tried to credit the legacy combined `ai_analysis` field as covering
+both faces. Brian then clarified the intended model explicitly:
+
+> "that's all I care about for the AI analysis scoring - obverse and reverse"
+
+and asked that the checklist **explain what is missing** (e.g. "you have obverse done,
+you haven't run AI analysis on the reverse").
+
+This supersedes the earlier "combined counts as both faces" approach.
+
+### Final Semantics
+
+AI coverage is measured **solely** by the per-side analyses — `obverse_analysis` and
+`reverse_analysis`. The legacy combined `ai_analysis` field is **not** counted. This
+matches the actual UI, which only offers "Analyze Obverse" / "Analyze Reverse" buttons
+(`CoinAIAnalysis.vue`); the combined field is legacy.
+
+**Scoring (`scoreCoinAICoverage`):**
+- Both obverse + reverse analyzed → 100
+- Exactly one side → 50
+- Neither → 0
+
+**Checklist (`generateCoinChecklist`):**
+- `ai.analysis` (Medium) — no per-side analysis at all. Label: "Run AI analysis on the obverse and reverse"
+- `ai.coverage` (Low) — exactly one side analyzed. Label names the missing side, e.g. "Run AI analysis on the reverse (obverse already done)"
+
+**Frontend:** `CoinHealthChecklist.vue` now renders `item.label` (human-readable
+explanation) instead of the raw `item.key` (e.g. "ai.coverage"). This applies to all
+checklist items, so every "Needs Attention" row now explains what is missing.
+
+### Outcome Table
+
+| Coin State | Score | Checklist |
+|---|---|---|
+| Obverse + Reverse | 100 | (none) |
+| Obverse only | 50 | ai.coverage ("…reverse…") |
+| Reverse only | 50 | ai.coverage ("…obverse…") |
+| Combined only (legacy) | 0 | ai.analysis |
+| Nothing | 0 | ai.analysis |
+
+### Impact
+
+- Backend: `services/health_service.go` (`scoreCoinAICoverage`, AI block in
+  `generateCoinChecklist`; added `fmt` import). No schema/handler/contract change.
+- Frontend: `CoinHealthChecklist.vue` renders `item.label`.
+- Tests: AI-coverage tests in `health_service_test.go` updated — combined-only now
+  expects score 0 + ai.analysis; combined+obverse expects 50 + ai.coverage naming reverse.
+
+### Principles Applied
+
+- Principle I (Layered Architecture): service-layer logic only.
+- Principle VIII / §17: Conventional Commits + Co-authored-by trailer; build/vet/test pass.
+
+---
+
+## Decision: Camera Permissions API Pre-Check
+
+**Date:** 2026-06-02  
+**Agent:** Aurelia (Frontend Developer)  
+**Status:** Implemented  
+**Component:** `src/web/src/components/CameraCaptureModal.vue`
+
+### Context
+
+Brian runs the Ancient Coins app as an installed PWA on his iPhone over HTTPS (https://coins.denicolafamily.com with a valid Let's Encrypt cert). He asked whether the camera permission prompt could persist across sessions to avoid repeated "Allow camera?" dialogs.
+
+**Platform Reality:** Permission persistence is browser/OS-controlled, not app-controlled. An installed PWA served over HTTPS gives the best chance of persistence, but iOS Safari (especially in tab mode) may still re-prompt on every session. The app cannot force the OS to remember the grant.
+
+### Enhancement
+
+Added a **Permissions API pre-check** to `CameraCaptureModal.vue` as a progressive enhancement. This optimizes the UX when the browser/OS *has* persisted the grant, without changing behavior when it hasn't.
+
+#### Implementation
+
+**Before `getUserMedia`:**
+1. Check if `navigator.permissions?.query` exists (guard for older browsers)
+2. Wrap in try/catch (some browsers throw on `{ name: 'camera' }` query)
+3. Query permission state: `await navigator.permissions.query({ name: 'camera' as PermissionName })`
+4. If `state === 'denied'`: set precise error ("Camera access is blocked. Please enable it in your browser or site settings.") and return early (skip `getUserMedia` — it would reject immediately anyway)
+5. If `state === 'granted'` or `'prompt'`: proceed to existing `getUserMedia` call
+6. Add `status.onchange` listener to detect runtime permission changes (e.g., user re-grants via browser UI while modal is open)
+
+**Cleanup:**
+- `stopCamera()` now clears the `status.onchange` listener and nulls `permissionStatus` ref to prevent leaks
+
+**TypeScript:**
+- `'camera' as PermissionName` cast required (not in default union)
+- ESLint `no-undef` disabled for `PermissionStatus` and `PermissionName` type annotations (standard Web API types)
+
+**Fallback:**
+- If the Permissions API is unavailable or throws, falls through to existing `getUserMedia` flow unchanged
+- Maintains full backward compatibility with browsers that don't support the API
+
+#### User Experience
+
+| Scenario | Before | After |
+|---|---|---|
+| Permission granted & persisted | Prompt → camera opens | Camera opens instantly (no prompt) |
+| Permission denied | getUserMedia rejects → generic error | Precise error before getUserMedia, guides user to settings |
+| Permission not yet decided | Prompt → grant/deny | Same (prompt → grant/deny) |
+| Permissions API unavailable | Prompt → grant/deny | Same (fallback to getUserMedia) |
+
+### Outcome
+
+- **Best-case UX improved:** When Brian's iOS Safari *does* persist the grant, the camera now opens with zero delay and no re-prompt
+- **Worst-case UX unchanged:** When persistence fails (browser limitation), the modal still prompts via `getUserMedia` as before
+- **Denial clarity improved:** Users who previously denied get a clear, actionable message pointing them to browser settings instead of a generic "permission denied" error
+
+### Technical Notes
+
+- Progressive enhancement pattern: feature detection → try/catch → fallback
+- No new dependencies (pure Web API)
+- Leak-free: `onchange` listener cleaned up in `stopCamera()` and `onUnmounted()`
+- TypeScript-safe with narrow casts (`'camera' as PermissionName`)
+
+### Validation
+
+- `npm run type-check` ✅ (vue-tsc --build passes)
+- `npm run lint` ✅ (no new errors; 1 pre-existing unused-var warning unchanged)
+- `npm run build` ✅ (production build succeeds)
+
+### References
+
+- **Principle IV:** Strict Typing & Build Parity (type-check must pass)
+- **Principle IX:** UI/UX Consistency (actionable error messages, no emojis)
+- **Principle XIII:** PWA/Mobile Interaction Rules (progressive enhancement for installed PWA)
+- **Related commit:** 7a0eb40 (CameraCaptureModal extraction)
+
+### Platform Compatibility
+
+| Browser | Permissions API | Camera Query | Persistence Behavior |
+|---|---|---|---|
+| Chrome/Edge (Android) | ✅ | ✅ | Usually persists (installed PWA) |
+| Safari (iOS 15.2+) | ✅ | ✅ | May persist (installed PWA over HTTPS) |
+| Safari (iOS tabs) | ✅ | ✅ | Rarely persists (resets on tab close) |
+| Firefox (mobile) | ✅ | ✅ | Usually persists |
+| Older Safari | ❌ | ❌ | Falls back to getUserMedia |
+
+**Key takeaway:** The pre-check enhances UX where persistence exists, but cannot create persistence where the platform doesn't support it. Brian's setup (installed PWA + HTTPS) is optimal for persistence, but iOS Safari tabs will still re-prompt regardless of this change.

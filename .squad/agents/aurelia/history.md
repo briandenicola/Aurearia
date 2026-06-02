@@ -121,3 +121,17 @@ Unified camera capture UX: Coin Details "Photo" button now uses same in-app circ
 **Commit:** 7a0eb40
 
 **Cross-agent note:** Cassius added `Coin.CurrentValueUpdatedAt` field (API response now includes `currentValueUpdatedAt`). Available for future UX showing valuation timestamps.
+
+---
+
+## 2026-06-02 12:31:33Z: Camera Permissions Pre-Check — Decision Merged
+
+**Status:** Merged to decisions.md
+
+Added navigator.permissions.query pre-check to CameraCaptureModal.vue. Persisted grants (iOS PWA over HTTPS) now open camera instantly without re-prompt. Denied state shows actionable error before getUserMedia. Fallback to getUserMedia for unsupported browsers. Leak-free cleanup.
+
+**Files:** `src/web/src/components/CameraCaptureModal.vue`. No backend changes.
+
+**Cross-agent:** Cassius (backend) completed AI-coverage health fix; no frontend impact on camera permissions.
+
+**Commit:** 17f75b4
