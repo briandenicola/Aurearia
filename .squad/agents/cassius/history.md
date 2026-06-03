@@ -6,19 +6,30 @@
 
 ## Core Context
 
-- Cassius owns backend implementation. Durable backend rules: thin handlers, service-owned business logic, repository-owned GORM queries, scopes for ownership/public filters, sentinel service errors, Swagger annotations, and DI wiring in `main.go`.
-- Scheduler/run-log pattern established across valuation, wishlist/availability, auction-ending, and related admin surfaces: configurable settings, manual trigger, run history table, and production diagnostics where needed.
-- Time-sensitive auction queries use rolling `(now, now+24h]` windows, explicit NULL guards, and case-insensitive status comparison. Real-data diagnostics should accompany query fixes.
-- Security/backend patterns: validate ownership before CPU/memory-heavy decode operations; mock httpx response methods synchronously in Python tests; circle image clipping lives in stdlib-only `src/api/capture/` and is gated to obverse/reverse uploads when `circleClip=true`.
+**Durable backend rules:**
+- Thin handlers, service-owned business logic, repository-owned GORM queries, scopes for ownership/public filters, sentinel service errors, Swagger annotations, DI wiring in `main.go`
+- Scheduler/run-log pattern: configurable settings, manual trigger, run history table, production diagnostics (applied to valuation, wishlist/availability, auction-ending)
+- Time-sensitive auction queries: rolling `(now, now+24h]` windows, explicit NULL guards, case-insensitive status comparison, real-data diagnostics
+- Security/backend patterns: validate ownership before heavy decode ops; circle image clipping in stdlib-only `src/api/capture/` gated to obverse/reverse uploads when `circleClip=true`
+- SQLite FK migration gotcha: nullable lookup FKs added post-launch should use `constraint:-` (no physical constraints) to avoid destructive table rebuilds; enforce ownership/referential correctness in services/repositories instead
+- RIC/Structured Reference migration: legacy free-text `Coin.RarityRating` parses idempotently into structured `CoinReference` at user request (not startup); skips ambiguous values; preserves legacy columns for non-destructive migration
+
+**Recent batch outcomes (2026-06-01 — 2026-06-03):**
+- Valuation freshness fix: added `Coin.CurrentValueUpdatedAt` field to track when valuation was last updated; health scoring now measures staleness from valuation update time (fallback to PurchaseDate for legacy coins)
+- External tool server stack: API key capabilities, enablement toggle, capability middleware, per-key rate limit, `/api/v1/tools` route group, handlers, OpenAPI discovery, external commit journal metadata
+- AI coverage health fix (final model): **obverse + reverse only** (legacy combined `ai_analysis` not counted); both sides → 100, one → 50, none → 0; checklist items render human-readable labels naming missing side
+- Collection chat multi-container callback issue: `AGENT_INTERNAL_CALLBACK_URL` must point from agent container to API service (e.g. `http://coins:8080`), not localhost; startup warning added for release+localhost
+- v1→v2 migration audit: only additive schema changes; AutoMigrate/backfill safe and rollback-safe
+- Frontend navigation convention documented: parent detail pages use absolute `router.push('/')` to grandparent list, single-child forms use `router.back()` after save (prevents history pollution with subpage cycles)
+
+**Architecture compliance:** All recent work follows Principle I (Layered Architecture), Principle VII (Schema-Driven Contracts), Principle XI (Security Hardening), Principle XII (Auth & Token Policy)
 
 ## Recent Updates
 
-- **2026-05-31:** #217 Go shared collection tool layer completed: internal token service/middleware, six internal tool endpoints, keyword gate removed, confirm-gated write flow preserved.
-- **2026-05-31:** #217 Python ReAct collection agent completed end-to-end with LangChain tools calling Go internal endpoints via short-lived internal token; compound collection/value questions now compose within one reasoning turn.
-- **2026-06-01:** #218 external tool server foundational stack implemented: API key capabilities, enablement toggle, capability middleware, per-key rate limit, `/api/v1/tools` route group, handlers, OpenAPI discovery, and external commit journal metadata. Build/vet/test passed.
-- **2026-06-01:** Collection chat multi-container callback issue documented. `AGENT_INTERNAL_CALLBACK_URL` must point from agent container to API service (e.g. `http://coins:8080`), not default localhost; startup warning added for release+localhost.
-- **2026-06-01:** v1→v2 migration audit found only additive schema changes; AutoMigrate/backfill safe and rollback-safe.
-- **2026-06-01:** Frontend navigation convention established: parent hub pages (CoinDetailPage) with multiple child subpages use absolute `router.push('/')` to grandparent list view, not relative `router.back()`. Single-child forms (EditCoinPage) use `router.back()` after save. Subpages return to hub via `router.push('/coin/:id')` to allow continued exploration. This convention prevents history-stack pollution when users navigate through sibling subpages and avoids trapping users in subpage cycles (Aurelia fixed this in commit 6747a6d). Relevant for any backend feature that might create multi-child detail structures.
+- **2026-06-01:** #217 shared collection tool layer (internal token service, six internal endpoints, keyword gate removed), #217 Python ReAct agent completed end-to-end, #218 external tool server stack
+- **2026-06-01:** v1→v2 migration audit, Frontend navigation convention, Storage Location API pattern (per-user lookup table, nullable Coin.StorageLocationID FK, 409 conflict guard), Legacy RIC→CoinReference migration design + implementation + startup→endpoint refactor
+- **2026-06-02:** Valuation freshness fix (CurrentValueUpdatedAt), Metadata health AI coverage fix (combined→obverse+reverse), AI coverage health scoring correction (per-side model finalized), checklist labels for missing side
+
 
 ## Learnings
 

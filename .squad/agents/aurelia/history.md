@@ -6,17 +6,30 @@
 
 ## Core Context
 
-- Aurelia owns frontend implementation and UX polish. Durable frontend rules: `<script setup lang="ts">`, strict nullable handling with `?.`/`??`, no emojis, lucide icons, dark theme, PWA/mobile support, and design-token-only CSS when tokens exist.
-- Established patterns: accessible modals follow `FeaturedCoinModal` structure; composables expose cleanup functions and pages call them on unmount; timer/resource cleanup is mandatory; auth store syncs through client refresh callback.
-- Feature #219 coin detail patterns: overview uses dual-side media, metadata table rows, settings-style section links, and section pages. Detail sections use `<h3>` headings with section spacing; tags are a full section and use `.chip` sizing for interactive pills.
-- Camera/intake patterns from #216: 3-column capture-slot grid, active tile state via tokenized gold glow, circular focus-guide overlay, and AddCoinPage camera controls aligned under slots with Camera/Images lucide icons.
+**Durable patterns & learnings:**
+- `<script setup lang="ts">` with strict nullable handling (`?.`, `??`); no emojis; lucide icons; dark theme; PWA/mobile support; design-token-only CSS
+- Feature #219 coin detail: overview uses dual-side media, metadata table, section links; detail sections use `<h3>` with section spacing; tags use `.chip` sizing
+- Camera/intake: 3-column capture slots, active-tile gold glow, circular focus overlay, camera controls aligned under slots (Camera/Images lucide icons)
+- Modal structure from `FeaturedCoinModal`; composables expose cleanup functions; `onUnmounted()` cleanup mandatory
+- **State management:** Module-level refs in composables do NOT reset on unmount — must explicitly reset in `onUnmounted()` or state leaks across navigation (learned from `bulkSelectActive` hiding agent FAB indefinitely)
+- **Composition API:** Interaction-gating state must never be module-level refs; prefer Pinia store with lifecycle or pass via props/emits
+- **Non-passive touchmove gotcha:** A non-passive `touchmove` handler that calls `e.preventDefault()` MUST have a `touchcancel` reset handler paired with it, else OS/browser gesture hijacks leave the state stuck (learned from pull-to-refresh touch handler freezing UI)
+- **History stack:** Prefer `router.back()` on child form save (pops form, returns to parent naturally). Parent pages with multiple subpages use absolute nav to list (`router.push('/')`) to avoid history pollution and incorrect back routing
+- **Responsive tables:** When action buttons overflow, stack related data vertically in earlier columns; use `flex-shrink: 0` and `justify-content: flex-end` on action containers
+- **Backend nullable FKs:** SQLite FKs may use `constraint:-` notation (no physical constraints) to avoid destructive rebuilds; frontend treats lookup fields as always-nullable
+
+**Recent batch outcomes (2026-06-02 — 2026-06-03):**
+- Camera Capture Modal: extracted into reusable `CameraCaptureModal.vue` (live preview, circular focus, permission handling, leak-free cleanup); `CoinActionsPanel.vue` now uses modal instead of native `<input capture>`
+- Camera Permissions API pre-check: progressive enhancement for persisted grants (iOS PWA over HTTPS), shows actionable error on denial, fallback to `getUserMedia` for unsupported browsers
+- Per-coin Value Trend Subpage: created `CoinDetailValuationPage.vue` mirroring coin detail subpage pattern; new route `/coin/:id/valuation` (coin-detail-valuation); added `'valuation'` section after analysis in coinDetailSections.ts; chart migrated from deleted `StatsCoinValueTrend.vue` (SVG polyline + circles, y-axis/date labels, `formatCurrency`, `getCoinValueHistory(coinId)`, seed from coin metadata); collection-wide trend stays on Stats page; npm type-check/build/lint all passed
+
+**Architecture compliance:** All recent work follows Principle IV (Strict Typing), Principle V (Design Token System), Principle IX (UI/UX Consistency), Principle XIII (PWA/Mobile)
 
 ## Recent Updates
 
-- **2026-06-01:** Tags UI refinements completed for #219: Tags promoted to full section after Details, before Catalog References; `.chip` sizing used; type-check/build clean.
-- **2026-06-01:** AddCoinPage camera actions changed to a 3-column grid matching capture slots; shutter centered under REVERSE and photo library button aligned under CARD; Upload icon replaced by Images.
-- **2026-06-01:** Purchase metadata moved into the Details table as full-width rows. `CoinDetailMetadataRow` gained `fullWidth?: boolean` and later `url?: string | null`; purchase location renders as store-only with optional sanitized `SafeExternalLink`.
-- **2026-06-01:** Store prefix label added for purchase location: `Store: ` is rendered only for `row.key === 'purchaseLocation'`, styled muted/italic; only the store name is clickable when a URL is present.
+- **2026-06-01:** Tags UI final, AddCoinPage camera grid, Purchase metadata moved to Details table, Store prefix label for purchase location, free-text Rarity UI removed, Storage Location frontend integration, Settings tab reorganization (backups/API keys), bulk assign location UI
+- **2026-06-01 (Learnings):** Fixed PWA tap-blocking (pull-to-refresh touchcancel leak) and agent FAB hidden bug (module-level state leak); documented back navigation pattern and responsive table overflow handling
+- **2026-06-02:** Coin detail UI reordering (Inscription consolidation, section renames, metadata hierarchy); Settings tab split (Backups ↔ API Keys as separate tabs); Camera modal extraction; Camera permissions pre-check; Per-coin value trend subpage
 
 ## Learnings
 
@@ -135,3 +148,7 @@ Added navigator.permissions.query pre-check to CameraCaptureModal.vue. Persisted
 **Cross-agent:** Cassius (backend) completed AI-coverage health fix; no frontend impact on camera permissions.
 
 **Commit:** 17f75b4
+
+## Learnings (continued)
+
+- **2026-06-02:** Per-coin value trend subpage pattern: Follow existing coin detail subpage structure (`CoinDetailHealthPage.vue` → `CoinDetailValuationPage.vue`). New route: `/coin/:id/valuation`, added as `coin-detail-valuation` in router. New section type: `'valuation'` in `coinDetailSections.ts` with title "Value Trend", description "Estimated value over time", and positioned after analysis in `SECTION_ORDER`. Chart logic migrated from `StatsCoinValueTrend.vue`: SVG polyline + circles, y-axis labels, date labels, `formatCurrency`, `getCoinValueHistory(coinId)`, seed from `purchasePrice`/`purchaseDate` then append `CoinValueHistory` entries sorted by date. Empty state handling: wishlist/sold coins show "only available for active coins" message; < 2 data points shows "Not enough data points to chart. Run an AI estimate to start tracking." The collection-wide value trend (`StatsValueOverTime.vue`) stays on Stats page. Per-coin trend component (`StatsCoinValueTrend.vue` with dropdown) deleted after moving logic to valuation subpage.

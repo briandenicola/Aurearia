@@ -2,7 +2,7 @@
 // These constants define the standard section links shown on the coin detail overview page
 
 export interface CoinDetailSection {
-  id: 'journal' | 'notes' | 'actions' | 'analysis' | 'health'
+  id: 'journal' | 'notes' | 'actions' | 'analysis' | 'health' | 'valuation'
   title: string
   description: string
   route: (coinId: number) => string
@@ -39,6 +39,12 @@ export const COIN_DETAIL_SECTIONS: Record<string, CoinDetailSection> = {
     description: 'Computer vision analysis and insights',
     route: (coinId: number) => `/coin/${coinId}/analysis`,
   },
+  valuation: {
+    id: 'valuation',
+    title: 'Value Trend',
+    description: 'Estimated value over time',
+    route: (coinId: number) => `/coin/${coinId}/valuation`,
+  },
 }
 
-export const SECTION_ORDER: CoinDetailSection['id'][] = ['journal', 'health', 'notes', 'actions', 'analysis']
+export const SECTION_ORDER: CoinDetailSection['id'][] = ['journal', 'health', 'notes', 'actions', 'analysis', 'valuation']

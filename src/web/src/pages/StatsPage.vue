@@ -69,7 +69,6 @@
         />
 
         <StatsValueOverTime />
-        <StatsCoinValueTrend />
         <StatsHeatMap ref="heatMapRef" />
       </div>
     </div>
@@ -84,7 +83,6 @@ import StatsSummaryCards from '@/components/stats/StatsSummaryCards.vue'
 import StatsBarChart from '@/components/stats/StatsBarChart.vue'
 import type { BarItem } from '@/components/stats/StatsBarChart.vue'
 import StatsValueOverTime from '@/components/stats/StatsValueOverTime.vue'
-import StatsCoinValueTrend from '@/components/stats/StatsCoinValueTrend.vue'
 import StatsHeatMap from '@/components/stats/StatsHeatMap.vue'
 import CollectionHealthScorecard from '@/components/stats/CollectionHealthScorecard.vue'
 import CollectionHealthTrendIndicator from '@/components/stats/CollectionHealthTrendIndicator.vue'

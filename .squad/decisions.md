@@ -5705,3 +5705,96 @@ Added a **Permissions API pre-check** to `CameraCaptureModal.vue` as a progressi
 | Older Safari | ❌ | ❌ | Falls back to getUserMedia |
 
 **Key takeaway:** The pre-check enhances UX where persistence exists, but cannot create persistence where the platform doesn't support it. Brian's setup (installed PWA + HTTPS) is optimal for persistence, but iOS Safari tabs will still re-prompt regardless of this change.
+
+---
+
+### Decision: Per-Coin Value Trend Relocated to Dedicated Subpage
+
+**Date:** 2026-06-02  
+**Agent:** Aurelia (Frontend Developer)  
+**Status:** Implementation complete
+
+## Rationale
+
+The Stats page was mixing two distinct value trend contexts:
+1. **Collection-wide trend** (`StatsValueOverTime.vue`) — total portfolio value vs. invested over time
+2. **Per-coin trend** (`StatsCoinValueTrend.vue`) — single coin's estimated value over time, with dropdown to pick coin
+
+The per-coin trend naturally belongs as a coin detail subpage (like Health, Analysis, Actions, etc.) where a user is already viewing a specific coin and wants to see its valuation history without having to navigate to Stats and search for it in a dropdown.
+
+## Implementation
+
+### Created New Subpage
+- **Component:** `src/web/src/pages/CoinDetailValuationPage.vue`
+- **Pattern:** Mirrors `CoinDetailHealthPage.vue` structure
+- Wraps content in `<CoinDetailSectionPageShell section-title="Value Trend">` with slot `{ coin: coinData }`
+- Chart logic migrated from `StatsCoinValueTrend.vue`:
+  - SVG polyline + circles
+  - Y-axis labels (max, mid, $0)
+  - Date labels (first/last data point)
+  - `formatCurrency` from `@/utils/format`
+  - `getCoinValueHistory(coinId)` from API client
+  - Seeds from `coin.purchasePrice`/`purchaseDate`, appends `CoinValueHistory` entries sorted by date
+- Empty state handling:
+  - Wishlist/sold coins: "Value tracking is only available for active coins in your collection."
+  - < 2 data points: "Not enough data points to chart. Run an AI estimate to start tracking."
+- Uses design tokens for all CSS (no hardcoded values)
+
+### Route Registration
+- **Path:** `/coin/:id/valuation`
+- **Name:** `coin-detail-valuation`
+- **File:** `src/web/src/router/index.ts`
+- **Meta:** `{ requiresAuth: true }`
+
+### Section Link Added
+- **File:** `src/web/src/constants/coinDetailSections.ts`
+- Added `'valuation'` to `CoinDetailSection['id']` union type
+- New section entry:
+  ```ts
+  valuation: {
+    id: 'valuation',
+    title: 'Value Trend',
+    description: 'Estimated value over time',
+    route: (coinId: number) => `/coin/${coinId}/valuation`,
+  }
+  ```
+- Added to `SECTION_ORDER` after `'analysis'` (appears in "Additional Details" section links)
+
+### Removed from Stats Page
+- **File:** `src/web/src/pages/StatsPage.vue`
+- Removed `<StatsCoinValueTrend />` component usage
+- Removed import for `StatsCoinValueTrend.vue`
+- **Kept** `<StatsValueOverTime />` (collection-wide trend) exactly where it was
+
+### Deleted Old Component
+- **File:** `src/web/src/components/stats/StatsCoinValueTrend.vue` — deleted
+- Verified no other references exist in the codebase (grep returned only StatsPage.vue)
+
+## Verification
+
+All validation checks passed:
+- ✅ `npm run type-check` (vue-tsc --build, Docker strict mode)
+- ✅ `npm run build` (Vite production build, includes new CoinDetailValuationPage chunk)
+- ✅ `npm run lint` (no new warnings)
+
+## User Impact
+
+**Before:** Users navigated to Stats page, scrolled to "Coin Value Trend" section, selected coin from dropdown, viewed chart.
+
+**After:** Users viewing a coin detail page see "Value Trend" in the "Additional Details" section links, tap to view that coin's valuation chart directly. No dropdown needed (coin is already contextually selected).
+
+**Collection-wide trend:** Unchanged — still on Stats page as `StatsValueOverTime.vue`.
+
+## Cross-Agent Notes
+
+- Backend endpoint `/coins/:id/value-history` already existed (no backend changes needed)
+- `CoinValueHistory` type already defined in `@/types` with `recordedAt` (string) and `value` (number)
+- Chart reuses existing API patterns and shared utilities (`formatCurrency`)
+
+## Architecture Compliance
+
+- **Principle I (Layered Architecture):** Frontend-only refactor; no changes to service/repository layers
+- **Principle IV (Strict Typing & Build Parity):** All nullable access uses optional chaining (`?.`); type-check passes in Docker strict mode
+- **Principle V (Design Token System):** All CSS uses tokens; no hardcoded colors/sizing
+- **Principle IX (UI/UX Consistency):** No emojis; dark theme; PWA-compatible; lucide icons
+- **Principle VIII / §17:** Conventional commit format with Co-authored-by trailer

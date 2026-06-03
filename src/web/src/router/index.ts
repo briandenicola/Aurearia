@@ -60,6 +60,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/coin/:id/valuation',
+      name: 'coin-detail-valuation',
+      component: () => import('@/pages/CoinDetailValuationPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/add',
       name: 'add-coin',
       component: () => import('@/pages/AddCoinPage.vue'),
