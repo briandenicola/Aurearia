@@ -126,7 +126,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, markRaw, type Component } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Clock, Bot, Gavel, X, Bell, Plus, CalendarDays, Share2, GripVertical, BookOpen } from 'lucide-vue-next'
+import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Clock, Bot, Gavel, X, Bell, Plus, CalendarDays, Share2, GripVertical, BookOpen, Layers3 } from 'lucide-vue-next'
 import { updateProfile, getMe } from '@/api/client'
 import { useNotifications } from '@/composables/useNotifications'
 import { useBulkSelect } from '@/composables/useBulkSelect'
@@ -171,6 +171,7 @@ const defaultNavItems: NavItem[] = [
   { id: 'followers', label: 'Followers', icon: markRaw(UsersIcon), to: '/followers', visible: true },
   { id: 'agent', label: 'Agent', icon: markRaw(Bot), action: () => { showChat.value = true; sidebarOpen.value = false }, visible: true },
   { id: 'stats', label: 'Stats', icon: markRaw(BarChart3), to: '/stats', visible: true },
+  { id: 'sets', label: 'Sets', icon: markRaw(Layers3), to: '/sets', visible: true },
   { id: 'timeline', label: 'Timeline', icon: markRaw(Clock), to: '/timeline', visible: true },
   { id: 'calendar', label: 'Calendar', icon: markRaw(CalendarDays), to: '/calendar', visible: true },
   { id: 'showcases', label: 'Showcases', icon: markRaw(Share2), to: '/showcases', visible: true },

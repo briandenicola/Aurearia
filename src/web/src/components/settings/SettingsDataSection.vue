@@ -5,6 +5,7 @@
       <section class="lookup-manager" aria-labelledby="tags-heading">
         <h3 id="tags-heading">Tags and Open Sets</h3>
         <p class="setting-desc">Legacy tags remain supported. New open sets can be managed from the Sets page.</p>
+        <router-link to="/sets" class="btn btn-secondary btn-sm sets-link">Open Sets</router-link>
 
         <div class="tag-create-form">
           <input
@@ -361,6 +362,11 @@ defineExpose({ loadTags, loadStorageLocations })
 .setting-desc {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.sets-link {
+  display: inline-flex;
+  margin-top: 0.75rem;
 }
 
 /* Lookup Managers */
