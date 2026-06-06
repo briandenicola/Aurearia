@@ -17,7 +17,7 @@
           </div>
         </div>
         <div class="set-actions">
-          <button class="btn btn-secondary" @click="showAddCoinModal = true">Add Coin</button>
+          <button v-if="canManageMembership" class="btn btn-secondary" @click="openAddCoinModal">Add Coin</button>
           <button class="btn" @click="showEditModal = true">Edit</button>
           <button class="btn btn-danger" @click="deleteSet">Delete</button>
         </div>
@@ -81,7 +81,7 @@
         <h2>Coins in Set</h2>
         <div v-if="coins.length === 0" class="empty-coins">
           <p>No coins in this set yet</p>
-          <button class="btn btn-primary" @click="showAddCoinModal = true">Add Coins</button>
+          <button v-if="canManageMembership" class="btn btn-primary" @click="openAddCoinModal">Add Coins</button>
         </div>
         <div v-else class="coins-grid">
           <div v-for="coin in coins" :key="coin.id" class="coin-card" @click="goToCoin(coin.id)">
@@ -98,7 +98,8 @@
               <p>${{ coin.currentValue || 0 }}</p>
             </div>
             <button
-              class="btn-remove"
+              v-if="canManageMembership"
+              class="remove-coin-btn btn btn-ghost btn-xs"
               @click.stop="removeCoin(coin.id)"
               title="Remove from set"
             >
@@ -114,12 +115,32 @@
         <h2>Add Coin to Set</h2>
         <form @submit.prevent="addCoin">
           <div class="form-group">
-            <label for="coinId">Coin ID</label>
-            <input id="coinId" v-model.number="coinIdToAdd" type="number" min="1" required />
+            <label for="coinSearch">Search coins</label>
+            <input
+              id="coinSearch"
+              v-model="coinSearch"
+              type="search"
+              placeholder="Search by name, ruler, denomination, or mint"
+            />
+          </div>
+          <div class="form-group">
+            <label for="coinToAdd">Coin</label>
+            <select id="coinToAdd" v-model.number="coinIdToAdd" required>
+              <option :value="null" disabled>Select a coin...</option>
+              <option
+                v-for="coin in filteredAvailableCoins"
+                :key="coin.id"
+                :value="coin.id"
+              >
+                {{ coin.name }}<template v-if="coin.ruler"> - {{ coin.ruler }}</template>
+              </option>
+            </select>
+            <p v-if="availableCoins.length === 0" class="form-hint">All loaded coins are already in this set.</p>
+            <p v-else-if="filteredAvailableCoins.length === 0" class="form-hint">No matching coins found.</p>
           </div>
           <div class="form-actions">
             <button type="button" class="btn btn-secondary" @click="showAddCoinModal = false">Cancel</button>
-            <button type="submit" class="btn btn-primary">Add Coin</button>
+            <button type="submit" class="btn btn-primary" :disabled="!coinIdToAdd">Add Coin</button>
           </div>
         </form>
       </div>
@@ -153,7 +174,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { FolderOpen, Coins } from 'lucide-vue-next'
 import {
@@ -161,6 +182,7 @@ import {
   compareSets,
   createSetSnapshot,
   deleteSet as deleteSetApi,
+  getCoins,
   getCoinsInSet,
   getSet,
   getSetAnalytics,
@@ -180,6 +202,7 @@ const route = useRoute()
 const loading = ref(true)
 const set = ref<CoinSetDetail | null>(null)
 const coins = ref<Coin[]>([])
+const allCoins = ref<Coin[]>([])
 const completion = ref<CoinSetCompletion | null>(null)
 const snapshots = ref<CoinSetSnapshot[]>([])
 const analytics = ref<CoinSetAnalytics | null>(null)
@@ -189,6 +212,7 @@ const trendRange = ref('1y')
 const showAddCoinModal = ref(false)
 const showEditModal = ref(false)
 const coinIdToAdd = ref<number | null>(null)
+const coinSearch = ref('')
 const editForm = ref({
   name: '',
   description: '',
@@ -197,6 +221,24 @@ const editForm = ref({
 
 const setId = Number(route.params.id)
 
+const canManageMembership = computed(() => set.value?.setType !== 'smart')
+
+const availableCoins = computed(() => {
+  const existingIds = new Set(coins.value.map((coin) => coin.id))
+  return allCoins.value.filter((coin) => !existingIds.has(coin.id))
+})
+
+const filteredAvailableCoins = computed(() => {
+  const term = coinSearch.value.trim().toLowerCase()
+  if (!term) return availableCoins.value
+  return availableCoins.value.filter((coin) => [
+    coin.name,
+    coin.ruler,
+    coin.denomination,
+    coin.mint,
+  ].some((field) => field?.toLowerCase().includes(term)))
+})
+
 onMounted(async () => {
   await loadSetDetails()
 })
@@ -204,15 +246,17 @@ onMounted(async () => {
 async function loadSetDetails() {
   loading.value = true
   try {
-    const [setRes, coinsRes, trendsRes, analyticsRes, setsRes] = await Promise.all([
+    const [setRes, coinsRes, trendsRes, analyticsRes, setsRes, allCoinsRes] = await Promise.all([
       getSet(setId),
       getCoinsInSet(setId),
       getSetTrends(setId, trendRange.value),
       getSetAnalytics(setId),
       getSets(),
+      getCoins({ wishlist: 'false', sold: 'false', limit: 100, sort: 'name', order: 'asc' }),
     ])
     set.value = setRes.data
     coins.value = coinsRes.data.coins
+    allCoins.value = allCoinsRes.data.coins
     snapshots.value = trendsRes.data.snapshots
     analytics.value = analyticsRes.data
     allSets.value = setsRes.data.sets.filter((candidate) => candidate.id !== setId)
@@ -267,6 +311,12 @@ async function updateSet() {
     console.error('Failed to update set:', error)
     alert('Failed to update set')
   }
+}
+
+function openAddCoinModal() {
+  coinIdToAdd.value = null
+  coinSearch.value = ''
+  showAddCoinModal.value = true
 }
 
 async function addCoin() {
@@ -484,26 +534,10 @@ function formatNumber(value: number): string {
   font-weight: 600;
 }
 
-.btn-remove {
+.remove-coin-btn {
   position: absolute;
   top: 0.5rem;
   right: 0.5rem;
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: var(--bg-card);
-  color: var(--text-primary);
-  border-radius:50%;
-  cursor: pointer;
-  font-size: 1.2rem;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-remove:hover {
-  color: var(--accent-gold);
 }
 
 .modal-overlay {
@@ -544,6 +578,7 @@ function formatNumber(value: number): string {
 }
 
 .form-group input,
+.form-group select,
 .form-group textarea {
   width: 100%;
   padding: 0.5rem;
@@ -552,6 +587,12 @@ function formatNumber(value: number): string {
   background: var(--bg-input);
   color: var(--text-primary);
   font-family: inherit;
+}
+
+.form-hint {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
 }
 
 .form-actions {

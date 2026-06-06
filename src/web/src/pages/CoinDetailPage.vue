@@ -100,6 +100,7 @@
 
           <CoinTagsSection
             :tags="coin.tags ?? []"
+            :sets="coin.sets ?? []"
             :coin-id="coin.id"
             @tags-changed="refreshCoin"
           />

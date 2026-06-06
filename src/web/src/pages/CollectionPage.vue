@@ -100,7 +100,7 @@ import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCoinsStore } from '@/stores/coins'
 import type { ImageType, HealthQuickAction, StorageLocation } from '@/types'
-import { addCoinToSet, bulkAction, getStorageLocations } from '@/api/client'
+import { bulkAction, getStorageLocations } from '@/api/client'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useBulkSelect } from '@/composables/useBulkSelect'
 import { usePwa } from '@/composables/usePwa'
@@ -266,10 +266,11 @@ async function bulkSell() {
 }
 
 async function bulkTag(target: string) {
+  const applyingSet = target.startsWith('set:')
   try {
-    if (target.startsWith('set:')) {
+    if (applyingSet) {
       const setId = Number(target.slice(4))
-      await Promise.all([...selectedCoinIds.value].map((coinId) => addCoinToSet(setId, { coinId })))
+      await bulkAction([...selectedCoinIds.value], 'set', { setId })
     } else {
       const tagId = Number(target.startsWith('tag:') ? target.slice(4) : target)
       await bulkAction([...selectedCoinIds.value], 'tag', { tagId })
@@ -280,7 +281,7 @@ async function bulkTag(target: string) {
     bulkSelectActive.value = false
     loadCoins()
   } catch {
-    alert('Failed to apply set')
+    alert(applyingSet ? 'Failed to apply set' : 'Failed to apply tag')
   }
 }
 

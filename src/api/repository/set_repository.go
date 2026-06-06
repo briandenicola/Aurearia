@@ -107,6 +107,56 @@ func (r *SetRepository) AddCoinToSet(coinID, setID, userID uint, notes string) e
 	})
 }
 
+// BulkAddCoinsToSet adds multiple owned coins to a manual set. Existing memberships are ignored.
+func (r *SetRepository) BulkAddCoinsToSet(coinIDs []uint, setID, userID uint) (int64, error) {
+	var affected int64
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var set models.CoinSet
+		if err := tx.Where("id = ? AND user_id = ?", setID, userID).First(&set).Error; err != nil {
+			return err
+		}
+		if set.SetType == models.CoinSetTypeSmart {
+			return fmt.Errorf("cannot manually add coins to smart sets")
+		}
+
+		uniqueCoinIDs := make([]uint, 0, len(coinIDs))
+		seen := make(map[uint]struct{}, len(coinIDs))
+		for _, coinID := range coinIDs {
+			if _, ok := seen[coinID]; ok {
+				continue
+			}
+			seen[coinID] = struct{}{}
+			uniqueCoinIDs = append(uniqueCoinIDs, coinID)
+		}
+
+		var ownedCount int64
+		if err := tx.Model(&models.Coin{}).Where("id IN ? AND user_id = ?", uniqueCoinIDs, userID).Count(&ownedCount).Error; err != nil {
+			return err
+		}
+		if ownedCount != int64(len(uniqueCoinIDs)) {
+			return gorm.ErrRecordNotFound
+		}
+
+		now := time.Now()
+		memberships := make([]models.CoinSetMembership, 0, len(uniqueCoinIDs))
+		for _, coinID := range uniqueCoinIDs {
+			memberships = append(memberships, models.CoinSetMembership{
+				CoinID:  coinID,
+				SetID:   setID,
+				AddedAt: now,
+			})
+		}
+
+		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&memberships)
+		if result.Error != nil {
+			return result.Error
+		}
+		affected = result.RowsAffected
+		return nil
+	})
+	return affected, err
+}
+
 // RemoveCoinFromSet removes a coin from a manual set. Both must belong to the given user.
 func (r *SetRepository) RemoveCoinFromSet(coinID, setID, userID uint) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {

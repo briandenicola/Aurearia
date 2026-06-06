@@ -40,6 +40,7 @@ export interface Coin {
   images: CoinImage[]
   references?: CoinReference[]
   tags?: Tag[]
+  sets?: CoinSet[]
   createdAt: string
   updatedAt: string
 }

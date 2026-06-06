@@ -56,6 +56,12 @@ A dedicated dashboard shows:
 - **Recently Updated Sets** — Recently modified memberships or snapshots
 - **Create New Set** — Quick-access wizard
 
+## Collection Integration
+
+- **Multi-select apply** — Select coins from the collection grid and apply either a legacy tag or a collection set in one bulk action
+- **Collection filters** — Use tag-like set chips to filter collection views by set membership
+- **Coin detail chips** — Coin Detail shows both legacy tags and collection set memberships in the same Tags & Sets area
+
 ## Set Detail View
 
 ### Overview Tab
@@ -68,7 +74,8 @@ A dedicated dashboard shows:
 ### Members Tab (Open/Defined/Goal Sets)
 - Scrollable list of member coins
 - Click to view coin details
-- Add/remove membership
+- Add membership with a coin picker instead of manual ID entry
+- Remove membership with compact design-system actions
 - Sort and filter members
 
 ### Smart Rules Tab (Smart Sets)

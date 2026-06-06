@@ -173,7 +173,7 @@ var searchFields = []string{
 
 // List returns a paginated, filtered list of coins for a user.
 func (r *CoinRepository) List(userID uint, filters CoinListFilters) ([]models.Coin, int64, error) {
-	query := r.db.Scopes(OwnedBy(userID)).Preload("Images").Preload("Tags").Preload("References").Preload("StorageLocation")
+	query := r.db.Scopes(OwnedBy(userID)).Preload("Images").Preload("Tags").Preload("Sets").Preload("References").Preload("StorageLocation")
 
 	if filters.Category != "" {
 		query = query.Where("category = ?", filters.Category)
@@ -261,7 +261,7 @@ func (r *CoinRepository) List(userID uint, filters CoinListFilters) ([]models.Co
 // FindByID returns a single coin owned by the user, with images preloaded.
 func (r *CoinRepository) FindByID(id uint, userID uint) (*models.Coin, error) {
 	var coin models.Coin
-	err := r.db.Scopes(OwnedByID(id, userID)).Preload("Images").Preload("Tags").Preload("References").Preload("StorageLocation").First(&coin).Error
+	err := r.db.Scopes(OwnedByID(id, userID)).Preload("Images").Preload("Tags").Preload("Sets").Preload("References").Preload("StorageLocation").First(&coin).Error
 	if err != nil {
 		return nil, err
 	}

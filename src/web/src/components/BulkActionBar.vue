@@ -45,6 +45,7 @@ defineEmits<{
   display: flex;
   align-items: center;
   gap: 1rem;
+  max-width: calc(100vw - 2rem);
   background: var(--bg-card);
   border: 1px solid var(--accent-gold-dim);
   border-radius: var(--radius-md);
@@ -62,7 +63,9 @@ defineEmits<{
 
 .bulk-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
+  justify-content: center;
 }
 
 .bulk-btn {
@@ -102,5 +105,31 @@ defineEmits<{
 .bar-slide-leave-to {
   opacity: 0;
   transform: translateX(-50%) translateY(20px);
+}
+
+@media (max-width: 640px) {
+  .bulk-action-bar {
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+    width: calc(100vw - 2rem);
+    padding: 0.75rem;
+    white-space: normal;
+  }
+
+  .bulk-count {
+    text-align: center;
+  }
+
+  .bulk-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bulk-btn {
+    justify-content: center;
+    min-width: 0;
+  }
 }
 </style>

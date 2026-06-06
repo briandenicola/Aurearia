@@ -12,6 +12,7 @@ type BulkActionRequest struct {
 	CoinIDs           []uint `json:"coinIds" binding:"required"`
 	Action            string `json:"action" binding:"required"`
 	TagID             *uint  `json:"tagId"`
+	SetID             *uint  `json:"setId"`
 	StorageLocationID *uint  `json:"storageLocationId"`
 }
 
@@ -20,17 +21,18 @@ type BulkHandler struct {
 	coinRepo            *repository.CoinRepository
 	tagRepo             *repository.TagRepository
 	storageLocationRepo *repository.StorageLocationRepository
+	setRepo             *repository.SetRepository
 }
 
 // NewBulkHandler creates a new BulkHandler.
-func NewBulkHandler(coinRepo *repository.CoinRepository, tagRepo *repository.TagRepository, storageLocationRepo *repository.StorageLocationRepository) *BulkHandler {
-	return &BulkHandler{coinRepo: coinRepo, tagRepo: tagRepo, storageLocationRepo: storageLocationRepo}
+func NewBulkHandler(coinRepo *repository.CoinRepository, tagRepo *repository.TagRepository, storageLocationRepo *repository.StorageLocationRepository, setRepo *repository.SetRepository) *BulkHandler {
+	return &BulkHandler{coinRepo: coinRepo, tagRepo: tagRepo, storageLocationRepo: storageLocationRepo, setRepo: setRepo}
 }
 
 // BulkAction performs a bulk operation on the selected coins.
 //
 //	@Summary		Bulk coin action
-//	@Description	Performs a bulk action (tag, delete, sell, export, assign-location) on selected coins.
+//	@Description	Performs a bulk action (tag, set, delete, sell, export, assign-location) on selected coins.
 //	@Tags			Coins
 //	@Accept			json
 //	@Produce		json
@@ -86,6 +88,18 @@ func (h *BulkHandler) BulkAction(c *gin.Context) {
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "Tag applied", "affected": affected})
 
+	case "set":
+		if req.SetID == nil || *req.SetID == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "setId is required for set action"})
+			return
+		}
+		affected, err := h.setRepo.BulkAddCoinsToSet(req.CoinIDs, *req.SetID, userID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Set applied", "affected": affected})
+
 	case "export":
 		coins, err := h.coinRepo.GetByIDs(req.CoinIDs, userID)
 		if err != nil || len(coins) == 0 {
@@ -115,6 +129,6 @@ func (h *BulkHandler) BulkAction(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Storage location assigned", "affected": affected})
 
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid action. Must be: tag, delete, sell, export, or assign-location"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid action. Must be: tag, set, delete, sell, export, or assign-location"})
 	}
 }

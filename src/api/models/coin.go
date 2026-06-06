@@ -84,6 +84,7 @@ type Coin struct {
 	Images                []CoinImage      `gorm:"foreignKey:CoinID" json:"images"`
 	References            []CoinReference  `gorm:"foreignKey:CoinID" json:"references"`
 	Tags                  []Tag            `gorm:"many2many:coin_tags" json:"tags"`
+	Sets                  []CoinSet        `gorm:"many2many:coin_set_memberships;joinForeignKey:CoinID;joinReferences:SetID" json:"sets"`
 	CreatedAt             time.Time        `json:"createdAt"`
 	UpdatedAt             time.Time        `json:"updatedAt"`
 }

@@ -249,18 +249,18 @@ func main() {
 
 		tagRepo := repository.NewTagRepository(database.DB)
 		tagHandler := handlers.NewTagHandler(tagRepo)
+		setRepo := repository.NewSetRepository(database.DB)
 		protected.GET("/tags", tagHandler.List)
 		protected.POST("/tags", tagHandler.Create)
 		protected.PUT("/tags/:id", tagHandler.Update)
 		protected.DELETE("/tags/:id", tagHandler.Delete)
-		bulkHandler := handlers.NewBulkHandler(coinRepo, tagRepo, storageLocationRepo)
+		bulkHandler := handlers.NewBulkHandler(coinRepo, tagRepo, storageLocationRepo, setRepo)
 		protected.POST("/coins/bulk", bulkHandler.BulkAction)
 
 		protected.POST("/coins/:id/tags", tagHandler.AttachToCoin)
 		protected.DELETE("/coins/:id/tags/:tagId", tagHandler.DetachFromCoin)
 
 		// Sets - new endpoints for coin sets
-		setRepo := repository.NewSetRepository(database.DB)
 		setService := services.NewSetService(setRepo, tagRepo, notifRepo)
 		setHandler := handlers.NewSetHandler(setRepo, setService)
 		setSnapshotScheduler := services.NewSetSnapshotScheduler(setService, settingsSvc, logger)

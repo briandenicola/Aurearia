@@ -1,41 +1,79 @@
 <template>
   <section class="tags-section">
-    <h3>Tags</h3>
+    <h3>Tags & Sets</h3>
     <div class="detail-tags">
       <span
         v-for="tag in tags"
-        :key="tag.id"
+        :key="`tag-${tag.id}`"
         class="detail-tag-chip"
         :style="{ backgroundColor: tag.color + '22', color: tag.color, borderColor: tag.color + '44' }"
       >
         {{ tag.name }}
-        <button class="tag-remove" @click="handleRemoveTag(tag.id)">x</button>
+        <button class="tag-remove" type="button" :aria-label="`Remove ${tag.name} tag`" @click="handleRemoveTag(tag.id)">x</button>
       </span>
-      <button v-if="!showTagPicker" class="btn-tag-add" @click="showTagPicker = true">+ Tag</button>
+      <span
+        v-for="set in sets"
+        :key="`set-${set.id}`"
+        class="detail-tag-chip set-chip"
+        :style="{ backgroundColor: set.color + '22', color: set.color, borderColor: set.color + '44' }"
+      >
+        {{ set.name }}
+        <button
+          v-if="set.setType !== 'smart'"
+          class="tag-remove"
+          type="button"
+          :aria-label="`Remove ${set.name} set`"
+          @click="handleRemoveSet(set.id)"
+        >
+          x
+        </button>
+      </span>
+      <button v-if="!showTagPicker" class="btn-tag-add" type="button" @click="showTagPicker = true">+ Tag or Set</button>
     </div>
     <div v-if="showTagPicker" class="tag-picker">
-      <select v-model="tagToAdd" class="tag-picker-select" @change="handleAddTag">
-        <option value="" disabled>Select a tag...</option>
+      <select v-model="itemToAdd" class="tag-picker-select" @change="handleAddItem">
+        <option value="" disabled>Select a tag or set...</option>
+        <optgroup v-if="availableTags.length" label="Tags">
+          <option
+            v-for="tag in availableTags"
+            :key="`tag-option-${tag.id}`"
+            :value="`tag:${tag.id}`"
+          >
+            {{ tag.name }}
+          </option>
+        </optgroup>
+        <optgroup v-if="availableSets.length" label="Sets">
+          <option
+            v-for="set in availableSets"
+            :key="`set-option-${set.id}`"
+            :value="`set:${set.id}`"
+          >
+            {{ set.name }}
+          </option>
+        </optgroup>
         <option
-          v-for="tag in availableTags"
-          :key="tag.id"
-          :value="tag.id"
+          v-if="!availableTags.length && !availableSets.length"
+          value=""
+          disabled
         >
-          {{ tag.name }}
+          No tags or sets available
         </option>
       </select>
-      <button class="btn-tag-cancel" @click="showTagPicker = false">Cancel</button>
+      <button class="btn-tag-cancel" type="button" @click="showTagPicker = false">Cancel</button>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { getTags, addTagToCoin, removeTagFromCoin } from '@/api/client'
-import type { Tag } from '@/types'
+import { getTags, getSets, addTagToCoin, removeTagFromCoin, addCoinToSet, removeCoinFromSet } from '@/api/client'
+import type { CoinSetSummary, Tag } from '@/types'
+
+type SetChip = Pick<CoinSetSummary, 'id' | 'name' | 'color' | 'setType'>
 
 const props = defineProps<{
   tags: Tag[]
+  sets: SetChip[]
   coinId: number
 }>()
 
@@ -44,34 +82,53 @@ const emit = defineEmits<{
 }>()
 
 const userTags = ref<Tag[]>([])
+const userSets = ref<CoinSetSummary[]>([])
 const showTagPicker = ref(false)
-const tagToAdd = ref('')
+const itemToAdd = ref('')
 
 const availableTags = computed(() => {
   const coinTagIds = new Set(props.tags.map(t => t.id))
   return userTags.value.filter(t => !coinTagIds.has(t.id))
 })
 
+const availableSets = computed(() => {
+  const coinSetIds = new Set(props.sets.map(s => s.id))
+  return userSets.value.filter(s => s.setType !== 'smart' && !coinSetIds.has(s.id))
+})
+
 onMounted(async () => {
   try {
-    const res = await getTags()
-    userTags.value = res.data?.tags ?? []
+    const [tagsRes, setsRes] = await Promise.all([getTags(), getSets()])
+    userTags.value = tagsRes.data?.tags ?? []
+    userSets.value = setsRes.data?.sets ?? []
   } catch { /* ignore */ }
 })
 
-async function handleAddTag() {
-  if (!tagToAdd.value) return
+async function handleAddItem() {
+  if (!itemToAdd.value) return
+  const [source, id] = itemToAdd.value.split(':')
   try {
-    await addTagToCoin(props.coinId, Number(tagToAdd.value))
+    if (source === 'set') {
+      await addCoinToSet(Number(id), { coinId: props.coinId })
+    } else {
+      await addTagToCoin(props.coinId, Number(id))
+    }
     emit('tagsChanged')
   } catch { /* ignore */ }
-  tagToAdd.value = ''
+  itemToAdd.value = ''
   showTagPicker.value = false
 }
 
 async function handleRemoveTag(tagId: number) {
   try {
     await removeTagFromCoin(props.coinId, tagId)
+    emit('tagsChanged')
+  } catch { /* ignore */ }
+}
+
+async function handleRemoveSet(setId: number) {
+  try {
+    await removeCoinFromSet(setId, props.coinId)
     emit('tagsChanged')
   } catch { /* ignore */ }
 }
@@ -102,6 +159,10 @@ async function handleRemoveTag(tagId: number) {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+.set-chip {
+  border-style: dashed;
 }
 
 .tag-remove {

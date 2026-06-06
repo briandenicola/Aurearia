@@ -223,13 +223,14 @@ export const previewSmartSet = (criteria: SmartCriteriaGroup) => api.post<SmartS
 export const bulkAction = (
   coinIds: number[],
   action: string,
-  opts?: { tagId?: number; storageLocationId?: number | null }
+  opts?: { tagId?: number; setId?: number; storageLocationId?: number | null }
 ) => {
-  const payload: { coinIds: number[]; action: string; tagId?: number; storageLocationId?: number | null } = {
+  const payload: { coinIds: number[]; action: string; tagId?: number; setId?: number; storageLocationId?: number | null } = {
     coinIds,
     action,
   }
   if (opts?.tagId !== undefined) payload.tagId = opts.tagId
+  if (opts?.setId !== undefined) payload.setId = opts.setId
   if (opts?.storageLocationId !== undefined) payload.storageLocationId = opts.storageLocationId
   return api.post<{ message: string; affected: number; coins?: Coin[] }>('/coins/bulk', payload)
 }
