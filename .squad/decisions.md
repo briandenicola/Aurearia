@@ -4,8 +4,8 @@
 
 ### Decision: Camera Capture Modal Extraction
 
-**Date:** 2026-06-02  
-**Agent:** Aurelia (Frontend Developer)  
+**Date:** 2026-06-02
+**Agent:** Aurelia (Frontend Developer)
 **Status:** Complete
 
 ## Problem
@@ -66,9 +66,9 @@ Extracted the camera logic from `AddCoinPage.vue` into a reusable `CameraCapture
 
 ### Decision: Valuation Freshness Now Measured from CurrentValueUpdatedAt
 
-**Date:** 2026-06-02  
-**Author:** Cassius (Backend Dev)  
-**Status:** Implemented  
+**Date:** 2026-06-02
+**Author:** Cassius (Backend Dev)
+**Status:** Implemented
 
 ## Problem
 
@@ -139,9 +139,9 @@ If Brian's coin shows `ai.coverage` warning despite having analysis, it's likely
 
 ### Decision: Bulk Assign Storage Location Action
 
-**Date:** 2026-06-01  
-**Agents:** Cassius (Backend), Aurelia (Frontend)  
-**Status:** Implemented  
+**Date:** 2026-06-01
+**Agents:** Cassius (Backend), Aurelia (Frontend)
+**Status:** Implemented
 **Coordination:** Parallel development with aligned API contract
 
 ## Context
@@ -224,8 +224,8 @@ Implement a multi-select "Assign Location" action in the bulk coin operations fl
 
 ### Decision: Legacy Reference Migration Endpoint
 
-**Date:** 2026-06-01  
-**Agent:** Cassius (Backend Developer)  
+**Date:** 2026-06-01
+**Agent:** Cassius (Backend Developer)
 **Status:** Implemented
 
 ## Context
@@ -312,8 +312,8 @@ Aurelia building UI in parallel against this exact contract:
 
 ### Decision: Legacy Catalog Reference Migration UI
 
-**Agent:** Aurelia  
-**Date:** 2026-06-01  
+**Agent:** Aurelia
+**Date:** 2026-06-01
 **Status:** Implemented
 
 ## Context
@@ -384,8 +384,8 @@ This completes the user-facing migration flow for the legacy RIC → structured 
 
 ### Settings Reorganization — Backups & Keys Tab
 
-**Agent:** Aurelia (Frontend Developer)  
-**Date:** 2026-06-01  
+**Agent:** Aurelia (Frontend Developer)
+**Date:** 2026-06-01
 **Status:** Implemented
 
 ## Decision
@@ -407,8 +407,8 @@ Settings now separates collection metadata management from backup/API access man
 
 ### Decision: Storage Location Frontend UI Placement
 
-**Date:** 2026-06-01  
-**Owner:** Aurelia  
+**Date:** 2026-06-01
+**Owner:** Aurelia
 **Status:** Implemented
 
 ## Context
@@ -439,8 +439,8 @@ Frontend is aligned to Cassius's planned contract:
 
 ### Decision: Storage Location API Contract
 
-**Date:** 2026-06-01  
-**Owner:** Cassius  
+**Date:** 2026-06-01
+**Owner:** Cassius
 **Status:** Implemented
 
 ## Summary
@@ -550,9 +550,9 @@ Quality gate passed after implementation:
 
 ### 1. Collection Chat Callback URL Documentation & Startup Warning (2026-06-01)
 
-**Agent:** Cassius (Backend)  
-**Feature:** #217 Collection Chat — multi-container deployment  
-**Status:** APPROVED  
+**Agent:** Cassius (Backend)
+**Feature:** #217 Collection Chat — multi-container deployment
+**Status:** APPROVED
 **Date:** 2026-06-01
 
 **Summary:** Fixed multi-container Docker deployment issue where collection chat failed with "All connection attempts failed". Root cause: `AGENT_INTERNAL_CALLBACK_URL` defaults to `localhost:8080` (unreachable in containers; must point to API service name on network). Changes: documented env var in `docs/deployment.md`, added startup warning in `src/api/main.go` when running in release mode with localhost URL. All Go tests passed. User validation: Docker Compose with `AGENT_INTERNAL_CALLBACK_URL=http://coins:8080` resolves issue.
@@ -562,10 +562,10 @@ Quality gate passed after implementation:
 ### 2. Governance Restructure — tech-inventory alignment (2026-05-28)
 ### 2. Feature #219 Acceptance Checklist & Validation Gates (2026-05-31)
 
-**Feature**: Refine Coin Details Page for PWA and Desktop  
-**Spec**: `specs/219-refine-coin-details-page/spec.md`  
-**Author**: Maximus (Lead)  
-**Date**: 2026-05-31  
+**Feature**: Refine Coin Details Page for PWA and Desktop
+**Spec**: `specs/219-refine-coin-details-page/spec.md`
+**Author**: Maximus (Lead)
+**Date**: 2026-05-31
 **Status**: APPROVED
 
 **Summary**: 37+ validation gates defined across US1 (dual-side media), US2 (metadata tables), US3 (dedicated section pages), and polish scope. Three-phase tester handoff plan; no team ADR required (UI-only, within constitutional bounds). Constitution compliance verified on Principles V, IX, XIII.
@@ -574,8 +574,8 @@ Quality gate passed after implementation:
 
 ### 3. Feature #219 Coin Detail Page Refinements — QA Verdict (2026-05-31)
 
-**Author:** Brutus (Tester)  
-**Date:** 2026-05-31  
+**Author:** Brutus (Tester)
+**Date:** 2026-05-31
 **Status:** APPROVED
 
 **Summary**: Full QA validation completed. 12/12 functional requirements met; zero regressions. Type-check + production build pass cleanly. Feature is **ship-ready**.
@@ -588,9 +588,9 @@ Quality gate passed after implementation:
 
 # Feature #219: Image Lightbox with Remove Background
 
-**Agent:** Aurelia (Frontend Developer)  
-**Date:** 2026-05-31  
-**Status:** Implemented  
+**Agent:** Aurelia (Frontend Developer)
+**Date:** 2026-05-31
+**Status:** Implemented
 **Commit:** 6096a38
 
 ## What
@@ -697,9 +697,9 @@ All values use design tokens from variables.css:
 
 # Intake Card Image Authority Fix
 
-**Feature:** #216 Camera-First AI Intake  
-**Author:** Cassius (Backend Developer)  
-**Date:** 2026-05-31  
+**Feature:** #216 Camera-First AI Intake
+**Author:** Cassius (Backend Developer)
+**Date:** 2026-05-31
 **Status:** Implemented — commit `a7b6a04`
 
 ## Problem
@@ -766,9 +766,9 @@ When sending multiple images with different authority levels to a vision model:
 
 ### 7. P0 Fixes — Admin Route Guard & v-html (2026-07-22)
 
-**Author:** Aurelia (Frontend Dev)  
-**Date:** 2026-07-22  
-**Status:** Implemented  
+**Author:** Aurelia (Frontend Dev)
+**Date:** 2026-07-22
+**Status:** Implemented
 
 #### What
 - Added `requiresAdmin: true` meta to `/admin` route; guard checks `auth.isAdmin` and redirects non-admin to `/`
@@ -785,9 +785,9 @@ Admin routes now protected. Can close code review backlog items #1–2.
 
 ### 4. Auction Ending Manual Trigger & Run Log — Backend Implementation (2026-06-10)
 
-**Author:** Cassius (Backend Dev)  
-**Date:** 2026-06-10  
-**Status:** Implemented  
+**Author:** Cassius (Backend Dev)
+**Date:** 2026-06-10
+**Status:** Implemented
 
 #### What
 
@@ -834,8 +834,8 @@ Auction Ending scheduler needed manual-run capability and run logging to achieve
 
 ### 5. Auction Ending Manual Trigger & Run Log — Frontend UI (2026-05-21)
 
-**Author:** Aurelia (Frontend Dev)  
-**Date:** 2026-05-21  
+**Author:** Aurelia (Frontend Dev)
+**Date:** 2026-05-21
 **Status:** Implemented (minor follow-up fixup pending)
 
 #### What
@@ -845,7 +845,7 @@ Implemented admin UI for manual trigger and run history display in AdminSchedule
 1. **API Client:** Added triggerAuctionEndingCheck(), getAuctionEndingRuns(), getAuctionEndingRunDetail() in client.ts
 2. **Types:** Added AuctionEndingRun and AuctionEndingResult interfaces in types/index.ts
 3. **Composable:** Extended useAdminConfig with auctionSettingsMsg, auctionSettingsError state; added defaults handling
-4. **Component:** 
+4. **Component:**
    - "Run Now" button in Auction Ending section
    - Recent runs table with columns: Date, Trigger, Lots, Alerts, Status, Duration
    - Expandable detail rows for error messages
@@ -871,9 +871,9 @@ Aurelia guessed endpoint URL `/admin/auction-ending/runs` but Cassius's actual e
 
 ### 6. Auction Ending Manual Trigger & Run Log — Test Coverage (2026-05-22)
 
-**Author:** Brutus (Tester/QA)  
-**Date:** 2026-05-22  
-**Status:** **APPROVED**  
+**Author:** Brutus (Tester/QA)
+**Date:** 2026-05-22
+**Status:** **APPROVED**
 
 #### What
 
@@ -920,9 +920,9 @@ Merge to main. Optional improvements (logging, E2E tests) can be backlog items f
 
 ### 7. Auction Ending Scheduler Implementation
 
-**Author:** Cassius (Backend Dev)  
-**Date:** 2026-05-21  
-**Status:** Implemented  
+**Author:** Cassius (Backend Dev)
+**Date:** 2026-05-21
+**Status:** Implemented
 
 #### What
 
@@ -970,7 +970,7 @@ Built a new background scheduler that notifies users via Pushover when auction l
 
 **Title:** "Auctions Ending Today"
 
-**Message:** 
+**Message:**
 ```
 3 auction(s) you are bidding on end today:
 
@@ -990,9 +990,9 @@ Built a new background scheduler that notifies users via Pushover when auction l
 
 ### 8. Auction Ending Scheduler — NULL Date Handling Fix
 
-**Author:** Cassius (Backend Dev)  
-**Date:** 2026-05-22  
-**Status:** Implemented  
+**Author:** Cassius (Backend Dev)
+**Date:** 2026-05-22
+**Status:** Implemented
 
 #### Problem
 
@@ -1003,8 +1003,8 @@ Brian ran the auction ending scheduler manually on May 22, 2026. The scheduler r
 The `AuctionLotRepository.GetEndingToday()` query only checked the `sale_date` field:
 
 ```sql
-WHERE status = 'bidding' 
-  AND sale_date >= startOfDay 
+WHERE status = 'bidding'
+  AND sale_date >= startOfDay
   AND sale_date < endOfDay
 ```
 
@@ -1065,9 +1065,9 @@ WHERE status = 'bidding' AND (
 
 ### 9. PWA Service Worker Lifecycle Fix
 
-**Author:** Aurelia (Frontend Dev)  
-**Date:** 2026-05-23  
-**Status:** Implemented  
+**Author:** Aurelia (Frontend Dev)
+**Date:** 2026-05-23
+**Status:** Implemented
 
 #### What
 
@@ -1105,18 +1105,18 @@ Fixed critical PWA service worker update failure that left users stuck with stal
 
 #### Testing
 
-✅ `npm run type-check` passes  
-✅ `npm run build` succeeds — generates fresh `sw.js` and `workbox-{HASH}.js`  
-✅ Icons present in `dist/` (192x192 and 512x512)  
+✅ `npm run type-check` passes
+✅ `npm run build` succeeds — generates fresh `sw.js` and `workbox-{HASH}.js`
+✅ Icons present in `dist/` (192x192 and 512x512)
 ✅ Manifest correctly references both icon sizes and maskable variant
 
 ---
 
 ### 10. Auction Ending Scheduler — Debug Endpoint for Ground-Truth Investigation
 
-**Author:** Cassius (Backend Dev)  
-**Date:** 2026-05-22  
-**Status:** Implemented — Awaiting Production Data  
+**Author:** Cassius (Backend Dev)
+**Date:** 2026-05-22
+**Status:** Implemented — Awaiting Production Data
 
 #### Problem
 
@@ -1185,20 +1185,20 @@ Added `GET /api/admin/auction-ending/debug` that returns:
 Brian can run this query directly against the SQLite DB **right now** to confirm the hypothesis:
 
 ```sql
-SELECT 
-  id, 
-  user_id, 
-  status, 
-  lot_number, 
-  sale_date, 
-  auction_end_time, 
-  event_id, 
-  created_at, 
-  updated_at 
-FROM auction_lots 
-WHERE lot_number = 8325 
-   OR status = 'bidding' 
-ORDER BY updated_at DESC 
+SELECT
+  id,
+  user_id,
+  status,
+  lot_number,
+  sale_date,
+  auction_end_time,
+  event_id,
+  created_at,
+  updated_at
+FROM auction_lots
+WHERE lot_number = 8325
+   OR status = 'bidding'
+ORDER BY updated_at DESC
 LIMIT 10;
 ```
 
@@ -1241,7 +1241,7 @@ func (r *AuctionLotRepository) GetEndingToday() ([]models.AuctionLot, error) {
     endOfDay := startOfDay.Add(24 * time.Hour)
 
     query := `
-        SELECT al.* 
+        SELECT al.*
         FROM auction_lots al
         LEFT JOIN auction_events ae ON al.event_id = ae.id
         WHERE al.status = ? AND (
@@ -1268,10 +1268,10 @@ func (r *AuctionLotRepository) GetEndingToday() ([]models.AuctionLot, error) {
 func TestAuctionLotRepository_GetEndingToday_EventDate(t *testing.T) {
     db := setupTestDB(t)
     repo := repository.NewAuctionLotRepository(db)
-    
+
     now := time.Now()
     today := time.Date(now.Year(), now.Month(), now.Day(), 15, 0, 0, 0, time.UTC)
-    
+
     // Create an auction event ending today
     event := models.AuctionEvent{
         UserID:       1,
@@ -1280,7 +1280,7 @@ func TestAuctionLotRepository_GetEndingToday_EventDate(t *testing.T) {
         EndDate:      &today,
     }
     db.Create(&event)
-    
+
     // Create a bidding lot linked to the event, with NO sale_date or auction_end_time
     lot := models.AuctionLot{
         UserID:       1,
@@ -1291,7 +1291,7 @@ func TestAuctionLotRepository_GetEndingToday_EventDate(t *testing.T) {
         AuctionEndTime: nil,
     }
     db.Create(&lot)
-    
+
     // GetEndingToday should find this lot via event join
     lots, err := repo.GetEndingToday()
     assert.NoError(t, err)
@@ -1316,7 +1316,7 @@ This is the correct workflow for data-dependent bugfixes.
 
 ##### GET /api/admin/auction-ending/debug
 
-**Auth:** Admin only (JWT or API key)  
+**Auth:** Admin only (JWT or API key)
 **Response:** 200 OK
 
 ```json
@@ -1374,9 +1374,9 @@ This is the correct workflow for data-dependent bugfixes.
 
 ### 11. ADR Practice Established (2026-05-28)
 
-**Author:** Maximus (Lead / Architect)  
-**Date:** 2026-05-28  
-**Status:** ACCEPTED — Phase 3a landed  
+**Author:** Maximus (Lead / Architect)
+**Date:** 2026-05-28
+**Status:** ACCEPTED — Phase 3a landed
 
 #### What
 
@@ -1410,9 +1410,9 @@ Constitution v2.0.0 §22 (Amendment Process) mandates ADR-first for material des
 
 ### 12. README Trimmed; `docs/prd.md` is Product Source of Truth (2026-05-28)
 
-**Author:** Maximus (Lead / Architect)  
-**Date:** 2026-05-28  
-**Status:** ACCEPTED — Phase 3a landed  
+**Author:** Maximus (Lead / Architect)
+**Date:** 2026-05-28
+**Status:** ACCEPTED — Phase 3a landed
 
 #### What
 
@@ -1510,8 +1510,8 @@ Prior session note suggested running `specify upgrade` to "register" the four ne
 
 ### 14. Keep `ci.yml` filename for Quality Gate (2026-05-28)
 
-**Authors:** Cassius, Coordinator  
-**Date:** 2026-05-28  
+**Authors:** Cassius, Coordinator
+**Date:** 2026-05-28
 **Status:** ACCEPTED — Phase 3b landed
 
 #### What
@@ -1537,8 +1537,8 @@ CI Quality Gate fully operational with zero cross-team disruption. Satisfies §1
 
 ### 15. Clean Security Doc Split — No Deprecated Stubs (2026-05-28)
 
-**Authors:** Maximus, Coordinator  
-**Date:** 2026-05-28  
+**Authors:** Maximus, Coordinator
+**Date:** 2026-05-28
 **Status:** ACCEPTED — Phase 3b landed
 
 #### What
@@ -1576,8 +1576,8 @@ A deprecated stub would preserve the old name but keep the repo anchored to the 
 
 ### 16. Propose F011 — Browser E2E Smoke Tests (2026-05-28)
 
-**Authors:** Brutus  
-**Date:** 2026-05-28  
+**Authors:** Brutus
+**Date:** 2026-05-28
 **Status:** PROPOSAL — captured for Phase 4+ backlog
 
 #### What
@@ -1615,8 +1615,8 @@ Full-stack coverage closes the test pyramid — currently we have strong unit te
 
 ### 17. Next Coding Queue — Issue #163 (Security Audit / SWE Best Practices / DRY) + 8 Dependabot PRs (2026-05-28)
 
-**Authors:** Brian (via Copilot CLI), Coordinator  
-**Date:** 2026-05-28  
+**Authors:** Brian (via Copilot CLI), Coordinator
+**Date:** 2026-05-28
 **Status:** CAPTURED — post-Phase-3b queue
 
 #### What
@@ -1656,7 +1656,7 @@ The original "agentic coding framework" goal is **complete** (Phases 1–3a: Con
 
 #### Dependabot PRs (8 open as of 2026-05-28T18:32Z)
 
-**Go:** #191 (golang.org/x/crypto), #193 (go-webauthn), #194 (golang.org/x/net)  
+**Go:** #191 (golang.org/x/crypto), #193 (go-webauthn), #194 (golang.org/x/net)
 **npm:** #192 (axios), #195 (vite-plugin-vue-devtools), #196 (@vitejs/plugin-vue), #197 (vitest), #198 (vue-router)
 
 #### Suggested Approach
@@ -1682,9 +1682,9 @@ User-flagged coding queue survives session boundaries. Next session / Ralph cycl
 
 ## Decision #20 — Feature #208 (Collection Health Scorecard v1) — Full Implementation Complete (2026-05-30)
 
-**Date:** 2026-05-30T14:02:35Z  
-**Authors:** Cassius (Backend), Brutus (Testing), Aurelia (Frontend)  
-**Category:** Feature Completion / Multi-Layer Integration  
+**Date:** 2026-05-30T14:02:35Z
+**Authors:** Cassius (Backend), Brutus (Testing), Aurelia (Frontend)
+**Category:** Feature Completion / Multi-Layer Integration
 **Status:** ACCEPTED — All three layers complete, production-ready, decision inbox merged
 
 ### Summary
@@ -1765,15 +1765,15 @@ Three key decisions captured from implementation:
 
 ### Quality Gate Validation (Constitution §17)
 
-✅ **Type Check:** `npm run type-check` passes (0 errors)  
-✅ **Production Build:** `npm run build` succeeds  
-✅ **Architecture Tests:** Go layering rules pass (no forbidden layer violations)  
-✅ **Unit Tests:** Repository 16/16, Service 13/13, Handler 25/25, all passing  
-✅ **Linting:** `npm run lint` clean, `go vet` clean, `ruff check` clean  
-✅ **No Secrets:** No credentials committed  
-✅ **Design Tokens:** All hardcoded values eliminated  
-✅ **Mobile Responsive:** Full breakpoint coverage (@media 768px)  
-✅ **Strict TypeScript:** Optional chaining + nullish coalescing on all nullable fields  
+✅ **Type Check:** `npm run type-check` passes (0 errors)
+✅ **Production Build:** `npm run build` succeeds
+✅ **Architecture Tests:** Go layering rules pass (no forbidden layer violations)
+✅ **Unit Tests:** Repository 16/16, Service 13/13, Handler 25/25, all passing
+✅ **Linting:** `npm run lint` clean, `go vet` clean, `ruff check` clean
+✅ **No Secrets:** No credentials committed
+✅ **Design Tokens:** All hardcoded values eliminated
+✅ **Mobile Responsive:** Full breakpoint coverage (@media 768px)
+✅ **Strict TypeScript:** Optional chaining + nullish coalescing on all nullable fields
 
 ### Artifact Trail
 
@@ -1834,8 +1834,8 @@ Three key decisions captured from implementation:
 
 ## Decision #18 — F011 AI-driven browser testing deferred behind #163 audit
 
-**Date:** 2026-05-28  
-**Decided by:** Brian (in coordinator session)  
+**Date:** 2026-05-28
+**Decided by:** Brian (in coordinator session)
 **Status:** Recorded
 
 ### Context
@@ -1867,9 +1867,9 @@ User explicitly asked "how do we track it?" — answer is multi-layered: card + 
 
 ## Decision #19 — Feature #208 (Collection Health Scorecard v1) Completion Lead Audit
 
-**Date**: 2026-05-30T08:52:44.749-05:00  
-**Owner**: Maximus (Lead/Architect)  
-**Category**: Project Management / Architecture Review  
+**Date**: 2026-05-30T08:52:44.749-05:00
+**Owner**: Maximus (Lead/Architect)
+**Category**: Project Management / Architecture Review
 **Status**: ACCEPTED — Audit baseline captured; awaiting Phase 2 implementation
 
 ### Summary
@@ -1946,8 +1946,8 @@ Completed comprehensive baseline audit of feature #208 (Collection Health Scorec
 
 ### Checkpoints for Code Review
 
-**Checkpoint 1: Phase 2 Completion**  
-Before: Any Phase 3 frontend work or T017 endpoint implementation  
+**Checkpoint 1: Phase 2 Completion**
+Before: Any Phase 3 frontend work or T017 endpoint implementation
 Review:
 - ✅ Scoring formula implements 40/20/20/20 weights per spec
 - ✅ All grade thresholds (90/80/70/60) exercised in tests
@@ -1956,16 +1956,16 @@ Review:
 - ✅ Per-coin checklist buckets correctly (metadata/images/valuation/AI)
 - ✅ No direct DB access in service layer (DI verified)
 
-**Checkpoint 2: Phase 3 Completion**  
-Before: Any Phase 4 work or Phase 5 frontend UI  
+**Checkpoint 2: Phase 3 Completion**
+Before: Any Phase 4 work or Phase 5 frontend UI
 Review:
 - ✅ Handler methods thin (business logic in services per Principle I)
 - ✅ API response schema matches CollectionHealthSummary contract exactly
 - ✅ Vue components use Composition API + types from stores
 - ✅ Frontend types exactly match backend DTOs (no fabrication)
 
-**Checkpoint 3: Feature Complete**  
-Before: Merge to main  
+**Checkpoint 3: Feature Complete**
+Before: Merge to main
 Review:
 - ✅ Constitution §17 Quality Gate: `task test`, `npm run build`, `npm run lint` all pass
 - ✅ PR description cites Principles affected (Principle I, §17 Quality Gate)
@@ -2010,17 +2010,17 @@ Review:
 
 ---
 
-**Confidence**: HIGH (full codebase and spec audit performed)  
+**Confidence**: HIGH (full codebase and spec audit performed)
 **Next Action**: Await backend agent T011 + T012 implementation; begin T006 (frontend types) in parallel
 
 ---
 
 ## 18. OpenAPI Snapshot Drift Resolution (2026-05-30)
 
-**Author:** Cassius (Backend Dev)  
-**Date:** 2026-05-30  
-**Status:** APPROVED  
-**CI Run:** 26656552925 (Job: 78568056509)  
+**Author:** Cassius (Backend Dev)
+**Date:** 2026-05-30
+**Status:** APPROVED
+**CI Run:** 26656552925 (Job: 78568056509)
 
 ### Context
 
@@ -2044,11 +2044,11 @@ Generated artifacts were **not regenerated and committed** before push, so CI sn
 
 ### Verification
 
-- ✅ `go build ./...` — compilation successful  
-- ✅ `go vet ./...` — linting clean  
-- ✅ `go test ./...` — all tests pass  
-- ✅ OpenAPI snapshot verification — green after regeneration  
-- ✅ Commit `e396c84` — all artifacts committed  
+- ✅ `go build ./...` — compilation successful
+- ✅ `go vet ./...` — linting clean
+- ✅ `go test ./...` — all tests pass
+- ✅ OpenAPI snapshot verification — green after regeneration
+- ✅ Commit `e396c84` — all artifacts committed
 
 ### Operationalization
 
@@ -2075,9 +2075,9 @@ Generated artifacts were **not regenerated and committed** before push, so CI sn
 
 ## 19. Threat Model Issue-Link Mechanism (Issue #206) — Brutus Proposal (2026-05-28)
 
-**Author:** Brutus (QA)  
-**Date:** 2026-05-28  
-**Status:** Proposed  
+**Author:** Brutus (QA)
+**Date:** 2026-05-28
+**Status:** Proposed
 **Issue:** #206
 
 ### Context
@@ -2128,9 +2128,9 @@ Keep finding descriptions generic and maintain a separate mapping document (`doc
 
 ## 20. Threat Model Reconciliation Complete (Issue #206) — Maximus Audit (2026-05-29)
 
-**Author:** Maximus (Architect)  
-**Date:** 2026-05-29  
-**Status:** Completed  
+**Author:** Maximus (Architect)
+**Date:** 2026-05-29
+**Status:** Completed
 **Issue:** #206
 
 ### Context
@@ -2190,18 +2190,18 @@ All tracked under issue #163 (Code & security audit).
 
 ### Next Steps
 
-→ Scribe: Merge this decision into `.squad/decisions.md` under **Security Governance**.  
-→ Brian: Review issue #163 for prioritization of 10 remaining open findings.  
+→ Scribe: Merge this decision into `.squad/decisions.md` under **Security Governance**.
+→ Brian: Review issue #163 for prioritization of 10 remaining open findings.
 → Maximus: Quarterly threat-model audits per Constitution §20 (Audit cadence).
 
 ---
 
 ## 21. Issue #214 Structured Numismatic References — Phase 1/2 Implementation Review (2026-05-30)
 
-**Author:** Cassius (Backend Dev)  
-**Date:** 2026-05-30  
-**Status:** Proposed  
-**Issue:** #214  
+**Author:** Cassius (Backend Dev)
+**Date:** 2026-05-30
+**Status:** Proposed
+**Issue:** #214
 **Scope:** Phase 1/2 validation and gap closure (non-breaking; prepares for Phase 3 MVP)
 
 ### Summary
@@ -2229,9 +2229,9 @@ Non-destructive analysis of #214 Phase 1/2 foundational scaffolding identified *
 
 #### **GAP 1: Routes Not Registered [T020 — CRITICAL]**
 
-**Status**: ❌ Not implemented  
-**Impact**: Endpoints exist but are unreachable from API; Phase 3 cannot ship.  
-**Location**: `main.go` (missing route wiring)  
+**Status**: ❌ Not implemented
+**Impact**: Endpoints exist but are unreachable from API; Phase 3 cannot ship.
+**Location**: `main.go` (missing route wiring)
 **Details**:
 - CoinReferenceHandler methods exist but routes are not registered.
 - Expected routes missing:
@@ -2243,9 +2243,9 @@ Non-destructive analysis of #214 Phase 1/2 foundational scaffolding identified *
 
 #### **GAP 2: Era Enum Validation on Coin Binding [T021 — CRITICAL]**
 
-**Status**: ❌ Not implemented  
-**Impact**: Invalid era values can enter DB; Phase 4 UI filter will fail on bad data.  
-**Location**: `handlers/coins.go` (Create/Update methods)  
+**Status**: ❌ Not implemented
+**Impact**: Invalid era values can enter DB; Phase 4 UI filter will fail on bad data.
+**Location**: `handlers/coins.go` (Create/Update methods)
 **Details**:
 - Coin model defines Era constants: `ancient`, `medieval`, `modern`.
 - However, Create/Update handlers do NOT validate the era field is one of these values.
@@ -2254,9 +2254,9 @@ Non-destructive analysis of #214 Phase 1/2 foundational scaffolding identified *
 
 #### **GAP 3: Era Scope & Filter Not in CoinRepository [T016 — IMPORTANT]**
 
-**Status**: ⚠️ Partial (scope exists conceptually, not implemented)  
-**Impact**: Phase 4 era filtering endpoint cannot be wired; list queries cannot filter by era.  
-**Location**: `repository/scopes.go` (missing scope), `repository/coin_repository.go` (missing filter support)  
+**Status**: ⚠️ Partial (scope exists conceptually, not implemented)
+**Impact**: Phase 4 era filtering endpoint cannot be wired; list queries cannot filter by era.
+**Location**: `repository/scopes.go` (missing scope), `repository/coin_repository.go` (missing filter support)
 **Details**:
 - Spec FR-009: "System MUST provide UI filtering by era."
 - Plan Phase 4, Task T030-T033: Era filter integration in collection page.
@@ -2265,9 +2265,9 @@ Non-destructive analysis of #214 Phase 1/2 foundational scaffolding identified *
 
 #### **GAP 4: Swagger DTOs/Schema Not Defined [T017/T024 — IMPORTANT]**
 
-**Status**: ❌ Not implemented  
-**Impact**: Swagger documentation incomplete; no schema for reference payloads; generated docs miss reference endpoints.  
-**Location**: `handlers/swagger_types.go`  
+**Status**: ❌ Not implemented
+**Impact**: Swagger documentation incomplete; no schema for reference payloads; generated docs miss reference endpoints.
+**Location**: `handlers/swagger_types.go`
 **Details**:
 - Reference endpoints have no Swagger annotations (no `@Summary`, `@Param`, `@Success` tags).
 - swagger_types.go has no CoinReference or CatalogRegistry response types for Swagger code generation.
@@ -2277,13 +2277,13 @@ Non-destructive analysis of #214 Phase 1/2 foundational scaffolding identified *
 
 #### **OPT-A: Define CertaintyEnum Type [Prevents Phase 5 Rework]**
 
-**Status**: ⚠️ Optional but recommended  
-**Risk If Deferred**: Phase 5 AI discovery (T034) expects structured certainty (high|medium|low|unknown). Currently free-form string; can lead to inconsistent data and late normalization.  
+**Status**: ⚠️ Optional but recommended
+**Risk If Deferred**: Phase 5 AI discovery (T034) expects structured certainty (high|medium|low|unknown). Currently free-form string; can lead to inconsistent data and late normalization.
 
 #### **OPT-B: Add Authority URL Metadata to CatalogRegistry [Prevents Phase 5 Rework]**
 
-**Status**: ⚠️ Optional but recommended  
-**Risk If Deferred**: Phase 5 (T035) "Add OCRE/RPC authority URI lookup helper" — currently authority URIs are hardcoded or missing from schema.  
+**Status**: ⚠️ Optional but recommended
+**Risk If Deferred**: Phase 5 (T035) "Add OCRE/RPC authority URI lookup helper" — currently authority URIs are hardcoded or missing from schema.
 
 ### Files Affected by Recommended Changes
 
@@ -2347,8 +2347,8 @@ Non-destructive analysis of #214 Phase 1/2 foundational scaffolding identified *
 - **Cassius** (Backend Dev): Principal-engineer audit of Go API + Python agent runtime risks
 - **Brutus** (QA): Cross-system QA audit across web, API, agent, and threat-model.md
 
-**Date:** 2026-05-29  
-**Status:** Proposed (awaiting team input)  
+**Date:** 2026-05-29
+**Status:** Proposed (awaiting team input)
 **Scope:** Cross-cutting runtime, auth, and scheduler policies
 
 ### Context
@@ -2377,16 +2377,16 @@ Comprehensive audit of Go API + Python agent surfaced cross-cutting runtime risk
 
 ### Brutus: Cross-System Reliability Decisions Needed
 
-1. **Define a single streaming resilience contract (web↔api↔agent).**  
+1. **Define a single streaming resilience contract (web↔api↔agent).**
    Require: token refresh support for streaming endpoints, client-side abort/timeout handling, and guaranteed terminal SSE semantics (`done` or explicit `error`) so UI cannot remain indefinitely loading.
 
-2. **Define scheduler concurrency policy for manual vs scheduled runs.**  
+2. **Define scheduler concurrency policy for manual vs scheduled runs.**
    Require: explicit single-flight behavior (lock or DB guard) per scheduler type so overlapping triggers cannot create duplicate notifications or duplicate run records.
 
-3. **Enforce cross-service payload caps at both boundaries.**  
+3. **Enforce cross-service payload caps at both boundaries.**
    For availability checks, chunk Go→agent requests to respect agent `MAX_AVAILABILITY_ITEMS` and add tests proving behavior when wishlist URLs exceed one payload.
 
-4. **Promote mitigated security controls to tested invariants.**  
+4. **Promote mitigated security controls to tested invariants.**
    For threat-model findings marked Mitigated (notably DOMPurify render paths and auth rate-limit behavior), require at least one automated regression assertion per control.
 
 ### Why Team Decision Is Needed
@@ -2409,9 +2409,9 @@ These changes cross service boundaries and alter externally observable behavior 
 
 ### 4. Feature #219 Refinements — Implementation Complete (2026-05-31)
 
-**Author:** Aurelia (Frontend Dev)  
-**Date:** 2026-05-31  
-**Commits:** 127c75b (main refinements), 70bd409 (follow-up duplicates)  
+**Author:** Aurelia (Frontend Dev)
+**Date:** 2026-05-31
+**Commits:** 127c75b (main refinements), 70bd409 (follow-up duplicates)
 **Status:** APPROVED — Shipped to `beta`
 
 **Scope:** Post-merge TLC items from Brian's annotated screenshot review of #219 coin-detail redesign.
@@ -2440,8 +2440,8 @@ These changes cross service boundaries and alter externally observable behavior 
 
 ### 5. User Directive: Collection Chat LLM Intent Classification (2026-05-31)
 
-**Author:** Brian (via Copilot)  
-**Date:** 2026-05-31  
+**Author:** Brian (via Copilot)
+**Date:** 2026-05-31
 **Status:** DIRECTIVE (drives #217 routing redesign)
 
 **What:** The collection-chat feature (#217) must use LLM-based intent classification instead of hardcoded keyword matching. Brian wants to chat about ANY question regarding his collection, and have an agent figure out his intent "like any chatbot would."
@@ -2454,8 +2454,8 @@ These changes cross service boundaries and alter externally observable behavior 
 
 ### 8. Feature #216 Camera-First AI Intake — Maximus RE-REVIEW (2026-05-31)
 
-**Author:** Maximus (Architect)  
-**Date:** 2026-05-31  
+**Author:** Maximus (Architect)
+**Date:** 2026-05-31
 **Status:** APPROVED — Principle V block lifted
 
 **Scope:** Design Token System compliance (Principle V) — 14 flagged color values.
@@ -2474,8 +2474,8 @@ These changes cross service boundaries and alter externally observable behavior 
 
 ### 9. Feature #216 Camera & Intake QA Verdict (2026-05-31)
 
-**Author:** Brutus (Tester)  
-**Date:** 2026-05-31  
+**Author:** Brutus (Tester)
+**Date:** 2026-05-31
 **Status:** APPROVED
 
 **Scope:** Full functional and regression testing of camera-first UI redesign + AI-assist intake flow.
@@ -2493,8 +2493,8 @@ These changes cross service boundaries and alter externally observable behavior 
 
 ### 10. Feature #216 Camera-First Intake — Design Token Refactor (2026-05-31)
 
-**Author:** Aurelia (Frontend Dev)  
-**Date:** 2026-05-31  
+**Author:** Aurelia (Frontend Dev)
+**Date:** 2026-05-31
 **Status:** Completed
 
 **Scope:** Retrofitted 14 hardcoded color values in AddCoinPage.vue to use design tokens from variables.css.
@@ -2514,9 +2514,9 @@ These changes cross service boundaries and alter externally observable behavior 
 
 ### 11. Feature #217 & #218 — Shared Collection Tool Layer Design (2026-05-31)
 
-**Author:** Maximus (Architect)  
-**Date:** 2026-05-31  
-**Features:** #217 (In-App Multi-Intent), #218 (External Tool Server)  
+**Author:** Maximus (Architect)
+**Date:** 2026-05-31
+**Features:** #217 (In-App Multi-Intent), #218 (External Tool Server)
 **Status:** PROPOSAL — Awaiting implementation planning
 
 **Summary:** Brian approved LLM-based intent classification (kills keyword gate) and chose a **tool-based approach** over single routed-node. Specifies a shared, transport-agnostic collection tool layer serving both #217 (Python tools) and #218 (future MCP/OpenAPI adapter).
@@ -2554,8 +2554,8 @@ These changes cross service boundaries and alter externally observable behavior 
 
 ### 12. Feature #216 Token Remediation QA (2026-05-31)
 
-**Author:** Brutus (Tester)  
-**Date:** 2026-05-31  
+**Author:** Brutus (Tester)
+**Date:** 2026-05-31
 **Status:** APPROVED
 
 **Scope:** Verify token refresh behavior in camera-first intake flow and error conditions.
@@ -2575,9 +2575,9 @@ These changes cross service boundaries and alter externally observable behavior 
 
 ### 13. Feature #217 Python ReAct Collection Agent (2026-05-31)
 
-**Author:** Cassius (Backend Developer)  
-**Date:** 2026-05-31  
-**Status:** Implemented — commit `3bc04de` on `beta`  
+**Author:** Cassius (Backend Developer)
+**Date:** 2026-05-31
+**Status:** Implemented — commit `3bc04de` on `beta`
 **Related:** Decision #11 (LLM-intent directive), commit c3e8c2b (Go side)
 
 ## What
@@ -2722,8 +2722,8 @@ External adapter pattern for non-collection tools (search, shows, auction, etc.)
 
 ## Review Gate (Maximus)
 
-**Initial Review:** BLOCK — Python posted to `{base}/internal/tools/{op}` but Go serves `/api/internal/tools/{op}`, causing 404 on all 6 tools.  
-**Fix Applied:** Commit `a69a574` — corrected `tools_base_url` construction to use `/api/internal/tools` path.  
+**Initial Review:** BLOCK — Python posted to `{base}/internal/tools/{op}` but Go serves `/api/internal/tools/{op}`, causing 404 on all 6 tools.
+**Fix Applied:** Commit `a69a574` — corrected `tools_base_url` construction to use `/api/internal/tools` path.
 **Re-Review:** CLEARED — endpoint path confirmed canonical.
 
 **Non-blocking Follow-ups** (raised by Maximus, acknowledged for future #217 hardening):
@@ -2732,8 +2732,8 @@ External adapter pattern for non-collection tools (search, shows, auction, etc.)
 
 ## Commits
 
-**Hash:** `3bc04de`  
-**Branch:** `beta`  
+**Hash:** `3bc04de`
+**Branch:** `beta`
 **Message:** `feat(#217): Python ReAct collection agent over internal tool layer (multi-intent)`
 
 **Related fixes this batch:**
@@ -2753,10 +2753,10 @@ Feature #217 is now **end-to-end complete**. Go side landed in c3e8c2b, Python s
 
 ## Decision #21 — Feature #216 (Circular Capture Clip) — Integration Contract & Implementation Complete (2026-05-31)
 
-**Issue:** #216 (Circular coin capture)  
-**Author:** Maximus (Lead/Architect) — Contract; Cassius (Backend) — Implementation; Aurelia (Frontend) — Implementation  
-**Date:** 2026-05-31  
-**Status:** APPROVED & LANDED  
+**Issue:** #216 (Circular coin capture)
+**Author:** Maximus (Lead/Architect) — Contract; Cassius (Backend) — Implementation; Aurelia (Frontend) — Implementation
+**Date:** 2026-05-31
+**Status:** APPROVED & LANDED
 
 ### Context
 
@@ -2800,16 +2800,16 @@ Feature #216 defines the end-to-end flow for auto-clipping camera-captured coin 
 
 ### Review Gate
 
-**Reviewer:** Brutus (QA)  
-**Verdict:** ✅ **QA PASS**  
+**Reviewer:** Brutus (QA)
+**Verdict:** ✅ **QA PASS**
 - 14 tests green (clip tests + integration)
 - Build clean (go build/vet/test ✓)
 - No blockers
 - **Flagged (advisory):** Decode-before-ownership as acceptable; ownership check now implemented in hardening phase (commit 5d5df83)
 - **On-device visual checks (user responsibility):** Frame coin in guide → captured clip matches guide with no offset; smooth anti-aliased circle/transparent corners; portrait + landscape modes; manual gallery upload stays unclipped
 
-**Reviewer:** Maximus (Principal Architect)  
-**Verdict:** ✅ **APPROVE**  
+**Reviewer:** Maximus (Principal Architect)
+**Verdict:** ✅ **APPROVE**
 - Contract well-defined and honored
 - Geometry logic sound (cover-crop + center-fixed DefaultGuide)
 - **Non-blocking note:** Original implementation decoded before checking ownership (Principle XI violation). **Resolved by commit 5d5df83** with explicit pre-check.
@@ -2817,7 +2817,7 @@ Feature #216 defines the end-to-end flow for auto-clipping camera-captured coin 
 ### Validation
 
 - ✅ `go build ./...` — clean
-- ✅ `go vet ./...` — clean  
+- ✅ `go vet ./...` — clean
 - ✅ `go test -v ./...` — all tests pass (architecture + unit + clip + ownership)
 - ✅ `npm run lint` — clean
 - ✅ `npm run build` (vue-tsc + vite) — clean
@@ -2845,9 +2845,9 @@ Brian to perform on-device visual verification:
 
 # Decision: External Tool Server Foundational Infrastructure (Issue #218 Phase 2)
 
-**Date**: 2026-06-01  
-**Author**: Cassius  
-**Status**: Implemented  
+**Date**: 2026-06-01
+**Author**: Cassius
+**Status**: Implemented
 **Related**: Issue #218, Epic F012 Card 4, specs/218-external-tool-server-adapter/
 
 ## Context
@@ -2974,9 +2974,9 @@ The architecture test validates the layered import rules (Principle I); no viola
 - Constitution Principles: I (Layered Architecture), XI (Security Hardening), XII (Auth & Token Policy)
 # Decision: External Tool Server Handlers & Routes (Issue #218 Phase 3)
 
-**Date:** 2026-06-01  
-**Author:** Cassius (Backend Developer)  
-**Status:** Implemented  
+**Date:** 2026-06-01
+**Author:** Cassius (Backend Developer)
+**Status:** Implemented
 
 ## Context
 
@@ -3041,8 +3041,8 @@ CommitUpdateExternal(userID uint, proposalID string, proposalToken string, confi
 
 ### Served OpenAPI Spec (Tasks T019-T020)
 
-**Handler:** `handlers/external_tools_openapi.go`  
-**Embedded Spec:** `specs/218-external-tool-server-adapter/contracts/external-tool-server.openapi.yaml` copied to `handlers/contracts/external-tool-server.openapi.yaml` and embedded via `go:embed`.  
+**Handler:** `handlers/external_tools_openapi.go`
+**Embedded Spec:** `specs/218-external-tool-server-adapter/contracts/external-tool-server.openapi.yaml` copied to `handlers/contracts/external-tool-server.openapi.yaml` and embedded via `go:embed`.
 **Route:** Unauthenticated `GET /api/v1/tools/openapi.json` returns the YAML spec parsed to JSON via `gopkg.in/yaml.v3`.
 
 **Architecture Test Update:**
@@ -3050,10 +3050,10 @@ CommitUpdateExternal(userID uint, proposalID string, proposalToken string, confi
 
 ### API Key Scope Parameter (Task T021)
 
-**Updated Handler:** `handlers/api_keys.go`  
-**Request Payload:** Added optional `scope` field to `generateApiKeyRequest` (example: `"read"` or `"read,write"`).  
-**Validation:** If `scope` is empty, defaults to `"read"`. Calls `repository.ValidateCapabilities(scope)` — returns 400 if scope is not `"read"` or `"read,write"`.  
-**Persistence:** Calls `repo.CreateWithCapabilities(apiKey, scope)` instead of `repo.Create(apiKey)`.  
+**Updated Handler:** `handlers/api_keys.go`
+**Request Payload:** Added optional `scope` field to `generateApiKeyRequest` (example: `"read"` or `"read,write"`).
+**Validation:** If `scope` is empty, defaults to `"read"`. Calls `repository.ValidateCapabilities(scope)` — returns 400 if scope is not `"read"` or `"read,write"`.
+**Persistence:** Calls `repo.CreateWithCapabilities(apiKey, scope)` instead of `repo.Create(apiKey)`.
 **List Response:** Already surfaces `capabilities` field (added in Phase 2 migration).
 
 ## Consequences
@@ -3108,8 +3108,8 @@ CommitUpdateExternal(userID uint, proposalID string, proposalToken string, confi
 - Shared tool layer: Issue #217 `CollectionToolsService` (landed 2026-05-31)
 # Decision: API Key Scope Selector UX (Issue #218, T022/T023)
 
-**Date:** 2026-06-01  
-**Author:** Aurelia (Frontend Dev)  
+**Date:** 2026-06-01
+**Author:** Aurelia (Frontend Dev)
 **Status:** Implemented (awaiting backend T021)
 
 ## Context
@@ -3206,9 +3206,9 @@ When Cassius lands T021 (backend scope enforcement):
 - Frontend files: `src/web/src/types/index.ts`, `src/web/src/api/client.ts`, `src/web/src/components/settings/SettingsDataSection.vue`
 # Code Review: Issue #218 — External Tool Server Adapter
 
-**Reviewer:** Maximus (Lead/Architect)  
-**Review Date:** 2026-06-01  
-**Branch:** beta  
+**Reviewer:** Maximus (Lead/Architect)
+**Review Date:** 2026-06-01
+**Branch:** beta
 **Status:** **BLOCK**
 
 ---
@@ -3223,10 +3223,10 @@ The implementation demonstrates strong architectural discipline and correctly im
 
 ### 1. **BLOCKING** — Type Assertion Panic Risk in CommitUpdate Handler
 
-**File:** `src/api/handlers/external_tools.go:247-259`  
-**Severity:** BLOCK  
+**File:** `src/api/handlers/external_tools.go:247-259`
+**Severity:** BLOCK
 
-**Problem:**  
+**Problem:**
 The `CommitUpdate` handler performs unchecked type assertions on context values that could theoretically be nil or the wrong type. While the middleware chain should guarantee these values exist, defensive coding requires validation before type assertion to prevent server panics.
 
 ```go
@@ -3246,10 +3246,10 @@ result, err := h.collectionSvc.CommitUpdateExternal(
 )
 ```
 
-**Evidence:**  
+**Evidence:**
 The second return value from `c.Get()` is discarded with `_`, and no existence/type check is performed before the type assertions. If the middleware chain is bypassed, reordered, or if auth behavior changes, the server will panic with a runtime error instead of returning a controlled HTTP error.
 
-**Fix:**  
+**Fix:**
 Add defensive checks before type assertions:
 
 ```go
@@ -3352,13 +3352,13 @@ result, err := h.collectionSvc.CommitUpdateExternal(
 
 ## Quality Gate & Definition of Done Assessment
 
-**§17 Quality Gate (Principle XIII):**  
+**§17 Quality Gate (Principle XIII):**
 - ✓ Code compiles (Go architecture test passes)
 - ✓ Layered architecture preserved
 - ✓ No prohibited emojis or hardcoded styles in frontend
 - ✗ **Type safety violation** (unchecked type assertions in external_tools.go)
 
-**§21 Definition of Done:**  
+**§21 Definition of Done:**
 - ✓ Capability-scoped API keys implemented
 - ✓ Two-phase write with journal attribution
 - ✓ Kill switch implemented and default-off
@@ -3376,7 +3376,7 @@ All other aspects of the implementation are sound and demonstrate excellent adhe
 
 ---
 
-**Next Steps:**  
+**Next Steps:**
 1. Fix type assertions in `CommitUpdate` handler
 2. Re-submit for review
 3. Approved changes can merge to beta
@@ -3386,9 +3386,9 @@ All other aspects of the implementation are sound and demonstrate excellent adhe
 _Review conducted under Constitution §18.2 (Strict Lockout authority)._
 # Decision: Issue #218 Polish-Phase Validation (T027–T031)
 
-**Date**: 2026-06-01  
-**Agent**: Brutus (Tester)  
-**Status**: Complete — APPROVED  
+**Date**: 2026-06-01
+**Agent**: Brutus (Tester)
+**Status**: Complete — APPROVED
 **Related**: Issue #218 (External Tool Server Adapter), specs/218-external-tool-server-adapter/
 
 ## Context
@@ -3641,9 +3641,9 @@ curl -s http://localhost:8080/api/v1/tools/openapi.json > external-tools.openapi
 **Follow-up**: Once Brian completes manual verification of scenarios 1–10, #218 can be merged to main.
 # Decision: Issue #218 External Tool Server Documentation (Scribe)
 
-**Date:** 2026-06-01  
-**Author:** Scribe  
-**Status:** Complete  
+**Date:** 2026-06-01
+**Author:** Scribe
+**Status:** Complete
 **Related:** Issue #218 (Epic F012, Card 4), specs/218-external-tool-server-adapter/
 
 ## Context
@@ -3752,19 +3752,19 @@ No gaps or inaccuracies identified. All documented endpoints, settings, field na
 - Constitution Operational: §17 (Quality Gate), §21 (Definition of Done)
 # BLOCK Fix: Type Assertion Panic Risk (Issue #218)
 
-**Author:** Brutus (Tester/QA)  
-**Date:** 2026-06-01  
-**Context:** Strict Lockout fix per Constitution §18.2  
-**Original Author:** Cassius (BLOCKED by Maximus)  
-**Reviewer:** Maximus (Lead/Architect)  
+**Author:** Brutus (Tester/QA)
+**Date:** 2026-06-01
+**Context:** Strict Lockout fix per Constitution §18.2
+**Original Author:** Cassius (BLOCKED by Maximus)
+**Reviewer:** Maximus (Lead/Architect)
 **Status:** Ready for Re-review
 
 ---
 
 ## The BLOCK
 
-**File:** `src/api/handlers/external_tools.go`  
-**Severity:** CRITICAL (availability risk)  
+**File:** `src/api/handlers/external_tools.go`
+**Severity:** CRITICAL (availability risk)
 **Finding:** Maximus identified unchecked type assertions on Gin context values that would PANIC the server if middleware chain is bypassed, reordered, or if a context value is missing or the wrong type.
 
 **Original Code (CommitUpdate handler, lines 247-259):**
@@ -4067,9 +4067,9 @@ ok  	github.com/briandenicola/ancient-coins-api/services	(cached)
 Ready for Maximus re-review and merge to beta.
 # Re-Review Verdict: Issue #218 — BLOCK CLEARED
 
-**Reviewer:** Maximus (Lead/Architect)  
-**Re-Review Date:** 2026-06-01  
-**Branch:** beta  
+**Reviewer:** Maximus (Lead/Architect)
+**Re-Review Date:** 2026-06-01
+**Branch:** beta
 **Status:** ✅ **APPROVED — LOCKOUT CLEARED**
 
 ---
@@ -4080,9 +4080,9 @@ Ready for Maximus re-review and merge to beta.
 
 The BLOCKING issue from my initial review (unchecked type assertions in `src/api/handlers/external_tools.go`) has been **FULLY RESOLVED**. Brutus (Tester/QA) applied defensive comma-ok guards to all six handlers, eliminating the panic/availability risk. The fix is surgical, correct, and introduces no regressions.
 
-**Strict Lockout Status:** ✅ **CLEARED**  
-- Original author (Cassius) was blocked per Constitution §18.2  
-- Brutus (independent team member) applied the fix  
+**Strict Lockout Status:** ✅ **CLEARED**
+- Original author (Cassius) was blocked per Constitution §18.2
+- Brutus (independent team member) applied the fix
 - Fix verified and approved — lockout lifted, change ready to ship
 
 ---
@@ -4091,7 +4091,7 @@ The BLOCKING issue from my initial review (unchecked type assertions in `src/api
 
 ### 1. BLOCKING Issue — Type Assertion Panic Risk
 
-**Original Problem (my first review):**  
+**Original Problem (my first review):**
 `CommitUpdate` handler (lines 247-259) performed unchecked type assertions on Gin context values:
 - `userID.(uint)` — would panic if nil or wrong type
 - `apiKeyID.(uint)` — would panic if nil or wrong type
@@ -4100,7 +4100,7 @@ The BLOCKING issue from my initial review (unchecked type assertions in `src/api
 
 **Risk:** If auth/capability middleware is bypassed, reordered, or implementation changes, the server would crash with a runtime panic instead of returning a controlled HTTP error.
 
-**Fix Applied by Brutus:**  
+**Fix Applied by Brutus:**
 ✅ **ALL SIX HANDLERS** now use comma-ok defensive guards:
 
 #### SearchMyCollection (lines 41-50)
@@ -4191,11 +4191,11 @@ result, err := h.collectionSvc.CommitUpdateExternal(
 )
 ```
 
-**Result:** ✅ **BLOCK CLEARED**  
-- All context values now checked for existence before use  
-- All type assertions use comma-ok idiom  
-- Server will return controlled HTTP errors (401/403) instead of panicking  
-- Fail-closed design: missing/wrong-type context values treated as auth failure  
+**Result:** ✅ **BLOCK CLEARED**
+- All context values now checked for existence before use
+- All type assertions use comma-ok idiom
+- Server will return controlled HTTP errors (401/403) instead of panicking
+- Fail-closed design: missing/wrong-type context values treated as auth failure
 - Generic error messages (Principle XI compliance)
 
 ---
@@ -4220,14 +4220,14 @@ result, err := h.collectionSvc.CommitUpdateExternal(
 ### 3. Behavior Preservation
 
 **For valid requests (middleware chain intact):**
-- All context values will exist with correct types  
-- All comma-ok checks will pass  
-- Service layer receives identical parameters  
+- All context values will exist with correct types
+- All comma-ok checks will pass
+- Service layer receives identical parameters
 - **Zero behavioral change** — success path unchanged
 
 **For invalid/malformed requests:**
-- **Before:** Server panic (availability failure)  
-- **After:** Controlled HTTP error response (401 or 403)  
+- **Before:** Server panic (availability failure)
+- **After:** Controlled HTTP error response (401 or 403)
 - Server remains available
 
 ---
@@ -4265,8 +4265,8 @@ ok  	github.com/briandenicola/ancient-coins-api/repository	(cached)
 ok  	github.com/briandenicola/ancient-coins-api/services	(cached)
 ```
 ✅ **PASS** — All tests pass, including:
-- Architecture tests (layering enforcement)  
-- `middleware/capability_test.go` (capability-scoped auth)  
+- Architecture tests (layering enforcement)
+- `middleware/capability_test.go` (capability-scoped auth)
 - All existing handler, service, and repository tests
 
 ---
@@ -4288,13 +4288,13 @@ ok  	github.com/briandenicola/ancient-coins-api/services	(cached)
 ### 6. Previously Approved Items (Sanity Check)
 
 In my original review, I explicitly APPROVED:
-- ✓ Security & Least Privilege (capability model, default read-only)  
-- ✓ Tenant Isolation (userID threading)  
-- ✓ Journal-Source Threading (external vs. internal commit sources)  
-- ✓ Two-Phase Write Correctness (propose → commit with token validation)  
-- ✓ Layered Architecture (handlers → services → repository)  
-- ✓ Error Hygiene (generic messages, no detail leakage)  
-- ✓ Auth & Token Policy (API key auth, kill switch)  
+- ✓ Security & Least Privilege (capability model, default read-only)
+- ✓ Tenant Isolation (userID threading)
+- ✓ Journal-Source Threading (external vs. internal commit sources)
+- ✓ Two-Phase Write Correctness (propose → commit with token validation)
+- ✓ Layered Architecture (handlers → services → repository)
+- ✓ Error Hygiene (generic messages, no detail leakage)
+- ✓ Auth & Token Policy (API key auth, kill switch)
 - ✓ Frontend Build Parity (design tokens, no emojis)
 
 **Status after fix:** ✅ **ALL STILL VALID** — No regressions detected in any previously approved area.
@@ -4303,27 +4303,27 @@ In my original review, I explicitly APPROVED:
 
 ## Quality Gate & Definition of Done
 
-**§17 Quality Gate (Principle XIII):**  
-- ✅ Code compiles (Go architecture test passes)  
-- ✅ Layered architecture preserved  
-- ✅ No prohibited emojis or hardcoded styles in frontend  
+**§17 Quality Gate (Principle XIII):**
+- ✅ Code compiles (Go architecture test passes)
+- ✅ Layered architecture preserved
+- ✅ No prohibited emojis or hardcoded styles in frontend
 - ✅ **Type safety RESOLVED** (all type assertions now checked)
 
-**§21 Definition of Done:**  
-- ✅ Capability-scoped API keys implemented  
-- ✅ Two-phase write with journal attribution  
-- ✅ Kill switch implemented and default-off  
-- ✅ OpenAPI document served  
-- ✅ Frontend management UI with scope selector  
+**§21 Definition of Done:**
+- ✅ Capability-scoped API keys implemented
+- ✅ Two-phase write with journal attribution
+- ✅ Kill switch implemented and default-off
+- ✅ OpenAPI document served
+- ✅ Frontend management UI with scope selector
 - ✅ **Critical bug RESOLVED** (panic risk eliminated)
 
 ---
 
 ## Principle Alignment
 
-- **Principle XI (Security Hardening):** ✅ Defensive coding applied, fail-closed design, generic error messages  
-- **Principle I (Layered Architecture):** ✅ Handler-only change, no service/repo modifications by fix  
-- **Principle XIII (Quality Gate):** ✅ Build + vet + test all pass  
+- **Principle XI (Security Hardening):** ✅ Defensive coding applied, fail-closed design, generic error messages
+- **Principle I (Layered Architecture):** ✅ Handler-only change, no service/repo modifications by fix
+- **Principle XIII (Quality Gate):** ✅ Build + vet + test all pass
 - **Constitution §18.2 (Strict Lockout):** ✅ Independent fix by Brutus (not blocked author Cassius)
 
 ---
@@ -4334,7 +4334,7 @@ In my original review, I explicitly APPROVED:
 
 The blocking type assertion panic risk has been fully resolved. All six handlers in `external_tools.go` now implement defensive comma-ok guards with fail-closed error handling. The server will return controlled HTTP errors instead of crashing if context values are missing or the wrong type.
 
-**Strict Lockout Status:** ✅ **CLEARED**  
+**Strict Lockout Status:** ✅ **CLEARED**
 Cassius (original author) may resume normal contribution. The #218 external tool server adapter is approved for merge to beta.
 
 **Build/Vet/Test:** All pass (exit code 0).
@@ -4348,10 +4348,10 @@ Cassius (original author) may resume normal contribution. The #218 external tool
 _Re-review conducted under Constitution §18.2 (Strict Lockout authority). Original BLOCK issued 2026-06-01, fixed by Brutus (independent team member), re-reviewed and APPROVED 2026-06-01._
 # Decision: In-App External Tool Server Documentation (Issue #218)
 
-**Author:** Aurelia (Frontend Developer)  
-**Date:** 2026-06-01  
-**Status:** IMPLEMENTED  
-**Feature:** #218 (External Tool Server)  
+**Author:** Aurelia (Frontend Developer)
+**Date:** 2026-06-01
+**Status:** IMPLEMENTED
+**Feature:** #218 (External Tool Server)
 **Files Changed:** `src/web/src/components/HelpSection.vue`
 
 ## Summary
@@ -4414,8 +4414,8 @@ Inserted immediately before the "Helpful Resources" accordion — grouped with a
 
 ## Validation
 
-**Build:** `npm run build` — ✅ Passed (6.21s, type-check clean)  
-**Lint:** `npm run lint` — ✅ All HelpSection.vue warnings fixed (exit 0)  
+**Build:** `npm run build` — ✅ Passed (6.21s, type-check clean)
+**Lint:** `npm run lint` — ✅ All HelpSection.vue warnings fixed (exit 0)
 **Pre-existing warnings** (AdminHealthSection, CoinReferencesSection, useCoinDetailContext, CollectionPage) remain unchanged.
 
 ## User Journey
@@ -4445,9 +4445,9 @@ For advanced users/developers, the "For Developers" section provides the technic
 None. Documentation complete and self-contained.
 # Scribe: Issue #218 External Tool Server Documentation Reorganization
 
-**Date:** 2026-06-01  
-**Agent:** Copilot CLI  
-**Task:** Restructure `docs/external-tool-server.md` to explicitly cover three audiences (administrators, users, developers)  
+**Date:** 2026-06-01
+**Agent:** Copilot CLI
+**Task:** Restructure `docs/external-tool-server.md` to explicitly cover three audiences (administrators, users, developers)
 **Files Modified:** 2
 
 ---
@@ -4525,9 +4525,9 @@ All prior content has been reorganized into one of the three sections. No accura
 
 ### 4. v1→v2 Database Migration Safety (2026-06-01)
 
-**Agent:** Cassius (Backend Developer)  
-**Task:** Audit v1→v2 database migration for beta→main release merge  
-**Date:** 2026-06-01  
+**Agent:** Cassius (Backend Developer)
+**Task:** Audit v1→v2 database migration for beta→main release merge
+**Date:** 2026-06-01
 **Status:** ✅ APPROVED
 
 **Summary:** v1→v2 database migration is **safe, automatic, and requires no manual steps**. Schema changes are additive; rollback-safe. Key safeguard: explicit backfill UPDATE for `api_keys.capabilities` column ensures no undefined states.
@@ -4549,9 +4549,9 @@ All prior content has been reorganized into one of the three sections. No accura
 
 ### 5. Feature #219: Coin Detail Tags Section UI Update (2026-06-01)
 
-**Agent:** Aurelia (Frontend Developer)  
-**Date:** 2026-06-01  
-**Status:** Implemented  
+**Agent:** Aurelia (Frontend Developer)
+**Date:** 2026-06-01
+**Status:** Implemented
 **Task:** UI tweaks — Tags section promotion & repositioning
 
 ## Summary
@@ -4577,9 +4577,9 @@ Promoted Tags section on CoinDetailPage to match visual hierarchy of other full 
 
 # Decision: Documentation Feature Showcase — Issue #241
 
-**Date:** 2026-06-06  
-**Author:** Cassius (Backend)  
-**Status:** Complete  
+**Date:** 2026-06-06
+**Author:** Cassius (Backend)
+**Status:** Complete
 **Issue:** #241 — Docs: Update README and documentation to showcase existing feature set
 
 ## Problem
@@ -4724,9 +4724,9 @@ Any new sections on CoinDetailPage should follow this pattern:
 
 ### 14. AddCoinPage Camera Button Layout (2026-06-01)
 
-**Agent:** Aurelia (Frontend Developer)  
-**Feature:** Minor AddCoinPage.vue UI refinements  
-**Status:** APPROVED  
+**Agent:** Aurelia (Frontend Developer)
+**Feature:** Minor AddCoinPage.vue UI refinements
+**Status:** APPROVED
 **Date:** 2026-06-01
 
 **Summary:** Camera action buttons (`.camera-actions`) repositioned using a 3-column grid layout matching the `.capture-slots` tile structure above. Shutter button (Camera icon) centered under REVERSE tile (column 2). Photo selection button repositioned right-aligned under CARD tile (column 3), with icon changed from `Upload` to `Images` (lucide-vue-next) for semantic clarity. All design tokens used; vue-tsc --build passes clean.
@@ -4745,9 +4745,9 @@ Any new sections on CoinDetailPage should follow this pattern:
 
 ### 15. Feature #219: Purchase Metadata Moved to Details Table (2026-06-01)
 
-**Agent:** Aurelia (Frontend Developer)  
-**Feature:** Coin Detail Page — Purchase metadata consolidation  
-**Status:** APPROVED  
+**Agent:** Aurelia (Frontend Developer)
+**Feature:** Coin Detail Page — Purchase metadata consolidation
+**Status:** APPROVED
 **Date:** 2026-06-01
 
 **Summary:** Moved standalone "Purchased {date} from {store}" line from above the Details section into the Details metadata table as the final full-width row. Extends CoinDetailMetadataRow interface with `fullWidth?: boolean` property. Full-width row renders as italic secondary text spanning both columns, eliminating label-value split for prose-style content. Consolidates all metadata into one visual container per Principle V & IX.
@@ -4773,9 +4773,9 @@ Any new sections on CoinDetailPage should follow this pattern:
 
 ### 16. Feature #219: Purchase Location Row — Store-Only with Optional Link (2026-06-01)
 
-**Agent:** Aurelia (Frontend Developer)  
-**Feature:** Coin Detail Page — Purchase metadata refinement  
-**Status:** APPROVED  
+**Agent:** Aurelia (Frontend Developer)
+**Feature:** Coin Detail Page — Purchase metadata refinement
+**Status:** APPROVED
 **Date:** 2026-06-01
 
 **Summary:** Refined the full-width purchase location row display in the Details table. Now shows ONLY the store name (`coin.purchaseLocation`), removing the redundant date and "Purchased from" prefix. Purchase date is already displayed in its own labeled row ("Purchase Date") in the table, making a second date display redundant.
@@ -4804,8 +4804,8 @@ Any new sections on CoinDetailPage should follow this pattern:
 
 # Decision: Store Prefix Label in Purchase Location Row
 
-**Date:** 2026-06-01  
-**Agent:** Aurelia (Frontend Developer)  
+**Date:** 2026-06-01
+**Agent:** Aurelia (Frontend Developer)
 **Context:** Issue #219 metadata table refinement
 
 ## Problem
@@ -4848,8 +4848,8 @@ Row now displays as:
 
 # Decision: Storage Location as Per-User Lookup Table
 
-**Date:** 2026-06-01  
-**Owner:** Maximus  
+**Date:** 2026-06-01
+**Owner:** Maximus
 **Status:** Proposed
 
 ## Context
@@ -4914,8 +4914,8 @@ For new nullable associations added to the existing `Coin` model, keep the scala
 
 # Decision: Remove Free-Text Rarity/RIC UI
 
-**Date:** 2026-06-01  
-**Agent:** Aurelia (Frontend Developer)  
+**Date:** 2026-06-01
+**Agent:** Aurelia (Frontend Developer)
 **Status:** Implemented
 
 ## Summary
@@ -4942,8 +4942,8 @@ The structured Catalog References feature provides proper validation, volume req
 
 # Decision: Legacy Rarity/RIC to Catalog References Migration (Proposal)
 
-**Date:** 2026-06-01  
-**Agent:** Cassius (Backend Developer)  
+**Date:** 2026-06-01
+**Agent:** Cassius (Backend Developer)
 **Status:** Proposed; awaiting Brian approval before implementation
 
 ## Context
@@ -5012,9 +5012,9 @@ Implement as a guarded startup backfill in `src/api/database/database.go`, reusi
 
 # Decision: Coin Detail Back Navigation Pattern
 
-**Date:** 2026-06-01  
-**Agent:** Aurelia (Frontend Dev)  
-**Status:** IMPLEMENTED  
+**Date:** 2026-06-01
+**Agent:** Aurelia (Frontend Dev)
+**Status:** IMPLEMENTED
 **Commit:** 9ca10ea
 
 ## Context
@@ -5077,7 +5077,7 @@ The pattern: **when a child form/edit view saves and should return to its parent
 ## Verification
 
 - `npm run type-check` — ✅ passes (vue-tsc --build)
-- `npm run build` — ✅ passes  
+- `npm run build` — ✅ passes
 - `npm run lint` — ✅ passes (5 pre-existing warnings unrelated)
 - Manual trace through both navigation paths confirms correct stack behavior
 
@@ -5096,10 +5096,10 @@ The pattern: **when a child form/edit view saves and should return to its parent
 
 # Decision: Coin Detail Back Button Uses Absolute Gallery Navigation
 
-**Date:** 2026-06-01  
-**Agent:** Aurelia  
-**Status:** SHIPPED  
-**Commit:** 6747a6d  
+**Date:** 2026-06-01
+**Agent:** Aurelia
+**Status:** SHIPPED
+**Commit:** 6747a6d
 
 ## Context
 
@@ -5157,9 +5157,9 @@ The EditCoinPage fix (using `router.back()` for child→parent after save) was c
 
 # Decision: Per-Coin Metadata Health Endpoint
 
-**Agent:** Cassius (Backend Developer)  
-**Date:** 2026-06-01  
-**Commit:** 5bd36e9  
+**Agent:** Cassius (Backend Developer)
+**Date:** 2026-06-01
+**Commit:** 5bd36e9
 **Status:** Shipped
 
 ## Problem
@@ -5247,8 +5247,8 @@ Added a user-scoped single-coin health endpoint: `GET /coins/:id/health` (protec
 
 ### Decision: Catalog Registry Backend — CRUD + Reference Field Rename
 
-**Date:** 2026-06-01  
-**Agent:** Cassius (Backend)  
+**Date:** 2026-06-01
+**Agent:** Cassius (Backend)
 **Status:** Implemented
 
 ## Context
@@ -5311,8 +5311,8 @@ Sentinel errors: `ErrCatalogNotFound`, `ErrCatalogDuplicate`, `ErrCatalogInUse`,
 
 ### Decision: Catalog Registry Admin Frontend
 
-**Date:** 2026-06-01  
-**Agent:** Aurelia (Frontend)  
+**Date:** 2026-06-01
+**Agent:** Aurelia (Frontend)
 **Status:** Implemented
 
 ## Context
@@ -5383,9 +5383,9 @@ Frontend implementation for catalog registry feature (backend in parallel).
 
 ### Decision: CoinDetailPage UI Refinements
 
-**Date:** 2026-06-01  
-**Agent:** Aurelia (Frontend Dev)  
-**Status:** Implemented  
+**Date:** 2026-06-01
+**Agent:** Aurelia (Frontend Dev)
+**Status:** Implemented
 **Principle:** Constitution Principle IX (UI/UX Consistency)
 
 ## Summary
@@ -5459,9 +5459,9 @@ Previously, inscriptions and descriptions were shown in two separate sections. T
 
 ### Decision: PWA Tap-Blocking Bug — Root Cause & Fix (pull-to-refresh)
 
-**Date:** 2026-06-01  
-**Agent:** Squad (Coordinator)  
-**Status:** FIXED (commit `9f906bf`, pushed to origin/main)  
+**Date:** 2026-06-01
+**Agent:** Squad (Coordinator)
+**Status:** FIXED (commit `9f906bf`, pushed to origin/main)
 **Principle:** Constitution Principle XIII (PWA / Mobile Interaction Rules)
 
 ## Problem
@@ -5508,9 +5508,9 @@ A non-passive `touchmove` that calls `preventDefault()` MUST be paired with a `t
 
 ### Decision: PWA Stuck Tap Bug (PARTIAL) — `bulkSelectActive` Module-Level State Leak
 
-**Date:** 2026-06-01  
-**Agent:** Aurelia (Frontend Dev)  
-**Status:** FIXED (kept in solution to the real tap bug above)  
+**Date:** 2026-06-01
+**Agent:** Aurelia (Frontend Dev)
+**Status:** FIXED (kept in solution to the real tap bug above)
 **Principle:** Constitution Principle IV (Strict Typing & Build Parity), IX (UI/UX Consistency)
 
 ## Problem
@@ -5592,8 +5592,8 @@ Added lifecycle hooks to CollectionPage:
 
 ### Decision: Split Settings "Backups & Keys" into Two Tabs
 
-**Date:** 2026-06-02  
-**Agent:** Aurelia (Frontend Developer)  
+**Date:** 2026-06-02
+**Agent:** Aurelia (Frontend Developer)
 **Status:** Implemented, awaiting approval
 
 ## Context
@@ -5740,9 +5740,9 @@ checklist items, so every "Needs Attention" row now explains what is missing.
 
 ## Decision: Camera Permissions API Pre-Check
 
-**Date:** 2026-06-02  
-**Agent:** Aurelia (Frontend Developer)  
-**Status:** Implemented  
+**Date:** 2026-06-02
+**Agent:** Aurelia (Frontend Developer)
+**Status:** Implemented
 **Component:** `src/web/src/components/CameraCaptureModal.vue`
 
 ### Context
@@ -5827,8 +5827,8 @@ Added a **Permissions API pre-check** to `CameraCaptureModal.vue` as a progressi
 
 ### Decision: Per-Coin Value Trend Relocated to Dedicated Subpage
 
-**Date:** 2026-06-02  
-**Agent:** Aurelia (Frontend Developer)  
+**Date:** 2026-06-02
+**Agent:** Aurelia (Frontend Developer)
 **Status:** Implementation complete
 
 ## Rationale

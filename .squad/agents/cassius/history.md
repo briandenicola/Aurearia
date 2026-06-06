@@ -99,7 +99,7 @@ Conducted a design review for migrating legacy free-text `Coin.RarityRating` val
 2. Multi-reference parsing support (`RIC II 207; Cohen 15`) and unsupported-catalog reporting?
 3. Certainty value: `legacy-import` or existing UI values (`probable`/`high`)?
 
-**Related decisions:** 
+**Related decisions:**
 - Aurelia removed the free-text RIC UI surface (decision: "Remove Free-Text Rarity/RIC UI")
 - Non-destructive requirement aligned with SQLite foreign-key migration gotchas documented earlier
 
@@ -240,7 +240,7 @@ Fixed health scoring to measure valuation freshness from when the value was last
 - **Migration:** Safe additive nullable column in `database.Connect()` AutoMigrate; no FK constraints needed
 - **Repository:** Updated all `EligibleCoinRow` SELECT queries (`ListEligibleCoins`, `ListEligibleCoinsPaged`, `ListAllEligibleCoins`, `GetSingleEligibleCoin`) to include `current_value_updated_at`
 - **Health Scoring:** `scoreCoinValuationFreshness` and `generateCoinChecklist` now measure age from `CurrentValueUpdatedAt` when present, fallback to `PurchaseDate` for legacy coins (non-regressive)
-- **Valuation Writes:** 
+- **Valuation Writes:**
   - `ValuationService.updateCoinValuation` sets both `current_value` and `current_value_updated_at` (scheduled valuations)
   - `CoinService.UpdateCoin` sets `current_value_updated_at` when `CurrentValue` changes manually (UI edits)
 - **Tests:** Added comprehensive `TestScoreCoinValuationFreshness_WithCurrentValueUpdatedAt` covering fresh/stale/legacy fallback paths
@@ -383,7 +383,7 @@ Reorganized all feature documentation from a single monolithic 358-line `docs/fe
 
 **Verification:** Markdown link validation ✅, suspicious-claim scans ✅, git diff --check ✅
 
-**Orchestration Log:** 20260606T194119Z-cassius-docs.md  
-**Session Log:** 20260606T194119Z-issue-241-docs-feature-showcase.md  
+**Orchestration Log:** 20260606T194119Z-cassius-docs.md
+**Session Log:** 20260606T194119Z-issue-241-docs-feature-showcase.md
 **Decision Merged:** decisions.md (Decision: Documentation Feature Showcase — Issue #241)
 
