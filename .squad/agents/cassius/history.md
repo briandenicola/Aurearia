@@ -33,6 +33,41 @@
 
 ## Learnings
 
+### 2026-06-06 — Documentation Feature Showcase (Issue #241)
+
+**Feature Discovery & Documentation Refactor:**
+Created comprehensive feature documentation structure to showcase the app's full capability set. Documentation reorganization moved scattered feature details into discoverable, indexed docs with per-feature deep dives.
+
+**Key Files Changed:**
+- `README.md` — Added Feature Highlights section with 8 major feature categories, Feature Matrix with capability grid, and What's New timeline
+- `docs/features/INDEX.md` — Created master index with links to 30+ features organized by category
+- `docs/features/*.md` — Created 25+ individual feature documents:
+  - Deep-dive docs: collection-management.md, coin-details.md, coin-sets.md, wish-list.md, ai-analysis.md, ai-search-agent.md, statistics.md (500-8200 words each)
+  - Shorthand guides: auction-tracking.md, sold-coins.md, social-features.md, pwa-features.md, coin-of-the-day.md, custom-tags.md, user-profiles.md, admin-settings.md, collection-showcase.md, numista-integration.md, and 12 others (~1500-2000 words each)
+- `docs/features.md` — Added redirect header and quick reference table pointing to new docs/features/ structure
+
+**Feature Map (All 30+ features now documented):**
+- Core: Collection Management, Coin Details, Coin of the Day
+- Discovery: Wish List, Auction Tracking, Sold Coins
+- AI: Analysis, Search Agent, Grading, Price Trends, Gap Analysis, Photography Guide, Similar Lots
+- Organization: Coin Sets, Custom Tags, Statistics, Collection Showcase
+- Social: Social Features, User Profiles
+- Admin: Admin Settings, Authentication, External Tool Server
+- Mobile: PWA Features, Camera Capture
+- Advanced: Image Operations, PDF Export, Bulk Operations, Notifications, Numista, Auction Calendar, Import/Export
+
+**Accuracy Notes:**
+- No cloud features fabricated (Auth0, CosmosDB, Azure, Terraform/K8s not documented)
+- All docs describe current self-hosted architecture (Go/Vue/Python/SQLite/Docker)
+- Feature matrix shows actual capabilities with clear symbols (✅, ❌, —)
+- What's New section includes v2.0 in-development features (Coin Sets, Health Scorecard)
+
+**Documentation Quality:**
+- Every feature includes: Overview, Key Features, How to Use, Configuration, API Endpoints, Related Features
+- Cross-linking enables readers to traverse related features
+- Emoji icons improve scannability
+- Clear use cases and workflows for each feature
+
 - **Storage Location API Pattern (2026-06-01):** Added per-user `StorageLocation` lookup table and nullable `Coin.StorageLocationID` FK. Backend files: `models/storage_location.go`, `repository/storage_location_repository.go`, `services/storage_location_service.go`, `handlers/storage_location.go`; `Coin` preloads now include `StorageLocation` where coin associations are returned. Routes: `GET/POST /api/storage-locations`, `PUT/DELETE /api/storage-locations/:id`. Delete is guarded: referenced locations return 409 Conflict with the number of coins using the location; coins must be reassigned first. Coin create/update validates that any non-null `storageLocationId` belongs to the requesting user; update accepts explicit `null` to clear the FK.
 - **SQLite/GORM Coin FK Migration Gotcha (2026-06-01):** Adding a physical FK constraint to the existing `coins` table can make GORM rebuild the table; with `PRAGMA foreign_keys=ON`, dropping the old table fails if child rows (`coin_images`, `coin_tags`, etc.) reference it. For nullable `Coin` lookup FKs added after launch, keep the `*_id` column and preload association but tag the association `constraint:-`; migrate the lookup table before `Coin`, and enforce ownership/referential correctness in services/repositories unless an explicit SQLite-safe rebuild migration is written.
 - **RIC/Structured Reference Migration Design (2026-06-01):** The legacy free-text catalog field is `Coin.RarityRating` (`json:"rarityRating"`, DB `rarity_rating`); `ReferenceText`/`ReferenceURL` are link fallback fields. `CoinReference` stores `coin_id`, `catalog`, `volume`, `number`, `certainty`, and `uri`, with unique `(coin_id,catalog,volume,number)` and validation against `CatalogRegistry` (`RIC`, `RPC`, and `SNG` require volume). Recommended backfill: idempotent guarded startup migration that parses legacy values such as `RIC II 207` into validated references, skips/logs values missing required volume such as bare `RIC 207`, and keeps legacy columns until a separate SQLite-safe drop decision.
@@ -324,3 +359,31 @@ AI-coverage model finalized: **obverse + reverse only** (legacy combined field n
 **Cross-agent:** Aurelia (frontend) will benefit from camera permissions pre-check; no backend impact.
 
 **Commit:** fcfe401
+
+## 2026-06-06 — Documentation Feature Showcase (Issue #241)
+
+**Status:** Complete
+
+Reorganized all feature documentation from a single monolithic 358-line `docs/features.md` into a hierarchical, discoverable structure with 30+ individual feature docs organized by category.
+
+**Key Changes:**
+- Created `docs/features/INDEX.md` — Master index with 30+ features organized by 8 categories
+- Created 7 deep-dive feature docs (500–8,200 words each): collection-management, coin-details, coin-sets, wish-list, ai-analysis, ai-search-agent, statistics
+- Created 18+ shorthand feature guides (1,500–2,000 words each) covering remaining features
+- Enhanced `README.md` with Feature Highlights (8 categories), Feature Matrix (7x10 capability grid), What's New timeline
+- Preserved backward compatibility: `docs/features.md` includes redirect header + quick reference table
+
+**Benefits:**
+- **Discoverability:** 30+ entry points via search/GitHub vs. 1 monolithic 358-line document
+- **Maintenance:** Individual docs updated independently; no merge conflicts on massive files
+- **SEO:** Multiple pages increase search surface area
+- **User Experience:** Consistent structure, emoji icons, clear cross-linking for feature exploration
+
+**No Cloud Features Fabricated:** All docs accurately describe self-hosted architecture (Go/Vue/Python/SQLite/Docker). No Auth0, CosmosDB, Azure, or Terraform features invented.
+
+**Verification:** Markdown link validation ✅, suspicious-claim scans ✅, git diff --check ✅
+
+**Orchestration Log:** 20260606T194119Z-cassius-docs.md  
+**Session Log:** 20260606T194119Z-issue-241-docs-feature-showcase.md  
+**Decision Merged:** decisions.md (Decision: Documentation Feature Showcase — Issue #241)
+

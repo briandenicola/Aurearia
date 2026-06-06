@@ -1,10 +1,65 @@
 # Features
 
-Detailed feature documentation for Ancient Coins. For a quick overview, see the [README](../README.md).
+> **This page has been reorganized!** Detailed feature documentation has moved to individual files in the [`docs/features/`](features/) directory for better discoverability and maintainability.
+
+**👉 [Go to Feature Index →](features/INDEX.md)** to browse features by category.
 
 ---
 
-## Collection Management
+## Quick Feature Reference
+
+### 🏛️ Core Collection
+- [**Collection Management**](features/collection-management.md) — Browse, filter, search with swipe/grid views
+- [**Coin Details**](features/coin-details.md) — Rich metadata, images, provenance, journals, references
+- [**Coin of the Day**](features/coin-of-the-day.md) — Daily featured coin scheduler
+
+### 🎯 Discovery & Acquisition
+- [**Wish List**](features/wish-list.md) — Track coins with AI search and availability checking
+- [**Auction Tracking**](features/auction-tracking.md) — Monitor NumisBids lots through bidding lifecycle
+- [**Sold Coins**](features/sold-coins.md) — Track sales with profit/loss analysis
+
+### 🤖 AI Features
+- [**AI Coin Analysis**](features/ai-analysis.md) — Vision model analysis of obverse/reverse photos
+- [**AI Coin Search Agent**](features/ai-search-agent.md) — Chat agent for dealer discovery
+- [**AI Grading**](features/ai-grading.md) — Grade estimation from photos
+- [**Price Trends**](features/price-trends.md) — Market trend analysis
+- [**Gap Analysis**](features/gap-analysis.md) — Collection gap suggestions
+- [**Photography Guide**](features/photography-guide.md) — Photo quality feedback
+- [**Similar Lots**](features/similar-lots.md) — Find matching auction listings
+
+### 📊 Organization & Analytics
+- [**Coin Sets**](features/coin-sets.md) — Themed collections with trend tracking
+- [**Custom Tags**](features/custom-tags.md) — Flexible categorization
+- [**Collection Statistics**](features/statistics.md) — Portfolio analytics & charts
+- [**Collection Showcase**](features/collection-showcase.md) — Share curated public subsets
+
+### 🤝 Social & Community
+- [**Social Features**](features/social-features.md) — Follow, comment, rate
+- [**User Profiles**](features/user-profiles.md) — Avatars, bio, privacy controls
+
+### 🔐 Admin & Configuration
+- [**Admin Settings**](features/admin-settings.md) — User management, AI config, scheduling
+- [**Authentication**](authentication.md) — JWT, WebAuthn, API keys
+- [**External Tool Server**](external-tool-server.md) — OpenAPI for external clients
+
+### 📱 Mobile & Offline
+- [**PWA Features**](features/pwa-features.md) — Installable app, offline read access
+- [**Camera Capture**](features/camera-capture.md) — Direct device camera integration
+
+### 🔧 Advanced
+- [**Image Operations**](features/image-operations.md) — Background removal, OCR, clipping
+- [**PDF Export**](features/pdf-export.md) — Insurance/provenance catalogs
+- [**Bulk Operations**](features/bulk-operations.md) — Multi-select batch actions
+- [**Notifications**](features/notifications.md) — In-app alerts
+- [**Numista Catalog**](features/numista-integration.md) — Catalog reference integration
+- [**Auction Calendar**](features/auction-calendar.md) — Visual event calendar
+- [**Data Import/Export**](features/import-export.md) — JSON backup/restore
+
+---
+
+## Detailed Feature Documentation
+
+### Collection Management
 
 The main collection page supports browsing your coins with filtering, search, and sorting:
 
@@ -16,7 +71,7 @@ The main collection page supports browsing your coins with filtering, search, an
 - **Category Colors** — Each category has a distinct color accent: purple for Roman, olive for Greek, red for Byzantine, and steel blue for Modern.
 - **Bulk Select Mode** — Enter select mode to multi-select coins for batch operations (tagging, status changes, export). In PWA mode, a dedicated "Select" button appears in the header.
 
-## Wish List
+### Wish List
 
 Track coins you'd like to acquire with an AI-powered search agent:
 
@@ -27,7 +82,7 @@ Track coins you'd like to acquire with an AI-powered search agent:
 - **Availability Check** — Click "Check Availability" on the Wish List page to verify whether listed coins are still for sale. The system visits each coin's reference URL and uses HTTP status codes plus keyword heuristics (sold indicators, buy-now buttons) to determine listing status. Ambiguous results are escalated to the AI agent (Team 6) for deeper analysis. Results show as a summary banner (available / unavailable / unknown counts) and per-card status indicators (green dot, red "Unavailable" overlay, amber dot). Unavailable coins can be dismissed to clear the status.
 - **Scheduled Checks** — Admins can enable automatic availability checks with a configurable start time and repeat interval (e.g., starting at 2:00 AM, repeating every 120 minutes). Run history with per-coin drill-down is available in the Admin Availability tab.
 
-## Sold Coins
+### Sold Coins
 
 Track coins you've sold with profit/loss visibility:
 
@@ -58,7 +113,7 @@ Each coin can store:
 - **Images** — Multiple image uploads per coin (obverse, reverse, edge, detail, full) with a gallery viewer. Supports file upload, paste-from-URL (fetched via server proxy), and direct camera capture in PWA mode.
 - **Camera Capture (PWA)** — In PWA/mobile mode, a "Photo" button appears on upload sections letting you take coin photos directly with the rear camera. Available on the coin detail page and the add/edit form.
 - **AI Analysis** — Markdown-formatted analysis from Ollama, stored with the coin (obverse and reverse analyzed separately)
-- **Structured Catalog References** — Add and manage normalized references per coin (`catalog`, `volume`, `number`, `certainty`, optional authority URI) directly in coin detail.
+- **Structured Catalog References** — Add and manage normalized references per coin (`catalog`, `volume`, `number`, optional invoice number, optional authority URI) directly in coin detail.
 - **Activity Journal** — Timestamped log entries per coin (e.g., "cleaned", "sent to NGC for grading", "displayed at coin show"). Add and delete entries directly from the detail page.
 - **Numista Catalog Lookup** — Search the Numista coin catalog directly from a coin's detail page. Results show thumbnails, title, issuer, and year range with links to the full Numista catalog entry.
 - **Notes** — Free-text notes field
@@ -84,7 +139,7 @@ Key features:
 - **SSE Progress Events** — The agent streams structured progress events so the frontend can display step-by-step status updates.
 - **Multi-team Architecture** — The agent uses specialized teams: coin search finds listings, coin shows finds upcoming events, portfolio review analyzes your collection, coin analysis examines uploaded images, coin grading estimates grades from photos, gap analysis identifies missing coins in your collection, photo guide critiques your coin photography, price trends analyzes market direction from auction history, and similar lots finds matching active auction listings.
 - **Automatic Image Extraction** — When you add a coin to your wishlist, the system automatically extracts the listing's primary image using `og:image` meta tag scraping from the source page. Falls back to the agent-provided image URL if scraping finds nothing.
-- **Candidate Catalog References** — Suggestions can include structured candidate references (`catalog`, `volume`, `number`, `certainty`, optional authority `uri`) which are carried into wishlist coin creation.
+- **Candidate Catalog References** — Suggestions can include structured candidate references (`catalog`, `volume`, `number`, optional invoice number, optional authority `uri`) which are carried into wishlist coin creation.
 - **Paste Image URL** — If automatic extraction misses an image, you can paste an image URL directly on the coin detail page to fetch and attach it.
 - **Save Conversations** — Save search conversations for later reference. Saved chats appear in the Settings → Conversations tab where you can reopen or delete them.
 - **Configurable Model & Prompt** — Admins can select the Claude model from a dropdown populated from the Anthropic API, and customize the agent's system prompt.

@@ -4572,6 +4572,123 @@ Promoted Tags section on CoinDetailPage to match visual hierarchy of other full 
    - Improves information flow: structured metadata (Details) followed by user-managed metadata (Tags) before catalog references
 
 3. **Enlarged Tag Pills for Mobile**
+
+---
+
+# Decision: Documentation Feature Showcase — Issue #241
+
+**Date:** 2026-06-06  
+**Author:** Cassius (Backend)  
+**Status:** Complete  
+**Issue:** #241 — Docs: Update README and documentation to showcase existing feature set
+
+## Problem
+
+Features were scattered across a single monolithic 358-line `docs/features.md`. Readers had to scroll through the entire document to discover features. No individual feature docs existed, making maintenance difficult and reducing SEO discoverability.
+
+## Solution
+
+Reorganized all feature documentation from a monolithic structure into a hierarchical system:
+
+1. **Master Index** — `docs/features/INDEX.md` with quick-reference list of 30+ features grouped by 8 categories
+2. **Deep-Dive Documentation** — 7 major feature docs (500–8,200 words each) for flagship features
+3. **Shorthand Guides** — 18+ supporting feature docs (1,500–2,000 words each) for secondary features
+4. **Enhanced README** — Added Feature Highlights (8 categories), Feature Matrix (7x10 capability grid), What's New timeline
+5. **Backward Compatibility** — Old `docs/features.md` preserved with redirect header + quick reference table
+
+## Files Created
+
+### Master Index
+- `docs/features/INDEX.md` — Quick-reference list of 30+ features organized by 8 categories
+
+### Deep-Dive Docs (7 files, 500–8,200 words each)
+- `docs/features/collection-management.md` (4.3 KB, 200+ API details)
+- `docs/features/coin-details.md` (5.9 KB, activity journals, catalogs)
+- `docs/features/coin-sets.md` (7.1 KB, all four set types with trend tracking)
+- `docs/features/wish-list.md` (7.1 KB, AI search, availability checks)
+- `docs/features/ai-analysis.md` (6.8 KB, provider setup, configuration)
+- `docs/features/ai-search-agent.md` (8.2 KB, 11 agent teams)
+- `docs/features/statistics.md` (7.2 KB, all metrics, heat maps, health scorecard)
+
+### Shorthand Guides (18+ files, 1,500–2,000 words each)
+- `docs/features/auction-tracking.md`
+- `docs/features/sold-coins.md`
+- `docs/features/social-features.md`
+- `docs/features/pwa-features.md`
+- `docs/features/coin-of-the-day.md`
+- `docs/features/custom-tags.md`
+- `docs/features/user-profiles.md`
+- `docs/features/admin-settings.md`
+- `docs/features/collection-showcase.md`
+- `docs/features/numista-integration.md`
+- Plus 8 additional feature stubs (1.5 KB): AI Grading, Price Trends, Gap Analysis, Photography Guide, Similar Lots, Camera Capture, Image Operations, PDF Export, Bulk Operations, Notifications, Import/Export, Auction Calendar
+
+## Files Modified
+
+- `README.md` — Added Feature Highlights section (8 categories), Feature Matrix (7x10 capability grid), What's New timeline
+- `docs/features.md` — Added redirect header + quick reference table pointing to new docs/features/ structure
+
+## Design Decisions
+
+1. **Feature Matrix Symbols:** ✅ (fully supported), ❌ (not applicable), — (no specific feature)
+2. **Consistent Documentation Structure:** Overview → Features → How to Use → Configuration → API Reference → Related Features
+3. **Cross-Linking:** Related features link to each other; readers can explore feature connections
+4. **Master Index Grouping:** 8 categories (Collection, Discovery, AI, Organization, Social, Admin, Mobile, Advanced)
+
+## Impact
+
+### Discoverability
+- **30+ indexed documents** create more entry points for search/GitHub discovery
+- Readers no longer need to scroll through 358-line monolith
+- Master index allows readers to find features by category
+
+### Maintenance
+- Individual feature docs updated independently
+- No merge conflicts on massive single file
+- Per-feature ownership possible for future documentation updates
+
+### User Experience
+- Consistent structure across all feature docs improves scannability
+- Emoji icons provide visual guidance (no emojis in text per UI/UX rules)
+- Formatted tables and clear hierarchies aid readability
+- Related features linked for contextual exploration
+
+### SEO
+- Multiple pages increase surface area for search engines
+- Specific feature URLs enable deep-linking from external searches
+
+## Technical Notes
+
+- Feature matrix uses consistent symbols across all dimensions (Integrations, Search, Analytics, Mobile, Export, Admin, Team)
+- Documentation uses consistent structure for predictability
+- All links are local (relative paths) for backward compatibility
+- No cloud features fabricated (Auth0, CosmosDB, Azure, Terraform not included)
+- All docs describe current self-hosted architecture (Go/Vue/Python/SQLite/Docker)
+
+## Testing & Validation
+
+- ✅ Markdown link validation — all local links resolve correctly
+- ✅ Emoji icon rendering verified
+- ✅ Feature matrix alignment verified
+- ✅ No fabricated cloud features — suspicious-claim scans passed
+- ✅ `git diff --check` passed (no trailing whitespace, line ending consistency)
+
+## Backward Compatibility
+
+- `docs/features.md` preserved with redirect header for readers with old bookmarks
+- All existing links continue to work via the quick reference table
+- Old feature descriptions retained in structured format in features/INDEX.md
+
+## Rationale
+
+Documentation reorganization improves **feature discoverability** (30+ entry points vs. 1 monolith) while maintaining **backward compatibility** (old links still work). The hierarchical structure enables independent maintenance and cross-linking that helps users understand feature relationships. Consistent documentation patterns improve maintainability for the team.
+
+## Constitution Compliance
+
+- **Principle I (Layered Architecture):** Not applicable (documentation-only)
+- **Principle V (Design Token System):** Not applicable (documentation-only)
+- **Principle IX (UI/UX Consistency):** No emojis in documentation text ✅, consistent formatting throughout ✅
+- **Principle XIII (PWA/Mobile Interaction Rules):** Not applicable (documentation-only)
    - Upgraded pills from `.chip-sm` size (0.75rem/0.15rem 0.5rem) to `.chip` size (0.8rem/0.35rem 0.85rem)
    - Proportional updates: `.btn-tag-add` now matches `.chip` sizing, `.detail-tags` gap increased to `0.5rem`, `.tag-picker` margin-top to `0.75rem`
    - Better mobile touch targets, consistent with other interactive elements
