@@ -110,7 +110,7 @@
               <span>NGC Certification: {{ ngcCertNumber }}</span>
             </div>
             <a
-              :href="results.extractedData.ngc?.lookupURL ?? `https://www.ngccoin.com/certlookup/${ngcCertNumber}/`"
+              :href="ngcLookupUrl"
               target="_blank"
               rel="noopener noreferrer"
               class="btn btn-secondary btn-sm"
@@ -246,6 +246,11 @@ const results = ref<CoinLookupResponse | null>(null)
 
 const ngcCertNumber = computed(() => {
   return results.value?.extractedData.ngc?.normalizedCert ?? null
+})
+
+const ngcLookupUrl = computed(() => {
+  if (!ngcCertNumber.value) return ''
+  return `https://www.ngccoin.com/certlookup/?CertNumber=${encodeURIComponent(ngcCertNumber.value)}`
 })
 
 const draft = computed<CoinMutationPayload>(() => results.value?.prefilledDraft ?? {})

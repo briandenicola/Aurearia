@@ -103,7 +103,7 @@ func TestExtractNGCCert(t *testing.T) {
 				if result.NormalizedCert != tt.wantNum {
 					t.Errorf("extractNGCCert().NormalizedCert = %q, want %q", result.NormalizedCert, tt.wantNum)
 				}
-				expectedURL := "https://www.ngccoin.com/certlookup/" + tt.wantNum + "/"
+				expectedURL := "https://www.ngccoin.com/certlookup/?CertNumber=" + tt.wantNum
 				if result.LookupURL != expectedURL {
 					t.Errorf("extractNGCCert().LookupURL = %q, want %q", result.LookupURL, expectedURL)
 				}
@@ -162,6 +162,14 @@ func TestExtractLabelText(t *testing.T) {
 				t.Errorf("extractLabelText() = %q, want %q", result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestNGCLookupURLUsesCertNumberQuery(t *testing.T) {
+	got := ngcLookupURL("823160-093")
+	want := "https://www.ngccoin.com/certlookup/?CertNumber=823160-093"
+	if got != want {
+		t.Errorf("ngcLookupURL() = %q, want %q", got, want)
 	}
 }
 

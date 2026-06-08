@@ -111,9 +111,11 @@ func (s *CoinLookupService) Lookup(ctx context.Context, userID uint, req CoinLoo
 
 	logger.Info("coin-lookup", "Extracted data: NGC=%v, LabelText=%v", extractedData.NGC != nil, extractedData.LabelText != "")
 
-	// 2. Build Numista search query from extracted fields
+	// 2. Build Numista search query from extracted fields.
+	// NGC-slab lookups should return as soon as cert extraction succeeds; Numista
+	// enrichment is only needed when there is no cert to verify directly.
 	numistaCandidates := []NumistaCandidate{}
-	if extractedData.CoinFields != nil {
+	if extractedData.NGC == nil && extractedData.CoinFields != nil {
 		candidates, err := s.searchNumista(ctx, extractedData.CoinFields)
 		if err != nil {
 			logger.Warn("coin-lookup", "Numista search failed: %v", err)
@@ -245,7 +247,7 @@ func (s *CoinLookupService) extractNGCCert(analysis string) *NGCData {
 				ngcData := &NGCData{
 					CertNumber:     certStr,
 					NormalizedCert: normalized,
-					LookupURL:      fmt.Sprintf("https://www.ngccoin.com/certlookup/%s/", normalized),
+					LookupURL:      ngcLookupURL(normalized),
 				}
 				if grade, ok := parsed["ngcGrade"].(string); ok && grade != "" && grade != "null" {
 					ngcData.Grade = grade
@@ -267,7 +269,7 @@ func (s *CoinLookupService) extractNGCCert(analysis string) *NGCData {
 			return &NGCData{
 				CertNumber:     certNumber,
 				NormalizedCert: normalized,
-				LookupURL:      fmt.Sprintf("https://www.ngccoin.com/certlookup/%s/", normalized),
+				LookupURL:      ngcLookupURL(normalized),
 			}
 		}
 	}
@@ -285,6 +287,10 @@ func normalizeCertNumber(cert string) string {
 		return cert
 	}
 	return ""
+}
+
+func ngcLookupURL(cert string) string {
+	return "https://www.ngccoin.com/certlookup/?CertNumber=" + url.QueryEscape(cert)
 }
 
 // extractLabelText extracts visible label text from analysis.
