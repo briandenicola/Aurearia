@@ -210,7 +210,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { lookupCoin, createCoin, uploadImage } from '@/api/client'
+import { lookupCoin, createCoin, createCoinReference, uploadImage } from '@/api/client'
 import type { CoinLookupResponse, CoinMutationPayload } from '@/types'
 import {
   Camera,
@@ -257,6 +257,13 @@ const ngcLookupUrl = computed(() => {
 
 const draft = computed<CoinMutationPayload>(() => results.value?.prefilledDraft ?? {})
 const numistaResults = computed(() => results.value?.numistaCandidates ?? [])
+
+function normalizedEra(value: unknown): 'ancient' | 'medieval' | 'modern' | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'ancient' || normalized === 'medieval' || normalized === 'modern') return normalized
+  return undefined
+}
 
 function handleBack() {
   if (state.value === 'results') {
@@ -345,16 +352,21 @@ async function createCoinFromLookup(isWishlist: boolean) {
     name: draft.value.name || 'Lookup Coin',
     category: draft.value.category || 'Other',
     material: draft.value.material || 'Other',
+    era: normalizedEra(draft.value.era),
     isWishlist,
-    references: results.value.candidateReferences ?? [],
   }
   const created = await createCoin(payload)
+  const coinId = created.data.id
 
   for (let index = 0; index < capturedImages.value.length; index += 1) {
     const image = capturedImages.value[index]?.file
     if (!image) continue
     const imageType = index === 0 ? 'obverse' : index === 1 ? 'reverse' : 'detail'
-    await uploadImage(created.data.id, image, imageType, index === 0, false)
+    await uploadImage(coinId, image, imageType, index === 0, false)
+  }
+
+  for (const reference of results.value.candidateReferences ?? []) {
+    await createCoinReference(coinId, reference)
   }
 }
 
