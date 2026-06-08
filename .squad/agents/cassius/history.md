@@ -29,6 +29,7 @@
 - **2026-06-01:** #217 shared collection tool layer (internal token service, six internal endpoints, keyword gate removed), #217 Python ReAct agent completed end-to-end, #218 external tool server stack
 - **2026-06-01:** v1→v2 migration audit, Frontend navigation convention, Storage Location API pattern (per-user lookup table, nullable Coin.StorageLocationID FK, 409 conflict guard), Legacy RIC→CoinReference migration design + implementation + startup→endpoint refactor
 - **2026-06-02:** Valuation freshness fix (CurrentValueUpdatedAt), Metadata health AI coverage fix (combined→obverse+reverse), AI coverage health scoring correction (per-side model finalized), checklist labels for missing side
+- **2026-06-08:** CodeQL request-forgery suppression comments added to `ProxyImage` and `ScrapeImage` handlers; SSRF protection layer remains unchanged
 
 
 ## Learnings
@@ -430,3 +431,60 @@ Added backend settings support for user-defined coin category and era option lis
   - **Era/Category Settings:** Added `CoinCategories` and `CoinEras` settings with newline-delimited defaults matching hardcoded values; 6 passing tests; automatic exposure via `/admin/settings` endpoints.
   - **Coin Lookup Architecture Inventory:** Completed infrastructure audit — 90%+ of lookup MVP already exists (AI Intake Draft #216, Numista proxy, image analysis, agent proxy, catalog references). Recommended path: extend intake draft with Numista enrichment (Go-only service, 2-3 days). NGC deferred to post-MVP. No new Python agent team needed for MVP.
   - **Numista Enrichment Service (Proposed):** New service layer to extract keywords from draft fields, query Numista, map results to DTO. Low-effort orchestration on top of existing infrastructure.
+
+## 2026-06-08 — CodeQL Request Forgery Alerts (Suppression Fix)
+
+**Status:** Complete
+
+Addressed two CodeQL `go/request-forgery` alerts on `client.Do(req)` calls in `ProxyImage` and `ScrapeImage` handlers. CodeQL's static analysis flagged user-provided URLs as untrusted even though robust SSRF protections were already in place.
+
+**Implementation:**
+- **Changed Files:** `src/api/handlers/images.go`
+- **Changes:** Updated inline suppression comments from `codeql[...]` to `lgtm [...]` format on lines 373 and 467
+- **No Functional Changes:** All SSRF protections remain unchanged and comprehensive
+
+**Existing SSRF Protection Stack (Already Implemented):**
+
+**1. URL Validation Layer** (`validateOutboundURL` in `outbound_http.go`):
+- ✅ Only allows `http://` and `https://` schemes
+- ✅ Rejects credentials in URL (`user:pass@`)
+- ✅ Blocks `localhost` hostname
+- ✅ Blocks direct IP access to private/loopback/link-local ranges
+
+**2. HTTP Client Layer** (`newRestrictedHTTPClient`):
+- ✅ Disabled proxy support (prevents proxy-based SSRF)
+- ✅ Custom `DialContext` resolves DNS on **every connection attempt** (prevents DNS caching-based rebinding)
+- ✅ Post-resolution IP blocking: rejects private/loopback/link-local IPs after DNS lookup
+- ✅ Redirect policy: validates **every redirect target** through same validation rules
+- ✅ 10-redirect maximum
+- ✅ 30-second timeout
+
+**3. Blocked IP Ranges** (comprehensive CIDR list):
+- Private IPv4: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`
+- Loopback: `127.0.0.0/8`, `::1/128`
+- Link-local: `169.254.0.0/16` (AWS metadata), `fe80::/10`
+- Special use: `0.0.0.0/8`, `100.64.0.0/10`, `198.18.0.0/15`, carrier-grade NAT, multicast, reserved ranges
+
+**Testing Coverage** (`outbound_http_test.go`):
+- ✅ URL validation (public URLs pass, localhost/loopback/link-local/credentials blocked)
+- ✅ DNS resolution blocking private IPs (fake resolver tests)
+- ✅ Per-connect DNS resolution (no caching)
+- ✅ Redirect policy enforcement
+- ✅ Integration tests for `ProxyImage` and `ScrapeImage` blocking connect-time private resolution
+
+**Validation:**
+- All tests pass: `go test -v ./handlers -run "TestProxyImage|TestScrapeImage|TestValidateOutboundURL|TestRestrictedDialContext"` ✅
+- Architecture tests pass: `go test -v -run TestNoDirectDatabase .` ✅
+
+**Why Inline Suppression is Appropriate:**
+- CodeQL's taint analysis doesn't recognize `validateOutboundURL` as a sanitizer
+- The protection stack is comprehensive, tested, and follows OWASP SSRF prevention guidelines
+- Alternative solutions (custom CodeQL config, refactoring for explicit sanitizer pattern) add complexity without improving security
+- Suppression comments document the protection rationale inline
+
+**Learnings:**
+- CodeQL taint tracking requires explicit sanitizer registration or inline suppression for custom validation functions
+- `lgtm [query-id]` format is the standard for inline suppressions; works with both LGTM and GitHub Advanced Security CodeQL scans
+- SSRF protection requires **layered defense**: URL validation + DNS-time IP blocking + connect-time validation + redirect validation
+- DNS rebinding attacks require per-connection resolution (no client-side DNS caching) — this was already implemented
+- Comprehensive CIDR blocklist protects against cloud metadata endpoints (169.254.169.254), private networks, and special-use ranges
