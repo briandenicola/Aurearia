@@ -23,12 +23,19 @@ The Wish List helps collectors systematically track and acquire coins. It integr
 5. Each result shows: image, metadata, estimated price, source link
 6. Click **Add to Wishlist** to import with one click
 
+#### Coin Lookup
+1. Navigate to **Wish List → Lookup Coin**
+2. Take or upload photos of a coin or certification slab
+3. Review extracted details, NGC verification links, or Numista fallback matches
+4. Click **Add to Wishlist** to create a wishlist coin with captured photos and structured references
+
 ### Viewing Your Wish List
 
 - **Dedicated Gallery** — Separate view from main collection
 - **Same Filters/Sort** — Full-text search, category filtering, sorting by price/date
 - **Status Indicators** — Show if coin is actively listed, unavailable, or unknown
 - **Price Tracking** — Note current asking prices and compare over time
+- **Lookup Saves** — Coins saved from Coin Lookup include captured photos and generated NGC or Numista references
 
 ## Availability Checking
 

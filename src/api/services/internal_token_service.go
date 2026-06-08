@@ -62,7 +62,7 @@ func (s *InternalTokenService) Verify(token string) (uint, error) {
 	signatureB64 := parts[2]
 
 	// Parse userID
-	userIDInt, err := strconv.ParseUint(userIDStr, 10, 64)
+	userIDInt, err := strconv.ParseUint(userIDStr, 10, strconv.IntSize)
 	if err != nil {
 		return 0, ErrInvalidInternalToken
 	}

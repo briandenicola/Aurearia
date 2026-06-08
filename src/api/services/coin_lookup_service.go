@@ -89,8 +89,10 @@ type CoinLookupResponse struct {
 }
 
 var (
-	// Matches NGC cert formats: 823160-093, 1234567-001, etc.
-	ngcCertRegex = regexp.MustCompile(`\b(\d{6,7}-\d{3})\b`)
+	// Matches NGC cert formats: 823160-093, 1234567-001, 2412821034, etc.
+	ngcCertRegex      = regexp.MustCompile(`\b(\d{6,7}-?\d{3})\b`)
+	ngcCertExactRegex = regexp.MustCompile(`^(\d{6,7})-?(\d{3})$`)
+	compactCertRegex  = regexp.MustCompile(`^\d{9,10}$`)
 )
 
 // Lookup performs coin lookup from images: extracts NGC cert, label text, and enriches with Numista.
@@ -111,9 +113,11 @@ func (s *CoinLookupService) Lookup(ctx context.Context, userID uint, req CoinLoo
 
 	logger.Info("coin-lookup", "Extracted data: NGC=%v, LabelText=%v", extractedData.NGC != nil, extractedData.LabelText != "")
 
-	// 2. Build Numista search query from extracted fields
+	// 2. Build Numista search query from extracted fields.
+	// NGC-slab lookups should return as soon as cert extraction succeeds; Numista
+	// enrichment is only needed when there is no cert to verify directly.
 	numistaCandidates := []NumistaCandidate{}
-	if extractedData.CoinFields != nil {
+	if extractedData.NGC == nil && extractedData.CoinFields != nil {
 		candidates, err := s.searchNumista(ctx, extractedData.CoinFields)
 		if err != nil {
 			logger.Warn("coin-lookup", "Numista search failed: %v", err)
@@ -245,7 +249,7 @@ func (s *CoinLookupService) extractNGCCert(analysis string) *NGCData {
 				ngcData := &NGCData{
 					CertNumber:     certStr,
 					NormalizedCert: normalized,
-					LookupURL:      fmt.Sprintf("https://www.ngccoin.com/certlookup/%s/", normalized),
+					LookupURL:      ngcLookupURL(normalized),
 				}
 				if grade, ok := parsed["ngcGrade"].(string); ok && grade != "" && grade != "null" {
 					ngcData.Grade = grade
@@ -267,7 +271,7 @@ func (s *CoinLookupService) extractNGCCert(analysis string) *NGCData {
 			return &NGCData{
 				CertNumber:     certNumber,
 				NormalizedCert: normalized,
-				LookupURL:      fmt.Sprintf("https://www.ngccoin.com/certlookup/%s/", normalized),
+				LookupURL:      ngcLookupURL(normalized),
 			}
 		}
 	}
@@ -275,16 +279,35 @@ func (s *CoinLookupService) extractNGCCert(analysis string) *NGCData {
 	return nil
 }
 
-// normalizeCertNumber normalizes NGC cert numbers (e.g., 823160-093 → 823160-093).
+// normalizeCertNumber normalizes NGC cert numbers (e.g., 823160093 -> 823160-093).
 func normalizeCertNumber(cert string) string {
 	cert = strings.TrimSpace(cert)
 	// Remove any extra spaces or formatting
 	cert = strings.ReplaceAll(cert, " ", "")
-	// Validate format: XXXXXXX-XXX or XXXXXX-XXX
-	if ngcCertRegex.MatchString(cert) {
+
+	matches := ngcCertExactRegex.FindStringSubmatch(cert)
+	if len(matches) == 3 {
+		return matches[1] + "-" + matches[2]
+	}
+	return ""
+}
+
+func compactCertNumber(cert string) string {
+	cert = strings.TrimSpace(cert)
+	cert = strings.ReplaceAll(cert, " ", "")
+	cert = strings.ReplaceAll(cert, "-", "")
+	if compactCertRegex.MatchString(cert) {
 		return cert
 	}
 	return ""
+}
+
+func ngcLookupURL(cert string) string {
+	compact := compactCertNumber(cert)
+	if compact == "" {
+		return ""
+	}
+	return fmt.Sprintf("https://www.ngccoin.com/certlookup/%s/NGCAncients/", url.PathEscape(compact))
 }
 
 // extractLabelText extracts visible label text from analysis.

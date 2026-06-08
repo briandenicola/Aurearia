@@ -4,7 +4,7 @@
 
 ## Overview
 
-Numista Catalog Lookup integrates with the Numista coin database to help you find matching coins and add structured catalog references to your collection.
+Numista Catalog Lookup integrates with the Numista coin database to help you find matching coins and add structured catalog references to your collection. Coin Lookup also uses Numista as a fallback enrichment source when a photo does not contain an NGC Ancients certification number.
 
 ## Features
 
@@ -13,6 +13,7 @@ Numista Catalog Lookup integrates with the Numista coin database to help you fin
 - **Browse Results** — View thumbnails, title, issuer, year range
 - **Link to Catalog** — Direct link to full Numista entry
 - **Add References** — Import catalog ID as structured reference
+- **Lookup Fallback** — Coin Lookup can show Numista matches when no NGC cert is detected
 
 ## Setup
 
@@ -34,6 +35,14 @@ Numista Catalog Lookup integrates with the Numista coin database to help you fin
 5. Click result to view full entry on Numista
 6. Click **Add Reference** to import as a structured reference
 
+### From Coin Lookup
+
+1. Open **Lookup Coin** from the main menu or Wish List page
+2. Capture or upload coin photos
+3. If no NGC cert is detected, the backend searches Numista with extracted coin fields
+4. Possible matches appear with thumbnails and links to Numista entries
+5. Saving the lookup adds selected/generated Numista references after the coin is created
+
 ## API Endpoints
 
 ```
@@ -50,6 +59,7 @@ GET    /api/numista/search           # Search Numista by query
 ## Related Features
 
 - [Coin Details](coin-details.md) — Structured references
+- [Coin Lookup](coin-lookup.md) — Photo-based lookup with Numista fallback matches
 - [AI Coin Analysis](ai-analysis.md) — Candidate references from search
 - [Admin Settings](admin-settings.md) — Configure API key
 

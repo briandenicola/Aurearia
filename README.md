@@ -44,6 +44,8 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 ### 🎯 Discovery & Acquisition
 **AI Coin Search** — Chat with an agent to find real dealer listings matching your description. Imports structured results with images, metadata, prices, and candidate catalog references.
 
+**Coin Lookup** — Take or upload photos at a show to identify a coin or NGC Ancients slab. The app extracts NGC certification numbers, links to official NGC verification, enriches non-NGC lookups with Numista matches, and can save results to your wish list or collection. **[Learn more →](docs/features/coin-lookup.md)**
+
 **Wish List** — Track coins you want with automatic availability checking, AI search, price tracking, and one-click purchase-to-collection conversion.
 
 **Auction Tracking** — Monitor NumisBids lots through bidding lifecycle with status workflow, price alerts, bid reminders, auto-conversion to collection when won. **[Learn more →](docs/features/wish-list.md)**
@@ -82,6 +84,7 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 **Daily Featured Coins** — Automated scheduler to rediscover forgotten coins.
 **Image Operations** — Background removal, circle clipping, automatic extraction.
 **Bulk Operations** — Multi-select for batch tagging, status changes, exports.
+**Configurable Coin Properties** — Admin-defined Era and Category option lists for tailoring collection metadata.
 
 ---
 
@@ -90,6 +93,7 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 | Feature | Collection | Wish List | Auctions | Social | Analytics | Admin | Mobile |
 |---------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 | Create/Edit Coins | ✅ | ✅ | ✅ | — | — | ✅ | ✅ |
+| Coin Lookup | ✅ | ✅ | — | — | — | ✅ | ✅ |
 | AI Analysis | ✅ | ✅ | ✅ | — | — | — | ✅ |
 | Search & Filter | ✅ | ✅ | ✅ | — | — | — | ✅ |
 | Tags & Sets | ✅ | ✅ | ❌ | — | ✅ | — | ✅ |
@@ -105,6 +109,8 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 ## 🆕 What's New
 
 **v2.0 (Latest)**
+- **Coin Lookup** — Photo-based show workflow for NGC Ancients cert extraction, official NGC verification links, Numista fallback matches, and saving lookups to wish list or collection.
+- **Configurable Coin Properties** — Admin-managed Era and Category options used by coin forms and lookup saves.
 - **Coin Sets** — Organize coins into themed collections with trend tracking and completion analysis. Open, defined, goal, and smart (rule-based) set types. Snapshot history and value milestones.
 - **Health Scorecard** — Track AI coverage, image coverage, and metadata completeness.
 - Enhanced AI agent teams (grading, price trends, gap analysis, photography guide, similar lots).
@@ -184,6 +190,7 @@ Run `task --list` to see all targets.
 |------|------|
 | **Features (per-area detail)** | [`docs/features/INDEX.md`](docs/features/INDEX.md) — Browse by feature area |
 | Feature: Collection Management | [`docs/features/collection-management.md`](docs/features/collection-management.md) |
+| Feature: Coin Lookup | [`docs/features/coin-lookup.md`](docs/features/coin-lookup.md) |
 | Feature: Coin Sets | [`docs/features/coin-sets.md`](docs/features/coin-sets.md) |
 | Feature: Wish List | [`docs/features/wish-list.md`](docs/features/wish-list.md) |
 | Feature: AI Analysis | [`docs/features/ai-analysis.md`](docs/features/ai-analysis.md) |

@@ -14,6 +14,7 @@
 - [**Coin of the Day**](features/coin-of-the-day.md) — Daily featured coin scheduler
 
 ### 🎯 Discovery & Acquisition
+- [**Coin Lookup**](features/coin-lookup.md) — Photo-based lookup for NGC Ancients slabs and Numista matches
 - [**Wish List**](features/wish-list.md) — Track coins with AI search and availability checking
 - [**Auction Tracking**](features/auction-tracking.md) — Monitor NumisBids lots through bidding lifecycle
 - [**Sold Coins**](features/sold-coins.md) — Track sales with profit/loss analysis
@@ -38,7 +39,7 @@
 - [**User Profiles**](features/user-profiles.md) — Avatars, bio, privacy controls
 
 ### 🔐 Admin & Configuration
-- [**Admin Settings**](features/admin-settings.md) — User management, AI config, scheduling
+- [**Admin Settings**](features/admin-settings.md) — User management, AI config, scheduling, configurable coin properties
 - [**Authentication**](authentication.md) — JWT, WebAuthn, API keys
 - [**External Tool Server**](external-tool-server.md) — OpenAPI for external clients
 
@@ -79,6 +80,7 @@ Track coins you'd like to acquire with an AI-powered search agent:
 - **AI Coin Search Agent** — Click "Find Coins" to open a chat drawer powered by the AI agent service (Anthropic Claude or Ollama, configurable in Admin). Describe the coins you're looking for (e.g., "Roman silver denarii of Julius Caesar under $500") and the agent searches the web for real listings and references. Results appear as cards with images, metadata, estimated prices, and source links — each with an "Add to Wishlist" button for one-click import.
 - **Purchase** — Move a wishlist coin to your main collection when you acquire it. A styled purchase modal prompts for the purchase price and date, replacing the default browser confirm dialog.
 - **Wish List Gallery** — A separate page showing only wishlist items with sorting support.
+- **Coin Lookup Entry Point** — Launch Coin Lookup directly from the Wish List page to photograph a coin at a show and save the result as a wishlist item.
 - **Availability Check** — Click "Check Availability" on the Wish List page to verify whether listed coins are still for sale. The system visits each coin's reference URL and uses HTTP status codes plus keyword heuristics (sold indicators, buy-now buttons) to determine listing status. Ambiguous results are escalated to the AI agent (Team 6) for deeper analysis. Results show as a summary banner (available / unavailable / unknown counts) and per-card status indicators (green dot, red "Unavailable" overlay, amber dot). Unavailable coins can be dismissed to clear the status.
 - **Scheduled Checks** — Admins can enable automatic availability checks with a configurable start time and repeat interval (e.g., starting at 2:00 AM, repeating every 120 minutes). Run history with per-coin drill-down is available in the Admin Availability tab.
 
@@ -150,9 +152,17 @@ To enable the search agent:
 2. Configure it in **Admin → AI Configuration → Anthropic API Key**
 3. Optionally select a different model or customize the agent prompt in Admin settings
 
+## Coin Lookup
+
+Use **Lookup Coin** from the main menu or Wish List page when evaluating a coin at a show. Capture or upload one or more photos of the coin or slab label. The app sends the images through the configured vision provider, extracts visible label text and coin fields, and looks for NGC Ancients certification numbers.
+
+When an NGC cert is found, the result includes the normalized cert and an official NGC Ancients verification link in the form `https://www.ngccoin.com/certlookup/{compactCert}/NGCAncients/`. The lookup returns immediately after NGC extraction instead of waiting on catalog enrichment. When no NGC cert is found, the app uses configured Numista access to search for possible catalog matches and displays links to Numista entries.
+
+Lookup results can be saved directly to the Wish List or Collection. The save flow creates the coin first, uploads the captured photos, then adds generated NGC or Numista structured references.
+
 ## Numista Catalog Integration
 
-Look up coins in the [Numista](https://en.numista.com/) catalog directly from any coin's detail page. The search uses the coin's name, denomination, and ruler to find matching entries, displaying thumbnails and linking to full catalog pages.
+Look up coins in the [Numista](https://en.numista.com/) catalog directly from any coin's detail page or as a fallback from Coin Lookup when no NGC cert is detected. The search uses coin names, denominations, rulers, and extracted fields to find matching entries, displaying thumbnails and linking to full catalog pages.
 
 To enable Numista lookup:
 
@@ -213,6 +223,7 @@ The first registered user is the admin. Admins can access **Admin** to manage:
 - **Users** — View all registered users, delete accounts, and reset passwords.
 - **AI Configuration** — Select your AI Provider: Anthropic (recommended) or Ollama. Configure Ollama (URL, vision model, timeout, analysis prompts), Anthropic (API key, model dropdown, editable agent prompt for the search agent), and SearXNG URL for Ollama web search.
 - **System** — Set the application log level (trace, debug, info, warn, error) and configure the Numista API key for catalog lookups.
+- **Coin Properties** — Configure newline-delimited Category and Era option lists used by coin forms and lookup saves.
 - **Logs** — View real-time application logs with level filtering, auto-refresh, and log export.
 - **Availability Checks** — Enable/disable automatic wishlist availability checking, configure the daily start time and repeat interval, and view paginated run history with per-coin drill-down results (URL, status, reason, HTTP code, whether the AI agent was used).
 - **Valuation Runs** — Scheduled collection valuation using the AI agent. Configurable interval (default: 7 days), start time (default: 03:00), and max coins per run (default: 50). View run history with per-coin results. Trigger or cancel runs manually.

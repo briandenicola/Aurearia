@@ -14,6 +14,7 @@ The repository currently includes app icons in `src/web/public/` but does not in
 
 ## Discovery & Acquisition
 
+- **[Coin Lookup](coin-lookup.md)** — Photograph a coin or slab at a show, extract NGC Ancients certs, verify with NGC, and save to wish list or collection
 - **[Wish List](wish-list.md)** — Track coins you'd like to acquire with AI-powered search and availability checking
 - **[Auction Tracking](auction-tracking.md)** — Monitor NumisBids lots through bidding lifecycle with price alerts and reminders
 - **[Sold Coins](sold-coins.md)** — Track coins you've sold with profit/loss analysis
@@ -73,6 +74,7 @@ The repository currently includes app icons in `src/web/public/` but does not in
 | Collection CRUD | Shipped | v1.0 |
 | AI Analysis (Ollama/Anthropic) | Shipped | v1.0 |
 | Wish List with AI Search | Shipped | v1.0 |
+| Coin Lookup | Shipped | v2.0 |
 | Auction Tracking | Shipped | v1.0 |
 | Social Features | Shipped | v1.0 |
 | External Tool Server | Shipped | v1.0 |

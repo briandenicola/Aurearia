@@ -1,6 +1,7 @@
 package services
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -23,6 +24,16 @@ func TestNormalizeCertNumber(t *testing.T) {
 		{
 			name:     "cert with spaces (normalized)",
 			input:    "823160 - 093",
+			expected: "823160-093",
+		},
+		{
+			name:     "compact cert with 10 digits",
+			input:    "2412821034",
+			expected: "2412821-034",
+		},
+		{
+			name:     "compact cert with 9 digits",
+			input:    "823160093",
 			expected: "823160-093",
 		},
 		{
@@ -84,6 +95,12 @@ func TestExtractNGCCert(t *testing.T) {
 			wantNum:  "1234567-001",
 		},
 		{
+			name:     "raw text with compact cert number",
+			input:    "This is an NGC Ancients slab with cert number 2412821034 clearly visible.",
+			wantCert: true,
+			wantNum:  "2412821-034",
+		},
+		{
 			name:     "no cert number",
 			input:    "This coin has no NGC certification.",
 			wantCert: false,
@@ -103,7 +120,7 @@ func TestExtractNGCCert(t *testing.T) {
 				if result.NormalizedCert != tt.wantNum {
 					t.Errorf("extractNGCCert().NormalizedCert = %q, want %q", result.NormalizedCert, tt.wantNum)
 				}
-				expectedURL := "https://www.ngccoin.com/certlookup/" + tt.wantNum + "/"
+				expectedURL := "https://www.ngccoin.com/certlookup/" + strings.ReplaceAll(tt.wantNum, "-", "") + "/NGCAncients/"
 				if result.LookupURL != expectedURL {
 					t.Errorf("extractNGCCert().LookupURL = %q, want %q", result.LookupURL, expectedURL)
 				}
@@ -162,6 +179,14 @@ func TestExtractLabelText(t *testing.T) {
 				t.Errorf("extractLabelText() = %q, want %q", result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestNGCLookupURLUsesAncientsPath(t *testing.T) {
+	got := ngcLookupURL("823160-093")
+	want := "https://www.ngccoin.com/certlookup/823160093/NGCAncients/"
+	if got != want {
+		t.Errorf("ngcLookupURL() = %q, want %q", got, want)
 	}
 }
 

@@ -40,6 +40,14 @@ Admin Settings are accessed by the first registered user (admin) and provide con
 - **Log Level** — trace, debug, info, warn, error
 - **Numista API Key** — For coin catalog lookups
 
+## Coin Properties Tab
+
+**Configurable Coin Metadata:**
+- **Categories** — Newline-delimited list of category values shown in coin forms
+- **Eras** — Newline-delimited list of era values shown in coin forms
+- **Lookup Compatibility** — Coin Lookup normalizes extracted era values to backend-supported save values while user-facing forms use the configured lists
+- **Defaults** — Roman, Greek, Byzantine, Modern, Other categories and ancient, medieval, modern eras are available by default
+
 ## Logs Tab
 
 **Real-Time Logging:**
@@ -106,4 +114,4 @@ POST   /admin/valuation-runs/:id/cancel # Cancel run
 - No multi-admin support currently
 - All settings are per-instance (not per-user)
 
-See also: [AI Coin Analysis](ai-analysis.md), [Auction Tracking](auction-tracking.md), [Authentication](../authentication.md)
+See also: [AI Coin Analysis](ai-analysis.md), [Auction Tracking](auction-tracking.md), [Coin Lookup](coin-lookup.md), [Authentication](../authentication.md)
