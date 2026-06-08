@@ -151,7 +151,7 @@ func (h *CoinHandler) List(c *gin.Context) {
 		}
 	}
 	if s := c.Query("set"); s != "" {
-		if setID, err := strconv.ParseUint(s, 10, 64); err == nil {
+		if setID, err := strconv.ParseUint(s, 10, strconv.IntSize); err == nil {
 			v := uint(setID)
 			filters.SetID = &v
 		}
