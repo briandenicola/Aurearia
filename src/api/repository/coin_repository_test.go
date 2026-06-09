@@ -20,6 +20,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&models.CoinValueHistory{}, &models.CoinComment{},
 		&models.AvailabilityResult{}, &models.AuctionLot{},
 		&models.Tag{}, &models.CoinTag{},
+		&models.CoinSet{}, &models.CoinSetMembership{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)
@@ -325,5 +326,148 @@ func TestCoinRepository_List_RandomSort(t *testing.T) {
 	}
 	if !differs {
 		t.Fatalf("different seeds produced identical ordering; seed has no effect: %v", a)
+	}
+}
+
+// TestCoinRepository_Update_PreservesSets tests regression where updating a coin
+// with Sets relation must NOT corrupt existing memberships by recreating them
+// without AddedAt (violating NOT NULL constraint).
+func TestCoinRepository_Update_PreservesSets(t *testing.T) {
+	db := setupTestDB(t)
+	coinRepo := NewCoinRepository(db)
+	setRepo := NewSetRepository(db)
+
+	// Create a coin
+	coin := &models.Coin{
+		Name:     "Test Aureus",
+		Category: models.CategoryRoman,
+		Material: models.MaterialGold,
+		UserID:   1,
+	}
+	if err := coinRepo.Create(coin); err != nil {
+		t.Fatalf("Create coin failed: %v", err)
+	}
+
+	// Create a set
+	set := &models.CoinSet{
+		UserID:  1,
+		Name:    "Roman Gold",
+		SetType: models.CoinSetTypeOpen,
+	}
+	if err := setRepo.Create(set); err != nil {
+		t.Fatalf("Create set failed: %v", err)
+	}
+
+	// Add coin to set via SetRepository (correct path with AddedAt)
+	if err := setRepo.AddCoinToSet(coin.ID, set.ID, 1, ""); err != nil {
+		t.Fatalf("AddCoinToSet failed: %v", err)
+	}
+
+	// Verify membership was created with AddedAt
+	var membership models.CoinSetMembership
+	if err := db.Where("coin_id = ? AND set_id = ?", coin.ID, set.ID).First(&membership).Error; err != nil {
+		t.Fatalf("membership not found: %v", err)
+	}
+	if membership.AddedAt.IsZero() {
+		t.Fatal("membership.AddedAt is zero; should be set by AddCoinToSet")
+	}
+	originalAddedAt := membership.AddedAt
+
+	// Now update the coin via CoinRepository
+	updates := &models.Coin{
+		Name: "Updated Aureus",
+	}
+	if err := coinRepo.Update(coin, updates); err != nil {
+		t.Fatalf("Update coin failed: %v", err)
+	}
+
+	// Verify coin was updated
+	if coin.Name != "Updated Aureus" {
+		t.Errorf("expected updated name 'Updated Aureus', got %q", coin.Name)
+	}
+
+	// Critical: verify membership still exists with the same AddedAt
+	var updatedMembership models.CoinSetMembership
+	if err := db.Where("coin_id = ? AND set_id = ?", coin.ID, set.ID).First(&updatedMembership).Error; err != nil {
+		t.Fatalf("membership disappeared after coin update: %v", err)
+	}
+	if updatedMembership.AddedAt.IsZero() {
+		t.Fatal("membership.AddedAt is zero after update; Omit('Sets') failed")
+	}
+	if !updatedMembership.AddedAt.Equal(originalAddedAt) {
+		t.Errorf("membership.AddedAt changed from %v to %v; should be preserved", originalAddedAt, updatedMembership.AddedAt)
+	}
+}
+
+// TestCoinRepository_Update_WithSetsField tests that passing coin.Sets in an update
+// does NOT modify memberships due to Omit("Sets") in Update method.
+func TestCoinRepository_Update_WithSetsField(t *testing.T) {
+	db := setupTestDB(t)
+	coinRepo := NewCoinRepository(db)
+	setRepo := NewSetRepository(db)
+
+	// Create coin and two sets
+	coin := &models.Coin{
+		Name:     "Test Solidus",
+		Category: models.CategoryByzantine,
+		UserID:   1,
+	}
+	if err := coinRepo.Create(coin); err != nil {
+		t.Fatalf("Create coin failed: %v", err)
+	}
+
+	set1 := &models.CoinSet{UserID: 1, Name: "Byzantine Core", SetType: models.CoinSetTypeOpen}
+	set2 := &models.CoinSet{UserID: 1, Name: "High Grade", SetType: models.CoinSetTypeOpen}
+	if err := setRepo.Create(set1); err != nil {
+		t.Fatalf("Create set1 failed: %v", err)
+	}
+	if err := setRepo.Create(set2); err != nil {
+		t.Fatalf("Create set2 failed: %v", err)
+	}
+
+	// Add coin to set1 only
+	if err := setRepo.AddCoinToSet(coin.ID, set1.ID, 1, "initial"); err != nil {
+		t.Fatalf("AddCoinToSet failed: %v", err)
+	}
+
+	var count int64
+	db.Model(&models.CoinSetMembership{}).Where("coin_id = ?", coin.ID).Count(&count)
+	if count != 1 {
+		t.Fatalf("expected 1 membership before update, got %d", count)
+	}
+
+	// Attempt to update coin with coin.Sets = [set2] (should be ignored by Omit)
+	updates := &models.Coin{
+		Name: "Updated Solidus",
+		Sets: []models.CoinSet{*set2},
+	}
+	if err := coinRepo.Update(coin, updates); err != nil {
+		t.Fatalf("Update coin failed: %v", err)
+	}
+
+	// Verify name was updated but Sets relationship was NOT replaced
+	if coin.Name != "Updated Solidus" {
+		t.Errorf("expected name 'Updated Solidus', got %q", coin.Name)
+	}
+
+	// Should still have exactly 1 membership (set1), not replaced by set2
+	db.Model(&models.CoinSetMembership{}).Where("coin_id = ?", coin.ID).Count(&count)
+	if count != 1 {
+		t.Errorf("expected 1 membership after update (should be ignored), got %d", count)
+	}
+
+	var membership models.CoinSetMembership
+	if err := db.Where("coin_id = ? AND set_id = ?", coin.ID, set1.ID).First(&membership).Error; err != nil {
+		t.Fatal("original membership (set1) disappeared; Omit('Sets') failed")
+	}
+	if membership.AddedAt.IsZero() {
+		t.Fatal("membership.AddedAt is zero; should be preserved")
+	}
+
+	// Verify set2 was NOT added
+	var set2Count int64
+	db.Model(&models.CoinSetMembership{}).Where("coin_id = ? AND set_id = ?", coin.ID, set2.ID).Count(&set2Count)
+	if set2Count != 0 {
+		t.Error("set2 was added despite Omit('Sets'); update should not touch Sets")
 	}
 }

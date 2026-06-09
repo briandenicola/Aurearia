@@ -496,3 +496,36 @@ Addressed two CodeQL `go/request-forgery` alerts on `client.Do(req)` calls in `P
 - Coin era validation now lives in `src/api/services/coin_service.go`: built-in eras (`ancient`, `medieval`, `modern`) are always accepted, and other non-empty values must exist in `CatalogRegistry` via `repository.CatalogRegistryRepository.EraExists`.
 - Catalog era validation now lives in `src/api/services/catalog_registry_service.go`: catalog entries accept any trimmed non-empty era up to 64 characters, enabling data-driven expansion without code rewrites.
 - Regression coverage: `src/api/handlers/coin_handler_test.go` verifies update accepts a custom registry era, `src/api/services/coin_service_test.go` verifies service accept/reject behavior, and `src/api/services/catalog_registry_service_test.go` verifies custom catalog eras can be defined.
+
+## 2026-06-09 — Coin Update Association Sync Fix
+
+**Problem:**
+- Coin updates failed with NOT NULL constraint violation: coin_set_memberships.added_at missing during PUT /api/coins/:id
+- GORM Updates() automatically synced many2many associations (Tags, Sets), but default association behavior does not populate join table columns with NOT NULL constraints
+- The CoinSetMembership model requires AddedAt time.Time (NOT NULL), but GORM default INSERT INTO coin_set_memberships (coin_id,set_id) VALUES ... ON CONFLICT DO NOTHING omitted this field
+
+**Root Cause:**
+- src/api/repository/coin_repository.go Update() method called r.db.Model(existing).Updates(updates) without omitting relationship fields
+- When the updates Coin struct had a non-nil Sets field from a bound JSON payload, GORM attempted to sync the association automatically
+- The default join table insert lacked AddedAt for CoinSetMembership, which is NOT NULL
+
+**Solution:**
+- Added Omit("Tags", "Sets") to the Update() method to prevent GORM from automatically syncing these many2many associations
+- Tags and Sets must be managed through dedicated methods:
+  - Sets: repository.SetRepository.AddCoinToSet() which explicitly sets AddedAt: time.Now()
+  - Tags: tag service methods
+
+**Files Changed:**
+- src/api/repository/coin_repository.go — Added Omit("Tags", "Sets") to Update() method
+- src/api/repository/coin_repository_test.go — Added repository-level regression coverage for set membership preservation
+- src/api/handlers/coin_handler_test.go — Added handler-level regression coverage for PUT /api/coins/:id with a sets payload
+
+**Testing:**
+- Targeted tests pass: TestCoinHandler_Update_WithSetsPayloadPreservesMemberships, TestCoinRepository_Update_PreservesSets, TestCoinRepository_Update_WithSetsField
+- Full Go API suite passes (go test -v ./...)
+
+**Learnings:**
+- GORM Updates() syncs associations by default if the struct has non-nil slices for many2many fields
+- Join tables with custom NOT NULL columns require explicit management — use Omit() to prevent automatic sync
+- The pattern: when a join table has custom fields beyond FK pairs, manage it through explicit repository methods, not GORM association helpers
+- This follows the existing pattern where AddCoinToSet() already handled the proper insertion with AddedAt

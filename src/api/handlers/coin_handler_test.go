@@ -32,6 +32,7 @@ func setupCoinHandlerTestDB(t *testing.T) *gorm.DB {
 		&models.CoinValueHistory{}, &models.CoinComment{},
 		&models.AvailabilityResult{}, &models.AuctionLot{},
 		&models.Tag{}, &models.CoinTag{},
+		&models.CoinSet{}, &models.CoinSetMembership{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)
@@ -279,6 +280,88 @@ func TestCoinHandler_Update_OwnCoin(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCoinHandler_Update_WithSetsPayloadPreservesMemberships(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "updater")
+
+	setRepo := repository.NewSetRepository(db)
+	coin := models.Coin{Name: "Old Name", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+
+	originalSet := models.CoinSet{UserID: 1, Name: "Original Set", SetType: models.CoinSetTypeOpen}
+	incomingSet := models.CoinSet{UserID: 1, Name: "Incoming Set", SetType: models.CoinSetTypeOpen}
+	if err := setRepo.Create(&originalSet); err != nil {
+		t.Fatalf("failed to seed original set: %v", err)
+	}
+	if err := setRepo.Create(&incomingSet); err != nil {
+		t.Fatalf("failed to seed incoming set: %v", err)
+	}
+	if err := setRepo.AddCoinToSet(coin.ID, originalSet.ID, 1, ""); err != nil {
+		t.Fatalf("failed to seed membership: %v", err)
+	}
+
+	var originalMembership models.CoinSetMembership
+	if err := db.Where("coin_id = ? AND set_id = ?", coin.ID, originalSet.ID).First(&originalMembership).Error; err != nil {
+		t.Fatalf("failed to find seeded membership: %v", err)
+	}
+	if originalMembership.AddedAt.IsZero() {
+		t.Fatal("seeded membership should have AddedAt")
+	}
+
+	updates := map[string]interface{}{
+		"name":     "Updated Name",
+		"category": "Roman",
+		"material": "Silver",
+		"sets": []map[string]interface{}{
+			{
+				"id":      incomingSet.ID,
+				"userId":  1,
+				"name":    incomingSet.Name,
+				"setType": string(models.CoinSetTypeOpen),
+			},
+		},
+	}
+	body, _ := json.Marshal(updates)
+
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var updatedCoin models.Coin
+	if err := db.First(&updatedCoin, coin.ID).Error; err != nil {
+		t.Fatalf("updated coin not found: %v", err)
+	}
+	if updatedCoin.Name != "Updated Name" {
+		t.Fatalf("expected updated coin name, got %q", updatedCoin.Name)
+	}
+
+	var memberships []models.CoinSetMembership
+	if err := db.Where("coin_id = ?", coin.ID).Order("set_id ASC").Find(&memberships).Error; err != nil {
+		t.Fatalf("failed to query memberships: %v", err)
+	}
+	if len(memberships) != 1 {
+		t.Fatalf("expected update to preserve exactly 1 membership, got %d", len(memberships))
+	}
+	if memberships[0].SetID != originalSet.ID {
+		t.Fatalf("expected original set membership to remain, got set ID %d", memberships[0].SetID)
+	}
+	if memberships[0].AddedAt.IsZero() {
+		t.Fatal("membership AddedAt should remain populated after coin update")
+	}
+	if !memberships[0].AddedAt.Equal(originalMembership.AddedAt) {
+		t.Fatalf("membership AddedAt changed from %v to %v", originalMembership.AddedAt, memberships[0].AddedAt)
 	}
 }
 

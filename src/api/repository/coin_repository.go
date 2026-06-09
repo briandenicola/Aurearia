@@ -335,7 +335,9 @@ func (r *CoinRepository) Create(coin *models.Coin) error {
 
 // Update applies changes to an existing coin and reloads it with images.
 func (r *CoinRepository) Update(existing *models.Coin, updates *models.Coin) error {
-	if err := r.db.Model(existing).Updates(updates).Error; err != nil {
+	// Relationship changes are managed through dedicated tag/set methods.
+	// Coin sets require explicit membership writes because AddedAt is NOT NULL.
+	if err := r.db.Model(existing).Omit("Tags", "Sets").Updates(updates).Error; err != nil {
 		return err
 	}
 	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(existing, existing.ID).Error

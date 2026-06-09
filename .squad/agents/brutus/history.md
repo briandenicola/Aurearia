@@ -30,3 +30,14 @@
   - **Validation Status:** Go build ✅, Go vet ✅, Go tests 143 passing ✅. Frontend type-check ✅ (`vue-tsc --build` clean), build ✅ (11.06s, 105 PWA assets), lint ⚠️ 23 warnings (18 in CoinLookupPage.vue formatting, 5 pre-existing).
   - **Regression Coverage:** Era/category settings changes validated. Existing architecture tests pass (layered imports enforced). Frontend option parser fully tested (30 scenarios).
   - **QA Blockers:** None. Coin Lookup lint warnings are formatting-only (indentation, tag closing); type-check passed so no runtime risk. NGC extraction tests deferred until backend implements NGC API (post-MVP per architecture decision).
+
+- **2026-06-09:** Coin Sets + Memberships Regression Coverage
+  - **Regression:** User reported PUT /api/coins/8 failure: `coin_set_memberships.added_at` is NOT NULL but naive coin update only inserts `coin_id,set_id`.
+  - **Root Cause Analysis:** `CoinRepository.Update` needed to omit relationship fields so a bound update payload cannot make GORM auto-sync many-to-many associations. `CoinSetMembership.AddedAt` is a required custom join-table field and must be populated through `SetRepository.AddCoinToSet`, not GORM's default association insert.
+  - **Coverage Added:** Regression tests now cover both repository behavior and the real HTTP update path:
+    1. `TestCoinRepository_Update_PreservesSets`: Proves that updating a coin with an existing set membership does NOT corrupt or recreate the membership. Verifies `AddedAt` remains non-zero and unchanged after update.
+    2. `TestCoinRepository_Update_WithSetsField`: Proves that passing `coin.Sets` in update payload is safely ignored via `Omit("Sets")`. Ensures existing memberships are untouched and new sets aren't added.
+    3. `TestCoinHandler_Update_WithSetsPayloadPreservesMemberships`: Proves `PUT /api/coins/:id` with a `sets` JSON payload returns 200, updates the coin, and preserves the original set membership and `AddedAt`.
+  - **Test Infrastructure:** Added `CoinSet` and `CoinSetMembership` to `setupTestDB` AutoMigrate (previously missing from test schema).
+  - **Test Results:** Targeted handler and repository regressions pass. Full Go API suite passes.
+  - **Verdict:** The update path now has exact regression coverage for the production failure, not just repository-only coverage.
