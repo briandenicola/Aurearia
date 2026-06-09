@@ -55,7 +55,7 @@ A card may be promoted when **all** of the following are true:
 1. `status: triaged`
 2. Acceptance criteria are concrete (testable, not aspirational).
 3. Constitution alignment section names at least one Principle and one
-   operational section (e.g., "Principle XI + §17").
+   operational section (e.g., "Principle IV + §17").
 4. No `priority: P3` cards are promoted ahead of `P0`/`P1` without a written
    exception in `.squad/decisions/inbox/`.
 

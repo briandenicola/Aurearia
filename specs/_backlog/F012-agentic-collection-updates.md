@@ -1,4 +1,4 @@
-# Epic — Agentic Collection: Structured Data → AI Entry → Conversational Access
+# Epic — Agentic Collection: Improve Structured Data, AI Entry, and Conversational Access
 
 > **Status:** Backlog (epic)
 > **Type:** Epic / theme
@@ -7,34 +7,32 @@
 
 ## Summary
 
-A four-card arc that moves the app from *manual data entry + web-search AI*
-toward *structured data, AI-assisted entry, and conversational access to the
-collection itself* — including from external clients. Each card is shippable on
-its own, but together they compound: better-structured data makes AI entry more
-useful, AI entry produces richer records to query, and a shared tool layer lets
-both the in-app agent and external clients (OpenWebUI/Ollama, Claude Desktop)
-query and update the collection.
+A four-card arc that improves the agentic collection features already present:
+structured references, AI-assisted entry, collection chat, and external tool
+access. Each card is shippable on its own, but together they compound:
+better-structured data makes AI entry more useful, AI entry produces richer
+records to query, and the shared tool layer lets both the in-app agent and
+external clients query and update the collection safely.
 
 ## Why these belong together
 
-The existing AI agent only looks *outward* (web search for wishlist, auctions,
-prices). This epic turns the intelligence *inward* — onto the collection the
-user already owns — and raises the quality of the underlying data so that
-inward-facing AI has something solid to work with.
+The app already has inward-facing collection chat, coin intake, portfolio
+review, and tool-server foundations. This epic turns those foundations into a
+more complete, tested, and coherent collection intelligence system.
 
-The connective tissue is a **transport-agnostic collection tool layer** (Go):
-query / filter / aggregate / propose-update / commit-update, scoped per user,
-with the Go API as the only writer. In-app chat and the external server are both
-adapters onto it. Designing this layer once is the central architectural bet of
-the epic.
+The connective tissue remains the existing **transport-agnostic collection tool
+layer** (Go): query / filter / aggregate / propose-update / commit-update,
+scoped per user, with the Go API as the only writer. In-app chat and the
+external server are both adapters onto it. The central architectural bet is to
+improve that layer once instead of duplicating query/update logic.
 
 ## Member cards
 
 |#|Card                                 |One-liner                                                                                                                    |Primary value                                                                |
 |-|-------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------|
 |1|**Structured Catalog References**    |Normalize attribution (RIC/RPC/Sear/KM…) into a `CoinReference` model + `era`, with per-catalog validation and authority URIs|Clean, portable, machine-usable reference data across ancient/medieval/modern|
-|2|**Agentic Coin Entry**               |New `coin_intake` agent team drafts a fully-populated coin from photos / OCR / lookups; user reviews & confirms              |Cuts data entry to review-and-confirm; produces richer records               |
-|3|**Collection Chat**                  |New `collection_chat` team answers questions and makes guarded updates over the user’s own collection via tool-calling       |Conversational read + confirm-gated write, in-app                            |
+|2|**Agentic Coin Entry**               |Improve existing `coin_intake` draft flow from photos / OCR / lookups; user reviews & confirms                              |Cuts data entry to review-and-confirm; produces richer records               |
+|3|**Collection Chat**                  |Harden and expand existing `collection_chat` for questions and guarded updates over the user's own collection via tools      |Conversational read + confirm-gated write, in-app                            |
 |4|**Collection Tool Server (External)**|Re-exposes the same tool layer to external clients (OpenWebUI/Ollama, MCP) with full read + write parity                     |Use the collection from outside the app                                      |
 
 ## Dependency graph
@@ -71,7 +69,7 @@ the epic.
 
 1. **Structured Catalog References (1).** Foundational, independent, low-risk,
    and lifts the data quality everything else builds on. Do first.
-1. **Collection Chat (3) — read-only slice first.** Stand up the
+1. **Collection Chat (3) — harden read-only slice first.** Improve the existing
    transport-agnostic tool layer + `get_coin` / `query_coins` / `aggregate`,
    scoped per user, in the existing chat drawer. This is the spine; getting it
    right de-risks card 4.
