@@ -13,7 +13,7 @@ var (
 	ErrCatalogNotFound     = errors.New("catalog not found")
 	ErrCatalogDuplicate    = errors.New("catalog code already exists")
 	ErrCatalogInUse        = errors.New("catalog is in use by existing references")
-	ErrCatalogInvalidEra   = errors.New("era must be ancient, medieval, or modern")
+	ErrCatalogInvalidEra   = errors.New("era is required and must be at most 64 characters")
 	ErrCatalogCodeRequired = errors.New("catalog code is required")
 	ErrCatalogNameRequired = errors.New("display name is required")
 )
@@ -37,6 +37,7 @@ func (s *CatalogRegistryService) List() ([]models.CatalogRegistry, error) {
 func (s *CatalogRegistryService) Create(entry models.CatalogRegistry) (models.CatalogRegistry, error) {
 	entry.Catalog = strings.ToUpper(strings.TrimSpace(entry.Catalog))
 	entry.DisplayName = strings.TrimSpace(entry.DisplayName)
+	entry.Era = models.Era(strings.TrimSpace(string(entry.Era)))
 
 	if entry.Catalog == "" {
 		return entry, ErrCatalogCodeRequired
@@ -44,7 +45,7 @@ func (s *CatalogRegistryService) Create(entry models.CatalogRegistry) (models.Ca
 	if entry.DisplayName == "" {
 		return entry, ErrCatalogNameRequired
 	}
-	if !isValidEra(entry.Era) {
+	if !isValidRegistryEra(entry.Era) {
 		return entry, ErrCatalogInvalidEra
 	}
 
@@ -76,6 +77,7 @@ func (s *CatalogRegistryService) Update(id uint, entry models.CatalogRegistry) (
 
 	entry.Catalog = strings.ToUpper(strings.TrimSpace(entry.Catalog))
 	entry.DisplayName = strings.TrimSpace(entry.DisplayName)
+	entry.Era = models.Era(strings.TrimSpace(string(entry.Era)))
 
 	if entry.Catalog == "" {
 		return entry, ErrCatalogCodeRequired
@@ -83,7 +85,7 @@ func (s *CatalogRegistryService) Update(id uint, entry models.CatalogRegistry) (
 	if entry.DisplayName == "" {
 		return entry, ErrCatalogNameRequired
 	}
-	if !isValidEra(entry.Era) {
+	if !isValidRegistryEra(entry.Era) {
 		return entry, ErrCatalogInvalidEra
 	}
 
@@ -140,6 +142,7 @@ func (s *CatalogRegistryService) Delete(id uint) error {
 	return s.repo.Delete(id)
 }
 
-func isValidEra(era models.Era) bool {
-	return era == models.EraAncient || era == models.EraMedieval || era == models.EraModern
+func isValidRegistryEra(era models.Era) bool {
+	value := strings.TrimSpace(string(era))
+	return value != "" && len(value) <= 64
 }

@@ -1,13 +1,25 @@
 package services
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"gorm.io/gorm"
 )
+
+var (
+	ErrCoinInvalidEra = errors.New("era is not supported")
+)
+
+var builtInCoinEras = map[models.Era]struct{}{
+	models.EraAncient:  {},
+	models.EraMedieval: {},
+	models.EraModern:   {},
+}
 
 // CoinService handles coin business logic and orchestrates repository calls.
 type CoinService struct {
@@ -16,6 +28,7 @@ type CoinService struct {
 	refRepo             *repository.CoinReferenceRepository
 	refSvc              *CoinReferenceService
 	storageLocationRepo *repository.StorageLocationRepository
+	catalogRegistryRepo *repository.CatalogRegistryRepository
 }
 
 // NewCoinService creates a new CoinService.
@@ -39,9 +52,19 @@ func (s *CoinService) WithStorageLocationSupport(storageLocationRepo *repository
 	return s
 }
 
+// WithCatalogRegistrySupport enables data-driven coin era validation.
+func (s *CoinService) WithCatalogRegistrySupport(catalogRegistryRepo *repository.CatalogRegistryRepository) *CoinService {
+	s.catalogRegistryRepo = catalogRegistryRepo
+	return s
+}
+
 // CreateCoin creates a coin and records a value snapshot in a single transaction.
 func (s *CoinService) CreateCoin(coin *models.Coin) error {
 	if err := s.validateStorageLocation(coin.StorageLocationID, coin.UserID); err != nil {
+		return err
+	}
+	coin.Era = models.Era(strings.TrimSpace(string(coin.Era)))
+	if err := s.validateCoinEra(coin.Era); err != nil {
 		return err
 	}
 	err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
@@ -92,6 +115,10 @@ func (s *CoinService) UpdateCoin(existing *models.Coin, updates *models.Coin, us
 		if err := s.validateStorageLocation(updates.StorageLocationID, userID); err != nil {
 			return err
 		}
+	}
+	updates.Era = models.Era(strings.TrimSpace(string(updates.Era)))
+	if err := s.validateCoinEra(updates.Era); err != nil {
+		return err
 	}
 
 	return s.repo.DB().Transaction(func(tx *gorm.DB) error {
@@ -219,6 +246,31 @@ func (s *CoinService) validateStorageLocation(storageLocationID *uint, userID ui
 	}
 	if !exists {
 		return ErrStorageLocationNotFound
+	}
+	return nil
+}
+
+func (s *CoinService) validateCoinEra(era models.Era) error {
+	trimmed := strings.TrimSpace(string(era))
+	if trimmed == "" {
+		return nil
+	}
+	normalized := models.Era(trimmed)
+	if _, ok := builtInCoinEras[normalized]; ok {
+		return nil
+	}
+	if len(trimmed) > 64 {
+		return ErrCoinInvalidEra
+	}
+	if s.catalogRegistryRepo == nil {
+		return ErrCoinInvalidEra
+	}
+	exists, err := s.catalogRegistryRepo.EraExists(normalized)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrCoinInvalidEra
 	}
 	return nil
 }

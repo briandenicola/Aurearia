@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("failed to open test db: %v", err)
 	}
 	err = db.AutoMigrate(
-		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{},
+		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{},
 		&models.StorageLocation{}, &models.ValueSnapshot{}, &models.CoinJournal{},
 		&models.CoinValueHistory{}, &models.CoinComment{},
 		&models.AvailabilityResult{}, &models.AuctionLot{},
@@ -32,6 +33,12 @@ func setupTestDB(t *testing.T) *gorm.DB {
 func newTestCoinService(db *gorm.DB) *CoinService {
 	repo := repository.NewCoinRepository(db)
 	return NewCoinService(repo, nil)
+}
+
+func newTestCoinServiceWithCatalogRegistry(db *gorm.DB) *CoinService {
+	repo := repository.NewCoinRepository(db)
+	catalogRepo := repository.NewCatalogRegistryRepository(db)
+	return NewCoinService(repo, nil).WithCatalogRegistrySupport(catalogRepo)
 }
 
 func ptrFloat(v float64) *float64 { return &v }
@@ -267,6 +274,7 @@ func TestSellCoin_UpdatesFields(t *testing.T) {
 		PurchasePrice: ptrFloat(2000.0),
 		UserID:        1,
 	}
+
 	if err := svc.CreateCoin(coin); err != nil {
 		t.Fatalf("setup: CreateCoin failed: %v", err)
 	}
@@ -293,5 +301,50 @@ func TestSellCoin_UpdatesFields(t *testing.T) {
 	}
 	if sold.SoldTo != "Private Collector" {
 		t.Errorf("expected SoldTo 'Private Collector', got %q", sold.SoldTo)
+	}
+}
+
+func TestUpdateCoin_AcceptsCustomEraFromCatalogRegistry(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinServiceWithCatalogRegistry(db)
+	if err := db.Create(&models.CatalogRegistry{
+		Catalog:     "PROV",
+		DisplayName: "Provincial References",
+		Era:         models.Era("provincial"),
+	}).Error; err != nil {
+		t.Fatalf("failed to seed catalog registry: %v", err)
+	}
+
+	coin := &models.Coin{Name: "Provincial Bronze", UserID: 1, Era: models.EraAncient}
+	if err := svc.CreateCoin(coin); err != nil {
+		t.Fatalf("setup: CreateCoin failed: %v", err)
+	}
+
+	updates := &models.Coin{Era: models.Era("provincial")}
+	if err := svc.UpdateCoin(coin, updates, 1, "manual"); err != nil {
+		t.Fatalf("UpdateCoin should accept registry-defined era: %v", err)
+	}
+
+	var found models.Coin
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("coin not found: %v", err)
+	}
+	if found.Era != models.Era("provincial") {
+		t.Fatalf("expected era provincial, got %q", found.Era)
+	}
+}
+
+func TestUpdateCoin_RejectsUnsupportedEraWhenCatalogRegistryEnabled(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinServiceWithCatalogRegistry(db)
+
+	coin := &models.Coin{Name: "Test Coin", UserID: 1, Era: models.EraAncient}
+	if err := svc.CreateCoin(coin); err != nil {
+		t.Fatalf("setup: CreateCoin failed: %v", err)
+	}
+
+	updates := &models.Coin{Era: models.Era("unsupported-era")}
+	if err := svc.UpdateCoin(coin, updates, 1, "manual"); !errors.Is(err, ErrCoinInvalidEra) {
+		t.Fatalf("expected ErrCoinInvalidEra, got %v", err)
 	}
 }

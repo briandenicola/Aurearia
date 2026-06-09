@@ -27,7 +27,7 @@ func setupCoinHandlerTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("failed to open test db: %v", err)
 	}
 	err = db.AutoMigrate(
-		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{},
+		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{},
 		&models.ValueSnapshot{}, &models.CoinJournal{},
 		&models.CoinValueHistory{}, &models.CoinComment{},
 		&models.AvailabilityResult{}, &models.AuctionLot{},
@@ -81,7 +81,8 @@ func setupCoinHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 
 	db := setupCoinHandlerTestDB(t)
 	coinRepo := repository.NewCoinRepository(db)
-	coinSvc := services.NewCoinService(coinRepo, nil)
+	catalogRegistryRepo := repository.NewCatalogRegistryRepository(db)
+	coinSvc := services.NewCoinService(coinRepo, nil).WithCatalogRegistrySupport(catalogRegistryRepo)
 	handler := NewCoinHandler(coinRepo, coinSvc, services.NewLogger(100))
 
 	r := gin.New()
@@ -266,6 +267,7 @@ func TestCoinHandler_Update_OwnCoin(t *testing.T) {
 		"category": "Roman",
 		"material": "Bronze",
 	}
+
 	body, _ := json.Marshal(updates)
 
 	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
@@ -277,6 +279,48 @@ func TestCoinHandler_Update_OwnCoin(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCoinHandler_Update_CustomRegistryEraAccepted(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "updater")
+
+	if err := db.Create(&models.CatalogRegistry{
+		Catalog:     "PROV",
+		DisplayName: "Provincial References",
+		Era:         models.Era("provincial"),
+	}).Error; err != nil {
+		t.Fatalf("failed to seed catalog registry: %v", err)
+	}
+	coin := models.Coin{Name: "Old Era", Category: models.CategoryRoman, Material: models.MaterialBronze, UserID: 1, Era: models.EraAncient}
+	db.Create(&coin)
+
+	updates := map[string]interface{}{
+		"name":     "Updated Era",
+		"category": "Roman",
+		"material": "Bronze",
+		"era":      "provincial",
+	}
+	body, _ := json.Marshal(updates)
+
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for custom registry era, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var found models.Coin
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("coin not found: %v", err)
+	}
+	if found.Era != models.Era("provincial") {
+		t.Fatalf("expected era provincial, got %q", found.Era)
 	}
 }
 

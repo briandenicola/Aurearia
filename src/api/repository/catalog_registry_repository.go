@@ -34,6 +34,15 @@ func (r *CatalogRegistryRepository) FindByCatalog(catalog string) (*models.Catal
 	return &entry, nil
 }
 
+// EraExists returns whether any registry entry uses the provided era.
+func (r *CatalogRegistryRepository) EraExists(era models.Era) (bool, error) {
+	var count int64
+	err := r.db.Model(&models.CatalogRegistry{}).
+		Where("LOWER(era) = LOWER(?)", strings.TrimSpace(string(era))).
+		Count(&count).Error
+	return count > 0, err
+}
+
 // FindByID returns a registry entry by ID.
 func (r *CatalogRegistryRepository) FindByID(id uint) (*models.CatalogRegistry, error) {
 	var entry models.CatalogRegistry

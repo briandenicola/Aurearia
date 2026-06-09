@@ -9149,7 +9149,8 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "catalog",
-                "displayName"
+                "displayName",
+                "era"
             ],
             "properties": {
                 "catalog": {
@@ -9164,7 +9165,12 @@ const docTemplate = `{
                     "maxLength": 128
                 },
                 "era": {
-                    "$ref": "#/definitions/models.Era"
+                    "maxLength": 64,
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Era"
+                        }
+                    ]
                 },
                 "id": {
                     "type": "integer"
@@ -9220,11 +9226,7 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "era": {
-                    "enum": [
-                        "ancient",
-                        "medieval",
-                        "modern"
-                    ],
+                    "maxLength": 64,
                     "allOf": [
                         {
                             "$ref": "#/definitions/models.Era"
