@@ -219,7 +219,11 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
     if (coinMatch && method === 'GET') {
       const id = Number(coinMatch[1])
       const coin = state.coins.find((item) => item.id === id)
-      await coin ? json(route, coin) : json(route, { error: 'Not found' }, 404)
+      if (coin) {
+        await json(route, coin)
+      } else {
+        await json(route, { error: 'Not found' }, 404)
+      }
       return
     }
 
