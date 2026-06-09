@@ -71,6 +71,12 @@ tasks:
     cmds:
       - go test -v ./...
 
+  test-critical-workflows:
+    desc: Run F013 critical browser workflow tests
+    dir: src/web
+    cmds:
+      - npm run test:browser
+
   build-agent:
     desc: Build the Python agent service
     dir: src/agent

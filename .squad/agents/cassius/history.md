@@ -28,6 +28,7 @@
 
 - **2026-06-01:** #217 shared collection tool layer (internal token service, six internal endpoints, keyword gate removed), #217 Python ReAct agent completed end-to-end, #218 external tool server stack
 - **2026-06-01:** v1→v2 migration audit, Frontend navigation convention, Storage Location API pattern (per-user lookup table, nullable Coin.StorageLocationID FK, 409 conflict guard), Legacy RIC→CoinReference migration design + implementation + startup→endpoint refactor
+- **2026-06-09:** F013 Phase 3 golden fixtures complete (T014). Implemented Go fixture builders covering all 9 F013 golden coin names/traits with defensive cloning and optional deterministic DB persistence. Approved by Maximus Lead Review. Go build/test/vet all pass. Orchestration log: `.squad/orchestration-log/2026-06-09T13-09-16-cassius.md`
 - **2026-06-02:** Valuation freshness fix (CurrentValueUpdatedAt), Metadata health AI coverage fix (combined→obverse+reverse), AI coverage health scoring correction (per-side model finalized), checklist labels for missing side
 - **2026-06-08:** CodeQL request-forgery suppression comments added to `ProxyImage` and `ScrapeImage` handlers; SSRF protection layer remains unchanged
 
@@ -529,3 +530,43 @@ Addressed two CodeQL `go/request-forgery` alerts on `client.Do(req)` calls in `P
 - Join tables with custom NOT NULL columns require explicit management — use Omit() to prevent automatic sync
 - The pattern: when a join table has custom fields beyond FK pairs, manage it through explicit repository methods, not GORM association helpers
 - This follows the existing pattern where AddCoinToSet() already handled the proper insertion with AddedAt
+
+### 2026-06-09 — F013 backend typed mutation inventory
+
+Inventory for F013/AE006-AE013 found the primary risky broad binds in `CoinHandler.Create` and `CoinHandler.Update`, both currently binding `models.Coin`. Related paths include purchase/sell, bulk assign-location/tag/set, tag/set/reference endpoints, intake commit, collection proposal commit, valuation updates, and availability listing-status updates. The safest next slice is tests-first: add a one-field edit regression that seeds storage, tags, sets, references, images, era, and value data, then introduce explicit create/update request DTOs with patch-style presence tracking so omitted fields do not zero existing values while read-side fields are ignored.
+
+## 2026-06-09 — F013 Typed Coin DTO Slice
+
+Added explicit `CoinCreateRequest`/`CoinUpdateRequest` handler DTOs and mapped them back to the existing `CoinService` path so storage-location, era, reference, value-snapshot, tag, and set behavior stays centralized. Important regression: one-field coin updates now ignore broad read-side payload fields (`id`, `userId`, images, tags, sets, storageLocation, timestamps, AI analysis) while preserving existing associations and recording the normal value snapshot.
+
+## 2026-06-09 — F013 Batch Completion: Typed DTOs, Zero-Value Persistence, Nullable Semantics
+
+**Session:** F013 critical workflow hardening, backend typed DTO/revision batch
+**Agents:** Cassius (initial DTO contract), Maximus (review + block), Brutus (zero-value revision), Aurelia (nullable semantics), Maximus (re-review + approval)
+
+**Outcome:** ✅ APPROVED, block cleared
+
+**Sequence:**
+1. Cassius: Implemented typed `CoinCreateRequest` and `CoinUpdateRequest` DTOs, switched handlers away from broad `models.Coin` binding
+2. Maximus: BLOCKED — Model-shaped Updates risked skipping explicit zero values (false, "", 0); required presence-aware Select path + regressions
+3. Brutus: REVISED — Added presence-aware selected fields, repository Select path, handler/repository regressions for false/empty/zero persistence
+4. Aurelia: REVISED — Added explicit JSON null clear semantics for allowlisted nullable scalar fields (purchasePrice, currentValue, dates, dimensions)
+5. Maximus: RE-APPROVED — Semantics explicit, simple, tested; omitted fields preserve, JSON null clears allowlisted scalars; block cleared
+
+**Architecture:**
+- Handlers map DTO field presence to GORM `Select()` field list
+- Omitted fields automatically preserved (standard PATCH semantics)
+- Allowlisted nullable scalars accept JSON null clear: purchasePrice, currentValue, purchaseDate, soldPrice, soldDate, weightGrams, diameterMm
+- storageLocationId clear and references replacement remain on dedicated service/repository paths
+
+**Validation:**
+- ✅ `go test -v ./...` (147 tests pass)
+- ✅ `go vet ./...`
+- ✅ `git diff --check`
+- ✅ Regressions cover zero-value persistence, nullable scalar clears, omitted field preservation, storage-location clear, references replacement
+
+**T006-T010, T013 marked complete.** T011/T012 intentionally unchecked (broader regression coverage remains incomplete despite new handler/repository regressions passing). T014-T017 (fixture builders) pending.
+
+## 2026-06-09 — F013 Go golden fixture builders
+
+T014 now has backend golden coin builders in `src/api/testutil` aligned with the F013 fixture names. Builders return cloned model graphs and the optional persistence helper is explicit about caller-managed migrated test DB setup, which keeps repository/service tests deterministic without introducing production seed data.

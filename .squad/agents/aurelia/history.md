@@ -33,6 +33,9 @@
 
 ## Learnings
 
+- **2026-06-09:** F013 browser workflow smoke uses Playwright under `src/web/e2e/` with route-level API mocks and authenticated localStorage setup, so login, manual add, and edit-one-field coverage can run without a live backend or production data.
+- **2026-06-09:** F013 frontend fixture data now lives in `src/web/src/test/fixtures/`. Coin builders return cloned `Coin` objects so component/browser tests can safely override nested images, references, tags, sets, and storage-location data without mutating shared golden fixtures.
+- **2026-06-09:** F013 add/edit workflow inventory: manual add and intake commit use the safer allowlisted `buildCoinPayload()`, but `EditCoinPage` still sends the whole loaded `Partial<Coin>` through `updateCoin(form.id!, form)`. `sanitizeCoin()` normalizes nullable scalars, strips `storageLocation`, defaults `currentValue`, and formats date-only values, but does not strip read-side fields such as `images`, `tags`, `sets`, ids, owner/status fields, or timestamps. F013 browser coverage should assert both user-visible results and request payloads, with tags/sets treated as detail-page association workflows rather than edit-form fields.
 - **2026-06-01 (CORRECTED):** The `showChat` defensive-reset theory below was WRONG and the fix was reverted. `App.vue.onMounted` runs once at app boot when `showChat` is already `false`, so `showChat.value = false` there is a no-op and cannot fix an intermittent mid-session freeze. The reported tap-blocking bug ("can't tap searched coin, can't rotate image") was actually caused by the **pull-to-refresh touch handler** in `src/web/src/composables/usePullToRefresh.ts`: it set `pulling=true` on touchstart but only cleared it on `touchend`. When the OS/browser hijacks a gesture (notification, multitouch, system back-swipe — common in heavy PWA use) `touchcancel` fires instead of `touchend`, leaving `pulling=true`; every later tap at scroll-top then hit a non-passive `touchmove` that called `e.preventDefault()`, which suppresses the synthesized click on mobile — so taps did nothing while the screen looked completely normal. Real fix (commit `9f906bf`): add a `touchcancel` handler that resets state, plus an `ENGAGE_SLOP` so `preventDefault()` only fires on a real pull, never on taps. Lesson: a non-passive `touchmove` that calls `preventDefault()` MUST be paired with a `touchcancel` reset and must never `preventDefault()` on a stationary tap.
 - **2026-06-01:** Module-level refs in composables do NOT reset on component unmount. When a module-level ref (exported from a composable like `useBulkSelect.ts`) gates global UI state or interaction behavior, the owning component MUST explicitly reset the ref in `onUnmounted()` or the state will leak across navigation. In CollectionPage, `bulkSelectActive` (module-level) stayed true after unmount while `selectMode` (local) was destroyed, causing the agent FAB in App.vue to stay hidden indefinitely. Fix: add `onUnmounted()` hook to reset module-level state, and defensive `onMounted()` reset to ensure clean state on every mount. Alternative patterns: move state to Pinia store with proper lifecycle, or avoid module-level refs entirely for interaction-gating state—pass via props/emits instead.
 - **2026-06-01:** Admin table layout overflow fix pattern: when action buttons overflow on narrow viewports, stack related data vertically in earlier columns rather than letting the table stretch horizontally. In `AdminCatalogsSection.vue`, moved the era pill below the catalog code in the same cell (flex column with `gap: 0.35rem` and `align-items: flex-start`) to free up horizontal space. Action buttons use `display: flex` with `flex-shrink: 0` and `justify-content: flex-end` to ensure they stay right-aligned and never overflow the boundary. This pattern keeps tables responsive without sacrificing action button visibility.
@@ -42,6 +45,12 @@
 - **2026-06-01:** Bulk assign location UI completed. Created `BulkLocationPickerModal.vue` (mirroring `BulkTagPickerModal.vue`) with "No location" clear option that emits `null`. Extended `bulkAction()` client signature to accept `opts?: { tagId?: number; storageLocationId?: number | null }` instead of a single `tagId` parameter, maintaining backward compatibility with existing call sites. Updated `BulkActionBar.vue` to add "Assign Location" button with `MapPin` icon emitting `location` event. Wired up `CollectionPage.vue` to load storage locations on mount, handle `@location` event, render `BulkLocationPickerModal`, and call `bulkAssignLocation(locationId)` which posts `{ coinIds, action: 'assign-location', storageLocationId }` to `/coins/bulk`. Build, type-check, and lint all pass (no new warnings).
 
 - **2026-06-01:** Backend storage-location migration convention: nullable `Coin` lookup FKs may exist without physical SQLite constraints (`constraint:-`) to avoid destructive rebuilds; frontend should continue treating `storageLocationId` as nullable and rely on API validation/errors.
+
+- **2026-06-09:** F013 Frontend Fixture Batch Completed
+   - Implemented 10 golden coin fixtures covering all lifecycle states (Roman, Greek, Byzantine, wishlist, sold, private, tagged, set-member, storage-location, image-heavy, valued, references, custom era)
+   - Fixtures live in `src/web/src/test/fixtures/coins.ts` with public export index
+   - Task T015 marked complete
+   - Orchestration log: `.squad/orchestration-log/2026-06-09T12-51-39Z-aurelia.md`
 
 - **2026-06-01:** Legacy catalog reference migration UI added to Settings → Data. New bordered section with Database and RefreshCw icons from lucide-vue-next, explanatory text (non-destructive, keeps originals, records outcomes in journal), trigger button with loading state, and result counts grid showing Succeeded (gold accent), Skipped, Failed (amber). Client function `migrateLegacyReferences()` calls `POST /references/migrate-legacy` and returns `LegacyMigrationResult { succeeded, skipped, failed, message? }` type. Results display uses design tokens (`--accent-gold`, `--text-muted`, `--bg-input`, `--border-subtle`, `--radius-sm`) and mobile-responsive stacked layout. Build and lint pass (no new warnings).
 
@@ -88,6 +97,20 @@ Completed three UI refinements to `CoinDetailPage.vue`:
 **Final Section Order:** Title → Inscription → Details (metadata) → Catalog References → Tags → Listing Status → Additional Details
 
 **Verification:** npm run type-check ✅, npm run build ✅, npm run lint ✅ (no new warnings)
+
+- **2026-06-09:** F013 Phase 4 Storage Location & Tags/Sets Workflows APPROVED
+   - T022: Storage Location edit workflow (Playwright E2E test with route-level mocks, fixture-backed)
+     - Navigate to coin detail → update storage location → save → verify summary updated
+     - Uses golden fixture data; no live backend required
+   - T023: Tags & Sets edit workflow (Playwright E2E test with route-level mocks, fixture-backed)
+     - Navigate to coin detail → add/remove tags and set membership → save → verify detail page reflects changes
+     - Uses golden fixture data; deterministic test coverage
+   - Coordinator pre-validation: npm type-check (99 tests ✅), npm test (99 tests ✅), npm run test:browser (6 Playwright tests ✅), git diff --check (✅ no whitespace issues)
+   - Maximus review: ✅ APPROVED — workflows deterministic and fixture-backed, mock extensions proportional, isolated from live backend, scope boundaries strict (storage/tags/sets only; no creep into T024–T028), Principles IV & VI satisfied
+   - Completion mark justified: all builds, tests, lints pass; no architecture violations; ready for merge
+   - Orchestration log: `.squad/orchestration-log/2026-06-09T13-32-43Z-maximus-t022-t023-approved.md`
+   - F013 Phase 4 progress: T018–T021 (infrastructure) + T022–T023 (storage/tags workflows) = 6 of 11 tasks complete
+   - Remaining: T024–T028 (edit validation, image upload, search/filter, mobile viewport, Taskfile, docs)
 
 **Status:** Code change UNCOMMITTED, awaiting Brian's approval. Decision merged to `.squad/decisions.md`.
 
@@ -163,3 +186,27 @@ Added navigator.permissions.query pre-check to CameraCaptureModal.vue. Persisted
   - **Type-Safety Blocker (QA finding):** `AdminPage.vue` lines 93–95 use `v-model` binding that conflicts with explicit prop binding (lines 96–98); both patterns cannot coexist in Vue. Fix: Remove `v-model` lines, keep nullish-coalesced props per Principle IV. Validation gate: `npm run type-check` must pass before merge.
   - **Coin Lookup UX Design:** New `/lookup` route (nav item between "Add Coin" and "Wishlist"). Single-page flow: Capture State (full-screen PWA camera with circular focus overlay) → Analyzing State (loading overlay) → Results State (read-only draft display + auto-triggered Numista search + quick actions). Quick actions: "Retake Photo", "Add to Collection" (navigate to `/add?draft=<id>`), "Add to Wishlist" (same with `?wishlist=true`). MVP scope: camera capture + file upload, AI draft generation (obverse only), auto-triggered Numista search. Defer: NGC, reverse capture, edit draft inline, lookup history, sharing. Backend dependency: Cassius to confirm `IntakeDraft` response includes persistent `id` for query param flow.
 
+- **2026-06-09:** F013 nullable scalar update contract: Go DTO pointer fields cannot distinguish omitted vs JSON `null` without raw-body presence tracking. For update DTOs, pair typed binding with raw `json.RawMessage` presence detection so explicit `null` clears nullable scalar DB columns while omitted fields preserve values.
+
+- **2026-06-09:** F013 Phase 4 Browser Workflow Infrastructure (T018–T021, APPROVED)
+  - Implemented Playwright-based browser testing framework under `src/web/e2e/`
+  - **Deliverables:** `playwright.config.ts`, `src/web/e2e/fixtures/workflow.ts` (reusable fixtures + mocked API routes), `src/web/e2e/workflows/auth.spec.ts` (login/logout), `src/web/e2e/workflows/coin-form.spec.ts` (add/edit coin), `test:browser` npm script
+  - **Test Coverage:** Golden fixtures with consistent mock data, no live backend or production data, frontend validation verified, all 4 Playwright tests passing
+  - **Hygiene:** Playwright-generated outputs (`src/web/test-results/`, `src/web/playwright-report/`) now properly ignored in `.gitignore`
+  - **Review Status:** Maximus BLOCKED on hygiene (stale docs, missing `.gitignore` entries), Brutus independently remediated, Maximus approved revision
+  - **Coordinator Validation:** `npm run type-check` ✅, `npm run test -- --run` 99 tests ✅, `npm run test:browser` 4 tests ✅, `git diff --check` ✅
+  - **Next Tasks:** T022–T028 (edit workflows, image upload, search/filter, mobile viewport, Taskfile, docs)
+
+- **2026-06-09:** F013 storage/tag browser workflows now extend the Playwright route mock with deterministic `/storage-locations`, `/tags`, `/sets`, tag attach/detach, and set add/remove handlers. T022 changes storage location A→B→None through `CoinForm`; T023 treats tags/sets as detail-page association edits and asserts captured mutation payloads plus visible chips.
+
+- **2026-06-09:** F013 final browser workflows (T024-T026) completed upload/delete image, collection search/filter, and mobile viewport edit Playwright coverage using the shared `src/web/e2e/fixtures/workflow.ts` mocked API state. Workflow mocks now record image uploads/deletes and coin query params, filter fixture coins deterministically, and CoinForm image controls have accessible labels for stable production-safe hooks. Learning: form image edits save the scalar update first, then delete removed/replaced images, then upload replacements; tests should assert all three effects.
+
+- **2026-06-09 (13:45:22):** F013 T024–T026 Image Upload, Search/Filter, Mobile Viewport Workflows APPROVED
+   - **T024 (Image Upload):** Manual add upload obverse/reverse with preview → save → verify persisted; manual edit replace/delete images → save → verify detail page reflects changes. Route-level mocked API state for image upload/delete handlers; fixture-backed deterministic File objects.
+   - **T025 (Search/Filter):** Navigate collection list → filter by category/era/material/name → verify results deterministically updated; route-level mocked filter handlers; fixture coins filtered by query params.
+   - **T026 (Mobile Viewport):** Playwright mobile device profile (375px width) → edit one field on coin detail → submit → verify responsive form layout, no scroll/overflow issues. Fixture-backed, deterministic mobile browser context.
+   - **Coordinator Pre-Validation:** npm type-check ✅ (99 tests), npm test ✅ (99 tests), npm run test:browser ✅ (9 Playwright tests), git diff-check ✅
+   - **Maximus Review:** ✅ APPROVED — workflows deterministic and fixture-backed, mocks proportional, scope boundaries strict (no creep into T027–T028), Principle VI + Principle IX satisfied
+   - **F013 Phase 4 Completion:** T018–T023 + T024–T026 = 9 of 11 Phase 4 tasks complete. T027–T028 (Taskfile + docs) pending.
+   - **Key Learning:** Image form edits perform scalar update first, then image deletes, then uploads; tests must assert all three side effects separately.
+   - **Orchestration Log:** `.squad/orchestration-log/2026-06-09T13-45-22Z-aurelia.md`

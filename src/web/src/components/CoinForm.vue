@@ -98,10 +98,10 @@
             <label class="form-label">Obverse Image</label>
             <div v-if="obversePreview || existingObverse" class="image-preview-box">
               <img :src="obversePreview || existingObverse!" alt="Obverse" class="image-preview" />
-              <button type="button" class="image-remove-btn" @click="clearObverse" title="Remove"><X :size="12" /></button>
+              <button type="button" class="image-remove-btn" @click="clearObverse" title="Remove" aria-label="Remove obverse image"><X :size="12" /></button>
             </div>
             <div class="file-input-row">
-              <input type="file" accept=".jpg,.jpeg,.png" class="form-input file-input" @change="onObverseFile" ref="obverseInput" />
+              <input type="file" accept=".jpg,.jpeg,.png" class="form-input file-input" aria-label="Upload obverse image" @change="onObverseFile" ref="obverseInput" />
               <label v-if="isPwa" class="btn btn-secondary btn-sm camera-btn">
                 <Camera :size="14" /> Photo
                 <input type="file" accept="image/*" capture="environment" hidden @change="onObverseFile" />
@@ -112,10 +112,10 @@
             <label class="form-label">Reverse Image</label>
             <div v-if="reversePreview || existingReverse" class="image-preview-box">
               <img :src="reversePreview || existingReverse!" alt="Reverse" class="image-preview" />
-              <button type="button" class="image-remove-btn" @click="clearReverse" title="Remove"><X :size="12" /></button>
+              <button type="button" class="image-remove-btn" @click="clearReverse" title="Remove" aria-label="Remove reverse image"><X :size="12" /></button>
             </div>
             <div class="file-input-row">
-              <input type="file" accept=".jpg,.jpeg,.png" class="form-input file-input" @change="onReverseFile" ref="reverseInput" />
+              <input type="file" accept=".jpg,.jpeg,.png" class="form-input file-input" aria-label="Upload reverse image" @change="onReverseFile" ref="reverseInput" />
               <label v-if="isPwa" class="btn btn-secondary btn-sm camera-btn">
                 <Camera :size="14" /> Photo
                 <input type="file" accept="image/*" capture="environment" hidden @change="onReverseFile" />
@@ -178,9 +178,9 @@
           <p class="form-hint">Upload a photo of the store card. Text will be extracted automatically and saved to Notes.</p>
           <div v-if="cardPreview" class="image-preview-box">
             <img :src="cardPreview" alt="Store card" class="image-preview" />
-            <button type="button" class="image-remove-btn" @click="clearCard" title="Remove"><X :size="12" /></button>
+            <button type="button" class="image-remove-btn" @click="clearCard" title="Remove" aria-label="Remove store card image"><X :size="12" /></button>
           </div>
-          <input type="file" accept=".jpg,.jpeg,.png" class="form-input file-input" @change="onCardFile" ref="cardInput" />
+          <input type="file" accept=".jpg,.jpeg,.png" class="form-input file-input" aria-label="Upload store card image" @change="onCardFile" ref="cardInput" />
         </div>
         <div class="form-group">
           <label class="form-label">Notes</label>

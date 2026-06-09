@@ -1,15 +1,14 @@
 ---
 id: F011
 title: "AI-driven exploratory browser testing for runtime UI bugs"
-status: deferred           # backlog | triaged | promoted | dropped | deferred
-priority: P2
+status: triaged            # backlog | triaged | promoted | dropped
+priority: P0
 effort: L
-value: 4
-risk: 2
+value: 5
+risk: 3
 owner: unassigned
 created: 2026-05-28
-updated: 2026-05-28
-blocked_by: "#163 (three-pillar audit) — defer spec drafting until audit findings inform which flows to cover first"
+updated: 2026-06-09
 ---
 
 # F011 — AI-driven exploratory browser testing for runtime UI bugs
@@ -30,8 +29,10 @@ We have unit tests (Go 118, Vue 61, Python 35) but **zero browser-level coverage
 
 - **§17 Quality Gate** — exploratory results are advisory (don't block merge initially); promote to gating once stable
 - **§19 Documentation Requirements** — `docs/testing.md` testing-pyramid section gains an "Exploratory" tier
-- **Principle XV (Supply Chain & CI Integrity)** — any new MCP server / browser driver pinned to a specific version
-- **Principle XI (Security Hardening)** — exploratory agent runs against a throwaway database; no production data
+- **Principle IV (Simple Complete Changes)** — browser tests exercise the real user workflow, not just implementation details
+- **Principle VII (CI, Supply Chain, and Release Integrity)** — any new MCP server / browser driver pinned to a specific version
+- **Principle IX (Automated Enforcement Over Manual Memory)** — high-value workflow checks become repeatable
+- **Principle V (Security, Auth, and Privacy by Default)** — exploratory agent runs against a throwaway database; no production data
 
 ## Approach Options (to be decided during spec phase)
 
@@ -50,11 +51,11 @@ Coordinator recommendation captured 2026-05-28: pursue (1) as primary, keep (2) 
 - [ ] Do we seed deterministic test accounts/data via fixtures, or let the agent create its own via the UI on each run?
 - [ ] Token-budget enforcement: hard cap per run, soft cap with continuation prompt, or both?
 
-## Why Deferred
+## Roadmap role
 
-The **#163 three-pillar audit** (Security / SWE best practices / DRY) will surface the highest-risk UI surfaces and likely identify components that should be refactored *before* we invest in exploratory coverage. Drafting the F011 spec before #163 lands risks targeting flows that are about to be restructured.
-
-**Trigger to promote:** when #163 closes, revisit this card. Brutus to draft `specs/NNN-ai-exploratory-testing/spec.md` at that point.
+This card is now part of the Agentic Excellence Roadmap. It should follow F013
+so the exploratory browser agent has a golden fixture collection and critical
+workflow list to exercise.
 
 ## Notes
 
@@ -65,15 +66,19 @@ The **#163 three-pillar audit** (Security / SWE best practices / DRY) will surfa
 
 ## Dependencies
 
-- **Blocked by:** Issue #163 (three-pillar audit) completion — see `blocked_by` front-matter.
+- **Depends on:** F013 defining the golden fixture collection and critical
+  workflows.
 - Coordinates with: `docs/testing.md` (Brutus owns; will gain new tier).
 
 ## References
 
 - Issue #163 (audit findings will scope which UI flows are highest-priority)
+- F013 — Harden critical collection workflows
 - `docs/testing.md` — current testing pyramid; F011 adds the exploratory tier
 - `.squad/decisions.md` entry #18 (this card's deferral and tracking decision)
+- `docs/backlog/agentic-excellence-roadmap-2026-06-09.md`
 
 ## History
 
 - 2026-05-28: Created. Status `deferred` pending #163 completion. Coordinator recommendation: AI-driven (Playwright MCP + vision model). Brutus to own spec drafting on promotion.
+- 2026-06-09: Moved to `triaged` / `P0` as part of the Agentic Excellence Roadmap. F013 should define the golden workflows before this is promoted.

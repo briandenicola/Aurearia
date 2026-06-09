@@ -22,6 +22,10 @@ src/api/uploads/
 src/web/node_modules/
 src/web/dist/
 
+# Playwright
+src/web/test-results/
+src/web/playwright-report/
+
 # Environment
 .env
 *.local

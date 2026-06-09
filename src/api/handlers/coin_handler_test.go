@@ -22,7 +22,7 @@ const coinTestJWTSecret = "coin-handler-test-secret"
 
 func setupCoinHandlerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:coin_handler_%d?mode=memory&cache=shared", time.Now().UnixNano())), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
@@ -83,7 +83,13 @@ func setupCoinHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	db := setupCoinHandlerTestDB(t)
 	coinRepo := repository.NewCoinRepository(db)
 	catalogRegistryRepo := repository.NewCatalogRegistryRepository(db)
-	coinSvc := services.NewCoinService(coinRepo, nil).WithCatalogRegistrySupport(catalogRegistryRepo)
+	coinReferenceRepo := repository.NewCoinReferenceRepository(db)
+	coinReferenceSvc := services.NewCoinReferenceService(coinReferenceRepo, catalogRegistryRepo)
+	storageLocationRepo := repository.NewStorageLocationRepository(db)
+	coinSvc := services.NewCoinService(coinRepo, nil).
+		WithReferenceSupport(coinReferenceRepo, coinReferenceSvc).
+		WithStorageLocationSupport(storageLocationRepo).
+		WithCatalogRegistrySupport(catalogRegistryRepo)
 	handler := NewCoinHandler(coinRepo, coinSvc, services.NewLogger(100))
 
 	r := gin.New()
@@ -283,6 +289,228 @@ func TestCoinHandler_Update_OwnCoin(t *testing.T) {
 	}
 }
 
+func TestCoinHandler_Update_OneFieldPreservesAssociationsAndReadOnlyFields(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "updater")
+	createTestUser(t, db, 2, "other")
+
+	location := models.StorageLocation{UserID: 1, Name: "Tray A"}
+	if err := db.Create(&location).Error; err != nil {
+		t.Fatalf("failed to seed storage location: %v", err)
+	}
+	currentValue := 250.0
+	valuationTime := time.Now().Add(-2 * time.Hour).UTC().Truncate(time.Second)
+	coin := models.Coin{
+		Name:                  "Original Denarius",
+		Category:              models.CategoryRoman,
+		Material:              models.MaterialSilver,
+		Era:                   models.EraAncient,
+		UserID:                1,
+		CurrentValue:          &currentValue,
+		CurrentValueUpdatedAt: &valuationTime,
+		AIAnalysis:            "existing analysis",
+		StorageLocationID:     &location.ID,
+	}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+	originalID := coin.ID
+	originalCreatedAt := coin.CreatedAt
+
+	if err := db.Create(&models.CoinImage{CoinID: coin.ID, FilePath: "coins/original.jpg", ImageType: models.ImageTypeObverse, IsPrimary: true}).Error; err != nil {
+		t.Fatalf("failed to seed image: %v", err)
+	}
+	if err := db.Create(&models.CoinReference{CoinID: coin.ID, Catalog: "RIC", Volume: "II", Number: "12"}).Error; err != nil {
+		t.Fatalf("failed to seed reference: %v", err)
+	}
+	tag := models.Tag{UserID: 1, Name: "Favorites", Color: "#c9a84c"}
+	if err := db.Create(&tag).Error; err != nil {
+		t.Fatalf("failed to seed tag: %v", err)
+	}
+	if err := repository.NewTagRepository(db).AttachToCoin(coin.ID, tag.ID, 1); err != nil {
+		t.Fatalf("failed to attach tag: %v", err)
+	}
+	set := models.CoinSet{UserID: 1, Name: "Roman Core", SetType: models.CoinSetTypeOpen}
+	if err := repository.NewSetRepository(db).Create(&set); err != nil {
+		t.Fatalf("failed to seed set: %v", err)
+	}
+	if err := repository.NewSetRepository(db).AddCoinToSet(coin.ID, set.ID, 1, "keeper"); err != nil {
+		t.Fatalf("failed to attach set: %v", err)
+	}
+
+	updates := map[string]interface{}{
+		"id":                    originalID + 100,
+		"userId":                2,
+		"name":                  "Renamed Denarius",
+		"createdAt":             time.Now().Add(-24 * time.Hour),
+		"aiAnalysis":            "incoming analysis",
+		"currentValueUpdatedAt": time.Now(),
+		"images": []map[string]interface{}{
+			{"id": 999, "coinId": coin.ID, "filePath": "coins/replacement.jpg", "imageType": "reverse"},
+		},
+		"tags": []map[string]interface{}{
+			{"id": tag.ID + 100, "name": "Incoming"},
+		},
+		"sets": []map[string]interface{}{
+			{"id": set.ID + 100, "name": "Incoming Set"},
+		},
+		"storageLocation": map[string]interface{}{"id": location.ID + 100, "name": "Incoming Location"},
+	}
+	body, _ := json.Marshal(updates)
+
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var found models.Coin
+	if err := db.Preload("Images").Preload("References").Preload("Tags").Preload("Sets").First(&found, originalID).Error; err != nil {
+		t.Fatalf("updated coin not found: %v", err)
+	}
+	if found.ID != originalID {
+		t.Fatalf("expected read-only id %d to be preserved, got %d", originalID, found.ID)
+	}
+	if found.UserID != 1 {
+		t.Fatalf("expected read-only userId 1 to be preserved, got %d", found.UserID)
+	}
+	if !found.CreatedAt.Equal(originalCreatedAt) {
+		t.Fatalf("expected read-only createdAt to be preserved, got %v want %v", found.CreatedAt, originalCreatedAt)
+	}
+	if found.Name != "Renamed Denarius" {
+		t.Fatalf("expected name update, got %q", found.Name)
+	}
+	if found.Category != models.CategoryRoman || found.Material != models.MaterialSilver || found.Era != models.EraAncient {
+		t.Fatalf("unexpected scalar sibling mutation: category=%q material=%q era=%q", found.Category, found.Material, found.Era)
+	}
+	if found.AIAnalysis != "existing analysis" {
+		t.Fatalf("expected read-only aiAnalysis to be preserved, got %q", found.AIAnalysis)
+	}
+	if found.CurrentValueUpdatedAt == nil || !found.CurrentValueUpdatedAt.Equal(valuationTime) {
+		t.Fatalf("expected currentValueUpdatedAt to be preserved, got %v want %v", found.CurrentValueUpdatedAt, valuationTime)
+	}
+	if found.StorageLocationID == nil || *found.StorageLocationID != location.ID {
+		t.Fatalf("expected storage location %d to remain, got %v", location.ID, found.StorageLocationID)
+	}
+	if len(found.Images) != 1 || found.Images[0].FilePath != "coins/original.jpg" {
+		t.Fatalf("expected original image association to remain, got %#v", found.Images)
+	}
+	if len(found.References) != 1 || found.References[0].Number != "12" {
+		t.Fatalf("expected original reference association to remain, got %#v", found.References)
+	}
+	if len(found.Tags) != 1 || found.Tags[0].ID != tag.ID {
+		t.Fatalf("expected original tag association to remain, got %#v", found.Tags)
+	}
+	if len(found.Sets) != 1 || found.Sets[0].ID != set.ID {
+		t.Fatalf("expected original set association to remain, got %#v", found.Sets)
+	}
+
+	var valueHistoryCount int64
+	if err := db.Model(&models.CoinValueHistory{}).Where("coin_id = ?", coin.ID).Count(&valueHistoryCount).Error; err != nil {
+		t.Fatalf("failed to count value history: %v", err)
+	}
+	if valueHistoryCount != 0 {
+		t.Fatalf("expected no manual value history for name-only edit, got %d", valueHistoryCount)
+	}
+	var snapshotCount int64
+	if err := db.Model(&models.ValueSnapshot{}).Where("user_id = ?", uint(1)).Count(&snapshotCount).Error; err != nil {
+		t.Fatalf("failed to count value snapshots: %v", err)
+	}
+	if snapshotCount != 1 {
+		t.Fatalf("expected one value snapshot for update, got %d", snapshotCount)
+	}
+}
+
+func TestCoinHandler_Update_IgnoresUnknownReadOnlyAndBroadRelationshipFields(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "updater")
+	createTestUser(t, db, 2, "other")
+
+	coin := models.Coin{Name: "Typed Contract Coin", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+	if err := db.Create(&models.CoinImage{CoinID: coin.ID, FilePath: "coins/original.jpg", ImageType: models.ImageTypeObverse}).Error; err != nil {
+		t.Fatalf("failed to seed image: %v", err)
+	}
+	if err := db.Create(&models.CoinReference{CoinID: coin.ID, Catalog: "RIC", Number: "1"}).Error; err != nil {
+		t.Fatalf("failed to seed reference: %v", err)
+	}
+	tag := models.Tag{UserID: 1, Name: "Original Tag"}
+	if err := db.Create(&tag).Error; err != nil {
+		t.Fatalf("failed to seed tag: %v", err)
+	}
+	if err := repository.NewTagRepository(db).AttachToCoin(coin.ID, tag.ID, 1); err != nil {
+		t.Fatalf("failed to attach tag: %v", err)
+	}
+	set := models.CoinSet{UserID: 1, Name: "Original Set", SetType: models.CoinSetTypeOpen}
+	if err := repository.NewSetRepository(db).Create(&set); err != nil {
+		t.Fatalf("failed to seed set: %v", err)
+	}
+	if err := repository.NewSetRepository(db).AddCoinToSet(coin.ID, set.ID, 1, "original"); err != nil {
+		t.Fatalf("failed to attach set: %v", err)
+	}
+
+	updates := map[string]interface{}{
+		"name":       "Typed Contract Coin Updated",
+		"unknownKey": "ignored",
+		"userId":     2,
+		"storageLocation": map[string]interface{}{
+			"id":   99,
+			"name": "Injected Location",
+		},
+		"images": []map[string]interface{}{
+			{"filePath": "coins/injected.jpg", "imageType": "reverse"},
+		},
+		"tags": []map[string]interface{}{
+			{"id": tag.ID + 100, "name": "Injected Tag"},
+		},
+		"sets": []map[string]interface{}{
+			{"id": set.ID + 100, "name": "Injected Set"},
+		},
+	}
+	body, _ := json.Marshal(updates)
+
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with ignored unknown/broad fields, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var found models.Coin
+	if err := db.Preload("Images").Preload("References").Preload("Tags").Preload("Sets").First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("updated coin not found: %v", err)
+	}
+	if found.Name != "Typed Contract Coin Updated" {
+		t.Fatalf("expected allowlisted name update, got %q", found.Name)
+	}
+	if found.UserID != 1 {
+		t.Fatalf("expected read-only userId to remain 1, got %d", found.UserID)
+	}
+	if len(found.Images) != 1 || found.Images[0].FilePath != "coins/original.jpg" {
+		t.Fatalf("expected image relationship payload to be ignored, got %#v", found.Images)
+	}
+	if len(found.References) != 1 || found.References[0].Number != "1" {
+		t.Fatalf("expected omitted references to be preserved, got %#v", found.References)
+	}
+	if len(found.Tags) != 1 || found.Tags[0].ID != tag.ID {
+		t.Fatalf("expected tag relationship payload to be ignored, got %#v", found.Tags)
+	}
+	if len(found.Sets) != 1 || found.Sets[0].ID != set.ID {
+		t.Fatalf("expected set relationship payload to be ignored, got %#v", found.Sets)
+	}
+}
+
 func TestCoinHandler_Update_WithSetsPayloadPreservesMemberships(t *testing.T) {
 	router, db := setupCoinHandlerRouter(t)
 	createTestUser(t, db, 1, "updater")
@@ -381,6 +609,10 @@ func TestCoinHandler_Update_StorageLocationWithSetsPreservesMemberships(t *testi
 	if err := setRepo.AddCoinToSet(coin.ID, set.ID, 1, ""); err != nil {
 		t.Fatalf("failed to seed membership: %v", err)
 	}
+	location := models.StorageLocation{UserID: 1, Name: "Tray 1"}
+	if err := db.Create(&location).Error; err != nil {
+		t.Fatalf("failed to seed storage location: %v", err)
+	}
 
 	var originalMembership models.CoinSetMembership
 	if err := db.Where("coin_id = ? AND set_id = ?", coin.ID, set.ID).First(&originalMembership).Error; err != nil {
@@ -391,7 +623,7 @@ func TestCoinHandler_Update_StorageLocationWithSetsPreservesMemberships(t *testi
 		"name":              "Stored Coin",
 		"category":          "Roman",
 		"material":          "Silver",
-		"storageLocationId": 5,
+		"storageLocationId": location.ID,
 	}
 	body, _ := json.Marshal(updates)
 
@@ -410,8 +642,8 @@ func TestCoinHandler_Update_StorageLocationWithSetsPreservesMemberships(t *testi
 	if err := db.First(&updatedCoin, coin.ID).Error; err != nil {
 		t.Fatalf("updated coin not found: %v", err)
 	}
-	if updatedCoin.StorageLocationID == nil || *updatedCoin.StorageLocationID != 5 {
-		t.Fatalf("expected storage location 5, got %v", updatedCoin.StorageLocationID)
+	if updatedCoin.StorageLocationID == nil || *updatedCoin.StorageLocationID != location.ID {
+		t.Fatalf("expected storage location %d, got %v", location.ID, updatedCoin.StorageLocationID)
 	}
 
 	var memberships []models.CoinSetMembership
@@ -429,6 +661,381 @@ func TestCoinHandler_Update_StorageLocationWithSetsPreservesMemberships(t *testi
 	}
 	if !memberships[0].AddedAt.Equal(originalMembership.AddedAt) {
 		t.Fatalf("membership AddedAt changed from %v to %v", originalMembership.AddedAt, memberships[0].AddedAt)
+	}
+}
+
+func TestCoinHandler_Update_ClearsStorageLocationWhenExplicitNull(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "updater")
+
+	location := models.StorageLocation{UserID: 1, Name: "Cabinet A"}
+	if err := db.Create(&location).Error; err != nil {
+		t.Fatalf("failed to seed storage location: %v", err)
+	}
+	coin := models.Coin{
+		Name:              "Stored Coin",
+		Category:          models.CategoryRoman,
+		Material:          models.MaterialSilver,
+		UserID:            1,
+		StorageLocationID: &location.ID,
+	}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+
+	updates := map[string]interface{}{
+		"name":              "Stored Coin",
+		"category":          "Roman",
+		"material":          "Silver",
+		"storageLocationId": nil,
+	}
+	body, _ := json.Marshal(updates)
+
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var updatedCoin models.Coin
+	if err := db.First(&updatedCoin, coin.ID).Error; err != nil {
+		t.Fatalf("updated coin not found: %v", err)
+	}
+	if updatedCoin.StorageLocationID != nil {
+		t.Fatalf("expected storage location to be cleared, got %v", updatedCoin.StorageLocationID)
+	}
+}
+
+func TestCoinHandler_Update_RejectsNonOwnedStorageLocation(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "updater")
+	createTestUser(t, db, 2, "other")
+
+	otherLocation := models.StorageLocation{UserID: 2, Name: "Other Cabinet"}
+	if err := db.Create(&otherLocation).Error; err != nil {
+		t.Fatalf("failed to seed other storage location: %v", err)
+	}
+	coin := models.Coin{Name: "Stored Coin", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+
+	body, _ := json.Marshal(map[string]interface{}{"storageLocationId": otherLocation.ID})
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for non-owned storage location, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var found models.Coin
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("coin not found: %v", err)
+	}
+	if found.StorageLocationID != nil {
+		t.Fatalf("expected storage location to remain unset after rejected update, got %v", found.StorageLocationID)
+	}
+}
+
+func TestCoinHandler_Update_PersistsExplicitFalseAndEmptyStringClears(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "updater")
+
+	coin := models.Coin{
+		Name:               "Clearable Coin",
+		Category:           models.CategoryRoman,
+		Material:           models.MaterialSilver,
+		UserID:             1,
+		Notes:              "clear me",
+		ReferenceURL:       "https://example.test/ref",
+		ReferenceText:      "clear reference text",
+		PurchaseLocation:   "Old dealer",
+		SoldTo:             "Old buyer",
+		IsPrivate:          true,
+		IsWishlist:         true,
+		IsSold:             true,
+		ObverseDescription: "clear obverse",
+		ReverseDescription: "clear reverse",
+	}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+
+	updates := map[string]interface{}{
+		"notes":              "",
+		"referenceUrl":       "",
+		"referenceText":      "",
+		"purchaseLocation":   "",
+		"soldTo":             "",
+		"obverseDescription": "",
+		"reverseDescription": "",
+		"isPrivate":          false,
+		"isWishlist":         false,
+		"isSold":             false,
+	}
+	body, _ := json.Marshal(updates)
+
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var found models.Coin
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("updated coin not found: %v", err)
+	}
+	if found.Notes != "" || found.ReferenceURL != "" || found.ReferenceText != "" ||
+		found.PurchaseLocation != "" || found.SoldTo != "" ||
+		found.ObverseDescription != "" || found.ReverseDescription != "" {
+		t.Fatalf("expected explicit empty strings to persist, got notes=%q refURL=%q refText=%q purchaseLocation=%q soldTo=%q obv=%q rev=%q",
+			found.Notes, found.ReferenceURL, found.ReferenceText, found.PurchaseLocation, found.SoldTo, found.ObverseDescription, found.ReverseDescription)
+	}
+	if found.IsPrivate || found.IsWishlist || found.IsSold {
+		t.Fatalf("expected explicit false booleans to persist, got private=%v wishlist=%v sold=%v", found.IsPrivate, found.IsWishlist, found.IsSold)
+	}
+	if found.Category != models.CategoryRoman || found.Material != models.MaterialSilver || found.Name != "Clearable Coin" {
+		t.Fatalf("omitted sibling fields changed unexpectedly: name=%q category=%q material=%q", found.Name, found.Category, found.Material)
+	}
+}
+
+func TestCoinHandler_Update_CurrentValueCreatesManualHistoryAndSnapshot(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "updater")
+
+	currentValue := 100.0
+	coin := models.Coin{
+		Name:         "Value Coin",
+		Category:     models.CategoryGreek,
+		Material:     models.MaterialSilver,
+		UserID:       1,
+		CurrentValue: &currentValue,
+	}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+
+	body, _ := json.Marshal(map[string]interface{}{"currentValue": 125.0})
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var found models.Coin
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("updated coin not found: %v", err)
+	}
+	if found.CurrentValue == nil || *found.CurrentValue != 125.0 {
+		t.Fatalf("expected current value 125, got %v", found.CurrentValue)
+	}
+	if found.CurrentValueUpdatedAt == nil {
+		t.Fatal("expected manual current-value edit to set CurrentValueUpdatedAt")
+	}
+
+	var history []models.CoinValueHistory
+	if err := db.Where("coin_id = ?", coin.ID).Find(&history).Error; err != nil {
+		t.Fatalf("failed to query value history: %v", err)
+	}
+	if len(history) != 1 || history[0].Value != 125.0 || history[0].Confidence != "manual" {
+		t.Fatalf("expected one manual value-history row for 125, got %#v", history)
+	}
+
+	var journalCount int64
+	if err := db.Model(&models.CoinJournal{}).Where("coin_id = ?", coin.ID).Count(&journalCount).Error; err != nil {
+		t.Fatalf("failed to count journal entries: %v", err)
+	}
+	if journalCount != 1 {
+		t.Fatalf("expected one journal entry, got %d", journalCount)
+	}
+	var snapshotCount int64
+	if err := db.Model(&models.ValueSnapshot{}).Where("user_id = ?", uint(1)).Count(&snapshotCount).Error; err != nil {
+		t.Fatalf("failed to count value snapshots: %v", err)
+	}
+	if snapshotCount != 1 {
+		t.Fatalf("expected one value snapshot, got %d", snapshotCount)
+	}
+}
+
+func TestCoinHandler_Update_ClearsNullableScalarsWhenExplicitNullAndPreservesWhenOmitted(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "updater")
+
+	purchasePrice := 125.0
+	currentValue := 175.0
+	weight := 3.5
+	diameter := 18.0
+	purchaseDate := time.Date(2024, time.January, 15, 0, 0, 0, 0, time.UTC)
+	soldPrice := 150.0
+	soldDate := time.Date(2025, time.February, 20, 0, 0, 0, 0, time.UTC)
+	coin := models.Coin{
+		Name:          "Nullable Coin",
+		Category:      models.CategoryRoman,
+		Material:      models.MaterialSilver,
+		UserID:        1,
+		PurchasePrice: &purchasePrice,
+		CurrentValue:  &currentValue,
+		WeightGrams:   &weight,
+		DiameterMm:    &diameter,
+		PurchaseDate:  &purchaseDate,
+		SoldPrice:     &soldPrice,
+		SoldDate:      &soldDate,
+	}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+
+	updates := map[string]interface{}{
+		"purchasePrice": nil,
+		"currentValue":  nil,
+		"purchaseDate":  nil,
+		"soldPrice":     nil,
+		"soldDate":      nil,
+		"weightGrams":   nil,
+		"diameterMm":    nil,
+	}
+	body, _ := json.Marshal(updates)
+
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var found models.Coin
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("updated coin not found: %v", err)
+	}
+	if found.PurchasePrice != nil || found.CurrentValue != nil || found.PurchaseDate != nil ||
+		found.SoldPrice != nil || found.SoldDate != nil || found.WeightGrams != nil || found.DiameterMm != nil {
+		t.Fatalf("expected explicit nulls to clear nullable scalars, got purchase=%v current=%v purchaseDate=%v sold=%v soldDate=%v weight=%v diameter=%v",
+			found.PurchasePrice, found.CurrentValue, found.PurchaseDate, found.SoldPrice, found.SoldDate, found.WeightGrams, found.DiameterMm)
+	}
+	if found.Name != "Nullable Coin" || found.Category != models.CategoryRoman || found.Material != models.MaterialSilver {
+		t.Fatalf("omitted non-nullable fields changed unexpectedly: name=%q category=%q material=%q", found.Name, found.Category, found.Material)
+	}
+
+	preserved := models.Coin{
+		Name:          "Preserved Nullable Coin",
+		Category:      models.CategoryRoman,
+		Material:      models.MaterialSilver,
+		UserID:        1,
+		PurchasePrice: &purchasePrice,
+		CurrentValue:  &currentValue,
+		WeightGrams:   &weight,
+		DiameterMm:    &diameter,
+		PurchaseDate:  &purchaseDate,
+		SoldPrice:     &soldPrice,
+		SoldDate:      &soldDate,
+	}
+	if err := db.Create(&preserved).Error; err != nil {
+		t.Fatalf("failed to seed preserved coin: %v", err)
+	}
+	nameOnlyBody, _ := json.Marshal(map[string]interface{}{"name": "Renamed Preserved Nullable Coin"})
+	nameOnlyReq := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", preserved.ID), bytes.NewReader(nameOnlyBody))
+	nameOnlyReq.Header.Set("Content-Type", "application/json")
+	nameOnlyReq.Header.Set("Authorization", authHeader(1))
+	nameOnlyRecorder := httptest.NewRecorder()
+
+	router.ServeHTTP(nameOnlyRecorder, nameOnlyReq)
+
+	if nameOnlyRecorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 for name-only update, got %d: %s", nameOnlyRecorder.Code, nameOnlyRecorder.Body.String())
+	}
+	var preservedFound models.Coin
+	if err := db.First(&preservedFound, preserved.ID).Error; err != nil {
+		t.Fatalf("preserved coin not found: %v", err)
+	}
+	if preservedFound.PurchasePrice == nil || *preservedFound.PurchasePrice != purchasePrice ||
+		preservedFound.CurrentValue == nil || *preservedFound.CurrentValue != currentValue ||
+		preservedFound.PurchaseDate == nil || !preservedFound.PurchaseDate.Equal(purchaseDate) ||
+		preservedFound.SoldPrice == nil || *preservedFound.SoldPrice != soldPrice ||
+		preservedFound.SoldDate == nil || !preservedFound.SoldDate.Equal(soldDate) ||
+		preservedFound.WeightGrams == nil || *preservedFound.WeightGrams != weight ||
+		preservedFound.DiameterMm == nil || *preservedFound.DiameterMm != diameter {
+		t.Fatalf("expected omitted nullable scalars to be preserved, got purchase=%v current=%v purchaseDate=%v sold=%v soldDate=%v weight=%v diameter=%v",
+			preservedFound.PurchasePrice, preservedFound.CurrentValue, preservedFound.PurchaseDate, preservedFound.SoldPrice, preservedFound.SoldDate, preservedFound.WeightGrams, preservedFound.DiameterMm)
+	}
+}
+
+func TestCoinHandler_Update_ReplacesStructuredReferences(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "updater")
+
+	if err := db.Create(&models.CatalogRegistry{
+		Catalog:        "RIC",
+		DisplayName:    "Roman Imperial Coinage",
+		Era:            models.EraAncient,
+		VolumeRequired: true,
+	}).Error; err != nil {
+		t.Fatalf("failed to seed catalog registry: %v", err)
+	}
+	coin := models.Coin{Name: "Reference Coin", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+	if err := db.Create(&models.CoinReference{CoinID: coin.ID, Catalog: "RIC", Volume: "I", Number: "1"}).Error; err != nil {
+		t.Fatalf("failed to seed reference: %v", err)
+	}
+
+	updates := map[string]interface{}{
+		"name":     "Reference Coin",
+		"category": "Roman",
+		"material": "Silver",
+		"references": []map[string]interface{}{
+			{
+				"catalog": " ric ",
+				"volume":  " II ",
+				"number":  " 12 ",
+			},
+		},
+	}
+	body, _ := json.Marshal(updates)
+
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var refs []models.CoinReference
+	if err := db.Where("coin_id = ?", coin.ID).Find(&refs).Error; err != nil {
+		t.Fatalf("failed to query references: %v", err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("expected exactly 1 replacement reference, got %d", len(refs))
+	}
+	if refs[0].Catalog != "RIC" || refs[0].Volume != "II" || refs[0].Number != "12" {
+		t.Fatalf("expected normalized replacement reference RIC II 12, got %#v", refs[0])
 	}
 }
 

@@ -9,6 +9,9 @@ Agent Scribe initialized and ready for work.
 
 ## Recent Updates
 
+- **2026-06-09 (13:25:42):** Logged F013 Phase 4 browser workflow infrastructure batch (Aurelia T018–T021 + Maximus review/block + Brutus hygiene fix). Created 3 orchestration logs (Aurelia, Maximus, Brutus) and 1 session log. No inbox entries to merge. Appended cross-team browser E2E testing context to Aurelia/Maximus/Brutus history.md. All product changes staged, ready for coordinator merge. F013 T006–T021 now complete.
+- **2026-06-09 (13:09:16):** Logged F013 Phase 3 golden fixtures completion (Cassius T014 + Maximus T014 approval + Brutus T016/T017 + Maximus T016/T017 approval). Created 4 orchestration logs and 1 session log. No inbox entries to merge. F013 T006–T017 now complete; Phase 4 browser workflows (T018–T028) deferred.
+- **2026-06-09:** Logged F013 regressions & fixtures batch (Brutus backend T011/T012/T013 + Aurelia frontend T015). Merged 11 decision inbox entries (NGC strategies, lookup UX, GORM patterns, SSRF suppression, audit scheduler, user directives). Cleared inbox. Session F013 T006–T013 and T015 marked complete.
 - **2026-06-01:** Logged storage-location/settings batch, merged Cassius/Aurelia decision inbox entries, and committed feature plus squad handoff state.
 
 📌 Team initialized on 2026-04-24

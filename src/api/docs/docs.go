@@ -3076,7 +3076,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.Coin"
+                            "$ref": "#/definitions/handlers.CoinCreateRequest"
                         }
                     }
                 ],
@@ -3427,7 +3427,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.Coin"
+                            "$ref": "#/definitions/handlers.CoinUpdateRequest"
                         }
                     }
                 ],
@@ -7902,6 +7902,123 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.CoinCreateRequest": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "$ref": "#/definitions/models.Category"
+                },
+                "currentValue": {
+                    "type": "number"
+                },
+                "denomination": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "diameterMm": {
+                    "type": "number"
+                },
+                "era": {
+                    "maxLength": 64,
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Era"
+                        }
+                    ]
+                },
+                "grade": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "isPrivate": {
+                    "type": "boolean"
+                },
+                "isSold": {
+                    "type": "boolean"
+                },
+                "isWishlist": {
+                    "type": "boolean"
+                },
+                "material": {
+                    "$ref": "#/definitions/models.Material"
+                },
+                "mint": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "notes": {
+                    "type": "string",
+                    "maxLength": 5000
+                },
+                "obverseDescription": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "obverseInscription": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "purchaseDate": {
+                    "type": "string"
+                },
+                "purchaseLocation": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "purchasePrice": {
+                    "type": "number"
+                },
+                "rarityRating": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "referenceText": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "referenceUrl": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "references": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.CoinReferenceRequest"
+                    }
+                },
+                "reverseDescription": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "reverseInscription": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "ruler": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "soldDate": {
+                    "type": "string"
+                },
+                "soldPrice": {
+                    "type": "number"
+                },
+                "soldTo": {
+                    "type": "string"
+                },
+                "storageLocationId": {
+                    "type": "integer"
+                },
+                "weightGrams": {
+                    "type": "number"
+                }
+            }
+        },
         "handlers.CoinDeletedResponse": {
             "type": "object",
             "properties": {
@@ -7999,6 +8116,31 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.CoinReferenceRequest": {
+            "type": "object",
+            "properties": {
+                "catalog": {
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "invoiceNumber": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "number": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "uri": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "volume": {
+                    "type": "string",
+                    "maxLength": 64
+                }
+            }
+        },
         "handlers.CoinReferenceUpsertRequest": {
             "type": "object",
             "properties": {
@@ -8065,6 +8207,123 @@ const docTemplate = `{
                 },
                 "sourceUrl": {
                     "type": "string"
+                }
+            }
+        },
+        "handlers.CoinUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "$ref": "#/definitions/models.Category"
+                },
+                "currentValue": {
+                    "type": "number"
+                },
+                "denomination": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "diameterMm": {
+                    "type": "number"
+                },
+                "era": {
+                    "maxLength": 64,
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Era"
+                        }
+                    ]
+                },
+                "grade": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "isPrivate": {
+                    "type": "boolean"
+                },
+                "isSold": {
+                    "type": "boolean"
+                },
+                "isWishlist": {
+                    "type": "boolean"
+                },
+                "material": {
+                    "$ref": "#/definitions/models.Material"
+                },
+                "mint": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "notes": {
+                    "type": "string",
+                    "maxLength": 5000
+                },
+                "obverseDescription": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "obverseInscription": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "purchaseDate": {
+                    "type": "string"
+                },
+                "purchaseLocation": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "purchasePrice": {
+                    "type": "number"
+                },
+                "rarityRating": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "referenceText": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "referenceUrl": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "references": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.CoinReferenceRequest"
+                    }
+                },
+                "reverseDescription": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "reverseInscription": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "ruler": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "soldDate": {
+                    "type": "string"
+                },
+                "soldPrice": {
+                    "type": "number"
+                },
+                "soldTo": {
+                    "type": "string"
+                },
+                "storageLocationId": {
+                    "type": "integer"
+                },
+                "weightGrams": {
+                    "type": "number"
                 }
             }
         },

@@ -28,8 +28,8 @@ implementation detail — that lives in the eventual `plan.md`.
 
 Name the binding Principles and operational sections this work touches, e.g.:
 
-- Principle I (Layered Architecture) — new repo/service/handler trio
-- Principle XI (Security Hardening) — input validation on new endpoint
+- Principle I (Clear Layered Architecture) — new repo/service/handler trio
+- Principle V (Security, Auth, and Privacy by Default) — input validation on new endpoint
 - §17 Quality Gate, §21 Definition of Done
 
 ## Open questions
