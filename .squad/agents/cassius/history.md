@@ -488,3 +488,11 @@ Addressed two CodeQL `go/request-forgery` alerts on `client.Do(req)` calls in `P
 - SSRF protection requires **layered defense**: URL validation + DNS-time IP blocking + connect-time validation + redirect validation
 - DNS rebinding attacks require per-connection resolution (no client-side DNS caching) — this was already implemented
 - Comprehensive CIDR blocklist protects against cloud metadata endpoints (169.254.169.254), private networks, and special-use ranges
+
+## 2026-06-09 — Custom Catalog Era Validation Fix
+
+**Learnings:**
+- `models.Coin.Era` must not use Gin `oneof` binding because `PUT /api/coins/:id` binds directly to `models.Coin` before service validation; static binding rejected registry-defined custom eras too early.
+- Coin era validation now lives in `src/api/services/coin_service.go`: built-in eras (`ancient`, `medieval`, `modern`) are always accepted, and other non-empty values must exist in `CatalogRegistry` via `repository.CatalogRegistryRepository.EraExists`.
+- Catalog era validation now lives in `src/api/services/catalog_registry_service.go`: catalog entries accept any trimmed non-empty era up to 64 characters, enabling data-driven expansion without code rewrites.
+- Regression coverage: `src/api/handlers/coin_handler_test.go` verifies update accepts a custom registry era, `src/api/services/coin_service_test.go` verifies service accept/reject behavior, and `src/api/services/catalog_registry_service_test.go` verifies custom catalog eras can be defined.
