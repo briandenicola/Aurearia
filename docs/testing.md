@@ -20,33 +20,33 @@ This document is the canonical testing strategy for Ancient Coins. It explains w
 |---|---|---|---|---|---|
 | Go API | Architecture | `go test` | `src/api/architecture_test.go` | `cd src/api && go test -v -run "TestNoDirectDatabaseImports|TestHandlersDoNotUseRawSQL|TestPackageImportMatrix" .` | 1 file / 3 tests enforcing DI-only database access, no raw SQL in handlers, and the package import matrix. |
 | Go API | Unit + package-level behavior | `go test` | `src/api/{handlers,middleware,repository,services}/*_test.go` | `cd src/api && go test -v ./...` | 14 files / 115 tests: handlers 30, middleware 10, repository 23, services 52. Uses `httptest`, Gin test routers, and in-memory SQLite. |
-| Go API | Dedicated integration / E2E | None today | None today | N/A | No cross-process integration suite or browser E2E suite exists. The closest coverage is handler HTTP tests and DB-backed repository/service tests. |
+| Go API | Dedicated integration / E2E | None today | None today | N/A | No cross-process backend integration suite exists. The closest API coverage is handler HTTP tests and DB-backed repository/service tests. |
 | Vue Web | Type checking | `vue-tsc` | `src/web/package.json`, `src/web/src/**` | `cd src/web && npx vue-tsc --noEmit` | CI gate for compile-time contract safety. Use it, but do not stop there. |
 | Vue Web | Lint | ESLint | `src/web/package.json`, `src/web/eslint.config.*` if present | `cd src/web && npm run lint` | Static linting gate; the script exists even though the current CI workflow does not run it yet. |
 | Vue Web | Unit / component / store / API tests | Vitest + Vue Test Utils | `src/web/src/**/__tests__/*` | `cd src/web && npm run test` | 8 files / 61 tests: API client 24, auth store 17, components 10, pages 3, design-token enforcement 7. Mocks browser APIs and the API client at the boundary. |
 | Vue Web | Build parity | `vite` + `vue-tsc --build` | `src/web/package.json` | `cd src/web && npm run build` | Production build gate. This is stricter than `vue-tsc --noEmit`; nullable props and indexed access that pass locally can still fail here. |
-| Vue Web | Browser E2E | None today | No `e2e/`, Playwright, or Cypress config found | N/A | No browser automation suite is configured today. |
+| Vue Web | Browser workflows | Playwright | `src/web/e2e/` | `task test-critical-workflows` | Deterministic F013 smoke coverage for login/session setup, manual add coin, edit-one-field, storage-location set/clear, tags/sets, upload/delete image, collection search/filter, and mobile viewport edit workflows with mocked API routes and golden fixtures. |
 | Python Agent | Lint | Ruff | `src/agent/app/`, `src/agent/tests/`, `src/agent/pyproject.toml` | `cd src/agent && ruff check app/ tests/` | Import order, correctness, and style rules for the deterministic Python surface. |
 | Python Agent | Unit / contract tests | pytest | `src/agent/tests/test_*.py` | `cd src/agent && pytest tests/ -v` | 6 files / 35 tests covering FastAPI request validation, Pydantic models, retry logic, streaming helpers, availability parsing, and supervisor location context. |
 | Python Agent | Static type checking | None configured today | `src/agent/pyproject.toml` | N/A | No `mypy` or `pyright` config is present; schema validation and pytest carry the current contract burden. |
 
 Notes:
 - `grep -rln "httptest\|testserver\|integration" src/api --include="*_test.go"` finds handler and middleware HTTP tests, but no dedicated integration package.
-- `find src/web -iname '*playwright*' -o -iname '*cypress*' -o -path '*/e2e/*'` returns nothing.
+- Browser workflow tests live in `src/web/e2e/` and run with Playwright.
 - `pytest tests/ --collect-only -q` currently collects 35 agent tests across 6 files.
 
 ## 3. What we DON'T test
 
 - We do **not** test SQLite, GORM, Gin, Vitest, FastAPI, or LangGraph themselves; we test our usage of them.
 - We do **not** hit third-party services in automated tests. Anthropic, Ollama, SearXNG, NumisBids, and Pushover should be mocked or stubbed at the service boundary.
-- We do **not** have a true browser E2E suite today. That is an honest gap, not hidden coverage.
+- Browser workflow tests are deterministic smoke checks with mocked APIs; they do **not** require a live backend or production data.
 - We do **not** attempt deterministic end-to-end assertions for LLM quality. For agent work we test input validation, parsing, retry behavior, routing helpers, and schema-shaped outputs.
 - We do **not** add tests for trivial getters or thin pass-through code just to raise coverage numbers.
 
 ## 4. Test Pyramid Shape
 
 ```text
-        E2E / browser-wide (none today; rare by design)
+        Deterministic browser smoke (F013 Playwright workflows)
       Integration / cross-package / DB-backed flows
    Unit + contract tests per package, component, store, route, helper
 Architecture tests and type/lint gates (cheapest, fastest, most structural)
@@ -89,6 +89,7 @@ For AI features, the top of the pyramid is intentionally shallow: we test determ
 ## 6. Running tests locally vs. CI
 
 - Start from the task runner when possible: `task test` (Go), `task build` (Go + web build), `task test-agent`, and `task lint-agent` from [`../Taskfile.yml`](../Taskfile.yml).
+- Run critical browser workflows from the repository root with `task test-critical-workflows`. The target delegates to the existing web package script, `npm run test:browser`.
 - Frontend tests and lint currently live in npm scripts documented in [`../src/web/README.md`](../src/web/README.md): `npm run test`, `npm run lint`, `npm run build`, `npm run type-check`.
 - The current Quality Gate workflow lives at [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml). Today it runs Go build/vet/architecture tests, Vue `vue-tsc --noEmit`, and Python Ruff + pytest.
 - Local expectations are intentionally stricter than the current CI file in a few places: the Constitution still expects full `go test ./...` and `npm run build` before you call work done.
@@ -100,7 +101,77 @@ We do **not** gate PRs on a repo-wide coverage percentage. Coverage is a signal 
 
 Constitution §21.6 is the operative rule: **"every new service method has ≥ 1 unit test."** That pushes effort toward critical paths, invariants, and regressions instead of padding helpers with low-value tests. Use `go test ./... -cover` as a diagnostic when helpful, but do not treat a single percentage as proof of safety.
 
-## 8. Cross-references
+## 8. F013 golden collection fixtures
+
+F013 defines shared "golden" coin fixtures for deterministic backend and frontend workflow tests (Principle III, Principle IV, Principle IX). The fixture matrix covers:
+
+| Fixture | Required traits |
+|---|---|
+| `roman-denarius-core` | Roman |
+| `greek-tetradrachm-valued` | Greek, valued |
+| `byzantine-solidus-set-member` | Byzantine, set-member |
+| `wishlist-aureus-target` | Roman, wishlist, valued |
+| `sold-sestertius-archive` | Roman, sold |
+| `private-provincial-bronze` | Roman, private, legacy/custom-era |
+| `tagged-follis-storage` | Roman, tagged, storage-location |
+| `image-heavy-drachm` | Greek, image-heavy |
+| `reference-rich-denarius` | Roman, reference-rich, set-member |
+
+### Backend usage
+
+- Import `src/api/testutil`.
+- Use `BuildGoldenCoinFixture(name, userID)`, named helpers such as `BuildTaggedFollisStorage(userID)`, or `BuildGoldenCoinFixtures(userID)` for in-memory model tests.
+- Use `PersistGoldenCollection(db, userID)` when a migrated test database needs coins plus valid storage locations, tags, sets, set memberships, images, and references.
+- Formal coverage check: `src/api/testutil/coin_fixtures_test.go` verifies required traits, clone safety, and persisted associations.
+
+### Frontend usage
+
+- Import from `src/web/src/test/fixtures`.
+- Use `buildGoldenCoinFixture(name)`, named helpers such as `buildImageHeavyDrachm()`, or `buildGoldenCoinFixtures()` for Vitest/component data.
+- Use `buildTestStorageLocations()`, `buildTestTags()`, and `buildTestCoinSets()` when a test needs the related lookup catalogs.
+- Formal coverage check: `src/web/src/test/fixtures/coins.test.ts` verifies required traits, clone safety, and key associations.
+
+### Critical browser workflow command
+
+Run the F013 browser workflow suite from the repository root:
+
+```bash
+task test-critical-workflows
+```
+
+The Taskfile target runs `npm run test:browser` in `src/web`, which starts the Vite dev server through `playwright.config.ts`. No live API, database, or production data is required: `src/web/e2e/fixtures/workflow.ts` installs an authenticated test session, mocks `/api/*` routes, and seeds the test with golden fixtures from `src/web/src/test/fixtures`.
+
+Current workflow coverage:
+
+- login stores the authenticated session and opens the collection
+- authenticated setup helper opens protected workflows without a live backend
+- manual add-coin save payload
+- edit-one-field payload preservation
+- storage-location change and clear behavior
+- detail-page tag and set add/remove behavior
+- upload/delete image routes and detail rendering
+- collection search and category/tag filter queries
+- mobile viewport edit save flow without desktop-only controls
+
+Current F013 validation commands:
+
+```bash
+# From the repository root
+task test-critical-workflows
+
+# From src/api/
+go test -v ./...
+go vet ./...
+
+# From src/web/
+npm.cmd run type-check
+npm.cmd test -- --run
+npm.cmd run test:browser
+```
+
+The browser workflow suite uses Playwright with mocked API routes and golden fixtures from `src/web/src/test/fixtures`.
+
+## 9. Cross-references
 
 - Constitution: [`../.specify/memory/constitution.md`](../.specify/memory/constitution.md) (especially Principle X, §17, and §21)
 - System architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)
@@ -111,5 +182,4 @@ Constitution §21.6 is the operative rule: **"every new service method has ≥ 1
 - Task runner: [`../Taskfile.yml`](../Taskfile.yml)
 
 TODOs:
-- Browser E2E smoke coverage is still missing. If we promote it to backlog, file it as `specs/_backlog/F011-browser-e2e-smoke-tests.md`.
 - Python static type checking is still absent. If we promote it to backlog, file it as `specs/_backlog/F012-agent-static-type-checking.md`.

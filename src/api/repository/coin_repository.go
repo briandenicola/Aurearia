@@ -337,17 +337,23 @@ func (r *CoinRepository) Create(coin *models.Coin) error {
 	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(coin, coin.ID).Error
 }
 
-// Update applies changes to an existing coin and reloads it with images.
-func (r *CoinRepository) Update(existing *models.Coin, updates *models.Coin) error {
+// Update applies a scalar patch to an existing coin and reloads read associations.
+// When selectFields are supplied, only those fields are persisted, including
+// explicit zero values; relationship changes stay on their dedicated paths.
+func (r *CoinRepository) Update(existing *models.Coin, updates *models.Coin, selectFields ...string) error {
 	// Relationship changes are managed through dedicated tag/set methods.
 	// Coin sets require explicit membership writes because AddedAt is NOT NULL.
-	if err := omitCoinRelationships(r.db.Model(existing)).Updates(updates).Error; err != nil {
+	query := omitCoinRelationships(r.db.Model(existing))
+	if len(selectFields) > 0 {
+		query = query.Select(selectFields)
+	}
+	if err := query.Updates(updates).Error; err != nil {
 		return err
 	}
 	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(existing, existing.ID).Error
 }
 
-// UpdateField updates a single field on a coin.
+// UpdateField updates one explicit column without syncing loaded associations.
 func (r *CoinRepository) UpdateField(coin *models.Coin, field string, value interface{}) error {
 	if err := omitCoinRelationships(r.db.Model(coin)).Update(field, value).Error; err != nil {
 		return err
@@ -355,7 +361,7 @@ func (r *CoinRepository) UpdateField(coin *models.Coin, field string, value inte
 	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(coin, coin.ID).Error
 }
 
-// UpdateFields updates multiple fields on a coin using a map.
+// UpdateFields updates multiple explicit columns, including zero/nil values, without syncing loaded associations.
 func (r *CoinRepository) UpdateFields(coin *models.Coin, updates map[string]interface{}) error {
 	if err := omitCoinRelationships(r.db.Model(coin)).Updates(updates).Error; err != nil {
 		return err
@@ -363,12 +369,25 @@ func (r *CoinRepository) UpdateFields(coin *models.Coin, updates map[string]inte
 	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(coin, coin.ID).Error
 }
 
-// UpdateStorageLocationID updates a coin storage-location foreign key, including clearing it.
+// UpdateStorageLocationID updates only the storage-location foreign key, including clearing it.
 func (r *CoinRepository) UpdateStorageLocationID(coin *models.Coin, storageLocationID *uint) error {
-	if err := omitCoinRelationships(r.db.Model(coin)).Update("storage_location_id", storageLocationID).Error; err != nil {
+	query := r.db.Model(&models.Coin{}).Where("id = ? AND user_id = ?", coin.ID, coin.UserID)
+	if storageLocationID == nil {
+		if err := query.Update("storage_location_id", nil).Error; err != nil {
+			return err
+		}
+	} else {
+		if err := query.Update("storage_location_id", *storageLocationID).Error; err != nil {
+			return err
+		}
+	}
+	if err := r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(coin, coin.ID).Error; err != nil {
 		return err
 	}
-	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(coin, coin.ID).Error
+	if storageLocationID == nil {
+		coin.StorageLocation = nil
+	}
+	return nil
 }
 
 // Delete removes a coin and all associated data (images, journals, value

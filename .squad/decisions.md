@@ -2,6 +2,311 @@
 
 ## Active Decisions
 
+### Decision: F013 Defines Deterministic Critical Workflow Baseline
+
+**Date:** 2026-06-09
+**Agent:** Maximus
+**Status:** Proposed for ledger merge
+
+## Context
+
+The Agentic Excellence Roadmap promotes F013 before F011. F013 must harden ordinary coin create/edit workflows and provide the stable fixture/workflow baseline that later AI-driven browser testing can explore.
+
+## Decision
+
+F013 owns deterministic scripted workflow coverage and golden fixture shape. F011 remains the follow-up for LLM-driven exploratory browser testing after F013 establishes repeatable fixtures and critical workflows.
+
+## Constitution Alignment
+
+- Principle IV: keeps the first slice simple, complete, and proportional.
+- Principle IX: converts critical workflow memory into repeatable checks.
+- §0: active spec `specs/220-critical-workflow-hardening/` now outranks the F013 backlog card.
+
+---
+
+### Decision: Aurelia F013 Frontend Inventory — AE015, AE018-AE028
+
+**Date:** 2026-06-09
+
+## Constitution alignment
+
+- Principle III: frontend mutation tests need explicit, typed create/update contracts instead of broad `Partial<Coin>` assumptions.
+- Principle IV: first pass should inventory and fixture the real workflow boundaries before rewriting add/edit pages.
+- Principle VI: browser coverage must include desktop and PWA/mobile variants.
+- Principle IX: critical collection workflows should become deterministic tests, not reviewer memory.
+
+## Current add/edit workflow boundaries
+
+### Manual add
+
+- Entry point: `src/web/src/pages/AddCoinPage.vue` renders `CoinForm` when `entryMode === 'manual'`.
+- Initial payload source: `createEmptyForm()` includes identity, physical, inscription, purchase/value, reference, privacy, wishlist, and `storageLocationId`.
+- Submit path: `handleManualSubmit()` calls `store.addCoin(buildCoinPayload(form))`, uploads obverse/reverse via `uploadImage()`, optionally extracts store-card text via `extractText()`, then sends a second `updateCoin()` for appended notes.
+- Browser coverage should assert the first create payload and the follow-up image/card calls separately, because the user sees one save action but the frontend performs multiple mutations.
+
+### Agentic add
+
+- Entry point: desktop users can toggle AI Assist Mode; PWA defaults to agentic mode.
+- Draft path: image files go to `createIntakeDraft()`, `normalizeDraftCoin()` maps draft fields into `reviewForm`, and `confirmDraft()` calls `commitIntakeDraft({ draftId, confirm: true, overrides: buildCoinPayload(reviewForm) })`.
+- Image path: after commit, obverse/reverse are uploaded separately. PWA camera-captured obverse/reverse pass the optional `circleClip` flag; card images are draft input only in this path.
+- Browser coverage should separate: generate draft, edit one review field before confirmation, commit override payload, upload image calls, and PWA camera/upload fallback behavior.
+
+### Edit one field
+
+- Entry point: `src/web/src/pages/EditCoinPage.vue` loads `getCoin(id)`, assigns the whole response into a reactive `Partial<Coin>`, and trims `purchaseDate` to `YYYY-MM-DD`.
+- Submit path: `handleSubmit()` sends `updateCoin(form.id!, form)` with the whole form object, then performs image deletes/uploads and optional card-note `updateCoin()`.
+- Risk: a one-field edit still sends read-side fields like images/tags/sets unless stripped later. This is the most important browser regression target for F013 because payload shaping can hide backend mutation semantics.
+
+### Storage location
+
+- `CoinForm` loads `getStorageLocations()` on mount and exposes a nullable select through `storageLocationIdModel`.
+- Empty selection maps to `null`; a selected option maps to `Number(value)`.
+- `sanitizeCoin()` also converts empty/undefined `storageLocationId` to `null` and strips read-only `storageLocation`.
+- Browser coverage should include changing from location A to B and clearing to None.
+
+### Tags and sets
+
+- Tags/sets are not part of `AddCoinPage`, `EditCoinPage`, or `CoinForm`.
+- User-facing add/remove happens after creation on `CoinDetailPage.vue` through `CoinTagsSection.vue`, using `addTagToCoin()`, `removeTagFromCoin()`, `addCoinToSet()`, and `removeCoinFromSet()`.
+- Set detail also supports adding/removing coins through `SetDetailPage.vue`.
+- F013 browser coverage should treat tags/sets as a detail-page association workflow after a coin exists, not as an edit-form workflow.
+
+### Images
+
+- `CoinForm` owns selected files, preview URLs, and removed obverse/reverse ids; parents perform API mutations after coin save/update.
+- Manual add uploads selected obverse/reverse after create. Manual edit deletes removed images, deletes replaced existing side images, and uploads replacements after update.
+- Detail-page image actions also exist in `CoinActionsPanel.vue` and `ImageLightbox.vue`, so F013 image coverage should start with form upload/delete and later include detail-page replace/delete if scope allows.
+
+### Mobile/PWA variants
+
+- PWA add defaults to agentic camera-first mode, starts `getUserMedia()` on mount, captures obverse/reverse/card slots, and falls back to file upload.
+- `CoinForm` shows capture inputs for obverse/reverse when `isPwa` is true.
+- Deterministic browser coverage should mock or stub camera APIs for PWA tests and prefer file-upload fallback for the first stable suite.
+
+## Frontend payload-shaping risks
+
+- `CoinMutationPayload` is `Partial<Omit<Coin, 'references' | 'storageLocation'>> & { references?: CoinReferenceInput[] }`, which still permits many read-side fields such as `id`, `images`, `tags`, `sets`, `createdAt`, and `updatedAt`.
+- `sanitizeCoin()` only normalizes nullable scalar fields, strips `storageLocation`, defaults `currentValue` from `purchasePrice`, and converts date-only strings. It does not strip `images`, `tags`, `sets`, ids, owner fields, status fields, or timestamps.
+- `EditCoinPage` sends the whole loaded `form`; this can mask whether a backend update path is truly typed and allow accidental broad mutation semantics.
+- `buildCoinPayload()` is safer than `sanitizeCoin()` because it allowlists fields, trims strings, and maps missing scalar values intentionally. Manual add and intake commit already use it.
+- `normalizeDraftCoin()` accepts both camelCase and snake_case draft fields and normalizes categories/materials to configured options or `Other`; browser fixtures should include an unexpected draft category/material to prove fallback behavior is intentional.
+- The card OCR path mutates notes through a second `updateCoin()` after create/edit. Tests should not confuse that notes-only request with the primary create/update request.
+
+## Proposed frontend fixture structure for AE015
+
+Use frontend-owned fixtures under `src/web/src/test/fixtures/` once implementation starts:
+
+- `coins.ts`: typed `Coin` and `CoinMutationPayload` builders for Roman, Greek, Byzantine, wishlist, sold, private, storage-location, image-heavy, legacy/custom-era, tagged, and set-member examples.
+- `files.ts`: deterministic tiny in-memory `File` helpers for obverse, reverse, and store-card uploads.
+- `intake.ts`: deterministic `IntakeDraft` examples with high-confidence, low-confidence, unresolved fields, and snake_case/camelCase field variants.
+- `storageLocations.ts`, `tags.ts`, `sets.ts`: small lookup fixtures reused by component tests and browser route mocks.
+
+Keep builders typed with overrides, e.g. `buildCoin(overrides?: Partial<Coin>): Coin`, and avoid snapshots as the main assertion mechanism.
+
+## Proposed deterministic browser workflow structure for AE018-AE028
+
+Do not add a browser framework until F013 `plan.md` selects one. If the plan chooses Playwright, the simplest structure is:
+
+```text
+src/web/
+  e2e/
+    fixtures/
+      auth.ts
+      coins.ts
+      files.ts
+    workflows/
+      login.spec.ts
+      add-coin-manual.spec.ts
+      add-coin-agentic.spec.ts
+      edit-one-field.spec.ts
+      edit-storage-location.spec.ts
+      edit-tags-sets.spec.ts
+      images.spec.ts
+      collection-search-filter.spec.ts
+      mobile-edit.spec.ts
+```
+
+Recommended deterministic design:
+
+1. Authenticate by fixture/setup helper, not by repeating the full login form in every spec.
+2. Seed a known collection before each workflow through the selected test fixture mechanism.
+3. Prefer user-visible assertions plus intercepted request payload assertions for mutation semantics.
+4. Use stable accessible labels/roles where possible; add minimal `data-testid` only where labels are ambiguous.
+5. Run desktop critical workflows first; add a separate mobile/PWA project/viewport for PWA camera fallback and mobile edit.
+6. Keep AI-assisted intake deterministic by route-mocking draft responses unless the selected plan explicitly requires full backend/agent integration.
+
+## Next frontend implementation task
+
+After Maximus promotes F013 and selects the browser tool, implement AE015 first: add typed frontend fixture builders for coins, upload files, intake drafts, storage locations, tags, and sets. Then use those fixtures to implement the AE020-AE026 browser workflows without changing `AddCoinPage` or `EditCoinPage` behavior in the same slice.
+
+---
+
+### Decision: F013 Phase 4 Uses Playwright for Deterministic Browser Smoke
+
+**Date:** 2026-06-09
+**Agent:** Aurelia
+**Status:** Ledger
+
+## Context
+
+F013 Phase 4 needs deterministic browser-level smoke coverage under `src/web/`. The current frontend stack has Vitest/jsdom and no existing browser automation pattern.
+
+## Decision
+
+Use Playwright with one Chromium project, Vite's dev server, mocked `/api/*` routes, authenticated `localStorage` setup, and frontend golden fixtures from `src/web/src/test/fixtures`. The local command is `npm run test:browser` from `src/web`.
+
+## Constitution Alignment
+
+- Principle III: keeps frontend workflow contracts explicit and type-safe at the API boundary.
+- Principle IV: adds the smallest useful browser slice without backend or UI rewrites.
+- Principle IX: converts login/add/edit workflow memory into repeatable automation.
+
+---
+
+### Decision: F013 Critical Workflow Root Command
+
+**Date:** 2026-06-09
+**Agent:** Brutus
+**Status:** Ledger
+
+## Context
+
+F013 requires one documented local Taskfile command for deterministic critical browser workflow checks. Aurelia already added the web package script `npm run test:browser` for the Playwright suite under `src/web/e2e/`.
+
+## Decision
+
+Expose the suite from the repository root as `task test-critical-workflows`. The target delegates to `npm run test:browser` in `src/web` so the Taskfile command stays ergonomic while reusing the existing package script and Playwright configuration.
+
+## Constitution Alignment
+
+- Principle III: preserves typed frontend workflow checks through the existing package script.
+- Principle IV: adds a simple root alias without changing browser test implementation.
+- Principle IX: makes the critical workflow regression suite easy to run consistently.
+
+---
+
+### Decision: Cassius F013 backend inventory (AE006-AE013)
+
+**Date:** 2026-06-09
+**Spec coordination:** Active spec `specs/220-critical-workflow-hardening/` appeared during inventory. To avoid conflicting with Maximus' freshly promoted spec/plan/tasks, this backend inventory is recorded in the decisions ledger as a permanent record.
+
+## 1. Coin create/update entry points
+
+### Primary manual REST coin mutation path
+- `POST /api/coins` -> `CoinHandler.Create` in `src/api/handlers/coins.go`.
+  - Currently binds `var coin models.Coin` via `ShouldBindJSON(&coin)`.
+  - Handler overwrites `UserID`, zeroes `ID`, clears read-side `StorageLocation`, then calls `CoinService.CreateCoin`.
+  - Service validates storage location ownership, trims/validates era, creates the coin in a transaction, optionally normalizes/creates structured references, and records a portfolio value snapshot.
+- `PUT /api/coins/:id` -> `CoinHandler.Update` in `src/api/handlers/coins.go`.
+  - Loads existing coin by owner, reads raw body only to detect explicit `storageLocationId`, then binds `var updates models.Coin` via `ShouldBindJSON(&updates)`.
+  - Handler overwrites `ID`/`UserID`, clears read-side `StorageLocation`, then calls `CoinService.UpdateCoin`.
+  - Service validates storage location only when the field was present, validates changed eras, calls repository `Update`, optionally updates storage-location FK, replaces structured references when `updates.References != nil`, records manual current-value history/journal when needed, and always records a value snapshot.
+
+### Related first-class mutation endpoints
+- `POST /api/coins/:id/purchase` -> typed `PurchaseRequest`; updates wishlist/purchase fields through `CoinService.PurchaseCoin` and records value snapshot.
+- `POST /api/coins/:id/sell` -> local typed body; updates sold fields through `CoinService.SellCoin` and records value snapshot.
+- `POST /api/coins/bulk` -> `BulkActionRequest`; can delete, mark sold, tag, set, export, or assign/clear storage location. Bulk storage-location path uses `CoinRepository.BulkAssignLocation` and does not record value snapshots.
+- `POST/DELETE /api/coins/:id/tags` -> `TagHandler.AttachToCoin` / `DetachFromCoin`; association-only path through `TagRepository`.
+- `POST/DELETE /api/sets/:id/coins` -> `SetHandler.AddCoin` / `RemoveCoin`; association-only path through `SetService`/`SetRepository`.
+- `POST/PUT/DELETE /api/coins/:id/references` -> `CoinReferenceHandler`; currently binds broad `models.CoinReference` for reference create/update, then normalizes and updates allowlisted columns. This is adjacent to F013 reference behavior but separate from coin payload DTOs.
+- `POST /api/coins/intake/commit` -> `CoinIntakeService.CommitDraft`; merges allowlisted override map, then `mapToCoin` unmarshals to `models.Coin` and creates via repository directly inside the intake transaction. It records a value snapshot and journal, but bypasses `CoinService.CreateCoin` validation for storage-location/era/reference orchestration.
+- Collection chat proposal commit -> `CollectionToolsService.CommitProposal`; applies allowlisted scalar/tag changes with raw GORM in `applyAllowedFieldChanges`, then records journal and value snapshot. It does not use `CoinService.UpdateCoin`, so current-value history/timestamp behavior may differ from manual update.
+- Agent valuation path -> `ValuationService.updateCoinValuation`; updates `current_value` and `current_value_updated_at`, records coin value history. Separate automated valuation path.
+- Availability listing status -> `AvailabilityHandler.UpdateListingStatus` / availability service; updates listing check fields only.
+
+## 2. Broad model mutation binding locations
+
+- `src/api/handlers/coins.go`: `Create` binds `models.Coin` and Swagger documents request body as `models.Coin`.
+- `src/api/handlers/coins.go`: `Update` binds `models.Coin` and Swagger documents request body as `models.Coin`.
+- Adjacent but separate: `src/api/handlers/coin_references.go` binds `models.CoinReference` in reference create/update.
+- Adjacent but service-internal: `src/api/services/coin_intake_service.go` maps merged draft data to `models.Coin` by JSON marshal/unmarshal.
+
+## 3. Simplest typed DTO direction
+
+Use explicit handler DTOs in `src/api/handlers/coin_requests.go` and keep business rules in `CoinService`:
+
+```go
+type CoinCreateRequest struct {
+    Name string `json:"name" binding:"max=200"`
+    Category models.Category `json:"category"`
+    Denomination string `json:"denomination" binding:"max=200"`
+    Ruler string `json:"ruler" binding:"max=200"`
+    Era models.Era `json:"era" binding:"omitempty,max=64"`
+    Mint string `json:"mint" binding:"max=200"`
+    Material models.Material `json:"material"`
+    WeightGrams *float64 `json:"weightGrams"`
+    DiameterMm *float64 `json:"diameterMm"`
+    Grade string `json:"grade" binding:"max=100"`
+    ObverseInscription string `json:"obverseInscription" binding:"max=1000"`
+    ReverseInscription string `json:"reverseInscription" binding:"max=1000"`
+    ObverseDescription string `json:"obverseDescription" binding:"max=2000"`
+    ReverseDescription string `json:"reverseDescription" binding:"max=2000"`
+    RarityRating string `json:"rarityRating" binding:"max=100"`
+    PurchasePrice *float64 `json:"purchasePrice"`
+    CurrentValue *float64 `json:"currentValue"`
+    PurchaseDate *time.Time `json:"purchaseDate"`
+    PurchaseLocation string `json:"purchaseLocation" binding:"max=500"`
+    Notes string `json:"notes" binding:"max=5000"`
+    ReferenceURL string `json:"referenceUrl" binding:"max=2000"`
+    ReferenceText string `json:"referenceText" binding:"max=2000"`
+    IsWishlist bool `json:"isWishlist"`
+    IsSold bool `json:"isSold"`
+    SoldPrice *float64 `json:"soldPrice"`
+    SoldDate *time.Time `json:"soldDate"`
+    SoldTo string `json:"soldTo"`
+    StorageLocationID *uint `json:"storageLocationId"`
+    IsPrivate bool `json:"isPrivate"`
+    References []CoinReferenceRequest `json:"references"`
+}
+```
+
+For update, use presence-aware fields so one-field edits do not zero omitted values and explicit clears remain possible:
+
+```go
+type CoinUpdateRequest struct {
+    // Same scalar allowlist as create, but presence-aware.
+    Name optionalString `json:"name"`
+    Era optionalEra `json:"era"`
+    CurrentValue optionalNullableFloat64 `json:"currentValue"`
+    StorageLocationID optionalNullableUint `json:"storageLocationId"`
+    References optionalSlice[CoinReferenceRequest] `json:"references"`
+    // ...other mutable coin scalar fields only.
+}
+```
+
+If generic optional helpers feel too broad for the first slice, keep the existing raw-body presence map and add small field-specific wrappers only for nullable fields (`storageLocationId`, prices/values/dates, `references`). Map DTOs to a service input or to a `models.Coin` plus explicit field-presence metadata as an interim step. Do not include read-side fields (`id`, `userId`, `storageLocation`, `images`, `tags`, `sets`, timestamps, listing-check fields unless deliberately mutable) in create/update DTOs.
+
+Important semantic choice for T007/T008: current `PUT` behaves like patch for omitted fields because GORM ignores zero-valued struct fields. Typed update should preserve patch semantics, not require full replacement.
+
+## 4. Regression tests needed
+
+Handler tests (`src/api/handlers/coin_handler_test.go`):
+1. One-field edit: seed a coin with category/material/era/storage/current value/references/tags/sets/images, send payload with only `name`, assert only `name` changes and all siblings remain.
+2. Explicit empty/zero edit: where intended, assert explicit empty string/false/zero can be applied or is rejected consistently by service rules; this is the gap broad `models.Coin` + GORM struct updates currently obscures.
+3. Storage location: update to owned location; explicit `storageLocationId:null` clears; invalid/non-owned location returns 400/404 without changing existing location or associations.
+4. Sets: sending coin update payload with `sets` must not create/replace memberships; first-class set endpoints remain responsible for membership writes and preserve `AddedAt`.
+5. Tags: sending coin update payload with `tags` must not replace tag memberships unless the promoted spec explicitly chooses that behavior; first-class tag/bulk endpoints should be tested separately.
+6. References: update with `references` replaces structured refs through `CoinService.UpdateCoin`; omitted references leave existing refs untouched; empty `references: []` clears refs if that remains intended.
+7. Legacy/custom eras: custom registry era accepted; unsupported changed era rejected; unchanged legacy era preserved during unrelated edits.
+8. Value snapshots/history: create records one portfolio snapshot; update records a snapshot; manual current-value change records `CoinValueHistory`, journal, and `CurrentValueUpdatedAt`; `source=estimate` skips manual history/timestamp; unrelated one-field edits do not create coin value history.
+9. Broad-field rejection/ignore: payload fields such as `id`, `userId`, `images`, `storageLocation`, `createdAt`, and `updatedAt` cannot mutate persisted data.
+
+Repository tests (`src/api/repository/coin_repository_test.go`):
+1. Association-safe scalar update with loaded `Tags`, `Sets`, `References`, `Images`, and `StorageLocation` preserves join rows/child rows.
+2. `UpdateField`, `UpdateFields`, and `UpdateStorageLocationID` have distinct documented purposes or are covered by a table test proving none syncs loaded many-to-many associations.
+3. `Update`/future typed update map can explicitly clear nullable scalar fields and storage location without touching associations.
+4. `RecordValueSnapshot` excludes wishlist/sold as currently intended and captures changed totals after create/update/delete/sell/purchase paths.
+
+Existing partial coverage already present: set membership preservation, storage-location with set preservation, custom registry era, unchanged legacy era, repository update helper association safety, and value snapshot basics. Recent local check: `go test ./handlers -run TestCoinHandler_Update_StorageLocationWithSetsPreservesMemberships -count=1` passed.
+
+## 5. Next coding task
+
+Start T007/T008 with tests first: add `TestCoinHandler_Update_OneFieldPreservesAssociationsAndReadOnlyFields`, then introduce typed `CoinUpdateRequest` mapping that keeps patch semantics and ignores read-side fields. After that, add create DTO and update Swagger/OpenAPI under T013.
+
+Validation note: Current targeted handler regressions for storage-location/set preservation, explicit storage clear, structured reference replacement, custom registry era, and unchanged legacy era passed with `go test ./handlers -run 'TestCoinHandler_Update_(StorageLocationWithSetsPreservesMemberships|ClearsStorageLocationWhenExplicitNull|ReplacesStructuredReferences|CustomRegistryEraAccepted|PreservesUnchangedLegacyEra)$' -count=1 -timeout 20s`.
+
+---
+
 ### Decision: Camera Capture Modal Extraction
 
 **Date:** 2026-06-02
@@ -5937,7 +6242,7 @@ Added two new backend settings to allow user-defined category and era option lis
 1. **`CoinCategories`** (key: `"CoinCategories"`)
    - Default: `"Roman\nGreek\nByzantine\nModern\nOther"`
    - Format: Newline-delimited list of category names
-   
+
 2. **`CoinEras`** (key: `"CoinEras"`)
    - Default: `"ancient\nmedieval\nmodern"`
    - Format: Newline-delimited list of era names
@@ -5987,8 +6292,8 @@ All tests pass. Settings follow the existing pattern of default fallback when no
 
 # Decision: Configurable Category, Era, and Material Options (Frontend)
 
-**Date:** 2026-06-07  
-**Agent:** Aurelia (Frontend Developer)  
+**Date:** 2026-06-07
+**Agent:** Aurelia (Frontend Developer)
 **Status:** Implemented
 
 ## Context
@@ -6105,10 +6410,10 @@ Remove lines 93–95 entirely. The explicit prop bindings with nullish coalescin
 
 # Decision: Coin Lookup Feature Architecture
 
-**Date**: 2026-06-07  
-**Author**: Maximus (Lead/Architect)  
-**Status**: Proposed  
-**Scope**: Feature design  
+**Date**: 2026-06-07
+**Author**: Maximus (Lead/Architect)
+**Status**: Proposed
+**Scope**: Feature design
 
 ## Context
 
@@ -6277,7 +6582,7 @@ Status: `CoinReference` exists but no Numista catalog type.
 
 **Architecture:**
 ```
-User uploads photo → AI Intake Draft (existing) 
+User uploads photo → AI Intake Draft (existing)
   → Extract keywords (ruler, denomination, era)
   → Query Numista search (existing handler logic)
   → Enrich draft response with Numista candidates
@@ -6460,9 +6765,9 @@ const draft = ref<IntakeDraft | null>(null)
 
 ### Decision: Custom Catalog Era Validation
 
-**Date:** 2026-06-09  
-**Agent:** Cassius (Backend Developer)  
-**Status:** Complete  
+**Date:** 2026-06-09
+**Agent:** Cassius (Backend Developer)
+**Status:** Complete
 
 ## Problem
 
@@ -6508,3 +6813,452 @@ Coin model enforced static era values (`ancient`, `medieval`, `modern`) via Gin 
 - Custom catalog feature can now proceed
 - Frontend coin forms can accept registry-defined eras
 - No breaking changes to existing coin creation/update APIs
+
+---
+
+### Decision: F013 Typed Coin DTO Contract
+
+**Date:** 2026-06-09
+**Agent:** Cassius (Backend Developer)
+**Status:** Implemented & Approved
+
+## Problem
+
+Coin create/update handlers were binding broad `models.Coin` payloads from JSON requests, allowing unknown/read-side fields to flow through to the database layer, risking data corruption and inconsistent editor workflows.
+
+## Solution
+
+Implemented explicit `CoinCreateRequest` and `CoinUpdateRequest` DTOs:
+
+- **CoinCreateRequest:** Allowlists identity, physical, inscription, purchase/value, reference, privacy, wishlist, storageLocationId fields
+- **CoinUpdateRequest:** Same allowlisted fields for PATCH semantics
+- Both DTOs **exclude** read-side associations (images, tags, sets, storageLocation), ownership/id/timestamps, listing-check fields, and AI analysis fields
+- Unknown/read-side fields are **ignored** by handler binding, preserving compatibility with current frontend edit form
+
+## Key Decisions
+
+1. **Update keeps existing patch-like semantics** by mapping only present DTO fields to model-shaped service input
+2. **storageLocationId retains explicit presence detection** so omitted leaves existing value unchanged, explicit null clears
+3. **Structured references remain allowlisted** mutation field continuing through `CoinService.UpdateCoin` normalization/replacement
+
+## Architecture Compliance
+
+- ✅ **Principle I (Layered Architecture):** Handlers remain thin; business rules stay in `CoinService`; persistence stays in repositories
+- ✅ **Principle III (Explicit DTO Contracts):** Public create/update inputs are explicit DTO schemas
+- ✅ **Principle IV (Simple Complete Changes):** Compatibility-preserving typed contract change without broad rewrite
+
+## Files Changed
+
+- `src/api/handlers/coin_requests.go` (new)
+- `src/api/handlers/coins.go` (handler layer)
+- `src/api/services/coin_service.go` (passthrough layer)
+- OpenAPI artifacts regenerated
+
+## Validation
+
+- ✅ `go test -v ./...` passed
+- ✅ `go vet ./...` passed
+- ✅ Architecture tests pass (layered imports enforced)
+
+---
+
+### Decision: F013 Coin Updates Use Presence-Aware Select Fields
+
+**Date:** 2026-06-09
+**Agent:** Brutus (QA)
+**Status:** Implemented & Approved
+
+## Problem
+
+The typed DTO slice was blocked because `Updates(models.Coin)` ignored explicit Go zero values. A collector can intentionally submit `false`, `""`, or `0`, and omitted fields must still preserve existing values.
+
+## Solution
+
+HTTP update path now maps present DTO fields to explicit GORM `Select` field list:
+
+1. **Handler detects request-field presence** via JSON struct tags or manual checks
+2. **Maps present fields to string array** for GORM `Select()`
+3. **CoinRepository.Update uses Select()** to persist only those fields, including zero values
+4. **Storage-location null clears** remain on dedicated service/repository path
+5. **Structured reference replacement** remains on dedicated service/repository path
+
+## Key Decisions
+
+1. **Presence-aware update map** ensures false booleans, empty strings, and numeric zeros persist while omitted fields remain unchanged
+2. **Omitted fields automatically preserved** via GORM default behavior when Select is used
+3. **Dedicated paths for complex updates:** storageLocationId clear and references replacement stay on service/repo paths
+
+## Architecture Compliance
+
+- ✅ **Principle I (Layered Architecture):** Handlers parse presence, services orchestrate rules, repositories own persistence
+- ✅ **Principle III (Explicit DTO Contracts):** Typed DTO contracts remain explicit
+- ✅ **Principle IV (Simple Complete Changes):** Fixes blocked workflow without broad rewrite
+- ✅ **Principle IX (Critical Workflow Memory):** Handler and repository regressions enforce zero-value persistence
+
+## Files Changed
+
+- `src/api/handlers/coin_requests.go` (DTO presence detection)
+- `src/api/repository/coin_repository.go` (Select path)
+- `src/api/handlers/coin_handler_test.go` (handler regressions)
+- `src/api/repository/coin_repository_test.go` (repository regressions)
+
+## Validation
+
+- ✅ Coordinator ran `go test -v ./...`, `go vet ./...`, `git diff --check`
+- ✅ All tests passed
+- ✅ No regressions
+
+---
+
+### Decision: F013 Coin Update Nullable Scalar Semantics
+
+**Date:** 2026-06-09
+**Agent:** Aurelia (Frontend acting as independent revision owner)
+**Status:** Implemented & Approved
+
+## Problem
+
+Nullable scalar JSON `null` semantics were not explicit and regression-tested. The frontend already normalizes empty nullable form values toward `null`, while omitted update fields must preserve existing database values.
+
+## Solution
+
+For `CoinUpdateRequest`, explicit JSON `null` clears **allowlisted nullable scalar fields**:
+- purchasePrice
+- currentValue
+- purchaseDate
+- soldPrice
+- soldDate
+- weightGrams
+- diameterMm
+
+**Omitted fields preserve existing values.** `storageLocationId: null` remains dedicated storage-location clear path. `references` replacement remains dedicated service/repository path.
+
+## Key Decisions
+
+1. **Allowlist approach** provides explicit control without ambiguity
+2. **Omitted field preservation** follows standard PATCH semantics (safe for edit workflows)
+3. **Dedicated paths remain** for storageLocationId clear and references replacement (avoid coupling)
+
+## Handler & Repository Regressions
+
+Added comprehensive coverage for:
+1. JSON null clears allowlisted nullable scalar field
+2. Omitted field preserves existing value
+3. storageLocationId null clear works through dedicated path
+4. References replacement works through dedicated path
+5. Null persistence for each allowlisted nullable scalar
+6. Omitted field preservation
+
+## Architecture Compliance
+
+- ✅ **Principle I (Layered Architecture):** Handlers detect presence, services orchestrate rules, repositories persist
+- ✅ **Principle III (Explicit DTO Contracts):** Update semantics are explicit for typed DTO fields
+- ✅ **Principle IV (Simple Complete Changes):** Direct presence tracking is smallest complete fix
+- ✅ **Principle IX (Critical Workflow Memory):** Handler + repository regressions cover the behavior
+
+## Files Changed
+
+- `src/api/handlers/coin_requests.go` (CoinUpdateRequest null handling)
+- `src/api/handlers/coin_handler_test.go` (handler regressions)
+- `src/api/repository/coin_repository_test.go` (repository regressions)
+- `specs/220-critical-workflow-hardening/spec.md` (documented semantics)
+- `specs/220-critical-workflow-hardening/plan.md` (documented semantics)
+- `specs/220-critical-workflow-hardening/tasks.md` (task status updated)
+
+## Validation
+
+- ✅ Coordinator ran `go test -v ./...`, `go vet ./...`, `git diff --check`
+- ✅ All tests passed
+- ✅ No regressions
+
+---
+
+### Decision: Simple Complete Changes governance amendment
+
+**By:** Brian DeNicola (via Copilot)
+**Date:** 2026-06-09
+**Status:** Affirmed
+
+**What:** Consolidate project governance into a Principles-based Constitution with Principle IV as the "Simple Complete Changes" guardrail: changes must be simple, direct, complete, and proportional.
+
+**Why:** Recent coin edit regressions and F013 batch demonstrated the need for an explicit guardrail against both hopeful narrow patches and clever oversized fixes. Changes should stay simple and easy for humans to understand.
+
+**References:** Constitution Principles I-XIII, §17 Quality Gate, §21 Definition of Done, §22 Amendment Process.
+
+---
+
+### Decision: Regression Test Pattern — Join Tables with Custom Timestamps
+
+**Date:** 2026-06-09
+**Author:** Brutus (Tester)
+**Status:** Approved
+**Context:** Backend regression coverage for T011/T012 (typed DTO mutations)
+
+When testing GORM models with many-to-many relationships that have custom timestamp fields beyond CreatedAt/UpdatedAt (like `CoinTag.added_at` or `CoinSetMembership.AddedAt`), **regression tests must verify that Update operations preserve those timestamps**.
+
+**Pattern:**
+```go
+// BAD: Naive GORM Update replaces associations without custom timestamps
+coin.Sets = []CoinSet{newSet}
+db.Model(&coin).Updates(coin)  // Deletes old memberships, inserts new ones with NULL AddedAt → constraint violation
+
+// GOOD: Omit associations from Update, manage via dedicated methods
+db.Model(&coin).Omit("Tags", "Sets").Updates(coin)  // Preserve existing memberships
+setRepo.AddCoinToSet(...)  // Properly sets AddedAt
+```
+
+**Test Requirements:**
+1. Join table models in `setupTestDB` (e.g., `db.AutoMigrate(&models.CoinSetMembership{})`)
+2. Verify timestamps survive updates
+3. Verify Update ignores association fields
+
+**Applied to:** `CoinTag` (many-to-many with `added_at`), `CoinSetMembership` (many-to-many with `AddedAt`)
+
+**Impact:** If future developer removes `Omit("Tags", "Sets")` from `CoinRepository.Update`, these tests will catch the regression immediately.
+
+---
+
+### Decision: Coin Lookup UX — Navigation & Wishlist Integration
+
+**Date:** 2026-06-07
+**Author:** Aurelia (Frontend Developer)
+**Status:** Proposed
+**Scope:** UX criteria for Coin Lookup feature navigation and save-to-wishlist flows
+
+**Main Decisions:**
+1. **Main Menu Entry:** Add "Lookup Coin" to sidebar nav (between "Add Coin" and "Wishlist"), route to `/lookup`
+2. **Wishlist Page Action:** Add "Lookup Coin" button in header (desktop + PWA variants)
+3. **Lookup Page Route:** `/lookup` with `LookupPage.vue` component
+4. **Mobile/PWA:** Camera access using Permissions API + `getUserMedia({ video: { facingMode: { ideal: 'environment' }}})`
+5. **Photo Capture:** 2-column layout (obverse/reverse), no circle-clip (lookup photos for identification only)
+6. **SSE Streaming:** Use `fetch` + manual SSE parsing (consistent with agent chat pattern)
+7. **Save-to-Wishlist Result:** Create coin with `isWishlist: true`, pre-filled from lookup result, show success toast, stay on page for next lookup
+8. **Design Tokens:** All colors, spacing, button classes from `variables.css` and `main.css`
+
+**Mobile-First Focus:** Coin show environment is primary use case
+
+**Architecture Compliance:** Principle IV (strict typing), Principle V (design tokens), Principle XIII (PWA mobile)
+
+---
+
+### Decision: NGC-Required Coin Lookup MVP Path
+
+**Date:** 2026-06-07
+**Agent:** Cassius (Backend Developer)
+**Status:** Proposed — awaiting Brian approval
+**Context:** Brian selected "NGC must be included in MVP" for Coin Lookup feature
+
+**Problem:** NGC provides no public API; scraping violates ToS and Constitution Principle XI
+
+**Solution: Tiered NGC Support (4 Safe Paths)**
+
+1. **Path 1: Certification Field + Deep-Link (MVP baseline)**
+   - Add optional `CertificationNumber` and `CertificationService` fields to Coin
+   - Display cert badge; click → opens NGC cert lookup in new tab
+   - User manually enters cert data or via OCR
+   - Effort: 0.5 days
+
+2. **Path 2: Slab OCR + Cert Suggestion (MVP enhancement)**
+   - Use vision model to extract cert info from slab photos
+   - Pre-populate form fields; user reviews before saving
+   - Effort: 1.5 days
+
+3. **Path 3: CSV Import (deferred)**
+   - Bulk import cert data from spreadsheet
+   - Effort: 2 days
+
+4. **Path 4: Structured References (F012 post-MVP)**
+   - Store certs as `CoinReference` entries; supports multi-cert per coin
+   - Effort: 2 days
+
+**Recommended MVP:** Paths 1 + 2 (total: 2 days)
+
+**Non-Negotiables:**
+- No scraping
+- No fabricated data
+- User confirmation required for OCR results
+- Deep-link format stability verified
+- No cert number validation (store whatever user enters)
+
+**Constitution Compliance:** Principle XI (no ToS violations), §22 (legal risk mitigation)
+
+---
+
+### Decision: Coin Lookup Feature Architecture
+
+**Date:** 2026-06-07
+**Author:** Maximus (Lead/Architect)
+**Status:** Proposed
+**Scope:** Feature design and MVP architecture
+
+**MVP Flow:**
+1. User opens PWA → "Lookup Coin" action (nav or quick-action)
+2. Camera opens → capture 1-2 photos
+3. Coin Lookup Agent processes → streams identification results
+4. Agent returns: Numista candidates (top 3) + AI-inferred attribution + confidence
+5. User reviews and selects action: Add to Wishlist, Add to Collection, or Done
+
+**Data Sources (MVP):** Numista only; NGC deferred to increment 2
+
+**Architecture Components:**
+- Python LangGraph team: `coin_lookup_pipeline` with search + fetch + format nodes
+- Go service layer: coin lookup orchestration + image validation
+- Frontend: camera capture modal (reuse `CameraCaptureModal.vue`), result cards, SSE streaming
+- PWA-first design (mobile coin show use case)
+
+**Confidence Levels:** Low (< 60%), Medium (60-80%), High (> 80%)
+
+---
+
+### Decision: NGC Certification Number Extraction from Slab Photos
+
+**Date:** 2026-06-07
+**Agent:** Cassius (Backend Developer)
+**Status:** Design Proposal
+**Context:** Coin Lookup MVP — NGC Support
+
+**Implementation Path:** Vision Model Text Extraction + Structured Parsing
+
+**Why not specialized OCR/barcode libraries:**
+1. Existing vision models already extract text
+2. NGC slabs have clear, machine-readable text
+3. No QR/barcode dependencies exist in current stack
+4. Consistent with coin-card OCR pattern
+5. Regex normalization post-extraction is safer
+
+**Architecture:**
+- Python agent team: `ngc_slab_extraction.py` with vision extraction + normalization nodes
+- Go service: `NGCSlabService` proxies to Python agent, generates cert lookup URL
+- Go handler: `NGCSlabHandler` with Swagger annotations, JWT auth
+- Database: optional grading service fields in Coin model (MVP), refactor to CoinReference (post-MVP)
+- Frontend: "Extract NGC Cert" button → modal with camera/upload → shows confidence indicator → user review → save
+
+**Cert Format:** 7-8 digits, optional `-XXX` suffix; regex: `^(\d{7,8})(\-\d{3})?$`
+
+**Test Strategy:** Unit tests (normalization logic), integration tests (handler/service), manual QA (slab accuracy)
+
+**Constitution Compliance:** Principle I (layered architecture), Principle IV (strict typing), Principle XI (security)
+
+---
+
+### Decision: NGC Support Required in Coin Lookup MVP
+
+**Date:** 2026-06-07
+**Agent:** Maximus (Lead/Architect)
+**Status:** Proposed (pending Brian approval)
+**Supersedes:** Prior Numista-only recommendation
+
+**Investigation Summary:**
+- NGC has no public API for certification lookup
+- PCGS has no public API for certification lookup
+- Both offer web-based manual lookup tools only
+- Both prohibit scraping in ToS
+
+**Proposed Solution: Tiered Support (4 Paths)**
+
+Same as Cassius decision above — all paths are API-free, scrape-free, and ToS-compliant.
+
+---
+
+### Decision: GORM Association Sync Prevention for Custom Join Tables
+
+**Date:** 2026-06-09
+**Author:** Cassius (Backend Dev)
+**Status:** Implemented
+
+**Problem:** Coin updates failed with NOT NULL constraint on `coin_set_memberships.added_at` when GORM's default association sync didn't populate custom fields.
+
+**Solution:** **All repository Update methods must use `Omit("Tags", "Sets")`** to prevent automatic association sync.
+
+Join tables with custom fields must be managed through dedicated methods:
+- Sets: Use `SetRepository.AddCoinToSet()` (sets `AddedAt: time.Now()`)
+- Tags: Use tag service methods
+
+**Implementation:** Modified `coin_repository.go` Update method to use `Omit("Tags", "Sets")`
+
+**Impact:** No negative consequences; Tags/Sets already managed through dedicated endpoints
+
+---
+
+### Decision: Coin Era Validation Uses Catalog Registry
+
+**Date:** 2026-06-09
+**Agent:** Cassius (Backend Dev)
+**Status:** Implemented
+
+**Context:** Coin create/update requests rejected custom eras during Gin binding due to static `oneof` tag
+
+**Solution:** Move era validation from static Gin binding into `CoinService`, backed by `CatalogRegistry`
+
+**Implementation:**
+- Built-in eras (`ancient`, `medieval`, `modern`) remain valid
+- Custom eras valid only when present on `CatalogRegistry` row
+- `Coin.Era` and `CatalogRegistry.Era` use `varchar(64)` with max-length binding
+- Validation happens in service layer (data-driven, not static)
+
+---
+
+### Decision: Auction Ending Scheduler — Time Window & Status Case Fix
+
+**Date:** 2026-05-22
+**Agent:** Cassius (Backend Developer)
+**Status:** Implemented
+
+**Problem:** Heritage lot #8325 not detected by auction ending scheduler despite matching criteria (Brian's UTC-5 timezone crossed midnight UTC)
+
+**Root Causes:**
+1. **UTC Calendar Day Boundary:** Original query used `[startOfDay, endOfDay)` window; lots with `sale_date` exactly on exclusive upper bound were excluded
+2. **Status Case Sensitivity:** Status comparison was case-sensitive; no defense against case drift
+
+**Solution:**
+1. **Time Window:** Changed to rolling `(now, now+24h]` semantic ("ends within next 24 hours") — timezone-independent
+2. **Status Case:** Added `LOWER(status)` comparison for case-insensitive matching
+
+**Files Changed:**
+- `auction_lot_repository.go` — renamed `GetEndingToday()` → `GetEndingSoon()`
+- `auction_ending_scheduler.go` — updated method calls and messages
+- `auction_ending_debug.go` — updated debug endpoint
+- Added 10 comprehensive test cases
+
+**Validation:** All tests pass; `go vet` clean
+
+---
+
+### Decision: CodeQL SSRF Protection Suppression Pattern
+
+**Date:** 2026-06-08
+**Author:** Cassius (Backend Dev)
+**Status:** Implemented
+
+**Context:** CodeQL `go/request-forgery` alerts flagged `client.Do(req)` calls where user-provided URLs flow through validation but static taint analysis doesn't recognize validation as sanitizer
+
+**SSRF Protection Stack (Tested):**
+1. **Layer 1: URL Validation** — scheme whitelist, credential blocking, IP blocklist
+2. **Layer 2: HTTP Client** — disabled proxy, per-connection DNS resolution, post-resolution IP blocking, redirect validation
+3. **Layer 3: Comprehensive IP Blocklist** — private/loopback/link-local/special ranges
+
+**Decision:** Use inline `lgtm [go/request-forgery]` suppression comments with justification
+
+**Rationale:**
+- Protection is comprehensive and tested
+- CodeQL limitation is known (doesn't recognize custom validators)
+- Inline suppression is standard practice for false positives
+- Comments document protection for future maintainers
+
+**Implementation:** `src/api/handlers/images.go` (2 suppression comments)
+
+**Validation:** All tests pass; architecture tests pass
+
+**Team Implications:** Pattern for future CodeQL alerts; security baseline unchanged (Principle XI satisfied)
+
+---
+
+### User Directive: Simplicity Over Cleverness
+
+**Timestamp:** 2026-06-09T15:47:14Z
+**By:** Brian DeNicola (via Copilot)
+**Status:** Captured for team memory
+
+**What:** Agents must make the simplest possible fix, but not the narrowest. The codebase should stay simple, direct, and easy for a human to understand. Avoid cute, fancy, or overly clever solutions, and avoid thousand-line changes for UI bugs or property additions.
+
+**Why:** User request for sustainable code quality

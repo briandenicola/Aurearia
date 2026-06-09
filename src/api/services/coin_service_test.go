@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 
 func setupTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:coin_service_%d?mode=memory&cache=shared", time.Now().UnixNano())), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
@@ -39,6 +40,20 @@ func newTestCoinServiceWithCatalogRegistry(db *gorm.DB) *CoinService {
 	repo := repository.NewCoinRepository(db)
 	catalogRepo := repository.NewCatalogRegistryRepository(db)
 	return NewCoinService(repo, nil).WithCatalogRegistrySupport(catalogRepo)
+}
+
+func newTestCoinServiceWithStorage(db *gorm.DB) *CoinService {
+	repo := repository.NewCoinRepository(db)
+	storageRepo := repository.NewStorageLocationRepository(db)
+	return NewCoinService(repo, nil).WithStorageLocationSupport(storageRepo)
+}
+
+func newTestCoinServiceWithReferences(db *gorm.DB) *CoinService {
+	repo := repository.NewCoinRepository(db)
+	catalogRepo := repository.NewCatalogRegistryRepository(db)
+	refRepo := repository.NewCoinReferenceRepository(db)
+	refSvc := NewCoinReferenceService(refRepo, catalogRepo)
+	return NewCoinService(repo, nil).WithReferenceSupport(refRepo, refSvc)
 }
 
 func ptrFloat(v float64) *float64 { return &v }
@@ -123,6 +138,129 @@ func TestUpdateCoin_RecordsValueHistory(t *testing.T) {
 	db.Where("coin_id = ?", coin.ID).Find(&journals)
 	if len(journals) != 1 {
 		t.Fatalf("expected 1 journal entry, got %d", len(journals))
+	}
+
+	var snapshots []models.ValueSnapshot
+	if err := db.Where("user_id = ?", uint(1)).Find(&snapshots).Error; err != nil {
+		t.Fatalf("failed to query value snapshots: %v", err)
+	}
+	if len(snapshots) != 2 {
+		t.Fatalf("expected create and update value snapshots, got %d", len(snapshots))
+	}
+}
+
+func TestCreateCoin_RejectsNonOwnedStorageLocation(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinServiceWithStorage(db)
+
+	otherLocation := models.StorageLocation{UserID: 2, Name: "Other Cabinet"}
+	if err := db.Create(&otherLocation).Error; err != nil {
+		t.Fatalf("failed to seed storage location: %v", err)
+	}
+	coin := &models.Coin{
+		Name:              "Stored Coin",
+		Category:          models.CategoryRoman,
+		Material:          models.MaterialBronze,
+		UserID:            1,
+		StorageLocationID: &otherLocation.ID,
+	}
+
+	if err := svc.CreateCoin(coin); !errors.Is(err, ErrStorageLocationNotFound) {
+		t.Fatalf("expected ErrStorageLocationNotFound, got %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&models.Coin{}).Where("name = ?", "Stored Coin").Count(&count).Error; err != nil {
+		t.Fatalf("failed to count coins: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected rejected coin not to be created, got %d rows", count)
+	}
+}
+
+func TestUpdateCoin_ValidatesAndClearsStorageLocation(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinServiceWithStorage(db)
+
+	ownedLocation := models.StorageLocation{UserID: 1, Name: "Owned Cabinet"}
+	otherLocation := models.StorageLocation{UserID: 2, Name: "Other Cabinet"}
+	if err := db.Create(&ownedLocation).Error; err != nil {
+		t.Fatalf("failed to seed owned storage location: %v", err)
+	}
+	if err := db.Create(&otherLocation).Error; err != nil {
+		t.Fatalf("failed to seed other storage location: %v", err)
+	}
+	coin := &models.Coin{
+		Name:              "Stored Coin",
+		Category:          models.CategoryRoman,
+		Material:          models.MaterialSilver,
+		UserID:            1,
+		StorageLocationID: &ownedLocation.ID,
+	}
+	if err := db.Create(coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+
+	if err := svc.UpdateCoinWithFields(coin, &models.Coin{StorageLocationID: &otherLocation.ID}, nil, 1, "manual", true); !errors.Is(err, ErrStorageLocationNotFound) {
+		t.Fatalf("expected ErrStorageLocationNotFound for non-owned location, got %v", err)
+	}
+	var found models.Coin
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("coin not found: %v", err)
+	}
+	if found.StorageLocationID == nil || *found.StorageLocationID != ownedLocation.ID {
+		t.Fatalf("expected original storage location %d after rejected update, got %v", ownedLocation.ID, found.StorageLocationID)
+	}
+
+	if err := svc.UpdateCoinWithFields(coin, &models.Coin{}, nil, 1, "manual", true); err != nil {
+		t.Fatalf("expected explicit storage-location clear to succeed: %v", err)
+	}
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("coin not found after clear: %v", err)
+	}
+	if found.StorageLocationID != nil {
+		t.Fatalf("expected storage location to be cleared, got %v", found.StorageLocationID)
+	}
+}
+
+func TestUpdateCoin_NormalizesAndReplacesReferences(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinServiceWithReferences(db)
+	if err := db.Create(&models.CatalogRegistry{
+		Catalog:        "RIC",
+		DisplayName:    "Roman Imperial Coinage",
+		Era:            models.EraAncient,
+		VolumeRequired: true,
+	}).Error; err != nil {
+		t.Fatalf("failed to seed catalog registry: %v", err)
+	}
+
+	coin := &models.Coin{Name: "Reference Coin", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1}
+	if err := svc.CreateCoin(coin); err != nil {
+		t.Fatalf("setup: CreateCoin failed: %v", err)
+	}
+	if err := db.Create(&models.CoinReference{CoinID: coin.ID, Catalog: "RIC", Volume: "I", Number: "1"}).Error; err != nil {
+		t.Fatalf("failed to seed existing reference: %v", err)
+	}
+
+	updates := &models.Coin{
+		References: []models.CoinReference{
+			{Catalog: " ric ", Volume: " II ", Number: " 12 "},
+		},
+	}
+	if err := svc.UpdateCoinWithFields(coin, updates, []string{}, 1, "manual", false); err != nil {
+		t.Fatalf("UpdateCoinWithFields failed: %v", err)
+	}
+
+	var refs []models.CoinReference
+	if err := db.Where("coin_id = ?", coin.ID).Find(&refs).Error; err != nil {
+		t.Fatalf("failed to query references: %v", err)
+	}
+	if len(refs) != 1 {
+		t.Fatalf("expected one replacement reference, got %d", len(refs))
+	}
+	if refs[0].Catalog != "RIC" || refs[0].Volume != "II" || refs[0].Number != "12" {
+		t.Fatalf("expected normalized RIC II 12, got %#v", refs[0])
 	}
 }
 

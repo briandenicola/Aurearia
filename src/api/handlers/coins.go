@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
@@ -28,6 +27,26 @@ var allowedListSortFields = map[string]bool{
 	"purchase_date": true,
 	"name":          true,
 	"random":        true,
+}
+
+var nullableCoinUpdateScalarFields = map[string]string{
+	"purchasePrice": "PurchasePrice",
+	"currentValue":  "CurrentValue",
+	"purchaseDate":  "PurchaseDate",
+	"soldPrice":     "SoldPrice",
+	"soldDate":      "SoldDate",
+	"weightGrams":   "WeightGrams",
+	"diameterMm":    "DiameterMm",
+}
+
+func nullableScalarFieldPresence(raw map[string]json.RawMessage) map[string]bool {
+	present := make(map[string]bool, len(nullableCoinUpdateScalarFields))
+	for jsonField, modelField := range nullableCoinUpdateScalarFields {
+		if _, ok := raw[jsonField]; ok {
+			present[modelField] = true
+		}
+	}
+	return present
 }
 
 type CoinHandler struct {
@@ -213,7 +232,7 @@ func (h *CoinHandler) Get(c *gin.Context) {
 //	@Tags			Coins
 //	@Accept			json
 //	@Produce		json
-//	@Param			body	body		models.Coin	true	"Coin data"
+//	@Param			body	body		CoinCreateRequest	true	"Coin data"
 //	@Success		201		{object}	models.Coin
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
@@ -224,15 +243,13 @@ func (h *CoinHandler) Create(c *gin.Context) {
 	logger := h.logger
 	userID := c.GetUint("userId")
 
-	var coin models.Coin
-	if err := c.ShouldBindJSON(&coin); err != nil {
+	var req CoinCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 
-	coin.UserID = userID
-	coin.ID = 0
-	coin.StorageLocation = nil
+	coin := req.toCoin(userID)
 
 	logger.Debug("coins", "Creating coin '%s' for user %d", coin.Name, userID)
 
@@ -257,7 +274,7 @@ func (h *CoinHandler) Create(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			id		path		int			true	"Coin ID"
-//	@Param			body	body		models.Coin	true	"Updated coin data"
+//	@Param			body	body		CoinUpdateRequest	true	"Updated coin data"
 //	@Success		200		{object}	models.Coin
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
@@ -286,23 +303,23 @@ func (h *CoinHandler) Update(c *gin.Context) {
 	}
 	var raw map[string]json.RawMessage
 	storageLocationProvided := false
+	nullableScalarProvided := map[string]bool{}
 	if err := json.Unmarshal(bodyBytes, &raw); err == nil {
 		_, storageLocationProvided = raw["storageLocationId"]
+		nullableScalarProvided = nullableScalarFieldPresence(raw)
 	}
 	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 
-	var updates models.Coin
-	if err := c.ShouldBindJSON(&updates); err != nil {
+	var req CoinUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 
-	updates.ID = existing.ID
-	updates.UserID = userID
-	updates.StorageLocation = nil
+	updates, updateFields := req.toCoin(existing, storageLocationProvided, nullableScalarProvided)
 
 	source := c.Query("source")
-	if err := h.svc.UpdateCoin(existing, &updates, userID, source, storageLocationProvided); err != nil {
+	if err := h.svc.UpdateCoinWithFields(existing, &updates, updateFields, userID, source, storageLocationProvided); err != nil {
 		if handleCoinMutationError(c, err) {
 			return
 		}

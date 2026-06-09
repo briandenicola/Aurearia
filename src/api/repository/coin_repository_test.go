@@ -2,6 +2,7 @@ package repository
 
 import (
 	"testing"
+	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/glebarez/sqlite"
@@ -469,6 +470,280 @@ func TestCoinRepository_Update_WithSetsField(t *testing.T) {
 	db.Model(&models.CoinSetMembership{}).Where("coin_id = ? AND set_id = ?", coin.ID, set2.ID).Count(&set2Count)
 	if set2Count != 0 {
 		t.Error("set2 was added despite Omit('Sets'); update should not touch Sets")
+	}
+}
+
+func TestCoinRepository_Update_PreservesLoadedAssociations(t *testing.T) {
+	db := setupTestDB(t)
+	coinRepo := NewCoinRepository(db)
+	setRepo := NewSetRepository(db)
+	tagRepo := NewTagRepository(db)
+
+	location := models.StorageLocation{UserID: 1, Name: "Cabinet A"}
+	if err := db.Create(&location).Error; err != nil {
+		t.Fatalf("Create storage location failed: %v", err)
+	}
+	coin := &models.Coin{
+		Name:              "Associated Coin",
+		Category:          models.CategoryRoman,
+		Material:          models.MaterialSilver,
+		UserID:            1,
+		StorageLocationID: &location.ID,
+	}
+	if err := coinRepo.Create(coin); err != nil {
+		t.Fatalf("Create coin failed: %v", err)
+	}
+	if err := db.Create(&models.CoinImage{CoinID: coin.ID, FilePath: "coins/original.jpg", ImageType: models.ImageTypeObverse, IsPrimary: true}).Error; err != nil {
+		t.Fatalf("Create image failed: %v", err)
+	}
+	if err := db.Create(&models.CoinReference{CoinID: coin.ID, Catalog: "RIC", Volume: "I", Number: "1"}).Error; err != nil {
+		t.Fatalf("Create reference failed: %v", err)
+	}
+	tag := &models.Tag{UserID: 1, Name: "Favorites", Color: "#c9a84c"}
+	if err := tagRepo.Create(tag); err != nil {
+		t.Fatalf("Create tag failed: %v", err)
+	}
+	if err := tagRepo.AttachToCoin(coin.ID, tag.ID, 1); err != nil {
+		t.Fatalf("Attach tag failed: %v", err)
+	}
+	set := &models.CoinSet{UserID: 1, Name: "Roman Core", SetType: models.CoinSetTypeOpen}
+	if err := setRepo.Create(set); err != nil {
+		t.Fatalf("Create set failed: %v", err)
+	}
+	if err := setRepo.AddCoinToSet(coin.ID, set.ID, 1, "original"); err != nil {
+		t.Fatalf("AddCoinToSet failed: %v", err)
+	}
+
+	loaded, err := coinRepo.FindByID(coin.ID, 1)
+	if err != nil {
+		t.Fatalf("FindByID failed: %v", err)
+	}
+	if len(loaded.Images) != 1 || len(loaded.References) != 1 || len(loaded.Tags) != 1 || len(loaded.Sets) != 1 || loaded.StorageLocation == nil {
+		t.Fatalf("expected loaded associations before update, got images=%d refs=%d tags=%d sets=%d storage=%v", len(loaded.Images), len(loaded.References), len(loaded.Tags), len(loaded.Sets), loaded.StorageLocation)
+	}
+
+	incomingTag := models.Tag{ID: tag.ID + 100, UserID: 1, Name: "Incoming"}
+	incomingSet := models.CoinSet{ID: set.ID + 100, UserID: 1, Name: "Incoming Set", SetType: models.CoinSetTypeOpen}
+	updates := &models.Coin{
+		Name: "Updated Associated Coin",
+		Images: []models.CoinImage{
+			{ID: loaded.Images[0].ID + 100, CoinID: loaded.ID, FilePath: "coins/incoming.jpg", ImageType: models.ImageTypeReverse},
+		},
+		References: []models.CoinReference{
+			{ID: loaded.References[0].ID + 100, CoinID: loaded.ID, Catalog: "RIC", Volume: "II", Number: "2"},
+		},
+		Tags:            []models.Tag{incomingTag},
+		Sets:            []models.CoinSet{incomingSet},
+		StorageLocation: &models.StorageLocation{ID: location.ID + 100, UserID: 1, Name: "Incoming Location"},
+	}
+	if err := coinRepo.Update(loaded, updates); err != nil {
+		t.Fatalf("Update coin failed: %v", err)
+	}
+
+	var found models.Coin
+	if err := db.Preload("Images").Preload("References").Preload("Tags").Preload("Sets").Preload("StorageLocation").First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("coin not found after update: %v", err)
+	}
+	if found.Name != "Updated Associated Coin" {
+		t.Fatalf("expected name update, got %q", found.Name)
+	}
+	if len(found.Images) != 1 || found.Images[0].FilePath != "coins/original.jpg" {
+		t.Fatalf("expected original image to remain, got %#v", found.Images)
+	}
+	if len(found.References) != 1 || found.References[0].Number != "1" {
+		t.Fatalf("expected original reference to remain, got %#v", found.References)
+	}
+	if len(found.Tags) != 1 || found.Tags[0].ID != tag.ID {
+		t.Fatalf("expected original tag to remain, got %#v", found.Tags)
+	}
+	if len(found.Sets) != 1 || found.Sets[0].ID != set.ID {
+		t.Fatalf("expected original set to remain, got %#v", found.Sets)
+	}
+	if found.StorageLocationID == nil || *found.StorageLocationID != location.ID {
+		t.Fatalf("expected original storage location %d to remain, got %v", location.ID, found.StorageLocationID)
+	}
+	var incomingImageCount int64
+	if err := db.Model(&models.CoinImage{}).Where("file_path = ?", "coins/incoming.jpg").Count(&incomingImageCount).Error; err != nil {
+		t.Fatalf("failed to count incoming image: %v", err)
+	}
+	if incomingImageCount != 0 {
+		t.Fatal("incoming image association was persisted by scalar update")
+	}
+}
+
+func TestCoinRepository_Update_WithSelectedFieldsPersistsExplicitZeroValues(t *testing.T) {
+	db := setupTestDB(t)
+	coinRepo := NewCoinRepository(db)
+
+	purchasePrice := 125.0
+	currentValue := 175.0
+	weight := 3.5
+	diameter := 18.0
+	coin := &models.Coin{
+		Name:             "Zero Value Coin",
+		Category:         models.CategoryRoman,
+		Material:         models.MaterialSilver,
+		UserID:           1,
+		Notes:            "clear me",
+		ReferenceURL:     "https://example.test/ref",
+		ReferenceText:    "clear reference text",
+		PurchaseLocation: "Old dealer",
+		IsPrivate:        true,
+		IsWishlist:       true,
+		IsSold:           true,
+		PurchasePrice:    &purchasePrice,
+		CurrentValue:     &currentValue,
+		WeightGrams:      &weight,
+		DiameterMm:       &diameter,
+	}
+	if err := coinRepo.Create(coin); err != nil {
+		t.Fatalf("Create coin failed: %v", err)
+	}
+
+	zero := 0.0
+	updates := &models.Coin{
+		Notes:            "",
+		ReferenceURL:     "",
+		ReferenceText:    "",
+		PurchaseLocation: "",
+		IsPrivate:        false,
+		IsWishlist:       false,
+		IsSold:           false,
+		PurchasePrice:    &zero,
+		CurrentValue:     &zero,
+		WeightGrams:      &zero,
+		DiameterMm:       &zero,
+	}
+	if err := coinRepo.Update(
+		coin,
+		updates,
+		"Notes",
+		"ReferenceURL",
+		"ReferenceText",
+		"PurchaseLocation",
+		"IsPrivate",
+		"IsWishlist",
+		"IsSold",
+		"PurchasePrice",
+		"CurrentValue",
+		"WeightGrams",
+		"DiameterMm",
+	); err != nil {
+		t.Fatalf("Update coin failed: %v", err)
+	}
+
+	var found models.Coin
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("coin not found after update: %v", err)
+	}
+	if found.Notes != "" || found.ReferenceURL != "" || found.ReferenceText != "" || found.PurchaseLocation != "" {
+		t.Fatalf("expected empty string clears to persist, got notes=%q refURL=%q refText=%q purchaseLocation=%q",
+			found.Notes, found.ReferenceURL, found.ReferenceText, found.PurchaseLocation)
+	}
+	if found.IsPrivate || found.IsWishlist || found.IsSold {
+		t.Fatalf("expected false booleans to persist, got private=%v wishlist=%v sold=%v", found.IsPrivate, found.IsWishlist, found.IsSold)
+	}
+	if found.PurchasePrice == nil || *found.PurchasePrice != 0 ||
+		found.CurrentValue == nil || *found.CurrentValue != 0 ||
+		found.WeightGrams == nil || *found.WeightGrams != 0 ||
+		found.DiameterMm == nil || *found.DiameterMm != 0 {
+		t.Fatalf("expected explicit numeric zeros to persist, got purchase=%v current=%v weight=%v diameter=%v",
+			found.PurchasePrice, found.CurrentValue, found.WeightGrams, found.DiameterMm)
+	}
+	if found.Name != "Zero Value Coin" || found.Category != models.CategoryRoman || found.Material != models.MaterialSilver {
+		t.Fatalf("omitted fields changed unexpectedly: name=%q category=%q material=%q", found.Name, found.Category, found.Material)
+	}
+}
+
+func TestCoinRepository_Update_WithSelectedFieldsPersistsNilNullableScalars(t *testing.T) {
+	db := setupTestDB(t)
+	coinRepo := NewCoinRepository(db)
+
+	purchasePrice := 125.0
+	currentValue := 175.0
+	weight := 3.5
+	diameter := 18.0
+	purchaseDate := time.Date(2024, time.January, 15, 0, 0, 0, 0, time.UTC)
+	soldPrice := 150.0
+	soldDate := time.Date(2025, time.February, 20, 0, 0, 0, 0, time.UTC)
+	coin := &models.Coin{
+		Name:          "Nil Nullable Coin",
+		Category:      models.CategoryRoman,
+		Material:      models.MaterialSilver,
+		UserID:        1,
+		PurchasePrice: &purchasePrice,
+		CurrentValue:  &currentValue,
+		WeightGrams:   &weight,
+		DiameterMm:    &diameter,
+		PurchaseDate:  &purchaseDate,
+		SoldPrice:     &soldPrice,
+		SoldDate:      &soldDate,
+	}
+	if err := coinRepo.Create(coin); err != nil {
+		t.Fatalf("Create coin failed: %v", err)
+	}
+
+	updates := &models.Coin{}
+	if err := coinRepo.Update(
+		coin,
+		updates,
+		"PurchasePrice",
+		"CurrentValue",
+		"PurchaseDate",
+		"SoldPrice",
+		"SoldDate",
+		"WeightGrams",
+		"DiameterMm",
+	); err != nil {
+		t.Fatalf("Update coin failed: %v", err)
+	}
+
+	var found models.Coin
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("coin not found after update: %v", err)
+	}
+	if found.PurchasePrice != nil || found.CurrentValue != nil || found.PurchaseDate != nil ||
+		found.SoldPrice != nil || found.SoldDate != nil || found.WeightGrams != nil || found.DiameterMm != nil {
+		t.Fatalf("expected selected nil nullable scalars to persist, got purchase=%v current=%v purchaseDate=%v sold=%v soldDate=%v weight=%v diameter=%v",
+			found.PurchasePrice, found.CurrentValue, found.PurchaseDate, found.SoldPrice, found.SoldDate, found.WeightGrams, found.DiameterMm)
+	}
+	if found.Name != "Nil Nullable Coin" || found.Category != models.CategoryRoman || found.Material != models.MaterialSilver {
+		t.Fatalf("omitted fields changed unexpectedly: name=%q category=%q material=%q", found.Name, found.Category, found.Material)
+	}
+}
+
+func TestCoinRepository_UpdateStorageLocationID_PersistsNullClear(t *testing.T) {
+	db := setupTestDB(t)
+	coinRepo := NewCoinRepository(db)
+
+	location := models.StorageLocation{UserID: 1, Name: "Cabinet A"}
+	if err := db.Create(&location).Error; err != nil {
+		t.Fatalf("Create storage location failed: %v", err)
+	}
+	coin := &models.Coin{
+		Name:              "Storage Clear Coin",
+		Category:          models.CategoryRoman,
+		Material:          models.MaterialSilver,
+		UserID:            1,
+		StorageLocationID: &location.ID,
+	}
+	if err := coinRepo.Create(coin); err != nil {
+		t.Fatalf("Create coin failed: %v", err)
+	}
+
+	if err := coinRepo.UpdateStorageLocationID(coin, nil); err != nil {
+		t.Fatalf("UpdateStorageLocationID clear failed: %v", err)
+	}
+
+	var found models.Coin
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("coin not found after clear: %v", err)
+	}
+	if found.StorageLocationID != nil {
+		t.Fatalf("expected storage location NULL, got %v", found.StorageLocationID)
+	}
+	if coin.StorageLocationID != nil || coin.StorageLocation != nil {
+		t.Fatalf("expected reloaded coin to have nil storage fields, got id=%v location=%v", coin.StorageLocationID, coin.StorageLocation)
 	}
 }
 

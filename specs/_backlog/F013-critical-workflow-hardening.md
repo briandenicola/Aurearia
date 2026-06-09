@@ -1,14 +1,15 @@
 ---
 id: F013
 title: "Harden critical collection workflows"
-status: triaged
+status: promoted
 priority: P0
 effort: L
 value: 5
 risk: 4
-owner: unassigned
+owner: Maximus
 created: 2026-06-09
 updated: 2026-06-09
+promoted_to: specs/220-critical-workflow-hardening/
 ---
 
 # F013 — Harden critical collection workflows
@@ -19,6 +20,9 @@ Make the core collection workflows boringly reliable before expanding agentic
 write surfaces. The first target is coin create/edit/update because those flows
 touch identity fields, storage locations, tags, sets, references, images,
 legacy/custom values, and value history.
+
+**Promotion:** Active SpecKit feature lives at
+`specs/220-critical-workflow-hardening/`.
 
 ## Acceptance criteria
 
@@ -65,3 +69,5 @@ tested, and stable.
 ## History
 
 - 2026-06-09: created (status: triaged).
+- 2026-06-09: promoted to active SpecKit feature
+  `specs/220-critical-workflow-hardening/` (owner: Maximus).

@@ -164,6 +164,87 @@ definitions:
     - currentPassword
     - newPassword
     type: object
+  handlers.CoinCreateRequest:
+    properties:
+      category:
+        $ref: '#/definitions/models.Category'
+      currentValue:
+        type: number
+      denomination:
+        maxLength: 200
+        type: string
+      diameterMm:
+        type: number
+      era:
+        allOf:
+        - $ref: '#/definitions/models.Era'
+        maxLength: 64
+      grade:
+        maxLength: 100
+        type: string
+      isPrivate:
+        type: boolean
+      isSold:
+        type: boolean
+      isWishlist:
+        type: boolean
+      material:
+        $ref: '#/definitions/models.Material'
+      mint:
+        maxLength: 200
+        type: string
+      name:
+        maxLength: 200
+        type: string
+      notes:
+        maxLength: 5000
+        type: string
+      obverseDescription:
+        maxLength: 2000
+        type: string
+      obverseInscription:
+        maxLength: 1000
+        type: string
+      purchaseDate:
+        type: string
+      purchaseLocation:
+        maxLength: 500
+        type: string
+      purchasePrice:
+        type: number
+      rarityRating:
+        maxLength: 100
+        type: string
+      referenceText:
+        maxLength: 2000
+        type: string
+      referenceUrl:
+        maxLength: 2000
+        type: string
+      references:
+        items:
+          $ref: '#/definitions/handlers.CoinReferenceRequest'
+        type: array
+      reverseDescription:
+        maxLength: 2000
+        type: string
+      reverseInscription:
+        maxLength: 1000
+        type: string
+      ruler:
+        maxLength: 200
+        type: string
+      soldDate:
+        type: string
+      soldPrice:
+        type: number
+      soldTo:
+        type: string
+      storageLocationId:
+        type: integer
+      weightGrams:
+        type: number
+    type: object
   handlers.CoinDeletedResponse:
     properties:
       message:
@@ -232,6 +313,24 @@ definitions:
         example: III
         type: string
     type: object
+  handlers.CoinReferenceRequest:
+    properties:
+      catalog:
+        maxLength: 32
+        type: string
+      invoiceNumber:
+        maxLength: 64
+        type: string
+      number:
+        maxLength: 128
+        type: string
+      uri:
+        maxLength: 2000
+        type: string
+      volume:
+        maxLength: 64
+        type: string
+    type: object
   handlers.CoinReferenceUpsertRequest:
     properties:
       catalog:
@@ -278,6 +377,87 @@ definitions:
         type: string
       sourceUrl:
         type: string
+    type: object
+  handlers.CoinUpdateRequest:
+    properties:
+      category:
+        $ref: '#/definitions/models.Category'
+      currentValue:
+        type: number
+      denomination:
+        maxLength: 200
+        type: string
+      diameterMm:
+        type: number
+      era:
+        allOf:
+        - $ref: '#/definitions/models.Era'
+        maxLength: 64
+      grade:
+        maxLength: 100
+        type: string
+      isPrivate:
+        type: boolean
+      isSold:
+        type: boolean
+      isWishlist:
+        type: boolean
+      material:
+        $ref: '#/definitions/models.Material'
+      mint:
+        maxLength: 200
+        type: string
+      name:
+        maxLength: 200
+        type: string
+      notes:
+        maxLength: 5000
+        type: string
+      obverseDescription:
+        maxLength: 2000
+        type: string
+      obverseInscription:
+        maxLength: 1000
+        type: string
+      purchaseDate:
+        type: string
+      purchaseLocation:
+        maxLength: 500
+        type: string
+      purchasePrice:
+        type: number
+      rarityRating:
+        maxLength: 100
+        type: string
+      referenceText:
+        maxLength: 2000
+        type: string
+      referenceUrl:
+        maxLength: 2000
+        type: string
+      references:
+        items:
+          $ref: '#/definitions/handlers.CoinReferenceRequest'
+        type: array
+      reverseDescription:
+        maxLength: 2000
+        type: string
+      reverseInscription:
+        maxLength: 1000
+        type: string
+      ruler:
+        maxLength: 200
+        type: string
+      soldDate:
+        type: string
+      soldPrice:
+        type: number
+      soldTo:
+        type: string
+      storageLocationId:
+        type: integer
+      weightGrams:
+        type: number
     type: object
   handlers.CommitUpdateRequest:
     properties:
@@ -3505,7 +3685,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/models.Coin'
+          $ref: '#/definitions/handlers.CoinCreateRequest'
       produces:
       - application/json
       responses:
@@ -3617,7 +3797,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/models.Coin'
+          $ref: '#/definitions/handlers.CoinUpdateRequest'
       produces:
       - application/json
       responses:

@@ -109,16 +109,30 @@ func (s *CoinService) CreateCoin(coin *models.Coin) error {
 // and the source is not "estimate", it records a value history entry and a
 // journal entry. A value snapshot is always recorded afterward.
 func (s *CoinService) UpdateCoin(existing *models.Coin, updates *models.Coin, userID uint, source string, storageLocationProvided ...bool) error {
-	oldValue := existing.CurrentValue
 	updateStorageLocation := len(storageLocationProvided) > 0 && storageLocationProvided[0]
+	return s.updateCoin(existing, updates, nil, userID, source, updateStorageLocation)
+}
+
+// UpdateCoinWithFields applies a presence-aware update. Only fields named in
+// updateFields are persisted, allowing explicit zero values to be saved while
+// omitted request fields preserve existing values.
+func (s *CoinService) UpdateCoinWithFields(existing *models.Coin, updates *models.Coin, updateFields []string, userID uint, source string, storageLocationProvided bool) error {
+	return s.updateCoin(existing, updates, updateFields, userID, source, storageLocationProvided)
+}
+
+func (s *CoinService) updateCoin(existing *models.Coin, updates *models.Coin, updateFields []string, userID uint, source string, updateStorageLocation bool) error {
+	oldValue := existing.CurrentValue
 	if updateStorageLocation {
 		if err := s.validateStorageLocation(updates.StorageLocationID, userID); err != nil {
 			return err
 		}
 	}
-	updates.Era = models.Era(strings.TrimSpace(string(updates.Era)))
+	eraProvided := updateFields == nil || containsString(updateFields, "Era")
+	if eraProvided {
+		updates.Era = models.Era(strings.TrimSpace(string(updates.Era)))
+	}
 	existingEra := models.Era(strings.TrimSpace(string(existing.Era)))
-	if updates.Era != existingEra {
+	if eraProvided && updates.Era != existingEra {
 		if err := s.validateCoinEra(updates.Era); err != nil {
 			return err
 		}
@@ -127,8 +141,10 @@ func (s *CoinService) UpdateCoin(existing *models.Coin, updates *models.Coin, us
 	return s.repo.DB().Transaction(func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)
 
-		if err := txRepo.Update(existing, updates); err != nil {
-			return err
+		if updateFields == nil || len(updateFields) > 0 {
+			if err := txRepo.Update(existing, updates, updateFields...); err != nil {
+				return err
+			}
 		}
 		if updateStorageLocation {
 			if err := txRepo.UpdateStorageLocationID(existing, updates.StorageLocationID); err != nil {
@@ -150,7 +166,8 @@ func (s *CoinService) UpdateCoin(existing *models.Coin, updates *models.Coin, us
 			existing.References = normalized
 		}
 
-		if updates.CurrentValue != nil {
+		currentValueProvided := updateFields == nil || containsString(updateFields, "CurrentValue")
+		if currentValueProvided && updates.CurrentValue != nil {
 			newVal := *updates.CurrentValue
 			oldVal := 0.0
 			if oldValue != nil {
@@ -185,6 +202,15 @@ func (s *CoinService) UpdateCoin(existing *models.Coin, updates *models.Coin, us
 
 		return txRepo.RecordValueSnapshot(userID)
 	})
+}
+
+func containsString(values []string, needle string) bool {
+	for _, value := range values {
+		if value == needle {
+			return true
+		}
+	}
+	return false
 }
 
 // DeleteCoin deletes a coin and records a value snapshot if rows were affected.
