@@ -129,6 +129,10 @@ func (r *CoinRepository) DB() *gorm.DB {
 	return r.db
 }
 
+func omitCoinRelationships(db *gorm.DB) *gorm.DB {
+	return db.Omit("Tags", "Sets")
+}
+
 func applyOwnedFilterConditions(query *gorm.DB, filters OwnedCoinFilters) *gorm.DB {
 	if filters.Category != "" {
 		query = query.Where("category = ?", filters.Category)
@@ -337,7 +341,7 @@ func (r *CoinRepository) Create(coin *models.Coin) error {
 func (r *CoinRepository) Update(existing *models.Coin, updates *models.Coin) error {
 	// Relationship changes are managed through dedicated tag/set methods.
 	// Coin sets require explicit membership writes because AddedAt is NOT NULL.
-	if err := r.db.Model(existing).Omit("Tags", "Sets").Updates(updates).Error; err != nil {
+	if err := omitCoinRelationships(r.db.Model(existing)).Updates(updates).Error; err != nil {
 		return err
 	}
 	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(existing, existing.ID).Error
@@ -345,7 +349,7 @@ func (r *CoinRepository) Update(existing *models.Coin, updates *models.Coin) err
 
 // UpdateField updates a single field on a coin.
 func (r *CoinRepository) UpdateField(coin *models.Coin, field string, value interface{}) error {
-	if err := r.db.Model(coin).Update(field, value).Error; err != nil {
+	if err := omitCoinRelationships(r.db.Model(coin)).Update(field, value).Error; err != nil {
 		return err
 	}
 	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(coin, coin.ID).Error
@@ -353,7 +357,7 @@ func (r *CoinRepository) UpdateField(coin *models.Coin, field string, value inte
 
 // UpdateFields updates multiple fields on a coin using a map.
 func (r *CoinRepository) UpdateFields(coin *models.Coin, updates map[string]interface{}) error {
-	if err := r.db.Model(coin).Updates(updates).Error; err != nil {
+	if err := omitCoinRelationships(r.db.Model(coin)).Updates(updates).Error; err != nil {
 		return err
 	}
 	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(coin, coin.ID).Error
@@ -361,7 +365,7 @@ func (r *CoinRepository) UpdateFields(coin *models.Coin, updates map[string]inte
 
 // UpdateStorageLocationID updates a coin storage-location foreign key, including clearing it.
 func (r *CoinRepository) UpdateStorageLocationID(coin *models.Coin, storageLocationID *uint) error {
-	if err := r.db.Model(coin).Update("storage_location_id", storageLocationID).Error; err != nil {
+	if err := omitCoinRelationships(r.db.Model(coin)).Update("storage_location_id", storageLocationID).Error; err != nil {
 		return err
 	}
 	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(coin, coin.ID).Error

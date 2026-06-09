@@ -15,7 +15,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("failed to open test db: %v", err)
 	}
 	err = db.AutoMigrate(
-		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{},
+		&models.User{}, &models.StorageLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{},
 		&models.ValueSnapshot{}, &models.CoinJournal{},
 		&models.CoinValueHistory{}, &models.CoinComment{},
 		&models.AvailabilityResult{}, &models.AuctionLot{},
@@ -469,5 +469,123 @@ func TestCoinRepository_Update_WithSetsField(t *testing.T) {
 	db.Model(&models.CoinSetMembership{}).Where("coin_id = ? AND set_id = ?", coin.ID, set2.ID).Count(&set2Count)
 	if set2Count != 0 {
 		t.Error("set2 was added despite Omit('Sets'); update should not touch Sets")
+	}
+}
+
+func TestCoinRepository_UpdateHelpers_WithLoadedSetsDoNotSyncMemberships(t *testing.T) {
+	tests := []struct {
+		name   string
+		update func(repo *CoinRepository, coin *models.Coin) error
+		assert func(t *testing.T, db *gorm.DB, coinID uint)
+	}{
+		{
+			name: "UpdateField",
+			update: func(repo *CoinRepository, coin *models.Coin) error {
+				return repo.UpdateField(coin, "name", "Updated Field Coin")
+			},
+			assert: func(t *testing.T, db *gorm.DB, coinID uint) {
+				t.Helper()
+				var found models.Coin
+				if err := db.First(&found, coinID).Error; err != nil {
+					t.Fatalf("coin not found: %v", err)
+				}
+				if found.Name != "Updated Field Coin" {
+					t.Fatalf("expected updated name, got %q", found.Name)
+				}
+			},
+		},
+		{
+			name: "UpdateFields",
+			update: func(repo *CoinRepository, coin *models.Coin) error {
+				return repo.UpdateFields(coin, map[string]interface{}{"name": "Updated Fields Coin"})
+			},
+			assert: func(t *testing.T, db *gorm.DB, coinID uint) {
+				t.Helper()
+				var found models.Coin
+				if err := db.First(&found, coinID).Error; err != nil {
+					t.Fatalf("coin not found: %v", err)
+				}
+				if found.Name != "Updated Fields Coin" {
+					t.Fatalf("expected updated name, got %q", found.Name)
+				}
+			},
+		},
+		{
+			name: "UpdateStorageLocationID",
+			update: func(repo *CoinRepository, coin *models.Coin) error {
+				storageLocationID := uint(5)
+				return repo.UpdateStorageLocationID(coin, &storageLocationID)
+			},
+			assert: func(t *testing.T, db *gorm.DB, coinID uint) {
+				t.Helper()
+				var found models.Coin
+				if err := db.First(&found, coinID).Error; err != nil {
+					t.Fatalf("coin not found: %v", err)
+				}
+				if found.StorageLocationID == nil || *found.StorageLocationID != 5 {
+					t.Fatalf("expected storage location 5, got %v", found.StorageLocationID)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := setupTestDB(t)
+			coinRepo := NewCoinRepository(db)
+			setRepo := NewSetRepository(db)
+
+			coin := &models.Coin{
+				Name:     "Loaded Set Coin",
+				Category: models.CategoryRoman,
+				UserID:   1,
+			}
+			if err := coinRepo.Create(coin); err != nil {
+				t.Fatalf("Create coin failed: %v", err)
+			}
+
+			set := &models.CoinSet{UserID: 1, Name: "Loaded Set", SetType: models.CoinSetTypeOpen}
+			if err := setRepo.Create(set); err != nil {
+				t.Fatalf("Create set failed: %v", err)
+			}
+			if err := setRepo.AddCoinToSet(coin.ID, set.ID, 1, ""); err != nil {
+				t.Fatalf("AddCoinToSet failed: %v", err)
+			}
+
+			loaded, err := coinRepo.FindByID(coin.ID, 1)
+			if err != nil {
+				t.Fatalf("FindByID failed: %v", err)
+			}
+			if len(loaded.Sets) != 1 {
+				t.Fatalf("expected preloaded set, got %d", len(loaded.Sets))
+			}
+
+			var originalMembership models.CoinSetMembership
+			if err := db.Where("coin_id = ? AND set_id = ?", coin.ID, set.ID).First(&originalMembership).Error; err != nil {
+				t.Fatalf("membership not found: %v", err)
+			}
+
+			if err := tt.update(coinRepo, loaded); err != nil {
+				t.Fatalf("%s failed: %v", tt.name, err)
+			}
+			tt.assert(t, db, coin.ID)
+
+			var memberships []models.CoinSetMembership
+			if err := db.Where("coin_id = ?", coin.ID).Find(&memberships).Error; err != nil {
+				t.Fatalf("failed to query memberships: %v", err)
+			}
+			if len(memberships) != 1 {
+				t.Fatalf("expected exactly 1 membership after %s, got %d", tt.name, len(memberships))
+			}
+			if memberships[0].SetID != set.ID {
+				t.Fatalf("expected original membership to remain, got set ID %d", memberships[0].SetID)
+			}
+			if memberships[0].AddedAt.IsZero() {
+				t.Fatal("membership AddedAt should remain populated")
+			}
+			if !memberships[0].AddedAt.Equal(originalMembership.AddedAt) {
+				t.Fatalf("membership AddedAt changed from %v to %v", originalMembership.AddedAt, memberships[0].AddedAt)
+			}
+		})
 	}
 }
