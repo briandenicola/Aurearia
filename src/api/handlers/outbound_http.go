@@ -47,6 +47,9 @@ func validateOutboundURL(rawURL string) (*url.URL, error) {
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return nil, fmt.Errorf("unsupported scheme")
 	}
+	if parsed.User != nil {
+		return nil, fmt.Errorf("%w: credentials are not allowed", errOutboundTargetBlocked)
+	}
 	hostname := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
 	if hostname == "" || hostname == "localhost" {
 		return nil, fmt.Errorf("%w: disallowed hostname", errOutboundTargetBlocked)

@@ -6455,3 +6455,56 @@ const draft = ref<IntakeDraft | null>(null)
 1. Brian confirms NGC vs. Numista-only for MVP
 2. Cassius clarifies draft persistence API
 3. Aurelia implements `CoinLookupPage.vue` + routing changes
+
+---
+
+### Decision: Custom Catalog Era Validation
+
+**Date:** 2026-06-09  
+**Agent:** Cassius (Backend Developer)  
+**Status:** Complete  
+
+## Problem
+
+Coin model enforced static era values (`ancient`, `medieval`, `modern`) via Gin binding `oneof=ancient medieval modern`. This prevented coins from using custom eras defined in a user's `CatalogRegistry`, blocking the custom catalog feature.
+
+## Solution
+
+1. **Removed static Gin binding** from `models.Coin.Era` field
+2. **Widened storage** to 64 characters (was 20)
+3. **Moved validation to service layer** (`CoinService.ValidateAndSaveCoin()`)
+   - Accepts built-in eras: `ancient`, `medieval`, `modern`
+   - Accepts custom eras: must exist in user's `CatalogRegistry` via `repository.CatalogRegistryRepository.EraExists()`
+4. **Extended CatalogRegistryService** to manage custom era lookups
+5. **Updated handlers** (`POST /api/coins`, `PUT /api/coins/:id`) to call service validation
+6. **Added regression tests** covering both handler and service layer
+
+## Key Decisions
+
+1. **Schema-driven expansion:** Catalog eras accept any trimmed non-empty era up to 64 characters — no code rewrites needed to add new eras
+2. **Layered validation:** Handlers remain thin; all business logic lives in `CoinService` (Principle I)
+3. **Ownership-scoped lookups:** Registry eras are per-user — other users' registries don't leak into validation
+
+## Files Changed
+
+- `src/api/models/coin.go` — removed binding, widened field
+- `src/api/services/coin_service.go` — validation logic
+- `src/api/services/catalog_registry_service.go` — era lookups
+- `src/api/repository/catalog_registry_repository.go` — repo layer
+- `src/api/handlers/coins.go` — call service validation
+- `src/api/main.go` — wired services
+- Tests: `coin_handler_test.go`, `coin_service_test.go`, `catalog_registry_service_test.go`
+- Docs: regenerated OpenAPI
+
+## Validation
+
+- ✅ All tests pass (`go test -v ./...`)
+- ✅ Build clean (`go build ./...`)
+- ✅ No lint violations (`go vet ./...`)
+- ✅ Principle I (Layered Architecture) + Principle VII (Schema-Driven Contracts) maintained
+
+## Impact
+
+- Custom catalog feature can now proceed
+- Frontend coin forms can accept registry-defined eras
+- No breaking changes to existing coin creation/update APIs

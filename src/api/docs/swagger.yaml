@@ -1023,7 +1023,9 @@ definitions:
         maxLength: 128
         type: string
       era:
-        $ref: '#/definitions/models.Era'
+        allOf:
+        - $ref: '#/definitions/models.Era'
+        maxLength: 64
       id:
         type: integer
       updatedAt:
@@ -1033,6 +1035,7 @@ definitions:
     required:
     - catalog
     - displayName
+    - era
     type: object
   models.Category:
     enum:
@@ -1068,10 +1071,7 @@ definitions:
       era:
         allOf:
         - $ref: '#/definitions/models.Era'
-        enum:
-        - ancient
-        - medieval
-        - modern
+        maxLength: 64
       grade:
         maxLength: 100
         type: string

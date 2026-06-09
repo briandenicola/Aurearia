@@ -370,6 +370,7 @@ func (h *ImageHandler) ProxyImage(c *gin.Context) {
 	req.Header.Set("Accept", "image/*, */*")
 
 	client := outboundHTTPClientFactory()
+	// lgtm [go/request-forgery] URL is validated by validateOutboundURL, and outboundHTTPClientFactory blocks private/loopback DNS targets, redirects, and connect-time rebinding.
 	resp, err := client.Do(req)
 	if err != nil {
 		if isOutboundTargetBlockedError(err) {
@@ -463,6 +464,7 @@ func (h *ImageHandler) ScrapeImage(c *gin.Context) {
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
 	client := outboundHTTPClientFactory()
+	// lgtm [go/request-forgery] URL is validated by validateOutboundURL, and outboundHTTPClientFactory blocks private/loopback DNS targets, redirects, and connect-time rebinding.
 	resp, err := client.Do(req)
 	if err != nil {
 		if isOutboundTargetBlockedError(err) {

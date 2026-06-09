@@ -32,6 +32,7 @@ func TestValidateOutboundURL(t *testing.T) {
 		{name: "blocks loopback IP", rawURL: "http://127.0.0.1/image.jpg", wantErr: true},
 		{name: "blocks localhost hostname", rawURL: "http://localhost/image.jpg", wantErr: true},
 		{name: "blocks link local IP", rawURL: "http://169.254.169.254/latest/meta-data", wantErr: true},
+		{name: "blocks URL credentials", rawURL: "https://user:pass@example.com/image.jpg", wantErr: true},
 		{name: "blocks unsupported scheme", rawURL: "file:///etc/passwd", wantErr: true},
 	}
 
