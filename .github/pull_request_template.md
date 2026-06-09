@@ -2,9 +2,10 @@
 <!-- 1-3 sentences: what changes and why -->
 
 ## Constitution self-check
-- Principle(s) touched: <!-- e.g., I (Layered Architecture), V (Design Tokens) -->
+- Principle(s) touched: <!-- e.g., I (Clear Layered Architecture), IV (Simple Complete Changes) -->
 - Operational section(s): <!-- e.g., §17 Quality Gate, §21 DoD -->
 - ADR added? <!-- yes/no — required for material design choices, §22 -->
+- Principle IV check: <!-- simple, complete, proportional; note workflow/sibling paths tested -->
 
 ## Linked work
 - Issue: #
@@ -23,9 +24,10 @@
 - [ ] 9. If material design choice: ADR added in `docs/adr/` *(when Phase 3 lands)*
 - [ ] 10. Active `specs/NNN-*/tasks.md` items checked off
 - [ ] 11. `.squad/decisions/inbox/` written if cross-cutting decision made
-- [ ] 12. Secrets scan clean (no credentials in diff)
-- [ ] 13. Conventional commit messages
-- [ ] 14. `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>` trailer present when AI-assisted
+- [ ] 12. Simple Complete Changes self-check complete (Principle IV)
+- [ ] 13. Secrets scan clean (no credentials in diff)
+- [ ] 14. Conventional commit messages
+- [ ] 15. `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>` trailer present when AI-assisted
 
 ## Notes for reviewer
 <!-- Anything reviewer should pay special attention to -->

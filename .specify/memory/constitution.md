@@ -1,29 +1,21 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 1.1.0 → 2.0.0 (MAJOR — governance restructure)
-  Modified principles: NONE (Principles I–XVI preserved verbatim)
+  Version change: 2.0.0 → 3.0.0 (MAJOR — consolidated and renumbered principles)
+  Modified principles: Consolidated Principles I–XVII into Principles I–IX
   Added sections:
-    - §0 Hierarchy of Authority
-    - §17 Quality Gate
-    - §18 AI Agent Operating Rules
-    - §19 Documentation Requirements
-    - §20 Audit & Continuous Improvement
-    - §21 Definition of Done
-    - §22 Amendment Process (formalized; supersedes prior Governance §3)
-    - §23 Revision History
-  Removed sections: NONE
-    - Prior "Governance" content folded into §22 (amendment procedure) and
-      §17 (quality gate). All unique guidance preserved.
+    - Principle IV. Simple Complete Changes
+  Removed sections:
+    - Separate standalone principles for DI, architecture enforcement, AI isolation,
+      schema contracts, auth, social/privacy, account lifecycle, and supply chain;
+      their binding content is consolidated into the nine-principle set.
   Templates requiring updates:
-    - ⚠ .github/copilot-instructions.md — add Document Hierarchy + Session
-      Protocol blocks pointing to §0 and §18 (Round 2, Maximus)
-    - ⚠ .github/pull_request_template.md — add DoD checklist from §21
-      (Round 2)
+    - ✅ .github/copilot-instructions.md — references Principle IV
+    - ✅ .github/pull_request_template.md — adds Principle IV self-check
     - ✅ .specify/templates/plan-template.md — compatible
     - ✅ .specify/templates/spec-template.md — compatible
     - ✅ .specify/templates/tasks-template.md — compatible
-    - ⚠ .specify/templates/agent-file-template.md — verify path references
+    - ✅ .specify/templates/agent-file-template.md — compatible
   Follow-up TODOs: None
 -->
 
@@ -34,9 +26,9 @@
 > Deviations require an explicit, documented waiver (ADR) under §22.
 
 **Project**: Ancient Coins (self-hosted personal collection PWA)
-**Version**: 2.0.0
+**Version**: 3.0.0
 **Ratified**: 2026-04-28
-**Last Amended**: 2026-05-28
+**Last Amended**: 2026-06-09
 
 ## §0. Hierarchy of Authority
 
@@ -62,9 +54,9 @@ Amendment Process (§22) or — for non-constitutional artifacts — via
 
 ## Core Principles
 
-### I. Layered Architecture (Go API)
+### I. Clear Layered Architecture
 
-The Go API MUST follow a strict four-layer architecture:
+The Go API MUST keep responsibilities separated:
 
 ```
 Handler → Service → Repository → Database
@@ -78,7 +70,10 @@ Handler → Service → Repository → Database
   `src/api/repository/`. Repositories MUST use GORM scopes from
   `repository/scopes.go` instead of repeating `.Where()` clauses.
 - **Models** (`src/api/models/`) MUST import only the Go standard library.
-- Multi-step writes MUST use transactions (`r.db.Transaction()`).
+- Dependencies MUST be explicit through constructor injection
+  (`NewXxxHandler(repo, service)` pattern). Only `main.go` may import the
+  `database` package.
+- Multi-step writes MUST use transactions.
 - Internal errors MUST NOT leak to clients. Log server-side; return
   generic messages to the caller.
 
@@ -86,24 +81,7 @@ Handler → Service → Repository → Database
 independent testing of each layer, and keeps the codebase navigable as
 feature count grows.
 
-### II. Dependency Injection
-
-All packages MUST receive dependencies via constructor injection
-(`NewXxxHandler(repo, service)` pattern).
-
-- **Only `main.go` may import the `database` package.** Every other
-  package receives `*gorm.DB` or a repository/service interface through
-  its constructor.
-- DI wiring order in `main.go`: `config.Load()` → `database.Connect()`
-  → construct repos → construct services → construct handlers → register
-  routes.
-- Three route groups exist: `api` (public auth), `protected`
-  (JWT required), `admin` (JWT + admin role).
-
-**Rationale**: Constructor injection makes dependencies explicit, enables
-test doubles, and prevents hidden global state.
-
-### III. Service Boundary Separation
+### II. Service Boundary Separation
 
 The system is composed of three independently deployable services. Each
 service MUST respect strict boundary rules:
@@ -122,15 +100,17 @@ service MUST respect strict boundary rules:
 - The **Vue SPA** communicates with the Go API exclusively via REST
   (`/api/*`). It MUST NOT call the Python agent directly.
 - SSE streams flow Python → Go → Vue (Go proxies the byte stream).
+- AI agent pipelines MUST preserve tool-data provenance, use Pydantic
+  schemas for worker outputs, and enforce a supervisor iteration limit.
 
 **Rationale**: Hard service boundaries prevent accidental coupling
 between AI logic and business logic, allow independent scaling, and
 keep each codebase in its native language ecosystem.
 
-### IV. Strict Typing & Build Parity
+### III. Strict Types and Explicit Contracts
 
 All code MUST pass the strictest available type checking for its
-language, and local builds MUST match CI/Docker builds:
+language, and external-facing interfaces MUST have explicit schemas:
 
 - **Go**: `go vet ./...` MUST pass with zero warnings.
 - **TypeScript/Vue**: Docker builds use `vue-tsc --build`, which is
@@ -139,114 +119,33 @@ language, and local builds MUST match CI/Docker builds:
   coalescing) for nullable props passed to non-nullable children.
 - **Python**: `ruff check app/ tests/` MUST pass. All request/response
   schemas MUST use Pydantic models (`app/models/`).
+- **Go API contracts**: Swagger annotations are required on all public
+  handler methods.
+- **Vue API access**: All API calls go through `src/web/src/api/client.ts`.
 
-**Rationale**: Type strictness catches bugs before runtime, and build
-parity eliminates "works on my machine" failures.
+**Rationale**: Type strictness and explicit contracts catch bugs before
+runtime and make service boundaries testable.
 
-### V. Design Token System
+### IV. Simple Complete Changes
 
-The Vue frontend MUST use the design token system defined in
-`variables.css` and global classes in `main.css`. Raw values MUST NOT
-be hardcoded when a token exists.
+Every change MUST be simple, complete, and proportional.
 
-- **Never hardcode** `border-radius`, colors, spacing, or font sizes.
-- **Never duplicate** chip or button CSS — use global classes (`.chip`,
-  `.chip-sm`, `.badge`, `.btn`, `.btn-primary`, etc.).
-- **Never invent** a new font size — pick from the typography scale
-  (Cinzel for headings, Inter for body).
-- **Gold (`--accent-gold`)** is reserved for: active states,
-  values/prices, links, and section accents.
-- All uppercase labels MUST use `letter-spacing: 0.08em`.
+- **Simple**: prefer direct, typed, human-readable code over clever
+  abstractions or hidden mutation.
+- **Complete**: fix the real user workflow and directly related sibling
+  paths, not only the first observed failure.
+- **Proportional**: keep small bugs and property changes small unless the
+  investigation proves a broader root cause.
+- Simplicity MUST NOT override architecture, security, typing,
+  data-contract, or privacy requirements.
 
-**Rationale**: A strict token system ensures visual consistency,
-prevents design drift, and enables theme changes from a single file.
+**Rationale**: The codebase should stay understandable to a human maintainer
+while avoiding hopeful patches that leave the same bug in nearby paths.
+Source: ADR 0005.
 
-### VI. AI/Agent Isolation
+### V. Security, Auth, and Privacy by Default
 
-All AI agent pipelines MUST follow these rules:
-
-- Search agents MUST pass only tool-returned data downstream — never
-  invented details.
-- Verification agents MUST confirm every URL is live and every date is
-  in the future.
-- All worker agent outputs MUST conform to a defined Pydantic schema —
-  no free-form text.
-- The top-level supervisor (`app/supervisor.py`) MUST enforce a max
-  iteration count to prevent infinite loops.
-- Anthropic web search MUST use `get_search_model()` from
-  `app/llm/provider.py` (which calls `bind_tools`). Use
-  `get_chat_model()` for nodes that do not search.
-
-**Rationale**: AI output is non-deterministic. Schema enforcement and
-data provenance rules ensure the rest of the system can trust agent
-results.
-
-### VII. Schema-Driven Contracts
-
-Every external-facing interface MUST have an explicit schema:
-
-- **Go API**: Swagger annotations on all public handler methods.
-- **Python Agent**: Pydantic models for all request/response payloads.
-- **Vue SPA**: All API calls go through `src/web/src/api/client.ts`
-  (Axios with JWT interceptor and 401 refresh queue).
-  `sanitizeCoin()` normalizes `''`/`undefined` → `null` before sending.
-
-**Rationale**: Explicit schemas are the single source of truth for
-inter-service communication and enable automated validation.
-
-### VIII. Conventional Commits & Workflow
-
-All commits MUST use conventional prefixes: `feat:`, `fix:`, `docs:`,
-`refactor:`, `chore:`.
-
-- AI-assisted commits MUST include the co-author trailer:
-  `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
-- Build automation uses Taskfile (`task --list` for all targets).
-- Multi-stage Docker builds produce two containers: Go+Vue (app) and
-  Python (agent), orchestrated via `docker-compose.yaml`.
-
-**Rationale**: Conventional commits enable automated changelogs and
-semantic versioning. Standardized build tooling reduces onboarding
-friction.
-
-### IX. UI/UX Consistency
-
-- No emojis in UI text, prompts, or AI responses.
-- Dark theme is the default.
-- The app MUST be PWA-compatible — test on mobile viewports.
-- Icons MUST use `lucide-vue-next`.
-- Agent chat streaming uses `fetch` + manual SSE parsing, not Axios.
-- CSS variables: `--accent-gold`, `--bg-card`, `--border-subtle`,
-  `--text-primary` (see Design Token System for full list).
-
-**Rationale**: Consistent UI rules prevent visual fragmentation across
-features and ensure the app feels cohesive on all devices.
-
-### X. Architecture Enforcement
-
-Architecture rules MUST be enforced by automated tests:
-
-- `architecture_test.go` validates package import rules at build time.
-- Package import constraints:
-
-| Package | May Import |
-|---------|-----------|
-| `handlers/` | `services/`, `repository/`, `models/` |
-| `services/` | `repository/`, `models/` |
-| `repository/` | `models/`, `gorm.io/gorm` |
-| `models/` | Standard library only |
-| `middleware/` | `models/`, `gorm.io/gorm` |
-
-- `go test ./...` MUST pass before any PR is merged.
-- `ruff check` and `pytest` MUST pass for agent changes.
-
-**Rationale**: Automated enforcement catches violations at commit time,
-not during code review. Rules that are only documented but not enforced
-will eventually be violated.
-
-### XI. Security Hardening
-
-All services MUST follow these security baselines:
+Security-sensitive behavior MUST be explicit and safe by default:
 
 - **CORS**: MUST whitelist specific origins. `AllowOriginFunc` MUST NOT
   return `true` for all origins. Production MUST list only the
@@ -264,16 +163,6 @@ All services MUST follow these security baselines:
 - **Error responses**: Internal error details MUST NOT leak to clients.
   Log server-side; return generic messages.
 - **Containers**: Production Docker images MUST run as non-root users.
-
-**Rationale**: Security defaults prevent common attack vectors (XSS,
-CSRF, injection, DoS) and reduce the blast radius of vulnerabilities.
-Source: `docs/security-principles.md`, `docs/threat-model.md`.
-
-### XII. Authentication & Token Policy
-
-The application uses a multi-method auth stack. Each method MUST follow
-these rules:
-
 - **JWT access tokens**: 15-minute expiry. Signed with `JWT_SECRET`
   environment variable. The application SHOULD refuse to start if
   `JWT_SECRET` is unset or below minimum entropy in production.
@@ -290,89 +179,84 @@ these rules:
 - **API keys**: Used for programmatic access. Keys MUST be stored hashed
   and MUST be revocable.
 - **First user**: The first registered user is auto-assigned admin role.
-
-**Rationale**: Explicit token policies prevent silent security
-degradation and ensure consistent auth behavior across deployments.
-Source: `docs/authentication.md`.
-
-### XIII. PWA / Mobile Interaction Rules
-
-The application MUST maintain two distinct UI modes:
-
-- **PWA/mobile mode** (`display-mode: standalone`):
-  - Hamburger menu with popover for filters, sort, navigation, and
-    logout.
-  - Default gallery view is swipe carousel (315 × 399 px cards).
-  - Pull-to-refresh on gallery when scrolled to top.
-  - Camera capture button on image uploads (rear camera).
-  - "My Collection" title hidden for compact header.
-  - No page-level pagination in swipe mode.
-  - NO sticky positioning on detail page images or action bars.
-- **Desktop mode** (standard browser):
-  - Inline toolbar with filters, sort, and view controls.
-  - Default gallery view is grid.
-  - Sticky image sidebar and sticky action bar on detail pages.
-  - Full pagination visible.
-
-- Offline: Service worker caches static assets. API calls require
-  network. The app shell MUST load without connectivity.
-- Settings (default view, sort) persist in `localStorage`.
-- Desktop layout changes MUST NOT break PWA layout. Use
-  `@media (min-width: 769px)` for desktop-only CSS.
-
-**Rationale**: PWA and desktop are the two primary consumption modes.
-Regressions in either degrade user experience significantly.
-Source: `docs/pwa-guide.md`.
-
-### XIV. Social & Privacy Model
-
-Social features MUST enforce these rules:
-
-- **Follow workflow**: pending → accepted / blocked. Only accepted
-  followers can view a user's gallery.
-- **Blocked users**: Cannot re-request until explicitly unblocked.
-- **Public/private profiles**: Only `isPublic=true` users appear in
-  search and can receive follow requests. Setting a profile to private
-  PERMANENTLY DELETES all existing followers (destructive action).
-- **Private coins**: Individual coins marked `isPrivate` are hidden from
-  all followers, even accepted ones.
-- **Gallery access**: Read-only. Limited to images and essential details.
-  Pricing/value and AI analysis MUST NOT be shown to followers.
-- **Comments & ratings**: Accepted followers can comment and rate (1–5
-  stars). Both commenter and coin owner can delete comments.
-- **Avatars**: Locally uploaded images (no Gravatar dependency). Default
-  avatar is the Ed-Mar coin logo.
-
-**Rationale**: Privacy and access control are critical for a personal
-collection app. These rules prevent data leakage and give users control.
-Source: `docs/social-feature.md`.
-
-### XV. Supply Chain & CI Integrity
-
-- GitHub Actions MUST pin action versions by SHA, not mutable tags.
-- Docker base images SHOULD pin to specific digests for production
-  builds.
-- Branch protection MUST be enabled on `main` (require PR reviews,
-  require status checks to pass).
-- Dependency updates SHOULD be automated (Dependabot or equivalent).
-
-**Rationale**: Supply chain attacks are a growing vector. Pinning and
-branch protection prevent unauthorized code from reaching production.
-Source: `docs/threat-model.md`, `docs/incident-response.md`.
-
-### XVI. Account Lifecycle
-
 - **Email**: Required for all new registrations. Legacy users without
   email see a dismissible modal (7-day snooze via `localStorage`).
   `GET /auth/me` includes `emailMissing` flag.
 - **Registration**: Username + password + email. Validated format.
-- **Admin**: First registered user auto-assigned admin role.
-- **Profile deletion**: Setting `isPublic=false` permanently deletes
-  followers (see Social & Privacy Model).
+- **Social access**: accepted followers can view only allowed gallery
+  data. Private coins, pricing/value, and AI analysis MUST NOT be exposed
+  to followers.
+- **Profile privacy**: setting `isPublic=false` permanently deletes
+  followers.
 
-**Rationale**: Clear account lifecycle rules prevent edge cases around
-legacy data and ensure consistent onboarding.
-Source: `docs/authentication.md`, `docs/social-feature.md`.
+**Rationale**: Security, authentication, and privacy rules prevent data
+leakage, common attacks, and silent security degradation.
+Source: `docs/security-principles.md`, `docs/threat-model.md`,
+`docs/authentication.md`, `docs/social-feature.md`.
+
+### VI. Consistent User Experience
+
+The Vue frontend MUST preserve a consistent desktop and PWA/mobile
+experience.
+
+- Use the design token system from `variables.css` and global classes in
+  `main.css`; do not hardcode visual values when a token exists.
+- No emojis in UI text, prompts, or AI responses.
+- Dark theme is the default and icons MUST use `lucide-vue-next`.
+- The app MUST be PWA-compatible. Desktop layout changes MUST NOT break
+  mobile/PWA layouts.
+- Offline support requires the app shell to load without connectivity;
+  API calls still require network.
+
+**Rationale**: Consistent UI rules prevent visual fragmentation and keep
+the app usable across desktop and mobile/PWA contexts.
+
+### VII. CI, Supply Chain, and Release Integrity
+
+Every change MUST preserve build, test, lint, and release integrity.
+
+- Commits MUST use conventional prefixes: `feat:`, `fix:`, `docs:`,
+  `refactor:`, `chore:`.
+- AI-assisted commits MUST include the co-author trailer:
+  `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`.
+- Build automation uses Taskfile (`task --list` for all targets).
+- GitHub Actions MUST pin action versions by SHA, not mutable tags.
+- Docker base images SHOULD pin to specific digests for production
+  builds.
+- Branch protection MUST be enabled on `main`.
+
+**Rationale**: Standardized workflow and supply-chain safeguards keep
+changes reviewable, reproducible, and safe to release.
+
+### VIII. Documented Decisions
+
+Material design choices MUST be documented where future contributors can
+find them.
+
+- Constitution changes, service-boundary changes, security posture
+  changes, new third-party services, and semantic data-model migrations
+  require ADRs.
+- Lower-authority artifacts MUST be updated when they conflict with this
+  constitution.
+- Agent judgment MUST be voiced in the PR description or in
+  `.squad/decisions/inbox/`; never silently assumed.
+
+**Rationale**: Durable decisions prevent drift and reduce reliance on chat
+history or memory.
+
+### IX. Automated Enforcement Over Manual Memory
+
+Rules that can be enforced automatically SHOULD be enforced by tests, type
+checks, linters, schemas, or CI.
+
+- `architecture_test.go` validates Go package import rules.
+- `go test ./...` MUST pass before any PR is merged.
+- `ruff check` and `pytest` MUST pass for agent changes.
+- Manual review should focus on judgment calls such as proportionality,
+  clarity, and whether the real workflow was tested.
+
+**Rationale**: Automated enforcement catches repeatable violations early;
+reviewers should spend attention on decisions automation cannot judge.
 
 ## Technology Stack
 
@@ -433,21 +317,23 @@ relevant tooling lands.
 
 - [ ] `go vet ./...` clean
 - [ ] `go test ./...` green (includes `architecture_test.go` from
-      Principle X)
+      Principles I and IX)
 - [ ] `vue-tsc --build` clean (Docker-equivalent strictness — see
-      Principle IV)
+      Principle III)
 - [ ] `npm run build` green
 - [ ] `ruff check app/ tests/` clean (when agent code is touched)
 - [ ] `pytest tests/ -v` green (when agent code is touched)
 - [ ] `gitleaks` scan clean *(Phase 3 — once `.gitleaks.toml` lands)*
 - [ ] `trivy` container scan: no High/Critical
       *(Phase 3 — once `security-scan.yml` lands)*
-- [ ] Conventional Commits format (see Principle VIII)
+- [ ] Conventional Commits format (see Principle VII)
 - [ ] `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
       trailer present when AI-assisted
 - [ ] Constitution self-check noted in PR description — cite the
       relevant Principle or section
 - [ ] Definition of Done checklist (§21) checked in the PR
+- [ ] Principle IV self-check: change is simple, complete, and
+      proportional
 
 **Signed commits are NOT required.** This is a single-developer hobby
 project; the Conventional Commits format and Co-authored-by trailer are
@@ -467,6 +353,7 @@ the workflow signals we rely on.
 - Cite this constitution by Principle or section when making a design
   decision.
 - Run the full Quality Gate (§17) before declaring a task done.
+- Apply Principle IV: choose the simplest complete proportional change.
 
 ### 18.2 Never
 
@@ -481,6 +368,9 @@ the workflow signals we rely on.
   the reviewer explicitly clears it.
 - Disable lint rules, weaken tests, or use `any` / `@ts-ignore` /
   `nolint` without an inline justification comment.
+- Ship a hopeful patch that fixes only the first observed failure.
+- Add clever abstractions or oversized rewrites for small bugs without
+  proving a broader root cause.
 - Commit secrets, `.env` files, or generated build artifacts.
 
 ### 18.3 Context Discipline
@@ -522,7 +412,7 @@ The following documents constitute the canonical documentation surface.
 | Product Requirements (PRD) | `docs/prd.md` | ⏳ Phase 3 | Lead |
 | Architecture overview | `docs/ARCHITECTURE.md` | ✅ exists | Lead |
 | Software Design Document | `docs/SDD.md` | ✅ exists | Lead |
-| Architecture Decision Records | `docs/adr/NNNN-*.md` | ✅ exists (0001–0004) | Lead |
+| Architecture Decision Records | `docs/adr/NNNN-*.md` | ✅ exists (0001–0005) | Lead |
 | Security principles | `docs/security-principles.md` | ✅ exists | Lead |
 | Threat model | `docs/threat-model.md` | ✅ exists | Lead |
 | Incident response playbook | `docs/incident-response.md` | ✅ exists | Lead |
@@ -569,16 +459,16 @@ checklist in the PR description.
 1. **Code compiles**: `go build ./...`, `npm run build`, and
    `pip install -e ".[dev]"` succeed.
 2. **Architecture tests green**: `go test -run TestArchitecture ./...`
-   passes (Principle X).
+   passes (Principles I and IX).
 3. **Unit tests pass**: `go test ./...` and `pytest tests/` pass for
    any touched module.
 4. **Type checks pass**: `vue-tsc --build` and Go's compiler are clean
-   (Principle IV).
+   (Principle III).
 5. **Linters clean**: `go vet ./...` and `ruff check app/ tests/` are
    clean.
 6. **Test coverage**: every new service method has ≥ 1 unit test.
 7. **Swagger**: every new or modified public handler has Swagger
-   annotations (Principle VII).
+   annotations (Principle III).
 8. **API contract sync**: if the API surface changed, `swag` is
    regenerated AND the root `openapi.yaml` is updated (Phase 3).
 9. **ADR**: if a material design choice was made, an ADR is added in
@@ -587,11 +477,13 @@ checklist in the PR description.
     this work are checked off.
 11. **Decisions captured**: any cross-cutting decision is written to
     `.squad/decisions/inbox/`.
-12. **Secrets scan clean**: no credentials, tokens, or API keys in the
+12. **Simple Complete Changes**: the change is simple, complete, and
+    proportional (Principle IV).
+13. **Secrets scan clean**: no credentials, tokens, or API keys in the
     diff.
-13. **Commit hygiene**: Conventional Commit prefix and (when
+14. **Commit hygiene**: Conventional Commit prefix and (when
     AI-assisted) `Co-authored-by: Copilot` trailer present.
-14. **PR self-check**: PR description cites the relevant Constitution
+15. **PR self-check**: PR description cites the relevant Constitution
     Principle(s) and lists this DoD as a checklist.
 
 ## §22. Amendment Process
@@ -630,5 +522,6 @@ plan's Complexity Tracking table.
 | 1.0.0 | 2026-04-28 | Brian | Initial 10-principle constitution covering layered architecture, DI, service boundaries, typing, design tokens, AI isolation, schemas, commits, UI/UX, and architecture enforcement. | — |
 | 1.1.0 | 2026-04-28 | Brian | Gap closure: added Principles XI–XVI (Security Hardening, Authentication & Token Policy, PWA/Mobile Rules, Social & Privacy, Supply Chain & CI, Account Lifecycle). | — |
 | 2.0.0 | 2026-05-28 | Maximus (approved by Brian) | Added §0 Hierarchy of Authority, §17 Quality Gate, §18 AI Agent Operating Rules, §19 Documentation Requirements, §20 Audit & Continuous Improvement, §21 Definition of Done, §22 Amendment Process, §23 Revision History. All 16 Principles (I–XVI) preserved verbatim. | ADR 0001 (to be added in Phase 3) |
+| 3.0.0 | 2026-06-09 | Brian | Consolidated 17 principles into 9 streamlined principles and made Simple Complete Changes Principle IV. | ADR 0005 |
 
-**Version**: 2.0.0 | **Ratified**: 2026-04-28 | **Last Amended**: 2026-05-28
+**Version**: 3.0.0 | **Ratified**: 2026-04-28 | **Last Amended**: 2026-06-09
