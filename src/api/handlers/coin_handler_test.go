@@ -27,7 +27,7 @@ func setupCoinHandlerTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("failed to open test db: %v", err)
 	}
 	err = db.AutoMigrate(
-		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{},
+		&models.User{}, &models.StorageLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{},
 		&models.ValueSnapshot{}, &models.CoinJournal{},
 		&models.CoinValueHistory{}, &models.CoinComment{},
 		&models.AvailabilityResult{}, &models.AuctionLot{},
@@ -359,6 +359,73 @@ func TestCoinHandler_Update_WithSetsPayloadPreservesMemberships(t *testing.T) {
 	}
 	if memberships[0].AddedAt.IsZero() {
 		t.Fatal("membership AddedAt should remain populated after coin update")
+	}
+	if !memberships[0].AddedAt.Equal(originalMembership.AddedAt) {
+		t.Fatalf("membership AddedAt changed from %v to %v", originalMembership.AddedAt, memberships[0].AddedAt)
+	}
+}
+
+func TestCoinHandler_Update_StorageLocationWithSetsPreservesMemberships(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "updater")
+
+	setRepo := repository.NewSetRepository(db)
+	coin := models.Coin{Name: "Stored Coin", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+	set := models.CoinSet{UserID: 1, Name: "Storage Test Set", SetType: models.CoinSetTypeOpen}
+	if err := setRepo.Create(&set); err != nil {
+		t.Fatalf("failed to seed set: %v", err)
+	}
+	if err := setRepo.AddCoinToSet(coin.ID, set.ID, 1, ""); err != nil {
+		t.Fatalf("failed to seed membership: %v", err)
+	}
+
+	var originalMembership models.CoinSetMembership
+	if err := db.Where("coin_id = ? AND set_id = ?", coin.ID, set.ID).First(&originalMembership).Error; err != nil {
+		t.Fatalf("failed to find seeded membership: %v", err)
+	}
+
+	updates := map[string]interface{}{
+		"name":              "Stored Coin",
+		"category":          "Roman",
+		"material":          "Silver",
+		"storageLocationId": 5,
+	}
+	body, _ := json.Marshal(updates)
+
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var updatedCoin models.Coin
+	if err := db.First(&updatedCoin, coin.ID).Error; err != nil {
+		t.Fatalf("updated coin not found: %v", err)
+	}
+	if updatedCoin.StorageLocationID == nil || *updatedCoin.StorageLocationID != 5 {
+		t.Fatalf("expected storage location 5, got %v", updatedCoin.StorageLocationID)
+	}
+
+	var memberships []models.CoinSetMembership
+	if err := db.Where("coin_id = ?", coin.ID).Find(&memberships).Error; err != nil {
+		t.Fatalf("failed to query memberships: %v", err)
+	}
+	if len(memberships) != 1 {
+		t.Fatalf("expected update to preserve exactly 1 membership, got %d", len(memberships))
+	}
+	if memberships[0].SetID != set.ID {
+		t.Fatalf("expected original set membership to remain, got set ID %d", memberships[0].SetID)
+	}
+	if memberships[0].AddedAt.IsZero() {
+		t.Fatal("membership AddedAt should remain populated after storage location update")
 	}
 	if !memberships[0].AddedAt.Equal(originalMembership.AddedAt) {
 		t.Fatalf("membership AddedAt changed from %v to %v", originalMembership.AddedAt, memberships[0].AddedAt)
