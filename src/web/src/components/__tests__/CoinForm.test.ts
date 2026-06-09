@@ -25,4 +25,12 @@ describe('CoinForm', () => {
     expect(source).toContain('.form-group {')
     expect(source).toContain('min-width: 0;')
   })
+
+  it('keeps a current custom era selectable in the edit form', () => {
+    const source = fs.readFileSync(coinFormPath, 'utf8')
+
+    expect(source).toContain('v-for="era in displayedEraOptions"')
+    expect(source).toContain('const displayedEraOptions = computed(() => {')
+    expect(source).toContain('return [currentEra, ...eraOptions.value]')
+  })
 })

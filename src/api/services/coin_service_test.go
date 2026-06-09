@@ -348,3 +348,29 @@ func TestUpdateCoin_RejectsUnsupportedEraWhenCatalogRegistryEnabled(t *testing.T
 		t.Fatalf("expected ErrCoinInvalidEra, got %v", err)
 	}
 }
+
+func TestUpdateCoin_PreservesUnchangedLegacyEra(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinServiceWithCatalogRegistry(db)
+
+	coin := &models.Coin{Name: "Legacy Era Coin", UserID: 1, Era: models.Era("Imperial")}
+	if err := db.Create(coin).Error; err != nil {
+		t.Fatalf("setup: create legacy era coin failed: %v", err)
+	}
+
+	updates := &models.Coin{Name: "Updated Legacy Era Coin", Era: models.Era("Imperial")}
+	if err := svc.UpdateCoin(coin, updates, 1, "manual"); err != nil {
+		t.Fatalf("UpdateCoin should allow unchanged legacy era: %v", err)
+	}
+
+	var found models.Coin
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("coin not found: %v", err)
+	}
+	if found.Name != "Updated Legacy Era Coin" {
+		t.Fatalf("expected updated name, got %q", found.Name)
+	}
+	if found.Era != models.Era("Imperial") {
+		t.Fatalf("expected legacy era to be preserved, got %q", found.Era)
+	}
+}

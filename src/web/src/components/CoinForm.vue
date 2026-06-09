@@ -41,7 +41,7 @@
             <label class="form-label">Era</label>
             <select v-model="form.era" class="form-select">
               <option value="">Unspecified</option>
-              <option v-for="era in eraOptions" :key="era" :value="era">{{ era }}</option>
+              <option v-for="era in displayedEraOptions" :key="era" :value="era">{{ era }}</option>
             </select>
           </div>
         </div>
@@ -247,6 +247,14 @@ const storageLocationIdModel = computed({
   set: (value: string) => {
     props.form.storageLocationId = value === '' ? null : Number(value)
   },
+})
+
+const displayedEraOptions = computed(() => {
+  const currentEra = typeof props.form.era === 'string' ? props.form.era.trim() : ''
+  if (currentEra && !eraOptions.value.includes(currentEra)) {
+    return [currentEra, ...eraOptions.value]
+  }
+  return eraOptions.value
 })
 
 onMounted(async () => {

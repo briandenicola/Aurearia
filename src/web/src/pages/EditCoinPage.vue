@@ -17,7 +17,6 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import CoinForm from '@/components/CoinForm.vue'
 import { getCoin, updateCoin, uploadImage, deleteImage, extractText } from '@/api/client'
-import { COIN_ERAS } from '@/types'
 import type { Coin } from '@/types'
 import { useDialog } from '@/composables/useDialog'
 
@@ -37,9 +36,6 @@ onMounted(async () => {
     Object.assign(form, res.data)
     if (form.purchaseDate) {
       form.purchaseDate = form.purchaseDate.substring(0, 10)
-    }
-    if (form.era && !COIN_ERAS.includes(form.era as (typeof COIN_ERAS)[number])) {
-      form.era = ''
     }
   } catch {
     await showAlert('Failed to load coin', { title: 'Error' })

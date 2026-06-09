@@ -117,8 +117,11 @@ func (s *CoinService) UpdateCoin(existing *models.Coin, updates *models.Coin, us
 		}
 	}
 	updates.Era = models.Era(strings.TrimSpace(string(updates.Era)))
-	if err := s.validateCoinEra(updates.Era); err != nil {
-		return err
+	existingEra := models.Era(strings.TrimSpace(string(existing.Era)))
+	if updates.Era != existingEra {
+		if err := s.validateCoinEra(updates.Era); err != nil {
+			return err
+		}
 	}
 
 	return s.repo.DB().Transaction(func(tx *gorm.DB) error {

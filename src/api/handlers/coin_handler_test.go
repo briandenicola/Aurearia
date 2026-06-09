@@ -407,6 +407,46 @@ func TestCoinHandler_Update_CustomRegistryEraAccepted(t *testing.T) {
 	}
 }
 
+func TestCoinHandler_Update_PreservesUnchangedLegacyEra(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "updater")
+
+	coin := models.Coin{Name: "Legacy Era", Category: models.CategoryRoman, Material: models.MaterialBronze, UserID: 1, Era: models.Era("Imperial")}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+
+	updates := map[string]interface{}{
+		"name":     "Updated Legacy Era",
+		"category": "Roman",
+		"material": "Bronze",
+		"era":      "Imperial",
+	}
+	body, _ := json.Marshal(updates)
+
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for unchanged legacy era, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var found models.Coin
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("coin not found: %v", err)
+	}
+	if found.Name != "Updated Legacy Era" {
+		t.Fatalf("expected updated name, got %q", found.Name)
+	}
+	if found.Era != models.Era("Imperial") {
+		t.Fatalf("expected legacy era to be preserved, got %q", found.Era)
+	}
+}
+
 func TestCoinHandler_Update_OtherUserCoin_NotFound(t *testing.T) {
 	router, db := setupCoinHandlerRouter(t)
 	createTestUser(t, db, 1, "owner")
