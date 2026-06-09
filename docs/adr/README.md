@@ -55,5 +55,6 @@ ADR 0001 for the full list.
 | 0002 | [Three-Service Architecture](0002-three-service-architecture.md)   | 2026-05-28 | Accepted |
 | 0003 | [JWT Auth with Refresh and WebAuthn](0003-jwt-with-refresh-and-webauthn.md) | 2026-05-28 | Accepted |
 | 0004 | [Design Token System](0004-design-token-system.md)                 | 2026-05-28 | Accepted |
+| 0005 | [Streamline Constitution Principles](0005-streamline-constitution-principles.md) | 2026-06-09 | Proposed |
 
 [nygard]: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions

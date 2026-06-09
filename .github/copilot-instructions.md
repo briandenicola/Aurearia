@@ -28,11 +28,13 @@ Operational rules for every AI agent (Copilot CLI, Coding Agent, Squad). Full te
 - Read the constitution, `.squad/decisions.md`, the active `specs/NNN-*/spec.md`, your agent charter in `.squad/agents/<you>/charter.md`, and any relevant `.squad/skills/` entries **before editing code**.
 - Quote spec section IDs (e.g., `§17`, Principle I) in commit messages and PR descriptions.
 - Run the Quality Gate locally (see §17) before declaring a task done.
+- Follow Principle IV: choose the simplest complete proportional change.
 
 ### Never
 - Invent file paths, package names, APIs, or facts — re-read or grep first.
 - Retroactively modify a locked file (constitution, landed spec, merged ADR) without an amendment per §22.
 - Bypass a reviewer rejection. **Strict Lockout** (§18.2): once a reviewer marks `BLOCK`, the change does not ship until the block is explicitly cleared by that reviewer.
+- Ship a hopeful patch that only fixes the first observed failure, or a clever rewrite for a small bug, without proving the broader root cause.
 
 ### Session Handoff
 - Scribe writes `.squad/log/{timestamp}-*.md` and merges `.squad/decisions/inbox/` → `.squad/decisions.md` at the end of each batch.
@@ -79,7 +81,7 @@ See `docs/ARCHITECTURE.md` for full details. For binding project principles, see
 Handler → Service → Repository → Database
 ```
 
-The full rule set lives in constitution **Principle I (Layered Architecture)** and is enforced by `architecture_test.go` (see **Principle X**). Quick reference table below for the import rules.
+The full rule set lives in constitution **Principle I (Clear Layered Architecture)** and is enforced by `architecture_test.go` per **Principle IX**. Quick reference table below for the import rules.
 
 **Package import rules:**
 
@@ -127,6 +129,10 @@ Users choose one provider in Admin Settings (`AIProvider` key):
 **Important:** Anthropic's `web_search` is NOT available by default on `ChatAnthropic`. Use `get_search_model()` from `app/llm/provider.py` (which calls `bind_tools`) for any agent node that needs web search. Use `get_chat_model()` for nodes that don't search.
 
 ## Code Conventions
+
+### Simple Complete Changes
+
+Principle IV means: keep fixes simple, complete, and proportional. Fix the real workflow, check directly related sibling paths, prefer typed and obvious code, and avoid hidden mutation or clever abstractions unless they are clearly justified.
 
 ### Go
 - Constructor injection for all dependencies (`NewXxxHandler(repo, service)` pattern)
@@ -282,22 +288,21 @@ All chips use `border-radius: var(--radius-full)`. Active state: `background: va
 
 ## Commit Convention
 
-Conventional Commits and the `Co-authored-by: Copilot` trailer are gated by constitution **§17 Quality Gate** and **Principle VIII**. Prefixes: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`. Trailer (required on every AI-assisted commit):
+Conventional Commits and the `Co-authored-by: Copilot` trailer are gated by constitution **§17 Quality Gate** and **Principle VII**. Prefixes: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`. Trailer (required on every AI-assisted commit):
 
 ```
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 ```
 
-## Security Baseline
+## Binding Baselines
 
-Security rules are normative in the constitution — do not restate them, comply with them:
+These rules are normative in the constitution — do not restate them, comply with them:
 
-- **Principle XI (Security Hardening)** — input validation, secret handling, output encoding.
-- **Principle XII (Authentication & Token Policy)** — JWT issuance, refresh, revocation, storage.
-- **Principle XIII (PWA / Mobile Interaction Rules)** — CSP, service worker scope, offline boundaries.
+- **Principle V (Security, Auth, and Privacy by Default)** — input validation, secret handling, token policy, account lifecycle, and access control.
+- **Principle VI (Consistent User Experience)** — PWA/mobile interaction rules and service worker boundaries.
 
 Any deviation requires an ADR (§22) before merge.
 
 ## Constitution Compliance
 
-Every PR self-checks the constitution. In the PR description, cite the **Principle(s)** and **operational section(s)** affected (e.g., "Principle I + §17"). The **Quality Gate (§17)** and **Definition of Done (§21)** are enforced on every PR — see `.github/pull_request_template.md` for the 14-item DoD checklist.
+Every PR self-checks the constitution. In the PR description, cite the **Principle(s)** and **operational section(s)** affected (e.g., "Principle I + §17"). The **Quality Gate (§17)** and **Definition of Done (§21)** are enforced on every PR — see `.github/pull_request_template.md` for the 15-item DoD checklist.
