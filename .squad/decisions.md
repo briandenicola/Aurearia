@@ -2,6 +2,36 @@
 
 ## Active Decisions
 
+### Decision: Coin of the Day Pushover Link Configuration
+
+**Date:** 2026-06-10  
+**Agents:** Cassius (initial), Brutus (review), Aurelia (revision)  
+**Status:** APPROVED — BLOCK CLEARED  
+
+## Context
+
+Coin of the Day Pushover notifications require external-world navigation. Cassius initially used relative `/coin/{id}` URLs in notification payloads, which are not usable when opened from system notification center outside app context. Brutus blocked with STRICT LOCKOUT per constitution §18.2.
+
+## Decision
+
+Add an explicit admin setting `PublicAppURL` (surfaced in System Settings). Coin of the Day Pushover links are built as absolute `http(s)://host/coin/{coinID}` by trimming trailing slashes and joining. When the setting is blank or invalid, Pushover alerts omit both the `url` field and the HTML anchor, keeping the formatted notification body but removing the clickable link.
+
+In-app notifications retain `ReferenceID = FeaturedCoin.ID` for modal behavior unchanged.
+
+## Constitution Alignment
+
+- Principle IV: fixes the real external-link workflow explicitly, no hidden behavior.
+- Principle V: makes deployment-specific URL configuration explicit and user-settable.
+- Principle IX: added tests for configured and unconfigured Pushover link behavior.
+- §18.2: BLOCK CLEARED after revision to absolute-URL requirement.
+
+## Files Touched
+
+Backend: `services/coin_of_day_scheduler.go`, `services/notification_service.go`, `services/pushover_service.go`, `services/pushover_service_test.go`, `services/settings_service.go`, `services/settings_service_test.go`  
+Frontend: `components/admin/AdminSystemSection.vue`, `composables/useAdminConfig.ts`, `pages/AdminPage.vue`, `types/index.ts`
+
+---
+
 ### Decision: F013 Defines Deterministic Critical Workflow Baseline
 
 **Date:** 2026-06-09

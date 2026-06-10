@@ -20,6 +20,7 @@ export function useAdminConfig() {
     OllamaTimeout: '300',
     SearXNGURL: '',
     LogLevel: 'info',
+    PublicAppURL: '',
     CoinCategories: '',
     CoinEras: '',
   })
@@ -33,6 +34,7 @@ export function useAdminConfig() {
     OllamaTimeout: '',
     SearXNGURL: '',
     LogLevel: '',
+    PublicAppURL: '',
     CoinCategories: '',
     CoinEras: '',
   })

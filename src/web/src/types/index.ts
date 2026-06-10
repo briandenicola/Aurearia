@@ -546,6 +546,7 @@ export interface AppSettings {
   OllamaTimeout: string
   SearXNGURL: string
   LogLevel: string
+  PublicAppURL?: string
   CoinCategories?: string
   CoinEras?: string
   [key: string]: string | undefined
