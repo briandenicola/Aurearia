@@ -94,3 +94,14 @@
     - Maximus Final: `.squad/orchestration-log/2026-06-09T13-45-33Z-maximus.md`
   - **Session Log:** `.squad/log/2026-06-09T13-45-44Z-scribe-f013-final-review.md`
   - **Decision:** F013 Critical Workflow Hardening implementation and validation COMPLETE. Ready for merge after session handoff.
+
+## Learnings
+
+- **2026-06-10 — Collection count contract review (64 vs 65, PWA shows 50):**
+  - Canonical "collection count" = ActiveCollection scope (owned AND NOT wishlist AND NOT sold), defined in src/api/repository/scopes.go. Wishlist/Sold are separate buckets.
+  - Invariant: /coins?wishlist=false&sold=false total == /coins/stats totalCoins == collection_summary tool totalCoins. All three already share the SAME SQL predicate, so predicates are not the bug.
+  - "PWA shows 50" = page-based pagination, COINS_PER_PAGE=50 in src/web/src/pages/CollectionPage.vue; CollectionPagination + store.total. Working as designed; UX clarity issue only.
+  - PWA collection list always sends wishlist:'false'/sold:'false' via src/web/src/composables/useCollectionFilters.ts (loadCoins), so its total matches stats. A 1-off divergence => either agent fidelity bug (AI narrates a number != tool totalCoins) or a data anomaly (one active coin user doesn't count).
+  - Latent contract weakness: default /coins (no filters) total includes wishlist+sold, unlike stats.totalCoins. Don't change default silently (Wishlist/Sold pages rely on filtered totals); document that total reflects applied filter, not collection size.
+  - Key files: src/api/repository/coin_repository.go (List ~L179, GetStats ~L495), src/api/services/collection_tools_service.go (CollectionSummary), src/api/handlers/internal_tools.go (CollectionSummary handler), src/web/src/composables/useCollectionFilters.ts, src/web/src/pages/CollectionPage.vue.
+  - Decision recorded: .squad/decisions/inbox/maximus-collection-count-contract.md.

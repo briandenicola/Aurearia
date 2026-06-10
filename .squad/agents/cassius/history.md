@@ -35,6 +35,23 @@
 
 ## Learnings
 
+### 2026-06-10 — Collection Count Invariant
+
+**Files:**
+- `src/api/repository/scopes.go` — `ActiveCollection` scope defines `is_wishlist=false AND is_sold=false`
+- `src/api/repository/coin_repository.go` — `GetStats` uses `ActiveCollection`, `List` applies wishlist/sold filters
+- `src/api/services/collection_tools_service.go` — `CollectionSummary` calls `GetStats`, passes through `TotalCoins`
+- `src/api/handlers/coins.go` — List handler documentation clarifies `total` semantics
+- `src/api/handlers/coin_handler_test.go` — `TestCoinHandler_ActiveCollectionCountInvariant` locks the predicate contract
+
+**Pattern:**
+The canonical "active collection" count is `owned AND NOT wishlist AND NOT sold`. All three query paths already use identical predicates:
+1. `/coins?wishlist=false&sold=false` → `List` applies both filters, counts after
+2. `/stats` → `GetStats` uses `ActiveCollection` scope
+3. `collection_summary` tool → calls `GetStats`, returns `stats.TotalCoins`
+
+**Key insight:** No predicate fix was needed — they already match. Added a regression test (`TestCoinHandler_ActiveCollectionCountInvariant`) to lock the invariant: all three paths must return the same count for a mixed fixture (active + wishlist + sold). Documented `/coins` total semantics: "reflects the applied filter, not 'collection size.'"
+
 ### 2026-06-06 — Documentation Feature Showcase (Issue #241)
 
 **Feature Discovery & Documentation Refactor:**

@@ -7262,3 +7262,216 @@ Join tables with custom fields must be managed through dedicated methods:
 **What:** Agents must make the simplest possible fix, but not the narrowest. The codebase should stay simple, direct, and easy for a human to understand. Avoid cute, fancy, or overly clever solutions, and avoid thousand-line changes for UI bugs or property additions.
 
 **Why:** User request for sustainable code quality
+
+---
+
+## Decision: Canonical "Collection Count" Contract & PWA List Loading
+
+**Author:** Maximus (Lead/Architect)  
+**Date:** 2026-06-10  
+**Status:** Adopted (design decision, implementation ongoing)  
+**Principles:** I (Layered Architecture), IV (Proportional Scope), Agent Fidelity (stateless tools pass only tool-returned data)
+
+### Context
+
+User report: "64 coins in my collection, but PWA shows 50; AI summary says 65 coins (Wishlist 2, Sold 0)."
+
+Two separate phenomena, NOT one bug:
+
+1. **"PWA shows 50"** — `CollectionPage` uses page-based pagination, `COINS_PER_PAGE = 50`
+   (`CollectionPagination` + `store.total`). Page 1 shows 50; remaining coins are on page 2.
+   Working as designed. This is a UX-clarity issue, not a count bug.
+
+2. **"64 vs 65"** — an off-by-one between the user's mental count and the AI summary.
+
+### Canonical contract (single source of truth)
+
+**"The collection" (count) = owned ∧ NOT wishlist ∧ NOT sold** — the `ActiveCollection`
+scope (`repository/scopes.go`: `is_wishlist=false AND is_sold=false`). Wishlist and Sold
+are separate buckets with their own views/counts.
+
+**Invariant (must always hold for the same user at the same time):**
+
+```
+/coins?wishlist=false&sold=false  → total
+  == /coins/stats                 → totalCoins
+  == collection_summary tool      → totalCoins
+```
+
+All three already use the **same SQL predicate** today, so the predicates are NOT the bug:
+- `List` total = `Count` after applying `wishlist=false, sold=false` filters.
+- `GetStats.TotalCoins` = `ActiveCollection` scope (same predicate).
+- `collection_summary` → `CollectionSummary` → `GetStats`.
+
+Because the PWA collection view always sends `wishlist:'false', sold:'false'`
+(`useCollectionFilters.ts`), its `total` and the AI's `totalCoins` should be **identical**.
+A divergence of 1 therefore points to one of:
+
+- **(a) Agent fidelity bug** — the AI narrates a number ≠ the tool's `totalCoins`
+  (off-by-one / adding wishlist). Forbidden by the "pass only tool-returned data" rule.
+- **(b) Data anomaly** — exactly one coin is `is_wishlist=false AND is_sold=false` that the
+  user does not consider "in the collection" (e.g., an intake draft or a coin missing a flag).
+  Then both stats and list legitimately read 65 and the user's mental count (64) is stale.
+
+### Latent contract weakness (fix or document)
+
+The **default** `/coins` (no filters) returns ALL owned coins — including wishlist & sold —
+in `total`, whereas `/coins/stats.totalCoins` excludes them. Any future consumer that calls
+`/coins` without the filters and treats `total` as "collection size" will be wrong.
+Do NOT silently change the default (Wishlist/Sold pages depend on filtered totals). Instead
+make the semantics explicit: `total` reflects the applied filter, not "collection size."
+
+### Decision
+
+- Adopt `ActiveCollection` as the one definition of collection count. No predicate changes.
+- Treat "shows 50" as UX clarity, not a count fix.
+- Root-cause the off-by-one as either agent fidelity (a) or a data anomaly (b) before any code change.
+
+### Action items
+
+**Cassius (backend):** Document `/coins` `total` semantics (filter-driven, not "collection
+size"); confirm `GetStats` and filtered `List` share the predicate (they do — no change);
+provide a quick diagnostic to identify the single active coin behind 65 vs 64.
+
+**Aurelia (frontend):** Add "Showing X–Y of Z coins" so 50/page doesn't read as
+"only 50 exist"; ensure the total badge uses the active-collection number; keep
+`wishlist:'false'/sold:'false'`. Infinite scroll/load-more is optional and proportional only.
+
+**Brutus (tests/QA):** Add invariant test (list-filtered total == stats.totalCoins ==
+collection_summary.totalCoins); add agent-fidelity assertion (AI's stated coin count ==
+tool `totalCoins`, no off-by-one, no wishlist added); fixture mixing active + wishlist + sold
+to lock the definition.
+
+---
+
+## Decision: Collection Pagination Count Summary Display
+
+**Author:** Aurelia (Frontend Developer)  
+**Date:** 2026-06-10  
+**Status:** Implemented (code complete, tests pass)  
+**Principles:** VI (PWA/Mobile Interaction Rules), IV (Proportional Scope)
+
+### Context
+
+User report: "64 coins in my collection, but PWA shows 50; looks like only 50 exist."
+
+The collection list uses page-based pagination (`COINS_PER_PAGE = 50`). Page 1 shows 50 coins, remaining 14 are on page 2. The UI previously only displayed "Page X of Y" with no indication of the total item count, making it unclear that more coins exist beyond the first page.
+
+Maximus's decision document (`.squad/decisions/maximus-collection-count-contract.md`) prescribed: "Add 'Showing X–Y of Z coins' so 50/page doesn't read as 'only 50 exist'."
+
+### Decision
+
+Enhanced `CollectionPagination.vue` (grid mode only) to display:
+- **Mobile (PWA):** "Showing 1–50 of 64 coins" above "Page 1 of 2" (vertical stack)
+- **Desktop:** "Showing 1–50 of 64 coins • Page 1 of 2" (inline with bullet separator)
+
+**Design tokens used:**
+- Typography: `--text-primary` (range), `--text-secondary` (page info), `--text-muted` (page number)
+- Layout: `@media (min-width: 769px)` for desktop breakpoint (per PWA constitution rule)
+- Font sizes: `0.85rem` (page info), `0.75rem` (page number)
+
+**Implementation:**
+- Added computed properties `rangeStart` and `rangeEnd` to calculate `(page - 1) * perPage + 1` and `Math.min(page * perPage, total)`
+- Structured page-info span as flex container with responsive direction (column on mobile, row on desktop)
+- No changes to SwipeGallery (already shows "51 / 64" counter at top)
+
+### Test Coverage
+
+Updated `CollectionPagination.test.ts` with three new assertions:
+1. Page 1 with 64 total / 50 perPage → "Showing 1–50 of 64 coins"
+2. Page 2 with 64 total / 50 perPage → "Showing 51–64 of 64 coins"
+3. Page 2 with 30 total / 10 perPage → "Showing 11–20 of 30 coins"
+
+All 9 tests pass. Type-check passes.
+
+### No Backend Changes
+
+This is purely a frontend presentation change. The existing API contract (`/coins?wishlist=false&sold=false&page=N`) and store `total` field remain unchanged. The active-collection filters (`wishlist:false`, `sold:false`) are preserved as specified in Maximus's contract.
+
+### Files Changed
+
+- `src/web/src/components/CollectionPagination.vue` — template, script, style
+- `src/web/src/components/__tests__/CollectionPagination.test.ts` — added range assertions
+
+### Learning
+
+**Computed properties for range math:** Simple `(page - 1) * perPage + 1` and `Math.min(page * perPage, total)` pattern avoids duplication in template and centralizes pagination math.
+
+**Responsive layout with design tokens:** Mobile-first column layout with `@media (min-width: 769px)` for desktop row layout + bullet separator via `::before` pseudo-element.
+
+**PWA clarity rule:** When pagination hides items, always show absolute range ("Showing X–Y of Z") not just relative page ("Page X of Y").
+
+---
+
+## Decision: Collection Count Fidelity Verification & Regression Test
+
+**Author:** Cassius (Backend Dev)  
+**Date:** 2026-06-10  
+**Status:** Implemented  
+**Principles:** I (Layered Architecture), IV (Proportional Scope), XI (Security Hardening — no SQL injection)
+
+### Context
+
+Maximus identified a potential 64/65 collection count mismatch and asked Cassius to verify and fix any divergence between:
+1. `/coins?wishlist=false&sold=false` → `total`
+2. `/coins/stats` → `totalCoins`
+3. `collection_summary` tool (AI-facing) → `totalCoins`
+
+The canonical definition is: **active collection = owned ∧ NOT wishlist ∧ NOT sold**
+
+### Investigation
+
+Reviewed the three query paths:
+
+1. **`List` (coin_repository.go:179-263):**
+   - Applies `filters.Wishlist` and `filters.Sold` via `Where` clauses (lines 188-193)
+   - Counts `total` after applying filters (line 210)
+   - `/coins?wishlist=false&sold=false` → `is_wishlist=false AND is_sold=false`
+
+2. **`GetStats` (coin_repository.go:496-555):**
+   - Uses `ActiveCollection(userID)` scope for `TotalCoins` (line 500)
+   - `ActiveCollection` defined in scopes.go line 20-24: `Where("user_id = ? AND is_wishlist = ? AND is_sold = ?", userID, false, false)`
+
+3. **`CollectionSummary` (collection_tools_service.go:172-185):**
+   - Calls `GetStats(userID)` (line 173)
+   - Returns `stats.TotalCoins` directly (line 179)
+
+**Verdict:** **All three paths already use identical predicates.** No predicate bug exists.
+
+### Decision
+
+Per Maximus's decision document, the issue is either:
+- (a) Agent fidelity bug — AI narrates a number ≠ tool's `totalCoins`
+- (b) Data anomaly — one coin with unexpected flags
+
+Since the predicates are proven identical, Cassius:
+1. Added a **regression test** (`TestCoinHandler_ActiveCollectionCountInvariant`) to lock the invariant with a mixed fixture (3 active + 2 wishlist + 1 sold)
+2. Documented `/coins` `total` semantics in the handler: "reflects the applied filter, not 'collection size'"
+
+No code changes to predicates or service logic were needed.
+
+### Implementation
+
+**Files Changed:**
+- `src/api/handlers/coin_handler_test.go` — added `TestCoinHandler_ActiveCollectionCountInvariant` (100 lines)
+- `src/api/handlers/coins.go` — added comment to `List` godoc clarifying `total` semantics
+
+**Test Coverage:**
+- Seeds 3 active + 2 wishlist + 1 sold coins
+- Asserts `/coins?wishlist=false&sold=false` → `total=3`
+- Asserts `/stats` → `totalCoins=3`
+- Asserts `CollectionSummary` → `TotalCoins=3`
+- Asserts wishlist=2, sold=1 counts
+- Fails with `INVARIANT VIOLATION` if any path diverges
+
+**Test Result:** ✅ PASS
+
+### Security Note
+
+The `List` handler already validates `sortField` against an allowlist and uses `strconv.Atoi` for the `seed` parameter (SQL injection defense). No new parameters were added.
+
+### Related
+
+- Maximus decision: `.squad/decisions/maximus-collection-count-contract.md`
+- Constitution Principle I: Clear Layered Architecture
+- Constitution §17: Quality Gate (targeted Go validation)

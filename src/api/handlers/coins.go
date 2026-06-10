@@ -68,6 +68,15 @@ type PurchaseRequest struct {
 
 // List returns a paginated list of coins for the authenticated user.
 //
+// The "total" field in the response reflects the total number of coins matching
+// the applied filters. For example:
+//   - /coins: total = all owned coins (including wishlist & sold)
+//   - /coins?wishlist=false&sold=false: total = active collection count
+//
+// The active collection (owned AND NOT wishlist AND NOT sold) is the canonical
+// definition of "collection size" and must match /stats totalCoins and the
+// internal collection_summary tool.
+//
 //	@Summary		List coins
 //	@Description	Returns a paginated, filterable list of coins belonging to the authenticated user.
 //	@Tags			Coins

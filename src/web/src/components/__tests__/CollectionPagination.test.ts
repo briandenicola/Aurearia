@@ -3,11 +3,28 @@ import { mount } from '@vue/test-utils'
 import CollectionPagination from '../CollectionPagination.vue'
 
 describe('CollectionPagination', () => {
-  it('renders page info when total exceeds perPage in grid mode', () => {
+  it('renders item range and page info when total exceeds perPage in grid mode', () => {
     const wrapper = mount(CollectionPagination, {
       props: { page: 2, total: 30, perPage: 10, viewMode: 'grid' },
     })
+    expect(wrapper.text()).toContain('Showing 11-20 of 30 coins')
     expect(wrapper.text()).toContain('Page 2 of 3')
+  })
+
+  it('shows correct range on first page', () => {
+    const wrapper = mount(CollectionPagination, {
+      props: { page: 1, total: 64, perPage: 50, viewMode: 'grid' },
+    })
+    expect(wrapper.text()).toContain('Showing 1-50 of 64 coins')
+    expect(wrapper.text()).toContain('Page 1 of 2')
+  })
+
+  it('shows correct range on last page when not full', () => {
+    const wrapper = mount(CollectionPagination, {
+      props: { page: 2, total: 64, perPage: 50, viewMode: 'grid' },
+    })
+    expect(wrapper.text()).toContain('Showing 51-64 of 64 coins')
+    expect(wrapper.text()).toContain('Page 2 of 2')
   })
 
   it('hides when total is within one page', () => {

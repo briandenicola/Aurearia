@@ -210,3 +210,5 @@ Added navigator.permissions.query pre-check to CameraCaptureModal.vue. Persisted
    - **F013 Phase 4 Completion:** T018–T023 + T024–T026 = 9 of 11 Phase 4 tasks complete. T027–T028 (Taskfile + docs) pending.
    - **Key Learning:** Image form edits perform scalar update first, then image deletes, then uploads; tests must assert all three side effects separately.
    - **Orchestration Log:** `.squad/orchestration-log/2026-06-09T13-45-22Z-aurelia.md`
+
+- **2026-06-10:** Collection Pagination Count Summary — Added "Showing X–Y of Z coins" range display to CollectionPagination.vue (grid mode) to clarify total collection size when pagination limits to 50 per page. Responsive layout: mobile shows range above page number (vertical stack), desktop shows range + page number inline with bullet separator. Computed properties angeStart and angeEnd calculate current page item range. Updated tests to verify range formatting for first/last/partial pages. Type-check + tests pass. Preserves existing active-collection filters (wishlist:false, sold:false). PWA swipe mode already shows "X / Total" counter; only grid mode needed explicit range summary.

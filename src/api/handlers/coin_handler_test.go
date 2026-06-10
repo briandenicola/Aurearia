@@ -1211,3 +1211,115 @@ func TestCoinHandler_Unauthenticated(t *testing.T) {
 		t.Errorf("expected 401 without auth, got %d", w.Code)
 	}
 }
+
+// TestCoinHandler_ActiveCollectionCountInvariant verifies that the canonical
+// "active collection" count (owned AND NOT wishlist AND NOT sold) is identical
+// across three query paths:
+//   - /coins?wishlist=false&sold=false total
+//   - /stats totalCoins
+//   - internal collection_summary tool totalCoins
+//
+// This locks the predicate contract: no divergence is permitted.
+func TestCoinHandler_ActiveCollectionCountInvariant(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "countuser")
+
+	coinRepo := repository.NewCoinRepository(db)
+	collectionSvc := services.NewCollectionToolsService(coinRepo, nil)
+
+	coins := []models.Coin{
+		{Name: "Active 1", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, IsWishlist: false, IsSold: false},
+		{Name: "Active 2", Category: models.CategoryGreek, Material: models.MaterialGold, UserID: 1, IsWishlist: false, IsSold: false},
+		{Name: "Active 3", Category: models.CategoryByzantine, Material: models.MaterialBronze, UserID: 1, IsWishlist: false, IsSold: false},
+		{Name: "Wishlist 1", Category: models.CategoryRoman, Material: models.MaterialGold, UserID: 1, IsWishlist: true, IsSold: false},
+		{Name: "Wishlist 2", Category: models.CategoryGreek, Material: models.MaterialSilver, UserID: 1, IsWishlist: true, IsSold: false},
+		{Name: "Sold 1", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, IsWishlist: false, IsSold: true},
+	}
+	if err := db.Create(&coins).Error; err != nil {
+		t.Fatalf("failed to seed mixed coin collection: %v", err)
+	}
+
+	// Path 1: /coins?wishlist=false&sold=false total
+	req := httptest.NewRequest(http.MethodGet, "/api/coins?wishlist=false&sold=false", nil)
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 from /coins, got %d: %s", w.Code, w.Body.String())
+	}
+	var listResp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("failed to decode /coins response: %v", err)
+	}
+	listTotal := int64(listResp["total"].(float64))
+	if listTotal != 3 {
+		t.Errorf("/coins?wishlist=false&sold=false: expected total=3, got %d", listTotal)
+	}
+
+	// Path 2: /stats totalCoins
+	setupStatsRouter := func(t *testing.T, db *gorm.DB) *gin.Engine {
+		gin.SetMode(gin.TestMode)
+		coinRepo := repository.NewCoinRepository(db)
+		catalogRegistryRepo := repository.NewCatalogRegistryRepository(db)
+		coinReferenceRepo := repository.NewCoinReferenceRepository(db)
+		coinReferenceSvc := services.NewCoinReferenceService(coinReferenceRepo, catalogRegistryRepo)
+		storageLocationRepo := repository.NewStorageLocationRepository(db)
+		coinSvc := services.NewCoinService(coinRepo, nil).
+			WithReferenceSupport(coinReferenceRepo, coinReferenceSvc).
+			WithStorageLocationSupport(storageLocationRepo).
+			WithCatalogRegistrySupport(catalogRegistryRepo)
+		handler := NewCoinHandler(coinRepo, coinSvc, services.NewLogger(100))
+		r := gin.New()
+		protected := r.Group("/api")
+		protected.Use(coinTestAuthMiddleware())
+		protected.GET("/stats", handler.Stats)
+		return r
+	}
+	statsRouter := setupStatsRouter(t, db)
+	req2 := httptest.NewRequest(http.MethodGet, "/api/stats", nil)
+	req2.Header.Set("Authorization", authHeader(1))
+	w2 := httptest.NewRecorder()
+	statsRouter.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected 200 from /stats, got %d: %s", w2.Code, w2.Body.String())
+	}
+	var statsResp map[string]interface{}
+	if err := json.Unmarshal(w2.Body.Bytes(), &statsResp); err != nil {
+		t.Fatalf("failed to decode /stats response: %v", err)
+	}
+	statsTotalCoins := int64(statsResp["totalCoins"].(float64))
+	if statsTotalCoins != 3 {
+		t.Errorf("/stats: expected totalCoins=3, got %d", statsTotalCoins)
+	}
+
+	// Path 3: collection_summary tool totalCoins
+	summary, err := collectionSvc.CollectionSummary(1)
+	if err != nil {
+		t.Fatalf("CollectionSummary error: %v", err)
+	}
+	if summary.TotalCoins != 3 {
+		t.Errorf("CollectionSummary: expected totalCoins=3, got %d", summary.TotalCoins)
+	}
+
+	// Invariant: all three paths must return the same count
+	if listTotal != statsTotalCoins || statsTotalCoins != summary.TotalCoins {
+		t.Errorf("INVARIANT VIOLATION: /coins total=%d, /stats totalCoins=%d, collection_summary totalCoins=%d (expected all=3)",
+			listTotal, statsTotalCoins, summary.TotalCoins)
+	}
+
+	// Verify wishlist and sold counts are correct
+	statsWishlist := int64(statsResp["totalWishlist"].(float64))
+	statsSold := int64(statsResp["totalSold"].(float64))
+	if statsWishlist != 2 {
+		t.Errorf("expected totalWishlist=2, got %d", statsWishlist)
+	}
+	if statsSold != 1 {
+		t.Errorf("expected totalSold=1, got %d", statsSold)
+	}
+	if summary.TotalWishlist != 2 {
+		t.Errorf("collection_summary: expected totalWishlist=2, got %d", summary.TotalWishlist)
+	}
+	if summary.TotalSold != 1 {
+		t.Errorf("collection_summary: expected totalSold=1, got %d", summary.TotalSold)
+	}
+}
