@@ -2,7 +2,7 @@
   <div class="swipe-gallery">
     <!-- Card counter -->
     <div v-if="coins.length" class="card-counter">
-      {{ currentIndex + 1 }} / {{ coins.length }}
+      {{ absoluteIndex + 1 }} / {{ total }}
     </div>
 
     <!-- Card stack -->
@@ -50,7 +50,7 @@
     </div>
 
     <!-- Arrow navigation -->
-    <div v-if="coins.length > 1" class="swipe-nav">
+    <div v-if="total > 1" class="swipe-nav">
       <button class="nav-btn" @click="goPrev">
         <ChevronLeft :size="16" /> Prev
       </button>
@@ -68,7 +68,13 @@ import type { Coin, ImageType } from '@/types'
 import { useCoinsStore } from '@/stores/coins'
 import { Coins, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 
-const props = defineProps<{ coins: Coin[] }>()
+const props = defineProps<{
+  coins: Coin[]
+  total: number
+  page: number
+  perPage: number
+}>()
+const emit = defineEmits<{ 'page-change': [page: number] }>()
 const router = useRouter()
 const store = useCoinsStore()
 
@@ -79,6 +85,8 @@ const currentIndex = computed({
 })
 const isAnimating = ref(false)
 const isFlipping = ref(false)
+
+const absoluteIndex = computed(() => (props.page - 1) * props.perPage + currentIndex.value)
 
 const FLIP_DURATION = 200 // ms for each half of the flip
 
@@ -205,10 +213,36 @@ function flyAway(direction: 1 | -1) {
 
     const len = props.coins.length
     if (len === 0) return
+
     if (direction > 0) {
-      currentIndex.value = (currentIndex.value + 1) % len
+      if (currentIndex.value < len - 1) {
+        currentIndex.value = currentIndex.value + 1
+      } else if (absoluteIndex.value < props.total - 1) {
+        currentIndex.value = 0
+        emit('page-change', props.page + 1)
+      } else {
+        currentIndex.value = 0
+        if (props.page > 1) {
+          emit('page-change', 1)
+        }
+      }
     } else {
-      currentIndex.value = (currentIndex.value - 1 + len) % len
+      if (currentIndex.value > 0) {
+        currentIndex.value = currentIndex.value - 1
+      } else if (props.page > 1) {
+        const maxPages = Math.ceil(props.total / props.perPage)
+        const prevPage = props.page - 1
+        const prevPageSize = prevPage === maxPages ? (props.total % props.perPage || props.perPage) : props.perPage
+        currentIndex.value = prevPageSize - 1
+        emit('page-change', prevPage)
+      } else {
+        const lastPage = Math.ceil(props.total / props.perPage)
+        const lastPageSize = props.total % props.perPage || props.perPage
+        currentIndex.value = lastPageSize - 1
+        if (lastPage > 1) {
+          emit('page-change', lastPage)
+        }
+      }
     }
   }, 300)
   animationTimers.push(tid)
@@ -220,13 +254,13 @@ function onCardTap() {
 }
 
 function goNext() {
-  if (props.coins.length > 1 && !isAnimating.value) {
+  if (props.coins.length > 0 && props.total > 1 && !isAnimating.value) {
     flyAway(1)
   }
 }
 
 function goPrev() {
-  if (props.coins.length > 1 && !isAnimating.value) {
+  if (props.coins.length > 0 && props.total > 1 && !isAnimating.value) {
     flyAway(-1)
   }
 }

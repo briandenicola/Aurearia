@@ -10,7 +10,7 @@
       <button class="btn btn-sm btn-secondary" @click="$emit('deselect-all')">Deselect All</button>
       <span class="select-count">{{ selectedCount }} selected</span>
     </div>
-    <SwipeGallery v-if="isPwa && viewMode === 'swipe' && !selectMode" :coins="coins" />
+    <SwipeGallery v-if="isPwa && viewMode === 'swipe' && !selectMode" :coins="coins" :total="total" :page="page" :per-page="perPage" @page-change="$emit('page-change', $event)" />
     <div v-else class="coins-grid">
       <CoinCard
         v-for="coin in coins"
@@ -48,12 +48,16 @@ defineProps<{
   viewMode: 'grid' | 'swipe'
   gridSide: ImageType | null
   hasFilters: boolean
+  total: number
+  page: number
+  perPage: number
 }>()
 
 defineEmits<{
   'select-all': []
   'deselect-all': []
   'toggle-coin-select': [coinId: number]
+  'page-change': [page: number]
 }>()
 </script>
 

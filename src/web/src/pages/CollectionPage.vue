@@ -55,15 +55,19 @@
       :view-mode="viewMode"
       :grid-side="gridSide"
       :has-filters="!!(search || selectedCategory || selectedEra || selectedTag)"
+      :total="store.total"
+      :page="page"
+      :per-page="COINS_PER_PAGE"
       @select-all="selectAll"
       @deselect-all="deselectAll"
       @toggle-coin-select="toggleCoinSelect"
+      @page-change="handlePageChange"
     />
 
     <CollectionPagination
       :page="page"
       :total="store.total"
-      :per-page="50"
+      :per-page="COINS_PER_PAGE"
       :view-mode="viewMode"
       @prev="page--"
       @next="page++"
@@ -123,6 +127,7 @@ const {
 } = useCollectionFilters()
 
 const menuOpen = ref(false)
+const COINS_PER_PAGE = 50
 
 onMounted(() => {
   fetchUserTags()
@@ -295,6 +300,10 @@ async function bulkAssignLocation(locationId: number | null) {
   } catch {
     alert('Failed to assign location')
   }
+}
+
+function handlePageChange(newPage: number) {
+  page.value = newPage
 }
 
 onUnmounted(() => {
