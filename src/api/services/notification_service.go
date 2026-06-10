@@ -2,6 +2,8 @@ package services
 
 import (
 	"fmt"
+	"html"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -144,7 +146,7 @@ func (s *NotificationService) NotifyFollowRequest(followerID, targetID uint) {
 // NotifyCoinOfDay creates an in-app notification and Pushover alert for the
 // user's daily featured coin. The ReferenceID points to the FeaturedCoin record
 // so the frontend can open the dedicated modal.
-func (s *NotificationService) NotifyCoinOfDay(userID uint, featuredCoinID uint, coinName, summary string) {
+func (s *NotificationService) NotifyCoinOfDay(userID uint, featuredCoinID, coinID uint, coinName, summary string) {
 	if coinName == "" {
 		coinName = "Today's coin"
 	}
@@ -172,7 +174,7 @@ func (s *NotificationService) NotifyCoinOfDay(userID uint, featuredCoinID uint, 
 		s.logger.Error("notifications", "Failed to create coin-of-day notification for user %d: %v", userID, err)
 	}
 
-	go s.sendPushover(userID, title, message, "")
+	go s.sendPushoverMessage(userID, buildCoinOfDayPushoverMessage(title, coinID, coinName, summary, s.publicAppBaseURL()))
 }
 
 // NotifyAPIKeyRotationRequired creates a single actionable notification that lists
@@ -216,6 +218,15 @@ func (s *NotificationService) NotifyAPIKeyRotationRequired(userID uint, keyNames
 
 // sendPushover checks if the user has Pushover enabled and sends a push notification.
 func (s *NotificationService) sendPushover(userID uint, title, message, refURL string) {
+	s.sendPushoverMessage(userID, PushoverMessage{
+		Title:   title,
+		Message: message,
+		URL:     refURL,
+	})
+}
+
+// sendPushoverMessage checks if the user has Pushover enabled and sends a push notification.
+func (s *NotificationService) sendPushoverMessage(userID uint, message PushoverMessage) {
 	if s.pushoverSvc == nil || s.userRepo == nil {
 		return
 	}
@@ -229,7 +240,61 @@ func (s *NotificationService) sendPushover(userID uint, title, message, refURL s
 		return
 	}
 
-	if err := s.pushoverSvc.SendNotification(user.PushoverUserKey, title, message, refURL); err != nil {
+	message.UserKey = user.PushoverUserKey
+	if err := s.pushoverSvc.SendMessage(message); err != nil {
 		s.logger.Error("pushover", "Failed to send Pushover notification to user %d: %v", userID, err)
 	}
+}
+
+func (s *NotificationService) publicAppBaseURL() string {
+	if s == nil || s.pushoverSvc == nil || s.pushoverSvc.settingsSvc == nil {
+		return ""
+	}
+	return s.pushoverSvc.settingsSvc.GetSetting(SettingPublicAppURL)
+}
+
+func buildCoinOfDayPushoverMessage(title string, coinID uint, coinName, summary, publicAppBaseURL string) PushoverMessage {
+	if coinName == "" {
+		coinName = "Today's coin"
+	}
+
+	body := fmt.Sprintf("<b>%s</b>", html.EscapeString(coinName))
+	if summary != "" {
+		body = fmt.Sprintf("%s — %s", body, html.EscapeString(truncateRunes(summary, 140)))
+	}
+
+	coinURL := buildCoinOfDayURL(publicAppBaseURL, coinID)
+	if coinURL != "" {
+		body = fmt.Sprintf("%s — <a href=\"%s\">Open coin</a>", body, html.EscapeString(coinURL))
+	}
+
+	return PushoverMessage{
+		Title:   title,
+		Message: body,
+		URL:     coinURL,
+		HTML:    true,
+	}
+}
+
+func buildCoinOfDayURL(publicAppBaseURL string, coinID uint) string {
+	base := strings.TrimRight(strings.TrimSpace(publicAppBaseURL), "/")
+	if base == "" {
+		return ""
+	}
+	parsed, err := url.Parse(base)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return ""
+	}
+	if parsed.Scheme != "https" && parsed.Scheme != "http" {
+		return ""
+	}
+	return fmt.Sprintf("%s/coin/%d", base, coinID)
+}
+
+func truncateRunes(value string, max int) string {
+	runes := []rune(value)
+	if len(runes) <= max {
+		return value
+	}
+	return string(runes[:max-3]) + "..."
 }

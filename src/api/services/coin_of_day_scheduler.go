@@ -190,7 +190,7 @@ func (s *CoinOfDayScheduler) runCycleWithTrigger(triggerType string) (int, int, 
 			continue
 		}
 
-		s.notifSvc.NotifyCoinOfDay(user.ID, fc.ID, coin.Name, summary)
+		s.notifSvc.NotifyCoinOfDay(user.ID, fc.ID, coin.ID, coin.Name, summary)
 
 		s.mu.Lock()
 		s.lastPicked[user.ID] = today

@@ -15,6 +15,7 @@ const (
 	SettingTextExtractionPrompt               = "TextExtractionPrompt"
 	SettingOllamaTimeout                      = "OllamaTimeout"
 	SettingLogLevel                           = "LogLevel"
+	SettingPublicAppURL                       = "PublicAppURL"
 	SettingNumistaAPIKey                      = "NumistaAPIKey"
 	SettingAnthropicAPIKey                    = "AnthropicAPIKey"
 	SettingAnthropicModel                     = "AnthropicModel"
@@ -75,6 +76,7 @@ var settingDefaults = map[string]string{
 	SettingTextExtractionPrompt:               DefaultTextExtractionPrompt,
 	SettingOllamaTimeout:                      "300",
 	SettingLogLevel:                           "info",
+	SettingPublicAppURL:                       "",
 	SettingNumistaAPIKey:                      "",
 	SettingAnthropicAPIKey:                    "",
 	SettingAnthropicModel:                     "claude-sonnet-4-20250514",

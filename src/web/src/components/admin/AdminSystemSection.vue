@@ -1,7 +1,7 @@
 <template>
   <section class="admin-section card">
     <h2>System Settings</h2>
-    <form @submit.prevent="$emit('save', { numistaApiKey: localNumistaApiKey, logLevel: localLogLevel, pushoverAppToken: localPushoverAppToken })">
+    <form @submit.prevent="$emit('save', { numistaApiKey: localNumistaApiKey, logLevel: localLogLevel, pushoverAppToken: localPushoverAppToken, publicAppUrl: localPublicAppUrl })">
       <div class="form-group">
         <label class="form-label">Numista API Key</label>
         <input v-model="localNumistaApiKey" class="form-input" type="password" placeholder="Enter your Numista API key" />
@@ -11,6 +11,11 @@
         <label class="form-label">Pushover API Token</label>
         <input v-model="localPushoverAppToken" class="form-input" type="password" placeholder="Enter your Pushover application API token" />
         <span class="form-hint">Create an app at <a href="https://pushover.net/apps" target="_blank" rel="noopener">pushover.net/apps</a> to get a token. Users provide their own User Key in Account Settings.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Public App URL</label>
+        <input v-model="localPublicAppUrl" class="form-input" type="url" placeholder="https://coins.example.com" />
+        <span class="form-hint">Full browser URL for this app. Used to make Pushover Coin of the Day links open directly to a coin; leave blank to send the alert without an external link.</span>
       </div>
       <div class="form-group">
         <label class="form-label">Log Level</label>
@@ -37,6 +42,7 @@ import { ref, watch } from 'vue'
 const props = defineProps<{
   numistaApiKey: string
   pushoverAppToken: string
+  publicAppUrl: string
   logLevel: string
   logLevels: readonly string[]
   saving: boolean
@@ -47,15 +53,17 @@ const props = defineProps<{
 }>()
 
 defineEmits<{
-  save: [settings: { numistaApiKey: string; logLevel: string; pushoverAppToken: string }]
+  save: [settings: { numistaApiKey: string; logLevel: string; pushoverAppToken: string; publicAppUrl: string }]
 }>()
 
 const localNumistaApiKey = ref(props.numistaApiKey)
 const localPushoverAppToken = ref(props.pushoverAppToken)
+const localPublicAppUrl = ref(props.publicAppUrl)
 const localLogLevel = ref(props.logLevel)
 
 watch(() => props.numistaApiKey, (v) => { localNumistaApiKey.value = v })
 watch(() => props.pushoverAppToken, (v) => { localPushoverAppToken.value = v })
+watch(() => props.publicAppUrl, (v) => { localPublicAppUrl.value = v })
 watch(() => props.logLevel, (v) => { localLogLevel.value = v })
 </script>
 

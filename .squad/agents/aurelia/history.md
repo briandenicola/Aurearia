@@ -52,6 +52,15 @@
    - Task T015 marked complete
    - Orchestration log: `.squad/orchestration-log/2026-06-09T12-51-39Z-aurelia.md`
 
+- **2026-06-10:** Coin of the Day Pushover Public URL Configuration Revision
+   - Cassius initially implemented with relative `/coin/{coinID}` links; Brutus blocked (relative URLs not usable outside app context)
+   - Added `PublicAppURL` admin setting in System tab (`AdminSystemSection.vue`) with validation and frontend type (`src/web/src/types/index.ts`)
+   - Coin of the Day Pushover links now build as absolute URLs (trim trailing slashes, join host + path) when setting is configured; omit link entirely when blank/invalid
+   - In-app notification behavior unchanged (in-app notification uses `ReferenceID = FeaturedCoin.ID` for modal)
+   - Tests pass: `npm run type-check`, `npm run build` ✅
+   - Brutus cleared BLOCK. Decision merged to `decisions.md`
+   - Orchestration log: `.squad/orchestration-log/2026-06-10T20-31-52Z-aurelia.md`
+
 - **2026-06-01:** Legacy catalog reference migration UI added to Settings → Data. New bordered section with Database and RefreshCw icons from lucide-vue-next, explanatory text (non-destructive, keeps originals, records outcomes in journal), trigger button with loading state, and result counts grid showing Succeeded (gold accent), Skipped, Failed (amber). Client function `migrateLegacyReferences()` calls `POST /references/migrate-legacy` and returns `LegacyMigrationResult { succeeded, skipped, failed, message? }` type. Results display uses design tokens (`--accent-gold`, `--text-muted`, `--bg-input`, `--border-subtle`, `--radius-sm`) and mobile-responsive stacked layout. Build and lint pass (no new warnings).
 
 - **2026-06-01:** Coin detail back navigation bug fixed. Root cause: EditCoinPage used `router.replace('/coin/:id')` after save, which Vue Router treated as a new Detail entry, leaving the stack as [Gallery, Detail_old, Detail_new]. Changed to `router.back()` which properly pops the Edit entry and returns to the original Detail, maintaining the correct Gallery → Detail → Back → Gallery flow. The pattern: when a child form/edit view saves and should return to parent, prefer `router.back()` over `router.replace()` to avoid polluting the history stack with duplicate parent entries.
@@ -212,3 +221,5 @@ Added navigator.permissions.query pre-check to CameraCaptureModal.vue. Persisted
    - **Orchestration Log:** `.squad/orchestration-log/2026-06-09T13-45-22Z-aurelia.md`
 
 - **2026-06-10:** Collection Pagination Count Summary — Added "Showing X–Y of Z coins" range display to CollectionPagination.vue (grid mode) to clarify total collection size when pagination limits to 50 per page. Responsive layout: mobile shows range above page number (vertical stack), desktop shows range + page number inline with bullet separator. Computed properties angeStart and angeEnd calculate current page item range. Updated tests to verify range formatting for first/last/partial pages. Type-check + tests pass. Preserves existing active-collection filters (wishlist:false, sold:false). PWA swipe mode already shows "X / Total" counter; only grid mode needed explicit range summary.
+
+- **2026-06-10:** Coin of the Day Pushover links need an explicit `PublicAppURL` admin setting because Pushover opens outside the PWA/app route context. When configured, backend builds absolute `http(s)://host/coin/{coinID}` links after trimming trailing slashes; when blank or invalid, keep HTML message formatting but omit both `url` and `<a>` so no broken relative `/coin/{id}` link ships.

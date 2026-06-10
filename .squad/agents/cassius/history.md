@@ -35,6 +35,8 @@
 
 ## Learnings
 
+- **Coin of the Day Pushover Link Configuration (2026-06-10):** Initial implementation used relative `/coin/{coinID}` links in Pushover payloads; Brutus blocked (STRICT LOCKOUT, §18.2) because Pushover opens notifications outside app context where relative URLs are not usable. Aurelia revised by adding `PublicAppURL` admin setting: links now build as absolute `http(s)://host/coin/{coinID}` by trimming trailing slashes, and omit the link entirely when setting is blank/invalid. Brutus reviewed revised implementation and CLEARED BLOCK. Decision merged to `decisions.md`. See orchestration logs: `.squad/orchestration-log/2026-06-10T20-31-52Z-{cassius,aurelia,brutus}.md`
+
 ### 2026-06-10 — Collection Count Invariant
 
 **Files:**

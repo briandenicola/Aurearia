@@ -229,3 +229,12 @@ func TestGetAllSettings_IncludesCoinCategoriesAndEras(t *testing.T) {
 		t.Errorf("GetAllSettings[CoinEras] = %q, want default %q", all[SettingCoinEras], expectedEras)
 	}
 }
+
+func TestGetAllSettings_IncludesPublicAppURLDefault(t *testing.T) {
+	svc, _ := newTestSettingsService(t)
+
+	all := svc.GetAllSettings()
+	if got, ok := all[SettingPublicAppURL]; !ok || got != "" {
+		t.Errorf("GetAllSettings[PublicAppURL] = %q (present %v), want blank default", got, ok)
+	}
+}

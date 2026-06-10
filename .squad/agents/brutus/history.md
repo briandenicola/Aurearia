@@ -63,6 +63,13 @@
   - **Strict Lockout Remediation:** Aurelia's browser suite BLOCKED by Maximus on .gitignore gaps + generated outputs present + stale docs TODO
   - **Independent QA Fix:** Added `.gitignore` entries for Playwright output paths (`src/web/test-results/`, `src/web/playwright-report/`), removed generated `src/web/test-results/` directory, removed stale browser E2E TODO from `docs/testing.md`
   - **Validation:** `npm run test:browser` — 4 tests passing, `git diff --check` — no formatting violations, design token changes only to `.gitignore` and docs
+
+- **2026-06-10:** Coin of the Day Pushover Link Review (Cycle 1 BLOCK → Cycle 2 APPROVED)
+  - **Cycle 1:** Cassius initial implementation used relative `/coin/{coinID}` URLs in Pushover payloads. Issue: Pushover notifications open in system notification center outside app context; relative URLs fail to navigate. ISSUED BLOCK (STRICT LOCKOUT §18.2). Assigned revision to Aurelia.
+  - **Cycle 2:** Aurelia added `PublicAppURL` admin setting; links now build as absolute `http(s)://host/coin/{coinID}` (trim trailing slashes, join host + path). When setting blank/invalid, Pushover alerts omit the `url` field and HTML link anchor. In-app notification `ReferenceID = FeaturedCoin.ID` behavior unchanged.
+  - **Coverage:** Test assertions added for configured and unconfigured link behavior; backend `go test -v ./services` ✅; frontend `npm run type-check`, `npm run build` ✅.
+  - **Verdict:** BLOCK CLEARED. Feature ready for merge. Pushover external-link workflow is now explicit, tested, and deployment-configurable per Principle V.
+  - Orchestration log: `.squad/orchestration-log/2026-06-10T20-31-52Z-brutus.md`
   - **Principle Compliance:** Principle VI (Testing Infrastructure), Principle VIII (CI/CD & Build Hygiene), §18.2 (Strict Lockout)
   - **Review Outcome:** Maximus Lead Re-review APPROVED revised state with all issues resolved
   - **Key Learning:** Playwright generates deterministic artifacts (test-results/, playwright-report/, test data); must be `.gitignore`-excluded before integration into CI baseline
