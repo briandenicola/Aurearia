@@ -1,17 +1,15 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 2.0.0 → 3.0.0 (MAJOR — consolidated and renumbered principles)
-  Modified principles: Consolidated Principles I–XVII into Principles I–IX
-  Added sections:
-    - Principle IV. Simple Complete Changes
-  Removed sections:
-    - Separate standalone principles for DI, architecture enforcement, AI isolation,
-      schema contracts, auth, social/privacy, account lifecycle, and supply chain;
-      their binding content is consolidated into the nine-principle set.
+  Version change: 3.0.0 → 3.1.0 (MINOR — expanded operational gates)
+  Modified principles: None
+  Added sections: None
+  Removed sections: None
+  Modified operational sections:
+    - §17 Quality Gate: added workflow-contract/regression coverage check
+    - §21 Definition of Done: added blast-radius and exact-path regression requirements
   Templates requiring updates:
-    - ✅ .github/copilot-instructions.md — references Principle IV
-    - ✅ .github/pull_request_template.md — adds Principle IV self-check
+    - ✅ .github/pull_request_template.md — adds workflow-contract and blast-radius checks
     - ✅ .specify/templates/plan-template.md — compatible
     - ✅ .specify/templates/spec-template.md — compatible
     - ✅ .specify/templates/tasks-template.md — compatible
@@ -26,9 +24,9 @@
 > Deviations require an explicit, documented waiver (ADR) under §22.
 
 **Project**: Ancient Coins (self-hosted personal collection PWA)
-**Version**: 3.0.0
+**Version**: 3.1.0
 **Ratified**: 2026-04-28
-**Last Amended**: 2026-06-09
+**Last Amended**: 2026-06-11
 
 ## §0. Hierarchy of Authority
 
@@ -334,6 +332,10 @@ relevant tooling lands.
 - [ ] Definition of Done checklist (§21) checked in the PR
 - [ ] Principle IV self-check: change is simple, complete, and
       proportional
+- [ ] Workflow-contract check: PR identifies user workflow(s), shared
+      contracts/configuration touched, and targeted regression or contract
+      tests for the exact failing path. If not automatable, the PR MUST
+      document the manual verification path and why automation is deferred.
 
 **Signed commits are NOT required.** This is a single-developer hobby
 project; the Conventional Commits format and Co-authored-by trailer are
@@ -466,24 +468,35 @@ checklist in the PR description.
    (Principle III).
 5. **Linters clean**: `go vet ./...` and `ruff check app/ tests/` are
    clean.
-6. **Test coverage**: every new service method has ≥ 1 unit test.
-7. **Swagger**: every new or modified public handler has Swagger
+6. **Regression coverage**: every bug fix includes a targeted regression
+   test for the exact failing user path or a documented reason automation
+   is deferred.
+7. **Workflow contracts**: if a change touches shared forms, settings,
+   validation, API DTOs, collection counts, wishlist/sold flags, set
+   membership, AI intake, or other shared workflow surfaces, the PR lists
+   the affected sibling workflows and proves the relevant contract with
+   automated tests where practical.
+8. **Config contracts**: any value a user/admin can configure in the UI
+   MUST be accepted by every API path the UI can submit it to, or the UI
+   MUST prevent the invalid submission with an explicit message.
+9. **Test coverage**: every new service method has ≥ 1 unit test.
+10. **Swagger**: every new or modified public handler has Swagger
    annotations (Principle III).
-8. **API contract sync**: if the API surface changed, `swag` is
+11. **API contract sync**: if the API surface changed, `swag` is
    regenerated AND the root `openapi.yaml` is updated (Phase 3).
-9. **ADR**: if a material design choice was made, an ADR is added in
+12. **ADR**: if a material design choice was made, an ADR is added in
    `docs/adr/`.
-10. **Tasks checked off**: the active `specs/NNN-*/tasks.md` items for
+13. **Tasks checked off**: the active `specs/NNN-*/tasks.md` items for
     this work are checked off.
-11. **Decisions captured**: any cross-cutting decision is written to
+14. **Decisions captured**: any cross-cutting decision is written to
     `.squad/decisions/inbox/`.
-12. **Simple Complete Changes**: the change is simple, complete, and
+15. **Simple Complete Changes**: the change is simple, complete, and
     proportional (Principle IV).
-13. **Secrets scan clean**: no credentials, tokens, or API keys in the
+16. **Secrets scan clean**: no credentials, tokens, or API keys in the
     diff.
-14. **Commit hygiene**: Conventional Commit prefix and (when
+17. **Commit hygiene**: Conventional Commit prefix and (when
     AI-assisted) `Co-authored-by: Copilot` trailer present.
-15. **PR self-check**: PR description cites the relevant Constitution
+18. **PR self-check**: PR description cites the relevant Constitution
     Principle(s) and lists this DoD as a checklist.
 
 ## §22. Amendment Process
@@ -523,5 +536,6 @@ plan's Complexity Tracking table.
 | 1.1.0 | 2026-04-28 | Brian | Gap closure: added Principles XI–XVI (Security Hardening, Authentication & Token Policy, PWA/Mobile Rules, Social & Privacy, Supply Chain & CI, Account Lifecycle). | — |
 | 2.0.0 | 2026-05-28 | Maximus (approved by Brian) | Added §0 Hierarchy of Authority, §17 Quality Gate, §18 AI Agent Operating Rules, §19 Documentation Requirements, §20 Audit & Continuous Improvement, §21 Definition of Done, §22 Amendment Process, §23 Revision History. All 16 Principles (I–XVI) preserved verbatim. | ADR 0001 (to be added in Phase 3) |
 | 3.0.0 | 2026-06-09 | Brian | Consolidated 17 principles into 9 streamlined principles and made Simple Complete Changes Principle IV. | ADR 0005 |
+| 3.1.0 | 2026-06-11 | Brian | Added workflow-contract, blast-radius, configurable-value, and exact regression coverage gates to reduce repeated user-flow regressions. | ADR 0006 |
 
-**Version**: 3.0.0 | **Ratified**: 2026-04-28 | **Last Amended**: 2026-06-09
+**Version**: 3.1.0 | **Ratified**: 2026-04-28 | **Last Amended**: 2026-06-11
