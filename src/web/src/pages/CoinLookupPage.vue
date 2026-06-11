@@ -73,38 +73,37 @@
       </div>
 
       <div v-if="results" class="results-content">
-        <!-- Extracted coin details -->
-        <div class="result-section card">
+        <!-- NGC Certification Path (read-only display) -->
+        <div v-if="ngcCertNumber" class="result-section card">
           <h3>Extracted Details</h3>
           <div class="details-grid">
-            <div v-if="draft.name" class="detail-item">
+            <div v-if="reviewForm.name" class="detail-item">
               <label>Name</label>
-              <span>{{ draft.name }}</span>
+              <span>{{ reviewForm.name }}</span>
             </div>
-            <div v-if="draft.ruler" class="detail-item">
+            <div v-if="reviewForm.ruler" class="detail-item">
               <label>Ruler</label>
-              <span>{{ draft.ruler }}</span>
+              <span>{{ reviewForm.ruler }}</span>
             </div>
-            <div v-if="draft.denomination" class="detail-item">
+            <div v-if="reviewForm.denomination" class="detail-item">
               <label>Denomination</label>
-              <span>{{ draft.denomination }}</span>
+              <span>{{ reviewForm.denomination }}</span>
             </div>
-            <div v-if="draft.era" class="detail-item">
+            <div v-if="reviewForm.era" class="detail-item">
               <label>Era</label>
-              <span>{{ draft.era }}</span>
+              <span>{{ reviewForm.era }}</span>
             </div>
-            <div v-if="draft.mint" class="detail-item">
+            <div v-if="reviewForm.mint" class="detail-item">
               <label>Mint</label>
-              <span>{{ draft.mint }}</span>
+              <span>{{ reviewForm.mint }}</span>
             </div>
-            <div v-if="draft.material" class="detail-item">
+            <div v-if="reviewForm.material" class="detail-item">
               <label>Material</label>
-              <span>{{ draft.material }}</span>
+              <span>{{ reviewForm.material }}</span>
             </div>
           </div>
 
-          <!-- NGC Certification -->
-          <div v-if="ngcCertNumber" class="ngc-cert">
+          <div class="ngc-cert">
             <div class="ngc-cert-header">
               <ShieldCheck :size="20" />
               <span>NGC Certification: {{ ngcCertNumber }}</span>
@@ -121,35 +120,62 @@
           </div>
 
           <!-- Inscriptions -->
-          <div v-if="draft.obverseInscription || draft.reverseInscription" class="inscriptions">
+          <div v-if="reviewForm.obverseInscription || reviewForm.reverseInscription" class="inscriptions">
             <h4>Inscriptions</h4>
             <div class="inscription-grid">
-              <div v-if="draft.obverseInscription" class="inscription-side">
+              <div v-if="reviewForm.obverseInscription" class="inscription-side">
                 <label>Obverse</label>
-                <p>{{ draft.obverseInscription }}</p>
+                <p>{{ reviewForm.obverseInscription }}</p>
               </div>
-              <div v-if="draft.reverseInscription" class="inscription-side">
+              <div v-if="reviewForm.reverseInscription" class="inscription-side">
                 <label>Reverse</label>
-                <p>{{ draft.reverseInscription }}</p>
+                <p>{{ reviewForm.reverseInscription }}</p>
               </div>
             </div>
           </div>
 
           <!-- Descriptions -->
-          <div v-if="draft.obverseDescription || draft.reverseDescription" class="descriptions">
+          <div v-if="reviewForm.obverseDescription || reviewForm.reverseDescription" class="descriptions">
             <h4>Descriptions</h4>
             <div class="description-grid">
-              <div v-if="draft.obverseDescription" class="description-side">
+              <div v-if="reviewForm.obverseDescription" class="description-side">
                 <label>Obverse</label>
-                <p>{{ draft.obverseDescription }}</p>
+                <p>{{ reviewForm.obverseDescription }}</p>
               </div>
-              <div v-if="draft.reverseDescription" class="description-side">
+              <div v-if="reviewForm.reverseDescription" class="description-side">
                 <label>Reverse</label>
-                <p>{{ draft.reverseDescription }}</p>
+                <p>{{ reviewForm.reverseDescription }}</p>
               </div>
             </div>
           </div>
         </div>
+
+        <!-- Non-NGC Path (editable review form) -->
+        <form v-else class="result-section card" @submit.prevent="handleSaveToWishlist">
+          <h3>Review Coin Details</h3>
+
+          <div class="review-grid">
+            <label class="form-group full-width">
+              <span class="section-label">Name</span>
+              <input v-model="reviewForm.name" class="input" type="text" required>
+            </label>
+
+            <label class="form-group full-width">
+              <span class="section-label">Obverse Description</span>
+              <textarea v-model="reviewForm.obverseDescription" class="input textarea" rows="3"></textarea>
+            </label>
+
+            <label class="form-group full-width">
+              <span class="section-label">Reverse Description</span>
+              <textarea v-model="reviewForm.reverseDescription" class="input textarea" rows="3"></textarea>
+            </label>
+
+            <label class="form-group full-width">
+              <span class="section-label">Notes</span>
+              <textarea v-model="reviewForm.notes" class="input textarea" rows="3"></textarea>
+            </label>
+          </div>
+        </form>
 
         <!-- Numista matches -->
         <div v-if="numistaResults && numistaResults.length > 0" class="result-section card">
@@ -209,9 +235,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, reactive, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { lookupCoin, createCoin, createCoinReference, uploadImage } from '@/api/client'
+import { createCoin, createCoinReference, createIntakeDraft, lookupCoin, uploadImage } from '@/api/client'
 import type { CoinLookupResponse, CoinMutationPayload } from '@/types'
 import {
   Camera,
@@ -245,6 +271,13 @@ const saving = ref(false)
 const error = ref('')
 const results = ref<CoinLookupResponse | null>(null)
 
+const reviewForm = reactive<CoinMutationPayload>({
+  name: '',
+  obverseDescription: '',
+  reverseDescription: '',
+  notes: '',
+})
+
 const ngcCertNumber = computed(() => {
   return results.value?.extractedData.ngc?.normalizedCert ?? null
 })
@@ -256,7 +289,6 @@ const ngcLookupUrl = computed(() => {
   return `https://www.ngccoin.com/certlookup/${encodeURIComponent(compactCert)}/NGCAncients/`
 })
 
-const draft = computed<CoinMutationPayload>(() => results.value?.prefilledDraft ?? {})
 const numistaResults = computed(() => results.value?.numistaCandidates ?? [])
 
 function normalizedEra(value: unknown): 'ancient' | 'medieval' | 'modern' | undefined {
@@ -264,6 +296,23 @@ function normalizedEra(value: unknown): 'ancient' | 'medieval' | 'modern' | unde
   const normalized = value.trim().toLowerCase()
   if (normalized === 'ancient' || normalized === 'medieval' || normalized === 'modern') return normalized
   return undefined
+}
+
+function applyDraftToReviewForm(prefilled: CoinMutationPayload) {
+  Object.assign(reviewForm, {
+    name: prefilled.name || '',
+    ruler: prefilled.ruler,
+    denomination: prefilled.denomination,
+    era: prefilled.era,
+    mint: prefilled.mint,
+    material: prefilled.material,
+    category: prefilled.category,
+    obverseInscription: prefilled.obverseInscription,
+    reverseInscription: prefilled.reverseInscription,
+    obverseDescription: prefilled.obverseDescription || '',
+    reverseDescription: prefilled.reverseDescription || '',
+    notes: prefilled.notes || prefilled.aiAnalysis || '',
+  })
 }
 
 function handleBack() {
@@ -324,6 +373,17 @@ async function handleSubmit() {
     const lookup = await lookupCoin(files)
     results.value = lookup.data
 
+    if (lookup.data.extractedData.ngc) {
+      applyDraftToReviewForm(lookup.data.prefilledDraft ?? {})
+    } else {
+      const intake = await createIntakeDraft(files)
+      results.value = {
+        ...lookup.data,
+        prefilledDraft: intake.data.coin,
+      }
+      applyDraftToReviewForm(intake.data.coin)
+    }
+
     state.value = 'results'
   } catch (err: unknown) {
     console.error('Lookup failed:', err)
@@ -342,6 +402,9 @@ function handleRetake() {
   capturedImages.value = []
   results.value = null
   error.value = ''
+
+  applyDraftToReviewForm({})
+
   state.value = 'capture'
 }
 
@@ -353,11 +416,11 @@ async function createWishlistCoinFromLookup() {
   if (!results.value) return
 
   const payload: CoinMutationPayload = {
-    ...draft.value,
-    name: draft.value.name || 'Lookup Coin',
-    category: draft.value.category || 'Other',
-    material: draft.value.material || 'Other',
-    era: normalizedEra(draft.value.era),
+    ...reviewForm,
+    name: reviewForm.name || 'Untitled Coin',
+    category: reviewForm.category || 'Other',
+    material: reviewForm.material || 'Other',
+    era: normalizedEra(reviewForm.era),
     isWishlist: true,
   }
   const created = await createCoin(payload)
@@ -544,6 +607,43 @@ onBeforeUnmount(() => {
   font-weight: 600;
   letter-spacing: 0.08em;
   color: var(--text-muted);
+}
+
+.review-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-group.full-width {
+  grid-column: 1 / -1;
+}
+
+.input {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 0.6rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: border-color var(--transition-fast);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 4rem;
+  font-family: inherit;
+  line-height: 1.5;
 }
 
 .details-grid {
