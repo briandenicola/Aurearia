@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <div class="page-header">
-      <h1>Lookup Coin</h1>
+      <h1>Find Coin</h1>
       <button class="btn btn-secondary" @click="handleBack">
         <ArrowLeft :size="16" />
         Back
@@ -11,7 +11,7 @@
     <!-- Capture State -->
     <div v-if="state === 'capture'" class="lookup-capture">
       <p class="lookup-instructions card">
-        Take a photo of the coin or certification slab to identify it. The app will extract details and search for matches.
+        Take a photo of the coin or certification slab to identify it. Save only when you want to add the result to your wishlist.
       </p>
 
       <!-- Image preview grid -->
@@ -185,13 +185,14 @@
             <RotateCcw :size="16" />
             Retake Photo
           </button>
-          <button class="btn btn-secondary" @click="handleAddToWishlist">
-            <Bookmark :size="16" />
-            Add to Wishlist
+          <button class="btn btn-secondary" @click="handleCancel">
+            <X :size="16" />
+            Cancel
           </button>
-          <button class="btn btn-primary" @click="handleAddToCollection">
-            <Plus :size="16" />
-            Add to Collection
+          <button class="btn btn-primary" :disabled="saving" @click="handleSaveToWishlist">
+            <span v-if="saving" class="spinner-sm"></span>
+            <Bookmark v-else :size="16" />
+            {{ saving ? 'Saving...' : 'Save to Wishlist' }}
           </button>
         </div>
       </div>
@@ -208,7 +209,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { lookupCoin, createCoin, createCoinReference, uploadImage } from '@/api/client'
 import type { CoinLookupResponse, CoinMutationPayload } from '@/types'
@@ -223,7 +224,6 @@ import {
   ExternalLink,
   RotateCcw,
   Bookmark,
-  Plus,
 } from 'lucide-vue-next'
 import CameraCaptureModal from '@/components/CameraCaptureModal.vue'
 
@@ -241,6 +241,7 @@ const capturedImages = ref<CapturedImage[]>([])
 const showCamera = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const submitting = ref(false)
+const saving = ref(false)
 const error = ref('')
 const results = ref<CoinLookupResponse | null>(null)
 
@@ -344,7 +345,11 @@ function handleRetake() {
   state.value = 'capture'
 }
 
-async function createCoinFromLookup(isWishlist: boolean) {
+function handleCancel() {
+  router.back()
+}
+
+async function createWishlistCoinFromLookup() {
   if (!results.value) return
 
   const payload: CoinMutationPayload = {
@@ -353,7 +358,7 @@ async function createCoinFromLookup(isWishlist: boolean) {
     category: draft.value.category || 'Other',
     material: draft.value.material || 'Other',
     era: normalizedEra(draft.value.era),
-    isWishlist,
+    isWishlist: true,
   }
   const created = await createCoin(payload)
   const coinId = created.data.id
@@ -370,25 +375,25 @@ async function createCoinFromLookup(isWishlist: boolean) {
   }
 }
 
-async function handleAddToWishlist() {
+async function handleSaveToWishlist() {
+  if (saving.value) return
+  saving.value = true
   try {
-    await createCoinFromLookup(true)
+    await createWishlistCoinFromLookup()
     router.push('/wishlist')
   } catch (err: unknown) {
-    console.error('Failed to add to wishlist:', err)
-    error.value = err instanceof Error ? err.message : 'Failed to add to wishlist'
+    console.error('Failed to save to wishlist:', err)
+    error.value = err instanceof Error ? err.message : 'Failed to save to wishlist'
+  } finally {
+    saving.value = false
   }
 }
 
-async function handleAddToCollection() {
-  try {
-    await createCoinFromLookup(false)
-    router.push('/')
-  } catch (err: unknown) {
-    console.error('Failed to add to collection:', err)
-    error.value = err instanceof Error ? err.message : 'Failed to add to collection'
+onBeforeUnmount(() => {
+  for (const img of capturedImages.value) {
+    URL.revokeObjectURL(img.preview)
   }
-}
+})
 </script>
 
 <style scoped>
