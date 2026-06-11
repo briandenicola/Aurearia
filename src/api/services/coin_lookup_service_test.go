@@ -200,20 +200,38 @@ func TestExtractCoinFields(t *testing.T) {
 		{
 			name: "all fields present",
 			input: `{
+				"name": "Trajan Denarius",
 				"ruler": "Trajan",
+				"mint": "Rome",
 				"era": "ancient",
 				"denomination": "Denarius",
 				"material": "Silver",
-				"category": "Roman"
+				"category": "Roman",
+				"obverseInscription": "IMP TRAIANO AVG",
+				"reverseInscription": "SPQR OPTIMO PRINCIPI",
+				"obverseDescription": "Laureate bust right",
+				"reverseDescription": "Victory standing left",
+				"weightGrams": 3.2,
+				"diameterMm": 19,
+				"rarityRating": "Common",
+				"grade": "VF"
 			}`,
 			wantFields: map[string]string{
-				"ruler":        "Trajan",
-				"era":          "ancient",
-				"denomination": "Denarius",
-				"material":     "Silver",
-				"category":     "Roman",
+				"name":               "Trajan Denarius",
+				"ruler":              "Trajan",
+				"mint":               "Rome",
+				"era":                "ancient",
+				"denomination":       "Denarius",
+				"material":           "Silver",
+				"category":           "Roman",
+				"obverseInscription": "IMP TRAIANO AVG",
+				"reverseInscription": "SPQR OPTIMO PRINCIPI",
+				"obverseDescription": "Laureate bust right",
+				"reverseDescription": "Victory standing left",
+				"rarityRating":       "Common",
+				"grade":              "VF",
 			},
-			wantFieldsLen: 5,
+			wantFieldsLen: 15,
 		},
 		{
 			name: "some fields with null",
@@ -230,6 +248,33 @@ func TestExtractCoinFields(t *testing.T) {
 				"material": "Silver",
 			},
 			wantFieldsLen: 3,
+		},
+		{
+			name: "nested intake-style coin fields",
+			input: `{
+				"ngcCert": null,
+				"coin": {
+					"name": "Hadrian Sestertius",
+					"ruler": "Hadrian",
+					"era": "ancient",
+					"denomination": "Sestertius",
+					"material": "Bronze",
+					"category": "Roman",
+					"obverse_description": "Laureate head right",
+					"reverse_description": "Salus standing left"
+				}
+			}`,
+			wantFields: map[string]string{
+				"name":               "Hadrian Sestertius",
+				"ruler":              "Hadrian",
+				"era":                "ancient",
+				"denomination":       "Sestertius",
+				"material":           "Bronze",
+				"category":           "Roman",
+				"obverseDescription": "Laureate head right",
+				"reverseDescription": "Salus standing left",
+			},
+			wantFieldsLen: 8,
 		},
 		{
 			name:          "invalid JSON",
@@ -372,6 +417,56 @@ func TestBuildNumistaQuery(t *testing.T) {
 	}
 }
 
+func TestBuildPrefilledDraftFallsBackToStandardCoinAnalysisFields(t *testing.T) {
+	svc := &CoinLookupService{}
+	data := &LookupExtractedData{
+		RawAnalysis: "Standard image analysis narrative",
+		CoinFields: map[string]any{
+			"ruler":              "Hadrian",
+			"denomination":       "Sestertius",
+			"material":           "Bronze",
+			"category":           "Roman",
+			"obverseDescription": "Laureate head right",
+			"reverseDescription": "Salus standing left",
+		},
+	}
+
+	draft := svc.buildPrefilledDraft(data, nil)
+
+	if draft["name"] != "Hadrian Sestertius" {
+		t.Fatalf("draft name = %q, want fallback Hadrian Sestertius", draft["name"])
+	}
+	if draft["material"] != "Bronze" {
+		t.Errorf("draft material = %q, want Bronze", draft["material"])
+	}
+	if draft["obverseDescription"] != "Laureate head right" {
+		t.Errorf("draft obverseDescription = %q, want Laureate head right", draft["obverseDescription"])
+	}
+	if draft["aiAnalysis"] != "Standard image analysis narrative" {
+		t.Errorf("draft aiAnalysis = %q, want standard image analysis narrative", draft["aiAnalysis"])
+	}
+	if _, ok := draft["notes"]; ok {
+		t.Errorf("draft notes should not include NGC notes for a raw coin analysis: %q", draft["notes"])
+	}
+}
+
+func TestBuildPrefilledDraftKeepsExplicitNameFromAnalysis(t *testing.T) {
+	svc := &CoinLookupService{}
+	data := &LookupExtractedData{
+		CoinFields: map[string]any{
+			"name":         "Augustus Denarius",
+			"ruler":        "Augustus",
+			"denomination": "Denarius",
+		},
+	}
+
+	draft := svc.buildPrefilledDraft(data, nil)
+
+	if draft["name"] != "Augustus Denarius" {
+		t.Fatalf("draft name = %q, want explicit analysis name", draft["name"])
+	}
+}
+
 func TestBuildCandidateReferences(t *testing.T) {
 	svc := &CoinLookupService{}
 
@@ -409,5 +504,69 @@ func TestBuildCandidateReferences(t *testing.T) {
 	}
 	if refs[1].Number != "12345" {
 		t.Errorf("refs[1].Number = %q, want 12345", refs[1].Number)
+	}
+}
+
+func TestSlabCertDetectionReturnsCertData(t *testing.T) {
+	svc := &CoinLookupService{}
+	data := &LookupExtractedData{
+		NGC: svc.extractNGCCert(`{"ngcCert":"2412821034","ngcGrade":"Ch VF","ngcDescription":"Roman Empire"}`),
+	}
+
+	if data.NGC == nil {
+		t.Fatal("expected NGC cert data")
+	}
+	if data.NGC.NormalizedCert != "2412821-034" {
+		t.Fatalf("normalized cert = %q, want 2412821-034", data.NGC.NormalizedCert)
+	}
+
+	refs := svc.buildCandidateReferences(data, nil)
+	if len(refs) != 1 {
+		t.Fatalf("refs len = %d, want 1", len(refs))
+	}
+	if refs[0].Catalog != "NGC" || refs[0].Number != "2412821-034" {
+		t.Fatalf("ref = %+v, want NGC 2412821-034", refs[0])
+	}
+}
+
+func TestBuildPrefilledDraft_NonSlabAnalysisUsesExtractedFieldsAndTopCandidate(t *testing.T) {
+	svc := &CoinLookupService{}
+
+	data := &LookupExtractedData{
+		CoinFields: map[string]any{
+			"ruler":        "Trajan",
+			"era":          "ancient",
+			"denomination": "Denarius",
+			"material":     "Silver",
+			"category":     "Roman",
+		},
+	}
+	candidates := []NumistaCandidate{
+		{
+			ID:    "12345",
+			Title: "Denarius - Trajan (98-117)",
+			URL:   "https://en.numista.com/catalogue/pieces12345.html",
+		},
+	}
+
+	draft := svc.buildPrefilledDraft(data, candidates)
+
+	expected := map[string]any{
+		"name":         "Denarius - Trajan (98-117)",
+		"ruler":        "Trajan",
+		"era":          "ancient",
+		"denomination": "Denarius",
+		"material":     "Silver",
+		"category":     "Roman",
+		"numista_id":   "12345",
+		"numista_url":  "https://en.numista.com/catalogue/pieces12345.html",
+	}
+	for key, want := range expected {
+		if got := draft[key]; got != want {
+			t.Errorf("draft[%q] = %v, want %v", key, got, want)
+		}
+	}
+	if _, ok := draft["notes"]; ok {
+		t.Errorf("draft[notes] was set for non-slab lookup, want absent")
 	}
 }

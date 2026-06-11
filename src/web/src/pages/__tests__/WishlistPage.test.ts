@@ -9,6 +9,7 @@ const mockStore = {
   total: 0,
   fetchCoins: vi.fn(),
 }
+let mockIsPwa = false
 
 vi.mock('@/stores/coins', () => ({
   useCoinsStore: () => mockStore,
@@ -16,7 +17,7 @@ vi.mock('@/stores/coins', () => ({
 
 vi.mock('@/composables/usePwa', () => ({
   usePwa: () => ({
-    isPwa: false,
+    isPwa: mockIsPwa,
   }),
 }))
 
@@ -48,6 +49,8 @@ function createCoin(id: number): Coin {
     currentValue: null,
     purchaseDate: null,
     purchaseLocation: '',
+    storageLocationId: null,
+    storageLocation: null,
     notes: '',
     aiAnalysis: '',
     obverseAnalysis: '',
@@ -76,7 +79,13 @@ describe('WishlistPage', () => {
     mockStore.coins = []
     mockStore.total = 0
     mockStore.fetchCoins.mockReset()
+    mockIsPwa = false
   })
+
+  const routerLinkStub = {
+    props: ['to'],
+    template: '<a :href="to" :title="$attrs.title"><slot /></a>',
+  }
 
   it('does not show the empty state when wishlist coins are present on a single page', () => {
     mockStore.coins = [createCoin(1)]
@@ -85,9 +94,7 @@ describe('WishlistPage', () => {
     const wrapper = shallowMount(WishlistPage, {
       global: {
         stubs: {
-          RouterLink: {
-            template: '<a><slot /></a>',
-          },
+          RouterLink: routerLinkStub,
         },
       },
     })
@@ -102,14 +109,44 @@ describe('WishlistPage', () => {
     const wrapper = shallowMount(WishlistPage, {
       global: {
         stubs: {
-          RouterLink: {
-            template: '<a><slot /></a>',
-          },
+          RouterLink: routerLinkStub,
         },
       },
     })
 
     expect(wrapper.find('.coins-grid').exists()).toBe(false)
     expect(wrapper.find('.empty-state').exists()).toBe(true)
+  })
+
+  it('routes the desktop add action to the Find Coin workflow', () => {
+    const wrapper = shallowMount(WishlistPage, {
+      global: {
+        stubs: {
+          RouterLink: routerLinkStub,
+        },
+      },
+    })
+
+    const links = wrapper.findAll('a')
+    expect(links.filter(link => link.attributes('href') === '/lookup')).toHaveLength(1)
+    expect(links.some(link => link.attributes('href') === '/lookup' && link.text().includes('Find Coin'))).toBe(true)
+    expect(links.some(link => link.attributes('href') === '/add?wishlist=true')).toBe(false)
+  })
+
+  it('routes the PWA plus icon to the Find Coin workflow', () => {
+    mockIsPwa = true
+
+    const wrapper = shallowMount(WishlistPage, {
+      global: {
+        stubs: {
+          RouterLink: routerLinkStub,
+        },
+      },
+    })
+
+    const lookupLink = wrapper.find('a[title="Find Coin"]')
+    expect(lookupLink.exists()).toBe(true)
+    expect(lookupLink.attributes('href')).toBe('/lookup')
+    expect(wrapper.find('a[href="/add?wishlist=true"]').exists()).toBe(false)
   })
 })
