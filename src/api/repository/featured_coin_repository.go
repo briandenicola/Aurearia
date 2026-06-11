@@ -79,8 +79,7 @@ func (r *FeaturedCoinRepository) HasBeenFeaturedToday(userID uint, today time.Ti
 // Eligible pool: owned coins that are NOT wishlist and NOT sold.
 func (r *FeaturedCoinRepository) PickNextCoinID(userID uint) (uint, error) {
 	type row struct {
-		ID         uint
-		LastShown  *time.Time
+		ID uint
 	}
 
 	var rows []row
