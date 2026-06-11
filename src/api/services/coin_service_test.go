@@ -19,7 +19,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("failed to open test db: %v", err)
 	}
 	err = db.AutoMigrate(
-		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{},
+		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{},
 		&models.StorageLocation{}, &models.ValueSnapshot{}, &models.CoinJournal{},
 		&models.CoinValueHistory{}, &models.CoinComment{},
 		&models.AvailabilityResult{}, &models.AuctionLot{},
@@ -40,6 +40,12 @@ func newTestCoinServiceWithCatalogRegistry(db *gorm.DB) *CoinService {
 	repo := repository.NewCoinRepository(db)
 	catalogRepo := repository.NewCatalogRegistryRepository(db)
 	return NewCoinService(repo, nil).WithCatalogRegistrySupport(catalogRepo)
+}
+
+func newTestCoinServiceWithSettings(db *gorm.DB) *CoinService {
+	repo := repository.NewCoinRepository(db)
+	settingsRepo := repository.NewSettingsRepository(db)
+	return NewCoinService(repo, nil).WithSettingsSupport(NewSettingsService(settingsRepo))
 }
 
 func newTestCoinServiceWithStorage(db *gorm.DB) *CoinService {
@@ -469,6 +475,33 @@ func TestUpdateCoin_AcceptsCustomEraFromCatalogRegistry(t *testing.T) {
 	}
 	if found.Era != models.Era("provincial") {
 		t.Fatalf("expected era provincial, got %q", found.Era)
+	}
+}
+
+func TestUpdateCoin_AcceptsAdminConfiguredEra(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinServiceWithSettings(db)
+	settingsRepo := repository.NewSettingsRepository(db)
+	if err := settingsRepo.Upsert(SettingCoinEras, "Republican Rome\nRoman Empire\n500-480 BC"); err != nil {
+		t.Fatalf("failed to seed coin eras setting: %v", err)
+	}
+
+	coin := &models.Coin{Name: "Imperial Bronze", UserID: 1, Era: models.EraAncient}
+	if err := svc.CreateCoin(coin); err != nil {
+		t.Fatalf("setup: CreateCoin failed: %v", err)
+	}
+
+	updates := &models.Coin{Era: models.Era("Roman Empire")}
+	if err := svc.UpdateCoin(coin, updates, 1, "manual"); err != nil {
+		t.Fatalf("UpdateCoin should accept admin-configured era: %v", err)
+	}
+
+	var found models.Coin
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("coin not found: %v", err)
+	}
+	if found.Era != models.Era("Roman Empire") {
+		t.Fatalf("expected era Roman Empire, got %q", found.Era)
 	}
 }
 

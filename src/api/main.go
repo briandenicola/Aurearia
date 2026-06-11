@@ -219,7 +219,7 @@ func main() {
 		referenceMigrationSvc := services.NewReferenceMigrationService(database.DB, coinReferenceRepo, catalogRegistryRepo, journalRepo)
 		catalogRegistrySvc := services.NewCatalogRegistryService(catalogRegistryRepo)
 		catalogRegistryHandler := handlers.NewCatalogRegistryHandler(catalogRegistrySvc)
-		coinSvc := services.NewCoinService(coinRepo, notifSvc).WithReferenceSupport(coinReferenceRepo, coinReferenceSvc).WithStorageLocationSupport(storageLocationRepo).WithCatalogRegistrySupport(catalogRegistryRepo)
+		coinSvc := services.NewCoinService(coinRepo, notifSvc).WithReferenceSupport(coinReferenceRepo, coinReferenceSvc).WithStorageLocationSupport(storageLocationRepo).WithCatalogRegistrySupport(catalogRegistryRepo).WithSettingsSupport(settingsSvc)
 		coinHandler := handlers.NewCoinHandler(coinRepo, coinSvc, logger)
 		coinReferenceHandler := handlers.NewCoinReferenceHandler(coinReferenceRepo, coinReferenceSvc, referenceMigrationSvc)
 		coinIntakeSvc := services.NewCoinIntakeService(intakeDraftRepo, coinRepo, agentProxy, settingsSvc)

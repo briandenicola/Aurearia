@@ -30,7 +30,7 @@ func setupCoinHandlerTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("failed to open test db: %v", err)
 	}
 	err = db.AutoMigrate(
-		&models.User{}, &models.StorageLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{},
+		&models.User{}, &models.StorageLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{},
 		&models.ValueSnapshot{}, &models.CoinJournal{},
 		&models.CoinValueHistory{}, &models.CoinComment{},
 		&models.AvailabilityResult{}, &models.AuctionLot{},
@@ -89,10 +89,13 @@ func setupCoinHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	coinReferenceRepo := repository.NewCoinReferenceRepository(db)
 	coinReferenceSvc := services.NewCoinReferenceService(coinReferenceRepo, catalogRegistryRepo)
 	storageLocationRepo := repository.NewStorageLocationRepository(db)
+	settingsRepo := repository.NewSettingsRepository(db)
+	settingsSvc := services.NewSettingsService(settingsRepo)
 	coinSvc := services.NewCoinService(coinRepo, nil).
 		WithReferenceSupport(coinReferenceRepo, coinReferenceSvc).
 		WithStorageLocationSupport(storageLocationRepo).
-		WithCatalogRegistrySupport(catalogRegistryRepo)
+		WithCatalogRegistrySupport(catalogRegistryRepo).
+		WithSettingsSupport(settingsSvc)
 	handler := NewCoinHandler(coinRepo, coinSvc, services.NewLogger(100))
 
 	r := gin.New()
@@ -1053,6 +1056,7 @@ func TestCoinHandler_Update_CustomRegistryEraAccepted(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatalf("failed to seed catalog registry: %v", err)
 	}
+
 	coin := models.Coin{Name: "Old Era", Category: models.CategoryRoman, Material: models.MaterialBronze, UserID: 1, Era: models.EraAncient}
 	db.Create(&coin)
 
@@ -1081,6 +1085,44 @@ func TestCoinHandler_Update_CustomRegistryEraAccepted(t *testing.T) {
 	}
 	if found.Era != models.Era("provincial") {
 		t.Fatalf("expected era provincial, got %q", found.Era)
+	}
+}
+
+func TestCoinHandler_Update_AdminConfiguredEraAccepted(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "updater")
+
+	if err := repository.NewSettingsRepository(db).Upsert(services.SettingCoinEras, "Republican Rome\nRoman Empire\n500-480 BC"); err != nil {
+		t.Fatalf("failed to seed coin eras setting: %v", err)
+	}
+	coin := models.Coin{Name: "Old Era", Category: models.CategoryRoman, Material: models.MaterialBronze, UserID: 1, Era: models.EraAncient}
+	db.Create(&coin)
+
+	updates := map[string]interface{}{
+		"name":     "Updated Era",
+		"category": "Roman",
+		"material": "Bronze",
+		"era":      "Roman Empire",
+	}
+	body, _ := json.Marshal(updates)
+
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for admin-configured era, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var found models.Coin
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("coin not found: %v", err)
+	}
+	if found.Era != models.Era("Roman Empire") {
+		t.Fatalf("expected era Roman Empire, got %q", found.Era)
 	}
 }
 

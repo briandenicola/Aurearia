@@ -29,6 +29,7 @@ type CoinService struct {
 	refSvc              *CoinReferenceService
 	storageLocationRepo *repository.StorageLocationRepository
 	catalogRegistryRepo *repository.CatalogRegistryRepository
+	settingsSvc         *SettingsService
 }
 
 // NewCoinService creates a new CoinService.
@@ -55,6 +56,12 @@ func (s *CoinService) WithStorageLocationSupport(storageLocationRepo *repository
 // WithCatalogRegistrySupport enables data-driven coin era validation.
 func (s *CoinService) WithCatalogRegistrySupport(catalogRegistryRepo *repository.CatalogRegistryRepository) *CoinService {
 	s.catalogRegistryRepo = catalogRegistryRepo
+	return s
+}
+
+// WithSettingsSupport enables validation against admin-configured coin properties.
+func (s *CoinService) WithSettingsSupport(settingsSvc *SettingsService) *CoinService {
+	s.settingsSvc = settingsSvc
 	return s
 }
 
@@ -291,6 +298,9 @@ func (s *CoinService) validateCoinEra(era models.Era) error {
 	if len(trimmed) > 64 {
 		return ErrCoinInvalidEra
 	}
+	if s.settingsSvc != nil && settingListContains(s.settingsSvc.GetSetting(SettingCoinEras), trimmed) {
+		return nil
+	}
 	if s.catalogRegistryRepo == nil {
 		return ErrCoinInvalidEra
 	}
@@ -302,4 +312,13 @@ func (s *CoinService) validateCoinEra(era models.Era) error {
 		return ErrCoinInvalidEra
 	}
 	return nil
+}
+
+func settingListContains(value, needle string) bool {
+	for _, line := range strings.Split(value, "\n") {
+		if strings.EqualFold(strings.TrimSpace(line), needle) {
+			return true
+		}
+	}
+	return false
 }
