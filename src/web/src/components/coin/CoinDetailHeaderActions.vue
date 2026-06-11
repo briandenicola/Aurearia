@@ -5,7 +5,6 @@
       Back to Gallery
     </button>
     <div class="detail-actions">
-      <button v-if="isWishlist" class="btn btn-primary btn-xs" @click="$emit('purchase')">Mark as Purchased</button>
       <button v-if="!isWishlist && !isSold" class="btn btn-secondary btn-xs" @click="$emit('sell')">Sell</button>
       <router-link :to="`/edit/${coinId}`" class="btn btn-secondary btn-xs">Edit</router-link>
       <button class="btn btn-danger btn-xs" @click="$emit('delete')">Delete</button>
@@ -24,7 +23,6 @@ defineProps<{
 }>()
 
 defineEmits<{
-  purchase: []
   sell: []
   delete: []
 }>()
@@ -46,21 +44,23 @@ const router = useRouter()
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 0.5rem;
+  min-width: 0;
 }
 
 .back-action {
   justify-self: start;
+  white-space: nowrap;
 }
 
 @media (max-width: 768px) {
   .detail-header {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
+    grid-template-columns: auto 1fr;
+    gap: 0.5rem;
     margin-bottom: 1rem;
   }
 
   .detail-actions {
-    justify-content: flex-start;
+    justify-content: flex-end;
     gap: 0.35rem;
   }
 }

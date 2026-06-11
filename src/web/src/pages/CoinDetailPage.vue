@@ -10,7 +10,6 @@
           :is-wishlist="coin.isWishlist"
           :is-sold="coin.isSold"
           :coin-id="coin.id"
-          @purchase="showPurchaseModal = true"
           @sell="showSellModal = true"
           @delete="handleDelete"
         />
@@ -46,6 +45,11 @@
                 <span class="placeholder-text">No image</span>
               </div>
             </div>
+          </div>
+          <div v-if="coin.isWishlist" class="wishlist-purchase-cta">
+            <button class="btn btn-primary wishlist-purchase-button" @click="showPurchaseModal = true">
+              Mark as Purchased
+            </button>
           </div>
         </div>
 
@@ -237,6 +241,15 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
 
 .detail-hero-media {
   align-self: start;
+}
+
+.wishlist-purchase-cta {
+  margin-top: 0.75rem;
+}
+
+.wishlist-purchase-button {
+  width: 100%;
+  justify-content: center;
 }
 
 /* T011: Hero media grid for dual-side default display */
