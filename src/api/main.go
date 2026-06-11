@@ -326,9 +326,9 @@ func main() {
 		protected.GET("/numista/search", numistaHandler.Search)
 
 		auctionLotSvc := services.NewAuctionLotService(auctionLotRepo, coinRepo)
-		nbSvc := services.NewNumisBidsService()
+		nbSvc := services.NewNumisBidsService(logger)
 		auctionUserRepo := repository.NewUserRepository(database.DB)
-		auctionLotHandler := handlers.NewAuctionLotHandler(auctionLotRepo, auctionLotSvc, auctionUserRepo, nbSvc)
+		auctionLotHandler := handlers.NewAuctionLotHandler(auctionLotRepo, auctionLotSvc, auctionUserRepo, nbSvc, logger)
 		protected.GET("/auctions", auctionLotHandler.List)
 		protected.GET("/auctions/counts", auctionLotHandler.Counts)
 		protected.PUT("/auctions/bulk-link-event", auctionLotHandler.BulkLinkEvent)

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -21,11 +20,12 @@ type AuctionLotHandler struct {
 	svc      *services.AuctionLotService
 	userRepo *repository.UserRepository
 	nbSvc    *services.NumisBidsService
+	logger   *services.Logger
 }
 
 // NewAuctionLotHandler creates a new AuctionLotHandler.
-func NewAuctionLotHandler(repo *repository.AuctionLotRepository, svc *services.AuctionLotService, userRepo *repository.UserRepository, nbSvc *services.NumisBidsService) *AuctionLotHandler {
-	return &AuctionLotHandler{repo: repo, svc: svc, userRepo: userRepo, nbSvc: nbSvc}
+func NewAuctionLotHandler(repo *repository.AuctionLotRepository, svc *services.AuctionLotService, userRepo *repository.UserRepository, nbSvc *services.NumisBidsService, logger *services.Logger) *AuctionLotHandler {
+	return &AuctionLotHandler{repo: repo, svc: svc, userRepo: userRepo, nbSvc: nbSvc, logger: logger}
 }
 
 // List returns a paginated list of auction lots for the authenticated user.
@@ -165,6 +165,7 @@ func (h *AuctionLotHandler) Create(c *gin.Context) {
 //	@Failure		404		{object}	ErrorResponse
 //	@Security		BearerAuth
 //	@Router			/auctions/{id} [put]
+//
 // UpdateLotRequest is the narrow set of fields a user may edit on an auction lot.
 // Fields like UserID, CoinID, EventID, Status, and computed fields are intentionally
 // excluded — those have dedicated endpoints with their own authorization rules.
@@ -558,38 +559,57 @@ func (h *AuctionLotHandler) ImportFromURL(c *gin.Context) {
 //	@Router			/auctions/sync [post]
 func (h *AuctionLotHandler) SyncWatchlist(c *gin.Context) {
 	userID := c.GetUint("userId")
+	h.debug("NumisBids sync started for user %d", userID)
 
 	user, err := h.userRepo.FindByID(userID)
 	if err != nil {
+		h.warn("NumisBids sync failed to load user %d: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load user"})
 		return
 	}
 
 	if user.NumisBidsUsername == "" || user.NumisBidsPassword == "" {
+		h.warn("NumisBids sync blocked for user %d: credentials not configured", userID)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "NumisBids credentials not configured. Go to Settings to add them."})
 		return
 	}
 
+	h.debug("NumisBids sync logging in for user %d", userID)
 	client, err := h.nbSvc.Login(user.NumisBidsUsername, user.NumisBidsPassword)
 	if err != nil {
-		log.Printf("NumisBids login failed for user %d: %v", userID, err)
+		h.warn("NumisBids login failed for user %d: %v", userID, err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "NumisBids login failed. Check your credentials in Settings."})
 		return
 	}
+	h.debug("NumisBids sync login succeeded for user %d", userID)
 
 	rawHTML, err := h.nbSvc.FetchWatchlist(client)
 	if err != nil {
-		log.Printf("NumisBids watchlist fetch failed for user %d: %v", userID, err)
+		if errors.Is(err, services.ErrNumisBidsAuthenticationRequired) {
+			h.warn("NumisBids watchlist returned login page for user %d after login", userID)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "NumisBids login succeeded but watchlist access was not authenticated. Check your credentials in Settings."})
+			return
+		}
+		h.warn("NumisBids watchlist fetch failed for user %d: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch watchlist from NumisBids"})
 		return
 	}
+	diagnostics := h.nbSvc.WatchlistDiagnostics(rawHTML)
+	h.debug("NumisBids watchlist fetched for user %d: bytes=%d candidateLinks=%d hasWatchlistText=%t hasLoginPrompt=%t",
+		userID, diagnostics.HTMLBytes, diagnostics.CandidateLinkCount, diagnostics.HasWatchlistText, diagnostics.HasLoginPrompt)
 
 	parsed := h.nbSvc.ParseWatchlist(rawHTML)
+	h.debug("NumisBids watchlist parsed for user %d: lots=%d", userID, len(parsed))
+	if len(parsed) == 0 {
+		h.warn("NumisBids sync found zero parseable lots for user %d: bytes=%d candidateLinks=%d hasWatchlistText=%t",
+			userID, diagnostics.HTMLBytes, diagnostics.CandidateLinkCount, diagnostics.HasWatchlistText)
+	}
 
 	var synced []models.AuctionLot
 	now := time.Now()
 
 	for _, wl := range parsed {
+		h.debug("NumisBids sync processing lot for user %d: saleID=%s lot=%d url=%s", userID, wl.SaleID, wl.LotNumber, wl.URL)
 		// Scrape the lot page for image, auction house, sale name, current bid, lot number, description, sale date
 		if details, err := h.nbSvc.ScrapeLotPage(wl.URL); err == nil {
 			if details.ImageURL != "" {
@@ -607,7 +627,7 @@ func (h *AuctionLotHandler) SyncWatchlist(c *gin.Context) {
 				wl.LotNumber = details.LotNumber
 			}
 		} else {
-			log.Printf("Could not scrape lot page for %s: %v", wl.URL, err)
+			h.warn("Could not scrape NumisBids lot page for user %d url=%s: %v", userID, wl.URL, err)
 		}
 
 		// Determine status: mark as passed if sale date is in the past
@@ -641,24 +661,45 @@ func (h *AuctionLotHandler) SyncWatchlist(c *gin.Context) {
 		}
 
 		if err := h.repo.Upsert(&lot); err != nil {
-			log.Printf("Failed to upsert lot %s for user %d: %v", wl.URL, userID, err)
+			h.warn("Failed to upsert NumisBids lot for user %d url=%s: %v", userID, wl.URL, err)
 			continue
 		}
 
 		if upserted, err := h.repo.GetByURL(wl.URL, userID); err == nil {
 			synced = append(synced, *upserted)
+		} else {
+			h.warn("NumisBids lot upserted but reload failed for user %d url=%s: %v", userID, wl.URL, err)
 		}
 	}
 
 	// Also mark any existing watching lots whose sale date has passed
 	h.repo.MarkPastAuctionsAsPassed(userID, now)
+	h.info("NumisBids sync completed for user %d: parsed=%d synced=%d", userID, len(parsed), len(synced))
 
 	c.JSON(http.StatusOK, gin.H{"synced": len(synced), "lots": synced})
 }
 
+func (h *AuctionLotHandler) debug(format string, args ...interface{}) {
+	if h.logger != nil {
+		h.logger.Debug("auctions", format, args...)
+	}
+}
+
+func (h *AuctionLotHandler) info(format string, args ...interface{}) {
+	if h.logger != nil {
+		h.logger.Info("auctions", format, args...)
+	}
+}
+
+func (h *AuctionLotHandler) warn(format string, args ...interface{}) {
+	if h.logger != nil {
+		h.logger.Warn("auctions", format, args...)
+	}
+}
+
 // SyncWatchlistResponse is the response for the sync watchlist endpoint.
 type SyncWatchlistResponse struct {
-	Synced int                `json:"synced"`
+	Synced int                 `json:"synced"`
 	Lots   []models.AuctionLot `json:"lots"`
 }
 

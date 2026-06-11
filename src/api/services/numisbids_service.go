@@ -1,6 +1,8 @@
 package services
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,13 +16,18 @@ import (
 	"golang.org/x/net/html"
 )
 
+var ErrNumisBidsAuthenticationRequired = errors.New("numisbids authentication required")
+
 const (
-	numisbidsBase         = "https://www.numisbids.com"
-	numisbidsLoginURL     = numisbidsBase + "/registration/login.php"
-	numisbidsWatchlistURL = numisbidsBase + "/watchlist"
-	numisbidsUserAgent    = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+	numisbidsBase      = "https://www.numisbids.com"
+	numisbidsUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
 		"AppleWebKit/537.36 (KHTML, like Gecko) " +
 		"Chrome/131.0.0.0 Safari/537.36"
+)
+
+var (
+	numisbidsLoginURL     = numisbidsBase + "/registration/login.php"
+	numisbidsWatchlistURL = numisbidsBase + "/watchlist"
 )
 
 var (
@@ -49,15 +56,19 @@ type WatchlistLot struct {
 }
 
 // NumisBidsService handles HTTP interactions with numisbids.com.
-type NumisBidsService struct{}
+type NumisBidsService struct {
+	logger *Logger
+}
 
 // NewNumisBidsService creates a new NumisBidsService.
-func NewNumisBidsService() *NumisBidsService {
-	return &NumisBidsService{}
+func NewNumisBidsService(logger *Logger) *NumisBidsService {
+	return &NumisBidsService{logger: logger}
 }
 
 // Login authenticates with NumisBids and returns a cookie-jar-enabled client.
 func (s *NumisBidsService) Login(username, password string) (*http.Client, error) {
+	s.debug("Attempting login to NumisBids")
+
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cookie jar: %w", err)
@@ -68,7 +79,6 @@ func (s *NumisBidsService) Login(username, password string) (*http.Client, error
 	form := url.Values{
 		"email":    {username},
 		"password": {password},
-		"login":    {"Login"},
 	}
 
 	req, err := http.NewRequest("POST", numisbidsLoginURL, strings.NewReader(form.Encode()))
@@ -82,28 +92,88 @@ func (s *NumisBidsService) Login(username, password string) (*http.Client, error
 
 	resp, err := client.Do(req)
 	if err != nil {
+		s.error("Login HTTP request failed: %v", err)
 		return nil, fmt.Errorf("login request failed: %w", err)
 	}
 	defer resp.Body.Close()
+
+	s.debug("Login response status: %d", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusFound {
 		return nil, fmt.Errorf("login returned HTTP %d", resp.StatusCode)
 	}
 
-	// Read body to check for login errors (AJAX form returns HTML fragment)
+	// Read body to check the JSON result returned by NumisBids' AJAX login.
 	body, _ := io.ReadAll(resp.Body)
 	bodyStr := string(body)
-	if strings.Contains(bodyStr, "Incorrect") || strings.Contains(bodyStr, "invalid") {
-		return nil, fmt.Errorf("invalid credentials")
+
+	s.trace("Login response body length: %d bytes", len(bodyStr))
+
+	var loginResponse struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(body, &loginResponse); err != nil {
+		s.warn("Login failed: unexpected response format")
+		return nil, fmt.Errorf("unexpected login response")
+	}
+	if !strings.EqualFold(loginResponse.Status, "success") {
+		s.warn("Login failed: NumisBids returned status %q", loginResponse.Status)
+		return nil, fmt.Errorf("login returned status %q", loginResponse.Status)
 	}
 
-	// Verify session cookie was set by checking for a PHPSESSID or similar
-	parsedURL, _ := url.Parse(numisbidsBase)
-	if len(jar.Cookies(parsedURL)) == 0 {
+	// Verify session cookie was set by checking the login host for PHPSESSID or similar.
+	parsedURL, _ := url.Parse(numisbidsLoginURL)
+	cookies := jar.Cookies(parsedURL)
+	if len(cookies) == 0 {
+		s.warn("No session cookie received after login")
 		return nil, fmt.Errorf("no session cookie received — login may have failed")
 	}
 
+	s.debug("Login successful, received %d cookie(s)", len(cookies))
+
+	// Verify authentication by requesting a protected page
+	if err := s.verifyAuthentication(client); err != nil {
+		s.error("Authentication verification failed: %v", err)
+		return nil, fmt.Errorf("login succeeded but authentication verification failed: %w", err)
+	}
+
+	s.info("Login and authentication verified")
 	return client, nil
+}
+
+// verifyAuthentication checks that the client is actually authenticated by fetching
+// the watchlist page and checking for login indicators.
+func (s *NumisBidsService) verifyAuthentication(client *http.Client) error {
+	req, err := http.NewRequest("GET", numisbidsWatchlistURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create verification request: %w", err)
+	}
+	req.Header.Set("User-Agent", numisbidsUserAgent)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("verification request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read verification response: %w", err)
+	}
+
+	bodyStr := strings.ToLower(string(body))
+
+	// Check for login form indicators (unauthenticated)
+	if isNumisBidsLoginPrompt(bodyStr) ||
+		strings.Contains(bodyStr, `name="email"`) ||
+		strings.Contains(bodyStr, `name="password"`) ||
+		strings.Contains(bodyStr, "login to your account") {
+		s.debug("Verification page contains login form — not authenticated")
+		return fmt.Errorf("not authenticated: watchlist page returned login form")
+	}
+
+	s.debug("Authentication verified — no login form detected")
+	return nil
 }
 
 // FetchWatchlist retrieves the authenticated user's watchlist HTML.
@@ -128,8 +198,12 @@ func (s *NumisBidsService) FetchWatchlist(client *http.Client) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to read watchlist body: %w", err)
 	}
+	bodyStr := string(body)
+	if isNumisBidsLoginPrompt(bodyStr) {
+		return "", ErrNumisBidsAuthenticationRequired
+	}
 
-	return string(body), nil
+	return bodyStr, nil
 }
 
 // LotPageDetails holds fields extracted from a NumisBids lot detail page.
@@ -245,9 +319,13 @@ func (s *NumisBidsService) ScrapeLotPage(lotURL string) (*LotPageDetails, error)
 // ParseWatchlist extracts lot data from NumisBids watchlist HTML.
 // Mirrors the Python scrape_numisbids_watchlist logic.
 func (s *NumisBidsService) ParseWatchlist(rawHTML string) []WatchlistLot {
+	s.debug("Parsing watchlist HTML (%d bytes)", len(rawHTML))
+
 	// Find all lot link positions, then extract the block between each pair.
 	// Go's regexp engine (RE2) doesn't support lookaheads, so we split manually.
 	matches := findWatchlistLotLinks(rawHTML)
+
+	s.debug("Found %d lot links in watchlist HTML", len(matches))
 
 	var lots []WatchlistLot
 	for i, match := range matches {
@@ -289,10 +367,64 @@ func (s *NumisBidsService) ParseWatchlist(rawHTML string) []WatchlistLot {
 			}
 		}
 
+		s.trace("Parsed lot %d: saleID=%s lotNumber=%d", i+1, lot.SaleID, lot.LotNumber)
 		lots = append(lots, lot)
 	}
 
+	s.info("Parsed %d lots from watchlist", len(lots))
 	return lots
+}
+
+func (s *NumisBidsService) trace(format string, args ...interface{}) {
+	if s.logger != nil {
+		s.logger.Trace("numisbids", format, args...)
+	}
+}
+
+func (s *NumisBidsService) debug(format string, args ...interface{}) {
+	if s.logger != nil {
+		s.logger.Debug("numisbids", format, args...)
+	}
+}
+
+func (s *NumisBidsService) info(format string, args ...interface{}) {
+	if s.logger != nil {
+		s.logger.Info("numisbids", format, args...)
+	}
+}
+
+func (s *NumisBidsService) warn(format string, args ...interface{}) {
+	if s.logger != nil {
+		s.logger.Warn("numisbids", format, args...)
+	}
+}
+
+func (s *NumisBidsService) error(format string, args ...interface{}) {
+	if s.logger != nil {
+		s.logger.Error("numisbids", format, args...)
+	}
+}
+
+func (s *NumisBidsService) WatchlistDiagnostics(rawHTML string) WatchlistDiagnostics {
+	return WatchlistDiagnostics{
+		HTMLBytes:          len(rawHTML),
+		CandidateLinkCount: len(findWatchlistLotLinks(rawHTML)),
+		HasLoginPrompt:     isNumisBidsLoginPrompt(rawHTML),
+		HasWatchlistText:   strings.Contains(strings.ToLower(rawHTML), "watch list"),
+	}
+}
+
+type WatchlistDiagnostics struct {
+	HTMLBytes          int
+	CandidateLinkCount int
+	HasLoginPrompt     bool
+	HasWatchlistText   bool
+}
+
+func isNumisBidsLoginPrompt(rawHTML string) bool {
+	normalized := strings.ToLower(rawHTML)
+	return strings.Contains(normalized, "already have items on your watch list") &&
+		strings.Contains(normalized, "loginreload")
 }
 
 type watchlistLotLink struct {
