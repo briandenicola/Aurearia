@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,6 +13,11 @@ import (
 
 const maxSetsPerUser = 100
 const maxSetNameLength = 80
+
+var (
+	ErrInvalidSetOrder = errors.New("ordered coin IDs must exactly match current set members")
+	ErrSmartSetOrder   = errors.New("cannot manually reorder smart sets")
+)
 
 // SetService handles business logic for coin sets.
 type SetService struct {
@@ -503,6 +509,36 @@ func (s *SetService) RemoveCoinFromSet(coinID, setID, userID uint) error {
 // GetCoinsInSet returns all coins in a set.
 func (s *SetService) GetCoinsInSet(setID, userID uint) ([]models.Coin, error) {
 	return s.repo.GetCoinsInSet(setID, userID)
+}
+
+// ReorderCoinsInSet saves the manual order for every current member of a non-smart set.
+func (s *SetService) ReorderCoinsInSet(setID, userID uint, coinIDs []uint) error {
+	set, err := s.repo.GetByID(setID, userID)
+	if err != nil {
+		return err
+	}
+	if set.SetType == models.CoinSetTypeSmart {
+		return ErrSmartSetOrder
+	}
+
+	seen := make(map[uint]struct{}, len(coinIDs))
+	for _, coinID := range coinIDs {
+		if coinID == 0 {
+			return ErrInvalidSetOrder
+		}
+		if _, exists := seen[coinID]; exists {
+			return ErrInvalidSetOrder
+		}
+		seen[coinID] = struct{}{}
+	}
+
+	if err := s.repo.ReorderCoinsInSet(setID, userID, coinIDs); err != nil {
+		if errors.Is(err, repository.ErrInvalidSetOrder) {
+			return ErrInvalidSetOrder
+		}
+		return err
+	}
+	return nil
 }
 
 // MapTagToSet returns set representation of a tag for compatibility.

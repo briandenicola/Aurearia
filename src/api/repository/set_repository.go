@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -10,6 +11,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+var ErrInvalidSetOrder = errors.New("ordered coin IDs must exactly match current set members")
 
 // SetRepository encapsulates all set-related database operations.
 type SetRepository struct {
@@ -97,12 +100,17 @@ func (r *SetRepository) AddCoinToSet(coinID, setID, userID uint, notes string) e
 		if setCount == 0 {
 			return gorm.ErrRecordNotFound
 		}
-		// Insert or ignore
+		sortOrder, err := nextSetSortOrder(tx, setID)
+		if err != nil {
+			return err
+		}
+
 		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&models.CoinSetMembership{
-			CoinID:  coinID,
-			SetID:   setID,
-			AddedAt: time.Now(),
-			Notes:   notes,
+			CoinID:    coinID,
+			SetID:     setID,
+			AddedAt:   time.Now(),
+			SortOrder: sortOrder,
+			Notes:     notes,
 		}).Error
 	})
 }
@@ -137,13 +145,18 @@ func (r *SetRepository) BulkAddCoinsToSet(coinIDs []uint, setID, userID uint) (i
 			return gorm.ErrRecordNotFound
 		}
 
+		sortOrder, err := nextSetSortOrder(tx, setID)
+		if err != nil {
+			return err
+		}
 		now := time.Now()
 		memberships := make([]models.CoinSetMembership, 0, len(uniqueCoinIDs))
-		for _, coinID := range uniqueCoinIDs {
+		for i, coinID := range uniqueCoinIDs {
 			memberships = append(memberships, models.CoinSetMembership{
-				CoinID:  coinID,
-				SetID:   setID,
-				AddedAt: now,
+				CoinID:    coinID,
+				SetID:     setID,
+				AddedAt:   now,
+				SortOrder: sortOrder + i,
 			})
 		}
 
@@ -188,9 +201,59 @@ func (r *SetRepository) GetCoinsInSet(setID, userID uint) ([]models.Coin, error)
 		Where("coin_sets.id = ? AND coin_sets.user_id = ?", setID, userID).
 		Preload("Images").
 		Preload("Tags").
+		Order("coin_set_memberships.sort_order ASC").
 		Order("coins.name ASC").
+		Order("coins.id ASC").
 		Find(&coins).Error
 	return coins, err
+}
+
+// ReorderCoinsInSet persists the exact manual coin order for an owned set.
+func (r *SetRepository) ReorderCoinsInSet(setID, userID uint, coinIDs []uint) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var set models.CoinSet
+		if err := tx.Scopes(OwnedByID(setID, userID)).First(&set).Error; err != nil {
+			return err
+		}
+
+		var memberIDs []uint
+		if err := tx.Model(&models.CoinSetMembership{}).
+			Where("set_id = ?", setID).
+			Pluck("coin_id", &memberIDs).Error; err != nil {
+			return err
+		}
+		if len(memberIDs) != len(coinIDs) {
+			return ErrInvalidSetOrder
+		}
+
+		members := make(map[uint]struct{}, len(memberIDs))
+		for _, id := range memberIDs {
+			members[id] = struct{}{}
+		}
+		seen := make(map[uint]struct{}, len(coinIDs))
+		for _, id := range coinIDs {
+			if _, ok := members[id]; !ok {
+				return ErrInvalidSetOrder
+			}
+			if _, ok := seen[id]; ok {
+				return ErrInvalidSetOrder
+			}
+			seen[id] = struct{}{}
+		}
+
+		for sortOrder, coinID := range coinIDs {
+			result := tx.Model(&models.CoinSetMembership{}).
+				Where("set_id = ? AND coin_id = ?", setID, coinID).
+				Update("sort_order", sortOrder)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return ErrInvalidSetOrder
+			}
+		}
+		return nil
+	})
 }
 
 // GetSetSummary returns aggregate counts and values for a set.
@@ -328,11 +391,12 @@ func (r *SetRepository) MigrateTagsToSets(userID uint) error {
 				return err
 			}
 
-			for _, ct := range coinTags {
+			for i, ct := range coinTags {
 				membership := models.CoinSetMembership{
-					SetID:   set.ID,
-					CoinID:  ct.CoinID,
-					AddedAt: time.Now(),
+					SetID:     set.ID,
+					CoinID:    ct.CoinID,
+					AddedAt:   time.Now(),
+					SortOrder: i,
 				}
 				if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&membership).Error; err != nil {
 					return err
@@ -578,6 +642,15 @@ var criteriaFieldColumns = map[string]string{
 	"isWishlist":    "is_wishlist",
 	"isSold":        "is_sold",
 	"isPrivate":     "is_private",
+}
+
+func nextSetSortOrder(tx *gorm.DB, setID uint) (int, error) {
+	var maxSortOrder int
+	err := tx.Model(&models.CoinSetMembership{}).
+		Where("set_id = ?", setID).
+		Select("COALESCE(MAX(sort_order), -1)").
+		Scan(&maxSortOrder).Error
+	return maxSortOrder + 1, err
 }
 
 // matchCoinToTarget determines if a coin matches a target's criteria.

@@ -279,6 +279,7 @@ func main() {
 		protected.DELETE("/sets/:id", setHandler.Delete)
 		protected.GET("/sets/:id/coins", setHandler.GetCoins)
 		protected.POST("/sets/:id/coins", setHandler.AddCoin)
+		protected.PUT("/sets/:id/coins/order", setHandler.ReorderCoins)
 		protected.DELETE("/sets/:id/coins/:coinId", setHandler.RemoveCoin)
 		protected.GET("/sets/:id/completion", setHandler.GetCompletion)
 		protected.POST("/sets/:id/snapshot", setHandler.CreateSnapshot)

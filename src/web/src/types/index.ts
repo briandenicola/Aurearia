@@ -247,6 +247,10 @@ export interface AddCoinToSetRequest {
   notes?: string
 }
 
+export interface ReorderSetCoinsRequest {
+  coinIds: number[]
+}
+
 // US2: Defined/Goal Sets and Completion
 export interface CoinSetTarget {
   id: number

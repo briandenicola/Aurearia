@@ -5749,6 +5749,64 @@ paths:
       summary: Remove coin from set
       tags:
       - sets
+  /sets/{id}/coins/order:
+    put:
+      consumes:
+      - application/json
+      description: Persist the full manual order for all coins in a non-smart set
+      parameters:
+      - description: Set ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Ordered coin IDs
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            coinIds:
+              items:
+                type: integer
+              type: array
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              message:
+                type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Reorder set coins
+      tags:
+      - sets
   /sets/{id}/completion:
     get:
       description: Get completion metrics including target count, completed count,

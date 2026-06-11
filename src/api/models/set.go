@@ -36,10 +36,11 @@ type CoinSet struct {
 
 // CoinSetMembership represents manual membership for open, defined, and goal sets.
 type CoinSetMembership struct {
-	SetID   uint      `gorm:"primaryKey" json:"setId"`
-	CoinID  uint      `gorm:"primaryKey" json:"coinId"`
-	AddedAt time.Time `gorm:"not null" json:"addedAt"`
-	Notes   string    `gorm:"type:text" json:"notes"`
+	SetID     uint      `gorm:"primaryKey" json:"setId"`
+	CoinID    uint      `gorm:"primaryKey" json:"coinId"`
+	AddedAt   time.Time `gorm:"not null" json:"addedAt"`
+	SortOrder int       `gorm:"not null;default:0" json:"sortOrder"`
+	Notes     string    `gorm:"type:text" json:"notes"`
 }
 
 // CoinSetTarget defines expected coins for completion tracking.

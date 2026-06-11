@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -327,6 +328,54 @@ func (h *SetHandler) AddCoin(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Coin added to set"})
+}
+
+// ReorderCoins saves the manual coin order for a set.
+//
+//	@Summary		Reorder set coins
+//	@Description	Persist the full manual order for all coins in a non-smart set
+//	@Tags			sets
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id		path		int					true	"Set ID"
+//	@Param			body	body		object{coinIds=[]int}	true	"Ordered coin IDs"
+//	@Success		200		{object}	object{message=string}
+//	@Failure		400		{object}	object{error=string}
+//	@Failure		401		{object}	object{error=string}
+//	@Failure		404		{object}	object{error=string}
+//	@Router			/sets/{id}/coins/order [put]
+func (h *SetHandler) ReorderCoins(c *gin.Context) {
+	userID := c.GetUint("userId")
+	setID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid set ID"})
+		return
+	}
+
+	var body struct {
+		CoinIDs []uint `json:"coinIds" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "coinIds is required"})
+		return
+	}
+
+	if err := h.service.ReorderCoinsInSet(uint(setID), userID, body.CoinIDs); err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "Set not found"})
+		case errors.Is(err, services.ErrInvalidSetOrder):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "coinIds must exactly match current set members"})
+		case errors.Is(err, services.ErrSmartSetOrder):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Smart sets cannot be manually reordered"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reorder set coins"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Set coin order saved"})
 }
 
 // RemoveCoin removes a coin from a manual set.
