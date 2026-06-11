@@ -114,6 +114,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/notes',
+      name: 'notes',
+      component: () => import('@/pages/NotesPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/pages/SettingsPage.vue'),

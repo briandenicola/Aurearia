@@ -31,7 +31,7 @@ func setupCoinHandlerTestDB(t *testing.T) *gorm.DB {
 	}
 	err = db.AutoMigrate(
 		&models.User{}, &models.StorageLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{},
-		&models.ValueSnapshot{}, &models.CoinJournal{},
+		&models.ValueSnapshot{}, &models.CoinJournal{}, &models.Note{},
 		&models.CoinValueHistory{}, &models.CoinComment{},
 		&models.AvailabilityResult{}, &models.AuctionLot{},
 		&models.Tag{}, &models.CoinTag{},

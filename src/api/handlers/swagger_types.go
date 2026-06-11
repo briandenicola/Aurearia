@@ -61,6 +61,10 @@ type CoinListResponse struct {
 	Limit int           `json:"limit" example:"50"`
 }
 
+type NoteListResponse struct {
+	Notes []models.Note `json:"notes"`
+}
+
 type StatsResponse struct {
 	TotalCoins    int64           `json:"totalCoins" example:"25"`
 	TotalWishlist int64           `json:"totalWishlist" example:"5"`

@@ -82,6 +82,24 @@ export interface LegacyMigrationResult {
   message?: string
 }
 
+export interface UserNote {
+  id: number
+  userId: number
+  title: string
+  body: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NoteInput {
+  title: string
+  body: string
+}
+
+export interface NoteListResponse {
+  notes: UserNote[]
+}
+
 export type CoinMutationPayload = Partial<Omit<Coin, 'references' | 'storageLocation'>> & {
   references?: CoinReferenceInput[]
 }

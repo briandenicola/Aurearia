@@ -722,6 +722,13 @@ definitions:
         example: 823160-093
         type: string
     type: object
+  handlers.NoteListResponse:
+    properties:
+      notes:
+        items:
+          $ref: '#/definitions/models.Note'
+        type: array
+    type: object
   handlers.NumistaCandidateSwagger:
     properties:
       id:
@@ -1019,6 +1026,13 @@ definitions:
     required:
     - password
     - username
+    type: object
+  handlers.noteRequest:
+    properties:
+      body:
+        type: string
+      title:
+        type: string
     type: object
   handlers.refreshRequest:
     properties:
@@ -1521,6 +1535,21 @@ definitions:
     - MaterialCopper
     - MaterialElectrum
     - MaterialOther
+  models.Note:
+    properties:
+      body:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: integer
+      title:
+        type: string
+      updatedAt:
+        type: string
+      userId:
+        type: integer
+    type: object
   models.StorageLocation:
     properties:
       createdAt:
@@ -5054,6 +5083,151 @@ paths:
       summary: Get top coins by current value
       tags:
       - Internal
+  /notes:
+    get:
+      description: Returns all notes owned by the authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.NoteListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List notes
+      tags:
+      - Notes
+    post:
+      consumes:
+      - application/json
+      description: Creates a Markdown-capable note for the authenticated user.
+      parameters:
+      - description: Note
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.noteRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Note'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create note
+      tags:
+      - Notes
+  /notes/{id}:
+    delete:
+      description: Deletes one note owned by the authenticated user.
+      parameters:
+      - description: Note ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete note
+      tags:
+      - Notes
+    get:
+      description: Returns one note owned by the authenticated user.
+      parameters:
+      - description: Note ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Note'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get note
+      tags:
+      - Notes
+    put:
+      consumes:
+      - application/json
+      description: Updates one note owned by the authenticated user.
+      parameters:
+      - description: Note ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Note
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.noteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Note'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update note
+      tags:
+      - Notes
   /notifications:
     get:
       description: Returns notifications for the current user, newest first.

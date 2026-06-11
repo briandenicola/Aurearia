@@ -205,6 +205,7 @@ func main() {
 	// Create shared repositories for cross-group access
 	journalRepo := repository.NewJournalRepository(database.DB)
 	collectionProposalRepo := repository.NewCollectionUpdateRepository(database.DB)
+	noteRepo := repository.NewNoteRepository(database.DB)
 	collectionSvc := services.NewCollectionToolsService(coinRepo, collectionProposalRepo)
 
 	protected := api.Group("")
@@ -242,6 +243,14 @@ func main() {
 		protected.POST("/coins/:id/sell", coinHandler.Sell)
 		protected.DELETE("/coins/:id", coinHandler.Delete)
 		protected.GET("/catalogs", catalogRegistryHandler.List)
+
+		noteSvc := services.NewNoteService(noteRepo)
+		noteHandler := handlers.NewNoteHandler(noteSvc)
+		protected.GET("/notes", noteHandler.List)
+		protected.POST("/notes", noteHandler.Create)
+		protected.GET("/notes/:id", noteHandler.Get)
+		protected.PUT("/notes/:id", noteHandler.Update)
+		protected.DELETE("/notes/:id", noteHandler.Delete)
 
 		storageLocationSvc := services.NewStorageLocationService(storageLocationRepo)
 		storageLocationHandler := handlers.NewStorageLocationHandler(storageLocationSvc)
