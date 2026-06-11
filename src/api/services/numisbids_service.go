@@ -15,20 +15,21 @@ import (
 )
 
 const (
-	numisbidsBase    = "https://www.numisbids.com"
-	numisbidsLoginURL = numisbidsBase + "/registration/login.php"
+	numisbidsBase         = "https://www.numisbids.com"
+	numisbidsLoginURL     = numisbidsBase + "/registration/login.php"
 	numisbidsWatchlistURL = numisbidsBase + "/watchlist"
-	numisbidsUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+	numisbidsUserAgent    = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
 		"AppleWebKit/537.36 (KHTML, like Gecko) " +
 		"Chrome/131.0.0.0 Safari/537.36"
 )
 
 var (
-	lotLinkRe    = regexp.MustCompile(`href="(/sale/(\d+)/lot/(\d+))"`)
-	imgSrcRe     = regexp.MustCompile(`<img[^>]*src="([^"]*)"`)
-	ogImageRe    = regexp.MustCompile(`<meta\s+property="og:image"\s+content="([^"]+)"`)
-	estimateRe   = regexp.MustCompile(`Estimate:\s*([\d,]+(?:\.\d+)?\s*\w+)`)
-	currencyValRe = regexp.MustCompile(`([\d,]+(?:\.\d+)?)\s*(USD|EUR|GBP|CHF)`)
+	lotLinkRe     = regexp.MustCompile(`^/sale/(\d+)/lot/(\d+)`)
+	lotHrefRe     = regexp.MustCompile(`(?i)href\s*=\s*["']([^"']+)["']`)
+	imgSrcRe      = regexp.MustCompile(`<img[^>]*src="([^"]*)"`)
+	ogImageRe     = regexp.MustCompile(`<meta\s+property="og:image"\s+content="([^"]+)"`)
+	estimateRe    = regexp.MustCompile(`Estimate:\s*([\d,]+(?:\.\d+)?\s*\w+)`)
+	currencyValRe = regexp.MustCompile(`([\d,]+(?:\.\d+)?)\s*(USD|EUR|GBP|CHF|AUD|CAD)`)
 )
 
 // WatchlistLot represents a single lot parsed from a NumisBids watchlist page.
@@ -246,27 +247,21 @@ func (s *NumisBidsService) ScrapeLotPage(lotURL string) (*LotPageDetails, error)
 func (s *NumisBidsService) ParseWatchlist(rawHTML string) []WatchlistLot {
 	// Find all lot link positions, then extract the block between each pair.
 	// Go's regexp engine (RE2) doesn't support lookaheads, so we split manually.
-	indices := lotLinkRe.FindAllStringIndex(rawHTML, -1)
+	matches := findWatchlistLotLinks(rawHTML)
 
 	var lots []WatchlistLot
-	for i, idx := range indices {
-		start := idx[0]
+	for i, match := range matches {
+		start := match.start
 		end := len(rawHTML)
-		if i+1 < len(indices) {
-			end = indices[i+1][0]
+		if i+1 < len(matches) {
+			end = matches[i+1].start
 		}
 		block := rawHTML[start:end]
 
-		linkMatch := lotLinkRe.FindStringSubmatch(block)
-		if linkMatch == nil {
-			continue
-		}
-
-		lotNum, _ := strconv.Atoi(linkMatch[3])
 		lot := WatchlistLot{
-			URL:       numisbidsBase + linkMatch[1],
-			SaleID:    linkMatch[2],
-			LotNumber: lotNum,
+			URL:       match.url,
+			SaleID:    match.saleID,
+			LotNumber: match.lotNumber,
 			Currency:  "USD",
 		}
 
@@ -280,7 +275,7 @@ func (s *NumisBidsService) ParseWatchlist(rawHTML string) []WatchlistLot {
 		}
 
 		// Title: extract only the text inside the lot anchor tag
-		lot.Title = extractLotTitle(block, linkMatch[1])
+		lot.Title = extractLotTitle(block, match.href)
 		if len(lot.Title) > 200 {
 			lot.Title = lot.Title[:200]
 		}
@@ -298,6 +293,90 @@ func (s *NumisBidsService) ParseWatchlist(rawHTML string) []WatchlistLot {
 	}
 
 	return lots
+}
+
+type watchlistLotLink struct {
+	start     int
+	href      string
+	url       string
+	saleID    string
+	lotNumber int
+}
+
+func findWatchlistLotLinks(rawHTML string) []watchlistLotLink {
+	hrefMatches := lotHrefRe.FindAllStringSubmatchIndex(rawHTML, -1)
+	links := make([]watchlistLotLink, 0, len(hrefMatches))
+	for _, hrefMatch := range hrefMatches {
+		if len(hrefMatch) < 4 {
+			continue
+		}
+		href := rawHTML[hrefMatch[2]:hrefMatch[3]]
+		urlValue, saleID, lotNumber, ok := parseNumisBidsLotHref(href)
+		if !ok {
+			continue
+		}
+		start := hrefMatch[0]
+		if anchorStart := strings.LastIndex(strings.ToLower(rawHTML[:hrefMatch[0]]), "<a"); anchorStart >= 0 {
+			start = anchorStart
+		}
+		links = append(links, watchlistLotLink{
+			start:     start,
+			href:      href,
+			url:       urlValue,
+			saleID:    saleID,
+			lotNumber: lotNumber,
+		})
+	}
+	return links
+}
+
+func parseNumisBidsLotHref(href string) (string, string, int, bool) {
+	href = strings.TrimSpace(href)
+	if href == "" {
+		return "", "", 0, false
+	}
+
+	parsed, err := url.Parse(href)
+	if err != nil {
+		return "", "", 0, false
+	}
+	if parsed.IsAbs() && !strings.EqualFold(parsed.Host, "www.numisbids.com") && !strings.EqualFold(parsed.Host, "numisbids.com") {
+		return "", "", 0, false
+	}
+
+	path := parsed.Path
+	if path == "" && !parsed.IsAbs() {
+		path = href
+	}
+	if saleMatch := lotLinkRe.FindStringSubmatch(path); saleMatch != nil {
+		lotNumber, err := strconv.Atoi(saleMatch[2])
+		if err != nil {
+			return "", "", 0, false
+		}
+		return numisbidsBase + saleMatch[0], saleMatch[1], lotNumber, true
+	}
+
+	if strings.EqualFold(path, "/n.php") || strings.EqualFold(path, "n.php") {
+		query := parsed.Query()
+		if query.Get("p") != "lot" {
+			return "", "", 0, false
+		}
+		saleID := query.Get("sid")
+		lotRaw := query.Get("lot")
+		lotNumber, err := strconv.Atoi(lotRaw)
+		if saleID == "" || err != nil {
+			return "", "", 0, false
+		}
+		if parsed.IsAbs() {
+			return parsed.String(), saleID, lotNumber, true
+		}
+		if strings.HasPrefix(parsed.String(), "/") {
+			return numisbidsBase + parsed.String(), saleID, lotNumber, true
+		}
+		return numisbidsBase + "/" + parsed.String(), saleID, lotNumber, true
+	}
+
+	return "", "", 0, false
 }
 
 // parseCurrencyValue extracts a numeric value and currency code from a string
