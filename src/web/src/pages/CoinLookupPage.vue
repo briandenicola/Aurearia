@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div class="page-header">
+    <div class="page-header lookup-page-header">
       <h1>Find Coin</h1>
-      <button class="btn btn-secondary" @click="handleBack">
+      <button class="btn btn-ghost btn-sm" @click="handleBack">
         <ArrowLeft :size="16" />
         Back
       </button>
@@ -798,6 +798,15 @@ onBeforeUnmount(() => {
 @media (max-width: 768px) {
   .container {
     padding: 1rem;
+  }
+
+  .lookup-page-header {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .lookup-page-header .btn {
+    flex-shrink: 0;
   }
 
   .capture-controls {

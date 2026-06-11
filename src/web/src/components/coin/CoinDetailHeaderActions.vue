@@ -1,17 +1,21 @@
 <template>
   <div class="detail-header">
-    <button class="btn btn-secondary btn-sm" @click="router.push('/')">← Back to Gallery</button>
+    <button class="btn btn-ghost btn-xs back-action" @click="router.push('/')">
+      <ArrowLeft :size="14" />
+      Back to Gallery
+    </button>
     <div class="detail-actions">
-      <button v-if="isWishlist" class="btn btn-primary btn-sm" @click="$emit('purchase')">Mark as Purchased</button>
-      <button v-if="!isWishlist && !isSold" class="btn btn-secondary btn-sm" @click="$emit('sell')">Sell</button>
-      <router-link :to="`/edit/${coinId}`" class="btn btn-secondary btn-sm">Edit</router-link>
-      <button class="btn btn-danger btn-sm" @click="$emit('delete')">Delete</button>
+      <button v-if="isWishlist" class="btn btn-primary btn-xs" @click="$emit('purchase')">Mark as Purchased</button>
+      <button v-if="!isWishlist && !isSold" class="btn btn-secondary btn-xs" @click="$emit('sell')">Sell</button>
+      <router-link :to="`/edit/${coinId}`" class="btn btn-secondary btn-xs">Edit</router-link>
+      <button class="btn btn-danger btn-xs" @click="$emit('delete')">Delete</button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { ArrowLeft } from 'lucide-vue-next'
 
 defineProps<{
   isWishlist: boolean
@@ -30,20 +34,34 @@ const router = useRouter()
 
 <style scoped>
 .detail-header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: auto 1fr;
   align-items: center;
+  gap: 0.75rem;
   margin-bottom: 0;
 }
 
 .detail-actions {
   display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.back-action {
+  justify-self: start;
 }
 
 @media (max-width: 768px) {
   .detail-header {
-    margin-bottom: 1.5rem;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .detail-actions {
+    justify-content: flex-start;
+    gap: 0.35rem;
   }
 }
 </style>
