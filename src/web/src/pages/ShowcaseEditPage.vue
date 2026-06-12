@@ -250,17 +250,30 @@ async function saveCoins() {
   }
 }
 
+async function fetchAllCoins(): Promise<Coin[]> {
+  const all: Coin[] = []
+  let page = 1
+  const limit = 100
+  while (true) {
+    const res = await getCoins({ limit, page, wishlist: 'false', sold: 'false' })
+    const coins: Coin[] = res.data?.coins ?? []
+    all.push(...coins)
+    if (coins.length < limit) break
+    page++
+  }
+  return all
+}
+
 async function loadData() {
   loading.value = true
   try {
     const id = Number(route.params.id)
-    const [scRes, coinsRes] = await Promise.all([
+    const [scRes, collectionCoins] = await Promise.all([
       getShowcase(id),
-      getCoins({ limit: 500, wishlist: 'false', sold: 'false' })
+      fetchAllCoins()
     ])
     showcase.value = scRes.data?.showcase ?? null
     const showcaseCoins: Coin[] = scRes.data?.coins ?? []
-    const collectionCoins: Coin[] = coinsRes.data?.coins ?? []
 
     // Merge coins from both sources
     const merged = new Map<number, Coin>()
