@@ -165,7 +165,7 @@ const { bulkSelectActive } = useBulkSelect()
 const defaultNavItems: NavItem[] = [
   { id: 'collection', label: 'Collection', icon: markRaw(Landmark), to: '/', visible: true },
   { id: 'add-coin', label: 'Add Coin', icon: markRaw(CirclePlus), to: '/add', visible: isPwa },
-  { id: 'lookup', label: 'Find Coin', icon: markRaw(Search), to: '/lookup', visible: true },
+  { id: 'lookup', label: 'Identify Coin', icon: markRaw(Search), to: '/lookup', visible: true },
   { id: 'wishlist', label: 'Wishlist', icon: markRaw(Bookmark), to: '/wishlist', visible: true },
   { id: 'sold', label: 'Sold', icon: markRaw(BadgeDollarSign), to: '/sold', visible: true },
   { id: 'auctions', label: 'Auctions', icon: markRaw(Gavel), to: '/auctions', visible: true },

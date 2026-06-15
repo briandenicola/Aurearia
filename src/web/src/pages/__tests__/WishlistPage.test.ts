@@ -118,7 +118,7 @@ describe('WishlistPage', () => {
     expect(wrapper.find('.empty-state').exists()).toBe(true)
   })
 
-  it('routes the desktop add action to the Find Coin workflow', () => {
+  it('routes the desktop add action to the Identify Coin workflow', () => {
     const wrapper = shallowMount(WishlistPage, {
       global: {
         stubs: {
@@ -129,11 +129,11 @@ describe('WishlistPage', () => {
 
     const links = wrapper.findAll('a')
     expect(links.filter(link => link.attributes('href') === '/lookup')).toHaveLength(1)
-    expect(links.some(link => link.attributes('href') === '/lookup' && link.text().includes('Find Coin'))).toBe(true)
+    expect(links.some(link => link.attributes('href') === '/lookup' && link.text().includes('Identify Coin'))).toBe(true)
     expect(links.some(link => link.attributes('href') === '/add?wishlist=true')).toBe(false)
   })
 
-  it('routes the PWA plus icon to the Find Coin workflow', () => {
+  it('routes the PWA plus icon to the Identify Coin workflow', () => {
     mockIsPwa = true
 
     const wrapper = shallowMount(WishlistPage, {
@@ -144,7 +144,7 @@ describe('WishlistPage', () => {
       },
     })
 
-    const lookupLink = wrapper.find('a[title="Find Coin"]')
+    const lookupLink = wrapper.find('a[title="Identify Coin"]')
     expect(lookupLink.exists()).toBe(true)
     expect(lookupLink.attributes('href')).toBe('/lookup')
     expect(wrapper.find('a[href="/add?wishlist=true"]').exists()).toBe(false)

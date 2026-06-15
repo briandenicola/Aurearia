@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <div class="page-header lookup-page-header">
-      <h1>Find Coin</h1>
+      <h1>Identify Coin</h1>
       <button class="btn btn-ghost btn-sm" @click="handleBack">
         <ArrowLeft :size="16" />
         Back
