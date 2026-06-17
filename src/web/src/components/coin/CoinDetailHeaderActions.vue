@@ -5,6 +5,10 @@
       Back to Gallery
     </button>
     <div class="detail-actions">
+      <button class="btn btn-secondary btn-xs" :disabled="sharing" @click="$emit('share')">
+        <Share2 :size="14" />
+        {{ sharing ? 'Sharing...' : 'Share' }}
+      </button>
       <button v-if="!isWishlist && !isSold" class="btn btn-secondary btn-xs" @click="$emit('sell')">Sell</button>
       <router-link :to="`/edit/${coinId}`" class="btn btn-secondary btn-xs">Edit</router-link>
       <button class="btn btn-danger btn-xs" @click="$emit('delete')">Delete</button>
@@ -14,15 +18,19 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { ArrowLeft } from 'lucide-vue-next'
+import { ArrowLeft, Share2 } from 'lucide-vue-next'
 
-defineProps<{
+withDefaults(defineProps<{
   isWishlist: boolean
   isSold: boolean
   coinId: number
-}>()
+  sharing?: boolean
+}>(), {
+  sharing: false,
+})
 
 defineEmits<{
+  share: []
   sell: []
   delete: []
 }>()

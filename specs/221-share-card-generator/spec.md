@@ -67,16 +67,16 @@ infrastructure already in the app.
 
 ## Acceptance Criteria
 
-- [ ] A "Share" action is available on the coin detail page.
-- [ ] Tapping it generates a branded PNG card containing the coin image and the
+- [x] A "Share" action is available on the coin detail page.
+- [x] Tapping it generates a branded PNG card containing the coin image and the
       default metadata (name, ruler, denomination, era), with no price/value shown.
-- [ ] On a device supporting Web Share with files, the native share sheet opens with
+- [x] On a device supporting Web Share with files, the native share sheet opens with
       the generated image attached.
-- [ ] On unsupported browsers, the user can still download or copy the generated
+- [x] On unsupported browsers, the user can still download or copy the generated
       image (no dead-end).
-- [ ] Card generation works offline (client-side, no server dependency for v1).
-- [ ] Card styling uses existing design tokens / category accent / branding.
-- [ ] `npm run type-check` passes.
+- [x] Card generation works offline (client-side, no server dependency for v1).
+- [x] Card styling uses existing design tokens / category accent / branding.
+- [x] `npm run type-check` passes.
 
 ## Open Questions
 
