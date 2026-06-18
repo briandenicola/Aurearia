@@ -277,17 +277,19 @@ function drawImageFrame(ctx: CanvasRenderingContext2D, images: HTMLImageElement[
 
 function drawMetadataGrid(ctx: CanvasRenderingContext2D, fields: CoinShareCardField[]) {
   const columns = 2
-  const columnGap = 48
-  const columnWidth = (CARD_WIDTH - CARD_PADDING * 2 - columnGap) / columns
+  const gridWidth = 760
+  const columnGap = 84
+  const columnWidth = (gridWidth - columnGap) / columns
   const rowHeight = 104
+  const gridX = (CARD_WIDTH - gridWidth) / 2
 
-  ctx.textAlign = 'left'
+  ctx.textAlign = 'center'
   ctx.textBaseline = 'alphabetic'
 
   fields.slice(0, 4).forEach((field, index) => {
     const column = index % columns
     const row = Math.floor(index / columns)
-    const x = CARD_PADDING + column * (columnWidth + columnGap)
+    const x = gridX + column * (columnWidth + columnGap) + columnWidth / 2
     const y = METADATA_START_Y + row * rowHeight
 
     ctx.fillStyle = TOKEN_COLORS.textMuted
