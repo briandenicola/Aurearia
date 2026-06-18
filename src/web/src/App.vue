@@ -229,7 +229,7 @@ const defaultNavItems: NavItem[] = [
       { id: 'stats-timeline', label: 'Timeline', to: '/stats/timeline' },
       { id: 'stats-map', label: 'Map', to: '/stats/mint-map' },
       { id: 'stats-health', label: 'Health', to: '/stats/health' },
-      { id: 'stats-value-trends', label: 'Value Trends', to: '/stats/value-trends' },
+      { id: 'stats-value-trends', label: 'Value Details', to: '/stats/value-trends' },
     ],
   },
   { id: 'sets', label: 'Sets', icon: markRaw(Layers3), to: '/sets', visible: true },

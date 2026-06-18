@@ -106,7 +106,7 @@ function getRenderSize(coin: TrayCoin): number {
   padding: 1rem;
 }
 
-/* Responsive columns based on viewport */
+/* Responsive columns: max 4 to match 4×6 tray layout (24 coins) */
 @media (max-width: 575px) {
   .tray-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -120,21 +120,9 @@ function getRenderSize(coin: TrayCoin): number {
   }
 }
 
-@media (min-width: 768px) and (max-width: 1023px) {
+@media (min-width: 768px) {
   .tray-grid {
     grid-template-columns: repeat(4, 1fr);
-  }
-}
-
-@media (min-width: 1024px) and (max-width: 1279px) {
-  .tray-grid {
-    grid-template-columns: repeat(6, 1fr);
-  }
-}
-
-@media (min-width: 1280px) {
-  .tray-grid {
-    grid-template-columns: repeat(8, 1fr);
   }
 }
 </style>

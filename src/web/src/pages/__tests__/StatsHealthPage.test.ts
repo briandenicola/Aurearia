@@ -57,4 +57,23 @@ describe('StatsHealthPage', () => {
 
     expect(wrapper.findComponent({ name: 'CollectionHealthEmptyState' }).exists()).toBe(true)
   })
+
+  it('renders an arrow icon back button (not a text link) to /stats', () => {
+    store.collectionHealth = mockHealth
+    store.healthLoading = false
+
+    const wrapper = mount(StatsHealthPage, {
+      global: {
+        stubs: {
+          PullToRefresh: { template: '<div><slot /></div>' },
+          RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+        },
+      },
+    })
+
+    const backLink = wrapper.find('a[href="/stats"]')
+    expect(backLink.exists()).toBe(true)
+    // Should not contain the text "Back to Stats" — it's an icon-only button
+    expect(backLink.text().trim()).toBe('')
+  })
 })

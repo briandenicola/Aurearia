@@ -34,7 +34,7 @@ describe('UI pattern recipes', () => {
     const drawerLabel = extractCssBlock(trayControls, '.drawer-label')
 
     expect(trayControls).toContain('&lt; Previous')
-    expect(trayControls).toContain('Drawer {{ drawerIndex + 1 }} of {{ totalDrawers }}')
+    expect(trayControls).toContain('Tray {{ drawerIndex + 1 }} of {{ totalDrawers }}')
     expect(trayControls).toContain('Next &gt;')
     expect(drawerNavigation).toContain('flex-wrap: nowrap')
     expect(drawerNavigation).not.toContain('flex-direction: column')

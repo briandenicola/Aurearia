@@ -35,7 +35,7 @@ describe('MintMap navigation entry points', () => {
     expect(appSource).toContain("label: 'Timeline', to: '/stats/timeline'")
     expect(appSource).toContain("label: 'Map', to: '/stats/mint-map'")
     expect(appSource).toContain("label: 'Health', to: '/stats/health'")
-    expect(appSource).toContain("label: 'Value Trends', to: '/stats/value-trends'")
+    expect(appSource).toContain("label: 'Value Details', to: '/stats/value-trends'")
     expect(appSource).not.toContain("id: 'timeline'")
     expect(appSource).not.toContain("label: 'Collection Distribution'")
     expect(appSource).not.toContain('#collection-health')

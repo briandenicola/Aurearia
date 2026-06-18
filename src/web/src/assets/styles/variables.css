@@ -64,6 +64,10 @@
   --text-warning: #f5c36a;
   --accent-gold-focus: rgba(201, 168, 76, 0.2);
 
+  /* Gain/loss semantic colors */
+  --color-positive: #2ecc71;
+  --color-negative: #e74c3c;
+
   /* Confidence indicators */
   --confidence-high: #69b77f;
   --confidence-medium: #f0c261;

@@ -6,11 +6,11 @@ import type { StatsResponse } from '@/types'
 const stats: StatsResponse = {
   totalCoins: 42,
   totalWishlist: 7,
-  byCategory: [],
+  byCategory: [{ category: 'Roman', count: 20 }, { category: 'Greek', count: 15 }],
   byMaterial: [],
   byGrade: [],
-  byEra: [],
-  byRuler: [],
+  byEra: [{ era: 'Republic', count: 10 }],
+  byRuler: [{ ruler: 'Augustus', count: 5 }],
   byPriceRange: [],
   values: {
     totalPurchasePrice: 1200,
@@ -30,23 +30,31 @@ vi.mock('@/stores/coins', () => ({
 }))
 
 describe('StatsPage', () => {
-  it('renders summary metrics instead of stats navigation cards', () => {
+  it('renders summary metrics and distribution charts; excludes value detail block', () => {
     store.stats = stats
 
     const wrapper = mount(StatsPage, {
       global: {
         stubs: {
           PullToRefresh: { template: '<div><slot /></div>' },
+          StatsHeatMap: { template: '<div class="stub-heatmap" />', methods: { fetchDistribution: () => {} } },
         },
       },
     })
 
     expect(wrapper.text()).toContain('Coins Owned')
     expect(wrapper.text()).toContain('On Wishlist')
-    expect(wrapper.text()).toContain('Total Value')
-    expect(wrapper.text()).toContain('Value Summary')
+
+    // Value detail block has moved to Value Details page
+    expect(wrapper.text()).not.toContain('Value Summary')
+    expect(wrapper.text()).not.toContain('Total Invested')
+
+    // Distribution charts are present
+    expect(wrapper.text()).toContain('By Coin Type')
+    expect(wrapper.text()).toContain('By Era')
+    expect(wrapper.text()).toContain('Top Rulers')
+
     expect(wrapper.text()).not.toContain('Open Mint Map')
-    expect(wrapper.text()).not.toContain('Collection Distribution')
     expect(wrapper.findAll('a[href^="/stats/"]')).toHaveLength(0)
   })
 })

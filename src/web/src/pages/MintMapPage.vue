@@ -1,7 +1,10 @@
 <template>
   <div class="container mint-map-page">
     <header class="page-header mint-map-header">
-      <h1>Map of Coins</h1>
+      <div>
+        <p class="section-label">Collection Insights</p>
+        <h1>Map of Coins</h1>
+      </div>
       <router-link class="back-button" to="/stats" aria-label="Back to Stats">
         <ArrowLeft :size="20" />
       </router-link>
@@ -105,10 +108,8 @@ onMounted(() => {
 }
 
 .mint-map-header {
-  display: flex;
+  flex-direction: row;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
 }
 
 .back-button {
@@ -122,6 +123,7 @@ onMounted(() => {
   border-radius: var(--radius-sm);
   text-decoration: none;
   transition: var(--transition-fast);
+  flex-shrink: 0;
 }
 
 .back-button:hover {
@@ -170,15 +172,5 @@ onMounted(() => {
 .state-card p {
   margin: 0;
   color: var(--text-secondary);
-}
-
-@media (max-width: 768px) {
-  .mint-map-header h1 {
-    font-size: 1.5rem;
-  }
-
-  .back-button {
-    padding: 0.35rem;
-  }
 }
 </style>

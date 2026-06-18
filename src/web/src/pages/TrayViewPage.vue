@@ -57,7 +57,7 @@ const router = useRouter()
 const { feltColor } = useTrayPreference()
 
 const drawerIndex = ref(0)
-const coinsPerDrawer = 50
+const coinsPerDrawer = 24
 
 const trayCoins = computed((): TrayCoin[] => {
   return store.coins.map(coin => ({

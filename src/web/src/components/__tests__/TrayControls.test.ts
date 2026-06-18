@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import TrayControls from '../tray/TrayControls.vue'
 
 describe('TrayControls', () => {
-  it('renders drawer navigation in Previous, label, Next order', () => {
+  it('renders tray navigation in Previous, label, Next order', () => {
     const wrapper = mount(TrayControls, {
       props: {
         drawerIndex: 1,
@@ -17,7 +17,7 @@ describe('TrayControls', () => {
 
     expect(items).toHaveLength(3)
     expect(items[0]?.textContent?.trim()).toBe('< Previous')
-    expect(items[1]?.textContent?.trim()).toBe('Drawer 2 of 5')
+    expect(items[1]?.textContent?.trim()).toBe('Tray 2 of 5')
     expect(items[2]?.textContent?.trim()).toBe('Next >')
   })
 })

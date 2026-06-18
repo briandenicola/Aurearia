@@ -7,7 +7,9 @@
           <h1>Health</h1>
           <p class="page-intro">Track the completeness and quality of your collection data.</p>
         </div>
-        <router-link class="btn btn-secondary" to="/stats">Back to Stats</router-link>
+        <router-link class="back-button" to="/stats" aria-label="Back to Stats">
+          <ArrowLeft :size="20" />
+        </router-link>
       </header>
 
       <div v-if="healthLoading" class="loading-overlay">
@@ -26,6 +28,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { ArrowLeft } from 'lucide-vue-next'
 import { useCoinsStore } from '@/stores/coins'
 import PullToRefresh from '@/components/PullToRefresh.vue'
 import CollectionHealthScorecard from '@/components/stats/CollectionHealthScorecard.vue'
@@ -54,9 +57,11 @@ onMounted(() => {
 
 .stats-health-header {
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: nowrap;
 }
 
 .page-intro {
@@ -65,16 +70,29 @@ onMounted(() => {
   font-size: 0.9rem;
 }
 
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.back-button:hover {
+  color: var(--accent-gold);
+  border-color: var(--border-accent);
+  background: var(--accent-gold-glow);
+}
+
 .health-content {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-}
-
-@media (max-width: 768px) {
-  .stats-health-header {
-    align-items: stretch;
-    flex-direction: column;
-  }
 }
 </style>

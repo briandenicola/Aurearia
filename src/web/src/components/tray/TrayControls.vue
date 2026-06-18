@@ -9,7 +9,7 @@
         &lt; Previous
       </button>
       <span class="drawer-label">
-        Drawer {{ drawerIndex + 1 }} of {{ totalDrawers }}
+        Tray {{ drawerIndex + 1 }} of {{ totalDrawers }}
       </span>
       <button
         class="btn btn-sm"

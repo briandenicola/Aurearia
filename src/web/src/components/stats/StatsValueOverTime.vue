@@ -1,5 +1,5 @@
 <template>
-  <div v-if="store.valueHistory.length >= 2" class="stats-section card">
+  <div v-if="displayHistory.length >= 2" class="stats-section card">
     <h2>Value Over Time</h2>
     <div class="line-chart-container">
       <div class="line-chart-y-axis">
@@ -36,8 +36,8 @@
       <span class="legend-item"><span class="legend-line legend-invested"></span> Invested</span>
     </div>
     <div class="line-chart-dates">
-      <span>{{ formatShortDate(store.valueHistory[0]?.recordedAt ?? '') }}</span>
-      <span>{{ formatShortDate(store.valueHistory[store.valueHistory.length - 1]?.recordedAt ?? '') }}</span>
+      <span>{{ formatShortDate(displayHistory[0]?.recordedAt ?? '') }}</span>
+      <span>{{ formatShortDate(displayHistory[displayHistory.length - 1]?.recordedAt ?? '') }}</span>
     </div>
   </div>
 </template>
@@ -45,13 +45,21 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useCoinsStore } from '@/stores/coins'
+import type { ValueSnapshot } from '@/types'
 import { formatCurrency } from '@/utils/format'
+
+const props = withDefaults(
+  defineProps<{ history?: ValueSnapshot[] }>(),
+  { history: undefined },
+)
 
 const store = useCoinsStore()
 
+const displayHistory = computed(() => props.history ?? store.valueHistory)
+
 const chartMaxValue = computed(() => {
-  if (!store.valueHistory.length) return 1
-  const max = Math.max(...store.valueHistory.flatMap((s) => [s.totalValue, s.totalInvested]))
+  if (!displayHistory.value.length) return 1
+  const max = Math.max(...displayHistory.value.flatMap((s) => [s.totalValue, s.totalInvested]))
   return max * 1.1 || 1
 })
 
@@ -67,10 +75,10 @@ function toSvgPoints(data: number[]): string {
     .join(' ')
 }
 
-const valuePoints = computed(() => toSvgPoints(store.valueHistory.map((s) => s.totalValue)))
-const investedPoints = computed(() => toSvgPoints(store.valueHistory.map((s) => s.totalInvested)))
+const valuePoints = computed(() => toSvgPoints(displayHistory.value.map((s) => s.totalValue)))
+const investedPoints = computed(() => toSvgPoints(displayHistory.value.map((s) => s.totalInvested)))
 const valuePointsList = computed(() => {
-  const data = store.valueHistory.map((s) => s.totalValue)
+  const data = displayHistory.value.map((s) => s.totalValue)
   const max = chartMaxValue.value
   return data.map((v, i) => ({
     x: data.length === 1 ? 500 : (i / (data.length - 1)) * 1000,
