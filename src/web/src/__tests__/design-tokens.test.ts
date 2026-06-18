@@ -46,7 +46,7 @@ describe('Design Token Enforcement (Constitution Principle V)', () => {
 
   describe('no hardcoded border-radius in scoped styles', () => {
     // border-radius must use var(--radius-*), not raw px values
-    const BORDER_RADIUS_RAW = /border-radius\s*:\s*(?!0[;\s]|var\(|50%|inherit|initial|unset)([^;]+)/g
+    const BORDER_RADIUS_RAW = /border-radius\s*:\s*(?!\s*(?:0[;\s]|var\(|50%|inherit|initial|unset))([^;]+)/g
 
     // Budget: known pre-existing violations as of 2026-06-06 after syncing origin/main.
     const VIOLATION_BUDGET = 264
