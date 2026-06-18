@@ -5,7 +5,7 @@
 
 ## Summary
 
-Pivot the beta Mint Map from a stylized inline SVG approximation to a real Leaflet map using OpenStreetMap tiles. Pins must be rendered from actual mint latitude/longitude data. The feature moves under Stats as `/stats/mint-map`; legacy `/mint-map` redirects there. Stats becomes a landing page with cards for Mint Map, Timeline, and Collection Distribution subviews.
+Pivot the beta Mint Map from a stylized inline SVG approximation to a real Leaflet map using OpenStreetMap tiles. Pins must be rendered from actual mint latitude/longitude data. The feature moves under Stats as `/stats/mint-map`; legacy `/mint-map` redirects there. Stats itself is the summary metrics landing page, and the sidebar exposes the clarified Stats submenu: Timeline, Map, Health, Value Trends.
 
 ## Technical Context
 
@@ -36,7 +36,7 @@ No constitution waiver is expected.
 3. **Coordinates**: Marker placement uses actual `lat`/`lng` from the dataset; remove SVG projection from the active rendering path.
 4. **Feature placement**: Mint Map is a Stats subview only: `/stats/mint-map`.
 5. **Legacy route strategy**: `/mint-map` and `/timeline` redirect to `/stats/mint-map` and `/stats/timeline`.
-6. **Stats IA**: `/stats` is a card-based landing page; Timeline and Collection Distribution are sibling subviews.
+6. **Stats IA**: `/stats` is the summary metrics landing page. The sidebar nests exactly Timeline, Map, Health, and Value Trends under Stats; Collection Distribution remains routable for anchored Health/Value Trends sections but is not shown as a submenu item.
 7. **Tap behavior**: Marker tap opens the in-map/page coin list drawer for that mint; gallery query bridge remains optional only if an explicit tested route contract exists.
 8. **Aliases**: Alias names map to one canonical mint for this follow-up; era-specific splitting remains out of scope.
 
@@ -123,11 +123,11 @@ Remove active dependency on `projectLatLngToViewBox()` for map rendering. It may
 
 ### Phase 4: Stats Subviews and Redirects
 
-1. Change `/stats` to a landing page with cards for Mint Map, Timeline, and Collection Distribution.
+1. Change `/stats` to the summary metrics landing page.
 2. Add authenticated child/sibling routes for `/stats/mint-map`, `/stats/timeline`, and `/stats/distribution`.
 3. Redirect `/mint-map` → `/stats/mint-map` and `/timeline` → `/stats/timeline`.
 4. Remove Mint Map actions from `DesktopCollectionHeader.vue` and `PwaCollectionHeader.vue`.
-5. Move existing Collection Distribution UI out of the landing page into its subview.
+5. Keep Collection Distribution UI in its subview for Health and Value Trends anchors, but do not expose Collection Distribution as a sidebar item.
 
 ### Phase 5: Tests and Validation
 
@@ -135,7 +135,7 @@ Remove active dependency on `projectLatLngToViewBox()` for map rendering. It may
 2. `MintMapLeaflet.test.ts`: verifies marker creation from lat/lng, count labels, selected-mint emission, default bounds/empty state, and OSM tile layer configuration without live network.
 3. `MintMapPage.test.ts`: verifies drawer/unattributed behavior with the Leaflet component stubbed as needed.
 4. Router tests: legacy redirects and authenticated Stats subview route targets.
-5. Stats tests: landing cards link to subviews; Collection headers no longer expose Mint Map.
+5. Stats/App tests: summary metrics render at `/stats`; sidebar Stats submenu contains Timeline, Map, Health, and Value Trends only; Collection headers no longer expose Mint Map.
 
 Run from `src/web`:
 

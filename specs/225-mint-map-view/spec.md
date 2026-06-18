@@ -15,7 +15,7 @@ The current beta stylized SVG approximation is not the intended product experien
 
 ## Motivation
 
-The app captures mint information but does not visualize collection geography. A real slippy map makes the collection's spatial spread recognizable at a glance, with zoom/pan behavior users already understand from modern maps. This complements Stats subviews: Mint Map answers "where", Timeline answers "when", and Collection Distribution answers "what".
+The app captures mint information but does not visualize collection geography. A real slippy map makes the collection's spatial spread recognizable at a glance, with zoom/pan behavior users already understand from modern maps. This complements Stats subviews: Map answers "where", Timeline answers "when", Health answers "is the collection complete", and Value Trends answers "how value changes".
 
 ## User Stories
 
@@ -23,7 +23,7 @@ The app captures mint information but does not visualize collection geography. A
 - As a collector, I tap a mint pin and see only the coins struck at that mint.
 - As a collector with multiple coins from one mint, the pin reflects the count.
 - As a collector, I can use existing `/mint-map` or `/timeline` links and land on the new Stats subview URLs.
-- As a collector, I open Stats and see a landing page with cards for Mint Map, Timeline, and Collection Distribution.
+- As a collector, I open Stats and see summary metrics as the landing page, with Stats subviews available only from the sidebar submenu.
 
 ## Scope
 
@@ -31,7 +31,7 @@ The app captures mint information but does not visualize collection geography. A
 
 - Mint Map lives only as the authenticated Stats subview `/stats/mint-map`.
 - Existing `/mint-map` redirects to `/stats/mint-map`; existing `/timeline` redirects to `/stats/timeline`.
-- Main `/stats` becomes a landing page of cards linking to Stats subviews.
+- Main `/stats` becomes the summary metrics landing page.
 - Collection Distribution becomes its own Stats subview.
 - Remove Mint Map launch actions from Collection headers/navigation.
 - Replace the stylized SVG map experience with a Leaflet map using OpenStreetMap tile layers.
@@ -71,13 +71,16 @@ The app captures mint information but does not visualize collection geography. A
 
 **Stats navigation**
 
-- `/stats` is an overview/landing page with cards.
+- `/stats` is the summary metrics landing page previously represented by Summary Cards.
 - Subviews use explicit routes: `/stats/mint-map`, `/stats/timeline`, and `/stats/distribution`.
+- The sidebar shows `Stats` as a parent item with exactly four indented submenu items: `Timeline` → `/stats/timeline`, `Map` → `/stats/mint-map`, `Health` → `/stats/distribution#collection-health`, and `Value Trends` → `/stats/distribution#value-over-time`.
+- `Collection Distribution` remains available at `/stats/distribution` for anchored sections but is not a sidebar submenu item.
 - Legacy flat routes redirect with `router.replace`-style route records, not duplicate standalone pages.
 
 ## Acceptance Criteria
 
-- [ ] `/stats` renders a landing page with cards for Mint Map, Timeline, and Collection Distribution.
+- [ ] `/stats` renders summary metrics/cards, not navigation cards.
+- [ ] Sidebar Stats submenu contains exactly Timeline, Map, Health, and Value Trends; Timeline is not a top-level item.
 - [ ] `/stats/mint-map` renders a Leaflet map with OpenStreetMap tiles.
 - [ ] `/mint-map` redirects to `/stats/mint-map` and `/timeline` redirects to `/stats/timeline`.
 - [ ] Mint Map is not launched from Collection headers.
