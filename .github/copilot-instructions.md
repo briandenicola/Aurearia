@@ -250,6 +250,19 @@ All chips use `border-radius: var(--radius-full)`. Active state: `background: va
 - Chip/tag gaps: `0.35rem`
 - Card internal padding: `0.75rem` (info cards), `1rem` (feature cards), `1.5rem` (page cards)
 
+#### UI Pattern Recipes
+
+Before implementing UI, identify the closest existing page or component pattern and reuse it unless the user explicitly approves a new pattern. Do not fall back to generic layouts when a local pattern exists.
+
+| Pattern | Use | Required shape |
+|---|---|---|
+| Page header | Standalone feature pages | `header.page-header` row with the title on the left and any back action as a compact icon/link on the right. Avoid long intro copy unless the page truly needs explanation. |
+| Sidebar submenus | Related alternate views under one domain | Keep the parent item expandable/collapsible and start collapsed. Put related views under the parent as subitems instead of adding extra top-level menu items. |
+| Summary metric row | A page has one primary count/value | Use one compact horizontal label/value row, e.g. `Mapped Coins:` left and value right. Do not create a large card or stacked label/value block for a single metric. |
+| Pagination controls | Previous/next navigation | Keep controls in one row: `< Previous` then current label then `Next >`. Do not stack Previous and Next on mobile unless the viewport is too narrow to preserve usable tap targets. |
+| Stats subviews | Health, value trends, timeline, map | Each subview is its own route/page under the Stats submenu; the Stats landing page stays summary-card focused. |
+| Collection subviews | Gallery and Tray | Keep Gallery and Tray under the Collection submenu; the Collection parent starts collapsed like Stats. |
+
 #### Rules for New UI Components
 
 1. **Never hardcode** `border-radius`, colors, or spacing — always use tokens
