@@ -28,22 +28,6 @@ export interface MintMapAggregation {
   unknown: Coin[]
 }
 
-export interface ProjectedPoint {
-  x: number
-  y: number
-}
-
-const VIEWBOX_WIDTH = 1000
-const VIEWBOX_HEIGHT = 600
-const MIN_LAT = 28
-const MAX_LAT = 52
-const MIN_LNG = -12
-const MAX_LNG = 45
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max)
-}
-
 export function normalizeMintName(value: string): string {
   return value
     .normalize('NFD')
@@ -116,14 +100,4 @@ export function groupCoinsByMint(coins: Coin[]): MintMapAggregation {
     .sort((a, b) => b.coins.length - a.coins.length || a.normalizedName.localeCompare(b.normalizedName))
 
   return { matched, unmatched, unknown }
-}
-
-export function projectLatLngToViewBox(lat: number, lng: number): ProjectedPoint {
-  const normalizedLng = (clamp(lng, MIN_LNG, MAX_LNG) - MIN_LNG) / (MAX_LNG - MIN_LNG)
-  const normalizedLat = (MAX_LAT - clamp(lat, MIN_LAT, MAX_LAT)) / (MAX_LAT - MIN_LAT)
-
-  return {
-    x: Number((normalizedLng * VIEWBOX_WIDTH).toFixed(2)),
-    y: Number((normalizedLat * VIEWBOX_HEIGHT).toFixed(2)),
-  }
 }

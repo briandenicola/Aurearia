@@ -6,7 +6,7 @@
         <h1>Mint Map</h1>
         <p class="page-intro">Explore where the currently loaded active collection was struck.</p>
       </div>
-      <router-link class="btn btn-secondary" to="/">Back to Collection</router-link>
+      <router-link class="btn btn-secondary" to="/stats">Back to Stats</router-link>
     </header>
 
     <div v-if="store.loading" class="loading-card card" role="status">
@@ -46,7 +46,7 @@
         </div>
       </section>
 
-      <MintMapSvg
+      <MintMapLeaflet
         :groups="aggregation.matched"
         :selected-mint-id="selectedMintId"
         @select-mint="selectMint"
@@ -71,7 +71,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useCoinsStore } from '@/stores/coins'
-import MintMapSvg from '@/components/map/MintMapSvg.vue'
+import MintMapLeaflet from '@/components/map/MintMapLeaflet.vue'
 import MintCoinDrawer from '@/components/map/MintCoinDrawer.vue'
 import UnattributedMintBucket from '@/components/map/UnattributedMintBucket.vue'
 import { groupCoinsByMint, type MintGroup } from '@/utils/mintMap'

@@ -28,7 +28,6 @@
             Reverse
           </button>
         </div>
-        <router-link to="/mint-map" class="btn btn-secondary"><MapPin :size="16" /> Mint Map</router-link>
         <router-link to="/add" class="btn btn-primary"><CirclePlus :size="16" /> Add Coin</router-link>
       </div>
     </div>
@@ -40,7 +39,7 @@ import type { CollectionSetOption, ImageType } from '@/types'
 import CategoryFilter from '@/components/CategoryFilter.vue'
 import SearchBar from '@/components/SearchBar.vue'
 import SortSelect from '@/components/SortSelect.vue'
-import { CirclePlus, CheckSquare, MapPin } from 'lucide-vue-next'
+import { CirclePlus, CheckSquare } from 'lucide-vue-next'
 
 defineProps<{
   search: string

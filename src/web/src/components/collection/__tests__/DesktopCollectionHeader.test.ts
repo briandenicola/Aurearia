@@ -8,11 +8,11 @@ const __dirname = path.dirname(__filename)
 const headerPath = path.resolve(__dirname, '../DesktopCollectionHeader.vue')
 
 describe('DesktopCollectionHeader', () => {
-  it('links to the authenticated mint map view', () => {
+  it('does not launch Mint Map from the collection toolbar', () => {
     const source = fs.readFileSync(headerPath, 'utf8')
 
-    expect(source).toContain('to="/mint-map"')
-    expect(source).toContain('Mint Map')
-    expect(source).toContain('MapPin')
+    expect(source).not.toContain('to="/mint-map"')
+    expect(source).not.toContain('Mint Map')
+    expect(source).not.toContain('MapPin')
   })
 })

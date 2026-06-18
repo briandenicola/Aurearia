@@ -3,7 +3,6 @@ import {
   findMintReference,
   groupCoinsByMint,
   normalizeMintName,
-  projectLatLngToViewBox,
 } from '@/utils/mintMap'
 import { buildMintMapFixtureCoins, buildRomanDenariusCore } from '@/test/fixtures/coins'
 
@@ -40,16 +39,5 @@ describe('mintMap utilities', () => {
     expect(grouped.unmatched).toHaveLength(1)
     expect(grouped.unmatched[0]?.coins).toHaveLength(2)
     expect(grouped.unknown).toHaveLength(0)
-  })
-
-  it('projects known coordinates within the SVG bounds', () => {
-    const rome = projectLatLngToViewBox(41.9028, 12.4964)
-    const clamped = projectLatLngToViewBox(80, -80)
-
-    expect(rome.x).toBeGreaterThanOrEqual(0)
-    expect(rome.x).toBeLessThanOrEqual(1000)
-    expect(rome.y).toBeGreaterThanOrEqual(0)
-    expect(rome.y).toBeLessThanOrEqual(600)
-    expect(clamped).toEqual({ x: 0, y: 0 })
   })
 })
