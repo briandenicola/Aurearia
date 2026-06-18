@@ -613,8 +613,16 @@ Added admin-only backend manual trigger `POST /api/admin/collection-health-snaps
 
 **Learning:** Collection health snapshots follow the same admin scheduler trigger pattern as auction ending and coin-of-day: keep the handler thin, call the existing scheduler synchronously, and let admin route middleware enforce access.
 
-## 2026-06-18 — Mint Map Coin Limit Investigation
+## 2026-06-18 — WebAuthn Login Challenge Contract
 
-Investigated the reported 50-coin Mint Map cap from the backend side. The normal `GET /coins` endpoint intentionally defaults to `limit=50` and validates `limit` between 1 and 100 in `src/api/handlers/coins.go`; `src/api/repository/coin_repository.go` applies pagination and returns `total`, `page`, and `limit`, so the API does not impose a 50-coin total cap. `src/web/src/pages/MintMapPage.vue` currently calls `store.fetchCoins({ wishlist: 'false', sold: 'false' })` without an explicit limit or page loop, so the observed Mint Map cap is frontend fetch behavior against the paged endpoint, not a backend data contract failure.
+- Investigated issue #299 iPhone PWA biometric login failure: registered credentials were present, but `POST /auth/webauthn/login/begin` returned the go-webauthn assertion wrapper under `options`, so the browser challenge lived at `options.publicKey.challenge` while the Vue login store expected `options.challenge`.
+- Backend session persistence/TTL was correct: `BeginLogin` stores a 5-minute in-memory session keyed by `login_{userID}`, and finish paths distinguish missing vs expired sessions before origin validation.
+- Fixed the backend contract to return `options` as the direct `PublicKeyCredentialRequestOptions` object for `navigator.credentials.get({ publicKey: options })`; regression test asserts `options.challenge` is non-empty and matches the stored session challenge.
+- Origin/RP handling remains strict: configured `WEBAUTHN_RP_ID` supplies `rpId`; finish validates request origin against configured `WEBAUTHN_ORIGIN` values. iPhone PWA/Safari clients must use an HTTPS origin matching that allowlist and an RP ID matching the site host/domain.
 
-**Learning:** For all-collection frontend subviews such as Mint Map, use the existing `/coins` pagination contract explicitly by fetching pages (max `limit=100`) until `total` is covered, rather than removing backend pagination globally. Backend change is only needed if product chooses a dedicated map-specific read model/route later.
+## 2026-06-18 — Biometric Login Backend Complete
+
+- WebAuthn login-begin contract fix: `POST /api/auth/webauthn/login/begin` now returns `{ username, options }` where `options` is the direct `PublicKeyCredentialRequestOptions` payload (NOT wrapped under `options.publicKey`). Added `TestWebAuthnHandlerLoginBeginReturnsRequestOptionsWithChallenge` regression test ensuring challenge is at top level. All handler and integration tests pass.
+- Frontend authorization store tests updated to handle both flat and nested challenge shapes, trim usernames on begin/finish calls, and enforce missing-challenge guards before invoking browser biometrics.
+- Constitutional compliance: Principle III (strict types and explicit contracts), Principle IV (simple focused fix), §17 Quality Gate (targeted regression for exact failing path).
+- Targeted validation: `go test -v ./handlers -run "TestWebAuthnHandlerLoginBeginReturnsRequestOptionsWithChallenge|TestWebAuthnHandlerLoginFinish"` ✅, full `go test ./...` ✅, `go vet ./...` ✅.

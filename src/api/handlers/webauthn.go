@@ -396,9 +396,10 @@ func (h *WebAuthnHandler) LoginBegin(c *gin.Context) {
 
 	h.storeSession(sessionKey("login", user.ID), session)
 
-	// Include username so the frontend can pass it back
+	// Include username so the frontend can pass it back. Return the browser's
+	// navigator.credentials.get() options directly under "options".
 	c.JSON(http.StatusOK, gin.H{
-		"options":  options,
+		"options":  options.Response,
 		"username": user.Username,
 	})
 }

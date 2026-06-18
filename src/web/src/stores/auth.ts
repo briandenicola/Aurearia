@@ -37,13 +37,19 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function doWebAuthnLogin(username: string) {
     try {
+      const ceremonyUsername = username.trim()
+      if (!ceremonyUsername) {
+        throw new Error('Enter your username before using biometric login')
+      }
+
       // Begin ceremony — get challenge from server
-      const beginRes = await api.webauthnLoginBegin(username)
-      const { options } = beginRes.data
+      const beginRes = await api.webauthnLoginBegin(ceremonyUsername)
+      const publicKeyOptions = unwrapPublicKeyRequestOptions(beginRes.data.options)
+      const finishUsername = beginRes.data.username?.trim() || ceremonyUsername
 
       // Convert base64url challenge to ArrayBuffer
-      const challenge = requireBase64url(options.challenge, 'challenge')
-      const allowCredentials = options.allowCredentials?.flatMap((c: { id?: string; type: string; transports?: string[] }) => {
+      const challenge = requireBase64url(publicKeyOptions.challenge, 'challenge')
+      const allowCredentials = publicKeyOptions.allowCredentials?.flatMap((c) => {
         if (typeof c?.id !== 'string' || !c.id) {
           return []
         }
@@ -55,7 +61,7 @@ export const useAuthStore = defineStore('auth', () => {
         }]
       })
 
-      if (options.allowCredentials?.length && !allowCredentials?.length) {
+      if (publicKeyOptions.allowCredentials?.length && !allowCredentials?.length) {
         throw new Error('Biometric login is temporarily unavailable. Please sign in with your password and try again.')
       }
 
@@ -63,10 +69,10 @@ export const useAuthStore = defineStore('auth', () => {
       const credential = await navigator.credentials.get({
         publicKey: {
           challenge: base64urlToBuffer(challenge),
-          rpId: options.rpId,
+          rpId: publicKeyOptions.rpId,
           allowCredentials,
-          userVerification: (options.userVerification as UserVerificationRequirement) || 'preferred',
-          timeout: options.timeout || 60000,
+          userVerification: (publicKeyOptions.userVerification as UserVerificationRequirement) || 'preferred',
+          timeout: publicKeyOptions.timeout || 60000,
         },
       })
 
@@ -76,12 +82,12 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       // Verify it's a PublicKeyCredential
-      if (!(credential instanceof PublicKeyCredential)) {
+      if (!isPublicKeyCredential(credential)) {
         throw new Error('Invalid credential type returned')
       }
 
       // Finish ceremony — send assertion to server, get tokens
-      const finishRes = await api.webauthnLoginFinish(username, credential)
+      const finishRes = await api.webauthnLoginFinish(finishUsername, credential)
       setTokens(finishRes.data)
     } catch (error) {
       // Handle WebAuthn-specific errors
@@ -112,6 +118,33 @@ export const useAuthStore = defineStore('auth', () => {
 
   return { token, user, isAuthenticated, isAdmin, doLogin, doRegister, doWebAuthnLogin, logout }
 })
+
+interface PublicKeyCredentialDescriptorJSON {
+  id?: string
+  type: string
+  transports?: string[]
+}
+
+interface PublicKeyCredentialRequestOptionsJSON {
+  challenge?: string
+  timeout?: number
+  rpId?: string
+  allowCredentials?: PublicKeyCredentialDescriptorJSON[]
+  userVerification?: string
+  publicKey?: PublicKeyCredentialRequestOptionsJSON
+}
+
+function unwrapPublicKeyRequestOptions(options: PublicKeyCredentialRequestOptionsJSON): PublicKeyCredentialRequestOptionsJSON & { challenge: string } {
+  const publicKeyOptions = options.publicKey ?? options
+  if (!publicKeyOptions.challenge) {
+    throw new Error('Biometric login is temporarily unavailable. Missing challenge data.')
+  }
+  return publicKeyOptions as PublicKeyCredentialRequestOptionsJSON & { challenge: string }
+}
+
+function isPublicKeyCredential(credential: Credential): credential is PublicKeyCredential {
+  return credential.type === 'public-key' && 'rawId' in credential && 'response' in credential
+}
 
 function base64urlToBuffer(base64url: string): ArrayBuffer {
   const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/')

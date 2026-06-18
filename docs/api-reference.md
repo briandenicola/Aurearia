@@ -120,6 +120,8 @@ Begin a WebAuthn (biometric/passkey) login ceremony.
 { "username": "collector" }
 ```
 
+**Response:** `options` is the `PublicKeyCredentialRequestOptions` object to pass to `navigator.credentials.get({ publicKey: options })`; `options.challenge` is required and matches the server-side login session.
+
 ### POST /api/auth/webauthn/login/finish
 
 Complete a WebAuthn login ceremony. The request body contains the authenticator assertion response from the browser WebAuthn API.

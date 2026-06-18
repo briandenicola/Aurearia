@@ -5317,6 +5317,135 @@ Any new sections on CoinDetailPage should follow this pattern:
 **Implementation:**
 - **Type Extension** (`src/web/src/types/index.ts`) — Added optional `url?: string | null` field to `CoinDetailMetadataRow` interface
 - **Composable** (`src/web/src/composables/useCoinDetailMetadataRows.ts`) — Row rendered only when `coin.purchaseLocation` is present; `value` is bare store name; `url` set to `sanitizeExternalUrl(coin.referenceUrl)` (may be null if no URL or invalid)
+
+---
+
+## 42. Biometric Login WebAuthn Contract Fix (Issue #299) — 2026-06-18
+
+### A. Frontend WebAuthn Login Unwraps Backend PublicKey Options
+
+**Date:** 2026-06-18  
+**Agent:** Aurelia (Frontend Dev)  
+**Status:** IMPLEMENTED
+
+#### Context
+
+Issue #299 reported iPhone PWA biometric login failing with "Missing challenge data" even though Settings showed a registered biometric key. Registration already consumed the Go/go-webauthn response as `options.publicKey`, but login read `options.challenge` directly.
+
+#### Decision
+
+The frontend WebAuthn login flow now treats the backend login-begin response as `{ options: { publicKey: ... }, username }`, unwraps `options.publicKey`, and only then converts `challenge` and `allowCredentials[].id` from base64url to `ArrayBuffer` for `navigator.credentials.get()`. The login flow keeps backward compatibility with a legacy flat options shape, trims the requested username, and passes the backend-returned username to login finish.
+
+UI biometric buttons now use the lucide `LockKeyhole` icon instead of emoji text to preserve the no-emoji UI rule.
+
+#### Rationale
+
+This aligns login with the working registration ceremony and the browser WebAuthn API contract. It prevents the exact missing-challenge path before the browser prompt opens, which is especially visible in iPhone PWA/Safari where WebAuthn requires a valid `publicKey.challenge`.
+
+#### Constitution Alignment
+
+- Principle III: explicit frontend contract for nested WebAuthn login options
+- Principle IV: simple, focused fix to the broken biometric workflow
+- Principle VI: no UI emojis; lucide icon and existing button classes preserved
+- §17: targeted regression covers nested options and missing challenge
+
+#### Files Changed
+
+- `src/web/src/stores/auth.ts` — login flow unwraps options.publicKey, converts base64url, trims username
+- `src/web/src/stores/__tests__/auth.test.ts` — flat options, legacy nested, missing-challenge regression tests
+- `src/web/src/pages/LoginPage.vue` — lucide icon replacement
+- `src/web/src/components/settings/SettingsAccountSection.vue` — icon consistency
+
+#### Validation
+
+- `npm run test -- src\stores\__tests__\auth.test.ts` ✅
+- `npm run type-check` ✅
+- `npm run build` ✅ (11.06s, 105 PWA assets)
+
+---
+
+### B. WebAuthn Login Begin Response Contract
+
+**Author:** Cassius (Backend Dev)  
+**Date:** 2026-06-18  
+**Status:** IMPLEMENTED
+
+#### Context
+
+Issue #299 reported iPhone PWA biometric login failing with missing challenge data even though Settings showed a registered biometric credential.
+
+#### Decision
+
+`POST /api/auth/webauthn/login/begin` returns:
+
+```json
+{
+  "username": "collector",
+  "options": {
+    "challenge": "...",
+    "rpId": "example.com",
+    "allowCredentials": [{ "type": "public-key", "id": "..." }],
+    "userVerification": "preferred",
+    "timeout": 60000
+  }
+}
+```
+
+`options` is the direct `PublicKeyCredentialRequestOptions` payload for `navigator.credentials.get({ publicKey: options })`. Do not expect an extra `options.publicKey` wrapper on login begin.
+
+#### Rationale
+
+Registration begin intentionally returns go-webauthn's top-level `publicKey` wrapper for `navigator.credentials.create()`, but login begin is wrapped by the API as `{ options, username }`. Returning the direct request options under `options` matches the existing frontend type and prevents missing challenge errors.
+
+#### Files Changed
+
+- `src/api/handlers/webauthn.go` — LoginBegin returns flat options structure
+- `src/api/handlers/webauthn_test.go` — TestWebAuthnHandlerLoginBeginReturnsRequestOptionsWithChallenge contract test
+
+#### Verification
+
+- `go test -v ./handlers -run TestWebAuthnHandlerLoginBeginReturnsRequestOptionsWithChallenge` ✅
+- `go test ./...` ✅
+- `go vet ./...` ✅
+
+---
+
+### C. Biometric Login WebAuthn Challenge Contract
+
+**Author:** Brutus (QA)  
+**Date:** 2026-06-18  
+**Status:** IMPLEMENTED
+
+#### Context
+
+Issue #299 reproduced as a missing-challenge frontend path even though the user had a registered biometric credential. The failing workflow must be protected at both sides of the contract.
+
+#### Decision
+
+Treat the backend WebAuthn login-begin response shape as a tested contract: assertion options are returned directly at `options.challenge`, with no extra `options.publicKey` wrapper. Frontend biometric login code should still accept a legacy nested `publicKey` object defensively, but the API contract used by the login page is the flat browser request-options shape.
+
+#### Rationale
+
+The failing workflow must be protected at both sides of the contract: backend login-begin must return the challenge where the login flow reads it, and the frontend must fail explicitly before invoking Face ID if the challenge is genuinely absent.
+
+#### Files Changed
+
+- `src/api/handlers/webauthn_test.go` — TestWebAuthnHandlerLoginBeginReturnsRequestOptionsWithChallenge
+- `src/web/src/stores/__tests__/auth.test.ts` — flat challenge shape, legacy nested compatibility, missing-challenge guard
+
+#### Validation
+
+- `npm run test -- src\stores\__tests__\auth.test.ts` ✅
+- `go test -v ./handlers -run "TestWebAuthnHandlerLoginBeginReturnsRequestOptionsWithChallenge|TestWebAuthnHandlerLoginFinish"` ✅
+- `go test ./...` ✅
+- `go vet ./...` ✅
+
+#### Constitution References
+
+- Principle III: strict types and explicit contracts
+- Principle IX: architecture tests enforce import boundaries
+- §17: workflow-contract regression coverage for exact failing path
+- §21: targeted regression coverage for the user-reported bug
 - **Table Rendering** (`src/web/src/components/coin/CoinDetailMetadataTable.vue`) — Conditional rendering: `SafeExternalLink` component when `row.url` present (clickable, opens in new tab, `rel="noopener"`); plain text otherwise. Store link styled with `--accent-gold` → `--accent-bronze` on hover
 
 **Reuse Pattern:** Leveraged existing `SafeExternalLink` component and `sanitizeExternalUrl` helper from `@/composables/useSafeExternalLink` — no duplication of URL sanitization logic

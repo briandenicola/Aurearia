@@ -603,6 +603,15 @@ function bufferToBase64url(buffer: ArrayBuffer): string {
 
 // Helper types for WebAuthn JSON format
 interface PublicKeyCredentialRequestOptionsJSON {
+  publicKey?: PublicKeyCredentialRequestOptionsPublicKeyJSON
+  challenge?: string
+  timeout?: number
+  rpId?: string
+  allowCredentials?: Array<{ id: string; type: string; transports?: string[] }>
+  userVerification?: string
+}
+
+interface PublicKeyCredentialRequestOptionsPublicKeyJSON {
   challenge: string
   timeout?: number
   rpId?: string

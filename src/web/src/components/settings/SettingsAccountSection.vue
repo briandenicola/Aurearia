@@ -164,18 +164,19 @@
 
     <template v-if="supportsWebAuthn">
       <h3>Biometric Login</h3>
-      <p class="setting-desc" style="margin-bottom: 0.75rem">
+      <p class="setting-desc biometric-desc">
         Register Face ID, Touch ID, or fingerprint for quick sign-in on this device.
       </p>
 
       <button
-        class="btn btn-primary btn-sm"
+        class="btn btn-primary btn-sm biometric-register-btn"
         :disabled="registeringCredential"
         @click="handleRegisterCredential"
       >
-        {{ registeringCredential ? 'Registering...' : '🔐 Register Biometric' }}
+        <LockKeyhole v-if="!registeringCredential" :size="16" aria-hidden="true" />
+        {{ registeringCredential ? 'Registering...' : 'Register Biometric' }}
       </button>
-      <p v-if="credentialMsg" class="msg" :class="{ error: credentialError }" style="margin-top: 0.5rem">{{ credentialMsg }}</p>
+      <p v-if="credentialMsg" class="msg credential-msg" :class="{ error: credentialError }">{{ credentialMsg }}</p>
 
       <div v-if="webauthnCredentials.length" class="apikey-list">
         <div v-for="cred in webauthnCredentials" :key="cred.id" class="apikey-item">
@@ -186,7 +187,7 @@
           <button class="btn btn-danger btn-sm" @click="handleDeleteCredential(cred.id)">Remove</button>
         </div>
       </div>
-      <p v-else-if="!registeringCredential" class="setting-desc" style="margin-top: 0.5rem">No biometric credentials registered.</p>
+      <p v-else-if="!registeringCredential" class="setting-desc credential-empty">No biometric credentials registered.</p>
     </template>
   </section>
 </template>
@@ -201,6 +202,7 @@ import {
 import { useDialog } from '@/composables/useDialog'
 import { useSettingsProfile } from '@/composables/useSettingsProfile'
 import type { WebAuthnCredentialInfo } from '@/types'
+import { LockKeyhole } from 'lucide-vue-next'
 
 const auth = useAuthStore()
 const { showConfirm } = useDialog()
@@ -249,20 +251,24 @@ async function handleRegisterCredential() {
   try {
     const beginRes = await webauthnRegisterBegin()
     const options = beginRes.data
+    const publicKey = options.publicKey
+    if (!publicKey?.challenge || !publicKey.user?.id) {
+      throw new Error('Biometric registration is temporarily unavailable. Missing challenge data.')
+    }
 
     const publicKeyOptions: PublicKeyCredentialCreationOptions = {
-      challenge: base64urlToBuffer(options.publicKey.challenge),
-      rp: options.publicKey.rp,
+      challenge: base64urlToBuffer(publicKey.challenge),
+      rp: publicKey.rp,
       user: {
-        id: base64urlToBuffer(options.publicKey.user.id),
-        name: options.publicKey.user.name,
-        displayName: options.publicKey.user.displayName,
+        id: base64urlToBuffer(publicKey.user.id),
+        name: publicKey.user.name,
+        displayName: publicKey.user.displayName,
       },
-      pubKeyCredParams: options.publicKey.pubKeyCredParams,
-      timeout: options.publicKey.timeout || 60000,
-      authenticatorSelection: options.publicKey.authenticatorSelection,
-      attestation: options.publicKey.attestation || 'none',
-      excludeCredentials: (options.publicKey.excludeCredentials || []).map((c: { id: string; type: string; transports?: string[] }) => ({
+      pubKeyCredParams: publicKey.pubKeyCredParams,
+      timeout: publicKey.timeout || 60000,
+      authenticatorSelection: publicKey.authenticatorSelection,
+      attestation: publicKey.attestation || 'none',
+      excludeCredentials: (publicKey.excludeCredentials || []).map((c: { id: string; type: string; transports?: string[] }) => ({
         id: base64urlToBuffer(c.id),
         type: c.type,
         transports: c.transports,
@@ -366,6 +372,19 @@ defineExpose({ loadCredentials })
 
 .password-form {
   max-width: 350px;
+}
+
+.biometric-desc {
+  margin-bottom: 0.75rem;
+}
+
+.biometric-register-btn {
+  gap: 0.35rem;
+}
+
+.credential-msg,
+.credential-empty {
+  margin-top: 0.5rem;
 }
 
 .msg {

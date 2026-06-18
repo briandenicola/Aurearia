@@ -24,7 +24,8 @@
         :disabled="loading"
         @click="handleBiometricLogin"
       >
-        🔐 Sign in with Biometrics
+        <LockKeyhole :size="18" aria-hidden="true" />
+        Sign in with Biometrics
       </button>
       <p class="auth-footer">
         Don't have an account? <router-link to="/register">Create one</router-link>
@@ -38,6 +39,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { webauthnCheck } from '@/api/client'
+import { LockKeyhole } from 'lucide-vue-next'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -75,9 +77,10 @@ async function checkBiometric() {
 async function handleLogin() {
   error.value = ''
   loading.value = true
+  const trimmedUsername = username.value.trim()
   try {
-    await auth.doLogin(username.value, password.value)
-    localStorage.setItem('lastUsername', username.value)
+    await auth.doLogin(trimmedUsername, password.value)
+    localStorage.setItem('lastUsername', trimmedUsername)
     router.push('/')
   } catch {
     error.value = 'Invalid username or password'
@@ -89,9 +92,10 @@ async function handleLogin() {
 async function handleBiometricLogin() {
   error.value = ''
   loading.value = true
+  const trimmedUsername = username.value.trim()
   try {
-    await auth.doWebAuthnLogin(username.value)
-    localStorage.setItem('lastUsername', username.value)
+    await auth.doWebAuthnLogin(trimmedUsername)
+    localStorage.setItem('lastUsername', trimmedUsername)
     router.push('/')
   } catch (e: unknown) {
     // Handle different error types appropriately
@@ -166,6 +170,7 @@ async function handleBiometricLogin() {
 .biometric-btn {
   margin-top: 0.75rem;
   font-size: 0.95rem;
+  gap: 0.5rem;
 }
 
 .auth-footer {
