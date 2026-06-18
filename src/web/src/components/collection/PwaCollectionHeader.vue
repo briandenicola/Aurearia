@@ -14,6 +14,12 @@
             </button>
           </div>
           <div class="pwa-menu-section">
+            <span class="pwa-menu-label">Explore</span>
+            <router-link class="menu-link-btn" to="/mint-map" @click="$emit('update:menuOpen', false)">
+              <MapPin :size="16" /> Mint Map
+            </router-link>
+          </div>
+          <div class="pwa-menu-section">
             <span class="pwa-menu-label">Category</span>
             <CategoryFilter :model-value="selectedCategory" @update:model-value="$emit('update:selectedCategory', $event)" />
           </div>
@@ -65,7 +71,7 @@ import CategoryFilter from '@/components/CategoryFilter.vue'
 import EraFilter from '@/components/collection/EraFilter.vue'
 import SearchBar from '@/components/SearchBar.vue'
 import SortSelect from '@/components/SortSelect.vue'
-import { Layers, LayoutGrid, SlidersHorizontal } from 'lucide-vue-next'
+import { Layers, LayoutGrid, MapPin, SlidersHorizontal } from 'lucide-vue-next'
 
 defineProps<{
   search: string
@@ -226,6 +232,29 @@ defineEmits<{
 
 .menu-toggle-btn:hover {
   border-color: var(--accent-gold);
+}
+
+.menu-link-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.menu-link-btn:hover,
+.menu-link-btn:focus-visible {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
 }
 
 .view-toggle {

@@ -15,4 +15,12 @@ describe('PwaCollectionHeader', () => {
     expect(source).toContain('<span class="pwa-menu-label">Selection</span>')
     expect(source).toContain("{{ selectMode ? 'Exit Selection Mode' : 'Enable Selection Mode' }}")
   })
+
+  it('offers a one-handed mint map menu entry', () => {
+    const source = fs.readFileSync(headerPath, 'utf8')
+
+    expect(source).toContain('to="/mint-map"')
+    expect(source).toContain('Mint Map')
+    expect(source).toContain('MapPin')
+  })
 })

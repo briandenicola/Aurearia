@@ -108,6 +108,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/mint-map',
+      name: 'mint-map',
+      component: () => import('@/pages/MintMapPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/timeline',
       name: 'timeline',
       component: () => import('@/pages/TimelinePage.vue'),

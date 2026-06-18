@@ -69,6 +69,14 @@
         />
 
         <StatsValueOverTime />
+        <section class="stats-section card mint-map-entry">
+          <div>
+            <p class="section-label">Collection Geography</p>
+            <h2>Mint Map</h2>
+            <p>Plot known mint marks from your active collection on a dark ancient-world map.</p>
+          </div>
+          <router-link class="btn btn-secondary" to="/mint-map">Open Mint Map</router-link>
+        </section>
         <StatsHeatMap ref="heatMapRef" />
       </div>
     </div>
@@ -141,5 +149,29 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.mint-map-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+.mint-map-entry h2 {
+  margin: 0.25rem 0;
+}
+
+.mint-map-entry p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .mint-map-entry {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 </style>
