@@ -151,6 +151,26 @@ describe('coinShareCard', () => {
     const latestContentY = Math.max(...calls.filter((call) => call.text !== 'Ed-Mar Ancient Coins').map((call) => call.y))
     expect(footer!.y - latestContentY).toBeGreaterThanOrEqual(80)
   })
+
+  it('centers the metadata columns as a balanced block', async () => {
+    const toBlob = vi.fn((callback: BlobCallback) => callback(pngBlob))
+    const fillText = vi.fn()
+    const ctx = buildCanvasContext({ fillText })
+    mockCanvas(ctx, toBlob)
+
+    await renderCoinShareCard({
+      coin: buildRomanDenariusCore({ images: [] }),
+      imageUrl: null,
+      appName: 'Ed-Mar Ancient Coins',
+    })
+
+    const labelCalls = fillText.mock.calls
+      .map(([text, x, y]) => ({ text: String(text), x: Number(x), y: Number(y) }))
+      .filter((call) => ['RULER', 'DENOMINATION', 'ERA', 'MINT'].includes(call.text))
+
+    expect(labelCalls.map((call) => call.x)).toEqual([329, 751, 329, 751])
+    expect(labelCalls[0]!.x + labelCalls[1]!.x).toBe(1080)
+  })
 })
 
 function mockCanvas(ctx: CanvasRenderingContext2D, toBlob: ReturnType<typeof vi.fn>) {
