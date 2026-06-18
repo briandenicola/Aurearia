@@ -219,6 +219,12 @@ const router = createRouter({
       component: () => import('@/pages/CalendarPage.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/tray',
+      name: 'tray',
+      component: () => import('@/pages/TrayViewPage.vue'),
+      meta: { requiresAuth: true },
+    },
     // Set routes - placeholder for Phase 2 and Phase 3 implementation
     {
       path: '/sets',

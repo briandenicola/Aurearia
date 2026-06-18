@@ -19,9 +19,9 @@
 
 **Purpose**: Prepare directory structure and confirm no blocking issues.
 
-- [ ] **T001** [P] Create `src/web/src/components/tray/` directory
-- [ ] **T002** [P] Verify `src/web/src/utils/` directory exists; create if missing
-- [ ] **T003** [P] Verify `src/web/src/composables/` directory exists; create if missing
+- [x] **T001** [P] Create `src/web/src/components/tray/` directory
+- [x] **T002** [P] Verify `src/web/src/utils/` directory exists; create if missing
+- [x] **T003** [P] Verify `src/web/src/composables/` directory exists; create if missing
 
 **Checkpoint**: Directories ready. No blocking issues.
 
@@ -33,14 +33,14 @@
 
 ### Tests First (Write Failing, Then Implement)
 
-- [ ] **T004** [P] Write `src/web/src/utils/__tests__/trayLayout.test.ts`:
+- [x] **T004** [P] Write `src/web/src/utils/__tests__/trayLayout.test.ts`:
   - Test `normalizeDiameterMm()`: null → default, zero → default, negative → default, positive → return as-is.
   - Test `getCoinRenderSizePx()`: small (8mm) renders smaller than large (35mm), both clamped to [40px, 120px], missing diameter uses default.
   - Test `getDrawerCoins()`: slice coins correctly, boundary index returns empty.
   - Test `getTotalDrawers()`: 100 coins, 50 per drawer → 2 drawers; 101 coins → 3 drawers.
   - Verify all tests FAIL before implementing.
 
-- [ ] **T005** [P] Write `src/web/src/composables/__tests__/useTrayPreference.test.ts`:
+- [x] **T005** [P] Write `src/web/src/composables/__tests__/useTrayPreference.test.ts`:
   - Test read/write felt color from localStorage.
   - Test default color ('red') when localStorage is empty.
   - Test reactive updates when preference changes.
@@ -48,21 +48,21 @@
 
 ### Implementation
 
-- [ ] **T006** [P] Implement `src/web/src/utils/trayLayout.ts`:
+- [x] **T006** [P] Implement `src/web/src/utils/trayLayout.ts`:
   - Export `normalizeDiameterMm(diameterMm: number | null | undefined, defaultDiameterMm: number): number`.
   - Export `getCoinRenderSizePx(diameterMm: number, allDiameters: number[], options: TrayLayoutOptions): number`.
   - Export `getDrawerCoins(coins: TrayCoin[], drawerIndex: number, coinsPerDrawer: number): TrayCoin[]`.
   - Export `getTotalDrawers(totalCoins: number, coinsPerDrawer: number): number`.
   - Implement types: `TrayCoin`, `TrayLayoutOptions`.
 
-- [ ] **T007** [P] Implement `src/web/src/composables/useTrayPreference.ts`:
+- [x] **T007** [P] Implement `src/web/src/composables/useTrayPreference.ts`:
   - Export composable `useTrayPreference()`.
   - Return reactive `feltColor` ref (type: 'red' | 'green' | 'navy').
   - Implement getter from localStorage key 'tray:feltColor'.
   - Implement setter to localStorage on change.
   - Default to 'red' if localStorage empty.
 
-- [ ] **T008** Verify T004, T005 tests now PASS: `npm run test -- trayLayout useTrayPreference --run`
+- [x] **T008** Verify T004, T005 tests now PASS: `npm run test -- trayLayout useTrayPreference --run`
 
 **Checkpoint**: Layout math and preference logic testable and working. Ready for components.
 
@@ -74,7 +74,7 @@
 
 ### Tests First (Write Failing, Then Implement)
 
-- [ ] **T009** [P] Write `src/web/src/components/__tests__/MuseumTrayWell.test.ts`:
+- [x] **T009** [P] Write `src/web/src/components/__tests__/MuseumTrayWell.test.ts`:
   - Test coin image rendering (happy path with valid image).
   - Test placeholder rendering when `coin.images` is empty.
   - Test click event emission.
@@ -82,7 +82,7 @@
   - Test accessibility: aria-label = coin name.
   - Verify all tests FAIL before implementing.
 
-- [ ] **T010** [P] Write `src/web/src/components/__tests__/MuseumTray.test.ts`:
+- [x] **T010** [P] Write `src/web/src/components/__tests__/MuseumTray.test.ts`:
   - Test well grid renders all coins.
   - Test felt theme applied (class-binding or style check).
   - Test coin-clicked event emitted on click.
@@ -91,7 +91,7 @@
 
 ### Implementation
 
-- [ ] **T011** [P] Implement `src/web/src/components/tray/MuseumTrayWell.vue`:
+- [x] **T011** [P] Implement `src/web/src/components/tray/MuseumTrayWell.vue`:
   - Props: `coin: TrayCoin`, `renderSizePx: number`.
   - Render circular well container (CSS border-radius 50%).
   - Inner recessed shadow (darker inner circle using box-shadow or border).
@@ -104,7 +104,7 @@
   - Use only design tokens for colors (shadows, backgrounds).
   - Respect `prefers-reduced-motion` (no hover transitions if reduced).
 
-- [ ] **T012** [P] Implement `src/web/src/components/tray/MuseumTray.vue`:
+- [x] **T012** [P] Implement `src/web/src/components/tray/MuseumTray.vue`:
   - Props: `coins: TrayCoin[]`, `feltTheme: 'red' | 'green' | 'navy'` (default 'red').
   - Root div with felt background (CSS gradient/texture effect per theme).
   - CSS Grid with responsive columns:
@@ -117,7 +117,7 @@
   - Emit 'coin-clicked' event from child wells.
   - Use design tokens for gap, padding, shadows.
 
-- [ ] **T013** [P] Implement `src/web/src/components/tray/TrayControls.vue`:
+- [x] **T013** [P] Implement `src/web/src/components/tray/TrayControls.vue`:
   - Props: `drawerIndex: number`, `totalDrawers: number`, `feltTheme: 'red' | 'green' | 'navy'`.
   - Render:
     - Text: "Drawer {{ drawerIndex + 1 }} of {{ totalDrawers }}".
@@ -130,7 +130,7 @@
   - Emit 'update:feltTheme' event on felt color chip click.
   - Use `.btn-sm` and `.chip` global classes.
 
-- [ ] **T014** Verify T009, T010 tests now PASS: `npm run test -- MuseumTrayWell MuseumTray --run`
+- [x] **T014** Verify T009, T010 tests now PASS: `npm run test -- MuseumTrayWell MuseumTray --run`
 
 **Checkpoint**: All tray components render correctly and interact properly. Ready for page/route.
 
@@ -140,7 +140,7 @@
 
 **Purpose**: Wire tray into app, make it reachable via sidebar.
 
-- [ ] **T015** Create `src/web/src/pages/TrayViewPage.vue`:
+- [x] **T015** Create `src/web/src/pages/TrayViewPage.vue`:
   - Setup:
     - Import `useCoinsStore()`, `useRouter()`, `useTrayPreference()`.
     - Local state: `drawerIndex = ref(0)`, `coinsPerDrawer = 50`.
@@ -156,11 +156,11 @@
     - `@update:feltTheme` → `feltTheme.value = newTheme`.
   - Style: simple container, flex layout, use design tokens.
 
-- [ ] **T016** Update `src/web/src/router/index.ts`:
+- [x] **T016** Update `src/web/src/router/index.ts`:
   - Add route: `{ path: '/tray', name: 'tray', component: TrayViewPage, meta: { requiresAuth: true } }`.
   - Verify no route name conflicts.
 
-- [ ] **T017** [P] Update `src/web/src/App.vue`:
+- [x] **T017** [P] Update `src/web/src/App.vue`:
   - Add "Tray" submenu item under Collection in the sidebar navigation.
   - Follow the same submenu structure as Stats (parent expandable/collapsible with sub-items).
   - Submenu items should include Gallery (main collection view) and Tray (new feature).
@@ -191,11 +191,11 @@
 
 **Purpose**: Ensure no TypeScript errors, build succeeds.
 
-- [ ] **T019** [P] Run type-check: `cd src/web && npm run type-check`
+- [x] **T019** [P] Run type-check: `cd src/web && npm run type-check`
   - Fix any errors related to tray components.
   - Verify `TrayCoin`, `TrayLayoutOptions`, prop types are correct.
 
-- [ ] **T020** [P] Run build: `cd src/web && npm run build`
+- [x] **T020** [P] Run build: `cd src/web && npm run build`
   - Verify no build errors or warnings.
   - Check bundle size impact (should be minimal, < 10KB gzipped for tray feature).
 

@@ -58,11 +58,13 @@
                 v-if="item.children?.length && !editMode"
                 :size="16"
                 class="sidebar-chevron"
-                :class="{ expanded: item.id === 'stats' && statsExpanded }"
+                :class="{
+                  expanded: (item.id === 'stats' && statsExpanded) || (item.id === 'collection' && collectionExpanded)
+                }"
               />
             </component>
             <div
-              v-if="item.children?.length && !editMode && (item.id === 'stats' ? statsExpanded : true)"
+              v-if="item.children?.length && !editMode && ((item.id === 'stats' && statsExpanded) || (item.id === 'collection' && collectionExpanded))"
               class="sidebar-submenu"
               :aria-label="`${item.label} views`"
             >
@@ -196,9 +198,20 @@ let sortableInstance: Sortable | null = null
 const { unreadCount, startPolling, stopPolling } = useNotifications()
 const { bulkSelectActive } = useBulkSelect()
 const statsExpanded = ref(false)
+const collectionExpanded = ref(false)
 
 const defaultNavItems: NavItem[] = [
-  { id: 'collection', label: 'Collection', icon: markRaw(Landmark), to: '/', visible: true },
+  {
+    id: 'collection',
+    label: 'Collection',
+    icon: markRaw(Landmark),
+    to: '/',
+    visible: true,
+    children: [
+      { id: 'collection-gallery', label: 'Gallery', to: '/' },
+      { id: 'collection-tray', label: 'Tray', to: '/tray' },
+    ],
+  },
   { id: 'add-coin', label: 'Add Coin', icon: markRaw(CirclePlus), to: '/add', visible: isPwa },
   { id: 'lookup', label: 'Identify Coin', icon: markRaw(Search), to: '/lookup', visible: true },
   { id: 'wishlist', label: 'Wishlist', icon: markRaw(Bookmark), to: '/wishlist', visible: true },
@@ -268,7 +281,13 @@ const fullOrder = computed(() => {
 
 function handleNavClick(item: NavItem) {
   if (editMode.value) return
-  if (item.id === 'stats' && item.children?.length) {
+  if (item.id === 'collection' && item.children?.length) {
+    collectionExpanded.value = !collectionExpanded.value
+    if (!collectionExpanded.value && item.to) {
+      router.push(item.to)
+      sidebarOpen.value = false
+    }
+  } else if (item.id === 'stats' && item.children?.length) {
     statsExpanded.value = !statsExpanded.value
     if (!statsExpanded.value && item.to) {
       router.push(item.to)

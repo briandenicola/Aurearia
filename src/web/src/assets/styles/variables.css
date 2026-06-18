@@ -32,6 +32,20 @@
   --mat-copper: #b87333;
   --mat-electrum: #e8d876;
 
+  /* Felt colors for museum tray */
+  --felt-red-base: #8b2020;
+  --felt-red-dark: #6b1515;
+  --felt-red-bright: #c54545;
+  --felt-red-dim: rgba(139, 32, 32, 0.2);
+  --felt-green-base: #2d5016;
+  --felt-green-dark: #1f3a10;
+  --felt-green-bright: #4a8526;
+  --felt-green-dim: rgba(45, 80, 22, 0.2);
+  --felt-navy-base: #1a2744;
+  --felt-navy-dark: #0f1829;
+  --felt-navy-bright: #4a6fa5;
+  --felt-navy-dim: rgba(26, 39, 68, 0.3);
+
   /* Borders & shadows */
   --border-subtle: rgba(201, 168, 76, 0.15);
   --border-accent: rgba(201, 168, 76, 0.4);
