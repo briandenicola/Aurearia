@@ -47,6 +47,7 @@ function getStorageMock(): Record<string, string> {
 
 describe('Auth Store', () => {
   let storageMock: Record<string, string>
+  const credentialsGet = vi.fn()
 
   beforeEach(() => {
     storageMock = getStorageMock()
@@ -56,6 +57,11 @@ describe('Auth Store', () => {
       getItem: vi.fn((key: string) => storageMock[key] ?? null),
       setItem: vi.fn((key: string, value: string) => { storageMock[key] = value }),
       removeItem: vi.fn((key: string) => { delete storageMock[key] }),
+    })
+    vi.stubGlobal('navigator', {
+      credentials: {
+        get: credentialsGet,
+      },
     })
 
     setActivePinia(createPinia())
@@ -247,6 +253,50 @@ describe('Auth Store', () => {
       expect(store.token).toBe('refreshed-token')
       expect(store.user).toEqual(mockAdminUser)
       expect(store.isAdmin).toBe(true)
+    })
+  })
+
+  describe('doWebAuthnLogin', () => {
+    it('fails gracefully when login options are missing a challenge', async () => {
+      vi.mocked(api.webauthnLoginBegin).mockResolvedValue({
+        data: {
+          options: {
+            allowCredentials: [],
+          },
+          username: 'testuser',
+        },
+      } as AxiosResponse<{ options: { allowCredentials: []; challenge?: string }; username: string }>)
+
+      const store = useAuthStore()
+
+      await expect(store.doWebAuthnLogin('testuser')).rejects.toThrow(
+        'Biometric login is temporarily unavailable. Missing challenge data.',
+      )
+      expect(credentialsGet).not.toHaveBeenCalled()
+      expect(api.webauthnLoginFinish).not.toHaveBeenCalled()
+    })
+
+    it('fails gracefully when all allowCredentials entries are missing ids', async () => {
+      vi.mocked(api.webauthnLoginBegin).mockResolvedValue({
+        data: {
+          options: {
+            challenge: 'Zm9v',
+            allowCredentials: [{ type: 'public-key' }],
+          },
+          username: 'testuser',
+        },
+      } as AxiosResponse<{
+        options: { challenge: string; allowCredentials: Array<{ id?: string; type: string }> }
+        username: string
+      }>)
+
+      const store = useAuthStore()
+
+      await expect(store.doWebAuthnLogin('testuser')).rejects.toThrow(
+        'Biometric login is temporarily unavailable. Please sign in with your password and try again.',
+      )
+      expect(credentialsGet).not.toHaveBeenCalled()
+      expect(api.webauthnLoginFinish).not.toHaveBeenCalled()
     })
   })
 })
