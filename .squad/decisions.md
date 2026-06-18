@@ -7505,3 +7505,167 @@ The `List` handler already validates `sortField` against an allowlist and uses `
 - Maximus decision: `.squad/decisions/maximus-collection-count-contract.md`
 - Constitution Principle I: Clear Layered Architecture
 - Constitution §17: Quality Gate (targeted Go validation)
+
+---
+
+# Decision: Custom Mint Locations Feature — Global Admin-Managed Data
+
+**Date:** 2026-06-18  
+**Context:** Custom Mint Locations Feature Planning (Maximus, Cassius, Aurelia, Brutus)  
+**Decider:** Squad Team (user decisions + architecture consensus)  
+**Status:** Approved for implementation  
+
+## Problem
+
+Ancient Coins collection users need ability to record and track historical coin mint locations. Current system has no standardized mint location data, limiting:
+1. Geographic organization of collections
+2. Historical context in coin analysis
+3. Map-based visualization of coin origins
+4. Admin customization for specialized collections
+
+## User Decisions
+
+### 1. Data Ownership & Scope
+
+**Chosen:** Custom mint locations are **global, admin-managed** data shared across all users.
+
+**Rationale:**
+- Eliminates data duplication across user records
+- Centralized authority prevents conflicting location definitions (e.g., "Rome" vs "Ancient Rome" vs "Classical Rome")
+- Admin curation ensures historical accuracy for shared reference data
+- Reduces storage footprint in user-scoped tables
+
+**Implications:**
+- Users cannot create private/custom mint locations (v1 constraint)
+- All users reference same location catalog
+- Admin can curate/merge duplicate entries post-launch
+
+### 2. Built-In Location Seeding
+
+**Chosen:** Seed commonly used historical mint locations into database automatically on first application run.
+
+**Rationale:**
+- Users have immediate value (no empty dropdown)
+- Standard reference set eliminates fragmentation
+- Seeding logic is idempotent (safe for multi-deployment environments)
+- Admin can extend or customize after launch
+
+**Seeding Approach:**
+- Auto-seeding in `MintLocationRepository` initialization
+- Mark all seeded locations with `IsBuiltIn=true` flag
+- Include major historical mints: Rome, Athens, Alexandria, Constantinople, Carthage, Syracuse, Damascus, Jerusalem, Pergamon, Antioch, etc.
+
+### 3. UI Placement
+
+**Chosen:** Place Custom Locations manager inside **Admin Settings > Coin Properties** as a "Custom Locations" card.
+
+**Rationale:**
+- Coin Properties section is natural home for location metadata
+- Admin-only access (no public user visibility)
+- Consistent with existing Admin UI pattern (info-cards with CRUD actions)
+- Follows Design System (card-based, expandable, token-compliant)
+
+### 4. Deletion Semantics
+
+**Chosen:** Allow deleting both seeded (built-in) and custom locations with **soft-delete + confirmation**.
+
+**Rationale:**
+- Confirmation prevents accidental deletions (UX safety)
+- Soft-delete preserves historical audit trail (coins retain location_id references)
+- Coins already mapped to deleted locations continue to exist unchanged
+- Admin can undelete locations if mistake occurs (v1 future: admin recovery UI)
+- No data orphaning or cascading deletes (coins unaffected)
+
+**Confirmation UX:**
+- Warning message: "Built-in locations cannot be recreated. Coins already mapped to this location will retain the reference."
+- Explicit button confirmation (not just checkbox) or typed confirmation text
+
+## Architectural Decisions (Consensus)
+
+### Data Model
+
+```
+MintLocation
+├── ID (UUID, PK)
+├── Name (string, required, unique, max 100)
+├── Latitude (float, -90 to +90)
+├── Longitude (float, -180 to +180)
+├── IsBuiltIn (bool, default false)
+├── IsDeleted (bool, default false)
+├── CreatedAt (timestamp)
+└── UpdatedAt (timestamp)
+```
+
+### Layered Architecture
+
+- **Handler** (`MintLocationHandler`) — Admin-only `/api/protected/admin/mint-locations` endpoints
+- **Service** (`MintLocationService`) — Validation, business logic (soft-delete, permission checks)
+- **Repository** (`MintLocationRepository`) — CRUD, scopes (ActiveLocations, IncludeDeleted)
+- **Model** (`MintLocation`) — Schema, validation constraints
+
+### API Contract
+
+| Endpoint | Method | Purpose | Auth |
+|---|---|---|---|
+| `/admin/mint-locations` | GET | List active locations | Admin |
+| `/admin/mint-locations` | POST | Create location | Admin |
+| `/admin/mint-locations/{id}` | PUT | Update location | Admin |
+| `/admin/mint-locations/{id}` | DELETE | Soft-delete location | Admin |
+
+### Frontend Integration
+
+- Admin Settings > Coin Properties card
+- List, create, edit, delete workflows via modals
+- Design tokens, accessibility, PWA-compatible
+- Type-safe TypeScript/Vue with Pinia state
+
+### Testing Coverage
+
+- Architecture compliance (layered imports)
+- CRUD operations (happy path + error cases)
+- Soft-delete semantics (coins unaffected, audit trail preserved)
+- Authorization (admin-only, non-admin rejected)
+- Regression (existing coin workflows unaffected)
+- Accessibility (keyboard nav, labels, focus management)
+
+## Consequences
+
+### Positive
+- ✅ Users have immediate access to canonical mint location reference
+- ✅ Admin control prevents data fragmentation
+- ✅ Soft-delete preserves historical integrity
+- ✅ Clean architecture (Principle I) enables future features
+- ✅ Type-safe implementation across all layers
+- ✅ No data orphaning or cascading issues
+
+### Negative
+- ⚠️ v1 constraint: users cannot create private locations (acceptable for MVP)
+- ⚠️ Seeded data must be manually extended per domain (historical accuracy burden on admin)
+
+## Constitution Alignment
+
+- **Principle I (Clear Layered Architecture):** Handler → Service → Repository → Model chain enforced
+- **Principle IV (Simple Complete Changes):** Feature is focused, complete, no overengineering
+- **Principle V (Security):** Admin-only; no user privilege escalation
+- **Principle VI (Consistent UX):** Follows Admin UI patterns, design tokens, accessibility
+- **Principle IX (Testable):** Architecture and test strategy defined
+- **§17 (Quality Gate):** Full test coverage planned; no merge until DoD met
+- **§18 (Session Protocol):** Multi-agent coordination, decision ledger, handoff clarity
+
+## Implementation Sequencing
+
+1. **Maximus:** Architecture ✓ (complete)
+2. **Cassius:** Backend (model → repo → service → handler)
+3. **Aurelia:** Frontend UI (awaits Cassius API)
+4. **Brutus:** Tests (CRUD + regression + architecture compliance)
+5. **Scribe:** Decision ledger merge + orchestration logs
+
+## References
+
+- Session Log: `.squad/log/2026-06-18T13-45-36Z-custom-mint-locations-plan.md`
+- Orchestration Logs:
+  - `.squad/orchestration-log/2026-06-18T13-45-36Z-maximus.md` (architecture)
+  - `.squad/orchestration-log/2026-06-18T13-45-36Z-cassius.md` (backend)
+  - `.squad/orchestration-log/2026-06-18T13-45-36Z-aurelia.md` (frontend)
+  - `.squad/orchestration-log/2026-06-18T13-45-36Z-brutus.md` (testing)
+- Constitution: `.specify/memory/constitution.md` (Principles I, IV, V, VI, IX; §17, §18)
