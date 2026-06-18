@@ -25,6 +25,7 @@ func setupAdminHealthHandlerTestDB(t *testing.T) *gorm.DB {
 		&models.Coin{},
 		&models.CoinImage{},
 		&models.CollectionHealthSnapshot{},
+		&models.AppSetting{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)
@@ -46,9 +47,12 @@ func setupAdminHealthHandlerRouter(t *testing.T, isAdmin bool) (*gin.Engine, *go
 	db.Create(&user)
 
 	healthRepo := repository.NewHealthRepository(db)
+	settingsRepo := repository.NewSettingsRepository(db)
+	settingsSvc := services.NewSettingsService(settingsRepo)
 	logger := services.NewLogger(100)
 	healthSvc := services.NewHealthService(healthRepo, logger)
-	handler := NewAdminHealthHandler(healthSvc, logger)
+	healthScheduler := services.NewCollectionHealthScheduler(healthSvc, settingsSvc, logger)
+	handler := NewAdminHealthHandler(healthSvc, healthScheduler, logger)
 
 	r := gin.New()
 	// Mock JWT middleware
@@ -69,8 +73,43 @@ func setupAdminHealthHandlerRouter(t *testing.T, isAdmin bool) (*gin.Engine, *go
 		c.Next()
 	})
 	adminGroup.GET("/health/summary", handler.Summary)
+	adminGroup.POST("/collection-health-snapshots/run", handler.TriggerSnapshotRun)
 
 	return r, db, user.ID
+}
+
+func setupAdminHealthTriggerAuthRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+
+	db := setupAdminHealthHandlerTestDB(t)
+	healthRepo := repository.NewHealthRepository(db)
+	settingsRepo := repository.NewSettingsRepository(db)
+	settingsSvc := services.NewSettingsService(settingsRepo)
+	logger := services.NewLogger(100)
+	healthSvc := services.NewHealthService(healthRepo, logger)
+	healthScheduler := services.NewCollectionHealthScheduler(healthSvc, settingsSvc, logger)
+	handler := NewAdminHealthHandler(healthSvc, healthScheduler, logger)
+
+	r := gin.New()
+	adminGroup := r.Group("/api/admin")
+	adminGroup.Use(func(c *gin.Context) {
+		switch c.GetHeader("Authorization") {
+		case "Bearer admin-token":
+			c.Set("userRole", string(models.RoleAdmin))
+		case "Bearer user-token":
+			c.Set("userRole", string(models.RoleUser))
+		default:
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	})
+	adminGroup.Use(AdminRequired())
+	adminGroup.POST("/collection-health-snapshots/run", handler.TriggerSnapshotRun)
+
+	return r, db
 }
 
 // --- T039: Admin endpoint auth and payload tests ---
@@ -109,6 +148,66 @@ func TestAdminHealthHandler_Summary_Success(t *testing.T) {
 	}
 	if resp.EligibleCoinCount != 5 {
 		t.Errorf("expected eligibleCoinCount=5, got %d", resp.EligibleCoinCount)
+	}
+}
+
+func TestAdminHealthHandler_TriggerSnapshotRun_Success(t *testing.T) {
+	router, db := setupAdminHealthTriggerAuthRouter(t)
+
+	user := models.User{Username: "owner", Email: "owner@test.com", Role: models.RoleUser}
+	db.Create(&user)
+	db.Create(&models.Coin{
+		Name:     "Snapshot Coin",
+		Category: models.CategoryRoman,
+		UserID:   user.ID,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/collection-health-snapshots/run", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if resp["message"] != "Collection health snapshots run completed" {
+		t.Errorf("unexpected message: %v", resp["message"])
+	}
+
+	var count int64
+	db.Model(&models.CollectionHealthSnapshot{}).Where("user_id = ?", user.ID).Count(&count)
+	if count != 1 {
+		t.Fatalf("expected 1 collection health snapshot, got %d", count)
+	}
+}
+
+func TestAdminHealthHandler_TriggerSnapshotRun_ForbiddenForNonAdmin(t *testing.T) {
+	router, _ := setupAdminHealthTriggerAuthRouter(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/collection-health-snapshots/run", nil)
+	req.Header.Set("Authorization", "Bearer user-token")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAdminHealthHandler_TriggerSnapshotRun_NoAuth(t *testing.T) {
+	router, _ := setupAdminHealthTriggerAuthRouter(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/collection-health-snapshots/run", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

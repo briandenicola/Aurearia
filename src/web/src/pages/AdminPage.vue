@@ -113,6 +113,8 @@
           :avail-settings-error="availSettingsError"
           :auction-settings-msg="auctionSettingsMsg"
           :auction-settings-error="auctionSettingsError"
+          :health-settings-msg="healthSettingsMsg"
+          :health-settings-error="healthSettingsError"
           :val-settings-msg="valSettingsMsg"
           :val-settings-error="valSettingsError"
           @save="saveSettings"
@@ -120,6 +122,8 @@
           @update:val-settings-error="valSettingsError = $event"
           @update:auction-settings-msg="auctionSettingsMsg = $event"
           @update:auction-settings-error="auctionSettingsError = $event"
+          @update:health-settings-msg="healthSettingsMsg = $event"
+          @update:health-settings-error="healthSettingsError = $event"
         />
 
         <!-- Health Tab -->
@@ -291,7 +295,7 @@ const {
   anthropicTesting, anthropicTestResult, anthropicTestOk, anthropicModels,
   searxngTesting, searxngTestResult, searxngTestOk,
   coinSearchPromptDefault, coinShowsPromptDefault, valuationPromptDefault,
-  availSettingsMsg, availSettingsError, auctionSettingsMsg, auctionSettingsError, valSettingsMsg, valSettingsError,
+  availSettingsMsg, availSettingsError, auctionSettingsMsg, auctionSettingsError, healthSettingsMsg, healthSettingsError, valSettingsMsg, valSettingsError,
   loadSettings, saveSettings,
   testOllamaConnection, testAnthropicConn, testSearxngConn,
   cleanup: cleanupAdminConfig,

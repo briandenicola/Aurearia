@@ -74,6 +74,8 @@ export function useAdminConfig() {
   const availSettingsError = ref(false)
   const auctionSettingsMsg = ref('')
   const auctionSettingsError = ref(false)
+  const healthSettingsMsg = ref('')
+  const healthSettingsError = ref(false)
   const valSettingsMsg = ref('')
   const valSettingsError = ref(false)
 
@@ -103,6 +105,14 @@ export function useAdminConfig() {
       }
       if (!settings.value.AuctionEndingCheckInterval) {
         settings.value.AuctionEndingCheckInterval = '1440'
+      }
+
+      // Apply defaults for collection health snapshot settings if not set
+      if (!settings.value.CollectionHealthSnapshotsEnabled) {
+        settings.value.CollectionHealthSnapshotsEnabled = 'false'
+      }
+      if (!settings.value.CollectionHealthSnapshotsStartTime) {
+        settings.value.CollectionHealthSnapshotsStartTime = '04:30'
       }
 
       const [modelsRes, coinSearchRes, coinShowsRes, valPromptRes] = await Promise.all([
@@ -147,6 +157,8 @@ export function useAdminConfig() {
     availSettingsError.value = false
     auctionSettingsMsg.value = ''
     auctionSettingsError.value = false
+    healthSettingsMsg.value = ''
+    healthSettingsError.value = false
     valSettingsMsg.value = ''
     valSettingsError.value = false
     try {
@@ -155,9 +167,10 @@ export function useAdminConfig() {
       settingsMsg.value = 'Settings saved'
       availSettingsMsg.value = 'Settings saved'
       auctionSettingsMsg.value = 'Settings saved'
+      healthSettingsMsg.value = 'Settings saved'
       valSettingsMsg.value = 'Settings saved'
       if (saveTimerId) clearTimeout(saveTimerId)
-      saveTimerId = setTimeout(() => { availSettingsMsg.value = ''; auctionSettingsMsg.value = ''; valSettingsMsg.value = '' }, 3000)
+      saveTimerId = setTimeout(() => { availSettingsMsg.value = ''; auctionSettingsMsg.value = ''; healthSettingsMsg.value = ''; valSettingsMsg.value = '' }, 3000)
     } catch {
       settingsMsg.value = 'Failed to save settings'
       settingsError.value = true
@@ -165,6 +178,8 @@ export function useAdminConfig() {
       availSettingsError.value = true
       auctionSettingsMsg.value = 'Failed to save settings'
       auctionSettingsError.value = true
+      healthSettingsMsg.value = 'Failed to save settings'
+      healthSettingsError.value = true
       valSettingsMsg.value = 'Failed to save settings'
       valSettingsError.value = true
     } finally {
@@ -245,6 +260,8 @@ export function useAdminConfig() {
     availSettingsError,
     auctionSettingsMsg,
     auctionSettingsError,
+    healthSettingsMsg,
+    healthSettingsError,
     valSettingsMsg,
     valSettingsError,
     // Functions

@@ -521,6 +521,93 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/collection-health-snapshots/run": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Manually persists collection health snapshots for all users with eligible coins. Runs synchronously. Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Trigger manual collection health snapshots",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/health/summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns aggregate collection health metrics across all users. Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get admin collection health summary",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.AdminHealthSummary"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/logs": {
             "get": {
                 "security": [
@@ -10677,6 +10764,29 @@ const docTemplate = `{
                 }
             }
         },
+        "services.AdminHealthSummary": {
+            "type": "object",
+            "properties": {
+                "eligibleCoinCount": {
+                    "type": "integer"
+                },
+                "lowScorePercentage": {
+                    "type": "number"
+                },
+                "lowScoreThreshold": {
+                    "type": "integer"
+                },
+                "medianScore": {
+                    "type": "integer"
+                },
+                "topMissingFields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.MissingFieldStat"
+                    }
+                }
+            }
+        },
         "services.ChecklistDimension": {
             "type": "string",
             "enum": [
@@ -10814,6 +10924,20 @@ const docTemplate = `{
                 },
                 "severity": {
                     "$ref": "#/definitions/services.ChecklistSeverity"
+                }
+            }
+        },
+        "services.MissingFieldStat": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "percentage": {
+                    "type": "number"
                 }
             }
         }

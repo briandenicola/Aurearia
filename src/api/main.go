@@ -525,8 +525,9 @@ func main() {
 		admin.POST("/coin-of-day/run", coinOfDayAdminHandler.TriggerRun)
 
 		// Aggregate health metrics
-		adminHealthHandler := handlers.NewAdminHealthHandler(healthSvc, logger)
+		adminHealthHandler := handlers.NewAdminHealthHandler(healthSvc, healthScheduler, logger)
 		admin.GET("/health/summary", adminHealthHandler.Summary)
+		admin.POST("/collection-health-snapshots/run", adminHealthHandler.TriggerSnapshotRun)
 
 		// API key rotation notification trigger
 		apiKeyAdminHandler := handlers.NewApiKeyAdminHandler(apiKeyRepo, notifSvc, logger)

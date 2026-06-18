@@ -447,5 +447,11 @@ describe('API Client', () => {
       await client.sellCoin(5, 100, 'buyer')
       expect(mockApi.post).toHaveBeenCalledWith('/coins/5/sell', { soldPrice: 100, soldTo: 'buyer' })
     })
+
+    it('triggerCollectionHealthSnapshots sends POST to the admin run endpoint', async () => {
+      mockApi.post.mockResolvedValue({ data: {} })
+      await client.triggerCollectionHealthSnapshots()
+      expect(mockApi.post).toHaveBeenCalledWith('/admin/collection-health-snapshots/run')
+    })
   })
 })

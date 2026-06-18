@@ -927,6 +927,15 @@ export interface AuctionEndingRun {
   createdAt: string
 }
 
+export interface CollectionHealthSnapshotRunResult {
+  message?: string
+  users?: number
+  snapshotsCreated?: number
+  skipped?: number
+  errors?: number
+  durationMs?: number
+}
+
 export interface Notification {
   id: number
   userId: number

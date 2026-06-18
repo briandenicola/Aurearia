@@ -366,6 +366,43 @@
 
     <hr class="section-divider" />
 
+    <!-- Collection Health Snapshots -->
+    <h3 class="subsection-title">Collection Health Snapshots</h3>
+    <p class="subsection-desc">Captures daily health baselines used by the 30-day collection health trend.</p>
+    <div class="avail-settings">
+      <div class="form-group avail-toggle-row">
+        <label class="form-label">Enable Daily Snapshots</label>
+        <label class="toggle-switch">
+          <input
+            type="checkbox"
+            :checked="settings.CollectionHealthSnapshotsEnabled === 'true'"
+            @change="settings.CollectionHealthSnapshotsEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
+          />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Start Time (daily)</label>
+        <input
+          v-model="settings.CollectionHealthSnapshotsStartTime"
+          class="form-input avail-interval-input"
+          type="time"
+        />
+        <span class="form-hint">Time of day when collection health baselines are captured for trend calculations.</span>
+      </div>
+      <div class="avail-save-row">
+        <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
+          {{ settingsSaving ? 'Saving...' : 'Save Snapshot Settings' }}
+        </button>
+        <button class="btn btn-secondary btn-sm" :disabled="healthTriggerLoading" @click="triggerManualHealthSnapshots()">
+          {{ healthTriggerLoading ? 'Running...' : 'Run Now' }}
+        </button>
+        <span v-if="healthSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': healthSettingsError }">{{ healthSettingsMsg }}</span>
+      </div>
+    </div>
+
+    <hr class="section-divider" />
+
     <!-- Coin of the Day -->
     <h3 class="subsection-title">Coin of the Day</h3>
     <p class="subsection-desc">Picks one coin per day from each user's collection and sends an in-app and Pushover notification. Each coin in a user's collection appears once before any coin repeats.</p>
@@ -409,6 +446,7 @@ import {
   getAvailabilityRuns, getAvailabilityRunDetail,
   getValuationRuns, getValuationRunDetail, triggerValuation, cancelValuationRun,
   getAuctionEndingRuns, triggerAuctionEndingCheck,
+  triggerCollectionHealthSnapshots,
   triggerCoinOfDayRun,
 } from '@/api/client'
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'
@@ -424,6 +462,8 @@ const _props = defineProps<{
   availSettingsError: boolean
   auctionSettingsMsg: string
   auctionSettingsError: boolean
+  healthSettingsMsg: string
+  healthSettingsError: boolean
   valSettingsMsg: string
   valSettingsError: boolean
 }>()
@@ -434,6 +474,8 @@ const emit = defineEmits<{
   'update:valSettingsError': [val: boolean]
   'update:auctionSettingsMsg': [val: string]
   'update:auctionSettingsError': [val: boolean]
+  'update:healthSettingsMsg': [val: string]
+  'update:healthSettingsError': [val: boolean]
 }>()
 
 // Availability
@@ -600,6 +642,36 @@ async function cancelRun(runId: number) {
   } catch {
     emit('update:valSettingsMsg', 'Failed to cancel run')
     emit('update:valSettingsError', true)
+  }
+}
+
+// Collection Health Snapshots
+const healthTriggerLoading = ref(false)
+
+async function triggerManualHealthSnapshots() {
+  healthTriggerLoading.value = true
+  emit('update:healthSettingsMsg', '')
+  emit('update:healthSettingsError', false)
+  try {
+    const res = await triggerCollectionHealthSnapshots()
+    const { message, users, snapshotsCreated, skipped, errors, durationMs } = res.data
+    const parts = [
+      snapshotsCreated != null ? `${snapshotsCreated} snapshots` : null,
+      users != null ? `${users} users` : null,
+      skipped != null ? `${skipped} skipped` : null,
+      errors ? `${errors} errors` : null,
+      durationMs != null ? `${(durationMs / 1000).toFixed(1)}s` : null,
+    ].filter((part): part is string => part != null)
+    emit('update:healthSettingsMsg', message ?? (parts.length ? `Snapshot run complete — ${parts.join(', ')}` : 'Snapshot run complete'))
+    if (errors) {
+      emit('update:healthSettingsError', true)
+    }
+    timers.push(setTimeout(() => { emit('update:healthSettingsMsg', '') }, 10000))
+  } catch {
+    emit('update:healthSettingsMsg', 'Failed to run collection health snapshots')
+    emit('update:healthSettingsError', true)
+  } finally {
+    healthTriggerLoading.value = false
   }
 }
 

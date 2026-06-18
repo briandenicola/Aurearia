@@ -1672,6 +1672,21 @@ definitions:
       era:
         type: string
     type: object
+  services.AdminHealthSummary:
+    properties:
+      eligibleCoinCount:
+        type: integer
+      lowScorePercentage:
+        type: number
+      lowScoreThreshold:
+        type: integer
+      medianScore:
+        type: integer
+      topMissingFields:
+        items:
+          $ref: '#/definitions/services.MissingFieldStat'
+        type: array
+    type: object
   services.ChecklistDimension:
     enum:
     - metadata
@@ -1771,6 +1786,15 @@ definitions:
         type: string
       severity:
         $ref: '#/definitions/services.ChecklistSeverity'
+    type: object
+  services.MissingFieldStat:
+    properties:
+      count:
+        type: integer
+      key:
+        type: string
+      percentage:
+        type: number
     type: object
 info:
   contact: {}
@@ -2105,6 +2129,63 @@ paths:
       security:
       - BearerAuth: []
       summary: Trigger manual coin-of-the-day pick
+      tags:
+      - Admin
+  /admin/collection-health-snapshots/run:
+    post:
+      description: Manually persists collection health snapshots for all users with
+        eligible coins. Runs synchronously. Admin only.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Trigger manual collection health snapshots
+      tags:
+      - Admin
+  /admin/health/summary:
+    get:
+      description: Returns aggregate collection health metrics across all users. Admin
+        only.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.AdminHealthSummary'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get admin collection health summary
       tags:
       - Admin
   /admin/logs:
