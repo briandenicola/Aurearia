@@ -1,12 +1,10 @@
 <template>
   <div class="container mint-map-page">
     <header class="page-header mint-map-header">
-      <div>
-        <p class="section-label">Collection Geography</p>
-        <h1>Mint Map</h1>
-        <p class="page-intro">Explore where the currently loaded active collection was struck.</p>
-      </div>
-      <router-link class="btn btn-secondary" to="/stats">Back to Stats</router-link>
+      <h1>Map of Coins</h1>
+      <router-link class="back-button" to="/stats" aria-label="Back to Stats">
+        <ArrowLeft :size="20" />
+      </router-link>
     </header>
 
     <div v-if="store.loading" class="loading-card card" role="status">
@@ -28,10 +26,8 @@
 
     <template v-else>
       <section class="summary-row" aria-label="Mint map summary">
-        <div class="summary-stat">
-          <span class="section-label">Mapped Coins</span>
-          <strong>{{ mappedCoinCount }}</strong>
-        </div>
+        <span class="summary-label">Mapped Coins:</span>
+        <strong class="mapped-count">{{ mappedCoinCount }}</strong>
       </section>
 
       <MintMapLeaflet
@@ -58,6 +54,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { ArrowLeft } from 'lucide-vue-next'
 import { useCoinsStore } from '@/stores/coins'
 import MintMapLeaflet from '@/components/map/MintMapLeaflet.vue'
 import MintCoinDrawer from '@/components/map/MintCoinDrawer.vue'
@@ -114,35 +111,45 @@ onMounted(() => {
   gap: 1rem;
 }
 
-.page-intro {
-  margin: 0.35rem 0 0;
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: var(--transition-fast);
+}
+
+.back-button:hover {
+  color: var(--accent-gold);
+  border-color: var(--border-accent);
+  background: var(--accent-gold-glow);
 }
 
 .summary-row {
   display: flex;
-  justify-content: center;
-  padding: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1rem;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
 }
 
-.summary-stat {
-  text-align: center;
+.summary-label {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
-.summary-stat .section-label {
-  display: block;
-  margin-bottom: 0.25rem;
-}
-
-.summary-stat strong {
-  display: block;
+.mapped-count {
   color: var(--accent-gold);
   font-family: 'Cinzel', serif;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   font-weight: 600;
 }
 
@@ -166,9 +173,12 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
-  .mint-map-header {
-    align-items: stretch;
-    flex-direction: column;
+  .mint-map-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .back-button {
+    padding: 0.35rem;
   }
 }
 </style>
