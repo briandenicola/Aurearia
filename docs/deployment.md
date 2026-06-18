@@ -159,7 +159,7 @@ The build injects two build arguments:
 
 | Build Arg | Description |
 |---|---|
-| `APP_VERSION` | Git commit SHA — displayed in the app UI |
+| `APP_VERSION` | Git commit SHA — combined with the root `VERSION` file for app UI version display |
 | `BUILD_DATE` | Build timestamp — injected into Vite for version display |
 
 ---

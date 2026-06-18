@@ -5,6 +5,7 @@ ARG BUILD_DATE=""
 WORKDIR /web
 COPY src/web/package.json src/web/package-lock.json* ./
 RUN npm ci
+COPY VERSION /VERSION
 COPY src/web/ .
 ENV VITE_API_BASE_URL=""
 ENV VITE_APP_VERSION=${APP_VERSION}

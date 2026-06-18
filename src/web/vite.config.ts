@@ -24,7 +24,19 @@ function readCommitSha() {
 
 const baseVersion = readBaseVersion()
 const commitSha = readCommitSha()
-const appVersion = process.env.VITE_APP_VERSION || (commitSha ? `${baseVersion}.${commitSha}` : baseVersion)
+
+function buildAppVersion(rawVersion: string | undefined) {
+  const version = rawVersion?.trim()
+  if (!version) {
+    return commitSha ? `${baseVersion}.${commitSha}` : baseVersion
+  }
+  if (/^[a-f0-9]{7,40}$/i.test(version)) {
+    return `${baseVersion}.${version.substring(0, 7)}`
+  }
+  return version
+}
+
+const appVersion = buildAppVersion(process.env.VITE_APP_VERSION)
 
 export default defineConfig({
   define: {
