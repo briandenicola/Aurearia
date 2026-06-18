@@ -42,17 +42,27 @@ export const useAuthStore = defineStore('auth', () => {
       const { options } = beginRes.data
 
       // Convert base64url challenge to ArrayBuffer
-      const challenge = base64urlToBuffer(options.challenge)
-      const allowCredentials = options.allowCredentials?.map((c: { id: string; type: string; transports?: string[] }) => ({
-        id: base64urlToBuffer(c.id),
-        type: c.type as PublicKeyCredentialType,
-        transports: c.transports as AuthenticatorTransport[] | undefined,
-      }))
+      const challenge = requireBase64url(options.challenge, 'challenge')
+      const allowCredentials = options.allowCredentials?.flatMap((c: { id?: string; type: string; transports?: string[] }) => {
+        if (typeof c?.id !== 'string' || !c.id) {
+          return []
+        }
+
+        return [{
+          id: base64urlToBuffer(c.id),
+          type: c.type as PublicKeyCredentialType,
+          transports: c.transports as AuthenticatorTransport[] | undefined,
+        }]
+      })
+
+      if (options.allowCredentials?.length && !allowCredentials?.length) {
+        throw new Error('Biometric login is temporarily unavailable. Please sign in with your password and try again.')
+      }
 
       // Call browser WebAuthn API (triggers Face ID / fingerprint)
       const credential = await navigator.credentials.get({
         publicKey: {
-          challenge,
+          challenge: base64urlToBuffer(challenge),
           rpId: options.rpId,
           allowCredentials,
           userVerification: (options.userVerification as UserVerificationRequirement) || 'preferred',
@@ -110,4 +120,12 @@ function base64urlToBuffer(base64url: string): ArrayBuffer {
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
   return bytes.buffer
+}
+
+function requireBase64url(value: string | undefined, field: string): string {
+  if (typeof value !== 'string' || !value) {
+    throw new Error(`Biometric login is temporarily unavailable. Missing ${field} data.`)
+  }
+
+  return value
 }
