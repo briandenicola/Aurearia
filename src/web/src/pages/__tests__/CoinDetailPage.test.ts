@@ -63,7 +63,7 @@ describe('CoinDetailPage', () => {
     })
 
     expect(wrapper.find('.hero-media-grid').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Share')
+    expect(wrapper.find('button[aria-label="Share"]').exists()).toBe(true)
     expect(fetchCoin).toHaveBeenCalledWith(coin.id)
   })
 
@@ -74,7 +74,7 @@ describe('CoinDetailPage', () => {
       },
     })
 
-    await wrapper.findAll('button').find((button) => button.text().includes('Share'))!.trigger('click')
+    await wrapper.find('button[aria-label="Share"]').trigger('click')
     await flushPromises()
 
     expect(shareCoinCard).toHaveBeenCalledWith(coin)
@@ -93,6 +93,9 @@ function pageStubs() {
     CoinListingStatus: true,
     CoinReferencesSection: true,
     ArrowLeft: true,
+    CircleDollarSign: true,
+    Pencil: true,
     Share2: true,
+    Trash2: true,
   }
 }

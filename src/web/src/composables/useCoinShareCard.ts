@@ -1,6 +1,6 @@
 import { readonly, ref } from 'vue'
 import type { Coin } from '@/types'
-import { getPreferredShareImage, getShareCardFilename, renderCoinShareCard } from '@/utils/coinShareCard'
+import { getShareCardFilename, getShareImageUrls, renderCoinShareCard } from '@/utils/coinShareCard'
 import { useDialog } from '@/composables/useDialog'
 
 const APP_NAME = 'Ed-Mar Ancient Coins'
@@ -35,8 +35,8 @@ export function useCoinShareCard() {
   async function shareCoinCard(coin: Coin): Promise<CoinShareResult> {
     sharing.value = true
     try {
-      const imageUrl = getPreferredShareImage(coin)
-      const blob = await renderCoinShareCard({ coin, imageUrl, appName: APP_NAME })
+      const imageUrls = getShareImageUrls(coin)
+      const blob = await renderCoinShareCard({ coin, imageUrl: imageUrls[0] ?? null, imageUrls, appName: APP_NAME })
       const filename = getShareCardFilename(coin)
       const file = new File([blob], filename, { type: 'image/png' })
       const navigatorWithShare = navigator as unknown as ShareNavigator

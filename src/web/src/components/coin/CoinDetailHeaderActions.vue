@@ -5,22 +5,39 @@
         <ArrowLeft :size="14" />
         Back to Gallery
       </button>
-      <button class="btn btn-secondary btn-xs share-action" :disabled="sharing" @click="$emit('share')">
-        <Share2 :size="14" />
-        {{ sharing ? 'Sharing...' : 'Share' }}
+      <button
+        class="icon-action"
+        :disabled="sharing"
+        :title="sharing ? 'Sharing...' : 'Share'"
+        :aria-label="sharing ? 'Sharing...' : 'Share'"
+        @click="$emit('share')"
+      >
+        <Share2 :size="18" />
       </button>
     </div>
     <div class="detail-actions">
-      <button v-if="!isWishlist && !isSold" class="btn btn-secondary btn-xs" @click="$emit('sell')">Sell</button>
-      <router-link :to="`/edit/${coinId}`" class="btn btn-secondary btn-xs">Edit</router-link>
-      <button class="btn btn-danger btn-xs" @click="$emit('delete')">Delete</button>
+      <button
+        v-if="!isWishlist && !isSold"
+        class="icon-action"
+        title="Sell"
+        aria-label="Sell"
+        @click="$emit('sell')"
+      >
+        <CircleDollarSign :size="18" />
+      </button>
+      <router-link :to="`/edit/${coinId}`" class="icon-action" title="Edit" aria-label="Edit">
+        <Pencil :size="18" />
+      </router-link>
+      <button class="icon-action icon-action-danger" title="Delete" aria-label="Delete" @click="$emit('delete')">
+        <Trash2 :size="18" />
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Share2 } from 'lucide-vue-next'
+import { ArrowLeft, CircleDollarSign, Pencil, Share2, Trash2 } from 'lucide-vue-next'
 
 withDefaults(defineProps<{
   isWishlist: boolean
@@ -70,8 +87,40 @@ const router = useRouter()
   white-space: nowrap;
 }
 
-.share-action {
-  white-space: nowrap;
+.icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.icon-action:hover:not(:disabled) {
+  background: var(--bg-card-hover);
+  border-color: var(--border-accent);
+  color: var(--accent-gold);
+}
+
+.icon-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.icon-action-danger {
+  color: var(--cat-byzantine);
+  border-color: color-mix(in srgb, var(--cat-byzantine) 35%, transparent);
+}
+
+.icon-action-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cat-byzantine) 18%, transparent);
+  color: var(--cat-byzantine);
+  border-color: color-mix(in srgb, var(--cat-byzantine) 55%, transparent);
 }
 
 @media (max-width: 768px) {
