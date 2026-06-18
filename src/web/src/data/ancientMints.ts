@@ -1,4 +1,11 @@
-import type { MintReference } from '@/utils/mintMap'
+interface SeedMintReference {
+  id: string
+  displayName: string
+  lat: number
+  lng: number
+  aliases: readonly string[]
+  region: string
+}
 
 export const ancientMints = [
   {
@@ -137,4 +144,4 @@ export const ancientMints = [
     region: 'Ionia',
     aliases: ['Ephesos', 'Ephesus mint'],
   },
-] as const satisfies readonly MintReference[]
+] as const satisfies readonly SeedMintReference[]

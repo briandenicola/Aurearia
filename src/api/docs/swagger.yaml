@@ -1027,6 +1027,32 @@ definitions:
     - password
     - username
     type: object
+  handlers.mintLocationListResponse:
+    properties:
+      mintLocations:
+        items:
+          $ref: '#/definitions/models.MintLocation'
+        type: array
+    type: object
+  handlers.mintLocationRequest:
+    properties:
+      aliases:
+        items:
+          type: string
+        type: array
+      displayName:
+        type: string
+      lat:
+        type: number
+      lng:
+        type: number
+      region:
+        type: string
+    required:
+    - displayName
+    - lat
+    - lng
+    type: object
   handlers.noteRequest:
     properties:
       body:
@@ -1535,6 +1561,27 @@ definitions:
     - MaterialCopper
     - MaterialElectrum
     - MaterialOther
+  models.MintLocation:
+    properties:
+      aliases:
+        items:
+          type: string
+        type: array
+      createdAt:
+        type: string
+      displayName:
+        type: string
+      id:
+        type: integer
+      lat:
+        type: number
+      lng:
+        type: number
+      region:
+        type: string
+      updatedAt:
+        type: string
+    type: object
   models.Note:
     properties:
       body:
@@ -2100,6 +2147,144 @@ paths:
       summary: Get application logs
       tags:
       - Admin
+  /admin/mint-locations:
+    post:
+      consumes:
+      - application/json
+      description: Creates a global mint location. Admin only.
+      parameters:
+      - description: Mint location data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.mintLocationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.MintLocation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create mint location
+      tags:
+      - Mint Locations
+  /admin/mint-locations/{id}:
+    delete:
+      description: Deletes a global mint location. Coins with no remaining matching
+        mint location appear as unattributed in the map. Admin only.
+      parameters:
+      - description: Mint location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete mint location
+      tags:
+      - Mint Locations
+    put:
+      consumes:
+      - application/json
+      description: Updates a global mint location. Admin only.
+      parameters:
+      - description: Mint location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Mint location data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.mintLocationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MintLocation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update mint location
+      tags:
+      - Mint Locations
   /admin/settings:
     get:
       description: Returns all application settings merged with defaults. Admin only.
@@ -5083,6 +5268,29 @@ paths:
       summary: Get top coins by current value
       tags:
       - Internal
+  /mint-locations:
+    get:
+      description: Returns all global mint locations for authenticated users.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.mintLocationListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List mint locations
+      tags:
+      - Mint Locations
   /notes:
     get:
       description: Returns all notes owned by the authenticated user.

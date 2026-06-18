@@ -2,6 +2,160 @@
 
 ## Active Decisions
 
+### Decision: Custom Mint Locations — Global Admin-Managed Backend Implementation
+
+**Date:** 2026-06-18  
+**Agent:** Cassius  
+**Status:** APPROVED — IMPLEMENTED  
+
+## Context
+
+Brian requested backend support for global admin-managed mint locations, superseding the earlier frontend-only scope guardrail in specs/225-mint-map-view. The feature provides admin CRUD capabilities for mint location data used by the Mint Map view and coin creation workflows.
+
+## Decision
+
+Mint locations are stored as global `MintLocation` rows in the database, not per-user records. The initial dataset is seeded from `src/web/src/data/ancientMints.ts` into the Go database on first run, marked with `IsBuiltIn=true`. The seed records an `AppSetting{Key: "MintLocationSeedVersion", Value: "1"}` after a successful transaction. Once that version is recorded, startup skips reseeding so admin edits and deletes of built-in rows persist across restarts.
+
+API endpoints:
+- `GET /mint-locations` — public list for non-admin users
+- `GET /admin/mint-locations` — admin list with deleted count (for audit awareness)
+- `POST /admin/mint-locations` — create custom location
+- `PUT /admin/mint-locations/{id}` — update location (preserves IsBuiltIn flag)
+- `DELETE /admin/mint-locations/{id}` — soft-delete with IsDeleted flag
+
+Repository scopes:
+- `ActiveLocations` — filters out IsDeleted=true
+- `IncludeDeleted` — includes soft-deleted for admin recovery
+
+Service layer validation:
+- Non-empty location name
+- Valid latitude range (±90°)
+- Valid longitude range (±180°)
+- Prevents editing built-in location names
+- Prevents changing IsBuiltIn flag on updates
+
+## Rationale
+
+This keeps the Mint Map and coin workflows working on existing installations while preserving the explicit product decision that admins may delete seeded locations and have unmatched coins move to Unattributed. Soft-delete ensures no orphaning of historical coin-location links.
+
+## Constitution Alignment
+
+- Principle I (Layered): Handler → Service → Repository → Model chain enforced
+- Principle III (Explicit Contracts): MintLocation type defined and validated
+- Principle IV (Simple Complete): Focused CRUD-only feature
+- Principle V (Security): Admin-only endpoints; no user data leakage
+- Principle IX (Tests): Full architecture + repository + service + handler coverage
+- §17 Quality Gate: All tests passing, no regressions
+
+## Files Touched
+
+Backend: `src/api/models/mint_location.go`, `src/api/repository/mint_location_repository.go`, `src/api/handlers/mint_location.go`, `src/api/handlers/mint_location_handler_test.go`, `src/api/database/database.go`, `src/api/main.go`
+
+---
+
+### Decision: Frontend Mint Map Uses Admin-Managed Runtime Locations
+
+**Date:** 2026-06-18  
+**Agent:** Aurelia  
+**Status:** APPROVED — IMPLEMENTED  
+
+## Context
+
+Backend mint locations are global admin-managed data exposed through `/mint-locations` and `/admin/mint-locations` endpoints. The original Mint Map frontend grouped coins against the static `ancientMints.ts` seed table.
+
+## Decision
+
+Frontend mint map grouping now requires passed `MintLocation[]` data from the backend and no longer imports `ancientMints.ts` at runtime. Admin UI management is localized in `AdminCoinPropertiesSection.vue` under a Custom Locations card. The frontend accepts either an array response or `{ mintLocations }` for the list endpoint to stay compatible during backend integration.
+
+API client functions:
+- `getMintLocations()` — fetch public list
+- `adminCreateMintLocation(data)` — create (admin)
+- `adminUpdateMintLocation(id, data)` — edit (admin)
+- `adminDeleteMintLocation(id)` — soft-delete (admin)
+
+Frontend components:
+- Updated `AdminCoinPropertiesSection.vue` with Custom Locations card
+- Card displays list of locations with edit/delete actions
+- Form modal for create/edit with name, latitude, longitude
+- Confirmation dialog for delete with built-in location warning
+- Integration with Mint Map via updated `mintMap.ts` utility
+
+## Rationale
+
+Eliminates static data dependency and allows admins to manage locations dynamically. Custom locations can be created for any mint that isn't pre-seeded. Soft-delete support prevents accidental data loss.
+
+## Constitution Alignment
+
+- Principle III: Explicit `MintLocation` contract and typed client functions
+- Principle IV: Simple, localized change with existing map/unattributed behavior preserved
+- Principle VI: Admin UI uses existing tokens, buttons, cards, loading, error, and confirmation patterns
+- §18 Session Protocol: Type safety and accessibility reviewed
+
+## Files Touched
+
+Frontend: `src/web/src/types/index.ts`, `src/web/src/api/client.ts`, `src/web/src/components/admin/AdminCoinPropertiesSection.vue`, `src/web/src/utils/mintMap.ts`, `src/web/src/utils/__tests__/mintMap.test.ts`, `src/web/src/pages/__tests__/MintMapPage.test.ts`
+
+---
+
+### Decision: Custom Mint Locations QA Validation — APPROVED
+
+**Date:** 2026-06-18  
+**Agent:** Brutus  
+**Status:** APPROVED — IMPLEMENTATION VALIDATED  
+
+## Context
+
+Custom Mint Locations feature requires comprehensive QA validation across architecture compliance, CRUD operations, soft-delete semantics, authorization, and regression coverage.
+
+## Decision
+
+Full validation passed across all layers:
+
+**Backend (Go):**
+- Architecture compliance: all import rules verified
+- Repository: CRUD, soft-delete, seeding idempotency tested
+- Service: coordinate validation, name validation, built-in flag preservation tested
+- Handler: admin authorization, request/response shapes, error handling tested
+- Soft-delete semantics: coin-location links preserved, coin lookups unaffected
+
+**Frontend (Vue/TypeScript):**
+- Component tests: form validation, data binding, event emissions
+- Integration tests: API mocking, error scenarios, success flows
+- Type safety: MintLocation interface enforced throughout
+
+**Regression:**
+- All existing Go tests passing (`go test -v ./...`)
+- All Vue tests passing (`npm run test`)
+- Coin create/edit/list workflows unaffected
+- Mint Map view unaffected
+- Coin of Day scheduler unaffected
+
+**Coordinator Commands Validated:**
+- `task openapi` ✓
+- `go test -v ./...` ✓
+- `go vet ./...` ✓
+- `go build ./...` ✓
+- `npm run test` ✓
+- `npm run build` ✓
+- `npm run lint -- --quiet` ✓
+- `git diff --check` ✓
+
+## Rationale
+
+Comprehensive testing ensures no data loss, proper authorization, and no regressions in existing workflows. Soft-delete is critical to validate extensively.
+
+## Constitution Alignment
+
+- Principle IX (Tests): Full architecture + unit + integration coverage
+- §17 Quality Gate: All checks passing
+- §21 Definition of Done: All items satisfied
+
+## Verdict
+
+**APPROVED FOR MERGE** — All validation checks passing, no blocking defects found.
+
+---
+
 ### Decision: Coin of the Day Pushover Link Configuration
 
 **Date:** 2026-06-10  

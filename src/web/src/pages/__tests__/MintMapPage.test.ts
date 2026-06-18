@@ -2,7 +2,7 @@ import { shallowMount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Coin } from '@/types'
 import MintMapPage from '@/pages/MintMapPage.vue'
-import { buildMintMapFixtureCoins } from '@/test/fixtures/coins'
+import { buildMintMapFixtureCoins, buildTestMintLocations } from '@/test/fixtures/coins'
 
 const mockStore = {
   coins: [] as Coin[],
@@ -14,9 +14,19 @@ vi.mock('@/stores/coins', () => ({
   useCoinsStore: () => mockStore,
 }))
 
+const mockGetMintLocations = vi.fn()
+vi.mock('@/api/client', () => ({
+  getMintLocations: () => mockGetMintLocations(),
+}))
+
 const routerLinkStub = {
   props: ['to'],
   template: '<a :href="to"><slot /></a>',
+}
+
+async function flushMountedPromises() {
+  await Promise.resolve()
+  await Promise.resolve()
 }
 
 describe('MintMapPage', () => {
@@ -25,9 +35,11 @@ describe('MintMapPage', () => {
     mockStore.loading = false
     mockStore.fetchCoins.mockReset()
     mockStore.fetchCoins.mockResolvedValue(undefined)
+    mockGetMintLocations.mockReset()
+    mockGetMintLocations.mockResolvedValue({ data: { mintLocations: buildTestMintLocations() } })
   })
 
-  it('fetches the default active collection when the store is empty', () => {
+  it('fetches the default active collection when the store is empty', async () => {
     shallowMount(MintMapPage, {
       global: {
         stubs: {
@@ -38,11 +50,12 @@ describe('MintMapPage', () => {
         },
       },
     })
+    await flushMountedPromises()
 
     expect(mockStore.fetchCoins).toHaveBeenCalledWith({ wishlist: 'false', sold: 'false' })
   })
 
-  it('renders summary counts and the unattributed bucket', () => {
+  it('renders summary counts and the unattributed bucket', async () => {
     mockStore.coins = buildMintMapFixtureCoins()
     const wrapper = shallowMount(MintMapPage, {
       global: {
@@ -54,6 +67,7 @@ describe('MintMapPage', () => {
         },
       },
     })
+    await flushMountedPromises()
 
     expect(wrapper.text()).toContain('Mapped Coins:')
     expect(wrapper.text()).toContain('4')
@@ -79,7 +93,7 @@ describe('MintMapPage', () => {
     expect(backLink.attributes('aria-label')).toBe('Back to Stats')
   })
 
-  it('renders a compact summary row with title-case label and count', () => {
+  it('renders a compact summary row with title-case label and count', async () => {
     mockStore.coins = buildMintMapFixtureCoins()
     const wrapper = shallowMount(MintMapPage, {
       global: {
@@ -91,6 +105,7 @@ describe('MintMapPage', () => {
         },
       },
     })
+    await flushMountedPromises()
 
     const summaryRow = wrapper.find('.summary-row')
     expect(summaryRow.exists()).toBe(true)
@@ -117,6 +132,7 @@ describe('MintMapPage', () => {
         },
       },
     })
+    await flushMountedPromises()
 
     await wrapper.find('.select-rome').trigger('click')
 

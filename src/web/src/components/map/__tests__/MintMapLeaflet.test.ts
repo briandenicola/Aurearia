@@ -3,7 +3,7 @@ import { nextTick } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MintMapLeaflet, { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, OSM_ATTRIBUTION, OSM_TILE_URL } from '@/components/map/MintMapLeaflet.vue'
 import { groupCoinsByMint } from '@/utils/mintMap'
-import { buildMintMapFixtureCoins } from '@/test/fixtures/coins'
+import { buildMintMapFixtureCoins, buildTestMintLocations } from '@/test/fixtures/coins'
 
 interface MarkerRecord {
   latLng: [number, number]
@@ -68,7 +68,7 @@ vi.mock('leaflet', () => ({
 }))
 
 describe('MintMapLeaflet', () => {
-  const groups = groupCoinsByMint(buildMintMapFixtureCoins()).matched
+  const groups = groupCoinsByMint(buildMintMapFixtureCoins(), buildTestMintLocations()).matched
 
   async function waitForMapMount() {
     await nextTick()
@@ -97,11 +97,11 @@ describe('MintMapLeaflet', () => {
 
   it('creates markers from actual mint latitude and longitude with count badges', async () => {
     mount(MintMapLeaflet, {
-      props: { groups, selectedMintId: 'rome' },
+      props: { groups, selectedMintId: 1 },
     })
     await waitForMapMount()
 
-    const rome = groups.find((group) => group.mint.id === 'rome')
+    const rome = groups.find((group) => group.mint.id === 1)
     expect(mocks.markerRecords[0]?.latLng).toEqual([rome?.mint.lat, rome?.mint.lng])
     expect(mocks.divIcon).toHaveBeenCalledWith(expect.objectContaining({
       className: expect.stringContaining('selected'),
@@ -129,6 +129,6 @@ describe('MintMapLeaflet', () => {
 
     mocks.markerRecords[0]?.handlers.click?.()
 
-    expect(wrapper.emitted('select-mint')?.[0]?.[0]).toMatchObject({ mint: { id: 'rome' }, count: 2 })
+    expect(wrapper.emitted('select-mint')?.[0]?.[0]).toMatchObject({ mint: { id: 1 }, count: 2 })
   })
 })

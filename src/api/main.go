@@ -214,6 +214,7 @@ func main() {
 	{
 		coinReferenceRepo := repository.NewCoinReferenceRepository(database.DB)
 		storageLocationRepo := repository.NewStorageLocationRepository(database.DB)
+		mintLocationRepo := repository.NewMintLocationRepository(database.DB)
 		catalogRegistryRepo := repository.NewCatalogRegistryRepository(database.DB)
 		intakeDraftRepo := repository.NewCoinIntakeDraftRepository(database.DB)
 		coinReferenceSvc := services.NewCoinReferenceService(coinReferenceRepo, catalogRegistryRepo)
@@ -258,6 +259,9 @@ func main() {
 		protected.POST("/storage-locations", storageLocationHandler.Create)
 		protected.PUT("/storage-locations/:id", storageLocationHandler.Update)
 		protected.DELETE("/storage-locations/:id", storageLocationHandler.Delete)
+		mintLocationSvc := services.NewMintLocationService(mintLocationRepo)
+		mintLocationHandler := handlers.NewMintLocationHandler(mintLocationSvc)
+		protected.GET("/mint-locations", mintLocationHandler.List)
 
 		tagRepo := repository.NewTagRepository(database.DB)
 		tagHandler := handlers.NewTagHandler(tagRepo)
@@ -490,6 +494,14 @@ func main() {
 		admin.POST("/catalogs", catalogRegistryHandler.Create)
 		admin.PUT("/catalogs/:id", catalogRegistryHandler.Update)
 		admin.DELETE("/catalogs/:id", catalogRegistryHandler.Delete)
+
+		// Mint location management
+		mintLocationRepo := repository.NewMintLocationRepository(database.DB)
+		mintLocationSvc := services.NewMintLocationService(mintLocationRepo)
+		mintLocationHandler := handlers.NewMintLocationHandler(mintLocationSvc)
+		admin.POST("/mint-locations", mintLocationHandler.Create)
+		admin.PUT("/mint-locations/:id", mintLocationHandler.Update)
+		admin.DELETE("/mint-locations/:id", mintLocationHandler.Delete)
 
 		// Availability check run history (reuse availRepo from outer scope)
 		adminAvailHandler := handlers.NewAvailabilityHandler(nil, availRepo, nil)

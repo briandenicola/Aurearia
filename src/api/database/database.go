@@ -29,7 +29,7 @@ func Connect(dbPath string) {
 		log.Fatalf("Failed to migrate coin_references column: %v", err)
 	}
 
-	err = DB.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{}, &models.ApiKey{}, &models.RefreshToken{}, &models.WebAuthnCredential{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.Note{}, &models.CoinIntakeDraft{}, &models.AgentConversation{}, &models.CollectionUpdateProposal{}, &models.Follow{}, &models.CoinComment{}, &models.CoinValueHistory{}, &models.AuctionLot{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.Notification{}, &models.Tag{}, &models.CoinTag{}, &models.CoinSet{}, &models.CoinSetMembership{}, &models.CoinSetTarget{}, &models.CoinSetValuationSnapshot{}, &models.CoinSetMilestoneAlert{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.AuctionEvent{}, &models.PriceAlert{}, &models.BidReminder{}, &models.ValuationRun{}, &models.ValuationResult{}, &models.AuctionEndingRun{}, &models.FeaturedCoin{}, &models.CollectionHealthSnapshot{})
+	err = DB.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.MintLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{}, &models.ApiKey{}, &models.RefreshToken{}, &models.WebAuthnCredential{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.Note{}, &models.CoinIntakeDraft{}, &models.AgentConversation{}, &models.CollectionUpdateProposal{}, &models.Follow{}, &models.CoinComment{}, &models.CoinValueHistory{}, &models.AuctionLot{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.Notification{}, &models.Tag{}, &models.CoinTag{}, &models.CoinSet{}, &models.CoinSetMembership{}, &models.CoinSetTarget{}, &models.CoinSetValuationSnapshot{}, &models.CoinSetMilestoneAlert{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.AuctionEvent{}, &models.PriceAlert{}, &models.BidReminder{}, &models.ValuationRun{}, &models.ValuationResult{}, &models.AuctionEndingRun{}, &models.FeaturedCoin{}, &models.CollectionHealthSnapshot{})
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
@@ -43,8 +43,73 @@ func Connect(dbPath string) {
 	if err := seedCatalogRegistry(DB); err != nil {
 		log.Fatalf("Failed to seed catalog registry: %v", err)
 	}
+	if err := seedMintLocations(DB); err != nil {
+		log.Fatalf("Failed to seed mint locations: %v", err)
+	}
 
 	log.Println("Database connected and migrated")
+}
+
+const mintLocationSeedVersionKey = "MintLocationSeedVersion"
+const currentMintLocationSeedVersion = "1"
+
+func seedMintLocations(db *gorm.DB) error {
+	var existingSetting models.AppSetting
+	err := db.First(&existingSetting, "key = ?", mintLocationSeedVersionKey).Error
+	if err == nil && existingSetting.Value == currentMintLocationSeedVersion {
+		return nil
+	}
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return err
+	}
+
+	seed := []models.MintLocation{
+		{DisplayName: "Rome", Lat: 41.9028, Lng: 12.4964, Region: "Italy", Aliases: models.StringList{"Roma", "Rome mint"}},
+		{DisplayName: "Athens", Lat: 37.9838, Lng: 23.7275, Region: "Greece", Aliases: models.StringList{"Athenai", "Athenae", "Athens mint"}},
+		{DisplayName: "Constantinople", Lat: 41.0082, Lng: 28.9784, Region: "Thrace", Aliases: models.StringList{"Byzantium", "Istanbul", "Constantinopolis", "Constantinople mint"}},
+		{DisplayName: "Alexandria", Lat: 31.2001, Lng: 29.9187, Region: "Egypt", Aliases: models.StringList{"Alexandria Egypt", "Alexandria ad Aegyptum"}},
+		{DisplayName: "Antioch", Lat: 36.2021, Lng: 36.1603, Region: "Syria", Aliases: models.StringList{"Antiochia", "Antioch on the Orontes", "Antioch mint"}},
+		{DisplayName: "Syracuse", Lat: 37.0755, Lng: 15.2866, Region: "Sicily", Aliases: models.StringList{"Syracusa", "Syracuse Sicily"}},
+		{DisplayName: "Trier", Lat: 49.7499, Lng: 6.6371, Region: "Gaul", Aliases: models.StringList{"Treveri", "Treves", "Augusta Treverorum"}},
+		{DisplayName: "Lugdunum", Lat: 45.764, Lng: 4.8357, Region: "Gaul", Aliases: models.StringList{"Lyon", "Lyons", "Lugdunum Lyon"}},
+		{DisplayName: "Siscia", Lat: 45.4872, Lng: 16.376, Region: "Pannonia", Aliases: models.StringList{"Sisak", "Siscia mint"}},
+		{DisplayName: "Nicomedia", Lat: 40.7654, Lng: 29.9408, Region: "Bithynia", Aliases: models.StringList{"Nikomedia", "Izmit"}},
+		{DisplayName: "Cyzicus", Lat: 40.3991, Lng: 27.7936, Region: "Mysia", Aliases: models.StringList{"Kyzikos", "Cyzicus mint"}},
+		{DisplayName: "Carthage", Lat: 36.8528, Lng: 10.3233, Region: "Africa", Aliases: models.StringList{"Carthago", "Qart Hadasht"}},
+		{DisplayName: "Thessalonica", Lat: 40.6401, Lng: 22.9444, Region: "Macedonia", Aliases: models.StringList{"Thessalonika", "Thessaloniki"}},
+		{DisplayName: "Heraclea", Lat: 41.2797, Lng: 27.9553, Region: "Thrace", Aliases: models.StringList{"Heraclea Thraciae", "Herakleia"}},
+		{DisplayName: "Aquileia", Lat: 45.7686, Lng: 13.3678, Region: "Italy", Aliases: models.StringList{"Aquileia mint"}},
+		{DisplayName: "Arelate", Lat: 43.6766, Lng: 4.6278, Region: "Gaul", Aliases: models.StringList{"Arles", "Arelate Arles", "Constantina"}},
+		{DisplayName: "Ephesus", Lat: 37.9393, Lng: 27.3416, Region: "Ionia", Aliases: models.StringList{"Ephesos", "Ephesus mint"}},
+	}
+
+	return db.Transaction(func(tx *gorm.DB) error {
+		for _, entry := range seed {
+			entry.NormalizedName = models.NormalizeMintLocationName(entry.DisplayName)
+			var existing models.MintLocation
+			err := tx.Where("normalized_name = ?", entry.NormalizedName).First(&existing).Error
+			if err == nil {
+				updates := map[string]interface{}{
+					"display_name": entry.DisplayName,
+					"lat":          entry.Lat,
+					"lng":          entry.Lng,
+					"region":       entry.Region,
+					"aliases":      entry.Aliases,
+				}
+				if err := tx.Model(&existing).Updates(updates).Error; err != nil {
+					return err
+				}
+				continue
+			}
+			if err != gorm.ErrRecordNotFound {
+				return err
+			}
+			if err := tx.Create(&entry).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Save(&models.AppSetting{Key: mintLocationSeedVersionKey, Value: currentMintLocationSeedVersion}).Error
+	})
 }
 
 // migrateCoinReferenceCertaintyColumn renames certainty → invoice_number if needed (idempotent).

@@ -197,6 +197,17 @@ export interface StorageLocation {
   sortOrder?: number
 }
 
+export interface MintLocation {
+  id: number
+  displayName: string
+  lat: number
+  lng: number
+  region: string
+  aliases: string[]
+  createdAt: string
+  updatedAt: string
+}
+
 export interface CollectionSetOption {
   id: number
   name: string

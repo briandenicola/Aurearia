@@ -1,13 +1,13 @@
-import { ancientMints } from '@/data/ancientMints'
 import type { Coin } from '@/types'
+import type { MintLocation } from '@/types'
 
 export interface MintReference {
-  id: string
+  id: number
   displayName: string
   lat: number
   lng: number
   aliases: readonly string[]
-  region?: string
+  region: string
 }
 
 export interface MintGroup {
@@ -39,22 +39,29 @@ export function normalizeMintName(value: string): string {
     .replace(/\s+/g, ' ')
 }
 
-const mintLookup = new Map<string, MintReference>()
-
-for (const mint of ancientMints) {
-  mintLookup.set(normalizeMintName(mint.displayName), mint)
-  for (const alias of mint.aliases) {
-    mintLookup.set(normalizeMintName(alias), mint)
+function buildMintLookup(mintLocations: readonly MintLocation[]): Map<string, MintReference> {
+  const lookup = new Map<string, MintReference>()
+  for (const mint of mintLocations) {
+    lookup.set(normalizeMintName(mint.displayName), mint)
+    for (const alias of mint.aliases ?? []) {
+      const normalizedAlias = normalizeMintName(alias)
+      if (normalizedAlias) {
+        lookup.set(normalizedAlias, mint)
+      }
+    }
   }
+  return lookup
 }
 
-export function findMintReference(value: string): MintReference | null {
+export function findMintReference(value: string, mintLocations: readonly MintLocation[]): MintReference | null {
   const normalized = normalizeMintName(value)
   if (!normalized) return null
+  const mintLookup = buildMintLookup(mintLocations)
   return mintLookup.get(normalized) ?? null
 }
 
-export function groupCoinsByMint(coins: Coin[]): MintMapAggregation {
+export function groupCoinsByMint(coins: Coin[], mintLocations: readonly MintLocation[]): MintMapAggregation {
+  const mintLookup = buildMintLookup(mintLocations)
   const matchedByMint = new Map<string, MintGroup>()
   const unmatchedByName = new Map<string, { originalNames: Set<string>; coins: Coin[] }>()
   const unknown: Coin[] = []
@@ -67,14 +74,14 @@ export function groupCoinsByMint(coins: Coin[]): MintMapAggregation {
       continue
     }
 
-    const reference = findMintReference(rawMint)
+    const reference = mintLookup.get(normalizedName) ?? null
     if (reference) {
-      const existing = matchedByMint.get(reference.id)
+      const existing = matchedByMint.get(String(reference.id))
       if (existing) {
         existing.coins.push(coin)
         existing.count = existing.coins.length
       } else {
-        matchedByMint.set(reference.id, { mint: reference, coins: [coin], count: 1 })
+        matchedByMint.set(String(reference.id), { mint: reference, coins: [coin], count: 1 })
       }
       continue
     }

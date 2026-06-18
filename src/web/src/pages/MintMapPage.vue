@@ -10,7 +10,7 @@
       </router-link>
     </header>
 
-    <div v-if="store.loading" class="loading-card card" role="status">
+    <div v-if="loading" class="loading-card card" role="status">
       <div class="spinner"></div>
       <span>Loading collection mints...</span>
     </div>
@@ -18,7 +18,12 @@
     <div v-else-if="errorMessage" class="state-card card" role="alert">
       <h2>Mint map unavailable</h2>
       <p>{{ errorMessage }}</p>
-      <button class="btn btn-primary" type="button" @click="loadDefaultCollection">Try Again</button>
+      <button class="btn btn-primary" type="button" @click="loadMapData">Try Again</button>
+    </div>
+
+    <div v-else-if="!mintLocations.length" class="state-card card" role="alert">
+      <h2>No mint locations configured</h2>
+      <p>Ask an administrator to add global mint locations before using the map.</p>
     </div>
 
     <div v-else-if="!store.coins.length" class="state-card card">
@@ -59,17 +64,22 @@
 import { computed, onMounted, ref } from 'vue'
 import { ArrowLeft } from 'lucide-vue-next'
 import { useCoinsStore } from '@/stores/coins'
+import { getMintLocations, type MintLocationsResponse } from '@/api/client'
 import MintMapLeaflet from '@/components/map/MintMapLeaflet.vue'
 import MintCoinDrawer from '@/components/map/MintCoinDrawer.vue'
 import UnattributedMintBucket from '@/components/map/UnattributedMintBucket.vue'
 import { groupCoinsByMint, type MintGroup } from '@/utils/mintMap'
+import type { MintLocation } from '@/types'
 
 const store = useCoinsStore()
-const selectedMintId = ref<string | null>(null)
+const selectedMintId = ref<number | null>(null)
 const unattributedExpanded = ref(false)
 const errorMessage = ref('')
+const mintLocations = ref<MintLocation[]>([])
+const mintLocationsLoading = ref(false)
 
-const aggregation = computed(() => groupCoinsByMint(store.coins))
+const loading = computed(() => store.loading || mintLocationsLoading.value)
+const aggregation = computed(() => groupCoinsByMint(store.coins, mintLocations.value))
 const selectedGroup = computed(() =>
   aggregation.value.matched.find((group) => group.mint.id === selectedMintId.value) ?? null,
 )
@@ -84,19 +94,37 @@ function selectMint(group: MintGroup) {
   selectedMintId.value = group.mint.id
 }
 
-async function loadDefaultCollection() {
+function unwrapMintLocations(data: MintLocationsResponse): MintLocation[] {
+  return Array.isArray(data) ? data : data.mintLocations ?? []
+}
+
+async function loadMapData() {
   errorMessage.value = ''
+  selectedMintId.value = null
+  mintLocationsLoading.value = true
   try {
-    await store.fetchCoins({ wishlist: 'false', sold: 'false' })
+    const locationsRes = await getMintLocations()
+    mintLocations.value = unwrapMintLocations(locationsRes.data)
+  } catch {
+    mintLocations.value = []
+    errorMessage.value = 'Mint locations could not be loaded. Check your connection and try again.'
+  } finally {
+    mintLocationsLoading.value = false
+  }
+
+  if (errorMessage.value) return
+
+  try {
+    if (!store.coins.length) {
+      await store.fetchCoins({ wishlist: 'false', sold: 'false' })
+    }
   } catch {
     errorMessage.value = 'The active collection could not be loaded. Check your connection and try again.'
   }
 }
 
 onMounted(() => {
-  if (!store.coins.length) {
-    loadDefaultCollection()
-  }
+  loadMapData()
 })
 </script>
 

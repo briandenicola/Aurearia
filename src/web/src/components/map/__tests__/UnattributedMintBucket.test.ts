@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import UnattributedMintBucket from '@/components/map/UnattributedMintBucket.vue'
 import { groupCoinsByMint } from '@/utils/mintMap'
-import { buildMintMapFixtureCoins } from '@/test/fixtures/coins'
+import { buildMintMapFixtureCoins, buildTestMintLocations } from '@/test/fixtures/coins'
 
 const routerLinkStub = {
   props: ['to'],
@@ -10,8 +10,10 @@ const routerLinkStub = {
 }
 
 describe('UnattributedMintBucket', () => {
+  const mintLocations = buildTestMintLocations()
+
   it('surfaces unknown and unmatched mint coins', () => {
-    const grouped = groupCoinsByMint(buildMintMapFixtureCoins())
+    const grouped = groupCoinsByMint(buildMintMapFixtureCoins(), mintLocations)
     const wrapper = mount(UnattributedMintBucket, {
       props: {
         expanded: true,

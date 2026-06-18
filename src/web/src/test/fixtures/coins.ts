@@ -1,4 +1,4 @@
-import type { Coin, CoinImage, CoinReference, CoinSet, StorageLocation, Tag } from '@/types'
+import type { Coin, CoinImage, CoinReference, CoinSet, MintLocation, StorageLocation, Tag } from '@/types'
 
 export const GOLDEN_COIN_FIXTURE_NAMES = [
   'roman-denarius-core',
@@ -112,6 +112,49 @@ const sets = {
     updatedAt,
   },
 } satisfies Record<string, CoinSet>
+
+const mintLocations: MintLocation[] = [
+  {
+    id: 1,
+    displayName: 'Rome',
+    lat: 41.9028,
+    lng: 12.4964,
+    region: 'Italy',
+    aliases: ['Roma', 'Rome mint'],
+    createdAt,
+    updatedAt,
+  },
+  {
+    id: 2,
+    displayName: 'Constantinople',
+    lat: 41.0082,
+    lng: 28.9784,
+    region: 'Thrace',
+    aliases: ['Byzantium', 'Istanbul', 'Constantinopolis', 'Constantinople mint'],
+    createdAt,
+    updatedAt,
+  },
+  {
+    id: 3,
+    displayName: 'Athens',
+    lat: 37.9838,
+    lng: 23.7275,
+    region: 'Greece',
+    aliases: ['Athenai', 'Athenae', 'Athens mint'],
+    createdAt,
+    updatedAt,
+  },
+  {
+    id: 4,
+    displayName: 'Syracuse',
+    lat: 37.0755,
+    lng: 15.2866,
+    region: 'Sicily',
+    aliases: ['Syracusa', 'Syracuse Sicily'],
+    createdAt,
+    updatedAt,
+  },
+]
 
 function buildImage(coinId: number, id: number, imageType: CoinImage['imageType'], isPrimary = false): CoinImage {
   return {
@@ -424,4 +467,8 @@ export function buildTestTags(): Tag[] {
 
 export function buildTestCoinSets(): CoinSet[] {
   return Object.values(sets).map((set) => ({ ...set }))
+}
+
+export function buildTestMintLocations(): MintLocation[] {
+  return mintLocations.map((location) => ({ ...location, aliases: [...location.aliases] }))
 }

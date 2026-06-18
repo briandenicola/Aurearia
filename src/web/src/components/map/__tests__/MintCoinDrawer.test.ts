@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 import MintCoinDrawer from '@/components/map/MintCoinDrawer.vue'
 import { groupCoinsByMint } from '@/utils/mintMap'
-import { buildMintMapFixtureCoins } from '@/test/fixtures/coins'
+import { buildMintMapFixtureCoins, buildTestMintLocations } from '@/test/fixtures/coins'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -16,8 +16,10 @@ const routerLinkStub = {
 }
 
 describe('MintCoinDrawer', () => {
+  const mintLocations = buildTestMintLocations()
+
   it('lists only the selected mint group coins', () => {
-    const group = groupCoinsByMint(buildMintMapFixtureCoins()).matched.find((item) => item.mint.id === 'rome') ?? null
+    const group = groupCoinsByMint(buildMintMapFixtureCoins(), mintLocations).matched.find((item) => item.mint.id === 1) ?? null
     const wrapper = mount(MintCoinDrawer, {
       props: { open: true, group },
       global: { stubs: { RouterLink: routerLinkStub } },
@@ -29,7 +31,7 @@ describe('MintCoinDrawer', () => {
   })
 
   it('renders drawer with z-index 1100 to stack above Leaflet map controls (z-index 1000)', () => {
-    const group = groupCoinsByMint(buildMintMapFixtureCoins()).matched.find((item) => item.mint.id === 'rome') ?? null
+    const group = groupCoinsByMint(buildMintMapFixtureCoins(), mintLocations).matched.find((item) => item.mint.id === 1) ?? null
     const wrapper = mount(MintCoinDrawer, {
       props: { open: true, group },
       global: { stubs: { RouterLink: routerLinkStub } },

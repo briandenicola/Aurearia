@@ -86,3 +86,5 @@
    - **Lockout Clearance:** ✅ COMPLETE — docs state now reflects actual Playwright suite (9 tests), no stale backlog items, §18.2 process honored
    - **Maximus Re-Review:** ✅ APPROVED — T024–T026 workflows + docs alignment internally consistent, Principle VIII (CI/CD & Build Hygiene) satisfied, all Quality Gate §17 checks passed
    - **Orchestration Log:** `.squad/orchestration-log/2026-06-09T13-45-07Z-brutus.md`
+
+- **2026-06-18:** Mint location QA validation completed. Backend auth split, service validation, duplicate handling, seed idempotency, and architecture layering reviewed; Go tests/vet passed after a transient vet re-run. Frontend map now loads `/mint-locations` before active collection grouping and admin CRUD has client coordinate validation + comma/newline alias parsing. Fixed stale `MintMapPage.test.ts` mocks so regression tests cover backend-provided mint locations; full Vitest/type-check/build passed. `git diff --check` initially found trailing whitespace in Aurelia history; QA trimmed it.

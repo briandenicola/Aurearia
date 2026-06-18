@@ -19,7 +19,7 @@ import type { MintGroup } from '@/utils/mintMap'
 
 const props = defineProps<{
   groups: MintGroup[]
-  selectedMintId?: string | null
+  selectedMintId?: number | null
 }>()
 
 const emit = defineEmits<{
