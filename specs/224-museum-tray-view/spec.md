@@ -24,15 +24,15 @@ Add a read-only **Tray view** display mode that presents the collection as physi
 
 ### User Story 1: Enter Tray View (Priority: P1)
 
-As a collector, I open the "Tray" view from the collection page and see my coins seated in felt-lined wells, so the collection reads as physical objects.
+As a collector, I open the "Tray" view from the Collection submenu in the sidebar and see my coins seated in felt-lined wells, so the collection reads as physical objects.
 
 **Why this priority**: Core feature. Without this, the tray doesn't exist. Enables all other stories.
 
-**Independent Test**: Able to navigate from collection page to tray view and see coins rendered in wells. Empty tray shows friendly message if collection is empty.
+**Independent Test**: Able to navigate from Collection submenu to tray view and see coins rendered in wells. Empty tray shows friendly message if collection is empty.
 
 **Acceptance Scenarios**:
 
-1. **Given** I am on the collection page with coins loaded, **When** I click/tap the "Tray" view button, **Then** I navigate to `/tray` and see coins seated in felt-lined wells with soft shadows.
+1. **Given** I am viewing the app sidebar with the Collection menu expanded, **When** I click/tap the "Tray" submenu item, **Then** I navigate to `/tray` and see coins seated in felt-lined wells with soft shadows.
 2. **Given** I am on an empty collection, **When** I navigate to `/tray`, **Then** I see a friendly empty state and option to return to collection or add coins.
 3. **Given** I am viewing the tray, **When** I return to the collection page, **Then** my filters and sort order are preserved.
 
@@ -147,7 +147,7 @@ As an accessibility-conscious user with `prefers-reduced-motion` enabled, the tr
 - **FR-008**: System MUST offer at least 3 felt color themes (red, green, navy) and persist the user's selection in localStorage.
 - **FR-009**: System MUST respect `prefers-reduced-motion: reduce` and avoid animations on hover/focus.
 - **FR-010**: System MUST show a friendly empty state if the collection is empty or the current filtered set is empty.
-- **FR-011**: System MUST be reachable via a "Tray" button/chip in both desktop and PWA collection headers.
+- **FR-011**: System MUST be reachable via a "Tray" submenu item under Collection in the sidebar navigation (consistent with Stats submenu structure).
 - **FR-012**: System MUST use only existing design tokens and global button/chip CSS classes; no hardcoded colors or spacing.
 
 ### Key Entities
@@ -158,8 +158,8 @@ As an accessibility-conscious user with `prefers-reduced-motion` enabled, the tr
 
 ### Data Flow
 
-1. **CollectionPage** / **Headers** → User clicks "Tray" button.
-2. **Router** → Navigate to `/tray`.
+1. **App.vue** → Collection submenu expands to show sub-items (Gallery, Tray).
+2. **User clicks "Tray"** → Navigate to `/tray`.
 3. **TrayViewPage** → Fetch `store.coins` (already loaded from collection); if empty, show empty state.
 4. **MuseumTray** → Calculate layout via `trayLayout.ts`, render wells grid.
 5. **MuseumTrayWell** → Render coin image, shadow, handle click/keyboard.
@@ -171,7 +171,7 @@ As an accessibility-conscious user with `prefers-reduced-motion` enabled, the tr
 
 ### Measurable Outcomes
 
-- **SC-001**: Users can navigate to tray view from collection page in one click/tap.
+- **SC-001**: Users can navigate to tray view from the Collection submenu in the sidebar in one click/tap.
 - **SC-002**: Tray renders all loaded coins in the current drawer without jank (60fps on mobile, no long paint times).
 - **SC-003**: 100% of coins with `diameterMm` are scaled proportionally; 100% of coins without it use safe default size.
 - **SC-004**: On mobile, tray grid is 2–3 columns; on tablet 4–5; on desktop 6–8 (responsive layout verified, no hardcoded pixel values).

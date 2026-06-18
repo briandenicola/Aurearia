@@ -44,7 +44,7 @@ Add a read-only frontend-only Tray display mode that renders the current collect
 
 **§17 Quality Gate**: Tests must cover diameter scaling, missing diameter fallback, drawer pagination, responsive grid, and action routing; `type-check`, `build` must pass.
 
-**§21 DoD**: Component tests, utility tests, type safety, responsive design tested, integration with collection headers verified.
+**§21 DoD**: Component tests, utility tests, type safety, responsive design tested, and sidebar navigation integration verified.
 
 ---
 
@@ -57,12 +57,9 @@ specs/224-museum-tray-view/
 
 src/web/src/
 ├── pages/
-│   ├── CollectionPage.vue               # Existing; add Tray button to headers
+│   ├── CollectionPage.vue               # Existing; no changes
 │   └── TrayViewPage.vue                 # NEW: Main tray view page
 ├── components/
-│   ├── collection/
-│   │   ├── DesktopCollectionHeader.vue  # Existing; add Tray button
-│   │   └── PwaCollectionHeader.vue      # Existing; add Tray button
 │   ├── tray/                            # NEW: Tray-specific components
 │   │   ├── MuseumTray.vue               # NEW: Grid container with felt background
 │   │   ├── MuseumTrayWell.vue           # NEW: Single coin well component
@@ -78,11 +75,12 @@ src/web/src/
 │   ├── useTrayPreference.ts             # NEW: LocalStorage felt color persistence
 │   └── __tests__/
 │       └── useTrayPreference.test.ts    # NEW: Test localStorage persistence
+├── App.vue                              # Existing; update sidebar navigation to add Tray submenu
 └── router/
     └── index.ts                         # Existing; add /tray route
 ```
 
-**Structure Decision**: All tray-specific presentation under `components/tray/`. Layout math in `utils/trayLayout.ts` for independent testing and reuse. Composable for preference logic. Tests follow repo convention in `__tests__/` subdirectories at component/utils/composables level.
+**Structure Decision**: All tray-specific presentation under `components/tray/`. Layout math in `utils/trayLayout.ts` for independent testing and reuse. Composable for preference logic. Tests follow repo convention in `__tests__/` subdirectories at component/utils/composables level. Sidebar navigation updated in `App.vue` to add "Tray" as a submenu item under Collection (parallel to Stats structure).
 
 ---
 
@@ -211,7 +209,7 @@ interface TrayLayoutOptions {
 
 ### Phase 3: Page and Route (Dependency: Phase 2 complete)
 
-**Purpose**: Wire tray into app and make it reachable.
+**Purpose**: Wire tray into app and make it reachable via sidebar.
 
 1. Create `src/web/src/pages/TrayViewPage.vue`:
    - Use `useCoinsStore()` to access `store.coins`.
@@ -228,19 +226,17 @@ interface TrayLayoutOptions {
 2. Update `src/web/src/router/index.ts`:
    - Add route: `{ path: '/tray', component: TrayViewPage, meta: { requiresAuth: true } }`.
 
-3. Update `src/web/src/components/collection/DesktopCollectionHeader.vue`:
-   - Add "Tray" chip/button in the toolbar-right area (alongside other view options).
+3. Update `src/web/src/App.vue`:
+   - Add "Tray" submenu item under Collection in the sidebar navigation.
+   - Follow the same submenu structure as Stats (e.g., Gallery under Collection as the main collection view, Tray as a submenu item).
    - Router link or click handler to navigate to `/tray`.
-
-4. Update `src/web/src/components/collection/PwaCollectionHeader.vue`:
-   - Add "Tray" chip/button in the View section of pwa-menu (alongside existing view toggles).
-   - Router link or click handler to navigate to `/tray`.
+   - Ensure submenu expands/collapses consistently with existing navigation patterns.
 
 ---
 
 ### Phase 4: Coin Interaction (Dependency: Phase 3 complete)
 
-**Purpose**: Handle user actions in tray.
+**Purpose**: Handle user actions in tray and verify navigation works end-to-end.
 
 1. Update `TrayViewPage.vue`:
    - On `coin-clicked` event, route to `/coin/:id` using `router.push({ name: 'coin-detail', params: { id: coin.id } })`.
@@ -253,6 +249,11 @@ interface TrayLayoutOptions {
 
 3. Test drawer preservation:
    - Open a coin from drawer 2, return via browser back, verify on drawer 2 still.
+
+4. Test sidebar navigation:
+   - Verify Collection submenu expands/collapses.
+   - Verify clicking "Tray" navigates to `/tray` and Collection submenu remains accessible.
+   - Verify Gallery (collection main view) and Tray submenu items are distinct and work independently.
 
 ---
 
