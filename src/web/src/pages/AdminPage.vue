@@ -229,7 +229,7 @@ const router = useRouter()
 const rawVersion = import.meta.env.VITE_APP_VERSION || 'dev'
 const appVersion = computed(() => {
   if (rawVersion === 'dev') return 'dev'
-  return rawVersion.length > 8 ? rawVersion.substring(0, 7) : rawVersion
+  return rawVersion
 })
 const buildDate = computed(() => {
   const raw = import.meta.env.VITE_BUILD_DATE

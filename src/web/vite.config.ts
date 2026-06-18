@@ -1,10 +1,35 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
+const versionFile = new URL('../../VERSION', import.meta.url)
+
+function readBaseVersion() {
+  if (!existsSync(versionFile)) return 'dev'
+  return readFileSync(versionFile, 'utf8').trim() || 'dev'
+}
+
+function readCommitSha() {
+  try {
+    return execSync('git rev-parse --short HEAD', { cwd: repoRoot, encoding: 'utf8' }).trim()
+  } catch {
+    return ''
+  }
+}
+
+const baseVersion = readBaseVersion()
+const commitSha = readCommitSha()
+const appVersion = process.env.VITE_APP_VERSION || (commitSha ? `${baseVersion}.${commitSha}` : baseVersion)
+
 export default defineConfig({
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+  },
   plugins: [
     vue(),
     VitePWA({
