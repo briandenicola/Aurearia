@@ -6,8 +6,7 @@
         :disabled="drawerIndex === 0"
         @click="emit('prev')"
       >
-        <ChevronLeft :size="16" />
-        Previous
+        &lt; Previous
       </button>
       <span class="drawer-label">
         Drawer {{ drawerIndex + 1 }} of {{ totalDrawers }}
@@ -17,8 +16,7 @@
         :disabled="drawerIndex >= totalDrawers - 1"
         @click="emit('next')"
       >
-        Next
-        <ChevronRight :size="16" />
+        Next &gt;
       </button>
     </div>
     <div class="felt-theme-selector">
@@ -54,7 +52,6 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import type { FeltColor } from '@/composables/useTrayPreference'
 
 interface Props {
@@ -83,12 +80,18 @@ const emit = defineEmits<{
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: nowrap;
   gap: 1rem;
+}
+
+.drawer-navigation .btn {
+  white-space: nowrap;
 }
 
 .drawer-label {
   font-size: 0.9rem;
   color: var(--text-primary);
+  flex: 0 0 auto;
   min-width: 120px;
   text-align: center;
 }
@@ -153,17 +156,11 @@ const emit = defineEmits<{
   .tray-controls {
     gap: 0.75rem;
   }
-  
+
   .drawer-navigation {
-    flex-direction: column;
     gap: 0.5rem;
   }
-  
-  .drawer-label {
-    order: -1;
-    margin-bottom: 0.25rem;
-  }
-  
+
   .felt-theme-selector {
     flex-direction: column;
     gap: 0.5rem;
