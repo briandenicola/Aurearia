@@ -1,0 +1,23 @@
+import { describe, it, expect } from 'vitest'
+import { mount } from '@vue/test-utils'
+import TrayControls from '../tray/TrayControls.vue'
+
+describe('TrayControls', () => {
+  it('renders drawer navigation in Previous, label, Next order', () => {
+    const wrapper = mount(TrayControls, {
+      props: {
+        drawerIndex: 1,
+        totalDrawers: 5,
+        feltTheme: 'red',
+      },
+    })
+
+    const navigation = wrapper.find('.drawer-navigation')
+    const items = navigation.element.children
+
+    expect(items).toHaveLength(3)
+    expect(items[0]?.textContent?.trim()).toBe('< Previous')
+    expect(items[1]?.textContent?.trim()).toBe('Drawer 2 of 5')
+    expect(items[2]?.textContent?.trim()).toBe('Next >')
+  })
+})
