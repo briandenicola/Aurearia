@@ -26,7 +26,7 @@
       <p>Ask an administrator to add global mint locations before using the map.</p>
     </div>
 
-    <div v-else-if="!store.coins.length" class="state-card card">
+    <div v-else-if="!collectionCoins.length" class="state-card card">
       <h2>No active coins to map</h2>
       <p>Add coins with mint values, or return after your collection has loaded.</p>
       <router-link class="btn btn-primary" to="/add">Add Coin</router-link>
@@ -63,23 +63,25 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ArrowLeft } from 'lucide-vue-next'
-import { useCoinsStore } from '@/stores/coins'
-import { getMintLocations, type MintLocationsResponse } from '@/api/client'
+import { getCoins, getMintLocations, type MintLocationsResponse } from '@/api/client'
 import MintMapLeaflet from '@/components/map/MintMapLeaflet.vue'
 import MintCoinDrawer from '@/components/map/MintCoinDrawer.vue'
 import UnattributedMintBucket from '@/components/map/UnattributedMintBucket.vue'
 import { groupCoinsByMint, type MintGroup } from '@/utils/mintMap'
-import type { MintLocation } from '@/types'
+import type { Coin, MintLocation } from '@/types'
 
-const store = useCoinsStore()
+const MAP_PAGE_LIMIT = 100
+
 const selectedMintId = ref<number | null>(null)
 const unattributedExpanded = ref(false)
 const errorMessage = ref('')
 const mintLocations = ref<MintLocation[]>([])
+const collectionCoins = ref<Coin[]>([])
 const mintLocationsLoading = ref(false)
+const coinsLoading = ref(false)
 
-const loading = computed(() => store.loading || mintLocationsLoading.value)
-const aggregation = computed(() => groupCoinsByMint(store.coins, mintLocations.value))
+const loading = computed(() => mintLocationsLoading.value || coinsLoading.value)
+const aggregation = computed(() => groupCoinsByMint(collectionCoins.value, mintLocations.value))
 const selectedGroup = computed(() =>
   aggregation.value.matched.find((group) => group.mint.id === selectedMintId.value) ?? null,
 )
@@ -96,6 +98,28 @@ function selectMint(group: MintGroup) {
 
 function unwrapMintLocations(data: MintLocationsResponse): MintLocation[] {
   return Array.isArray(data) ? data : data.mintLocations ?? []
+}
+
+async function fetchAllActiveCollectionCoins(): Promise<Coin[]> {
+  const allCoins: Coin[] = []
+  let page = 1
+
+  while (true) {
+    const res = await getCoins({
+      wishlist: 'false',
+      sold: 'false',
+      page,
+      limit: MAP_PAGE_LIMIT,
+    })
+    const pageCoins = res.data.coins ?? []
+    allCoins.push(...pageCoins)
+    const total = res.data.total ?? allCoins.length
+
+    if (!pageCoins.length || allCoins.length >= total) break
+    page += 1
+  }
+
+  return allCoins
 }
 
 async function loadMapData() {
@@ -115,11 +139,13 @@ async function loadMapData() {
   if (errorMessage.value) return
 
   try {
-    if (!store.coins.length) {
-      await store.fetchCoins({ wishlist: 'false', sold: 'false' })
-    }
+    coinsLoading.value = true
+    collectionCoins.value = await fetchAllActiveCollectionCoins()
   } catch {
+    collectionCoins.value = []
     errorMessage.value = 'The active collection could not be loaded. Check your connection and try again.'
+  } finally {
+    coinsLoading.value = false
   }
 }
 

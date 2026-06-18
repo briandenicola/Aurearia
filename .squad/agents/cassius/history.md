@@ -31,6 +31,14 @@
 - **2026-06-09:** F013 Phase 3 golden fixtures complete (T014). Implemented Go fixture builders covering all 9 F013 golden coin names/traits with defensive cloning and optional deterministic DB persistence. Approved by Maximus Lead Review. Go build/test/vet all pass. Orchestration log: `.squad/orchestration-log/2026-06-09T13-09-16-cassius.md`
 - **2026-06-02:** Valuation freshness fix (CurrentValueUpdatedAt), Metadata health AI coverage fix (combined→obverse+reverse), AI coverage health scoring correction (per-side model finalized), checklist labels for missing side
 - **2026-06-08:** CodeQL request-forgery suppression comments added to `ProxyImage` and `ScrapeImage` handlers; SSRF protection layer remains unchanged
+- **2026-06-18:** Mint Map Backend Analysis — Pagination Limit Investigation
+   - Investigated Aurelia's report that Mint Map displayed only 50 coins despite larger active collections
+   - Confirmed that `GET /coins` endpoint is correctly implemented as paginated collection API with default `limit=50`, validated max `limit=100`, and `total` field for paging
+   - Verified no backend total cap exists; pagination behavior is safe and intentional
+   - Decision: no backend changes required; frontend should fetch all active collection pages using explicit pagination loop with `wishlist=false`, `sold=false`, `page`, `limit=100`
+   - Architecture compliant: preserves safe paginated API contract (Principle I), respects explicit response contract (Principle III), uses proportional frontend-only fix (Principle IV)
+   - Orchestration log: `.squad/orchestration-log/2026-06-18T21-14-02Z-cassius.md`
+
 
 
 ## Learnings
@@ -604,3 +612,9 @@ T014 now has backend golden coin builders in `src/api/testutil` aligned with the
 Added admin-only backend manual trigger `POST /api/admin/collection-health-snapshots/run`, wired through `AdminHealthHandler` with constructor-injected `CollectionHealthScheduler`. The trigger returns `{ "message": "Collection health snapshots run completed" }` and has focused success/401/403 handler tests.
 
 **Learning:** Collection health snapshots follow the same admin scheduler trigger pattern as auction ending and coin-of-day: keep the handler thin, call the existing scheduler synchronously, and let admin route middleware enforce access.
+
+## 2026-06-18 — Mint Map Coin Limit Investigation
+
+Investigated the reported 50-coin Mint Map cap from the backend side. The normal `GET /coins` endpoint intentionally defaults to `limit=50` and validates `limit` between 1 and 100 in `src/api/handlers/coins.go`; `src/api/repository/coin_repository.go` applies pagination and returns `total`, `page`, and `limit`, so the API does not impose a 50-coin total cap. `src/web/src/pages/MintMapPage.vue` currently calls `store.fetchCoins({ wishlist: 'false', sold: 'false' })` without an explicit limit or page loop, so the observed Mint Map cap is frontend fetch behavior against the paged endpoint, not a backend data contract failure.
+
+**Learning:** For all-collection frontend subviews such as Mint Map, use the existing `/coins` pagination contract explicitly by fetching pages (max `limit=100`) until `total` is covered, rather than removing backend pagination globally. Backend change is only needed if product chooses a dedicated map-specific read model/route later.

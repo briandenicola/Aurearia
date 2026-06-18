@@ -156,6 +156,51 @@ Comprehensive testing ensures no data loss, proper authorization, and no regress
 
 ---
 
+### Decision: Mint Map Frontend 50-Coin Limit — Pagination Loop Implementation
+
+**Date:** 2026-06-18  
+**Agents:** Aurelia (implementation), Cassius (backend analysis), Brutus (QA review)  
+**Status:** APPROVED — IMPLEMENTED
+
+## Context
+
+Mint Map displayed only 50 coins despite larger active collections. Root cause: frontend relied on paginated store cache that contained only the current page.
+
+## Decision
+
+Mint Map now fetches all active collection coins directly through paginated `getCoins()` loop before grouping with map utility.
+
+**Frontend Changes:**
+- `MintMapPage.vue`: replaced store page-cache use with explicit `getCoins()` pagination loop
+  - Fetches coins with `wishlist=false`, `sold=false`, `page`, `limit=100`
+  - Loops until `page * limit >= total`
+  - Groups results after all pages collected
+- `MintMapPage.test.ts`: regression coverage for >50 active-collection path
+  - Test loads 120 active Rome coins across two API pages
+  - Asserts both pages fetched and mapped count equals 120
+
+**Backend:** No changes required
+- Existing `/coins?wishlist=false&sold=false&page=N&limit=100` contract is correct
+- Pagination parameters work as documented
+
+## Rationale
+
+Preserves the safe paginated API contract while allowing Mint Map to load all relevant coins deliberately. Keeps pagination logic in the repository layer (Principle I), respects the explicit response contract (Principle III), and uses a proportional frontend-only fix (Principle IV).
+
+## Constitution Alignment
+
+- Principle I (Layered): Database pagination remains repository-owned
+- Principle III (Explicit Contracts): API response contract unchanged
+- Principle IV (Simple Complete): Frontend fix is minimal and proportional
+- Principle IX (Tests): Regression coverage for >50 active-collection path
+- §17 Quality Gate: All tests passing, no lint/build issues
+
+## Verdict
+
+**APPROVED FOR MERGE** — Regression proves fix handles >50 active-collection path correctly. Frontend build/test/lint all passing.
+
+---
+
 ### Decision: Coin of the Day Pushover Link Configuration
 
 **Date:** 2026-06-10  

@@ -33,6 +33,7 @@
 
 ## Learnings
 
+- **2026-06-18:** Mint Map must not rely on the shared collection store page cache, because the store may contain only the current paginated page. `src/web/src/pages/MintMapPage.vue` now fetches active collection coins directly through `getCoins()` page-by-page (`wishlist:false`, `sold:false`) before grouping with `src/web/src/utils/mintMap.ts`; regression coverage lives in `src/web/src/pages/__tests__/MintMapPage.test.ts`.
 - **2026-06-09:** F013 browser workflow smoke uses Playwright under `src/web/e2e/` with route-level API mocks and authenticated localStorage setup, so login, manual add, and edit-one-field coverage can run without a live backend or production data.
 - **2026-06-09:** F013 frontend fixture data now lives in `src/web/src/test/fixtures/`. Coin builders return cloned `Coin` objects so component/browser tests can safely override nested images, references, tags, sets, and storage-location data without mutating shared golden fixtures.
 - **2026-06-09:** F013 add/edit workflow inventory: manual add and intake commit use the safer allowlisted `buildCoinPayload()`, but `EditCoinPage` still sends the whole loaded `Partial<Coin>` through `updateCoin(form.id!, form)`. `sanitizeCoin()` normalizes nullable scalars, strips `storageLocation`, defaults `currentValue`, and formats date-only values, but does not strip read-side fields such as `images`, `tags`, `sets`, ids, owner/status fields, or timestamps. F013 browser coverage should assert both user-visible results and request payloads, with tags/sets treated as detail-page association workflows rather than edit-form fields.
@@ -60,6 +61,17 @@
    - Tests pass: `npm run type-check`, `npm run build` ✅
    - Brutus cleared BLOCK. Decision merged to `decisions.md`
    - Orchestration log: `.squad/orchestration-log/2026-06-10T20-31-52Z-aurelia.md`
+
+- **2026-06-18:** Mint Map Frontend 50-Coin Limit Fix Completed
+   - Fixed MintMapPage.vue by replacing store page-cache use with direct `getCoins()` pagination loop (`limit=100` until total covered)
+   - Regression test added: loads 120 active Rome coins across two API pages, asserts mapped count equals 120
+   - Targeted tests passed: `npm.cmd run test -- MintMapPage.test.ts` (6 tests) ✅
+   - Frontend build passed: `npm.cmd run build` ✅
+   - Cassius backend analysis confirmed: no backend changes needed; existing pagination contract is correct
+   - Brutus QA approved the fix with regression coverage validation
+   - Decision merged to `decisions.md` as: "Mint Map Frontend 50-Coin Limit — Pagination Loop Implementation"
+   - Orchestration log: `.squad/orchestration-log/2026-06-18T21-14-02Z-aurelia.md`
+
 
 - **2026-06-01:** Legacy catalog reference migration UI added to Settings → Data. New bordered section with Database and RefreshCw icons from lucide-vue-next, explanatory text (non-destructive, keeps originals, records outcomes in journal), trigger button with loading state, and result counts grid showing Succeeded (gold accent), Skipped, Failed (amber). Client function `migrateLegacyReferences()` calls `POST /references/migrate-legacy` and returns `LegacyMigrationResult { succeeded, skipped, failed, message? }` type. Results display uses design tokens (`--accent-gold`, `--text-muted`, `--bg-input`, `--border-subtle`, `--radius-sm`) and mobile-responsive stacked layout. Build and lint pass (no new warnings).
 

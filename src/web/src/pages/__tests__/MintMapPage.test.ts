@@ -1,22 +1,13 @@
-import { shallowMount } from '@vue/test-utils'
+import { flushPromises, shallowMount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Coin } from '@/types'
 import MintMapPage from '@/pages/MintMapPage.vue'
-import { buildMintMapFixtureCoins, buildTestMintLocations } from '@/test/fixtures/coins'
-
-const mockStore = {
-  coins: [] as Coin[],
-  loading: false,
-  fetchCoins: vi.fn(),
-}
-
-vi.mock('@/stores/coins', () => ({
-  useCoinsStore: () => mockStore,
-}))
+import { buildMintMapFixtureCoins, buildRomanDenariusCore, buildTestMintLocations } from '@/test/fixtures/coins'
 
 const mockGetMintLocations = vi.fn()
+const mockGetCoins = vi.fn()
 vi.mock('@/api/client', () => ({
   getMintLocations: () => mockGetMintLocations(),
+  getCoins: (params?: Record<string, unknown>) => mockGetCoins(params),
 }))
 
 const routerLinkStub = {
@@ -25,21 +16,26 @@ const routerLinkStub = {
 }
 
 async function flushMountedPromises() {
-  await Promise.resolve()
-  await Promise.resolve()
+  await flushPromises()
 }
 
 describe('MintMapPage', () => {
   beforeEach(() => {
-    mockStore.coins = []
-    mockStore.loading = false
-    mockStore.fetchCoins.mockReset()
-    mockStore.fetchCoins.mockResolvedValue(undefined)
     mockGetMintLocations.mockReset()
     mockGetMintLocations.mockResolvedValue({ data: { mintLocations: buildTestMintLocations() } })
+    mockGetCoins.mockReset()
+    const coins = buildMintMapFixtureCoins()
+    mockGetCoins.mockResolvedValue({
+      data: {
+        coins,
+        total: coins.length,
+        page: 1,
+        limit: 100,
+      },
+    })
   })
 
-  it('fetches the default active collection when the store is empty', async () => {
+  it('fetches active collection coins for the map', async () => {
     shallowMount(MintMapPage, {
       global: {
         stubs: {
@@ -52,11 +48,38 @@ describe('MintMapPage', () => {
     })
     await flushMountedPromises()
 
-    expect(mockStore.fetchCoins).toHaveBeenCalledWith({ wishlist: 'false', sold: 'false' })
+    expect(mockGetCoins).toHaveBeenCalledWith({ wishlist: 'false', sold: 'false', page: 1, limit: 100 })
+  })
+
+  it('fetches every active collection page instead of stopping at the first page', async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) =>
+      buildRomanDenariusCore({ id: index + 1, name: `Rome Coin ${index + 1}` }),
+    )
+    const secondPage = Array.from({ length: 20 }, (_, index) =>
+      buildRomanDenariusCore({ id: index + 101, name: `Rome Coin ${index + 101}` }),
+    )
+    mockGetCoins
+      .mockResolvedValueOnce({ data: { coins: firstPage, total: 120, page: 1, limit: 100 } })
+      .mockResolvedValueOnce({ data: { coins: secondPage, total: 120, page: 2, limit: 100 } })
+
+    const wrapper = shallowMount(MintMapPage, {
+      global: {
+        stubs: {
+          RouterLink: routerLinkStub,
+          MintMapLeaflet: true,
+          MintCoinDrawer: true,
+          UnattributedMintBucket: true,
+        },
+      },
+    })
+    await flushMountedPromises()
+
+    expect(mockGetCoins).toHaveBeenNthCalledWith(1, { wishlist: 'false', sold: 'false', page: 1, limit: 100 })
+    expect(mockGetCoins).toHaveBeenNthCalledWith(2, { wishlist: 'false', sold: 'false', page: 2, limit: 100 })
+    expect(wrapper.find('.mapped-count').text()).toBe('120')
   })
 
   it('renders summary counts and the unattributed bucket', async () => {
-    mockStore.coins = buildMintMapFixtureCoins()
     const wrapper = shallowMount(MintMapPage, {
       global: {
         stubs: {
@@ -75,7 +98,6 @@ describe('MintMapPage', () => {
   })
 
   it('renders the correct header with Map of Coins title and back link to /stats', () => {
-    mockStore.coins = buildMintMapFixtureCoins()
     const wrapper = shallowMount(MintMapPage, {
       global: {
         stubs: {
@@ -94,7 +116,6 @@ describe('MintMapPage', () => {
   })
 
   it('renders a compact summary row with title-case label and count', async () => {
-    mockStore.coins = buildMintMapFixtureCoins()
     const wrapper = shallowMount(MintMapPage, {
       global: {
         stubs: {
@@ -114,7 +135,6 @@ describe('MintMapPage', () => {
   })
 
   it('opens a drawer with only the selected mint group', async () => {
-    mockStore.coins = buildMintMapFixtureCoins()
     const wrapper = shallowMount(MintMapPage, {
       global: {
         stubs: {
