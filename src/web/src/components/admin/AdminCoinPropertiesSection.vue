@@ -417,6 +417,7 @@ onMounted(() => {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr);
   gap: 1rem;
+  align-items: start;
 }
 
 .mint-location-list,
@@ -428,6 +429,10 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  max-height: min(34rem, 70vh);
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  scrollbar-gutter: stable;
 }
 
 .mint-location-row,
@@ -506,6 +511,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  align-self: start;
   padding: 0.75rem;
   background: var(--bg-input);
   border: 1px solid var(--border-subtle);
@@ -563,6 +569,10 @@ onMounted(() => {
 
   .location-actions {
     justify-content: flex-end;
+  }
+
+  .mint-location-list {
+    max-height: 28rem;
   }
 }
 </style>
