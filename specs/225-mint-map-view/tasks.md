@@ -67,7 +67,7 @@ The following tasks were completed in the beta implementation. They remain usefu
 - [x] T050 [NAV] Update `src/web/src/router/index.ts` so `/stats/timeline` loads the Timeline subview/page and `/timeline` redirects to `/stats/timeline`
 - [x] T051 [NAV] Create or extract `src/web/src/pages/CollectionDistributionPage.vue` for the current Collection Distribution stats content
 - [x] T052 [NAV] Update `src/web/src/router/index.ts` so `/stats/distribution` loads `CollectionDistributionPage.vue`
-- [x] T053 [NAV] Refactor `src/web/src/pages/StatsPage.vue` into a landing page with cards linking to `/stats/mint-map`, `/stats/timeline`, and `/stats/distribution`
+- [x] T053 [NAV] Refactor `src/web/src/pages/StatsPage.vue` into a landing page with cards linking to `/stats/mint-map`, `/stats/timeline`, and `/stats/distribution` — **superseded by Brian's clarified 2026-06-18 Stats IA**
 - [x] T054 [NAV] Remove Mint Map launch actions from `src/web/src/components/collection/DesktopCollectionHeader.vue`
 - [x] T055 [NAV] Remove Mint Map launch actions from `src/web/src/components/collection/PwaCollectionHeader.vue`
 
@@ -108,6 +108,18 @@ The following tasks were completed in the beta implementation. They remain usefu
 - [x] T068 Run strict frontend type checking from `src/web`: `npm.cmd run type-check`
 - [x] T069 Run frontend production build from `src/web`: `npm.cmd run build`
 - [x] T070 Confirm the final implementation diff contains no `src/api/`, database migration, geocoding, AI inference, Mapbox, custom tile-hosting, or private collection data in OSM tile URLs
+
+---
+
+## Follow-up Phase 13: Clarified Stats Sidebar IA
+
+**Purpose**: Match Brian's revised sketch exactly: Stats is a parent item; `/stats` shows summary metrics only; Collection Distribution is not a visible submenu item.
+
+- [x] T071 [NAV] Update `src/web/src/App.vue` so `Stats` owns exactly four indented submenu links: Timeline, Map, Health, and Value Trends
+- [x] T072 [NAV] Remove standalone top-level Timeline from `src/web/src/App.vue` and keep Stats submenu links tied to the Stats parent during menu reorder mode
+- [x] T073 [NAV] Update `src/web/src/pages/StatsPage.vue` so `/stats` renders only the summary metrics/cards content, not navigation cards
+- [x] T074 [NAV] Keep `/stats/distribution` available for `#collection-health` and `#value-over-time` anchors without exposing `Collection Distribution` in the sidebar submenu
+- [x] T075 [P] [NAV] Update Vitest coverage for Stats summary landing, Stats sidebar submenu contents, absence of top-level Timeline, and legacy redirects
 
 ---
 

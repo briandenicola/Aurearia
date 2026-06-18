@@ -23,12 +23,16 @@ describe('MintMap navigation entry points', () => {
     expect(routerSource).toContain("redirect: '/stats/timeline'")
   })
 
-  it('links to stats subviews from the Stats landing page', () => {
-    const statsSource = fs.readFileSync(path.resolve(srcRoot, 'pages/StatsPage.vue'), 'utf8')
+  it('keeps stats subviews nested under the Stats sidebar item', () => {
+    const appSource = fs.readFileSync(path.resolve(srcRoot, 'App.vue'), 'utf8')
 
-    expect(statsSource).toContain('Collection Geography')
-    expect(statsSource).toContain("to: '/stats/mint-map'")
-    expect(statsSource).toContain("to: '/stats/timeline'")
-    expect(statsSource).toContain("to: '/stats/distribution'")
+    expect(appSource).toContain("id: 'stats'")
+    expect(appSource).toContain("label: 'Stats'")
+    expect(appSource).toContain("label: 'Timeline', to: '/stats/timeline'")
+    expect(appSource).toContain("label: 'Map', to: '/stats/mint-map'")
+    expect(appSource).toContain("label: 'Health', to: '/stats/distribution#collection-health'")
+    expect(appSource).toContain("label: 'Value Trends', to: '/stats/distribution#value-over-time'")
+    expect(appSource).not.toContain("id: 'timeline'")
+    expect(appSource).not.toContain("label: 'Collection Distribution'")
   })
 })
