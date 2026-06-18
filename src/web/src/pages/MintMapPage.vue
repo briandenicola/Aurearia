@@ -27,22 +27,10 @@
     </div>
 
     <template v-else>
-      <section class="summary-grid" aria-label="Mint map summary">
-        <div class="summary-card card">
-          <span class="section-label">Matched Mints</span>
-          <strong>{{ aggregation.matched.length }}</strong>
-        </div>
-        <div class="summary-card card">
+      <section class="summary-row" aria-label="Mint map summary">
+        <div class="summary-stat">
           <span class="section-label">Mapped Coins</span>
           <strong>{{ mappedCoinCount }}</strong>
-        </div>
-        <div class="summary-card card">
-          <span class="section-label">Unmatched Names</span>
-          <strong>{{ aggregation.unmatched.length }}</strong>
-        </div>
-        <div class="summary-card card">
-          <span class="section-label">Unknown Mint Coins</span>
-          <strong>{{ aggregation.unknown.length }}</strong>
         </div>
       </section>
 
@@ -132,19 +120,26 @@ onMounted(() => {
   font-size: 0.9rem;
 }
 
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
+.summary-row {
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
 }
 
-.summary-card {
-  padding: 1rem;
+.summary-stat {
+  text-align: center;
 }
 
-.summary-card strong {
+.summary-stat .section-label {
   display: block;
-  margin-top: 0.35rem;
+  margin-bottom: 0.25rem;
+}
+
+.summary-stat strong {
+  display: block;
   color: var(--accent-gold);
   font-family: 'Cinzel', serif;
   font-size: 1.5rem;
@@ -174,10 +169,6 @@ onMounted(() => {
   .mint-map-header {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .summary-grid {
-    grid-template-columns: 1fr;
   }
 }
 </style>

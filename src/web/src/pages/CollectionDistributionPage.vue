@@ -14,15 +14,6 @@
           <StatsSummaryCards :stats="stats" />
         </div>
 
-        <!-- Collection Health Section -->
-        <section id="collection-health" class="anchored-section">
-          <CollectionHealthEmptyState v-if="!healthLoading && !collectionHealth" />
-          <template v-else-if="collectionHealth">
-            <CollectionHealthScorecard :summary="collectionHealth" />
-            <CollectionHealthTrendIndicator :trend="collectionHealth.trend30d" />
-          </template>
-        </section>
-
         <StatsBarChart
           title="By Category"
           :items="categoryItems"
@@ -72,9 +63,6 @@
           :fill-class="() => 'fill-price'"
         />
 
-        <div id="value-over-time">
-          <StatsValueOverTime />
-        </div>
         <StatsHeatMap ref="heatMapRef" />
       </div>
     </div>
@@ -88,16 +76,10 @@ import PullToRefresh from '@/components/PullToRefresh.vue'
 import StatsSummaryCards from '@/components/stats/StatsSummaryCards.vue'
 import StatsBarChart from '@/components/stats/StatsBarChart.vue'
 import type { BarItem } from '@/components/stats/StatsBarChart.vue'
-import StatsValueOverTime from '@/components/stats/StatsValueOverTime.vue'
 import StatsHeatMap from '@/components/stats/StatsHeatMap.vue'
-import CollectionHealthScorecard from '@/components/stats/CollectionHealthScorecard.vue'
-import CollectionHealthTrendIndicator from '@/components/stats/CollectionHealthTrendIndicator.vue'
-import CollectionHealthEmptyState from '@/components/stats/CollectionHealthEmptyState.vue'
 
 const store = useCoinsStore()
 const stats = computed(() => store.stats)
-const collectionHealth = computed(() => store.collectionHealth)
-const healthLoading = computed(() => store.healthLoading)
 const heatMapRef = ref<InstanceType<typeof StatsHeatMap>>()
 
 const priceRangeOrder = ['Under $50', '$50 - $200', '$200 - $500', '$500 - $1K', '$1K+']
@@ -127,16 +109,12 @@ const priceRangeItems = computed<BarItem[]>(() => {
 async function handleRefresh() {
   await Promise.all([
     store.fetchStats(),
-    store.fetchValueHistory(),
-    store.fetchCollectionHealth().catch(() => {}),
     heatMapRef.value?.fetchDistribution(),
   ])
 }
 
 onMounted(() => {
   store.fetchStats()
-  store.fetchValueHistory()
-  store.fetchCollectionHealth().catch(() => {})
   heatMapRef.value?.fetchDistribution()
   if (!store.coins.length) store.fetchCoins()
 })

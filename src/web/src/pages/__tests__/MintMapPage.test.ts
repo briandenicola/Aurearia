@@ -55,10 +55,8 @@ describe('MintMapPage', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('Matched Mints')
+    expect(wrapper.text()).toContain('Mapped Coins')
     expect(wrapper.text()).toContain('4')
-    expect(wrapper.text()).toContain('Unmatched Names')
-    expect(wrapper.text()).toContain('Unknown Mint Coins')
     expect(wrapper.findComponent({ name: 'UnattributedMintBucket' }).exists()).toBe(true)
   })
 

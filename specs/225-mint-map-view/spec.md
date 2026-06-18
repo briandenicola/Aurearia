@@ -72,25 +72,33 @@ The app captures mint information but does not visualize collection geography. A
 **Stats navigation**
 
 - `/stats` is the summary metrics landing page previously represented by Summary Cards.
-- Subviews use explicit routes: `/stats/mint-map`, `/stats/timeline`, and `/stats/distribution`.
-- The sidebar shows `Stats` as a parent item with exactly four indented submenu items: `Timeline` → `/stats/timeline`, `Map` → `/stats/mint-map`, `Health` → `/stats/distribution#collection-health`, and `Value Trends` → `/stats/distribution#value-over-time`.
-- `Collection Distribution` remains available at `/stats/distribution` for anchored sections but is not a sidebar submenu item.
+- Subviews use explicit routes: `/stats/mint-map`, `/stats/timeline`, `/stats/health`, and `/stats/value-trends`.
+- The sidebar shows `Stats` as a collapsible parent item (collapsed by default) with exactly four indented submenu items: `Timeline` → `/stats/timeline`, `Map` → `/stats/mint-map`, `Health` → `/stats/health`, and `Value Trends` → `/stats/value-trends`.
+- Clicking the Stats parent toggles the submenu expansion; if already expanded, clicking it navigates to `/stats` and closes the submenu.
+- `Collection Distribution` remains available at `/stats/distribution` for distribution/heat map content but is not a sidebar submenu item.
 - Legacy flat routes redirect with `router.replace`-style route records, not duplicate standalone pages.
+
+**Mint Map summary display**
+
+- Mint Map page shows a single-row summary bar centered on the page showing only the count of mapped coins, not a four-card grid.
+- The summary uses design tokens (`--bg-card`, `--border-subtle`, `--radius-sm`, `--accent-gold`) and Cinzel font family for the count.
+- The Leaflet map and unattributed bucket behavior remain unchanged.
 
 ## Acceptance Criteria
 
 - [ ] `/stats` renders summary metrics/cards, not navigation cards.
-- [ ] Sidebar Stats submenu contains exactly Timeline, Map, Health, and Value Trends; Timeline is not a top-level item.
-- [ ] `/stats/mint-map` renders a Leaflet map with OpenStreetMap tiles.
+- [ ] Sidebar Stats submenu starts collapsed and is expandable; contains exactly Timeline, Map, Health, and Value Trends; Timeline is not a top-level item.
+- [ ] Health and Value Trends navigate to dedicated pages at `/stats/health` and `/stats/value-trends`, not hash anchors.
+- [ ] `/stats/mint-map` renders a Leaflet map with OpenStreetMap tiles and a single-row mapped coin count summary.
 - [ ] `/mint-map` redirects to `/stats/mint-map` and `/timeline` redirects to `/stats/timeline`.
 - [ ] Mint Map is not launched from Collection headers.
-- [ ] Collection Distribution is reachable as its own Stats subview.
+- [ ] Collection Distribution is reachable as its own Stats subview without health/value trends sections.
 - [ ] Each distinct matched mint in the collection shows a marker at its actual latitude/longitude.
 - [ ] A mint with multiple coins is visually distinguished with a count.
 - [ ] Tapping a marker shows only the coins struck at that mint.
 - [ ] Coins with unknown/unmatched mint values are surfaced in an unattributed affordance.
 - [ ] Map pan/zoom works on desktop and mobile/PWA viewports.
-- [ ] Tests cover mint grouping, Leaflet marker rendering/selection, legacy redirects, Stats cards/subviews, and navigation cleanup.
+- [ ] Tests cover mint grouping, Leaflet marker rendering/selection, legacy redirects, Stats cards/subviews, collapsed/expandable Stats menu, dedicated Health and Value Trends pages, and navigation cleanup.
 - [ ] `npm run type-check` and `npm run build` pass.
 
 ## Resolved Questions

@@ -122,6 +122,18 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/stats/health',
+      name: 'stats-health',
+      component: () => import('@/pages/StatsHealthPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/stats/value-trends',
+      name: 'stats-value-trends',
+      component: () => import('@/pages/StatsValueTrendsPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/stats/distribution',
       name: 'stats-distribution',
       component: () => import('@/pages/CollectionDistributionPage.vue'),

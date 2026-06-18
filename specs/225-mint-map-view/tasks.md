@@ -123,6 +123,28 @@ The following tasks were completed in the beta implementation. They remain usefu
 
 ---
 
+## Follow-up Phase 14: Stats Refinements — Collapsible Menu and Dedicated Pages
+
+**Purpose**: Make Stats collapsible (collapsed by default), convert Health and Value Trends to dedicated pages, simplify Mint Map summary display.
+
+- [ ] T076 [NAV] Update `src/web/src/App.vue` to add collapsible state for Stats menu (collapsed by default), with chevron indicator and expand/collapse behavior
+- [ ] T077 [NAV] Create `src/web/src/pages/StatsHealthPage.vue` as a dedicated page for collection health, consuming `CollectionHealthScorecard`, `CollectionHealthTrendIndicator`, and `CollectionHealthEmptyState` components
+- [ ] T078 [NAV] Create `src/web/src/pages/StatsValueTrendsPage.vue` as a dedicated page for value trends, consuming `StatsValueOverTime` component
+- [ ] T079 [NAV] Update `src/web/src/router/index.ts` to add `/stats/health` and `/stats/value-trends` routes
+- [ ] T080 [NAV] Update `src/web/src/App.vue` Stats submenu children to use `/stats/health` and `/stats/value-trends` instead of hash anchors
+- [ ] T081 [NAV] Update `src/web/src/pages/CollectionDistributionPage.vue` to remove health and value trends sections, keeping only distribution/heat map content
+- [ ] T082 [US1] Update `src/web/src/pages/MintMapPage.vue` to replace the four-card summary grid with a single-row centered summary showing only mapped coin count
+- [ ] T083 [P] [NAV] Add `src/web/src/pages/__tests__/StatsHealthPage.test.ts` coverage for health page rendering and empty state
+- [ ] T084 [P] [NAV] Add `src/web/src/pages/__tests__/StatsValueTrendsPage.test.ts` coverage for value trends page rendering and loading state
+- [ ] T085 [P] [NAV] Update `src/web/src/__tests__/AppNavigation.test.ts` to verify Stats uses real route paths, not hash anchors, and submenu starts collapsed
+- [ ] T086 [P] [NAV] Update `src/web/src/pages/__tests__/CollectionDistributionPage.test.ts` to verify health/value trends sections are removed
+- [ ] T087 [P] [NAV] Update `src/web/src/pages/__tests__/MintMapNavigation.test.ts` to verify Health and Value Trends use dedicated routes
+- [ ] T088 Run targeted Vitest coverage from `src/web`: `npm.cmd test -- Stats Health ValueTrends MintMap --run`
+- [ ] T089 Run strict frontend type checking from `src/web`: `npm.cmd run type-check`
+- [ ] T090 Run frontend production build from `src/web`: `npm.cmd run build`
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
