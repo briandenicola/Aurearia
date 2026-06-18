@@ -5,24 +5,49 @@
       Back to Gallery
     </button>
     <div class="detail-actions">
-      <button v-if="!isWishlist && !isSold" class="btn btn-secondary btn-xs" @click="$emit('sell')">Sell</button>
-      <router-link :to="`/edit/${coinId}`" class="btn btn-secondary btn-xs">Edit</router-link>
-      <button class="btn btn-danger btn-xs" @click="$emit('delete')">Delete</button>
+      <button
+        class="icon-action"
+        :disabled="sharing"
+        :title="sharing ? 'Sharing...' : 'Share'"
+        :aria-label="sharing ? 'Sharing...' : 'Share'"
+        @click="$emit('share')"
+      >
+        <Share2 :size="18" />
+      </button>
+      <button
+        v-if="!isWishlist && !isSold"
+        class="icon-action"
+        title="Sell"
+        aria-label="Sell"
+        @click="$emit('sell')"
+      >
+        <CircleDollarSign :size="18" />
+      </button>
+      <router-link :to="`/edit/${coinId}`" class="icon-action" title="Edit" aria-label="Edit">
+        <Pencil :size="18" />
+      </router-link>
+      <button class="icon-action" title="Delete" aria-label="Delete" @click="$emit('delete')">
+        <Trash2 :size="18" />
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { ArrowLeft } from 'lucide-vue-next'
+import { ArrowLeft, CircleDollarSign, Pencil, Share2, Trash2 } from 'lucide-vue-next'
 
-defineProps<{
+withDefaults(defineProps<{
   isWishlist: boolean
   isSold: boolean
   coinId: number
-}>()
+  sharing?: boolean
+}>(), {
+  sharing: false,
+})
 
 defineEmits<{
+  share: []
   sell: []
   delete: []
 }>()
@@ -33,7 +58,7 @@ const router = useRouter()
 <style scoped>
 .detail-header {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 0;
@@ -42,8 +67,8 @@ const router = useRouter()
 .detail-actions {
   display: flex;
   justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.35rem;
   min-width: 0;
 }
 
@@ -52,16 +77,43 @@ const router = useRouter()
   white-space: nowrap;
 }
 
+.icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.icon-action:hover:not(:disabled) {
+  background: var(--accent-gold-glow);
+  color: var(--accent-gold);
+}
+
+.icon-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 @media (max-width: 768px) {
   .detail-header {
-    grid-template-columns: auto 1fr;
-    gap: 0.5rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.35rem;
     margin-bottom: 1rem;
   }
 
   .detail-actions {
-    justify-content: flex-end;
-    gap: 0.35rem;
+    gap: 0.2rem;
+  }
+
+  .icon-action {
+    padding: 0.35rem;
   }
 }
 </style>

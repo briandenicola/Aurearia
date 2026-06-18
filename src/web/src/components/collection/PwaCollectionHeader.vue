@@ -228,6 +228,29 @@ defineEmits<{
   border-color: var(--accent-gold);
 }
 
+.menu-link-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.menu-link-btn:hover,
+.menu-link-btn:focus-visible {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
 .view-toggle {
   display: flex;
   border: 1px solid var(--border-subtle);

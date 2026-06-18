@@ -10,6 +10,8 @@
           :is-wishlist="coin.isWishlist"
           :is-sold="coin.isSold"
           :coin-id="coin.id"
+          :sharing="sharing"
+          @share="handleShare"
           @sell="showSellModal = true"
           @delete="handleDelete"
         />
@@ -156,6 +158,7 @@ import CoinReferencesSection from '@/components/coin/CoinReferencesSection.vue'
 import { deleteCoin, purchaseCoin, sellCoin } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
 import { useCoinDetailMetadataRows } from '@/composables/useCoinDetailMetadataRows'
+import { useCoinShareCard } from '@/composables/useCoinShareCard'
 import type { CoinImage } from '@/types'
 
 const { showConfirm, showAlert } = useDialog()
@@ -166,6 +169,7 @@ const store = useCoinsStore()
 const showSellModal = ref(false)
 const showPurchaseModal = ref(false)
 const lightboxImage = ref<CoinImage | null>(null)
+const { sharing, shareCoinCard } = useCoinShareCard()
 
 const coin = computed(() => store.currentCoin)
 
@@ -196,6 +200,11 @@ function openLightbox(image: CoinImage) {
 
 function handleImageSaved() {
   refreshCoin()
+}
+
+async function handleShare() {
+  if (!coin.value) return
+  await shareCoinCard(coin.value)
 }
 
 async function confirmPurchase(data: { purchasePrice?: number; purchaseDate?: string; purchaseLocation?: string }) {
@@ -273,12 +282,14 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  transform: scale(1.28);
   cursor: pointer;
-  transition: opacity var(--transition-fast);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
 }
 
 .hero-image:hover {
   opacity: 0.85;
+  transform: scale(1.32);
 }
 
 .hero-placeholder {

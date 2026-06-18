@@ -38,20 +38,49 @@
           </button>
         </div>
         <nav ref="navRef" class="sidebar-nav" :class="{ 'edit-mode': editMode }">
-          <component
+          <div
             v-for="item in orderedNavItems"
             :key="item.id"
-            :is="!editMode && item.to ? 'router-link' : 'button'"
-            v-bind="!editMode && item.to ? { to: item.to, 'active-class': 'active' } : {}"
-            class="sidebar-link"
+            class="sidebar-item"
             :data-id="item.id"
-            @click="handleNavClick(item)"
           >
-            <span v-if="editMode" class="drag-handle"><GripVertical :size="16" /></span>
-            <component :is="item.icon" :size="20" />
-            <span>{{ item.label }}</span>
-            <span v-if="item.badge && item.badge() > 0" class="sidebar-badge">{{ item.badge() }}</span>
-          </component>
+            <component
+              :is="!editMode && item.to ? 'router-link' : 'button'"
+              v-bind="!editMode && item.to ? { to: item.to, 'active-class': 'active' } : {}"
+              class="sidebar-link"
+              @click="handleNavClick(item)"
+            >
+              <span v-if="editMode" class="drag-handle"><GripVertical :size="16" /></span>
+              <component :is="item.icon" :size="20" />
+              <span>{{ item.label }}</span>
+              <span v-if="item.badge && item.badge() > 0" class="sidebar-badge">{{ item.badge() }}</span>
+              <ChevronDown
+                v-if="item.children?.length && !editMode"
+                :size="16"
+                class="sidebar-chevron"
+                :class="{
+                  expanded: (item.id === 'stats' && statsExpanded) || (item.id === 'collection' && collectionExpanded)
+                }"
+              />
+            </component>
+            <div
+              v-if="item.children?.length && !editMode && ((item.id === 'stats' && statsExpanded) || (item.id === 'collection' && collectionExpanded))"
+              class="sidebar-submenu"
+              :aria-label="`${item.label} views`"
+            >
+              <router-link
+                v-for="child in item.children"
+                :key="child.id"
+                :to="child.to"
+                class="sidebar-sublink"
+                active-class="active"
+                @click="sidebarOpen = false"
+              >
+                <ChevronRight :size="14" class="sidebar-subchevron" />
+                <span>{{ child.label }}</span>
+              </router-link>
+            </div>
+          </div>
         </nav>
         <div class="sidebar-footer">
           <router-link to="/settings" class="sidebar-link" active-class="active" @click="sidebarOpen = false">
@@ -126,7 +155,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, markRaw, type Component } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Clock, Bot, Gavel, X, Bell, Plus, CalendarDays, Share2, GripVertical, BookOpen, Layers3, Search, NotebookPen } from 'lucide-vue-next'
+import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Bot, Gavel, X, Bell, Plus, CalendarDays, Share2, GripVertical, BookOpen, Layers3, Search, NotebookPen, ChevronRight, ChevronDown } from 'lucide-vue-next'
 import { updateProfile, getMe } from '@/api/client'
 import { useNotifications } from '@/composables/useNotifications'
 import { useBulkSelect } from '@/composables/useBulkSelect'
@@ -144,6 +173,13 @@ interface NavItem {
   action?: () => void
   visible: boolean
   badge?: () => number
+  children?: NavSubItem[]
+}
+
+interface NavSubItem {
+  id: string
+  label: string
+  to: string
 }
 
 const auth = useAuthStore()
@@ -161,9 +197,21 @@ const navRef = ref<HTMLElement | null>(null)
 let sortableInstance: Sortable | null = null
 const { unreadCount, startPolling, stopPolling } = useNotifications()
 const { bulkSelectActive } = useBulkSelect()
+const statsExpanded = ref(false)
+const collectionExpanded = ref(false)
 
 const defaultNavItems: NavItem[] = [
-  { id: 'collection', label: 'Collection', icon: markRaw(Landmark), to: '/', visible: true },
+  {
+    id: 'collection',
+    label: 'Collection',
+    icon: markRaw(Landmark),
+    to: '/',
+    visible: true,
+    children: [
+      { id: 'collection-gallery', label: 'Gallery', to: '/' },
+      { id: 'collection-tray', label: 'Tray', to: '/tray' },
+    ],
+  },
   { id: 'add-coin', label: 'Add Coin', icon: markRaw(CirclePlus), to: '/add', visible: isPwa },
   { id: 'lookup', label: 'Identify Coin', icon: markRaw(Search), to: '/lookup', visible: true },
   { id: 'wishlist', label: 'Wishlist', icon: markRaw(Bookmark), to: '/wishlist', visible: true },
@@ -171,9 +219,20 @@ const defaultNavItems: NavItem[] = [
   { id: 'auctions', label: 'Auctions', icon: markRaw(Gavel), to: '/auctions', visible: true },
   { id: 'followers', label: 'Followers', icon: markRaw(UsersIcon), to: '/followers', visible: true },
   { id: 'agent', label: 'Agent', icon: markRaw(Bot), action: () => { showChat.value = true; sidebarOpen.value = false }, visible: true },
-  { id: 'stats', label: 'Stats', icon: markRaw(BarChart3), to: '/stats', visible: true },
+  {
+    id: 'stats',
+    label: 'Stats',
+    icon: markRaw(BarChart3),
+    to: '/stats',
+    visible: true,
+    children: [
+      { id: 'stats-timeline', label: 'Timeline', to: '/stats/timeline' },
+      { id: 'stats-map', label: 'Map', to: '/stats/mint-map' },
+      { id: 'stats-health', label: 'Health', to: '/stats/health' },
+      { id: 'stats-value-trends', label: 'Value Trends', to: '/stats/value-trends' },
+    ],
+  },
   { id: 'sets', label: 'Sets', icon: markRaw(Layers3), to: '/sets', visible: true },
-  { id: 'timeline', label: 'Timeline', icon: markRaw(Clock), to: '/timeline', visible: true },
   { id: 'notes', label: 'Notes', icon: markRaw(NotebookPen), to: '/notes', visible: true },
   { id: 'calendar', label: 'Calendar', icon: markRaw(CalendarDays), to: '/calendar', visible: true },
   { id: 'showcases', label: 'Showcases', icon: markRaw(Share2), to: '/showcases', visible: true },
@@ -222,7 +281,19 @@ const fullOrder = computed(() => {
 
 function handleNavClick(item: NavItem) {
   if (editMode.value) return
-  if (item.action) {
+  if (item.id === 'collection' && item.children?.length) {
+    collectionExpanded.value = !collectionExpanded.value
+    if (!collectionExpanded.value && item.to) {
+      router.push(item.to)
+      sidebarOpen.value = false
+    }
+  } else if (item.id === 'stats' && item.children?.length) {
+    statsExpanded.value = !statsExpanded.value
+    if (!statsExpanded.value && item.to) {
+      router.push(item.to)
+      sidebarOpen.value = false
+    }
+  } else if (item.action) {
     item.action()
   } else if (item.to) {
     router.push(item.to)
@@ -463,11 +534,12 @@ onUnmounted(() => {
 }
 
 /* ── Sidebar ── */
+/* z-index ladder: Leaflet controls ≤1000 → MintCoinDrawer 1100 → sidebar-overlay 1200 → sidebar 1300 */
 .sidebar-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 199;
+  z-index: 1200;
 }
 
 .sidebar {
@@ -478,7 +550,7 @@ onUnmounted(() => {
   width: 280px;
   background: var(--bg-card);
   border-right: 1px solid var(--border-subtle);
-  z-index: 200;
+  z-index: 1300;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -548,6 +620,10 @@ onUnmounted(() => {
   padding: 0.75rem 0;
 }
 
+.sidebar-item {
+  width: 100%;
+}
+
 .sidebar-link {
   display: flex;
   align-items: center;
@@ -573,6 +649,44 @@ onUnmounted(() => {
   color: var(--accent-gold);
   background: var(--accent-gold-glow);
   border-right: 3px solid var(--accent-gold);
+}
+
+.sidebar-submenu {
+  display: flex;
+  flex-direction: column;
+  padding: 0.15rem 0 0.35rem;
+}
+
+.sidebar-sublink {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 1.25rem 0.45rem 3.25rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-decoration: none;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.sidebar-sublink:hover,
+.sidebar-sublink.active {
+  color: var(--accent-gold);
+  background: var(--accent-gold-glow);
+}
+
+.sidebar-subchevron {
+  flex-shrink: 0;
+}
+
+.sidebar-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform var(--transition-fast);
+}
+
+.sidebar-chevron.expanded {
+  transform: rotate(180deg);
 }
 
 .sidebar-badge {

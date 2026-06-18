@@ -3,8 +3,10 @@ import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
   history: createWebHistory(),
-  scrollBehavior(_to, _from, savedPosition) {
-    return savedPosition ?? { top: 0 }
+  scrollBehavior(to, _from, savedPosition) {
+    if (savedPosition) return savedPosition
+    if (to.hash) return { el: to.hash }
+    return { top: 0 }
   },
   routes: [
     {
@@ -108,10 +110,44 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/timeline',
-      name: 'timeline',
+      path: '/stats/mint-map',
+      name: 'stats-mint-map',
+      component: () => import('@/pages/MintMapPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/stats/timeline',
+      name: 'stats-timeline',
       component: () => import('@/pages/TimelinePage.vue'),
       meta: { requiresAuth: true },
+    },
+    {
+      path: '/stats/health',
+      name: 'stats-health',
+      component: () => import('@/pages/StatsHealthPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/stats/value-trends',
+      name: 'stats-value-trends',
+      component: () => import('@/pages/StatsValueTrendsPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/stats/distribution',
+      name: 'stats-distribution',
+      component: () => import('@/pages/CollectionDistributionPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/mint-map',
+      name: 'mint-map',
+      redirect: '/stats/mint-map',
+    },
+    {
+      path: '/timeline',
+      name: 'timeline',
+      redirect: '/stats/timeline',
     },
     {
       path: '/notes',
@@ -181,6 +217,12 @@ const router = createRouter({
       path: '/calendar',
       name: 'calendar',
       component: () => import('@/pages/CalendarPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/tray',
+      name: 'tray',
+      component: () => import('@/pages/TrayViewPage.vue'),
       meta: { requiresAuth: true },
     },
     // Set routes - placeholder for Phase 2 and Phase 3 implementation
