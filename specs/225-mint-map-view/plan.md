@@ -52,6 +52,8 @@ src/web/src/
 ├── router/index.ts
 ├── pages/
 │   ├── StatsPage.vue                # landing cards
+│   ├── StatsHealthPage.vue          # /stats/health
+│   ├── StatsValueTrendsPage.vue     # /stats/value-trends
 │   ├── MintMapPage.vue              # /stats/mint-map
 │   ├── TimelinePage.vue             # /stats/timeline, if split from existing stats code
 │   └── CollectionDistributionPage.vue # /stats/distribution

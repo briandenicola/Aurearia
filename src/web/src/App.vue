@@ -54,8 +54,18 @@
               <component :is="item.icon" :size="20" />
               <span>{{ item.label }}</span>
               <span v-if="item.badge && item.badge() > 0" class="sidebar-badge">{{ item.badge() }}</span>
+              <ChevronDown
+                v-if="item.children?.length && !editMode"
+                :size="16"
+                class="sidebar-chevron"
+                :class="{ expanded: item.id === 'stats' && statsExpanded }"
+              />
             </component>
-            <div v-if="item.children?.length && !editMode" class="sidebar-submenu" :aria-label="`${item.label} views`">
+            <div
+              v-if="item.children?.length && !editMode && (item.id === 'stats' ? statsExpanded : true)"
+              class="sidebar-submenu"
+              :aria-label="`${item.label} views`"
+            >
               <router-link
                 v-for="child in item.children"
                 :key="child.id"
@@ -143,7 +153,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, markRaw, type Component } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Bot, Gavel, X, Bell, Plus, CalendarDays, Share2, GripVertical, BookOpen, Layers3, Search, NotebookPen, ChevronRight } from 'lucide-vue-next'
+import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Bot, Gavel, X, Bell, Plus, CalendarDays, Share2, GripVertical, BookOpen, Layers3, Search, NotebookPen, ChevronRight, ChevronDown } from 'lucide-vue-next'
 import { updateProfile, getMe } from '@/api/client'
 import { useNotifications } from '@/composables/useNotifications'
 import { useBulkSelect } from '@/composables/useBulkSelect'
@@ -185,6 +195,7 @@ const navRef = ref<HTMLElement | null>(null)
 let sortableInstance: Sortable | null = null
 const { unreadCount, startPolling, stopPolling } = useNotifications()
 const { bulkSelectActive } = useBulkSelect()
+const statsExpanded = ref(false)
 
 const defaultNavItems: NavItem[] = [
   { id: 'collection', label: 'Collection', icon: markRaw(Landmark), to: '/', visible: true },
@@ -204,8 +215,8 @@ const defaultNavItems: NavItem[] = [
     children: [
       { id: 'stats-timeline', label: 'Timeline', to: '/stats/timeline' },
       { id: 'stats-map', label: 'Map', to: '/stats/mint-map' },
-      { id: 'stats-health', label: 'Health', to: '/stats/distribution#collection-health' },
-      { id: 'stats-value-trends', label: 'Value Trends', to: '/stats/distribution#value-over-time' },
+      { id: 'stats-health', label: 'Health', to: '/stats/health' },
+      { id: 'stats-value-trends', label: 'Value Trends', to: '/stats/value-trends' },
     ],
   },
   { id: 'sets', label: 'Sets', icon: markRaw(Layers3), to: '/sets', visible: true },
@@ -257,7 +268,13 @@ const fullOrder = computed(() => {
 
 function handleNavClick(item: NavItem) {
   if (editMode.value) return
-  if (item.action) {
+  if (item.id === 'stats' && item.children?.length) {
+    statsExpanded.value = !statsExpanded.value
+    if (!statsExpanded.value && item.to) {
+      router.push(item.to)
+      sidebarOpen.value = false
+    }
+  } else if (item.action) {
     item.action()
   } else if (item.to) {
     router.push(item.to)
@@ -639,6 +656,17 @@ onUnmounted(() => {
 
 .sidebar-subchevron {
   flex-shrink: 0;
+}
+
+.sidebar-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform var(--transition-fast);
+}
+
+.sidebar-chevron.expanded {
+  transform: rotate(180deg);
 }
 
 .sidebar-badge {
