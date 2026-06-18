@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { ref } from 'vue'
 import CoinDetailPage from '../CoinDetailPage.vue'
 import { buildRomanDenariusCore } from '@/test/fixtures/coins'
 
 const coin = buildRomanDenariusCore()
 const fetchCoin = vi.fn()
+const shareCoinCard = vi.fn()
+const sharing = ref(false)
 
 vi.mock('@/stores/coins', () => ({
   useCoinsStore: () => ({
@@ -32,9 +35,24 @@ vi.mock('@/composables/useDialog', () => ({
   }),
 }))
 
+vi.mock('@/composables/useCoinShareCard', () => ({
+  useCoinShareCard: () => ({
+    sharing,
+    shareCoinCard,
+  }),
+}))
+
+const routerLinkStub = {
+  props: ['to'],
+  template: '<a :href="to"><slot /></a>',
+}
+
 describe('CoinDetailPage', () => {
   beforeEach(() => {
     fetchCoin.mockReset()
+    shareCoinCard.mockReset()
+    shareCoinCard.mockResolvedValue({ mode: 'downloaded' })
+    sharing.value = false
     Object.defineProperty(window, 'matchMedia', {
       value: vi.fn(() => ({
         matches: false,
@@ -46,7 +64,7 @@ describe('CoinDetailPage', () => {
     Object.defineProperty(window, 'DeviceOrientationEvent', { value: undefined, configurable: true })
   })
 
-  it('renders the shared 3D viewer in the detail hero', () => {
+  it('renders the shared 3D viewer and share action on the coin detail page', () => {
     const wrapper = mount(CoinDetailPage, {
       global: {
         stubs: pageStubs(),
@@ -54,6 +72,7 @@ describe('CoinDetailPage', () => {
     })
 
     expect(wrapper.findComponent({ name: 'CoinViewer3D' }).exists()).toBe(true)
+    expect(wrapper.text()).toContain('Share')
     expect(fetchCoin).toHaveBeenCalledWith(coin.id)
   })
 
@@ -69,14 +88,24 @@ describe('CoinDetailPage', () => {
 
     expect(wrapper.findComponent({ name: 'ImageLightbox' }).exists()).toBe(true)
   })
+
+  it('shares the currently loaded coin when the Share action is clicked', async () => {
+    const wrapper = mount(CoinDetailPage, {
+      global: {
+        stubs: pageStubs(),
+      },
+    })
+
+    await wrapper.findAll('button').find((button) => button.text().includes('Share'))!.trigger('click')
+    await flushPromises()
+
+    expect(shareCoinCard).toHaveBeenCalledWith(coin)
+  })
 })
 
 function pageStubs() {
   return {
-    RouterLink: {
-      props: ['to'],
-      template: '<a :href="to"><slot /></a>',
-    },
+    RouterLink: routerLinkStub,
     SellModal: true,
     PurchaseModal: true,
     ImageLightbox: true,
@@ -85,7 +114,8 @@ function pageStubs() {
     CoinDetailSectionLinks: true,
     CoinListingStatus: true,
     CoinReferencesSection: true,
-    CoinDetailHeaderActions: true,
+    ArrowLeft: true,
+    Share2: true,
     RefreshCw: true,
   }
 }

@@ -10,6 +10,8 @@
           :is-wishlist="coin.isWishlist"
           :is-sold="coin.isSold"
           :coin-id="coin.id"
+          :sharing="sharing"
+          @share="handleShare"
           @sell="showSellModal = true"
           @delete="handleDelete"
         />
@@ -153,6 +155,7 @@ import CoinViewer3D from '@/components/coin/CoinViewer3D.vue'
 import { deleteCoin, purchaseCoin, sellCoin } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
 import { useCoinDetailMetadataRows } from '@/composables/useCoinDetailMetadataRows'
+import { useCoinShareCard } from '@/composables/useCoinShareCard'
 import type { CoinImage } from '@/types'
 
 const { showConfirm, showAlert } = useDialog()
@@ -163,6 +166,7 @@ const store = useCoinsStore()
 const showSellModal = ref(false)
 const showPurchaseModal = ref(false)
 const lightboxImage = ref<CoinImage | null>(null)
+const { sharing, shareCoinCard } = useCoinShareCard()
 
 const coin = computed(() => store.currentCoin)
 
@@ -200,6 +204,11 @@ function openViewerImage(side: 'obverse' | 'reverse') {
 
 function handleImageSaved() {
   refreshCoin()
+}
+
+async function handleShare() {
+  if (!coin.value) return
+  await shareCoinCard(coin.value)
 }
 
 async function confirmPurchase(data: { purchasePrice?: number; purchaseDate?: string; purchaseLocation?: string }) {
