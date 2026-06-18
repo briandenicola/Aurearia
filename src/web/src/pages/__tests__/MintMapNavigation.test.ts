@@ -41,4 +41,24 @@ describe('MintMap navigation entry points', () => {
     expect(appSource).not.toContain('#collection-health')
     expect(appSource).not.toContain('#value-over-time')
   })
+
+  it('sidebar and overlay z-index stack above Leaflet map controls (fixes #294)', () => {
+    // Leaflet controls sit at z-index ≤1000; MintCoinDrawer is at 1100.
+    // sidebar-overlay must exceed both; sidebar must exceed the overlay.
+    const appSource = fs.readFileSync(path.resolve(srcRoot, 'App.vue'), 'utf8')
+
+    const overlayMatch = appSource.match(/\.sidebar-overlay\s*{[^}]*z-index:\s*(\d+)/s)
+    const sidebarMatch = appSource.match(/\.sidebar\s*{[^}]*z-index:\s*(\d+)/s)
+
+    expect(overlayMatch).not.toBeNull()
+    expect(sidebarMatch).not.toBeNull()
+
+    const overlayZ = parseInt(overlayMatch![1], 10)
+    const sidebarZ = parseInt(sidebarMatch![1], 10)
+
+    // Must clear Leaflet controls (≤1000) and MintCoinDrawer (1100)
+    expect(overlayZ).toBeGreaterThan(1100)
+    // Sidebar must be above its own overlay
+    expect(sidebarZ).toBeGreaterThan(overlayZ)
+  })
 })

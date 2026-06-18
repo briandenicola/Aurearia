@@ -534,11 +534,12 @@ onUnmounted(() => {
 }
 
 /* ── Sidebar ── */
+/* z-index ladder: Leaflet controls ≤1000 → MintCoinDrawer 1100 → sidebar-overlay 1200 → sidebar 1300 */
 .sidebar-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 199;
+  z-index: 1200;
 }
 
 .sidebar {
@@ -549,7 +550,7 @@ onUnmounted(() => {
   width: 280px;
   background: var(--bg-card);
   border-right: 1px solid var(--border-subtle);
-  z-index: 200;
+  z-index: 1300;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
