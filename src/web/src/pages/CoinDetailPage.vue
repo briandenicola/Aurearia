@@ -282,12 +282,14 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  transform: scale(1.28);
   cursor: pointer;
-  transition: opacity var(--transition-fast);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
 }
 
 .hero-image:hover {
   opacity: 0.85;
+  transform: scale(1.32);
 }
 
 .hero-placeholder {

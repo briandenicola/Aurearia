@@ -365,6 +365,7 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  transform: scale(1.28);
   pointer-events: none;
 }
 
