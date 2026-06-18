@@ -3,11 +3,13 @@ import type { Coin, CoinImage } from '@/types'
 const CARD_WIDTH = 1080
 const CARD_HEIGHT = 1350
 const CARD_PADDING = 72
-const IMAGE_FRAME_Y = 96
-const IMAGE_FRAME_SIZE = 560
-const TITLE_START_Y = 730
-const METADATA_START_Y = 910
-const FOOTER_Y = 1278
+const IMAGE_FRAME_X = 96
+const IMAGE_FRAME_Y = 88
+const IMAGE_FRAME_WIDTH = 888
+const IMAGE_FRAME_HEIGHT = 610
+const TITLE_START_Y = 790
+const METADATA_START_Y = 980
+const FOOTER_Y = 1288
 
 const TOKEN_COLORS = {
   bgPrimary: '#0f172a',
@@ -36,6 +38,7 @@ export interface CoinShareCardMetadata {
 export interface CoinShareCardInput {
   coin: Coin
   imageUrl: string | null
+  imageUrls?: string[]
   appName: string
 }
 
@@ -93,6 +96,20 @@ export function getPreferredShareImage(coin: Coin): string | null {
   return first ? imagePath(first) : null
 }
 
+export function getShareImageUrls(coin: Coin): string[] {
+  const images: string[] = []
+  const obverse = coin.images?.find((image) => image.imageType === 'obverse')
+  const reverse = coin.images?.find((image) => image.imageType === 'reverse')
+
+  if (obverse) images.push(imagePath(obverse))
+  if (reverse && reverse.id !== obverse?.id) images.push(imagePath(reverse))
+
+  if (images.length > 0) return images
+
+  const fallback = getPreferredShareImage(coin)
+  return fallback ? [fallback] : []
+}
+
 export function getShareCardFilename(coin: Coin): string {
   const base = cleanText(coin.name)
     .toLowerCase()
@@ -119,15 +136,38 @@ function drawContainedImage(
   y: number,
   maxWidth: number,
   maxHeight: number,
+  visualScale = 1,
 ) {
   const width = image.naturalWidth || image.width
   const height = image.naturalHeight || image.height
   if (!width || !height) return
 
-  const scale = Math.min(maxWidth / width, maxHeight / height)
+  const scale = Math.min(maxWidth / width, maxHeight / height) * visualScale
   const drawWidth = width * scale
   const drawHeight = height * scale
   ctx.drawImage(image, x + (maxWidth - drawWidth) / 2, y + (maxHeight - drawHeight) / 2, drawWidth, drawHeight)
+}
+
+function drawRoundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  const safeRadius = Math.min(radius, width / 2, height / 2)
+  ctx.beginPath()
+  ctx.moveTo(x + safeRadius, y)
+  ctx.lineTo(x + width - safeRadius, y)
+  ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius)
+  ctx.lineTo(x + width, y + height - safeRadius)
+  ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height)
+  ctx.lineTo(x + safeRadius, y + height)
+  ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius)
+  ctx.lineTo(x, y + safeRadius)
+  ctx.quadraticCurveTo(x, y, x + safeRadius, y)
+  ctx.closePath()
 }
 
 function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number): string[] {
@@ -184,42 +224,54 @@ function drawBackground(ctx: CanvasRenderingContext2D, width: number, height: nu
   ctx.fillStyle = gradient
   ctx.fillRect(0, 0, width, height)
 
-  ctx.fillStyle = 'rgba(201, 168, 76, 0.08)'
-  ctx.beginPath()
-  ctx.arc(width / 2, 360, 430, 0, Math.PI * 2)
-  ctx.fill()
+  ctx.fillStyle = 'rgba(201, 168, 76, 0.06)'
+  ctx.fillRect(CARD_PADDING, IMAGE_FRAME_Y + 34, width - CARD_PADDING * 2, IMAGE_FRAME_HEIGHT)
 }
 
-function drawImageFrame(ctx: CanvasRenderingContext2D, image: HTMLImageElement | null) {
-  const frameX = (CARD_WIDTH - IMAGE_FRAME_SIZE) / 2
-  const radius = IMAGE_FRAME_SIZE / 2
-
+function drawImagePanel(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement | null,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
   ctx.save()
   ctx.fillStyle = TOKEN_COLORS.bgInput
   ctx.strokeStyle = TOKEN_COLORS.borderSubtle
-  ctx.lineWidth = 4
-  ctx.beginPath()
-  ctx.arc(CARD_WIDTH / 2, IMAGE_FRAME_Y + radius, radius, 0, Math.PI * 2)
+  ctx.lineWidth = 3
+  drawRoundedRect(ctx, x, y, width, height, 36)
   ctx.fill()
   ctx.stroke()
   ctx.clip()
 
   if (image) {
-    drawContainedImage(ctx, image, frameX, IMAGE_FRAME_Y, IMAGE_FRAME_SIZE, IMAGE_FRAME_SIZE)
+    drawContainedImage(ctx, image, x, y, width, height, 1.24)
   } else {
     ctx.fillStyle = TOKEN_COLORS.textMuted
     ctx.font = '600 36px Inter, sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText('No coin image', CARD_WIDTH / 2, IMAGE_FRAME_Y + radius)
+    ctx.fillText('No coin image', x + width / 2, y + height / 2)
   }
 
   ctx.restore()
+}
+
+function drawImageFrame(ctx: CanvasRenderingContext2D, images: HTMLImageElement[]) {
+  if (images.length > 1) {
+    const panelGap = 32
+    const panelWidth = (IMAGE_FRAME_WIDTH - panelGap) / 2
+    const panelHeight = IMAGE_FRAME_HEIGHT
+    drawImagePanel(ctx, images[0] ?? null, IMAGE_FRAME_X, IMAGE_FRAME_Y, panelWidth, panelHeight)
+    drawImagePanel(ctx, images[1] ?? null, IMAGE_FRAME_X + panelWidth + panelGap, IMAGE_FRAME_Y, panelWidth, panelHeight)
+  } else {
+    drawImagePanel(ctx, images[0] ?? null, IMAGE_FRAME_X, IMAGE_FRAME_Y, IMAGE_FRAME_WIDTH, IMAGE_FRAME_HEIGHT)
+  }
 
   ctx.strokeStyle = TOKEN_COLORS.accentGold
-  ctx.lineWidth = 5
-  ctx.beginPath()
-  ctx.arc(CARD_WIDTH / 2, IMAGE_FRAME_Y + radius, radius + 6, 0, Math.PI * 2)
+  ctx.lineWidth = 4
+  drawRoundedRect(ctx, IMAGE_FRAME_X - 8, IMAGE_FRAME_Y - 8, IMAGE_FRAME_WIDTH + 16, IMAGE_FRAME_HEIGHT + 16, 42)
   ctx.stroke()
 }
 
@@ -227,26 +279,26 @@ function drawMetadataGrid(ctx: CanvasRenderingContext2D, fields: CoinShareCardFi
   const columns = 2
   const columnGap = 48
   const columnWidth = (CARD_WIDTH - CARD_PADDING * 2 - columnGap) / columns
-  const rowHeight = 96
+  const rowHeight = 104
 
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
 
-  fields.slice(0, 6).forEach((field, index) => {
+  fields.slice(0, 4).forEach((field, index) => {
     const column = index % columns
     const row = Math.floor(index / columns)
     const x = CARD_PADDING + column * (columnWidth + columnGap)
     const y = METADATA_START_Y + row * rowHeight
 
     ctx.fillStyle = TOKEN_COLORS.textMuted
-    ctx.font = '600 22px Inter, sans-serif'
+    ctx.font = '600 20px Inter, sans-serif'
     ctx.fillText(field.label.toUpperCase(), x, y)
 
     ctx.fillStyle = TOKEN_COLORS.textSecondary
-    ctx.font = '400 30px Inter, sans-serif'
+    ctx.font = '400 28px Inter, sans-serif'
     const valueLines = wrapLines(ctx, field.value, columnWidth, 2)
     valueLines.forEach((line, lineIndex) => {
-      ctx.fillText(line, x, y + 38 + lineIndex * 34)
+      ctx.fillText(line, x, y + 38 + lineIndex * 32)
     })
   })
 }
@@ -305,10 +357,11 @@ export async function renderCoinShareCard(
   }
 
   const metadata = getShareCardMetadata(input.coin)
-  const image = input.imageUrl ? await loadImage(input.imageUrl) : null
+  const imageUrls = input.imageUrls ?? (input.imageUrl ? [input.imageUrl] : [])
+  const images = await Promise.all(imageUrls.slice(0, 2).map((imageUrl) => loadImage(imageUrl)))
 
   drawBackground(ctx, width, height)
-  drawImageFrame(ctx, image)
+  drawImageFrame(ctx, images)
   drawMetadata(ctx, metadata, input.appName)
 
   return canvasToPngBlob(canvas)

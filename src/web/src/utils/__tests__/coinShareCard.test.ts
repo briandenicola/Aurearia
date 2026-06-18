@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getPreferredShareImage,
   getShareCardFilename,
+  getShareImageUrls,
   getShareCardMetadata,
   renderCoinShareCard,
 } from '@/utils/coinShareCard'
@@ -75,6 +76,13 @@ describe('coinShareCard', () => {
     expect(getPreferredShareImage(buildImageHeavyDrachm())).toBe('/uploads/test-fixtures/1008-obverse-10081.webp')
   })
 
+  it('uses obverse and reverse images together for the share card', () => {
+    expect(getShareImageUrls(buildRomanDenariusCore())).toEqual([
+      '/uploads/test-fixtures/1001-obverse-10011.webp',
+      '/uploads/test-fixtures/1001-reverse-10012.webp',
+    ])
+  })
+
   it('falls back to primary, first image, and no image in order', () => {
     const primaryOnly = buildRomanDenariusCore({
       images: [makeImage(1, 'reverse', true), makeImage(2, 'other')],
@@ -98,19 +106,22 @@ describe('coinShareCard', () => {
   it('renders a PNG blob with a loaded coin image', async () => {
     const toBlob = vi.fn((callback: BlobCallback) => callback(pngBlob))
     const drawImage = vi.fn()
-    const ctx = buildCanvasContext({ drawImage })
+    const arc = vi.fn()
+    const ctx = buildCanvasContext({ drawImage, arc })
     mockCanvas(ctx, toBlob)
     mockImageLoad()
 
     const blob = await renderCoinShareCard({
       coin: buildRomanDenariusCore(),
       imageUrl: '/uploads/coin.webp',
+      imageUrls: ['/uploads/obverse.webp', '/uploads/reverse.webp'],
       appName: 'Ed-Mar Ancient Coins',
     })
 
     expect(blob).toBe(pngBlob)
     expect(toBlob).toHaveBeenCalledWith(expect.any(Function), 'image/png')
-    expect(drawImage).toHaveBeenCalled()
+    expect(drawImage).toHaveBeenCalledTimes(2)
+    expect(arc).not.toHaveBeenCalled()
   })
 
   it('keeps title, metadata, and footer in separate vertical zones', async () => {
@@ -187,6 +198,10 @@ function buildCanvasContext(overrides: Partial<CanvasRenderingContext2D> = {}): 
     save: vi.fn(),
     restore: vi.fn(),
     clip: vi.fn(),
+    moveTo: vi.fn(),
+    lineTo: vi.fn(),
+    quadraticCurveTo: vi.fn(),
+    closePath: vi.fn(),
     drawImage: vi.fn(),
     fillText: vi.fn(),
     measureText: vi.fn((text: string) => ({ width: text.length * 18 }) as TextMetrics),

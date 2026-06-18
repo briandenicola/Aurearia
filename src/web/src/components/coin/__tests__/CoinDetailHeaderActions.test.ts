@@ -23,17 +23,21 @@ describe('CoinDetailHeaderActions', () => {
         stubs: {
           RouterLink: routerLinkStub,
           ArrowLeft: true,
+          CircleDollarSign: true,
+          Pencil: true,
           Share2: true,
+          Trash2: true,
         },
       },
     })
 
-    expect(wrapper.text()).toContain('Share')
-    expect(wrapper.text()).toContain('Sell')
+    expect(wrapper.find('button[aria-label="Share"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="Sell"]').exists()).toBe(true)
     expect(wrapper.find('a[href="/edit/42"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Delete')
+    expect(wrapper.find('a[aria-label="Edit"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="Delete"]').exists()).toBe(true)
 
-    await wrapper.findAll('button').find((button) => button.text().includes('Share'))!.trigger('click')
+    await wrapper.find('button[aria-label="Share"]').trigger('click')
 
     expect(wrapper.emitted('share')).toHaveLength(1)
   })
@@ -50,12 +54,15 @@ describe('CoinDetailHeaderActions', () => {
         stubs: {
           RouterLink: routerLinkStub,
           ArrowLeft: true,
+          CircleDollarSign: true,
+          Pencil: true,
           Share2: true,
+          Trash2: true,
         },
       },
     })
 
-    const shareButton = wrapper.findAll('button').find((button) => button.text().includes('Sharing...'))!
+    const shareButton = wrapper.find('button[aria-label="Sharing..."]')
     expect(shareButton.attributes('disabled')).toBeDefined()
   })
 })

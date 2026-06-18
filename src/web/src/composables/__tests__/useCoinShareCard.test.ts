@@ -48,6 +48,12 @@ describe('useCoinShareCard', () => {
     const result = await shareCoinCard(buildRomanDenariusCore())
 
     expect(result).toEqual({ mode: 'shared' })
+    expect(renderCoinShareCard).toHaveBeenCalledWith(expect.objectContaining({
+      imageUrls: [
+        '/uploads/test-fixtures/1001-obverse-10011.webp',
+        '/uploads/test-fixtures/1001-reverse-10012.webp',
+      ],
+    }))
     expect(canShare).toHaveBeenCalledWith(expect.objectContaining({
       files: [expect.any(File)],
     }))
