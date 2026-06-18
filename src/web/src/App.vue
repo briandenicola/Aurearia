@@ -173,7 +173,7 @@ const defaultNavItems: NavItem[] = [
   { id: 'agent', label: 'Agent', icon: markRaw(Bot), action: () => { showChat.value = true; sidebarOpen.value = false }, visible: true },
   { id: 'stats', label: 'Stats', icon: markRaw(BarChart3), to: '/stats', visible: true },
   { id: 'sets', label: 'Sets', icon: markRaw(Layers3), to: '/sets', visible: true },
-  { id: 'timeline', label: 'Timeline', icon: markRaw(Clock), to: '/timeline', visible: true },
+  { id: 'timeline', label: 'Timeline', icon: markRaw(Clock), to: '/stats/timeline', visible: true },
   { id: 'notes', label: 'Notes', icon: markRaw(NotebookPen), to: '/notes', visible: true },
   { id: 'calendar', label: 'Calendar', icon: markRaw(CalendarDays), to: '/calendar', visible: true },
   { id: 'showcases', label: 'Showcases', icon: markRaw(Share2), to: '/showcases', visible: true },

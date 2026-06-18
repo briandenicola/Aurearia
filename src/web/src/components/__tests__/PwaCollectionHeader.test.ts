@@ -16,11 +16,11 @@ describe('PwaCollectionHeader', () => {
     expect(source).toContain("{{ selectMode ? 'Exit Selection Mode' : 'Enable Selection Mode' }}")
   })
 
-  it('offers a one-handed mint map menu entry', () => {
+  it('does not launch Mint Map from the PWA collection menu', () => {
     const source = fs.readFileSync(headerPath, 'utf8')
 
-    expect(source).toContain('to="/mint-map"')
-    expect(source).toContain('Mint Map')
-    expect(source).toContain('MapPin')
+    expect(source).not.toContain('to="/mint-map"')
+    expect(source).not.toContain('Mint Map')
+    expect(source).not.toContain('MapPin')
   })
 })

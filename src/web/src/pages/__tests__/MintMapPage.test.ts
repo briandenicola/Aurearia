@@ -32,7 +32,7 @@ describe('MintMapPage', () => {
       global: {
         stubs: {
           RouterLink: routerLinkStub,
-          MintMapSvg: true,
+          MintMapLeaflet: true,
           MintCoinDrawer: true,
           UnattributedMintBucket: true,
         },
@@ -48,7 +48,7 @@ describe('MintMapPage', () => {
       global: {
         stubs: {
           RouterLink: routerLinkStub,
-          MintMapSvg: true,
+          MintMapLeaflet: true,
           MintCoinDrawer: true,
           UnattributedMintBucket: true,
         },
@@ -68,7 +68,7 @@ describe('MintMapPage', () => {
       global: {
         stubs: {
           RouterLink: routerLinkStub,
-          MintMapSvg: {
+          MintMapLeaflet: {
             props: ['groups', 'selectedMintId'],
             emits: ['select-mint'],
             template: '<button class="select-rome" @click="$emit(\'select-mint\', groups[0])">Select Rome</button>',

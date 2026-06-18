@@ -1,90 +1,99 @@
 # Spec: Mint Map View
 
-**Status:** Draft
-**Area:** Frontend (Vue 3 / TS) + small reference dataset (optionally Go API)
-**Depends on:** existing mint-mark field on coins
-**Related:** Era/Region Heat Map, Collection Statistics, category filtering
+**Status:** Draft — pivoted after beta review
+**Area:** Frontend (Vue 3 / TS) + Leaflet/OpenStreetMap + static mint reference dataset
+**Depends on:** existing mint field on coins
+**Related:** Collection Statistics, Stats subviews, Collection Distribution, Timeline
 
 ---
 
 ## Summary
 
-A map of the ancient world with pins at the mints where coins in the collection
-were struck. Tapping a mint filters to the coins from that mint. Turns the
-collection into a geography and complements the existing era/region heat map
-(the "where" to the heat map's "when").
+Show a real geographic mint map under Stats. The map uses Leaflet with OpenStreetMap tiles and places pins from actual mint latitude/longitude values in the shipped mint reference dataset. Tapping a mint pin shows the coins struck there, while unknown or unmatched mint values are surfaced explicitly.
+
+The current beta stylized SVG approximation is not the intended product experience and must be replaced or retired.
 
 ## Motivation
 
-The app captures mint mark per coin but never visualizes origin spatially. A map
-view exposes the geographic shape of a collection at a glance — concentrations
-(e.g. Rome, Antioch, Constantinople) and blank regions — in a way no table or
-chart currently does, and it's a strong, novel mobile display mode.
+The app captures mint information but does not visualize collection geography. A real slippy map makes the collection's spatial spread recognizable at a glance, with zoom/pan behavior users already understand from modern maps. This complements Stats subviews: Mint Map answers "where", Timeline answers "when", and Collection Distribution answers "what".
 
 ## User Stories
 
-- As a collector, I open a map and see pins where my coins were minted, so I
-  understand the geographic spread of my collection.
-- As a collector, I tap a mint pin and see only the coins struck there.
+- As a collector, I open Stats and choose Mint Map, so I can see my collection on a real geographic map.
+- As a collector, I tap a mint pin and see only the coins struck at that mint.
 - As a collector with multiple coins from one mint, the pin reflects the count.
+- As a collector, I can use existing `/mint-map` or `/timeline` links and land on the new Stats subview URLs.
+- As a collector, I open Stats and see a landing page with cards for Mint Map, Timeline, and Collection Distribution.
 
 ## Scope
 
 ### In scope
-- A `MintMap` view reachable from the collection / stats navigation.
-- A mint → coordinates reference lookup (name, lat, lng, optional alt names).
-- Pins placed per mint present in the user's collection, sized or badged by count.
-- Tap a pin → filtered coin list (reuse existing gallery/list filtering).
-- Themed to the museum-dark palette; usable one-handed on mobile (pan/zoom).
-- Graceful handling of coins whose mint is unknown or unmatched (an
-  "unattributed" bucket, not dropped silently).
+
+- Mint Map lives only as the authenticated Stats subview `/stats/mint-map`.
+- Existing `/mint-map` redirects to `/stats/mint-map`; existing `/timeline` redirects to `/stats/timeline`.
+- Main `/stats` becomes a landing page of cards linking to Stats subviews.
+- Collection Distribution becomes its own Stats subview.
+- Remove Mint Map launch actions from Collection headers/navigation.
+- Replace the stylized SVG map experience with a Leaflet map using OpenStreetMap tile layers.
+- Use actual `lat`/`lng` coordinates from the mint reference dataset for marker placement.
+- Pins/markers show per-mint counts and support tap/click/keyboard selection.
+- Gracefully handle coins whose mint is unknown or unmatched via an unattributed bucket.
+- Preserve dark-theme/tokenized surrounding UI; accept that OSM tiles are externally styled imagery.
 
 ### Out of scope
-- Editing mint coordinates in the UI (first version ships a static dataset).
-- Routing/connections between mints, animation of trade routes.
+
+- Editing mint coordinates in the UI.
+- Go API `mints` table or database migrations.
 - Reverse-geocoding or AI inference of mint from images.
+- Custom tile hosting, offline tile cache, Mapbox, routing, trade routes, or map animations.
+- Public/follower exposure of private collection geography.
 
 ## Design / Approach
 
 **Mint reference data**
-- Start with a static, shipped lookup table (mint name → lat/lng) bundled with the
-  frontend. The set of ancient mints is bounded and knowable, so this avoids a
-  schema change and ships fast.
-- Normalize on lookup (case-insensitive, handle common alternate spellings).
-- *Alternative (later):* promote to a `mints` reference table in the Go API if the
-  data needs to be queryable or user-editable. Note as an open question, not v1.
+
+- Keep a static frontend mint lookup table with canonical name, `lat`, `lng`, aliases, and optional region.
+- Normalize mint lookup case-insensitively and punctuation/spacing-insensitively.
+- Alias collisions remain a dataset policy decision for v1; ambiguous names can canonicalize to one pin unless a later era-aware model is specified.
 
 **Map rendering**
-- Prefer a lightweight inline SVG map of the Mediterranean / ancient world over a
-  full tile stack (Leaflet/Mapbox): no tile licensing, no heavy dependency,
-  trivially themeable to the dark palette, and fine for a bounded region.
-- Project mint lat/lng to the SVG viewbox; render pins as themed markers with an
-  optional count badge.
-- Pan/zoom via pointer + pinch; keep tap targets finger-friendly.
 
-**Interaction**
-- Tap pin → navigate to (or open a drawer with) the existing coin list filtered to
-  that mint.
-- Show an "unattributed / unknown mint" affordance for coins with no matched mint.
+- Use Leaflet (`leaflet` npm package plus TypeScript-compatible imports) with OpenStreetMap raster tiles.
+- Render markers directly from mint `lat`/`lng`; do not use SVG viewbox projection for the real map.
+- Replace/remove `MintMapSvg.vue` or leave only as deleted historical code; active Mint Map rendering should be Leaflet-based.
+- Use Leaflet pan/zoom controls and mobile touch support, with accessible marker labels and selected-mint state.
+
+**Privacy / network**
+
+- Opening `/stats/mint-map` may request OSM tile images from external OpenStreetMap tile servers. This reveals the user's IP address and approximate map viewport/zoom to the tile provider, but not collection contents unless marker data is encoded into external URLs, which must not happen.
+- Do not send coin IDs, usernames, JWTs, mint names, or collection data to tile URLs or any third-party geocoding service.
+- Auth remains required for the map because collection geography is private collection-derived data.
+
+**Stats navigation**
+
+- `/stats` is an overview/landing page with cards.
+- Subviews use explicit routes: `/stats/mint-map`, `/stats/timeline`, and `/stats/distribution`.
+- Legacy flat routes redirect with `router.replace`-style route records, not duplicate standalone pages.
 
 ## Acceptance Criteria
 
-- [ ] A map view is reachable from the collection or stats navigation.
-- [ ] Each distinct mint represented in the collection shows a pin at the correct
-      approximate location.
-- [ ] A mint with multiple coins is visually distinguished (size or count badge).
-- [ ] Tapping a pin shows only the coins struck at that mint.
-- [ ] Coins with an unknown/unmatched mint are surfaced in an "unattributed"
-      affordance rather than silently omitted.
-- [ ] Map pans and zooms smoothly and is operable one-handed on a phone.
-- [ ] Styling uses existing design tokens and the museum-dark theme.
-- [ ] `npm run type-check` passes.
+- [ ] `/stats` renders a landing page with cards for Mint Map, Timeline, and Collection Distribution.
+- [ ] `/stats/mint-map` renders a Leaflet map with OpenStreetMap tiles.
+- [ ] `/mint-map` redirects to `/stats/mint-map` and `/timeline` redirects to `/stats/timeline`.
+- [ ] Mint Map is not launched from Collection headers.
+- [ ] Collection Distribution is reachable as its own Stats subview.
+- [ ] Each distinct matched mint in the collection shows a marker at its actual latitude/longitude.
+- [ ] A mint with multiple coins is visually distinguished with a count.
+- [ ] Tapping a marker shows only the coins struck at that mint.
+- [ ] Coins with unknown/unmatched mint values are surfaced in an unattributed affordance.
+- [ ] Map pan/zoom works on desktop and mobile/PWA viewports.
+- [ ] Tests cover mint grouping, Leaflet marker rendering/selection, legacy redirects, Stats cards/subviews, and navigation cleanup.
+- [ ] `npm run type-check` and `npm run build` pass.
 
-## Open Questions
+## Resolved Questions
 
-- Ship mint coordinates as a static frontend dataset, or as a Go API `mints` table
-  from the start?
-- How are alternate/historical mint names reconciled (e.g. Byzantium vs
-  Constantinople vs Istanbul) — do we map them to one pin or distinct pins by era?
-- Should the map default to the Mediterranean and expand only if a collection has
-  coins outside it (e.g. Modern category)?
+- **Map background:** Leaflet with OpenStreetMap tiles, not a stylized inline SVG.
+- **External tiles:** OSM tile requests are acceptable for this feature.
+- **Feature placement:** Mint Map lives under Stats only.
+- **Legacy URLs:** Keep compatibility via redirects to Stats subviews.
+- **Stats structure:** Stats becomes a landing page; Collection Distribution is a subview.

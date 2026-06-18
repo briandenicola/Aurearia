@@ -14,12 +14,6 @@
             </button>
           </div>
           <div class="pwa-menu-section">
-            <span class="pwa-menu-label">Explore</span>
-            <router-link class="menu-link-btn" to="/mint-map" @click="$emit('update:menuOpen', false)">
-              <MapPin :size="16" /> Mint Map
-            </router-link>
-          </div>
-          <div class="pwa-menu-section">
             <span class="pwa-menu-label">Category</span>
             <CategoryFilter :model-value="selectedCategory" @update:model-value="$emit('update:selectedCategory', $event)" />
           </div>
@@ -71,7 +65,7 @@ import CategoryFilter from '@/components/CategoryFilter.vue'
 import EraFilter from '@/components/collection/EraFilter.vue'
 import SearchBar from '@/components/SearchBar.vue'
 import SortSelect from '@/components/SortSelect.vue'
-import { Layers, LayoutGrid, MapPin, SlidersHorizontal } from 'lucide-vue-next'
+import { Layers, LayoutGrid, SlidersHorizontal } from 'lucide-vue-next'
 
 defineProps<{
   search: string
