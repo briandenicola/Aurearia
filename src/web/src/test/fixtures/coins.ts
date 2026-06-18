@@ -28,6 +28,9 @@ export type GoldenCoinTrait =
   | 'legacy-custom-era'
   | 'valued'
   | 'reference-rich'
+  | 'mint-alias'
+  | 'mint-unmatched'
+  | 'mint-unknown'
 
 export interface GoldenCoinFixtureInfo {
   name: GoldenCoinFixtureName
@@ -398,6 +401,17 @@ export function buildImageHeavyDrachm(overrides?: CoinFixtureOverrides): Coin {
 
 export function buildReferenceRichDenarius(overrides?: CoinFixtureOverrides): Coin {
   return buildGoldenCoinFixture('reference-rich-denarius', overrides)
+}
+
+export function buildMintMapFixtureCoins(): Coin[] {
+  return [
+    buildRomanDenariusCore(),
+    buildReferenceRichDenarius({ id: 1010, name: 'Roma Alias Denarius', mint: 'Roma' }),
+    buildByzantineSolidusSetMember({ id: 1011, name: 'Byzantium Alias Solidus', mint: 'Byzantium' }),
+    buildImageHeavyDrachm(),
+    buildGreekTetradrachmValued({ id: 1012, name: 'Unmatched Camp Mint Bronze', mint: 'Traveling Camp' }),
+    buildGreekTetradrachmValued({ id: 1013, name: 'Unknown Mint Fraction', mint: '' }),
+  ]
 }
 
 export function buildTestStorageLocations(): StorageLocation[] {
