@@ -39,6 +39,29 @@ func setupWebAuthnHandlerForTest(t *testing.T, origins string) (*WebAuthnHandler
 	return handler, db
 }
 
+func setupWebAuthnHandlerWithAuthForTest(t *testing.T, origins string) (*WebAuthnHandler, *gorm.DB) {
+	t.Helper()
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+	if err := db.AutoMigrate(&models.User{}, &models.WebAuthnCredential{}, &models.SecurityEvent{}, &models.IPRule{}, &models.RefreshToken{}); err != nil {
+		t.Fatalf("failed to migrate db: %v", err)
+	}
+
+	authRepo := repository.NewAuthRepository(db)
+	securitySvc := services.NewSecurityService(repository.NewSecurityRepository(db))
+	authSvc := services.NewAuthService(authRepo, "webauthn-test-secret").WithSecurity(securitySvc)
+	authHandler := NewAuthHandler("webauthn-test-secret", authRepo, authSvc)
+	handler, err := NewWebAuthnHandler("localhost", origins, authHandler, repository.NewWebAuthnRepository(db), services.NewLogger(50))
+	if err != nil {
+		t.Fatalf("failed to create handler: %v", err)
+	}
+
+	return handler, db
+}
+
 func createWebAuthnTestUser(t *testing.T, db *gorm.DB, username string) *models.User {
 	t.Helper()
 	user := &models.User{
@@ -60,6 +83,48 @@ func decodeErrorResponse(t *testing.T, body *bytes.Buffer) map[string]string {
 		t.Fatalf("failed to parse response: %v", err)
 	}
 	return resp
+}
+
+func TestWebAuthnHandlerLoginFinishRejectsLockedAccountBeforeAssertion(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler, db := setupWebAuthnHandlerWithAuthForTest(t, "http://localhost:8080")
+	user := createWebAuthnTestUser(t, db, "locked-webauthn-user")
+	lockedUntil := time.Now().Add(time.Hour)
+	if err := db.Model(&models.User{}).Where("id = ?", user.ID).Update("locked_until", lockedUntil).Error; err != nil {
+		t.Fatalf("failed to lock user: %v", err)
+	}
+
+	handler.storeSession(sessionKey("login", user.ID), &webauthn.SessionData{
+		Challenge: "test-challenge",
+		Expires:   time.Now().Add(2 * time.Minute),
+	})
+
+	router := gin.New()
+	router.POST("/auth/webauthn/login/finish", handler.LoginFinish)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/webauthn/login/finish?username=locked-webauthn-user", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://localhost:8080")
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusUnauthorized, rr.Code, rr.Body.String())
+	}
+
+	resp := decodeErrorResponse(t, rr.Body)
+	if got := resp["error"]; got != "Invalid credentials" {
+		t.Fatalf("expected lockout gate error, got %q", got)
+	}
+
+	var webAuthnFailures int64
+	if err := db.Model(&models.SecurityEvent{}).Where("type = ?", models.SecurityEventWebAuthnLoginFailure).Count(&webAuthnFailures).Error; err != nil {
+		t.Fatalf("failed to count WebAuthn failures: %v", err)
+	}
+	if webAuthnFailures != 0 {
+		t.Fatalf("expected lockout gate to reject before assertion parsing, got %d WebAuthn failures", webAuthnFailures)
+	}
 }
 
 func TestWebAuthnHandlerLoginBeginReturnsRequestOptionsWithChallenge(t *testing.T) {

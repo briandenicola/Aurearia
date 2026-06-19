@@ -476,6 +476,13 @@ func (h *WebAuthnHandler) LoginFinish(c *gin.Context) {
 	}
 	user = *found
 
+	if h.auth != nil && h.auth.svc != nil {
+		if err := h.auth.svc.CheckAccountAllowed(username); err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+			return
+		}
+	}
+
 	sessionKey := sessionKey("login", user.ID)
 	session, state, ok := h.loadSession(sessionKey)
 	if !ok {
@@ -507,6 +514,7 @@ func (h *WebAuthnHandler) LoginFinish(c *gin.Context) {
 	parsedAssertion, err := protocol.ParseCredentialRequestResponseBytes(bodyBytes)
 	if err != nil {
 		logger.Error("webauthn", "Login failed for user %s: %v", username, err)
+		h.auth.svc.RecordWebAuthnFailure(username, requestClientIP(c), c.Request.UserAgent(), "parse assertion failed")
 		respondError(c, http.StatusUnauthorized, "Authentication failed", err)
 		return
 	}
@@ -526,6 +534,7 @@ func (h *WebAuthnHandler) LoginFinish(c *gin.Context) {
 	credential, err := h.webAuthn.ValidateLogin(wUser, *session, parsedAssertion)
 	if err != nil {
 		logger.Error("webauthn", "Login failed for user %s: %v", username, err)
+		h.auth.svc.RecordWebAuthnFailure(username, requestClientIP(c), c.Request.UserAgent(), "assertion validation failed")
 		respondError(c, http.StatusUnauthorized, "Authentication failed", err)
 		return
 	}
@@ -542,6 +551,7 @@ func (h *WebAuthnHandler) LoginFinish(c *gin.Context) {
 	}
 
 	logger.Info("webauthn", "Biometric login succeeded for user %s", username)
+	h.auth.svc.RecordWebAuthnSuccess(user, requestClientIP(c), c.Request.UserAgent())
 	// Issue tokens
 	h.auth.issueTokens(c, user, http.StatusOK)
 }

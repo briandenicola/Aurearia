@@ -1,7 +1,7 @@
 <template>
   <div class="auth-page">
     <div class="auth-card">
-      <img src="/coin-logo.jpg" alt="Ancient Coins" class="auth-logo" />
+      <img :src="coinLogoSrc" alt="Ancient Coins" class="auth-logo" />
       <h1>Ancient Coins</h1>
       <p class="auth-subtitle">Sign in to your collection</p>
       <form @submit.prevent="handleLogin" class="auth-form">
@@ -35,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { webauthnCheck } from '@/api/client'
@@ -49,6 +49,8 @@ const password = ref('')
 const error = ref('')
 const loading = ref(false)
 const biometricAvailable = ref(false)
+const coinLogoSrc = '/coin-logo.jpg'
+let retryTimer: ReturnType<typeof setInterval> | null = null
 
 const supportsWebAuthn = !!window.PublicKeyCredential
 
@@ -59,6 +61,10 @@ onMounted(() => {
     username.value = lastUser
     checkBiometric()
   }
+})
+
+onUnmounted(() => {
+  clearRetryTimer()
 })
 
 async function checkBiometric() {
@@ -82,11 +88,68 @@ async function handleLogin() {
     await auth.doLogin(trimmedUsername, password.value)
     localStorage.setItem('lastUsername', trimmedUsername)
     router.push('/')
-  } catch {
-    error.value = 'Invalid username or password'
+  } catch (err: unknown) {
+    if (!handleRateLimitError(err)) {
+      error.value = 'Invalid username or password'
+    }
   } finally {
     loading.value = false
   }
+}
+
+function handleRateLimitError(err: unknown) {
+  const response = getErrorResponse(err)
+  if (response?.status !== 429) return false
+
+  const retryAfter = getRetryAfterSeconds(response.headers)
+  if (retryAfter > 0) {
+    startRetryCountdown(retryAfter)
+  } else {
+    error.value = 'Too many attempts. Try again later.'
+  }
+  return true
+}
+
+function getErrorResponse(err: unknown): { status?: number; headers?: Record<string, unknown> } | null {
+  if (typeof err !== 'object' || err === null || !('response' in err)) return null
+  const response = (err as { response?: unknown }).response
+  if (typeof response !== 'object' || response === null) return null
+  return response as { status?: number; headers?: Record<string, unknown> }
+}
+
+function getRetryAfterSeconds(headers: Record<string, unknown> | undefined) {
+  const raw = headers?.['retry-after'] ?? headers?.['Retry-After']
+  if (typeof raw !== 'string') return 0
+  const seconds = Number(raw)
+  if (Number.isFinite(seconds)) return Math.max(0, Math.ceil(seconds))
+  const retryAt = new Date(raw).getTime()
+  if (Number.isNaN(retryAt)) return 0
+  return Math.max(0, Math.ceil((retryAt - Date.now()) / 1000))
+}
+
+function startRetryCountdown(seconds: number) {
+  clearRetryTimer()
+  let remaining = seconds
+  error.value = formatRateLimitMessage(remaining)
+  retryTimer = setInterval(() => {
+    remaining -= 1
+    if (remaining <= 0) {
+      clearRetryTimer()
+      error.value = 'Too many attempts. Try again later.'
+      return
+    }
+    error.value = formatRateLimitMessage(remaining)
+  }, 1000)
+}
+
+function formatRateLimitMessage(seconds: number) {
+  return `Too many attempts. Try again later. Retry in ${seconds} second${seconds === 1 ? '' : 's'}.`
+}
+
+function clearRetryTimer() {
+  if (!retryTimer) return
+  clearInterval(retryTimer)
+  retryTimer = null
 }
 
 async function handleBiometricLogin() {
@@ -155,7 +218,7 @@ async function handleBiometricLogin() {
 }
 
 .auth-error {
-  color: #e74c3c;
+  color: var(--color-negative);
   font-size: 0.85rem;
   margin-bottom: 0.5rem;
 }

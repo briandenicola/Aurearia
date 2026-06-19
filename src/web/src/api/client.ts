@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, ValuationRun, AuctionEndingRun, CollectionHealthSnapshotRunResult, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, UserNote, NoteInput, NoteListResponse } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, ValuationRun, AuctionEndingRun, CollectionHealthSnapshotRunResult, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -530,10 +530,37 @@ export const resetUserPassword = (id: number, newPassword: string) =>
   api.post(`/admin/users/${id}/reset-password`, { newPassword })
 export const updateUserRole = (id: number, role: UserInfo['role']) =>
   api.put(`/admin/users/${id}/role`, { role })
+export const unlockUser = (id: number) => api.post(`/admin/users/${id}/unlock`)
 export const getAppSettings = () => api.get<AppSettings>('/admin/settings')
 export const getAppSettingDefaults = () => api.get<AppSettings>('/admin/settings/defaults')
 export const updateAppSettings = (settings: { key: string; value: string }[]) =>
   api.put('/admin/settings', settings)
+export const getSecuritySummary = () =>
+  api.get<SecuritySummary | { summary?: Partial<SecuritySummary>; backupStatus?: string }>('/admin/security/summary')
+export const getSecurityEvents = (filters?: SecurityEventFilters) => {
+  const params = filters ? { ...filters } : undefined
+  if (params?.ip && !params.clientIp) {
+    params.clientIp = params.ip
+    delete params.ip
+  }
+  return api.get<SecurityEventsResponse>('/admin/security/events', { params })
+}
+export const getSecurityIpRules = () =>
+  api.get<{ rules?: SecurityIpRule[]; ipRules?: SecurityIpRule[] } | SecurityIpRule[]>('/admin/security/ip-rules')
+export const createSecurityIpRule = (payload: CreateSecurityIpRuleRequest) => {
+  const body: { cidr: string; reason: string; durationMinutes?: number; expiresAt?: string } = {
+    cidr: payload.cidr,
+    reason: payload.reason,
+  }
+  const durationMinutes = payload.durationMinutes ?? parseDurationMinutes(payload.duration)
+  if (durationMinutes) body.durationMinutes = durationMinutes
+  if (payload.expiresAt) body.expiresAt = payload.expiresAt
+  return api.post<SecurityIpRule>('/admin/security/ip-rules', body)
+}
+export const deleteSecurityIpRule = (id: number) =>
+  api.delete(`/admin/security/ip-rules/${id}`)
+export const getSecurityExposureCheck = () =>
+  api.get<SecurityExposureCheck>('/admin/security/exposure-check')
 export const getAdminLogs = (limit = 500, level?: string) => {
   const params: Record<string, string> = { limit: String(limit) }
   if (level) params.level = level
@@ -778,3 +805,14 @@ export const deleteNotification = (id: number) =>
   api.delete(`/notifications/${id}`)
 
 export default api
+
+function parseDurationMinutes(duration: string | undefined) {
+  const value = duration?.trim()
+  if (!value) return undefined
+  const match = value.match(/^(\d+)\s*([mhdw])?$/i)
+  if (!match) return undefined
+  const amount = Number(match[1] ?? 0)
+  const unit = (match[2] ?? 'm').toLowerCase()
+  const multipliers: Record<string, number> = { m: 1, h: 60, d: 1440, w: 10080 }
+  return amount * (multipliers[unit] ?? 1)
+}

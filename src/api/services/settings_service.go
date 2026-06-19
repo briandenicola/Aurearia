@@ -39,6 +39,8 @@ const (
 	SettingCollectionHealthSnapshotsEnabled   = "CollectionHealthSnapshotsEnabled"
 	SettingCollectionHealthSnapshotsStartTime = "CollectionHealthSnapshotsStartTime"
 	SettingExternalToolServerEnabled          = "ExternalToolServerEnabled"
+	SettingRegistrationMode                   = "RegistrationMode"
+	SettingBackupStatus                       = "BackupStatus"
 	SettingSetSnapshotEnabled                 = "SetSnapshotEnabled"
 	SettingSetSnapshotStartTime               = "SetSnapshotStartTime"
 	SettingCoinCategories                     = "CoinCategories"
@@ -100,6 +102,8 @@ var settingDefaults = map[string]string{
 	SettingCollectionHealthSnapshotsEnabled:   "false",
 	SettingCollectionHealthSnapshotsStartTime: "04:30",
 	SettingExternalToolServerEnabled:          "false",
+	SettingRegistrationMode:                   "closed",
+	SettingBackupStatus:                       "not_configured",
 	SettingSetSnapshotEnabled:                 "false",
 	SettingSetSnapshotStartTime:               "04:00",
 	SettingCoinCategories:                     "Roman\nGreek\nByzantine\nModern\nOther",

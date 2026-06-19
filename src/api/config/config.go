@@ -2,6 +2,7 @@ package config
 
 import (
 	"log"
+	"net"
 	"os"
 	"strings"
 )
@@ -17,6 +18,7 @@ type Config struct {
 	AgentServiceURL           string
 	AgentInternalCallbackURL  string
 	AgentInternalServiceToken string
+	TrustedProxies            string
 }
 
 func Load() *Config {
@@ -46,7 +48,41 @@ func Load() *Config {
 		AgentServiceURL:           getEnv("AGENT_SERVICE_URL", "http://localhost:8081"),
 		AgentInternalCallbackURL:  getEnv("AGENT_INTERNAL_CALLBACK_URL", "http://localhost:8080"),
 		AgentInternalServiceToken: getEnv("AGENT_INTERNAL_SERVICE_TOKEN", ""),
+		TrustedProxies:            firstEnv("GIN_TRUSTED_PROXIES", "TRUSTED_PROXIES"),
 	}
+}
+
+func (c *Config) TrustedProxyList() []string {
+	raw := strings.TrimSpace(c.TrustedProxies)
+	if raw == "" {
+		if os.Getenv("GIN_MODE") == "release" {
+			log.Fatal("FATAL: TRUSTED_PROXIES or GIN_TRUSTED_PROXIES must be set in production; use 'none' only when no reverse proxy is present")
+		}
+		return nil
+	}
+	if strings.EqualFold(raw, "none") {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	proxies := make([]string, 0, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			continue
+		}
+		if strings.Contains(value, "/") {
+			if _, _, err := net.ParseCIDR(value); err != nil {
+				log.Fatalf("FATAL: malformed trusted proxy CIDR %q: %v", value, err)
+			}
+		} else if net.ParseIP(value) == nil {
+			log.Fatalf("FATAL: malformed trusted proxy IP %q", value)
+		}
+		proxies = append(proxies, value)
+	}
+	if len(proxies) == 0 {
+		log.Fatal("FATAL: trusted proxy list is empty")
+	}
+	return proxies
 }
 
 // AllowedOrigins returns the list of origins permitted for CORS.
@@ -73,4 +109,13 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func firstEnv(keys ...string) string {
+	for _, key := range keys {
+		if v := os.Getenv(key); v != "" {
+			return v
+		}
+	}
+	return ""
 }
