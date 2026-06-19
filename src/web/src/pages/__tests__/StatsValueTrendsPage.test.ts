@@ -66,6 +66,36 @@ describe('StatsValueTrendsPage', () => {
     expect(wrapper.findComponent({ name: 'StatsValueOverTime' }).exists()).toBe(true)
   })
 
+  it('renders the upgraded value chart treatment for history data', async () => {
+    store.valueHistory = mockHistory
+    store.stats = mockStats
+    store.fetchValueHistory.mockResolvedValue(undefined)
+    store.fetchStats.mockResolvedValue(undefined)
+
+    const wrapper = mount(StatsValueTrendsPage, {
+      global: {
+        stubs: {
+          PullToRefresh: { template: '<div><slot /></div>' },
+          RouterLink: { template: '<a><slot /></a>' },
+          ArrowLeft: { template: '<span />' },
+        },
+      },
+    })
+
+    await wrapper.vm.$nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(wrapper.find('.value-chart-card').exists()).toBe(true)
+    expect(wrapper.find('.chart-summary-strip').exists()).toBe(true)
+    expect(wrapper.findAll('.summary-pill')).toHaveLength(3)
+    expect(wrapper.findAll('.chart-grid-line').length).toBeGreaterThan(0)
+    expect(wrapper.find('.chart-area-fill').exists()).toBe(true)
+    expect(wrapper.find('.chart-line-value').exists()).toBe(true)
+    expect(wrapper.find('.chart-line-invested').exists()).toBe(true)
+    expect(wrapper.find('.endpoint-dot-value').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Portfolio Trajectory')
+  })
+
   it('renders StatsValueOverTime after loading even when no data', async () => {
     store.valueHistory = []
     store.stats = null

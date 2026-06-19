@@ -192,7 +192,7 @@ function formatUsd(value: number): string {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 300;
+  z-index: 1400;
   display: flex;
   justify-content: flex-end;
   height: 100%;
