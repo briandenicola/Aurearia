@@ -6,7 +6,6 @@ import (
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
-	"gorm.io/gorm"
 )
 
 const maxStorageLocationsPerUser = 100
@@ -66,7 +65,7 @@ func (s *StorageLocationService) Create(userID uint, name string, sortOrder int)
 func (s *StorageLocationService) Update(id, userID uint, name *string, sortOrder *int) (*models.StorageLocation, error) {
 	location, err := s.repo.GetByID(id, userID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			return nil, ErrStorageLocationNotFound
 		}
 		return nil, err
@@ -103,7 +102,7 @@ func (s *StorageLocationService) Update(id, userID uint, name *string, sortOrder
 // Delete removes an unused storage location. It returns the number of referencing coins on conflict.
 func (s *StorageLocationService) Delete(id, userID uint) (int64, error) {
 	if _, err := s.repo.GetByID(id, userID); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			return 0, ErrStorageLocationNotFound
 		}
 		return 0, err

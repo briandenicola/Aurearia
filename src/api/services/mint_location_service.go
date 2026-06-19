@@ -6,7 +6,6 @@ import (
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
-	"gorm.io/gorm"
 )
 
 const maxMintLocationTextLength = 128
@@ -71,7 +70,7 @@ func (s *MintLocationService) Create(input MintLocationInput) (*models.MintLocat
 func (s *MintLocationService) Update(id uint, input MintLocationInput) (*models.MintLocation, error) {
 	existing, err := s.repo.FindByID(id)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			return nil, ErrMintLocationNotFound
 		}
 		return nil, err
@@ -106,7 +105,7 @@ func (s *MintLocationService) Update(id uint, input MintLocationInput) (*models.
 // Delete removes a mint location.
 func (s *MintLocationService) Delete(id uint) error {
 	if err := s.repo.Delete(id); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			return ErrMintLocationNotFound
 		}
 		return err

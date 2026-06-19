@@ -8,14 +8,13 @@ import (
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 // CoinReferenceHandler handles structured reference CRUD endpoints.
 type CoinReferenceHandler struct {
-	repo           *repository.CoinReferenceRepository
-	svc            *services.CoinReferenceService
-	migrationSvc   *services.ReferenceMigrationService
+	repo         *repository.CoinReferenceRepository
+	svc          *services.CoinReferenceService
+	migrationSvc *services.ReferenceMigrationService
 }
 
 // NewCoinReferenceHandler creates a new CoinReferenceHandler.
@@ -142,7 +141,7 @@ func (h *CoinReferenceHandler) Update(c *gin.Context) {
 
 	existing, err := h.repo.GetByID(refID, coinID, userID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Reference not found"})
 			return
 		}

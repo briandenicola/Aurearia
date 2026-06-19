@@ -1,5 +1,6 @@
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:'])
 
+// Use for user/API-provided external anchors; internal navigation stays on router-link.
 export function sanitizeExternalUrl(url: string | null | undefined): string | null {
   if (!url) return null
 

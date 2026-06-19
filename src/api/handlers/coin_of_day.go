@@ -7,7 +7,6 @@ import (
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 // CoinOfDayHandler exposes user-facing endpoints for the Coin of the Day feature.
@@ -44,7 +43,7 @@ func (h *CoinOfDayHandler) Get(c *gin.Context) {
 
 	fc, err := h.repo.FindByIDForUser(uint(id), userID)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if repository.IsRecordNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Featured coin not found"})
 			return
 		}
@@ -69,7 +68,7 @@ func (h *CoinOfDayHandler) Latest(c *gin.Context) {
 	userID := c.GetUint("userId")
 	fc, err := h.repo.GetLatestForUser(userID)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if repository.IsRecordNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "No featured coin yet"})
 			return
 		}

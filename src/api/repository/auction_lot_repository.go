@@ -140,10 +140,25 @@ type StatusCount struct {
 
 // CountByStatus returns per-status counts for the given user.
 func (r *AuctionLotRepository) CountByStatus(userID uint) (map[string]int64, error) {
+	return r.countByStatus(r.db.Where("user_id = ?", userID))
+}
+
+// CountAll returns the total number of auction lots across all users.
+func (r *AuctionLotRepository) CountAll() (int64, error) {
+	var total int64
+	err := r.db.Model(&models.AuctionLot{}).Count(&total).Error
+	return total, err
+}
+
+// CountAllByStatus returns per-status counts for auction lots across all users.
+func (r *AuctionLotRepository) CountAllByStatus() (map[string]int64, error) {
+	return r.countByStatus(r.db)
+}
+
+func (r *AuctionLotRepository) countByStatus(db *gorm.DB) (map[string]int64, error) {
 	var rows []StatusCount
-	err := r.db.Model(&models.AuctionLot{}).
+	err := db.Model(&models.AuctionLot{}).
 		Select("status, COUNT(*) as count").
-		Where("user_id = ?", userID).
 		Group("status").
 		Scan(&rows).Error
 	if err != nil {

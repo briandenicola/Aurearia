@@ -11,7 +11,6 @@ import (
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 )
 
 const (
@@ -151,7 +150,7 @@ func (s *AuthService) RotateTokens(oldPlainToken string) (*models.User, string, 
 	}
 
 	if err := s.repo.RotateRefreshToken(rt, &newRT); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			return nil, "", "", ErrInvalidRefreshToken
 		}
 		return nil, "", "", err

@@ -8,7 +8,6 @@ import (
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 // SetHandler handles set-related HTTP requests.
@@ -161,7 +160,7 @@ func (h *SetHandler) Get(c *gin.Context) {
 
 	detail, err := h.service.GetSetDetail(uint(id), userID)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if repository.IsRecordNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Set not found"})
 			return
 		}
@@ -204,7 +203,7 @@ func (h *SetHandler) Update(c *gin.Context) {
 
 	_, err = h.service.UpdateSet(uint(id), userID, updates)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if repository.IsRecordNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Set not found"})
 			return
 		}
@@ -244,7 +243,7 @@ func (h *SetHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.service.DeleteSet(uint(id), userID); err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if repository.IsRecordNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Set not found"})
 			return
 		}
@@ -319,7 +318,7 @@ func (h *SetHandler) AddCoin(c *gin.Context) {
 	}
 
 	if err := h.service.AddCoinToSet(body.CoinID, uint(setID), userID, body.Notes); err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if repository.IsRecordNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Set or coin not found"})
 			return
 		}
@@ -363,7 +362,7 @@ func (h *SetHandler) ReorderCoins(c *gin.Context) {
 
 	if err := h.service.ReorderCoinsInSet(uint(setID), userID, body.CoinIDs); err != nil {
 		switch {
-		case errors.Is(err, gorm.ErrRecordNotFound):
+		case repository.IsRecordNotFound(err):
 			c.JSON(http.StatusNotFound, gin.H{"error": "Set not found"})
 		case errors.Is(err, services.ErrInvalidSetOrder):
 			c.JSON(http.StatusBadRequest, gin.H{"error": "coinIds must exactly match current set members"})
@@ -407,7 +406,7 @@ func (h *SetHandler) RemoveCoin(c *gin.Context) {
 	}
 
 	if err := h.service.RemoveCoinFromSet(uint(coinID), uint(setID), userID); err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if repository.IsRecordNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Set or coin not found"})
 			return
 		}
@@ -457,7 +456,7 @@ func (h *SetHandler) GetCompletion(c *gin.Context) {
 
 	completion, err := h.service.GetCompletion(uint(setID), userID)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if repository.IsRecordNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Set not found"})
 			return
 		}

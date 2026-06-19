@@ -535,7 +535,7 @@ func main() {
 		admin.POST("/api-keys/notify-rotation", apiKeyAdminHandler.NotifyRotationRequired)
 
 		// Auction ending debug endpoint
-		auctionDebugHandler := handlers.NewAuctionEndingDebugHandler(database.DB, auctionLotRepo)
+		auctionDebugHandler := handlers.NewAuctionEndingDebugHandler(auctionLotRepo)
 		admin.GET("/auction-ending/debug", auctionDebugHandler.DebugGetAuctionEndingInfo)
 	}
 

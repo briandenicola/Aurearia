@@ -11,7 +11,6 @@ import (
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 // AuctionLotHandler handles HTTP requests for auction lot operations.
@@ -108,7 +107,7 @@ func (h *AuctionLotHandler) Get(c *gin.Context) {
 
 	lot, err := h.repo.GetByID(uint(id), userID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Auction lot not found"})
 			return
 		}
@@ -194,7 +193,7 @@ func (h *AuctionLotHandler) Update(c *gin.Context) {
 
 	existing, err := h.repo.GetByID(uint(id), userID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Auction lot not found"})
 			return
 		}
@@ -361,7 +360,7 @@ func (h *AuctionLotHandler) LinkEvent(c *gin.Context) {
 
 	lot, err := h.repo.GetByID(uint(id), userID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Auction lot not found"})
 			return
 		}

@@ -31,9 +31,13 @@ describe('CoinLookupPage', () => {
     routerPush.mockReset()
     routerBack.mockReset()
 
-    vi.stubGlobal('URL', {
-      createObjectURL: vi.fn(() => 'blob:lookup-image'),
-      revokeObjectURL: vi.fn(),
+    Object.defineProperty(URL, 'createObjectURL', {
+      value: vi.fn(() => 'blob:lookup-image'),
+      configurable: true,
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      value: vi.fn(),
+      configurable: true,
     })
   })
 
@@ -292,5 +296,75 @@ describe('CoinLookupPage', () => {
     expect(wrapper.text()).not.toContain('Review Coin Details')
     expect(wrapper.findAll('input[type="text"]')).toHaveLength(0)
     expect(createIntakeDraft).not.toHaveBeenCalled()
+  })
+
+  it('renders only safe external lookup links from API results', async () => {
+    const file = new File(['coin'], 'coin.jpg', { type: 'image/jpeg' })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: {
+          confidence: 'medium',
+          rawAnalysis: 'candidate matches',
+        },
+        numistaCandidates: [
+          { id: 'js', title: 'Script', issuer: 'Bad', year: '', url: 'javascript:alert(1)' },
+          { id: 'data', title: 'Data', issuer: 'Bad', year: '', url: 'data:text/html,<p>x</p>' },
+          { id: 'relative', title: 'Relative', issuer: 'Bad', year: '', url: '/catalogue/pieces1.html' },
+          { id: 'http', title: 'HTTP', issuer: 'OK', year: '', url: 'http://example.com/pieces1.html' },
+          { id: 'https', title: 'HTTPS', issuer: 'OK', year: '', url: 'https://example.com/pieces2.html' },
+        ],
+        prefilledDraft: {
+          name: 'Lookup candidate',
+        },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+    vi.mocked(createIntakeDraft).mockResolvedValue({
+      data: {
+        draftId: 9,
+        status: 'drafted',
+        coin: { name: 'Lookup candidate' },
+        confidenceSummary: { overall: 'medium', uncertainFields: [] },
+        evidence: [],
+        unresolvedFields: [],
+        expiresAt: '2026-06-12T00:00:00Z',
+      },
+    } as Awaited<ReturnType<typeof createIntakeDraft>>)
+
+    const wrapper = mount(CoinLookupPage, {
+      global: {
+        stubs: {
+          CameraCaptureModal: true,
+          Camera: true,
+          Upload: true,
+          Search: true,
+          ArrowLeft: true,
+          X: true,
+          AlertCircle: true,
+          ShieldCheck: true,
+          ExternalLink: true,
+          RotateCcw: true,
+          Bookmark: true,
+        },
+      },
+    })
+
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [file],
+      configurable: true,
+    })
+    await input.trigger('change')
+
+    await wrapper.find('.btn-submit').trigger('click')
+    await flushPromises()
+
+    const links = wrapper.findAll('a.numista-link')
+    expect(links.map(link => link.attributes('href'))).toEqual([
+      'http://example.com/pieces1.html',
+      'https://example.com/pieces2.html',
+    ])
+    expect(wrapper.html()).not.toContain('javascript:alert')
+    expect(wrapper.html()).not.toContain('data:text/html')
+    expect(wrapper.html()).not.toContain('/catalogue/pieces1.html')
   })
 })

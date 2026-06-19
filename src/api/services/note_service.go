@@ -6,7 +6,6 @@ import (
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
-	"gorm.io/gorm"
 )
 
 const (
@@ -40,7 +39,7 @@ func (s *NoteService) List(userID uint) ([]models.Note, error) {
 
 func (s *NoteService) Get(id, userID uint) (models.Note, error) {
 	note, err := s.repo.Get(id, userID)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if repository.IsRecordNotFound(err) {
 		return models.Note{}, ErrNoteNotFound
 	}
 	return note, err

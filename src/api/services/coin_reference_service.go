@@ -7,7 +7,6 @@ import (
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
-	"gorm.io/gorm"
 )
 
 var (
@@ -81,7 +80,7 @@ func (s *CoinReferenceService) NormalizeAndValidateOne(
 
 	registry, err := s.registryRepo.FindByCatalog(ref.Catalog)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			return ref, fmt.Errorf("%w: %s", ErrReferenceUnknownCatalog, ref.Catalog)
 		}
 		return ref, err

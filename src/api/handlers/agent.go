@@ -13,7 +13,6 @@ import (
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type AgentHandler struct {
@@ -287,7 +286,7 @@ func (h *AgentHandler) CommitCollectionProposal(c *gin.Context) {
 	result, err := h.collectionSvc.CommitProposal(userID, proposalID, req.ProposalToken, req.Confirm)
 	if err != nil {
 		switch {
-		case errors.Is(err, gorm.ErrRecordNotFound):
+		case repository.IsRecordNotFound(err):
 			c.JSON(http.StatusNotFound, gin.H{"error": "Proposal not found"})
 		case errors.Is(err, services.ErrProposalTokenInvalid):
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid proposal token"})
@@ -317,7 +316,7 @@ func (h *AgentHandler) CancelCollectionProposal(c *gin.Context) {
 	result, err := h.collectionSvc.CancelProposal(userID, proposalID)
 	if err != nil {
 		switch {
-		case errors.Is(err, gorm.ErrRecordNotFound):
+		case repository.IsRecordNotFound(err):
 			c.JSON(http.StatusNotFound, gin.H{"error": "Proposal not found"})
 		case errors.Is(err, services.ErrProposalStateConflict):
 			c.JSON(http.StatusConflict, gin.H{"error": "Proposal is no longer pending"})

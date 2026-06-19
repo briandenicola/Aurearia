@@ -6,7 +6,6 @@ import (
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
-	"gorm.io/gorm"
 )
 
 var (
@@ -51,7 +50,7 @@ func (s *CatalogRegistryService) Create(entry models.CatalogRegistry) (models.Ca
 
 	// Check for duplicate code
 	existing, err := s.repo.FindByCatalog(entry.Catalog)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	if err != nil && !repository.IsRecordNotFound(err) {
 		return entry, err
 	}
 	if existing != nil {
@@ -69,7 +68,7 @@ func (s *CatalogRegistryService) Create(entry models.CatalogRegistry) (models.Ca
 func (s *CatalogRegistryService) Update(id uint, entry models.CatalogRegistry) (models.CatalogRegistry, error) {
 	existing, err := s.repo.FindByID(id)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			return entry, ErrCatalogNotFound
 		}
 		return entry, err
@@ -92,7 +91,7 @@ func (s *CatalogRegistryService) Update(id uint, entry models.CatalogRegistry) (
 	// If code changed, check for duplicate
 	if entry.Catalog != existing.Catalog {
 		duplicate, err := s.repo.FindByCatalog(entry.Catalog)
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		if err != nil && !repository.IsRecordNotFound(err) {
 			return entry, err
 		}
 		if duplicate != nil {
@@ -124,7 +123,7 @@ func (s *CatalogRegistryService) Update(id uint, entry models.CatalogRegistry) (
 func (s *CatalogRegistryService) Delete(id uint) error {
 	existing, err := s.repo.FindByID(id)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			return ErrCatalogNotFound
 		}
 		return err

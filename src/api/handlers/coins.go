@@ -14,7 +14,6 @@ import (
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 // allowedListSortFields is the handler-level allowlist of sort fields for the
@@ -223,7 +222,7 @@ func (h *CoinHandler) Get(c *gin.Context) {
 
 	coin, err := h.repo.FindByID(uint(id), userID)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if repository.IsRecordNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
 			return
 		}

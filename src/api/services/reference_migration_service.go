@@ -91,7 +91,7 @@ func (s *ReferenceMigrationService) MigrateLegacyReferences(userID uint) (*Migra
 			result.Skipped++
 			continue
 		}
-		if err != nil && err != gorm.ErrRecordNotFound {
+		if err != nil && !repository.IsRecordNotFound(err) {
 			s.journalFail(coin.ID, coin.UserID, "Database error checking existing reference")
 			result.Failed++
 			continue

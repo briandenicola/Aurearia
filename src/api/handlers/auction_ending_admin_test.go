@@ -111,12 +111,14 @@ func setupAuctionEndingAdminRouter(t *testing.T) (*gin.Engine, *gorm.DB, uint, u
 	pushoverSvc := services.NewPushoverService(settingsSvc, logger)
 	scheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepo, pushoverSvc, settingsSvc, logger)
 	handler := NewAuctionEndingAdminHandler(auctionEndingRepo, scheduler, logger)
+	debugHandler := NewAuctionEndingDebugHandler(auctionLotRepo)
 
 	r := gin.New()
 	admin := r.Group("/api/admin")
 	admin.Use(auctionEndingTestAuthMiddleware())
 	admin.Use(auctionEndingTestAdminMiddleware())
 	admin.POST("/auction-ending/run", handler.TriggerRun)
+	admin.GET("/auction-ending/debug", debugHandler.DebugGetAuctionEndingInfo)
 	admin.GET("/auction-ending-runs", handler.ListRuns)
 
 	return r, db, adminUser.ID, regularUser.ID
@@ -268,5 +270,81 @@ func TestAuctionEndingAdminHandler_ListRuns_NoAuth(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestAuctionEndingDebugHandler_Counts verifies the debug endpoint reports global lot counts via the repository.
+func TestAuctionEndingDebugHandler_Counts(t *testing.T) {
+	router, db, adminID, regularID := setupAuctionEndingAdminRouter(t)
+	adminToken := makeAuctionEndingAdminTestJWT(adminID, "admin")
+
+	lots := []models.AuctionLot{
+		{
+			NumisBidsURL: "https://example.com/admin-bidding-1",
+			Title:        "Admin Bidding 1",
+			Status:       models.AuctionStatusBidding,
+			LotNumber:    1,
+			UserID:       adminID,
+		},
+		{
+			NumisBidsURL: "https://example.com/admin-watching-1",
+			Title:        "Admin Watching 1",
+			Status:       models.AuctionStatusWatching,
+			LotNumber:    2,
+			UserID:       adminID,
+		},
+		{
+			NumisBidsURL: "https://example.com/user-bidding-1",
+			Title:        "User Bidding 1",
+			Status:       models.AuctionStatusBidding,
+			LotNumber:    3,
+			UserID:       regularID,
+		},
+		{
+			NumisBidsURL: "https://example.com/user-won-1",
+			Title:        "User Won 1",
+			Status:       models.AuctionStatusWon,
+			LotNumber:    4,
+			UserID:       regularID,
+		},
+	}
+	for i := range lots {
+		if err := db.Create(&lots[i]).Error; err != nil {
+			t.Fatalf("failed to create auction lot %d: %v", i, err)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/auction-ending/debug", nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	if got := resp["total_lots_in_db"].(float64); got != 4 {
+		t.Fatalf("expected total_lots_in_db=4, got %v", got)
+	}
+
+	lotsByStatus, ok := resp["lots_by_status"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected lots_by_status map, got %T", resp["lots_by_status"])
+	}
+	expectedCounts := map[string]float64{
+		string(models.AuctionStatusBidding):  2,
+		string(models.AuctionStatusWatching): 1,
+		string(models.AuctionStatusWon):      1,
+	}
+	for status, expected := range expectedCounts {
+		if got := lotsByStatus[status].(float64); got != expected {
+			t.Errorf("expected lots_by_status[%q]=%v, got %v", status, expected, got)
+		}
 	}
 }

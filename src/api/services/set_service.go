@@ -8,7 +8,6 @@ import (
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
-	"gorm.io/gorm"
 )
 
 const maxSetsPerUser = 100
@@ -174,7 +173,7 @@ func (s *SetService) CreateSet(userID uint, input map[string]interface{}) (*mode
 		parentID := uint(parentSetID)
 		parent, err := s.repo.GetByID(parentID, userID)
 		if err != nil {
-			if err == gorm.ErrRecordNotFound {
+			if repository.IsRecordNotFound(err) {
 				return nil, fmt.Errorf("parent set not found")
 			}
 			return nil, err

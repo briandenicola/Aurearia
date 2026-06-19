@@ -264,3 +264,59 @@ func TestAuctionLotRepository_GetEndingSoon_MultipleUsers(t *testing.T) {
 		}
 	}
 }
+
+func TestAuctionLotRepository_CountAllAndCountAllByStatus(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+
+	lots := []models.AuctionLot{
+		{
+			NumisBidsURL: "https://example.com/admin-bidding-1",
+			Title:        "Admin Bidding 1",
+			Status:       models.AuctionStatusBidding,
+			LotNumber:    1,
+			UserID:       1,
+		},
+		{
+			NumisBidsURL: "https://example.com/user-bidding-1",
+			Title:        "User Bidding 1",
+			Status:       models.AuctionStatusBidding,
+			LotNumber:    2,
+			UserID:       2,
+		},
+		{
+			NumisBidsURL: "https://example.com/user-watching-1",
+			Title:        "User Watching 1",
+			Status:       models.AuctionStatusWatching,
+			LotNumber:    3,
+			UserID:       2,
+		},
+	}
+	for i := range lots {
+		if err := repo.Create(&lots[i]); err != nil {
+			t.Fatalf("failed to create lot %d: %v", i, err)
+		}
+	}
+
+	total, err := repo.CountAll()
+	if err != nil {
+		t.Fatalf("CountAll failed: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("expected CountAll=3, got %d", total)
+	}
+
+	counts, err := repo.CountAllByStatus()
+	if err != nil {
+		t.Fatalf("CountAllByStatus failed: %v", err)
+	}
+	expectedCounts := map[string]int64{
+		string(models.AuctionStatusBidding):  2,
+		string(models.AuctionStatusWatching): 1,
+	}
+	for status, expected := range expectedCounts {
+		if counts[status] != expected {
+			t.Errorf("expected CountAllByStatus[%q]=%d, got %d", status, expected, counts[status])
+		}
+	}
+}

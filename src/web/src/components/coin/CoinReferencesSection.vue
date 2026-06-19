@@ -47,15 +47,13 @@
             <span v-if="ref.invoiceNumber" class="reference-invoice">{{ ref.invoiceNumber }}</span>
           </div>
           <div class="reference-actions">
-            <a
+            <SafeExternalLink
               v-if="ref.uri"
               :href="ref.uri"
-              target="_blank"
-              rel="noopener noreferrer"
               class="btn btn-ghost btn-xs"
             >
               Open
-            </a>
+            </SafeExternalLink>
             <button type="button" class="btn btn-ghost btn-xs" :disabled="saving" @click="startEdit(ref)">
               Edit
             </button>
@@ -95,6 +93,7 @@ import { computed, ref, watch, onMounted } from 'vue'
 import { createCoinReference, deleteCoinReference, updateCoinReference, listCatalogs } from '@/api/client'
 import type { CoinReference, CatalogRegistry } from '@/types'
 import { useDialog } from '@/composables/useDialog'
+import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 type ReferenceDraft = {
   catalog: string

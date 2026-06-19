@@ -39,13 +39,13 @@ type IntakeEvidence struct {
 }
 
 type IntakeDraftResponse struct {
-	DraftID           uint                   `json:"draftId"`
-	Status            string                 `json:"status"`
-	Coin              map[string]interface{} `json:"coin"`
+	DraftID           uint                    `json:"draftId"`
+	Status            string                  `json:"status"`
+	Coin              map[string]interface{}  `json:"coin"`
 	ConfidenceSummary IntakeConfidenceSummary `json:"confidenceSummary"`
-	Evidence          []IntakeEvidence       `json:"evidence"`
-	UnresolvedFields  []string               `json:"unresolvedFields"`
-	ExpiresAt         time.Time              `json:"expiresAt"`
+	Evidence          []IntakeEvidence        `json:"evidence"`
+	UnresolvedFields  []string                `json:"unresolvedFields"`
+	ExpiresAt         time.Time               `json:"expiresAt"`
 }
 
 type IntakeCommitRequest struct {
@@ -178,7 +178,7 @@ func (s *CoinIntakeService) CommitDraft(userID uint, req IntakeCommitRequest) (*
 
 	draft, err := s.draftRepo.FindByIDForUser(req.DraftID, userID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			return nil, ErrIntakeDraftNotFound
 		}
 		return nil, err

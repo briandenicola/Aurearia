@@ -138,15 +138,13 @@
               <ShieldCheck :size="20" />
               <span>NGC Certification: {{ ngcCertNumber }}</span>
             </div>
-            <a
+            <SafeExternalLink
               :href="ngcLookupUrl"
-              target="_blank"
-              rel="noopener noreferrer"
               class="btn btn-secondary btn-sm"
             >
               <ExternalLink :size="16" />
               Verify on NGC
-            </a>
+            </SafeExternalLink>
           </div>
 
           <!-- Inscriptions -->
@@ -221,15 +219,13 @@
               <div class="numista-info">
                 <h4>{{ match.title }}</h4>
                 <p v-if="match.issuer" class="numista-issuer">{{ match.issuer }}</p>
-                <a
+                <SafeExternalLink
                   :href="match.url"
-                  target="_blank"
-                  rel="noopener noreferrer"
                   class="numista-link"
                 >
                   <ExternalLink :size="14" />
                   View on Numista
-                </a>
+                </SafeExternalLink>
               </div>
             </div>
           </div>
@@ -273,6 +269,7 @@ import {
   RotateCcw,
   Bookmark,
 } from 'lucide-vue-next'
+import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 interface CapturedImage {
   file: File

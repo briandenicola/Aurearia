@@ -171,7 +171,7 @@ func (s *CollectionToolsService) SearchMyCollection(userID uint, query string, l
 func (s *CollectionToolsService) GetCoin(userID uint, coinID uint) (*CollectionCoinSummary, error) {
 	coin, err := s.coinRepo.FindByID(coinID, userID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			return nil, ErrCoinNotFound
 		}
 		return nil, err
@@ -263,7 +263,7 @@ func (s *CollectionToolsService) ProposeUpdate(userID uint, coinID uint, changes
 
 	coin, err := s.coinRepo.FindByID(coinID, userID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			return nil, ErrCoinNotFound
 		}
 		return nil, err
@@ -546,7 +546,7 @@ func replaceCoinTags(tx *gorm.DB, coinID, userID uint, rawTags any) error {
 	for _, name := range tagNames {
 		var tag models.Tag
 		err := tx.Where("user_id = ? AND LOWER(name) = LOWER(?)", userID, name).First(&tag).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if repository.IsRecordNotFound(err) {
 			tag = models.Tag{
 				UserID: userID,
 				Name:   name,

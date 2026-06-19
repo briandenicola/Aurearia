@@ -665,3 +665,5 @@ All tests pass; architecture compliant; ready for merge.
 ## 2026-06-19 — Agent app_context DTO Contract (#318)
 
 Modeled Go's optional `app_context` payload explicitly in Python as `AppContext(route, activeCoinId)` and made agent request DTOs reject unknown fields. The context is threaded into collection chat so route/active coin metadata can resolve phrases like "this coin" without being silently ignored. Added Go JSON shape tests for `app_context` and Python model tests for accepted shape, aliases, and unknown-field rejection. Validation: `go test ./...`, `go vet ./...`, `pytest tests/ -v`, `ruff check app/ tests/`.
+
+- **2026-06-19 — Go Architecture Gate Hardening (#317):** Removed non-test handler GORM imports by routing not-found checks through `repository.IsRecordNotFound`, moved auction-ending debug counts into `AuctionLotRepository`, and tightened `architecture_test.go` so `TestArchitecture` enforces no handler GORM/direct DB access plus documented service GORM exceptions only.
