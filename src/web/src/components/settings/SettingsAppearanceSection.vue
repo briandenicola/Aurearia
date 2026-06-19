@@ -63,6 +63,36 @@
 
     <div class="setting-item">
       <div class="setting-info">
+        <span class="setting-label">Tray Felt Color</span>
+        <span class="setting-desc">Choose the museum tray background color</span>
+      </div>
+      <div class="theme-toggle felt-toggle">
+        <button
+          class="theme-btn felt-btn felt-btn-red"
+          :class="{ active: trayFeltColor === 'red' }"
+          @click="$emit('set-tray-felt-color', 'red')"
+        >
+          Red
+        </button>
+        <button
+          class="theme-btn felt-btn felt-btn-green"
+          :class="{ active: trayFeltColor === 'green' }"
+          @click="$emit('set-tray-felt-color', 'green')"
+        >
+          Green
+        </button>
+        <button
+          class="theme-btn felt-btn felt-btn-navy"
+          :class="{ active: trayFeltColor === 'navy' }"
+          @click="$emit('set-tray-felt-color', 'navy')"
+        >
+          Navy
+        </button>
+      </div>
+    </div>
+
+    <div class="setting-item">
+      <div class="setting-info">
         <span class="setting-label">Default Sort</span>
         <span class="setting-desc">How coins are sorted by default</span>
       </div>
@@ -84,6 +114,7 @@
 
 <script setup lang="ts">
 import type { Theme } from '@/types'
+import type { FeltColor } from '@/composables/useTrayPreference'
 
 defineProps<{
   theme: Theme
@@ -91,6 +122,7 @@ defineProps<{
   timezones: string[]
   defaultView: 'grid' | 'swipe'
   defaultSort: string
+  trayFeltColor: FeltColor
 }>()
 
 defineEmits<{
@@ -98,6 +130,7 @@ defineEmits<{
   'save-timezone': [tz: string]
   'set-default-view': [view: 'grid' | 'swipe']
   'save-default-sort': [sort: string]
+  'set-tray-felt-color': [color: FeltColor]
 }>()
 </script>
 
@@ -124,6 +157,25 @@ defineEmits<{
 .theme-btn.active {
   background: var(--accent-gold-dim);
   color: var(--accent-gold);
+}
+
+.felt-toggle {
+  flex-wrap: wrap;
+}
+
+.felt-btn-red.active {
+  background: var(--felt-red-dim);
+  color: var(--felt-red-bright);
+}
+
+.felt-btn-green.active {
+  background: var(--felt-green-dim);
+  color: var(--felt-green-bright);
+}
+
+.felt-btn-navy.active {
+  background: var(--felt-navy-dim);
+  color: var(--felt-navy-bright);
 }
 
 .tz-select {

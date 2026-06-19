@@ -51,10 +51,12 @@
           :timezones="timezones"
           :default-view="defaultView"
           :default-sort="defaultSort"
+          :tray-felt-color="feltColor"
           @set-theme="setTheme"
           @save-timezone="(tz: string) => { timezone = tz; saveTimezone() }"
           @set-default-view="setDefaultView"
           @save-default-sort="(sort: string) => { defaultSort = sort; saveDefaultSort() }"
+          @set-tray-felt-color="(color) => { feltColor = color }"
         />
 
         <!-- Data Tab -->
@@ -110,6 +112,7 @@ import {
 import type { ConversationSummary } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
 import { usePwa } from '@/composables/usePwa'
+import { useTrayPreference } from '@/composables/useTrayPreference'
 import type { Theme } from '@/types'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import HelpSection from '@/components/HelpSection.vue'
@@ -138,6 +141,7 @@ const { showConfirm, showAlert } = useDialog()
 const activeTab = ref('account')
 const settingsMenuOpen = ref(false)
 const { isPwa } = usePwa()
+const { feltColor } = useTrayPreference()
 
 const route = useRoute()
 const router = useRouter()

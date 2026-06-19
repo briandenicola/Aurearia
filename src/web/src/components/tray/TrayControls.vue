@@ -2,78 +2,53 @@
   <div class="tray-controls">
     <div class="drawer-navigation">
       <button
-        class="btn btn-sm"
+        class="nav-btn"
         :disabled="drawerIndex === 0"
         @click="emit('prev')"
       >
-        &lt; Previous
+        <ChevronLeft :size="16" />
+        Prev
       </button>
       <span class="drawer-label">
         Tray {{ drawerIndex + 1 }} of {{ totalDrawers }}
       </span>
       <button
-        class="btn btn-sm"
+        class="nav-btn"
         :disabled="drawerIndex >= totalDrawers - 1"
         @click="emit('next')"
       >
-        Next &gt;
+        Next
+        <ChevronRight :size="16" />
       </button>
-    </div>
-    <div class="felt-theme-selector">
-      <span class="theme-label">Felt Color:</span>
-      <div class="theme-chips">
-        <button
-          class="chip theme-chip theme-chip-red"
-          :class="{ active: feltTheme === 'red' }"
-          @click="emit('update:feltTheme', 'red')"
-          aria-label="Red felt"
-        >
-          Red
-        </button>
-        <button
-          class="chip theme-chip theme-chip-green"
-          :class="{ active: feltTheme === 'green' }"
-          @click="emit('update:feltTheme', 'green')"
-          aria-label="Green felt"
-        >
-          Green
-        </button>
-        <button
-          class="chip theme-chip theme-chip-navy"
-          :class="{ active: feltTheme === 'navy' }"
-          @click="emit('update:feltTheme', 'navy')"
-          aria-label="Navy felt"
-        >
-          Navy
-        </button>
-      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { FeltColor } from '@/composables/useTrayPreference'
+import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 
 interface Props {
   drawerIndex: number
   totalDrawers: number
-  feltTheme: FeltColor
 }
 
 defineProps<Props>()
 const emit = defineEmits<{
   prev: []
   next: []
-  'update:feltTheme': [theme: FeltColor]
 }>()
 </script>
 
 <style scoped>
 .tray-controls {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  z-index: 1200;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  width: min(calc(100vw - 2rem), 420px);
+  transform: translateX(-50%);
 }
 
 .drawer-navigation {
@@ -82,10 +57,11 @@ const emit = defineEmits<{
   justify-content: center;
   flex-wrap: nowrap;
   gap: 1rem;
-}
-
-.drawer-navigation .btn {
-  white-space: nowrap;
+  padding: 0.6rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
 }
 
 .drawer-label {
@@ -96,74 +72,39 @@ const emit = defineEmits<{
   text-align: center;
 }
 
-.felt-theme-selector {
-  display: flex;
+.nav-btn {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.theme-label {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-
-.theme-chips {
-  display: flex;
   gap: 0.35rem;
-}
-
-.theme-chip {
-  font-size: 0.8rem;
-  padding: 0.35rem 0.85rem;
-  border: 1px solid var(--border-subtle);
+  padding: 0.5rem 1.25rem;
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-full);
   background: var(--bg-card);
   color: var(--text-secondary);
-  transition: var(--transition-fast);
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
 }
 
-.theme-chip:hover {
-  border-color: var(--border-accent);
-  background: var(--bg-card-hover);
-}
-
-.theme-chip.active {
+.nav-btn:hover:not(:disabled) {
   background: var(--accent-gold-dim);
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
+  color: var(--text-primary);
 }
 
-.theme-chip-red.active {
-  background: var(--felt-red-dim);
-  border-color: var(--felt-red-base);
-  color: var(--felt-red-bright);
-}
-
-.theme-chip-green.active {
-  background: var(--felt-green-dim);
-  border-color: var(--felt-green-base);
-  color: var(--felt-green-bright);
-}
-
-.theme-chip-navy.active {
-  background: var(--felt-navy-dim);
-  border-color: var(--felt-navy-base);
-  color: var(--felt-navy-bright);
+.nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 @media (max-width: 575px) {
-  .tray-controls {
-    gap: 0.75rem;
-  }
-
   .drawer-navigation {
     gap: 0.5rem;
+    padding: 0.45rem;
   }
 
-  .felt-theme-selector {
-    flex-direction: column;
-    gap: 0.5rem;
+  .nav-btn {
+    padding: 0.45rem 0.8rem;
   }
 }
 </style>

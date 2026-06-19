@@ -20,7 +20,7 @@
     </div>
 
     <div v-else-if="sets.length === 0" class="empty-state">
-      <FolderOpen :size="48" />
+      <Layers3 :size="48" />
       <h3>No sets yet</h3>
       <p>Create a set to organize your collection by theme, era, or completion goals</p>
       <button class="btn btn-primary empty-action" @click="showCreateModal = true">
@@ -62,7 +62,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { CirclePlus, FolderOpen, Plus, X } from 'lucide-vue-next'
+import { CirclePlus, Layers3, Plus, X } from 'lucide-vue-next'
 import { getSets, createSet as createSetApi, createSetFromCsv } from '@/api/client'
 import type { CoinSetSummary, CreateCoinSetRequest } from '@/types'
 import SetDashboardCard from '@/components/sets/SetDashboardCard.vue'
@@ -174,9 +174,9 @@ function goToSet(id: number) {
 }
 
 .sets-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
 }
 
 .modal-overlay {

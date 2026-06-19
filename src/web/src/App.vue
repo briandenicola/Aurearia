@@ -107,15 +107,17 @@
       <router-view />
     </main>
 
-    <!-- PWA floating agent button -->
-    <button
-      v-if="isPwa && auth.isAuthenticated && !showChat && !bulkSelectActive"
-      class="agent-fab"
-      @click="showChat = true"
-      aria-label="Open AI Agent"
-    >
-      <Bot :size="22" />
-    </button>
+    <Teleport to="body">
+      <!-- PWA floating agent button -->
+      <button
+        v-if="isPwa && auth.isAuthenticated && !showChat && !bulkSelectActive"
+        class="agent-fab"
+        @click="showChat = true"
+        aria-label="Open AI Agent"
+      >
+        <Bot :size="22" />
+      </button>
+    </Teleport>
 
     <!-- AI Agent Chat -->
     <CoinSearchChat v-if="showChat" @close="showChat = false" />
@@ -814,28 +816,4 @@ onUnmounted(() => {
   margin-top: 1.5rem;
 }
 
-/* PWA floating agent button */
-.agent-fab {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: var(--accent-gold);
-  color: #1a1a2e;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  z-index: 1000;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.agent-fab:active {
-  transform: scale(0.92);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
 </style>

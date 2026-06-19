@@ -33,12 +33,39 @@ describe('UI pattern recipes', () => {
     const drawerNavigation = extractCssBlock(trayControls, '.drawer-navigation')
     const drawerLabel = extractCssBlock(trayControls, '.drawer-label')
 
-    expect(trayControls).toContain('&lt; Previous')
+    expect(trayControls).toContain('Prev')
     expect(trayControls).toContain('Tray {{ drawerIndex + 1 }} of {{ totalDrawers }}')
-    expect(trayControls).toContain('Next &gt;')
+    expect(trayControls).toContain('Next')
+    expect(trayControls).toContain('nav-btn')
+    expect(trayControls).toContain('position: fixed')
+    expect(trayControls).toContain('bottom: calc(1rem + env(safe-area-inset-bottom))')
     expect(drawerNavigation).toContain('flex-wrap: nowrap')
     expect(drawerNavigation).not.toContain('flex-direction: column')
     expect(drawerLabel).not.toContain('order: -1')
+    expect(trayControls).not.toContain('Felt Color')
+    expect(trayControls).not.toContain('felt-theme-selector')
+  })
+
+  it('keeps tray felt color in Settings appearance instead of the tray page', () => {
+    const settingsAppearance = readRepoFile(join('components', 'settings', 'SettingsAppearanceSection.vue'))
+    const trayPage = readRepoFile(join('pages', 'TrayViewPage.vue'))
+
+    expect(settingsAppearance).toContain('Tray Felt Color')
+    expect(settingsAppearance).toContain('set-tray-felt-color')
+    expect(trayPage).not.toContain('@update:felt-theme')
+  })
+
+  it('keeps the PWA agent button viewport-fixed globally', () => {
+    const app = readRepoFile('App.vue')
+    const mainCss = readRepoFile(join('assets', 'styles', 'main.css'))
+    const agentFabCss = extractCssBlock(mainCss, '.agent-fab')
+
+    expect(app).toContain('<Teleport to="body">')
+    expect(app).toContain('class="agent-fab"')
+    expect(app).not.toContain('.agent-fab {')
+    expect(agentFabCss).toContain('position: fixed')
+    expect(agentFabCss).toContain('bottom: calc(24px + env(safe-area-inset-bottom))')
+    expect(agentFabCss).toContain('right: calc(24px + env(safe-area-inset-right))')
   })
 
   it('keeps Stats and Collection sidebar parents collapsed with submenu children', () => {

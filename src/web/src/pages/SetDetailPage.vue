@@ -1,56 +1,45 @@
 <template>
-  <div class="set-detail-page">
+  <div class="container set-detail-page">
     <div v-if="loading" class="loading-state">
       Loading set details...
     </div>
 
     <div v-else-if="set" class="set-detail-container">
-      <div class="set-header">
-        <button class="btn btn-ghost btn-sm" @click="router.push({ name: 'sets' })">
-          <ArrowLeft :size="16" />
-          Back to Sets
-        </button>
-        <div class="set-header-content">
-          <div class="set-icon-large" :style="{ backgroundColor: set.color }">
-            <FolderOpen :size="32" />
-          </div>
-          <div class="set-title-area">
+      <div class="page-header set-page-header">
+        <div class="set-title-area">
+          <span class="set-title-accent" :style="{ backgroundColor: set.color }" aria-hidden="true"></span>
+          <div>
             <h1>{{ set.name }}</h1>
             <p v-if="set.description" class="set-description">{{ set.description }}</p>
           </div>
         </div>
-        <div class="set-actions">
-          <button v-if="canManageMembership" class="btn btn-primary btn-sm" @click="openAddCoinModal">
-            <Plus :size="16" />
-            Add Coin
+        <div v-if="isPwa" class="pwa-actions">
+          <button class="pwa-icon-btn" @click="router.push({ name: 'sets' })" title="Back to Sets">
+            <ArrowLeft :size="22" />
           </button>
-          <button class="btn btn-secondary btn-sm" @click="showEditModal = true">
-            <Pencil :size="16" />
-            Edit
+          <button v-if="canManageMembership" class="pwa-icon-btn" @click="openAddCoinModal" title="Add Coin">
+            <CirclePlus :size="22" />
           </button>
-          <button class="btn btn-danger btn-sm" @click="deleteSet">
-            <Trash2 :size="16" />
-            Delete
+          <button class="pwa-icon-btn" @click="showEditModal = true" title="Edit Set">
+            <Pencil :size="22" />
+          </button>
+          <button class="pwa-icon-btn danger" @click="deleteSet" title="Delete Set">
+            <Trash2 :size="22" />
           </button>
         </div>
-      </div>
-
-      <div class="set-summary">
-        <div class="summary-card">
-          <span class="summary-label">Coins</span>
-          <span class="summary-value">{{ set.coinCount }}</span>
-        </div>
-        <div class="summary-card">
-          <span class="summary-label">Total Value</span>
-          <span class="summary-value">${{ formatNumber(set.totalValue) }}</span>
-        </div>
-        <div class="summary-card">
-          <span class="summary-label">Total Invested</span>
-          <span class="summary-value">${{ formatNumber(set.totalInvested) }}</span>
-        </div>
-        <div v-if="set.avgValuePerCoin != null" class="summary-card">
-          <span class="summary-label">Avg Value/Coin</span>
-          <span class="summary-value">${{ formatNumber(set.avgValuePerCoin) }}</span>
+        <div v-else class="header-actions">
+          <button class="btn btn-ghost" @click="router.push({ name: 'sets' })">
+            <ArrowLeft :size="16" /> Back
+          </button>
+          <button v-if="canManageMembership" class="btn btn-primary" @click="openAddCoinModal">
+            <Plus :size="16" /> Add Coin
+          </button>
+          <button class="btn btn-secondary" @click="showEditModal = true">
+            <Pencil :size="16" /> Edit
+          </button>
+          <button class="btn btn-danger" @click="deleteSet">
+            <Trash2 :size="16" /> Delete
+          </button>
         </div>
       </div>
 
@@ -242,7 +231,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, FolderOpen, Coins, Pencil, Plus, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, CirclePlus, Coins, Pencil, Plus, Trash2 } from 'lucide-vue-next'
 import {
   addCoinToSet,
   compareSets,
@@ -263,9 +252,11 @@ import type { CoinSetAnalytics, CoinSetComparison, CoinSetCompletion, CoinSetDet
 import SetCompletionChecklist from '@/components/sets/SetCompletionChecklist.vue'
 import SetTrendChart from '@/components/sets/SetTrendChart.vue'
 import SetComparePanel from '@/components/sets/SetComparePanel.vue'
+import { usePwa } from '@/composables/usePwa'
 
 const router = useRouter()
 const route = useRoute()
+const { isPwa } = usePwa()
 const loading = ref(true)
 const set = ref<CoinSetDetail | null>(null)
 const coins = ref<Coin[]>([])
@@ -536,10 +527,6 @@ function goToCoin(coinId: number) {
   router.push({ name: 'coin-detail', params: { id: coinId } })
 }
 
-function formatNumber(value: number): string {
-  return value.toFixed(2)
-}
-
 function getErrorMessage(error: unknown, fallback: string): string {
   if (typeof error === 'object' && error !== null && 'response' in error) {
     const response = (error as { response?: { data?: { error?: unknown } } }).response
@@ -556,9 +543,7 @@ function getErrorMessage(error: unknown, fallback: string): string {
 
 <style scoped>
 .set-detail-page {
-  padding: 1.5rem;
-  max-width: 1200px;
-  margin: 0 auto;
+  padding-bottom: 1.5rem;
 }
 
 .loading-state {
@@ -566,75 +551,32 @@ function getErrorMessage(error: unknown, fallback: string): string {
   padding: 3rem 1rem;
 }
 
-.set-header {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 0;
-  margin-bottom: 1.5rem;
-  background: var(--bg-primary);
-  border-bottom: 1px solid var(--border-subtle);
+.set-page-header {
+  align-items: flex-start;
 }
 
-.set-header-content {
+.set-title-area {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
   min-width: 0;
+  flex: 1;
 }
 
-.set-icon-large {
-  width: 3.5rem;
-  height: 3.5rem;
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--bg-primary);
+.set-title-accent {
+  width: 0.25rem;
+  height: 2.8rem;
+  border-radius: var(--radius-full);
   flex-shrink: 0;
-}
-
-.set-title-area h1 {
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  box-shadow: 0 0 16px var(--accent-gold-glow);
 }
 
 .set-description {
   color: var(--text-secondary);
-  margin: 0.25rem 0 0;
+  margin: 0.15rem 0 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.set-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.set-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.summary-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
 }
 
 .summary-label {
@@ -642,10 +584,8 @@ function getErrorMessage(error: unknown, fallback: string): string {
   color: var(--text-secondary);
 }
 
-.summary-value {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--accent-gold);
+.pwa-icon-btn.danger {
+  color: var(--error-bg);
 }
 
 .coins-heading {
@@ -879,20 +819,15 @@ function getErrorMessage(error: unknown, fallback: string): string {
 
 @media (max-width: 768px) {
   .set-detail-page {
-    padding: 1rem;
+    padding-bottom: 1rem;
   }
 
-  .set-header {
-    grid-template-columns: 1fr;
-    align-items: stretch;
+  .set-page-header {
+    align-items: flex-start;
   }
 
-  .set-header-content {
-    order: -1;
-  }
-
-  .set-actions {
-    justify-content: flex-start;
+  .set-title-area {
+    align-items: flex-start;
   }
 
   .coins-heading {

@@ -433,6 +433,31 @@ a:hover {
   cursor: not-allowed;
 }
 
+/* PWA floating agent button — global because it is teleported to body. */
+.agent-fab {
+  position: fixed;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  right: calc(24px + env(safe-area-inset-right));
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-full);
+  background: var(--accent-gold);
+  color: var(--bg-primary);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-card);
+  z-index: 1250;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.agent-fab:active {
+  transform: scale(0.92);
+  box-shadow: 0 2px 8px var(--overlay-dark);
+}
+
 /* T003: Coin detail page utilities for #219 */
 
 /* Metadata table row — standardized label/value structure */

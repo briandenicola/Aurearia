@@ -1,38 +1,30 @@
 <template>
-  <div class="set-dashboard-card" @click="$emit('click')">
-    <div class="set-card-header">
-      <div class="set-icon-wrapper" :style="{ backgroundColor: set.color }">
-        <component v-if="set.icon" :is="getIcon(set.icon)" :size="20" />
-        <FolderOpen v-else :size="20" />
-      </div>
-      <div class="set-info">
-        <h3 class="set-name">{{ set.name }}</h3>
-        <span class="set-type-badge">{{ formatSetType(set.setType) }}</span>
-      </div>
-    </div>
-
-    <div class="set-stats">
-      <div class="stat-item">
-        <span class="stat-label">Coins</span>
-        <span class="stat-value">{{ set.coinCount }}</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-label">Total Value</span>
-        <span class="stat-value">${{ formatNumber(set.totalValue) }}</span>
-      </div>
-      <div v-if="set.completionPercentage != null" class="stat-item">
-        <span class="stat-label">Completion</span>
-        <span class="stat-value">{{ set.completionPercentage }}%</span>
-      </div>
-    </div>
-  </div>
+  <button class="set-dashboard-card" type="button" @click="$emit('click')">
+    <span class="set-accent" :style="{ backgroundColor: set.color }" aria-hidden="true"></span>
+    <span class="set-card-main">
+      <span class="set-name">{{ set.name }}</span>
+      <span v-if="setDescription" class="set-description">{{ setDescription }}</span>
+    </span>
+    <span class="set-card-meta">
+      <span class="set-count">
+        <span class="set-count-value">{{ set.coinCount }}</span>
+        <span class="set-count-label">{{ set.coinCount === 1 ? 'coin' : 'coins' }}</span>
+      </span>
+      <span v-if="set.completionPercentage != null" class="completion-meter" aria-label="Completion">
+        <span class="completion-track">
+          <span class="completion-fill" :style="{ width: `${set.completionPercentage}%` }"></span>
+        </span>
+        <span class="completion-label">{{ set.completionPercentage }}%</span>
+      </span>
+    </span>
+  </button>
 </template>
 
 <script setup lang="ts">
-import { FolderOpen } from 'lucide-vue-next'
+import { computed } from 'vue'
 import type { CoinSetSummary } from '@/types'
 
-defineProps<{
+const props = defineProps<{
   set: CoinSetSummary
 }>()
 
@@ -40,101 +32,120 @@ defineEmits<{
   (e: 'click'): void
 }>()
 
-function getIcon(iconName: string) {
-  void iconName
-  return FolderOpen
-}
-
-function formatSetType(type: string): string {
-  const types: Record<string, string> = {
-    open: 'Open',
-    defined: 'Defined',
-    smart: 'Smart',
-    goal: 'Goal'
-  }
-  return types[type] || type
-}
-
-function formatNumber(value: number): string {
-  return value.toFixed(2)
-}
+const setDescription = computed(() => {
+  if (props.set.completionPercentage != null) return 'Completion set'
+  return props.set.coinCount > 0 ? 'Curated group' : 'Ready for coins'
+})
 </script>
 
 <style scoped>
 .set-dashboard-card {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius:var(--radius-sm);
-  padding: 1rem;
+  border-radius: var(--radius-sm);
+  color: inherit;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  text-align: left;
+  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .set-dashboard-card:hover {
-  border-color: var(--accent-gold);
+  border-color: var(--border-accent);
+  background: var(--bg-card-hover);
   box-shadow: var(--shadow-card);
 }
 
-.set-card-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+.set-accent {
+  width: 0.25rem;
+  height: 2.8rem;
+  border-radius: var(--radius-full);
+  box-shadow: 0 0 16px var(--accent-gold-glow);
 }
 
-.set-icon-wrapper {
-  width: 40px;
-  height: 40px;
-  border-radius:var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--bg-primary);
-}
-
-.set-info {
-  flex: 1;
+.set-card-main {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
 .set-name {
-  font-size: 0.9rem;
-  font-weight: 600;
-  margin: 0;
+  color: var(--text-heading);
+  font-family: 'Cinzel', serif;
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.set-type-badge {
-  display: inline-block;
-  font-size: 0.75rem;
-  padding: 0.125rem 0.5rem;
-  background: var(--bg-input);
-  border-radius:var(--radius-full);
-  margin-top: 0.25rem;
+.set-description {
+  color: var(--text-muted);
+  font-size: 0.8rem;
 }
 
-.set-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-  gap: 0.75rem;
-}
-
-.stat-item {
+.set-card-meta {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.85rem;
+}
+
+.set-count {
+  display: flex;
+  align-items: baseline;
   gap: 0.25rem;
+  white-space: nowrap;
 }
 
-.stat-label {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.stat-value {
-  font-size: 0.9rem;
-  font-weight: 600;
+.set-count-value {
   color: var(--accent-gold);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.set-count-label,
+.completion-label {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.completion-meter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.completion-track {
+  width: 3.5rem;
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--bg-input);
+}
+
+.completion-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--accent-gold);
+}
+
+@media (max-width: 560px) {
+  .set-dashboard-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .set-card-meta {
+    grid-column: 2;
+    justify-content: space-between;
+  }
 }
 </style>
