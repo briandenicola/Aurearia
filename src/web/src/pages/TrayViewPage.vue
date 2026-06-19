@@ -44,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getCoins } from '@/api/client'
 import { useTrayPreference } from '@/composables/useTrayPreference'
@@ -101,6 +101,14 @@ const currentDrawerCoins = computed(() => {
 
 const totalDrawers = computed(() => {
   return getTotalDrawers(trayCoins.value.length, coinsPerDrawer)
+})
+
+watch(totalDrawers, (drawers) => {
+  if (drawers === 0) {
+    drawerIndex.value = 0
+    return
+  }
+  drawerIndex.value = Math.min(drawerIndex.value, drawers - 1)
 })
 
 const traySwipeStyle = computed(() => {

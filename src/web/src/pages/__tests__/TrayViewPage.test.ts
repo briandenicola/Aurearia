@@ -1,4 +1,5 @@
 import { flushPromises, shallowMount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TrayViewPage from '@/pages/TrayViewPage.vue'
 import { buildRomanDenariusCore } from '@/test/fixtures/coins'
@@ -99,6 +100,49 @@ describe('TrayViewPage', () => {
       name: measuredCoin.name,
       diameterMm: measuredCoin.diameterMm,
       images: measuredCoin.images,
+    }])
+  })
+
+  it('renders measured coins on the final desktop tray drawer', async () => {
+    const measuredCoins = Array.from({ length: 37 }, (_, index) =>
+      buildRomanDenariusCore({
+        id: index + 1,
+        name: `Measured Coin ${index + 1}`,
+        diameterMm: 16 + (index % 4),
+      }),
+    )
+    mockGetCoins.mockResolvedValueOnce({
+      data: { coins: measuredCoins, total: measuredCoins.length },
+    })
+
+    const wrapper = shallowMount(TrayViewPage, {
+      global: {
+        stubs: {
+          RouterLink: routerLinkStub,
+          MuseumTray: true,
+          TrayControls: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    const controls = wrapper.findComponent({ name: 'TrayControls' })
+    controls.vm.$emit('next')
+    await nextTick()
+    controls.vm.$emit('next')
+    await nextTick()
+    controls.vm.$emit('next')
+    await nextTick()
+
+    const tray = wrapper.findComponent({ name: 'MuseumTray' })
+    expect(controls.props('drawerIndex')).toBe(3)
+    expect(controls.props('totalDrawers')).toBe(4)
+    expect(tray.props('coins')).toHaveLength(1)
+    expect(tray.props('coins')).toEqual([{
+      id: measuredCoins[36]!.id,
+      name: measuredCoins[36]!.name,
+      diameterMm: measuredCoins[36]!.diameterMm,
+      images: measuredCoins[36]!.images,
     }])
   })
 })

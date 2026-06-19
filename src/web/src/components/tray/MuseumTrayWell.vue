@@ -14,7 +14,8 @@
         :src="primaryImage"
         :alt="coin.name"
         class="well-coin"
-        loading="lazy"
+        loading="eager"
+        decoding="async"
       />
       <div v-else class="well-placeholder">
         <Coins :size="Math.floor(renderSizePx * 0.4)" :stroke-width="1" />

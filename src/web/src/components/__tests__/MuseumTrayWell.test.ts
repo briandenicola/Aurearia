@@ -71,6 +71,8 @@ describe('MuseumTrayWell', () => {
     expect(img.exists()).toBe(true)
     expect(img.attributes('src')).toBe('/uploads/relative-image.jpg')
     expect(img.attributes('alt')).toBe('Test Coin')
+    expect(img.attributes('loading')).toBe('eager')
+    expect(img.attributes('decoding')).toBe('async')
   })
 
   it('preserves absolute path for images', () => {
