@@ -46,8 +46,7 @@
    - Architecture compliant: preserves safe paginated API contract (Principle I), respects explicit response contract (Principle III), uses proportional frontend-only fix (Principle IV)
    - Orchestration log: `.squad/orchestration-log/2026-06-18T21-14-02Z-cassius.md`
 
-
-
+- **2026-06-19 (Charts Session):** Completed OpenAPI route-drift automation (`route_openapi_drift_test.go`), non-root Docker hardening (both `Dockerfile` and `src/agent/Dockerfile` now run as UID/GID `10001:10001`), Python dependency locking strategy (`uv.lock` with CI/Docker integration for reproducible builds), and streaming token guard (JWT-shaped internal token redaction in SSE). All four deliverables are implementation-ready; decisions merged into decisions.md. Scope assessment for #321 (uv.lock) and #319 (non-root) documented; both ready for sequential or parallel merge. Cross-team validation includes Brutus approvals on #319, #321, and #308.
 ## Learnings
 
 - **2026-06-19 — PR #320 Go Toolchain Lockout Revision:** As non-original reviser after Brutus's §18.2 BLOCK, corrected `src/api/go.mod` to `go 1.26.4` so setup-go, Docker/docs/workflows, and the module pin align. Verified workflows use `go-version-file: src/api/go.mod`, `govulncheck@v1.4.0`, and `swag@v1.16.6`; local `go env GOVERSION` resolved to `go1.26.4` and pinned `govulncheck ./...` found no vulnerabilities.

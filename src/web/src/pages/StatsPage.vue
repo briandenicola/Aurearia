@@ -45,6 +45,8 @@
         />
 
         <StatsHeatMap ref="heatMapRef" />
+
+        <StatsCoinFlowChart />
       </template>
     </div>
   </PullToRefresh>
@@ -58,6 +60,7 @@ import StatsSummaryCards from '@/components/stats/StatsSummaryCards.vue'
 import StatsBarChart from '@/components/stats/StatsBarChart.vue'
 import type { BarItem } from '@/components/stats/StatsBarChart.vue'
 import StatsHeatMap from '@/components/stats/StatsHeatMap.vue'
+import StatsCoinFlowChart from '@/components/stats/StatsCoinFlowChart.vue'
 
 const store = useCoinsStore()
 const stats = computed(() => store.stats)

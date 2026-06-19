@@ -9844,3 +9844,697 @@ Security scans now also run on pushes to `main` and `beta`. Scan jobs remain non
 - **Release implication:** Branch protection should require the security scan jobs for `main` and `beta`; image publish workflows run after protected-branch pushes, so the scan jobs are the release gate for `latest` and `beta`.
 
 
+
+---
+
+# Decision: Value-Over-Time Chart Redesign + Coin Acquisition Flow Chart
+
+**Date:** 2026-06-19
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+Brian requested two improvements to the Stats area:
+1. A cleaner, more infographic-style value-over-time chart (closer to reference image — smooth lines, point labels, circled endpoint callout, side ROI panel).
+2. A new Sankey/alluvial chart showing "coins bought broken down by emperor/era/type."
+
+## Decisions
+
+### Value-Over-Time Chart (StatsValueOverTime.vue)
+
+- Layout changed to two-column: chart area (left, `flex: 1`) + side panel (right, `10.5rem`).
+- Side panel shows a large `Cinzel` ROI% or change amount, date range, and 3 summary pills (Latest Value, Invested, Change).
+- Sparse per-point SVG text labels added (every Nth point, excluding the last). Labels use CSS `font-size: 0.6rem` — not affected by `preserveAspectRatio="none"` distortion.
+- Final/latest value point now rendered as a large circled callout (SVG `<circle r="30">` + `<text>`) rather than a small dot.
+- Horizontal grid lines removed; only 4 sparse vertical grid lines remain for a cleaner look.
+- Zoom controls remain in `StatsValueTrendsPage.vue` (page-level) — the chart component is a pure presentation component that accepts a `history` prop. This preserves the existing test contract which validates that clicking a chip filters history passed to the chart.
+
+### Sankey/Alluvial Flow Chart (StatsCoinFlowChart.vue)
+
+- New component at `src/web/src/components/stats/StatsCoinFlowChart.vue`.
+- Three-column flow: **Category → Era → Material** (all three fields are always populated on active coins; Ruler/Emperor was considered but is free-text and frequently blank).
+- Fetches all active (non-wishlist, non-sold) coins via `getCoins()` pagination loop — same pattern as MintMapPage. No backend changes required.
+- Custom SVG alluvial chart: proportional node bars + cubic bezier band paths. No new npm dependencies.
+- Added to `StatsPage.vue` (`/stats`) as a new section after `StatsHeatMap`.
+- Component initializes `isLoading = ref(true)` so the spinner shows before `onMounted` fires (required for correct test behavior).
+
+## Constitution Alignment
+
+- Principle I (Layered): Chart component is purely presentational; page manages state.
+- Principle IV (Simple Complete): No new API endpoints or backend changes needed.
+- Principle V (Design Token System): All colors/spacing use CSS variables from `variables.css`.
+- Principle IX (UI/UX Consistency): No emojis, dark theme, lucide icons where used.
+- §17 Quality Gate: All targeted tests pass (`npm run test -- StatsValueTrendsPage StatsValueOverTime StatsCoinFlowChart`); `npm run type-check` clean.
+
+## Files Touched
+
+- `src/web/src/components/stats/StatsValueOverTime.vue` — redesigned
+- `src/web/src/components/stats/StatsCoinFlowChart.vue` — new
+- `src/web/src/pages/StatsValueTrendsPage.vue` — minor cleanup (no functional change to zoom logic)
+- `src/web/src/pages/StatsPage.vue` — added `StatsCoinFlowChart` section
+- `src/web/src/components/stats/__tests__/StatsValueOverTime.test.ts` — updated `.headline-context` → `.panel-roi-number`
+- `src/web/src/components/stats/__tests__/StatsCoinFlowChart.test.ts` — new
+
+---
+
+# Decision: StatsCoinFlowChart — Acquisition Flow Chart Redesign
+
+**Date:** 2026-06-19  
+**Author:** Aurelia (Frontend Dev)  
+**Status:** Implemented
+
+## Context
+
+The original `StatsCoinFlowChart.vue` used Category → Era → Material as its three columns, drawing from all active coins regardless of purchase date. This did not match the user's stated intent of an alluvial/sankey chart "based on coins bought and broken down by emperor/era/type".
+
+## Decision
+
+Redesign the chart as a **purchase-based acquisition flow** with four columns:
+
+**Purchase Period (year) → Ruler → Era → Type**
+
+Where:
+- **Purchase Period** = year extracted from `coin.purchaseDate` (e.g. "2021")
+- **Ruler** = `coin.ruler` (the emperor/ruler field)
+- **Era** = `coin.era`
+- **Type** = `coin.denomination` preferred, then `coin.category`, then "Unknown Type"
+
+**Coins without a `purchaseDate` are excluded** from the chart entirely (they are fetched but filtered out client-side). The empty state triggers when fewer than 3 coins have a purchase date.
+
+## Key Design Choices
+
+1. **Top-N=8 grouping** for Ruler and Type: rulers/types beyond the top 8 by count are bucketed as "Other Rulers" / "Other Types" to keep the chart legible. Periods are not grouped (unlikely to have more than ~10 years).
+2. **No backend changes**: uses existing `getCoins({ wishlist:'false', sold:'false', sort:'purchase_date', order:'asc' })` with pagination.
+3. **Material color maps removed entirely** — the new chart no longer includes a material column.
+4. **Period palette** cycles through 6 design-token colors (`--accent-gold`, `--accent-bronze`, 4 category tokens).
+5. **SVG widened** to 760×380 px viewBox with `COL_X=[75,245,415,585]` for 4 columns.
+6. **Honest UI labeling**: heading is "Coins Bought by Period, Ruler, Era & Type"; footnote explains the top-N grouping convention.
+
+## Rationale
+
+The field mapping is the most direct fit for the user's request given the available data model: `ruler` maps to emperor/ruler, `denomination` maps to coin type, `era` maps to era, and grouping by purchase year provides the temporal "bought" dimension. Denomination was preferred over category for "type" because it is more specific.
+
+---
+
+# Decision: Desktop Tray Browser Regression for Issue #308
+
+**Date:** 2026-06-19  
+**Agent:** Aurelia  
+**Status:** PROPOSED — IMPLEMENTED
+
+## Context
+
+Issue #308 reported that `/tray` loaded in desktop Edge but only a single small measured coin appeared, while PWA mode rendered correctly. Current beta already uses authenticated media blobs, eager image loading, no private Workbox runtime cache, and filters tray coins to positive `diameterMm`.
+
+## Decision
+
+Add a desktop Playwright regression for the exact `/tray` path using an authenticated localStorage session and 67 measured active coins. The test mocks `/api/coins` and authenticated `/api/uploads/*` image bytes, then asserts:
+
+- no tray empty state
+- first drawer renders 12 `.tray-well` elements
+- drawer controls show `Tray 1 of 6` and advance to drawer 2
+- the first coin image renders with `loading="eager"` and `decoding="async"`
+- media fetches carry `Authorization: Bearer workflow-access-token` and `cache-control: no-store`
+
+While adding the test, fix the desktop layout bug in `MuseumTray.vue`: tray grid previously stayed on the narrow/mobile column count for desktop. It now uses 3 mobile columns, 4 tablet columns, and 6 desktop columns to align with spec §Responsive Tray Layout.
+
+## Rationale
+
+This is a small, high-confidence fix plus regression for the reported desktop workflow. It does not touch unrelated UI or issue #319, and it proves the current authenticated/no-store media path works in a real browser context rather than relying only on jsdom component tests.
+
+## Constitution Alignment
+
+- Principle IV: focused proportional fix for the failing workflow
+- Principle VI: desktop layout corrected without changing PWA route/component behavior
+- §17: exact workflow regression added for `/tray`
+
+## Files Touched
+
+- `src/web/src/components/tray/MuseumTray.vue`
+- `src/web/e2e/fixtures/workflow.ts`
+- `src/web/e2e/workflows/tray.spec.ts`
+- `src/web/src/__tests__/ui-patterns.test.ts`
+- `.squad/agents/aurelia/history.md`
+
+---
+
+# Testing Decision: Chart Regression Tests for Value Trends + Sankey/Alluvial Placeholders
+
+**Date:** 2026-06-19  
+**Author:** Brutus  
+**Scope:** `src/web/src/pages/__tests__/StatsValueTrendsPage.test.ts` + new `src/web/src/components/stats/__tests__/StatsValueOverTime.test.ts`
+
+---
+
+## Decision
+
+Added regression tests protecting:
+
+1. **Timeframe zoom controls** — `All/1Y/6M/3M` chips always render inside `.timeframe-chips` after loading. Previously untested; regression risk confirmed by the user report that zoom was lost after the chart-quality update.
+
+2. **Zoom filtering behavior** — Clicking a chip correctly passes filtered `ValueSnapshot[]` to `StatsValueOverTime` via its `:history` prop. Tests use `vi.useFakeTimers()` + `vi.setSystemTime('2024-03-01')` with a 4-point history spanning 2022–2024 so each timeframe band (All/1Y/6M) produces a distinct, verifiable count.
+
+3. **Chip active state** — `All` is active by default; switching to another chip moves the `.active` class without leaving two active chips simultaneously.
+
+4. **Chart anatomy contract (component-level)** — New `StatsValueOverTime.test.ts` directly mounts the component and asserts all infographic elements: `.value-chart-card`, `.chart-summary-strip`, 3 `.summary-pill`, `.chart-area-fill`, `.chart-line-value`, `.chart-line-invested`, `.endpoint-dot-value`, "Portfolio Trajectory" label, legend items, positive/negative headline class.
+
+5. **Minimum-data guard** — Chart component renders nothing when `history.length < 2`; both 0-item and 1-item cases covered.
+
+6. **Sankey/alluvial purchase flow placeholders** — 5 `it.todo()` entries in `StatsValueOverTime.test.ts` document the expected contract for an upcoming coins-bought-by-emperor/era/type flow chart. Once Aurelia implements `StatsCoinsFlow`, these todos become live tests.
+
+---
+
+## Rationale
+
+- The user's report of "lost zoom" is a perfect example of a page-level change silently breaking a feature because there was no test catching it. The 4 new zoom tests would have caught the regression immediately.
+- Component-level tests for `StatsValueOverTime` decouple the chart contract from the page layout. Future style renames won't silently pass if they remove functional elements.
+- The Sankey todos prevent the pattern of "we'll add tests later" — the contract is documented now so the implementer (Aurelia) knows exactly what Brutus will check.
+
+---
+
+## Test Command
+
+```
+npm run test -- StatsValueTrendsPage StatsValueOverTime
+```
+
+Result: **18 passed | 5 todo** in ~1.7s.
+
+---
+
+# Brutus Review Decision — #316/#320/#322
+
+Date: 2026-06-19T10:38:15-05:00
+Reviewer: Brutus
+
+## Decision
+
+BLOCK the combined batch on #320 until the Go toolchain source of truth is aligned.
+
+## Rationale
+
+`Dockerfile` and docs now reference Go 1.26.4, but `src/api/go.mod` remains `go 1.26.3`. The CI and security workflows use `actions/setup-go` with `go-version-file: src/api/go.mod`, so Go API build/test/govulncheck runs will still select 1.26.3 rather than the documented fixed patch line.
+
+## Validation
+
+- `cd src/api; go test -v -run TestRegisteredAPIRoutesAreDocumentedInOpenAPI .` passed.
+- Pinned `govulncheck@v1.4.0 ./...` passed locally.
+- `npm audit --audit-level=high` passed.
+- Searched reviewed workflow/Taskfile/Docker/go.mod pin surface: no mutable `@latest` installs for `swag` or `govulncheck`.
+
+## Requested Fix
+
+Have a non-original reviser for #320 align `src/api/go.mod` with the intended fixed Go patch version, then rerun Go tests and govulncheck.
+
+---
+
+# Brutus Review — #319, #308, Security Scan Gitleaks Checkout
+
+**Date**: 2026-06-19
+**Verdict**: APPROVE
+
+## Reviewed
+
+- #319 non-root runtime Docker changes for app and Python agent images.
+- #308 museum tray desktop grid and workflow regression coverage.
+- Security Scan Gitleaks push checkout `fetch-depth: 0` fix.
+
+## Decision
+
+Approve the wrap-up changes. Docker runtime stages now run as UID/GID `10001:10001`; expected writable paths are owned or documented for bind mounts. The tray regression covers the 67 measured-coin desktop workflow, 6-column desktop layout, authenticated eager media fetch headers, and drawer navigation. Full-history checkout for push Gitleaks scans restores before-SHA parent availability on multi-commit pushes and does not weaken coverage.
+
+## Validation
+
+- `npm.cmd run test -- ui-patterns.test.ts` — pass.
+- `npm.cmd run test:browser -- tray.spec.ts` — pass.
+- `npm.cmd run test:browser` — pass, 10/10 Chromium workflow tests.
+- `npm.cmd run type-check` — pass.
+- `git diff --check` — pass.
+
+Docker CLI is unavailable locally, so Docker build/run checks remain CI-only for this review.
+
+---
+
+# Brutus Review #321 — Python Agent Dependency Locking
+
+**Date:** 2026-06-19  
+**Agent:** Brutus  
+**Status:** APPROVED — LOCK STRATEGY VALIDATED
+
+## Context
+
+Issue #321 locks Python agent dependencies for reproducible CI, security scan, and Docker installs using uv 0.11.22 and committed `src/agent/uv.lock`.
+
+## Decision
+
+Approve the implementation. CI and security scan both install uv 0.11.22 and run `uv sync --locked --extra dev` before `uv run` lint/test/audit commands. The agent Docker builder copies `pyproject.toml` plus `uv.lock`, runs `uv sync --locked --no-dev --no-install-project`, and the final image copies `/app/.venv`, sets PATH to that venv, and copies `app/` source for `uvicorn app.main:app`.
+
+Adding `pip-audit` to the dev extra is acceptable because security scan installs the locked dev extra and audits through `uv run pip-audit`. Dependabot uses `package-ecosystem: uv` for `/src/agent`, matching the committed lock-file workflow.
+
+## Validation
+
+- `uv lock --check` from `src/agent` passed.
+- `uv run --locked python -c "import sys, uvicorn, app.main; ..."` passed on local Python 3.14.
+- Docker-style scratch sync passed with `UV_PROJECT_ENVIRONMENT=.venv-docker-review uv sync --locked --no-dev --no-install-project`, followed by `uvicorn.importer.import_from_string('app.main:app')` returning `FastAPI`.
+- `git diff --check` passed; only a CRLF warning for Cassius history was reported.
+- Docker CLI is unavailable locally, so the actual image build remains CI/developer validation work.
+
+## Python 3.12 / 3.14 Note
+
+Local validation used Python 3.14 because Python 3.12 is not installed locally. This is not a blocker: CI pins Python 3.12 and `uv.lock` contains Python-version resolution markers, but CI remains the authoritative 3.12 runtime proof.
+
+## Constitution Alignment
+
+- Principle VII / §17: supply-chain and CI integrity preserved through locked installs.
+- Principle IV: scoped, proportional change.
+- §21: dependency/security decision captured for team handoff.
+
+---
+
+# Decision: Production Containers Run as Non-Root UID/GID 10001
+
+**Date:** 2026-06-19
+**Agent:** Cassius
+**Status:** Implemented, awaiting review
+
+## Context
+
+Issue #319 requires both production runtime containers to avoid running as root. The app container must still write SQLite data and uploaded images under `/app/data` and `/app/uploads`; the agent container has no persistent writable volume by default.
+
+## Decision
+
+Both final runtime images create an `app` user/group and switch to numeric `USER 10001:10001`.
+
+- `Dockerfile`: runtime-owned `/app`, copied API binary, `wwwroot`, `/app/data`, and `/app/uploads`
+- `src/agent/Dockerfile`: runtime-owned `/app`, copied `.venv`, and `app/` source
+- `docs/deployment.md`: bind-mount owners must grant write access to UID/GID `10001:10001`
+
+## Rationale
+
+Numeric UID/GID `10001:10001` is deterministic across Alpine and Debian-based images and avoids host-name dependency for bind mounts. Keeping ownership on `/app` preserves existing paths and runtime behavior while reducing container breakout blast radius.
+
+## Validation
+
+- Docker CLI unavailable locally (`docker` command not found), so image build/run checks were not executed.
+- `git diff --check -- Dockerfile src\agent\Dockerfile docs\deployment.md docs\threat-model.md`
+- Python inspection script verified both Dockerfiles contain user/group creation, owned copies/paths, and `USER 10001:10001`.
+
+## Constitution Alignment
+
+- Principle IV: focused, proportional Dockerfile/docs-only change
+- Principle V: reduced runtime privilege and documented volume ownership
+- §17 Quality Gate: Docker build/run documented as not run because Docker is unavailable
+
+---
+
+# Decision: Route/OpenAPI Drift Gate for Go API
+
+**Date:** 2026-06-19
+**Agent:** Cassius
+**Status:** PROPOSED — IMPLEMENTED FOR REVIEW
+
+## Context
+
+Issue #316 required fixing Swagger/OpenAPI route drift after #317 and adding an automated route-vs-OpenAPI drift test. The audit called out tag, social, showcase, calendar, alerts, and agent routes as likely missing annotations.
+
+## Decision
+
+The API now has a route drift test in `src/api/route_openapi_drift_test.go` that inventories route registrations from `src/api/main.go`, converts Gin path params (`:id`, `*filepath`) to OpenAPI path params, strips the `/api` base path, and verifies every public registered API route appears in `src/api/docs/swagger.json`.
+
+Intentional exemptions are explicit and narrow:
+- `GET /health` and `GET /healthz` — container orchestration checks outside the `/api` contract
+- `GET /swagger/*any` — Swagger UI assets
+- root `GET /uploads/*filepath` — non-`/api` authenticated media alias; `/api/uploads/{filepath}` is documented
+- `/api/internal/tools/*` — internal Python-agent callback surface protected by internal token
+
+## Rationale
+
+This follows Principle III by making public API contracts schema-driven, and Principle IX by enforcing the repeatable drift check through tests instead of manual review. The static `main.go` inventory is intentionally direct and proportional under Principle IV; it avoids route rewrites while still locking the current Gin registration surface.
+
+## Files Touched
+
+- `src/api/route_openapi_drift_test.go`
+- `src/api/handlers/*.go` Swagger annotation additions for previously undocumented public routes
+- `src/api/docs/*` and `docs/openapi.json` regenerated by `task openapi`
+
+---
+
+# Decision: Python Agent Uses uv.lock for Reproducible Dependencies
+
+**Date:** 2026-06-19
+**Agent:** Cassius
+**Status:** PROPOSED — implemented for issue #321
+
+## Context
+
+Issue #321 requires reproducible Python agent installs across local validation, CI, security scan, and Docker builds. The agent already uses `pyproject.toml` and does not need Poetry or Pipenv.
+
+## Decision
+
+Use `uv.lock` as the Python agent lock file. CI installs uv 0.11.22 and runs `uv sync --locked --extra dev`; the agent Dockerfile installs runtime dependencies with `uv sync --locked --no-dev --no-install-project`; Dependabot uses the `uv` ecosystem for `/src/agent`.
+
+## Rationale
+
+uv is ecosystem-standard for pyproject projects, supports reproducible locked installs without adding a second project format, and is supported by Dependabot for lock refresh PRs.
+
+## Constitution Alignment
+
+- Principle VII: supply-chain and CI integrity through pinned uv and locked resolution
+- Principle IX / §17: agent lint, tests, security scan, and Docker build use the same lock source
+- Principle IV: simple complete change without introducing Poetry/Pipenv
+
+---
+
+# Scope Assessment: #321 & #319
+
+**Author:** Cassius  
+**Date:** 2026-06-19  
+**Status:** Analysis Complete — Ready for Implementation Assignment
+
+---
+
+## Executive Summary
+
+Both #321 (Lock Python dependencies) and #319 (Non-root Docker users) are **implementation-ready, low-risk, independent scope items** suitable for parallel work or sequential PR merge. Neither requires splitting.
+
+---
+
+## Issue #321: Lock Python Agent Dependencies
+
+### Current State
+- `src/agent/pyproject.toml` uses version ranges (e.g., `fastapi>=0.115.0,<1.0`)
+- No lock file committed; CI/Docker install fresh each run
+- `.github/workflows/ci.yml` lines 81–103: `pip install -e ".[dev]"`
+- `src/agent/Dockerfile`: `RUN pip install --no-cache-dir .`
+
+### Implementation Scope
+1. **Choose lock tool:** `uv.lock` (modern Python ecosystem standard; aligns with project's `ruff` tooling)
+2. **Generate lock:** `cd src/agent && uv lock` → commit `uv.lock`
+3. **Update CI:** `.github/workflows/ci.yml` lines 94–97 → use `uv pip install --dry-run --requirement uv.lock` (or equivalent) for determinism
+4. **Update Docker:** `src/agent/Dockerfile` → add `uv` install in build stage, use lock in final stage
+5. **Document:** Add lock refresh command to agent/deployment docs (e.g., `uv lock --upgrade`)
+
+### Validation
+- `cd src/agent && python -m pytest tests/ -v`
+- `cd src/agent && ruff check app/ tests/`
+- Docker build uses locked dependencies (verify build succeeds)
+
+### Risk Profile
+**LOW** — uv is production-ready, version ranges already constrained, no breaking schema changes to dependencies.
+
+### Likely Files Modified
+| File | Changes |
+|------|---------|
+| `src/agent/uv.lock` | New file (generated) |
+| `.github/workflows/ci.yml` | Lines 94–97: replace `pip install -e` with uv-pinned install |
+| `src/agent/Dockerfile` | Add `uv` to build stage; use lock in final layer |
+| Agent deployment docs | Add lock refresh command |
+
+---
+
+## Issue #319: Non-Root Docker Container Users
+
+### Current State
+- Root `Dockerfile` (line 24–34): No `USER` directive; container runs as `root` (uid 0)
+- `src/agent/Dockerfile` (line 8–17): No `USER` directive; container runs as `root`
+- `/app/uploads`, `/app/data` created but owned by `root:root`
+
+### Implementation Scope
+1. **Add user/group to root Dockerfile:**
+   - Create non-root user (e.g., `app:app`, uid/gid 1000)
+   - Set `USER app:app` before `ENTRYPOINT`
+   - Ensure `/app/uploads`, `/app/data` owned by `app:app`
+
+2. **Add user/group to agent Dockerfile:**
+   - Create non-root user (`app:app`)
+   - Set `USER app:app` before `CMD`
+   - Verify any agent-specific writable paths (logs, temp) are owned by `app:app`
+
+3. **Verify ownership and startup:**
+   - Docker build succeeds
+   - Container starts with correct user (verify `id` in running container)
+   - Write paths remain writable (test file creation in `/app/uploads`, logs)
+
+4. **Document:** Volume ownership expectations in deployment docs (e.g., host-side volume paths may need `chown` or mount flags)
+
+### Validation
+- `docker build .` succeeds for both images
+- `docker run <image> id` confirms uid ≠ 0
+- File write tests pass in running containers (`touch /app/uploads/test`)
+
+### Risk Profile
+**LOW-MEDIUM** — Standard hardening pattern, but **write-path validation is critical** (ensure no permission errors post-change). No privileged operations; standard `chown`/`chmod` calls.
+
+### Likely Files Modified
+| File | Changes |
+|------|---------|
+| `Dockerfile` | Add user/group creation (lines ~23–24), `chown` calls, `USER` directive (before line 34) |
+| `src/agent/Dockerfile` | Add user/group creation (lines ~7–8), `chown` calls, `USER` directive (after line 12) |
+| Deployment docs | Document host-side volume ownership expectations |
+
+---
+
+## Parallelism & Sequencing
+
+### Can They Run in Parallel?
+**Yes, independently.** #321 and #319 touch different logical concerns:
+- #321: Dependency reproducibility (lock file + CI)
+- #319: Container hardening (user/ownership)
+
+### Recommended Merge Strategy
+**Option A (Parallel PRs):** Merge #321 and #319 as separate PRs — no conflicts.  
+**Option B (Sequential Single PR):** Do #321→#319 in one PR to avoid Dockerfile line-number churn:
+- #321 modifies `src/agent/Dockerfile` (pip → uv)
+- #319 modifies same file (add USER + chown)
+- Sequence avoids reviewer friction from interleaved edits
+
+### Should Either Be Split?
+
+**#321:** **NO** — Single coherent unit (lock generation, CI, Docker, docs).
+
+**#319:** **NO** — Both Dockerfiles need parallel updates, and volume ownership validation crosses both images. Splitting would create duplicate work and partial solutions.
+
+---
+
+## Implementation Readiness Checklist
+
+- [x] No specification gaps (issues are clear, self-contained)
+- [x] No blockers in constitution or active PRs
+- [x] CI workflow supports both changes (lines 81–103 for agent)
+- [x] Dockerfile base images already digest-pinned (PR #320)
+- [x] Go toolchain already pinned (PR #320)
+- [x] Volume structure already defined (lines 29–30 in root Dockerfile)
+- [x] No dependency on F013, Health Scorecard, or other active features
+
+---
+
+## Recommended Next Steps
+
+1. **Assign #321 to implementation queue** (estimated 1–2 hours)
+2. **Assign #319 to follow-up queue** (estimated 1–2 hours)
+3. **Recommend sequential merge:** #321 → #319 to consolidate Dockerfile changes
+4. **Document in PR descriptions:** Cite constitution principles (Principle V for hardening, Principle III for reproducibility)
+
+---
+
+## Notes for Reviewer
+
+- **PR #321:** Verify `uv.lock` is committed, CI passes with locked deps, Docker builds use lock
+- **PR #319:** Verify both containers run as non-root, `/app/uploads` and `/app/data` remain writable, deployment docs updated with volume ownership expectations
+- Both PRs should include validation runs (pytest, ruff, docker build) in description
+
+
+---
+
+# Cassius Decision: Streaming Internal Token Guard (#226)
+
+**Date:** 2026-06-19
+**Scope:** Python agent SSE streaming, #217 follow-up
+
+## Decision
+
+All user-facing text emitted by `src/agent/app/streaming.py` now passes through a narrow sanitizer before SSE formatting. The sanitizer redacts JWT-shaped internal tokens, including optional `Bearer ` prefixes, but does not redact ordinary proposal tokens such as `token-abc`.
+
+## Rationale
+
+The Go-to-agent internal token is defense-in-depth sensitive and must never appear in browser-visible streams. Collection chat still intentionally surfaces `proposal_id` and proposal `token` values for explicit `commit_update`, so the guard is JWT-shape based rather than a broad token-word redactor.
+
+## Validation
+
+- `uv run ruff check app/ tests/`
+- `uv run python -m pytest tests/test_streaming.py -v`
+- `uv run python -m pytest tests/ -v`
+---
+
+# Decision: Issue #314 — Modularization Guardrail & Deferred Extraction
+
+**Date:** 2026-06-19  
+**Decision Owner:** Maximus (Architect)  
+**Status:** Closed with documented guardrail  
+**Linked Issue:** #314 "P2: Split oversized frontend and API modules only when touching affected workflows"
+
+---
+
+## Context
+
+Five frontend/API modules exceed safe review thresholds and create maintainability friction:
+
+| Module | Lines | Owned Workflows | Criticality |
+|--------|-------|-----------------|-------------|
+| AddCoinPage.vue | 1,307 | Manual + agentic coin intake, camera capture, form state | HIGH |
+| AdminSchedulesSection.vue | 1,134 | Scheduler UI for 4 async jobs (availability, auction-ending, health, valuation) | HIGH |
+| CoinLookupPage.vue | 1,097 | Coin identification, image lookup, wishlist quick-add | HIGH |
+| App.vue | 819 | Top-level nav, sidebar, menu reorder, badge state | MEDIUM |
+| client.ts | 780 | 40+ API endpoints (auth, coins, tags, schedules, auctions, agent, etc.) | MEDIUM |
+
+## Problem
+
+- **Before:** These modules exist; no guardrail prevents reflexive mass-refactoring.
+- **After:** Mass refactoring without a driver workflow violates Principle IV (Simple, Complete, Proportional Changes).
+
+**Guardrail needed:** Enforce extraction only during related workflow work (product feature, security patch, UI consistency).
+
+## Decision
+
+**Close #314. Defer extraction.** Each module will be refactored *only when touched* for product/security/UX reasons. Record the inventory and guardrail so future teams remember not to "fix" these pre-emptively.
+
+### Why This Decision
+
+1. **Principle IV (Simple Complete Changes):** Extraction without a driver workflow = low-signal refactoring. We fix the real problem, not symptoms.
+2. **Test Coverage Risk:** Each extraction requires *new* unit tests. Bundling 5 extractions = 5 independent test suites. Higher complexity, higher failure risk.
+3. **Blast Radius:** Each file is tightly coupled to active workflows (intake, lookup, admin schedules, routing). Extracting without touching the workflow invites subtle bugs.
+4. **Architecture Stability:** Premature modularization often creates false compartmentalization; real usage patterns emerge only through workflow changes.
+
+### Why NOT "Keep Open as a Backlog Item"
+
+- Backlog items signal "do this when you have time." We don't have time; this is debt tracking, not a feature.
+- Open items invite premature extraction attempts by future contributors unaware of the coupling.
+- A closed issue with explicit guardrail is clearer: "this is resolved via policy, not by doing the work."
+
+---
+
+## Action Items
+
+### 1. Update PR Template (`.github/pull_request_template.md`)
+
+Add one line to the **Definition of Done (§21)** section after item 15:
+
+```markdown
+- [ ] 15. Simple Complete Changes self-check complete (Principle IV)
+- [ ] 15a. If touched oversized module (see #314 inventory): extraction seams reviewed + regression tests maintained
+```
+
+### 2. Record Guardrail in Constitution (`.specify/memory/constitution.md`)
+
+Add to **Principle IV (Simple, Complete, Proportional Changes)** after the existing summary:
+
+> **Modularization Guardrail (Issue #314):**  
+> Do not split oversized modules (AddCoinPage.vue, CoinLookupPage.vue, AdminSchedulesSection.vue, App.vue, client.ts) for their own sake. Extract only when actively working on the owned workflow for a product/security fix or planned UI consistency work. Each extraction requires proportional regression testing; bundle only related extractions per workflow. See `.squad/decisions/inbox/maximus-issue-314-modularization-guardrail.md` for inventory and safe seams.
+
+### 3. Document Safe Extraction Seams (New: `docs/frontend-modularity.md`)
+
+Create a lightweight guide so future teams know how and when to extract:
+
+```markdown
+# Frontend Modularity — Extraction Seams & Policy
+
+See issue #314 and `.squad/decisions/inbox/maximus-issue-314-modularization-guardrail.md` for policy.
+
+## Oversized Modules (Deferred Extraction)
+
+| Module | Lines | When to Extract | Safe Seams |
+|--------|-------|-----------------|-----------|
+| AddCoinPage.vue | 1,307 | Camera UX work, form redesign | Camera logic → `useAddCoinCamera.ts`, form state → `useAddCoinForm.ts` |
+| AdminSchedulesSection.vue | 1,134 | Admin dashboard redesign | Scheduler table → `SchedulerRunsTable.vue`, run detail → `SchedulerRunDetail.vue` |
+| CoinLookupPage.vue | 1,097 | Lookup feature enhancement | Image preview → `ImagePreviewGrid.vue` |
+| App.vue | 819 | Navbar/sidebar UX changes | Sidebar reorder logic → `useSidebarReorder.ts` |
+| client.ts | 780 | API versioning, auth refactor | Coin CRUD → `api/coin.ts`, admin → `api/admin.ts` |
+
+## Extraction Rule
+
+Extract only if:
+1. Parent component is being actively refactored (not pre-refactoring)
+2. Extracted behavior has ≥1 new unit test
+3. All sibling workflows using the same code path are regression-tested
+```
+
+### 4. Update Copilot Instructions (`.copilot-instructions.md` or main custom_instruction block)
+
+Add to the **Modularization** or **Code Conventions** section:
+
+> **Frontend Module Size Policy (Issue #314):**  
+> Five modules are tracked as oversized due to high coupling to active workflows: AddCoinPage.vue (1,307 lines), AdminSchedulesSection.vue (1,134), CoinLookupPage.vue (1,097), App.vue (819), client.ts (780). Do NOT propose extraction unless the PR is actively refactoring the owned workflow (e.g., camera UX work, admin redesign). When extraction is warranted, use the safe seams documented in `docs/frontend-modularity.md` and add proportional unit tests for the extracted behavior.
+
+---
+
+## Inventory Summary
+
+### Oversized Vue SFCs
+
+**AddCoinPage.vue** (1,307 lines)
+- Owned workflows: Manual coin intake, agentic (AI-assisted) intake, camera capture, form validation
+- Key sections: Entry mode toggle, camera with focus guide, capture slots, agentic vs manual forms
+- Extraction risk: Low if triggered by camera UX work; high if pre-refactored
+
+**AdminSchedulesSection.vue** (1,134 lines)
+- Owned workflows: Schedule UI for availability checks, auction-ending runs, health snapshots, valuation runs
+- Key sections: Four separate scheduler configuration forms, run history tables, messaging state
+- Extraction risk: High — currently monolithic; wait for admin panel redesign
+
+**CoinLookupPage.vue** (1,097 lines)
+- Owned workflows: Coin identification, image capture/upload, Numista search, quick wishlist/collection add
+- Key sections: Capture state, results display, save modal
+- Extraction risk: Medium — image preview grid could extract safely with lookup feature work
+
+**App.vue** (819 lines)
+- Owned workflows: Top-level routing, sidebar nav, theme, notification badge
+- Key sections: Nav bar, sidebar with edit mode, menu reorder, child router-view
+- Extraction risk: Medium — sidebar logic could extract during nav UX work
+
+### API Client Module
+
+**client.ts** (780 lines)
+- Exports: 40+ functions across 10+ domains (auth, coins, tags, sets, journals, bulk ops, agent, auctions, notifications, etc.)
+- Current organization: Domain-grouped comments, no file splits
+- Extraction risk: Low if API versioning is planned; high if pre-refactored
+- Safe seams: Coin CRUD → `api/coin.ts`, admin endpoints → `api/admin.ts`, agent → `api/agent.ts`
+
+### Administrative Components (Not Flagged)
+
+- **AdminCoinPropertiesSection.vue** (578 lines) — Category/era configuration; extracted from monolithic AdminPage would be good practice but deferred per guardrail
+- **AdminCatalogsSection.vue** (551 lines) — Catalog CRUD; same as above
+
+---
+
+## Validation
+
+✅ **Close #314 on GitHub** with comment:  
+> Closing as **Resolved (Guardrail)** per `.squad/decisions/inbox/maximus-issue-314-modularization-guardrail.md`. 
+> 
+> **Summary:** Defer extraction of oversized modules. Each will be refactored only when touched for product/security/UX work. Guardrail recorded in Principle IV, PR template updated, safe seams documented in `docs/frontend-modularity.md`.
+> 
+> **Next steps for future work:** When a workflow issue touches AddCoinPage, CoinLookupPage, AdminSchedulesSection, App, or client.ts, apply safe seams + regression tests before extracting.
+
+---
+
+## Appendix: Related Decisions
+
+- **Principle IV (Proportional Scope):** Constitution defines "simple, complete, proportional" changes.
+- **§17 Quality Gate:** Requires workflow contract testing; extraction without it = gate failure.
+- **Issue #208 (Health Scorecard):** Prior test infrastructure audit; provides foundation for regression testing on extraction.
+
+---
+
+# Toolchain and Base-Image Pins
+
+Date: 2026-06-19
+Owner: Maximus
+Related: #320, Constitution Principle VII / §17
+
+Decision: CI-installed Go tools must be reviewed version pins, not mutable latest selectors. `swag` is pinned to `v1.16.6` consistently in Quality Gate and `Taskfile.yml`; `govulncheck` is pinned to `v1.4.0` in Security Scan.
+
+Decision: Production Docker base images use tag-plus-OCI-index-digest references (`image:tag@sha256:...`) rather than bare tags. This preserves multi-arch manifest selection while making reviewed builds reproducible. The Go API builder remains on the Go 1.26 line and moves to `golang:1.26.4-alpine` for the fixed stdlib patch.
+
+Refresh policy: Review and refresh tool/base-image pins monthly or immediately for security advisories. Update workflow and Taskfile pins together, refresh Docker tag/digest pairs together, and validate OpenAPI generation plus Go tests/security scan before merging.
+
