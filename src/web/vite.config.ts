@@ -76,6 +76,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        inlineWorkboxRuntime: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,woff2}'],
         navigateFallbackDenylist: [/^\/api/, /^\/uploads/, /^\/sw\.js/],
         cleanupOutdatedCaches: true,

@@ -129,6 +129,12 @@ describe('UI pattern recipes', () => {
     expect(agentFabCss).toContain('right: calc(24px + env(safe-area-inset-right))')
   })
 
+  it('keeps the generated service worker from importing hashed Workbox runtime files', () => {
+    const viteConfig = readFileSync(join(REPO_ROOT, 'src', 'web', 'vite.config.ts'), 'utf-8')
+
+    expect(viteConfig).toContain('inlineWorkboxRuntime: true')
+  })
+
   it('keeps Stats and Collection sidebar parents collapsed with submenu children', () => {
     const app = readRepoFile('App.vue')
 
