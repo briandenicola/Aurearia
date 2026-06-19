@@ -297,3 +297,12 @@ Added navigator.permissions.query pre-check to CameraCaptureModal.vue. Persisted
 - **2026-06-19:** Backend-authenticated `/uploads/*` cannot be rendered with plain `<img src="/uploads/...">` because browser image requests do not carry the localStorage JWT. Private frontend media now goes through `AuthenticatedImage` / `useAuthenticatedMedia` / `utils/media.ts`, which fetches `/api/uploads/*` with `Authorization: Bearer <token>`, `cache: 'no-store'`, converts to blob URLs, and revokes them on cleanup. Public showcase media must use `publicShowcaseMediaUrl(slug, filePath)` so shared links load `/api/showcase/:slug/uploads/*` without private auth.
 
 - **2026-06-19:** Issue #315 external-link hardening: dynamic external anchors from user/API data should use `SafeExternalLink` or `sanitizeExternalUrl`; internal `router-link`/`:to` stays unchanged. The shared sanitizer allows only absolute `http:`/`https:` and rejects `javascript:`, `data:`, relative, empty, and invalid URLs. Remaining raw external renderers fixed in `CoinReferencesSection.vue` and `CoinLookupPage.vue`, with targeted Vitest coverage.
+
+- **2026-06-19T15:21:36Z — PR #315 SafeExternalLink Pattern APPROVED:** Brutus completed re-review of #317 and cross-approved #315 for merge. SafeExternalLink hardening applied to all remaining raw external URL renderers:
+  - Fixed `CoinReferencesSection.vue` (reference catalog URLs pass through `sanitizeExternalUrl`)
+  - Fixed `CoinLookupPage.vue` (external lookup result links sanitized)
+  - XSS regression coverage: `javascript:`, `data:`, relative, `http:`, `https:` values tested
+  - Validation: `npm.cmd test -- CoinLookupPage CoinReferencesSection --run` ✓, `npm run build` ✓, `npm run type-check` ✓
+  - Companion to #317 (Go architecture boundary hardening): together achieve complete external-link attack surface hardening per Principle V
+  - Decision record merged to `decisions.md`. Orchestration log: `.squad/orchestration-log/2026-06-19T15-21-36Z-brutus-rereview-317.md`
+  - Beta commit 2433277 queued at handoff.

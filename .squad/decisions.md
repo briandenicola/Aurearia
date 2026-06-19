@@ -8167,3 +8167,1680 @@ Frontend: `src/web/src/pages/CalendarPage.vue`, `src/web/src/pages/ShowcasesPage
   - `.squad/orchestration-log/2026-06-19T00-55-20Z-brutus.md` (QA)
   - `.squad/orchestration-log/2026-06-19T00-55-20Z-coordinator.md` (validation)
 - Constitution: `.specify/memory/constitution.md` (Principles I, VI; §17, §18)
+
+---
+
+# Decision: Museum Tray View Navigation & Theming
+
+**Date**: 2026-06-18  
+**Context**: Feature 224 Museum Tray View  
+**Decider**: Aurelia (Frontend Dev)  
+**Status**: Implemented  
+
+---
+
+## Problem
+
+Feature 224 required a museum-style tray view with:
+1. Navigation integration (how to reach the tray)
+2. Felt theming (visual design approach)
+3. Data source (which coins to display)
+4. Responsive layout (viewport adaptation)
+
+---
+
+## Decision
+
+### 1. Navigation: Collection Submenu Pattern
+
+**Chosen**: Made Collection an expandable sidebar menu item with children (Gallery, Tray), mirroring the Stats submenu structure.
+
+**Rationale**:
+- Consistent with existing Stats submenu pattern (§18 operational consistency)
+- Keeps tray discoverable without cluttering collection page headers
+- Maintains clean separation between view modes
+- Expandable/collapsible UI reduces visual noise when not in use
+
+**Rejected alternatives**:
+- ❌ Buttons in DesktopCollectionHeader/PwaCollectionHeader — would clutter existing filter/sort UI
+- ❌ Floating action button — already reserved for agent/add-coin
+- ❌ Tab switcher on collection page — requires view state management, complicates routing
+
+### 2. Felt Theming: Pure CSS Gradients
+
+**Chosen**: CSS gradient/texture backgrounds for felt (red, green, navy themes), no image assets.
+
+**Rationale**:
+- Lightweight (no HTTP requests for textures)
+- Themeable via CSS classes (`felt-red`, `felt-green`, `felt-navy`)
+- Consistent with design token philosophy (colors, shadows)
+- Performant on mobile/PWA (no image decoding)
+- Easy to add future themes without asset pipeline
+
+**Implementation**:
+```css
+.felt-red {
+  background: 
+    linear-gradient(135deg, rgba(0,0,0,0.05) 25%, transparent 25%, ...),
+    linear-gradient(45deg, rgba(0,0,0,0.05) 25%, transparent 25%, ...),
+    linear-gradient(to bottom, #8b2020, #6b1515);
+  background-size: 4px 4px, 4px 4px, 100% 100%;
+}
+```
+
+**Rejected alternatives**:
+- ❌ Image textures — adds HTTP overhead, not themeable, harder to maintain
+- ❌ Canvas rendering — overcomplicated for static background, accessibility concerns
+- ❌ SVG patterns — heavier than CSS gradients, browser compat edge cases
+
+### 3. Data Source: Current Loaded Collection
+
+**Chosen**: Tray displays `useCoinsStore().coins` (current loaded, filtered, sorted result set).
+
+**Rationale**:
+- No additional API calls needed (§17 Performance)
+- Respects active collection filters/sort
+- Simplifies v1 implementation
+- Consistent with user's current view context
+- Future enhancement can add "all coins" toggle
+
+**Implications**:
+- Tray shows only coins already loaded in collection view
+- Empty tray = filtered-out or empty collection (friendly message shown)
+- User must navigate back to collection to change filters
+
+**Rejected alternatives**:
+- ❌ Fetch all coins on tray open — API load spike, ignores filters, defeats purpose
+- ❌ Separate tray-specific API endpoint — overengineering for v1
+
+### 4. Responsive Layout: Viewport-Based Grid
+
+**Chosen**: CSS Grid with media query breakpoints (2–3 cols mobile, 4–5 tablet, 6–8 desktop).
+
+**Rationale**:
+- Semantic breakpoints match PWA/mobile design (§VI Consistent UX)
+- Pure CSS (no JS layout calculations)
+- Grid auto-places wells (no manual positioning)
+- Responsive without component logic complexity
+
+**Breakpoints**:
+- < 576px: `grid-template-columns: repeat(2, 1fr)` (mobile)
+- 576–767px: `repeat(3, 1fr)` (mobile landscape)
+- 768–1023px: `repeat(4, 1fr)` (tablet)
+- 1024–1279px: `repeat(6, 1fr)` (desktop)
+- 1280px+: `repeat(8, 1fr)` (large desktop)
+
+**Rejected alternatives**:
+- ❌ Fixed column count — not responsive
+- ❌ JS-calculated layout — unnecessary complexity, accessibility risk
+- ❌ Flexbox wrapping — less predictable, harder to control spacing
+
+---
+
+## Consequences
+
+### Positive
+- ✅ Navigation consistent with Stats submenu pattern (easy to discover, no header clutter)
+- ✅ Pure CSS felt theming (lightweight, performant, themeable)
+- ✅ No additional API load (uses current collection data)
+- ✅ Responsive grid (PWA/mobile compatible, no JS layout logic)
+- ✅ All tests passing (29 utils/composable, 16 component)
+- ✅ Type-safe and builds successfully
+
+### Negative
+- ⚠️ Tray limited to current loaded coins (future enhancement: "all coins" mode)
+- ⚠️ Drawer position not preserved across page reloads (acceptable for v1)
+
+### Technical Debt
+- None introduced — clean implementation following constitution §18, Principle IV, Principle VI
+
+---
+
+## Implementation Notes
+
+- **CoinImage property**: Uses `filePath` not `url` (discovered during type-check)
+- **Diameter scaling**: Proportional within 40px–120px bounds via `getCoinRenderSizePx()`
+- **Drawer pagination**: 50 coins per drawer (fixed for v1, configurable in future)
+- **Accessibility**: Keyboard nav (Tab/Enter), aria-labels, prefers-reduced-motion support
+- **Design tokens**: All colors/spacing/radii use tokens (--accent-gold, --bg-card, --radius-sm)
+
+---
+
+## References
+
+- Spec: `specs/224-museum-tray-view/spec.md`
+- Plan: `specs/224-museum-tray-view/plan.md`
+- Tasks: `specs/224-museum-tray-view/tasks.md`
+- Constitution: §18 Session Protocol, §VI Consistent UX, §IV Simple Complete Changes
+
+
+
+---
+
+# Decision: Feature 225 Mint Map v1 stays drawer-only for gallery handoff
+
+**Agent:** Aurelia
+**Date:** 2026-06-17
+
+The mint map pin interaction opens an in-page drawer listing coins for the selected matched mint. I did not add a "View in Gallery" query bridge because the existing collection page/filter composable does not initialize search state from route query parameters, so routing to `/` with a mint query would be an untested implicit contract.
+
+Follow-up: add a typed, tested collection route/query prefill contract before wiring mint pins to gallery search. This keeps Feature 225 frontend-only and avoids hidden changes to existing gallery behavior.
+
+
+
+---
+
+### 2026-06-18T12:26:35Z: 225 real map implementation
+**By:** Aurelia
+**What:**
+- Replaced active Mint Map rendering with Leaflet and the standard OpenStreetMap raster tile URL.
+- Kept the OSM tile URL constant (`https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png`) with no query string and no collection-derived data.
+- Moved Stats information architecture to `/stats/mint-map`, `/stats/timeline`, and `/stats/distribution`; legacy flat URLs redirect.
+- Preserved existing Collection Health and Value Over Time sections in the distribution subview behind landing-card anchor links instead of creating extra routes.
+**Why:** Brian clarified that feature 225 requires a real geographic map under Stats while avoiding collection-data leakage to external tile providers.
+
+
+
+---
+
+# Decision: Stats Menu Refinements (225-stats-refinements)
+
+**Date**: 2026-06-18
+**Author**: Aurelia (Frontend Dev)
+**Context**: Final refinements to Stats navigation and Mint Map display
+
+## Decision
+
+1. **Stats menu is collapsible**: Starts collapsed by default, expands on click to show Timeline, Map, Health, and Value Trends. Clicking Stats when expanded navigates to `/stats` and collapses the submenu.
+
+2. **Health and Value Trends are dedicated pages**: No longer hash anchors. Health lives at `/stats/health`, Value Trends at `/stats/value-trends`. Each has its own page component with proper routing.
+
+3. **Mint Map summary simplified**: Replaced four-card grid with a single-row centered display showing only the mapped coin count. Uses design tokens (`--bg-card`, `--border-subtle`, `--radius-sm`, `--accent-gold`) and Cinzel font for consistency.
+
+## Rationale
+
+Collapsing Stats by default reduces sidebar visual noise. Dedicated pages for Health and Value Trends give proper URLs for bookmarking and navigation. Single-row Mint Map summary is cleaner and focuses on the primary metric users care about.
+
+## Impact
+
+- Users can expand/collapse Stats in the sidebar
+- Health and Value Trends have dedicated, shareable URLs
+- Mint Map page is visually cleaner with narrower summary display
+- CollectionDistributionPage now owns only distribution/heat map content
+
+## Files Changed
+
+- `src/web/src/App.vue` — added collapsible Stats menu logic
+- `src/web/src/router/index.ts` — added `/stats/health` and `/stats/value-trends` routes
+- `src/web/src/pages/StatsHealthPage.vue` — new dedicated Health page
+- `src/web/src/pages/StatsValueTrendsPage.vue` — new dedicated Value Trends page
+- `src/web/src/pages/MintMapPage.vue` — simplified summary display
+- Tests updated to cover new routes and collapsed menu behavior
+- Spec documents updated to reflect refinements
+
+
+
+---
+
+# Decision: Frontend Authenticated Media Rendering
+
+**Date:** 2026-06-19  
+**Agent:** Aurelia  
+**Status:** IMPLEMENTED — BLOCK REVISION
+
+## Context
+
+Brutus blocked #313 because Cassius's backend media auth changed `/uploads/*` to require authentication, while Vue still rendered many uploaded images with plain `<img src="/uploads/...">`. Browser image requests do not include the JWT stored in `localStorage`, so private collection media 401s after the backend change. Public showcase images also still pointed at `${API_BASE}/uploads/*` instead of the backend's unauthenticated showcase media route.
+
+## Decision
+
+Private uploaded media is rendered through a shared frontend helper/component path:
+
+- `src/web/src/utils/media.ts` builds `/api/uploads/*`, performs token-bearing `fetch` with `cache: 'no-store'`, retries once after token refresh on 401, and creates blob URLs.
+- `src/web/src/composables/useAuthenticatedMedia.ts` owns component lifecycle and revokes blob URLs.
+- `src/web/src/components/AuthenticatedImage.vue` is the reusable image renderer for uploaded private media.
+- Public showcase images use `publicShowcaseMediaUrl(slug, filePath)`, which builds `/api/showcase/:slug/uploads/*`.
+
+## Rationale
+
+This keeps the backend auth boundary intact without introducing signed URL complexity. The frontend has one reusable private-media path instead of ad hoc page fixes, while public showcase links use the explicitly public backend route. PWA cache mitigation is preserved by using `/api/uploads/*` with `cache: no-store` and retaining tests that forbid private upload runtime caches.
+
+## Constitution Alignment
+
+- Principle III: Typed explicit media helper contract.
+- Principle IV: Simple complete frontend-only revision under strict lockout.
+- Principle V: Keeps private uploaded media behind authenticated requests.
+- Principle VI: Reuses a shared component without changing UI patterns.
+- §17 Quality Gate: Targeted tests, type-check, and build passed.
+
+## Files Touched
+
+Frontend media utilities/components, common image renderers, public showcase image route, and targeted media/PWA tests.
+
+
+
+---
+
+# Decision: Find Coin Saves to Wishlist Only
+
+**Date:** 2026-06-10
+**Author:** Aurelia
+**Status:** Implemented
+
+## Decision
+
+The Wishlist plus action now routes to `/lookup` as "Find Coin". The Find Coin lookup page no longer offers "Add to Collection"; after review, the only persistence action is "Save to Wishlist", which creates a coin with `isWishlist: true`.
+
+## Rationale
+
+Brian requested the wishlist add flow to become lookup-first, with explicit cancel/retake/back-out paths that do not save. This keeps lookup persistence aligned with a wishlist intent and avoids accidentally adding show-floor finds directly to the owned collection.
+
+## Compliance
+
+- Constitution Principle IV: simple, focused workflow change.
+- Constitution Principle VI: explicit user-controlled save/cancel behavior.
+- §17 Quality Gate: frontend tests, type-check, build, and lint pass.
+
+
+
+---
+
+# Collection Health Snapshots Schedule UI
+
+**Author:** Aurelia (Frontend Dev)  
+**Date:** 2026-06-18  
+**Status:** Implemented
+
+## What
+
+Added Collection Health Snapshots to Admin Settings → Schedules, matching the existing schedule panel pattern.
+
+- Settings keys: `CollectionHealthSnapshotsEnabled`, `CollectionHealthSnapshotsStartTime`
+- Frontend defaults: disabled (`"false"`), start time `"04:30"`
+- Manual trigger client endpoint: `POST /admin/collection-health-snapshots/run`
+- UI uses the existing `.avail-settings`, `.form-group`, `.avail-save-row`, and button classes
+
+## Why
+
+Collection health 30-day trends depend on persisted daily snapshots (spec 208 FR-007/FR-008). Admins need the same schedule visibility and manual-run affordance used by other scheduled jobs.
+
+## Validation
+
+- `npm.cmd run type-check` passed
+- `npm.cmd test -- src/api/__tests__/client.test.ts` passed
+- `npm.cmd run build` passed
+
+
+
+---
+
+# Aurelia Notes Page Contract
+
+**Date:** 2026-06-11  
+**Agent:** Aurelia  
+**Status:** Proposed for ledger merge
+
+## Context
+
+Brian requested a standalone PWA Notes workflow for ideas, links, and thoughts that do not map to a coin or wishlist. Backend notes CRUD was available in the working tree under `/notes` with `title` and `body` fields.
+
+## Decision
+
+The frontend Notes page uses the simple authenticated `/notes` contract through `src/web/src/api/client.ts`:
+
+- `GET /notes` → `{ notes: UserNote[] }`
+- `POST /notes` with `{ title, body }` → `UserNote`
+- `PUT /notes/{id}` with `{ title, body }` → `UserNote`
+- `DELETE /notes/{id}` → no content
+
+Markdown source is edited as plain text and display mode renders sanitized Markdown using `MarkdownIt({ html: false })`, `DOMPurify.sanitize()`, and `v-html`.
+
+## Constitution Alignment
+
+- Principle III: typed frontend API contract and route/page wiring.
+- Principle IV: standalone workflow kept proportional and separate from coin notes.
+- Principle VI + §21: loading, empty, error, create/edit/delete states and workflow tests added for the new user path.
+
+
+
+---
+
+# Aurelia Decision: Private upload media cache mitigation
+
+Date: 2026-06-19
+Issue: #313
+
+## Decision
+The frontend PWA no longer registers a Workbox runtime cache for `/uploads/*` media. Existing `coin-images` CacheStorage entries are treated as legacy private media and are cleared on logout and explicit user switch from the auth store.
+
+## Rationale
+Uploaded media is private collection data until the backend serves it through authorization checks. Removing the CacheFirst runtime strategy prevents new private media retention by the service worker, while logout/user-switch cleanup mitigates installed PWAs that already have a `coin-images` cache.
+
+## Scope
+Frontend-only mitigation. Image URL construction stays unchanged; authenticated backend media routes are a separate coordinated backend task.
+
+## Compliance
+Principle IV (simple complete proportional change), Principle V (security/privacy by default), Principle VI (PWA compatibility), §17 Quality Gate.
+
+
+
+---
+
+# Decision: Public-Facing Security Admin UX Contract Alignment
+
+**Date:** 2026-06-19
+**Agent:** Aurelia
+**Status:** PROPOSED — FRONTEND IMPLEMENTED
+
+## Context
+
+Brian requested beta-first public-facing security/admin UX while Cassius implemented backend hardening endpoints in parallel.
+
+## Decision
+
+The frontend Admin Security tab aligns with the landed Go admin contracts:
+- `GET /admin/security/summary` returns `{ summary, backupStatus }`
+- `GET /admin/security/events` filters IP as `clientIp` and returns event `clientIp`
+- `GET /admin/security/ip-rules` returns `{ ipRules }`
+- `POST /admin/security/ip-rules` sends `durationMinutes`
+- `POST /admin/users/:id/unlock` unlocks locked accounts
+
+The UI still labels the field as IP and accepts human duration input such as `1h`, `24h`, `7d`, converting it to minutes for the API.
+
+## Constitution Alignment
+
+- Principle III: typed frontend API wrappers and response normalization
+- Principle IV: proportional frontend/admin-only implementation
+- Principle V: lockout UX avoids username-existence disclosure
+- Principle VI: existing Admin cards, buttons, tokens, and dark theme reused
+- §17: targeted Vitest tests, type-check, and build passed
+
+
+
+---
+
+# Aurelia Decision: Safe External Link Pattern for Vue
+
+Date: 2026-06-19
+Issue: #315
+Constitution: Principle V + §17 + §21
+
+User/API-provided external URLs in Vue templates must render through `SafeExternalLink` or first pass through `sanitizeExternalUrl` from `@/composables/useSafeExternalLink`. The sanitizer allows only absolute `http:` and `https:` URLs; `javascript:`, `data:`, relative, empty, and invalid values render as no link. Internal navigation remains `router-link` / `:to` and should not be converted.
+
+This was applied to the remaining raw external renderers in `CoinReferencesSection.vue` and `CoinLookupPage.vue`, with regression coverage for `javascript:`, `data:`, relative, `http:`, and `https:` values.
+
+
+
+---
+
+# Brutus 225 Mint Map QA Decision
+
+**Date:** 2026-06-17
+**Feature:** 225 Mint Map View
+**Author:** Brutus (Tester/QA)
+**Verdict:** REJECT
+
+## Findings
+
+Validation passed for targeted Mint Map tests, full frontend Vitest, strict type-check, production build, and `git diff --check` after whitespace cleanup.
+
+Blocking issue: `npm run lint` fails in `src/web/src/components/map/MintMapSvg.vue` because ESLint `no-undef` does not recognize DOM globals used in type annotations:
+
+- `MintMapSvg.vue:96` — `WheelEvent`
+- `MintMapSvg.vue:101` — `Element`
+- `MintMapSvg.vue:110` — `SVGSVGElement`
+- `MintMapSvg.vue:124` — `SVGSVGElement`
+
+## Required Revision Owner
+
+A non-Aurelia implementer should revise. Recommended owner: Cassius for the lint/config cleanup, with Maximus coordinating if Cassius declines frontend ownership.
+
+## Notes
+
+No product behavior blocker was found in the covered automated tests. Manual phone viewport verification remains required for pan/zoom, drawer usability, tap targets, and no horizontal overflow.
+
+
+
+---
+
+# Brutus QA Decision — Issues #309/#310 Agent Boundary Review
+
+Date: 2026-06-19
+Reviewer: Brutus
+
+## Verdict
+
+- #309: APPROVE. Internal Python agent endpoints other than `/health` and `/ready` require `X-Internal-Service-Token`; `/logs` and `/log-level` are covered; Go `AgentProxy` attaches the credential; Compose no longer publishes host port 8081.
+- #310: BLOCK. Outbound allowlisting is only applied to Ollama/SearXNG/tool base URLs. User/model-controlled fetch paths still bypass it.
+
+## Blocking finding
+
+`src/agent/app/tools/search.py`:
+- `verify_url()` fetches the provided URL directly with `httpx.AsyncClient(... follow_redirects=True)` without calling `validate_outbound_url` first.
+- `fetch_dealer_page()` does the same for dealer URLs.
+
+This leaves availability checks and coin-search page fetches able to attempt loopback/private/metadata/arbitrary origins despite `AGENT_TRUSTED_OUTBOUND_ORIGINS` and `AGENT_ALLOW_LOCAL_OUTBOUND`.
+
+Recommended fix: route every agent-owned outbound HTTP request through a shared safe client/helper that validates the initial URL and every redirect target before connecting, rejects loopback/private/link-local/metadata by default, and adds regression tests for `verify_url` and `fetch_dealer_page` proving private URLs are rejected before network calls.
+
+## Validation run
+
+- `python -m pytest tests -v` from `src/agent`: 77 passed.
+- `python -m ruff check app tests` from `src/agent`: passed.
+- `go test -v .\services -run TestAgentProxy` from `src/api`: blocked by known unrelated `services.containsString` redeclaration.
+- `go test -v .\services\agent_proxy.go .\services\agent_proxy_test.go .\services\logger.go -run TestAgentProxy`: passed.
+- `git diff --check`: passed.
+- Manual probes showed `verify_url` and `fetch_dealer_page` attempt `http://127.0.0.1:1/` even when only `https://example.com` is trusted and local outbound is disabled.
+
+
+
+---
+
+# Decision: PR #313 Revised Media Flow QA — BLOCK
+
+**Date:** 2026-06-19  
+**Agent:** Brutus  
+**Status:** BLOCKED — TEST REGRESSION
+
+## Context
+
+PR #313 was revised after strict lockout to route private upload rendering through authenticated fetch/blob helpers and public showcase media through the public showcase media route.
+
+## Findings
+
+- Private coin/avatar/common collection renderers now use `AuthenticatedImage` backed by `useAuthenticatedMedia` and `fetchPrivateMediaBlob`, which sends `Authorization: Bearer <token>` and `cache: no-store`.
+- Public showcase image rendering now uses `publicShowcaseMediaUrl(slug, path)` and emits `/api/showcase/:slug/uploads/*`.
+- PWA cache mitigation remains intact: no private upload runtime cache, and authenticated API reads are not cached.
+- Targeted Vitest fails in `src/web/src/utils/__tests__/coinShareCard.test.ts` because the share-card image render test still does not stub the new authenticated media fetch path.
+
+## Blocking Defect
+
+`src/web/src/utils/__tests__/coinShareCard.test.ts:106-119` calls `renderCoinShareCard()` with `/uploads/*` image paths but does not stub `fetch` or the media helper. The production code now resolves these to `/api/uploads/*` via `src/web/src/utils/media.ts:44-56`; Node/JSDOM fetch rejects the relative URL with `TypeError: Failed to parse URL from /api/uploads/obverse.webp`.
+
+Recommended fix: update the test to stub `global.fetch` with a successful image `Blob` response (and optionally assert `/api/uploads/*` plus Authorization/cache headers), or mock `privateMediaObjectUrl()` to return deterministic blob URLs before asserting canvas drawing.
+
+## Commands
+
+- `npm.cmd run test -- --run src\utils\__tests__\media.test.ts src\pages\__tests__\PublicShowcasePage.test.ts src\__tests__\pwa-cache.test.ts src\utils\__tests__\coinShareCard.test.ts src\composables\__tests__\useCoinShareCard.test.ts src\components\__tests__\MuseumTrayWell.test.ts` — **FAIL** (coinShareCard stale test)
+- `npm.cmd run type-check` — PASS
+- `npm.cmd run build` — PASS
+- `go test -v ./handlers -run "TestImageHandler_ServeUpload|TestImageHandler_ServePublicShowcase"` — PASS for existing upload tests; no public showcase handler test matched
+
+## Verdict
+
+**BLOCK.** The implementation appears to fix the previously blocked media routes, but #313 cannot close while a targeted changed-area test fails.
+
+
+
+---
+
+# Brutus Decision: #313 Share Card Authenticated Media Test Fix Approved
+
+**Date:** 2026-06-19  
+**Agent:** Brutus  
+**Status:** APPROVED — BLOCK CLEARED
+
+## Context
+
+#313 was previously blocked only because `src/web/src/utils/__tests__/coinShareCard.test.ts` was stale after the authenticated media flow replaced raw `/uploads/*` image loading with authenticated blob fetching.
+
+## Review
+
+Maximus's test-only revision now asserts `renderCoinShareCard()` resolves private upload paths through `/api/uploads/*`, uses `fetch` with `Headers` and `cache: no-store`, creates blob object URLs for loaded media, and revokes those object URLs after rendering.
+
+Targeted validation passed:
+
+- `npm.cmd run test -- coinShareCard.test.ts`
+- `npm.cmd run test -- coinShareCard.test.ts media.test.ts useCoinShareCard.test.ts`
+
+## Verdict
+
+APPROVE for #313. The prior stale-test-only BLOCK is cleared. #313 can be closed.
+
+## Constitution Alignment
+
+- Principle III: frontend tests reflect the authenticated media contract.
+- Principle IX / §17: targeted regression coverage now exercises the exact stale share-card media path.
+- §18.2: Strict Lockout is explicitly cleared by Brutus.
+
+
+
+---
+
+# Brutus Final QA: #318 and #323
+
+**Date:** 2026-06-19
+**Agent:** Brutus
+**Status:** APPROVED
+
+## Decision
+
+- #323 security scan gates are approved: `main` and `beta` branch protection require `Go API`, `Vue Web`, `Python Agent`, `Gitleaks`, `Govulncheck`, `npm audit`, and `pip-audit` with strict status checks enabled.
+- #318 Go/Python agent DTO is approved: Go emits `app_context` with typed `activeCoinId`; Python request DTOs forbid unknown fields and thread optional `AppContext` through routes, supervisor, and collection chat.
+
+## Validation
+
+- `gh api repos/briandenicola/coin-collection-app/branches/{main,beta}/protection/required_status_checks`
+- `go test -v ./...`
+- `go vet ./...`
+- `ruff check app/ tests/`
+- `python -m pytest tests/ -v`
+- `git diff --check`
+
+## Constitution Alignment
+
+Principle III, Principle VII, Principle IX, and §17 are satisfied for the reviewed scope.
+
+
+
+---
+
+# Brutus QA BLOCK — Issue #313 Upload Media Authorization
+
+Date: 2026-06-19
+
+Verdict: BLOCK.
+
+Finding: The backend now protects `/uploads/*` with `AuthRequired`, but the frontend still uses raw `<img src="/uploads/...">` paths across collection/detail/avatar/social/showcase views. Since JWTs live in localStorage and Axios injects them only for API calls, browser image element requests do not include `Authorization`, so owner-visible authenticated images return 401. Public showcase images also still point at `${API_BASE}/uploads/...` instead of the new unauthenticated `/api/showcase/:slug/uploads/*` route.
+
+Required fix: route authenticated media through a token-bearing fetch/blob URL helper or signed media URL flow, update public showcases to use `/api/showcase/:slug/uploads/{filePath}`, and add regressions for authenticated owner image rendering plus public showcase image rendering.
+
+
+
+---
+
+# Decision: Mint Map 50-Coin Cap QA Review — APPROVED
+
+**Date:** 2026-06-18
+**Agent:** Brutus
+**Status:** APPROVED
+
+## Context
+
+Brian reported that the Mint Map appeared capped at 50 coins, either due to a single API call or total loaded data. The review scope was the uncommitted frontend fix in `MintMapPage.vue` and `MintMapPage.test.ts`, with `src/api/handlers/coins.go` checked for the pagination contract.
+
+## Decision
+
+The fix is approved. `MintMapPage.vue` now fetches active collection coins directly from `getCoins` with explicit `wishlist=false`, `sold=false`, `page`, and `limit=100`, then follows the API `total` until all pages are loaded. This avoids the previous first-page/store-cache path that could leave the map with only the default 50 coins.
+
+## Validation
+
+- Regression test proves the exact failing workflow shape: more than one API page of active, non-wishlist, non-sold collection coins; the test returns 120 Rome coins over two pages and asserts both paginated calls plus mapped count `120`.
+- API handler contract confirms `limit` allows up to 100 and response includes `coins`, `total`, `page`, and `limit`.
+- `npm.cmd run test -- MintMapPage.test.ts` passed.
+- `npm.cmd run build` passed.
+
+## Constitution Alignment
+
+- Principle III: frontend type/build contract validated by build.
+- Principle IV: simple complete fix for the real map workflow without broad rewrite.
+- §17 / §21: targeted regression coverage for the exact failing path plus build verification.
+
+
+
+---
+
+# Brutus Notes QA Decision
+
+Date: 2026-06-11
+Agent: Brutus
+Status: Proposed / implemented in worktree
+
+## Decision
+
+Personal notes use a user-scoped `/api/notes` CRUD contract. List responses return `{ "notes": [...] }`; create/update require a non-blank title, cap title length at 200 characters, and cap Markdown body length at 20000 characters. Cross-user read/update/delete attempts return 404 so note existence is not disclosed.
+
+## Rationale
+
+This matches the existing frontend `NoteListResponse` contract and provides explicit regression coverage for the exact authenticated Notes workflow. The validation caps are intentionally simple and service-owned so handlers stay thin and repository queries remain scoped by `OwnedBy` / `OwnedByID`.
+
+## Verification
+
+- `go build ./...` from `src/api`
+- `go test -v ./...` from `src/api`
+- `go vet ./...` from `src/api`
+- `npm test -- NotesPage.test.ts MarkdownNoteEditor.test.ts` from `src/web`
+- `npm run type-check` and `npm run build` from `src/web`
+
+Full `npm test` is still blocked by the existing design-token border-radius budget (`276 > 264`), not by the Notes tests.
+
+
+
+---
+
+# PR #310 Outbound Validation Re-review — APPROVED
+
+**Date:** 2026-06-19  
+**Agent:** Brutus  
+**Status:** APPROVED — BLOCK CLEARED
+
+## Context
+
+Brutus previously blocked #310 because agent direct fetch paths in `search.py` could fetch arbitrary/loopback URLs without shared outbound validation. Per Strict Lockout (§18.2), Maximus independently revised the artifact.
+
+## Decision
+
+The revised implementation centralizes agent-owned public HTTP GETs through `app.outbound.safe_get()`. `safe_get()` validates the initial URL before client creation/network, uses `follow_redirects=False`, and validates each redirect target before issuing the next request.
+
+Reviewed fetch paths:
+- `verify_url`
+- `fetch_dealer_page`
+- SearXNG search
+- NumisBids lot scrape and search
+
+Regression coverage now proves private/loopback/metadata URLs are rejected before network, DNS-to-private is rejected before network, and redirect-to-private/metadata is rejected before following.
+
+## Validation
+
+- `python -m pytest tests\test_outbound_validation.py -v` — 24 passed
+- `python -m pytest tests\test_availability.py -v` — 10 passed
+- `python -m ruff check app\outbound.py app\tools\search.py app\tools\numisbids.py tests\test_outbound_validation.py` — passed
+
+## Verdict
+
+**APPROVED for #310.** The prior BLOCK is cleared and #310 can be closed.
+
+
+
+---
+
+# Brutus QA note — public exposure abuse-case blockers
+
+Date: 2026-06-19
+Branch: public-facing-hardening
+
+## Decision / blocker requested
+
+The public-facing hardening implementation now has executable abuse-case tests for brute-force throttling, distributed username lockout, IP/CIDR deny rules, trusted proxy spoofing, audit event persistence, Admin Security API/UI contracts, Login 429 UX, and beta exposure docs.
+
+Two security acceptance cases still fail and need implementation before Brutus can approve:
+
+1. **Reset after successful login** — after `AccountFailureLimit - 1` failed password attempts, one successful password login must reset the failure escalation. Current behavior locks the user on the next single failure because old failures remain counted.
+2. **Only-admin lockout recovery** — when the only admin account is attacked with failed password attempts, the account is still locked, creating a no-admin recovery path unless direct database intervention is available.
+
+## Evidence
+
+Failing command:
+
+```sh
+go test -v .\services -run "TestSecurityService"
+```
+
+Failing tests:
+
+- `TestSecurityServiceSuccessfulLoginResetsFailureEscalation`
+- `TestSecurityServiceDoesNotLockOnlyAdminOutOfAdministration`
+
+Passing targeted coverage:
+
+```sh
+go test -v . .\handlers .\middleware -run "TestDeploymentDocsContainPublicExposureBetaChecklist|TestLoginHandler_BadPasswordThresholdReturns429GenericResponse|TestLoginHandler_NonexistentUsernameContributesToIPThrottleWithoutEnumeration|TestRegisterHandler_RegistrationMode|TestIPDenyRules|TestClientIP|TestSecurityAdminHandler"
+npm.cmd run test -- client.test.ts AdminSecuritySection.test.ts LoginPage.test.ts
+```
+
+
+
+---
+
+# Brutus QA Decision: Public-Facing Hardening Edge Cases
+
+**Date:** 2026-06-19
+**Agent:** Brutus
+**Status:** APPROVED — BETA-TEST READY
+
+## Decision
+
+Aurelia's backend revision clears the prior strict-lockout blockers for the public-facing hardening branch.
+
+- WebAuthn login finish now checks account lockout before assertion parsing and token issuance.
+- Production routing applies IP deny rules globally before public WebAuthn routes.
+- WebAuthn success records `webauthn_login_success`, which resets user failure escalation through the shared success-aware failure counter.
+- Only-admin recovery skips account lockout only; repeated failures still record events and can create temporary IP deny rules.
+
+## Validation
+
+- `cd src\api; go test -v ./handlers ./services ./repository ./middleware -run "(WebAuthn|SecurityService|IPDeny|OnlyAdmin|Lock|Failure|Success|Auth)"`
+- `cd src\api; go test -v ./...`
+- `cd src\api; go vet ./...`
+- `git --no-pager diff --check`
+
+All commands passed. No blocking defects found.
+
+## Constitution Alignment
+
+Principle V (Security, Auth, and Privacy by Default), Principle IX (Tests), §17 Quality Gate, and §18 Strict Lockout were satisfied for this review scope.
+
+
+
+---
+
+# Decision: Public-Facing Hardening Revised QA — BLOCK
+
+**Date:** 2026-06-19
+**Agent:** Brutus
+**Status:** BLOCK
+
+## Context
+
+Maximus revised `src/api/services/security_service.go` after the earlier QA block for password-login failure escalation reset and sole-admin lockout. Brutus re-ran targeted and broad validations across Go backend, Vue frontend, and deployment docs.
+
+## Decision
+
+The original two password-login blockers are fixed, and the branch passes broad validation, but public-facing hardening is still blocked by sibling auth-abuse gaps:
+
+1. `src/api/handlers/webauthn.go:471` / `src/api/services/auth_service.go:56` — WebAuthn login finish does not check `SecurityService.CheckAccountAllowed`, so a locked non-admin can still authenticate with WebAuthn. `RecordWebAuthnSuccess` records only `webauthn_login_success`, while failure reset logic in `src/api/repository/security_repository.go:55` considers only `password_login_success`, so WebAuthn success does not reset password failure escalation.
+2. `src/api/services/security_service.go:90` — the sole-admin recoverability guard returns before IP-based escalation at lines 102-106, so repeated brute-force attempts against the only admin never create an automatic IP deny rule.
+
+## Required Fix
+
+- Gate WebAuthn login finish through the same account-allowed check as password login before issuing tokens.
+- Treat successful WebAuthn authentication as an auth success for failure-escalation reset and lockout clearing, or make the repository reset query consider all successful auth event types.
+- Continue IP-failure escalation for sole-admin failures while skipping only the account lock.
+- Add regression tests for WebAuthn lockout bypass/reset and sole-admin IP auto-ban.
+
+## Validation Run
+
+- `go test -v -run "TestSecurityService|TestSecurityAdmin|TestSecurityMiddleware|TestTrustedProxy|TestDeployment" ./...` from `src/api` — PASS (regex missed differently named middleware tests but covered service/admin/docs).
+- `go test -v ./...` from `src/api` — PASS.
+- `go vet ./...` and `go build ./...` from `src/api` — PASS.
+- `npm.cmd run test -- src\api\__tests__\client.test.ts src\components\admin\__tests__\AdminSecuritySection.test.ts src\pages\__tests__\LoginPage.test.ts` from `src/web` — PASS.
+- `npm.cmd run test` from `src/web` — PASS (43 files, 244 tests).
+- `npm.cmd run build` from `src/web` — PASS (`vue-tsc --build` + Vite).
+- `git diff --check` — PASS.
+
+## Constitution Alignment
+
+Principle V and §17/§21 require public-facing auth hardening to protect all auth paths and exact sibling workflows. This branch is not beta-test ready until the block is cleared.
+
+
+
+---
+
+# Brutus QA: Security Scan Gates Need Branch Protection
+
+**Date:** 2026-06-19
+**Agent:** Brutus
+**Status:** QA BLOCK for issue #323 closure
+
+## Context
+
+Issue #323 requires security scans to become blocking for secrets and high/critical vulnerabilities, and its task list includes confirming required branch checks consume the blocking security result.
+
+## Finding
+
+The workflow implementation correctly removes blanket `continue-on-error` from `security-scan.yml`, but GitHub API checks returned `Branch not protected` for both `beta` and `main`. Without branch protection / required status checks, failing security scans do not actually prevent direct pushes or Docker publish workflows.
+
+## Decision
+
+Treat workflow hardening as code-approved but issue #323 not closable until repository branch protection requires the Security Scan jobs (or the release-gating plan is explicitly revised). Documentation should not claim protected-branch release gating until that setting is true.
+
+## Constitution Alignment
+
+- Principle VII: release integrity requires CI results to be enforceable, not only reportable.
+- §17: security scan gates are part of the Quality Gate trajectory.
+- Principle IX: automated enforcement must be wired into the merge/release path.
+
+
+
+---
+
+# Decision: WebAuthn Backup Eligible Flag Storage — IMPLEMENTED
+
+**Date:** 2026-06-18  
+**Agent:** Brutus (QA review)  
+**Status:** APPROVED — ALREADY IMPLEMENTED  
+
+## Context
+
+User reported biometric login failure with error: "401 POST /api/auth/webauthn/login/finish" and log message "Authentication failed: Backup Eligible flag inconsistency detected during login validation".
+
+## Root Cause Analysis
+
+The go-webauthn library (v0.17.4+) validates that the `credential.Flags.BackupEligible` flag stored during registration matches the flag in the authenticator assertion during login. Per the library's login validation code (line ~370-373):
+
+```go
+// Check if the BackupEligible flag has changed.
+if credential.Flags.BackupEligible != parsedResponse.Response.AuthenticatorData.Flags.HasBackupEligible() {
+    return nil, protocol.ErrBadRequest.WithDetails("Backup Eligible flag inconsistency detected during login validation")
+}
+```
+
+**BackupEligible** indicates the authenticator is capable of being backed up (e.g., iCloud Keychain passkeys, platform authenticators with cloud sync). Per WebAuthn spec and library documentation: "This flag should NEVER change" — it's an authenticator capability, not a state.
+
+**BackupState** indicates whether the credential has actually been backed up. This CAN change over time.
+
+## Implementation (Already Complete)
+
+Another agent (likely Cassius) has already implemented the full fix:
+
+### 1. Model Changes (`models/webauthn_credential.go`)
+
+```go
+type WebAuthnCredential struct {
+    // ... existing fields ...
+    BackupEligible  *bool     `json:"backupEligible,omitempty"`
+    BackupState     *bool     `json:"backupState,omitempty"`
+    // ... rest ...
+}
+```
+
+Nullable pointers allow distinguishing between:
+- `nil` — legacy credential registered before flag storage was implemented
+- `false` — platform authenticator, not backup-capable
+- `true` — cloud-synced passkey (iCloud Keychain, Google Password Manager, etc.)
+
+### 2. Handler Changes (`handlers/webauthn.go`)
+
+**Registration (lines 377-378):** Store flags from the returned credential:
+```go
+dbCred := models.WebAuthnCredential{
+    // ... existing fields ...
+    BackupEligible:  boolPtr(credential.Flags.BackupEligible),
+    BackupState:     boolPtr(credential.Flags.BackupState),
+    // ...
+}
+```
+
+**Login credential loading (lines 198-235):** `webauthnCredentialsFromModels` restores flags with legacy fallback:
+```go
+// Prefer stored flags if present
+backupEligible := false
+if c.BackupEligible != nil {
+    backupEligible = *c.BackupEligible
+} else if c.CredentialID == assertionCredentialID {
+    // Legacy credential: bootstrap from current assertion
+    backupEligible = assertionFlags.HasBackupEligible()
+}
+// Same for BackupState
+```
+
+This ensures:
+- New credentials: stored flags used (matches library expectation)
+- Legacy credentials: flags bootstrapped from the current login attempt, then updated in DB
+
+**Login credential update (line 538):** Update flags on each login:
+```go
+if err := h.repo.UpdateCredentialAuthData(credID, user.ID, credential.Authenticator.SignCount, credential.Flags.BackupEligible, credential.Flags.BackupState); err != nil {
+```
+
+### 3. Repository Changes (`repository/webauthn_repository.go`)
+
+Added `UpdateCredentialAuthData` method (lines 57-66) that updates sign count + both backup flags in one atomic operation.
+
+### 4. Test Coverage (`handlers/webauthn_test.go`)
+
+Three targeted regression tests:
+
+1. **`TestWebAuthnHandlerLoadCredentialsRestoresBackupFlags`**: Verifies stored flags are restored correctly during credential loading
+2. **`TestWebAuthnHandlerLoadCredentialsBootstrapsLegacyBackupFlagsFromAssertion`**: Verifies nil (legacy) credentials bootstrap flags from the current assertion
+3. **`TestWebAuthnHandlerLoadCredentialsKeepsStoredBackupEligibleOverAssertion`**: Verifies stored BackupEligible takes precedence over assertion when both present
+
+All tests pass: ✅
+
+## Validation
+
+- `go test -v ./handlers -run TestWebAuthnHandler.*Login` — all login tests pass
+- `go test -v ./handlers -run TestWebAuthnHandlerLoadCredentials` — all flag tests pass
+- `go test -v ./...` — full suite passes (143 tests)
+- `go vet ./...` — clean
+- `go build ./...` — builds successfully
+
+## Constitution Alignment
+
+- **Principle I (Layered Architecture):** Handler → Repository → Model chain maintained; no direct DB access
+- **Principle IV (Simple Complete):** Minimal change (2 nullable fields + conditional logic); handles both new and legacy credentials
+- **Principle IX (Tests):** Comprehensive regression coverage for all three scenarios (stored, legacy, precedence)
+- **Principle V (Security):** Follows WebAuthn spec for credential flag handling; no security weaknesses introduced
+- **§17 Quality Gate:** All tests pass, no regressions, lint clean
+
+## References
+
+- Issue: #299 (reported 2026-06-18)
+- go-webauthn library: `github.com/go-webauthn/webauthn@v0.17.4`
+- Library validation code: `webauthn/login.go:370-373`
+- WebAuthn spec: https://www.w3.org/TR/webauthn-2/#credential-backup
+- Library CredentialFlags docs: "Flag BE indicates the credential is able to be backed up and/or sync'd between devices. This should NEVER change."
+
+## Outcome
+
+**The reported issue is already fixed.** Users can now log in with backup-eligible authenticators (iCloud Keychain passkeys, etc.) without the "Backup Eligible flag inconsistency" error. Legacy credentials registered before this fix are automatically migrated on their next login.
+
+
+
+---
+
+# Cassius #317 — Go Architecture Boundary Hardening
+
+Date: 2026-06-19
+Agent: Cassius
+Status: implemented
+
+## Decision
+
+The Go architecture gate now treats `gorm.io/gorm` as repository-owned by default. Non-test handlers may not import GORM, hold `*gorm.DB`, or use direct DB/raw SQL patterns. Service-layer GORM usage is no longer blanket-allowed; remaining exceptions are documented in `allowedServiceGORMFiles` in `src/api/architecture_test.go`.
+
+## Rationale
+
+This aligns the gate with Constitution Principle I: handlers stay thin and database access belongs in repositories. The current service exceptions are limited to transaction orchestration or explicitly tracked legacy boundary debt, making future cleanup visible instead of silently allowed.
+
+## Follow-up
+
+Future backend work should move the documented legacy service GORM usage in `collection_tools_service.go` and `reference_migration_service.go` behind repository methods when those areas are touched.
+
+
+
+---
+
+# Admin API Keys Are Rejected on Admin Routes by Default
+
+## Context
+`AuthRequired` accepts `X-API-Key` before JWT and sets `userRole` from the API key owner. Because `AdminRequired` only checks for the admin role, admin-owned API keys could authorize `/api/admin/*` routes.
+
+## Decision
+Admin route groups now apply explicit JWT-only middleware after authentication and before `AdminRequired`. Requests authenticated with API keys are rejected on `/api/admin/*` by default; any future admin endpoint that intentionally accepts API-key auth must opt in with a separate, reviewed capability contract.
+
+## Constitution
+Principle V (Security, Auth, and Privacy by Default), Principle IX (Automated Enforcement), §17 Quality Gate, §21 Definition of Done.
+
+## Consequences
+Admin JWTs remain valid for admin routes. Default/read/write API keys are least-privilege for protected or external-tool routes and cannot perform admin actions unless a future reviewed exception is added.
+
+
+
+---
+
+# Decision: Explicit Go/Python app_context Contract
+
+Date: 2026-06-19
+Owner: Cassius
+Issue: #318
+
+## Decision
+
+Keep chat `app_context` as an optional Go-to-Python DTO field because it carries useful current UI context for collection chat, especially `activeCoinId` for prompts like "this coin". Model it explicitly in Python as `AppContext` with `route` and `activeCoinId`, and reject unknown fields across agent request DTOs so future Go/Python drift fails fast.
+
+## Validation
+
+- `go test ./...` from `src/api`
+- `go vet ./...` from `src/api`
+- `pytest tests/ -v` from `src/agent`
+- `ruff check app/ tests/` from `src/agent`
+
+
+
+---
+
+## Decision: Python Agent Service Boundary Hardening
+
+**Date:** 2026-06-19  
+**Agent:** Cassius  
+**Status:** IMPLEMENTED
+
+## Context
+
+GitHub issues #309 and #310 both harden the Python agent service boundary. The service previously published host port 8081 by default, allowed direct access to `/logs` and `/log-level`, and accepted outbound URLs from per-request configuration without a shared trusted-origin check.
+
+## Decision
+
+- Default Docker Compose no longer publishes the agent service on host port 8081; it is exposed only on the compose network.
+- Go API and Python agent share `AGENT_INTERNAL_SERVICE_TOKEN`; Python requires it on every endpoint except `/health` and `/ready`, and Go `AgentProxy` sends it for API calls, SSE calls, log fetches, and log-level updates.
+- Python validates outbound `ollama_url`, `searxng_url`, and `tools_base_url` against exact `AGENT_TRUSTED_OUTBOUND_ORIGINS`.
+- Localhost, loopback, private/RFC1918, link-local, metadata, and other reserved IP ranges are denied unless an origin is explicitly trusted and `AGENT_ALLOW_LOCAL_OUTBOUND=true` is set for local development.
+
+## Constitution Alignment
+
+- Principle II: preserves Go API ↔ Python agent service boundary.
+- Principle V: fail-closed internal auth and SSRF hardening.
+- Principle IX + §17: regression coverage added for unauthenticated access, authenticated Go-mediated access, and URL rejection before network calls.
+
+
+
+---
+
+# Cassius Decision: Find Coin slab-first fallback
+
+Date: 2026-06-10
+Agent: Cassius (Backend Developer)
+Status: Implemented
+
+Find Coin keeps NGC slab/cert extraction as the preferred path: detected certs still produce NGC lookup URLs and candidate references without requiring scraping or external cert APIs. When no cert is detected, the backend now treats structured image-analysis fields as sufficient draft data, including intake-style nested `coin` payloads and snake_case field names, so Add to Wishlist/Add to Collection can save a useful prefilled coin instead of an empty placeholder.
+
+Constitution compliance: Principle I (service-owned lookup logic), Principle IV (simple proportional fallback), Principle V (no scraping or fabricated external data), Principle IX (§17 backend tests/vet run).
+
+
+
+---
+
+# Cassius — Collection Health Snapshot Admin Trigger
+
+**Date:** 2026-06-18
+**Status:** Proposed for merge into decisions.md
+
+Added backend admin schedule endpoint `POST /api/admin/collection-health-snapshots/run` to manually execute `services.CollectionHealthScheduler.RunNow()` for all users with eligible coins.
+
+Response contract for frontend/admin usage:
+
+```json
+{ "message": "Collection health snapshots run completed" }
+```
+
+The route is admin-only under `/api/admin`, matching the existing scheduler manual trigger pattern for auction ending and coin-of-day. Handler tests cover success plus unauthenticated and non-admin access behavior.
+
+
+
+---
+
+# Cassius decision — Issue #313 backend media authorization
+
+Date: 2026-06-19
+
+## Decision
+
+The Go API no longer exposes `r.Static("/uploads", cfg.UploadDir)`. Uploaded files are served only through DB-backed media routes:
+
+- `GET /uploads/*filepath` and `GET /api/uploads/*filepath` require normal API authentication and authorize against `CoinImage.FilePath` or `User.AvatarPath`.
+- Private coin images are owner-only by default. Public active coin images remain available to accepted followers when the owner profile is public, matching the existing social gallery rule.
+- Public showcase media uses `GET /api/showcase/:slug/uploads/*filepath`, scoped to images for coins in the active showcase.
+
+## Follow-up
+
+Aurelia should migrate browser image rendering away from bare public static assumptions. `<img src="/uploads/...">` will not carry bearer auth, so authenticated app views need an authorized media-fetch/blob URL pattern or an equivalent frontend media helper.
+
+
+
+---
+
+# User Notes Backend Contract
+
+**Date:** 2026-06-11  
+**Agent:** Cassius (Backend Developer)  
+**Status:** Proposed for ledger merge
+
+## Context
+
+Brian requested overall user Notes that are not tied to a coin or wishlist. The backend needs a simple authenticated CRUD contract that frontend and tests can rely on without introducing tags, folders, or search scope.
+
+## Decision
+
+Add a `Note` resource with fields `ID`, `UserID`, `Title`, `Body`, `CreatedAt`, and `UpdatedAt`. Register protected routes under JWT/API-key auth:
+
+- `GET /api/notes` returns `{ "notes": [...] }` for the authenticated user only.
+- `POST /api/notes` creates an authenticated user's note.
+- `GET /api/notes/:id`, `PUT /api/notes/:id`, and `DELETE /api/notes/:id` operate only on notes owned by the authenticated user.
+
+Cross-user read, update, and delete attempts return 404 to avoid exposing note existence. Validation is intentionally direct: title is trimmed, required, and capped at 200 characters; body can be empty Markdown text and is capped at 20000 characters.
+
+## Constitution Alignment
+
+- Principle I: Handler → Service → Repository → Database layering with constructor injection.
+- Principle III / §21: Swagger/OpenAPI regenerated for the new public handlers.
+- Principle V: ownership checks prevent cross-user data access; internal errors stay generic.
+- §17 / §21: exact path and workflow-contract coverage added for `/api/notes` CRUD, validation, and user isolation.
+
+
+
+---
+
+# NumisBids Sync: Auth Verification and Debug Logging
+
+**Date:** 2026-06-11  
+**Author:** Cassius (Backend Dev)  
+**Status:** Implemented
+
+## Problem
+
+User reported that NumisBids watchlist sync returns zero coins, and DEBUG logging shows no diagnostic output.
+
+## Root Causes
+
+1. **Login verification was incomplete** — `Login()` only checked for a cookie, but didn't verify the session was actually authenticated. NumisBids can return a session cookie even on failed login.
+
+2. **Watchlist fetch didn't detect auth failures** — `FetchWatchlist()` returned HTTP 200 even when unauthenticated, because NumisBids returns a login form (not a 401) for protected pages.
+
+3. **No structured logging** — The `NumisBidsService` had no logger integration, so DEBUG-level diagnostics were never captured in the app log buffer.
+
+4. **Parser had no diagnostic output** — When the parser returned 0 lots, there was no logging to explain why (empty HTML, wrong format, login page detected, etc.).
+
+## Solution
+
+**Added structured logging throughout the sync flow:**
+
+- `NumisBidsService` now requires a `*Logger` in its constructor (`NewNumisBidsService(logger)`).
+- `Login()` logs: attempt, response status, cookie count, and authentication verification result.
+- `FetchWatchlist()` logs: request, response status, HTML size, and detects login forms in the response.
+- `ParseWatchlist()` logs: lot count, each parsed lot (at TRACE level), and summary.
+
+**Added authentication verification:**
+
+- New `verifyAuthentication()` method in `NumisBidsService` — after login, it fetches the watchlist page and checks for login form indicators (`name="email"`, `name="password"`, "login to your account").
+- If verification fails, `Login()` returns an error instead of a potentially-invalid client.
+
+**Improved watchlist auth detection:**
+
+- `FetchWatchlist()` now checks the response body for login form indicators and returns `ErrNumisBidsAuthenticationRequired` if detected (already existed in the handler).
+
+## Changes
+
+- `src/api/services/numisbids_service.go`:
+  - Added `logger *Logger` field to `NumisBidsService`
+  - Updated `NewNumisBidsService(logger)` constructor
+  - Added `verifyAuthentication()` method
+  - Added logging to `Login()`, `FetchWatchlist()`, and `ParseWatchlist()`
+  - Enhanced login/watchlist auth failure detection
+
+- `src/api/services/numisbids_service_test.go`:
+  - Updated all test calls to pass a logger instance
+
+- `src/api/main.go`:
+  - Updated `NewNumisBidsService()` call to pass `logger`
+
+## Testing
+
+- Existing unit tests pass with logging integration.
+- Architecture tests pass (no new direct DB imports).
+- Compilation verified.
+
+## Next Steps
+
+When the user syncs their watchlist again with DEBUG logging enabled, they will now see:
+- Whether the login succeeded or failed (and why)
+- Whether the watchlist page returned a login form (session expired)
+- How many lot links were found in the HTML
+- Each lot being parsed and upserted
+
+This diagnostic output will reveal the actual root cause (invalid credentials, session expiration, or parser mismatch).
+
+
+
+---
+
+# Cassius Decision: Public-facing backend security controls
+
+**Date:** 2026-06-19
+**Agent:** Cassius
+**Status:** Implemented for backend/API slice
+
+## Context
+P0 public-facing review required beta-ready backend controls for proxy trust, registration closure, persistent security auditing, brute-force mitigation, IP/CIDR bans, and admin visibility.
+
+## Decision
+The Go API now treats public registration as closed by default after first-user setup via `RegistrationMode` (`closed|invite|open`) in settings. Auth/security events are persisted in `security_events`, and IP deny rules are stored in `ip_rules`. Password failures can trigger account lockout and temporary IP bans; the sole admin is not auto-locked to preserve administrative recovery, and admins can explicitly unlock users.
+
+Gin trusted proxies are configured from `TRUSTED_PROXIES`/`GIN_TRUSTED_PROXIES`; release mode fails closed if unset unless explicitly configured as `none`. Security middleware records the resolved Gin client IP after trusted proxy processing and applies defense-in-depth headers. Admin endpoints expose `/api/admin/security/summary`, `/api/admin/security/events`, `/api/admin/security/ip-rules`, `/api/admin/users/:id/unlock`, and `/api/admin/security/exposure-check`.
+
+## Constitution Alignment
+- Principle I: layered model/repository/service/handler implementation
+- Principle III: generated OpenAPI updated for new admin endpoints
+- Principle IV: direct proportional controls without broad auth rewrites
+- Principle V: safer defaults, generic login/registration failures, no raw secrets in events
+- §17: targeted and full Go tests plus vet pass
+
+## Backend gaps for docs/Maximus
+Backup/restore automation was not invented. Backend only exposes a `BackupStatus` setting/default and includes it in security summary/exposure responses so docs/UI can accurately show that backup automation remains not configured unless implemented separately.
+
+
+
+---
+
+# WebAuthn Backup Eligible Flag Storage
+
+**Date:** 2026-06-18  
+**Decider:** Cassius (Backend)  
+**Status:** Implemented
+
+## Context
+
+Biometric login was failing with 401 errors and log message "Backup Eligible flag inconsistency detected during login validation". The go-webauthn library (v0.17.4) validates that the `BackupEligible` flag remains consistent between credential registration and login authentication ceremonies.
+
+The WebAuthn specification (FIDO2) defines two credential flags:
+- **BackupEligible:** indicates the credential can be backed up/synced (should NEVER change)
+- **BackupState:** indicates if the credential has been backed up/synced (can change)
+
+These flags are part of the `CredentialFlags` struct returned during registration and must be stored and restored during login.
+
+## Problem
+
+Our `WebAuthnCredential` model only stored:
+- CredentialID
+- PublicKey
+- AttestationType
+- SignCount
+
+When reconstructing credentials in `loadCredentials()`, we didn't restore the backup flags, so they defaulted to `false`. If an authenticator returned `true` during registration, login validation would fail because the stored value (false) didn't match the expected value (true).
+
+## Decision
+
+Added `BackupEligible` and `BackupState` bool fields to the `WebAuthnCredential` model:
+- Store both flags during registration (`RegisterFinish`)
+- Restore both flags during login (`loadCredentials`)
+- GORM migration will add the new columns with `default:false` (safe for existing credentials)
+
+## Implementation
+
+**Files changed:**
+1. `src/api/models/webauthn_credential.go` — added `BackupEligible` and `BackupState` bool fields
+2. `src/api/handlers/webauthn.go`:
+   - Store flags during registration: `credential.Flags.BackupEligible`, `credential.Flags.BackupState`
+   - Restore flags during login: populate `CredentialFlags` struct in `loadCredentials()`
+3. `src/api/handlers/webauthn_test.go` — added `TestWebAuthnHandlerLoadCredentialsRestoresBackupFlags` regression test
+
+**Migration safety:**
+- GORM AutoMigrate will add the new bool columns with `default:false`
+- Existing credentials will have `BackupEligible=false`, `BackupState=false` after migration
+- If an existing credential was registered with `BackupEligible=true`, users will need to re-register
+- This is acceptable: the feature just launched, and user impact is minimal
+
+## Validation
+
+- `go test -v ./handlers -run TestWebAuthnHandler` — all 7 tests pass
+- `go test ./...` — full suite passes
+- `go test . -run TestNoDirectDatabaseImports` — architecture test passes
+- Zero breaking changes to the API contract
+
+## Constitution Alignment
+
+- **Principle I (Layered Architecture):** Handler stores credential, repository persists, model defines schema
+- **Principle XI (Security Hardening):** Preserves WebAuthn security validation; no broad fallbacks
+- **Principle XII (Auth & Token Policy):** Maintains FIDO2 compliance by storing all required credential metadata
+
+
+
+---
+
+### 2026-06-18T12:18:29Z: 225 real map clarification
+**By:** Brian DeNicola (via Copilot)
+**What:**
+- Mint Map must use a real geographic map background with pins placed from actual latitude/longitude.
+- The current stylized inline SVG approximation is not sufficient.
+- Use Leaflet with OpenStreetMap tiles for the real-map implementation.
+- External OpenStreetMap tile image requests are acceptable when the Mint Map view opens.
+**Why:** User clarified the intended Mint Map experience after reviewing the first implementation.
+
+
+
+---
+
+### 2026-06-18T12:06:35Z: 225 Stats subview clarifications
+**By:** Brian DeNicola (via Copilot)
+**What:**
+- Redirect existing `/mint-map` and `/timeline` URLs to `/stats/mint-map` and `/stats/timeline`.
+- Move Mint Map out of Collection headers; expose it only under Stats.
+- Move Collection Distribution / heat-map-style stats into its own Stats subview.
+- Make the main Stats page a landing page with cards linking to each Stats subview.
+**Why:** User clarified the desired Stats navigation structure before implementation.
+
+
+
+---
+
+### 2026-06-18T02:36:25Z: User directive
+**By:** Brian DeNicola (via Copilot)
+**What:** Definitely spin up the Squad when working on specs/features 224 and 225.
+**Why:** User request — captured for team memory
+
+
+
+---
+
+### 2026-06-11T13:20:03-05:00: User directive
+
+**By:** Brian DeNicola (via Copilot)
+
+**What:** Add process changes so regressions require exact failing-path regression coverage, shared-surface blast-radius checks, configurable UI/API contract checks, and PR self-check documentation.
+
+**Why:** User request after repeated regressions in unrelated workflows despite green CI and CodeQL.
+
+
+
+---
+
+# Decision: Feature 224 — Museum Tray View Scope and Design
+
+**Date**: 2026-06-18  
+**Decision Owner**: Maximus (Lead/Architect)  
+**Status**: Locked  
+**Related**: Spec `specs/224-museum-tray-view/spec.md`, Plan `specs/224-museum-tray-view/plan.md`, Tasks `specs/224-museum-tray-view/tasks.md`
+
+---
+
+## Decision Summary
+
+Feature 224 (Museum Tray View) will ship as a **read-only frontend-only presentation mode** with the following locked design decisions:
+
+1. **Scope v1 to current loaded result set** — Tray uses `store.coins` (collection page filtered/sorted coins), not a separate API fetch of all coins.
+2. **Pure CSS felt tray** — No 3D perspective, no image assets; themed via CSS gradients with 3 color options (red, green, navy).
+3. **Proportional diameter scaling** — Coins scale relative to each other within [40px, 120px] clamp; missing diameter → 70px default.
+4. **Default tap opens detail** — Click/Enter routes to `/coin/:id`. Long-press and inline flip deferred.
+5. **Component state for drawer position** — No URL query params; position lost on reload (acceptable v1).
+6. **No drag, no edit, no save** — Read-only. Saved layouts and rearrangement are backlog features.
+
+---
+
+## Rationale
+
+| Decision | Why | Alternative Considered | Why Not |
+|----------|-----|------------------------|---------|
+| v1 scoped to loaded coins | Simplicity, no API expansion, aligns with collection pagination | Fetch all coins on `/tray` load | Adds server overhead, pagination edge cases, more complex state management |
+| Pure CSS felt | Lightweight, themeable, performant; all browsers supported | SVG/Canvas tray scene | Overkill for v1, harder to theme, higher bundle cost |
+| Proportional scaling, not absolute diameter sizes | Coins must remain tappable and visually balanced | Render by true mm dimension | Requires viewport-aware scaling math, complex, might render coins too small/large |
+| Tap → detail (not flip) | Discoverable, accessible, keyboard-friendly, works on all devices | Tap → flip (3D viewer) | 3D viewer may not be landed; long-press hard to discover and test; adds complexity |
+| State-based drawer position (not URL param) | Simpler component state, cleaner URLs, no query clutter | URL query param `?drawer=2` | Adds URL noise, requires router state sync, position persists across sessions (can be unexpected) |
+| No drag/edit/save | Principle IV (simple complete changes); core feature is read-only presentation | Include drag-and-drop | Scope creep, complex interaction design, requires test coverage for save/restore |
+
+---
+
+## Architecture Impact
+
+- **No API changes**: Reuses existing Coin, CoinImage types; no new endpoints.
+- **No database changes**: No new schema; `diameterMm` already present (nullable, existing migration applies).
+- **Frontend only**: Vue components, layout utilities, localStorage preference (no backend state needed).
+- **Pinia store**: Tray reads from `useCollectionStore()` — no new store required.
+- **Design tokens**: All colors, spacing, shadows use existing token system (--accent-gold, --bg-card, --radius-sm, etc.).
+
+---
+
+## Constitution Compliance
+
+| Principle | Status | Notes |
+|-----------|--------|-------|
+| **I (Layered Architecture)** | ✅ Compliant | Tray components consume Pinia store; layout math in utils; no handler/service/repo layers needed (read-only UI). |
+| **III (Strict Types)** | ✅ Compliant | TrayCoin, TrayLayoutOptions, all props typed; nullable diameterMm handled without casts. |
+| **IV (Simple Complete Changes)** | ✅ Compliant | Flat CSS tray, direct component composition, no clever abstractions. Proportional to scope (one UI feature). |
+| **V (Security, Auth, Privacy)** | ✅ Compliant | Tray reads filtered collection owned by authenticated user; no new auth vectors. |
+| **VI (Consistent UX)** | ✅ Compliant | Design tokens, global CSS classes, dark theme, no emojis, PWA-compatible interaction. |
+| **X (Automated Arch Enforcement)** | ✅ Compliant | No new imports violate architecture rules; all in src/web/. |
+| **§17 (Quality Gate)** | ✅ On Track | Tests cover scaling, pagination, responsive, interaction; type-check and build must pass before merge. |
+| **§21 (DoD)** | ✅ On Track | 15-item checklist applies; tray feature fits "UI feature" category. |
+
+---
+
+## Test Coverage (Design-First)
+
+All tests written first (failing), then implementation:
+
+- **trayLayout.test.ts**: Scaling (8mm obol, 35mm sestertius, missing, zero, negative), pagination, drawer boundaries.
+- **useTrayPreference.test.ts**: localStorage persistence, reactive updates, defaults.
+- **MuseumTrayWell.test.ts**: Image render, placeholder fallback, click/keyboard events, a11y labels.
+- **MuseumTray.test.ts**: Grid layout, theme class, responsive breakpoints, coin-clicked propagation.
+
+---
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|------|--------|-----------|
+| **Small coins untappable** | High (UX failure) | Clamp render size to min 40px; verify in tests; document safe range (8mm–50mm). |
+| **Large coins dominate** | Medium (visual imbalance) | Clamp render size to max 120px; test with realistic diameter distribution. |
+| **Drawer position lost on reload** | Low (expected behavior for MVP) | Document as v1 limitation; session store can be future enhancement. |
+| **Visual drift from tokens** | High (brand inconsistency) | Strict linting of all colors/spacing in review; no hardcoded hex values allowed. |
+| **Animation jank on low-end devices** | Medium (accessibility) | Respect prefers-reduced-motion; use CSS Grid (efficient); lazy-load images. |
+| **Scale of small collections unclear** | Low (UX clarity) | Label drawers ("Drawer 1 of 3"); empty state helpful. |
+
+---
+
+## Out of Scope (Locked as Backlog)
+
+- **Drag-and-drop rearrangement**: Requires save/restore, complex interaction testing.
+- **Saved custom layouts**: State persistence, per-user layout storage.
+- **Full-collection cross-page tray**: Deferred until collection pagination patterns proven; requires API expansion.
+- **3D perspective or flip animation**: Deferred until 3D viewer status clear and user demand validated.
+- **Public/shared tray links**: Deferred to social/sharing feature set.
+- **Editable tray (bulk actions, selection mode)**: Tray is read-only by design.
+- **Pinch-zoom, swipe navigation**: Deferred as polish; focus on tap/keyboard for v1.
+
+---
+
+## Approval & Sign-Off
+
+- **Maximus (Lead)**: ✅ Approved (architecture, scope, quality gate alignment).
+- **Brian (Product Owner)**: Awaiting verbal confirmation (scope, felt color options, drawer size).
+- **Implementation Team**: Ready to begin Phase 1 (setup) once approved.
+
+---
+
+## Future Enhancements (Backlog)
+
+1. **Full-collection cross-page tray** — Fetch all coins, paginate on server, render tray for all matching coins.
+2. **Saved tray layouts** — Let users customize well positions, save per-user, restore.
+3. **Tray sharing** — Public tray link (integrates with showcase feature).
+4. **3D flip within well** — Inline 3D viewer (if 3D viewer lands in main branch).
+5. **Adaptive drawer size per viewport** — Drawer size varies by device (mobile = 30 coins, desktop = 100 coins).
+6. **Pinch-zoom, swipe navigation** — Touch gestures for zooming and pagination.
+7. **Tray export** — Download as image, PDF, or shareable link.
+
+
+
+
+---
+
+# Decision: Feature 225 Mint Map v1 Scope
+
+**Date**: 2026-06-17  
+**Owner**: Maximus  
+**Spec**: `specs/225-mint-map-view/`
+
+## Decision
+
+Mint Map View v1 remains frontend-only: static TypeScript mint reference data, deterministic matching utilities, inline SVG rendering, and existing collection store data. It must not introduce Go API routes, database schema/migrations, geocoding, AI inference, map tiles, Leaflet/Mapbox, or editable mint coordinates.
+
+The optional "View in Gallery" bridge is conditional. It may ship only if existing collection route/search contracts can reliably prefill the gallery search without new API changes; otherwise v1 keeps drawer-only selected-mint behavior and records query-filtering as follow-up.
+
+## Rationale
+
+This follows `specs/225-mint-map-view/plan.md` and Constitution Principle III (typed contracts), Principle IV (simple complete proportional change), Principle VI (consistent UX), and §17/§21 validation requirements. The highest-risk architectural failure would be letting a visualization feature create backend schema or third-party map coupling before reference-data quality is proven.
+
+## Implementation Surface
+
+- `src/web/src/data/ancientMints.ts`
+- `src/web/src/utils/mintMap.ts`
+- `src/web/src/components/map/*`
+- `src/web/src/pages/MintMapPage.vue`
+- `src/web/src/router/index.ts`
+- Navigation links in collection headers and stats page
+
+
+
+---
+
+### 2026-06-18T12:22:46Z: 225 Mint Map real-map and Stats IA pivot
+**By:** Maximus
+**What:**
+- Treat the current inline SVG Mint Map as a superseded beta implementation, not the target experience.
+- Implement the follow-up with Leaflet plus OpenStreetMap tiles and markers placed from actual mint latitude/longitude.
+- Move Mint Map under Stats only at `/stats/mint-map`; redirect `/mint-map` there.
+- Redirect `/timeline` to `/stats/timeline`, make `/stats` a landing page, and split Collection Distribution into `/stats/distribution`.
+**Why:** Brian clarified the product intent after reviewing beta. Per Constitution §0, the active spec/plan/tasks now carry the clarified requirement; per Principle IV, the proportional fix is to replace the incorrect map workflow and directly related navigation, not to add backend mint management.
+
+
+
+---
+
+# Decision: Stats becomes a parent area with dedicated subviews
+
+**Date:** 2026-06-18
+**Owner:** Maximus
+**Source:** Brian request during 225 Mint Map follow-up review
+
+## Decision
+
+Treat Stats as a navigation parent rather than one long page. The Stats overview should stay concise, while heavier analytical modules move to dedicated authenticated views listed as sub-items under Stats in the menu:
+
+- Collection Health / 30-Day Trend
+- Value Over Time
+- Mint Map
+- Timeline
+
+## Rationale
+
+Brian identified the current Stats page as too long. Moving deep visualizations into dedicated subviews keeps the overview scannable, improves mobile/PWA navigation, and aligns Mint Map with the broader analytics surface rather than leaving it as an unrelated top-level route/card.
+
+## Implementation Notes
+
+- Branch follow-up work from latest `beta`; PR #287 is already merged.
+- Prefer route names and paths that express Stats ownership, e.g. `/stats/health`, `/stats/value`, `/stats/mint-map`, `/stats/timeline`, while preserving redirects from existing `/mint-map` and `/timeline` if needed.
+- Update `App.vue` navigation to support non-reorderable or grouped child items carefully; current menu model is a flat reorderable list.
+- Keep collection-header Mint Map entry only if product wants a shortcut from Collection; otherwise move discoverability fully under Stats.
+- Update tests for navigation, routes, and page-level data fetching/refresh contracts.
+
+
+
+---
+
+# Decision: Python Agent Safe Outbound HTTP Client
+
+**Date:** 2026-06-19  
+**Agent:** Maximus  
+**Status:** IMPLEMENTED — #310 strict-lockout revision
+
+## Context
+
+Brutus blocked #310 because `verify_url` and `fetch_dealer_page` still fetched caller/model-provided URLs directly with `follow_redirects=True`, bypassing outbound validation for both initial URLs and redirect targets.
+
+## Decision
+
+Python agent-owned public HTTP fetches now use a shared `safe_get()` helper in `src/agent/app/outbound.py`. It validates:
+
+- the initial URL before constructing an HTTP client;
+- DNS results for untrusted public hostnames;
+- every redirect target before following it;
+- metadata, loopback, private, link-local, multicast, reserved, and unspecified targets.
+
+Configured service URLs still use `validate_outbound_url()` with trusted-origin enforcement. Public fetches do not require a trusted origin, but local/private targets are only allowed when the exact origin is configured in `AGENT_TRUSTED_OUTBOUND_ORIGINS` and `AGENT_ALLOW_LOCAL_OUTBOUND=true`. The metadata service address remains blocked even when local development is enabled.
+
+Updated callers:
+
+- `verify_url`
+- `fetch_dealer_page`
+- `create_searxng_search`
+- `scrape_numisbids_lot`
+- `search_numisbids`
+
+## Rationale
+
+This closes the SSRF redirect bypass while preserving legitimate public dealer/search fetches. Local development behavior remains explicit and origin-scoped rather than making all localhost/private URLs acceptable to model-controlled tool inputs.
+
+## Constitution Alignment
+
+- Principle II: Python agent boundary remains stateless and explicit.
+- Principle V: Agent outbound access fails closed for private/metadata targets.
+- Principle IX + §17: Regression tests prove unsafe initial URLs and redirect targets do not produce unsafe network calls.
+
+
+
+---
+
+# Decision: Architecture Gate Blocks Handler Query Chains
+
+Date: 2026-06-19
+Agent: Maximus
+Status: Proposed for Scribe merge
+
+## Context
+Brutus blocked the #317 architecture-gate artifact because handlers could still perform direct DB-like GORM chains without importing `gorm.io/gorm`, and auction debug count behavior lacked exact-path coverage.
+
+## Decision
+`architecture_test.go` now parses handler ASTs and fails on direct DB/query calls (`DB`, `Where`, `Find`, `First`, `Scan`, `Count`, `Model`, `Raw`, `Exec`) while skipping imported package function calls to reduce false positives. Auction debug count behavior is covered at both the admin debug endpoint and repository count method levels.
+
+## Constitution Alignment
+- Principle I: handlers delegate data access to repositories/services.
+- Principle IX: repeatable architecture rules are enforced automatically.
+- §17: exact workflow-contract regression coverage added for `/api/admin/auction-ending/debug` counts.
+
+
+
+---
+
+# Decision: Auth Lockout Recovery Boundary
+
+**Date:** 2026-06-19
+**Agent:** Maximus
+**Status:** PROPOSED — IMPLEMENTED IN BRANCH
+
+## Context
+
+Brutus blocked the public-facing hardening backend slice because password failure escalation was not reset after successful authentication and the sole administrator could still be locked out, preventing administrative recovery.
+
+## Decision
+
+Password-login failures are counted only after the user's latest password-login success event, so a successful credential login clears the escalation window without deleting audit history. Account lockout remains active for regular users and for admins when another admin exists to recover the account.
+
+The sole admin is treated as a recovery principal: failure escalation does not set a new lockout for that user, and any existing future lockout is cleared during account-allowed checks so the instance remains administratively recoverable.
+
+## Constitution Alignment
+
+- Principle IV: Small, targeted backend change for the blocked auth workflow.
+- Principle V: Preserves brute-force lockout while preventing unrecoverable single-admin denial of administration.
+- §17: Exact regression tests cover successful reset, sole-admin recovery, and multiple-admin lockout preservation.
+
+
+
+---
+
+# Decision: Public-Facing Deployment Hardening Baseline
+
+**Date:** 2026-06-19  
+**Agent:** Maximus  
+**Status:** PROPOSED — documentation baseline for `public-facing-hardening`
+
+## Context
+
+Brian requested deployment documentation for moving Ancient Coins from home-network-only/self-hosted use toward a public-facing beta. That changes the threat model: anonymous internet traffic can brute-force auth, spoof forwarding headers, probe upload limits, scrape media, and try to reach the Python agent boundary.
+
+## Decision
+
+Public-facing deployment is not considered ready until the deployment guide checklist is satisfied:
+
+- TLS termination with HTTP→HTTPS redirect, TLS 1.2/1.3 only, HSTS, CSP including `frame-ancestors`, `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, and `Permissions-Policy`.
+- Reverse proxy `client_max_body_size` aligned to the API upload cap, SSE buffering disabled, and forwarding headers stripped/re-set by the trusted edge.
+- `TRUSTED_PROXIES` / `GIN_TRUSTED_PROXIES` are configured before trusting IP bans, lockouts, failed-login thresholds, or audit IP data.
+- `RegistrationMode` defaults to `closed`; use `invite` for beta, and require deliberate monitoring before `open`.
+- Python agent service remains private: no host `8081` publication, internal token required, firewall blocks direct agent access.
+- Backups cover SQLite plus uploads, are encrypted/off-host, and have a restore drill before beta invites.
+- Alerts cover failed-login bursts, bans, account lockouts, admin logins, direct agent traffic, and backup failures.
+- Beta rollout starts with limited users, daily security log review for the first week, WebAuthn on the real HTTPS domain, private media checks, and security scan gates.
+
+## Implementation alignment
+
+Current branch implementation surfaces the hardening controls through:
+
+- Env: `TRUSTED_PROXIES` or `GIN_TRUSTED_PROXIES` for Gin trusted proxy configuration.
+- Settings: `RegistrationMode` (`closed` default) and `BackupStatus` (`not_configured` default).
+- Admin endpoints: `GET /admin/security/summary`, `GET /admin/security/events`, `GET/POST/DELETE /admin/security/ip-rules`, `GET /admin/security/exposure-check`, and `POST /admin/users/:id/unlock`.
+- Event types: password/WebAuthn success and failure, refresh/API-key failure, account lockout/unlock, and IP rule create/delete.
+
+## Constitution Alignment
+
+- Principle V: Security, Auth, and Privacy by Default
+- Principle II: Service Boundary Separation
+- Principle VII: CI, Supply Chain, and Release Integrity
+- Principle VIII: Documented Decisions
+- §17 Quality Gate and §21 Definition of Done
+
+
+
+---
+
+# Release Gate: Docker Publishing Follows Quality Gate
+
+Date: 2026-06-19
+Owner: Maximus
+Constitution: Principle VII, Principle IX, §17
+
+Decision: Docker publishing for `main` and `beta` is triggered by `workflow_run` after the `Quality Gate` workflow completes successfully for a push on the same branch. Publish jobs check `github.event.workflow_run.conclusion == 'success'` and check out `github.event.workflow_run.head_sha`, so `latest` and `beta` images are built from the exact SHA that passed CI.
+
+Security scans now also run on pushes to `main` and `beta`. Scan jobs remain non-blocking because making scan findings blocking is a separate backlog decision; branch protection must still be configured in GitHub settings/rulesets to require the chosen checks.
+
+
+
+---
+
+# Security scan gates are blocking
+
+- **Date:** 2026-06-19
+- **Owner:** Maximus
+- **Scope:** Issue #323, `.github/workflows/security-scan.yml`
+- **Decision:** Security scans are no longer blanket-advisory. Gitleaks, govulncheck, npm audit high/critical, and pip-audit now fail PR checks when they find blocking issues.
+- **Exception policy:** Temporary exceptions must be narrow and documented with owner, expiration date, and linked threat-model or issue reference. Secret examples should be handled through precise `.gitleaks.toml` allowlists, not workflow-level `continue-on-error`.
+- **Release implication:** Branch protection should require the security scan jobs for `main` and `beta`; image publish workflows run after protected-branch pushes, so the scan jobs are the release gate for `latest` and `beta`.
+
+
