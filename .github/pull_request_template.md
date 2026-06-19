@@ -30,6 +30,7 @@
 - [ ] 13. Active `specs/NNN-*/tasks.md` items checked off
 - [ ] 14. `.squad/decisions/inbox/` written if cross-cutting decision made
 - [ ] 15. Simple Complete Changes self-check complete (Principle IV)
+- [ ] 15a. If touched oversized module (see [#314](https://github.com/briandenicola/coin-collection-app/issues/314)): extraction seams reviewed + regression tests maintained
 - [ ] 16. Secrets scan clean (no credentials in diff)
 - [ ] 17. Conventional commit messages
 - [ ] 18. `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>` trailer present when AI-assisted

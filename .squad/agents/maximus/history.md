@@ -118,3 +118,20 @@
   - Branch/release implication belongs in deployment docs: PR security jobs should be required branch checks on `main`/`beta`, and Docker publish workflows inherit that gate because they run only after protected-branch pushes.
 
 - **2026-06-19 — Toolchain/base-image pinning (#320):** Keep Go on the active 1.26 line but move module/setup-go resolution and Docker API builder to the fixed patch (`go 1.26.4`, `golang:1.26.4-alpine`). CI-installed Go tools are reviewed pins (`swag v1.16.6`, `govulncheck v1.4.0`) and Docker production bases use tag-plus-OCI-index-digest references to preserve multi-arch while making builds reproducible. Running pinned `task openapi` exposed unrelated OpenAPI route drift from existing handler changes, so generated artifacts were reverted and #316 remains the coordination point.
+
+- **2026-06-19 — Issue #314 Resolution: Frontend Modularization Guardrail (Closed, Deferred Extraction)**
+  - **Finding:** Five frontend/API modules exceed safe review thresholds (AddCoinPage.vue 1,307 lines, AdminSchedulesSection.vue 1,134, CoinLookupPage.vue 1,097, App.vue 819, client.ts 780).
+  - **Decision:** Close #314 with documented guardrail. Defer extraction; each module will be refactored only when touched for product/security/UX work. Extraction without a driver workflow violates Principle IV (Simple, Complete, Proportional).
+  - **Rationale:** Pre-emptive extraction is low-signal refactoring. Each extraction requires new unit tests (5 modules = 5 independent test suites = high complexity). Tight coupling to active workflows makes casual changes risky.
+  - **Action:** 
+    1. Created `docs/frontend-modularity.md` with inventory and safe seams
+    2. Updated PR template item 15a to trigger checklist reminder when these files are touched
+    3. Defined safe extraction seams per module (composables, subcomponents, API groups) with conditions
+  - **Safe Seams Summary:**
+    - AddCoinPage.vue: Camera logic → useAddCoinCamera, form state → useAddCoinForm (trigger: camera UX work)
+    - AdminSchedulesSection.vue: Scheduler table → SchedulerRunsTable.vue, run detail → SchedulerRunDetail.vue (trigger: admin dashboard redesign)
+    - CoinLookupPage.vue: Image preview grid → ImagePreviewGrid.vue (trigger: lookup feature enhancement)
+    - App.vue: Sidebar reorder → useSidebarReorder.ts (trigger: nav UX work)
+    - client.ts: Domain groups → api/coin.ts, api/admin.ts, api/agent.ts (trigger: API versioning, multi-domain refactoring)
+  - **Key Principle:** Extract only when actively working on the owned workflow. Guard against "fixing" module size pre-emptively.
+  - **Next Steps:** When a future issue touches these files, apply safe seams + regression tests before proposing extraction.
