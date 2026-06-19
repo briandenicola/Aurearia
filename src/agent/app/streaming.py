@@ -13,6 +13,13 @@ from langchain_core.messages import AIMessage, AIMessageChunk
 
 logger = logging.getLogger(__name__)
 
+_INTERNAL_TOKEN_REDACTION = "[REDACTED_INTERNAL_TOKEN]"
+_INTERNAL_JWT_RE = re.compile(
+    r"(?i)\bBearer\s+[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"
+    r"|\beyJ[A-Za-z0-9_-]{7,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"
+)
+_TOKEN_START_TAIL_LENGTH = len("Bearer ") - 1
+
 # Maps LangGraph node names to user-facing status messages.
 _STATUS_MESSAGES: dict[str, str] = {
     "router": "Routing your request...",
@@ -41,6 +48,7 @@ async def stream_graph_events(graph, input_data: dict, config: dict | None = Non
     - data: {"type": "error", "message": "..."} on failure
     """
     full_text = ""
+    text_sanitizer = UserFacingTextSanitizer()
     last_ai_content = ""
     last_node_message = ""
     has_streamed_text = False
@@ -84,8 +92,10 @@ async def stream_graph_events(graph, input_data: dict, config: dict | None = Non
                         if chunk.content:
                             if not has_streamed_text:
                                 has_streamed_text = True
-                            full_text += chunk.content
-                            yield format_sse({"type": "text", "text": chunk.content})
+                            text = text_sanitizer.push(chunk.content)
+                            if text:
+                                full_text += text
+                                yield format_sse({"type": "text", "text": text})
                     elif isinstance(chunk.content, list):
                         # List content = Anthropic content blocks (tool use, search results, etc.)
                         for block in chunk.content:
@@ -107,8 +117,10 @@ async def stream_graph_events(graph, input_data: dict, config: dict | None = Non
                                 text = block["text"]
                                 if not has_streamed_text:
                                     has_streamed_text = True
-                                full_text += text
-                                yield format_sse({"type": "text", "text": text})
+                                sanitized_text = text_sanitizer.push(text)
+                                if sanitized_text:
+                                    full_text += sanitized_text
+                                    yield format_sse({"type": "text", "text": sanitized_text})
 
             elif kind == "on_chat_model_end":
                 # Skip router node's LLM output (internal routing decision)
@@ -154,6 +166,11 @@ async def stream_graph_events(graph, input_data: dict, config: dict | None = Non
         yield format_sse({"type": "error", "message": "An error occurred while processing your request."})
         return
 
+    remaining_text = text_sanitizer.flush()
+    if remaining_text:
+        full_text += remaining_text
+        yield format_sse({"type": "text", "text": remaining_text})
+
     logger.debug(
         "Stream complete — full_text=%d chars, last_ai_content=%d chars, "
         "last_node_message=%d chars",
@@ -180,9 +197,9 @@ async def stream_graph_events(graph, input_data: dict, config: dict | None = Non
     if not clean_message.strip() and suggestions:
         clean_message = "Here are the results I found."
 
-    done_event: dict = {"type": "done", "message": clean_message.strip()}
+    done_event: dict = {"type": "done", "message": sanitize_user_facing_text(clean_message).strip()}
     if suggestions:
-        done_event["suggestions"] = suggestions
+        done_event["suggestions"] = sanitize_user_facing_payload(suggestions)
 
     yield format_sse(done_event)
 
@@ -190,6 +207,57 @@ async def stream_graph_events(graph, input_data: dict, config: dict | None = Non
 def format_sse(data: dict) -> str:
     """Format a dict as an SSE data line."""
     return f"data: {json.dumps(data)}\n\n"
+
+
+def sanitize_user_facing_text(text: str) -> str:
+    """Redact internal JWT-like tokens from text before it is sent to users."""
+    return _INTERNAL_JWT_RE.sub(_INTERNAL_TOKEN_REDACTION, text)
+
+
+def sanitize_user_facing_payload(value: object) -> object:
+    """Redact internal JWT-like tokens from string values in user-facing SSE payloads."""
+    if isinstance(value, str):
+        return sanitize_user_facing_text(value)
+    if isinstance(value, list):
+        return [sanitize_user_facing_payload(item) for item in value]
+    if isinstance(value, dict):
+        return {key: sanitize_user_facing_payload(item) for key, item in value.items()}
+    return value
+
+
+class UserFacingTextSanitizer:
+    """Incrementally redact JWT-like tokens that may span streamed chunks."""
+
+    def __init__(self) -> None:
+        self._pending = ""
+
+    def push(self, text: str) -> str:
+        """Return safe text to stream while buffering possible token fragments."""
+        self._pending = sanitize_user_facing_text(self._pending + text)
+        safe_length = self._safe_emit_length()
+        safe_text = self._pending[:safe_length]
+        self._pending = self._pending[safe_length:]
+        return safe_text
+
+    def flush(self) -> str:
+        """Return all remaining sanitized text when streaming is complete."""
+        text = sanitize_user_facing_text(self._pending)
+        self._pending = ""
+        return text
+
+    def _safe_emit_length(self) -> int:
+        lower_pending = self._pending.lower()
+        token_start = min(
+            (
+                index
+                for index in (lower_pending.find("bearer"), lower_pending.find("eyj"))
+                if index != -1
+            ),
+            default=-1,
+        )
+        if token_start != -1:
+            return token_start
+        return max(0, len(self._pending) - _TOKEN_START_TAIL_LENGTH)
 
 
 def extract_suggestions(text: str) -> list[dict]:

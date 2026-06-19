@@ -135,3 +135,5 @@
     - client.ts: Domain groups → api/coin.ts, api/admin.ts, api/agent.ts (trigger: API versioning, multi-domain refactoring)
   - **Key Principle:** Extract only when actively working on the owned workflow. Guard against "fixing" module size pre-emptively.
   - **Next Steps:** When a future issue touches these files, apply safe seams + regression tests before proposing extraction.
+
+- **2026-06-19 — Issue #226 lockout revision:** Implemented incremental Python agent SSE text sanitization so JWT-like internal tokens are buffered/redacted even when split across model stream chunks, while preserving #217 proposal tokens such as `token-abc`, `proposal_id`, and `commit_update`. Added targeted coverage for split chunks, Anthropic content-list text blocks, final done messages, and proposal-token preservation. Validation: `uv run ruff check app/ tests/`, `uv run python -m pytest tests/test_streaming.py -v`, and full `uv run python -m pytest tests/ -v` all passed.
