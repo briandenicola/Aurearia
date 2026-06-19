@@ -338,6 +338,7 @@ onMounted(loadCoins)
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 0.75rem;
+  min-width: 0;
 }
 
 .timeline-card {
@@ -348,6 +349,9 @@ onMounted(loadCoins)
   color: inherit;
   transition: all var(--transition-fast);
   cursor: pointer;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .timeline-card:hover {
@@ -393,6 +397,7 @@ onMounted(loadCoins)
   display: flex;
   gap: 0.5rem;
   font-size: 0.78rem;
+  min-width: 0;
 }
 
 .card-category {
@@ -494,11 +499,11 @@ onMounted(loadCoins)
   }
 
   .timeline {
-    padding-left: 1.5rem;
+    padding-left: 1.25rem;
   }
 
   .timeline-cards {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .timeline-card {
@@ -528,7 +533,7 @@ onMounted(loadCoins)
   }
 
   .marker-dot {
-    left: -1.15rem;
+    left: -0.95rem;
     width: 10px;
     height: 10px;
   }

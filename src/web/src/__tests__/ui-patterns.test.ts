@@ -72,6 +72,22 @@ describe('UI pattern recipes', () => {
     expect(lookupPage).not.toContain('title="Back"')
   })
 
+  it('keeps PWA timeline and set coin actions compact', () => {
+    const timelinePage = readRepoFile(join('pages', 'TimelinePage.vue'))
+    const setDetailPage = readRepoFile(join('pages', 'SetDetailPage.vue'))
+
+    expect(timelinePage).toContain('grid-template-columns: minmax(0, 1fr)')
+    expect(timelinePage).toContain('min-width: 0')
+    expect(timelinePage).toContain('overflow: hidden')
+    expect(setDetailPage).toContain('set-coin-action-btn')
+    expect(setDetailPage).toContain('<ChevronUp :size="16" />')
+    expect(setDetailPage).toContain('<ChevronDown :size="16" />')
+    expect(setDetailPage).toContain('<X :size="16" />')
+    expect(setDetailPage).not.toContain('>Up<')
+    expect(setDetailPage).not.toContain('>Down<')
+    expect(setDetailPage).not.toContain('>Remove<')
+  })
+
   it('keeps the PWA agent button viewport-fixed globally', () => {
     const app = readRepoFile('App.vue')
     const mainCss = readRepoFile(join('assets', 'styles', 'main.css'))

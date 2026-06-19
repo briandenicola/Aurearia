@@ -120,23 +120,23 @@
               <div class="order-buttons" aria-label="Reorder coin">
                 <button
                   type="button"
-                  class="btn btn-ghost btn-xs"
+                  class="set-coin-action-btn"
                   :disabled="index === 0 || savingOrder"
                   @click="moveCoinByButton(index, -1)"
                   title="Move earlier"
                   :aria-label="`Move ${coin.name} earlier`"
                 >
-                  Up
+                  <ChevronUp :size="16" />
                 </button>
                 <button
                   type="button"
-                  class="btn btn-ghost btn-xs"
+                  class="set-coin-action-btn"
                   :disabled="index === coins.length - 1 || savingOrder"
                   @click="moveCoinByButton(index, 1)"
                   title="Move later"
                   :aria-label="`Move ${coin.name} later`"
                 >
-                  Down
+                  <ChevronDown :size="16" />
                 </button>
               </div>
             </div>
@@ -154,11 +154,12 @@
             </div>
             <button
               v-if="canManageMembership"
-              class="remove-coin-btn btn btn-ghost btn-xs"
+              class="remove-coin-btn set-coin-action-btn"
               @click.stop="removeCoin(coin.id)"
               title="Remove from set"
+              :aria-label="`Remove ${coin.name} from set`"
             >
-              Remove
+              <X :size="16" />
             </button>
           </div>
         </div>
@@ -231,7 +232,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, CirclePlus, Coins, Pencil, Plus, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, ChevronDown, ChevronUp, CirclePlus, Coins, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
 import {
   addCoinToSet,
   compareSets,
@@ -716,6 +717,31 @@ function getErrorMessage(error: unknown, fallback: string): string {
   gap: 0.35rem;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.set-coin-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.set-coin-action-btn:hover:not(:disabled) {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+  background: var(--accent-gold-glow);
+}
+
+.set-coin-action-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .coin-image {
