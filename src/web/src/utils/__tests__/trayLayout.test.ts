@@ -92,6 +92,14 @@ describe('trayLayout', () => {
       expect(largeSize).toBeGreaterThan(mediumSize)
       expect(mediumSize - smallSize).toBeCloseTo(largeSize - mediumSize, 0)
     })
+
+    it('keeps visually close diameters at visually close render sizes', () => {
+      const allDiameters = [16, 17.5]
+      const sixteenMmSize = getCoinRenderSizePx(16, allDiameters, options)
+      const seventeenHalfMmSize = getCoinRenderSizePx(17.5, allDiameters, options)
+
+      expect(seventeenHalfMmSize / sixteenMmSize).toBeCloseTo(17.5 / 16, 1)
+    })
   })
 
   describe('getDrawerCoins', () => {

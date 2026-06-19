@@ -46,17 +46,13 @@ export function getCoinRenderSizePx(
     return minCoinPx + (maxCoinPx - minCoinPx) / 2
   }
 
-  const minDiameter = Math.min(...allDiameters)
   const maxDiameter = Math.max(...allDiameters)
 
-  // All coins same diameter
-  if (minDiameter === maxDiameter) {
+  if (maxDiameter <= 0) {
     return minCoinPx + (maxCoinPx - minCoinPx) / 2
   }
 
-  // Scale proportionally
-  const normalized = (diameterMm - minDiameter) / (maxDiameter - minDiameter)
-  const size = minCoinPx + normalized * (maxCoinPx - minCoinPx)
+  const size = (diameterMm / maxDiameter) * maxCoinPx
 
   // Clamp to bounds
   return Math.max(minCoinPx, Math.min(maxCoinPx, size))
