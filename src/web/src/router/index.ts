@@ -134,6 +134,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/stats/investment-breakdown',
+      name: 'stats-investment-breakdown',
+      component: () => import('@/pages/StatsInvestmentBreakdownPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/stats/distribution',
       name: 'stats-distribution',
       component: () => import('@/pages/CollectionDistributionPage.vue'),

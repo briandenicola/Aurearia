@@ -9841,6 +9841,62 @@ const docTemplate = `{
                 }
             }
         },
+        "/stats/investment-breakdown": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns investment, current value, gain/loss, and confidence counts grouped by purchase month or material for the authenticated user's active collection.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Get investment breakdown",
+                "parameters": [
+                    {
+                        "enum": [
+                            "purchase-month",
+                            "material"
+                        ],
+                        "type": "string",
+                        "description": "Breakdown dimension",
+                        "name": "dimension",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.InvestmentBreakdownResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/storage-locations": {
             "get": {
                 "security": [
@@ -12250,6 +12306,21 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.InvestmentBreakdownResponse": {
+            "type": "object",
+            "properties": {
+                "dimension": {
+                    "type": "string",
+                    "example": "purchase-month"
+                },
+                "segments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.InvestmentBreakdownSegment"
+                    }
+                }
+            }
+        },
         "handlers.LinkEventRequest": {
             "type": "object",
             "properties": {
@@ -13823,6 +13894,41 @@ const docTemplate = `{
                 },
                 "era": {
                     "type": "string"
+                }
+            }
+        },
+        "repository.InvestmentBreakdownSegment": {
+            "type": "object",
+            "properties": {
+                "coinCount": {
+                    "type": "integer"
+                },
+                "currentValue": {
+                    "type": "number"
+                },
+                "gainLoss": {
+                    "type": "number"
+                },
+                "gainLossPct": {
+                    "type": "number"
+                },
+                "invested": {
+                    "type": "number"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "missingCurrentValueCount": {
+                    "type": "integer"
+                },
+                "missingPurchasePriceCount": {
+                    "type": "integer"
+                },
+                "month": {
+                    "type": "integer"
+                },
+                "year": {
+                    "type": "integer"
                 }
             }
         },

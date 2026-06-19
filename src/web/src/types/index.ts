@@ -443,6 +443,25 @@ export interface StatsResponse {
   }
 }
 
+export type InvestmentBreakdownDimension = 'purchase-month' | 'material'
+
+export interface InvestmentBreakdownSegment {
+  label: string
+  year: number | null
+  month: number | null
+  invested: number
+  currentValue: number
+  gainLoss: number
+  gainLossPct: number | null
+  coinCount: number
+  missingCurrentValueCount: number
+  missingPurchasePriceCount: number
+}
+
+export type InvestmentBreakdownResponse =
+  | InvestmentBreakdownSegment[]
+  | { dimension?: InvestmentBreakdownDimension; segments: InvestmentBreakdownSegment[] }
+
 export type HealthGrade = 'A' | 'B' | 'C' | 'D' | 'F'
 export type HealthTrendDirection = 'up' | 'flat' | 'down' | 'unavailable'
 export type HealthChecklistDimension = 'metadata' | 'images' | 'valuation' | 'ai'

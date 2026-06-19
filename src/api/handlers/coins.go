@@ -543,6 +543,37 @@ func (h *CoinHandler) Distribution(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"cells": cells})
 }
 
+// InvestmentBreakdown returns active-collection investment aggregates for charting.
+//
+//	@Summary		Get investment breakdown
+//	@Description	Returns investment, current value, gain/loss, and confidence counts grouped by purchase month or material for the authenticated user's active collection.
+//	@Tags			Coins
+//	@Produce		json
+//	@Param			dimension	query		string	true	"Breakdown dimension"	Enums(purchase-month, material)
+//	@Success		200			{object}	InvestmentBreakdownResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		500			{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/stats/investment-breakdown [get]
+func (h *CoinHandler) InvestmentBreakdown(c *gin.Context) {
+	userID := c.GetUint("userId")
+	dimension := c.Query("dimension")
+	switch dimension {
+	case repository.InvestmentBreakdownPurchaseMonth, repository.InvestmentBreakdownMaterial:
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "dimension must be one of: purchase-month, material"})
+		return
+	}
+
+	segments, err := h.repo.GetInvestmentBreakdown(userID, dimension)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch investment breakdown"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"dimension": dimension, "segments": segments})
+}
+
 // Suggestions returns distinct values for autocomplete fields.
 //
 //	@Summary		Get autocomplete suggestions

@@ -110,6 +110,25 @@ type DistributionCell struct {
 	Count    int    `json:"count"`
 }
 
+const (
+	InvestmentBreakdownPurchaseMonth = "purchase-month"
+	InvestmentBreakdownMaterial      = "material"
+)
+
+// InvestmentBreakdownSegment holds one portfolio investment chart segment.
+type InvestmentBreakdownSegment struct {
+	Label                     string  `json:"label"`
+	Year                      *int    `json:"year,omitempty"`
+	Month                     *int    `json:"month,omitempty"`
+	Invested                  float64 `json:"invested"`
+	CurrentValue              float64 `json:"currentValue"`
+	GainLoss                  float64 `json:"gainLoss"`
+	GainLossPct               float64 `json:"gainLossPct"`
+	CoinCount                 int64   `json:"coinCount"`
+	MissingCurrentValueCount  int64   `json:"missingCurrentValueCount"`
+	MissingPurchasePriceCount int64   `json:"missingPurchasePriceCount"`
+}
+
 // CoinRepository encapsulates all coin-related database operations.
 type CoinRepository struct {
 	db *gorm.DB
@@ -592,6 +611,72 @@ func (r *CoinRepository) GetDistribution(userID uint) ([]DistributionCell, error
 		Order("era, category").
 		Scan(&cells).Error
 	return cells, err
+}
+
+// GetInvestmentBreakdown returns active-collection investment aggregates for the requested dimension.
+func (r *CoinRepository) GetInvestmentBreakdown(userID uint, dimension string) ([]InvestmentBreakdownSegment, error) {
+	switch dimension {
+	case InvestmentBreakdownPurchaseMonth:
+		return r.getInvestmentBreakdownByPurchaseMonth(userID)
+	case InvestmentBreakdownMaterial:
+		return r.getInvestmentBreakdownByMaterial(userID)
+	default:
+		return nil, fmt.Errorf("unsupported investment breakdown dimension: %s", dimension)
+	}
+}
+
+func (r *CoinRepository) getInvestmentBreakdownByPurchaseMonth(userID uint) ([]InvestmentBreakdownSegment, error) {
+	var segments []InvestmentBreakdownSegment
+	err := r.db.Model(&models.Coin{}).
+		Select(`
+			CAST(strftime('%Y', purchase_date) AS INTEGER) AS year,
+			CAST(strftime('%m', purchase_date) AS INTEGER) AS month,
+			COALESCE(SUM(purchase_price), 0) AS invested,
+			COALESCE(SUM(COALESCE(current_value, purchase_price, 0)), 0) AS current_value,
+			COALESCE(SUM(COALESCE(current_value, purchase_price, 0)), 0) - COALESCE(SUM(purchase_price), 0) AS gain_loss,
+			CASE
+				WHEN COALESCE(SUM(purchase_price), 0) = 0 THEN 0
+				ELSE ((COALESCE(SUM(COALESCE(current_value, purchase_price, 0)), 0) - COALESCE(SUM(purchase_price), 0)) / COALESCE(SUM(purchase_price), 0)) * 100
+			END AS gain_loss_pct,
+			COUNT(*) AS coin_count,
+			SUM(CASE WHEN current_value IS NULL THEN 1 ELSE 0 END) AS missing_current_value_count,
+			SUM(CASE WHEN purchase_price IS NULL THEN 1 ELSE 0 END) AS missing_purchase_price_count`).
+		Scopes(ActiveCollection(userID)).
+		Where("purchase_date IS NOT NULL").
+		Group("year, month").
+		Order("year ASC, month ASC").
+		Scan(&segments).Error
+	if err != nil {
+		return nil, err
+	}
+	for i := range segments {
+		if segments[i].Year != nil && segments[i].Month != nil {
+			segments[i].Label = fmt.Sprintf("%s %04d", time.Month(*segments[i].Month).String()[:3], *segments[i].Year)
+		}
+	}
+	return segments, nil
+}
+
+func (r *CoinRepository) getInvestmentBreakdownByMaterial(userID uint) ([]InvestmentBreakdownSegment, error) {
+	var segments []InvestmentBreakdownSegment
+	err := r.db.Model(&models.Coin{}).
+		Select(`
+			CASE WHEN TRIM(COALESCE(material, '')) = '' THEN 'Other' ELSE material END AS label,
+			COALESCE(SUM(purchase_price), 0) AS invested,
+			COALESCE(SUM(COALESCE(current_value, purchase_price, 0)), 0) AS current_value,
+			COALESCE(SUM(COALESCE(current_value, purchase_price, 0)), 0) - COALESCE(SUM(purchase_price), 0) AS gain_loss,
+			CASE
+				WHEN COALESCE(SUM(purchase_price), 0) = 0 THEN 0
+				ELSE ((COALESCE(SUM(COALESCE(current_value, purchase_price, 0)), 0) - COALESCE(SUM(purchase_price), 0)) / COALESCE(SUM(purchase_price), 0)) * 100
+			END AS gain_loss_pct,
+			COUNT(*) AS coin_count,
+			SUM(CASE WHEN current_value IS NULL THEN 1 ELSE 0 END) AS missing_current_value_count,
+			SUM(CASE WHEN purchase_price IS NULL THEN 1 ELSE 0 END) AS missing_purchase_price_count`).
+		Scopes(ActiveCollection(userID)).
+		Group("label").
+		Order("invested DESC, label ASC").
+		Scan(&segments).Error
+	return segments, err
 }
 
 // validSuggestionColumns is the allowlist of columns permitted in Suggestions queries.

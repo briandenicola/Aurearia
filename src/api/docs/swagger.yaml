@@ -652,6 +652,16 @@ definitions:
         example: Trajan
         type: string
     type: object
+  handlers.InvestmentBreakdownResponse:
+    properties:
+      dimension:
+        example: purchase-month
+        type: string
+      segments:
+        items:
+          $ref: '#/definitions/repository.InvestmentBreakdownSegment'
+        type: array
+    type: object
   handlers.LinkEventRequest:
     properties:
       eventId:
@@ -1725,6 +1735,29 @@ definitions:
         type: integer
       era:
         type: string
+    type: object
+  repository.InvestmentBreakdownSegment:
+    properties:
+      coinCount:
+        type: integer
+      currentValue:
+        type: number
+      gainLoss:
+        type: number
+      gainLossPct:
+        type: number
+      invested:
+        type: number
+      label:
+        type: string
+      missingCurrentValueCount:
+        type: integer
+      missingPurchasePriceCount:
+        type: integer
+      month:
+        type: integer
+      year:
+        type: integer
     type: object
   services.AdminHealthSummary:
     properties:
@@ -8287,6 +8320,44 @@ paths:
       summary: Get collection health summary
       tags:
       - Health
+  /stats/investment-breakdown:
+    get:
+      description: Returns investment, current value, gain/loss, and confidence counts
+        grouped by purchase month or material for the authenticated user's active
+        collection.
+      parameters:
+      - description: Breakdown dimension
+        enum:
+        - purchase-month
+        - material
+        in: query
+        name: dimension
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.InvestmentBreakdownResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get investment breakdown
+      tags:
+      - Coins
   /storage-locations:
     get:
       description: Returns all storage locations belonging to the authenticated user.

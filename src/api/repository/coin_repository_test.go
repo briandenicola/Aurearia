@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -259,6 +260,127 @@ func TestCoinRepository_RecordValueSnapshot(t *testing.T) {
 }
 
 func ptrFloat(v float64) *float64 { return &v }
+
+func ptrTime(v time.Time) *time.Time { return &v }
+
+func assertFloatNear(t *testing.T, got float64, want float64) {
+	t.Helper()
+	if math.Abs(got-want) > 0.0001 {
+		t.Fatalf("expected %.4f, got %.4f", want, got)
+	}
+}
+
+func TestCoinRepository_GetInvestmentBreakdown_InvalidDimension(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewCoinRepository(db)
+
+	segments, err := repo.GetInvestmentBreakdown(1, "ruler")
+	if err == nil {
+		t.Fatal("expected invalid dimension error")
+	}
+	if segments != nil {
+		t.Fatalf("expected nil segments for invalid dimension, got %#v", segments)
+	}
+}
+
+func TestCoinRepository_GetInvestmentBreakdown_MaterialAggregatesConfidenceCounts(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewCoinRepository(db)
+	jan := time.Date(2024, time.January, 15, 0, 0, 0, 0, time.UTC)
+
+	coins := []models.Coin{
+		{Name: "Silver Valued", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, PurchasePrice: ptrFloat(100), CurrentValue: ptrFloat(150), PurchaseDate: ptrTime(jan)},
+		{Name: "Silver Fallback", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, PurchasePrice: ptrFloat(200), CurrentValue: nil, PurchaseDate: ptrTime(jan)},
+		{Name: "Gold Missing Cost", Category: models.CategoryRoman, Material: models.MaterialGold, UserID: 1, PurchasePrice: nil, CurrentValue: ptrFloat(80), PurchaseDate: ptrTime(jan)},
+		{Name: "Wishlist Excluded", Category: models.CategoryRoman, Material: models.MaterialGold, UserID: 1, IsWishlist: true, PurchasePrice: ptrFloat(999), CurrentValue: ptrFloat(999), PurchaseDate: ptrTime(jan)},
+		{Name: "Sold Excluded", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, IsSold: true, PurchasePrice: ptrFloat(999), CurrentValue: ptrFloat(999), PurchaseDate: ptrTime(jan)},
+		{Name: "Other User Excluded", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 2, PurchasePrice: ptrFloat(999), CurrentValue: ptrFloat(999), PurchaseDate: ptrTime(jan)},
+	}
+	for i := range coins {
+		if err := db.Create(&coins[i]).Error; err != nil {
+			t.Fatalf("Create coin %q failed: %v", coins[i].Name, err)
+		}
+	}
+
+	segments, err := repo.GetInvestmentBreakdown(1, InvestmentBreakdownMaterial)
+	if err != nil {
+		t.Fatalf("GetInvestmentBreakdown failed: %v", err)
+	}
+	if len(segments) != 2 {
+		t.Fatalf("expected 2 material segments, got %d: %#v", len(segments), segments)
+	}
+
+	silver := segments[0]
+	if silver.Label != string(models.MaterialSilver) {
+		t.Fatalf("expected Silver first by invested total, got %q", silver.Label)
+	}
+	assertFloatNear(t, silver.Invested, 300)
+	assertFloatNear(t, silver.CurrentValue, 350)
+	assertFloatNear(t, silver.GainLoss, 50)
+	assertFloatNear(t, silver.GainLossPct, 16.6666667)
+	if silver.CoinCount != 2 || silver.MissingCurrentValueCount != 1 || silver.MissingPurchasePriceCount != 0 {
+		t.Fatalf("unexpected Silver counts: coin=%d missingCurrent=%d missingPurchase=%d", silver.CoinCount, silver.MissingCurrentValueCount, silver.MissingPurchasePriceCount)
+	}
+
+	gold := segments[1]
+	if gold.Label != string(models.MaterialGold) {
+		t.Fatalf("expected Gold second, got %q", gold.Label)
+	}
+	assertFloatNear(t, gold.Invested, 0)
+	assertFloatNear(t, gold.CurrentValue, 80)
+	assertFloatNear(t, gold.GainLoss, 80)
+	assertFloatNear(t, gold.GainLossPct, 0)
+	if gold.CoinCount != 1 || gold.MissingCurrentValueCount != 0 || gold.MissingPurchasePriceCount != 1 {
+		t.Fatalf("unexpected Gold counts: coin=%d missingCurrent=%d missingPurchase=%d", gold.CoinCount, gold.MissingCurrentValueCount, gold.MissingPurchasePriceCount)
+	}
+}
+
+func TestCoinRepository_GetInvestmentBreakdown_PurchaseMonthAggregatesConfidenceCounts(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewCoinRepository(db)
+	jan := time.Date(2024, time.January, 15, 0, 0, 0, 0, time.UTC)
+	feb := time.Date(2024, time.February, 20, 0, 0, 0, 0, time.UTC)
+
+	coins := []models.Coin{
+		{Name: "Jan Valued", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, PurchasePrice: ptrFloat(100), CurrentValue: ptrFloat(120), PurchaseDate: ptrTime(jan)},
+		{Name: "Jan Missing Current", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, PurchasePrice: ptrFloat(200), CurrentValue: nil, PurchaseDate: ptrTime(jan)},
+		{Name: "Feb Missing Cost", Category: models.CategoryRoman, Material: models.MaterialGold, UserID: 1, PurchasePrice: nil, CurrentValue: ptrFloat(80), PurchaseDate: ptrTime(feb)},
+		{Name: "No Date Excluded", Category: models.CategoryRoman, Material: models.MaterialGold, UserID: 1, PurchasePrice: ptrFloat(999), CurrentValue: ptrFloat(999)},
+	}
+	for i := range coins {
+		if err := db.Create(&coins[i]).Error; err != nil {
+			t.Fatalf("Create coin %q failed: %v", coins[i].Name, err)
+		}
+	}
+
+	segments, err := repo.GetInvestmentBreakdown(1, InvestmentBreakdownPurchaseMonth)
+	if err != nil {
+		t.Fatalf("GetInvestmentBreakdown failed: %v", err)
+	}
+	if len(segments) != 2 {
+		t.Fatalf("expected 2 purchase-month segments, got %d: %#v", len(segments), segments)
+	}
+
+	janSegment := segments[0]
+	if janSegment.Label != "Jan 2024" || janSegment.Year == nil || *janSegment.Year != 2024 || janSegment.Month == nil || *janSegment.Month != 1 {
+		t.Fatalf("unexpected January label/date fields: %#v", janSegment)
+	}
+	assertFloatNear(t, janSegment.Invested, 300)
+	assertFloatNear(t, janSegment.CurrentValue, 320)
+	if janSegment.CoinCount != 2 || janSegment.MissingCurrentValueCount != 1 || janSegment.MissingPurchasePriceCount != 0 {
+		t.Fatalf("unexpected January counts: coin=%d missingCurrent=%d missingPurchase=%d", janSegment.CoinCount, janSegment.MissingCurrentValueCount, janSegment.MissingPurchasePriceCount)
+	}
+
+	febSegment := segments[1]
+	if febSegment.Label != "Feb 2024" || febSegment.Year == nil || *febSegment.Year != 2024 || febSegment.Month == nil || *febSegment.Month != 2 {
+		t.Fatalf("unexpected February label/date fields: %#v", febSegment)
+	}
+	assertFloatNear(t, febSegment.Invested, 0)
+	assertFloatNear(t, febSegment.CurrentValue, 80)
+	if febSegment.CoinCount != 1 || febSegment.MissingCurrentValueCount != 0 || febSegment.MissingPurchasePriceCount != 1 {
+		t.Fatalf("unexpected February counts: coin=%d missingCurrent=%d missingPurchase=%d", febSegment.CoinCount, febSegment.MissingCurrentValueCount, febSegment.MissingPurchasePriceCount)
+	}
+}
 
 func TestCoinRepository_List_RandomSort(t *testing.T) {
 	db := setupTestDB(t)

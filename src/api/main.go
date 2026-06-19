@@ -320,6 +320,7 @@ func main() {
 		protected.GET("/coins/health", healthHandler.ListCoinHealth)
 		protected.GET("/coins/:id/health", healthHandler.GetCoinHealth)
 		protected.GET("/stats/distribution", coinHandler.Distribution)
+		protected.GET("/stats/investment-breakdown", coinHandler.InvestmentBreakdown)
 		protected.GET("/value-history", coinHandler.ValueHistory)
 		protected.GET("/coins/:id/value-history", coinHandler.CoinValueHistory)
 		protected.GET("/suggestions", coinHandler.Suggestions)

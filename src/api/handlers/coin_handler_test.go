@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -103,6 +104,7 @@ func setupCoinHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	protected.Use(coinTestAuthMiddleware())
 	protected.GET("/coins", handler.List)
 	protected.GET("/coins/:id", handler.Get)
+	protected.GET("/stats/investment-breakdown", handler.InvestmentBreakdown)
 	protected.POST("/coins", handler.Create)
 	protected.PUT("/coins/:id", handler.Update)
 	protected.DELETE("/coins/:id", handler.Delete)
@@ -1254,6 +1256,130 @@ func TestCoinHandler_Unauthenticated(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401 without auth, got %d", w.Code)
+	}
+}
+
+// --- Investment breakdown ---
+
+func TestCoinHandler_InvestmentBreakdown_PurchaseMonth(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "investor")
+	createTestUser(t, db, 2, "other")
+
+	purchaseDate := time.Date(2024, time.January, 15, 0, 0, 0, 0, time.UTC)
+	noDatePrice := 999.0
+	p100, p50, pSold, pWishlist, pOther := 100.0, 50.0, 80.0, 70.0, 60.0
+	cv150, cvSold, cvWishlist, cvOther := 150.0, 90.0, 75.0, 65.0
+	coins := []models.Coin{
+		{Name: "January Denarius", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, PurchasePrice: &p100, CurrentValue: &cv150, PurchaseDate: &purchaseDate},
+		{Name: "January Fallback", Category: models.CategoryRoman, Material: models.MaterialBronze, UserID: 1, PurchasePrice: &p50, PurchaseDate: &purchaseDate},
+		{Name: "No Date", Category: models.CategoryGreek, Material: models.MaterialGold, UserID: 1, PurchasePrice: &noDatePrice},
+		{Name: "Sold Date", Category: models.CategoryGreek, Material: models.MaterialGold, UserID: 1, PurchasePrice: &pSold, CurrentValue: &cvSold, PurchaseDate: &purchaseDate, IsSold: true},
+		{Name: "Wishlist Date", Category: models.CategoryGreek, Material: models.MaterialGold, UserID: 1, PurchasePrice: &pWishlist, CurrentValue: &cvWishlist, PurchaseDate: &purchaseDate, IsWishlist: true},
+		{Name: "Other User Date", Category: models.CategoryGreek, Material: models.MaterialGold, UserID: 2, PurchasePrice: &pOther, CurrentValue: &cvOther, PurchaseDate: &purchaseDate},
+	}
+	if err := db.Create(&coins).Error; err != nil {
+		t.Fatalf("failed to seed investment coins: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/stats/investment-breakdown?dimension=purchase-month", nil)
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Dimension string                                  `json:"dimension"`
+		Segments  []repository.InvestmentBreakdownSegment `json:"segments"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Dimension != repository.InvestmentBreakdownPurchaseMonth {
+		t.Fatalf("unexpected dimension %q", resp.Dimension)
+	}
+	if len(resp.Segments) != 1 {
+		t.Fatalf("expected 1 purchase-month segment, got %d: %#v", len(resp.Segments), resp.Segments)
+	}
+	segment := resp.Segments[0]
+	if segment.Label != "Jan 2024" || segment.Year == nil || *segment.Year != 2024 || segment.Month == nil || *segment.Month != 1 {
+		t.Fatalf("unexpected purchase label/date fields: %#v", segment)
+	}
+	if segment.CoinCount != 2 || segment.MissingCurrentValueCount != 1 || segment.MissingPurchasePriceCount != 0 {
+		t.Fatalf("unexpected confidence counts: %#v", segment)
+	}
+	if segment.Invested != 150 || segment.CurrentValue != 200 || segment.GainLoss != 50 {
+		t.Fatalf("unexpected values: %#v", segment)
+	}
+	if math.Abs(segment.GainLossPct-33.3333333333) > 0.0001 {
+		t.Fatalf("unexpected gainLossPct: %f", segment.GainLossPct)
+	}
+}
+
+func TestCoinHandler_InvestmentBreakdown_Material(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "materialuser")
+
+	p100, p40, p10, pSold := 100.0, 40.0, 10.0, 1000.0
+	cv120, cv12, cvSold := 120.0, 12.0, 1200.0
+	coins := []models.Coin{
+		{Name: "Silver A", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, PurchasePrice: &p100, CurrentValue: &cv120},
+		{Name: "Silver B", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, PurchasePrice: &p40},
+		{Name: "Blank Material", Category: models.CategoryGreek, Material: "", UserID: 1, PurchasePrice: &p10, CurrentValue: &cv12},
+		{Name: "Sold Silver", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, PurchasePrice: &pSold, CurrentValue: &cvSold, IsSold: true},
+	}
+	if err := db.Create(&coins).Error; err != nil {
+		t.Fatalf("failed to seed material coins: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/stats/investment-breakdown?dimension=material", nil)
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Dimension string                                  `json:"dimension"`
+		Segments  []repository.InvestmentBreakdownSegment `json:"segments"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	segmentsByLabel := map[string]repository.InvestmentBreakdownSegment{}
+	for _, segment := range resp.Segments {
+		segmentsByLabel[segment.Label] = segment
+	}
+	silver, ok := segmentsByLabel["Silver"]
+	if !ok {
+		t.Fatalf("expected Silver segment, got %#v", resp.Segments)
+	}
+	if silver.CoinCount != 2 || silver.Invested != 140 || silver.CurrentValue != 160 || silver.GainLoss != 20 || silver.MissingCurrentValueCount != 1 {
+		t.Fatalf("unexpected Silver segment: %#v", silver)
+	}
+	other, ok := segmentsByLabel["Other"]
+	if !ok {
+		t.Fatalf("expected blank material to fall back to Other, got %#v", resp.Segments)
+	}
+	if other.CoinCount != 1 || other.Invested != 10 || other.CurrentValue != 12 || other.GainLoss != 2 {
+		t.Fatalf("unexpected Other segment: %#v", other)
+	}
+}
+
+func TestCoinHandler_InvestmentBreakdown_InvalidDimension(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "invaliddimension")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/stats/investment-breakdown?dimension=era", nil)
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

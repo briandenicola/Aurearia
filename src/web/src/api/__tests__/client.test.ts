@@ -442,6 +442,14 @@ describe('API Client', () => {
       expect(mockApi.get).toHaveBeenCalledWith('/stats')
     })
 
+    it('getInvestmentBreakdown sends GET with dimension param', async () => {
+      mockApi.get.mockResolvedValue({ data: [] })
+      await client.getInvestmentBreakdown('purchase-month')
+      expect(mockApi.get).toHaveBeenCalledWith('/stats/investment-breakdown', {
+        params: { dimension: 'purchase-month' },
+      })
+    })
+
     it('sellCoin sends POST with soldPrice and soldTo', async () => {
       mockApi.post.mockResolvedValue({ data: {} })
       await client.sellCoin(5, 100, 'buyer')
