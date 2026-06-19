@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -40,5 +41,85 @@ func TestAgentProxyFetchLogsWithoutCredentialIsRejected(t *testing.T) {
 	logs := proxy.FetchLogs(context.Background(), 10, "")
 	if logs != nil {
 		t.Fatalf("expected no logs when internal credential is missing, got %#v", logs)
+	}
+}
+
+func TestAgentChatProxyRequestJSONIncludesTypedAppContext(t *testing.T) {
+	activeCoinID := uint(42)
+	req := AgentChatProxyRequest{
+		LLM: LLMConfig{
+			Provider: "ollama",
+			Model:    "test-model",
+		},
+		User: UserContextProxy{
+			UserID:  7,
+			ZipCode: "60601",
+		},
+		Message: "update this coin",
+		History: []ChatMessageProxy{
+			{Role: "user", Content: "hello"},
+		},
+		AppContext: &CollectionChatContext{
+			Route:        "/coin/42",
+			ActiveCoinID: &activeCoinID,
+		},
+		CoinSearchPrompt: "search prompt",
+		CoinShowsPrompt:  "shows prompt",
+		InternalToken:    "token",
+		ToolsBaseURL:     "http://coins:8080",
+	}
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("unmarshal request: %v", err)
+	}
+
+	if _, ok := payload["appContext"]; ok {
+		t.Fatalf("outbound Python payload used frontend key appContext: %s", body)
+	}
+
+	appContext, ok := payload["app_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("app_context missing or wrong type in payload: %#v", payload["app_context"])
+	}
+	if got := appContext["route"]; got != "/coin/42" {
+		t.Fatalf("app_context.route = %#v, want /coin/42", got)
+	}
+	if got := appContext["activeCoinId"]; got != float64(42) {
+		t.Fatalf("app_context.activeCoinId = %#v, want 42", got)
+	}
+}
+
+func TestAgentChatProxyRequestJSONOmitsNilAppContext(t *testing.T) {
+	req := AgentChatProxyRequest{
+		LLM: LLMConfig{
+			Provider: "anthropic",
+			Model:    "claude-test",
+		},
+		User: UserContextProxy{
+			UserID: 1,
+		},
+		Message:          "find denarii",
+		History:          []ChatMessageProxy{},
+		CoinSearchPrompt: "search prompt",
+		CoinShowsPrompt:  "shows prompt",
+	}
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("unmarshal request: %v", err)
+	}
+	if _, ok := payload["app_context"]; ok {
+		t.Fatalf("app_context should be omitted when nil: %s", body)
 	}
 }

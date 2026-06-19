@@ -311,6 +311,19 @@ Two images are published per build:
 
 **Workflow action pin maintenance:** Workflow `uses:` entries in `.github/workflows/` are pinned to commit SHAs. When updating an action version, resolve the new tag to a commit SHA (for example: `git ls-remote https://github.com/<owner>/<repo> refs/tags/<tag>`) and keep the version comment (for example `# v4`) beside the SHA.
 
+### Security scan gates
+
+The `.github/workflows/security-scan.yml` workflow runs on pull requests to `main` and `beta`, on a weekly schedule, and by manual dispatch. These checks are intended to be branch-protection requirements:
+
+| Check | Blocking threshold |
+|---|---|
+| `Gitleaks` | Any detected secret unless precisely allowlisted in `.gitleaks.toml` |
+| `Govulncheck` | Any actionable Go vulnerability reported by `govulncheck ./...` |
+| `npm audit` | Any high or critical npm advisory (`npm audit --audit-level=high`) |
+| `pip-audit` | Any Python vulnerability; this is stricter than high/critical because `pip-audit` does not provide a portable severity threshold |
+
+Temporary exceptions must be narrow, reviewed, and documented with an owner and expiration date in the scanner configuration or the linked threat-model finding. Because Docker image publish workflows run only after pushes to protected branches, these blocking PR checks are the release gate for `latest` and `beta` images.
+
 ---
 
 ## Backup & Restore

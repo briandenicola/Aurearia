@@ -23,7 +23,7 @@ from langgraph.types import Command
 
 from app.llm.provider import get_chat_model
 from app.llm.retry import ainvoke_with_retry
-from app.models.requests import LLMConfig, PortfolioSummary, UserContext
+from app.models.requests import AppContext, LLMConfig, PortfolioSummary, UserContext
 from app.teams.auction_search import create_auction_search_team
 from app.teams.coin_search import create_coin_search_team
 from app.teams.coin_shows import create_coin_show_team
@@ -227,6 +227,7 @@ def create_supervisor(
     coin_shows_prompt: str = "",
     user_context: UserContext | None = None,
     portfolio: PortfolioSummary | None = None,
+    app_context: AppContext | None = None,
     analysis_node=None,
     grading_node=None,
     photo_guide_node=None,
@@ -246,7 +247,12 @@ def create_supervisor(
     # Build Collection team as a callable node (requires token + base URL)
     collection_graph = None
     if tools_base_url and internal_token:
-        collection_graph = create_collection_chat_team(llm_config, tools_base_url, internal_token)
+        collection_graph = create_collection_chat_team(
+            llm_config,
+            tools_base_url,
+            internal_token,
+            app_context=app_context,
+        )
 
     async def collection_node(state: MessagesState) -> dict:
         """Delegate to collection chat ReAct agent."""

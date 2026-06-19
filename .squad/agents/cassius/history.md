@@ -662,3 +662,6 @@ All tests pass; architecture compliant; ready for merge.
 - Path traversal is rejected before joining against `UPLOAD_DIR`, and only DB-backed `CoinImage.FilePath` / `User.AvatarPath` records are served.
 - Explicit visibility preserved where straightforward: accepted followers can fetch public active coin images for public owners, public user avatars are available to authenticated users, and active showcase media has a slug-scoped public endpoint.
 - Targeted media handler tests pass; full `go test ./...` is blocked by pre-existing `containsString` redeclaration in `services/collection_tools_service_test.go` vs `services/coin_service.go`.
+## 2026-06-19 — Agent app_context DTO Contract (#318)
+
+Modeled Go's optional `app_context` payload explicitly in Python as `AppContext(route, activeCoinId)` and made agent request DTOs reject unknown fields. The context is threaded into collection chat so route/active coin metadata can resolve phrases like "this coin" without being silently ignored. Added Go JSON shape tests for `app_context` and Python model tests for accepted shape, aliases, and unknown-field rejection. Validation: `go test ./...`, `go vet ./...`, `pytest tests/ -v`, `ruff check app/ tests/`.

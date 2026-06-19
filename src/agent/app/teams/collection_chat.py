@@ -19,7 +19,7 @@ import logging
 from langgraph.prebuilt import create_react_agent
 
 from app.llm.provider import get_chat_model
-from app.models.requests import LLMConfig
+from app.models.requests import AppContext, LLMConfig
 from app.safety import with_safety
 from app.tools.collection_tools import build_collection_tools
 
@@ -71,6 +71,7 @@ def create_collection_chat_team(
     llm_config: LLMConfig,
     tools_base_url: str,
     internal_token: str,
+    app_context: AppContext | None = None,
 ):
     """Build a ReAct agent for collection queries with internal tool layer.
 
@@ -78,6 +79,7 @@ def create_collection_chat_team(
         llm_config: LLM configuration (provider, model, API keys)
         tools_base_url: Base URL for Go internal endpoints
         internal_token: Short-lived JWT token for authenticated tool calls
+        app_context: Optional frontend route context for resolving "this coin"
 
     Returns:
         A LangGraph compiled graph (ReAct agent).
@@ -94,11 +96,20 @@ def create_collection_chat_team(
     # Build collection tools bound to this request's token
     tools = build_collection_tools(tools_base_url, internal_token)
 
+    prompt = COLLECTION_AGENT_PROMPT
+    if app_context and (app_context.active_coin_id or app_context.route):
+        context_parts = []
+        if app_context.active_coin_id:
+            context_parts.append(f"active coin id: {app_context.active_coin_id}")
+        if app_context.route:
+            context_parts.append(f"current route: {app_context.route}")
+        prompt = f"{COLLECTION_AGENT_PROMPT}\n\nCurrent app context: {', '.join(context_parts)}."
+
     # Create ReAct agent with the system prompt
     agent = create_react_agent(
         model,
         tools,
-        prompt=COLLECTION_AGENT_PROMPT,
+        prompt=prompt,
     )
 
     logger.debug("Collection chat team built with %d tools", len(tools))

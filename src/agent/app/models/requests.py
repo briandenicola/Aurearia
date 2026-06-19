@@ -6,7 +6,7 @@ so this service remains stateless with no direct DB access.
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, StringConstraints, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from app.outbound import validate_outbound_url
 
@@ -32,6 +32,12 @@ BoundedURL = Annotated[str, StringConstraints(min_length=1, max_length=MAX_URL_L
 BoundedImageBase64 = Annotated[str, StringConstraints(max_length=MAX_IMAGE_BASE64_LENGTH)]
 
 
+class StrictRequestModel(BaseModel):
+    """Base model for Go-to-agent DTOs with drift detection."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
 def _validate_history_total_chars(history: list["ChatMessage"]) -> list["ChatMessage"]:
     total_chars = sum(len(msg.content) for msg in history)
     if total_chars > MAX_HISTORY_TOTAL_CHARS:
@@ -41,7 +47,7 @@ def _validate_history_total_chars(history: list["ChatMessage"]) -> list["ChatMes
     return history
 
 
-class LLMConfig(BaseModel):
+class LLMConfig(StrictRequestModel):
     """LLM configuration passed per-request from Go."""
 
     provider: str  # "anthropic" or "ollama"
@@ -56,21 +62,28 @@ class LLMConfig(BaseModel):
         return validate_outbound_url(value, info.field_name)
 
 
-class UserContext(BaseModel):
+class UserContext(StrictRequestModel):
     """User context for personalizing agent behavior."""
 
     user_id: int
     zip_code: Annotated[str, StringConstraints(max_length=32)] = ""
 
 
-class ChatMessage(BaseModel):
+class ChatMessage(StrictRequestModel):
     """A single message in conversation history."""
 
     role: Literal["user", "assistant"]
     content: BoundedMessage
 
 
-class PortfolioCoin(BaseModel):
+class AppContext(StrictRequestModel):
+    """Frontend route context proxied by Go for collection-aware chat."""
+
+    route: Annotated[str, StringConstraints(max_length=MAX_URL_LENGTH)] = ""
+    active_coin_id: int | None = Field(default=None, alias="activeCoinId", ge=1)
+
+
+class PortfolioCoin(StrictRequestModel):
     """Summarized coin for portfolio review."""
 
     name: BoundedName
@@ -83,7 +96,7 @@ class PortfolioCoin(BaseModel):
     current_value: float = 0
 
 
-class PortfolioSummary(BaseModel):
+class PortfolioSummary(StrictRequestModel):
     """Portfolio summary data passed from Go."""
 
     total_coins: int = 0
@@ -109,13 +122,14 @@ class PortfolioSummary(BaseModel):
         return v if v is not None else []
 
 
-class CoinSearchRequest(BaseModel):
+class CoinSearchRequest(StrictRequestModel):
     """Request to search for coins."""
 
     llm: LLMConfig
     user: UserContext
     message: BoundedMessage
     history: list[ChatMessage] = Field(default_factory=list, max_length=MAX_HISTORY_MESSAGES)
+    app_context: AppContext | None = None
     coin_search_prompt: BoundedPrompt = ""
     coin_shows_prompt: BoundedPrompt = ""
     portfolio: PortfolioSummary | None = None
@@ -133,7 +147,7 @@ class CoinSearchRequest(BaseModel):
         return _validate_history_total_chars(history)
 
 
-class CoinShowSearchRequest(BaseModel):
+class CoinShowSearchRequest(StrictRequestModel):
     """Request to search for coin shows."""
 
     llm: LLMConfig
@@ -149,7 +163,7 @@ class CoinShowSearchRequest(BaseModel):
         return _validate_history_total_chars(history)
 
 
-class CoinData(BaseModel):
+class CoinData(StrictRequestModel):
     """Coin data passed from Go for analysis or valuation."""
 
     id: int
@@ -165,7 +179,7 @@ class CoinData(BaseModel):
     notes: BoundedNotes = ""
 
 
-class AnalyzeRequest(BaseModel):
+class AnalyzeRequest(StrictRequestModel):
     """Request to analyze coin images."""
 
     llm: LLMConfig
@@ -175,7 +189,7 @@ class AnalyzeRequest(BaseModel):
     prompt: BoundedPrompt = ""  # Analysis prompt from admin settings
 
 
-class IntakeDraftRequest(BaseModel):
+class IntakeDraftRequest(StrictRequestModel):
     """Request to generate an intake draft from observation images."""
 
     llm: LLMConfig
@@ -190,7 +204,7 @@ class IntakeDraftRequest(BaseModel):
         return images
 
 
-class PortfolioReviewRequest(BaseModel):
+class PortfolioReviewRequest(StrictRequestModel):
     """Request to review a portfolio."""
 
     llm: LLMConfig
@@ -212,14 +226,14 @@ class PortfolioReviewRequest(BaseModel):
         return _validate_history_total_chars(history)
 
 
-class AvailabilityCheckItem(BaseModel):
+class AvailabilityCheckItem(StrictRequestModel):
     """A single coin URL to check for availability."""
 
     url: BoundedURL
     coin_name: BoundedName = ""
 
 
-class AvailabilityCheckRequest(BaseModel):
+class AvailabilityCheckRequest(StrictRequestModel):
     """Request to check listing availability for multiple URLs."""
 
     llm: LLMConfig

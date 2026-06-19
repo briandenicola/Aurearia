@@ -738,6 +738,8 @@ These endpoints are called exclusively by the Go API, not exposed to the fronten
 | POST | `/api/analyze` | AnalyzeRequest | JSON | Image analysis |
 | POST | `/api/portfolio/review` | PortfolioReviewRequest | SSE stream | Portfolio review pipeline |
 
+`CoinSearchRequest` includes optional `app_context` (`route`, `activeCoinId`) when the Go API forwards collection-chat UI context; the Python DTO rejects unknown fields to catch Go/Python contract drift.
+
 **SSE Event Schema:**
 ```
 {"type": "status",  "message": "..."}        // Progress update
@@ -881,7 +883,7 @@ The system implements a multi-layered authentication strategy:
 
 **Workflow: `security-scan.yml`** (PRs to `main`/`beta`, weekly schedule, manual trigger):
 - `gitleaks`, `govulncheck`, `npm audit --audit-level=high`, and `pip-audit`
-- Scan steps are advisory-first (`continue-on-error: true`) so findings are reported without blocking PRs while thresholds are tuned
+- Scan steps are blocking for secrets and actionable high-risk dependency findings: Gitleaks fails on any non-allowlisted secret, govulncheck fails on actionable Go vulnerabilities, npm audit fails at high/critical, and pip-audit fails on any Python vulnerability because it has no portable severity threshold
 
 **Workflow: `docker-publish.yml`** (Push to `main`):
 - Builds and pushes both container images to Docker Hub
@@ -956,7 +958,7 @@ AncientCoins/
 ├── .github/
 │   ├── workflows/
 │   │   ├── ci.yml                    # Quality Gate workflow
-│   │   ├── security-scan.yml         # Advisory security scans
+│   │   ├── security-scan.yml         # Blocking security scan gates
 │   │   ├── docker-publish.yml        # Production image push
 │   │   └── docker-publish-beta.yml   # Beta image push
 │   └── dependabot.yml                # Dependency updates

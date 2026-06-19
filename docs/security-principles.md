@@ -55,7 +55,8 @@ The Constitution remains normative. This document translates its security expect
 
 - Keep build inputs reproducible: pinned actions, reviewed dependency bumps, and explicit scanner config.
 - Generated docs may contain fake examples; scanners should allowlist those precise artifacts rather than globally weakening rules.
-- Treat weekly scans and dependency dashboards as maintenance inputs, not optional chores.
+- Treat PR security scans as release gates for secrets and high-risk dependency findings; weekly scans and dependency dashboards are maintenance inputs, not optional chores.
+- Temporary scanner exceptions must be narrow and carry an owner, expiration date, and linked threat-model or issue reference.
 
 ## How to add or change a principle
 

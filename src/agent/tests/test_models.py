@@ -10,6 +10,7 @@ from app.models.requests import (
     MAX_IMAGE_BASE64_LENGTH,
     MAX_IMAGE_COUNT,
     AnalyzeRequest,
+    AppContext,
     AvailabilityCheckRequest,
     CoinData,
     CoinSearchRequest,
@@ -101,6 +102,46 @@ def test_coin_search_request_rejects_history_char_over_limit():
             message="hello",
             history=[{"role": "user", "content": oversized}],
         )
+
+
+def test_coin_search_request_accepts_app_context_shape():
+    request = CoinSearchRequest(
+        llm=LLMConfig(provider="anthropic"),
+        user=UserContext(user_id=1),
+        message="hello",
+        app_context={"route": "/coin/42", "activeCoinId": 42},
+    )
+
+    assert request.app_context == AppContext(route="/coin/42", activeCoinId=42)
+    assert request.model_dump(by_alias=True)["app_context"] == {
+        "route": "/coin/42",
+        "activeCoinId": 42,
+    }
+
+
+def test_coin_search_request_rejects_unknown_fields():
+    with pytest.raises(ValidationError):
+        CoinSearchRequest(
+            llm=LLMConfig(provider="anthropic"),
+            user=UserContext(user_id=1),
+            message="hello",
+            unexpected="drift",
+        )
+
+
+def test_app_context_rejects_unknown_fields():
+    with pytest.raises(ValidationError):
+        AppContext(route="/coin/42", activeCoinId=42, extraRouteState="ignored")
+
+
+def test_app_context_requires_go_json_alias_for_active_coin_id():
+    with pytest.raises(ValidationError):
+        AppContext(route="/coin/42", active_coin_id=42)
+
+
+def test_app_context_rejects_invalid_active_coin_id():
+    with pytest.raises(ValidationError):
+        AppContext(route="/coin/0", activeCoinId=0)
 
 
 def test_analyze_request_rejects_image_count_over_limit():

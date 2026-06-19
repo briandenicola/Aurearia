@@ -112,3 +112,7 @@
   - Caller/model-provided Python agent URLs must use a shared outbound fetch helper that validates the initial URL and each redirect target before any follow-up request.
   - Public internet fetches may allow arbitrary public origins, but local/private targets are only allowed when the exact origin is configured as trusted and `AGENT_ALLOW_LOCAL_OUTBOUND=true`; metadata IPs stay blocked even in local-dev mode.
   - Regressions should assert the HTTP client is not constructed/called for unsafe initial URLs and that redirect-to-private/metadata stops after the safe public hop.
+- **2026-06-19 — Security scan gate hardening (#323):**
+  - Blanket `continue-on-error` on security scanners undermines Constitution Principle VII / §17; prefer removing it entirely unless a scanner is explicitly advisory and documented.
+  - `npm audit --audit-level=high` gives the desired high/critical threshold. `pip-audit` has no portable severity threshold, so the practical fail-closed posture is to block on any Python vulnerability and require documented narrow exceptions.
+  - Branch/release implication belongs in deployment docs: PR security jobs should be required branch checks on `main`/`beta`, and Docker publish workflows inherit that gate because they run only after protected-branch pushes.

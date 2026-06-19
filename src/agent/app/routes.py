@@ -68,6 +68,7 @@ async def search_coins(request: CoinSearchRequest):
         coin_shows_prompt=request.coin_shows_prompt,
         user_context=request.user,
         portfolio=request.portfolio,
+        app_context=request.app_context,
         tools_base_url=request.tools_base_url,
         internal_token=request.internal_token,
     )
