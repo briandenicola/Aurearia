@@ -8,13 +8,7 @@
     <span class="set-card-meta">
       <span class="set-count">
         <span class="set-count-value">{{ set.coinCount }}</span>
-        <span class="set-count-label">{{ set.coinCount === 1 ? 'coin' : 'coins' }}</span>
-      </span>
-      <span v-if="set.completionPercentage != null" class="completion-meter" aria-label="Completion">
-        <span class="completion-track">
-          <span class="completion-fill" :style="{ width: `${set.completionPercentage}%` }"></span>
-        </span>
-        <span class="completion-label">{{ set.completionPercentage }}%</span>
+        <span class="set-count-label">{{ set.coinCount === 1 ? 'Coin' : 'Coins' }}</span>
       </span>
     </span>
   </button>
@@ -33,7 +27,6 @@ defineEmits<{
 }>()
 
 const setDescription = computed(() => {
-  if (props.set.completionPercentage != null) return 'Completion set'
   return props.set.coinCount > 0 ? 'Curated group' : 'Ready for coins'
 })
 </script>
@@ -44,11 +37,12 @@ const setDescription = computed(() => {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.85rem;
-  padding: 0.85rem 1rem;
+  gap: 1.15rem;
+  min-height: 5rem;
+  padding: 0.75rem 1.1rem;
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-md);
   color: inherit;
   cursor: pointer;
   text-align: left;
@@ -62,8 +56,8 @@ const setDescription = computed(() => {
 }
 
 .set-accent {
-  width: 0.25rem;
-  height: 2.8rem;
+  width: 0.45rem;
+  height: 4rem;
   border-radius: var(--radius-full);
   box-shadow: 0 0 16px var(--accent-gold-glow);
 }
@@ -72,13 +66,13 @@ const setDescription = computed(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.25rem;
 }
 
 .set-name {
   color: var(--text-heading);
   font-family: 'Cinzel', serif;
-  font-size: 1rem;
+  font-size: 1.35rem;
   font-weight: 500;
   letter-spacing: 0.02em;
   overflow: hidden;
@@ -88,7 +82,7 @@ const setDescription = computed(() => {
 
 .set-description {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.95rem;
 }
 
 .set-card-meta {
@@ -100,52 +94,56 @@ const setDescription = computed(() => {
 
 .set-count {
   display: flex;
-  align-items: baseline;
-  gap: 0.25rem;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
   white-space: nowrap;
+  min-width: 4.25rem;
 }
 
 .set-count-value {
   color: var(--accent-gold);
-  font-size: 1rem;
+  font-size: 2.75rem;
+  font-weight: 700;
+  line-height: 0.85;
+  font-family: 'Inter', sans-serif;
+}
+
+.set-count-label {
+  color: var(--accent-gold);
+  font-size: 0.9rem;
   font-weight: 600;
-}
-
-.set-count-label,
-.completion-label {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-}
-
-.completion-meter {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.completion-track {
-  width: 3.5rem;
-  height: 0.25rem;
-  overflow: hidden;
-  border-radius: var(--radius-full);
-  background: var(--bg-input);
-}
-
-.completion-fill {
-  display: block;
-  height: 100%;
-  border-radius: var(--radius-full);
-  background: var(--accent-gold);
 }
 
 @media (max-width: 560px) {
   .set-dashboard-card {
-    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.75rem;
+    min-height: 4.5rem;
+    padding: 0.65rem 0.85rem;
   }
 
-  .set-card-meta {
-    grid-column: 2;
-    justify-content: space-between;
+  .set-accent {
+    height: 3.5rem;
+  }
+
+  .set-name {
+    font-size: 1.1rem;
+  }
+
+  .set-description {
+    font-size: 0.85rem;
+  }
+
+  .set-count {
+    min-width: 3.5rem;
+  }
+
+  .set-count-value {
+    font-size: 2.25rem;
+  }
+
+  .set-count-label {
+    font-size: 0.75rem;
   }
 }
 </style>

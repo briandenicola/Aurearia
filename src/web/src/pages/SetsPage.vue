@@ -176,7 +176,7 @@ function goToSet(id: number) {
 .sets-grid {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.9rem;
 }
 
 .modal-overlay {

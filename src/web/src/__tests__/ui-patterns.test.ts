@@ -91,6 +91,19 @@ describe('UI pattern recipes', () => {
     expect(setDetailPage).not.toContain('>Remove<')
   })
 
+  it('keeps Sets list cards refined and count-forward', () => {
+    const setCard = readRepoFile(join('components', 'sets', 'SetDashboardCard.vue'))
+
+    expect(setCard).toContain('Curated group')
+    expect(setCard).toContain('min-height: 5rem')
+    expect(setCard).toContain('height: 4rem')
+    expect(setCard).toContain('align-items: flex-end')
+    expect(setCard).toContain('font-size: 2.75rem')
+    expect(setCard).toContain('border-radius: var(--radius-md)')
+    expect(setCard).not.toContain('completion-meter')
+    expect(setCard).not.toContain('Completion set')
+  })
+
   it('keeps the PWA agent button viewport-fixed globally', () => {
     const app = readRepoFile('App.vue')
     const mainCss = readRepoFile(join('assets', 'styles', 'main.css'))
