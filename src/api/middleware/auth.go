@@ -19,6 +19,10 @@ type ApiKeyAuthenticator interface {
 }
 
 func AuthRequired(jwtSecret string, apiKeyAuth ApiKeyAuthenticator) gin.HandlerFunc {
+	return AuthRequiredWithSecurity(jwtSecret, apiKeyAuth, nil)
+}
+
+func AuthRequiredWithSecurity(jwtSecret string, apiKeyAuth ApiKeyAuthenticator, securitySvc *services.SecurityService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Try API key auth first
 		apiKey := c.GetHeader("X-API-Key")
@@ -26,6 +30,9 @@ func AuthRequired(jwtSecret string, apiKeyAuth ApiKeyAuthenticator) gin.HandlerF
 			if authenticateApiKey(c, apiKey, jwtSecret, apiKeyAuth) {
 				c.Next()
 				return
+			}
+			if securitySvc != nil {
+				securitySvc.RecordEvent(models.SecurityEventAPIKeyAuthFailure, nil, "", ClientIP(c), c.Request.UserAgent(), "")
 			}
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid API key"})
 			return

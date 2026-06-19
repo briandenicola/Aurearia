@@ -71,7 +71,12 @@ func main() {
 	logger.Debug("startup", "Upload directory: %s", cfg.UploadDir)
 
 	r := gin.Default()
+	if err := r.SetTrustedProxies(cfg.TrustedProxyList()); err != nil {
+		log.Fatalf("Failed to configure trusted proxies: %v", err)
+	}
 	r.MaxMultipartMemory = middleware.DefaultMultipartMemoryBytes
+	r.Use(middleware.SecurityHeaders())
+	r.Use(middleware.ResolvedClientIP())
 
 	// CORS middleware — restrict to configured origins
 	allowedOrigins := cfg.AllowedOrigins()
@@ -135,7 +140,9 @@ func main() {
 
 	// Auth routes (public) — rate limited to prevent brute force
 	authRepo := repository.NewAuthRepository(database.DB)
-	authSvc := services.NewAuthService(authRepo, cfg.JWTSecret)
+	securityRepo := repository.NewSecurityRepository(database.DB)
+	securitySvc := services.NewSecurityService(securityRepo)
+	authSvc := services.NewAuthService(authRepo, cfg.JWTSecret).WithSettings(settingsSvc).WithSecurity(securitySvc)
 	authHandler := handlers.NewAuthHandler(cfg.JWTSecret, authRepo, authSvc)
 	webauthnRepo := repository.NewWebAuthnRepository(database.DB)
 	webauthnHandler, err := handlers.NewWebAuthnHandler(cfg.WebAuthnID, cfg.WebAuthnOrigin, authHandler, webauthnRepo, logger)
@@ -152,7 +159,8 @@ func main() {
 	apiRateLimit := middleware.RateLimit(120, 1*time.Minute)  // General API rate limit
 	writeRateLimit := middleware.RateLimit(30, 1*time.Minute) // Write operations
 
-	r.GET("/uploads/*filepath", middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth), apiRateLimit, imageHandler.ServeUpload)
+	r.Use(middleware.IPDenyRules(securitySvc))
+	r.GET("/uploads/*filepath", middleware.AuthRequiredWithSecurity(cfg.JWTSecret, apiKeyAuth, securitySvc), apiRateLimit, imageHandler.ServeUpload)
 
 	api := r.Group("/api")
 	api.Use(middleware.RequestBodyLimit(middleware.DefaultRequestBodyLimitBytes))
@@ -211,7 +219,7 @@ func main() {
 	collectionSvc := services.NewCollectionToolsService(coinRepo, collectionProposalRepo)
 
 	protected := api.Group("")
-	protected.Use(middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth))
+	protected.Use(middleware.AuthRequiredWithSecurity(cfg.JWTSecret, apiKeyAuth, securitySvc))
 	protected.Use(apiRateLimit)
 	{
 		coinReferenceRepo := repository.NewCoinReferenceRepository(database.DB)
@@ -471,7 +479,7 @@ func main() {
 
 	// Admin-only routes
 	admin := api.Group("/admin")
-	admin.Use(middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth))
+	admin.Use(middleware.AuthRequiredWithSecurity(cfg.JWTSecret, apiKeyAuth, securitySvc))
 	admin.Use(middleware.RejectAPIKeyAuth())
 	admin.Use(handlers.AdminRequired())
 	{
@@ -487,6 +495,23 @@ func main() {
 		admin.GET("/logs", adminHandler.GetLogs)
 		admin.GET("/test-anthropic", adminHandler.TestAnthropicConnection)
 		admin.GET("/test-searxng", adminHandler.TestSearXNGConnection)
+
+		securityAdminHandler := handlers.NewSecurityAdminHandler(securitySvc, settingsSvc, handlers.SecurityExposureConfig{
+			PublicAppURL:             settingsSvc.GetSetting(services.SettingPublicAppURL),
+			WebAuthnOrigin:           cfg.WebAuthnOrigin,
+			CORSOrigins:              cfg.AllowedOrigins(),
+			TrustedProxiesConfigured: cfg.TrustedProxies != "",
+			AgentInternalTokenSet:    cfg.AgentInternalServiceToken != "",
+			RegistrationMode:         settingsSvc.GetSetting(services.SettingRegistrationMode),
+			BackupStatus:             settingsSvc.GetSetting(services.SettingBackupStatus),
+		})
+		admin.GET("/security/summary", securityAdminHandler.SecuritySummary)
+		admin.GET("/security/events", securityAdminHandler.SecurityEvents)
+		admin.GET("/security/ip-rules", securityAdminHandler.ListIPRules)
+		admin.POST("/security/ip-rules", securityAdminHandler.CreateIPRule)
+		admin.DELETE("/security/ip-rules/:id", securityAdminHandler.DeleteIPRule)
+		admin.POST("/users/:id/unlock", securityAdminHandler.UnlockUser)
+		admin.GET("/security/exposure-check", securityAdminHandler.ExposureCheck)
 
 		// Catalog registry management (shared handler from protected scope)
 		catalogRegistryRepo := repository.NewCatalogRegistryRepository(database.DB)
@@ -554,7 +579,7 @@ func main() {
 	// Authenticated tool endpoints (auth + rate limit)
 	v1Tools := api.Group("/v1/tools")
 	v1Tools.Use(middleware.ExternalToolServerEnabled(settingsSvc))
-	v1Tools.Use(middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth))
+	v1Tools.Use(middleware.AuthRequiredWithSecurity(cfg.JWTSecret, apiKeyAuth, securitySvc))
 	v1Tools.Use(externalToolsRateLimit)
 	{
 		externalToolsHandler := handlers.NewExternalToolsHandler(collectionSvc)

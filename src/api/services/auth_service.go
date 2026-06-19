@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -25,12 +26,15 @@ var (
 	ErrTokenGeneration     = errors.New("failed to generate token")
 	ErrInvalidRefreshToken = errors.New("invalid refresh token")
 	ErrRefreshTokenExpired = errors.New("refresh token expired")
+	ErrRegistrationClosed  = errors.New("registration closed")
 )
 
 // AuthService handles authentication business logic.
 type AuthService struct {
 	repo      *repository.AuthRepository
 	jwtSecret string
+	settings  *SettingsService
+	security  *SecurityService
 }
 
 // NewAuthService creates a new AuthService.
@@ -38,14 +42,55 @@ func NewAuthService(repo *repository.AuthRepository, jwtSecret string) *AuthServ
 	return &AuthService{repo: repo, jwtSecret: jwtSecret}
 }
 
+func (s *AuthService) WithSettings(settings *SettingsService) *AuthService {
+	s.settings = settings
+	return s
+}
+
+func (s *AuthService) WithSecurity(security *SecurityService) *AuthService {
+	s.security = security
+	return s
+}
+
+func (s *AuthService) CheckAccountAllowed(username string) error {
+	if s.security == nil {
+		return nil
+	}
+	return s.security.CheckAccountAllowed(username)
+}
+
+func (s *AuthService) RecordWebAuthnSuccess(user models.User, clientIP, userAgent string) {
+	if s.security != nil {
+		s.security.RecordWebAuthnSuccess(user, clientIP, userAgent)
+	}
+}
+
+func (s *AuthService) RecordWebAuthnFailure(username, clientIP, userAgent, message string) {
+	if s.security != nil {
+		var userID *uint
+		if user, err := s.repo.FindUserByUsername(username); err == nil {
+			id := user.ID
+			userID = &id
+		}
+		s.security.RecordEvent(models.SecurityEventWebAuthnLoginFailure, userID, username, clientIP, userAgent, message)
+	}
+}
+
 // RegisterUser creates a new user. The first user becomes admin.
 func (s *AuthService) RegisterUser(username, email, password string) (*models.User, error) {
+	count := s.repo.CountUsers()
+	if count > 0 && s.settings != nil {
+		mode := strings.ToLower(strings.TrimSpace(s.settings.GetSetting(SettingRegistrationMode)))
+		if mode != "open" {
+			return nil, ErrRegistrationClosed
+		}
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, ErrHashingFailed
 	}
 
-	count := s.repo.CountUsers()
 	role := models.RoleUser
 	if count == 0 {
 		role = models.RoleAdmin
@@ -67,15 +112,34 @@ func (s *AuthService) RegisterUser(username, email, password string) (*models.Us
 
 // AuthenticateUser verifies credentials and returns the user on success.
 func (s *AuthService) AuthenticateUser(username, password string) (*models.User, error) {
+	return s.AuthenticateUserWithRequest(username, password, "", "")
+}
+
+func (s *AuthService) AuthenticateUserWithRequest(username, password, clientIP, userAgent string) (*models.User, error) {
+	if s.security != nil {
+		if err := s.security.CheckAccountAllowed(username); err != nil {
+			s.security.RecordPasswordFailure(username, clientIP, userAgent)
+			return nil, ErrInvalidCredentials
+		}
+	}
 	user, err := s.repo.FindUserByUsername(username)
 	if err != nil {
+		if s.security != nil {
+			s.security.RecordPasswordFailure(username, clientIP, userAgent)
+		}
 		return nil, ErrInvalidCredentials
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		if s.security != nil {
+			s.security.RecordPasswordFailure(username, clientIP, userAgent)
+		}
 		return nil, ErrInvalidCredentials
 	}
 
+	if s.security != nil {
+		s.security.RecordPasswordSuccess(*user, clientIP, userAgent)
+	}
 	return user, nil
 }
 
@@ -124,10 +188,16 @@ func (s *AuthService) RotateTokens(oldPlainToken string) (*models.User, string, 
 
 	rt, err := s.repo.FindRefreshToken(tokenHash)
 	if err != nil {
+		if s.security != nil {
+			s.security.RecordEvent(models.SecurityEventRefreshFailure, nil, "", "", "", "")
+		}
 		return nil, "", "", ErrInvalidRefreshToken
 	}
 
 	if time.Now().After(rt.ExpiresAt) {
+		if s.security != nil {
+			s.security.RecordEvent(models.SecurityEventRefreshFailure, &rt.UserID, "", "", "", "expired refresh token")
+		}
 		return nil, "", "", ErrRefreshTokenExpired
 	}
 

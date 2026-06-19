@@ -516,6 +516,19 @@ definitions:
     required:
     - coin_id
     type: object
+  handlers.IPRuleCreateRequest:
+    properties:
+      cidr:
+        type: string
+      durationMinutes:
+        type: integer
+      expiresAt:
+        type: string
+      reason:
+        type: string
+    required:
+    - cidr
+    type: object
   handlers.ImageDeletedResponse:
     properties:
       message:
@@ -2516,6 +2529,164 @@ paths:
       summary: Update mint location
       tags:
       - Mint Locations
+  /admin/security/events:
+    get:
+      description: Returns persisted auth/security events with optional type, username,
+        clientIp, and limit filters. Admin only.
+      parameters:
+      - description: Event type
+        in: query
+        name: type
+        type: string
+      - description: Username
+        in: query
+        name: username
+        type: string
+      - description: Client IP
+        in: query
+        name: clientIp
+        type: string
+      - default: 100
+        description: Maximum events
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List security events
+      tags:
+      - Admin Security
+  /admin/security/exposure-check:
+    get:
+      description: Returns release-readiness warnings for public-facing configuration.
+        Admin only.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get exposure check
+      tags:
+      - Admin Security
+  /admin/security/ip-rules:
+    get:
+      description: Returns active IP/CIDR deny rules by default. Admin only.
+      parameters:
+      - description: Include expired rules
+        in: query
+        name: includeExpired
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List IP deny rules
+      tags:
+      - Admin Security
+    post:
+      consumes:
+      - application/json
+      description: Creates an IP/CIDR deny rule with optional expiration. Admin only.
+      parameters:
+      - description: IP rule
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.IPRuleCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create IP deny rule
+      tags:
+      - Admin Security
+  /admin/security/ip-rules/{id}:
+    delete:
+      description: Deletes an IP/CIDR deny rule. Admin only.
+      parameters:
+      - description: IP rule ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete IP deny rule
+      tags:
+      - Admin Security
+  /admin/security/summary:
+    get:
+      description: Returns aggregate auth/security counters and backup status. Admin
+        only.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get security summary
+      tags:
+      - Admin Security
   /admin/settings:
     get:
       description: Returns all application settings merged with defaults. Admin only.
@@ -2804,6 +2975,35 @@ paths:
       summary: Update user role
       tags:
       - Admin
+  /admin/users/{id}/unlock:
+    post:
+      description: Clears a user's account lock state. Admin only.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Unlock user
+      tags:
+      - Admin Security
   /admin/valuation-runs:
     get:
       description: Returns paginated history of scheduled collection valuation runs.
