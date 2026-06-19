@@ -57,7 +57,7 @@ describe('UI pattern recipes', () => {
     expect(trayPage).toContain('const coinsPerDrawer = 12')
     expect(trayPage).toContain('while (true)')
     expect(trayPage).toContain('limit: trayPageLimit')
-    expect(museumTray).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))')
+    expect(museumTray).toContain('grid-template-columns: repeat(6, minmax(0, 1fr))')
   })
 
   it('keeps Identify Coin camera-first with Add Coin upload icon pattern', () => {

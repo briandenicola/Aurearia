@@ -31,6 +31,8 @@ The app container contains:
 
 Data is stored in a **SQLite database** (via GORM, WAL mode enabled) and coin images are stored directly on the filesystem.
 
+Both production images run as a non-root runtime user with UID/GID `10001:10001`. The app image owns `/app`, `/app/data`, and `/app/uploads`; the agent image owns `/app` and has no persistent writable volume by default.
+
 ---
 
 ## Quick Start (Docker Compose)
@@ -152,6 +154,15 @@ volumes:
   - /opt/ancient-coins/data:/app/data
   - /opt/ancient-coins/uploads:/app/uploads
 ```
+
+The app container writes to both mounted paths as UID/GID `10001:10001`. Docker named volumes are initialized from the image ownership on first use. For bind mounts, create the host directories and make them writable by UID/GID `10001:10001` before starting the container:
+
+```sh
+sudo mkdir -p /opt/ancient-coins/data /opt/ancient-coins/uploads
+sudo chown -R 10001:10001 /opt/ancient-coins/data /opt/ancient-coins/uploads
+```
+
+The agent container also runs as UID/GID `10001:10001`. It does not require a mounted writable path in the default deployment; if you add one for diagnostics or custom tooling, grant write access to UID/GID `10001:10001`.
 
 ---
 

@@ -34,6 +34,7 @@ export interface WorkflowApiState {
   setPayloads: Array<{ action: 'add' | 'remove'; coinId: number; setId: number }>
   imageUploads: Array<{ coinId: number; imageType: string; isPrimary: boolean; fileName: string; contentType: string }>
   imageDeletes: Array<{ coinId: number; imageId: number }>
+  mediaRequests: Array<{ path: string; authorization: string; cacheControl: string }>
   coinQueries: Array<Record<string, string>>
   authorizedRequests: string[]
 }
@@ -58,6 +59,7 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
     setPayloads: [],
     imageUploads: [],
     imageDeletes: [],
+    mediaRequests: [],
     coinQueries: [],
     authorizedRequests: [],
   }
@@ -65,6 +67,12 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
   let nextImageId = 9001
 
   await page.route('**/uploads/**', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    if (url.pathname.startsWith('/api/uploads/')) {
+      await media(route, state)
+      return
+    }
     await route.fulfill({
       status: 204,
     })
@@ -102,6 +110,11 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
 
     if (path === '/notifications/unread-count' && method === 'GET') {
       await json(route, { count: 0 })
+      return
+    }
+
+    if (path.startsWith('/uploads/') && method === 'GET') {
+      await media(route, state)
       return
     }
 
@@ -377,5 +390,23 @@ async function json(route: Route, body: unknown, status = 200) {
     status,
     contentType: 'application/json',
     body: JSON.stringify(body),
+  })
+}
+
+async function media(route: Route, state: WorkflowApiState) {
+  const request = route.request()
+  const url = new URL(request.url())
+  state.mediaRequests.push({
+    path: url.pathname,
+    authorization: request.headers()['authorization'] ?? '',
+    cacheControl: request.headers()['cache-control'] ?? '',
+  })
+  await route.fulfill({
+    status: 200,
+    contentType: 'image/png',
+    body: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+      'base64',
+    ),
   })
 }
