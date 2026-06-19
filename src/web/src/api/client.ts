@@ -33,7 +33,7 @@ function processQueue(error: unknown, token: string | null) {
   failedQueue = []
 }
 
-async function refreshAccessToken(): Promise<string> {
+export async function refreshAccessToken(): Promise<string> {
   const refreshToken = localStorage.getItem('refreshToken')
   if (!refreshToken) {
     clearAuth()

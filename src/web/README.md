@@ -92,9 +92,9 @@ The app uses `vite-plugin-pwa` with `registerType: 'autoUpdate'`:
 - **Manifest**: `standalone` display mode, dark theme (`#1a1a2e` / `#0f0f1a`)
 - **Precaching**: All JS, CSS, HTML, images, and fonts via Workbox glob patterns
 - **Runtime caching**:
-  - `GET /api/*` — NetworkFirst (5 min cache, 50 entries)
+  - `GET /api/showcase*` — NetworkFirst (5 min cache, 50 entries)
   - `PUT/POST/DELETE /api/*` — NetworkOnly
-  - `/uploads/*.{png,jpg,jpeg,gif,webp}` — CacheFirst (30-day cache, 200 entries)
+  - `/uploads/*` — not runtime cached; legacy `coin-images` caches are cleared on logout/user switch
 - **Navigation fallback**: Denies `/api`, `/uploads`, and `/sw.js`
 
 ## Design System

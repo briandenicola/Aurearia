@@ -10,7 +10,7 @@
       <!-- Next card (underneath) -->
       <div v-if="nextCoin" class="swipe-card next-card">
         <div class="swipe-card-image">
-          <img v-if="getImage(nextCoin)" :src="getImage(nextCoin)!" :alt="nextCoin.name" />
+          <AuthenticatedImage v-if="getImage(nextCoin)" :media-path="getImage(nextCoin)!" :alt="nextCoin.name" />
           <div v-else class="swipe-card-placeholder"><Coins :size="64" :stroke-width="1" /></div>
         </div>
         <div class="swipe-card-name">{{ nextCoin.name }}</div>
@@ -26,7 +26,7 @@
         @click="onCardTap"
       >
         <div class="swipe-card-image" :class="{ 'coin-flipping': isFlipping }">
-          <img v-if="getImage(currentCoin)" :src="getImage(currentCoin)!" :alt="currentCoin.name" />
+          <AuthenticatedImage v-if="getImage(currentCoin)" :media-path="getImage(currentCoin)!" :alt="currentCoin.name" />
           <div v-else class="swipe-card-placeholder"><Coins :size="64" :stroke-width="1" /></div>
           <button
             class="flip-btn"
@@ -67,6 +67,7 @@ import { useRouter } from 'vue-router'
 import type { Coin, ImageType } from '@/types'
 import { useCoinsStore } from '@/stores/coins'
 import { Coins, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 
 const props = defineProps<{
   coins: Coin[]
@@ -144,11 +145,11 @@ const cardStyle = computed(() => {
 function getImage(coin: Coin): string | null {
   const targetType: ImageType = activeSide.value
   const byType = coin.images?.find((img) => img.imageType === targetType)
-  if (byType) return `/uploads/${byType.filePath}`
+  if (byType) return byType.filePath
   const primary = coin.images?.find((img) => img.isPrimary)
   const first = coin.images?.[0]
   const img = primary || first
-  return img ? `/uploads/${img.filePath}` : null
+  return img ? img.filePath : null
 }
 
 function onPointerDown(e: PointerEvent) {

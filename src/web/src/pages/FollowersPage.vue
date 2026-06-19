@@ -55,8 +55,8 @@
           <div v-else class="user-grid">
             <div v-for="user in following" :key="user.id" class="user-card card">
               <div class="user-card-body">
-                <img
-                  :src="user.avatarPath ? `/uploads/${user.avatarPath}` : '/coin-logo.jpg'"
+                <AuthenticatedImage
+                  :media-path="user.avatarPath ? user.avatarPath : '/coin-logo.jpg'"
                   :alt="user.username"
                   class="user-avatar"
                 />
@@ -99,8 +99,8 @@
           <div v-else class="user-grid">
             <div v-for="user in followers" :key="user.id" class="user-card card">
               <div class="user-card-body">
-                <img
-                  :src="user.avatarPath ? `/uploads/${user.avatarPath}` : '/coin-logo.jpg'"
+                <AuthenticatedImage
+                  :media-path="user.avatarPath ? user.avatarPath : '/coin-logo.jpg'"
                   :alt="user.username"
                   class="user-avatar"
                 />
@@ -162,8 +162,8 @@
               <div v-else-if="searchResults.length > 0" class="search-results">
                 <div v-for="user in searchResults" :key="user.id" class="user-card compact">
                   <div class="user-card-body">
-                    <img
-                      :src="user.avatarPath ? `/uploads/${user.avatarPath}` : '/coin-logo.jpg'"
+                    <AuthenticatedImage
+                      :media-path="user.avatarPath ? user.avatarPath : '/coin-logo.jpg'"
                       :alt="user.username"
                       class="user-avatar"
                     />
@@ -211,6 +211,7 @@ import {
 } from '@/api/client'
 import type { FollowUser } from '@/types'
 import { usePwa } from '@/composables/usePwa'
+import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 
 const activeTab = ref<'following' | 'followers'>('following')
 const { isPwa } = usePwa()

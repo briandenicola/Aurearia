@@ -98,9 +98,6 @@ func main() {
 		c.Next()
 	})
 
-	// Serve uploaded images
-	r.Static("/uploads", cfg.UploadDir)
-
 	// Serve Vue SPA from wwwroot
 	wwwroot := filepath.Join(".", "wwwroot")
 	if _, err := os.Stat(wwwroot); err == nil {
@@ -145,10 +142,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize WebAuthn: %v", err)
 	}
+	apiKeyRepo := repository.NewApiKeyRepository(database.DB)
+	apiKeyAuth := apiKeyRepo // implements middleware.ApiKeyAuthenticator
+	imageRepo := repository.NewImageRepository(database.DB)
+	imageSvc := services.NewImageService(imageRepo, cfg.UploadDir)
+	imageHandler := handlers.NewImageHandler(cfg.UploadDir, imageRepo, imageSvc, logger)
 
 	authRateLimit := middleware.RateLimit(10, 1*time.Minute)
 	apiRateLimit := middleware.RateLimit(120, 1*time.Minute)  // General API rate limit
 	writeRateLimit := middleware.RateLimit(30, 1*time.Minute) // Write operations
+
+	r.GET("/uploads/*filepath", middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth), apiRateLimit, imageHandler.ServeUpload)
 
 	api := r.Group("/api")
 	api.Use(middleware.RequestBodyLimit(middleware.DefaultRequestBodyLimitBytes))
@@ -167,10 +171,11 @@ func main() {
 		publicShowcaseRepo := repository.NewShowcaseRepository(database.DB)
 		publicShowcaseHandler := handlers.NewShowcaseHandler(publicShowcaseRepo)
 		api.GET("/showcase/:slug", publicShowcaseHandler.GetPublicShowcase)
+		api.GET("/showcase/:slug/uploads/*filepath", imageHandler.ServePublicShowcaseUpload)
 	}
 
 	// Protected routes
-	agentProxy := services.NewAgentProxy(cfg.AgentServiceURL, logger)
+	agentProxy := services.NewAgentProxy(cfg.AgentServiceURL, cfg.AgentInternalServiceToken, logger)
 	availRepo := repository.NewAvailabilityRepository(database.DB)
 	coinRepo := repository.NewCoinRepository(database.DB)
 	socialRepo := repository.NewSocialRepository(database.DB)
@@ -198,9 +203,6 @@ func main() {
 	schedulerRegistry.Register(valScheduler)
 	schedulerRegistry.Register(auctionEndingScheduler)
 	schedulerRegistry.Register(healthScheduler)
-
-	apiKeyRepo := repository.NewApiKeyRepository(database.DB)
-	apiKeyAuth := apiKeyRepo // implements middleware.ApiKeyAuthenticator
 
 	// Create shared repositories for cross-group access
 	journalRepo := repository.NewJournalRepository(database.DB)
@@ -314,12 +316,10 @@ func main() {
 		protected.GET("/coins/:id/value-history", coinHandler.CoinValueHistory)
 		protected.GET("/suggestions", coinHandler.Suggestions)
 
-		imageRepo := repository.NewImageRepository(database.DB)
-		imageSvc := services.NewImageService(imageRepo, cfg.UploadDir)
-		imageHandler := handlers.NewImageHandler(cfg.UploadDir, imageRepo, imageSvc, logger)
 		protected.POST("/coins/:id/images", writeRateLimit, imageHandler.Upload)
 		protected.POST("/coins/:id/images/base64", writeRateLimit, imageHandler.UploadBase64)
 		protected.DELETE("/coins/:id/images/:imageId", imageHandler.Delete)
+		protected.GET("/uploads/*filepath", imageHandler.ServeUpload)
 		protected.GET("/proxy-image", imageHandler.ProxyImage)
 		protected.GET("/scrape-image", imageHandler.ScrapeImage)
 
@@ -472,6 +472,7 @@ func main() {
 	// Admin-only routes
 	admin := api.Group("/admin")
 	admin.Use(middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth))
+	admin.Use(middleware.RejectAPIKeyAuth())
 	admin.Use(handlers.AdminRequired())
 	{
 		adminRepo := repository.NewAdminRepository(database.DB)
@@ -597,6 +598,9 @@ func main() {
 	// Warn if callback URL is likely misconfigured in release mode
 	if os.Getenv("GIN_MODE") == "release" && strings.Contains(cfg.AgentInternalCallbackURL, "localhost") {
 		logger.Warn("startup", "AGENT_INTERNAL_CALLBACK_URL is set to '%s' in release mode. Collection chat (#217) will fail in multi-container deployments. Set it to the API container's network address (e.g., http://app:8080).", cfg.AgentInternalCallbackURL)
+	}
+	if os.Getenv("GIN_MODE") == "release" && cfg.AgentInternalServiceToken == "" {
+		log.Fatal("FATAL: AGENT_INTERNAL_SERVICE_TOKEN must be set in production")
 	}
 
 	// Check Ollama connectivity at startup (blocks until complete)

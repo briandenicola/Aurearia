@@ -9,9 +9,9 @@
     @keydown.enter="handleClick"
   >
     <div class="well-container">
-      <img
+      <AuthenticatedImage
         v-if="primaryImage"
-        :src="primaryImage"
+        :media-path="primaryImage"
         :alt="coin.name"
         class="well-coin"
         loading="eager"
@@ -28,6 +28,7 @@
 import { computed } from 'vue'
 import { Coins } from 'lucide-vue-next'
 import type { TrayCoin } from '@/utils/trayLayout'
+import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 
 interface Props {
   coin: TrayCoin

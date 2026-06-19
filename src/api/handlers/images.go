@@ -27,6 +27,49 @@ func NewImageHandler(uploadDir string, repo *repository.ImageRepository, svc *se
 	return &ImageHandler{UploadDir: uploadDir, repo: repo, svc: svc, logger: logger}
 }
 
+// ServeUpload serves an uploaded coin image or avatar after authenticating and authorizing the requester.
+//
+//	@Summary		Serve authorized uploaded media
+//	@Description	Serves an uploaded coin image or avatar only when the authenticated user is authorized to view it.
+//	@Tags			Images
+//	@Produce		image/*
+//	@Param			filepath	path	string	true	"Upload-relative file path"
+//	@Success		200		"Image binary data"
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/uploads/{filepath} [get]
+func (h *ImageHandler) ServeUpload(c *gin.Context) {
+	userID := c.GetUint("userId")
+	fullPath, err := h.svc.ResolveAuthorizedMediaPath(c.Param("filepath"), userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Media not found"})
+		return
+	}
+	c.File(fullPath)
+}
+
+// ServePublicShowcaseUpload serves uploaded coin media that is explicitly included
+// in an active public showcase.
+//
+//	@Summary		Serve public showcase uploaded media
+//	@Description	Serves a DB-backed uploaded coin image only when it belongs to the active public showcase identified by slug.
+//	@Tags			Showcases
+//	@Produce		image/*
+//	@Param			slug		path	string	true	"Showcase slug"
+//	@Param			filepath	path	string	true	"Upload-relative file path"
+//	@Success		200		"Image binary data"
+//	@Failure		404		{object}	ErrorResponse
+//	@Router			/showcase/{slug}/uploads/{filepath} [get]
+func (h *ImageHandler) ServePublicShowcaseUpload(c *gin.Context) {
+	fullPath, err := h.svc.ResolvePublicShowcaseMediaPath(c.Param("slug"), c.Param("filepath"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Media not found"})
+		return
+	}
+	c.File(fullPath)
+}
+
 // Upload adds an image to a coin.
 //
 //	@Summary		Upload a coin image

@@ -50,8 +50,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { Coins } from 'lucide-vue-next'
 import { getPublicShowcase } from '@/api/client'
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+import { publicShowcaseMediaUrl } from '@/utils/media'
 
 interface CoinImage {
   id: number
@@ -86,7 +85,7 @@ function getPrimaryImage(coin: PublicCoin): CoinImage | undefined {
 }
 
 function imageUrl(img: CoinImage): string {
-  return `${API_BASE}/uploads/${img.filePath}`
+  return publicShowcaseMediaUrl(route.params.slug as string, img.filePath)
 }
 
 async function loadShowcase() {

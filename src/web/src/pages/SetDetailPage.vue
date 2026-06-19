@@ -153,9 +153,9 @@
               </div>
             </div>
             <div class="coin-image">
-              <img
+              <AuthenticatedImage
                 v-if="coin.images?.[0]?.filePath"
-                :src="`/uploads/${coin.images?.[0]?.filePath ?? ''}`"
+                :media-path="coin.images?.[0]?.filePath"
                 :alt="coin.name"
               />
               <Coins v-else :size="48" />
@@ -256,6 +256,7 @@ import type { CoinSetAnalytics, CoinSetComparison, CoinSetCompletion, CoinSetDet
 import SetCompletionChecklist from '@/components/sets/SetCompletionChecklist.vue'
 import SetTrendChart from '@/components/sets/SetTrendChart.vue'
 import SetComparePanel from '@/components/sets/SetComparePanel.vue'
+import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 import { usePwa } from '@/composables/usePwa'
 
 const router = useRouter()

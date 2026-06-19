@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"net/http"
-	"strings"
 
+	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/gin-gonic/gin"
 )
 
@@ -23,20 +23,7 @@ func RequireCapability(scope string) gin.HandlerFunc {
 			return
 		}
 
-		switch scope {
-		case "read":
-			// Read requires either "read" or "write" (write implies read)
-			if !strings.Contains(capStr, "read") && !strings.Contains(capStr, "write") {
-				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Insufficient capability"})
-				return
-			}
-		case "write":
-			// Write requires explicit "write" capability
-			if !strings.Contains(capStr, "write") {
-				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Insufficient capability"})
-				return
-			}
-		default:
+		if !models.HasAPICapability(capStr, scope) {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Insufficient capability"})
 			return
 		}

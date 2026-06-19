@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getPreferredShareImage,
   getShareCardFilename,
@@ -29,6 +29,10 @@ function makeImage(id: number, imageType: CoinImage['imageType'], isPrimary = fa
 describe('coinShareCard', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('returns only approved public metadata fields for a share card', () => {
@@ -108,8 +112,20 @@ describe('coinShareCard', () => {
     const drawImage = vi.fn()
     const arc = vi.fn()
     const ctx = buildCanvasContext({ drawImage, arc })
+    const createObjectURL = vi.fn()
+      .mockReturnValueOnce('blob:obverse-image')
+      .mockReturnValueOnce('blob:reverse-image')
+    const revokeObjectURL = vi.fn()
+    const fetchMock = vi.fn(async () => new Response(new Blob(['image'], { type: 'image/webp' }), { status: 200 }))
+    class TestURL extends URL {
+      static createObjectURL = createObjectURL
+      static revokeObjectURL = revokeObjectURL
+    }
+
     mockCanvas(ctx, toBlob)
     mockImageLoad()
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('URL', TestURL)
 
     const blob = await renderCoinShareCard({
       coin: buildRomanDenariusCore(),
@@ -119,6 +135,18 @@ describe('coinShareCard', () => {
     })
 
     expect(blob).toBe(pngBlob)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledWith('/api/uploads/obverse.webp', {
+      headers: expect.any(Headers),
+      cache: 'no-store',
+    })
+    expect(fetchMock).toHaveBeenCalledWith('/api/uploads/reverse.webp', {
+      headers: expect.any(Headers),
+      cache: 'no-store',
+    })
+    expect(createObjectURL).toHaveBeenCalledTimes(2)
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:obverse-image')
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:reverse-image')
     expect(toBlob).toHaveBeenCalledWith(expect.any(Function), 'image/png')
     expect(drawImage).toHaveBeenCalledTimes(2)
     expect(arc).not.toHaveBeenCalled()

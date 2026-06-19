@@ -1,4 +1,5 @@
 import type { Coin, CoinImage } from '@/types'
+import { isPrivateUploadPath, privateMediaObjectUrl } from '@/utils/media'
 
 const CARD_WIDTH = 1080
 const CARD_HEIGHT = 1350
@@ -360,11 +361,23 @@ export async function renderCoinShareCard(
 
   const metadata = getShareCardMetadata(input.coin)
   const imageUrls = input.imageUrls ?? (input.imageUrl ? [input.imageUrl] : [])
-  const images = await Promise.all(imageUrls.slice(0, 2).map((imageUrl) => loadImage(imageUrl)))
+  const objectUrls: string[] = []
 
-  drawBackground(ctx, width, height)
-  drawImageFrame(ctx, images)
-  drawMetadata(ctx, metadata, input.appName)
+  try {
+    const resolvedImageUrls = await Promise.all(imageUrls.slice(0, 2).map(async (imageUrl) => {
+      if (!isPrivateUploadPath(imageUrl)) return imageUrl
+      const objectUrl = await privateMediaObjectUrl(imageUrl)
+      objectUrls.push(objectUrl)
+      return objectUrl
+    }))
+    const images = await Promise.all(resolvedImageUrls.map((imageUrl) => loadImage(imageUrl)))
 
-  return canvasToPngBlob(canvas)
+    drawBackground(ctx, width, height)
+    drawImageFrame(ctx, images)
+    drawMetadata(ctx, metadata, input.appName)
+
+    return await canvasToPngBlob(canvas)
+  } finally {
+    objectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl))
+  }
 }

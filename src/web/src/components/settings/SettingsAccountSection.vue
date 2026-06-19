@@ -5,7 +5,7 @@
     <!-- Avatar -->
     <div class="setting-item avatar-section">
       <div class="avatar-preview">
-        <img :src="avatarUrl" alt="Avatar" class="avatar-img" />
+        <AuthenticatedImage :media-path="avatarUrl" alt="Avatar" class="avatar-img" />
       </div>
       <div class="avatar-actions">
         <label class="btn btn-secondary btn-sm">
@@ -201,6 +201,7 @@ import {
 } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
 import { useSettingsProfile } from '@/composables/useSettingsProfile'
+import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 import type { WebAuthnCredentialInfo } from '@/types'
 import { LockKeyhole } from 'lucide-vue-next'
 

@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 client = TestClient(app)
+AUTH_HEADERS = {"X-Internal-Service-Token": "test-agent-service-token"}
 
 
 def test_health():
@@ -19,8 +20,35 @@ def test_health():
     assert data["service"] == "agent"
 
 
-def test_search_coins_rejects_invalid_body():
+def test_ready():
+    resp = client.get("/ready")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ready"
+
+
+def test_agent_api_requires_internal_token():
     resp = client.post("/api/search/coins", json={})
+    assert resp.status_code == 401
+
+
+def test_logs_requires_internal_token():
+    resp = client.get("/logs")
+    assert resp.status_code == 401
+
+
+def test_log_level_requires_internal_token():
+    resp = client.put("/log-level", json={"level": "INFO"})
+    assert resp.status_code == 401
+
+
+def test_logs_allow_go_mediated_internal_token():
+    resp = client.get("/logs", headers=AUTH_HEADERS)
+    assert resp.status_code == 200
+    assert "logs" in resp.json()
+
+
+def test_search_coins_rejects_invalid_body():
+    resp = client.post("/api/search/coins", json={}, headers=AUTH_HEADERS)
     assert resp.status_code == 422
 
 
@@ -31,12 +59,13 @@ def test_search_coins_rejects_missing_message():
             "llm": {"provider": "anthropic", "api_key": "k", "model": "m"},
             "user": {"user_id": 1},
         },
+        headers=AUTH_HEADERS,
     )
     assert resp.status_code == 422
 
 
 def test_search_shows_rejects_invalid_body():
-    resp = client.post("/api/search/shows", json={})
+    resp = client.post("/api/search/shows", json={}, headers=AUTH_HEADERS)
     assert resp.status_code == 422
 
 
@@ -47,6 +76,7 @@ def test_analyze_stub():
             "llm": {"provider": "ollama", "ollama_url": "http://localhost:11434", "model": "llava"},
             "coin": {"id": 1, "name": "Test Coin"},
         },
+        headers=AUTH_HEADERS,
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -54,10 +84,10 @@ def test_analyze_stub():
 
 
 def test_portfolio_review_rejects_invalid_body():
-    resp = client.post("/api/portfolio/review", json={})
+    resp = client.post("/api/portfolio/review", json={}, headers=AUTH_HEADERS)
     assert resp.status_code == 422
 
 
 def test_intake_draft_rejects_invalid_body():
-    resp = client.post("/api/intake/draft", json={})
+    resp = client.post("/api/intake/draft", json={}, headers=AUTH_HEADERS)
     assert resp.status_code == 422

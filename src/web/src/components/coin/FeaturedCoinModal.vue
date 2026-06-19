@@ -30,7 +30,7 @@
 
           <div v-if="images.length > 0" class="featured-images">
             <div v-for="img in images" :key="img.id" class="featured-image-wrap">
-              <img :src="`/uploads/${img.filePath}`" :alt="img.imageType" class="featured-image" />
+              <AuthenticatedImage :media-path="img.filePath" :alt="img.imageType" class="featured-image" />
               <span class="featured-image-label">{{ formatImageLabel(img.imageType) }}</span>
             </div>
           </div>
@@ -61,6 +61,7 @@ import { getFeaturedCoin } from '@/api/client'
 import type { FeaturedCoin } from '@/types'
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
+import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 
 const props = defineProps<{ featuredCoinId: number }>()
 const emit = defineEmits<{ close: [] }>()

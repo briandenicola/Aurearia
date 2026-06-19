@@ -1,7 +1,7 @@
 <template>
   <div class="coin-card card" :class="{ 'coin-card-selected': selectable && selected }" @click="handleClick">
     <div class="card-image-container">
-      <img v-if="primaryImage" :src="primaryImage" :alt="coin.name" class="card-image" loading="lazy" />
+      <AuthenticatedImage v-if="primaryImage" :media-path="primaryImage" :alt="coin.name" class="card-image" loading="lazy" />
       <div v-else class="card-image-placeholder"><Coins :size="48" :stroke-width="1" /></div>
       <div v-if="wishlist && coin.listingStatus === 'unavailable'" class="listing-overlay"></div>
       <span v-if="wishlist && coin.listingStatus === 'unavailable'" class="listing-badge listing-badge-unavailable">Unavailable</span>
@@ -95,6 +95,7 @@ import { useRouter } from 'vue-router'
 import { Coins, ShoppingCart, Check } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
+import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 
 const router = useRouter()
 
@@ -130,12 +131,12 @@ function handleClick() {
 const primaryImage = computed(() => {
   if (props.imageSide) {
     const byType = props.coin.images?.find((img) => img.imageType === props.imageSide)
-    if (byType) return `/uploads/${byType.filePath}`
+    if (byType) return byType.filePath
   }
   const primary = props.coin.images?.find((img) => img.isPrimary)
   const first = props.coin.images?.[0]
   const img = primary || first
-  return img ? `/uploads/${img.filePath}` : null
+  return img ? img.filePath : null
 })
 
 const cardInscription = computed(() => {

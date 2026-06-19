@@ -8,6 +8,8 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, StringConstraints, field_validator
 
+from app.outbound import validate_outbound_url
+
 MAX_MESSAGE_LENGTH = 4000
 MAX_HISTORY_MESSAGES = 50
 MAX_HISTORY_TOTAL_CHARS = 100000
@@ -47,6 +49,11 @@ class LLMConfig(BaseModel):
     model: str = ""  # Model name
     ollama_url: str = ""  # Ollama base URL (empty for Anthropic)
     searxng_url: str = ""  # SearXNG URL (for Ollama web search)
+
+    @field_validator("ollama_url", "searxng_url")
+    @classmethod
+    def validate_trusted_urls(cls, value: str, info) -> str:
+        return validate_outbound_url(value, info.field_name)
 
 
 class UserContext(BaseModel):
@@ -114,6 +121,11 @@ class CoinSearchRequest(BaseModel):
     portfolio: PortfolioSummary | None = None
     internal_token: str = ""
     tools_base_url: str = ""
+
+    @field_validator("tools_base_url")
+    @classmethod
+    def validate_tools_base_url(cls, value: str) -> str:
+        return validate_outbound_url(value, "tools_base_url")
 
     @field_validator("history")
     @classmethod

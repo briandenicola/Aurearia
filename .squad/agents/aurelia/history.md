@@ -33,6 +33,7 @@
 
 ## Learnings
 
+- **2026-06-19:** PWA Workbox runtime caching must never CacheFirst private `/uploads/*` media. The legacy `coin-images` CacheStorage bucket is now a cleanup-only compatibility concern cleared from `src/web/src/stores/auth.ts` on logout and user switch; uploaded media URLs remain unchanged until backend authenticated media routes land.
 - **2026-06-18:** WebAuthn login begin responses from the Go API are shaped as `{ options: { publicKey: ... }, username }`, matching go-webauthn's browser options wrapper. The frontend biometric login path must unwrap `options.publicKey` before converting `challenge` and `allowCredentials` to `ArrayBuffer`; using `options.challenge` directly leaves iPhone PWA/Safari with missing challenge data before `navigator.credentials.get()` can run. `src/web/src/stores/auth.ts` now accepts both nested and legacy flat shapes, trims the ceremony username, uses the server-returned username for finish, and tests the missing-challenge guard in `src/web/src/stores/__tests__/auth.test.ts`.
 - **2026-06-18:** Mint Map must not rely on the shared collection store page cache, because the store may contain only the current paginated page. `src/web/src/pages/MintMapPage.vue` now fetches active collection coins directly through `getCoins()` page-by-page (`wishlist:false`, `sold:false`) before grouping with `src/web/src/utils/mintMap.ts`; regression coverage lives in `src/web/src/pages/__tests__/MintMapPage.test.ts`.
 - **2026-06-09:** F013 browser workflow smoke uses Playwright under `src/web/e2e/` with route-level API mocks and authenticated localStorage setup, so login, manual add, and edit-one-field coverage can run without a live backend or production data.
@@ -293,3 +294,4 @@ Added navigator.permissions.query pre-check to CameraCaptureModal.vue. Persisted
 - Notes page feels more spacious without the redundant summary card
 - Sets page now matches the refined aesthetic of Auctions/Calendar
 
+- **2026-06-19:** Backend-authenticated `/uploads/*` cannot be rendered with plain `<img src="/uploads/...">` because browser image requests do not carry the localStorage JWT. Private frontend media now goes through `AuthenticatedImage` / `useAuthenticatedMedia` / `utils/media.ts`, which fetches `/api/uploads/*` with `Authorization: Bearer <token>`, `cache: 'no-store'`, converts to blob URLs, and revokes them on cleanup. Public showcase media must use `publicShowcaseMediaUrl(slug, filePath)` so shared links load `/api/showcase/:slug/uploads/*` without private auth.

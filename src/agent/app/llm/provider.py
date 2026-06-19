@@ -7,6 +7,7 @@ from langchain_core.runnables import Runnable
 from langgraph.graph.state import CompiledStateGraph
 
 from app.models.requests import LLMConfig
+from app.outbound import validate_outbound_url
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ def get_chat_model(config: LLMConfig) -> BaseChatModel:
         from langchain_ollama import ChatOllama
 
         model_name = config.model or "llama3.1"
-        base_url = config.ollama_url or "http://localhost:11434"
+        base_url = validate_outbound_url(config.ollama_url or "http://localhost:11434", "ollama_url")
         logger.debug("Creating Ollama model: %s at %s", model_name, base_url)
         return ChatOllama(
             model=model_name,

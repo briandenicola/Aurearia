@@ -11,10 +11,11 @@ from app.models.responses import AvailabilityVerdict
 from app.teams.availability_check import AvailabilityVerdictParseError, parse_verdicts
 
 client = TestClient(app)
+AUTH_HEADERS = {"X-Internal-Service-Token": "test-agent-service-token"}
 
 
 def test_check_availability_rejects_invalid_body():
-    resp = client.post("/api/check-availability", json={})
+    resp = client.post("/api/check-availability", json={}, headers=AUTH_HEADERS)
     assert resp.status_code == 422
 
 
@@ -25,6 +26,7 @@ def test_check_availability_returns_empty_for_no_items():
             "llm": {"provider": "anthropic", "api_key": "k", "model": "m"},
             "items": [],
         },
+        headers=AUTH_HEADERS,
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -38,6 +40,7 @@ def test_check_availability_rejects_items_over_limit():
             "llm": {"provider": "anthropic", "api_key": "k", "model": "m"},
             "items": [{"url": f"https://example.com/{i}"} for i in range(MAX_AVAILABILITY_ITEMS + 1)],
         },
+        headers=AUTH_HEADERS,
     )
     assert resp.status_code == 422
 
@@ -110,6 +113,7 @@ def test_check_availability_logs_and_fallbacks_on_parse_error(monkeypatch, caplo
                 "llm": {"provider": "anthropic", "api_key": "k", "model": "m"},
                 "items": [{"url": "https://example.com/coin/1", "coin_name": "Roman Denarius"}],
             },
+            headers=AUTH_HEADERS,
         )
 
     assert resp.status_code == 200

@@ -11,6 +11,8 @@ import re
 import httpx
 from langchain_core.tools import tool
 
+from app.outbound import safe_get
+
 logger = logging.getLogger(__name__)
 
 _USER_AGENT = (
@@ -71,11 +73,12 @@ async def scrape_numisbids_lot(url: str) -> dict:
     logger.debug("[numisbids] Scraping lot page: %s", url)
 
     try:
-        async with httpx.AsyncClient(
+        resp = await safe_get(
+            url,
+            field_name="url",
+            headers={"User-Agent": _USER_AGENT},
             timeout=httpx.Timeout(15.0, connect=5.0, read=10.0),
-            follow_redirects=True,
-        ) as client:
-            resp = await client.get(url, headers={"User-Agent": _USER_AGENT})
+        )
 
         if resp.status_code != 200:
             return {"error": f"HTTP {resp.status_code} fetching {url}"}
@@ -216,15 +219,13 @@ async def search_numisbids(query: str) -> list[dict]:
     search_url = f"{_NUMISBIDS_BASE}/searchall"
 
     try:
-        async with httpx.AsyncClient(
+        resp = await safe_get(
+            search_url,
+            field_name="search_url",
+            params={"searchall": query},
+            headers={"User-Agent": _USER_AGENT},
             timeout=httpx.Timeout(15.0, connect=5.0, read=10.0),
-            follow_redirects=True,
-        ) as client:
-            resp = await client.get(
-                search_url,
-                params={"searchall": query},
-                headers={"User-Agent": _USER_AGENT},
-            )
+        )
 
         if resp.status_code != 200:
             return [{"error": f"Search returned HTTP {resp.status_code}"}]

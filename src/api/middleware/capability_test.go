@@ -225,3 +225,31 @@ func TestRequireCapability_HandlerExecutedOnAllow(t *testing.T) {
 		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestRequireCapability_RejectsSubstringMatches(t *testing.T) {
+	testCases := []struct {
+		name         string
+		capabilities string
+		scope        string
+	}{
+		{name: "readwrite does not grant read", capabilities: "readwrite", scope: "read"},
+		{name: "readwrite does not grant write", capabilities: "readwrite", scope: "write"},
+		{name: "xwritex does not grant write", capabilities: "xwritex", scope: "write"},
+		{name: "xwritex does not grant read", capabilities: "xwritex", scope: "read"},
+		{name: "notread does not grant read", capabilities: "notread", scope: "read"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			router := setupCapabilityTestRouter(tc.capabilities, tc.scope)
+			req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusForbidden {
+				t.Fatalf("expected 403 for malformed capabilities %q requiring %q, got %d: %s", tc.capabilities, tc.scope, w.Code, w.Body.String())
+			}
+		})
+	}
+}

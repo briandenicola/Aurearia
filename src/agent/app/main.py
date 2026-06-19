@@ -3,12 +3,13 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.logging_config import ring_handler, set_log_level, setup_logging
 from app.routes import router
+from app.security import InternalServiceAuthMiddleware
 
 # Configure logging before anything else
 setup_logging(settings.log_level)
@@ -35,6 +36,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(InternalServiceAuthMiddleware)
 
 app.include_router(router)
 
@@ -42,6 +44,11 @@ app.include_router(router)
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "agent"}
+
+
+@app.get("/ready")
+async def ready():
+    return {"status": "ready", "service": "agent"}
 
 
 @app.get("/logs")
@@ -60,7 +67,7 @@ async def update_log_level(body: dict):
     """Dynamically update the agent service log level."""
     new_level = body.get("level", "")
     if not new_level:
-        return {"error": "level is required"}, 400
+        raise HTTPException(status_code=400, detail="level is required")
     applied = set_log_level(new_level)
     logger.info("Log level changed to %s", applied)
     return {"logLevel": applied}

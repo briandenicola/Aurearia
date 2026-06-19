@@ -13,6 +13,8 @@ import httpx
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
+from app.outbound import validate_outbound_url
+
 logger = logging.getLogger(__name__)
 
 
@@ -69,6 +71,7 @@ def build_collection_tools(tools_base_url: str, internal_token: str) -> list[Str
     Returns:
         List of 6 StructuredTools for collection operations.
     """
+    tools_base_url = validate_outbound_url(tools_base_url, "tools_base_url")
     headers = {"Authorization": f"Bearer {internal_token}"}
     timeout = httpx.Timeout(connect=5.0, read=20.0, write=5.0, pool=5.0)
 

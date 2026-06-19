@@ -14,10 +14,11 @@ import (
 
 // AgentProxy forwards requests to the Python LangGraph agent service.
 type AgentProxy struct {
-	baseURL       string
-	streamClient  *http.Client // No timeout — SSE streams can run long
-	requestClient *http.Client // Short timeout for non-streaming requests
-	logger        *Logger
+	baseURL              string
+	internalServiceToken string
+	streamClient         *http.Client // No timeout — SSE streams can run long
+	requestClient        *http.Client // Short timeout for non-streaming requests
+	logger               *Logger
 }
 
 type CollectionChatContext struct {
@@ -25,12 +26,19 @@ type CollectionChatContext struct {
 	ActiveCoinID *uint  `json:"activeCoinId,omitempty"`
 }
 
-func NewAgentProxy(baseURL string, logger *Logger) *AgentProxy {
+func NewAgentProxy(baseURL string, internalServiceToken string, logger *Logger) *AgentProxy {
 	return &AgentProxy{
-		baseURL:       strings.TrimRight(baseURL, "/"),
-		streamClient:  &http.Client{Timeout: 0},
-		requestClient: &http.Client{Timeout: 5 * time.Minute},
-		logger:        logger,
+		baseURL:              strings.TrimRight(baseURL, "/"),
+		internalServiceToken: internalServiceToken,
+		streamClient:         &http.Client{Timeout: 0},
+		requestClient:        &http.Client{Timeout: 5 * time.Minute},
+		logger:               logger,
+	}
+}
+
+func (p *AgentProxy) attachInternalCredential(req *http.Request) {
+	if p.internalServiceToken != "" {
+		req.Header.Set("X-Internal-Service-Token", p.internalServiceToken)
 	}
 }
 
@@ -226,6 +234,7 @@ func (p *AgentProxy) AnalyzeCoin(ctx context.Context, req AnalyzeProxyRequest) (
 		return "", fmt.Errorf("create analyze request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	p.attachInternalCredential(httpReq)
 
 	resp, err := p.requestClient.Do(httpReq)
 	if err != nil {
@@ -270,6 +279,7 @@ func (p *AgentProxy) GenerateIntakeDraft(llmConfig LLMConfig, images []string, c
 		return nil, fmt.Errorf("create intake draft request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	p.attachInternalCredential(httpReq)
 
 	resp, err := p.requestClient.Do(httpReq)
 	if err != nil {
@@ -303,6 +313,7 @@ func (p *AgentProxy) CheckAvailability(ctx context.Context, req AvailabilityChec
 		return nil, fmt.Errorf("create availability check request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	p.attachInternalCredential(httpReq)
 
 	resp, err := p.requestClient.Do(httpReq)
 	if err != nil {
@@ -341,6 +352,7 @@ func (p *AgentProxy) FetchLogs(ctx context.Context, limit int, level string) []L
 	if err != nil {
 		return nil
 	}
+	p.attachInternalCredential(httpReq)
 	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(httpReq)
 	if err != nil {
 		return nil
@@ -374,6 +386,7 @@ func (p *AgentProxy) SetLogLevel(ctx context.Context, level string) {
 		return
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	p.attachInternalCredential(httpReq)
 	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(httpReq)
 	if err != nil {
 		return
@@ -396,6 +409,7 @@ func (p *AgentProxy) proxySSE(ctx context.Context, w http.ResponseWriter, path s
 		return fmt.Errorf("create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	p.attachInternalCredential(httpReq)
 
 	resp, err := p.streamClient.Do(httpReq)
 	if err != nil {
@@ -463,6 +477,7 @@ func (p *AgentProxy) collectSSE(ctx context.Context, path string, payload any) (
 		return "", fmt.Errorf("create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	p.attachInternalCredential(httpReq)
 
 	resp, err := p.streamClient.Do(httpReq)
 	if err != nil {

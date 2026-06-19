@@ -6,6 +6,8 @@ services:
       - DB_PATH=/app/data/ancientcoins.db
       - PORT=8080
       - AGENT_SERVICE_URL=http://agent:8081
+      - AGENT_INTERNAL_SERVICE_TOKEN=${AGENT_INTERNAL_SERVICE_TOKEN:?Set AGENT_INTERNAL_SERVICE_TOKEN in .env}
+      - AGENT_INTERNAL_CALLBACK_URL=http://app:8080
     ports:
       - "8080:8080"
     volumes:
@@ -22,8 +24,11 @@ services:
       - AGENT_SEARXNG_URL=${SEARXNG_URL:-}
       - AGENT_LOG_LEVEL=${AGENT_LOG_LEVEL:-INFO}
       - AGENT_DEBUG=false
-    ports:
-      - "8081:8081"
+      - AGENT_INTERNAL_SERVICE_TOKEN=${AGENT_INTERNAL_SERVICE_TOKEN:?Set AGENT_INTERNAL_SERVICE_TOKEN in .env}
+      - AGENT_TRUSTED_OUTBOUND_ORIGINS=${AGENT_TRUSTED_OUTBOUND_ORIGINS:-http://app:8080}
+      - AGENT_ALLOW_LOCAL_OUTBOUND=${AGENT_ALLOW_LOCAL_OUTBOUND:-false}
+    expose:
+      - "8081"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')"]
       interval: 10s

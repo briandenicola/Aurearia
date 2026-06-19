@@ -13,6 +13,7 @@ import httpx
 from langchain_core.tools import tool
 
 from app.config import settings
+from app.outbound import safe_get, validate_outbound_url
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ def _domain_matches(domain: str, expected_domain: str) -> bool:
 
 def create_searxng_search(searxng_url: str = ""):
     """Create a SearXNG search tool with a specific URL."""
-    url = searxng_url or settings.searxng_url
+    url = validate_outbound_url(searxng_url or settings.searxng_url, "searxng_url")
 
     @tool
     async def searxng_search(query: str) -> str:
@@ -52,20 +53,23 @@ def create_searxng_search(searxng_url: str = ""):
         a live web search.  Pass a descriptive search query and receive
         titles, URLs, and text snippets from multiple search engines.
         """
+        if not url:
+            return "Search error: SearXNG is not configured."
         logger.debug("[searxng] Searching: %.120s (url=%s)", query, url)
         try:
-            async with httpx.AsyncClient(timeout=settings.verification_timeout) as client:
-                resp = await client.get(
-                    f"{url}/search",
-                    params={
-                        "q": query,
-                        "format": "json",
-                        "engines": "google,bing,duckduckgo",
-                        "categories": "general",
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json()
+            resp = await safe_get(
+                f"{url}/search",
+                field_name="searxng_url",
+                params={
+                    "q": query,
+                    "format": "json",
+                    "engines": "google,bing,duckduckgo",
+                    "categories": "general",
+                },
+                timeout=settings.verification_timeout,
+            )
+            resp.raise_for_status()
+            data = resp.json()
         except httpx.HTTPError as e:
             return f"Search error: {e}. SearXNG may be unavailable."
         except Exception as e:
@@ -115,8 +119,12 @@ async def verify_url(url: str) -> str:
     is_search_page = any(ind in path_lower for ind in search_indicators)
 
     try:
-        async with httpx.AsyncClient(timeout=settings.verification_timeout, follow_redirects=True) as client:
-            resp = await client.get(url, headers={"User-Agent": _USER_AGENT})
+        resp = await safe_get(
+            url,
+            field_name="url",
+            headers={"User-Agent": _USER_AGENT},
+            timeout=settings.verification_timeout,
+        )
 
         status = resp.status_code
         text = resp.text[:5000].lower()
@@ -164,11 +172,12 @@ async def fetch_dealer_page(url: str) -> str:
         Extracted listing data with titles, prices, and URLs found on the page.
     """
     try:
-        async with httpx.AsyncClient(
+        resp = await safe_get(
+            url,
+            field_name="url",
+            headers={"User-Agent": _USER_AGENT},
             timeout=httpx.Timeout(15.0, connect=5.0, read=10.0),
-            follow_redirects=True,
-        ) as client:
-            resp = await client.get(url, headers={"User-Agent": _USER_AGENT})
+        )
 
         if resp.status_code != 200:
             return f"Error: HTTP {resp.status_code} fetching {url}"

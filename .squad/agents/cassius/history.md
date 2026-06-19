@@ -43,6 +43,8 @@
 
 ## Learnings
 
+- **2026-06-19 — Agent Service Boundary Hardening (#309/#310):** Python agent direct surface is now internal-only by default: compose exposes port 8081 only to the Docker network, non-health endpoints require `AGENT_INTERNAL_SERVICE_TOKEN`, and Go `AgentProxy` sends the credential on API, SSE, logs, and log-level calls. Python outbound URLs for Ollama, SearXNG, and collection tools are restricted to exact `AGENT_TRUSTED_OUTBOUND_ORIGINS`; localhost/private/link-local/metadata addresses require explicit `AGENT_ALLOW_LOCAL_OUTBOUND=true` for local dev.
+
 - **Coin of the Day Pushover Link Configuration (2026-06-10):** Initial implementation used relative `/coin/{coinID}` links in Pushover payloads; Brutus blocked (STRICT LOCKOUT, §18.2) because Pushover opens notifications outside app context where relative URLs are not usable. Aurelia revised by adding `PublicAppURL` admin setting: links now build as absolute `http(s)://host/coin/{coinID}` by trimming trailing slashes, and omit the link entirely when setting is blank/invalid. Brutus reviewed revised implementation and CLEARED BLOCK. Decision merged to `decisions.md`. See orchestration logs: `.squad/orchestration-log/2026-06-10T20-31-52Z-{cassius,aurelia,brutus}.md`
 
 ### 2026-06-10 — Collection Count Invariant
@@ -648,3 +650,15 @@ Completed team fix for issue #299: WebAuthn login validation failure due to miss
 **Orchestration logs:** `.squad/orchestration-log/2026-06-18T22-59-00Z-{cassius,brutus,coordinator}.md`
 
 All tests pass; architecture compliant; ready for merge.
+
+## 2026-06-19 — Admin API Key Hardening
+
+**Learning:** Admin route access is now JWT-only by default: API-key authentication still resolves identity for protected/user-scoped routes, but `/api/admin/*` rejects any request with `apiKeyId` before role checks. API-key capabilities must be parsed as exact comma-separated tokens so malformed values like `readwrite`, `xwritex`, and `notread` never grant read/write access.
+
+### 2026-06-19 — Issue #313 backend media authorization
+
+- Removed public static `/uploads` serving from the Go API and replaced it with DB-backed media authorization in `ImageService`/`ImageRepository`.
+- Owner access to coin images and avatars is preserved through authenticated `/uploads/*filepath` and `/api/uploads/*filepath`; private coin images return 404 for other users and 401 without auth.
+- Path traversal is rejected before joining against `UPLOAD_DIR`, and only DB-backed `CoinImage.FilePath` / `User.AvatarPath` records are served.
+- Explicit visibility preserved where straightforward: accepted followers can fetch public active coin images for public owners, public user avatars are available to authenticated users, and active showcase media has a slug-scoped public endpoint.
+- Targeted media handler tests pass; full `go test ./...` is blocked by pre-existing `containsString` redeclaration in `services/collection_tools_service_test.go` vs `services/coin_service.go`.

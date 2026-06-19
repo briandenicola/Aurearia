@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -23,6 +24,7 @@ var (
 	ErrDirectoryCreation = errors.New("failed to create upload directory")
 	ErrFileSave          = errors.New("failed to save image")
 	ErrImageRecord       = errors.New("failed to save image record")
+	ErrMediaNotFound     = errors.New("media not found")
 )
 
 // ImageService handles image upload orchestration and file management.
@@ -157,4 +159,95 @@ func (s *ImageService) DeleteImage(coinID, imageID, userID uint) (string, error)
 
 	s.repo.DeleteImage(image)
 	return image.FilePath, nil
+}
+
+// ResolveAuthorizedMediaPath returns the on-disk path for a DB-backed upload
+// only when the viewer is allowed to access that uploaded file.
+func (s *ImageService) ResolveAuthorizedMediaPath(rawPath string, viewerID uint) (string, error) {
+	relPath, err := normalizeUploadPath(rawPath)
+	if err != nil {
+		return "", ErrMediaNotFound
+	}
+
+	if media, err := s.repo.FindCoinImageMediaByPath(relPath); err == nil {
+		if !s.canViewCoinImage(media, viewerID) {
+			return "", ErrMediaNotFound
+		}
+		return s.safeExistingUploadPath(relPath)
+	}
+
+	if owner, err := s.repo.FindAvatarOwnerByPath(relPath); err == nil {
+		if owner.ID != viewerID && !owner.IsPublic {
+			return "", ErrMediaNotFound
+		}
+		return s.safeExistingUploadPath(relPath)
+	}
+
+	return "", ErrMediaNotFound
+}
+
+// ResolvePublicShowcaseMediaPath returns the on-disk path for an uploaded coin image
+// that belongs to an active public showcase.
+func (s *ImageService) ResolvePublicShowcaseMediaPath(slug, rawPath string) (string, error) {
+	relPath, err := normalizeUploadPath(rawPath)
+	if err != nil || strings.TrimSpace(slug) == "" {
+		return "", ErrMediaNotFound
+	}
+
+	allowed, err := s.repo.CoinImagePathInActiveShowcase(slug, relPath)
+	if err != nil || !allowed {
+		return "", ErrMediaNotFound
+	}
+	return s.safeExistingUploadPath(relPath)
+}
+
+func (s *ImageService) canViewCoinImage(media *repository.CoinImageMediaAccess, viewerID uint) bool {
+	if media.CoinUserID == viewerID {
+		return true
+	}
+	if media.CoinIsPrivate || media.CoinIsWishlist || media.CoinIsSold || !media.OwnerIsPublic {
+		return false
+	}
+	return s.repo.IsAcceptedFollower(viewerID, media.CoinUserID)
+}
+
+func normalizeUploadPath(rawPath string) (string, error) {
+	trimmed := strings.TrimSpace(strings.TrimPrefix(rawPath, "/"))
+	if trimmed == "" || strings.Contains(trimmed, "\x00") || strings.Contains(trimmed, "\\") {
+		return "", ErrMediaNotFound
+	}
+
+	parts := strings.Split(trimmed, "/")
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return "", ErrMediaNotFound
+		}
+	}
+
+	cleaned := strings.TrimPrefix(path.Clean("/"+trimmed), "/")
+	if cleaned == "." || cleaned == "" || strings.HasPrefix(cleaned, "../") || cleaned == ".." {
+		return "", ErrMediaNotFound
+	}
+	return cleaned, nil
+}
+
+func (s *ImageService) safeExistingUploadPath(relPath string) (string, error) {
+	root, err := filepath.Abs(s.uploadDir)
+	if err != nil {
+		return "", ErrMediaNotFound
+	}
+	fullPath, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(relPath)))
+	if err != nil {
+		return "", ErrMediaNotFound
+	}
+	relativeToRoot, err := filepath.Rel(root, fullPath)
+	if err != nil || relativeToRoot == ".." || strings.HasPrefix(relativeToRoot, ".."+string(filepath.Separator)) {
+		return "", ErrMediaNotFound
+	}
+
+	info, err := os.Stat(fullPath)
+	if err != nil || info.IsDir() {
+		return "", ErrMediaNotFound
+	}
+	return fullPath, nil
 }

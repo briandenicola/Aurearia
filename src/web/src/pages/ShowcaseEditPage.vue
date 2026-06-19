@@ -60,9 +60,9 @@
               :class="{ selected: selectedIds.has(coin.id) }"
               @click="addCoin(coin.id)"
             >
-              <img
+              <AuthenticatedImage
                 v-if="getPrimaryImage(coin)"
-                :src="imageUrl(getPrimaryImage(coin)!)"
+                :media-path="imageUrl(getPrimaryImage(coin)!)"
                 class="coin-thumb"
                 alt=""
               />
@@ -91,9 +91,9 @@
             >
               <span class="order-num">{{ idx + 1 }}</span>
               <template v-if="coinMap.get(coinId)">
-                <img
+                <AuthenticatedImage
                   v-if="getPrimaryImage(coinMap.get(coinId)!)"
-                  :src="imageUrl(getPrimaryImage(coinMap.get(coinId)!)!)"
+                  :media-path="imageUrl(getPrimaryImage(coinMap.get(coinId)!)!)"
                   class="coin-thumb"
                   alt=""
                 />
@@ -128,8 +128,7 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ArrowLeft, Pencil, Save, Search, Plus, X, Coins } from 'lucide-vue-next'
 import { getShowcase, updateShowcase, setShowcaseCoins, getCoins } from '@/api/client'
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 
 interface CoinImage {
   id: number
@@ -200,7 +199,7 @@ function getPrimaryImage(coin: Coin): CoinImage | undefined {
 }
 
 function imageUrl(img: CoinImage): string {
-  return `${API_BASE}/uploads/${img.filePath}`
+  return img.filePath
 }
 
 function addCoin(id: number) {

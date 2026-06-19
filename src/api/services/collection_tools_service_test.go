@@ -18,7 +18,7 @@ func setupCollectionToolsServiceTest(t *testing.T) (*CollectionToolsService, uin
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Coin{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 
@@ -82,7 +82,7 @@ func TestSearchMyCollectionFindsCoinsMissingSize(t *testing.T) {
 		if coin.Name == "Measured Denarius" {
 			t.Fatalf("measured coin should not be returned for missing size")
 		}
-		if !containsString(coin.MissingFields, "diameterMm") {
+		if !containsMissingField(coin.MissingFields, "diameterMm") {
 			t.Fatalf("expected %s to report missing diameterMm, got %#v", coin.Name, coin.MissingFields)
 		}
 	}
@@ -116,7 +116,7 @@ func TestCollectionSummaryIncludesMissingFieldCounts(t *testing.T) {
 	}
 }
 
-func containsString(values []string, target string) bool {
+func containsMissingField(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {
 			return true

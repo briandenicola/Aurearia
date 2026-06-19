@@ -113,20 +113,6 @@ export default defineConfig({
               },
             },
           },
-          {
-            urlPattern: /\/uploads\/.+\.(?:png|jpg|jpeg|gif|webp)$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'coin-images',
-              expiration: {
-                maxEntries: 200,
-                maxAgeSeconds: 30 * 24 * 60 * 60,
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
         ],
       },
     }),

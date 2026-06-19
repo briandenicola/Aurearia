@@ -45,6 +45,7 @@ services:
       - DB_PATH=/app/data/ancientcoins.db
       - PORT=8080
       - AGENT_SERVICE_URL=http://agent:8081
+      - AGENT_INTERNAL_SERVICE_TOKEN=${AGENT_INTERNAL_SERVICE_TOKEN:?Set AGENT_INTERNAL_SERVICE_TOKEN in .env}
       - AGENT_INTERNAL_CALLBACK_URL=http://app:8080
     ports:
       - "8080:8080"
@@ -62,8 +63,11 @@ services:
       - AGENT_SEARXNG_URL=${SEARXNG_URL:-}
       - AGENT_LOG_LEVEL=${AGENT_LOG_LEVEL:-INFO}
       - AGENT_DEBUG=false
-    ports:
-      - "8081:8081"
+      - AGENT_INTERNAL_SERVICE_TOKEN=${AGENT_INTERNAL_SERVICE_TOKEN:?Set AGENT_INTERNAL_SERVICE_TOKEN in .env}
+      - AGENT_TRUSTED_OUTBOUND_ORIGINS=${AGENT_TRUSTED_OUTBOUND_ORIGINS:-http://app:8080}
+      - AGENT_ALLOW_LOCAL_OUTBOUND=${AGENT_ALLOW_LOCAL_OUTBOUND:-false}
+    expose:
+      - "8081"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')"]
       interval: 10s
@@ -89,7 +93,7 @@ The app is now available at `http://localhost:8080`.
 > - `AGENT_SERVICE_URL` (API → agent): used for all AI features
 > - `AGENT_INTERNAL_CALLBACK_URL` (agent → API): used only by collection chat (#217)
 >
-> In containerized deployments, both **must** use Docker service names (e.g., `http://app:8080`, `http://agent:8081`) instead of `localhost`. The `AGENT_INTERNAL_CALLBACK_URL` defaults to `localhost:8080` for local `task up-all` development; **set it explicitly** in compose/k8s environments or collection chat will fail with "All connection attempts failed".
+> In containerized deployments, both **must** use Docker service names (e.g., `http://app:8080`, `http://agent:8081`) instead of `localhost`. The agent service is not published on a host port by default; all non-health endpoints require `AGENT_INTERNAL_SERVICE_TOKEN` from the Go API. The `AGENT_INTERNAL_CALLBACK_URL` defaults to `localhost:8080` for local `task up-all` development; **set it explicitly** in compose/k8s environments or collection chat will fail with "All connection attempts failed".
 
 ---
 
@@ -105,10 +109,13 @@ The app is now available at `http://localhost:8080`.
 | `WEBAUTHN_ORIGIN` | `http://localhost:8080` | WebAuthn origin URL (supports comma-separated list) |
 | `AGENT_SERVICE_URL` | `http://agent:8081` | Python agent service URL (API → agent) |
 | `AGENT_INTERNAL_CALLBACK_URL` | `http://localhost:8080` | URL the Python agent uses to call back into the Go API for collection-chat tools (#217). **In multi-container deployments, must be set to the API container's network address** (e.g., `http://app:8080`), **not `localhost`**, or collection chat fails with "All connection attempts failed" |
+| `AGENT_INTERNAL_SERVICE_TOKEN` | — | Shared API → agent credential required by every Python agent endpoint except `/health` and `/ready`. Required in Docker Compose and production-like deployments. |
 | `CORS_ORIGINS` | *(WebAuthn origins + localhost)* | Comma-separated list of allowed CORS origins. Falls back to `WEBAUTHN_ORIGIN` values plus `http://localhost:5173` and `http://localhost:8080` |
 | `AGENT_LOG_LEVEL` | `INFO` | Python agent log level |
 | `AGENT_DEBUG` | `false` | Enable debug mode on the agent container (exposes `/docs` endpoint) |
 | `AGENT_SEARXNG_URL` | — | SearXNG instance URL for Ollama web search (required when using Ollama provider) |
+| `AGENT_TRUSTED_OUTBOUND_ORIGINS` | `http://app:8080` in Compose | Comma-separated exact origins the Python agent may call for Ollama, SearXNG, and collection tools. |
+| `AGENT_ALLOW_LOCAL_OUTBOUND` | `false` | Set `true` only for explicit local development when trusted origins include localhost/private service endpoints. |
 
 ### Generating a JWT Secret
 
@@ -266,22 +273,34 @@ After deploying, complete the initial setup:
 
 ## CI/CD
 
-The GitHub Actions workflow at `.github/workflows/docker-publish.yml` automates image builds and publishing.
+GitHub Actions publish Docker images only after the release branch Quality Gate succeeds for the exact commit SHA being published.
 
 **Triggers:**
-- Push to `main` branch
-- Manual dispatch (workflow_dispatch)
+- `.github/workflows/ci.yml` (`Quality Gate`) runs on pull requests and pushes to `main` and `beta`.
+- `.github/workflows/docker-publish.yml` runs after a successful `Quality Gate` push run on `main`.
+- `.github/workflows/docker-publish-beta.yml` runs after a successful `Quality Gate` push run on `beta`.
+- `.github/workflows/security-scan.yml` runs on pull requests, pushes to `main` and `beta`, weekly schedule, and manual dispatch.
+
+Manual Docker publishing is intentionally disabled so `latest` and `beta` tags cannot bypass the Quality Gate.
+
+**Required GitHub repository settings:**
+- Protect `main` and `beta`.
+- Require pull requests before merging unless an explicit emergency release process is approved.
+- Require the `Quality Gate` workflow jobs (`Go API`, `Vue Web`, `Python Agent`) for both release branches.
+- Require the desired `Security Scan` checks when the repository is ready to make scan findings blocking.
+- Block force pushes and branch deletion on both release branches.
 
 **Image Tags:**
 | Tag | Example |
 |---|---|
-| Full SHA | `<user>/ancient-coins:a1b2c3d4e5f6...` |
-| Short SHA | `<user>/ancient-coins:a1b2c3d` |
-| `latest` | `<user>/ancient-coins:latest` |
+| Full SHA | `<user>/ancient-coins:sha-a1b2c3d4e5f6...` |
+| Short SHA | `<user>/ancient-coins:sha-a1b2c3d` |
+| `latest` | `<user>/ancient-coins:latest` from `main` |
+| `beta` | `<user>/ancient-coins:beta` from `beta` |
 
 Two images are published per build:
-- `<user>/ancient-coins:latest` (app)
-- `<user>/ancient-coins-agent:latest` (agent)
+- `<user>/ancient-coins` (app)
+- `<user>/ancient-coins-agent` (agent)
 
 **Required Repository Secrets:**
 

@@ -22,9 +22,9 @@
         <div class="detail-hero-media">
           <div class="hero-media-grid">
             <div class="hero-slot">
-              <img
+              <AuthenticatedImage
                 v-if="obverseImage"
-                :src="`/uploads/${obverseImage.filePath}`"
+                :media-path="obverseImage.filePath"
                 alt="Obverse"
                 class="hero-image"
                 @click="openLightbox(obverseImage)"
@@ -35,9 +35,9 @@
               </div>
             </div>
             <div class="hero-slot">
-              <img
+              <AuthenticatedImage
                 v-if="reverseImage"
-                :src="`/uploads/${reverseImage.filePath}`"
+                :media-path="reverseImage.filePath"
                 alt="Reverse"
                 class="hero-image"
                 @click="openLightbox(reverseImage)"
@@ -149,6 +149,7 @@ import { useCoinsStore } from '@/stores/coins'
 import SellModal from '@/components/SellModal.vue'
 import PurchaseModal from '@/components/PurchaseModal.vue'
 import ImageLightbox from '@/components/ImageLightbox.vue'
+import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 import CoinDetailHeaderActions from '@/components/coin/CoinDetailHeaderActions.vue'
 import CoinTagsSection from '@/components/coin/CoinTagsSection.vue'
 import CoinDetailMetadataTable from '@/components/coin/CoinDetailMetadataTable.vue'

@@ -97,6 +97,8 @@
 
 ## Learnings
 
+- **2026-06-19 — Docker release gate (#312):** Docker publish workflows must be downstream of `Quality Gate` via `workflow_run`, restricted to successful push runs, and must checkout/tag `github.event.workflow_run.head_sha`; repository branch protection/rulesets remain a GitHub settings blocker, not a repo-file change.
+
 - **2026-06-10 — Collection count contract review (64 vs 65, PWA shows 50):**
   - Canonical "collection count" = ActiveCollection scope (owned AND NOT wishlist AND NOT sold), defined in src/api/repository/scopes.go. Wishlist/Sold are separate buckets.
   - Invariant: /coins?wishlist=false&sold=false total == /coins/stats totalCoins == collection_summary tool totalCoins. All three already share the SAME SQL predicate, so predicates are not the bug.
@@ -105,3 +107,8 @@
   - Latent contract weakness: default /coins (no filters) total includes wishlist+sold, unlike stats.totalCoins. Don't change default silently (Wishlist/Sold pages rely on filtered totals); document that total reflects applied filter, not collection size.
   - Key files: src/api/repository/coin_repository.go (List ~L179, GetStats ~L495), src/api/services/collection_tools_service.go (CollectionSummary), src/api/handlers/internal_tools.go (CollectionSummary handler), src/web/src/composables/useCollectionFilters.ts, src/web/src/pages/CollectionPage.vue.
   - Decision recorded: .squad/decisions/inbox/maximus-collection-count-contract.md.
+
+- **2026-06-19 — Agent safe outbound client (#310 lockout revision):**
+  - Caller/model-provided Python agent URLs must use a shared outbound fetch helper that validates the initial URL and each redirect target before any follow-up request.
+  - Public internet fetches may allow arbitrary public origins, but local/private targets are only allowed when the exact origin is configured as trusted and `AGENT_ALLOW_LOCAL_OUTBOUND=true`; metadata IPs stay blocked even in local-dev mode.
+  - Regressions should assert the HTTP client is not constructed/called for unsafe initial URLs and that redirect-to-private/metadata stops after the safe public hop.

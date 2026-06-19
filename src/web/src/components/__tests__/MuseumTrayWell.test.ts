@@ -1,9 +1,21 @@
-import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
 import MuseumTrayWell from '../tray/MuseumTrayWell.vue'
 import type { TrayCoin } from '@/utils/trayLayout'
 
 describe('MuseumTrayWell', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new Blob(['image']), { status: 200 })))
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:tray-image'),
+      revokeObjectURL: vi.fn(),
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   const mockCoin: TrayCoin = {
     id: 1,
     name: 'Test Coin',
@@ -59,17 +71,18 @@ describe('MuseumTrayWell', () => {
     images: [],
   }
 
-  it('renders coin image when available', () => {
+  it('renders coin image through authenticated media blob when available', async () => {
     const wrapper = mount(MuseumTrayWell, {
       props: {
         coin: mockCoin,
         renderSizePx: 70,
       },
     })
+    await flushPromises()
 
     const img = wrapper.find('img')
     expect(img.exists()).toBe(true)
-    expect(img.attributes('src')).toBe('/uploads/relative-image.jpg')
+    expect(img.attributes('src')).toBe('blob:tray-image')
     expect(img.attributes('alt')).toBe('Test Coin')
     expect(img.attributes('loading')).toBe('eager')
     expect(img.attributes('decoding')).toBe('async')

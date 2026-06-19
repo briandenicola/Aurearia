@@ -59,9 +59,9 @@
                 :to="`/coin/${coin.id}`"
                 class="timeline-card card"
               >
-                <img
+                <AuthenticatedImage
                   v-if="getPrimaryImage(coin)"
-                  :src="`/uploads/${getPrimaryImage(coin)}`"
+                  :media-path="getPrimaryImage(coin)"
                   :alt="coin.name"
                   class="card-image"
                 />
@@ -99,6 +99,7 @@ import { getCoins } from '@/api/client'
 import type { Coin } from '@/types'
 import { CATEGORY_COLORS } from '@/types'
 import PullToRefresh from '@/components/PullToRefresh.vue'
+import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 
 const loading = ref(true)
 const allCoins = ref<Coin[]>([])

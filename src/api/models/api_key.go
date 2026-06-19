@@ -21,10 +21,34 @@ type ApiKey struct {
 // HasRead returns true if the API key can perform read operations.
 // Write capability implies read capability.
 func (a *ApiKey) HasRead() bool {
-	return strings.Contains(a.Capabilities, "read") || strings.Contains(a.Capabilities, "write")
+	return HasAPICapability(a.Capabilities, "read")
 }
 
 // HasWrite returns true if the API key can perform write operations.
 func (a *ApiKey) HasWrite() bool {
-	return strings.Contains(a.Capabilities, "write")
+	return HasAPICapability(a.Capabilities, "write")
+}
+
+// HasAPICapability checks comma-separated API-key capabilities using exact tokens.
+// Write capability implies read capability.
+func HasAPICapability(capabilities string, required string) bool {
+	hasRead := false
+	hasWrite := false
+	for _, capability := range strings.Split(capabilities, ",") {
+		switch strings.TrimSpace(capability) {
+		case "read":
+			hasRead = true
+		case "write":
+			hasWrite = true
+		}
+	}
+
+	switch required {
+	case "read":
+		return hasRead || hasWrite
+	case "write":
+		return hasWrite
+	default:
+		return false
+	}
 }

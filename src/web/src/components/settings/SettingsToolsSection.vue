@@ -13,8 +13,8 @@
     <div v-if="blockedUsers.length" class="apikey-list">
       <div v-for="user in blockedUsers" :key="user.id" class="apikey-item">
         <div class="apikey-item-info" style="display: flex; align-items: center; gap: 0.5rem;">
-          <img
-            :src="user.avatarPath ? `/uploads/${user.avatarPath}` : '/coin-logo.jpg'"
+          <AuthenticatedImage
+            :media-path="user.avatarPath ? user.avatarPath : '/coin-logo.jpg'"
             :alt="user.username"
             style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-subtle);"
           />
@@ -29,6 +29,7 @@
 
 <script setup lang="ts">
 import ImageProcessor from '@/components/ImageProcessor.vue'
+import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 
 defineProps<{
   blockedUsers: { id: number; username: string; avatarPath: string }[]

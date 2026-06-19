@@ -5,6 +5,7 @@ import { ArrowLeft, Star, Send, Trash2, ChevronLeft, ChevronRight } from 'lucide
 import { getPublicProfile, getFollowingCoinDetail, addComment, deleteComment, rateCoin } from '@/api/client'
 import type { LimitedCoin, CoinComment, CoinRating } from '@/types'
 import { CATEGORY_COLORS } from '@/types'
+import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -154,8 +155,8 @@ onMounted(loadCoin)
         <!-- Image Gallery -->
         <section class="image-gallery">
           <div v-if="sortedImages.length" class="gallery-container" @click="cycleImage">
-            <img
-              :src="`/uploads/${currentImage?.filePath}`"
+            <AuthenticatedImage
+              :media-path="currentImage?.filePath"
               :alt="coin.name"
               class="gallery-image"
             />
@@ -261,9 +262,9 @@ onMounted(loadCoin)
             <div v-else class="comments-list">
               <div v-for="comment in comments" :key="comment.id" class="comment-card">
                 <div class="comment-header">
-                  <img
+                  <AuthenticatedImage
                     v-if="comment.avatarPath"
-                    :src="`/uploads/${comment.avatarPath}`"
+                    :media-path="comment.avatarPath"
                     class="comment-avatar"
                     alt=""
                   />

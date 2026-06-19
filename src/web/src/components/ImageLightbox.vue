@@ -17,8 +17,14 @@
           </div>
 
           <img
+            v-if="processedImageUrl"
+            :src="processedImageUrl"
+            :alt="formatImageType(imageType)"
+            class="lightbox-image"
+          />
+          <AuthenticatedImage
             v-else
-            :src="currentImageUrl"
+            :media-path="imagePath"
             :alt="formatImageType(imageType)"
             class="lightbox-image"
           />
@@ -59,10 +65,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { X, Eraser, RotateCcw, Save } from 'lucide-vue-next'
 import { removeBackground } from '@imgly/background-removal'
 import { uploadImage, deleteImage } from '@/api/client'
+import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+import { fetchPrivateMediaBlob } from '@/utils/media'
 
 const props = defineProps<{
   coinId: number
@@ -80,8 +88,6 @@ const processing = ref(false)
 const processedImageUrl = ref<string | null>(null)
 const saving = ref(false)
 
-const currentImageUrl = computed(() => processedImageUrl.value || `/uploads/${props.imagePath}`)
-
 function formatImageType(type: string) {
   if (!type) return 'Image'
   return type.charAt(0).toUpperCase() + type.slice(1)
@@ -91,8 +97,7 @@ async function handleRemoveBackground() {
   processing.value = true
 
   try {
-    const response = await fetch(`/uploads/${props.imagePath}`)
-    const srcBlob = await response.blob()
+    const srcBlob = await fetchPrivateMediaBlob(props.imagePath)
     const result = await removeBackground(srcBlob, {
       output: { format: 'image/png', quality: 1 },
     })

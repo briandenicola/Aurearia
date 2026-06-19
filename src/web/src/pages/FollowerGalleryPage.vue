@@ -5,8 +5,8 @@
         <ArrowLeft :size="20" />
       </button>
       <div v-if="profile" class="profile-info">
-        <img
-          :src="profile.avatarPath ? `/uploads/${profile.avatarPath}` : '/coin-logo.jpg'"
+        <AuthenticatedImage
+          :media-path="profile.avatarPath ? profile.avatarPath : '/coin-logo.jpg'"
           alt="Avatar"
           class="profile-avatar"
         />
@@ -30,9 +30,9 @@
         @click="router.push(`/followers/${username}/coins/${coin.id}`)"
       >
         <div class="card-image-container">
-          <img
+          <AuthenticatedImage
             v-if="getPrimaryImage(coin)"
-            :src="`/uploads/${getPrimaryImage(coin)}`"
+            :media-path="getPrimaryImage(coin)"
             :alt="coin.name"
             class="card-image"
           />
@@ -75,6 +75,7 @@ import { ArrowLeft, Coins } from 'lucide-vue-next'
 import { getPublicProfile, getFollowingCoins } from '@/api/client'
 import type { LimitedCoin, PublicProfile } from '@/types'
 import { CATEGORY_COLORS } from '@/types'
+import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 
 const route = useRoute()
 const router = useRouter()

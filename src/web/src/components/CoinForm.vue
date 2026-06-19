@@ -97,7 +97,8 @@
           <div class="form-group">
             <label class="form-label">Obverse Image</label>
             <div v-if="obversePreview || existingObverse" class="image-preview-box">
-              <img :src="obversePreview || existingObverse!" alt="Obverse" class="image-preview" />
+              <img v-if="obversePreview" :src="obversePreview" alt="Obverse" class="image-preview" />
+              <AuthenticatedImage v-else :media-path="existingObverse" alt="Obverse" class="image-preview" />
               <button type="button" class="image-remove-btn" @click="clearObverse" title="Remove" aria-label="Remove obverse image"><X :size="12" /></button>
             </div>
             <div class="file-input-row">
@@ -111,7 +112,8 @@
           <div class="form-group">
             <label class="form-label">Reverse Image</label>
             <div v-if="reversePreview || existingReverse" class="image-preview-box">
-              <img :src="reversePreview || existingReverse!" alt="Reverse" class="image-preview" />
+              <img v-if="reversePreview" :src="reversePreview" alt="Reverse" class="image-preview" />
+              <AuthenticatedImage v-else :media-path="existingReverse" alt="Reverse" class="image-preview" />
               <button type="button" class="image-remove-btn" @click="clearReverse" title="Remove" aria-label="Remove reverse image"><X :size="12" /></button>
             </div>
             <div class="file-input-row">
@@ -214,6 +216,7 @@ import AutocompleteInput from '@/components/AutocompleteInput.vue'
 import { X, Camera } from 'lucide-vue-next'
 import { usePwa } from '@/composables/usePwa'
 import { useCoinOptions } from '@/composables/useCoinOptions'
+import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 
 const { isPwa } = usePwa()
 const { categoryOptions, eraOptions, materialOptions, loadOptions } = useCoinOptions()
@@ -277,13 +280,13 @@ onMounted(async () => {
 const existingObverse = computed(() => {
   if (removedObverseId.value) return null
   const img = props.form.images?.find((i) => i.imageType === 'obverse')
-  return img ? `/uploads/${img.filePath}` : null
+  return img ? img.filePath : null
 })
 
 const existingReverse = computed(() => {
   if (removedReverseId.value) return null
   const img = props.form.images?.find((i) => i.imageType === 'reverse')
-  return img ? `/uploads/${img.filePath}` : null
+  return img ? img.filePath : null
 })
 
 function onObverseFile(e: Event) {

@@ -62,10 +62,12 @@ function getStorageMock(): Record<string, string> {
 describe('Auth Store', () => {
   let storageMock: Record<string, string>
   let credentialsGet: ReturnType<typeof vi.fn>
+  let cacheDelete: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     storageMock = getStorageMock()
     credentialsGet = vi.fn()
+    cacheDelete = vi.fn().mockResolvedValue(true)
 
     // Mock localStorage
     vi.stubGlobal('localStorage', {
@@ -76,6 +78,9 @@ describe('Auth Store', () => {
     Object.defineProperty(navigator, 'credentials', {
       value: { get: credentialsGet },
       configurable: true,
+    })
+    vi.stubGlobal('caches', {
+      delete: cacheDelete,
     })
 
     setActivePinia(createPinia())
@@ -188,6 +193,7 @@ describe('Auth Store', () => {
       expect(store.token).toBe('second-token')
       expect(store.user).toEqual(mockAdminUser)
       expect(store.isAdmin).toBe(true)
+      expect(cacheDelete).toHaveBeenCalledWith('coin-images')
     })
   })
 
@@ -348,6 +354,7 @@ describe('Auth Store', () => {
       expect(localStorage.removeItem).toHaveBeenCalledWith('token')
       expect(localStorage.removeItem).toHaveBeenCalledWith('refreshToken')
       expect(localStorage.removeItem).toHaveBeenCalledWith('user')
+      expect(cacheDelete).toHaveBeenCalledWith('coin-images')
     })
 
     it('is safe to call when already logged out', () => {
