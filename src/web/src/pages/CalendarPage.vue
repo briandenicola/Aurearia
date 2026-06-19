@@ -6,9 +6,16 @@
     </div>
     <div class="page-header">
       <h1>Auction Calendar</h1>
-      <button class="btn btn-primary" @click="showAddEvent = true">
-        <Plus :size="16" /> Add Event
-      </button>
+      <div v-if="isPwa" class="pwa-actions">
+        <button class="pwa-icon-btn" @click="showAddEvent = true" title="Add Event">
+          <CirclePlus :size="22" />
+        </button>
+      </div>
+      <div v-else class="header-actions">
+        <button class="btn btn-primary" @click="showAddEvent = true">
+          <Plus :size="16" /> Add Event
+        </button>
+      </div>
     </div>
 
     <!-- Month Navigation -->
@@ -232,12 +239,13 @@
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import {
-  Plus, ChevronLeft, ChevronRight, X, Trash2,
+  CirclePlus, Plus, ChevronLeft, ChevronRight, X, Trash2,
   ExternalLink, Building, Calendar as CalendarIcon
 } from 'lucide-vue-next'
 import { getCalendar, getCalendarEvent, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, proxyImage } from '@/api/client'
 import type { AuctionLot } from '@/types'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
+import { usePwa } from '@/composables/usePwa'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 interface CalendarLot {
@@ -276,6 +284,7 @@ interface CalendarCell {
 
 const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const { isPwa } = usePwa()
 
 const loading = ref(true)
 const currentYear = ref(new Date().getFullYear())
@@ -542,12 +551,6 @@ const { pullDistance, refreshing } = usePullToRefresh(pullContainer, async () =>
 
 <style scoped>
 .container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-.page-header h1 { font-size: 1.75rem; color: var(--text-primary); }
-.btn {display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.5rem 1rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 500; font-size: 0.875rem; }
-.btn-primary { background: var(--accent-gold); color: #1e1e1e; }
-.btn-secondary { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-subtle); }
-.btn-danger { background: #dc3545; color: white; }
 .loading-state { text-align: center; padding: 2rem; color: var(--text-secondary); }
 .empty-state { text-align: center; padding: 3rem; color: var(--text-secondary); }
 .empty-state h3 { color: var(--text-primary); margin: 0.75rem 0 0.5rem; }
@@ -557,16 +560,16 @@ const { pullDistance, refreshing } = usePullToRefresh(pullContainer, async () =>
 .month-label { font-size: 1.25rem; color: var(--text-primary); margin: 0; min-width: 200px; text-align: center; }
 
 /* Calendar Grid */
-.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border-subtle); border: 1px solid var(--border-subtle); border-radius: 12px; overflow: hidden; margin-bottom: 2rem; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; margin-bottom: 2rem; }
 .day-header { background: var(--bg-card); padding: 0.5rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; }
 .day-cell { background: var(--bg-card); padding: 0.5rem; min-height: 60px; position: relative; }
 .day-cell.other-month { opacity: 0.3; }
-.day-cell.is-today .day-number { background: var(--accent-gold); color: #1e1e1e; border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
+.day-cell.is-today .day-number { background: var(--accent-gold); color: var(--bg-primary); border-radius: var(--radius-full); width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
 .day-number { font-size: 0.8rem; color: var(--text-primary); }
 .day-indicators { display: flex; gap: 3px; margin-top: 4px; flex-wrap: wrap; }
-.indicator { width: 7px; height: 7px; border-radius: 50%; }
+.indicator { width: 7px; height: 7px; border-radius: var(--radius-full); }
 .lot-indicator { background: var(--accent-gold); }
-.event-indicator { background: #17a2b8; }
+.event-indicator { background: var(--cat-modern); }
 
 /* Event List */
 .event-list-section { margin-top: 1rem; }
@@ -574,11 +577,11 @@ const { pullDistance, refreshing } = usePullToRefresh(pullContainer, async () =>
 .event-group { margin-bottom: 1.5rem; }
 .group-title { font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; }
 .group-title.lot-accent { color: var(--accent-gold); }
-.group-title.event-accent { color: #17a2b8; }
+.group-title.event-accent { color: var(--cat-modern); }
 
-.event-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1rem; margin-bottom: 0.5rem; }
+.event-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 0.5rem; }
 .event-card-body { display: flex; gap: 1rem; align-items: flex-start; }
-.lot-thumb-container { flex-shrink: 0; width: 64px; height: 64px; border-radius: 8px; overflow: hidden; }
+.lot-thumb-container { flex-shrink: 0; width: 64px; height: 64px; border-radius: var(--radius-sm); overflow: hidden; }
 .lot-thumb { width: 100%; height: 100%; object-fit: cover; }
 .event-info { flex: 1; min-width: 0; }
 .event-info h4 { margin: 0 0 0.35rem; color: var(--text-primary); font-size: 0.95rem; }
@@ -589,8 +592,8 @@ const { pullDistance, refreshing } = usePullToRefresh(pullContainer, async () =>
 .event-notes { font-size: 0.85rem; color: var(--text-secondary); margin: 0.35rem 0 0; line-height: 1.4; }
 .lot-link { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; color: var(--accent-gold); text-decoration: none; margin-top: 0.35rem; }
 .lot-link:hover { text-decoration: underline; }
-.btn-remove { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 0.25rem; flex-shrink: 0; border-radius: 4px; }
-.btn-remove:hover { color: #dc3545; }
+.btn-remove { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 0.25rem; flex-shrink: 0; border-radius: var(--radius-sm); }
+.btn-remove:hover { color: var(--error-bg); }
 
 .event-card-clickable { cursor: pointer; transition: border-color var(--transition-fast); }
 .event-card-clickable:hover { border-color: var(--accent-gold-dim); }
@@ -605,7 +608,7 @@ const { pullDistance, refreshing } = usePullToRefresh(pullContainer, async () =>
 .form-group label { display: block; margin-bottom: 0.35rem; color: var(--text-secondary); font-size: 0.875rem; }
 .form-group input,
 .form-group textarea,
-.form-group select { width: 100%; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.5rem 0.75rem; font-size: 0.875rem; box-sizing: border-box; }
+.form-group select { width: 100%; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.5rem 0.75rem; font-size: 0.875rem; box-sizing: border-box; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; }
 
@@ -623,10 +626,10 @@ const { pullDistance, refreshing } = usePullToRefresh(pullContainer, async () =>
   padding: 0.6rem;
   background: var(--bg-primary);
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
-.linked-lot-item .lot-thumb-container { width: 40px; height: 40px; border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+.linked-lot-item .lot-thumb-container { width: 40px; height: 40px; border-radius: var(--radius-sm); overflow: hidden; flex-shrink: 0; }
 .linked-lot-item .lot-thumb { width: 100%; height: 100%; object-fit: cover; }
 
 .linked-lot-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
@@ -639,11 +642,11 @@ const { pullDistance, refreshing } = usePullToRefresh(pullContainer, async () =>
 .no-linked-lots { font-size: 0.85rem; color: var(--text-secondary); margin: 0; }
 
 .status-tag { padding: 0.1rem 0.4rem; border-radius: var(--radius-full); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
-.status-watching { background: rgba(100, 150, 255, 0.2); color: #6496ff; }
+.status-watching { background: var(--accent-gold-glow); color: var(--cat-modern); }
 .status-bidding { background: var(--accent-gold-glow); color: var(--accent-gold); }
-.status-won { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
-.status-lost { background: rgba(248, 113, 113, 0.15); color: #f87171; }
-.status-passed { background: rgba(120, 120, 120, 0.15); color: #999; }
+.status-won { background: var(--accent-gold-glow); color: var(--cat-greek); }
+.status-lost { background: var(--accent-gold-glow); color: var(--error-bg); }
+.status-passed { background: var(--accent-gold-glow); color: var(--text-muted); }
 
 .btn-secondary { text-decoration: none; }
 
@@ -675,7 +678,7 @@ const { pullDistance, refreshing } = usePullToRefresh(pullContainer, async () =>
   height: 18px;
   border: 2px solid var(--border-subtle);
   border-top-color: var(--accent-gold);
-  border-radius: 50%;
+  border-radius: var(--radius-full);
 }
 
 .pull-indicator.refreshing .pull-spinner {

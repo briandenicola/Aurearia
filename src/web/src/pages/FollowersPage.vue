@@ -2,10 +2,17 @@
   <PullToRefresh :on-refresh="handleRefresh">
     <div class="container">
       <div class="page-header">
-        <h1><Users :size="24" /> Followers</h1>
-        <button class="btn btn-primary btn-sm" @click="showSearchModal = true">
-          <UserPlus :size="16" /> Add
-        </button>
+        <h1>Followers</h1>
+        <div v-if="isPwa" class="pwa-actions">
+          <button class="pwa-icon-btn" @click="showSearchModal = true" title="Find Users">
+            <UserPlus :size="22" />
+          </button>
+        </div>
+        <div v-else class="header-actions">
+          <button class="btn btn-primary" @click="showSearchModal = true">
+            <UserPlus :size="16" /> Add
+          </button>
+        </div>
       </div>
 
       <div class="followers-layout">
@@ -203,8 +210,10 @@ import {
   acceptFollower, blockFollower,
 } from '@/api/client'
 import type { FollowUser } from '@/types'
+import { usePwa } from '@/composables/usePwa'
 
 const activeTab = ref<'following' | 'followers'>('following')
+const { isPwa } = usePwa()
 const loading = ref(true)
 const actionLoading = ref<number | null>(null)
 
@@ -333,23 +342,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  flex-wrap: nowrap;
-  gap: 0.5rem;
-}
-
 .page-header h1 {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.4rem;
-  margin: 0;
   flex: 1;
-  min-width: 0;
 }
 
 .followers-layout {
@@ -505,7 +499,7 @@ onBeforeUnmount(() => {
   height: 28px;
   border: 3px solid var(--border-subtle);
   border-top-color: var(--accent-gold);
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   animation: spin 0.8s linear infinite;
 }
 
@@ -659,18 +653,18 @@ onBeforeUnmount(() => {
 }
 
 .status-badge.pending {
-  background: rgba(234, 179, 8, 0.15);
-  color: #eab308;
+  background: var(--accent-gold-glow);
+  color: var(--accent-gold);
 }
 
 .status-badge.accepted {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+  background: var(--accent-gold-glow);
+  color: var(--cat-greek);
 }
 
 .status-badge.blocked {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
+  background: var(--accent-gold-glow);
+  color: var(--error-bg);
 }
 
 .search-hint {

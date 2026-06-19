@@ -243,3 +243,53 @@ Added navigator.permissions.query pre-check to CameraCaptureModal.vue. Persisted
 - **2026-06-18:** Admin Schedules panels without run history should still share `useAdminConfig` schedule message refs, `.avail-settings` layout, and a `Run Now` client wrapper. Collection health snapshots use `CollectionHealthSnapshotsEnabled` plus `CollectionHealthSnapshotsStartTime` defaults (`false`, `04:30`) and call `POST /admin/collection-health-snapshots/run`.
 
 - **2026-06-18:** Biometric login PWA fix (issue #299) completed. Frontend WebAuthn login flow now unwraps backend's nested `options.publicKey`, converts base64url challenge and allowCredentials IDs to ArrayBuffer, trims requested username, and uses backend-returned username in login finish. Maintains backward compatibility with legacy flat options shape. Replaced emoji with lucide `LockKeyhole` icon in biometric buttons per Principle VI. Frontend regression tests added for flat options, legacy nested shape, and missing-challenge guard. `npm run test -- auth.test.ts`, `npm run type-check`, and `npm run build` all pass.
+
+---
+
+## 2026-06-18 18:50:13 — Page Header Consistency Pass
+
+**Task:** Standardize page headers across the PWA to match the elegant museum pattern from AuctionsPage.
+
+**Pattern established:**
+- Title aligned left (h1, no icons inside)
+- Action buttons aligned right (icon + text on desktop, icon-only on PWA per usePwa composable)
+- No verbose descriptions in headers
+- Uses global .page-header class from main.css
+
+**Pages updated:**
+1. **NotesPage.vue** — Removed icon from h1, removed "Personal workspace" label, removed verbose intro. Removed the large stats summary card (3-column grid with note counts). Now shows clean title left, "New Note" button right. Grid layout simplified to just list + editor.
+
+2. **FollowersPage.vue** — Removed Users icon from h1, standardized button sizing (btn-primary without btn-sm for consistency).
+
+3. **CoinLookupPage.vue** — Removed btn-sm class from Back button for consistency.
+
+4. **SetsPage.vue** — Complete rewrite for museum aesthetic:
+   - Changed h1 from "My Sets" to "Sets"
+   - Replaced .sets-page/.sets-header with standard .container/.page-header
+   - Replaced centered loading/empty states with clean .loading-overlay and .empty-state following AuctionsPage pattern
+   - Added Teleport for modal, X icon close button in modal-header
+   - Modernized modal styling: modal-overlay, modal-content.card, modal-header with flex layout
+   - Added spinner animation matching other pages
+   - Removed all hardcoded dimensions, now uses design tokens throughout
+
+5. **ShowcasesPage.vue** — Already correct, no changes needed.
+
+6. **CalendarPage.vue** — Already correct (title left, "Add Event" button right).
+
+**Design token compliance:**
+- All border-radius uses var(--radius-sm), var(--radius-md), var(--radius-full)
+- All colors use var(--accent-gold), var(--bg-card), var(--border-subtle), var(--text-primary), etc.
+- All transitions use var(--transition-fast), var(--transition-med)
+- All spacing uses rem units
+- Global button classes (.btn, .btn-primary, .btn-ghost) from main.css
+- Global .spinner animation pattern reused
+
+**Validation:** vue-tsc --noEmit passed with exit code 0.
+
+**Impact:**
+- Consistent museum look and feel across all feature pages
+- Users will now see a unified visual language: clean titles, elegant action buttons, no clutter
+- Mobile PWA users will see icon-only action buttons where the usePwa composable is active
+- Notes page feels more spacious without the redundant summary card
+- Sets page now matches the refined aesthetic of Auctions/Calendar
+

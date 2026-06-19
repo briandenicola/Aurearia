@@ -2,9 +2,16 @@
   <div class="container">
     <div class="page-header">
       <h1>Showcases</h1>
-      <button class="btn btn-primary" @click="showCreate = true">
-        <Plus :size="16" /> New Showcase
-      </button>
+      <div v-if="isPwa" class="pwa-actions">
+        <button class="pwa-icon-btn" @click="showCreate = true" title="New Showcase">
+          <CirclePlus :size="22" />
+        </button>
+      </div>
+      <div v-else class="header-actions">
+        <button class="btn btn-primary" @click="showCreate = true">
+          <Plus :size="16" /> New Showcase
+        </button>
+      </div>
     </div>
 
     <div v-if="loading" class="loading-state">Loading showcases...</div>
@@ -13,7 +20,7 @@
       <Presentation :size="48" />
       <h3>No showcases yet</h3>
       <p>Create a showcase to share a curated selection of your coins with the world.</p>
-      <button class="btn btn-primary" style="margin-top: 1rem" @click="showCreate = true">
+      <button class="btn btn-primary empty-action" @click="showCreate = true">
         <Plus :size="16" /> Create Your First Showcase
       </button>
     </div>
@@ -100,8 +107,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { Plus, Pencil, Trash2, Link, Eye, EyeOff, X, Coins, Presentation } from 'lucide-vue-next'
+import { CirclePlus, Plus, Pencil, Trash2, Link, Eye, EyeOff, X, Coins, Presentation } from 'lucide-vue-next'
 import { listShowcases, createShowcase, updateShowcase, deleteShowcase } from '@/api/client'
+import { usePwa } from '@/composables/usePwa'
 
 interface Showcase {
   id: number
@@ -115,6 +123,7 @@ interface Showcase {
 }
 
 const loading = ref(true)
+const { isPwa } = usePwa()
 const showcases = ref<Showcase[]>([])
 const showCreate = ref(false)
 const newTitle = ref('')
@@ -187,31 +196,25 @@ onMounted(loadShowcases)
 
 <style scoped>
 .container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-.page-header h1 { font-size: 1.75rem; color: var(--text-primary); }
-.btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.5rem 1rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 500; font-size: 0.875rem; }
-.btn-primary { background: var(--accent-gold); color: #1e1e1e; }
-.btn-secondary { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-subtle); }
-.btn-danger { background: #dc3545; color: white; }
-.btn-sm { padding: 0.35rem 0.65rem; font-size: 0.8rem; }
 .loading-state { text-align: center; padding: 2rem; color: var(--text-secondary); }
 .empty-state { text-align: center; padding: 3rem; color: var(--text-secondary); }
 .empty-state h3 { color: var(--text-primary); margin: 1rem 0 0.5rem; }
+.empty-action { margin-top: 1rem; }
 
 .showcases-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
-.showcase-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; }
+.showcase-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; }
 .showcase-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
 .showcase-title { font-size: 1.1rem; color: var(--text-primary); margin: 0; }
-.badge { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600; text-transform: uppercase; white-space: nowrap; }
-.badge-active { background: rgba(40, 167, 69, 0.15); color: #28a745; }
-.badge-inactive { background: rgba(108, 117, 125, 0.15); color: #6c757d; }
+.badge { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: var(--radius-full); font-weight: 600; text-transform: uppercase; white-space: nowrap; }
+.badge-active { background: var(--accent-gold-glow); color: var(--accent-gold); }
+.badge-inactive { background: var(--accent-gold-glow); color: var(--text-muted); }
 .showcase-desc { color: var(--text-secondary); font-size: 0.875rem; margin: 0; line-height: 1.4; }
 .showcase-meta { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--text-secondary); }
 .coin-count { display: inline-flex; align-items: center; gap: 0.25rem; }
 .showcase-slug { font-family: monospace; opacity: 0.7; }
 .showcase-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: auto; }
 
-.toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); background: var(--accent-gold); color: #1e1e1e; padding: 0.5rem 1.25rem; border-radius: 8px; font-weight: 500; font-size: 0.875rem; z-index: 1000; }
+.toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); background: var(--accent-gold); color: var(--bg-primary); padding: 0.5rem 1.25rem; border-radius: var(--radius-sm); font-weight: 500; font-size: 0.875rem; z-index: 1000; }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
 .modal { width: 90%; max-width: 480px; padding: 1.5rem; }
@@ -223,6 +226,6 @@ onMounted(loadShowcases)
 .form-group { margin-bottom: 1rem; }
 .form-group label { display: block; margin-bottom: 0.35rem; color: var(--text-secondary); font-size: 0.875rem; }
 .form-group input,
-.form-group textarea { width: 100%; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.5rem 0.75rem; font-size: 0.875rem; box-sizing: border-box; }
+.form-group textarea { width: 100%; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.5rem 0.75rem; font-size: 0.875rem; box-sizing: border-box; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; }
 </style>

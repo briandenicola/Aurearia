@@ -1,15 +1,17 @@
 <template>
   <div class="container notes-page">
     <div class="page-header">
-      <div>
-        <p class="section-label">Personal workspace</p>
-        <h1><NotebookPen :size="24" /> Notes</h1>
-        <p class="page-intro">Capture ideas, links, show leads, and research threads that do not belong to a coin yet.</p>
+      <h1>Notes</h1>
+      <div v-if="isPwa" class="pwa-actions">
+        <button class="pwa-icon-btn" @click="startNewNote" title="New Note">
+          <CirclePlus :size="22" />
+        </button>
       </div>
-      <button class="btn btn-primary" @click="startNewNote">
-        <Plus :size="18" />
-        New Note
-      </button>
+      <div v-else class="header-actions">
+        <button class="btn btn-primary" @click="startNewNote">
+          <Plus :size="16" /> New Note
+        </button>
+      </div>
     </div>
 
     <div v-if="loading" class="loading-overlay">
@@ -25,21 +27,6 @@
     </div>
 
     <div v-else class="notes-layout">
-      <div class="notes-summary card">
-        <div class="summary-item">
-          <span class="summary-value">{{ notes.length }}</span>
-          <span class="summary-label">Notes</span>
-        </div>
-        <div class="summary-item">
-          <span class="summary-value">{{ notesWithBody }}</span>
-          <span class="summary-label">With Markdown</span>
-        </div>
-        <div class="summary-item">
-          <span class="summary-value">{{ latestUpdatedLabel }}</span>
-          <span class="summary-label">Latest Update</span>
-        </div>
-      </div>
-
       <aside class="notes-list card" aria-label="Notes list">
         <div class="notes-list-header">
           <span class="section-label">All notes</span>
@@ -144,13 +131,15 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { AlertCircle, BookOpen, NotebookPen, Pencil, Plus, Save, StickyNote, Trash2 } from 'lucide-vue-next'
+import { AlertCircle, BookOpen, CirclePlus, Pencil, Plus, Save, StickyNote, Trash2 } from 'lucide-vue-next'
 import { createNote, deleteNote, getNotes, updateNote } from '@/api/client'
 import type { UserNote } from '@/types'
 import { useDialog } from '@/composables/useDialog'
 import { renderSafeMarkdown } from '@/composables/useMarkdown'
+import { usePwa } from '@/composables/usePwa'
 
 const { showConfirm, showAlert } = useDialog()
+const { isPwa } = usePwa()
 
 const notes = ref<UserNote[]>([])
 const selectedId = ref<number | null>(null)
@@ -165,11 +154,6 @@ const draftBody = ref('')
 
 const selectedNote = computed(() => notes.value.find(note => note.id === selectedId.value) ?? null)
 const renderedSelectedBody = computed(() => renderSafeMarkdown(selectedNote.value?.body))
-const notesWithBody = computed(() => notes.value.filter(note => note.body.trim()).length)
-const latestUpdatedLabel = computed(() => {
-  const latest = notes.value[0]?.updatedAt
-  return latest ? formatDate(latest) : 'None'
-})
 
 onMounted(loadNotes)
 
@@ -298,18 +282,7 @@ function formatDate(value: string): string {
   padding-bottom: 1.5rem;
 }
 
-.page-intro {
-  max-width: 42rem;
-  margin-top: 0.35rem;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-
-.page-header h1,
 .note-panel-header h2 {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
   margin: 0;
 }
 
@@ -318,36 +291,6 @@ function formatDate(value: string): string {
   grid-template-columns: minmax(240px, 0.85fr) minmax(0, 2fr);
   gap: 1rem;
   align-items: start;
-}
-
-.notes-summary {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-color: var(--border-subtle);
-  background: linear-gradient(135deg, var(--bg-card), var(--bg-card-hover));
-}
-
-.summary-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 0;
-}
-
-.summary-value {
-  color: var(--accent-gold);
-  font-size: 1.2rem;
-  font-weight: 600;
-}
-
-.summary-label {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 
 .notes-list,
@@ -517,10 +460,6 @@ function formatDate(value: string): string {
 
 @media (max-width: 768px) {
   .notes-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .notes-summary {
     grid-template-columns: 1fr;
   }
 

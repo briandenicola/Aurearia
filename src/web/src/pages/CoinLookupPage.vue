@@ -1,11 +1,17 @@
 <template>
   <div class="container">
-    <div class="page-header lookup-page-header">
+    <div class="page-header">
       <h1>Identify Coin</h1>
-      <button class="btn btn-ghost btn-sm" @click="handleBack">
-        <ArrowLeft :size="16" />
-        Back
-      </button>
+      <div v-if="isPwa" class="pwa-actions">
+        <button class="pwa-icon-btn" @click="handleBack" title="Back">
+          <ArrowLeft :size="22" />
+        </button>
+      </div>
+      <div v-else class="header-actions">
+        <button class="btn btn-ghost" @click="handleBack">
+          <ArrowLeft :size="16" /> Back
+        </button>
+      </div>
     </div>
 
     <!-- Capture State -->
@@ -252,6 +258,7 @@ import {
   Bookmark,
 } from 'lucide-vue-next'
 import CameraCaptureModal from '@/components/CameraCaptureModal.vue'
+import { usePwa } from '@/composables/usePwa'
 
 interface CapturedImage {
   file: File
@@ -261,6 +268,7 @@ interface CapturedImage {
 type LookupState = 'capture' | 'analyzing' | 'results'
 
 const router = useRouter()
+const { isPwa } = usePwa()
 
 const state = ref<LookupState>('capture')
 const capturedImages = ref<CapturedImage[]>([])
@@ -464,13 +472,6 @@ onBeforeUnmount(() => {
   max-width: 900px;
   margin: 0 auto;
   padding: 1.5rem;
-}
-
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.5rem;
 }
 
 /* Capture State */

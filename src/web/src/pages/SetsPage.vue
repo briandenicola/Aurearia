@@ -1,22 +1,30 @@
 <template>
-  <div class="sets-page">
-    <div class="sets-header">
-      <h1>My Sets</h1>
-      <button class="btn btn-primary" @click="showCreateModal = true">
-        Create Set
-      </button>
+  <div class="container">
+    <div class="page-header">
+      <h1>Sets</h1>
+      <div v-if="isPwa" class="pwa-actions">
+        <button class="pwa-icon-btn" @click="showCreateModal = true" title="Create Set">
+          <CirclePlus :size="22" />
+        </button>
+      </div>
+      <div v-else class="header-actions">
+        <button class="btn btn-primary" @click="showCreateModal = true">
+          <Plus :size="16" /> Create Set
+        </button>
+      </div>
     </div>
 
-    <div v-if="loading" class="loading-state">
-      Loading sets...
+    <div v-if="loading" class="loading-overlay">
+      <div class="spinner"></div>
+      <p>Loading sets...</p>
     </div>
 
     <div v-else-if="sets.length === 0" class="empty-state">
       <FolderOpen :size="48" />
-      <h2>No sets yet</h2>
-      <p>Create your first set to organize your collection</p>
-      <button class="btn btn-primary" @click="showCreateModal = true">
-        Create Set
+      <h3>No sets yet</h3>
+      <p>Create a set to organize your collection by theme, era, or completion goals</p>
+      <button class="btn btn-primary empty-action" @click="showCreateModal = true">
+        <Plus :size="16" /> Create Your First Set
       </button>
     </div>
 
@@ -29,31 +37,40 @@
       />
     </div>
 
-    <!-- Create Set Modal - placeholder for T026 wizard -->
-    <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
-      <div class="modal-content">
-        <h2>Create New Set</h2>
-        <SetCreationWizard
-          :initial-value="newSet"
-          submit-label="Create"
-          @submit="createSet"
-          @cancel="showCreateModal = false"
-        />
+    <!-- Create Set Modal -->
+    <Teleport to="body">
+      <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
+        <div class="modal-content card">
+          <div class="modal-header">
+            <h2>Create New Set</h2>
+            <button class="modal-close" @click="showCreateModal = false">
+              <X :size="20" />
+            </button>
+          </div>
+          <SetCreationWizard
+            :initial-value="newSet"
+            submit-label="Create"
+            @submit="createSet"
+            @cancel="showCreateModal = false"
+          />
+        </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { FolderOpen } from 'lucide-vue-next'
+import { CirclePlus, FolderOpen, Plus, X } from 'lucide-vue-next'
 import { getSets, createSet as createSetApi, createSetFromCsv } from '@/api/client'
 import type { CoinSetSummary, CreateCoinSetRequest } from '@/types'
 import SetDashboardCard from '@/components/sets/SetDashboardCard.vue'
 import SetCreationWizard from '@/components/sets/SetCreationWizard.vue'
+import { usePwa } from '@/composables/usePwa'
 
 const router = useRouter()
+const { isPwa } = usePwa()
 const loading = ref(true)
 const sets = ref<CoinSetSummary[]>([])
 const showCreateModal = ref(false)
@@ -107,103 +124,104 @@ function goToSet(id: number) {
 </script>
 
 <style scoped>
-.sets-page {
-  padding: 1.5rem;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.sets-header {
+.loading-overlay {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  margin-bottom: 2rem;
-}
-
-.sets-header h1 {
-  margin: 0;
-}
-
-.loading-state,
-.empty-state {
-  text-align: center;
+  gap: 0.75rem;
   padding: 3rem 1rem;
+  color: var(--text-secondary);
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-subtle);
+  border-top-color: var(--accent-gold);
+  border-radius: var(--radius-full);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: 0.5rem;
+  padding: 4rem 1rem;
+  color: var(--text-secondary);
+  text-align: center;
 }
 
-.empty-state h2 {
-  margin: 0;
+.empty-state h3 {
+  margin: 0.75rem 0 0;
+  font-size: 1.1rem;
+  color: var(--text-primary);
 }
 
 .empty-state p {
-  color: var(--text-secondary);
   margin: 0;
+  max-width: 32rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.empty-action {
+  margin-top: 1rem;
 }
 
 .sets-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--modal-backdrop, rgba(0, 0, 0, 0.6));
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  padding: 2rem 1rem;
 }
 
 .modal-content {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  padding: 2rem;
-  border-radius:var(--radius-md);
-  max-width: 500px;
-  width: 90%;
-  box-shadow: var(--shadow-card);
-}
-
-.modal-content h2 {
-  margin-top: 0;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-}
-
-.form-group input,
-.form-group textarea {
+  max-width: 520px;
   width: 100%;
-  padding: 0.5rem;
-  border: 1px solid var(--border-subtle);
-  border-radius:var(--radius-sm);
-  background: var(--bg-input);
-  color: var(--text-primary);
-  font-family: inherit;
+  max-height: 85vh;
+  overflow-y: auto;
 }
 
-.form-actions {
+.modal-header {
   display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-  margin-top: 1.5rem;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--text-primary);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast);
+  display: flex;
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
 }
 </style>

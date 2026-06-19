@@ -7997,3 +7997,173 @@ MintLocation
   - `.squad/orchestration-log/2026-06-18T13-45-36Z-aurelia.md` (frontend)
   - `.squad/orchestration-log/2026-06-18T13-45-36Z-brutus.md` (testing)
 - Constitution: `.specify/memory/constitution.md` (Principles I, IV, V, VI, IX; §17, §18)
+
+---
+
+### Decision: PWA Page Header Consistency — Canonical Museum Pattern Enforcement
+
+**Date:** 2026-06-18  
+**Agent:** Maximus (Lead/Architect)  
+**Status:** APPROVED — IMPLEMENTED  
+
+## Executive Summary
+
+The Ancient Coins PWA page headers are inconsistent in structure, layout, and pattern compliance. The AuctionsPage establishes an elegant museum-standard contract (title on left, refined icon actions on right). Seven active pages violate this contract in ways that degrade cohesive look and feel. This decision establishes `.page-header` as the **canonical page header pattern** binding all future pages.
+
+## Context
+
+Users navigated between feature pages experiencing visual dissonance:
+- Some pages centered titles with large CTAs
+- Some had icons inside `<h1>` headings
+- Some featured verbose descriptions in headers
+- Some lacked PWA icon-only button treatment
+- Spacing, underlines, and button sizing varied widely
+
+Product requirement: Achieve "elegant museum look and feel" per Brian's feedback during PWA audit.
+
+## Decision
+
+All feature pages must adopt the standardized `.page-header` pattern established by AuctionsPage:
+
+**Pattern Signature:**
+```
+┌──────────────────────────────────────────────────────┐
+│  [Title in Cinzel, large, gold accent]  [Icons →]    │
+│  ────────────────────────────────────────────────    │
+│                                                      │
+```
+
+**CSS Contract:**
+```css
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: nowrap;  /* Prevent wrapping on mobile */
+  gap: 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 1rem;
+  margin-bottom: 2rem;
+}
+
+.page-header h1 {
+  flex: 0 1 auto;
+  margin: 0;
+  font-size: 2rem;  /* Cinzel, gold per global h1 */
+}
+
+.page-header button,
+.page-header .pwa-actions {
+  flex-shrink: 0;
+  margin-left: auto;  /* Push to right */
+}
+```
+
+**HTML Structure Contract:**
+
+Desktop:
+```html
+<div class="page-header">
+  <h1>Page Title</h1>
+  <div class="header-actions">
+    <button class="btn btn-secondary">Action 1</button>
+    <button class="btn btn-primary">Primary Action</button>
+  </div>
+</div>
+```
+
+PWA:
+```html
+<div class="page-header">
+  <h1>Page Title</h1>
+  <div v-if="isPwa" class="pwa-actions">
+    <button class="pwa-icon-btn">
+      <RefreshIcon :size="22" />
+    </button>
+    <button class="pwa-icon-btn">
+      <PlusIcon :size="22" />
+    </button>
+  </div>
+  <div v-else class="header-actions">
+    <button class="btn">Refresh</button>
+    <button class="btn btn-primary">Add</button>
+  </div>
+</div>
+```
+
+**Principles:**
+1. Title always left, actions always right — Non-negotiable. Use `justify-content: space-between`.
+2. No button text on PWA — Icon-only with `title` attributes for tooltips.
+3. Desktop buttons are full text — Show full labels, not abbreviated or symbolic.
+4. No multi-line headers — Descriptions belong below the header divider.
+5. Consistent underline — Subtle `border-bottom: 1px solid var(--border-subtle)` separates header from content.
+6. No wrapping on mobile — Use `flex-wrap: nowrap`. If space is tight, reduce button size or hide non-critical buttons.
+7. Design token discipline — All colors, spacing, fonts use `variables.css` or `main.css` global classes.
+
+## Audit Results: Pages Requiring Normalization
+
+| Page | Primary Issue | Severity | Status |
+|------|---|---|---|
+| **ShowcasesPage** | Button styled large/prominent instead of refined icons | HIGH | ✅ FIXED |
+| **CalendarPage** | Button visibly large, centered instead of right-aligned | HIGH | ✅ FIXED |
+| **NotesPage** | Multi-line header with subtitle; large middle stats section (removed) | HIGH | ✅ FIXED |
+| **SetsPage** | No `.page-header` container; custom `.sets-header` div | HIGH | ✅ FIXED (rewrite) |
+| **FollowersPage** | Title + icon inline; button size not refined | MEDIUM | ✅ FIXED |
+| **CoinLookupPage** | Custom "lookup-page-header"; back button instead of centered title | MEDIUM | ✅ FIXED |
+| **AuctionsPage** | Compliant — Reference pattern | ✅ PASS | — |
+
+## Implementation Outcome
+
+Aurelia refactored all 7 pages:
+- Moved action buttons to right-aligned position
+- Ensured flex-wrap: nowrap for mobile safety
+- Removed multi-line header structures; descriptions moved below header
+- Removed Notes stats section (large summary card) per user request
+- Rewrote SetsPage visual shell (no prior container structure)
+- Type-checking: `vue-tsc --noEmit` exit 0 on all changed pages
+
+Brutus QA validated responsive layout (375px, 768px, 1200px viewports), PWA icon button treatment, design token discipline, and confirmed no runtime errors.
+
+## Rationale
+
+- **User Experience:** Consistent navigation — users know where to find title and actions across all pages
+- **Visual Hierarchy:** Cleaner layout, less noise, more focus on content
+- **Brand Compliance:** Museum aesthetic across all pages aligns with Ancient Coins brand identity
+- **PWA Quality:** Icon-only buttons on mobile, full-text on desktop improves usability across form factors
+
+## Constitution Alignment
+
+- **Principle I (Clear Layered Architecture):** Page component structure (header container + content) is now consistent
+- **Principle VI (Consistent User Experience):** PWA/mobile interaction rules standardized; page headers predictable
+- **§17 (Quality Gate):** All tests passing (type-check ✓, responsive validation ✓, no regressions)
+- **§18 (Session Protocol):** Multi-agent coordination (Maximus audit → Aurelia refactor → Brutus QA → Coordinator validation)
+
+## Definition of Done
+
+After refactor, all pages:
+- ✅ Use `.page-header` container with title (`<h1>`) and actions (button group)
+- ✅ Enforce `flex-wrap: nowrap` to prevent wrapping on mobile
+- ✅ Include `border-bottom: 1px solid var(--border-subtle)` underline
+- ✅ PWA: show icon-only buttons with `title` attributes
+- ✅ Desktop: show full-text buttons
+- ✅ No hardcoded colors, padding, or font sizes — use design tokens only
+- ✅ Pass responsive checks at 375px, 768px, 1200px
+- ✅ Match AuctionsPage visual hierarchy and spacing
+
+## Binding Implications
+
+This decision establishes **Principle VI (Consistent User Experience)** binding standard for all future feature pages. The `.page-header` contract is now the canonical page header pattern and must be enforced on any new pages added to the PWA.
+
+## Files Modified
+
+Frontend: `src/web/src/pages/CalendarPage.vue`, `src/web/src/pages/ShowcasesPage.vue`, `src/web/src/pages/NotesPage.vue`, `src/web/src/pages/SetsPage.vue`, `src/web/src/pages/FollowersPage.vue`, `src/web/src/pages/CoinLookupPage.vue`
+
+## References
+
+- Session Log: `.squad/log/2026-06-19T00-55-20Z-pwa-ui-consistency.md`
+- Orchestration Logs:
+  - `.squad/orchestration-log/2026-06-19T00-55-20Z-maximus.md` (audit)
+  - `.squad/orchestration-log/2026-06-19T00-55-20Z-aurelia.md` (refactor)
+  - `.squad/orchestration-log/2026-06-19T00-55-20Z-brutus.md` (QA)
+  - `.squad/orchestration-log/2026-06-19T00-55-20Z-coordinator.md` (validation)
+- Constitution: `.specify/memory/constitution.md` (Principles I, VI; §17, §18)
