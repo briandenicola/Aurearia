@@ -566,6 +566,8 @@ export interface UserInfo {
   numisBidsConfigured: boolean
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean
+  lockedUntil?: string | null
+  failedLoginAttempts?: number
   createdAt: string
 }
 
@@ -580,9 +582,93 @@ export interface AppSettings {
   SearXNGURL: string
   LogLevel: string
   PublicAppURL?: string
+  RegistrationMode?: string
   CoinCategories?: string
   CoinEras?: string
   [key: string]: string | undefined
+}
+
+export interface SecuritySummary {
+  failedLogins: number
+  lockedAccounts: number
+  activeBans: number
+  recentEvents: number
+  loginFailures?: number
+  activeIpRuleCount?: number
+}
+
+export interface SecurityEvent {
+  id: number | string
+  timestamp: string
+  type: string
+  severity: string
+  username?: string | null
+  ip?: string | null
+  clientIp?: string | null
+  outcome?: string | null
+  message?: string | null
+  userAgent?: string | null
+  createdAt?: string
+}
+
+export interface SecurityEventFilters {
+  type?: string
+  severity?: string
+  username?: string
+  ip?: string
+  clientIp?: string
+  outcome?: string
+  since?: string
+  limit?: number
+}
+
+export interface SecurityEventsResponse {
+  events: SecurityEvent[]
+  total?: number
+}
+
+export interface SecurityIpRule {
+  id: number
+  cidr: string
+  reason: string
+  expiresAt?: string | null
+  createdBy?: string | number | null
+  createdAt?: string
+}
+
+export interface CreateSecurityIpRuleRequest {
+  cidr: string
+  duration?: string
+  durationMinutes?: number
+  expiresAt?: string
+  reason: string
+}
+
+export interface SecurityExposureCheck {
+  publicIp?: string
+  proxy?: boolean
+  proxyWarning?: string
+  cors?: boolean
+  corsWarning?: string
+  webAuthn?: boolean
+  webAuthnWarning?: string
+  publicAppUrl?: boolean
+  publicAppURL?: boolean
+  publicAppUrlWarning?: string
+  registration?: boolean
+  registrationWarning?: string
+  agentToken?: boolean
+  agentTokenWarning?: string
+  warnings?: string[]
+  checks?: Record<string, boolean | string | null | undefined>
+  config?: {
+    publicAppURL?: string
+    webauthnOrigin?: string
+    trustedProxiesConfigured?: boolean
+    agentInternalTokenSet?: boolean
+    registrationMode?: string
+    backupStatus?: string
+  }
 }
 
 export interface ValueComparable {

@@ -48,6 +48,7 @@ func NewAuthHandler(jwtSecret string, repo *repository.AuthRepository, svc *serv
 //	@Failure		500		{object}	ErrorResponse
 //	@Router			/auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
+	noStore(c)
 	var req registerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
@@ -61,6 +62,8 @@ func (h *AuthHandler) Register(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
 		case services.ErrUsernameExists:
 			c.JSON(http.StatusConflict, gin.H{"error": "Username already exists"})
+		case services.ErrRegistrationClosed:
+			c.JSON(http.StatusForbidden, gin.H{"error": "Registration is not available"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
 		}
@@ -84,13 +87,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 //	@Failure		500		{object}	ErrorResponse
 //	@Router			/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
+	noStore(c)
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
 		return
 	}
 
-	user, err := h.svc.AuthenticateUser(req.Username, req.Password)
+	user, err := h.svc.AuthenticateUserWithRequest(req.Username, req.Password, requestClientIP(c), c.Request.UserAgent())
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
@@ -113,6 +117,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 //	@Failure		500		{object}	ErrorResponse
 //	@Router			/auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
+	noStore(c)
 	var req refreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
@@ -152,6 +157,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 // issueTokens generates and returns both access and refresh tokens.
 func (h *AuthHandler) issueTokens(c *gin.Context, user models.User, statusCode int) {
+	noStore(c)
 	accessToken, err := h.svc.GenerateAccessToken(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
@@ -178,6 +184,20 @@ func (h *AuthHandler) issueTokens(c *gin.Context, user models.User, statusCode i
 			"zipCode":    user.ZipCode,
 		},
 	})
+}
+
+func noStore(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	c.Header("Pragma", "no-cache")
+}
+
+func requestClientIP(c *gin.Context) string {
+	if value, ok := c.Get("clientIP"); ok {
+		if ip, ok := value.(string); ok {
+			return ip
+		}
+	}
+	return c.ClientIP()
 }
 
 // NeedsSetup returns whether the first user has been created yet.

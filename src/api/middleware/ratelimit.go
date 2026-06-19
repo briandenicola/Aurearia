@@ -10,15 +10,15 @@ import (
 )
 
 type rateLimiter struct {
-	mu       sync.Mutex
-	clients  map[string]*clientState
-	limit    int
-	window   time.Duration
+	mu      sync.Mutex
+	clients map[string]*clientState
+	limit   int
+	window  time.Duration
 }
 
 type clientState struct {
-	count    int
-	resetAt  time.Time
+	count   int
+	resetAt time.Time
 }
 
 func newRateLimiter(limit int, window time.Duration) *rateLimiter {
@@ -63,7 +63,7 @@ func (rl *rateLimiter) allow(clientIP string) bool {
 func RateLimit(limit int, window time.Duration) gin.HandlerFunc {
 	rl := newRateLimiter(limit, window)
 	return func(c *gin.Context) {
-		if !rl.allow(c.ClientIP()) {
+		if !rl.allow(ClientIP(c)) {
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 				"error": "Too many requests. Please try again later.",
 			})
@@ -80,7 +80,7 @@ func ExternalAPIKeyRateLimit(limit int, window time.Duration) gin.HandlerFunc {
 	rl := newRateLimiter(limit, window)
 	return func(c *gin.Context) {
 		// Key by API key ID if available, fallback to client IP
-		keyIdentifier := c.ClientIP()
+		keyIdentifier := ClientIP(c)
 		if apiKeyId, exists := c.Get("apiKeyId"); exists {
 			if id, ok := apiKeyId.(uint); ok {
 				keyIdentifier = fmt.Sprintf("apikey:%d", id)
@@ -96,4 +96,3 @@ func ExternalAPIKeyRateLimit(limit int, window time.Duration) gin.HandlerFunc {
 		c.Next()
 	}
 }
-

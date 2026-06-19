@@ -25,7 +25,7 @@
 - 📱 Install as a PWA; offline read access on mobile and desktop
 - 🔒 Complete control of data; runs entirely on your infrastructure
 
-Built for a single collector plus invited friends. Not a marketplace, SaaS, or reference database replacement.
+Built for a single collector plus invited friends. Not a marketplace, SaaS, or reference database replacement. If you expose it outside a trusted home network, follow the public-facing hardening checklist in [`docs/deployment.md`](docs/deployment.md): TLS, reverse-proxy security headers, trusted proxy IP handling, invite/closed registration, private agent networking, backups, and monitoring are required.
 
 **Product vision, personas, and detailed requirements** in [`docs/prd.md`](docs/prd.md). This README highlights features; see documentation links below for deep dives.
 
