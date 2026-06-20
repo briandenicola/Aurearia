@@ -1,10 +1,13 @@
-import type { CoinImage } from '@/types'
+export interface TrayCoinImage {
+  filePath: string
+  isPrimary?: boolean
+}
 
 export interface TrayCoin {
   id: number
   name: string
   diameterMm: number | null
-  images: readonly CoinImage[]
+  images: readonly TrayCoinImage[]
 }
 
 export interface TrayLayoutOptions {

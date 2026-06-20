@@ -6,6 +6,8 @@
         :key="coin.id"
         :coin="coin"
         :render-size-px="getRenderSize(coin)"
+        :image-src-resolver="imageSrcResolver"
+        :interactive="interactive"
         @coin-clicked="emit('coin-clicked', $event)"
       />
     </div>
@@ -21,9 +23,14 @@ import type { FeltColor } from '@/composables/useTrayPreference'
 interface Props {
   coins: TrayCoin[]
   feltTheme: FeltColor
+  imageSrcResolver?: (filePath: string) => string
+  interactive?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  imageSrcResolver: undefined,
+  interactive: true,
+})
 const emit = defineEmits<{
   'coin-clicked': [coinId: number]
 }>()

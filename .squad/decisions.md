@@ -2,6 +2,38 @@
 
 ## Active Decisions
 
+### Decision: Public Showcase Reuses Museum Tray Components
+
+**Date:** 2026-06-20  
+**Agent:** Aurelia  
+**Status:** APPROVED — IMPLEMENTED
+
+## Context
+
+Brian requested that public showcase coin display use the existing tray layout option rather than the bespoke showcase card/grid presentation. Public showcase media must keep routing through `/api/showcase/:slug/uploads/*`, while authenticated collection tray behavior must remain unchanged.
+
+## Decision
+
+The public showcase page now renders coins through the shared `MuseumTray` and `TrayControls` components. `MuseumTrayWell` gained two optional props:
+
+- `imageSrcResolver?: (filePath: string) => string` for public callers that need safe, feature-specific media URLs.
+- `interactive?: boolean` defaulting to `true`; public showcases set it to `false` so wells are presentation-only and do not imply private coin detail links.
+
+Authenticated tray callers continue using the default private media path handling and click-to-coin behavior.
+
+## Constitution Alignment
+
+- Principle III: typed tray image contract generalized without `any`.
+- Principle IV: simple reuse of the existing tray pattern instead of a second tray implementation.
+- Principle VI: preserves design-token tray styling and mobile/PWA-friendly controls.
+- §17: targeted tests and `vue-tsc --build` passed.
+
+## Files Touched
+
+Frontend: `src/web/src/pages/PublicShowcasePage.vue`, `src/web/src/components/tray/MuseumTray.vue`, `src/web/src/components/tray/MuseumTrayWell.vue`, `src/web/src/utils/trayLayout.ts`, related targeted tests.
+
+---
+
 ### Decision: Custom Mint Locations — Global Admin-Managed Backend Implementation
 
 **Date:** 2026-06-18  

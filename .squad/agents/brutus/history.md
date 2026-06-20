@@ -24,6 +24,8 @@
 
 ## Learnings
 
+- **2026-06-20:** Public showcase tray regression coverage added around Aurelia's implementation. `PublicShowcasePage.test.ts` now proves the public page loads coins into shared `.museum-tray` wells instead of the old `.coins-grid`/`.coin-card` presentation, preserves `/api/showcase/:slug/uploads/*` image routing via the resolver, keeps public wells non-interactive when no public detail route exists, exercises drawer navigation for >12 coins, and covers loading/empty/error states. Targeted validation passed: `npm.cmd run test -- --run src\pages\__tests__\PublicShowcasePage.test.ts`; frontend `npm.cmd run type-check` also passed.
+
 - **2026-06-07:** Era/Category + Coin Lookup QA Pass
   - **Era/Category Settings:** Backend 5 passing tests (CoinCategories/CoinEras defaults + customization). Frontend `options.ts` utility with 30-test spec (parse/format/roundtrip/edge cases). All tests pass: `npm test -- options.spec.ts` ✅ (30/30), `go test ./services/...` ✅. **AdminPage v-model claim was false alarm** — component uses correct prop/event pattern (lines 93-100 use `:category-options` + `@update:category-options`, no v-model).
   - **Coin Lookup State:** MVP implementation in progress. `CoinLookupPage.vue` exists with NGC cert display (line 107-121) but no normalization/extraction tests yet. NGC sample `823160-093` not found in codebase — likely deferred to Phase 2 per decisions.md (Numista-only MVP). Lookup endpoint (`POST /api/agent/coin-lookup`) contract not yet implemented (depends on Python `coin_lookup.py` team).
