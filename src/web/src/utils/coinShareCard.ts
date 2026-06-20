@@ -41,11 +41,17 @@ export interface CoinShareCardInput {
   imageUrl: string | null
   imageUrls?: string[]
   appName: string
+  context?: CoinShareCardContext
 }
 
 export interface CoinShareCardRenderOptions {
   width?: number
   height?: number
+}
+
+export interface CoinShareCardContext {
+  heading?: string
+  summary?: string
 }
 
 interface TextLine {
@@ -199,6 +205,16 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
   return lines
 }
 
+function plainText(value: string | null | undefined): string {
+  return cleanText(value)
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[*_~>#-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function drawCenteredWrappedText(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -332,6 +348,73 @@ function drawMetadata(ctx: CanvasRenderingContext2D, metadata: CoinShareCardMeta
   ctx.fillText(appName, CARD_WIDTH / 2, FOOTER_Y)
 }
 
+function drawCompactMetadataRow(ctx: CanvasRenderingContext2D, fields: CoinShareCardField[]) {
+  const visibleFields = fields.slice(0, 3)
+  if (visibleFields.length === 0) return
+
+  const gridWidth = 840
+  const columnWidth = gridWidth / visibleFields.length
+  const gridX = (CARD_WIDTH - gridWidth) / 2
+  const y = 1166
+
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'alphabetic'
+  visibleFields.forEach((field, index) => {
+    const x = gridX + columnWidth * index + columnWidth / 2
+    ctx.fillStyle = TOKEN_COLORS.textMuted
+    ctx.font = '600 18px Inter, sans-serif'
+    ctx.fillText(field.label.toUpperCase(), x, y)
+
+    ctx.fillStyle = TOKEN_COLORS.textSecondary
+    ctx.font = '400 24px Inter, sans-serif'
+    const value = wrapLines(ctx, field.value, columnWidth - 28, 1)[0] ?? ''
+    ctx.fillText(value, x, y + 34)
+  })
+}
+
+function drawMetadataWithContext(
+  ctx: CanvasRenderingContext2D,
+  metadata: CoinShareCardMetadata,
+  appName: string,
+  context: CoinShareCardContext,
+) {
+  const heading = cleanText(context?.heading)
+  const summary = plainText(context?.summary)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'alphabetic'
+  ctx.fillStyle = TOKEN_COLORS.textPrimary
+  ctx.font = '600 52px Cinzel, serif'
+  const titleLines = drawCenteredWrappedText(ctx, metadata.title, 762, 900, 56, 2)
+
+  let labelY = 862
+  if (titleLines.length > 1) {
+    labelY = 908
+  }
+
+  if (heading) {
+    ctx.fillStyle = TOKEN_COLORS.accentGold
+    ctx.font = '600 24px Inter, sans-serif'
+    ctx.fillText(heading.toUpperCase(), CARD_WIDTH / 2, labelY)
+  } else if (metadata.category) {
+    ctx.fillStyle = TOKEN_COLORS.accentGold
+    ctx.font = '600 24px Inter, sans-serif'
+    ctx.fillText(metadata.category.toUpperCase(), CARD_WIDTH / 2, labelY)
+  }
+
+  if (summary) {
+    ctx.fillStyle = TOKEN_COLORS.textSecondary
+    ctx.font = '400 27px Inter, sans-serif'
+    drawCenteredWrappedText(ctx, summary, labelY + 52, 850, 36, 4)
+  }
+
+  drawCompactMetadataRow(ctx, metadata.fields)
+
+  ctx.fillStyle = TOKEN_COLORS.accentBronze
+  ctx.font = '600 28px Cinzel, serif'
+  ctx.textAlign = 'center'
+  ctx.fillText(appName, CARD_WIDTH / 2, FOOTER_Y)
+}
+
 function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
@@ -374,7 +457,11 @@ export async function renderCoinShareCard(
 
     drawBackground(ctx, width, height)
     drawImageFrame(ctx, images)
-    drawMetadata(ctx, metadata, input.appName)
+    if (input.context && (cleanText(input.context.heading) || cleanText(input.context.summary))) {
+      drawMetadataWithContext(ctx, metadata, input.appName, input.context)
+    } else {
+      drawMetadata(ctx, metadata, input.appName)
+    }
 
     return await canvasToPngBlob(canvas)
   } finally {

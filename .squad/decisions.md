@@ -10538,3 +10538,97 @@ Decision: Production Docker base images use tag-plus-OCI-index-digest references
 
 Refresh policy: Review and refresh tool/base-image pins monthly or immediately for security advisories. Update workflow and Taskfile pins together, refresh Docker tag/digest pairs together, and validate OpenAPI generation plus Go tests/security scan before merging.
 
+
+---
+
+## Decision: Coin of the Day Sharing Uses Existing Share Card Context
+
+**Date:** 2026-06-20  
+**Agent:** Aurelia  
+**Status:** APPROVED — IMPLEMENTED
+
+## Context
+
+Brian requested sharing for Coin of the Day summaries, while preserving the existing normal coin-detail share path. The frontend needed to extend sharing capabilities without introducing a separate renderer or API endpoint.
+
+## Decision
+
+Coin of the Day sharing leverages the existing useCoinShareCard composable by accepting an optional context object. FeaturedCoinModal.vue passes the cached featured-coin summary with the heading "Coin of the Day", allowing the generated card and native share text to include daily context. Normal coin-detail sharing remains unchanged (called without context).
+
+## Implementation
+
+- src/web/src/composables/useCoinShareCard.ts — accept optional { heading, summary } context object
+- src/web/src/utils/coinShareCard.ts — render context heading when supplied; otherwise use default behavior
+- src/web/src/components/coin/FeaturedCoinModal.vue — call share action with { context: { heading: 'Coin of the Day', summary: featured.summary } }
+
+## Rationale
+
+Reuses the existing share-card engine (canvas rendering, native share text generation, public metadata handling) while adding contextual daily headings. No separate API or renderer; no duplication of privacy expectations. Keeps the workflow simple and proportional.
+
+## Constitution Alignment
+
+- Principle III: Explicit typed share context contract
+- Principle IV: Simple proportional extension of existing share flow
+- Principle VI: User-visible Share/Sharing states tested
+- Section 17 Quality Gate: Focused regression coverage for exact workflow
+
+## Test Coverage
+
+- FeaturedCoinModal.test.ts — test share action with Coin of the Day context
+- useCoinShareCard.test.ts — test context parameter acceptance
+- coinShareCard.test.ts — test context rendering (heading, summary)
+- Existing coin-detail tests (CoinDetailPage, CoinDetailHeaderActions) continue passing
+
+## Validation
+
+- Tests: 17/17 passed
+- Type-check: PASSED
+- Production build: PASSED
+
+---
+
+## Decision: Coin of the Day Sharing Test Contract
+
+**Date:** 2026-06-20  
+**Agent:** Brutus  
+**Status:** APPROVED — IMPLEMENTED
+
+## Context
+
+Aurelia implemented Coin of the Day sharing via contextual extension of the existing coin share-card flow. Brutus added focused regression coverage to ensure the modal sharing path is preserved and the context is correctly captured.
+
+## Decision
+
+Coin of the Day modal sharing is tested as a contextual extension of the existing coin share-card flow, not as a separate feature branch. FeaturedCoinModal must call shareCoinCard(coin, { context: { heading: 'Coin of the Day', summary } }), where coin is the loaded underlying featured coin and summary is the cached Coin of the Day summary. Normal coin-detail sharing remains covered separately and must continue calling shareCoinCard(coin) without Coin of the Day context.
+
+## Test Cases
+
+1. FeaturedCoinModal share button triggers share action with Coin of the Day context
+2. useCoinShareCard accepts and passes through context object
+3. coinShareCard renders context heading when supplied
+4. coinShareCard includes summary in generated card
+5. Native share text includes daily context
+6. Canvas rendering of daily card is verified
+7. Busy state is managed correctly during share
+8. Default coin-detail sharing (without context) still works
+9. Type safety on optional context parameter
+10. No regressions in related share workflows
+
+## Rationale
+
+This protects the exact workflow Brian requested without duplicating the share-card engine or coupling the modal test to canvas rendering details. It also keeps privacy expectations from the share-card spec intact by preserving the existing public-metadata renderer and adding only the daily summary context.
+
+## Constitution Alignment
+
+- Principle III: Explicit typed share context contract
+- Principle IV: Simple proportional change with existing flow preserved
+- Principle VI: User-visible Share/Sharing states tested
+- Section 17 Quality Gate: Focused regression coverage for the exact workflow path
+
+## Validation
+
+- Focused Vitest run: 17/17 PASSED
+- Type-check: PASSED
+- Production build: PASSED
+
+---
