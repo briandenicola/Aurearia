@@ -49,7 +49,10 @@
         <span class="legend-item"><span class="legend-swatch legend-current"></span> Current value marker</span>
       </div>
 
-      <div class="flow-layout">
+      <ZoomableSurface
+        class="flow-layout"
+        :aria-label="`Zoomable ${title} investment flow chart. Use controls, wheel, pinch, drag, or keyboard shortcuts to inspect segments.`"
+      >
         <svg
           :viewBox="`0 0 ${SVG_W} ${svgHeight}`"
           preserveAspectRatio="xMidYMid meet"
@@ -123,7 +126,7 @@
             </text>
           </g>
         </svg>
-      </div>
+      </ZoomableSurface>
 
       <div class="segment-list" aria-label="Investment breakdown segments">
         <article
@@ -153,6 +156,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import ZoomableSurface from '@/components/ZoomableSurface.vue'
 import { formatCurrency } from '@/utils/format'
 import type { InvestmentBreakdownSegment } from '@/types'
 
@@ -437,11 +441,6 @@ function flowPath(band: FlowBand): string {
 
 .legend-current {
   background: var(--text-secondary);
-}
-
-.flow-layout {
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
 }
 
 .investment-flow-svg {

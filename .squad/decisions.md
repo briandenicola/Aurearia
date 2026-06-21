@@ -7553,6 +7553,85 @@ setRepo.AddCoinToSet(...)  // Properly sets AddedAt
 
 **Cert Format:** 7-8 digits, optional `-XXX` suffix; regex: `^(\d{7,8})(\-\d{3})?$`
 
+---
+
+## Decision: Reusable Zoomable Chart Surface
+
+**Date:** 2026-06-21
+**Agent:** Aurelia
+**Status:** Implemented
+
+### Context
+
+Statistics charts (coin flow, investment breakdown, bar chart, heatmap) lack interactive zoom and pan capabilities, limiting user exploration of dense data visualizations, especially on smaller viewports.
+
+### Decision
+
+Use one shared `ZoomableSurface.vue` wrapper for dense chart/graph inspection instead of per-chart zoom implementations. This maintains consistent zoom behavior across all stats surfaces: toolbar zoom in/out/reset, mouse wheel zoom, touch pinch, drag pan, and keyboard shortcuts.
+
+### Applied Scope
+
+- `StatsBarChart`
+- `StatsCoinFlowChart`
+- `StatsInvestmentBreakdownChart`
+- `StatsHeatMap`
+
+`SetTrendChart` remains unchanged (currently a text list, not a graph).
+
+### Constitution Alignment
+
+- Principle III: Strict frontend typing; camelCase prop contract
+- Principle VI: Consistent, mobile-safe UX; multitouch and keyboard support
+- §17 Quality Gate: Type-check, linting, build validation
+- §21 Definition of Done: Full regression test coverage
+
+### Files Touched
+
+- `src/web/src/components/ZoomableSurface.vue` — new wrapper component
+- `src/web/src/components/__tests__/ZoomableSurface.test.ts` — unit tests
+- `src/web/src/components/stats/StatsCoinFlowChart.vue`
+- `src/web/src/components/stats/__tests__/StatsCoinFlowChart.test.ts`
+- `src/web/src/components/stats/StatsInvestmentBreakdownChart.vue`
+- `src/web/src/components/stats/__tests__/StatsInvestmentBreakdownChart.test.ts`
+- `src/web/src/components/stats/StatsBarChart.vue`
+- `src/web/src/components/stats/__tests__/StatsBarChart.test.ts`
+- `src/web/src/components/stats/StatsHeatMap.vue`
+- `src/web/src/components/stats/__tests__/StatsHeatMap.test.ts`
+
+---
+
+## Decision: ZoomableSurface Prop Camel-Case Contract
+
+**Date:** 2026-06-21
+**Agent:** Brutus
+**Status:** Implemented
+
+### Context
+
+The `ZoomableSurface` component initially used hyphenated prop names (e.g., `aria-label`). This conflicted with linting rules and required normalization to camelCase (`ariaLabel`) for strict TypeScript type-checking in `vue-tsc --build`.
+
+### Decision
+
+`ZoomableSurface` props now use camelCase naming (`ariaLabel`, not `aria-label`). All call sites (chart wrappers and tests) are updated to use the camelCase convention, eliminating lint warnings and maintaining strict type-checking compliance.
+
+### Rationale
+
+- **Consistency:** All Vue component props follow camelCase convention per TypeScript and linting best practices
+- **Type Safety:** `vue-tsc --noEmit` and `vue-tsc --build` validate strictness without exceptions
+- **No Runtime Impact:** Attribute binding in templates remains ergonomic; Vue normalizes camelCase props to hyphenated attributes automatically when needed
+
+### Constitution Alignment
+
+- Principle III: Typed component contract with no `any` types; strict camelCase convention
+- Principle IV: Simple, proportional change (rename + call-site updates)
+- §17 Quality Gate: Linting 0 errors; type-check passing
+
+### Files Touched
+
+- `src/web/src/components/ZoomableSurface.vue` — prop contract
+- `src/web/src/components/__tests__/ZoomableSurface.test.ts` — test call sites
+- All chart component tests updated to use `ariaLabel`
+
 **Test Strategy:** Unit tests (normalization logic), integration tests (handler/service), manual QA (slab accuracy)
 
 **Constitution Compliance:** Principle I (layered architecture), Principle IV (strict typing), Principle XI (security)

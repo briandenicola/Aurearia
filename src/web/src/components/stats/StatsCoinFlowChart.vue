@@ -22,132 +22,134 @@
     </div>
 
     <div v-else class="flow-chart-body">
-      <!-- Column headers -->
-      <div class="flow-col-headers" :style="colHeaderStyle">
-        <span class="flow-col-label">Purchase Period</span>
-        <span class="flow-col-label">Ruler</span>
-        <span class="flow-col-label">Era</span>
-        <span class="flow-col-label">Type</span>
-      </div>
+      <ZoomableSurface aria-label="Zoomable acquisition flow chart. Use the controls, mouse wheel, pinch, drag, or keyboard shortcuts to inspect dense paths.">
+        <!-- Column headers -->
+        <div class="flow-col-headers" :style="colHeaderStyle">
+          <span class="flow-col-label">Purchase Period</span>
+          <span class="flow-col-label">Ruler</span>
+          <span class="flow-col-label">Era</span>
+          <span class="flow-col-label">Type</span>
+        </div>
 
-      <!-- SVG alluvial chart: Purchase Period → Ruler → Era → Type -->
-      <svg
-        :viewBox="`0 0 ${SVG_W} ${SVG_H}`"
-        preserveAspectRatio="xMidYMid meet"
-        class="flow-chart-svg"
-        role="img"
-        aria-label="Alluvial flow chart of acquired coins by purchase period, ruler, era, and type"
-      >
-        <!-- Period → Ruler flows -->
-        <path
-          v-for="(band, i) in periodRulerFlows"
-          :key="`pr-${i}`"
-          class="sankey-flow"
-          :d="flowPath(band, COL_X[0], COL_X[1])"
-          :fill="band.color"
-          opacity="0.45"
-        />
-
-        <!-- Ruler → Era flows -->
-        <path
-          v-for="(band, i) in rulerEraFlows"
-          :key="`re-${i}`"
-          class="sankey-flow"
-          :d="flowPath(band, COL_X[1], COL_X[2])"
-          :fill="band.color"
-          opacity="0.45"
-        />
-
-        <!-- Era → Type flows -->
-        <path
-          v-for="(band, i) in eraTypeFlows"
-          :key="`et-${i}`"
-          class="sankey-flow"
-          :d="flowPath(band, COL_X[2], COL_X[3])"
-          :fill="band.color"
-          opacity="0.45"
-        />
-
-        <!-- Period nodes (leftmost) -->
-        <g v-for="node in periodNodes" :key="`period-${node.key}`">
-          <rect
-            class="sankey-node"
-            :x="COL_X[0]"
-            :y="node.y"
-            :width="NODE_W"
-            :height="node.height"
-            :fill="node.color"
-            rx="2"
+        <!-- SVG alluvial chart: Purchase Period → Ruler → Era → Type -->
+        <svg
+          :viewBox="`0 0 ${SVG_W} ${SVG_H}`"
+          preserveAspectRatio="xMidYMid meet"
+          class="flow-chart-svg"
+          role="img"
+          aria-label="Alluvial flow chart of acquired coins by purchase period, ruler, era, and type"
+        >
+          <!-- Period → Ruler flows -->
+          <path
+            v-for="(band, i) in periodRulerFlows"
+            :key="`pr-${i}`"
+            class="sankey-flow"
+            :d="flowPath(band, COL_X[0], COL_X[1])"
+            :fill="band.color"
+            opacity="0.45"
           />
-          <text
-            class="sankey-label sankey-label-left"
-            :x="COL_X[0] - 8"
-            :y="node.y + node.height / 2"
-            dominant-baseline="middle"
-            text-anchor="end"
-          >{{ node.label }} ({{ node.count }})</text>
-        </g>
 
-        <!-- Ruler nodes -->
-        <g v-for="node in rulerNodes" :key="`ruler-${node.key}`">
-          <rect
-            class="sankey-node"
-            :x="COL_X[1]"
-            :y="node.y"
-            :width="NODE_W"
-            :height="node.height"
-            :fill="node.color"
-            rx="2"
+          <!-- Ruler → Era flows -->
+          <path
+            v-for="(band, i) in rulerEraFlows"
+            :key="`re-${i}`"
+            class="sankey-flow"
+            :d="flowPath(band, COL_X[1], COL_X[2])"
+            :fill="band.color"
+            opacity="0.45"
           />
-          <text
-            class="sankey-label sankey-label-center"
-            :x="COL_X[1] + NODE_W / 2"
-            :y="node.y + node.height / 2"
-            dominant-baseline="middle"
-            text-anchor="middle"
-          >{{ node.label }}</text>
-        </g>
 
-        <!-- Era nodes -->
-        <g v-for="node in eraNodes" :key="`era-${node.key}`">
-          <rect
-            class="sankey-node"
-            :x="COL_X[2]"
-            :y="node.y"
-            :width="NODE_W"
-            :height="node.height"
-            :fill="node.color"
-            rx="2"
+          <!-- Era → Type flows -->
+          <path
+            v-for="(band, i) in eraTypeFlows"
+            :key="`et-${i}`"
+            class="sankey-flow"
+            :d="flowPath(band, COL_X[2], COL_X[3])"
+            :fill="band.color"
+            opacity="0.45"
           />
-          <text
-            class="sankey-label sankey-label-center"
-            :x="COL_X[2] + NODE_W / 2"
-            :y="node.y + node.height / 2"
-            dominant-baseline="middle"
-            text-anchor="middle"
-          >{{ node.label }}</text>
-        </g>
 
-        <!-- Type nodes (rightmost) -->
-        <g v-for="node in typeNodes" :key="`type-${node.key}`">
-          <rect
-            class="sankey-node"
-            :x="COL_X[3]"
-            :y="node.y"
-            :width="NODE_W"
-            :height="node.height"
-            :fill="node.color"
-            rx="2"
-          />
-          <text
-            class="sankey-label sankey-label-right"
-            :x="COL_X[3] + NODE_W + 8"
-            :y="node.y + node.height / 2"
-            dominant-baseline="middle"
-            text-anchor="start"
-          >{{ node.label }} ({{ node.count }})</text>
-        </g>
-      </svg>
+          <!-- Period nodes (leftmost) -->
+          <g v-for="node in periodNodes" :key="`period-${node.key}`">
+            <rect
+              class="sankey-node"
+              :x="COL_X[0]"
+              :y="node.y"
+              :width="NODE_W"
+              :height="node.height"
+              :fill="node.color"
+              rx="2"
+            />
+            <text
+              class="sankey-label sankey-label-left"
+              :x="COL_X[0] - 8"
+              :y="node.y + node.height / 2"
+              dominant-baseline="middle"
+              text-anchor="end"
+            >{{ node.label }} ({{ node.count }})</text>
+          </g>
+
+          <!-- Ruler nodes -->
+          <g v-for="node in rulerNodes" :key="`ruler-${node.key}`">
+            <rect
+              class="sankey-node"
+              :x="COL_X[1]"
+              :y="node.y"
+              :width="NODE_W"
+              :height="node.height"
+              :fill="node.color"
+              rx="2"
+            />
+            <text
+              class="sankey-label sankey-label-center"
+              :x="COL_X[1] + NODE_W / 2"
+              :y="node.y + node.height / 2"
+              dominant-baseline="middle"
+              text-anchor="middle"
+            >{{ node.label }}</text>
+          </g>
+
+          <!-- Era nodes -->
+          <g v-for="node in eraNodes" :key="`era-${node.key}`">
+            <rect
+              class="sankey-node"
+              :x="COL_X[2]"
+              :y="node.y"
+              :width="NODE_W"
+              :height="node.height"
+              :fill="node.color"
+              rx="2"
+            />
+            <text
+              class="sankey-label sankey-label-center"
+              :x="COL_X[2] + NODE_W / 2"
+              :y="node.y + node.height / 2"
+              dominant-baseline="middle"
+              text-anchor="middle"
+            >{{ node.label }}</text>
+          </g>
+
+          <!-- Type nodes (rightmost) -->
+          <g v-for="node in typeNodes" :key="`type-${node.key}`">
+            <rect
+              class="sankey-node"
+              :x="COL_X[3]"
+              :y="node.y"
+              :width="NODE_W"
+              :height="node.height"
+              :fill="node.color"
+              rx="2"
+            />
+            <text
+              class="sankey-label sankey-label-right"
+              :x="COL_X[3] + NODE_W + 8"
+              :y="node.y + node.height / 2"
+              dominant-baseline="middle"
+              text-anchor="start"
+            >{{ node.label }} ({{ node.count }})</text>
+          </g>
+        </svg>
+      </ZoomableSurface>
 
       <p class="flow-footnote">
         Only coins with a recorded purchase date are shown. Ruler and type columns show top
@@ -160,6 +162,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { getCoins } from '@/api/client'
+import ZoomableSurface from '@/components/ZoomableSurface.vue'
 import type { Coin } from '@/types'
 
 interface SankeyNode {

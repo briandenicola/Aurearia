@@ -2,23 +2,25 @@
   <div class="stats-section card">
     <h2>Collection Distribution</h2>
     <div v-if="heatMapEras.length && heatMapCategories.length" class="heatmap-container">
-      <div class="heatmap-grid" :style="{ gridTemplateColumns: `minmax(60px, 80px) repeat(${heatMapCategories.length}, 1fr)` }">
-        <div class="heatmap-corner"></div>
-        <div v-for="cat in heatMapCategories" :key="cat" class="heatmap-col-header">{{ cat }}</div>
-        <template v-for="era in heatMapEras" :key="era">
-          <div class="heatmap-row-header">{{ era }}</div>
-          <div
-            v-for="cat in heatMapCategories"
-            :key="`${era}-${cat}`"
-            class="heatmap-cell"
-            :style="{ backgroundColor: cellColor(heatMapData[`${era}|${cat}`] ?? 0) }"
-            :title="`${era} / ${cat}: ${heatMapData[`${era}|${cat}`] ?? 0} coins`"
-            @click="navigateToFiltered(era, cat)"
-          >
-            <span v-if="(heatMapData[`${era}|${cat}`] ?? 0) > 0" class="heatmap-count">{{ heatMapData[`${era}|${cat}`] }}</span>
-          </div>
-        </template>
-      </div>
+      <ZoomableSurface aria-label="Zoomable collection distribution heat map. Use controls, wheel, pinch, drag, or keyboard shortcuts to inspect dense cells.">
+        <div class="heatmap-grid" :style="{ gridTemplateColumns: `minmax(60px, 80px) repeat(${heatMapCategories.length}, 1fr)` }">
+          <div class="heatmap-corner"></div>
+          <div v-for="cat in heatMapCategories" :key="cat" class="heatmap-col-header">{{ cat }}</div>
+          <template v-for="era in heatMapEras" :key="era">
+            <div class="heatmap-row-header">{{ era }}</div>
+            <div
+              v-for="cat in heatMapCategories"
+              :key="`${era}-${cat}`"
+              class="heatmap-cell"
+              :style="{ backgroundColor: cellColor(heatMapData[`${era}|${cat}`] ?? 0) }"
+              :title="`${era} / ${cat}: ${heatMapData[`${era}|${cat}`] ?? 0} coins`"
+              @click="navigateToFiltered(era, cat)"
+            >
+              <span v-if="(heatMapData[`${era}|${cat}`] ?? 0) > 0" class="heatmap-count">{{ heatMapData[`${era}|${cat}`] }}</span>
+            </div>
+          </template>
+        </div>
+      </ZoomableSurface>
       <div class="heatmap-legend">
         <span class="heatmap-legend-label">0</span>
         <div class="heatmap-legend-bar"></div>
@@ -33,6 +35,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getDistribution } from '@/api/client'
+import ZoomableSurface from '@/components/ZoomableSurface.vue'
 
 const router = useRouter()
 
@@ -63,10 +66,10 @@ async function fetchDistribution() {
 }
 
 function cellColor(count: number): string {
-  if (count === 0) return 'rgba(191, 155, 48, 0.05)'
+  if (count === 0) return 'color-mix(in srgb, var(--accent-gold) 5%, transparent)'
   const intensity = Math.min(count / heatMapMax.value, 1)
-  const alpha = 0.15 + intensity * 0.7
-  return `rgba(191, 155, 48, ${alpha.toFixed(2)})`
+  const percentage = Math.round((0.15 + intensity * 0.7) * 100)
+  return `color-mix(in srgb, var(--accent-gold) ${percentage}%, transparent)`
 }
 
 function navigateToFiltered(era: string, category: string) {
@@ -92,14 +95,16 @@ defineExpose({ fetchDistribution })
 }
 
 .heatmap-container {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .heatmap-grid {
   display: grid;
   gap: 2px;
   min-width: 300px;
+  padding: 0.75rem;
 }
 
 .heatmap-corner {
@@ -133,18 +138,18 @@ defineExpose({ fetchDistribution })
 .heatmap-cell {
   aspect-ratio: 1;
   min-height: 28px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.15s;
-  border: 1px solid rgba(191, 155, 48, 0.1);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  border: 1px solid var(--border-subtle);
 }
 
 .heatmap-cell:hover {
   transform: scale(1.1);
-  box-shadow: 0 0 8px rgba(191, 155, 48, 0.4);
+  box-shadow: var(--shadow-gold-hover);
   z-index: 1;
 }
 
@@ -170,8 +175,12 @@ defineExpose({ fetchDistribution })
 .heatmap-legend-bar {
   width: 120px;
   height: 10px;
-  border-radius: 5px;
-  background: linear-gradient(to right, rgba(191, 155, 48, 0.1), rgba(191, 155, 48, 0.85));
+  border-radius: var(--radius-full);
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--accent-gold) 10%, transparent),
+    color-mix(in srgb, var(--accent-gold) 85%, transparent)
+  );
 }
 
 @media (max-width: 480px) {
@@ -190,7 +199,6 @@ defineExpose({ fetchDistribution })
   }
   .heatmap-cell {
     min-height: 24px;
-    border-radius: 3px;
   }
   .heatmap-count {
     font-size: 0.55rem;
