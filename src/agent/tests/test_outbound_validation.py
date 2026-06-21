@@ -225,6 +225,28 @@ def test_coin_search_request_accepts_trusted_tools_origin(monkeypatch):
     assert request.tools_base_url == "http://app:8080"
 
 
+def test_coin_search_request_defers_untrusted_tools_origin_validation(monkeypatch):
+    monkeypatch.setattr(settings, "trusted_outbound_origins", "http://app:8080")
+    monkeypatch.setattr(settings, "allow_local_outbound", False)
+
+    request = CoinSearchRequest(
+        llm=LLMConfig(
+            provider="anthropic",
+            api_key="anthropic-key",
+            model="claude-opus-4-8",
+            ollama_url="https://stale-ollama.example.com",
+            searxng_url="https://stale-search.example.com",
+        ),
+        user=UserContext(user_id=1),
+        message="find me Roman silver denarii",
+        tools_base_url="http://coins:8080",
+    )
+
+    assert request.llm.ollama_url == ""
+    assert request.llm.searxng_url == ""
+    assert request.tools_base_url == "http://coins:8080"
+
+
 @pytest.mark.asyncio
 async def test_configured_local_dev_origin_allows_network_call(monkeypatch):
     monkeypatch.setattr(settings, "trusted_outbound_origins", "http://localhost:8080")

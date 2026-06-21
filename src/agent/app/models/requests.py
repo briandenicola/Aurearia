@@ -28,6 +28,7 @@ BoundedMessage = Annotated[str, StringConstraints(max_length=MAX_MESSAGE_LENGTH)
 BoundedPrompt = Annotated[str, StringConstraints(max_length=MAX_PROMPT_LENGTH)]
 BoundedName = Annotated[str, StringConstraints(max_length=MAX_NAME_LENGTH)]
 BoundedNotes = Annotated[str, StringConstraints(max_length=MAX_NOTES_LENGTH)]
+BoundedOptionalURL = Annotated[str, StringConstraints(max_length=MAX_URL_LENGTH)]
 BoundedURL = Annotated[str, StringConstraints(min_length=1, max_length=MAX_URL_LENGTH)]
 BoundedImageBase64 = Annotated[str, StringConstraints(max_length=MAX_IMAGE_BASE64_LENGTH)]
 
@@ -140,12 +141,7 @@ class CoinSearchRequest(StrictRequestModel):
     coin_shows_prompt: BoundedPrompt = ""
     portfolio: PortfolioSummary | None = None
     internal_token: str = ""
-    tools_base_url: str = ""
-
-    @field_validator("tools_base_url")
-    @classmethod
-    def validate_tools_base_url(cls, value: str) -> str:
-        return validate_outbound_url(value, "tools_base_url")
+    tools_base_url: BoundedOptionalURL = ""
 
     @field_validator("history")
     @classmethod

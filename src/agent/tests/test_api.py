@@ -133,6 +133,48 @@ def test_analyze_anthropic_ignores_non_ollama_url():
     assert resp.status_code == 200
 
 
+def test_search_coins_anthropic_accepts_stale_urls_and_unrelated_callback(monkeypatch):
+    captured = {}
+
+    def fake_create_supervisor(llm, **kwargs):
+        captured["llm"] = llm
+        captured.update(kwargs)
+        return object()
+
+    async def fake_stream_graph_events(_graph, _state, config=None):
+        captured["config"] = config
+        yield 'data: {"type":"done","message":"ok"}\n\n'
+
+    monkeypatch.setattr("app.routes.create_supervisor", fake_create_supervisor)
+    monkeypatch.setattr("app.routes.stream_graph_events", fake_stream_graph_events)
+    monkeypatch.setattr(settings, "trusted_outbound_origins", "http://app:8080")
+    monkeypatch.setattr(settings, "allow_local_outbound", False)
+
+    resp = client.post(
+        "/api/search/coins",
+        json={
+            "llm": {
+                "provider": "anthropic",
+                "api_key": "k",
+                "model": "claude-opus-4-8",
+                "ollama_url": "https://stale-ollama.example.com",
+                "searxng_url": "https://stale-search.example.com",
+            },
+            "user": {"user_id": 1},
+            "message": "Find Athenian owls for sale",
+            "tools_base_url": "https://unrelated-callback.example.com",
+            "internal_token": "token",
+        },
+        headers=AUTH_HEADERS,
+    )
+
+    assert resp.status_code == 200
+    assert "ok" in resp.text
+    assert captured["llm"].ollama_url == ""
+    assert captured["llm"].searxng_url == ""
+    assert captured["tools_base_url"] == "https://unrelated-callback.example.com"
+
+
 def test_portfolio_review_rejects_invalid_body():
     resp = client.post("/api/portfolio/review", json={}, headers=AUTH_HEADERS)
     assert resp.status_code == 422
