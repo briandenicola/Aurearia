@@ -239,6 +239,24 @@ func (s *CoinService) DeleteCoin(id, userID uint) (int64, error) {
 	return rows, err
 }
 
+// DuplicateCoin clones an owned coin without carrying over image/card-related rows.
+func (s *CoinService) DuplicateCoin(id, userID uint) (*models.Coin, error) {
+	var duplicate *models.Coin
+	err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
+		txRepo := s.repo.WithTx(tx)
+		created, err := txRepo.Duplicate(id, userID)
+		if err != nil {
+			return err
+		}
+		if err := txRepo.RecordValueSnapshot(userID); err != nil {
+			return err
+		}
+		duplicate = created
+		return nil
+	})
+	return duplicate, err
+}
+
 // PurchaseCoin marks a wishlist coin as purchased and records a value snapshot.
 // The coin's purchase fields (price, date, location) should be set on the model
 // before calling this method.

@@ -338,6 +338,42 @@ func (h *CoinHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, existing)
 }
 
+// Duplicate creates a copy of an existing coin owned by the authenticated user.
+//
+//	@Summary		Duplicate a coin
+//	@Description	Creates a copy of an existing coin owned by the authenticated user. Images and card-related media/state are not copied.
+//	@Tags			Coins
+//	@Produce		json
+//	@Param			id	path		int	true	"Coin ID"
+//	@Success		201	{object}	models.Coin
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/coins/{id}/duplicate [post]
+func (h *CoinHandler) Duplicate(c *gin.Context) {
+	userID := c.GetUint("userId")
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid coin ID"})
+		return
+	}
+
+	duplicate, err := h.svc.DuplicateCoin(uint(id), userID)
+	if err != nil {
+		if repository.IsRecordNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
+			return
+		}
+		h.logger.Error("coins", "Failed to duplicate coin %d for user %d: %v", id, userID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to duplicate coin"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, duplicate)
+}
+
 // Purchase marks a wishlist coin as purchased (moves it to the collection).
 //
 //	@Summary		Mark coin as purchased

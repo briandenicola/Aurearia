@@ -11,8 +11,10 @@
           :is-sold="coin.isSold"
           :coin-id="coin.id"
           :sharing="sharing"
+          :duplicating="duplicating"
           @share="handleShare"
           @sell="showSellModal = true"
+          @duplicate="handleDuplicate"
           @delete="handleDelete"
         />
       </div>
@@ -156,7 +158,7 @@ import CoinDetailMetadataTable from '@/components/coin/CoinDetailMetadataTable.v
 import CoinDetailSectionLinks from '@/components/coin/CoinDetailSectionLinks.vue'
 import CoinListingStatus from '@/components/coin/CoinListingStatus.vue'
 import CoinReferencesSection from '@/components/coin/CoinReferencesSection.vue'
-import { deleteCoin, purchaseCoin, sellCoin } from '@/api/client'
+import { deleteCoin, duplicateCoin, purchaseCoin, sellCoin } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
 import { useCoinDetailMetadataRows } from '@/composables/useCoinDetailMetadataRows'
 import { useCoinShareCard } from '@/composables/useCoinShareCard'
@@ -171,6 +173,7 @@ const showSellModal = ref(false)
 const showPurchaseModal = ref(false)
 const lightboxImage = ref<CoinImage | null>(null)
 const { sharing, shareCoinCard } = useCoinShareCard()
+const duplicating = ref(false)
 
 const coin = computed(() => store.currentCoin)
 
@@ -223,6 +226,19 @@ async function handleDelete() {
   if (!coin.value || !await showConfirm('Delete this coin from your collection?', { title: 'Delete Coin', variant: 'danger' })) return
   await deleteCoin(coin.value.id)
   router.push('/')
+}
+
+async function handleDuplicate() {
+  if (!coin.value || duplicating.value) return
+  duplicating.value = true
+  try {
+    const res = await duplicateCoin(coin.value.id)
+    router.push(`/coin/${res.data.id}`)
+  } catch {
+    await showAlert('Failed to duplicate coin', { title: 'Error' })
+  } finally {
+    duplicating.value = false
+  }
 }
 
 async function confirmSell(soldPrice: number | null, soldTo: string) {

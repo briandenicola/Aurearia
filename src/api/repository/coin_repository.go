@@ -384,6 +384,124 @@ func (r *CoinRepository) Create(coin *models.Coin) error {
 	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(coin, coin.ID).Error
 }
 
+// Duplicate creates an owner-scoped copy of a coin without copying media or card state rows.
+func (r *CoinRepository) Duplicate(id uint, userID uint) (*models.Coin, error) {
+	var source models.Coin
+	if err := r.db.Scopes(OwnedByID(id, userID)).
+		Preload("References").
+		Preload("StorageLocation").
+		First(&source).Error; err != nil {
+		return nil, err
+	}
+
+	duplicate := models.Coin{
+		Name:                  source.Name + " (duplicate)",
+		Category:              source.Category,
+		Denomination:          source.Denomination,
+		Ruler:                 source.Ruler,
+		Era:                   source.Era,
+		Mint:                  source.Mint,
+		Material:              source.Material,
+		WeightGrams:           source.WeightGrams,
+		DiameterMm:            source.DiameterMm,
+		Grade:                 source.Grade,
+		ObverseInscription:    source.ObverseInscription,
+		ReverseInscription:    source.ReverseInscription,
+		ObverseDescription:    source.ObverseDescription,
+		ReverseDescription:    source.ReverseDescription,
+		RarityRating:          source.RarityRating,
+		PurchasePrice:         source.PurchasePrice,
+		CurrentValue:          source.CurrentValue,
+		CurrentValueUpdatedAt: source.CurrentValueUpdatedAt,
+		PurchaseDate:          source.PurchaseDate,
+		PurchaseLocation:      source.PurchaseLocation,
+		Notes:                 source.Notes,
+		AIAnalysis:            source.AIAnalysis,
+		ObverseAnalysis:       source.ObverseAnalysis,
+		ReverseAnalysis:       source.ReverseAnalysis,
+		ReferenceURL:          source.ReferenceURL,
+		ReferenceText:         source.ReferenceText,
+		IsWishlist:            source.IsWishlist,
+		IsSold:                source.IsSold,
+		SoldPrice:             source.SoldPrice,
+		SoldDate:              source.SoldDate,
+		SoldTo:                source.SoldTo,
+		ListingStatus:         source.ListingStatus,
+		ListingCheckedAt:      source.ListingCheckedAt,
+		ListingCheckReason:    source.ListingCheckReason,
+		StorageLocationID:     source.StorageLocationID,
+		IsPrivate:             source.IsPrivate,
+		UserID:                source.UserID,
+	}
+	if err := r.db.Omit("Images", "References", "Tags", "Sets", "StorageLocation", "User").Create(&duplicate).Error; err != nil {
+		return nil, err
+	}
+
+	if len(source.References) > 0 {
+		references := make([]models.CoinReference, 0, len(source.References))
+		for _, ref := range source.References {
+			references = append(references, models.CoinReference{
+				CoinID:        duplicate.ID,
+				Catalog:       ref.Catalog,
+				Volume:        ref.Volume,
+				Number:        ref.Number,
+				InvoiceNumber: ref.InvoiceNumber,
+				URI:           ref.URI,
+			})
+		}
+		if err := r.db.Create(&references).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	var tagIDs []uint
+	if err := r.db.Table("coin_tags").
+		Select("coin_tags.tag_id").
+		Joins("JOIN tags ON tags.id = coin_tags.tag_id").
+		Where("coin_tags.coin_id = ? AND tags.user_id = ?", source.ID, userID).
+		Scan(&tagIDs).Error; err != nil {
+		return nil, err
+	}
+	if len(tagIDs) > 0 {
+		coinTags := make([]models.CoinTag, 0, len(tagIDs))
+		for _, tagID := range tagIDs {
+			coinTags = append(coinTags, models.CoinTag{CoinID: duplicate.ID, TagID: tagID})
+		}
+		if err := r.db.Create(&coinTags).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	var memberships []models.CoinSetMembership
+	if err := r.db.Table("coin_set_memberships").
+		Select("coin_set_memberships.*").
+		Joins("JOIN coin_sets ON coin_sets.id = coin_set_memberships.set_id").
+		Where("coin_set_memberships.coin_id = ? AND coin_sets.user_id = ?", source.ID, userID).
+		Scan(&memberships).Error; err != nil {
+		return nil, err
+	}
+	if len(memberships) > 0 {
+		copiedMemberships := make([]models.CoinSetMembership, 0, len(memberships))
+		for _, membership := range memberships {
+			copiedMemberships = append(copiedMemberships, models.CoinSetMembership{
+				SetID:     membership.SetID,
+				CoinID:    duplicate.ID,
+				AddedAt:   membership.AddedAt,
+				SortOrder: membership.SortOrder,
+				Notes:     membership.Notes,
+			})
+		}
+		if err := r.db.Create(&copiedMemberships).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	if err := r.db.Preload("Images").Preload("References").Preload("Tags").Preload("Sets").Preload("StorageLocation").First(&duplicate, duplicate.ID).Error; err != nil {
+		return nil, err
+	}
+	return &duplicate, nil
+}
+
 // Update applies a scalar patch to an existing coin and reloads read associations.
 // When selectFields are supplied, only those fields are persisted, including
 // explicit zero values; relationship changes stay on their dedicated paths.

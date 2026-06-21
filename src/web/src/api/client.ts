@@ -203,6 +203,7 @@ export const purchaseCoin = (id: number, data?: { purchasePrice?: number; purcha
   api.post<Coin>(`/coins/${id}/purchase`, data || {})
 export const sellCoin = (id: number, soldPrice: number | null, soldTo: string) =>
   api.post<Coin>(`/coins/${id}/sell`, { soldPrice, soldTo })
+export const duplicateCoin = (id: number) => api.post<Coin>(`/coins/${id}/duplicate`)
 export const deleteCoin = (id: number) => api.delete(`/coins/${id}`)
 export const getCoinReferences = (coinId: number) => api.get<CoinReference[]>(`/coins/${coinId}/references`)
 export const createCoinReference = (coinId: number, reference: CoinReferenceInput) =>

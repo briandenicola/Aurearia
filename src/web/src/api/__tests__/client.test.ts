@@ -479,6 +479,12 @@ describe('API Client', () => {
       expect(mockApi.delete).toHaveBeenCalledWith('/coins/99')
     })
 
+    it('duplicateCoin sends POST to /coins/:id/duplicate', async () => {
+      mockApi.post.mockResolvedValue({ data: {} })
+      await client.duplicateCoin(99)
+      expect(mockApi.post).toHaveBeenCalledWith('/coins/99/duplicate')
+    })
+
     it('notes CRUD methods use the /notes contract', async () => {
       mockApi.get.mockResolvedValue({ data: { notes: [] } })
       mockApi.post.mockResolvedValue({ data: {} })

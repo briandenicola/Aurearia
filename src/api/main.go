@@ -156,7 +156,7 @@ func main() {
 	imageHandler := handlers.NewImageHandler(cfg.UploadDir, imageRepo, imageSvc, logger)
 
 	authRateLimit := middleware.RateLimit(10, 1*time.Minute)
-	apiRateLimit := middleware.AuthenticatedRateLimit(600, 1*time.Minute) // Authenticated browsing
+	apiRateLimit := middleware.AuthenticatedRateLimit(600, 1*time.Minute)  // Authenticated browsing
 	writeRateLimit := middleware.AuthenticatedRateLimit(30, 1*time.Minute) // Write operations
 
 	r.Use(middleware.IPDenyRules(securitySvc))
@@ -241,6 +241,7 @@ func main() {
 		protected.GET("/coins", coinHandler.List)
 		protected.GET("/coins/:id", coinHandler.Get)
 		protected.POST("/coins", coinHandler.Create)
+		protected.POST("/coins/:id/duplicate", writeRateLimit, coinHandler.Duplicate)
 		protected.POST("/coins/intake/draft", writeRateLimit, coinIntakeHandler.CreateDraft)
 		protected.POST("/coins/intake/commit", writeRateLimit, coinIntakeHandler.CommitDraft)
 		protected.POST("/coins/lookup", writeRateLimit, coinLookupHandler.Lookup)

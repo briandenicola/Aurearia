@@ -4988,6 +4988,44 @@ paths:
       summary: Analyze coin images
       tags:
       - Analysis
+  /coins/{id}/duplicate:
+    post:
+      description: Creates a copy of an existing coin owned by the authenticated user.
+        Images and card-related media/state are not copied.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Coin'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Duplicate a coin
+      tags:
+      - Coins
   /coins/{id}/estimate-value:
     post:
       description: Uses the configured AI provider to estimate current market value

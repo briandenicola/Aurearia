@@ -2,6 +2,34 @@
 
 ## Active Decisions
 
+### Decision: Duplicate Coin Backend Contract
+
+**Date:** 2026-06-21
+**Agent:** Cassius
+**Status:** PROPOSED — IMPLEMENTED
+
+## Context
+
+Brian requested backend support for duplicating a coin from the detail page without copying images or card-related media/state, while preserving ownership scoping.
+
+## Decision
+
+Expose `POST /api/coins/{id}/duplicate` as a protected write route. The endpoint returns `201` with the new `models.Coin`; the new name is the source name plus ` (duplicate)`. The repository copies owner-scoped scalar fields, catalog references, tags, and set memberships, including membership notes/sort order. It does not copy `CoinImage` rows or showcase/card rows. Non-owned source coin IDs return the same 404 shape as other owner-scoped coin reads.
+
+## Constitution Alignment
+
+- Principle I: Handler → Service → Repository separation with transactional multi-step write.
+- Principle V: Owner scope enforced through `OwnedByID`; non-owned coins are not distinguishable from missing coins.
+- §17/§21: Targeted handler and service regressions cover copied fields/associations plus media/card exclusion.
+
+## Files Touched
+
+Backend: `src/api/handlers/coins.go`, `src/api/services/coin_service.go`, `src/api/repository/coin_repository.go`, `src/api/main.go`
+Frontend: `src/web/src/api/client.ts`, `src/web/src/components/coin/CoinDetailHeaderActions.vue`, `src/web/src/pages/CoinDetailPage.vue`
+Tests: Backend and frontend regression tests included.
+
+---
+
 ### Decision: Public Showcase Reuses Museum Tray Components
 
 **Date:** 2026-06-20
