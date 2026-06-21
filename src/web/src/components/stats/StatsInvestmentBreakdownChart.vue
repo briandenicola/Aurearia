@@ -128,6 +128,13 @@
         </svg>
       </ZoomableSurface>
 
+      <div class="mobile-aggregate-summary" aria-label="Investment aggregate summary">
+        Invested: {{ formatCurrency(totals.invested) }} · Current: {{ formatCurrency(totals.currentValue) }} ·
+        <span :class="totals.gainLoss >= 0 ? 'positive' : 'negative'">
+          Gain/Loss: {{ totals.gainLoss >= 0 ? '+' : '' }}{{ formatCurrency(totals.gainLoss) }} ({{ summaryGainLossPct >= 0 ? '+' : '' }}{{ summaryGainLossPct.toFixed(1) }}%)
+        </span>
+      </div>
+
       <div class="segment-list" aria-label="Investment breakdown segments">
         <article
           v-for="row in displayRows"
@@ -514,13 +521,32 @@ function flowPath(band: FlowBand): string {
   font-size: 0.8rem;
 }
 
-@media (max-width: 640px) {
+.mobile-aggregate-summary {
+  display: none;
+}
+
+@media (max-width: 768px) {
   .investment-chart-header {
     flex-direction: column;
   }
 
   .investment-flow-svg {
     min-width: 34rem;
+  }
+
+  .segment-list {
+    display: none;
+  }
+
+  .mobile-aggregate-summary {
+    display: block;
+    padding: 0.75rem;
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    text-align: center;
   }
 }
 </style>

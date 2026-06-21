@@ -84,4 +84,59 @@ describe('StatsInvestmentBreakdownChart', () => {
     expect(wrapper.find('.empty-state').exists()).toBe(true)
     expect(wrapper.find('.investment-flow-svg').exists()).toBe(false)
   })
+
+  it('renders mobile aggregate summary with correct values', () => {
+    const wrapper = mount(StatsInvestmentBreakdownChart, {
+      props: {
+        title: 'Material',
+        eyebrow: 'Portfolio Composition',
+        rows: [
+          segment({ label: 'Silver', invested: 300, currentValue: 360, gainLoss: 60, gainLossPct: 20, coinCount: 3 }),
+          segment({ label: 'Bronze', invested: 200, currentValue: 180, gainLoss: -20, gainLossPct: -10, coinCount: 2 }),
+        ],
+      },
+    })
+
+    const mobileSummary = wrapper.find('.mobile-aggregate-summary')
+    expect(mobileSummary.exists()).toBe(true)
+    expect(mobileSummary.text()).toContain('Invested: $500.00')
+    expect(mobileSummary.text()).toContain('Current: $540.00')
+    expect(mobileSummary.text()).toContain('Gain/Loss: +$40.00')
+    expect(mobileSummary.text()).toContain('(+8.0%)')
+  })
+
+  it('renders both mobile aggregate summary and segment list in DOM', () => {
+    const wrapper = mount(StatsInvestmentBreakdownChart, {
+      props: {
+        title: 'Material',
+        eyebrow: 'Portfolio Composition',
+        rows: [
+          segment({ label: 'Silver', invested: 300, currentValue: 360, gainLoss: 60, coinCount: 3 }),
+        ],
+      },
+    })
+
+    expect(wrapper.find('.mobile-aggregate-summary').exists()).toBe(true)
+    expect(wrapper.find('.segment-list').exists()).toBe(true)
+    expect(wrapper.findAll('.segment-card')).toHaveLength(1)
+  })
+
+  it('displays negative values correctly in mobile aggregate summary', () => {
+    const wrapper = mount(StatsInvestmentBreakdownChart, {
+      props: {
+        title: 'Material',
+        eyebrow: 'Portfolio Composition',
+        rows: [
+          segment({ label: 'Bronze', invested: 500, currentValue: 400, gainLoss: -100, gainLossPct: -20, coinCount: 5 }),
+        ],
+      },
+    })
+
+    const mobileSummary = wrapper.find('.mobile-aggregate-summary')
+    expect(mobileSummary.text()).toContain('Invested: $500.00')
+    expect(mobileSummary.text()).toContain('Current: $400.00')
+    expect(mobileSummary.text()).toContain('Gain/Loss: -$100.00')
+    expect(mobileSummary.text()).toContain('(-20.0%)')
+    expect(mobileSummary.find('.negative').exists()).toBe(true)
+  })
 })
