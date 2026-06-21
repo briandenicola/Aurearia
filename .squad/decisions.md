@@ -10807,3 +10807,87 @@ This preserves internal service credential protection per Principle V while enab
 - test files for agent proxy and internal credential handling
 
 ---
+
+## Decision: Authenticated API Rate Limiting Uses Principal Buckets
+
+**Date:** 2026-06-21
+**Agent:** Cassius
+**Status:** IMPLEMENTED
+
+### Context
+
+Production showed 429 responses for normal authenticated browsing endpoints such as `/api/notifications/unread-count`, `/api/auth/me`, `/api/tags`, `/api/coins`, `/api/sets`, and `/api/storage-locations` after only light browsing or updates.
+
+### Decision
+
+Protected API browsing now uses `AuthenticatedRateLimit`, keyed by authenticated user ID or API key ID with client IP only as a fallback. The authenticated browsing bucket is 600 requests per minute. Write-heavy protected routes still use a stricter 30 requests per minute bucket, now also keyed by authenticated principal. Public auth routes remain IP-limited at 10 requests per minute to preserve brute-force protection.
+
+### Constitution Alignment
+
+- Principle I: middleware-only routing concern; no handler/service/repository boundary changes.
+- Principle V: preserves auth endpoint brute-force protection and keeps abuse throttling for authenticated callers.
+- §17 and §21: targeted regression tests cover the exact failing browsing path and shared-IP principal keying.
+
+### Files Touched
+
+- `src/api/main.go`
+- `src/api/middleware/ratelimit.go`
+- `src/api/middleware/ratelimit_test.go`
+
+---
+
+## Decision: Private Media Blob Cache Reduces Protected API Bursts
+
+**Date:** 2026-06-21
+**Agent:** Aurelia
+**Status:** Implemented
+
+### Context
+
+Brian observed 429 responses for normal protected API calls after browsing and updating the collection. The frontend's collection mount issues a small expected data burst, while private coin images are loaded through authenticated `/api/uploads/*` requests that share the protected API rate-limit budget.
+
+### Decision
+
+Cache private upload blobs in memory by normalized upload path and deduplicate concurrent in-flight loads. Components still create and revoke their own object URLs, but repeated route changes, rerenders, lightbox/share-card usage, and remounts no longer refetch the same image blob during the same authenticated session. The cache is cleared on logout or user switch to avoid cross-account private media reuse.
+
+### Constitution Alignment
+
+- Principle III: typed media helper contract and targeted regression tests.
+- Principle IV: focused proportional frontend fix without backend rate-limit changes.
+- Principle VI: preserves authenticated media behavior and PWA/private-upload service-worker boundaries.
+- §17 / §21: targeted tests plus `vue-tsc --build` and `npm run build` passed.
+
+### Files Touched
+
+- `src/web/src/utils/media.ts`
+- `src/web/src/utils/__tests__/media.test.ts`
+- `src/web/src/stores/auth.ts`
+- `src/web/src/stores/__tests__/auth.test.ts`
+
+---
+
+## Decision: Authenticated Rate Limit Regression Contract
+
+**Date:** 2026-06-21
+**Agent:** Brutus
+**Status:** Implemented
+
+### Context
+
+Production reported 429 Too Many Requests during normal authenticated browsing on protected read endpoints including notifications, auth/me, tags, coins, sets, and storage locations.
+
+### Decision
+
+Regression coverage for this class of bug exercises the authenticated middleware contract directly: normal protected browsing bursts must pass, rate-limit buckets must be keyed by authenticated user/API key rather than shared IP, and abusive authenticated writes must still receive 429.
+
+### Constitution Alignment
+
+- Principle IV: targeted regression tests for exact failing workflow
+- Principle V: validates abuse throttling and auth endpoint protection
+- §17 / §21: Definition of Done — regression coverage locks the contract
+
+### Files Touched
+
+- `src/api/middleware/ratelimit_test.go` — three comprehensive regression test cases
+
+---

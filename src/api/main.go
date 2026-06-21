@@ -156,8 +156,8 @@ func main() {
 	imageHandler := handlers.NewImageHandler(cfg.UploadDir, imageRepo, imageSvc, logger)
 
 	authRateLimit := middleware.RateLimit(10, 1*time.Minute)
-	apiRateLimit := middleware.RateLimit(120, 1*time.Minute)  // General API rate limit
-	writeRateLimit := middleware.RateLimit(30, 1*time.Minute) // Write operations
+	apiRateLimit := middleware.AuthenticatedRateLimit(600, 1*time.Minute) // Authenticated browsing
+	writeRateLimit := middleware.AuthenticatedRateLimit(30, 1*time.Minute) // Write operations
 
 	r.Use(middleware.IPDenyRules(securitySvc))
 	r.GET("/uploads/*filepath", middleware.AuthRequiredWithSecurity(cfg.JWTSecret, apiKeyAuth, securitySvc), apiRateLimit, imageHandler.ServeUpload)

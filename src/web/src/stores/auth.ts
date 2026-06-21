@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import type { User, AuthResponse } from '@/types'
 import * as api from '@/api/client'
 import { onTokenRefreshed } from '@/api/client'
+import { clearPrivateMediaBlobCache } from '@/utils/media'
 
 const PRIVATE_MEDIA_CACHE_NAMES = ['coin-images']
 
@@ -26,6 +27,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function clearPrivateMediaCaches() {
+    clearPrivateMediaBlobCache()
     if (typeof caches === 'undefined') return
 
     await Promise.allSettled(
