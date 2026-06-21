@@ -2,8 +2,12 @@ import { removeBackground, type Config, type ImageSource } from '@imgly/backgrou
 
 export const BACKGROUND_REMOVAL_ASSET_PATH = '/imgly-background-removal/'
 
+export function backgroundRemovalPublicPath(): string {
+  return new URL(BACKGROUND_REMOVAL_ASSET_PATH, window.location.origin).href
+}
+
 export const backgroundRemovalConfig: Config = {
-  publicPath: BACKGROUND_REMOVAL_ASSET_PATH,
+  publicPath: backgroundRemovalPublicPath(),
   model: 'isnet_quint8',
   device: 'cpu',
   proxyToWorker: false,
