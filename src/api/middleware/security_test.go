@@ -14,6 +14,27 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestSecurityHeadersEnableCrossOriginIsolationForWASM(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(SecurityHeaders())
+	router.GET("/", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Cross-Origin-Opener-Policy"); got != "same-origin" {
+		t.Fatalf("expected COOP same-origin, got %q", got)
+	}
+	if got := w.Header().Get("Cross-Origin-Embedder-Policy"); got != "credentialless" {
+		t.Fatalf("expected COEP credentialless, got %q", got)
+	}
+}
+
 func TestIPDenyRulesBlocksPublicAndProtectedRoutes(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
