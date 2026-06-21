@@ -106,25 +106,7 @@ func main() {
 	// Serve Vue SPA from wwwroot
 	wwwroot := filepath.Join(".", "wwwroot")
 	if _, err := os.Stat(wwwroot); err == nil {
-		r.Static("/assets", filepath.Join(wwwroot, "assets"))
-		r.StaticFile("/coin-logo.jpg", filepath.Join(wwwroot, "coin-logo.jpg"))
-		r.StaticFile("/manifest.webmanifest", filepath.Join(wwwroot, "manifest.webmanifest"))
-		r.StaticFile("/sw.js", filepath.Join(wwwroot, "sw.js"))
-		r.StaticFile("/registerSW.js", filepath.Join(wwwroot, "registerSW.js"))
-
-		// SPA fallback
-		r.NoRoute(func(c *gin.Context) {
-			// Don't serve index.html for API routes
-			if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
-				c.JSON(404, gin.H{"error": "Not found"})
-				return
-			}
-			if len(c.Request.URL.Path) >= 8 && c.Request.URL.Path[:8] == "/uploads" {
-				c.JSON(404, gin.H{"error": "Not found"})
-				return
-			}
-			c.File(filepath.Join(wwwroot, "index.html"))
-		})
+		configureStaticRoutes(r, wwwroot)
 	}
 
 	// Health check (no auth, for container orchestration)
@@ -658,4 +640,27 @@ func main() {
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+}
+
+func configureStaticRoutes(r *gin.Engine, wwwroot string) {
+	r.Static("/assets", filepath.Join(wwwroot, "assets"))
+	r.Static("/imgly-background-removal", filepath.Join(wwwroot, "imgly-background-removal"))
+	r.StaticFile("/coin-logo.jpg", filepath.Join(wwwroot, "coin-logo.jpg"))
+	r.StaticFile("/manifest.webmanifest", filepath.Join(wwwroot, "manifest.webmanifest"))
+	r.StaticFile("/sw.js", filepath.Join(wwwroot, "sw.js"))
+	r.StaticFile("/registerSW.js", filepath.Join(wwwroot, "registerSW.js"))
+
+	// SPA fallback
+	r.NoRoute(func(c *gin.Context) {
+		// Don't serve index.html for API routes
+		if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
+			c.JSON(404, gin.H{"error": "Not found"})
+			return
+		}
+		if len(c.Request.URL.Path) >= 8 && c.Request.URL.Path[:8] == "/uploads" {
+			c.JSON(404, gin.H{"error": "Not found"})
+			return
+		}
+		c.File(filepath.Join(wwwroot, "index.html"))
+	})
 }
