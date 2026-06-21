@@ -67,9 +67,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { X, Eraser, RotateCcw, Save } from 'lucide-vue-next'
-import { removeBackground } from '@imgly/background-removal'
 import { uploadImage, deleteImage } from '@/api/client'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+import { removeCoinBackground } from '@/utils/backgroundRemoval'
 import { fetchPrivateMediaBlob } from '@/utils/media'
 
 const props = defineProps<{
@@ -98,9 +98,7 @@ async function handleRemoveBackground() {
 
   try {
     const srcBlob = await fetchPrivateMediaBlob(props.imagePath)
-    const result = await removeBackground(srcBlob, {
-      output: { format: 'image/png', quality: 1 },
-    })
+    const result = await removeCoinBackground(srcBlob)
     processedImageUrl.value = URL.createObjectURL(result)
   } catch (err) {
     console.error('Background removal failed:', err)
