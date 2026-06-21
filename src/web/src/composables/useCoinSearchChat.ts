@@ -1,7 +1,7 @@
 import { ref, nextTick, onMounted, onBeforeUnmount, type Ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { agentChatStream, cancelCollectionProposal, commitCollectionProposal, createCoin, proxyImage, scrapeImage, uploadImage, saveConversation, getPortfolioSummary, getAgentStatus, createCalendarEvent } from '@/api/client'
-import type { CoinSuggestion, CoinShow, AgentChatAppContext, AgentChatMessage, Category, CollectionChatResponse, Material } from '@/types'
+import type { CoinMutationPayload, CoinSuggestion, CoinShow, AgentChatAppContext, AgentChatMessage, Category, CollectionChatResponse, Material } from '@/types'
 import { useDialog } from '@/composables/useDialog'
 import DOMPurify from 'dompurify'
 import MarkdownIt from 'markdown-it'
@@ -26,8 +26,61 @@ interface UseCoinSearchChatOptions {
 
 const VALID_CATEGORIES = ['Roman', 'Greek', 'Byzantine', 'Modern', 'Other']
 const VALID_MATERIALS = ['Gold', 'Silver', 'Bronze', 'Copper', 'Electrum', 'Other']
+const VALID_ERAS = ['ancient', 'medieval', 'modern'] as const
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
+
+export function normalizeSuggestionEra(value: string): 'ancient' | 'medieval' | 'modern' | '' {
+  const normalized = value.trim().toLowerCase()
+  if ((VALID_ERAS as readonly string[]).includes(normalized)) {
+    return normalized as 'ancient' | 'medieval' | 'modern'
+  }
+  if (/\b(ancient|roman|greek|hellenistic|republic|imperial|provincial|ptolemaic|seleucid)\b/.test(normalized)) {
+    return 'ancient'
+  }
+  if (/\b(medieval|byzantine)\b/.test(normalized)) {
+    return 'medieval'
+  }
+  if (/\bmodern\b/.test(normalized)) {
+    return 'modern'
+  }
+  return ''
+}
+
+export function parseSuggestionPrice(price: string): number | null {
+  if (!price) return null
+  const match = price.match(/[\d,]+(?:\.\d+)?/)
+  if (!match) return null
+  return parseFloat(match[0].replace(/,/g, ''))
+}
+
+export function buildWishlistCoinPayload(coin: CoinSuggestion): CoinMutationPayload {
+  const category = VALID_CATEGORIES.includes(coin.category) ? coin.category as Category : 'Other'
+  const material = VALID_MATERIALS.includes(coin.material) ? coin.material as Material : 'Other'
+  const candidateReferences = (coin.candidateReferences ?? [])
+    .filter((ref) => !!ref.catalog?.trim() && !!ref.number?.trim())
+    .map((ref) => ({
+      catalog: ref.catalog.trim(),
+      volume: ref.volume?.trim() || '',
+      number: ref.number.trim(),
+      uri: ref.uri?.trim() || '',
+    }))
+
+  return {
+    name: coin.name,
+    category,
+    material,
+    denomination: coin.denomination || '',
+    ruler: coin.ruler || '',
+    era: normalizeSuggestionEra(coin.era || ''),
+    notes: coin.description || '',
+    referenceUrl: coin.sourceUrl || '',
+    referenceText: coin.sourceName || '',
+    isWishlist: true,
+    currentValue: parseSuggestionPrice(coin.estPrice),
+    references: candidateReferences,
+  }
+}
 
 export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   const route = useRoute()
@@ -187,31 +240,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
     if (addedSet.value.has(idx)) return
     addingIdx.value = idx
     try {
-      const category = VALID_CATEGORIES.includes(coin.category) ? coin.category as Category : 'Other'
-      const material = VALID_MATERIALS.includes(coin.material) ? coin.material as Material : 'Other'
-      const candidateReferences = (coin.candidateReferences ?? [])
-        .filter((ref) => !!ref.catalog?.trim() && !!ref.number?.trim())
-        .map((ref) => ({
-          catalog: ref.catalog.trim(),
-          volume: ref.volume?.trim() || '',
-          number: ref.number.trim(),
-          uri: ref.uri?.trim() || '',
-        }))
-
-      const created = await createCoin({
-        name: coin.name,
-        category,
-        material,
-        denomination: coin.denomination || '',
-        ruler: coin.ruler || '',
-        era: coin.era || '',
-        notes: coin.description || '',
-        referenceUrl: coin.sourceUrl || '',
-        referenceText: coin.sourceName || '',
-        isWishlist: true,
-        currentValue: parsePrice(coin.estPrice),
-        references: candidateReferences,
-      })
+      const created = await createCoin(buildWishlistCoinPayload(coin))
 
       let imageAttached = false
 
@@ -267,13 +296,6 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
     } finally {
       addingIdx.value = null
     }
-  }
-
-  function parsePrice(price: string): number | null {
-    if (!price) return null
-    const match = price.match(/[\d,]+(?:\.\d+)?/)
-    if (!match) return null
-    return parseFloat(match[0].replace(/,/g, ''))
   }
 
   function formatMessage(text: string): string {
