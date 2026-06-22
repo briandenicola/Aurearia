@@ -249,6 +249,8 @@ Added navigator.permissions.query pre-check to CameraCaptureModal.vue. Persisted
 
 - **2026-06-18:** Biometric login PWA fix (issue #299) completed. Frontend WebAuthn login flow now unwraps backend's nested `options.publicKey`, converts base64url challenge and allowCredentials IDs to ArrayBuffer, trims requested username, and uses backend-returned username in login finish. Maintains backward compatibility with legacy flat options shape. Replaced emoji with lucide `LockKeyhole` icon in biometric buttons per Principle VI. Frontend regression tests added for flat options, legacy nested shape, and missing-challenge guard. `npm run test -- auth.test.ts`, `npm run type-check`, and `npm run build` all pass.
 
+- **2026-06-22:** Context-aware title bar actions pattern (Collection page). Desktop-only collection actions (Add Coin, Selection Mode) moved from `DesktopCollectionHeader` command bar to `App.vue` title bar beside notification bell. Implemented using `computed(() => route.name === 'collection' && !isPwa)` visibility guard and shared module-level `bulkSelectActive` ref from `useBulkSelect`. Added `watch(bulkSelectActive)` in CollectionPage to sync when title bar toggles selection mode externally. Icon-only buttons use `.nav-bell` class with `.active` state for selection mode visual feedback. Pattern for page-specific global actions without cluttering the command bar.
+
 ---
 
 ## 2026-06-18 18:50:13 — Page Header Consistency Pass

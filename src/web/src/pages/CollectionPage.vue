@@ -29,10 +29,8 @@
       v-model:selected-tag="selectedTag"
       v-model:sort-key="sortKey"
       v-model:grid-side="gridSide"
-      :select-mode="selectMode"
       :user-tags="userTags"
       :era-options="eraOptions"
-      @toggle-select-mode="toggleSelectMode"
     />
 
     <!-- Needs Attention Queue (when filter is active) -->
@@ -225,6 +223,18 @@ function toggleSelectMode() {
     showLocationPicker.value = false
   }
 }
+
+// Sync with global bulkSelectActive changes (e.g., from title bar)
+watch(bulkSelectActive, (active) => {
+  if (selectMode.value !== active) {
+    selectMode.value = active
+    if (!active) {
+      selectedCoinIds.value = new Set()
+      showTagPicker.value = false
+      showLocationPicker.value = false
+    }
+  }
+})
 
 function toggleCoinSelect(coinId: number) {
   const next = new Set(selectedCoinIds.value)

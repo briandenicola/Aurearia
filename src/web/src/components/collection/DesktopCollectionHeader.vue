@@ -26,9 +26,6 @@
         <div class="toolbar-divider action-divider"></div>
 
         <div class="action-zone">
-          <button class="btn btn-sm btn-secondary select-mode-btn" :class="{ active: selectMode }" @click="$emit('toggle-select-mode')">
-            <CheckSquare :size="16" /> {{ selectMode ? 'Cancel' : 'Select' }}
-          </button>
           <div class="face-toggle">
             <button class="face-btn" :class="{ active: gridSide === 'obverse' }" @click="$emit('update:gridSide', gridSide === 'obverse' ? null : 'obverse')">
               Obverse
@@ -37,7 +34,6 @@
               Reverse
             </button>
           </div>
-          <router-link to="/add" class="btn btn-sm btn-primary"><CirclePlus :size="16" /> Add Coin</router-link>
         </div>
       </div>
     </div>
@@ -50,11 +46,9 @@ import CategoryFilter from '@/components/CategoryFilter.vue'
 import EraFilter from '@/components/collection/EraFilter.vue'
 import SearchBar from '@/components/SearchBar.vue'
 import SortSelect from '@/components/SortSelect.vue'
-import { CirclePlus, CheckSquare } from 'lucide-vue-next'
 
 defineProps<{
   search: string
-  selectMode: boolean
   selectedCategory: string
   selectedEra: string
   selectedTag: string
@@ -71,7 +65,6 @@ defineEmits<{
   'update:selectedTag': [value: string]
   'update:sortKey': [value: string]
   'update:gridSide': [value: ImageType | null]
-  'toggle-select-mode': []
 }>()
 </script>
 
@@ -125,13 +118,14 @@ defineEmits<{
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .filter-zone {
   display: flex;
   gap: 0.35rem;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .toolbar-divider {
@@ -145,13 +139,16 @@ defineEmits<{
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex-wrap: wrap;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .dropdown-zone :deep(.era-filter-select) {
   height: 38px;
   padding: 0.45rem 0.6rem;
   transition: border-color var(--transition-fast);
+  flex: 1 1 10rem;
+  min-width: 0;
 }
 
 .dropdown-zone :deep(.era-filter-select:hover) {
@@ -168,6 +165,8 @@ defineEmits<{
   cursor: pointer;
   height: 38px;
   transition: border-color var(--transition-fast);
+  flex: 1 1 10rem;
+  min-width: 0;
 }
 
 .tag-filter-select:hover {
@@ -178,14 +177,7 @@ defineEmits<{
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-left: auto;
-  flex-wrap: wrap;
-}
-
-.select-mode-btn.active {
-  background: var(--accent-gold-glow);
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
+  flex-shrink: 0;
 }
 
 .face-toggle {
@@ -195,6 +187,7 @@ defineEmits<{
   border-radius: var(--radius-sm);
   padding: 2px;
   gap: 2px;
+  white-space: nowrap;
 }
 
 .face-btn {

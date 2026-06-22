@@ -8,6 +8,20 @@
           <span class="nav-title">Coin Collection</span>
         </button>
         <div class="nav-actions">
+          <template v-if="showCollectionActions">
+            <button 
+              class="nav-bell"
+              :class="{ active: bulkSelectActive }" 
+              :aria-label="bulkSelectActive ? 'Cancel selection mode' : 'Select coins'"
+              :title="bulkSelectActive ? 'Cancel selection mode' : 'Select coins'"
+              @click="toggleCollectionSelectMode"
+            >
+              <CheckSquare :size="20" />
+            </button>
+            <router-link to="/add" class="nav-bell" aria-label="Add Coin" title="Add Coin">
+              <CirclePlus :size="20" />
+            </router-link>
+          </template>
           <router-link v-if="isPwa" to="/add" class="nav-bell nav-add" aria-label="Add Coin">
             <Plus :size="20" />
           </router-link>
@@ -156,8 +170,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, markRaw, type Component } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
-import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Bot, Gavel, X, Bell, Plus, CalendarDays, Share2, GripVertical, BookOpen, Layers3, Search, NotebookPen, ChevronRight, ChevronDown } from 'lucide-vue-next'
+import { useRouter, useRoute } from 'vue-router'
+import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Bot, Gavel, X, Bell, Plus, CalendarDays, Share2, GripVertical, BookOpen, Layers3, Search, NotebookPen, ChevronRight, ChevronDown, CheckSquare } from 'lucide-vue-next'
 import { updateProfile, getMe } from '@/api/client'
 import { useNotifications } from '@/composables/useNotifications'
 import { useBulkSelect } from '@/composables/useBulkSelect'
@@ -186,6 +200,7 @@ interface NavSubItem {
 
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 const { isPwa } = usePwa()
 
 const showChat = ref(false)
@@ -201,6 +216,9 @@ const { unreadCount, startPolling, stopPolling } = useNotifications()
 const { bulkSelectActive } = useBulkSelect()
 const statsExpanded = ref(false)
 const collectionExpanded = ref(false)
+
+const isCollectionPage = computed(() => route.name === 'collection')
+const showCollectionActions = computed(() => isCollectionPage.value && !isPwa)
 
 const defaultNavItems: NavItem[] = [
   {
@@ -306,6 +324,10 @@ function handleNavClick(item: NavItem) {
 
 function toggleEditMode() {
   editMode.value = !editMode.value
+}
+
+function toggleCollectionSelectMode() {
+  bulkSelectActive.value = !bulkSelectActive.value
 }
 
 function initSortable() {
@@ -514,6 +536,11 @@ onUnmounted(() => {
 }
 
 .nav-bell:hover {
+  color: var(--accent-gold);
+  background: var(--accent-gold-glow);
+}
+
+.nav-bell.active {
   color: var(--accent-gold);
   background: var(--accent-gold-glow);
 }

@@ -15,4 +15,14 @@ describe('DesktopCollectionHeader', () => {
     expect(source).not.toContain('Mint Map')
     expect(source).not.toContain('MapPin')
   })
+
+  it('keeps global collection actions out of the desktop command bar', () => {
+    const source = fs.readFileSync(headerPath, 'utf8')
+
+    expect(source).not.toContain('to="/add"')
+    expect(source).not.toContain('toggle-select-mode')
+    expect(source).not.toContain('CirclePlus')
+    expect(source).not.toContain('CheckSquare')
+    expect(source).toContain('face-toggle')
+  })
 })
