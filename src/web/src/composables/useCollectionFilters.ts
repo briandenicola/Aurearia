@@ -44,7 +44,8 @@ export function useCollectionFilters() {
 
   async function fetchUserTags() {
     try {
-      const [tagRes, setRes, settingsRes] = await Promise.all([getTags(), getSets(), getAppSettings()])
+      const settingsPromise = getAppSettings().catch(() => null)
+      const [tagRes, setRes, settingsRes] = await Promise.all([getTags(), getSets(), settingsPromise])
       const tagOptions = (tagRes.data?.tags ?? []).map((tag) => ({
         id: tag.id,
         name: tag.name,
@@ -63,7 +64,7 @@ export function useCollectionFilters() {
           source: 'set' as const,
         }))
       userTags.value = [...tagOptions, ...setOptions]
-      eraOptions.value = parseOptionList(settingsRes.data?.CoinEras, COIN_ERAS)
+      eraOptions.value = parseOptionList(settingsRes?.data?.CoinEras, COIN_ERAS)
     } catch { /* ignore */ }
   }
 
