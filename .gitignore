@@ -19,6 +19,7 @@ src/api/ancient-coins-api.exe
 src/api/uploads/
 
 # Node
+node_modules/
 src/web/node_modules/
 src/web/dist/
 
