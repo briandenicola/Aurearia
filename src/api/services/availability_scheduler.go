@@ -74,7 +74,12 @@ func (s *AvailabilityScheduler) Stop() {
 
 // RunNow executes one immediate availability cycle.
 func (s *AvailabilityScheduler) RunNow() error {
-	s.runCycleWithTrigger("manual", nil)
+	return s.RunNowWithTrigger(nil)
+}
+
+// RunNowWithTrigger executes one immediate availability cycle and records the triggering admin user.
+func (s *AvailabilityScheduler) RunNowWithTrigger(triggerUserID *uint) error {
+	s.runCycleWithTrigger("manual", triggerUserID)
 	return nil
 }
 

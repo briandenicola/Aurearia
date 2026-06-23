@@ -126,6 +126,8 @@
           :val-settings-msg="valSettingsMsg"
           :val-settings-error="valSettingsError"
           @save="saveSettings"
+          @update:avail-settings-msg="availSettingsMsg = $event"
+          @update:avail-settings-error="availSettingsError = $event"
           @update:val-settings-msg="valSettingsMsg = $event"
           @update:val-settings-error="valSettingsError = $event"
           @update:auction-settings-msg="auctionSettingsMsg = $event"
