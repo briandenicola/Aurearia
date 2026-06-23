@@ -350,7 +350,7 @@ func main() {
 		protected.POST("/auctions/validate-credentials", auctionLotHandler.ValidateNumisBids)
 
 		// Wishlist availability checking
-		availHandler := handlers.NewAvailabilityHandler(availSvc, availRepo, coinRepo)
+		availHandler := handlers.NewAvailabilityHandler(availSvc, availScheduler, availRepo, coinRepo)
 		protected.POST("/wishlist/check-availability", availHandler.CheckAvailability)
 		protected.PUT("/coins/:id/listing-status", availHandler.UpdateListingStatus)
 
@@ -513,10 +513,11 @@ func main() {
 		admin.PUT("/mint-locations/:id", mintLocationHandler.Update)
 		admin.DELETE("/mint-locations/:id", mintLocationHandler.Delete)
 
-		// Availability check run history (reuse availRepo from outer scope)
-		adminAvailHandler := handlers.NewAvailabilityHandler(nil, availRepo, nil)
+		// Availability check run history and manual trigger (reuse outer scope services)
+		adminAvailHandler := handlers.NewAvailabilityHandler(nil, availScheduler, availRepo, nil)
 		admin.GET("/availability-runs", adminAvailHandler.ListRuns)
 		admin.GET("/availability-runs/:id", adminAvailHandler.GetRunDetail)
+		admin.POST("/availability/run", adminAvailHandler.TriggerRun)
 
 		// Valuation run history and manual trigger
 		valAdminHandler := handlers.NewValuationAdminHandler(valRepo, valSvc, logger)

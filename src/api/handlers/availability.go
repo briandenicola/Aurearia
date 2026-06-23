@@ -13,6 +13,7 @@ import (
 // AvailabilityHandler handles HTTP requests for wishlist availability checks.
 type AvailabilityHandler struct {
 	svc       *services.AvailabilityService
+	scheduler *services.AvailabilityScheduler
 	availRepo *repository.AvailabilityRepository
 	coinRepo  *repository.CoinRepository
 }
@@ -20,10 +21,11 @@ type AvailabilityHandler struct {
 // NewAvailabilityHandler creates a new AvailabilityHandler.
 func NewAvailabilityHandler(
 	svc *services.AvailabilityService,
+	scheduler *services.AvailabilityScheduler,
 	availRepo *repository.AvailabilityRepository,
 	coinRepo *repository.CoinRepository,
 ) *AvailabilityHandler {
-	return &AvailabilityHandler{svc: svc, availRepo: availRepo, coinRepo: coinRepo}
+	return &AvailabilityHandler{svc: svc, scheduler: scheduler, availRepo: availRepo, coinRepo: coinRepo}
 }
 
 // CheckAvailability triggers a wishlist availability check for the authenticated user.
@@ -55,6 +57,29 @@ func (h *AvailabilityHandler) CheckAvailability(c *gin.Context) {
 		"unknown":      run.Unknown,
 		"durationMs":   run.DurationMs,
 	})
+}
+
+// TriggerRun manually triggers a wishlist availability check for all users.
+//
+//	@Summary		Trigger manual wishlist availability check
+//	@Description	Manually triggers a wishlist availability check for all users. Runs synchronously and records the triggering admin user.
+//	@Tags			Admin
+//	@Produce		json
+//	@Success		200	{object}	map[string]interface{}
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		403	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/admin/availability/run [post]
+func (h *AvailabilityHandler) TriggerRun(c *gin.Context) {
+	triggerUserID := c.GetUint("userId")
+
+	if err := h.scheduler.RunNowWithTrigger(&triggerUserID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to run availability check"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Availability check run completed"})
 }
 
 // UpdateListingStatus allows a user to dismiss or reset a coin's listing status.

@@ -2169,6 +2169,35 @@ paths:
       summary: Get availability run detail
       tags:
       - Admin
+  /admin/availability/run:
+    post:
+      description: Manually triggers a wishlist availability check for all users.
+        Runs synchronously and records the triggering admin user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Trigger manual wishlist availability check
+      tags:
+      - Admin
   /admin/catalogs:
     post:
       consumes:
