@@ -5,7 +5,7 @@
       <div class="nav-content">
         <button class="nav-brand" @click="sidebarOpen = !sidebarOpen">
           <img src="/coin-logo.jpg" alt="Aurearia - Coin Collection" class="nav-logo" />
-          <span class="nav-title">Aurearia - Coin Collection</span>
+          <span class="nav-title">Aurearia<span class="nav-title-suffix"> - Coin Collection</span></span>
         </button>
         <div class="nav-actions">
           <template v-if="showCollectionActions">
@@ -40,10 +40,10 @@
 
     <!-- Slide-in sidebar -->
     <Transition name="sidebar-slide">
-      <aside v-if="sidebarOpen" class="sidebar">
+      <aside v-if="sidebarOpen" class="sidebar" :class="{ 'pwa-mode': isPwa }">
         <div class="sidebar-header">
           <img src="/coin-logo.jpg" alt="Aurearia - Coin Collection" class="sidebar-logo" />
-          <span class="sidebar-title">Aurearia - Coin Collection</span>
+          <span class="sidebar-title">Aurearia<span class="sidebar-title-suffix"> - Coin Collection</span></span>
           <button class="sidebar-header-btn" :class="{ active: editMode }" @click="toggleEditMode" :title="editMode ? 'Done' : 'Reorder menu'">
             <GripVertical :size="18" />
           </button>
@@ -515,6 +515,18 @@ onUnmounted(() => {
   color: var(--accent-gold);
   font-weight: 600;
   white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .nav-title-suffix,
+  .sidebar-title-suffix {
+    display: none;
+  }
+}
+
+.nav-bar.pwa-mode .nav-title-suffix,
+.sidebar.pwa-mode .sidebar-title-suffix {
+  display: none;
 }
 
 .nav-bell {

@@ -31,6 +31,208 @@ Frontend: `src/web/index.html`, `src/web/vite.config.ts`, `src/web/src/component
 
 ---
 
+### Decision: PWA Title Spacing Fix
+
+**Date:** 2026-06-23
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+After the recent rename to "Aurearia", the full title "Aurearia - Coin Collection" wraps on mobile nav bars and PWA installed app titles, causing spacing issues in constrained mobile/PWA viewports.
+
+## Decision
+
+1. **PWA Manifest:** Changed `short_name` in `vite.config.ts` from "Aurearia - Coin Collection" to just "Aurearia". This is what appears when the app is installed on mobile home screens and in system UI.
+
+2. **Nav Bar Display:** Added responsive CSS in `App.vue` to hide the " - Coin Collection" suffix:
+   - Wrapped the suffix in a `<span class="nav-title-suffix">` 
+   - Added CSS rule to hide suffix on mobile screens (<480px)
+   - Added CSS rule to hide suffix when `nav-bar` has the `pwa-mode` class
+
+## Behavior
+
+- **Desktop/Browser:** Shows full "Aurearia - Coin Collection"
+- **Mobile (<480px):** Shows just "Aurearia"
+- **PWA Mode (installed):** Shows just "Aurearia"
+
+## Rationale
+
+The shortened title prevents wrapping and overflow in constrained mobile/PWA contexts while preserving the full descriptive title in desktop/browser contexts where space is available. This follows Principle XIII (PWA/Mobile Interaction Rules) for viewport-appropriate display.
+
+## Files Touched
+
+- `src/web/vite.config.ts` (PWA manifest `short_name`)
+- `src/web/src/App.vue` (nav title markup + responsive CSS)
+
+## Validation
+
+- `npm run type-check` passed (vue-tsc)
+- `npm run build` passed (production build)
+- PWA manifest regenerated with new `short_name: 'Aurearia'`
+
+---
+
+### Decision: Collection Actions in Title Bar
+
+**Date:** 2026-06-22  
+**Agent:** Aurelia  
+**Status:** Implemented  
+
+## Context
+
+The desktop Collection page had Add Coin and Selection Mode buttons in the command bar alongside filters and sort controls. User requested moving these primary actions to the title bar beside the notification bell for better visual hierarchy and reduced command bar clutter.
+
+## Decision
+
+Moved desktop-only collection actions (Add Coin, Selection Mode) from `DesktopCollectionHeader.vue` command bar to `App.vue` title bar.
+
+### Implementation Details
+
+1. **App.vue title bar actions**
+   - Added `CheckSquare` icon import for selection mode
+   - Created `isCollectionPage` computed: `route.name === 'collection'`
+   - Created `showCollectionActions` computed: `isCollectionPage && !isPwa`
+   - Added two icon-only buttons before notification bell:
+     - Selection Mode: `CheckSquare` icon, toggles `bulkSelectActive`, shows `.active` class when selection mode on
+     - Add Coin: `CirclePlus` icon, navigates to `/add`
+   - Added `toggleCollectionSelectMode()` function that toggles shared `bulkSelectActive` ref
+   - Added CSS `.nav-bell.active` state (gold background/color)
+
+2. **CollectionPage.vue sync**
+   - Added `watch(bulkSelectActive)` to sync local `selectMode` when title bar toggles selection externally
+   - Preserves existing `toggleSelectMode()` for header emit compatibility (PWA still uses it)
+
+3. **DesktopCollectionHeader.vue cleanup**
+   - Removed Select and Add Coin buttons from action zone
+   - Removed `CirclePlus`, `CheckSquare` icon imports
+   - Removed `.select-mode-btn.active` CSS rule
+   - Kept face toggle (Obverse/Reverse) as the only remaining action zone control
+
+### Why This Works
+
+- Shared `bulkSelectActive` ref from `useBulkSelect` composable acts as the source of truth
+- Title bar directly toggles this shared state
+- CollectionPage watches and syncs its local `selectMode` when external toggle occurs
+- PWA mode unaffected (keeps existing PwaCollectionHeader with its own controls)
+- Desktop title bar actions only appear on Collection page route
+
+## Validation
+
+- `npm run type-check`: passed
+- All modified component tests: passed
+- Pre-existing test failures (design-tokens budget) unrelated to this change
+
+## Trade-offs
+
+**Accepted:**
+- Title bar buttons are context-aware (only visible on Collection page), which is intentional design
+- Selection mode state now managed through shared composable + watcher instead of direct prop/emit, but this is cleaner for global actions
+
+**Rejected alternatives:**
+- Keeping actions in command bar: user explicitly wanted them in title bar
+- Using event bus for communication: watcher on shared ref is simpler and more reactive
+- Showing actions on all pages: would clutter title bar and actions are Collection-specific
+
+## Related Files
+
+- `src/web/src/App.vue` — title bar actions added
+- `src/web/src/pages/CollectionPage.vue` — sync watcher added
+- `src/web/src/components/collection/DesktopCollectionHeader.vue` — actions removed
+- `src/web/src/composables/useBulkSelect.ts` — shared state source
+
+## Pattern for Future Use
+
+This establishes a pattern for page-specific global actions:
+1. Add computed visibility guard in App.vue: `route.name === 'target-page' && !isPwa`
+2. Use icon-only `.nav-bell` buttons with appropriate lucide icons
+3. Share state via composable module-level refs
+4. Page watches shared state and syncs local state when needed
+5. Add `.active` class for toggle-state visual feedback
+
+---
+
+### Decision: Desktop Collection Toolbar Pattern
+
+**When:** 2026-06-22  
+**By:** Aurelia  
+**What:**
+
+Desktop collection toolbar now uses a unified card-contained two-row command bar pattern:
+- **Row 1:** Search (flex: 1) + Sort pinned right
+- **Row 2:** Filter zone (category chips) → divider → dropdown zone (era, sets) → action zone right (Select, segmented Obverse/Reverse toggle, Add Coin CTA)
+
+**Key Design Decisions:**
+
+1. **Card containment:** Entire command bar wrapped in `var(--bg-card)` with `var(--border-subtle)` and `var(--radius-sm)` — improves visual hierarchy and prevents toolbar sprawl
+2. **Segmented control:** Obverse/Reverse now uses `.face-toggle` container with `var(--bg-input)` background and `.face-btn` children — active state gets `var(--accent-gold)` background instead of dim/border treatment
+3. **Height normalization:** All inputs/selects/buttons normalized to 38px for visual rhythm
+4. **Layout divider:** Thin vertical divider (`1px var(--border-subtle)`) separates chip filters from dropdown filters
+5. **Action zone right-aligned:** `margin-left: auto` keeps Select/face-toggle/Add Coin pinned right regardless of filter count
+6. **Mobile fallback:** Divider hidden, zones stack vertically on `max-width: 768px`
+
+**Why:**
+
+- User requested unified, less disjointed toolbar layout  
+- Previous layout had center-floating search and far-right sort with large spacer — felt disconnected
+- Loose Obverse/Reverse chips didn't feel related — segmented control makes the mutual exclusion clearer
+- Card treatment matches other desktop control surfaces (stats, admin sections)
+
+**Affected Files:**
+
+- `src/web/src/components/collection/DesktopCollectionHeader.vue`
+
+**Validation:**
+
+- `vue-tsc --noEmit` passed
+- Uses only design tokens from `variables.css` — no hardcoded values
+- Mobile responsive rules preserved
+
+---
+
+### Decision: Mobile Chart Detail Reduction Pattern
+
+**Date:** 2026-06-21  
+**Agent:** Aurelia  
+**Context:** Investment breakdown chart mobile UX improvement
+
+## Decision
+
+On mobile/PWA viewports (<768px), stats chart components may hide detailed segment/item cards and show a compact aggregate summary instead. This pattern prioritizes readability and reduces scroll depth on small screens while preserving all chart visualizations.
+
+## Pattern
+
+- Keep all chart/graph SVG elements and controls intact
+- Hide detailed segment list on mobile using `@media (max-width: 768px)`
+- Add a single `.mobile-aggregate-summary` card showing key aggregate values in a horizontal inline format: `Label: $X · Label: $Y · Label: ±$Z (%)`
+- Desktop/tablet layout unchanged (detailed segment cards remain visible)
+- Both mobile summary and desktop segment list exist in DOM; CSS media queries control visibility
+
+## Rationale
+
+- Mobile users viewing investment breakdowns scrolled through 6–12+ segment cards to see all details
+- The chart itself shows relative sizing and flow relationships visually
+- A single-line aggregate gives mobile users the key totals without scroll fatigue
+- Desktop users with more screen space benefit from the detailed per-segment breakdown
+
+## Applied To
+
+- `StatsInvestmentBreakdownChart.vue` (acquisition period, material, era, category flows)
+
+## Future Application
+
+Consider this pattern for other chart components with segment/item detail lists when:
+1. The chart visualization itself communicates the primary insight
+2. Detailed segment cards are useful on desktop but create scroll fatigue on mobile
+3. Aggregate summary values provide sufficient mobile context
+
+## Related
+
+- Constitution Principle XIII (PWA/Mobile Interaction Rules)
+- `.squad/skills/svg-chart-patterns/SKILL.md` (responsive chart conventions)
+
+---
+
 ### Decision: Duplicate Coin Backend Contract
 
 **Date:** 2026-06-21

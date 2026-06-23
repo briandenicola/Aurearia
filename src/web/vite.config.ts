@@ -49,7 +49,7 @@ export default defineConfig({
       includeAssets: ['coin-logo.jpg'],
       manifest: {
         name: 'Aurearia - Coin Collection',
-        short_name: 'Aurearia - Coin Collection',
+        short_name: 'Aurearia',
         description: 'Track and manage your coin collection',
         theme_color: '#1a1a2e',
         background_color: '#0f0f1a',

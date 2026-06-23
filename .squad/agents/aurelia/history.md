@@ -59,6 +59,8 @@
    - Task T015 marked complete
    - Orchestration log: `.squad/orchestration-log/2026-06-09T12-51-39Z-aurelia.md`
 
+- **2026-06-23:** PWA Title Spacing — `vite.config.ts` manifest `short_name` is now `Aurearia`; `App.vue` hides the ` - Coin Collection` suffix in PWA/mobile top nav and sidebar via `.nav-title-suffix` and `.sidebar-title-suffix` spans. Desktop shows full "Aurearia - Coin Collection"; PWA/mobile shows just "Aurearia".
+
 - **2026-06-10:** Coin of the Day Pushover Public URL Configuration Revision
    - Cassius initially implemented with relative `/coin/{coinID}` links; Brutus blocked (relative URLs not usable outside app context)
    - Added `PublicAppURL` admin setting in System tab (`AdminSystemSection.vue`) with validation and frontend type (`src/web/src/types/index.ts`)
