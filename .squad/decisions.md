@@ -10998,3 +10998,27 @@ Regression coverage for this class of bug exercises the authenticated middleware
 - `src/api/middleware/ratelimit_test.go` — three comprehensive regression test cases
 
 ---
+
+## Decision: Frontend Title Rename to Aurearia
+
+**Date:** 2026-06-22
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+### Context
+
+Brian requested the frontend/application title surfaces be renamed to `Aurearia - Coin Collection`.
+
+### Decision
+
+Updated browser and PWA title metadata plus visible app-header title surfaces in the authenticated shell, auth landing page, onboarding prompt, and install prompt. Left educational/domain copy and historical references alone so "ancient coins" remains available where it describes the collection subject rather than the app title.
+
+### Validation
+
+`npm.cmd run build` passed from `src/web`.
+
+### Files Touched
+
+Frontend: `src/web/src/` — title metadata and UI strings
+
+---
