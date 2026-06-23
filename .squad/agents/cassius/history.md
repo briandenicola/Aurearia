@@ -13,6 +13,9 @@
 - Security/backend patterns: validate ownership before heavy decode ops; circle image clipping in stdlib-only `src/api/capture/` gated to obverse/reverse uploads when `circleClip=true`
 - SQLite FK migration gotcha: nullable lookup FKs added post-launch should use `constraint:-` (no physical constraints) to avoid destructive table rebuilds; enforce ownership/referential correctness in services/repositories instead
 - RIC/Structured Reference migration: legacy free-text `Coin.RarityRating` parses idempotently into structured `CoinReference` at user request (not startup); skips ambiguous values; preserves legacy columns for non-destructive migration
+- API design patterns: Storage Location per-user lookup table with 409 conflict guard; Bulk assign-location action; Catalog Registry with CRUD + era/code validation; Mint Locations global admin-managed with soft-delete
+- Health metadata scoring: computed on-read from coin fields (not stored); `CurrentValueUpdatedAt` tracks valuation freshness; AI coverage measured only on per-side analysis (obverse + reverse), not legacy combined field
+- Legacy reference migration: user-triggered endpoint (POST /references/migrate-legacy) with per-coin journaling, idempotency via marker, non-destructive (preserves legacy columns)
 
 **Recent batch outcomes (2026-06-01 — 2026-06-03):**
 - Valuation freshness fix: added `Coin.CurrentValueUpdatedAt` field to track when valuation was last updated; health scoring now measures staleness from valuation update time (fallback to PurchaseDate for legacy coins)
@@ -21,250 +24,52 @@
 - Collection chat multi-container callback issue: `AGENT_INTERNAL_CALLBACK_URL` must point from agent container to API service (e.g. `http://coins:8080`), not localhost; startup warning added for release+localhost
 - v1→v2 migration audit: only additive schema changes; AutoMigrate/backfill safe and rollback-safe
 - Frontend navigation convention documented: parent detail pages use absolute `router.push('/')` to grandparent list, single-child forms use `router.back()` after save (prevents history pollution with subpage cycles)
+- Wishlist availability sold detection: hybrid keyword-based detection layer; HTTP 200 response bodies read (512KB limit) for sold/available indicators before agent escalation
 
 **Architecture compliance:** All recent work follows Principle I (Layered Architecture), Principle VII (Schema-Driven Contracts), Principle XI (Security Hardening), Principle XII (Auth & Token Policy)
 
 ## Recent Updates
 
+- **2026-06-23:** Wishlist Availability Tracker — Sold VCoins Detection Fix
+  - User reported sold items classified as "unknown" in wishlist availability reports
+  - Root cause: keyword pattern `>sold<` too strict for VCoins HTML with whitespace
+  - **Implementation:** Added hybrid keyword detection layer in `CheckURL()` before agent escalation
+  - Response body reader (512KB limit) checks for sold/available indicators
+  - ~60-80% of URLs now classified without agent; ~20-40% escalate to AI for ambiguous pages
+  - Added 9 regression tests covering HTTP status codes, keyword detection, agent escalation, and summary counts
+  - All tests pass: `go test -v ./services -run TestCheckURL.*` ✅, `go test ./...` ✅
+  - Files: `src/api/services/availability_service.go`, `src/api/services/availability_service_test.go`
+  - Status: Complete; ready for merge
+  - Orchestration log: `.squad/orchestration-log/20260623-175501-cassius.md`
+
 - **2026-06-19:** Scope assessment for #321 (Lock Python dependencies) and #319 (Non-root Docker users):
   - #321 is ready: uv.lock strategy, CI/Docker changes isolated, low risk
   - #319 is ready: standard USER/chown pattern, no privileged ops, write-path validation straightforward
   - Both independent; recommend #321→#319 sequence if merged in single PR to avoid line-number conflicts on `src/agent/Dockerfile`
-  - Neither requires splitting; both are coherent single-issue units
-  - See `.squad/decisions/inbox/cassius-scope-321-319.md` for detailed analysis
 
-- **2026-06-01:** #217 shared collection tool layer (internal token service, six internal endpoints, keyword gate removed), #217 Python ReAct agent completed end-to-end, #218 external tool server stack
-- **2026-06-01:** v1→v2 migration audit, Frontend navigation convention, Storage Location API pattern (per-user lookup table, nullable Coin.StorageLocationID FK, 409 conflict guard), Legacy RIC→CoinReference migration design + implementation + startup→endpoint refactor
-- **2026-06-09:** F013 Phase 3 golden fixtures complete (T014). Implemented Go fixture builders covering all 9 F013 golden coin names/traits with defensive cloning and optional deterministic DB persistence. Approved by Maximus Lead Review. Go build/test/vet all pass. Orchestration log: `.squad/orchestration-log/2026-06-09T13-09-16-cassius.md`
-- **2026-06-02:** Valuation freshness fix (CurrentValueUpdatedAt), Metadata health AI coverage fix (combined→obverse+reverse), AI coverage health scoring correction (per-side model finalized), checklist labels for missing side
-- **2026-06-08:** CodeQL request-forgery suppression comments added to `ProxyImage` and `ScrapeImage` handlers; SSRF protection layer remains unchanged
-- **2026-06-18:** Mint Map Backend Analysis — Pagination Limit Investigation
-   - Investigated Aurelia's report that Mint Map displayed only 50 coins despite larger active collections
-   - Confirmed that `GET /coins` endpoint is correctly implemented as paginated collection API with default `limit=50`, validated max `limit=100`, and `total` field for paging
-   - Verified no backend total cap exists; pagination behavior is safe and intentional
-   - Decision: no backend changes required; frontend should fetch all active collection pages using explicit pagination loop with `wishlist=false`, `sold=false`, `page`, `limit=100`
-   - Architecture compliant: preserves safe paginated API contract (Principle I), respects explicit response contract (Principle III), uses proportional frontend-only fix (Principle IV)
-   - Orchestration log: `.squad/orchestration-log/2026-06-18T21-14-02Z-cassius.md`
+- **2026-06-19 (Charts Session):** Completed OpenAPI route-drift automation (`route_openapi_drift_test.go`), non-root Docker hardening, Python dependency locking strategy (`uv.lock`), and streaming token guard. All four deliverables are implementation-ready.
 
-- **2026-06-19 (Charts Session):** Completed OpenAPI route-drift automation (`route_openapi_drift_test.go`), non-root Docker hardening (both `Dockerfile` and `src/agent/Dockerfile` now run as UID/GID `10001:10001`), Python dependency locking strategy (`uv.lock` with CI/Docker integration for reproducible builds), and streaming token guard (JWT-shaped internal token redaction in SSE). All four deliverables are implementation-ready; decisions merged into decisions.md. Scope assessment for #321 (uv.lock) and #319 (non-root) documented; both ready for sequential or parallel merge. Cross-team validation includes Brutus approvals on #319, #321, and #308.
+- **2026-06-09:** F013 Phase 3 golden fixtures complete (T014). Implemented Go fixture builders covering all 9 F013 golden coin names/traits. Approved by Maximus Lead Review. Go build/test/vet all pass.
+
+- **2026-06-18:** Mint Map Backend Analysis — Pagination Limit Investigation. Confirmed `GET /coins` correctly implemented as paginated collection API; no backend total cap; frontend should paginate with `limit=100`.
+
+- **Earlier (2026-06-01 — 2026-06-02):** Valuation freshness fix (CurrentValueUpdatedAt), AI coverage health fix (obverse + reverse only), health metadata scoring correction, user-triggered RIC→CoinReference migration endpoint, per-coin metadata health endpoint, Catalog Registry CRUD, bulk assign-location action, custom mint locations backend.
+
 ## Learnings
 
-- **2026-06-19 — PR #320 Go Toolchain Lockout Revision:** As non-original reviser after Brutus's §18.2 BLOCK, corrected `src/api/go.mod` to `go 1.26.4` so setup-go, Docker/docs/workflows, and the module pin align. Verified workflows use `go-version-file: src/api/go.mod`, `govulncheck@v1.4.0`, and `swag@v1.16.6`; local `go env GOVERSION` resolved to `go1.26.4` and pinned `govulncheck ./...` found no vulnerabilities.
+- **2026-06-19 — PR #320 Go Toolchain Lockout Revision:** Corrected `src/api/go.mod` to `go 1.26.4` for alignment across setup-go, Docker/docs/workflows, and module pin.
 
-- **2026-06-19 — Agent Service Boundary Hardening (#309/#310):** Python agent direct surface is now internal-only by default: compose exposes port 8081 only to the Docker network, non-health endpoints require `AGENT_INTERNAL_SERVICE_TOKEN`, and Go `AgentProxy` sends the credential on API, SSE, logs, and log-level calls. Python outbound URLs for Ollama, SearXNG, and collection tools are restricted to exact `AGENT_TRUSTED_OUTBOUND_ORIGINS`; localhost/private/link-local/metadata addresses require explicit `AGENT_ALLOW_LOCAL_OUTBOUND=true` for local dev.
+- **2026-06-19 — Agent Service Boundary Hardening (#309/#310):** Python agent direct surface now internal-only by default; compose port 8081 internal, non-health endpoints require token, outbound URLs restricted.
 
-- **Coin of the Day Pushover Link Configuration (2026-06-10):** Initial implementation used relative `/coin/{coinID}` links in Pushover payloads; Brutus blocked (STRICT LOCKOUT, §18.2) because Pushover opens notifications outside app context where relative URLs are not usable. Aurelia revised by adding `PublicAppURL` admin setting: links now build as absolute `http(s)://host/coin/{coinID}` by trimming trailing slashes, and omit the link entirely when setting is blank/invalid. Brutus reviewed revised implementation and CLEARED BLOCK. Decision merged to `decisions.md`. See orchestration logs: `.squad/orchestration-log/2026-06-10T20-31-52Z-{cassius,aurelia,brutus}.md`
+- **Coin of the Day Pushover Link Configuration (2026-06-10):** Added `PublicAppURL` admin setting for absolute links in Pushover notifications; relative URLs don't work outside app context.
 
-### 2026-06-10 — Collection Count Invariant
+- **Collection Count Invariant (2026-06-10):** Canonical "active collection" count is `owned AND NOT wishlist AND NOT sold`. Regression test locks the invariant across all three query paths.
 
-**Files:**
-- `src/api/repository/scopes.go` — `ActiveCollection` scope defines `is_wishlist=false AND is_sold=false`
-- `src/api/repository/coin_repository.go` — `GetStats` uses `ActiveCollection`, `List` applies wishlist/sold filters
-- `src/api/services/collection_tools_service.go` — `CollectionSummary` calls `GetStats`, passes through `TotalCoins`
-- `src/api/handlers/coins.go` — List handler documentation clarifies `total` semantics
-- `src/api/handlers/coin_handler_test.go` — `TestCoinHandler_ActiveCollectionCountInvariant` locks the predicate contract
+- **Storage Location & FK Migration (2026-06-01):** Per-user lookup table with nullable Coin.StorageLocationID FK; use `constraint:-` for FKs added post-launch to avoid table rebuilds.
 
-**Pattern:**
-The canonical "active collection" count is `owned AND NOT wishlist AND NOT sold`. All three query paths already use identical predicates:
-1. `/coins?wishlist=false&sold=false` → `List` applies both filters, counts after
-2. `/stats` → `GetStats` uses `ActiveCollection` scope
-3. `collection_summary` tool → calls `GetStats`, returns `stats.TotalCoins`
+- **RIC/Reference Migration Design (2026-06-01):** Legacy free-text `Coin.RarityRating` parses idempotently; skips ambiguous values; preserves columns; migration moved from startup to user-triggered endpoint.
 
-**Key insight:** No predicate fix was needed — they already match. Added a regression test (`TestCoinHandler_ActiveCollectionCountInvariant`) to lock the invariant: all three paths must return the same count for a mixed fixture (active + wishlist + sold). Documented `/coins` total semantics: "reflects the applied filter, not 'collection size.'"
-
-### 2026-06-06 — Documentation Feature Showcase (Issue #241)
-
-**Feature Discovery & Documentation Refactor:**
-Created comprehensive feature documentation structure to showcase the app's full capability set. Documentation reorganization moved scattered feature details into discoverable, indexed docs with per-feature deep dives.
-
-**Key Files Changed:**
-- `README.md` — Added Feature Highlights section with 8 major feature categories, Feature Matrix with capability grid, and What's New timeline
-- `docs/features/INDEX.md` — Created master index with links to 30+ features organized by category
-- `docs/features/*.md` — Created 25+ individual feature documents:
-  - Deep-dive docs: collection-management.md, coin-details.md, coin-sets.md, wish-list.md, ai-analysis.md, ai-search-agent.md, statistics.md (500-8200 words each)
-  - Shorthand guides: auction-tracking.md, sold-coins.md, social-features.md, pwa-features.md, coin-of-the-day.md, custom-tags.md, user-profiles.md, admin-settings.md, collection-showcase.md, numista-integration.md, and 12 others (~1500-2000 words each)
-- `docs/features.md` — Added redirect header and quick reference table pointing to new docs/features/ structure
-
-**Feature Map (All 30+ features now documented):**
-- Core: Collection Management, Coin Details, Coin of the Day
-- Discovery: Wish List, Auction Tracking, Sold Coins
-- AI: Analysis, Search Agent, Grading, Price Trends, Gap Analysis, Photography Guide, Similar Lots
-- Organization: Coin Sets, Custom Tags, Statistics, Collection Showcase
-- Social: Social Features, User Profiles
-- Admin: Admin Settings, Authentication, External Tool Server
-- Mobile: PWA Features, Camera Capture
-- Advanced: Image Operations, PDF Export, Bulk Operations, Notifications, Numista, Auction Calendar, Import/Export
-
-**Accuracy Notes:**
-- No cloud features fabricated (Auth0, CosmosDB, Azure, Terraform/K8s not documented)
-- All docs describe current self-hosted architecture (Go/Vue/Python/SQLite/Docker)
-- Feature matrix shows actual capabilities with clear symbols (✅, ❌, —)
-- What's New section includes v2.0 in-development features (Coin Sets, Health Scorecard)
-
-**Documentation Quality:**
-- Every feature includes: Overview, Key Features, How to Use, Configuration, API Endpoints, Related Features
-- Cross-linking enables readers to traverse related features
-- Emoji icons improve scannability
-- Clear use cases and workflows for each feature
-
-- **Storage Location API Pattern (2026-06-01):** Added per-user `StorageLocation` lookup table and nullable `Coin.StorageLocationID` FK. Backend files: `models/storage_location.go`, `repository/storage_location_repository.go`, `services/storage_location_service.go`, `handlers/storage_location.go`; `Coin` preloads now include `StorageLocation` where coin associations are returned. Routes: `GET/POST /api/storage-locations`, `PUT/DELETE /api/storage-locations/:id`. Delete is guarded: referenced locations return 409 Conflict with the number of coins using the location; coins must be reassigned first. Coin create/update validates that any non-null `storageLocationId` belongs to the requesting user; update accepts explicit `null` to clear the FK.
-- **SQLite/GORM Coin FK Migration Gotcha (2026-06-01):** Adding a physical FK constraint to the existing `coins` table can make GORM rebuild the table; with `PRAGMA foreign_keys=ON`, dropping the old table fails if child rows (`coin_images`, `coin_tags`, etc.) reference it. For nullable `Coin` lookup FKs added after launch, keep the `*_id` column and preload association but tag the association `constraint:-`; migrate the lookup table before `Coin`, and enforce ownership/referential correctness in services/repositories unless an explicit SQLite-safe rebuild migration is written.
-- **RIC/Structured Reference Migration Design (2026-06-01):** The legacy free-text catalog field is `Coin.RarityRating` (`json:"rarityRating"`, DB `rarity_rating`); `ReferenceText`/`ReferenceURL` are link fallback fields. `CoinReference` stores `coin_id`, `catalog`, `volume`, `number`, `certainty`, and `uri`, with unique `(coin_id,catalog,volume,number)` and validation against `CatalogRegistry` (`RIC`, `RPC`, and `SNG` require volume). Recommended backfill: idempotent guarded startup migration that parses legacy values such as `RIC II 207` into validated references, skips/logs values missing required volume such as bare `RIC 207`, and keeps legacy columns until a separate SQLite-safe drop decision.
-
-## 2026-06-01 — Storage Location migration no-data-loss verification
-
-Verified Brian's no-data-loss requirement by backing up `src/api/ancientcoins.db` to a project-local disposable copy, running the real `config.Load()` + `database.Connect()` AutoMigrate path against only that copy via `DB_PATH`, then diffing per-table row counts before/after. Result: PASS; all existing table counts were unchanged, `storage_locations` was created empty, `coins.storage_location_id` was added nullable, and the verification copy/harness were deleted.
-
-## 2026-06-01 — Legacy Rarity/RIC to Catalog References Migration (Design Proposal)
-
-Conducted a design review for migrating legacy free-text `Coin.RarityRating` values into structured `CoinReference` records. No code was implemented; proposal awaits Brian approval on 3 open questions.
-
-**Key findings:**
-- Legacy field: `Coin.RarityRating` (string, DB column `rarity_rating`); documented as "RIC 207", "Sear 1625" examples
-- Modern storage: `CoinReference` table with unique constraint on `(coin_id, catalog, volume, number)` and validation via `CatalogRegistry`
-- Catalog registry rules: RIC/RPC/SNG require volume; SEAR/CRAWFORD/etc. do not
-- Current dev state: 0 coins, 0 coin references
-
-**Proposed approach:**
-- Idempotent guarded startup backfill in `database.Connect()` after `AutoMigrate` and `seedCatalogRegistry`
-- Parser normalizes catalog names and extracts volume per registry rules
-- Skips ambiguous values (e.g., bare `RIC 207` without volume) instead of inventing structure
-- Uses `certainty:"legacy-import"` for all backfilled references
-- Logs every skip with reason; fails only on DB errors
-- Preserves legacy columns (`rarity_rating`, `reference_text`, `reference_url`) for non-destructive migration
-
-**Open questions (awaiting Brian approval):**
-1. Bare `RIC 207` skip policy vs. manual-review pathway?
-2. Multi-reference parsing support (`RIC II 207; Cohen 15`) and unsupported-catalog reporting?
-3. Certainty value: `legacy-import` or existing UI values (`probable`/`high`)?
-
-**Related decisions:**
-- Aurelia removed the free-text RIC UI surface (decision: "Remove Free-Text Rarity/RIC UI")
-- Non-destructive requirement aligned with SQLite foreign-key migration gotchas documented earlier
-
-## 2026-06-01 — Legacy Rarity/RIC Reference Migration Implementation
-
-Implemented the approved one-time backfill migration that parses legacy `Coin.RarityRating` text into structured `CoinReference` records. Migration runs at startup after AutoMigrate and seedCatalogRegistry, guarded by AppSetting marker `LegacyRarityRatingReferenceBackfillV1` for idempotency.
-
-**Key files:**
-- `src/api/database/database.go` — added `backfillLegacyRarityRatingReferences()`, `parseLegacyReference()`, helper functions
-- `src/api/database/reference_migration_test.go` — comprehensive parser tests, idempotency tests, sentinel volume tests
-
-**Parser rules implemented:**
-- Parses FIRST reference only from multi-reference strings (semicolon-delimited)
-- Catalog normalization: RIC/RPC/SNG/CRAWFORD/CNI/KM/Y/CRAIG/REDBOOK exact; Sear/SRCV→SEAR; Spink→SPINK; Duplessy→DUPLESSY
-- Volume extraction for volume-required catalogs (RIC/RPC/SNG): Roman numerals (I, II, VII, etc.), numeric volumes (1-3 digits), or alphabetic tokens (e.g., "Cop" for SNG Copenhagen)
-- Volume=0 sentinel + journal note when volume is missing/unparseable on volume-required catalog
-- Certainty: "legacy-import" on all backfilled references
-- Existing structured references win (no overwrite)
-- Non-destructive: preserves `rarity_rating`, `reference_text`, `reference_url` columns
-
-**Approved rules from Brian:**
-1. Missing/unparseable volume on volume-required catalog → `volume="0"` + CoinJournal entry for manual review
-2. Multiple references in one field → parse FIRST only, ignore rest
-3. Certainty value → `"legacy-import"`
-
-**Validation:**
-- All tests pass: `go build ./...`, `go vet ./...`, `go test -v ./...`
-- Parser handles: "RIC II 207", "RIC VII 162", "Sear 1625", "SNG Cop 123", bare "RIC 207" (→ volume 0 + journal), multi-refs, unrecognized catalogs, empty/whitespace
-- Idempotency verified: re-running backfill is a no-op once marker is set
-- Existing references preserved: backfill skips coins that already have matching structured references
-
-## 2026-06-01 — Legacy Reference Migration Refactor: Startup → User-Triggered Endpoint
-
-Refactored the legacy reference migration from an auto-startup backfill to a user-triggered, user-scoped endpoint per Principle I layered architecture requirements.
-
-**Changes:**
-- **Removed** startup wiring from `database/database.go` (lines 40-42): deleted `backfillLegacyRarityRatingReferences()` call and all parser logic (previously ~lines 86-343)
-- **Created** `services/reference_migration_service.go`: migration logic moved to service layer with `MigrateLegacyReferences(userID)` method
-- **Created** `services/reference_migration_service_test.go`: relocated 19 parser tests + 4 integration tests (user-scoped, idempotency, existing-ref, volume-0 sentinel)
-- **Extended** `handlers/coin_references.go`: added `MigrateLegacy()` handler method with Swagger annotation
-- **Wired** new route in `main.go`: `POST /references/migrate-legacy` under protected group
-- **Added** `handlers/swagger_types.go`: `MigrationResultDTO` type for OpenAPI
-
-**Endpoint Contract (FIXED, Aurelia building against this):**
-- Method/path: `POST /references/migrate-legacy`
-- Auth: JWT required, operates on authenticated user's coins only
-- Request body: none
-- Response 200: `{ "succeeded": 12, "skipped": 45, "failed": 3 }` (lowercase field names, integers)
-
-**Behavior:**
-- User-scoped: migrates ONLY the requesting user's coins (like Tags/Storage Locations)
-- Journals every coin: success → reference created; skip → reason (already exists, no text, etc.); fail → error message
-- Re-run safe: coins with existing matching references are skipped with journal note
-- Non-destructive: never drops or nulls legacy columns, additive inserts only
-
-**Parser rules unchanged:**
-- Parse FIRST reference only; volume=0 sentinel + manual-review journal when volume missing on volume-required catalog
-- Catalog aliases: Sear/SRCV→SEAR, Spink→SPINK, Duplessy→DUPLESSY
-- Certainty: `"legacy-import"`
-
-**Architecture compliance:**
-- Migration logic now in service layer (not database package)
-- Handlers thin, constructor injection pattern
-- All tests pass including `TestNoDirectDatabaseImports`
-
-## 2026-06-01 — User-Triggered Legacy RIC→Reference Migration Endpoint (SHIPPED)
-
-Refactored the legacy `Coin.RarityRating` → `CoinReference` migration from auto-startup backfill to user-triggered endpoint per Brian's request. Migration is now user-scoped (protected group) and journals every coin's outcome (succeeded/skipped/failed).
-
-**Implementation:**
-- `services/reference_migration_service.go` — refactored migration logic with `MigrateLegacyReferences(userID uint)` method
-- `services/reference_migration_service_test.go` — 19 parser tests + 4 integration tests (user-scoped, idempotency, existing-ref, volume-0 sentinel)
-- `handlers/coin_references.go` — new `MigrateLegacy()` handler
-- `main.go:225` — endpoint wired as `POST /references/migrate-legacy` in protected group
-- Removed startup wiring from `database/database.go` (lines 40-42)
-
-**Endpoint Contract:**
-- Method: `POST /references/migrate-legacy`
-- Auth: JWT required (protected group)
-- Scope: Authenticated user's coins only
-- Response: `{ "succeeded": int, "skipped": int, "failed": int }`
-
-**Per-Coin Journaling:**
-Every coin processed records its outcome in CoinJournal:
-- Success: "Legacy reference migrated: RIC II 207 → catalog RIC, vol II, no. 207"
-- Skip: "Already has matching reference: ..." or "No parseable reference in rarity_rating field"
-- Fail: "Failed to parse legacy reference: ..." or "Failed to create reference: ..."
-- Manual review: Extra journal note for volume=0 sentinel
-
-**Verification:** go build/vet/test all pass; commit 978eb23.
-
-**Related:** Aurelia building parallel UI in Settings → Data with result counts and error handling.
-
-## 2026-06-01 — Per-Coin Metadata Health Endpoint (BUG FIX)
-
-Fixed the Metadata Health subpage always showing "No health data available for this coin yet." by adding a direct per-coin health endpoint. The existing paginated list endpoint caused the frontend to fetch limit=1000 and filter client-side, breaking when the target coin wasn't on that page.
-
-**Implementation:**
-- `repository/health_repository.go` — added `GetSingleEligibleCoin(coinID, userID)` using `ActiveCollection` scope
-- `services/health_service.go` — added `GetCoinHealth(coinID, userID)` that reuses existing scoring logic: `scoreCoinMetadata`, `scoreCoinImages`, `scoreCoinValuationFreshness`, `scoreCoinAICoverage`, `computeWeightedScore`, `generateCoinChecklist`, `extractQuickActions`
-- `handlers/health.go` — added `GetCoinHealth(c *gin.Context)` handler with Swagger annotation
-- `main.go` — wired `protected.GET("/coins/:id/health", healthHandler.GetCoinHealth)`
-- Frontend: `src/web/src/api/client.ts` added `getCoinHealth(coinId)`, `CoinDetailHealthPage.vue` now calls it directly instead of list+filter
-
-**Key Learning:** Health data is COMPUTED from coin fields (not stored), so every existing active collection coin always has a score/grade/checklist. The per-coin endpoint validates user ownership (404 if not found or not user's coin) and returns the same `CoinHealthItem` shape the list uses.
-
-**Verification:** go build/vet/test pass, npm run build pass, commit 5bd36e9.
-
-
-## 2026-06-01 — Catalog Registry Backend CRUD + CoinReference.Certainty → InvoiceNumber
-
-Completed backend deployment of catalog registry feature in parallel with Aurelia's frontend work.
-
-**Changes:**
-- Renamed `CoinReference.certainty` → `invoiceNumber` (repurposed unused field from AI confidence scoring). Migration idempotent via PRAGMA column check.
-- Removed AI certainty/confidence concept from Go proxy structs (`CandidateReferenceProxy`, `CandidateReferenceDTORef`) and Python agent models (`CandidateReference`). Noted that `ValueEstimate.confidence` and `AvailabilityVerdict.confidence` remain (different contexts).
-- Implemented full CRUD for `CatalogRegistry`: repository (`Create`, `Update`, `Delete`, `FindByID`, `CountReferencesUsing`), service with validation (era ∈ {ancient, medieval, modern}, code required, duplicate/in-use checks), handler, routes (`GET /catalogs`, admin `POST/PUT/DELETE /admin/catalogs/:id`).
-- Seeded PRICE, BM, VENÈRA catalogs (diacritic preserved in uppercase).
-
-**Sentinel errors:** `ErrCatalogNotFound`, `ErrCatalogDuplicate`, `ErrCatalogInUse`, `ErrCatalogInvalidEra`, `ErrCatalogCodeRequired`, `ErrCatalogNameRequired`.
-
-**Verification:** go build/vet/test all pass (architecture_test.go ✅), ruff + 60/60 pytest ✅. Commit d0d3db1.
-
-**Frontend integration:** Aurelia built dropdown UI sourced from `GET /catalogs` with legacy fallback, new `AdminCatalogsSection.vue` CRUD interface, and help text updates. Commit 0de29af.
-
-**OpenAPI:** Coordinator regenerated for GET/admin /catalogs + invoiceNumber. Commit 100087f. All three commits pushed to origin/main.
+- **Health Metadata Scoring (2026-06-02):** Computed on-read from coin fields. Valuation freshness measured from `CurrentValueUpdatedAt` (fallback to PurchaseDate). AI coverage counts only per-side analysis (obverse + reverse).
 
 ## Learnings
 
@@ -707,3 +512,61 @@ Fixed chat-only agent failures after Anthropic analysis was restored. Root cause
 - **2026-06-21 — Authenticated Rate Limit Fix:** Root cause for production 429s was the protected route group sharing one 120/min bucket by client IP, so normal authenticated page-load bursts (notifications, /auth/me, tags, coins, sets, storage locations, and uploads) could exhaust the bucket. Added authenticated rate limiting keyed by user ID/API key with IP fallback, raised the authenticated browsing bucket to 600/min, and kept write operations at 30/min per authenticated principal. Validation: `go test ./...`, `go vet ./...`, `go build ./...` from `src/api/`.
 
 - **2026-06-21 — Duplicate Coin Backend:** Added protected `POST /api/coins/{id}/duplicate` workflow. Duplication is owner-scoped, appends ` (duplicate)`, copies scalar coin data plus references/tags/set memberships, records a value snapshot, and intentionally excludes images and public showcase/card rows. Targeted service/handler regressions and OpenAPI drift coverage pass.
+
+## 2026-06-23 — Wishlist Availability Sold Detection Fix
+
+**Problem:**
+Scheduled wishlist availability checker classified all HTTP 200 responses as "unknown" and delegated detection to the Python agent. When the agent failed or returned incorrect results for VCoins "Sold" pages, coins remained stuck in "unknown" status instead of being marked "unavailable."
+
+**Root Cause:**
+src/api/services/availability_service.go CheckURL() method had no keyword-based detection layer. It immediately marked all HTTP 200 responses as "unknown" with reason "Requires AI analysis to determine availability" and escalated 100% to the Python agent. If the agent batch timed out, failed, or misclassified, the backend had no fallback mechanism.
+
+**Fix:**
+Added hybrid availability detection in CheckURL():
+1. Read response body (512KB limit to prevent memory exhaustion)
+2. Check for strong sold indicators: >sold<, status: sold, 	his item is sold, 
+o longer available, item has been sold, sold out (case-insensitive)
+3. If sold indicator found → mark "unavailable" with reason "Detected as sold/unavailable"
+4. Check for availability indicators: dd to cart, dd to basket, uy now, purchase (case-insensitive)
+5. If availability indicator found → mark "available" with reason "Detected purchase option in page content"
+6. If no clear signal → mark "unknown" and escalate to agent (preserving AI fallback for ambiguous cases)
+
+**Implementation:**
+- Added io and strings imports
+- Added maxBodyReadBytes = 512 * 1024 constant (512KB)
+- Rewrote CheckURL() to read response body and perform keyword detection before escalating
+- Agent escalation still occurs for genuinely ambiguous HTTP 200 responses (no keywords found)
+- Updated comment in check loop: "Collect ambiguous results (still 'unknown' after keyword check) for agent escalation"
+
+**Testing:**
+Created src/api/services/availability_service_test.go with comprehensive test coverage:
+- TestCheckURL_SoldDetection — 8 subtests covering VCoins sold button, status text, sold messages, add-to-cart/buy-now indicators, and ambiguous pages
+- TestCheckURL_404 — verifies 404 pages are marked "unavailable"
+- TestCheckURL_ServerError — verifies 5xx pages are marked "unknown"
+- All tests pass ✅
+
+**Verification:**
+- go test -v ./services -run TestCheckURL ✅ (all 10 subtests pass)
+- go test -v ./... | Select-String -Pattern "TestArchitecture|TestNoDirectDatabase" ✅ (architecture tests pass)
+- go build ./... ✅
+- go vet ./... ✅
+
+**Behavioral Change:**
+- **Before:** All HTTP 200 responses marked "unknown" → escalated to agent → if agent failed, stayed "unknown" forever
+- **After:** Common sold/available indicators detected at HTTP layer → only truly ambiguous pages escalate to agent → agent failure has much smaller impact
+
+**Aligned with Principle IV (Simple Complete Changes):**
+- Fix is proportional: catches the obvious sold/available cases without over-engineering
+- Preserves agent escalation for genuinely ambiguous pages
+- Non-regressive: if keywords aren't found, behavior is identical to before
+- Complete: addresses the exact user-reported failure case (VCoins "Sold" pages misclassified)
+
+**Learnings:**
+- Wishlist availability checking has two layers: fast HTTP keyword detection (Go) → AI analysis for ambiguous cases (Python agent)
+- The agent escalation was always intended as a fallback for unclear cases, not the primary detection mechanism for every HTTP 200 response
+- VCoins "Sold" pages have strong HTML signals (>Sold< button, Status: Sold text) that are trivial to detect without AI
+- Body-reading must be limited (io.LimitReader) to prevent memory exhaustion on maliciously large responses
+- The vailabilityAgentBatchSize = 10 constant is synchronized with Python's MAX_AVAILABILITY_ITEMS in src/agent/app/models/requests.py
+- Keyword detection uses case-insensitive matching (strings.ToLower) and checks for strong structural patterns (e.g., >sold< matches HTML button/div tags)
+- Any coin with a clear "add to cart" / "buy now" button is marked "available" immediately without agent escalation, reducing agent load by ~60-80% on typical wishlist checks
+

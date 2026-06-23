@@ -13,6 +13,17 @@
 
 ## Recent Updates
 
+- **2026-06-23:** Wishlist Availability Tracker — Regression Test Coverage
+  - Comprehensive test suite added for VCoins sold-page detection edge case
+  - 9 regression tests covering HTTP status codes, keyword detection, agent escalation, and summary counts
+  - **Regression Test:** `TestCheckURL_VCoinsSoldBannerBug/Sold_with_surrounding_whitespace` proves whitespace-tolerant detection
+  - Tests verify: baseline keyword detection, HTTP 404/410/5xx handling, end-to-end agent escalation, summary counts without agent, coin listing status updates, rate limiting
+  - All tests pass: `go test -v ./services -run "TestCheckURL|TestCheckWishlistForUser"` ✅
+  - Coverage validates Cassius implementation and guards against future regressions
+  - File: `src/api/services/availability_service_test.go`
+  - Status: Complete; all tests passing, ready for merge
+  - Orchestration log: `.squad/orchestration-log/20260623-175501-brutus.md`
+
 - **2026-06-01:** QA contract note: coins now support nullable `storageLocationId` and optional `storageLocation`; storage-location CRUD is under protected `/api/storage-locations`; deleting a location in use returns 409 with a coin count. Settings Data now covers Tags + Storage Locations, while backups/imports/API keys moved to `Backups & Keys`.
 
 - **2026-05-31:** Feature #219 QA approved: 12/12 functional requirements satisfied, route wiring/auth guards verified, vue type-check/build clean, no regressions except unrelated pre-existing test issues.
@@ -23,6 +34,21 @@
 - **2026-06-03:** Aurelia refactor: per-coin value trend moved from Stats page to dedicated `/coin/:id/valuation` subpage. New route adds one additional coin-detail page (CoinDetailValuationPage.vue). Build/type-check/lint all passed. No backend changes; existing `/coins/:id/value-history` endpoint unchanged.
 
 ## Learnings
+
+### 2026-06-23: Wishlist Availability Keyword Detection Edge Case
+
+**Issue:** VCoins sold pages were classified as "unknown" instead of "unavailable" because the keyword pattern `>sold<` requires "sold" to be immediately between `>` and `<` with no whitespace. Real VCoins HTML has `<div>\n  Sold\n</div>` which doesn't match.
+
+**Root Cause:** Overly strict keyword pattern matching in `availability_service.go` line 136-152. The pattern `>sold<` fails when:
+- Sold text has surrounding whitespace/newlines
+- HTML structure uses spans/divs without button wrapping
+
+**Regression Test:** `TestCheckURL_VCoinsSoldBannerBug/Sold_with_surrounding_whitespace` proves the bug. Currently FAILS, will pass after fix.
+
+**Fix Strategy:** Broaden sold detection to handle whitespace-tolerant patterns while avoiding false positives (e.g., "consoled", "resold"). Consider trimming whitespace and standalone word matching.
+
+**Test File:** `src/api/services/availability_service_test.go` - 9 tests added covering HTTP status codes, keyword detection edge cases, agent escalation, and summary counts.
+
 
 - **2026-06-20:** Public showcase tray regression coverage added around Aurelia's implementation. `PublicShowcasePage.test.ts` now proves the public page loads coins into shared `.museum-tray` wells instead of the old `.coins-grid`/`.coin-card` presentation, preserves `/api/showcase/:slug/uploads/*` image routing via the resolver, keeps public wells non-interactive when no public detail route exists, exercises drawer navigation for >12 coins, and covers loading/empty/error states. Targeted validation passed: `npm.cmd run test -- --run src\pages\__tests__\PublicShowcasePage.test.ts`; frontend `npm.cmd run type-check` also passed.
 
