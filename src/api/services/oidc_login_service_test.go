@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,6 +65,31 @@ func TestOIDCServiceLoginCallbackIssuesTokensForLinkedIdentity(t *testing.T) {
 	}
 	if identity.LastLoginAt == nil {
 		t.Fatal("expected last_login_at to be updated")
+	}
+}
+
+func TestOIDCServiceStartLoginUsesEntraAuthorizationEndpoint(t *testing.T) {
+	db, svc := setupOIDCLoginServiceTest(t)
+	issuer := startMockEntraDiscoveryProvider(t)
+	provider := createOIDCLoginProvider(t, db, issuer)
+	provider.ProviderType = models.OIDCProviderTypeEntra
+	if err := db.Save(&provider).Error; err != nil {
+		t.Fatalf("failed to save Entra provider: %v", err)
+	}
+
+	start, err := svc.StartLogin(context.Background(), provider.ID, "/", "http://app.example")
+	if err != nil {
+		t.Fatalf("start login failed: %v", err)
+	}
+	authURL, err := url.Parse(start.AuthorizationURL)
+	if err != nil {
+		t.Fatalf("failed to parse authorization URL %q: %v", start.AuthorizationURL, err)
+	}
+	if !strings.Contains(authURL.Path, "/oauth2/v2.0/authorize") {
+		t.Fatalf("expected Entra authorization endpoint path, got %q from %q", authURL.Path, start.AuthorizationURL)
+	}
+	if strings.Contains(authURL.Path, "/oauth2/v2.0/token") {
+		t.Fatalf("expected browser URL not to use Entra token endpoint path, got %q", authURL.Path)
 	}
 }
 
@@ -412,6 +438,26 @@ func startMockOIDCProviderWithOptions(t *testing.T, options oidcMockProviderOpti
 	}))
 	t.Cleanup(server.Close)
 	return server.URL
+}
+
+func startMockEntraDiscoveryProvider(t *testing.T) string {
+	t.Helper()
+	var server *httptest.Server
+	tenantPath := "/tenant-id/v2.0"
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, ".well-known/openid-configuration") {
+			http.NotFound(w, r)
+			return
+		}
+		writeJSON(t, w, map[string]string{
+			"issuer":                 server.URL + tenantPath,
+			"authorization_endpoint": server.URL + "/tenant-id/oauth2/v2.0/authorize",
+			"token_endpoint":         server.URL + "/tenant-id/oauth2/v2.0/token",
+			"jwks_uri":               server.URL + "/tenant-id/discovery/v2.0/keys",
+		})
+	}))
+	t.Cleanup(server.Close)
+	return server.URL + tenantPath
 }
 
 var currentOIDCTestNonce string

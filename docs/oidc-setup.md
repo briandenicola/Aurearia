@@ -16,7 +16,7 @@ Local development may use `http://localhost` redirect URIs. Production deploymen
 1. In Entra admin center, create or choose an App registration.
 2. Add the two web redirect URIs above under Authentication.
 3. Create a client secret and copy it once; Ancient Coins stores it write-only and never returns it from read APIs.
-4. Use the tenant-specific issuer URL, for example `https://login.microsoftonline.com/{tenant-id}/v2.0`.
+4. Enter the Tenant ID in Admin Settings and confirm the derived issuer URL shown under the field is `https://login.microsoftonline.com/{tenant-id}/v2.0`.
 5. Configure scopes: `openid`, `profile`, and `email`.
 6. Save and test the provider from Admin Settings before enabling it.
 

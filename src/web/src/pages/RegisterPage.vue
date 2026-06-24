@@ -37,6 +37,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { getApiErrorMessage } from '@/api/client'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -58,8 +59,8 @@ async function handleRegister() {
   try {
     await auth.doRegister(username.value, password.value, email.value)
     router.push('/')
-  } catch {
-    error.value = 'Registration failed — username may already exist'
+  } catch (e) {
+    error.value = getApiErrorMessage(e) || 'Registration failed — username may already exist'
   } finally {
     loading.value = false
   }

@@ -116,6 +116,49 @@ describe('AdminOIDCSection', () => {
     }))
   })
 
+  it('derives the Entra issuer URL from the tenant ID on create', async () => {
+    mockGetAdminOIDCProviders.mockResolvedValue(providerResponse([]))
+    const wrapper = mount(AdminOIDCSection)
+    await flushPromises()
+
+    await buttonByText(wrapper, 'Add Provider').trigger('click')
+    await wrapper.find('#oidc-name').setValue('entra-work')
+    await wrapper.find('#oidc-display-name').setValue('Microsoft Entra')
+    await wrapper.find('#oidc-tenant-id').setValue('new-tenant')
+    await wrapper.find('#oidc-client-id').setValue('client-id')
+    await wrapper.find('#oidc-client-secret').setValue('client-secret')
+
+    expect(wrapper.text()).toContain('https://login.microsoftonline.com/new-tenant/v2.0')
+
+    await wrapper.find('form.modal-body').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(mockCreateAdminOIDCProvider).toHaveBeenCalledWith(expect.objectContaining({
+      providerType: 'entra',
+      issuerUrl: 'https://login.microsoftonline.com/new-tenant/v2.0',
+      clientSecret: 'client-secret',
+    }))
+  })
+
+  it('infers the Entra tenant ID from an existing issuer URL on edit', async () => {
+    const wrapper = mount(AdminOIDCSection)
+    await flushPromises()
+
+    await buttonByText(wrapper, 'Edit').trigger('click')
+
+    const tenantInput = wrapper.find<HTMLInputElement>('#oidc-tenant-id')
+    expect(tenantInput.element.value).toBe('tenant')
+    expect(wrapper.text()).toContain('https://login.microsoftonline.com/tenant/v2.0')
+
+    await tenantInput.setValue('rotated-tenant')
+    await wrapper.find('form.modal-body').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(mockUpdateAdminOIDCProvider).toHaveBeenCalledWith(7, expect.objectContaining({
+      issuerUrl: 'https://login.microsoftonline.com/rotated-tenant/v2.0',
+    }))
+  })
+
   it('does not render or reuse an accidental secret value returned by the API', async () => {
     mockGetAdminOIDCProviders.mockResolvedValue(providerResponse([
       {

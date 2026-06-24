@@ -139,7 +139,24 @@
             </div>
           </div>
 
-          <div class="form-group">
+          <div v-if="form.providerType === 'entra'" class="form-group">
+            <label class="form-label" for="oidc-tenant-id">Tenant ID</label>
+            <input
+              id="oidc-tenant-id"
+              v-model.trim="form.tenantId"
+              class="form-input"
+              required
+              placeholder="00000000-0000-0000-0000-000000000000"
+              autocomplete="off"
+            />
+            <span class="form-hint">
+              Derived issuer URL:
+              <code v-if="derivedEntraIssuerUrl">{{ derivedEntraIssuerUrl }}</code>
+              <span v-else>enter a tenant ID to generate the Microsoft issuer URL.</span>
+            </span>
+          </div>
+
+          <div v-else class="form-group">
             <label class="form-label" for="oidc-issuer-url">Issuer URL</label>
             <input
               id="oidc-issuer-url"
@@ -257,6 +274,7 @@ type ProviderForm = {
   displayName: string
   providerType: OIDCProviderType
   enabled: boolean
+  tenantId: string
   issuerUrl: string
   clientId: string
   clientSecret: string
@@ -296,6 +314,7 @@ const form = reactive<ProviderForm>({
   displayName: '',
   providerType: 'entra',
   enabled: false,
+  tenantId: '',
   issuerUrl: '',
   clientId: '',
   clientSecret: '',
@@ -315,6 +334,11 @@ const secretHint = computed(() =>
     ? 'Leave blank to keep the existing secret. Enter a new value only when rotating the secret.'
     : 'Stored by the API and never returned to the browser.'
 )
+
+const derivedEntraIssuerUrl = computed(() => {
+  const tenantId = normalizedTenantId()
+  return tenantId ? `https://login.microsoftonline.com/${tenantId}/v2.0` : ''
+})
 
 async function loadProviders() {
   loading.value = true
@@ -358,6 +382,7 @@ function resetForm() {
   form.displayName = ''
   form.providerType = 'entra'
   form.enabled = false
+  form.tenantId = ''
   form.issuerUrl = ''
   form.clientId = ''
   form.clientSecret = ''
@@ -383,6 +408,7 @@ function openEditForm(provider: OIDCAdminProvider) {
   form.displayName = provider.displayName
   form.providerType = provider.providerType
   form.enabled = provider.enabled
+  form.tenantId = provider.providerType === 'entra' ? inferEntraTenantId(provider.issuerUrl) : ''
   form.issuerUrl = provider.issuerUrl
   form.clientId = provider.clientId
   form.clientSecret = ''
@@ -413,6 +439,42 @@ function sanitizedSecret() {
   return secret
 }
 
+function normalizedTenantId() {
+  return form.tenantId.trim()
+}
+
+function inferEntraTenantId(issuerUrl: string) {
+  try {
+    const parsed = new URL(issuerUrl)
+    const pathParts = parsed.pathname.split('/').filter(Boolean)
+    const tenant = pathParts[0] ?? ''
+    const version = pathParts[1] ?? ''
+    if (parsed.hostname.toLowerCase() === 'login.microsoftonline.com' && tenant && version.toLowerCase() === 'v2.0') {
+      return decodeURIComponent(tenant)
+    }
+  } catch {
+    // Fall through to the regex parser for partial issuer strings.
+  }
+
+  return issuerUrl.match(/^https:\/\/login\.microsoftonline\.com\/([^/]+)\/v2\.0\/?$/i)?.[1] ?? ''
+}
+
+function issuerUrlForPayload() {
+  if (form.providerType !== 'entra') {
+    return form.issuerUrl
+  }
+
+  const tenantId = normalizedTenantId()
+  if (!tenantId) {
+    throw new Error('Tenant ID is required for Microsoft Entra ID.')
+  }
+  if (/[\s/\\]/.test(tenantId)) {
+    throw new Error('Tenant ID must not contain spaces or slashes.')
+  }
+
+  return `https://login.microsoftonline.com/${tenantId}/v2.0`
+}
+
 function buildPayload(): OIDCAdminProviderInput {
   const scopes = parseScopes()
   if (!scopes.includes('openid')) {
@@ -424,7 +486,7 @@ function buildPayload(): OIDCAdminProviderInput {
     displayName: form.displayName,
     providerType: form.providerType,
     enabled: form.enabled,
-    issuerUrl: form.issuerUrl,
+    issuerUrl: issuerUrlForPayload(),
     clientId: form.clientId,
     scopes,
     requireVerifiedEmail: form.requireVerifiedEmail,
