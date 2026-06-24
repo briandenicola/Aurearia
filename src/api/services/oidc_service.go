@@ -425,6 +425,9 @@ func (s *OIDCService) exchangeAndValidateCallback(ctx context.Context, provider 
 	}
 	redirectURI := consumed.RedirectURI
 	if redirectURI == "" {
+		if consumed.FlowType == models.OIDCFlowTypeLink {
+			return nil, oidcLoginClaims{}, fmt.Errorf("%w: stored redirect URI missing for link callback", ErrOIDCInvalidState)
+		}
 		redirectURI = absoluteOIDCURL(requestOrigin, oidcFlowCallbackPath(provider, consumed.FlowType))
 	}
 	runtime.OAuth2Config.RedirectURL = redirectURI

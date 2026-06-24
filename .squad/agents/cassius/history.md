@@ -57,6 +57,8 @@
 
 ## Learnings
 
+- **2026-06-24 — OIDC Link Callback RedirectURI Fallback Bug:** Production OIDC account-link callback 400s after deployment. Root cause: `exchangeAndValidateCallback` fallback logic reconstructed redirect URI using API path (`/api/auth/oidc/:id/link/callback`) instead of the custom frontend path (`/settings/oidc/link/callback/:id`) that was registered with the provider during the authorization request. Link flows allow frontend to specify custom callback paths (sent to provider), but if `consumed.RedirectURI` is empty (migration issue or old auth state pre-column-addition), the fallback can't safely reconstruct the custom path from the callback request alone. **Fix:** Fail explicitly with `ErrOIDCInvalidState` ("stored redirect URI missing for link callback") if `RedirectURI` is empty for link flows; keep safe fallback for login flows where callback path is stored in `provider.CallbackPath`. Added regression test `TestOIDCServiceLinkCallbackFailsWhenRedirectURINotStored`. Since auth states TTL = 10 minutes, all pre-migration states expire quickly once `RedirectURI` column exists.
+
 - **2026-06-19 — PR #320 Go Toolchain Lockout Revision:** Corrected `src/api/go.mod` to `go 1.26.4` for alignment across setup-go, Docker/docs/workflows, and module pin.
 
 - **2026-06-19 — Agent Service Boundary Hardening (#309/#310):** Python agent direct surface now internal-only by default; compose port 8081 internal, non-health endpoints require token, outbound URLs restricted.

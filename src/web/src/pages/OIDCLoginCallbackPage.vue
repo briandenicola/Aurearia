@@ -130,18 +130,19 @@ function mapProviderError(error: string) {
 function mapCallbackError(error: unknown) {
   const response = getErrorResponse(error)
   const messageText = getApiErrorMessage(error)
-  const normalized = messageText.toLowerCase()
+  const detailText = getErrorDetail(error)
+  const normalized = `${messageText} ${detailText}`.toLowerCase()
 
   if (response?.status === 409) {
     return 'This provider account matches an existing local account. Sign in locally, then link the provider from Account Settings.'
   }
 
-  if (normalized.includes('state') || normalized.includes('claims') || response?.status === 400 || response?.status === 401) {
-    return 'The provider response could not be validated. Start sign-in again.'
+  if (normalized.includes('redirect uri') || normalized.includes('client secret') || normalized.includes('configuration') || normalized.includes('discovery') || response?.status === 500) {
+    return 'The sign-in provider is not configured correctly. Ask an administrator to test the provider settings.'
   }
 
-  if (normalized.includes('configuration') || normalized.includes('discovery') || response?.status === 500) {
-    return 'The sign-in provider is not configured correctly. Ask an administrator to test the provider settings.'
+  if (normalized.includes('state') || normalized.includes('claims') || response?.status === 400 || response?.status === 401) {
+    return 'The provider response could not be validated. Start sign-in again.'
   }
 
   return messageText || 'OIDC sign-in failed. Try again or use your local password.'
@@ -152,6 +153,13 @@ function getErrorResponse(error: unknown): { status?: number } | null {
   const response = (error as { response?: unknown }).response
   if (typeof response !== 'object' || response === null) return null
   return response as { status?: number }
+}
+
+function getErrorDetail(error: unknown) {
+  if (typeof error !== 'object' || error === null || !('response' in error)) return ''
+  const response = (error as { response?: { data?: { detail?: unknown } } }).response
+  const detail = response?.data?.detail
+  return typeof detail === 'string' ? detail : ''
 }
 </script>
 
