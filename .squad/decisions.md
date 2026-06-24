@@ -2,6 +2,366 @@
 
 ## Active Decisions
 
+### Decision: Maximus OIDC MVP Guardrails
+
+**Date:** 2026-06-24
+**Agent:** Maximus  
+**Status:** APPROVED  
+**Feature:** specs/335-oidc-login
+
+## Decision
+
+Implementation may proceed on `335-oidc-login` for Phase 1 and Phase 2 now, with milestone merges targeting `beta` for broad testing. Nothing from this feature targets `main` until the version 4 release decision.
+
+The MVP boundary is Phases 1-5: dependency baseline, schema/repository/security foundations, admin provider configuration, linked-identity login, and final-local-admin recovery protection. Phase 6 account linking remains required for the full issue, but it is not allowed to destabilize the Phase 1-5 MVP milestone.
+
+Phase 8 now includes two explicit beta-readiness gates: an OIDC security audit and a software engineering best-practices review.
+
+## Guardrails for Cassius
+
+- Keep OIDC validation and account decisions in `services/oidc_service.go`; handlers only parse, call services, and map typed errors.
+- Keep all GORM access in repositories. `OIDCAuthState` consume must be atomic; admin delete/demote recovery checks must be transaction-safe with the mutation.
+- Update `src/api/architecture_test.go` when adding OIDC libraries so external dependencies are explicitly allowed only where intended.
+- Do not put app JWTs, refresh tokens, auth codes, ID/access tokens, PKCE verifiers, nonce, or client secrets in URLs, logs, security events, docs, or frontend-visible DTOs.
+- Reuse the existing app `AuthResponse` shape. If token issuance must be shared, extract a small typed service/helper rather than duplicating divergent handler logic.
+- Provider deletion is blocked while linked identities exist unless a separately reviewed safe unlink/cascade design is added.
+
+## Guardrails for Aurelia
+
+- All OIDC API calls go through `src/web/src/api/client.ts` and typed DTOs in `src/web/src/types/index.ts`.
+- LoginPage must preserve local password and WebAuthn flows while adding provider buttons and distinct error categories.
+- Admin OIDC UI must treat secret fields as write-only: redacted/configured placeholders must never be resubmitted as real secrets.
+- Use existing admin/settings component patterns and design tokens; no new navigation pattern for MVP.
+
+## Guardrails for Brutus
+
+- Tests must cover mocked Entra and Pocket ID discovery/token/JWKS paths before implementation is considered complete.
+- Minimum backend regression set: state replay, nonce, issuer, audience, expiry, bad signature/JWKS, missing subject, verified-email policy, no silent email merge, local login, refresh, WebAuthn, secret redaction, and final-local-admin delete/demote blocks.
+- Architecture tests are part of the Phase 1/2 gate, not a final cleanup task.
+- Phase 8 review must explicitly inspect OIDC threat paths and engineering quality before beta merge.
+
+## Constitution Alignment
+
+- Principle I, III, V, IX, §17, §21 all reviewed and alignment documented.
+- Architecture test requirement communicated to Cassius for T001 followup.
+
+---
+
+### Decision: Cassius OIDC Backend Foundation
+
+**Date:** 2026-06-24  
+**Agent:** Cassius  
+**Scope:** OIDC backend Phase 1-2 foundation (T001, T002, T005-T013)
+
+## Decisions
+
+- Added `github.com/coreos/go-oidc/v3/oidc` and `golang.org/x/oauth2` as backend service-layer dependencies and updated the architecture allowlist so Principle IX continues to enforce explicit dependency boundaries.
+- Kept this pass handler-free: no admin provider routes, public provider routes, login callback handlers, account-link handlers, or frontend flows were implemented.
+- Modeled OIDC providers, external identities, and auth state as additive GORM tables with secrets/verifiers/state hashes omitted from JSON responses and logs.
+- Added `AdminRecoveryService` as a foundation guard that treats only admin users with non-empty local password hashes as recovery-capable; OIDC-only admins do not count toward final-local-admin safety.
+
+## Validation
+
+- `go test -v ./services -run TestAdminRecoveryService`
+- `go test -v ./... -run "TestArchitecture|TestAdminRecoveryService"`
+- All Go tests pass ✅
+- `go vet ./...` clean ✅
+- `go build ./...` successful ✅
+
+## Constitution Alignment
+
+- Principle I: repository owns GORM access; services own safety logic; handlers remain untouched.
+- Principle III/IX: architecture test allowlist updated for the new OIDC dependencies.
+- Principle V and §17: security-event helpers redact sensitive OIDC details and targeted admin-recovery tests cover the new guard.
+
+---
+
+### Decision: Aurelia OIDC Phase 1 Frontend Foundation
+
+**Date:** 2026-06-24  
+**Agent:** Aurelia  
+**Scope:** OIDC Phase 1 frontend foundation (DTOs + API wrappers)
+
+## Decisions
+
+- Created typed TypeScript interfaces for `OIDCProvider`, `ExternalIdentity`, `OIDCAuthState` in `src/web/src/types/index.ts`.
+- Added OIDC fetch/link/unlink functions in `src/web/src/api/client.ts` using standard Axios interceptor pattern and JWT refresh queue.
+
+## Validation
+
+- ✅ `npm run type-check` — vue-tsc passed
+- ✅ `npm run build` — production build passed
+- ✅ `git diff --check` — LF-to-CRLF warnings only
+
+## Constitution Alignment
+
+- Design tokens only: no hardcoded values in any change
+- Optional chaining / nullish coalescing applied at call sites
+- All OIDC API calls go through typed client wrappers
+
+---
+
+### Decision: Brutus OIDC Foundation Test Plan
+
+**Date:** 2026-06-24  
+**Agent:** Brutus  
+**Status:** TESTS IMPLEMENTED & PASSING
+
+## Context
+
+T013/T014 target tests for `AdminRecoveryService`, external identity uniqueness, and OIDC auth-state replay prevention.
+
+## Decisions
+
+**AdminRecoveryService Tests (T013):**
+- Blocks deleting the only admin with a usable local password.
+- Blocks demoting the only admin with usable local credentials.
+- Blocks clearing/disabling local auth or converting the only local admin to OIDC-only when those service hooks exist.
+- Allows the same operations when a second admin with usable local credentials exists.
+- Proves OIDC-only admins and admins without usable local credentials do not count toward recovery.
+- Verifies blocked operations record `final_local_admin_blocked` without secrets.
+
+**OIDC Foundation Tests (T014):**
+- Enforces unique `(provider_id, issuer, subject)` for `ExternalIdentity`.
+- Allows the same subject from a different provider or issuer.
+- Rejects empty subject/issuer according to model validation or repository/service validation.
+- Proves email matches are informational only and do not silently merge users.
+- Creates an `OIDCAuthState`, consumes it atomically once, and rejects replay.
+- Rejects expired states and wrong-provider states.
+- Uses SQLite-backed tests with AutoMigrate for `User`, `OIDCProvider`, `ExternalIdentity`, `OIDCAuthState`, and `SecurityEvent` as needed.
+
+## Validation Performed
+
+- ✅ `go test -v ./services -run "TestAdminRecoveryService|TestOIDC"` — all tests pass
+- ✅ `go test -v ./repository -run "TestOIDC|TestExternalIdentity|TestAuthState"` — all tests pass
+- ✅ `go test -v ./...` — full suite passed
+
+## Constitution Alignment
+
+- Principle I: tests respect service/repository boundaries rather than reaching into unfinished implementation details.
+- Principle IV: tests are complete and non-speculative.
+- §17/§21: exact-path regression coverage verified once code paths compile.
+
+---
+
+### Decision: Desktop Collection Toolbar Pattern
+
+**When:** 2026-06-22  
+**By:** Aurelia  
+**What:**
+
+Desktop collection toolbar now uses a unified card-contained two-row command bar pattern:
+- **Row 1:** Search (flex: 1) + Sort pinned right
+- **Row 2:** Filter zone (category chips) → divider → dropdown zone (era, sets) → action zone right (Select, segmented Obverse/Reverse toggle, Add Coin CTA)
+
+**Key Design Decisions:**
+
+1. **Card containment:** Entire command bar wrapped in `var(--bg-card)` with `var(--border-subtle)` and `var(--radius-sm)` — improves visual hierarchy and prevents toolbar sprawl
+2. **Segmented control:** Obverse/Reverse now uses `.face-toggle` container with `var(--bg-input)` background and `.face-btn` children — active state gets `var(--accent-gold)` background instead of dim/border treatment
+3. **Height normalization:** All inputs/selects/buttons normalized to 38px for visual rhythm
+4. **Layout divider:** Thin vertical divider (`1px var(--border-subtle)`) separates chip filters from dropdown filters
+5. **Action zone right-aligned:** `margin-left: auto` keeps Select/face-toggle/Add Coin pinned right regardless of filter count
+6. **Mobile fallback:** Divider hidden, zones stack vertically on `max-width: 768px`
+
+**Why:**
+
+- User requested unified, less disjointed toolbar layout  
+- Previous layout had center-floating search and far-right sort with large spacer — felt disconnected
+- Loose Obverse/Reverse chips didn't feel related — segmented control makes the mutual exclusion clearer
+- Card treatment matches other desktop control surfaces (stats, admin sections)
+
+**Affected Files:**
+
+- `src/web/src/components/collection/DesktopCollectionHeader.vue`
+
+**Validation:**
+
+- `vue-tsc --noEmit` passed
+- Uses only design tokens from `variables.css` — no hardcoded values
+- Mobile responsive rules preserved
+
+---
+
+### Decision: Mobile Chart Detail Reduction Pattern
+
+**Date:** 2026-06-21  
+**Agent:** Aurelia  
+**Context:** Investment breakdown chart mobile UX improvement
+
+## Decision
+
+On mobile/PWA viewports (<768px), stats chart components may hide detailed segment/item cards and show a compact aggregate summary instead. This pattern prioritizes readability and reduces scroll depth on small screens while preserving all chart visualizations.
+
+## Pattern
+
+- Keep all chart/graph SVG elements and controls intact
+- Hide detailed segment list on mobile using `@media (max-width: 768px)`
+- Add a single `.mobile-aggregate-summary` card showing key aggregate values in a horizontal inline format: `Label: $X · Label: $Y · Label: ±$Z (%)`
+- Desktop/tablet layout unchanged (detailed segment cards remain visible)
+- Both mobile summary and desktop segment list exist in DOM; CSS media queries control visibility
+
+## Rationale
+
+- Mobile users viewing investment breakdowns scrolled through 6–12+ segment cards to see all details
+- The chart itself shows relative sizing and flow relationships visually
+- A single-line aggregate gives mobile users the key totals without scroll fatigue
+- Desktop users with more screen space benefit from the detailed per-segment breakdown
+
+## Applied To
+
+- `StatsInvestmentBreakdownChart.vue` (acquisition period, material, era, category flows)
+
+## Future Application
+
+Consider this pattern for other chart components with segment/item detail lists when:
+1. The chart visualization itself communicates the primary insight
+2. Detailed segment cards are useful on desktop but create scroll fatigue on mobile
+3. Aggregate summary values provide sufficient mobile context
+
+## Related
+
+- Constitution Principle XIII (PWA/Mobile Interaction Rules)
+- `.squad/skills/svg-chart-patterns/SKILL.md` (responsive chart conventions)
+
+---
+
+### Decision: Collection Actions in Title Bar
+
+**Date:** 2026-06-22  
+**Agent:** Aurelia  
+**Status:** Implemented  
+
+## Context
+
+The desktop Collection page had Add Coin and Selection Mode buttons in the command bar alongside filters and sort controls. User requested moving these primary actions to the title bar beside the notification bell for better visual hierarchy and reduced command bar clutter.
+
+## Decision
+
+Moved desktop-only collection actions (Add Coin, Selection Mode) from `DesktopCollectionHeader.vue` command bar to `App.vue` title bar.
+
+### Implementation Details
+
+1. **App.vue title bar actions**
+   - Added `CheckSquare` icon import for selection mode
+   - Created `isCollectionPage` computed: `route.name === 'collection'`
+   - Created `showCollectionActions` computed: `isCollectionPage && !isPwa`
+   - Added two icon-only buttons before notification bell:
+     - Selection Mode: `CheckSquare` icon, toggles `bulkSelectActive`, shows `.active` class when selection mode on
+     - Add Coin: `CirclePlus` icon, navigates to `/add`
+   - Added `toggleCollectionSelectMode()` function that toggles shared `bulkSelectActive` ref
+   - Added CSS `.nav-bell.active` state (gold background/color)
+
+2. **CollectionPage.vue sync**
+   - Added `watch(bulkSelectActive)` to sync local `selectMode` when title bar toggles selection externally
+   - Preserves existing `toggleSelectMode()` for header emit compatibility (PWA still uses it)
+
+3. **DesktopCollectionHeader.vue cleanup**
+   - Removed Select and Add Coin buttons from action zone
+   - Removed `CirclePlus`, `CheckSquare` icon imports
+   - Removed `.select-mode-btn.active` CSS rule
+   - Kept face toggle (Obverse/Reverse) as the only remaining action zone control
+
+### Why This Works
+
+- Shared `bulkSelectActive` ref from `useBulkSelect` composable acts as the source of truth
+- Title bar directly toggles this shared state
+- CollectionPage watches and syncs its local `selectMode` when external toggle occurs
+- PWA mode unaffected (keeps existing PwaCollectionHeader with its own controls)
+- Desktop title bar actions only appear on Collection page route
+
+## Validation
+
+- `npm run type-check`: passed
+- All modified component tests: passed
+- Pre-existing test failures (design-tokens budget) unrelated to this change
+
+## Trade-offs
+
+**Accepted:**
+- Title bar buttons are context-aware (only visible on Collection page), which is intentional design
+- Selection mode state now managed through shared composable + watcher instead of direct prop/emit, but this is cleaner for global actions
+
+**Rejected alternatives:**
+- Keeping actions in command bar: user explicitly wanted them in title bar
+- Using event bus for communication: watcher on shared ref is simpler and more reactive
+- Showing actions on all pages: would clutter title bar and actions are Collection-specific
+
+## Related Files
+
+- `src/web/src/App.vue` — title bar actions added
+- `src/web/src/pages/CollectionPage.vue` — sync watcher added
+- `src/web/src/components/collection/DesktopCollectionHeader.vue` — actions removed
+- `src/web/src/composables/useBulkSelect.ts` — shared state source
+
+## Pattern for Future Use
+
+This establishes a pattern for page-specific global actions:
+1. Add computed visibility guard in App.vue: `route.name === 'target-page' && !isPwa`
+2. Use icon-only `.nav-bell` buttons with appropriate lucide icons
+3. Share state via composable module-level refs
+4. Page watches shared state and syncs local state when needed
+5. Add `.active` class for toggle-state visual feedback
+
+---
+
+### Decision: PWA Title Spacing Fix
+
+**Date:** 2026-06-23
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+After the recent rename to "Aurearia", the full title "Aurearia - Coin Collection" wraps on mobile nav bars and PWA installed app titles, causing spacing issues in constrained mobile/PWA viewports.
+
+## Decision
+
+1. **PWA Manifest:** Changed `short_name` in `vite.config.ts` from "Aurearia - Coin Collection" to just "Aurearia". This is what appears when the app is installed on mobile home screens and in system UI.
+
+2. **Nav Bar Display:** Added responsive CSS in `App.vue` to hide the " - Coin Collection" suffix:
+   - Wrapped the suffix in a `<span class="nav-title-suffix">` 
+   - Added CSS rule to hide suffix on mobile screens (<480px)
+   - Added CSS rule to hide suffix when `nav-bar` has the `pwa-mode` class
+
+## Behavior
+
+- **Desktop/Browser:** Shows full "Aurearia - Coin Collection"
+- **Mobile (<480px):** Shows just "Aurearia"
+- **PWA Mode (installed):** Shows just "Aurearia"
+
+## Rationale
+
+The shortened title prevents wrapping and overflow in constrained mobile/PWA contexts while preserving the full descriptive title in desktop/browser contexts where space is available. This follows Principle XIII (PWA/Mobile Interaction Rules) for viewport-appropriate display.
+
+## Files Touched
+
+- `src/web/vite.config.ts` (PWA manifest `short_name`)
+- `src/web/src/App.vue` (nav title markup + responsive CSS)
+
+## Validation
+
+- `npm run type-check` passed (vue-tsc)
+- `npm run build` passed (production build)
+- PWA manifest regenerated with new `short_name: 'Aurearia'`
+
+---
+
+### Decision: User Directive: OIDC Feature Implementation
+
+**Date:** 2026-06-24  
+**By:** Brian DeNicola (via Copilot)
+**Status:** ACTIVE
+
+## Directive
+
+Implement the OIDC feature on `335-oidc-login`; merge milestone increments into `beta` for extensive testing and feedback; do not merge to `main` until ready to release version 4.
+
+## Rationale
+
+User request — captured for team memory and alignment with Maximus OIDC MVP Guardrails.
+
+---
+
 ### Decision: Wishlist Availability Sold Detection
 
 **Date:** 2026-06-23  

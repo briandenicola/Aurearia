@@ -24,6 +24,20 @@ func (r *AdminRepository) ListUsers() ([]models.User, error) {
 	return users, nil
 }
 
+func (r *AdminRepository) GetUserByID(userID uint) (*models.User, error) {
+	var user models.User
+	err := r.db.First(&user, userID).Error
+	return &user, err
+}
+
+func (r *AdminRepository) CountLocalRecoveryAdmins() (int64, error) {
+	var count int64
+	err := r.db.Model(&models.User{}).
+		Where("role = ? AND password_hash <> ?", models.RoleAdmin, "").
+		Count(&count).Error
+	return count, err
+}
+
 // DeleteUserCascade deletes a user and all associated data in a transaction.
 func (r *AdminRepository) DeleteUserCascade(userID uint) (int64, error) {
 	var rowsAffected int64
@@ -67,6 +81,16 @@ func (r *AdminRepository) DeleteUserCascade(userID uint) (int64, error) {
 		}
 		if err := tx.Where("user_id = ?", userID).Delete(&models.WebAuthnCredential{}).Error; err != nil {
 			return err
+		}
+		if tx.Migrator().HasTable(&models.ExternalIdentity{}) {
+			if err := tx.Where("user_id = ?", userID).Delete(&models.ExternalIdentity{}).Error; err != nil {
+				return err
+			}
+		}
+		if tx.Migrator().HasTable(&models.OIDCAuthState{}) {
+			if err := tx.Where("user_id = ?", userID).Delete(&models.OIDCAuthState{}).Error; err != nil {
+				return err
+			}
 		}
 		if err := tx.Where("follower_id = ? OR following_id = ?", userID, userID).Delete(&models.Follow{}).Error; err != nil {
 			return err

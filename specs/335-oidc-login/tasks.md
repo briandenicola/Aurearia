@@ -9,10 +9,10 @@
 
 ## Phase 1: Setup and dependency baseline
 
-- [ ] T001 Add OIDC dependencies to `src/api/go.mod`: `github.com/coreos/go-oidc/v3/oidc` and `golang.org/x/oauth2`.
-- [ ] T002 Run dependency tidy from `src/api` and commit updated `go.mod`/`go.sum`.
-- [ ] T003 [P] Add OIDC TypeScript DTOs to `src/web/src/types/index.ts` for public providers, admin providers, linked identities, and start-flow responses.
-- [ ] T004 [P] Add API client wrappers in `src/web/src/api/client.ts` for the endpoints documented in `specs/335-oidc-login/contracts/oidc-api.md`.
+- [x] T001 Add OIDC dependencies to `src/api/go.mod`: `github.com/coreos/go-oidc/v3/oidc` and `golang.org/x/oauth2`; update `src/api/architecture_test.go` service-layer external allowlist so Principle IX continues to enforce the dependency boundary explicitly.
+- [x] T002 Run dependency tidy from `src/api` and commit updated `go.mod`/`go.sum`.
+- [x] T003 [P] Add OIDC TypeScript DTOs to `src/web/src/types/index.ts` for public providers, admin providers, linked identities, and start-flow responses.
+- [x] T004 [P] Add API client wrappers in `src/web/src/api/client.ts` for the endpoints documented in `specs/335-oidc-login/contracts/oidc-api.md`.
 
 ---
 
@@ -20,16 +20,16 @@
 
 **Purpose**: Core data and security rules that block all OIDC user stories.
 
-- [ ] T005 Create `src/api/models/oidc_provider.go` with provider fields, validation-friendly types, and JSON tags that never expose client secret.
-- [ ] T006 Create `src/api/models/external_identity.go` with uniqueness constraints for provider/issuer/subject.
-- [ ] T007 Create `src/api/models/oidc_auth_state.go` for short-lived state, PKCE, nonce, redirect path, flow type, expiry, and consumed timestamp.
-- [ ] T008 Add the three new OIDC models to `src/api/database/database.go` AutoMigrate.
-- [ ] T009 Create `src/api/repository/oidc_repository.go` with provider CRUD, public enabled-provider listing, external identity CRUD, email lookup support, and atomic state consume.
-- [ ] T010 Extend `src/api/models/security_event.go` with OIDC login/link/config/final-admin event constants.
-- [ ] T011 Extend `src/api/services/security_service.go` with helper methods for OIDC event recording that redact sensitive values.
-- [ ] T012 Create `src/api/services/admin_recovery_service.go` to count admins with usable local credentials and guard delete, demote, local-auth disable, and OIDC-only conversion flows.
-- [ ] T013 [P] Add tests in `src/api/services/admin_recovery_service_test.go` for final-local-admin blocking and allowed non-final-admin operations.
-- [ ] T014 [P] Add repository tests or service-level tests using SQLite in `src/api/services/oidc_service_test.go` for unique external identity constraints and atomic state replay prevention.
+- [x] T005 Create `src/api/models/oidc_provider.go` with provider fields, validation-friendly types, and JSON tags that never expose client secret.
+- [x] T006 Create `src/api/models/external_identity.go` with uniqueness constraints for provider/issuer/subject.
+- [x] T007 Create `src/api/models/oidc_auth_state.go` for short-lived state, PKCE, nonce, redirect path, flow type, expiry, and consumed timestamp.
+- [x] T008 Add the three new OIDC models to `src/api/database/database.go` AutoMigrate.
+- [x] T009 Create `src/api/repository/oidc_repository.go` with provider CRUD, public enabled-provider listing, external identity CRUD, email lookup support, and atomic state consume.
+- [x] T010 Extend `src/api/models/security_event.go` with OIDC login/link/config/final-admin event constants.
+- [x] T011 Extend `src/api/services/security_service.go` with helper methods for OIDC event recording that redact sensitive values.
+- [x] T012 Create `src/api/services/admin_recovery_service.go` to count admins with usable local credentials and guard delete, demote, local-auth disable, and OIDC-only conversion flows.
+- [x] T013 [P] Add tests in `src/api/services/admin_recovery_service_test.go` for final-local-admin blocking and allowed non-final-admin operations.
+- [x] T014 [P] Add SQLite-backed repository tests in `src/api/repository/oidc_repository_test.go` for unique external identity constraints and atomic state replay prevention.
 
 **Checkpoint**: Schema, repository, security events, and recovery safety are ready.
 
@@ -169,6 +169,8 @@
 - [ ] T064 Run `npm run lint` from `src/web`.
 - [ ] T065 Run targeted manual smoke test: local login, WebAuthn login if available, OIDC provider listing, OIDC mock login, account linking, admin final-local-admin block.
 - [ ] T066 Verify no logs, security events, API responses, frontend state, docs, or tests contain real client secrets, auth codes, ID/access tokens, refresh tokens, or PKCE verifiers.
+- [ ] T067 Run a security audit focused on OIDC threat paths: provider configuration, redirect handling, state/nonce/PKCE, token validation, account linking conflicts, admin recovery safety, secret redaction, logs, and audit events.
+- [ ] T068 Run a software engineering best-practices review for layered architecture, transaction boundaries, type safety, error handling, test coverage, UI consistency, maintainability, and blast-radius containment before beta merge.
 
 ---
 

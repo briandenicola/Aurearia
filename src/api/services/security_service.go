@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"time"
@@ -84,6 +85,68 @@ func (s *SecurityService) RecordWebAuthnSuccess(user models.User, clientIP, user
 	if user.LockedUntil != nil {
 		_ = s.repo.UnlockUser(user.ID)
 	}
+}
+
+func (s *SecurityService) RecordOIDCLoginSuccess(user models.User, providerID uint, providerDisplayName, clientIP, userAgent string) {
+	userID := user.ID
+	s.RecordEvent(models.SecurityEventOIDCLoginSuccess, &userID, user.Username, clientIP, userAgent, oidcEventMessage(providerID, providerDisplayName, "login succeeded"))
+}
+
+func (s *SecurityService) RecordOIDCLoginFailure(userID *uint, username string, providerID uint, providerDisplayName, clientIP, userAgent, reason string) {
+	s.RecordEvent(models.SecurityEventOIDCLoginFailure, userID, username, clientIP, userAgent, oidcEventMessage(providerID, providerDisplayName, reason))
+}
+
+func (s *SecurityService) RecordOIDCLinkSuccess(user models.User, providerID uint, providerDisplayName, clientIP, userAgent string) {
+	userID := user.ID
+	s.RecordEvent(models.SecurityEventOIDCLinkSuccess, &userID, user.Username, clientIP, userAgent, oidcEventMessage(providerID, providerDisplayName, "link succeeded"))
+}
+
+func (s *SecurityService) RecordOIDCLinkFailure(userID *uint, username string, providerID uint, providerDisplayName, clientIP, userAgent, reason string) {
+	s.RecordEvent(models.SecurityEventOIDCLinkFailure, userID, username, clientIP, userAgent, oidcEventMessage(providerID, providerDisplayName, reason))
+}
+
+func (s *SecurityService) RecordOIDCUnlinkSuccess(user models.User, providerID uint, providerDisplayName, clientIP, userAgent string) {
+	userID := user.ID
+	s.RecordEvent(models.SecurityEventOIDCUnlinkSuccess, &userID, user.Username, clientIP, userAgent, oidcEventMessage(providerID, providerDisplayName, "unlink succeeded"))
+}
+
+func (s *SecurityService) RecordOIDCUnlinkFailure(userID *uint, username string, providerID uint, providerDisplayName, clientIP, userAgent, reason string) {
+	s.RecordEvent(models.SecurityEventOIDCUnlinkFailure, userID, username, clientIP, userAgent, oidcEventMessage(providerID, providerDisplayName, reason))
+}
+
+func (s *SecurityService) RecordOIDCProviderConfigChanged(adminID uint, providerID uint, providerDisplayName, clientIP, userAgent, action string) {
+	s.RecordEvent(models.SecurityEventOIDCProviderChanged, &adminID, "", clientIP, userAgent, oidcEventMessage(providerID, providerDisplayName, action))
+}
+
+func (s *SecurityService) RecordOIDCProviderTestFailure(adminID uint, providerID uint, providerDisplayName, clientIP, userAgent, reason string) {
+	s.RecordEvent(models.SecurityEventOIDCProviderTestFail, &adminID, "", clientIP, userAgent, oidcEventMessage(providerID, providerDisplayName, reason))
+}
+
+func (s *SecurityService) RecordFinalLocalAdminBlocked(userID *uint, username string, adminID uint, operation string) {
+	message := fmt.Sprintf("%s blocked for user %s by admin_id=%d", sanitizeSecurityEventDetail(operation), username, adminID)
+	s.RecordEvent(models.SecurityEventFinalAdminBlocked, userID, username, "", "", message)
+}
+
+func oidcEventMessage(providerID uint, providerDisplayName, detail string) string {
+	return fmt.Sprintf("provider_id=%d provider=%q detail=%q", providerID, sanitizeSecurityEventDetail(providerDisplayName), sanitizeSecurityEventDetail(detail))
+}
+
+func sanitizeSecurityEventDetail(value string) string {
+	clean := strings.TrimSpace(value)
+	lower := strings.ToLower(clean)
+	sensitiveMarkers := []string{
+		"client_secret", "client secret", "authorization code", "code=", "id_token", "access_token",
+		"refresh_token", "refresh token", "pkce", "verifier", "raw claims", "claims payload",
+	}
+	for _, marker := range sensitiveMarkers {
+		if strings.Contains(lower, marker) {
+			return "sensitive detail redacted"
+		}
+	}
+	if len(clean) > 300 {
+		return clean[:300]
+	}
+	return clean
 }
 
 func (s *SecurityService) RecordPasswordFailure(username, clientIP, userAgent string) {

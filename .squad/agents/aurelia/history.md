@@ -59,6 +59,8 @@
    - Task T015 marked complete
    - Orchestration log: `.squad/orchestration-log/2026-06-09T12-51-39Z-aurelia.md`
 
+- **2026-06-24 (Session Handoff - OIDC Phase 1-2 MVP Foundation):** Completed OIDC Phase 1 frontend foundation (T003/T004): added OIDC provider, external identity, auth state, and response DTOs to `src/web/src/types/index.ts`; added API wrapper functions (public discovery, admin CRUD, account linking/unlinking) in `src/web/src/api/client.ts`. Concurrent UI/UX improvements also completed: desktop collection toolbar unified into card-contained two-row layout with segmented Obverse/Reverse toggle; PWA title shortened to "Aurearia" for mobile/PWA contexts; collection actions (Add Coin + Selection Mode) moved from command bar to title bar. All validations passed: `npm run type-check`, `npm run build`. 4 UI/UX decisions recorded in decisions.md. Frontend ready for Phase 2 handler routes.
+
 - **2026-06-23:** PWA Title Spacing — `vite.config.ts` manifest `short_name` is now `Aurearia`; `App.vue` hides the ` - Coin Collection` suffix in PWA/mobile top nav and sidebar via `.nav-title-suffix` and `.sidebar-title-suffix` spans. Desktop shows full "Aurearia - Coin Collection"; PWA/mobile shows just "Aurearia".
 
 - **2026-06-10:** Coin of the Day Pushover Public URL Configuration Revision
@@ -349,3 +351,5 @@ Investigated production 429s on collection browsing. App mount makes expected da
 - **2026-06-22** Desktop collection toolbar unified. DesktopCollectionHeader.vue now uses a card-contained two-row command bar: Row 1 has search (flex: 1) + sort pinned right; Row 2 has left filter zone (category chips), divider, dropdown zone (era/sets), and action zone right (Select, segmented Obverse/Reverse toggle, Add Coin CTA). Segmented control implemented with .face-toggle container + .face-btn using var(--bg-input), var(--radius-sm), and var(--accent-gold) for active state instead of two loose pills. All heights normalized to 38px; used design tokens throughout (no raw values). Type-check validation passed.
 
 - 2026-06-22: App-title branding now uses "Aurearia - Coin Collection" on frontend app metadata, auth/nav/install surfaces, and share-card footer/text; keep descriptive ancient-coin educational/resource references only when they are content-specific.
+
+- **2026-06-24:** OIDC Phase 1 frontend foundation completed for tasks T003/T004. Added contract DTOs for public providers, admin providers, linked identities, start/link flow responses, message responses, and provider test responses in `src/web/src/types/index.ts`; added API wrappers in `src/web/src/api/client.ts` for public discovery/login start, optional callback exchange, account link/list/unlink, and admin provider CRUD/test endpoints. Kept UI work deferred per scope; validation passed with `npm.cmd run type-check` and `npm.cmd run build` from `src/web`.

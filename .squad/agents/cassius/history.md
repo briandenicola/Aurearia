@@ -49,6 +49,8 @@
 
 - **2026-06-19 (Charts Session):** Completed OpenAPI route-drift automation (`route_openapi_drift_test.go`), non-root Docker hardening, Python dependency locking strategy (`uv.lock`), and streaming token guard. All four deliverables are implementation-ready.
 
+- **2026-06-24 (Session Handoff - OIDC Phase 1-2 MVP Foundation):** Implemented backend OIDC foundation tasks T001/T002/T005-T013. Added `github.com/coreos/go-oidc/v3/oidc` and `golang.org/x/oauth2` dependencies to services layer; updated `src/api/architecture_test.go` service external allowlist so Principle IX continues enforcing explicit boundaries. Modeled OIDC providers, external identities, and auth state as additive GORM tables; secrets/verifiers/state hashes redacted from JSON + logs. Implemented `AdminRecoveryService` guard: treats only admins with non-empty local password hashes as recovery-capable; OIDC-only admins excluded from final-local-admin count. All Go tests pass: `go test -v ./... -run "TestArchitecture|TestAdminRecoveryService"`. Coordination checkpoint complete; frontend and test coverage ready; Phase 3 awaits handler implementation.
+
 - **2026-06-09:** F013 Phase 3 golden fixtures complete (T014). Implemented Go fixture builders covering all 9 F013 golden coin names/traits. Approved by Maximus Lead Review. Go build/test/vet all pass.
 
 - **2026-06-18:** Mint Map Backend Analysis — Pagination Limit Investigation. Confirmed `GET /coins` correctly implemented as paginated collection API; no backend total cap; frontend should paginate with `limit=100`.
@@ -570,3 +572,11 @@ Created src/api/services/availability_service_test.go with comprehensive test co
 - Keyword detection uses case-insensitive matching (strings.ToLower) and checks for strong structural patterns (e.g., >sold< matches HTML button/div tags)
 - Any coin with a clear "add to cart" / "buy now" button is marked "available" immediately without agent escalation, reducing agent load by ~60-80% on typical wishlist checks
 
+
+## 2026-06-24 — OIDC Backend Foundation (Phase 1-2)
+
+Implemented backend-only OIDC foundation tasks T001, T002, and T005-T013 for `specs/335-oidc-login/` without adding login/admin handlers. Added Go OIDC dependencies, additive provider/external-identity/auth-state models, AutoMigrate wiring, OIDC repository methods, OIDC security event constants/helpers, and `AdminRecoveryService` final-local-admin guards.
+
+**Validation:** `go test -v ./services -run TestAdminRecoveryService` and `go test -v ./... -run "TestArchitecture|TestAdminRecoveryService"` passed.
+
+**Learning:** The architecture import allowlist must be updated when adding new service-layer third-party packages, otherwise Principle IX correctly blocks even dependency-only foundation code. Final-local-admin recovery should count only admins with non-empty local password hashes; OIDC-only admins are intentionally excluded per OIDC spec FR-012/FR-013.
