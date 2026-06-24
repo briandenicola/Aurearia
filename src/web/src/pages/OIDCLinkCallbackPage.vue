@@ -1,7 +1,7 @@
 <template>
   <div class="auth-page">
     <div class="auth-card oidc-result-card">
-      <img src="/coin-logo.jpg" alt="Aurearia - Coin Collection" class="auth-logo" />
+      <img :src="coinLogoSrc" alt="Aurearia - Coin Collection" class="auth-logo" />
       <div class="status-icon" :class="status">
         <LoaderCircle v-if="status === 'loading'" :size="28" aria-hidden="true" class="spin" />
         <CheckCircle v-else-if="status === 'success'" :size="28" aria-hidden="true" />
@@ -49,6 +49,7 @@ const router = useRouter()
 const status = ref<CallbackStatus>('loading')
 const identity = ref<OIDCLinkedIdentity | null>(null)
 const message = ref('')
+const coinLogoSrc = '/coin-logo.jpg'
 
 const title = computed(() => {
   if (status.value === 'loading') return 'Linking Sign-in Provider'
@@ -126,7 +127,8 @@ function mapProviderError(error: string) {
 function mapCallbackError(error: unknown) {
   const response = getErrorResponse(error)
   const messageText = getApiErrorMessage(error)
-  const normalized = messageText.toLowerCase()
+  const detailText = getErrorDetail(error)
+  const normalized = `${messageText} ${detailText}`.toLowerCase()
 
   if (response?.status === 409) {
     if (normalized.includes('another user') || normalized.includes('already linked')) {
@@ -135,12 +137,12 @@ function mapCallbackError(error: unknown) {
     return 'This provider account cannot be linked automatically. Sign in locally with the intended account, then try linking again.'
   }
 
-  if (normalized.includes('state') || normalized.includes('claims') || response?.status === 400 || response?.status === 401) {
-    return 'The provider response could not be validated. Start the linking flow again from Account Settings.'
+  if (normalized.includes('redirect uri') || normalized.includes('client secret') || normalized.includes('configuration') || normalized.includes('discovery') || response?.status === 500) {
+    return 'The sign-in provider is not configured correctly. Ask an administrator to test the provider settings.'
   }
 
-  if (normalized.includes('configuration') || normalized.includes('discovery') || response?.status === 500) {
-    return 'The sign-in provider is not configured correctly. Ask an administrator to test the provider settings.'
+  if (normalized.includes('state') || normalized.includes('claims') || response?.status === 400 || response?.status === 401) {
+    return 'The provider response could not be validated. Start the linking flow again from Account Settings.'
   }
 
   return messageText || 'The provider could not be linked. Start the linking flow again from Account Settings.'
@@ -151,6 +153,13 @@ function getErrorResponse(error: unknown): { status?: number } | null {
   const response = (error as { response?: unknown }).response
   if (typeof response !== 'object' || response === null) return null
   return response as { status?: number }
+}
+
+function getErrorDetail(error: unknown) {
+  if (typeof error !== 'object' || error === null || !('response' in error)) return ''
+  const response = (error as { response?: { data?: { detail?: unknown } } }).response
+  const detail = response?.data?.detail
+  return typeof detail === 'string' ? detail : ''
 }
 </script>
 

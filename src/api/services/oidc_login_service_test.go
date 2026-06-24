@@ -359,6 +359,43 @@ func TestOIDCServiceLinkStartAllowsFrontendCallbackPath(t *testing.T) {
 	}
 }
 
+func TestOIDCServiceLinkCallbackReusesPersistedRedirectURI(t *testing.T) {
+	db, svc := setupOIDCLoginServiceTest(t)
+	issuer := startMockOIDCProviderWithOptions(t, oidcMockProviderOptions{
+		Subject:             "link-proxy-subject",
+		Email:               "collector@example.com",
+		EmailVerified:       true,
+		ExpectedRedirectURI: "http://app.example/settings/oidc/link/callback/1",
+	})
+	provider := createOIDCLoginProvider(t, db, issuer)
+	user := createOIDCLoginUser(t, db, "collector", "collector@example.com")
+
+	start, err := svc.StartLink(context.Background(), provider.ID, user.ID, "/settings?tab=account", "/settings/oidc/link/callback/1", "http://app.example")
+	if err != nil {
+		t.Fatalf("start link failed: %v", err)
+	}
+	authURL, _ := url.Parse(start.AuthorizationURL)
+	if redirectURI := authURL.Query().Get("redirect_uri"); redirectURI != "http://app.example/settings/oidc/link/callback/1" {
+		t.Fatalf("expected link callback redirect URI, got %q", redirectURI)
+	}
+	currentOIDCTestNonce = authURL.Query().Get("nonce")
+
+	result, err := svc.CompleteLinkCallback(context.Background(), provider.ID, "valid-code", authURL.Query().Get("state"), "http://internal-api:8080", OIDCAuditContext{})
+	if err != nil {
+		t.Fatalf("link callback with different origin failed: %v", err)
+	}
+	if result.Identity.ProviderID != provider.ID || result.Identity.Email != user.Email {
+		t.Fatalf("unexpected linked identity response: %+v", result.Identity)
+	}
+	var count int64
+	if err := db.Model(&models.ExternalIdentity{}).Where("user_id = ? AND subject = ?", user.ID, "link-proxy-subject").Count(&count).Error; err != nil {
+		t.Fatalf("failed to count identities: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected identity to be created once, got %d", count)
+	}
+}
+
 func TestOIDCServiceLinkCallbackBlocksIdentityLinkedToAnotherUser(t *testing.T) {
 	db, svc := setupOIDCLoginServiceTest(t)
 	issuer := startMockOIDCProvider(t, "shared-subject", "collector@example.com", true)
@@ -424,6 +461,38 @@ func TestOIDCServiceUnlinkIdentityGuardsLastUsableSignInMethod(t *testing.T) {
 	}
 	if err := svc.UnlinkIdentity(identity.ID, user.ID, OIDCAuditContext{}); err != nil {
 		t.Fatalf("expected unlink to succeed with passkey credential, got %v", err)
+	}
+}
+
+func TestOIDCServiceLinkCallbackFailsWhenRedirectURINotStored(t *testing.T) {
+	db, svc := setupOIDCLoginServiceTest(t)
+	issuer := startMockOIDCProvider(t, "link-subject-no-uri", "collector@example.com", true)
+	provider := createOIDCLoginProvider(t, db, issuer)
+	user := createOIDCLoginUser(t, db, "collector", "collector@example.com")
+
+	start, err := svc.StartLink(context.Background(), provider.ID, user.ID, "/settings", "/settings/oidc/link/callback/1", "http://app.example")
+	if err != nil {
+		t.Fatalf("start link failed: %v", err)
+	}
+	authURL, _ := url.Parse(start.AuthorizationURL)
+	state := authURL.Query().Get("state")
+
+	var authState models.OIDCAuthState
+	if err := db.Where("state_hash = ?", hashOIDCSecret(state)).First(&authState).Error; err != nil {
+		t.Fatalf("failed to find auth state: %v", err)
+	}
+	authState.RedirectURI = ""
+	if err := db.Save(&authState).Error; err != nil {
+		t.Fatalf("failed to clear RedirectURI: %v", err)
+	}
+
+	currentOIDCTestNonce = authURL.Query().Get("nonce")
+	_, err = svc.CompleteLinkCallback(context.Background(), provider.ID, "valid-code", state, "http://app.example", OIDCAuditContext{})
+	if !errors.Is(err, ErrOIDCInvalidState) {
+		t.Fatalf("expected invalid state error for missing redirect URI, got %v", err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "stored redirect URI missing") {
+		t.Fatalf("expected error message about missing stored redirect URI, got %v", err)
 	}
 }
 
