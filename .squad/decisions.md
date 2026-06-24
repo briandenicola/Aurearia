@@ -12176,3 +12176,203 @@ Before agent begins Phase 5 work:
 ✅ **APPROVED** — Phase 4-5 implementation proceeding in parallel with Phase 3 closeout. All launch gates satisfied. MVP boundary (Phases 1-5) locked for beta merge.
 
 ---
+---
+
+## Session 2026-06-24: OIDC Comprehensive Review Batch
+
+Decisions merged from .squad/decisions/inbox/ on 2026-06-24T10:53:41Z.
+
+### Decision: Aurelia OIDC Phase 6-7 Frontend UI
+
+**Date:** 2026-06-24  
+**Agent:** Aurelia  
+**Scope:** OIDC Phase 6 account settings UI and Phase 7 frontend help link
+
+## Decision
+
+Account Settings now owns the user-facing linked OIDC identity surface: it lists linked identities, starts linking through the existing OIDC start-flow wrapper, and unlinks through the protected identity wrapper while preserving password and WebAuthn settings behavior.
+
+The Admin OIDC section links to the existing in-app Settings Help pattern (`/settings?tab=help&section=oidc`) rather than adding a new admin navigation pattern. The full repository markdown setup document remains tracked separately as T059.
+
+## Validation
+
+- `npm.cmd run test -- SettingsAccountSection.test.ts AdminOIDCSection.test.ts LoginPage.test.ts`
+- `npm.cmd run type-check`
+- `npm.cmd run build`
+
+## Constitution Alignment
+
+- Principle III: all OIDC account calls remain typed and go through `src/web/src/api/client.ts`.
+- Principle IV: frontend-only changes are proportional to T049/T052/T053/T055/T060.
+- Principle VI: UI uses existing settings/admin patterns, lucide icons, and design tokens.
+- §17/§21: targeted frontend regression tests and production build passed.
+
+# Brutus OIDC Phase 6-7 Regression Coverage
+
+**Date:** 2026-06-24T09:23-05:00  
+**Agent:** Brutus  
+**Feature:** specs/335-oidc-login
+
+## Outcome
+
+Phase 6-7 executable coverage is now present and passing:
+
+- T046: handler coverage proves authenticated link start/callback creates a linked identity for the state-bound user.
+- T047: service coverage rejects an external identity already linked to another user and rejects matching verified email for a different local user without merging accounts.
+- T048: handler/service coverage verifies unlink success, not-owned/missing identity handling, and blocking unlink when no usable sign-in method remains.
+- T049: `SettingsAccountSection.test.ts` verifies linked-identity list rendering, link redirect flow, unlink success, and link/unlink conflict messages.
+- T055: `LoginPage.test.ts` verifies distinct UI copy for provider misconfiguration, denied/cancelled provider access, validation failure, and account-link conflict.
+- T056: `oidc_test.go::TestOIDCHandlerDistinctOIDCErrorCategories` verifies backend status/message categories for denied provider callback, disabled provider, unsafe redirect validation, provider discovery/setup failure, token validation failure, and matching-email account conflict without leaking provider-only secrets.
+
+## Validation
+
+- `go test -v .\handlers -run "TestOIDCHandler"` from `src/api` passed.
+- `go test -v .\services -run "TestOIDCService(Link|Unlink|LoginCallback)"` from `src/api` passed.
+- `npm.cmd run test -- SettingsAccountSection.test.ts LoginPage.test.ts` from `src/web` passed.
+
+## Constitution Alignment
+
+Principle IV, Principle V, §17, and §21: tests target the exact OIDC link/login/error workflows and verify no unsafe account merge or last-sign-in-method unlink regression ships.
+
+# Brutus OIDC Exact-Path Proof Gate
+
+**Date:** 2026-06-24  
+**Agent:** Brutus  
+**Scope:** Entra OIDC beta callback failure validation
+
+## Decision
+
+No additional OIDC fix should ship for the beta `invalid_client` callback failure until the exact token-exchange request shape is proven. The next change must add targeted proof tests/instrumentation that capture the actual token request fields and classify provider failures before changing auth logic.
+
+## Required proof before fix
+
+- Capture, without secrets, the callback token exchange inputs: issuer, provider type, client ID fingerprint, token endpoint host/path, auth style location, redirect URI, PKCE verifier presence/challenge match, grant type, and code age/state age.
+- Add mocked Entra token endpoint contract tests that distinguish wrong client secret, wrong client ID, wrong tenant/issuer, redirect URI mismatch, authorization-code replay/expiry, and PKCE mismatch by returned provider error.
+- Add handler-level proxy-origin tests proving the authorization redirect URI persisted at start is the same redirect URI sent at callback when beta uses `X-Forwarded-Proto` and `X-Forwarded-Host`.
+
+## Constitution alignment
+
+This is required by Principle IV and §17/§21: avoid hopeful patches and prove the workflow contract for the exact failing path.
+
+
+## Decision: Cassius OIDC Phase 6-7 Backend Linking
+
+**Date:** 2026-06-24  
+**Agent:** Cassius  
+**Scope:** OIDC backend Phase 6-7 account linking, linked identity management, error categories, and setup docs
+
+### Decisions
+
+- Account-link start uses a dedicated redirect URI: `/api/auth/oidc/{providerId}/link/callback`. Admins must register both login and link callback URIs with each provider.
+- Link callbacks trust the short-lived, consumed `OIDCAuthState` row for the authenticated user ID; the provider redirect callback remains public/rate-limited so browser redirects do not need bearer tokens in URLs.
+- Unlink is blocked when the user would have no remaining password, WebAuthn credential, or other linked OIDC identity.
+- Runtime provider setup failures are normalized to a provider-misconfigured category; provider-denied, validation, code-exchange, account-conflict, duplicate-link, and no-sign-in-method errors are mapped without provider internals.
+
+### Verification
+
+- `go test -v ./handlers -run "TestOIDCHandler"`
+- `go test -v ./services -run "TestOIDCService(LoginCallback|LinkCallback|UnlinkIdentity)"`
+- `go test -v ./... -run "TestRegisteredAPIRoutesAreDocumentedInOpenAPI|TestArchitecture|TestOIDCHandler|TestOIDCService(LoginCallback|LinkCallback|UnlinkIdentity)|TestOIDCRepository|TestExternalIdentity|TestAuthState"`
+- `go test -v ./...`
+- `go build ./...`
+- `go vet ./...`
+
+### Constitution Alignment
+
+- Principle I: handlers parse/map errors; services own OIDC account-linking decisions; repository owns GORM operations including unlink guard transaction.
+- Principle V: tokens/codes/verifiers/nonces/secrets are not logged or returned; subject values are exposed only as previews.
+- §17/§21: targeted tests, full Go tests, build, vet, and OpenAPI regeneration completed.
+
+### 2026-06-24T15-51-03Z: User directive
+**By:** Brian (via Copilot)
+**What:** Do not continue try/test/try/test patches for OIDC; perform comprehensive review and understanding before further changes.
+**Why:** User request -- captured for team memory
+# Decision: OIDC Phase 8 Delivery Guardrail — User Testing Before Security Audit
+
+**Date:** 2026-06-24  
+**Agent:** Maximus (Lead/Architect)  
+**Feature:** specs/335-oidc-login  
+**Status:** APPROVED  
+**Requested by:** Brian DeNicola  
+
+---
+
+## Context
+
+After Phases 1-5 (dependency baseline, schema/repository, admin config, linked-identity login, recovery protection) are merged to `beta`, the project reaches a critical juncture. Phases 6-7 deliver the remaining UX coverage (account linking, error messages, documentation). Phase 8 is the beta-readiness quality gate (security audit, best-practices review, smoke test, secret redaction audit).
+
+The question: **Do we run Phase 8 immediately after Phases 6-7 complete, or do we give users time to test first?**
+
+---
+
+## Decision
+
+**Phase 8 (security audit + software engineering review + quality gate) runs AFTER user testing and feedback adjustments, not immediately after Phase 6-7 implementation.**
+
+### Delivery Order
+
+1. **Phases 6-7 Complete** (user story 3 + error clarity + docs)
+   - Account linking UI (SettingsAccountSection.vue updates)
+   - Error category tests and docs (oidc-setup.md, normalized error handling)
+   - All code merged to `beta`
+
+2. **User Acceptance Testing** (1-2 weeks minimum)
+   - End users test on `beta` branch with real OIDC providers
+   - Collect feedback on UX clarity, provider discovery, error messages
+   - File issues or PRs for UX adjustments
+
+3. **Feedback Adjustments** (proportional scope)
+   - Apply proportional fixes based on user feedback (Principle IV)
+   - Retest changed paths; **do not reopen Phase 1-5 foundations**
+   - Commit to `beta`
+
+4. **Phase 8 Security Audit & Engineering Review** (pre-main gate)
+   - All full-suite tests (Go, Vue, Python)
+   - Smoke test: local login, WebAuthn, OIDC mock/real provider flow, linking, admin blocks
+   - Security audit focused on OIDC threat paths (config, redirect, state/nonce/PKCE, token validation, linking conflicts, recovery safety, secret redaction, logs, events)
+   - Best-practices review: architecture compliance, transaction boundaries, type safety, error handling, test coverage, UI consistency, maintainability, blast-radius containment
+   - Secret audit: ensure no real credentials, auth codes, tokens, or verifiers in URLs, logs, or frontend
+
+5. **Readiness Decision**
+   - If Phase 8 audit passes: merge `beta` → `main` with version 4 release
+   - If Phase 8 audit finds issues: fix on `beta` and re-audit before main
+
+---
+
+## Rationale
+
+1. **Early real-world validation** — Users on `beta` will surface UX gaps (e.g., confusing provider names, missing setup guidance, unclear error categories) that mock tests don't catch. Catching these before the security audit keeps the final gate focused on what only a security review can validate.
+
+2. **Proportional feedback cycle** — Principle IV demands changes remain simple and complete. User feedback may require small UX tweaks (copy clarity, modal flow, button labels) but should not uncover architectural problems if Phases 1-5 foundations are sound.
+
+3. **Phase 8 as commitment gate** — The security audit and engineering review become the explicit "ready for v4" decision. Running them after user feedback avoids the awkward situation of discovering post-audit that users rejected the UX and we need to re-review changes.
+
+4. **Guardrails enforcement** — Phases 6-7 and feedback adjustments must **not touch** Phase 1-5 models, repositories, auth state handling, or recovery guards. If Phase 8 finds issues in the foundations, that signals a Phase 1-5 flaw, not a minor v4 adjustment.
+
+---
+
+## Implementation Notes
+
+- Phases 6-7 tasks.md already defines Phase 8 as the final gate; no tasks.md edit needed if the sequence is implicit.
+- If tasks.md lists Phase 8 tasks immediately after Phase 7, add a note: *"Phase 8 runs after user acceptance testing on `beta` and proportional feedback adjustments."*
+- No code changes required by this decision; it is an operational guardrail.
+
+---
+
+## Success Criteria
+
+- ✅ Phase 8 audit explicitly documents OIDC threat paths checked (provider config, redirect, state/nonce/PKCE, token validation, account linking, recovery safety, secret redaction, logs, events)
+- ✅ Phase 8 review explicitly documents engineering best-practices alignment (architecture, transactions, type safety, error handling, coverage, UI consistency, maintainability, blast-radius)
+- ✅ User feedback cycle completes before Phase 8 kickoff
+- ✅ Security audit passes before main merge
+
+---
+
+## Constitution Alignment
+
+- **Principle IV (Simple Complete Changes):** Feedback adjustments stay proportional and don't reopen foundations
+- **Principle V (Security by Default):** Phase 8 security audit is non-negotiable before release
+- **§17 (Quality Gate):** Phase 8 is the final gate; all checks (build, test, lint, regression, secret audit) pass before main
+- **§21 (Definition of Done):** Phase 8 covers exact-path regression, blast-radius, and cross-artifact consistency
+
+
