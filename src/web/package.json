@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@imgly/background-removal": "1.7.0",
-    "axios": "^1.18.0",
+    "axios": "^1.18.1",
     "dompurify": "^3.4.11",
     "leaflet": "^1.9.4",
     "lucide-vue-next": "^0.577.0",
