@@ -64,7 +64,7 @@ Short-lived login or linking transaction.
 | ProviderID | uint | Required |
 | FlowType | string | `login` or `link` |
 | UserID | *uint | Required for `link`, nil for `login` |
-| PKCEVerifierHash | string | Store hash if feasible; otherwise treat raw verifier as secret and never log |
+| PKCEVerifier | string | Raw PKCE verifier required for token exchange; treat as secret and never log |
 | NonceHash | string | Hash of nonce sent in auth request |
 | RedirectPath | string | Relative app path only; reject absolute external URLs |
 | ExpiresAt | time.Time | Short TTL, e.g. 10 minutes |

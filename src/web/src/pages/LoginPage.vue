@@ -348,7 +348,7 @@ async function handleBiometricLogin() {
 
 .biometric-btn {
   margin-top: 0.75rem;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   gap: 0.5rem;
 }
 

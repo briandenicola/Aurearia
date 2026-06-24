@@ -472,7 +472,7 @@ const route = useRoute()
 .help-summary {
   padding: 0.75rem 1rem;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   cursor: pointer;
   background: var(--bg-primary);
   color: var(--text-primary);

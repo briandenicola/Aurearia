@@ -124,13 +124,13 @@ func TestOIDCRepositoryConsumeAuthStatePreventsReplay(t *testing.T) {
 	now := time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)
 
 	state := models.OIDCAuthState{
-		StateHash:        "state-hash",
-		ProviderID:       provider.ID,
-		FlowType:         models.OIDCFlowTypeLogin,
-		PKCEVerifierHash: "pkce-hash",
-		NonceHash:        "nonce-hash",
-		RedirectPath:     "/",
-		ExpiresAt:        now.Add(10 * time.Minute),
+		StateHash:    "state-hash",
+		ProviderID:   provider.ID,
+		FlowType:     models.OIDCFlowTypeLogin,
+		PKCEVerifier: "pkce-verifier",
+		NonceHash:    "nonce-hash",
+		RedirectPath: "/",
+		ExpiresAt:    now.Add(10 * time.Minute),
 	}
 	if err := repo.CreateAuthState(&state); err != nil {
 		t.Fatalf("failed to create auth state: %v", err)
@@ -166,13 +166,13 @@ func TestOIDCRepositoryConsumeAuthStateRejectsExpiredOrWrongProvider(t *testing.
 	now := time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)
 
 	expired := models.OIDCAuthState{
-		StateHash:        "expired-state",
-		ProviderID:       provider.ID,
-		FlowType:         models.OIDCFlowTypeLogin,
-		PKCEVerifierHash: "pkce-hash",
-		NonceHash:        "nonce-hash",
-		RedirectPath:     "/",
-		ExpiresAt:        now.Add(-time.Minute),
+		StateHash:    "expired-state",
+		ProviderID:   provider.ID,
+		FlowType:     models.OIDCFlowTypeLogin,
+		PKCEVerifier: "pkce-verifier",
+		NonceHash:    "nonce-hash",
+		RedirectPath: "/",
+		ExpiresAt:    now.Add(-time.Minute),
 	}
 	if err := repo.CreateAuthState(&expired); err != nil {
 		t.Fatalf("failed to create expired auth state: %v", err)
@@ -182,13 +182,13 @@ func TestOIDCRepositoryConsumeAuthStateRejectsExpiredOrWrongProvider(t *testing.
 	}
 
 	wrongProvider := models.OIDCAuthState{
-		StateHash:        "wrong-provider-state",
-		ProviderID:       provider.ID,
-		FlowType:         models.OIDCFlowTypeLogin,
-		PKCEVerifierHash: "pkce-hash",
-		NonceHash:        "nonce-hash",
-		RedirectPath:     "/",
-		ExpiresAt:        now.Add(10 * time.Minute),
+		StateHash:    "wrong-provider-state",
+		ProviderID:   provider.ID,
+		FlowType:     models.OIDCFlowTypeLogin,
+		PKCEVerifier: "pkce-verifier",
+		NonceHash:    "nonce-hash",
+		RedirectPath: "/",
+		ExpiresAt:    now.Add(10 * time.Minute),
 	}
 	if err := repo.CreateAuthState(&wrongProvider); err != nil {
 		t.Fatalf("failed to create wrong-provider auth state: %v", err)

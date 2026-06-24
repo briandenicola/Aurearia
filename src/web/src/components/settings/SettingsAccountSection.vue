@@ -526,7 +526,7 @@ defineExpose({ loadCredentials, loadOIDCAccounts })
 }
 
 .nb-status {
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   padding: 0.4rem 0.75rem;
   border-radius: var(--radius-sm);
   margin-top: 0.25rem;
@@ -722,14 +722,14 @@ defineExpose({ loadCredentials, loadOIDCAccounts })
 }
 
 .settings-section h2 {
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   margin-bottom: 1.25rem;
   padding-bottom: 0.75rem;
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .settings-section h3 {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   margin-top: 1.25rem;
   margin-bottom: 0.75rem;
   color: var(--text-secondary);

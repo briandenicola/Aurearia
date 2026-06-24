@@ -222,15 +222,15 @@ func (s *OIDCService) startFlow(ctx context.Context, providerID uint, userID *ui
 	}
 	expiresAt := s.now().Add(oidcAuthStateTTL)
 	authState := models.OIDCAuthState{
-		StateHash:        hashOIDCSecret(state),
-		ProviderID:       provider.ID,
-		FlowType:         flowType,
-		UserID:           userID,
-		PKCEVerifierHash: verifier,
-		NonceHash:        hashOIDCSecret(nonce),
-		RedirectPath:     redirectPath,
-		RedirectURI:      redirectURI,
-		ExpiresAt:        expiresAt,
+		StateHash:    hashOIDCSecret(state),
+		ProviderID:   provider.ID,
+		FlowType:     flowType,
+		UserID:       userID,
+		PKCEVerifier: verifier,
+		NonceHash:    hashOIDCSecret(nonce),
+		RedirectPath: redirectPath,
+		RedirectURI:  redirectURI,
+		ExpiresAt:    expiresAt,
 	}
 	if err := s.repo.CreateAuthState(&authState); err != nil {
 		return OIDCStartLoginResult{}, err
@@ -428,7 +428,7 @@ func (s *OIDCService) exchangeAndValidateCallback(ctx context.Context, provider 
 		redirectURI = absoluteOIDCURL(requestOrigin, oidcFlowCallbackPath(provider, consumed.FlowType))
 	}
 	runtime.OAuth2Config.RedirectURL = redirectURI
-	token, err := runtime.OAuth2Config.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", consumed.PKCEVerifierHash))
+	token, err := runtime.OAuth2Config.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", consumed.PKCEVerifier))
 	if err != nil {
 		return nil, oidcLoginClaims{}, oidcTokenExchangeError(err)
 	}
