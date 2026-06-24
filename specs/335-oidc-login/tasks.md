@@ -122,18 +122,18 @@
 
 ### Tests for User Story 3
 
-- [ ] T046 [P] Add linking start/callback tests in `src/api/handlers/oidc_test.go` for successful authenticated link.
-- [ ] T047 [P] Add conflict tests for external identity already linked to another user and matching-email non-merge.
-- [ ] T048 [P] Add unlink tests for success, not-owned identity, and blocked no-usable-sign-in-method case.
-- [ ] T049 [P] Add Account Settings component tests for list/link/unlink states and conflict messages.
+- [x] T046 [P] Add linking start/callback tests in `src/api/handlers/oidc_test.go` for successful authenticated link.
+- [x] T047 [P] Add conflict tests for external identity already linked to another user and matching-email non-merge.
+- [x] T048 [P] Add unlink tests for success, not-owned identity, and blocked no-usable-sign-in-method case.
+- [x] T049 [P] Add Account Settings component tests for list/link/unlink states and conflict messages.
 
 ### Implementation for User Story 3
 
-- [ ] T050 Implement protected OIDC link start and callback flows in `src/api/handlers/oidc.go` and `src/api/services/oidc_service.go`.
-- [ ] T051 Implement `GET /user/oidc-identities` and `DELETE /user/oidc-identities/:identityId`.
-- [ ] T052 Add linked-identity API wrappers to `src/web/src/api/client.ts`.
-- [ ] T053 Update `src/web/src/components/settings/SettingsAccountSection.vue` to show linked OIDC identities and link/unlink actions after the existing profile/security sections.
-- [ ] T054 Record OIDC link/unlink success/failure security events.
+- [x] T050 Implement protected OIDC link start and callback flows in `src/api/handlers/oidc.go` and `src/api/services/oidc_service.go`.
+- [x] T051 Implement `GET /user/oidc-identities` and `DELETE /user/oidc-identities/:identityId`.
+- [x] T052 Add linked-identity API wrappers to `src/web/src/api/client.ts`.
+- [x] T053 Update `src/web/src/components/settings/SettingsAccountSection.vue` to show linked OIDC identities and link/unlink actions after the existing profile/security sections.
+- [x] T054 Record OIDC link/unlink success/failure security events.
 
 **Checkpoint**: Existing local users can migrate safely by explicit linking.
 
@@ -147,21 +147,23 @@
 
 ### Tests for User Story 5
 
-- [ ] T055 [P] Add frontend tests for misconfiguration, denied access, validation failure, and account-link conflict messages.
-- [ ] T056 [P] Add backend response tests that map service errors to distinct HTTP status/message categories.
+- [x] T055 [P] Add frontend tests for misconfiguration, denied access, validation failure, and account-link conflict messages.
+- [x] T056 [P] Add backend response tests that map service errors to distinct HTTP status/message categories.
 
 ### Implementation for User Story 5
 
-- [ ] T057 Normalize OIDC service errors into typed sentinel errors in `src/api/services/oidc_service.go`.
-- [ ] T058 Map OIDC error categories in `src/api/handlers/oidc.go` without leaking internal provider errors.
-- [ ] T059 Add `docs/oidc-setup.md` with Entra ID, Pocket ID, redirect URI, scopes, and recovery admin guidance.
-- [ ] T060 Link OIDC setup docs from the Admin OIDC section if this repo has an existing admin help/docs pattern.
+- [x] T057 Normalize OIDC service errors into typed sentinel errors in `src/api/services/oidc_service.go`.
+- [x] T058 Map OIDC error categories in `src/api/handlers/oidc.go` without leaking internal provider errors.
+- [x] T059 Add `docs/oidc-setup.md` with Entra ID, Pocket ID, redirect URI, scopes, and recovery admin guidance.
+- [x] T060 Link OIDC setup docs from the Admin OIDC section if this repo has an existing admin help/docs pattern.
 
 **Checkpoint**: The feature is understandable to admins and users.
 
 ---
 
 ## Phase 8: Quality gate and blast-radius checks
+
+**Timing:** After Phases 6-7 complete, user acceptance testing on `beta` finishes, and proportional feedback adjustments are applied. This is the final security and engineering review gate before main branch merge. See `.squad/decisions/inbox/maximus-oidc-phase8-before-main.md` for the delivery guardrail.
 
 - [ ] T061 Run `go test -v ./...` from `src/api`.
 - [ ] T062 Run `npm run build` from `src/web`.
@@ -170,7 +172,7 @@
 - [ ] T065 Run targeted manual smoke test: local login, WebAuthn login if available, OIDC provider listing, OIDC mock login, account linking, admin final-local-admin block.
 - [ ] T066 Verify no logs, security events, API responses, frontend state, docs, or tests contain real client secrets, auth codes, ID/access tokens, refresh tokens, or PKCE verifiers.
 - [ ] T067 Run a security audit focused on OIDC threat paths: provider configuration, redirect handling, state/nonce/PKCE, token validation, account linking conflicts, admin recovery safety, secret redaction, logs, and audit events.
-- [ ] T068 Run a software engineering best-practices review for layered architecture, transaction boundaries, type safety, error handling, test coverage, UI consistency, maintainability, and blast-radius containment before beta merge.
+- [ ] T068 Run a software engineering best-practices review for layered architecture, transaction boundaries, type safety, error handling, test coverage, UI consistency, maintainability, and blast-radius containment before main merge.
 
 ---
 

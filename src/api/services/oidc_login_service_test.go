@@ -28,7 +28,7 @@ func setupOIDCLoginServiceTest(t *testing.T) (*gorm.DB, *OIDCService) {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.RefreshToken{}, &models.SecurityEvent{}, &models.OIDCProvider{}, &models.ExternalIdentity{}, &models.OIDCAuthState{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.RefreshToken{}, &models.SecurityEvent{}, &models.WebAuthnCredential{}, &models.OIDCProvider{}, &models.ExternalIdentity{}, &models.OIDCAuthState{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 	authSvc := NewAuthService(repository.NewAuthRepository(db), "test-jwt-secret")
@@ -194,6 +194,133 @@ func TestOIDCServiceLoginCallbackRejectsInvalidTokenClaims(t *testing.T) {
 	}
 }
 
+func TestOIDCServiceUnlinkIdentityOwnershipAndLocalPassword(t *testing.T) {
+	t.Run("success removes owned identity when local password remains", func(t *testing.T) {
+		db, svc := setupOIDCLoginServiceTest(t)
+		provider := createOIDCLoginProvider(t, db, "http://localhost")
+		user := createOIDCLoginUser(t, db, "collector", "collector@example.com")
+		identity := createOIDCLoginIdentity(t, db, user.ID, provider.ID, "subject-123")
+
+		if err := svc.UnlinkIdentity(identity.ID, user.ID, OIDCAuditContext{}); err != nil {
+			t.Fatalf("unlink failed: %v", err)
+		}
+		assertOIDCIdentityCount(t, db, user.ID, 0)
+	})
+
+	t.Run("not-owned identity is not found for current user", func(t *testing.T) {
+		db, svc := setupOIDCLoginServiceTest(t)
+		provider := createOIDCLoginProvider(t, db, "http://localhost")
+		owner := createOIDCLoginUser(t, db, "owner", "owner@example.com")
+		other := createOIDCLoginUser(t, db, "other", "other@example.com")
+		identity := createOIDCLoginIdentity(t, db, owner.ID, provider.ID, "subject-123")
+
+		if err := svc.UnlinkIdentity(identity.ID, other.ID, OIDCAuditContext{}); !errors.Is(err, ErrOIDCIdentityNotFound) {
+			t.Fatalf("expected not-linked error for not-owned identity, got %v", err)
+		}
+		assertOIDCIdentityCount(t, db, owner.ID, 1)
+	})
+}
+
+func TestOIDCServiceLinkCallbackCreatesIdentityForAuthenticatedUser(t *testing.T) {
+	db, svc := setupOIDCLoginServiceTest(t)
+	issuer := startMockOIDCProvider(t, "link-subject-123456", "collector@example.com", true)
+	provider := createOIDCLoginProvider(t, db, issuer)
+	user := createOIDCLoginUser(t, db, "collector", "collector@example.com")
+
+	start, err := svc.StartLink(context.Background(), provider.ID, user.ID, "/settings", "http://app.example")
+	if err != nil {
+		t.Fatalf("start link failed: %v", err)
+	}
+	authURL, _ := url.Parse(start.AuthorizationURL)
+	if redirectURI := authURL.Query().Get("redirect_uri"); redirectURI != "http://app.example/api/auth/oidc/1/link/callback" {
+		t.Fatalf("expected link callback redirect URI, got %q", redirectURI)
+	}
+	currentOIDCTestNonce = authURL.Query().Get("nonce")
+
+	result, err := svc.CompleteLinkCallback(context.Background(), provider.ID, "valid-code", authURL.Query().Get("state"), "http://app.example", OIDCAuditContext{})
+	if err != nil {
+		t.Fatalf("link callback failed: %v", err)
+	}
+	if result.Identity.ProviderID != provider.ID || result.Identity.Email != user.Email || result.Identity.SubjectPreview != "link-sub..." {
+		t.Fatalf("unexpected linked identity response: %+v", result.Identity)
+	}
+	var count int64
+	if err := db.Model(&models.ExternalIdentity{}).Where("user_id = ? AND subject = ?", user.ID, "link-subject-123456").Count(&count).Error; err != nil {
+		t.Fatalf("failed to count identities: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected identity to be created once, got %d", count)
+	}
+}
+
+func TestOIDCServiceLinkCallbackBlocksIdentityLinkedToAnotherUser(t *testing.T) {
+	db, svc := setupOIDCLoginServiceTest(t)
+	issuer := startMockOIDCProvider(t, "shared-subject", "collector@example.com", true)
+	provider := createOIDCLoginProvider(t, db, issuer)
+	owner := createOIDCLoginUser(t, db, "owner", "owner@example.com")
+	user := createOIDCLoginUser(t, db, "collector", "collector@example.com")
+	if err := db.Create(&models.ExternalIdentity{UserID: owner.ID, ProviderID: provider.ID, Issuer: issuer, Subject: "shared-subject", Email: owner.Email, EmailVerified: true}).Error; err != nil {
+		t.Fatalf("failed to create existing identity: %v", err)
+	}
+
+	start, err := svc.StartLink(context.Background(), provider.ID, user.ID, "/settings", "http://app.example")
+	if err != nil {
+		t.Fatalf("start link failed: %v", err)
+	}
+	authURL, _ := url.Parse(start.AuthorizationURL)
+	currentOIDCTestNonce = authURL.Query().Get("nonce")
+
+	_, err = svc.CompleteLinkCallback(context.Background(), provider.ID, "valid-code", authURL.Query().Get("state"), "http://app.example", OIDCAuditContext{})
+	if !errors.Is(err, ErrOIDCIdentityAlreadyLinked) {
+		t.Fatalf("expected already linked error, got %v", err)
+	}
+}
+
+func TestOIDCServiceLinkCallbackBlocksVerifiedEmailForAnotherLocalUser(t *testing.T) {
+	db, svc := setupOIDCLoginServiceTest(t)
+	issuer := startMockOIDCProvider(t, "new-subject", "owner@example.com", true)
+	provider := createOIDCLoginProvider(t, db, issuer)
+	createOIDCLoginUser(t, db, "owner", "owner@example.com")
+	user := createOIDCLoginUser(t, db, "collector", "collector@example.com")
+
+	start, err := svc.StartLink(context.Background(), provider.ID, user.ID, "/settings", "http://app.example")
+	if err != nil {
+		t.Fatalf("start link failed: %v", err)
+	}
+	authURL, _ := url.Parse(start.AuthorizationURL)
+	currentOIDCTestNonce = authURL.Query().Get("nonce")
+
+	_, err = svc.CompleteLinkCallback(context.Background(), provider.ID, "valid-code", authURL.Query().Get("state"), "http://app.example", OIDCAuditContext{})
+	if !errors.Is(err, ErrOIDCAccountConflict) {
+		t.Fatalf("expected account conflict, got %v", err)
+	}
+}
+
+func TestOIDCServiceUnlinkIdentityGuardsLastUsableSignInMethod(t *testing.T) {
+	db, svc := setupOIDCLoginServiceTest(t)
+	issuer := startMockOIDCProvider(t, "unlink-subject", "oidc-only@example.com", true)
+	provider := createOIDCLoginProvider(t, db, issuer)
+	user := models.User{Username: "oidc-only", Email: "oidc-only@example.com", PasswordHash: "", Role: models.RoleUser}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+	identity := models.ExternalIdentity{UserID: user.ID, ProviderID: provider.ID, Issuer: issuer, Subject: "unlink-subject", Email: user.Email, EmailVerified: true}
+	if err := db.Create(&identity).Error; err != nil {
+		t.Fatalf("failed to create identity: %v", err)
+	}
+
+	if err := svc.UnlinkIdentity(identity.ID, user.ID, OIDCAuditContext{}); !errors.Is(err, ErrOIDCNoUsableSignInMethod) {
+		t.Fatalf("expected no usable sign-in guard, got %v", err)
+	}
+
+	if err := db.Create(&models.WebAuthnCredential{UserID: user.ID, CredentialID: "cred-1", PublicKey: []byte("key")}).Error; err != nil {
+		t.Fatalf("failed to create webauthn credential: %v", err)
+	}
+	if err := svc.UnlinkIdentity(identity.ID, user.ID, OIDCAuditContext{}); err != nil {
+		t.Fatalf("expected unlink to succeed with passkey credential, got %v", err)
+	}
+}
+
 func startMockOIDCProvider(t *testing.T, subject, email string, emailVerified bool) string {
 	t.Helper()
 	return startMockOIDCProviderWithOptions(t, oidcMockProviderOptions{
@@ -316,6 +443,33 @@ func createOIDCLoginUser(t *testing.T, db *gorm.DB, username, email string) mode
 		t.Fatalf("failed to create user: %v", err)
 	}
 	return user
+}
+
+func createOIDCLoginIdentity(t *testing.T, db *gorm.DB, userID, providerID uint, subject string) models.ExternalIdentity {
+	t.Helper()
+	identity := models.ExternalIdentity{
+		UserID:        userID,
+		ProviderID:    providerID,
+		Issuer:        "http://localhost",
+		Subject:       subject,
+		Email:         "collector@example.com",
+		EmailVerified: true,
+	}
+	if err := db.Create(&identity).Error; err != nil {
+		t.Fatalf("failed to create external identity: %v", err)
+	}
+	return identity
+}
+
+func assertOIDCIdentityCount(t *testing.T, db *gorm.DB, userID uint, expected int64) {
+	t.Helper()
+	var count int64
+	if err := db.Model(&models.ExternalIdentity{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
+		t.Fatalf("failed to count identities: %v", err)
+	}
+	if count != expected {
+		t.Fatalf("expected %d identities for user %d, got %d", expected, userID, count)
+	}
 }
 
 func writeJSON(t *testing.T, w http.ResponseWriter, value any) {

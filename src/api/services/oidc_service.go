@@ -26,13 +26,19 @@ var (
 	ErrOIDCProviderDuplicate     = errors.New("oidc provider already exists")
 	ErrOIDCProviderInUse         = errors.New("oidc provider has linked identities")
 	ErrOIDCProviderDiscovery     = errors.New("oidc provider discovery failed")
+	ErrOIDCProviderConfiguration = errors.New("oidc provider runtime configuration failed")
+	ErrOIDCProviderDenied        = errors.New("oidc provider denied request")
 	ErrOIDCProviderSecretMissing = errors.New("client secret is required")
 	ErrOIDCProviderDisabled      = errors.New("oidc provider is disabled")
 	ErrOIDCInvalidRedirect       = errors.New("invalid oidc redirect path")
 	ErrOIDCInvalidState          = errors.New("invalid oidc state")
 	ErrOIDCValidationFailed      = errors.New("oidc validation failed")
+	ErrOIDCCodeExchangeFailed    = errors.New("oidc code exchange failed")
 	ErrOIDCIdentityNotLinked     = errors.New("oidc identity is not linked")
+	ErrOIDCIdentityNotFound      = errors.New("oidc identity not found")
+	ErrOIDCIdentityAlreadyLinked = errors.New("oidc identity is already linked")
 	ErrOIDCAccountConflict       = errors.New("oidc account must be linked before login")
+	ErrOIDCNoUsableSignInMethod  = errors.New("oidc unlink would remove last usable sign-in method")
 	ErrOIDCTokenIssueFailed      = errors.New("failed to issue app tokens")
 )
 
@@ -127,6 +133,23 @@ type OIDCStartLoginResult struct {
 	ExpiresAt        time.Time `json:"expiresAt"`
 }
 
+type OIDCLinkedIdentityDTO struct {
+	ID                  uint       `json:"id"`
+	ProviderID          uint       `json:"providerId"`
+	ProviderDisplayName string     `json:"providerDisplayName"`
+	Issuer              string     `json:"issuer"`
+	SubjectPreview      string     `json:"subjectPreview"`
+	Email               string     `json:"email,omitempty"`
+	EmailVerified       bool       `json:"emailVerified"`
+	CreatedAt           time.Time  `json:"createdAt"`
+	LastLoginAt         *time.Time `json:"lastLoginAt,omitempty"`
+}
+
+type OIDCLinkCallbackResult struct {
+	Message  string                `json:"message"`
+	Identity OIDCLinkedIdentityDTO `json:"identity"`
+}
+
 type OIDCAuditContext struct {
 	AdminID   uint
 	ClientIP  string
@@ -156,6 +179,14 @@ func (s *OIDCService) ListPublicProviders() ([]OIDCPublicProviderDTO, error) {
 }
 
 func (s *OIDCService) StartLogin(ctx context.Context, providerID uint, redirectPath, requestOrigin string) (OIDCStartLoginResult, error) {
+	return s.startFlow(ctx, providerID, nil, models.OIDCFlowTypeLogin, redirectPath, requestOrigin)
+}
+
+func (s *OIDCService) StartLink(ctx context.Context, providerID, userID uint, redirectPath, requestOrigin string) (OIDCStartLoginResult, error) {
+	return s.startFlow(ctx, providerID, &userID, models.OIDCFlowTypeLink, redirectPath, requestOrigin)
+}
+
+func (s *OIDCService) startFlow(ctx context.Context, providerID uint, userID *uint, flowType models.OIDCFlowType, redirectPath, requestOrigin string) (OIDCStartLoginResult, error) {
 	provider, err := s.enabledProvider(providerID)
 	if err != nil {
 		return OIDCStartLoginResult{}, err
@@ -168,7 +199,7 @@ func (s *OIDCService) StartLogin(ctx context.Context, providerID uint, redirectP
 	if err != nil {
 		return OIDCStartLoginResult{}, err
 	}
-	runtime.OAuth2Config.RedirectURL = absoluteOIDCURL(requestOrigin, provider.CallbackPath)
+	runtime.OAuth2Config.RedirectURL = absoluteOIDCURL(requestOrigin, oidcFlowCallbackPath(*provider, flowType))
 
 	state, err := secureRandomURLToken(32)
 	if err != nil {
@@ -186,7 +217,8 @@ func (s *OIDCService) StartLogin(ctx context.Context, providerID uint, redirectP
 	authState := models.OIDCAuthState{
 		StateHash:        hashOIDCSecret(state),
 		ProviderID:       provider.ID,
-		FlowType:         models.OIDCFlowTypeLogin,
+		FlowType:         flowType,
+		UserID:           userID,
 		PKCEVerifierHash: verifier,
 		NonceHash:        hashOIDCSecret(nonce),
 		RedirectPath:     redirectPath,
@@ -222,45 +254,12 @@ func (s *OIDCService) CompleteLoginCallback(ctx context.Context, providerID uint
 		s.recordLoginFailure(nil, "", *provider, audit, "state flow mismatch")
 		return AuthResult{}, ErrOIDCInvalidState
 	}
-	runtime, err := s.BuildRuntimeConfig(ctx, *provider)
+	verified, claims, err := s.exchangeAndValidateCallback(ctx, *provider, consumed, code, requestOrigin)
 	if err != nil {
-		s.recordLoginFailure(nil, "", *provider, audit, "provider configuration failed")
+		s.recordLoginFailure(nil, "", *provider, audit, oidcFailureReason(err))
 		return AuthResult{}, err
 	}
-	runtime.OAuth2Config.RedirectURL = absoluteOIDCURL(requestOrigin, provider.CallbackPath)
-	token, err := runtime.OAuth2Config.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", consumed.PKCEVerifierHash))
-	if err != nil {
-		s.recordLoginFailure(nil, "", *provider, audit, "code exchange failed")
-		return AuthResult{}, ErrOIDCValidationFailed
-	}
-	rawIDToken, ok := token.Extra("id_token").(string)
-	if !ok || rawIDToken == "" {
-		s.recordLoginFailure(nil, "", *provider, audit, "missing id token")
-		return AuthResult{}, ErrOIDCValidationFailed
-	}
-	verified, err := runtime.Provider.Verifier(&oidc.Config{ClientID: provider.ClientID}).Verify(ctx, rawIDToken)
-	if err != nil {
-		s.recordLoginFailure(nil, "", *provider, audit, "id token verification failed")
-		return AuthResult{}, ErrOIDCValidationFailed
-	}
-	claims := oidcLoginClaims{}
-	if err := verified.Claims(&claims); err != nil {
-		s.recordLoginFailure(nil, "", *provider, audit, "id token claims invalid")
-		return AuthResult{}, ErrOIDCValidationFailed
-	}
-	if claims.Subject == "" {
-		s.recordLoginFailure(nil, "", *provider, audit, "missing subject")
-		return AuthResult{}, ErrOIDCValidationFailed
-	}
-	if hashOIDCSecret(claims.Nonce) != consumed.NonceHash {
-		s.recordLoginFailure(nil, "", *provider, audit, "nonce mismatch")
-		return AuthResult{}, ErrOIDCValidationFailed
-	}
 	email := strings.TrimSpace(strings.ToLower(claims.Email))
-	if provider.RequireVerifiedEmail && (email == "" || !claims.EmailVerified) {
-		s.recordLoginFailure(nil, "", *provider, audit, "verified email is required")
-		return AuthResult{}, ErrOIDCValidationFailed
-	}
 	identity, err := s.repo.FindExternalIdentity(provider.ID, verified.Issuer, claims.Subject)
 	if err != nil {
 		if repository.IsRecordNotFound(err) {
@@ -297,12 +296,154 @@ func (s *OIDCService) CompleteLoginCallback(ctx context.Context, providerID uint
 	return result, nil
 }
 
+func (s *OIDCService) CompleteLinkCallback(ctx context.Context, providerID uint, code, state, requestOrigin string, audit OIDCAuditContext) (OIDCLinkCallbackResult, error) {
+	provider, providerErr := s.enabledProvider(providerID)
+	if providerErr != nil {
+		return OIDCLinkCallbackResult{}, providerErr
+	}
+	if strings.TrimSpace(code) == "" || strings.TrimSpace(state) == "" {
+		s.recordLinkFailure(nil, "", *provider, audit, "missing callback parameters")
+		return OIDCLinkCallbackResult{}, ErrOIDCInvalidState
+	}
+	consumed, err := s.repo.ConsumeAuthState(hashOIDCSecret(state), provider.ID, s.now())
+	if err != nil {
+		s.recordLinkFailure(nil, "", *provider, audit, "invalid or replayed state")
+		return OIDCLinkCallbackResult{}, ErrOIDCInvalidState
+	}
+	if consumed.FlowType != models.OIDCFlowTypeLink || consumed.UserID == nil || *consumed.UserID == 0 {
+		s.recordLinkFailure(nil, "", *provider, audit, "state flow mismatch")
+		return OIDCLinkCallbackResult{}, ErrOIDCInvalidState
+	}
+	user, err := s.repo.FindUserByID(*consumed.UserID)
+	if err != nil {
+		s.recordLinkFailure(consumed.UserID, "", *provider, audit, "linking user not found")
+		return OIDCLinkCallbackResult{}, ErrOIDCInvalidState
+	}
+	verified, claims, err := s.exchangeAndValidateCallback(ctx, *provider, consumed, code, requestOrigin)
+	if err != nil {
+		s.recordLinkFailure(&user.ID, user.Username, *provider, audit, oidcFailureReason(err))
+		return OIDCLinkCallbackResult{}, err
+	}
+	email := strings.TrimSpace(strings.ToLower(claims.Email))
+	if email != "" && claims.EmailVerified {
+		if existingUser, userErr := s.repo.FindUserByEmail(email); userErr == nil && existingUser != nil && existingUser.ID != user.ID {
+			s.recordLinkFailure(&user.ID, user.Username, *provider, audit, "verified email belongs to another local user")
+			return OIDCLinkCallbackResult{}, ErrOIDCAccountConflict
+		}
+	}
+	existing, err := s.repo.FindExternalIdentity(provider.ID, verified.Issuer, claims.Subject)
+	if err == nil && existing != nil {
+		if existing.UserID != user.ID {
+			s.recordLinkFailure(&user.ID, user.Username, *provider, audit, "external identity already linked")
+			return OIDCLinkCallbackResult{}, ErrOIDCIdentityAlreadyLinked
+		}
+		existing.Provider = *provider
+		dto := linkedIdentityDTO(*existing)
+		s.recordLinkSuccess(*user, *provider, audit)
+		return OIDCLinkCallbackResult{Message: "OIDC identity linked", Identity: dto}, nil
+	}
+	if err != nil && !repository.IsRecordNotFound(err) {
+		return OIDCLinkCallbackResult{}, err
+	}
+	identity := models.ExternalIdentity{
+		UserID:        user.ID,
+		ProviderID:    provider.ID,
+		Provider:      *provider,
+		Issuer:        verified.Issuer,
+		Subject:       claims.Subject,
+		Email:         email,
+		EmailVerified: claims.EmailVerified,
+		DisplayName:   strings.TrimSpace(claims.Name),
+	}
+	if err := s.repo.CreateExternalIdentity(&identity); err != nil {
+		s.recordLinkFailure(&user.ID, user.Username, *provider, audit, "external identity already linked")
+		return OIDCLinkCallbackResult{}, ErrOIDCIdentityAlreadyLinked
+	}
+	identity.Provider = *provider
+	s.recordLinkSuccess(*user, *provider, audit)
+	return OIDCLinkCallbackResult{Message: "OIDC identity linked", Identity: linkedIdentityDTO(identity)}, nil
+}
+
+func (s *OIDCService) ListLinkedIdentities(userID uint) ([]OIDCLinkedIdentityDTO, error) {
+	identities, err := s.repo.ListExternalIdentitiesForUser(userID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]OIDCLinkedIdentityDTO, 0, len(identities))
+	for _, identity := range identities {
+		result = append(result, linkedIdentityDTO(identity))
+	}
+	return result, nil
+}
+
+func (s *OIDCService) UnlinkIdentity(identityID, userID uint, audit OIDCAuditContext) error {
+	identity, err := s.repo.GetExternalIdentityForUser(identityID, userID)
+	if err != nil {
+		if repository.IsRecordNotFound(err) {
+			return ErrOIDCIdentityNotFound
+		}
+		return err
+	}
+	user, err := s.repo.FindUserByID(userID)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.DeleteExternalIdentityWithSignInGuard(identityID, userID); err != nil {
+		if errors.Is(err, repository.ErrNoUsableSignInMethod) {
+			s.recordUnlinkFailure(&user.ID, user.Username, identity.Provider, audit, "unlink would remove last usable sign-in method")
+			return ErrOIDCNoUsableSignInMethod
+		}
+		if repository.IsRecordNotFound(err) {
+			return ErrOIDCIdentityNotFound
+		}
+		return err
+	}
+	s.recordUnlinkSuccess(*user, identity.Provider, audit)
+	return nil
+}
+
 func (s *OIDCService) RecordLoginFailure(providerID uint, audit OIDCAuditContext, reason string) {
 	provider, err := s.repo.GetProviderByID(providerID)
 	if err != nil {
 		return
 	}
 	s.recordLoginFailure(nil, "", *provider, audit, reason)
+}
+
+func (s *OIDCService) exchangeAndValidateCallback(ctx context.Context, provider models.OIDCProvider, consumed *models.OIDCAuthState, code, requestOrigin string) (*oidc.IDToken, oidcLoginClaims, error) {
+	runtime, err := s.BuildRuntimeConfig(ctx, provider)
+	if err != nil {
+		return nil, oidcLoginClaims{}, err
+	}
+	runtime.OAuth2Config.RedirectURL = absoluteOIDCURL(requestOrigin, oidcFlowCallbackPath(provider, consumed.FlowType))
+	token, err := runtime.OAuth2Config.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", consumed.PKCEVerifierHash))
+	if err != nil {
+		return nil, oidcLoginClaims{}, ErrOIDCCodeExchangeFailed
+	}
+	rawIDToken, ok := token.Extra("id_token").(string)
+	if !ok || rawIDToken == "" {
+		return nil, oidcLoginClaims{}, ErrOIDCValidationFailed
+	}
+	verified, err := runtime.Provider.Verifier(&oidc.Config{ClientID: provider.ClientID}).Verify(ctx, rawIDToken)
+	if err != nil {
+		return nil, oidcLoginClaims{}, ErrOIDCValidationFailed
+	}
+	claims := oidcLoginClaims{}
+	if err := verified.Claims(&claims); err != nil {
+		return nil, oidcLoginClaims{}, ErrOIDCValidationFailed
+	}
+	if claims.Subject == "" {
+		return nil, oidcLoginClaims{}, ErrOIDCValidationFailed
+	}
+	if hashOIDCSecret(claims.Nonce) != consumed.NonceHash {
+		return nil, oidcLoginClaims{}, ErrOIDCValidationFailed
+	}
+	email := strings.TrimSpace(strings.ToLower(claims.Email))
+	if provider.RequireVerifiedEmail && (email == "" || !claims.EmailVerified) {
+		return nil, oidcLoginClaims{}, ErrOIDCValidationFailed
+	}
+	claims.Email = email
+	return verified, claims, nil
 }
 
 type oidcDiscoveryMetadata struct {
@@ -447,13 +588,13 @@ func (s *OIDCService) TestAdminProvider(ctx context.Context, id uint, audit OIDC
 
 func (s *OIDCService) BuildRuntimeConfig(ctx context.Context, provider models.OIDCProvider) (OIDCRuntimeConfig, error) {
 	if err := validateProviderForRuntime(provider); err != nil {
-		return OIDCRuntimeConfig{}, err
+		return OIDCRuntimeConfig{}, ErrOIDCProviderConfiguration
 	}
 	discoveryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	discovered, err := s.discover(discoveryCtx, provider.IssuerURL)
 	if err != nil {
-		return OIDCRuntimeConfig{}, ErrOIDCProviderDiscovery
+		return OIDCRuntimeConfig{}, ErrOIDCProviderConfiguration
 	}
 	return OIDCRuntimeConfig{
 		Provider: discovered,
@@ -725,6 +866,17 @@ func defaultOIDCCallbackPath(providerID uint) string {
 	return fmt.Sprintf("/api/auth/oidc/%d/callback", providerID)
 }
 
+func defaultOIDCLinkCallbackPath(providerID uint) string {
+	return fmt.Sprintf("/api/auth/oidc/%d/link/callback", providerID)
+}
+
+func oidcFlowCallbackPath(provider models.OIDCProvider, flowType models.OIDCFlowType) string {
+	if flowType == models.OIDCFlowTypeLink {
+		return defaultOIDCLinkCallbackPath(provider.ID)
+	}
+	return provider.CallbackPath
+}
+
 func oidcProviderDTO(provider models.OIDCProvider) OIDCAdminProviderDTO {
 	return OIDCAdminProviderDTO{
 		ID:                     provider.ID,
@@ -754,6 +906,41 @@ type oidcLoginClaims struct {
 	Name          string `json:"name"`
 }
 
+func linkedIdentityDTO(identity models.ExternalIdentity) OIDCLinkedIdentityDTO {
+	return OIDCLinkedIdentityDTO{
+		ID:                  identity.ID,
+		ProviderID:          identity.ProviderID,
+		ProviderDisplayName: identity.Provider.DisplayName,
+		Issuer:              identity.Issuer,
+		SubjectPreview:      subjectPreview(identity.Subject),
+		Email:               identity.Email,
+		EmailVerified:       identity.EmailVerified,
+		CreatedAt:           identity.CreatedAt,
+		LastLoginAt:         identity.LastLoginAt,
+	}
+}
+
+func subjectPreview(subject string) string {
+	subject = strings.TrimSpace(subject)
+	if len(subject) <= 8 {
+		return subject
+	}
+	return subject[:8] + "..."
+}
+
+func oidcFailureReason(err error) string {
+	switch {
+	case errors.Is(err, ErrOIDCProviderConfiguration):
+		return "provider configuration failed"
+	case errors.Is(err, ErrOIDCCodeExchangeFailed):
+		return "code exchange failed"
+	case errors.Is(err, ErrOIDCValidationFailed):
+		return "id token validation failed"
+	default:
+		return "oidc request failed"
+	}
+}
+
 func (s *OIDCService) recordProviderConfigChanged(audit OIDCAuditContext, provider models.OIDCProvider, action string) {
 	if s.securityService == nil || audit.AdminID == 0 {
 		return
@@ -766,4 +953,32 @@ func (s *OIDCService) recordLoginFailure(userID *uint, username string, provider
 		return
 	}
 	s.securityService.RecordOIDCLoginFailure(userID, username, provider.ID, provider.DisplayName, audit.ClientIP, audit.UserAgent, reason)
+}
+
+func (s *OIDCService) recordLinkSuccess(user models.User, provider models.OIDCProvider, audit OIDCAuditContext) {
+	if s.securityService == nil {
+		return
+	}
+	s.securityService.RecordOIDCLinkSuccess(user, provider.ID, provider.DisplayName, audit.ClientIP, audit.UserAgent)
+}
+
+func (s *OIDCService) recordLinkFailure(userID *uint, username string, provider models.OIDCProvider, audit OIDCAuditContext, reason string) {
+	if s.securityService == nil {
+		return
+	}
+	s.securityService.RecordOIDCLinkFailure(userID, username, provider.ID, provider.DisplayName, audit.ClientIP, audit.UserAgent, reason)
+}
+
+func (s *OIDCService) recordUnlinkSuccess(user models.User, provider models.OIDCProvider, audit OIDCAuditContext) {
+	if s.securityService == nil {
+		return
+	}
+	s.securityService.RecordOIDCUnlinkSuccess(user, provider.ID, provider.DisplayName, audit.ClientIP, audit.UserAgent)
+}
+
+func (s *OIDCService) recordUnlinkFailure(userID *uint, username string, provider models.OIDCProvider, audit OIDCAuditContext, reason string) {
+	if s.securityService == nil {
+		return
+	}
+	s.securityService.RecordOIDCUnlinkFailure(userID, username, provider.ID, provider.DisplayName, audit.ClientIP, audit.UserAgent, reason)
 }

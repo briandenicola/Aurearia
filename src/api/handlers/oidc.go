@@ -25,6 +25,10 @@ type oidcPublicProviderListResponse struct {
 	Providers []services.OIDCPublicProviderDTO `json:"providers"`
 }
 
+type oidcLinkedIdentityListResponse struct {
+	Identities []services.OIDCLinkedIdentityDTO `json:"identities"`
+}
+
 // ListPublicProviders returns enabled OIDC providers for login.
 //
 //	@Summary		List public OIDC providers
@@ -100,7 +104,7 @@ func (h *OIDCHandler) Callback(c *gin.Context) {
 	}
 	if c.Query("error") != "" {
 		h.svc.RecordLoginFailure(id, oidcAuditContext(c), "provider denied login")
-		respondError(c, http.StatusBadRequest, "OIDC provider denied login", errors.New("provider returned error"))
+		h.handleOIDCError(c, services.ErrOIDCProviderDenied)
 		return
 	}
 	result, err := h.svc.CompleteLoginCallback(c.Request.Context(), id, c.Query("code"), c.Query("state"), oidcRequestOrigin(c), oidcAuditContext(c))
@@ -109,6 +113,122 @@ func (h *OIDCHandler) Callback(c *gin.Context) {
 		return
 	}
 	writeAuthResponse(c, http.StatusOK, result)
+}
+
+// StartLink starts a protected OIDC account-linking flow.
+//
+//	@Summary		Start OIDC account link
+//	@Description	Creates short-lived link state with PKCE and nonce for the authenticated user and returns the provider authorization URL.
+//	@Tags			OIDC
+//	@Accept			json
+//	@Produce		json
+//	@Param			providerId	path		int							true	"Provider ID"
+//	@Param			body		body		services.OIDCStartLoginInput	true	"Link start payload"
+//	@Success		200			{object}	services.OIDCStartLoginResult
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		409			{object}	ErrorResponse
+//	@Failure		500			{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/auth/oidc/{providerId}/link/start [post]
+func (h *OIDCHandler) StartLink(c *gin.Context) {
+	id, ok := parseID(c, "providerId")
+	if !ok {
+		return
+	}
+	var body services.OIDCStartLoginInput
+	if err := c.ShouldBindJSON(&body); err != nil && !errors.Is(err, http.ErrBodyNotAllowed) {
+		respondError(c, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+	result, err := h.svc.StartLink(c.Request.Context(), id, c.GetUint("userId"), body.RedirectPath, oidcRequestOrigin(c))
+	if err != nil {
+		h.handleOIDCError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+// LinkCallback completes OIDC account linking.
+//
+//	@Summary		Complete OIDC account link
+//	@Description	Exchanges the provider code, validates the ID token, and links the external identity to the user recorded in state.
+//	@Tags			OIDC
+//	@Produce		json
+//	@Param			providerId	path		int		true	"Provider ID"
+//	@Param			code		query		string	true	"Authorization code"
+//	@Param			state		query		string	true	"Opaque state"
+//	@Success		200			{object}	services.OIDCLinkCallbackResult
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		409			{object}	ErrorResponse
+//	@Failure		500			{object}	ErrorResponse
+//	@Router			/auth/oidc/{providerId}/link/callback [get]
+func (h *OIDCHandler) LinkCallback(c *gin.Context) {
+	noStore(c)
+	id, ok := parseID(c, "providerId")
+	if !ok {
+		return
+	}
+	if c.Query("error") != "" {
+		h.handleOIDCError(c, services.ErrOIDCProviderDenied)
+		return
+	}
+	result, err := h.svc.CompleteLinkCallback(c.Request.Context(), id, c.Query("code"), c.Query("state"), oidcRequestOrigin(c), oidcAuditContext(c))
+	if err != nil {
+		h.handleOIDCError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+// ListLinkedIdentities lists OIDC identities linked to the authenticated user.
+//
+//	@Summary		List linked OIDC identities
+//	@Description	Returns linked OIDC identities for the current user with subject-safe previews.
+//	@Tags			OIDC
+//	@Produce		json
+//	@Success		200	{object}	oidcLinkedIdentityListResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/user/oidc-identities [get]
+func (h *OIDCHandler) ListLinkedIdentities(c *gin.Context) {
+	identities, err := h.svc.ListLinkedIdentities(c.GetUint("userId"))
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "Failed to list OIDC identities", err)
+		return
+	}
+	c.JSON(http.StatusOK, oidcLinkedIdentityListResponse{Identities: identities})
+}
+
+// UnlinkIdentity unlinks an OIDC identity from the authenticated user.
+//
+//	@Summary		Unlink OIDC identity
+//	@Description	Unlinks an OIDC identity unless it would leave the account without a usable sign-in method.
+//	@Tags			OIDC
+//	@Produce		json
+//	@Param			identityId	path		int	true	"Identity ID"
+//	@Success		200			{object}	MessageResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		401			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		409			{object}	ErrorResponse
+//	@Failure		500			{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/user/oidc-identities/{identityId} [delete]
+func (h *OIDCHandler) UnlinkIdentity(c *gin.Context) {
+	id, ok := parseID(c, "identityId")
+	if !ok {
+		return
+	}
+	if err := h.svc.UnlinkIdentity(id, c.GetUint("userId"), oidcAuditContext(c)); err != nil {
+		h.handleOIDCError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, MessageResponse{Message: "OIDC identity unlinked"})
 }
 
 // ListAdminProviders returns all OIDC providers for admin configuration.
@@ -266,6 +386,10 @@ func (h *OIDCHandler) handleOIDCError(c *gin.Context, err error) {
 		respondError(c, http.StatusBadRequest, "Invalid OIDC provider configuration", err)
 	case errors.Is(err, services.ErrOIDCProviderSecretMissing):
 		respondError(c, http.StatusBadRequest, "OIDC client secret is required", err)
+	case errors.Is(err, services.ErrOIDCProviderConfiguration):
+		respondError(c, http.StatusInternalServerError, "OIDC provider is misconfigured", err)
+	case errors.Is(err, services.ErrOIDCProviderDenied):
+		respondError(c, http.StatusBadRequest, "OIDC provider denied access", err)
 	case errors.Is(err, services.ErrOIDCProviderDuplicate):
 		respondError(c, http.StatusConflict, "OIDC provider already exists", err)
 	case errors.Is(err, services.ErrOIDCProviderInUse):
@@ -276,12 +400,20 @@ func (h *OIDCHandler) handleOIDCError(c *gin.Context, err error) {
 		respondError(c, http.StatusBadRequest, "Invalid redirect path", err)
 	case errors.Is(err, services.ErrOIDCInvalidState):
 		respondError(c, http.StatusBadRequest, "Invalid OIDC state", err)
+	case errors.Is(err, services.ErrOIDCCodeExchangeFailed):
+		respondError(c, http.StatusBadRequest, "OIDC authorization code was rejected", err)
 	case errors.Is(err, services.ErrOIDCValidationFailed):
 		respondError(c, http.StatusUnauthorized, "OIDC validation failed", err)
 	case errors.Is(err, services.ErrOIDCIdentityNotLinked):
 		respondError(c, http.StatusUnauthorized, "OIDC identity is not linked", err)
+	case errors.Is(err, services.ErrOIDCIdentityNotFound):
+		respondError(c, http.StatusNotFound, "OIDC identity not found", err)
+	case errors.Is(err, services.ErrOIDCIdentityAlreadyLinked):
+		respondError(c, http.StatusConflict, "OIDC identity is already linked to another account", err)
 	case errors.Is(err, services.ErrOIDCAccountConflict):
 		respondError(c, http.StatusConflict, "Sign in locally and link this OIDC identity from Account Settings", err)
+	case errors.Is(err, services.ErrOIDCNoUsableSignInMethod):
+		respondError(c, http.StatusConflict, "Cannot unlink the last usable sign-in method", err)
 	case errors.Is(err, services.ErrOIDCTokenIssueFailed):
 		respondError(c, http.StatusInternalServerError, "Failed to issue app session", err)
 	default:

@@ -157,6 +157,7 @@ func main() {
 		api.GET("/auth/oidc/providers", authRateLimit, oidcHandler.ListPublicProviders)
 		api.POST("/auth/oidc/:providerId/start", authRateLimit, oidcHandler.StartLogin)
 		api.GET("/auth/oidc/:providerId/callback", authRateLimit, oidcHandler.Callback)
+		api.GET("/auth/oidc/:providerId/link/callback", authRateLimit, oidcHandler.LinkCallback)
 
 		// WebAuthn public routes (login ceremony)
 		api.POST("/auth/webauthn/login/begin", authRateLimit, webauthnHandler.LoginBegin)
@@ -384,11 +385,15 @@ func main() {
 
 		// User self-service routes
 		userHandler := handlers.NewUserHandler(cfg.UploadDir, userRepo, pushoverSvc, logger)
+		oidcUserHandler := handlers.NewOIDCHandler(oidcSvc)
 		protected.GET("/auth/me", userHandler.GetMe)
 		protected.POST("/auth/change-password", userHandler.ChangePassword)
+		protected.POST("/auth/oidc/:providerId/link/start", oidcUserHandler.StartLink)
 		protected.PUT("/user/profile", userHandler.UpdateProfile)
 		protected.POST("/user/avatar", userHandler.UploadAvatar)
 		protected.DELETE("/user/avatar", userHandler.DeleteAvatar)
+		protected.GET("/user/oidc-identities", oidcUserHandler.ListLinkedIdentities)
+		protected.DELETE("/user/oidc-identities/:identityId", oidcUserHandler.UnlinkIdentity)
 		protected.GET("/user/export", userHandler.ExportCollection)
 		protected.GET("/user/export/catalog", userHandler.ExportCatalogPDF)
 		protected.POST("/user/import", writeRateLimit, userHandler.ImportCollection)

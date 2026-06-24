@@ -5,9 +5,14 @@
         <p class="section-label">Sign-in Providers</p>
         <h2>OIDC Login</h2>
       </div>
-      <button type="button" class="btn btn-primary btn-sm" @click="openCreateForm">
-        Add Provider
-      </button>
+      <div class="section-actions">
+        <button type="button" class="btn btn-secondary btn-sm" @click="openSetupGuide">
+          Setup Guide
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" @click="openCreateForm">
+          Add Provider
+        </button>
+      </div>
     </div>
     <p class="section-description">
       Configure Microsoft Entra ID, Pocket ID, or another OpenID Connect provider. Client secrets are write-only and are never shown after saving.
@@ -228,6 +233,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { AlertCircle, CheckCircle, X } from 'lucide-vue-next'
 import {
   createAdminOIDCProvider,
@@ -271,6 +277,7 @@ const REDACTED_SECRET_VALUES = new Set([
 ])
 
 const { showAlert, showConfirm } = useDialog()
+const router = useRouter()
 
 const providers = ref<OIDCAdminProvider[]>([])
 const loading = ref(true)
@@ -364,6 +371,10 @@ function openCreateForm() {
   editingProvider.value = null
   resetForm()
   showForm.value = true
+}
+
+function openSetupGuide() {
+  router.push({ path: '/settings', query: { tab: 'help', section: 'oidc' } })
 }
 
 function openEditForm(provider: OIDCAdminProvider) {
@@ -525,6 +536,13 @@ onMounted(() => {
 
 .section-heading h2 {
   margin: 0;
+}
+
+.section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 .section-description {
@@ -822,6 +840,7 @@ onMounted(() => {
 
 @media (max-width: 768px) {
   .section-heading,
+  .section-actions,
   .provider-actions,
   .modal-footer {
     align-items: stretch;

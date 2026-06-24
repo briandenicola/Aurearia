@@ -1,11 +1,14 @@
 package repository
 
 import (
+	"errors"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"gorm.io/gorm"
 )
+
+var ErrNoUsableSignInMethod = errors.New("no usable sign-in method would remain")
 
 type OIDCRepository struct {
 	db *gorm.DB
@@ -80,6 +83,12 @@ func (r *OIDCRepository) ListExternalIdentitiesForUser(userID uint) ([]models.Ex
 	return identities, err
 }
 
+func (r *OIDCRepository) CountExternalIdentitiesForUser(userID uint) (int64, error) {
+	var count int64
+	err := r.db.Model(&models.ExternalIdentity{}).Where("user_id = ?", userID).Count(&count).Error
+	return count, err
+}
+
 func (r *OIDCRepository) GetExternalIdentityForUser(identityID, userID uint) (*models.ExternalIdentity, error) {
 	var identity models.ExternalIdentity
 	err := r.db.Where("id = ? AND user_id = ?", identityID, userID).Preload("Provider").First(&identity).Error
@@ -105,6 +114,47 @@ func (r *OIDCRepository) UpdateExternalIdentityLastLogin(identityID uint, at tim
 func (r *OIDCRepository) DeleteExternalIdentity(identityID, userID uint) (int64, error) {
 	result := r.db.Where("id = ? AND user_id = ?", identityID, userID).Delete(&models.ExternalIdentity{})
 	return result.RowsAffected, result.Error
+}
+
+func (r *OIDCRepository) DeleteExternalIdentityWithSignInGuard(identityID, userID uint) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var identity models.ExternalIdentity
+		if err := tx.Where("id = ? AND user_id = ?", identityID, userID).First(&identity).Error; err != nil {
+			return err
+		}
+
+		var user models.User
+		if err := tx.First(&user, userID).Error; err != nil {
+			return err
+		}
+
+		var otherOIDCCount int64
+		if err := tx.Model(&models.ExternalIdentity{}).
+			Where("user_id = ? AND id <> ?", userID, identityID).
+			Count(&otherOIDCCount).Error; err != nil {
+			return err
+		}
+
+		var webAuthnCount int64
+		if err := tx.Model(&models.WebAuthnCredential{}).
+			Where("user_id = ?", userID).
+			Count(&webAuthnCount).Error; err != nil {
+			return err
+		}
+
+		if user.PasswordHash == "" && webAuthnCount == 0 && otherOIDCCount == 0 {
+			return ErrNoUsableSignInMethod
+		}
+
+		result := tx.Where("id = ? AND user_id = ?", identityID, userID).Delete(&models.ExternalIdentity{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
 }
 
 func (r *OIDCRepository) FindUserByEmail(email string) (*models.User, error) {

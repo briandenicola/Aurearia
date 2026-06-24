@@ -1127,6 +1127,13 @@ definitions:
           $ref: '#/definitions/services.OIDCAdminProviderDTO'
         type: array
     type: object
+  handlers.oidcLinkedIdentityListResponse:
+    properties:
+      identities:
+        items:
+          $ref: '#/definitions/services.OIDCLinkedIdentityDTO'
+        type: array
+    type: object
   handlers.oidcPublicProviderListResponse:
     properties:
       providers:
@@ -2057,6 +2064,34 @@ definitions:
         items:
           type: string
         type: array
+    type: object
+  services.OIDCLinkCallbackResult:
+    properties:
+      identity:
+        $ref: '#/definitions/services.OIDCLinkedIdentityDTO'
+      message:
+        type: string
+    type: object
+  services.OIDCLinkedIdentityDTO:
+    properties:
+      createdAt:
+        type: string
+      email:
+        type: string
+      emailVerified:
+        type: boolean
+      id:
+        type: integer
+      issuer:
+        type: string
+      lastLoginAt:
+        type: string
+      providerDisplayName:
+        type: string
+      providerId:
+        type: integer
+      subjectPreview:
+        type: string
     type: object
   services.OIDCProviderTestResult:
     properties:
@@ -4588,6 +4623,106 @@ paths:
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
       summary: Complete OIDC login
+      tags:
+      - OIDC
+  /auth/oidc/{providerId}/link/callback:
+    get:
+      description: Exchanges the provider code, validates the ID token, and links
+        the external identity to the user recorded in state.
+      parameters:
+      - description: Provider ID
+        in: path
+        name: providerId
+        required: true
+        type: integer
+      - description: Authorization code
+        in: query
+        name: code
+        required: true
+        type: string
+      - description: Opaque state
+        in: query
+        name: state
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.OIDCLinkCallbackResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Complete OIDC account link
+      tags:
+      - OIDC
+  /auth/oidc/{providerId}/link/start:
+    post:
+      consumes:
+      - application/json
+      description: Creates short-lived link state with PKCE and nonce for the authenticated
+        user and returns the provider authorization URL.
+      parameters:
+      - description: Provider ID
+        in: path
+        name: providerId
+        required: true
+        type: integer
+      - description: Link start payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.OIDCStartLoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.OIDCStartLoginResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Start OIDC account link
       tags:
       - OIDC
   /auth/oidc/{providerId}/start:
@@ -9363,6 +9498,72 @@ paths:
       summary: Import collection
       tags:
       - User
+  /user/oidc-identities:
+    get:
+      description: Returns linked OIDC identities for the current user with subject-safe
+        previews.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.oidcLinkedIdentityListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List linked OIDC identities
+      tags:
+      - OIDC
+  /user/oidc-identities/{identityId}:
+    delete:
+      description: Unlinks an OIDC identity unless it would leave the account without
+        a usable sign-in method.
+      parameters:
+      - description: Identity ID
+        in: path
+        name: identityId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Unlink OIDC identity
+      tags:
+      - OIDC
   /user/profile:
     put:
       consumes:

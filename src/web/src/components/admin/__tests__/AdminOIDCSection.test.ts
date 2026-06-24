@@ -10,6 +10,11 @@ const mockDeleteAdminOIDCProvider = vi.fn()
 const mockTestAdminOIDCProvider = vi.fn()
 const mockShowAlert = vi.fn()
 const mockShowConfirm = vi.fn()
+const mockRouterPush = vi.fn()
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: mockRouterPush }),
+}))
 
 vi.mock('@/api/client', () => ({
   getAdminOIDCProviders: () => mockGetAdminOIDCProviders(),
@@ -74,6 +79,7 @@ describe('AdminOIDCSection', () => {
     })
     mockShowConfirm.mockResolvedValue(true)
     mockShowAlert.mockResolvedValue(true)
+    mockRouterPush.mockResolvedValue(undefined)
   })
 
   it('preserves a configured secret on edit unless a new secret is entered', async () => {
@@ -192,5 +198,17 @@ describe('AdminOIDCSection', () => {
       scopes: ['openid', 'profile', 'email'],
     }))
     expect(wrapper.text()).toContain('Issuer URL is invalid')
+  })
+
+  it('links to the OIDC setup guide in Settings Help', async () => {
+    const wrapper = mount(AdminOIDCSection)
+    await flushPromises()
+
+    await buttonByText(wrapper, 'Setup Guide').trigger('click')
+
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      path: '/settings',
+      query: { tab: 'help', section: 'oidc' },
+    })
   })
 })

@@ -598,3 +598,11 @@ Implemented backend Phase 4-5 MVP tasks T030-T035 and T042-T045 for `specs/335-o
 **Validation:** Targeted backend tests passed (`go test ./services -run 'TestOIDCServiceLoginCallback|TestAdminRecoveryService'`, `go test ./handlers -run 'TestAdminHandler.*FinalLocalAdmin|TestOIDCAdminHandler'`, `go test ./repository -run 'TestOIDCRepository|TestAdminRepository'`); `go build ./...` and `go vet ./...` passed from `src/api` after `task openapi`. Full `go test ./...` currently hits unrelated pre-existing/flaky service failures in mint/storage-location tests.
 
 **Learning:** OIDC PKCE callback handling needs the original code verifier at token exchange time, so the auth-state row must treat that stored value as a secret and keep it out of JSON, logs, audit events, and URLs. Route drift tests catch new public routes immediately, so Swagger/OpenAPI regeneration is part of backend route work, not a later cleanup.
+
+## 2026-06-24 — OIDC Backend Account Linking + Error Docs (Phase 6-7)
+
+Implemented backend Phase 6-7 tasks for `specs/335-oidc-login/`: protected account-link start, link callback, linked identity list/unlink endpoints, duplicate-link and matching-email conflict guards, unlink last-sign-in-method protection, safe link/unlink audit events, normalized OIDC error categories, OpenAPI updates, and `docs/oidc-setup.md`.
+
+**Validation:** `go test -v ./handlers -run "TestOIDCHandler"`, `go test -v ./services -run "TestOIDCService(LoginCallback|LinkCallback|UnlinkIdentity)"`, targeted route/architecture/OIDC tests, full `go test -v ./...`, `go build ./...`, and `go vet ./...` all passed from `src/api` after `task openapi`.
+
+**Learning:** Account linking needs its own registered provider redirect URI (`/api/auth/oidc/{providerId}/link/callback`) because the token exchange redirect URI must match the link start authorization request. Unlink safety should consider every usable sign-in path together: local password, WebAuthn credential, and remaining OIDC identities.
