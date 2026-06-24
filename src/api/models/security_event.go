@@ -15,6 +15,15 @@ const (
 	SecurityEventAccountUnlock        SecurityEventType = "account_unlock"
 	SecurityEventIPRuleCreated        SecurityEventType = "ip_rule_created"
 	SecurityEventIPRuleDeleted        SecurityEventType = "ip_rule_deleted"
+	SecurityEventOIDCLoginSuccess     SecurityEventType = "oidc_login_success"
+	SecurityEventOIDCLoginFailure     SecurityEventType = "oidc_login_failure"
+	SecurityEventOIDCLinkSuccess      SecurityEventType = "oidc_link_success"
+	SecurityEventOIDCLinkFailure      SecurityEventType = "oidc_link_failure"
+	SecurityEventOIDCUnlinkSuccess    SecurityEventType = "oidc_unlink_success"
+	SecurityEventOIDCUnlinkFailure    SecurityEventType = "oidc_unlink_failure"
+	SecurityEventOIDCProviderChanged  SecurityEventType = "oidc_provider_config_changed"
+	SecurityEventOIDCProviderTestFail SecurityEventType = "oidc_provider_test_failure"
+	SecurityEventFinalAdminBlocked    SecurityEventType = "final_local_admin_blocked"
 )
 
 type SecurityEvent struct {

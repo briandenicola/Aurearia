@@ -127,6 +127,43 @@ func TestWebAuthnHandlerLoginFinishRejectsLockedAccountBeforeAssertion(t *testin
 	}
 }
 
+func TestWebAuthnHandlerTokenIssuanceUsesSharedAuthResponseShape(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler, db := setupWebAuthnHandlerWithAuthForTest(t, "http://localhost:8080")
+	user := createWebAuthnTestUser(t, db, "webauthn-token-user")
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	handler.auth.issueTokens(c, *user, http.StatusOK)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected token issuance status 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if w.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("expected no-store auth response, got %q", w.Header().Get("Cache-Control"))
+	}
+
+	var resp struct {
+		Token        string `json:"token"`
+		RefreshToken string `json:"refreshToken"`
+		User         struct {
+			ID       uint   `json:"id"`
+			Username string `json:"username"`
+			Email    string `json:"email"`
+		} `json:"user"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse auth response: %v", err)
+	}
+	if resp.Token == "" || resp.RefreshToken == "" {
+		t.Fatalf("expected access and refresh tokens, got %s", w.Body.String())
+	}
+	if resp.User.ID != user.ID || resp.User.Username != user.Username || resp.User.Email != user.Email {
+		t.Fatalf("expected auth response user to match WebAuthn user, got %+v", resp.User)
+	}
+}
+
 func TestWebAuthnHandlerLoginBeginReturnsRequestOptionsWithChallenge(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

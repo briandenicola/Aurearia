@@ -412,6 +412,101 @@ export interface AuthResponse {
   user: User
 }
 
+export type OIDCProviderType = 'entra' | 'pocket_id' | 'generic'
+export type OIDCTestStatus = 'unknown' | 'ok' | 'failed'
+
+export interface OIDCPublicProvider {
+  id: number
+  name: string
+  displayName: string
+  providerType: OIDCProviderType
+}
+
+export interface OIDCPublicProvidersResponse {
+  providers: OIDCPublicProvider[]
+}
+
+export interface OIDCStartFlowRequest {
+  redirectPath: string
+  callbackPath?: string
+}
+
+export interface OIDCStartFlowResponse {
+  authorizationUrl: string
+  expiresAt: string
+}
+
+export interface OIDCLinkedIdentity {
+  id: number
+  providerId: number
+  providerDisplayName: string
+  issuer: string
+  subjectPreview: string
+  email: string
+  emailVerified: boolean
+  createdAt: string
+  lastLoginAt?: string | null
+}
+
+export interface OIDCLinkedIdentitiesResponse {
+  identities: OIDCLinkedIdentity[]
+}
+
+export interface OIDCLinkCallbackResponse {
+  message: string
+  identity: OIDCLinkedIdentity
+}
+
+export interface OIDCMessageResponse {
+  message: string
+}
+
+export interface OIDCAdminProvider {
+  id: number
+  name: string
+  displayName: string
+  providerType: OIDCProviderType
+  enabled: boolean
+  issuerUrl: string
+  clientId: string
+  clientSecretConfigured: boolean
+  scopes: string[]
+  callbackPath: string
+  requireVerifiedEmail?: boolean
+  lastTestedAt?: string | null
+  lastTestStatus: OIDCTestStatus
+  lastTestMessage: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface OIDCAdminProvidersResponse {
+  providers: OIDCAdminProvider[]
+}
+
+export interface OIDCAdminProviderInput {
+  name: string
+  displayName: string
+  providerType: OIDCProviderType
+  enabled: boolean
+  issuerUrl: string
+  clientId: string
+  clientSecret?: string
+  scopes: string[]
+  callbackPath?: string
+  requireVerifiedEmail?: boolean
+}
+
+export type OIDCAdminProviderUpdate = Partial<OIDCAdminProviderInput>
+
+export interface OIDCProviderTestResponse {
+  available: boolean
+  message: string
+  issuer: string
+  authorizationEndpoint: string
+  tokenEndpoint: string
+}
+
 export interface WebAuthnCredentialInfo {
   id: number
   credentialId: string

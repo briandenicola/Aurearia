@@ -168,6 +168,17 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/settings/oidc/link/callback/:providerId',
+      name: 'oidc-link-callback',
+      component: () => import('@/pages/OIDCLinkCallbackPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/auth/oidc/callback/:providerId',
+      name: 'oidc-login-callback',
+      component: () => import('@/pages/OIDCLoginCallbackPage.vue'),
+    },
+    {
       path: '/admin',
       name: 'admin',
       component: () => import('@/pages/AdminPage.vue'),

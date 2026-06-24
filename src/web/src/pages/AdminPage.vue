@@ -104,6 +104,9 @@
         <!-- Catalogs Tab -->
         <AdminCatalogsSection v-if="activeTab === 'catalogs'" />
 
+        <!-- OIDC Tab -->
+        <AdminOIDCSection v-if="activeTab === 'oidc'" />
+
         <!-- Security Tab -->
         <AdminSecuritySection
           v-if="activeTab === 'security'"
@@ -182,9 +185,10 @@ import AdminHealthSection from '@/components/admin/AdminHealthSection.vue'
 import AdminCatalogsSection from '@/components/admin/AdminCatalogsSection.vue'
 import AdminCoinPropertiesSection from '@/components/admin/AdminCoinPropertiesSection.vue'
 import AdminSecuritySection from '@/components/admin/AdminSecuritySection.vue'
-import { Users, Cpu, Wrench, ScrollText, CalendarClock, Activity, ChevronRight, BookMarked, Settings2, ShieldAlert } from 'lucide-vue-next'
+import AdminOIDCSection from '@/components/admin/AdminOIDCSection.vue'
+import { Users, Cpu, Wrench, ScrollText, CalendarClock, Activity, ChevronRight, BookMarked, Settings2, ShieldAlert, KeyRound } from 'lucide-vue-next'
 
-type AdminTabId = 'users' | 'ai' | 'system' | 'properties' | 'catalogs' | 'security' | 'schedules' | 'health' | 'logs'
+type AdminTabId = 'users' | 'ai' | 'system' | 'properties' | 'catalogs' | 'oidc' | 'security' | 'schedules' | 'health' | 'logs'
 type AdminGroupId = 'configuration' | 'operations'
 type AdminTab = {
   id: AdminTabId
@@ -199,6 +203,7 @@ const tabIcons: Record<AdminTabId, Component> = {
   system: Wrench,
   properties: Settings2,
   catalogs: BookMarked,
+  oidc: KeyRound,
   security: ShieldAlert,
   schedules: CalendarClock,
   health: Activity,
@@ -211,6 +216,7 @@ const tabs: AdminTab[] = [
   { id: 'system', label: 'System', group: 'configuration' },
   { id: 'properties', label: 'Coin Properties', group: 'configuration' },
   { id: 'catalogs', label: 'Catalogs', group: 'configuration' },
+  { id: 'oidc', label: 'OIDC Login', group: 'configuration' },
   { id: 'security', label: 'Security', group: 'operations' },
   { id: 'schedules', label: 'Schedules', group: 'operations', aliases: ['schedule'] },
   { id: 'health', label: 'Health', group: 'operations' },
@@ -400,6 +406,8 @@ onUnmounted(() => {
 
 <style scoped>
 .admin-layout {
+  --admin-nav-title-offset: 1.62rem;
+
   max-width: 1200px;
   margin-left: auto;
   margin-right: auto;
@@ -475,6 +483,7 @@ onUnmounted(() => {
 
 .settings-content {
   min-width: 0;
+  margin-top: var(--admin-nav-title-offset);
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -483,6 +492,10 @@ onUnmounted(() => {
 @media (max-width: 980px) {
   .admin-layout {
     grid-template-columns: 1fr;
+  }
+
+  .settings-content {
+    margin-top: 0;
   }
 }
 </style>

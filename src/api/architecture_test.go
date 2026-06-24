@@ -346,7 +346,7 @@ func TestPackageImportMatrix(t *testing.T) {
 	// allowedExternalPrefixes defines non-stdlib prefixes each layer may use.
 	allowedExternalPrefixes := map[string][]string{
 		"handlers":   {"github.com/gin-gonic/gin", "github.com/go-webauthn/webauthn", "github.com/go-pdf/fpdf", "golang.org/x/crypto", "golang.org/x/net", "gopkg.in/yaml.v3"},
-		"services":   {"github.com/golang-jwt/jwt", "golang.org/x/crypto", "golang.org/x/net", "golang.org/x/text"},
+		"services":   {"github.com/coreos/go-oidc/v3", "github.com/golang-jwt/jwt", "golang.org/x/crypto", "golang.org/x/net", "golang.org/x/oauth2", "golang.org/x/text"},
 		"repository": {"gorm.io/gorm"},
 		"models":     {},
 	}

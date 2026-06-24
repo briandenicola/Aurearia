@@ -41,20 +41,21 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = data.user
   })
 
-  async function doLogin(username: string, password: string) {
-    const res = await api.login(username, password)
-    if (isUserSwitch(res.data.user)) {
+  async function applyAuthResponse(data: AuthResponse) {
+    if (isUserSwitch(data.user)) {
       await clearPrivateMediaCaches()
     }
-    setTokens(res.data)
+    setTokens(data)
+  }
+
+  async function doLogin(username: string, password: string) {
+    const res = await api.login(username, password)
+    await applyAuthResponse(res.data)
   }
 
   async function doRegister(username: string, password: string, email?: string) {
     const res = await api.register(username, password, email)
-    if (isUserSwitch(res.data.user)) {
-      await clearPrivateMediaCaches()
-    }
-    setTokens(res.data)
+    await applyAuthResponse(res.data)
   }
 
   async function doWebAuthnLogin(username: string) {
@@ -110,10 +111,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       // Finish ceremony — send assertion to server, get tokens
       const finishRes = await api.webauthnLoginFinish(finishUsername, credential)
-      if (isUserSwitch(finishRes.data.user)) {
-        await clearPrivateMediaCaches()
-      }
-      setTokens(finishRes.data)
+      await applyAuthResponse(finishRes.data)
     } catch (error) {
       // Handle WebAuthn-specific errors
       if (error instanceof DOMException) {
@@ -142,7 +140,7 @@ export const useAuthStore = defineStore('auth', () => {
     void clearPrivateMediaCaches()
   }
 
-  return { token, user, isAuthenticated, isAdmin, doLogin, doRegister, doWebAuthnLogin, logout }
+  return { token, user, isAuthenticated, isAdmin, applyAuthResponse, doLogin, doRegister, doWebAuthnLogin, logout }
 })
 
 interface PublicKeyCredentialDescriptorJSON {

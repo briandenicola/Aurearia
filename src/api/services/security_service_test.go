@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -294,5 +295,72 @@ func TestSecurityServiceIPRulesValidateCIDRAndExpiry(t *testing.T) {
 	}
 	if rules[1].CIDR != "203.0.113.9/32" {
 		t.Fatalf("expected single IP to normalize to /32, got %q", rules[1].CIDR)
+	}
+}
+
+func TestSecurityServiceOIDCProviderConfigChangedRedactsSensitiveDetails(t *testing.T) {
+	db, securitySvc := setupSecurityServiceTest(t)
+	admin := createSecurityTestUser(t, db, "oidc-config-admin", models.RoleAdmin)
+
+	securitySvc.RecordOIDCProviderConfigChanged(
+		admin.ID,
+		42,
+		"Pocket ID",
+		"203.0.113.50",
+		"admin-browser",
+		"updated client_secret=super-secret-value and pkce verifier verifier-123",
+	)
+
+	var event models.SecurityEvent
+	if err := db.Where("type = ?", models.SecurityEventOIDCProviderChanged).First(&event).Error; err != nil {
+		t.Fatalf("expected OIDC provider config change audit event: %v", err)
+	}
+	if event.UserID == nil || *event.UserID != admin.ID {
+		t.Fatalf("expected event user id to be admin %d, got %v", admin.ID, event.UserID)
+	}
+	if event.ClientIP != "203.0.113.50" || event.UserAgent != "admin-browser" {
+		t.Fatalf("expected client context to be recorded, got ip=%q agent=%q", event.ClientIP, event.UserAgent)
+	}
+	assertSecurityEventMessageRedacted(t, event.Message, "super-secret-value", "verifier-123", "client_secret", "pkce", "verifier")
+	if !strings.Contains(event.Message, "provider_id=42") || !strings.Contains(event.Message, "Pocket ID") {
+		t.Fatalf("expected non-sensitive provider context to remain, got %q", event.Message)
+	}
+}
+
+func TestSecurityServiceOIDCProviderTestFailureRedactsSensitiveDetails(t *testing.T) {
+	db, securitySvc := setupSecurityServiceTest(t)
+	admin := createSecurityTestUser(t, db, "oidc-test-admin", models.RoleAdmin)
+
+	securitySvc.RecordOIDCProviderTestFailure(
+		admin.ID,
+		7,
+		"Entra",
+		"203.0.113.51",
+		"admin-browser",
+		"discovery failed after authorization code=abc123 and access_token token-value",
+	)
+
+	var event models.SecurityEvent
+	if err := db.Where("type = ?", models.SecurityEventOIDCProviderTestFail).First(&event).Error; err != nil {
+		t.Fatalf("expected OIDC provider test failure audit event: %v", err)
+	}
+	if event.UserID == nil || *event.UserID != admin.ID {
+		t.Fatalf("expected event user id to be admin %d, got %v", admin.ID, event.UserID)
+	}
+	assertSecurityEventMessageRedacted(t, event.Message, "abc123", "token-value", "authorization code", "access_token")
+	if !strings.Contains(event.Message, "provider_id=7") || !strings.Contains(event.Message, "Entra") {
+		t.Fatalf("expected non-sensitive provider context to remain, got %q", event.Message)
+	}
+}
+
+func assertSecurityEventMessageRedacted(t *testing.T, message string, forbidden ...string) {
+	t.Helper()
+	if !strings.Contains(message, "sensitive detail redacted") {
+		t.Fatalf("expected sensitive details to be redacted, got %q", message)
+	}
+	for _, value := range forbidden {
+		if strings.Contains(strings.ToLower(message), strings.ToLower(value)) {
+			t.Fatalf("expected audit message to omit %q, got %q", value, message)
+		}
 	}
 }

@@ -375,6 +375,40 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
       </div>
     </details>
 
+    <details class="help-accordion" :open="route.query.section === 'oidc'">
+      <summary class="help-summary">Setting Up OIDC Login</summary>
+      <div class="help-content">
+        <p>OIDC login lets administrators add Microsoft Entra ID, Pocket ID, or another OpenID Connect provider while keeping local password recovery available.</p>
+        <p>For the complete technical walkthrough, see <code>docs/oidc-setup.md</code> in the repository.</p>
+
+        <h4>Before You Start</h4>
+        <ul>
+          <li>Keep at least one admin account with usable local credentials for recovery.</li>
+          <li>Register both frontend callback URIs with the provider: login and account linking.</li>
+          <li>Use scopes <code>openid profile email</code> unless your provider requires additional scopes.</li>
+          <li>Store the client secret only in Admin Settings. It is write-only after saving.</li>
+        </ul>
+
+        <h4>Microsoft Entra ID</h4>
+        <ol>
+          <li>Create an app registration in the Entra admin center.</li>
+          <li>Add Web redirect URIs for <code>/auth/oidc/callback/{providerId}</code> and <code>/settings/oidc/link/callback/{providerId}</code>.</li>
+          <li>Enter the Tenant ID in Admin Settings; Aurearia derives the Microsoft issuer URL.</li>
+          <li>Copy the Application client ID and the client secret <strong>Value</strong>, not the Secret ID.</li>
+        </ol>
+
+        <h4>Pocket ID</h4>
+        <ol>
+          <li>Create an OIDC client in Pocket ID.</li>
+          <li>Set the issuer URL to your Pocket ID base URL.</li>
+          <li>Register both frontend callback paths as allowed redirect URIs.</li>
+          <li>Save the client ID and secret in Admin Settings, then run the provider test.</li>
+        </ol>
+
+        <p><strong>Account linking:</strong> Existing users should sign in locally, open Settings → Account, then link the provider. Matching email addresses are not merged automatically.</p>
+      </div>
+    </details>
+
     <details class="help-accordion">
       <summary class="help-summary">Helpful Resources</summary>
       <div class="help-content">
@@ -408,7 +442,9 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
 </template>
 
 <script setup lang="ts">
-// No props, no state — purely static content
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
 </script>
 
 <style scoped>
@@ -436,7 +472,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
 .help-summary {
   padding: 0.75rem 1rem;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   cursor: pointer;
   background: var(--bg-primary);
   color: var(--text-primary);

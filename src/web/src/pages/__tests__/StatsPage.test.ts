@@ -38,6 +38,7 @@ describe('StatsPage', () => {
         stubs: {
           PullToRefresh: { template: '<div><slot /></div>' },
           StatsHeatMap: { template: '<div class="stub-heatmap" />', methods: { fetchDistribution: () => {} } },
+          StatsCoinFlowChart: { template: '<div class="stub-coin-flow" />' },
         },
       },
     })

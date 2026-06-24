@@ -162,6 +162,65 @@
       </button>
     </form>
 
+    <h3>Connected Sign-in Providers</h3>
+    <p class="setting-desc oidc-desc">
+      Link an external provider after signing in locally. This avoids unsafe automatic account merges.
+    </p>
+
+    <div v-if="oidcMsg" class="oidc-status" :class="{ error: oidcError }" role="status">
+      {{ oidcMsg }}
+    </div>
+
+    <div v-if="oidcLoading" class="oidc-loading">
+      Loading linked providers...
+    </div>
+    <div v-else>
+      <div v-if="oidcIdentities.length" class="oidc-identity-list">
+        <div v-for="identity in oidcIdentities" :key="identity.id" class="oidc-identity-item">
+          <div class="oidc-identity-info">
+            <div class="oidc-title-row">
+              <span class="oidc-provider-name">{{ identity.providerDisplayName }}</span>
+              <span class="chip-sm" :class="identity.emailVerified ? 'verified-chip' : 'unverified-chip'">
+                {{ identity.emailVerified ? 'Email verified' : 'Email unverified' }}
+              </span>
+            </div>
+            <span class="oidc-meta">Issuer: {{ identity.issuer }}</span>
+            <span class="oidc-meta">Subject: {{ identity.subjectPreview }}</span>
+            <span class="oidc-meta">Email: {{ identity.email }}</span>
+            <span class="oidc-meta">
+              Linked {{ formatDateTime(identity.createdAt) }}
+              <template v-if="identity.lastLoginAt"> · Last login {{ formatDateTime(identity.lastLoginAt) }}</template>
+            </span>
+          </div>
+          <button
+            class="btn btn-danger btn-sm"
+            :disabled="unlinkingIdentityId === identity.id"
+            @click="handleUnlinkIdentity(identity.id, identity.providerDisplayName)"
+          >
+            {{ unlinkingIdentityId === identity.id ? 'Unlinking...' : 'Unlink' }}
+          </button>
+        </div>
+      </div>
+      <p v-else class="setting-desc oidc-empty">No external sign-in providers linked.</p>
+
+      <div v-if="linkableProviders.length" class="oidc-link-actions">
+        <button
+          v-for="provider in linkableProviders"
+          :key="provider.id"
+          type="button"
+          class="btn btn-secondary btn-sm oidc-link-btn"
+          :disabled="linkingProviderId === provider.id"
+          @click="handleLinkProvider(provider.id, provider.displayName)"
+        >
+          <LinkIcon :size="16" aria-hidden="true" />
+          {{ linkingProviderId === provider.id ? 'Starting...' : `Link ${provider.displayName}` }}
+        </button>
+      </div>
+      <p v-else-if="!oidcProviders.length" class="setting-desc oidc-empty">
+        No enabled OIDC providers are available for linking.
+      </p>
+    </div>
+
     <template v-if="supportsWebAuthn">
       <h3>Biometric Login</h3>
       <p class="setting-desc biometric-desc">
@@ -193,17 +252,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   webauthnRegisterBegin, webauthnRegisterFinish,
   webauthnListCredentials, webauthnDeleteCredential,
+  deleteOIDCIdentity, getApiErrorMessage, getOIDCIdentities, getOIDCPublicProviders, startOIDCLink,
 } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
 import { useSettingsProfile } from '@/composables/useSettingsProfile'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
-import type { WebAuthnCredentialInfo } from '@/types'
-import { LockKeyhole } from 'lucide-vue-next'
+import type { OIDCLinkedIdentity, OIDCPublicProvider, WebAuthnCredentialInfo } from '@/types'
+import { Link as LinkIcon, LockKeyhole } from 'lucide-vue-next'
 
 const auth = useAuthStore()
 const { showConfirm } = useDialog()
@@ -225,6 +285,119 @@ const webauthnCredentials = ref<WebAuthnCredentialInfo[]>([])
 const registeringCredential = ref(false)
 const credentialMsg = ref('')
 const credentialError = ref(false)
+const oidcIdentities = ref<OIDCLinkedIdentity[]>([])
+const oidcProviders = ref<OIDCPublicProvider[]>([])
+const oidcLoading = ref(true)
+const oidcMsg = ref('')
+const oidcError = ref(false)
+const linkingProviderId = ref<number | null>(null)
+const unlinkingIdentityId = ref<number | null>(null)
+
+const linkableProviders = computed(() => {
+  const linkedProviderIds = new Set(oidcIdentities.value.map(identity => identity.providerId))
+  return oidcProviders.value.filter(provider => !linkedProviderIds.has(provider.id))
+})
+
+async function loadOIDCAccounts() {
+  oidcLoading.value = true
+  try {
+    const [identitiesResponse, providersResponse] = await Promise.all([
+      getOIDCIdentities(),
+      getOIDCPublicProviders(),
+    ])
+    oidcIdentities.value = identitiesResponse.data.identities ?? []
+    oidcProviders.value = providersResponse.data.providers ?? []
+  } catch (error: unknown) {
+    oidcMsg.value = getApiErrorMessage(error) || 'Failed to load linked sign-in providers.'
+    oidcError.value = true
+  } finally {
+    oidcLoading.value = false
+  }
+}
+
+async function handleLinkProvider(providerId: number, displayName: string) {
+  oidcMsg.value = ''
+  oidcError.value = false
+  linkingProviderId.value = providerId
+  try {
+    const response = await startOIDCLink(providerId, {
+      redirectPath: '/settings?tab=account',
+      callbackPath: `/settings/oidc/link/callback/${providerId}`,
+    })
+    const authorizationUrl = response.data.authorizationUrl
+    if (!authorizationUrl) {
+      oidcMsg.value = `${displayName} did not return an authorization URL. Ask an administrator to test the provider.`
+      oidcError.value = true
+      return
+    }
+    window.location.assign(authorizationUrl)
+  } catch (error: unknown) {
+    oidcMsg.value = mapOIDCAccountError(error, 'link')
+    oidcError.value = true
+  } finally {
+    linkingProviderId.value = null
+  }
+}
+
+async function handleUnlinkIdentity(identityId: number, displayName: string) {
+  const confirmed = await showConfirm(
+    `Unlink ${displayName} from your account?`,
+    { title: 'Unlink Sign-in Provider', variant: 'danger' },
+  )
+  if (!confirmed) return
+
+  oidcMsg.value = ''
+  oidcError.value = false
+  unlinkingIdentityId.value = identityId
+  try {
+    await deleteOIDCIdentity(identityId)
+    await loadOIDCAccounts()
+    oidcMsg.value = `${displayName} unlinked.`
+  } catch (error: unknown) {
+    oidcMsg.value = mapOIDCAccountError(error, 'unlink')
+    oidcError.value = true
+  } finally {
+    unlinkingIdentityId.value = null
+  }
+}
+
+function mapOIDCAccountError(error: unknown, action: 'link' | 'unlink') {
+  const response = getErrorResponse(error)
+  const message = getApiErrorMessage(error)
+  const normalized = message.toLowerCase()
+
+  if (response?.status === 409 && action === 'link') {
+    if (normalized.includes('another user') || normalized.includes('already linked')) {
+      return 'This provider account is already linked to another user. Sign in with a different provider account or ask an administrator for help.'
+    }
+    return 'This provider account cannot be linked automatically. Sign in locally with the intended account, then try linking again.'
+  }
+
+  if (response?.status === 409 && action === 'unlink') {
+    return 'This identity cannot be unlinked because your account would have no usable sign-in method. Add a password or another sign-in method first.'
+  }
+
+  if (response?.status === 404) {
+    return 'That linked identity was not found for your account. Refresh settings and try again.'
+  }
+
+  if (normalized.includes('state') || normalized.includes('claims') || response?.status === 400) {
+    return 'The provider response could not be validated. Start the linking flow again from Account Settings.'
+  }
+
+  if (normalized.includes('configuration') || normalized.includes('discovery') || response?.status === 500) {
+    return 'The sign-in provider is not configured correctly. Ask an administrator to test the provider settings.'
+  }
+
+  return message || `Failed to ${action} OIDC identity.`
+}
+
+function getErrorResponse(error: unknown): { status?: number } | null {
+  if (typeof error !== 'object' || error === null || !('response' in error)) return null
+  const response = (error as { response?: unknown }).response
+  if (typeof response !== 'object' || response === null) return null
+  return response as { status?: number }
+}
 
 async function loadCredentials() {
   try {
@@ -309,11 +482,22 @@ function formatDate(dateStr: string) {
   })
 }
 
+function formatDateTime(dateStr: string) {
+  return new Date(dateStr).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 onMounted(() => {
   if (supportsWebAuthn) loadCredentials()
+  void loadOIDCAccounts()
 })
 
-defineExpose({ loadCredentials })
+defineExpose({ loadCredentials, loadOIDCAccounts })
 </script>
 
 <style scoped>
@@ -342,7 +526,7 @@ defineExpose({ loadCredentials })
 }
 
 .nb-status {
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   padding: 0.4rem 0.75rem;
   border-radius: var(--radius-sm);
   margin-top: 0.25rem;
@@ -384,7 +568,9 @@ defineExpose({ loadCredentials })
 }
 
 .credential-msg,
-.credential-empty {
+.credential-empty,
+.oidc-empty,
+.oidc-desc {
   margin-top: 0.5rem;
 }
 
@@ -435,6 +621,82 @@ defineExpose({ loadCredentials })
   color: var(--text-muted);
 }
 
+.oidc-status,
+.oidc-loading {
+  font-size: 0.85rem;
+  color: var(--accent-gold);
+  margin: 0.5rem 0;
+}
+
+.oidc-status.error {
+  color: var(--color-negative);
+}
+
+.oidc-identity-list {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.oidc-identity-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+}
+
+.oidc-identity-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.oidc-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.oidc-provider-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.oidc-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.verified-chip {
+  border-color: var(--color-positive);
+  color: var(--color-positive);
+}
+
+.unverified-chip {
+  border-color: var(--color-negative);
+  color: var(--color-negative);
+}
+
+.oidc-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.oidc-link-btn {
+  gap: 0.35rem;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -460,14 +722,14 @@ defineExpose({ loadCredentials })
 }
 
 .settings-section h2 {
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   margin-bottom: 1.25rem;
   padding-bottom: 0.75rem;
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .settings-section h3 {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   margin-top: 1.25rem;
   margin-bottom: 0.75rem;
   color: var(--text-secondary);
@@ -568,6 +830,11 @@ defineExpose({ loadCredentials })
   .setting-item .toggle {
     align-self: flex-start;
     margin-top: 0.2rem;
+  }
+
+  .oidc-identity-item {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>

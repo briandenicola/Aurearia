@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, ValuationRun, AuctionEndingRun, CollectionHealthSnapshotRunResult, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, ValuationRun, AuctionEndingRun, CollectionHealthSnapshotRunResult, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -142,6 +142,14 @@ export const login = (username: string, password: string) =>
   api.post<AuthResponse>('/auth/login', { username, password })
 export const register = (username: string, password: string, email?: string) =>
   api.post<AuthResponse>('/auth/register', { username, password, email })
+
+// OIDC auth
+export const getOIDCPublicProviders = () =>
+  api.get<OIDCPublicProvidersResponse>('/auth/oidc/providers')
+export const startOIDCLogin = (providerId: number, request: OIDCStartFlowRequest) =>
+  api.post<OIDCStartFlowResponse>(`/auth/oidc/${providerId}/start`, request)
+export const completeOIDCLoginCallback = (providerId: number, code: string, state: string) =>
+  api.get<AuthResponse>(`/auth/oidc/${providerId}/callback`, { params: { code, state } })
 
 // Coins
 export const getCoins = (params?: {
@@ -563,6 +571,16 @@ export const scrapeImage = (url: string) =>
   api.get<{ imageUrl: string }>('/scrape-image', { params: { url } })
 export const importCollection = (coins: Partial<Coin>[]) => api.post('/user/import', coins)
 
+// OIDC account linking
+export const startOIDCLink = (providerId: number, request: OIDCStartFlowRequest) =>
+  api.post<OIDCStartFlowResponse>(`/auth/oidc/${providerId}/link/start`, request)
+export const completeOIDCLinkCallback = (providerId: number, code: string, state: string) =>
+  api.get<OIDCLinkCallbackResponse>(`/auth/oidc/${providerId}/link/callback`, { params: { code, state } })
+export const getOIDCIdentities = () =>
+  api.get<OIDCLinkedIdentitiesResponse>('/user/oidc-identities')
+export const deleteOIDCIdentity = (identityId: number) =>
+  api.delete<OIDCMessageResponse>(`/user/oidc-identities/${identityId}`)
+
 // API Keys
 export const generateApiKey = (name: string, scope?: 'read' | 'read,write') =>
   api.post<{ key: string; apiKey: ApiKey }>('/auth/api-keys', { name, scope })
@@ -612,6 +630,18 @@ export const getAdminLogs = (limit = 500, level?: string) => {
   if (level) params.level = level
   return api.get<{ logs: LogEntry[]; count: number; logLevel: string }>('/admin/logs', { params })
 }
+
+// Admin OIDC providers
+export const getAdminOIDCProviders = () =>
+  api.get<OIDCAdminProvidersResponse>('/admin/oidc/providers')
+export const createAdminOIDCProvider = (provider: OIDCAdminProviderInput) =>
+  api.post<OIDCAdminProvider>('/admin/oidc/providers', provider)
+export const updateAdminOIDCProvider = (providerId: number, provider: OIDCAdminProviderUpdate) =>
+  api.put<OIDCAdminProvider>(`/admin/oidc/providers/${providerId}`, provider)
+export const deleteAdminOIDCProvider = (providerId: number) =>
+  api.delete(`/admin/oidc/providers/${providerId}`)
+export const testAdminOIDCProvider = (providerId: number) =>
+  api.post<OIDCProviderTestResponse>(`/admin/oidc/providers/${providerId}/test`)
 
 type ConnectivityResult = { available: boolean; message: string }
 export const testAnthropicConnection = () =>
