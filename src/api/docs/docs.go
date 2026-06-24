@@ -15307,6 +15307,9 @@ const docTemplate = `{
         "services.OIDCStartLoginInput": {
             "type": "object",
             "properties": {
+                "callbackPath": {
+                    "type": "string"
+                },
                 "redirectPath": {
                     "type": "string"
                 }

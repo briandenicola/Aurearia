@@ -384,7 +384,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
         <h4>Before You Start</h4>
         <ul>
           <li>Keep at least one admin account with usable local credentials for recovery.</li>
-          <li>Register the redirect URI shown in Admin Settings with the provider.</li>
+          <li>Register both frontend callback URIs with the provider: login and account linking.</li>
           <li>Use scopes <code>openid profile email</code> unless your provider requires additional scopes.</li>
           <li>Store the client secret only in Admin Settings. It is write-only after saving.</li>
         </ul>
@@ -392,16 +392,16 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
         <h4>Microsoft Entra ID</h4>
         <ol>
           <li>Create an app registration in the Entra admin center.</li>
-          <li>Add a Web redirect URI for the app callback path.</li>
-          <li>Use the tenant-specific issuer URL, such as <code>https://login.microsoftonline.com/{tenant}/v2.0</code>.</li>
-          <li>Copy the application client ID and create a client secret for Admin Settings.</li>
+          <li>Add Web redirect URIs for <code>/auth/oidc/callback/{providerId}</code> and <code>/settings/oidc/link/callback/{providerId}</code>.</li>
+          <li>Enter the Tenant ID in Admin Settings; Aurearia derives the Microsoft issuer URL.</li>
+          <li>Copy the Application client ID and the client secret <strong>Value</strong>, not the Secret ID.</li>
         </ol>
 
         <h4>Pocket ID</h4>
         <ol>
           <li>Create an OIDC client in Pocket ID.</li>
           <li>Set the issuer URL to your Pocket ID base URL.</li>
-          <li>Register the app callback path as an allowed redirect URI.</li>
+          <li>Register both frontend callback paths as allowed redirect URIs.</li>
           <li>Save the client ID and secret in Admin Settings, then run the provider test.</li>
         </ol>
 

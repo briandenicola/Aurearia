@@ -43,7 +43,7 @@ func TestOIDCServiceLoginCallbackIssuesTokensForLinkedIdentity(t *testing.T) {
 		Subject:             "subject-123",
 		Email:               "collector@example.com",
 		EmailVerified:       true,
-		ExpectedRedirectURI: "http://app.example/api/auth/oidc/1/callback",
+		ExpectedRedirectURI: "http://app.example/auth/oidc/callback/1",
 	})
 	provider := createOIDCLoginProvider(t, db, issuer)
 	user := createOIDCLoginUser(t, db, "collector", "collector@example.com")
@@ -51,7 +51,7 @@ func TestOIDCServiceLoginCallbackIssuesTokensForLinkedIdentity(t *testing.T) {
 		t.Fatalf("failed to create external identity: %v", err)
 	}
 
-	start, err := svc.StartLogin(context.Background(), provider.ID, "/", "http://app.example")
+	start, err := svc.StartLogin(context.Background(), provider.ID, "/", "/auth/oidc/callback/1", "http://app.example")
 	if err != nil {
 		t.Fatalf("start login failed: %v", err)
 	}
@@ -74,6 +74,24 @@ func TestOIDCServiceLoginCallbackIssuesTokensForLinkedIdentity(t *testing.T) {
 	}
 }
 
+func TestOIDCServiceStartLoginUsesFrontendCallbackPath(t *testing.T) {
+	db, svc := setupOIDCLoginServiceTest(t)
+	issuer := startMockOIDCProvider(t, "subject-123", "collector@example.com", true)
+	provider := createOIDCLoginProvider(t, db, issuer)
+
+	start, err := svc.StartLogin(context.Background(), provider.ID, "/", "/auth/oidc/callback/1", "http://app.example")
+	if err != nil {
+		t.Fatalf("start login failed: %v", err)
+	}
+	authURL, err := url.Parse(start.AuthorizationURL)
+	if err != nil {
+		t.Fatalf("failed to parse authorization URL %q: %v", start.AuthorizationURL, err)
+	}
+	if redirectURI := authURL.Query().Get("redirect_uri"); redirectURI != "http://app.example/auth/oidc/callback/1" {
+		t.Fatalf("expected frontend login callback redirect URI, got %q", redirectURI)
+	}
+}
+
 func TestOIDCServiceStartLoginUsesEntraAuthorizationEndpoint(t *testing.T) {
 	db, svc := setupOIDCLoginServiceTest(t)
 	issuer := startMockEntraDiscoveryProvider(t)
@@ -83,7 +101,7 @@ func TestOIDCServiceStartLoginUsesEntraAuthorizationEndpoint(t *testing.T) {
 		t.Fatalf("failed to save Entra provider: %v", err)
 	}
 
-	start, err := svc.StartLogin(context.Background(), provider.ID, "/", "http://app.example")
+	start, err := svc.StartLogin(context.Background(), provider.ID, "/", "", "http://app.example")
 	if err != nil {
 		t.Fatalf("start login failed: %v", err)
 	}
@@ -118,7 +136,7 @@ func TestOIDCServiceLoginCallbackReportsInvalidEntraClientSecret(t *testing.T) {
 	})
 	provider := createOIDCLoginProvider(t, db, issuer)
 
-	start, err := svc.StartLogin(context.Background(), provider.ID, "/", "http://app.example")
+	start, err := svc.StartLogin(context.Background(), provider.ID, "/", "", "http://app.example")
 	if err != nil {
 		t.Fatalf("start login failed: %v", err)
 	}
@@ -144,7 +162,7 @@ func TestOIDCServiceLoginCallbackBlocksMatchingEmailWithoutLink(t *testing.T) {
 	provider := createOIDCLoginProvider(t, db, issuer)
 	createOIDCLoginUser(t, db, "collector", "collector@example.com")
 
-	start, err := svc.StartLogin(context.Background(), provider.ID, "/", "http://app.example")
+	start, err := svc.StartLogin(context.Background(), provider.ID, "/", "", "http://app.example")
 	if err != nil {
 		t.Fatalf("start login failed: %v", err)
 	}
@@ -164,7 +182,7 @@ func TestOIDCServiceLoginCallbackRejectsUnverifiedEmailWhenRequired(t *testing.T
 		t.Fatalf("failed to create external identity: %v", err)
 	}
 
-	start, err := svc.StartLogin(context.Background(), provider.ID, "/", "http://app.example")
+	start, err := svc.StartLogin(context.Background(), provider.ID, "/", "", "http://app.example")
 	if err != nil {
 		t.Fatalf("start login failed: %v", err)
 	}
@@ -184,7 +202,7 @@ func TestOIDCServiceLoginCallbackRejectsInvalidStateAndReplay(t *testing.T) {
 		t.Fatalf("failed to create external identity: %v", err)
 	}
 
-	start, err := svc.StartLogin(context.Background(), provider.ID, "/", "http://app.example")
+	start, err := svc.StartLogin(context.Background(), provider.ID, "/", "", "http://app.example")
 	if err != nil {
 		t.Fatalf("start login failed: %v", err)
 	}
@@ -246,7 +264,7 @@ func TestOIDCServiceLoginCallbackRejectsInvalidTokenClaims(t *testing.T) {
 			issuer := startMockOIDCProviderWithOptions(t, tt.options)
 			provider := createOIDCLoginProvider(t, db, issuer)
 
-			start, err := svc.StartLogin(context.Background(), provider.ID, "/", "http://app.example")
+			start, err := svc.StartLogin(context.Background(), provider.ID, "/", "", "http://app.example")
 			if err != nil {
 				t.Fatalf("start login failed: %v", err)
 			}
@@ -298,7 +316,7 @@ func TestOIDCServiceLinkCallbackCreatesIdentityForAuthenticatedUser(t *testing.T
 	provider := createOIDCLoginProvider(t, db, issuer)
 	user := createOIDCLoginUser(t, db, "collector", "collector@example.com")
 
-	start, err := svc.StartLink(context.Background(), provider.ID, user.ID, "/settings", "http://app.example")
+	start, err := svc.StartLink(context.Background(), provider.ID, user.ID, "/settings", "", "http://app.example")
 	if err != nil {
 		t.Fatalf("start link failed: %v", err)
 	}
@@ -312,6 +330,7 @@ func TestOIDCServiceLinkCallbackCreatesIdentityForAuthenticatedUser(t *testing.T
 	if err != nil {
 		t.Fatalf("link callback failed: %v", err)
 	}
+
 	if result.Identity.ProviderID != provider.ID || result.Identity.Email != user.Email || result.Identity.SubjectPreview != "link-sub..." {
 		t.Fatalf("unexpected linked identity response: %+v", result.Identity)
 	}
@@ -321,6 +340,22 @@ func TestOIDCServiceLinkCallbackCreatesIdentityForAuthenticatedUser(t *testing.T
 	}
 	if count != 1 {
 		t.Fatalf("expected identity to be created once, got %d", count)
+	}
+}
+
+func TestOIDCServiceLinkStartAllowsFrontendCallbackPath(t *testing.T) {
+	db, svc := setupOIDCLoginServiceTest(t)
+	issuer := startMockOIDCProvider(t, "frontend-link-subject", "collector@example.com", true)
+	provider := createOIDCLoginProvider(t, db, issuer)
+	user := createOIDCLoginUser(t, db, "collector", "collector@example.com")
+
+	start, err := svc.StartLink(context.Background(), provider.ID, user.ID, "/settings?tab=account", "/settings/oidc/link/callback/1", "http://app.example")
+	if err != nil {
+		t.Fatalf("start link failed: %v", err)
+	}
+	authURL, _ := url.Parse(start.AuthorizationURL)
+	if redirectURI := authURL.Query().Get("redirect_uri"); redirectURI != "http://app.example/settings/oidc/link/callback/1" {
+		t.Fatalf("expected frontend link callback redirect URI, got %q", redirectURI)
 	}
 }
 
@@ -334,7 +369,7 @@ func TestOIDCServiceLinkCallbackBlocksIdentityLinkedToAnotherUser(t *testing.T) 
 		t.Fatalf("failed to create existing identity: %v", err)
 	}
 
-	start, err := svc.StartLink(context.Background(), provider.ID, user.ID, "/settings", "http://app.example")
+	start, err := svc.StartLink(context.Background(), provider.ID, user.ID, "/settings", "", "http://app.example")
 	if err != nil {
 		t.Fatalf("start link failed: %v", err)
 	}
@@ -354,7 +389,7 @@ func TestOIDCServiceLinkCallbackBlocksVerifiedEmailForAnotherLocalUser(t *testin
 	createOIDCLoginUser(t, db, "owner", "owner@example.com")
 	user := createOIDCLoginUser(t, db, "collector", "collector@example.com")
 
-	start, err := svc.StartLink(context.Background(), provider.ID, user.ID, "/settings", "http://app.example")
+	start, err := svc.StartLink(context.Background(), provider.ID, user.ID, "/settings", "", "http://app.example")
 	if err != nil {
 		t.Fatalf("start link failed: %v", err)
 	}

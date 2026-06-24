@@ -2119,6 +2119,8 @@ definitions:
     type: object
   services.OIDCStartLoginInput:
     properties:
+      callbackPath:
+        type: string
       redirectPath:
         type: string
     type: object

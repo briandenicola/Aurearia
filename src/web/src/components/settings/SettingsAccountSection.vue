@@ -320,7 +320,10 @@ async function handleLinkProvider(providerId: number, displayName: string) {
   oidcError.value = false
   linkingProviderId.value = providerId
   try {
-    const response = await startOIDCLink(providerId, { redirectPath: '/settings?tab=account' })
+    const response = await startOIDCLink(providerId, {
+      redirectPath: '/settings?tab=account',
+      callbackPath: `/settings/oidc/link/callback/${providerId}`,
+    })
     const authorizationUrl = response.data.authorizationUrl
     if (!authorizationUrl) {
       oidcMsg.value = `${displayName} did not return an authorization URL. Ask an administrator to test the provider.`

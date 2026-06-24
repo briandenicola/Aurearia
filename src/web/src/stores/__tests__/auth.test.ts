@@ -155,6 +155,34 @@ describe('Auth Store', () => {
       expect(store.isAuthenticated).toBe(true)
     })
 
+    describe('applyAuthResponse', () => {
+      it('accepts OIDC callback auth responses and persists the session', async () => {
+        const store = useAuthStore()
+
+        await store.applyAuthResponse(mockAuthResponse)
+
+        expect(store.token).toBe(mockAuthResponse.token)
+        expect(store.user).toEqual(mockUser)
+        expect(localStorage.setItem).toHaveBeenCalledWith('refreshToken', mockAuthResponse.refreshToken)
+      })
+
+      it('clears private media caches when OIDC callback switches users', async () => {
+        const firstAuth: AuthResponse = { ...mockAuthResponse, token: 'first-token' }
+        const secondAuth: AuthResponse = {
+          token: 'second-token',
+          refreshToken: 'second-refresh',
+          user: mockAdminUser,
+        }
+        const store = useAuthStore()
+
+        await store.applyAuthResponse(firstAuth)
+        await store.applyAuthResponse(secondAuth)
+
+        expect(store.user).toEqual(mockAdminUser)
+        expect(cacheDelete).toHaveBeenCalledWith('coin-images')
+      })
+    })
+
     it('persists token, refreshToken, and user to localStorage', async () => {
       vi.mocked(api.login).mockResolvedValue({ data: mockAuthResponse } as AxiosResponse<AuthResponse>)
       const store = useAuthStore()

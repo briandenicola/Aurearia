@@ -428,6 +428,7 @@ export interface OIDCPublicProvidersResponse {
 
 export interface OIDCStartFlowRequest {
   redirectPath: string
+  callbackPath?: string
 }
 
 export interface OIDCStartFlowResponse {

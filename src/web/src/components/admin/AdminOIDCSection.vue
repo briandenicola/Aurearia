@@ -213,10 +213,10 @@
                 id="oidc-callback-path"
                 v-model.trim="form.callbackPath"
                 class="form-input"
-                placeholder="/api/auth/oidc/1/callback"
+                placeholder="/auth/oidc/callback/1"
                 autocomplete="off"
               />
-              <span class="form-hint">Leave blank if the API should use its default callback route.</span>
+              <span class="form-hint">Login and linking use branded frontend callbacks. Leave blank unless you need a fallback override.</span>
             </div>
           </div>
 

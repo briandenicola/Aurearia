@@ -140,7 +140,10 @@ async function handleOIDCLogin(provider: OIDCPublicProvider) {
   oidcError.value = ''
   startingProviderId.value = provider.id
   try {
-    const res = await startOIDCLogin(provider.id, { redirectPath: '/' })
+    const res = await startOIDCLogin(provider.id, {
+      redirectPath: '/',
+      callbackPath: `/auth/oidc/callback/${provider.id}`,
+    })
     const authorizationUrl = res.data.authorizationUrl
     if (!authorizationUrl) {
       oidcError.value = 'The sign-in provider did not return an authorization URL. Ask an administrator to check provider configuration.'

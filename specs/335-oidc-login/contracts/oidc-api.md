@@ -35,9 +35,12 @@ Starts login flow and returns provider authorization URL.
 
 ```json
 {
-  "redirectPath": "/"
+  "redirectPath": "/",
+  "callbackPath": "/auth/oidc/callback/1"
 }
 ```
+
+`callbackPath` is optional for API compatibility. The Vue login page sends the branded frontend callback path so the provider redirects to the SPA, which then completes the secure exchange with the API callback endpoint.
 
 **Response 200**
 
@@ -59,7 +62,7 @@ Starts login flow and returns provider authorization URL.
 
 ### `GET /auth/oidc/:providerId/callback?code=...&state=...`
 
-Completes login flow. MVP backend implementation returns the existing `AuthResponse` JSON body directly from this callback after provider validation; it does not redirect with app JWTs or refresh tokens in URL query strings. A later frontend callback/session-exchange wrapper may replace this transport shape without changing token semantics.
+Completes the internal login exchange after the branded frontend callback page receives the provider `code` and `state`. The provider redirect URI should normally be the frontend route `/auth/oidc/callback/:providerId`; this API endpoint returns the existing `AuthResponse` JSON body to the Vue callback page after provider validation and does not put app JWTs or refresh tokens in URL query strings.
 
 **Successful app session exchange response shape**
 
@@ -200,7 +203,7 @@ Admin only.
       "clientId": "client-id",
       "clientSecretConfigured": true,
       "scopes": ["openid", "profile", "email"],
-      "callbackPath": "/api/auth/oidc/1/callback",
+      "callbackPath": "/auth/oidc/callback/1",
       "lastTestStatus": "ok",
       "lastTestMessage": "Discovery succeeded"
     }

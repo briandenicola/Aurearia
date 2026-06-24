@@ -4,17 +4,17 @@
 
 - A local admin account exists and can sign in with username/password.
 - `PublicAppURL` is configured to the externally reachable app URL for production.
-- Each OIDC provider has a registered redirect URI matching the app callback path.
+- Each OIDC provider has registered frontend redirect URIs for login and account linking.
 
 ## Microsoft Entra ID setup
 
 1. In Entra ID, create or select an app registration.
-2. Add a web redirect URI for the API callback, for example `https://your-app.example/api/auth/oidc/1/callback`.
-3. Create a client secret and copy it once.
+2. Add Web redirect URIs for the branded frontend callbacks, for example `https://your-app.example/auth/oidc/callback/1` and `https://your-app.example/settings/oidc/link/callback/1`.
+3. Create a client secret and copy the **Value** immediately. Do not use the Secret ID.
 4. In Aurearia Admin Settings, create an OIDC provider:
    - Provider type: `Microsoft Entra ID`
    - Display name: user-facing label such as `Microsoft`
-   - Issuer URL: tenant-specific issuer, for example `https://login.microsoftonline.com/{tenant-id}/v2.0`
+   - Tenant ID: the Entra directory tenant ID; Aurearia derives `https://login.microsoftonline.com/{tenant-id}/v2.0`
    - Client ID: Entra app client ID
    - Client secret: Entra client secret
    - Scopes: `openid profile email`
@@ -24,7 +24,7 @@
 ## Pocket ID setup
 
 1. In Pocket ID, create an OIDC client/application.
-2. Add a redirect URI for the API callback, for example `https://your-app.example/api/auth/oidc/2/callback`.
+2. Add redirect URIs for the branded frontend callbacks, for example `https://your-app.example/auth/oidc/callback/2` and `https://your-app.example/settings/oidc/link/callback/2`.
 3. Copy the client ID and secret.
 4. In Aurearia Admin Settings, create an OIDC provider:
    - Provider type: `Pocket ID`

@@ -33,7 +33,7 @@ vi.mock('@/api/client', () => ({
     return error instanceof Error ? error.message : ''
   },
   getOIDCPublicProviders: () => mockGetOIDCPublicProviders(),
-  startOIDCLogin: (providerId: number, request: { redirectPath: string }) => mockStartOIDCLogin(providerId, request),
+  startOIDCLogin: (providerId: number, request: { redirectPath: string; callbackPath?: string }) => mockStartOIDCLogin(providerId, request),
   webauthnCheck: (username: string) => mockWebAuthnCheck(username),
 }))
 
@@ -126,7 +126,10 @@ describe('LoginPage', () => {
     await wrapper.findAll('.oidc-btn')[0]?.trigger('click')
     await flushPromises()
 
-    expect(mockStartOIDCLogin).toHaveBeenCalledWith(1, { redirectPath: '/' })
+    expect(mockStartOIDCLogin).toHaveBeenCalledWith(1, {
+      redirectPath: '/',
+      callbackPath: '/auth/oidc/callback/1',
+    })
     expect(mockLocationAssign).toHaveBeenCalledWith('https://provider.example/authorize')
   })
 

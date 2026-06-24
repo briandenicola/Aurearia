@@ -1,21 +1,25 @@
 # OIDC setup
 
-Ancient Coins supports OpenID Connect sign-in with Microsoft Entra ID, Pocket ID, or another standards-compliant provider. Keep at least one admin account with a local password so you can recover the app if OIDC is unavailable or misconfigured.
+Aurearia supports OpenID Connect sign-in with Microsoft Entra ID, Pocket ID, or another standards-compliant provider. Keep at least one admin account with a local password so you can recover the app if OIDC is unavailable or misconfigured.
 
 ## Redirect URIs
 
-Register both redirect URIs for each provider, replacing the host and provider ID:
+Register both frontend redirect URIs for each provider, replacing the host and provider ID. In Microsoft Entra ID, add these under the **Web** platform, not SPA, because the Go API redeems the authorization code with a client secret.
 
-- Login: `https://your-app.example/api/auth/oidc/{providerId}/callback`
-- Account linking: `https://your-app.example/api/auth/oidc/{providerId}/link/callback`
+- Login: `https://your-app.example/auth/oidc/callback/{providerId}`
+- Account linking: `https://your-app.example/settings/oidc/link/callback/{providerId}`
+
+Both redirects land on branded frontend result pages, which then complete the secure callback with the Go API. The API callback endpoints (`/api/auth/oidc/{providerId}/callback` and `/api/auth/oidc/{providerId}/link/callback`) remain internal exchange endpoints for the Vue app and should not be the primary redirect URIs registered with Entra or Pocket ID.
+
+If you have an older beta provider registration that uses `/api/auth/oidc/{providerId}/callback` or `/api/auth/oidc/{providerId}/link/callback`, keep those only until every beta deployment and provider is updated to the frontend URIs above.
 
 Local development may use `http://localhost` redirect URIs. Production deployments should use HTTPS.
 
 ## Microsoft Entra ID
 
 1. In Entra admin center, create or choose an App registration.
-2. Add the two web redirect URIs above under Authentication.
-3. Create a client secret and copy the **Value** column immediately; do not use the Secret ID. Ancient Coins stores the secret value write-only and never returns it from read APIs.
+2. Add the two frontend Web redirect URIs above under Authentication.
+3. Create a client secret and copy the **Value** column immediately; do not use the Secret ID. Aurearia stores the secret value write-only and never returns it from read APIs.
 4. Enter the Tenant ID in Admin Settings and confirm the derived issuer URL shown under the field is `https://login.microsoftonline.com/{tenant-id}/v2.0`.
 5. Configure scopes: `openid`, `profile`, and `email`.
 6. Save and test the provider from Admin Settings before enabling it.
@@ -23,7 +27,7 @@ Local development may use `http://localhost` redirect URIs. Production deploymen
 ## Pocket ID
 
 1. Create an OAuth/OIDC client in Pocket ID.
-2. Add the two redirect URIs above.
+2. Add the two frontend redirect URIs above.
 3. Copy the client ID and client secret.
 4. Use the Pocket ID issuer URL that serves `/.well-known/openid-configuration`.
 5. Configure scopes: `openid`, `profile`, and `email`.

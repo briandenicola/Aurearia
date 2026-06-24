@@ -30,7 +30,7 @@ vi.mock('@/stores/auth', () => ({
 vi.mock('@/api/client', () => ({
   getOIDCIdentities: () => mockGetOIDCIdentities(),
   getOIDCPublicProviders: () => mockGetOIDCPublicProviders(),
-  startOIDCLink: (providerId: number, request: { redirectPath: string }) => mockStartOIDCLink(providerId, request),
+  startOIDCLink: (providerId: number, request: { redirectPath: string; callbackPath?: string }) => mockStartOIDCLink(providerId, request),
   deleteOIDCIdentity: (identityId: number) => mockDeleteOIDCIdentity(identityId),
   getApiErrorMessage: (error: unknown) => {
     const maybeError = error as { response?: { data?: { error?: string; message?: string } }; message?: string }
@@ -135,7 +135,10 @@ describe('SettingsAccountSection OIDC identities', () => {
     await buttonByText(wrapper, 'Link Pocket ID').trigger('click')
     await flushPromises()
 
-    expect(mockStartOIDCLink).toHaveBeenCalledWith(2, { redirectPath: '/settings?tab=account' })
+    expect(mockStartOIDCLink).toHaveBeenCalledWith(2, {
+      redirectPath: '/settings?tab=account',
+      callbackPath: '/settings/oidc/link/callback/2',
+    })
     expect(mockLocationAssign).toHaveBeenCalledWith('https://provider.example/authorize')
   })
 

@@ -127,6 +127,7 @@ type OIDCPublicProviderDTO struct {
 
 type OIDCStartLoginInput struct {
 	RedirectPath string `json:"redirectPath"`
+	CallbackPath string `json:"callbackPath,omitempty"`
 }
 
 type OIDCStartLoginResult struct {
@@ -179,15 +180,15 @@ func (s *OIDCService) ListPublicProviders() ([]OIDCPublicProviderDTO, error) {
 	return result, nil
 }
 
-func (s *OIDCService) StartLogin(ctx context.Context, providerID uint, redirectPath, requestOrigin string) (OIDCStartLoginResult, error) {
-	return s.startFlow(ctx, providerID, nil, models.OIDCFlowTypeLogin, redirectPath, requestOrigin)
+func (s *OIDCService) StartLogin(ctx context.Context, providerID uint, redirectPath, callbackPath, requestOrigin string) (OIDCStartLoginResult, error) {
+	return s.startFlow(ctx, providerID, nil, models.OIDCFlowTypeLogin, redirectPath, callbackPath, requestOrigin)
 }
 
-func (s *OIDCService) StartLink(ctx context.Context, providerID, userID uint, redirectPath, requestOrigin string) (OIDCStartLoginResult, error) {
-	return s.startFlow(ctx, providerID, &userID, models.OIDCFlowTypeLink, redirectPath, requestOrigin)
+func (s *OIDCService) StartLink(ctx context.Context, providerID, userID uint, redirectPath, callbackPath, requestOrigin string) (OIDCStartLoginResult, error) {
+	return s.startFlow(ctx, providerID, &userID, models.OIDCFlowTypeLink, redirectPath, callbackPath, requestOrigin)
 }
 
-func (s *OIDCService) startFlow(ctx context.Context, providerID uint, userID *uint, flowType models.OIDCFlowType, redirectPath, requestOrigin string) (OIDCStartLoginResult, error) {
+func (s *OIDCService) startFlow(ctx context.Context, providerID uint, userID *uint, flowType models.OIDCFlowType, redirectPath, callbackPath, requestOrigin string) (OIDCStartLoginResult, error) {
 	provider, err := s.enabledProvider(providerID)
 	if err != nil {
 		return OIDCStartLoginResult{}, err
@@ -196,11 +197,15 @@ func (s *OIDCService) startFlow(ctx context.Context, providerID uint, userID *ui
 	if !isSafeRelativeRedirectPath(redirectPath) {
 		return OIDCStartLoginResult{}, ErrOIDCInvalidRedirect
 	}
+	callbackPath = normalizeOIDCCallbackPath(callbackPath, oidcFlowCallbackPath(*provider, flowType))
+	if !isSafeRelativeCallbackPath(callbackPath) {
+		return OIDCStartLoginResult{}, ErrOIDCInvalidRedirect
+	}
 	runtime, err := s.BuildRuntimeConfig(ctx, *provider)
 	if err != nil {
 		return OIDCStartLoginResult{}, err
 	}
-	redirectURI := absoluteOIDCURL(requestOrigin, oidcFlowCallbackPath(*provider, flowType))
+	redirectURI := absoluteOIDCURL(requestOrigin, callbackPath)
 	runtime.OAuth2Config.RedirectURL = redirectURI
 
 	state, err := secureRandomURLToken(32)
@@ -825,6 +830,14 @@ func normalizeOIDCRedirectPath(path string) string {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return "/"
+	}
+	return path
+}
+
+func normalizeOIDCCallbackPath(path, fallback string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return fallback
 	}
 	return path
 }

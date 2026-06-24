@@ -73,7 +73,7 @@ func (h *OIDCHandler) StartLogin(c *gin.Context) {
 		respondError(c, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
-	result, err := h.svc.StartLogin(c.Request.Context(), id, body.RedirectPath, oidcRequestOrigin(c))
+	result, err := h.svc.StartLogin(c.Request.Context(), id, body.RedirectPath, body.CallbackPath, oidcRequestOrigin(c))
 	if err != nil {
 		h.handleOIDCError(c, err)
 		return
@@ -143,7 +143,7 @@ func (h *OIDCHandler) StartLink(c *gin.Context) {
 		respondError(c, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
-	result, err := h.svc.StartLink(c.Request.Context(), id, c.GetUint("userId"), body.RedirectPath, oidcRequestOrigin(c))
+	result, err := h.svc.StartLink(c.Request.Context(), id, c.GetUint("userId"), body.RedirectPath, body.CallbackPath, oidcRequestOrigin(c))
 	if err != nil {
 		h.handleOIDCError(c, err)
 		return
