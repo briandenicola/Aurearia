@@ -25,7 +25,7 @@ func setupAuthHandlerTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	err = db.AutoMigrate(&models.User{}, &models.RefreshToken{}, &models.AppSetting{}, &models.SecurityEvent{}, &models.IPRule{})
+	err = db.AutoMigrate(&models.User{}, &models.RefreshToken{}, &models.AppSetting{}, &models.SecurityEvent{}, &models.IPRule{}, &models.OIDCProvider{})
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
@@ -59,7 +59,8 @@ func setupAuthHandlerRouterWithSettings(t *testing.T) (*gin.Engine, *gorm.DB, *s
 	authRepo := repository.NewAuthRepository(db)
 	settingsSvc := services.NewSettingsService(repository.NewSettingsRepository(db))
 	securitySvc := services.NewSecurityService(repository.NewSecurityRepository(db))
-	authSvc := services.NewAuthService(authRepo, testJWTSecret).WithSettings(settingsSvc).WithSecurity(securitySvc)
+	oidcRepo := repository.NewOIDCRepository(db)
+	authSvc := services.NewAuthService(authRepo, testJWTSecret).WithSettings(settingsSvc).WithSecurity(securitySvc).WithOIDC(oidcRepo)
 	handler := NewAuthHandler(testJWTSecret, authRepo, authSvc)
 
 	r := gin.New()
@@ -205,7 +206,7 @@ func TestRegisterHandler_DuplicateUsername(t *testing.T) {
 	}
 }
 
-func TestRegisterHandler_RegistrationModeDefaultClosedAfterFirstUser(t *testing.T) {
+func TestRegisterHandler_RegistrationModeDefaultAllowsLocalUsersWhenNoOIDCProviderEnabled(t *testing.T) {
 	routerWithSettings, _, _ := setupAuthHandlerRouterWithSettings(t)
 	first := registerTestUser(t, routerWithSettings, "first", "first@example.com", "password123")
 	if first["token"] == nil {
@@ -222,8 +223,76 @@ func TestRegisterHandler_RegistrationModeDefaultClosedAfterFirstUser(t *testing.
 	w := httptest.NewRecorder()
 	routerWithSettings.ServeHTTP(w, req)
 
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 when no OIDC provider is enabled, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRegisterHandler_RegistrationModeDefaultAllowsLocalUsersWhenOIDCProviderDisabled(t *testing.T) {
+	routerWithSettings, db, _ := setupAuthHandlerRouterWithSettings(t)
+	registerTestUser(t, routerWithSettings, "first", "first@example.com", "password123")
+	provider := models.OIDCProvider{
+		Name:                 "entra",
+		DisplayName:          "Microsoft Entra ID",
+		ProviderType:         models.OIDCProviderTypeEntra,
+		Enabled:              false,
+		IssuerURL:            "https://login.microsoftonline.com/test-tenant/v2.0",
+		ClientID:             "client-id",
+		ClientSecret:         "client-secret",
+		Scopes:               models.StringList{"openid", "email", "profile"},
+		CallbackPath:         "/api/auth/oidc/1/callback",
+		RequireVerifiedEmail: true,
+	}
+	if err := db.Create(&provider).Error; err != nil {
+		t.Fatalf("failed to create disabled OIDC provider: %v", err)
+	}
+
+	body, _ := json.Marshal(map[string]string{
+		"username": "second",
+		"email":    "second@example.com",
+		"password": "password123",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	routerWithSettings.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 when OIDC provider is disabled, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRegisterHandler_RegistrationModeDefaultClosedWhenOIDCProviderEnabled(t *testing.T) {
+	routerWithSettings, db, _ := setupAuthHandlerRouterWithSettings(t)
+	registerTestUser(t, routerWithSettings, "first", "first@example.com", "password123")
+	provider := models.OIDCProvider{
+		Name:                 "entra",
+		DisplayName:          "Microsoft Entra ID",
+		ProviderType:         models.OIDCProviderTypeEntra,
+		Enabled:              true,
+		IssuerURL:            "https://login.microsoftonline.com/test-tenant/v2.0",
+		ClientID:             "client-id",
+		ClientSecret:         "client-secret",
+		Scopes:               models.StringList{"openid", "email", "profile"},
+		CallbackPath:         "/api/auth/oidc/1/callback",
+		RequireVerifiedEmail: true,
+	}
+	if err := db.Create(&provider).Error; err != nil {
+		t.Fatalf("failed to create OIDC provider: %v", err)
+	}
+
+	body, _ := json.Marshal(map[string]string{
+		"username": "second",
+		"email":    "second@example.com",
+		"password": "password123",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	routerWithSettings.ServeHTTP(w, req)
+
 	if w.Code != http.StatusForbidden {
-		t.Fatalf("expected 403 when registration is closed, got %d: %s", w.Code, w.Body.String())
+		t.Fatalf("expected 403 when OIDC provider is enabled and registration is closed, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

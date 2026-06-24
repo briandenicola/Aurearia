@@ -35,6 +35,7 @@ type AuthService struct {
 	jwtSecret string
 	settings  *SettingsService
 	security  *SecurityService
+	oidc      *repository.OIDCRepository
 }
 
 type AuthResult struct {
@@ -55,6 +56,11 @@ func (s *AuthService) WithSettings(settings *SettingsService) *AuthService {
 
 func (s *AuthService) WithSecurity(security *SecurityService) *AuthService {
 	s.security = security
+	return s
+}
+
+func (s *AuthService) WithOIDC(oidc *repository.OIDCRepository) *AuthService {
+	s.oidc = oidc
 	return s
 }
 
@@ -86,8 +92,11 @@ func (s *AuthService) RecordWebAuthnFailure(username, clientIP, userAgent, messa
 func (s *AuthService) RegisterUser(username, email, password string) (*models.User, error) {
 	count := s.repo.CountUsers()
 	if count > 0 && s.settings != nil {
-		mode := strings.ToLower(strings.TrimSpace(s.settings.GetSetting(SettingRegistrationMode)))
-		if mode != "open" {
+		allowed, err := s.additionalLocalRegistrationAllowed()
+		if err != nil {
+			return nil, err
+		}
+		if !allowed {
 			return nil, ErrRegistrationClosed
 		}
 	}
@@ -114,6 +123,21 @@ func (s *AuthService) RegisterUser(username, email, password string) (*models.Us
 	}
 
 	return &user, nil
+}
+
+func (s *AuthService) additionalLocalRegistrationAllowed() (bool, error) {
+	mode := strings.ToLower(strings.TrimSpace(s.settings.GetSetting(SettingRegistrationMode)))
+	if mode == "open" {
+		return true, nil
+	}
+	if s.oidc == nil {
+		return false, nil
+	}
+	providers, err := s.oidc.ListEnabledProviders()
+	if err != nil {
+		return false, err
+	}
+	return len(providers) == 0, nil
 }
 
 // AuthenticateUser verifies credentials and returns the user on success.
