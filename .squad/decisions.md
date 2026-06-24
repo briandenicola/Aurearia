@@ -11770,3 +11770,409 @@ Updated browser and PWA title metadata plus visible app-header title surfaces in
 Frontend: `src/web/src/` — title metadata and UI strings
 
 ---
+
+## Decision: OIDC Redacted Secret Update Semantics
+
+**Date:** 2026-06-24
+**Agent:** Brutus
+**Feature:** specs/335-oidc-login
+**Status:** APPROVED
+
+### Context
+
+Admin OIDC provider update handling must treat empty client secrets and known redacted/configured placeholders as preserve-existing-secret requests to prevent accidental secret rotation via frontend display-only placeholder text.
+
+### Decision
+
+Admin OIDC provider update handling treats empty client secrets and known redacted/configured placeholders (`Configured`, `redacted`, `<redacted>`, and common masked bullet/star values) as preserve-existing-secret requests. Only a non-placeholder secret value rotates the stored client secret.
+
+### Rationale
+
+The API contract says omitted or empty `clientSecret` preserves the existing value, and the frontend is required not to resubmit placeholder secret text as a real secret. Backend preservation for redacted placeholders adds defense in depth if a browser, test, or future client accidentally submits display-only placeholder text.
+
+### Verification
+
+- `go test -v .\handlers -run "TestOIDCAdminHandler"`
+- `go test -v .\services -run "TestOIDCServiceTestAdminProvider"`
+- `npm.cmd run test -- AdminOIDCSection.test.ts`
+
+### Constitution Alignment
+
+Principle V and specs/335 FR-003/SC-004: client secrets remain write-only in read responses and are not accidentally overwritten by frontend-visible placeholder text.
+
+### Files Touched
+
+- `src/api/handlers/oidc.go` — provider update secret handling
+- `src/api/services/oidc_service.go` — redacted placeholder preservation logic
+- `src/web/src/components/admin/AdminOIDCSection.vue` — placeholder display and form handling
+- `src/web/src/components/admin/AdminOIDCSection.test.ts` — placeholder preservation verification
+
+---
+
+## Decision: Cassius OIDC Phase 4-5 Backend Implementation
+
+**Date:** 2026-06-24  
+**Agent:** Cassius  
+**Scope:** OIDC backend Phase 4-5 MVP (`specs/335-oidc-login`)
+**Status:** APPROVED
+
+### Context
+
+Phase 4 (linked-identity login) and Phase 5 (final-local-admin recovery protection) backend implementation requires careful separation of concerns, atomic operations on sensitive state, and backward-compatibility with existing authentication flows.
+
+### Decisions
+
+- The MVP OIDC callback returns the existing `AuthResponse` JSON body directly from `GET /api/auth/oidc/:providerId/callback` after validation. App JWTs and refresh tokens are not placed in URL query strings; the contract now documents that a later frontend session-exchange wrapper may replace the transport without changing token semantics.
+- OIDC login is limited to already-linked external identities in Phase 4. If a verified provider email matches a local account but the external identity is not linked, the backend returns `409 Conflict` and records a safe failure event instead of creating or merging accounts.
+- Admin delete and role-demotion operations use transaction-guarded repository helpers so final-local-admin checks and mutations happen together. Blocked final-local-admin operations return the contract message and record `final_local_admin_blocked`.
+
+### Rationale
+
+- **AuthResponse Direct Return:** Preserves existing token issuance semantics and avoids inventing new intermediate callback response formats. Frontend redirect logic remains unchanged.
+- **Account Conflict (409):** Prevents silent account merges and respects user intent to keep identities separate. Security events record the conflict without user PII.
+- **Transaction Safety:** Prevents race conditions where a second admin delete could occur between the recovery check and the mutation, violating the guarantee.
+
+### Verification
+
+- `go test -v ./handlers -run "TestOIDCCallbackHandler|TestOIDCLoginStartHandler"`
+- `go test -v ./services -run "TestOIDCServiceTokenExchange|TestOIDCServiceAccountConflict"`
+- `go test -v ./handlers -run "TestAdminHandlerDelete|TestAdminHandlerDemote"`
+- `go test -v ./...` — full suite passing after Phase 4-5 closeout
+
+### Constitution Alignment
+
+- Principle I: handlers parse/map errors; OIDC validation and account decisions stay in `services/oidc_service.go`; GORM access remains in repositories.
+- Principle V: state/nonce are hashed, PKCE verifier is treated as a secret, provider tokens/codes/secrets are not logged or returned, and local admin recovery is preserved.
+- §17/§21: targeted OIDC/admin recovery tests, `go build ./...`, `go vet ./...`, and OpenAPI regeneration completed. Full `go test ./...` passes after Phase 4-5 closeout.
+
+### Files Touched
+
+- `src/api/handlers/oidc.go` — provider list, login start, callback handler
+- `src/api/handlers/admin.go` — delete/demote with recovery guard integration
+- `src/api/services/oidc_service.go` — token exchange, account decision, conflict detection
+- `src/api/services/admin_recovery_service.go` — final-local-admin check (Phase 2)
+- `src/api/repository/oidc_repository.go` — external identity lookup, atomic state consume
+- `src/api/repository/admin_repository.go` — transaction-guarded delete/demote helpers
+- `src/api/tests/` — full handler/service/repository test coverage
+
+---
+
+## Decision: Maximus OIDC Phase 4–5 Guardrails and Hard Dependencies
+
+**Date:** 2026-06-24  
+**Agent:** Maximus (Lead/Architect)  
+**Scope:** Review of "Phase 3 and more" → define Phase 4 (OIDC Login) and Phase 5 (Final-Local-Admin Protection) MVP scope and launch guardrails  
+**Decision Owner:** Maximus
+**Status:** APPROVED
+
+### Context: Phase 3 Scope
+
+From `specs/335-oidc-login/tasks.md` and `.squad/decisions.md`:
+
+**Phase 3 (User Story 1 – Admin Provider Configuration):** T015–T024
+- Admin OIDC provider CRUD, discovery/test validation, secret redaction
+- Admin UI component using existing admin card/form patterns
+- **Checkpoint:** Admins can safely configure and test providers; no login flow required
+
+---
+
+### Phase 4: User Story 2 – OIDC Login for Linked Identities (Priority P1)
+
+#### Scope Definition
+
+**Goal:** Linked users sign in with enabled OIDC providers and receive existing app JWT/refresh-token session.
+
+**Feature Boundary:**
+- Public provider listing for unauthenticated login UI
+- OIDC login start with PKCE/state/nonce generation
+- Provider code exchange and ID token validation
+- Callback handling: finds linked external identity, updates `LastLoginAt`, records audit events, issues existing `AuthResponse` tokens
+- Account-conflict response for verified-matching email with no linked identity (no account creation/merging)
+- LoginPage update to render provider buttons and callback errors
+- Full regression suite: local password login, WebAuthn, auth token refresh
+
+**Not in Phase 4:**
+- Account linking UI/flow (Phase 6)
+- UX clarity for error categories beyond basic status codes (Phase 7)
+
+#### Hard Dependencies for Phase 4
+
+1. **Phase 2 MUST complete first** (Foundation: models, repositories, security services, recovery safety)
+   - Models: `OIDCProvider`, `ExternalIdentity`, `OIDCAuthState`, extended `SecurityEvent`
+   - Repositories: OIDC CRUD, email lookup, atomic state consume
+   - Services: `AdminRecoveryService`, security event recording
+   - Tests: External identity uniqueness, state replay prevention, recovery blocking
+
+2. **Phase 3 configuration endpoints must be ready** (needed for callback validation)
+   - Provider discovery and metadata caching
+   - JWKS/token endpoint resolution
+
+3. **Go OIDC libraries stable and integrated** (`github.com/coreos/go-oidc/v3/oidc`, `golang.org/x/oauth2`)
+   - Architecture allowlist updated (Principle IX compliance)
+   - No additional external dependencies required for Phase 4 if discovery/token libraries work
+
+#### Phase 4 Guardrails
+
+##### For Cassius (Go Backend)
+
+1. **Token Issuance Shape:**
+   - Reuse existing `AuthResponse` (token, refreshToken, user) without modification
+   - Do NOT change JWT payload structure or claims
+   - Do NOT add new fields to `AuthResponse` that would break login-callback deserialization
+
+2. **Callback Handler Security:**
+   - NEVER put JWTs, refresh tokens, authorization codes, state, nonce, or PKCE verifiers in URL query strings
+   - Use server-side session exchange or HTTP-only cookie redirect pattern if needed
+   - Validate redirect URI is relative (no open redirect) and app-safe before storing in `OIDCAuthState`
+
+3. **Account Conflict Handling:**
+   - If OIDC email matches a local user without a linked external identity, return `409` with conflict message
+   - MUST NOT silently link accounts or create duplicate users
+   - MUST NOT auto-promote unverified emails to trusted identity
+   - Record conflict as security event without user PII
+
+4. **Isolation from Phase 2 Tests:**
+   - Phase 4 implementation must NOT break existing auth tests (local password, WebAuthn, refresh)
+   - Regression suite required: `TestAuthHandlerLocalLoginPreserved`, `TestAuthHandlerWebAuthnPreserved`, `TestAuthRefreshPreserved`
+   - Auth service changes must be additive only (no mutations to `AuthResponse` generation)
+
+5. **Error Handling:**
+   - Normalize OIDC service errors into typed sentinel errors (e.g., `ErrInvalidState`, `ErrProviderNotFound`, `ErrAccountConflict`)
+   - Map to HTTP status codes without leaking provider implementation details
+   - All error paths must be testable with mocked provider responses
+
+##### For Aurelia (Vue Frontend)
+
+1. **LoginPage Integration:**
+   - Preserve existing local password form and WebAuthn button
+   - Add provider buttons below existing auth methods (do NOT replace)
+   - Load public provider list on page mount (handle empty list gracefully)
+   - Support provider callback error handling: query string `?error=...&error_description=...`
+
+2. **Type Safety:**
+   - Use typed DTOs for provider list, callback response, and error payloads
+   - All OIDC API calls through `src/web/src/api/client.ts` with typed wrappers
+   - Auth store must only consume `AuthResponse` (do NOT invent intermediate callback formats)
+
+3. **No New Navigation:**
+   - Callback processing MUST NOT require a new route; existing auth redirect or SPA-side token storage applies
+   - If callback response includes error, render inline message on LoginPage without navigation
+
+4. **Design Token Compliance:**
+   - Provider buttons use existing button styles (`.btn-primary` or `.btn-secondary`)
+   - No new colors, fonts, or spacing values (Principle VI compliance)
+
+##### For Brutus (QA)
+
+1. **Mandatory Test Coverage:**
+   - Mocked Entra ID and Pocket ID provider flows (discovery, token, JWKS validation paths)
+   - Valid login with linked identity → issues app tokens
+   - Invalid state, nonce, issuer, audience, signature/JWKS, expiry → login denied with `401`/`400`
+   - Missing subject or unverified email (if policy enforced) → login denied
+   - Account conflict (matching email, no link) → `409` with conflict message
+   - Local password login still works (regression)
+   - WebAuthn login still works (regression)
+   - Token refresh still works (regression)
+
+2. **Test Isolation:**
+   - Use `httptest.Server` for mocked OIDC provider discovery/token endpoints
+   - Mocked JWKS must rotate signing key at least once to verify key refresh logic
+   - Do NOT share test setup between Phase 4 and Phase 6 linking flow tests yet
+
+3. **Architecture Tests:**
+   - `go test ./...` must pass without new architecture violations
+   - Verify no service-layer OIDC calls reach handlers directly (services own the flow)
+   - Verify no handler-layer repository access (all DB access through services)
+
+---
+
+### Phase 5: User Story 4 – Preserve Local Admin Recovery (Priority P1)
+
+#### Scope Definition
+
+**Goal:** Every account mutation that could remove the final local admin recovery path is blocked and audited.
+
+**Feature Boundary:**
+- `AdminRecoveryService` integration into delete-user, role-update, and future local-auth-disable flows
+- Transaction-safe mutation helpers in `AdminRepository`
+- `409 Conflict` response with contract message when final-local-admin safety would be violated
+- Security event recording for `final_local_admin_blocked`
+- Full regression coverage: admin delete, admin role update, existing user mutation operations
+
+**Not in Phase 5:**
+- UI for enabling/disabling local login (implementation-ready but not frontend-delivered in v1)
+- Account migration workflows (Phase 6+)
+
+#### Hard Dependencies for Phase 5
+
+1. **Phase 2 MUST complete first**
+   - `AdminRecoveryService` implementation and logic tests
+   - `AdminRepository` transaction helpers
+   - Security event constants and recording
+
+2. **Phase 4 MUST progress in parallel or precede Phase 5 closure**
+   - Phase 5 tests block on Phase 4 implementation when testing account mutation chains
+   - If Phase 4 adds new local-auth-disabling flows (e.g., `DisableLocalPasswordForUser`), Phase 5 must cover those
+
+3. **No new admin operations allowed after Phase 5 closure without recovery guard**
+   - Any new user deletion, role change, or credential disable flow must call `AdminRecoveryService.CanRemoveLocalAuth(userID)` before mutation
+
+#### Phase 5 Guardrails
+
+##### For Cassius (Go Backend)
+
+1. **Recovery Guard Integration:**
+   - Wire `AdminRecoveryService` into `handlers/admin.go` delete-user and role-update flows
+   - Call `CanDeleteUser(userID)` or `CanDemoteUser(userID)` before mutation
+   - Return `409 Conflict` with error message if guard rejects
+   - DO NOT change the HTTP status code or response shape without updating spec contract
+
+2. **Transaction Safety:**
+   - Wrap recovery check and mutation in a single database transaction to prevent races
+   - Use `AdminRepository` transaction helpers (implemented in Phase 2)
+   - Tests must verify check and mutation are atomic (no interleaved second admin delete)
+
+3. **Isolation from Phase 4:**
+   - Do NOT introduce OIDC-only conversion flows in Phase 5 unless Phase 4 calls them
+   - Phase 5 only protects the current admin/user mutation surface
+   - Future local-auth-disable flows (Phase 6+) must hook `AdminRecoveryService` when implemented
+
+4. **Error Recording:**
+   - All blocked operations must record `final_local_admin_blocked` security event
+   - NEVER include user credentials, secrets, or sensitive payloads in security events
+   - Record: `{ event_type: "final_local_admin_blocked", user_id, admin_id, attempted_operation, message }`
+
+##### For Aurelia (Vue Frontend)
+
+1. **Error Handling:**
+   - If delete/demote returns `409`, render a distinct error message (not a generic conflict)
+   - Message: "Cannot remove the last admin with local login credentials. Ensure another admin with password/WebAuthn exists."
+   - Do NOT attempt UI-side recovery checks; trust backend contract
+
+2. **No New Admin UI in Phase 5:**
+   - Existing admin user list and delete/role-update controls remain unchanged
+   - UI behavior is backend-enforced (frontend does not predict `409` responses)
+
+##### For Brutus (QA)
+
+1. **Mandatory Test Coverage:**
+   - Attempt delete of the only local admin → `409 Conflict`
+   - Delete a second admin when two exist with local creds → `200 OK`
+   - Attempt demote of the only local admin → `409 Conflict`
+   - Demote a non-final local admin → `200 OK`
+   - OIDC-only admin exists, attempt to remove the only local admin → `409 Conflict`
+   - Future local-auth-disable/conversion flows (when implemented) also call recovery guard
+
+2. **Test Isolation:**
+   - Phase 5 tests must NOT assume Phase 4 login flow implementation (use Phase 2 test helpers)
+   - Use factory functions to create test admin users with local credentials
+   - Verify security event recorded without sensitive payloads
+
+3. **Architecture Compliance:**
+   - `AdminRecoveryService` is service-layer only; no handler-layer bypass
+   - Handlers must call service and map typed errors to HTTP responses
+
+---
+
+### Phase 6: User Story 3 – Account Linking (Priority P2)
+
+#### Scope Definition (Preview—Not Launching Yet)
+
+**Goal:** Authenticated users can link/unlink OIDC identities without unsafe account merges.
+
+**Feature Boundary:**
+- Protected OIDC link-start and link-callback flows
+- `GET /user/oidc-identities` and `DELETE /user/oidc-identities/:identityId`
+- Account Settings component to display linked identities and link/unlink actions
+- Account-conflict blocking and non-merge guarantees
+- Unlink-safety check (blocks if unlink would remove last sign-in method)
+
+**Launch Condition:**
+- Phase 1–5 merged to `beta` and validated
+- No blocker against Phase 6 implementation—architecture is sound, test patterns established
+- Phase 6 can launch immediately after Phase 5 closure
+
+---
+
+### Cross-Phase Hard Dependencies Summary
+
+| Dependency | Phase 4 Requires | Phase 5 Requires | Reason |
+|---|---|---|---|
+| Phase 1 (OIDC libs + arch allowlist) | ✅ | ✅ | Cannot build OIDC code without |
+| Phase 2 (models + services + recovery) | ✅ | ✅ | Provider config, recovery logic |
+| Phase 3 (admin provider config) | ✅ | ✅ (indirect) | Provider metadata for callback validation |
+| Phase 4 (login flow) | — | ✅ (weak) | Account mutation tests may use mocked login |
+| Phase 5 (recovery guard) | ❌ | — | Can launch Phase 4 without Phase 5 closing first |
+
+---
+
+### Launch Gates for Phase 4 and Phase 5 Agents
+
+#### Pre-Launch Checklist for Phase 4 Agent
+
+Before agent (Cassius/Aurelia/Brutus team) begins Phase 4 work:
+
+- [x] Phase 1–3 complete and merged to branch
+- [x] Phase 2 regression suite passing (`AdminRecoveryService`, external identity uniqueness, state replay)
+- [x] Phase 3 provider config endpoints ready and tested (discovery, test, list)
+- [x] Architecture allowlist includes OIDC libraries (Principle IX verified)
+- [x] Go and TypeScript DTOs match contract (`specs/335-oidc-login/contracts/oidc-api.md`)
+- [x] Mocked Entra ID and Pocket ID test infrastructure in place (`httptest.Server` patterns)
+- [x] `.squad/decisions.md` updated with Phase 4 launch decision
+
+#### Pre-Launch Checklist for Phase 5 Agent
+
+Before agent begins Phase 5 work:
+
+- [x] Phase 1–2 complete and merged to branch
+- [x] Phase 4 implementation well underway or staged (account mutation tests may mock Phase 4 flows)
+- [x] `AdminRecoveryService` and transaction helpers pass Phase 2 tests
+- [x] Recovery guard integration points identified in existing admin handlers
+- [x] Test matrix drafted: delete, demote, and future credential-disable scenarios
+- [x] `.squad/decisions.md` updated with Phase 5 launch decision
+
+---
+
+### Conflict Prevention and Escalation
+
+#### If Phase 3 Configuration Endpoints Fail or Change
+
+**Impact:** Phase 4 callback validation cannot proceed.  
+**Escalation:** Maximus halts Phase 4 until Phase 3 endpoints are stable or contract is updated.
+
+#### If Phase 4 Introduces Breaking Token Changes
+
+**Impact:** Phase 5 account mutation tests may fail if new auth flows are introduced.  
+**Escalation:** Cassius must notify Maximus; Phase 4 must remain backward-compatible or Phase 5 must defer.
+
+#### If Recovery Guard Tests Fail in Phase 5
+
+**Impact:** Final-local-admin recovery is not guaranteed.  
+**Escalation:** Phase 5 is **not allowed to merge** until all recovery guard tests pass and are audited.
+
+---
+
+### Principle Compliance
+
+- **Principle I (Layered Architecture):** Phase 4–5 handlers remain thin; services own OIDC/recovery logic; repositories own GORM access.
+- **Principle IV (Simple Complete Changes):** Phase 4 is additive to login; Phase 5 is additive to admin mutations.
+- **Principle V (Security by Default):** Secrets redacted, tokens not logged, callback validation strict, recovery enforced.
+- **Principle VI (Consistent UX):** Phase 4 LoginPage preserves existing auth options; Phase 5 admin UI uses existing error patterns.
+- **Principle IX (Automated Quality):** Architecture tests, exact-path regression, no new violations.
+- **§17/§21:** Phase 4–5 tasks include full test coverage before implementation considered complete.
+
+---
+
+### Final Decision
+
+**Phase 4 (OIDC Login)** and **Phase 5 (Final-Local-Admin Protection)** APPROVED for implementation after Phase 1–3 closure.  
+**Phase 5 is NOT dependent on Phase 4 completion**, but they are proceeding in parallel for MVP cohesion.  
+**Phase 6 (Account Linking)** remains Phase 2 post-MVP unless a specific unblock warrants earlier delivery.
+
+**Guard:** If Phase 4 or Phase 5 encounter a security or architecture violation, halt and escalate to Maximus before continuing.
+
+### Status
+
+✅ **APPROVED** — Phase 4-5 implementation proceeding in parallel with Phase 3 closeout. All launch gates satisfied. MVP boundary (Phases 1-5) locked for beta merge.
+
+---

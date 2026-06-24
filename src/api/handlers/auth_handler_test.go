@@ -280,6 +280,71 @@ func TestLoginHandler_Success(t *testing.T) {
 	}
 }
 
+func TestLocalPasswordLoginAndRefreshRegressionWithOIDCSchema(t *testing.T) {
+	router, db := setupAuthHandlerRouter(t)
+	if err := db.AutoMigrate(&models.OIDCProvider{}, &models.ExternalIdentity{}, &models.OIDCAuthState{}); err != nil {
+		t.Fatalf("failed to migrate OIDC schema: %v", err)
+	}
+
+	registerTestUser(t, router, "local-oidc-regression", "local-oidc@example.com", "password123")
+
+	loginBody, _ := json.Marshal(map[string]string{
+		"username": "local-oidc-regression",
+		"password": "password123",
+	})
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(loginBody))
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginW := httptest.NewRecorder()
+	router.ServeHTTP(loginW, loginReq)
+
+	if loginW.Code != http.StatusOK {
+		t.Fatalf("expected local login to stay successful with OIDC schema present, got %d: %s", loginW.Code, loginW.Body.String())
+	}
+
+	var loginResp struct {
+		Token        string  `json:"token"`
+		RefreshToken string  `json:"refreshToken"`
+		User         UserDTO `json:"user"`
+	}
+	if err := json.Unmarshal(loginW.Body.Bytes(), &loginResp); err != nil {
+		t.Fatalf("failed to parse login response: %v", err)
+	}
+	if loginResp.Token == "" || loginResp.RefreshToken == "" {
+		t.Fatalf("expected local login auth response tokens, got token=%q refresh=%q", loginResp.Token, loginResp.RefreshToken)
+	}
+	if loginResp.User.Username != "local-oidc-regression" {
+		t.Fatalf("expected local login user payload to be preserved, got %+v", loginResp.User)
+	}
+
+	refreshBody, _ := json.Marshal(map[string]string{"refreshToken": loginResp.RefreshToken})
+	refreshReq := httptest.NewRequest(http.MethodPost, "/api/auth/refresh", bytes.NewReader(refreshBody))
+	refreshReq.Header.Set("Content-Type", "application/json")
+	refreshW := httptest.NewRecorder()
+	router.ServeHTTP(refreshW, refreshReq)
+
+	if refreshW.Code != http.StatusOK {
+		t.Fatalf("expected refresh to stay successful with OIDC schema present, got %d: %s", refreshW.Code, refreshW.Body.String())
+	}
+
+	var refreshResp struct {
+		Token        string  `json:"token"`
+		RefreshToken string  `json:"refreshToken"`
+		User         UserDTO `json:"user"`
+	}
+	if err := json.Unmarshal(refreshW.Body.Bytes(), &refreshResp); err != nil {
+		t.Fatalf("failed to parse refresh response: %v", err)
+	}
+	if refreshResp.Token == "" || refreshResp.RefreshToken == "" {
+		t.Fatalf("expected refreshed auth response tokens, got token=%q refresh=%q", refreshResp.Token, refreshResp.RefreshToken)
+	}
+	if refreshResp.RefreshToken == loginResp.RefreshToken {
+		t.Fatal("expected refresh token rotation to remain one-time-use")
+	}
+	if refreshResp.User.Username != "local-oidc-regression" {
+		t.Fatalf("expected refreshed user payload to be preserved, got %+v", refreshResp.User)
+	}
+}
+
 func TestLoginHandler_InvalidCredentials(t *testing.T) {
 	router, _ := setupAuthHandlerRouter(t)
 

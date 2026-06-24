@@ -59,7 +59,7 @@ Starts login flow and returns provider authorization URL.
 
 ### `GET /auth/oidc/:providerId/callback?code=...&state=...`
 
-Completes login flow. The implementation may either return an HTML redirect page that stores tokens through an app callback route or redirect with a one-time app session code exchanged by the SPA. It MUST NOT put JWTs or refresh tokens in URL query strings.
+Completes login flow. MVP backend implementation returns the existing `AuthResponse` JSON body directly from this callback after provider validation; it does not redirect with app JWTs or refresh tokens in URL query strings. A later frontend callback/session-exchange wrapper may replace this transport shape without changing token semantics.
 
 **Successful app session exchange response shape**
 

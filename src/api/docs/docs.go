@@ -968,6 +968,330 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/oidc/providers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all configured OIDC providers with client secrets redacted.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OIDC"
+                ],
+                "summary": "List admin OIDC providers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.oidcAdminProviderListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates an admin-managed OIDC provider. Client secrets are write-only.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OIDC"
+                ],
+                "summary": "Create OIDC provider",
+                "parameters": [
+                    {
+                        "description": "OIDC provider",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.OIDCAdminProviderInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/services.OIDCAdminProviderDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/oidc/providers/{providerId}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates an admin-managed OIDC provider. Empty or omitted clientSecret preserves the existing secret.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OIDC"
+                ],
+                "summary": "Update OIDC provider",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Provider ID",
+                        "name": "providerId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "OIDC provider",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.OIDCAdminProviderInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.OIDCAdminProviderDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes an OIDC provider only when no external identities reference it.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OIDC"
+                ],
+                "summary": "Delete OIDC provider",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Provider ID",
+                        "name": "providerId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/oidc/providers/{providerId}/test": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Validates provider discovery metadata and records safe status without exposing secrets.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OIDC"
+                ],
+                "summary": "Test OIDC provider",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Provider ID",
+                        "name": "providerId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.OIDCProviderTestResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/services.OIDCProviderTestResult"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/security/events": {
             "get": {
                 "security": [
@@ -3468,6 +3792,170 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/oidc/providers": {
+            "get": {
+                "description": "Returns enabled OIDC providers safe for unauthenticated login UI. Secrets, issuer URLs, and client IDs are omitted.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OIDC"
+                ],
+                "summary": "List public OIDC providers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.oidcPublicProviderListResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/oidc/{providerId}/callback": {
+            "get": {
+                "description": "Exchanges the provider code, validates the ID token, finds a linked identity, and returns app JWT/refresh tokens in the JSON body. Tokens are never placed in URL query strings.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OIDC"
+                ],
+                "summary": "Complete OIDC login",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Provider ID",
+                        "name": "providerId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Authorization code",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque state",
+                        "name": "state",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.AuthResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/oidc/{providerId}/start": {
+            "post": {
+                "description": "Creates short-lived state with PKCE and nonce and returns the provider authorization URL.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OIDC"
+                ],
+                "summary": "Start OIDC login",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Provider ID",
+                        "name": "providerId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Login start payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.OIDCStartLoginInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.OIDCStartLoginResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -13097,6 +13585,28 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.oidcAdminProviderListResponse": {
+            "type": "object",
+            "properties": {
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.OIDCAdminProviderDTO"
+                    }
+                }
+            }
+        },
+        "handlers.oidcPublicProviderListResponse": {
+            "type": "object",
+            "properties": {
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.OIDCPublicProviderDTO"
+                    }
+                }
+            }
+        },
         "handlers.refreshRequest": {
             "type": "object",
             "required": [
@@ -13879,6 +14389,32 @@ const docTemplate = `{
                 }
             }
         },
+        "models.OIDCProviderTestStatus": {
+            "type": "string",
+            "enum": [
+                "unknown",
+                "ok",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "OIDCProviderTestStatusUnknown",
+                "OIDCProviderTestStatusOK",
+                "OIDCProviderTestStatusFailed"
+            ]
+        },
+        "models.OIDCProviderType": {
+            "type": "string",
+            "enum": [
+                "entra",
+                "pocket_id",
+                "generic"
+            ],
+            "x-enum-varnames": [
+                "OIDCProviderTypeEntra",
+                "OIDCProviderTypePocketID",
+                "OIDCProviderTypeGeneric"
+            ]
+        },
         "models.StorageLocation": {
             "type": "object",
             "properties": {
@@ -14330,6 +14866,156 @@ const docTemplate = `{
                 },
                 "percentage": {
                     "type": "number"
+                }
+            }
+        },
+        "services.OIDCAdminProviderDTO": {
+            "type": "object",
+            "properties": {
+                "callbackPath": {
+                    "type": "string"
+                },
+                "clientId": {
+                    "type": "string"
+                },
+                "clientSecretConfigured": {
+                    "type": "boolean"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "issuerUrl": {
+                    "type": "string"
+                },
+                "lastTestMessage": {
+                    "type": "string"
+                },
+                "lastTestStatus": {
+                    "$ref": "#/definitions/models.OIDCProviderTestStatus"
+                },
+                "lastTestedAt": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "providerType": {
+                    "$ref": "#/definitions/models.OIDCProviderType"
+                },
+                "requireVerifiedEmail": {
+                    "type": "boolean"
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.OIDCAdminProviderInput": {
+            "type": "object",
+            "properties": {
+                "callbackPath": {
+                    "type": "string"
+                },
+                "clientId": {
+                    "type": "string"
+                },
+                "clientSecret": {
+                    "type": "string"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "issuerUrl": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "providerType": {
+                    "$ref": "#/definitions/models.OIDCProviderType"
+                },
+                "requireVerifiedEmail": {
+                    "type": "boolean"
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "services.OIDCProviderTestResult": {
+            "type": "object",
+            "properties": {
+                "authorizationEndpoint": {
+                    "type": "string"
+                },
+                "available": {
+                    "type": "boolean"
+                },
+                "issuer": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "tokenEndpoint": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.OIDCPublicProviderDTO": {
+            "type": "object",
+            "properties": {
+                "displayName": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "providerType": {
+                    "$ref": "#/definitions/models.OIDCProviderType"
+                }
+            }
+        },
+        "services.OIDCStartLoginInput": {
+            "type": "object",
+            "properties": {
+                "redirectPath": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.OIDCStartLoginResult": {
+            "type": "object",
+            "properties": {
+                "authorizationUrl": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "type": "string"
                 }
             }
         }

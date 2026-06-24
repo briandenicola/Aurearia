@@ -31,6 +31,12 @@ func (r *OIDCRepository) GetProviderByName(name string) (*models.OIDCProvider, e
 	return &provider, err
 }
 
+func (r *OIDCRepository) GetProviderByIssuerAndClientID(issuerURL, clientID string) (*models.OIDCProvider, error) {
+	var provider models.OIDCProvider
+	err := r.db.Where("issuer_url = ? AND client_id = ?", issuerURL, clientID).First(&provider).Error
+	return &provider, err
+}
+
 func (r *OIDCRepository) ListProviders() ([]models.OIDCProvider, error) {
 	var providers []models.OIDCProvider
 	err := r.db.Order("display_name ASC, id ASC").Find(&providers).Error
@@ -104,6 +110,12 @@ func (r *OIDCRepository) DeleteExternalIdentity(identityID, userID uint) (int64,
 func (r *OIDCRepository) FindUserByEmail(email string) (*models.User, error) {
 	var user models.User
 	err := r.db.Where("email = ?", email).First(&user).Error
+	return &user, err
+}
+
+func (r *OIDCRepository) FindUserByID(userID uint) (*models.User, error) {
+	var user models.User
+	err := r.db.First(&user, userID).Error
 	return &user, err
 }
 

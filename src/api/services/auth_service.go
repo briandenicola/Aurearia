@@ -37,6 +37,12 @@ type AuthService struct {
 	security  *SecurityService
 }
 
+type AuthResult struct {
+	Token        string
+	RefreshToken string
+	User         models.User
+}
+
 // NewAuthService creates a new AuthService.
 func NewAuthService(repo *repository.AuthRepository, jwtSecret string) *AuthService {
 	return &AuthService{repo: repo, jwtSecret: jwtSecret}
@@ -178,6 +184,18 @@ func (s *AuthService) GenerateRefreshToken(user models.User) (string, error) {
 	}
 
 	return plainToken, nil
+}
+
+func (s *AuthService) IssueTokens(user models.User) (AuthResult, error) {
+	accessToken, err := s.GenerateAccessToken(user)
+	if err != nil {
+		return AuthResult{}, err
+	}
+	refreshToken, err := s.GenerateRefreshToken(user)
+	if err != nil {
+		return AuthResult{}, err
+	}
+	return AuthResult{Token: accessToken, RefreshToken: refreshToken, User: user}, nil
 }
 
 // RotateTokens validates the old refresh token, rotates it, and returns the

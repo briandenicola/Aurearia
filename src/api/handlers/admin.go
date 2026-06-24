@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -18,13 +19,14 @@ import (
 type AdminHandler struct {
 	UploadDir   string
 	repo        *repository.AdminRepository
+	recoverySvc *services.AdminRecoveryService
 	agentProxy  *services.AgentProxy
 	settingsSvc *services.SettingsService
 	logger      *services.Logger
 }
 
-func NewAdminHandler(uploadDir string, repo *repository.AdminRepository, agentProxy *services.AgentProxy, settingsSvc *services.SettingsService, logger *services.Logger) *AdminHandler {
-	return &AdminHandler{UploadDir: uploadDir, repo: repo, agentProxy: agentProxy, settingsSvc: settingsSvc, logger: logger}
+func NewAdminHandler(uploadDir string, repo *repository.AdminRepository, recoverySvc *services.AdminRecoveryService, agentProxy *services.AgentProxy, settingsSvc *services.SettingsService, logger *services.Logger) *AdminHandler {
+	return &AdminHandler{UploadDir: uploadDir, repo: repo, recoverySvc: recoverySvc, agentProxy: agentProxy, settingsSvc: settingsSvc, logger: logger}
 }
 
 // AdminRequired middleware ensures only admin users can access
@@ -93,8 +95,16 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	// Delete user's coin images, coins, then user
-	rowsAffected, _ := h.repo.DeleteUserCascade(uint(targetID))
+	actorID := adminID
+	rowsAffected, err := h.recoverySvc.DeleteUserCascade(uint(targetID), &actorID)
+	if err != nil {
+		if errors.Is(err, services.ErrFinalLocalAdmin) {
+			c.JSON(http.StatusConflict, gin.H{"error": services.FinalLocalAdminRecoveryMessage})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user"})
+		return
+	}
 	if rowsAffected == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
@@ -193,8 +203,13 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 		return
 	}
 
-	result, err := h.repo.UpdateUserRole(uint(targetID), req.Role)
+	actorID := adminID
+	result, err := h.recoverySvc.UpdateUserRole(uint(targetID), req.Role, &actorID)
 	if err != nil {
+		if errors.Is(err, services.ErrFinalLocalAdmin) {
+			c.JSON(http.StatusConflict, gin.H{"error": services.FinalLocalAdminRecoveryMessage})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user role"})
 		return
 	}

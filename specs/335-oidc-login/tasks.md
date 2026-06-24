@@ -43,19 +43,19 @@
 
 ### Tests for User Story 1
 
-- [ ] T015 [P] Add handler tests in `src/api/handlers/oidc_admin_test.go` verifying provider create/update/list redacts client secrets and preserves existing secret on empty/redacted updates.
-- [ ] T016 [P] Add service tests in `src/api/services/oidc_service_test.go` for Entra tenant issuer discovery and Pocket ID discovery using `httptest`.
-- [ ] T017 [P] Add security event tests verifying provider config changes and provider test failures are audited without secrets.
+- [x] T015 [P] Add handler tests in `src/api/handlers/oidc_admin_test.go` verifying provider create/update/list redacts client secrets and preserves existing secret on empty/redacted updates.
+- [x] T016 [P] Add service tests in `src/api/services/oidc_service_test.go` for Entra tenant issuer discovery and Pocket ID discovery using `httptest`.
+- [x] T017 [P] Add security event tests verifying provider config changes and provider test failures are audited without secrets.
 
 ### Implementation for User Story 1
 
-- [ ] T018 Create admin provider DTOs and validation in `src/api/services/oidc_service.go`.
-- [ ] T019 Implement provider create/update/delete/list/test methods in `src/api/services/oidc_service.go`.
-- [ ] T020 Implement admin OIDC provider handlers in `src/api/handlers/oidc.go`.
-- [ ] T021 Wire `OIDCRepository`, `OIDCService`, and admin OIDC routes in `src/api/main.go`.
-- [ ] T022 Add `AdminOIDCSection.vue` under `src/web/src/components/admin/` using existing admin card/form patterns and design tokens.
-- [ ] T023 Add Admin Settings navigation/rendering for the OIDC section in the existing admin page structure.
-- [ ] T024 Add component tests in `src/web/src/components/admin/__tests__/AdminOIDCSection.test.ts` for redacted secret handling, provider test statuses, and save errors.
+- [x] T018 Create admin provider DTOs and validation in `src/api/services/oidc_service.go`.
+- [x] T019 Implement provider create/update/delete/list/test methods in `src/api/services/oidc_service.go`.
+- [x] T020 Implement admin OIDC provider handlers in `src/api/handlers/oidc.go`.
+- [x] T021 Wire `OIDCRepository`, `OIDCService`, and admin OIDC routes in `src/api/main.go`.
+- [x] T022 Add `AdminOIDCSection.vue` under `src/web/src/components/admin/` using existing admin card/form patterns and design tokens.
+- [x] T023 Add Admin Settings navigation/rendering for the OIDC section in the existing admin page structure.
+- [x] T024 Add component tests in `src/web/src/components/admin/__tests__/AdminOIDCSection.test.ts` for redacted secret handling, provider test statuses, and save errors.
 
 **Checkpoint**: Admin can safely configure and test providers; no login flow required yet.
 
@@ -69,22 +69,22 @@
 
 ### Tests for User Story 2
 
-- [ ] T025 [P] Add OIDC login start/callback tests in `src/api/handlers/oidc_test.go` for successful login with an existing external identity.
-- [ ] T026 [P] Add exact failure tests for invalid state, replayed state, invalid nonce, invalid issuer, invalid audience, expired token, bad signature/JWKS, missing subject, and unverified email policy.
-- [ ] T027 [P] Add local auth regression tests in `src/api/handlers/auth_handler_test.go` and/or `src/api/services/auth_service_test.go` confirming password login and refresh behavior are unchanged.
-- [ ] T028 [P] Add WebAuthn regression coverage in existing `src/api/handlers/webauthn_test.go` if OIDC wiring touches auth token issuance.
-- [ ] T029 [P] Add LoginPage tests in `src/web/src/pages/__tests__/LoginPage.test.ts` for OIDC provider buttons and distinct error categories.
+- [x] T025 [P] Add OIDC login start/callback tests in `src/api/handlers/oidc_test.go` for successful login with an existing external identity.
+- [x] T026 [P] Add exact failure tests for invalid state, replayed state, invalid nonce, invalid issuer, invalid audience, expired token, bad signature/JWKS, missing subject, and unverified email policy.
+- [x] T027 [P] Add local auth regression tests in `src/api/handlers/auth_handler_test.go` and/or `src/api/services/auth_service_test.go` confirming password login and refresh behavior are unchanged.
+- [x] T028 [P] Add WebAuthn regression coverage in existing `src/api/handlers/webauthn_test.go` if OIDC wiring touches auth token issuance.
+- [x] T029 [P] Add LoginPage tests in `src/web/src/pages/__tests__/LoginPage.test.ts` for OIDC provider buttons and distinct error categories.
 
 ### Implementation for User Story 2
 
-- [ ] T030 Implement public enabled-provider listing in `src/api/handlers/oidc.go`.
-- [ ] T031 Implement OIDC login start with PKCE/state/nonce generation, relative redirect validation, and persisted `OIDCAuthState`.
-- [ ] T032 Implement provider code exchange and ID token validation in `src/api/services/oidc_service.go`.
-- [ ] T033 Implement callback handling that finds linked external identity, updates `LastLoginAt`, records audit events, and issues existing `AuthResponse` tokens without placing tokens in URL query strings.
-- [ ] T034 Add account-conflict response for verified/matching email with no linked identity, without creating or merging accounts.
-- [ ] T035 Wire public OIDC routes in `src/api/main.go` under existing auth rate limits.
-- [ ] T036 Update `src/web/src/pages/LoginPage.vue` to load public providers, render alternate sign-in buttons, start OIDC login, and display callback errors.
-- [ ] T037 Update `src/web/src/stores/auth.ts` only if needed to consume a callback/session-exchange response while preserving existing token storage.
+- [x] T030 Implement public enabled-provider listing in `src/api/handlers/oidc.go`.
+- [x] T031 Implement OIDC login start with PKCE/state/nonce generation, relative redirect validation, and persisted `OIDCAuthState`.
+- [x] T032 Implement provider code exchange and ID token validation in `src/api/services/oidc_service.go`.
+- [x] T033 Implement callback handling that finds linked external identity, updates `LastLoginAt`, records audit events, and issues existing `AuthResponse` tokens without placing tokens in URL query strings.
+- [x] T034 Add account-conflict response for verified/matching email with no linked identity, without creating or merging accounts.
+- [x] T035 Wire public OIDC routes in `src/api/main.go` under existing auth rate limits.
+- [x] T036 Update `src/web/src/pages/LoginPage.vue` to load public providers, render alternate sign-in buttons, start OIDC login, and display callback errors.
+- [x] T037 Update `src/web/src/stores/auth.ts` only if needed to consume a callback/session-exchange response while preserving existing token storage. Not needed for the implemented callback flow; existing token storage remains unchanged.
 
 **Checkpoint**: OIDC login works for linked identities; local auth remains intact.
 
@@ -98,17 +98,17 @@
 
 ### Tests for User Story 4
 
-- [ ] T038 [P] Add admin delete-user tests in `src/api/handlers/admin_test.go` for blocking deletion of the final local admin and allowing deletion when another local admin exists.
-- [ ] T039 [P] Add admin role-update tests in `src/api/handlers/admin_test.go` for blocking demotion of the final local admin.
-- [ ] T040 [P] Add service tests for password clearing/local-auth disable/OIDC-only conversion guard paths even if UI for disabling local login is not delivered in v1.
-- [ ] T041 [P] Add security event tests for `final_local_admin_blocked` without sensitive payloads.
+- [x] T038 [P] Add admin delete-user tests in `src/api/handlers/admin_test.go` for blocking deletion of the final local admin and allowing deletion when another local admin exists.
+- [x] T039 [P] Add admin role-update tests in `src/api/handlers/admin_test.go` for blocking demotion of the final local admin.
+- [x] T040 [P] Add service tests for password clearing/local-auth disable/OIDC-only conversion guard paths even if UI for disabling local login is not delivered in v1.
+- [x] T041 [P] Add security event tests for `final_local_admin_blocked` without sensitive payloads.
 
 ### Implementation for User Story 4
 
-- [ ] T042 Integrate `AdminRecoveryService` into `src/api/handlers/admin.go` delete and role update flows.
-- [ ] T043 Add repository transaction helpers in `src/api/repository/admin_repository.go` so recovery checks and mutations cannot race.
-- [ ] T044 Add guard hooks to any OIDC-only conversion or local-auth-disable service methods introduced for account migration.
-- [ ] T045 Ensure errors use `409 Conflict` with the contract message and record security events.
+- [x] T042 Integrate `AdminRecoveryService` into `src/api/handlers/admin.go` delete and role update flows.
+- [x] T043 Add repository transaction helpers in `src/api/repository/admin_repository.go` so recovery checks and mutations cannot race.
+- [x] T044 Add guard hooks to any OIDC-only conversion or local-auth-disable service methods introduced for account migration.
+- [x] T045 Ensure errors use `409 Conflict` with the contract message and record security events.
 
 **Checkpoint**: Recovery safety is enforced across current and planned account-conversion flows.
 

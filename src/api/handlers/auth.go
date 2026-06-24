@@ -139,40 +139,26 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"token":        accessToken,
-		"refreshToken": refreshToken,
-		"user": gin.H{
-			"id":         user.ID,
-			"username":   user.Username,
-			"role":       user.Role,
-			"email":      user.Email,
-			"avatarPath": user.AvatarPath,
-			"isPublic":   user.IsPublic,
-			"bio":        user.Bio,
-			"zipCode":    user.ZipCode,
-		},
-	})
+	writeAuthResponse(c, http.StatusOK, services.AuthResult{Token: accessToken, RefreshToken: refreshToken, User: *user})
 }
 
 // issueTokens generates and returns both access and refresh tokens.
 func (h *AuthHandler) issueTokens(c *gin.Context, user models.User, statusCode int) {
 	noStore(c)
-	accessToken, err := h.svc.GenerateAccessToken(user)
+	result, err := h.svc.IssueTokens(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
 		return
 	}
+	writeAuthResponse(c, statusCode, result)
+}
 
-	refreshToken, err := h.svc.GenerateRefreshToken(user)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate refresh token"})
-		return
-	}
-
+func writeAuthResponse(c *gin.Context, statusCode int, result services.AuthResult) {
+	noStore(c)
+	user := result.User
 	c.JSON(statusCode, gin.H{
-		"token":        accessToken,
-		"refreshToken": refreshToken,
+		"token":        result.Token,
+		"refreshToken": result.RefreshToken,
 		"user": gin.H{
 			"id":         user.ID,
 			"username":   user.Username,

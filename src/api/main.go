@@ -124,7 +124,9 @@ func main() {
 	authRepo := repository.NewAuthRepository(database.DB)
 	securityRepo := repository.NewSecurityRepository(database.DB)
 	securitySvc := services.NewSecurityService(securityRepo)
+	oidcRepo := repository.NewOIDCRepository(database.DB)
 	authSvc := services.NewAuthService(authRepo, cfg.JWTSecret).WithSettings(settingsSvc).WithSecurity(securitySvc)
+	oidcSvc := services.NewOIDCService(oidcRepo, services.NewDefaultOIDCDiscoveryFactory()).WithSecurity(securitySvc).WithAuth(authSvc)
 	authHandler := handlers.NewAuthHandler(cfg.JWTSecret, authRepo, authSvc)
 	webauthnRepo := repository.NewWebAuthnRepository(database.DB)
 	webauthnHandler, err := handlers.NewWebAuthnHandler(cfg.WebAuthnID, cfg.WebAuthnOrigin, authHandler, webauthnRepo, logger)
@@ -151,6 +153,10 @@ func main() {
 		api.POST("/auth/register", authRateLimit, authHandler.Register)
 		api.POST("/auth/login", authRateLimit, authHandler.Login)
 		api.POST("/auth/refresh", authRateLimit, authHandler.Refresh)
+		oidcHandler := handlers.NewOIDCHandler(oidcSvc)
+		api.GET("/auth/oidc/providers", authRateLimit, oidcHandler.ListPublicProviders)
+		api.POST("/auth/oidc/:providerId/start", authRateLimit, oidcHandler.StartLogin)
+		api.GET("/auth/oidc/:providerId/callback", authRateLimit, oidcHandler.Callback)
 
 		// WebAuthn public routes (login ceremony)
 		api.POST("/auth/webauthn/login/begin", authRateLimit, webauthnHandler.LoginBegin)
@@ -468,7 +474,8 @@ func main() {
 	admin.Use(handlers.AdminRequired())
 	{
 		adminRepo := repository.NewAdminRepository(database.DB)
-		adminHandler := handlers.NewAdminHandler(cfg.UploadDir, adminRepo, agentProxy, settingsSvc, logger)
+		adminRecoverySvc := services.NewAdminRecoveryService(adminRepo, securitySvc)
+		adminHandler := handlers.NewAdminHandler(cfg.UploadDir, adminRepo, adminRecoverySvc, agentProxy, settingsSvc, logger)
 		admin.GET("/users", adminHandler.ListUsers)
 		admin.DELETE("/users/:id", adminHandler.DeleteUser)
 		admin.POST("/users/:id/reset-password", adminHandler.ResetPassword)
@@ -479,6 +486,13 @@ func main() {
 		admin.GET("/logs", adminHandler.GetLogs)
 		admin.GET("/test-anthropic", adminHandler.TestAnthropicConnection)
 		admin.GET("/test-searxng", adminHandler.TestSearXNGConnection)
+
+		oidcHandler := handlers.NewOIDCHandler(oidcSvc)
+		admin.GET("/oidc/providers", oidcHandler.ListAdminProviders)
+		admin.POST("/oidc/providers", oidcHandler.CreateAdminProvider)
+		admin.PUT("/oidc/providers/:providerId", oidcHandler.UpdateAdminProvider)
+		admin.DELETE("/oidc/providers/:providerId", oidcHandler.DeleteAdminProvider)
+		admin.POST("/oidc/providers/:providerId/test", oidcHandler.TestAdminProvider)
 
 		securityAdminHandler := handlers.NewSecurityAdminHandler(securitySvc, settingsSvc, handlers.SecurityExposureConfig{
 			PublicAppURL:             settingsSvc.GetSetting(services.SettingPublicAppURL),

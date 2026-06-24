@@ -46,6 +46,7 @@ func TestAdminRecoveryServiceBlocksFinalLocalAdminRemovalPaths(t *testing.T) {
 	}{
 		{name: "delete", guard: (*AdminRecoveryService).EnsureCanDeleteUser, operation: "delete user"},
 		{name: "demote", guard: (*AdminRecoveryService).EnsureCanDemoteUser, operation: "demote admin"},
+		{name: "clear password", guard: (*AdminRecoveryService).EnsureCanClearPassword, operation: "clear password"},
 		{name: "disable local auth", guard: (*AdminRecoveryService).EnsureCanDisableLocalAuth, operation: "disable local auth"},
 		{name: "convert to OIDC-only", guard: (*AdminRecoveryService).EnsureCanConvertToOIDCOnly, operation: "convert to OIDC-only"},
 	}
@@ -74,7 +75,37 @@ func TestAdminRecoveryServiceBlocksFinalLocalAdminRemovalPaths(t *testing.T) {
 			if !strings.Contains(event.Message, tt.operation) {
 				t.Fatalf("expected event message to include operation %q, got %q", tt.operation, event.Message)
 			}
+			for _, sensitive := range []string{"client_secret", "authorization code", "id_token", "access_token", "refresh_token", "pkce", "verifier"} {
+				if strings.Contains(strings.ToLower(event.Message), sensitive) {
+					t.Fatalf("expected blocked final-local-admin event to omit sensitive marker %q, got %q", sensitive, event.Message)
+				}
+			}
 		})
+	}
+}
+
+func TestAdminRecoveryServiceFinalLocalAdminBlockedEventRedactsSensitiveOperationDetails(t *testing.T) {
+	db, svc := setupAdminRecoveryServiceTest(t)
+	admin := createAdminRecoveryTestUser(t, db, "only-admin-sensitive", models.RoleAdmin, "local-password-hash")
+	actorID := admin.ID
+
+	err := svc.ensureCanRemoveRecoveryPath(admin.ID, &actorID, "convert to OIDC-only with client_secret=super-secret pkce verifier")
+	if !errors.Is(err, ErrFinalLocalAdmin) {
+		t.Fatalf("expected ErrFinalLocalAdmin, got %v", err)
+	}
+
+	var event models.SecurityEvent
+	if err := db.Where("type = ?", models.SecurityEventFinalAdminBlocked).First(&event).Error; err != nil {
+		t.Fatalf("failed to load security event: %v", err)
+	}
+	if strings.Contains(strings.ToLower(event.Message), "super-secret") ||
+		strings.Contains(strings.ToLower(event.Message), "client_secret") ||
+		strings.Contains(strings.ToLower(event.Message), "pkce") ||
+		strings.Contains(strings.ToLower(event.Message), "verifier") {
+		t.Fatalf("expected sensitive operation detail redacted from final-local-admin event, got %q", event.Message)
+	}
+	if !strings.Contains(event.Message, "sensitive detail redacted") {
+		t.Fatalf("expected redaction marker in final-local-admin event, got %q", event.Message)
 	}
 }
 
@@ -85,6 +116,7 @@ func TestAdminRecoveryServiceAllowsNonFinalLocalAdminRemovalPaths(t *testing.T) 
 	}{
 		{name: "delete", guard: (*AdminRecoveryService).EnsureCanDeleteUser},
 		{name: "demote", guard: (*AdminRecoveryService).EnsureCanDemoteUser},
+		{name: "clear password", guard: (*AdminRecoveryService).EnsureCanClearPassword},
 		{name: "disable local auth", guard: (*AdminRecoveryService).EnsureCanDisableLocalAuth},
 		{name: "convert to OIDC-only", guard: (*AdminRecoveryService).EnsureCanConvertToOIDCOnly},
 	}

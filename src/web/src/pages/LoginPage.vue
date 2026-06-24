@@ -27,6 +27,24 @@
         <LockKeyhole :size="18" aria-hidden="true" />
         Sign in with Biometrics
       </button>
+      <section v-if="oidcProviders.length || oidcLoading || oidcError" class="oidc-section" aria-label="Alternate sign in">
+        <div class="auth-divider">
+          <span>or</span>
+        </div>
+        <p v-if="oidcError" class="auth-error oidc-error">{{ oidcError }}</p>
+        <button
+          v-for="provider in oidcProviders"
+          :key="provider.id"
+          type="button"
+          class="btn btn-secondary auth-btn oidc-btn"
+          :disabled="loading || oidcLoading || startingProviderId === provider.id"
+          @click="handleOIDCLogin(provider)"
+        >
+          <LogIn :size="18" aria-hidden="true" />
+          {{ oidcButtonLabel(provider.displayName) }}
+        </button>
+        <p v-if="oidcLoading" class="auth-hint">Loading sign-in providers...</p>
+      </section>
       <p class="auth-footer">
         Don't have an account? <router-link to="/register">Create one</router-link>
       </p>
@@ -36,12 +54,14 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { webauthnCheck } from '@/api/client'
-import { LockKeyhole } from 'lucide-vue-next'
+import { getApiErrorMessage, getOIDCPublicProviders, startOIDCLogin, webauthnCheck } from '@/api/client'
+import type { OIDCPublicProvider } from '@/types'
+import { LockKeyhole, LogIn } from 'lucide-vue-next'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
 const username = ref('')
@@ -49,12 +69,19 @@ const password = ref('')
 const error = ref('')
 const loading = ref(false)
 const biometricAvailable = ref(false)
+const oidcProviders = ref<OIDCPublicProvider[]>([])
+const oidcLoading = ref(false)
+const oidcError = ref('')
+const startingProviderId = ref<number | null>(null)
 const coinLogoSrc = '/coin-logo.jpg'
 let retryTimer: ReturnType<typeof setInterval> | null = null
 
 const supportsWebAuthn = !!window.PublicKeyCredential
 
 onMounted(() => {
+  oidcError.value = getOIDCCallbackErrorMessage()
+  void loadOIDCProviders()
+
   // Check if we have a remembered username with biometrics
   const lastUser = localStorage.getItem('lastUsername')
   if (lastUser && supportsWebAuthn) {
@@ -80,6 +107,18 @@ async function checkBiometric() {
   }
 }
 
+async function loadOIDCProviders() {
+  oidcLoading.value = true
+  try {
+    const res = await getOIDCPublicProviders()
+    oidcProviders.value = res.data.providers ?? []
+  } catch {
+    oidcProviders.value = []
+  } finally {
+    oidcLoading.value = false
+  }
+}
+
 async function handleLogin() {
   error.value = ''
   loading.value = true
@@ -95,6 +134,80 @@ async function handleLogin() {
   } finally {
     loading.value = false
   }
+}
+
+async function handleOIDCLogin(provider: OIDCPublicProvider) {
+  oidcError.value = ''
+  startingProviderId.value = provider.id
+  try {
+    const res = await startOIDCLogin(provider.id, { redirectPath: '/' })
+    const authorizationUrl = res.data.authorizationUrl
+    if (!authorizationUrl) {
+      oidcError.value = 'The sign-in provider did not return an authorization URL. Ask an administrator to check provider configuration.'
+      return
+    }
+    window.location.assign(authorizationUrl)
+  } catch (err: unknown) {
+    oidcError.value = getOIDCStartErrorMessage(err)
+  } finally {
+    startingProviderId.value = null
+  }
+}
+
+function oidcButtonLabel(displayName: string) {
+  const label = displayName.trim() || 'OIDC'
+  return `Sign in with ${label}`
+}
+
+function getOIDCCallbackErrorMessage() {
+  const category = firstQueryValue('oidc_error') ?? firstQueryValue('error')
+  const status = firstQueryValue('status')
+  const message = firstQueryValue('message')
+
+  if (category) {
+    return mapOIDCErrorCategory(category, status, message)
+  }
+
+  if (status && ['400', '401', '409', '500'].includes(status)) {
+    return mapOIDCErrorCategory('', status, message)
+  }
+
+  return ''
+}
+
+function firstQueryValue(name: string) {
+  const value = route.query[name]
+  if (Array.isArray(value)) return value[0] ?? ''
+  return value ?? ''
+}
+
+function getOIDCStartErrorMessage(err: unknown) {
+  const response = getErrorResponse(err)
+  const message = getApiErrorMessage(err)
+  if (response?.status === 409) {
+    return 'This sign-in provider is currently disabled. Ask an administrator to check provider settings.'
+  }
+  return mapOIDCErrorCategory(message, String(response?.status ?? ''), message)
+}
+
+function mapOIDCErrorCategory(category: string, status?: string, message?: string) {
+  const normalized = category.toLowerCase()
+  if (normalized.includes('access_denied') || normalized.includes('denied') || normalized.includes('cancel')) {
+    return 'Sign-in was cancelled or denied at the provider. You can try again or use your local password.'
+  }
+  if (normalized.includes('conflict') || status === '409') {
+    return 'This provider account matches an existing local account. Sign in locally, then link the provider from Account Settings.'
+  }
+  if (normalized.includes('misconfig') || normalized.includes('configuration') || normalized.includes('discovery') || status === '500') {
+    return 'The sign-in provider is not configured correctly. Ask an administrator to test the provider settings.'
+  }
+  if (normalized.includes('validation') || normalized.includes('state') || normalized.includes('nonce') || normalized.includes('issuer') || normalized.includes('audience') || normalized.includes('signature') || status === '400' || status === '401') {
+    return 'The provider response could not be validated. Try again, or ask an administrator to review the provider setup.'
+  }
+  if (message?.trim()) {
+    return message.trim()
+  }
+  return 'OIDC sign-in failed. Try again or use your local password.'
 }
 
 function handleRateLimitError(err: unknown) {
@@ -234,6 +347,42 @@ async function handleBiometricLogin() {
   margin-top: 0.75rem;
   font-size: 0.95rem;
   gap: 0.5rem;
+}
+
+.oidc-section {
+  margin-top: 1rem;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem 0 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.oidc-btn {
+  gap: 0.5rem;
+}
+
+.oidc-error {
+  text-align: left;
+}
+
+.auth-hint {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
 }
 
 .auth-footer {

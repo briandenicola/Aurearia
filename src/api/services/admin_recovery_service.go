@@ -37,8 +37,30 @@ func (s *AdminRecoveryService) EnsureCanDisableLocalAuth(userID uint, actorID *u
 	return s.ensureCanRemoveRecoveryPath(userID, actorID, "disable local auth")
 }
 
+func (s *AdminRecoveryService) EnsureCanClearPassword(userID uint, actorID *uint) error {
+	return s.ensureCanRemoveRecoveryPath(userID, actorID, "clear password")
+}
+
 func (s *AdminRecoveryService) EnsureCanConvertToOIDCOnly(userID uint, actorID *uint) error {
 	return s.ensureCanRemoveRecoveryPath(userID, actorID, "convert to OIDC-only")
+}
+
+func (s *AdminRecoveryService) DeleteUserCascade(userID uint, actorID *uint) (int64, error) {
+	rows, blockedUser, err := s.repo.DeleteUserCascadeWithRecoveryGuard(userID)
+	if errors.Is(err, repository.ErrFinalLocalAdminBlocked) {
+		s.recordBlocked(blockedUser, actorID, "delete user")
+		return 0, ErrFinalLocalAdmin
+	}
+	return rows, err
+}
+
+func (s *AdminRecoveryService) UpdateUserRole(userID uint, role models.UserRole, actorID *uint) (int64, error) {
+	rows, blockedUser, err := s.repo.UpdateUserRoleWithRecoveryGuard(userID, role)
+	if errors.Is(err, repository.ErrFinalLocalAdminBlocked) {
+		s.recordBlocked(blockedUser, actorID, "demote admin")
+		return 0, ErrFinalLocalAdmin
+	}
+	return rows, err
 }
 
 func (s *AdminRecoveryService) ensureCanRemoveRecoveryPath(userID uint, actorID *uint, operation string) error {
