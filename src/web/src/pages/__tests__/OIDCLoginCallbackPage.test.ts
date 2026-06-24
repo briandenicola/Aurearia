@@ -91,4 +91,24 @@ describe('OIDCLoginCallbackPage', () => {
     expect(wrapper.text()).toContain('Sign In Failed')
     expect(wrapper.text()).toContain('Sign in locally, then link the provider from Account Settings.')
   })
+
+  it('shows safe provider configuration detail for token exchange failures', async () => {
+    mockCompleteOIDCLoginCallback.mockRejectedValue({
+      response: {
+        status: 400,
+        data: {
+          error: 'OIDC authorization code was rejected',
+          detail: 'provider rejected the client secret; for Entra, paste the client secret Value, not the Secret ID',
+        },
+      },
+    })
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(mockApplyAuthResponse).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Sign In Failed')
+    expect(wrapper.text()).toContain('The sign-in provider is not configured correctly: provider rejected the client secret; for Entra, paste the client secret Value, not the Secret ID. Ask an administrator to test the provider settings.')
+    expect(wrapper.text()).not.toContain('The provider response could not be validated.')
+  })
 })
