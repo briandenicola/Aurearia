@@ -1,6 +1,14 @@
 import { refreshAccessToken } from '@/api/client'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+const PRIVATE_MEDIA_CACHE_LIMIT = 200
+
+type PrivateMediaCacheEntry = {
+  blobPromise: Promise<Blob>
+  lastAccessed: number
+}
+
+const privateMediaBlobCache = new Map<string, PrivateMediaCacheEntry>()
 
 export function normalizeUploadPath(path: string | null | undefined): string {
   const value = path?.trim() ?? ''
@@ -48,7 +56,26 @@ async function fetchPrivateMediaResponse(path: string, token: string | null): Pr
   })
 }
 
-export async function fetchPrivateMediaBlob(path: string): Promise<Blob> {
+function privateMediaCacheKey(path: string): string {
+  return normalizeUploadPath(path)
+}
+
+function trimPrivateMediaCache() {
+  while (privateMediaBlobCache.size > PRIVATE_MEDIA_CACHE_LIMIT) {
+    let oldestKey = ''
+    let oldestAccess = Number.POSITIVE_INFINITY
+    for (const [key, entry] of privateMediaBlobCache.entries()) {
+      if (entry.lastAccessed < oldestAccess) {
+        oldestKey = key
+        oldestAccess = entry.lastAccessed
+      }
+    }
+    if (!oldestKey) return
+    privateMediaBlobCache.delete(oldestKey)
+  }
+}
+
+async function loadPrivateMediaBlob(path: string): Promise<Blob> {
   let response = await fetchPrivateMediaResponse(path, localStorage.getItem('token'))
 
   if (response.status === 401 && localStorage.getItem('refreshToken')) {
@@ -61,6 +88,35 @@ export async function fetchPrivateMediaBlob(path: string): Promise<Blob> {
   }
 
   return response.blob()
+}
+
+export function clearPrivateMediaBlobCache() {
+  privateMediaBlobCache.clear()
+}
+
+export async function fetchPrivateMediaBlob(path: string): Promise<Blob> {
+  const cacheKey = privateMediaCacheKey(path)
+  const cached = privateMediaBlobCache.get(cacheKey)
+  if (cached) {
+    cached.lastAccessed = Date.now()
+    return cached.blobPromise
+  }
+
+  const entry: PrivateMediaCacheEntry = {
+    blobPromise: loadPrivateMediaBlob(path),
+    lastAccessed: Date.now(),
+  }
+  privateMediaBlobCache.set(cacheKey, entry)
+  trimPrivateMediaCache()
+
+  try {
+    return await entry.blobPromise
+  } catch (error) {
+    if (privateMediaBlobCache.get(cacheKey) === entry) {
+      privateMediaBlobCache.delete(cacheKey)
+    }
+    throw error
+  }
 }
 
 export async function privateMediaObjectUrl(path: string): Promise<string> {

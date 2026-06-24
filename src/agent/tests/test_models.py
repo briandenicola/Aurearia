@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from app.models.requests import (
     MAX_AVAILABILITY_ITEMS,
+    MAX_HISTORY_MESSAGE_LENGTH,
     MAX_HISTORY_MESSAGES,
     MAX_HISTORY_TOTAL_CHARS,
     MAX_IMAGE_BASE64_LENGTH,
@@ -101,6 +102,28 @@ def test_coin_search_request_rejects_history_char_over_limit():
             user=UserContext(user_id=1),
             message="hello",
             history=[{"role": "user", "content": oversized}],
+        )
+
+
+def test_coin_search_request_accepts_long_assistant_history_under_total_limit():
+    content = "x" * (MAX_HISTORY_MESSAGE_LENGTH - 1)
+    request = CoinSearchRequest(
+        llm=LLMConfig(provider="anthropic"),
+        user=UserContext(user_id=1),
+        message="follow up",
+        history=[{"role": "assistant", "content": content}],
+    )
+
+    assert request.history[0].content == content
+
+
+def test_coin_search_request_still_rejects_single_history_message_over_limit():
+    with pytest.raises(ValidationError):
+        CoinSearchRequest(
+            llm=LLMConfig(provider="anthropic"),
+            user=UserContext(user_id=1),
+            message="hello",
+            history=[{"role": "assistant", "content": "x" * (MAX_HISTORY_MESSAGE_LENGTH + 1)}],
         )
 
 

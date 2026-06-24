@@ -50,7 +50,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { analyzeCoin, deleteAnalysis, getAIStatus } from '@/api/client'
+import { analyzeCoin, deleteAnalysis, formatAgentServiceError, getAIStatus } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
@@ -97,8 +97,9 @@ async function handleAnalyze(side: 'obverse' | 'reverse') {
   try {
     await analyzeCoin(props.coinId, side)
     emit('analysisUpdated')
-  } catch {
-    await showAlert(`AI analysis failed for ${side}. Check the configured AI provider in Admin → AI Configuration.`, { title: 'Analysis Failed' })
+  } catch (err) {
+    const detail = formatAgentServiceError(err, 'Check the internal agent service configuration and retry.')
+    await showAlert(`AI analysis failed for ${side}. ${detail}`, { title: 'Analysis Failed' })
   } finally {
     analyzing.value = false
     analyzingSide.value = null

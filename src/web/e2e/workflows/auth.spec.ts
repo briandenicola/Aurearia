@@ -15,7 +15,7 @@ test('login stores the authenticated session and opens the collection', async ({
   await page.getByRole('button', { name: 'Sign In' }).click()
 
   await expect(page).toHaveURL('/')
-  await expect(page.getByRole('button', { name: 'Coin Collection' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Aurearia - Coin Collection' })).toBeVisible()
   await expect(page.evaluate(() => window.localStorage.getItem('token'))).resolves.toBe('workflow-access-token')
 })
 

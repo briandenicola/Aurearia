@@ -90,6 +90,7 @@ func setupShowcaseRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	protected.PUT("/showcases/:id", handler.UpdateShowcase)
 	protected.DELETE("/showcases/:id", handler.DeleteShowcase)
 	protected.PUT("/showcases/:id/coins", handler.SetShowcaseCoins)
+	r.GET("/api/showcase/:slug", handler.GetPublicShowcase)
 
 	return r, db
 }
@@ -228,5 +229,109 @@ func TestShowcaseGetNotFound(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected 404 for non-existent showcase, got %d", w.Code)
+	}
+}
+
+func TestPublicShowcaseReturnsOnlyMemberCoinsWithTrayFields(t *testing.T) {
+	r, db := setupShowcaseRouter(t)
+
+	user := models.User{Username: "testuser", Email: "test@example.com", PasswordHash: "x"}
+	otherUser := models.User{Username: "otheruser", Email: "other@example.com", PasswordHash: "x"}
+	db.Create(&user)
+	db.Create(&otherUser)
+
+	memberDiameter := 18.5
+	nonMemberDiameter := 24.0
+	memberCoin := models.Coin{Name: "Included Denarius", Category: "Roman", UserID: user.ID, DiameterMm: &memberDiameter}
+	otherMemberCoin := models.Coin{Name: "Included Sestertius", Category: "Roman", UserID: user.ID}
+	nonMemberCoin := models.Coin{Name: "Non-member Aureus", Category: "Roman", UserID: user.ID, DiameterMm: &nonMemberDiameter}
+	otherShowcaseCoin := models.Coin{Name: "Other Showcase Coin", Category: "Greek", UserID: user.ID}
+	otherOwnerCoin := models.Coin{Name: "Other Owner Linked Coin", Category: "Roman", UserID: otherUser.ID}
+	db.Create(&memberCoin)
+	db.Create(&otherMemberCoin)
+	db.Create(&nonMemberCoin)
+	db.Create(&otherShowcaseCoin)
+	db.Create(&otherOwnerCoin)
+
+	db.Create(&models.CoinImage{CoinID: memberCoin.ID, FilePath: "cards/denarius-card.webp", ImageType: models.ImageTypeDetail, IsPrimary: true})
+	db.Create(&models.CoinImage{CoinID: memberCoin.ID, FilePath: "coins/denarius-obverse.webp", ImageType: models.ImageTypeObverse})
+
+	showcase := models.Showcase{
+		UserID:      user.ID,
+		Slug:        "featured-set",
+		Title:       "Featured Set",
+		Description: "Public tray",
+		IsActive:    true,
+	}
+	otherShowcase := models.Showcase{
+		UserID:   user.ID,
+		Slug:     "other-set",
+		Title:    "Other Set",
+		IsActive: true,
+	}
+	db.Create(&showcase)
+	db.Create(&otherShowcase)
+	db.Create(&models.ShowcaseCoin{ShowcaseID: showcase.ID, CoinID: memberCoin.ID, SortOrder: 0})
+	db.Create(&models.ShowcaseCoin{ShowcaseID: showcase.ID, CoinID: otherMemberCoin.ID, SortOrder: 1})
+	db.Create(&models.ShowcaseCoin{ShowcaseID: showcase.ID, CoinID: otherOwnerCoin.ID, SortOrder: 2})
+	db.Create(&models.ShowcaseCoin{ShowcaseID: otherShowcase.ID, CoinID: otherShowcaseCoin.ID, SortOrder: 0})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/showcase/featured-set", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 on public showcase, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Coins []struct {
+			Name       string   `json:"name"`
+			DiameterMm *float64 `json:"diameterMm"`
+			Images     []struct {
+				FilePath  string `json:"filePath"`
+				ImageType string `json:"imageType"`
+				IsPrimary bool   `json:"isPrimary"`
+			} `json:"images"`
+		} `json:"coins"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if len(resp.Coins) != 2 {
+		t.Fatalf("expected 2 member coins, got %d: %s", len(resp.Coins), w.Body.String())
+	}
+	if resp.Coins[0].Name != "Included Denarius" || resp.Coins[1].Name != "Included Sestertius" {
+		t.Fatalf("expected only showcase member coins in sort order, got %#v", resp.Coins)
+	}
+	for _, coin := range resp.Coins {
+		if coin.Name == "Non-member Aureus" {
+			t.Fatal("public showcase response included a non-member coin")
+		}
+		if coin.Name == "Other Showcase Coin" {
+			t.Fatal("public showcase response included a coin from a different showcase")
+		}
+		if coin.Name == "Other Owner Linked Coin" {
+			t.Fatal("public showcase response included a coin not owned by the showcase owner")
+		}
+	}
+	if resp.Coins[0].DiameterMm == nil || *resp.Coins[0].DiameterMm != memberDiameter {
+		t.Fatalf("expected diameterMm %v for tray sizing, got %#v", memberDiameter, resp.Coins[0].DiameterMm)
+	}
+	if len(resp.Coins[0].Images) != 2 {
+		t.Fatalf("expected member images for tray image selection, got %#v", resp.Coins[0].Images)
+	}
+	hasPrimaryCard := false
+	hasObverse := false
+	for _, image := range resp.Coins[0].Images {
+		if image.FilePath == "cards/denarius-card.webp" && image.IsPrimary {
+			hasPrimaryCard = true
+		}
+		if image.FilePath == "coins/denarius-obverse.webp" && image.ImageType == string(models.ImageTypeObverse) {
+			hasObverse = true
+		}
+	}
+	if !hasPrimaryCard || !hasObverse {
+		t.Fatalf("expected isPrimary and imageType fields for tray image selection, got %#v", resp.Coins[0].Images)
 	}
 }

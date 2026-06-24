@@ -412,6 +412,100 @@ export interface AuthResponse {
   user: User
 }
 
+export type OIDCProviderType = 'entra' | 'pocket_id' | 'generic'
+export type OIDCTestStatus = 'unknown' | 'ok' | 'failed'
+
+export interface OIDCPublicProvider {
+  id: number
+  name: string
+  displayName: string
+  providerType: OIDCProviderType
+}
+
+export interface OIDCPublicProvidersResponse {
+  providers: OIDCPublicProvider[]
+}
+
+export interface OIDCStartFlowRequest {
+  redirectPath: string
+}
+
+export interface OIDCStartFlowResponse {
+  authorizationUrl: string
+  expiresAt: string
+}
+
+export interface OIDCLinkedIdentity {
+  id: number
+  providerId: number
+  providerDisplayName: string
+  issuer: string
+  subjectPreview: string
+  email: string
+  emailVerified: boolean
+  createdAt: string
+  lastLoginAt?: string | null
+}
+
+export interface OIDCLinkedIdentitiesResponse {
+  identities: OIDCLinkedIdentity[]
+}
+
+export interface OIDCLinkCallbackResponse {
+  message: string
+  identity: OIDCLinkedIdentity
+}
+
+export interface OIDCMessageResponse {
+  message: string
+}
+
+export interface OIDCAdminProvider {
+  id: number
+  name: string
+  displayName: string
+  providerType: OIDCProviderType
+  enabled: boolean
+  issuerUrl: string
+  clientId: string
+  clientSecretConfigured: boolean
+  scopes: string[]
+  callbackPath: string
+  requireVerifiedEmail?: boolean
+  lastTestedAt?: string | null
+  lastTestStatus: OIDCTestStatus
+  lastTestMessage: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface OIDCAdminProvidersResponse {
+  providers: OIDCAdminProvider[]
+}
+
+export interface OIDCAdminProviderInput {
+  name: string
+  displayName: string
+  providerType: OIDCProviderType
+  enabled: boolean
+  issuerUrl: string
+  clientId: string
+  clientSecret?: string
+  scopes: string[]
+  callbackPath?: string
+  requireVerifiedEmail?: boolean
+}
+
+export type OIDCAdminProviderUpdate = Partial<OIDCAdminProviderInput>
+
+export interface OIDCProviderTestResponse {
+  available: boolean
+  message: string
+  issuer: string
+  authorizationEndpoint: string
+  tokenEndpoint: string
+}
+
 export interface WebAuthnCredentialInfo {
   id: number
   credentialId: string
@@ -442,6 +536,25 @@ export interface StatsResponse {
     avgCurrentValue: number
   }
 }
+
+export type InvestmentBreakdownDimension = 'purchase-month' | 'material'
+
+export interface InvestmentBreakdownSegment {
+  label: string
+  year: number | null
+  month: number | null
+  invested: number
+  currentValue: number
+  gainLoss: number
+  gainLossPct: number | null
+  coinCount: number
+  missingCurrentValueCount: number
+  missingPurchasePriceCount: number
+}
+
+export type InvestmentBreakdownResponse =
+  | InvestmentBreakdownSegment[]
+  | { dimension?: InvestmentBreakdownDimension; segments: InvestmentBreakdownSegment[] }
 
 export type HealthGrade = 'A' | 'B' | 'C' | 'D' | 'F'
 export type HealthTrendDirection = 'up' | 'flat' | 'down' | 'unavailable'
@@ -566,6 +679,8 @@ export interface UserInfo {
   numisBidsConfigured: boolean
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean
+  lockedUntil?: string | null
+  failedLoginAttempts?: number
   createdAt: string
 }
 
@@ -580,9 +695,93 @@ export interface AppSettings {
   SearXNGURL: string
   LogLevel: string
   PublicAppURL?: string
+  RegistrationMode?: string
   CoinCategories?: string
   CoinEras?: string
   [key: string]: string | undefined
+}
+
+export interface SecuritySummary {
+  failedLogins: number
+  lockedAccounts: number
+  activeBans: number
+  recentEvents: number
+  loginFailures?: number
+  activeIpRuleCount?: number
+}
+
+export interface SecurityEvent {
+  id: number | string
+  timestamp: string
+  type: string
+  severity: string
+  username?: string | null
+  ip?: string | null
+  clientIp?: string | null
+  outcome?: string | null
+  message?: string | null
+  userAgent?: string | null
+  createdAt?: string
+}
+
+export interface SecurityEventFilters {
+  type?: string
+  severity?: string
+  username?: string
+  ip?: string
+  clientIp?: string
+  outcome?: string
+  since?: string
+  limit?: number
+}
+
+export interface SecurityEventsResponse {
+  events: SecurityEvent[]
+  total?: number
+}
+
+export interface SecurityIpRule {
+  id: number
+  cidr: string
+  reason: string
+  expiresAt?: string | null
+  createdBy?: string | number | null
+  createdAt?: string
+}
+
+export interface CreateSecurityIpRuleRequest {
+  cidr: string
+  duration?: string
+  durationMinutes?: number
+  expiresAt?: string
+  reason: string
+}
+
+export interface SecurityExposureCheck {
+  publicIp?: string
+  proxy?: boolean
+  proxyWarning?: string
+  cors?: boolean
+  corsWarning?: string
+  webAuthn?: boolean
+  webAuthnWarning?: string
+  publicAppUrl?: boolean
+  publicAppURL?: boolean
+  publicAppUrlWarning?: string
+  registration?: boolean
+  registrationWarning?: string
+  agentToken?: boolean
+  agentTokenWarning?: string
+  warnings?: string[]
+  checks?: Record<string, boolean | string | null | undefined>
+  config?: {
+    publicAppURL?: string
+    webauthnOrigin?: string
+    trustedProxiesConfigured?: boolean
+    agentInternalTokenSet?: boolean
+    registrationMode?: string
+    backupStatus?: string
+  }
 }
 
 export interface ValueComparable {

@@ -19,7 +19,7 @@
           </div>
           <div class="pwa-menu-section">
             <span class="pwa-menu-label">Era</span>
-            <EraFilter :model-value="selectedEra" @update:model-value="$emit('update:selectedEra', $event)" />
+            <EraFilter :model-value="selectedEra" :eras="eraOptions" @update:model-value="$emit('update:selectedEra', $event)" />
           </div>
           <div v-if="userTags.length" class="pwa-menu-section">
             <span class="pwa-menu-label">Set</span>
@@ -75,6 +75,7 @@ defineProps<{
   selectedEra: string
   selectedTag: string
   userTags: CollectionSetOption[]
+  eraOptions: string[]
   sortKey: string
   viewMode: 'grid' | 'swipe'
   gridSide: ImageType | null
@@ -201,6 +202,10 @@ defineEmits<{
 }
 
 .pwa-tag-select {
+  width: 100%;
+}
+
+.pwa-menu-section :deep(.era-filter-select) {
   width: 100%;
 }
 

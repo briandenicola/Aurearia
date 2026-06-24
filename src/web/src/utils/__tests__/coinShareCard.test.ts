@@ -131,7 +131,7 @@ describe('coinShareCard', () => {
       coin: buildRomanDenariusCore(),
       imageUrl: '/uploads/coin.webp',
       imageUrls: ['/uploads/obverse.webp', '/uploads/reverse.webp'],
-      appName: 'Ed-Mar Ancient Coins',
+      appName: 'Aurearia - Coin Collection',
     })
 
     expect(blob).toBe(pngBlob)
@@ -169,14 +169,14 @@ describe('coinShareCard', () => {
         images: [],
       }),
       imageUrl: null,
-      appName: 'Ed-Mar Ancient Coins',
+      appName: 'Aurearia - Coin Collection',
     })
 
     const calls = fillText.mock.calls.map(([text, _x, y]) => ({ text: String(text), y: Number(y) }))
-    const footer = calls.find((call) => call.text === 'Ed-Mar Ancient Coins')
+    const footer = calls.find((call) => call.text === 'Aurearia - Coin Collection')
     expect(footer).toBeDefined()
 
-    const latestContentY = Math.max(...calls.filter((call) => call.text !== 'Ed-Mar Ancient Coins').map((call) => call.y))
+    const latestContentY = Math.max(...calls.filter((call) => call.text !== 'Aurearia - Coin Collection').map((call) => call.y))
     expect(footer!.y - latestContentY).toBeGreaterThanOrEqual(80)
   })
 
@@ -189,7 +189,7 @@ describe('coinShareCard', () => {
     await renderCoinShareCard({
       coin: buildRomanDenariusCore({ images: [] }),
       imageUrl: null,
-      appName: 'Ed-Mar Ancient Coins',
+      appName: 'Aurearia - Coin Collection',
     })
 
     const labelCalls = fillText.mock.calls
@@ -198,6 +198,28 @@ describe('coinShareCard', () => {
 
     expect(labelCalls.map((call) => call.x)).toEqual([329, 751, 329, 751])
     expect(labelCalls[0]!.x + labelCalls[1]!.x).toBe(1080)
+  })
+
+  it('can add Coin of the Day context without changing the default card path', async () => {
+    const toBlob = vi.fn((callback: BlobCallback) => callback(pngBlob))
+    const fillText = vi.fn()
+    const ctx = buildCanvasContext({ fillText })
+    mockCanvas(ctx, toBlob)
+
+    await renderCoinShareCard({
+      coin: buildRomanDenariusCore({ images: [] }),
+      imageUrl: null,
+      appName: 'Aurearia - Coin Collection',
+      context: {
+        heading: 'Coin of the Day',
+        summary: '**Obverse:** laureate portrait. **Reverse:** Victory holding wreath.',
+      },
+    })
+
+    const calls = fillText.mock.calls.map(([text]) => String(text))
+    expect(calls).toContain('COIN OF THE DAY')
+    expect(calls.some((text) => text.includes('Obverse: laureate portrait. Reverse: Victory'))).toBe(true)
+    expect(calls).toContain('RULER')
   })
 })
 

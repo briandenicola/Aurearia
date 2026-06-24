@@ -1,34 +1,40 @@
 <template>
   <div class="desktop-sticky-header">
-    <div class="page-header collection-header">
-      <div class="header-spacer"></div>
-      <SearchBar :model-value="search" @update:model-value="$emit('update:search', $event)" />
-      <div class="header-sort">
-        <SortSelect :model-value="sortKey" @update:model-value="$emit('update:sortKey', $event)" />
-      </div>
-    </div>
-
-    <div class="collection-toolbar">
-      <div class="toolbar-filters">
-        <CategoryFilter :model-value="selectedCategory" @update:model-value="$emit('update:selectedCategory', $event)" />
-        <select v-if="userTags.length" :value="selectedTag" @change="$emit('update:selectedTag', ($event.target as HTMLSelectElement).value)" class="tag-filter-select">
-          <option value="">All Sets</option>
-          <option v-for="tag in userTags" :key="tag.filterValue" :value="tag.filterValue">{{ tag.name }}</option>
-        </select>
-      </div>
-      <div class="toolbar-right">
-        <button class="btn" :class="selectMode ? 'btn-primary' : 'btn-secondary'" @click="$emit('toggle-select-mode')">
-          <CheckSquare :size="16" /> {{ selectMode ? 'Cancel' : 'Select' }}
-        </button>
-        <div class="face-filter">
-          <button class="chip" :class="{ active: gridSide === 'obverse' }" @click="$emit('update:gridSide', gridSide === 'obverse' ? null : 'obverse')">
-            Obverse
-          </button>
-          <button class="chip" :class="{ active: gridSide === 'reverse' }" @click="$emit('update:gridSide', gridSide === 'reverse' ? null : 'reverse')">
-            Reverse
-          </button>
+    <div class="command-bar">
+      <div class="command-row search-row">
+        <SearchBar :model-value="search" @update:model-value="$emit('update:search', $event)" />
+        <div class="sort-zone">
+          <SortSelect :model-value="sortKey" @update:model-value="$emit('update:sortKey', $event)" />
         </div>
-        <router-link to="/add" class="btn btn-primary"><CirclePlus :size="16" /> Add Coin</router-link>
+      </div>
+
+      <div class="command-row action-row">
+        <div class="filter-zone">
+          <CategoryFilter :model-value="selectedCategory" @update:model-value="$emit('update:selectedCategory', $event)" />
+        </div>
+
+        <div class="toolbar-divider"></div>
+
+        <div class="dropdown-zone">
+          <EraFilter :model-value="selectedEra" :eras="eraOptions" @update:model-value="$emit('update:selectedEra', $event)" />
+          <select v-if="userTags.length" :value="selectedTag" @change="$emit('update:selectedTag', ($event.target as HTMLSelectElement).value)" class="tag-filter-select">
+            <option value="">All Sets</option>
+            <option v-for="tag in userTags" :key="tag.filterValue" :value="tag.filterValue">{{ tag.name }}</option>
+          </select>
+        </div>
+
+        <div class="toolbar-divider action-divider"></div>
+
+        <div class="action-zone">
+          <div class="face-toggle">
+            <button class="face-btn" :class="{ active: gridSide === 'obverse' }" @click="$emit('update:gridSide', gridSide === 'obverse' ? null : 'obverse')">
+              Obverse
+            </button>
+            <button class="face-btn" :class="{ active: gridSide === 'reverse' }" @click="$emit('update:gridSide', gridSide === 'reverse' ? null : 'reverse')">
+              Reverse
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -37,16 +43,17 @@
 <script setup lang="ts">
 import type { CollectionSetOption, ImageType } from '@/types'
 import CategoryFilter from '@/components/CategoryFilter.vue'
+import EraFilter from '@/components/collection/EraFilter.vue'
 import SearchBar from '@/components/SearchBar.vue'
 import SortSelect from '@/components/SortSelect.vue'
-import { CirclePlus, CheckSquare } from 'lucide-vue-next'
 
 defineProps<{
   search: string
-  selectMode: boolean
   selectedCategory: string
+  selectedEra: string
   selectedTag: string
   userTags: CollectionSetOption[]
+  eraOptions: string[]
   sortKey: string
   gridSide: ImageType | null
 }>()
@@ -54,10 +61,10 @@ defineProps<{
 defineEmits<{
   'update:search': [value: string]
   'update:selectedCategory': [value: string]
+  'update:selectedEra': [value: string]
   'update:selectedTag': [value: string]
   'update:sortKey': [value: string]
   'update:gridSide': [value: ImageType | null]
-  'toggle-select-mode': []
 }>()
 </script>
 
@@ -73,95 +80,162 @@ defineEmits<{
   padding-right: 2rem;
 }
 
-.collection-header {
+.command-bar {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 1rem;
   display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.header-spacer {
-  flex: 1;
-}
-
-.collection-header :deep(.search-bar) {
-  flex: 0 1 600px;
-}
-
-.collection-header :deep(.search-input) {
-  padding: 0.75rem 2.5rem;
-  font-size: 0.9rem;
-}
-
-.header-sort {
-  flex: 1;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.collection-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 0.75rem;
-  flex-wrap: wrap;
   margin-bottom: 1rem;
 }
 
-.toolbar-filters {
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.search-row :deep(.search-bar) {
+  flex: 1;
+  max-width: none;
+}
+
+.search-row :deep(.search-input) {
+  padding: 0.5rem 2.5rem;
+  font-size: 0.9rem;
+  height: 38px;
+}
+
+.sort-zone {
+  flex-shrink: 0;
+  min-width: 12rem;
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: nowrap;
+}
+
+.filter-zone {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.dropdown-zone {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex-wrap: wrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dropdown-zone :deep(.era-filter-select) {
+  height: 38px;
+  padding: 0.45rem 0.6rem;
+  transition: border-color var(--transition-fast);
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+.dropdown-zone :deep(.era-filter-select:hover) {
+  border-color: var(--border-accent);
 }
 
 .tag-filter-select {
-  padding: 0.35rem 0.5rem;
+  padding: 0.45rem 0.6rem;
   border: 1px solid var(--border-subtle);
-  border-radius:var(--radius-sm);
+  border-radius: var(--radius-sm);
   background: var(--bg-card);
   color: var(--text-primary);
   font-size: 0.85rem;
   cursor: pointer;
+  height: 38px;
+  transition: border-color var(--transition-fast);
+  flex: 1 1 10rem;
+  min-width: 0;
 }
 
-.toolbar-right {
+.tag-filter-select:hover {
+  border-color: var(--border-accent);
+}
+
+.action-zone {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
-.face-filter {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
+.face-toggle {
+  display: inline-flex;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.face-btn {
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.face-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+.face-btn.active {
+  background: var(--accent-gold);
+  color: var(--bg-primary);
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {
-  .collection-header {
+  .command-bar {
+    padding: 0.75rem;
+  }
+
+  .action-row {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .header-spacer {
+  .toolbar-divider {
     display: none;
   }
 
-  .header-sort {
-    justify-content: flex-start;
+  .filter-zone,
+  .dropdown-zone,
+  .action-zone {
+    width: 100%;
+    margin-left: 0;
   }
 
-  .collection-header :deep(.search-bar) {
-    max-width: 100%;
-  }
-
-  .collection-header :deep(.search-input) {
-    padding: 0.6rem 2.5rem;
-    font-size: 0.85rem;
-  }
-
-  .header-filters {
-    justify-content: flex-start;
+  .action-zone {
+    justify-content: space-between;
   }
 }
 </style>

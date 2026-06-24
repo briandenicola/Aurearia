@@ -26,6 +26,15 @@
       <router-link :to="`/edit/${coinId}`" class="icon-action" title="Edit" aria-label="Edit">
         <Pencil :size="18" />
       </router-link>
+      <button
+        class="icon-action"
+        :disabled="duplicating"
+        :title="duplicating ? 'Duplicating...' : 'Duplicate'"
+        :aria-label="duplicating ? 'Duplicating...' : 'Duplicate'"
+        @click="$emit('duplicate')"
+      >
+        <Copy :size="18" />
+      </button>
       <button class="icon-action" title="Delete" aria-label="Delete" @click="$emit('delete')">
         <Trash2 :size="18" />
       </button>
@@ -35,20 +44,23 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { ArrowLeft, CircleDollarSign, Pencil, Share2, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, CircleDollarSign, Copy, Pencil, Share2, Trash2 } from 'lucide-vue-next'
 
 withDefaults(defineProps<{
   isWishlist: boolean
   isSold: boolean
   coinId: number
   sharing?: boolean
+  duplicating?: boolean
 }>(), {
   sharing: false,
+  duplicating: false,
 })
 
 defineEmits<{
   share: []
   sell: []
+  duplicate: []
   delete: []
 }>()
 

@@ -10,15 +10,15 @@ import (
 )
 
 type rateLimiter struct {
-	mu       sync.Mutex
-	clients  map[string]*clientState
-	limit    int
-	window   time.Duration
+	mu      sync.Mutex
+	clients map[string]*clientState
+	limit   int
+	window  time.Duration
 }
 
 type clientState struct {
-	count    int
-	resetAt  time.Time
+	count   int
+	resetAt time.Time
 }
 
 func newRateLimiter(limit int, window time.Duration) *rateLimiter {
@@ -63,7 +63,7 @@ func (rl *rateLimiter) allow(clientIP string) bool {
 func RateLimit(limit int, window time.Duration) gin.HandlerFunc {
 	rl := newRateLimiter(limit, window)
 	return func(c *gin.Context) {
-		if !rl.allow(c.ClientIP()) {
+		if !rl.allow(ClientIP(c)) {
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 				"error": "Too many requests. Please try again later.",
 			})
@@ -71,29 +71,44 @@ func RateLimit(limit int, window time.Duration) gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// AuthenticatedRateLimit returns middleware that limits requests per authenticated
+// user/API key, with client IP as a fallback for routes that run before auth.
+func AuthenticatedRateLimit(limit int, window time.Duration) gin.HandlerFunc {
+	return rateLimitByKey(limit, window, authenticatedRateLimitKey)
+}
+
+func rateLimitByKey(limit int, window time.Duration, keyFunc func(*gin.Context) string) gin.HandlerFunc {
+	rl := newRateLimiter(limit, window)
+	return func(c *gin.Context) {
+		if !rl.allow(keyFunc(c)) {
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+				"error": "Too many requests. Please try again later.",
+			})
+			return
+		}
+		c.Next()
+	}
+}
+
+func authenticatedRateLimitKey(c *gin.Context) string {
+	if apiKeyId, exists := c.Get("apiKeyId"); exists {
+		if id, ok := apiKeyId.(uint); ok {
+			return fmt.Sprintf("apikey:%d", id)
+		}
+	}
+	if userID, exists := c.Get("userId"); exists {
+		if id, ok := userID.(uint); ok {
+			return fmt.Sprintf("user:%d", id)
+		}
+	}
+	return ClientIP(c)
 }
 
 // ExternalAPIKeyRateLimit returns middleware that enforces stricter per-key rate limiting
 // for external tool server endpoints. Keys by API key ID (preferred) or falls back to client IP.
 // Provides a single unified bucket; read/write distinction is a future enhancement.
 func ExternalAPIKeyRateLimit(limit int, window time.Duration) gin.HandlerFunc {
-	rl := newRateLimiter(limit, window)
-	return func(c *gin.Context) {
-		// Key by API key ID if available, fallback to client IP
-		keyIdentifier := c.ClientIP()
-		if apiKeyId, exists := c.Get("apiKeyId"); exists {
-			if id, ok := apiKeyId.(uint); ok {
-				keyIdentifier = fmt.Sprintf("apikey:%d", id)
-			}
-		}
-
-		if !rl.allow(keyIdentifier) {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"error": "Too many requests. Please try again later.",
-			})
-			return
-		}
-		c.Next()
-	}
+	return rateLimitByKey(limit, window, authenticatedRateLimitKey)
 }
-

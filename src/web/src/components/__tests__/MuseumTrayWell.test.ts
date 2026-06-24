@@ -128,6 +128,58 @@ describe('MuseumTrayWell', () => {
     expect(wrapper.html()).toContain('well-placeholder')
   })
 
+  it('uses image resolver for public media without authenticated blob loading', () => {
+    const wrapper = mount(MuseumTrayWell, {
+      props: {
+        coin: mockCoin,
+        renderSizePx: 70,
+        imageSrcResolver: (filePath: string) => `/api/showcase/featured/uploads/${filePath}`,
+      },
+    })
+
+    const img = wrapper.find('img')
+    expect(img.exists()).toBe(true)
+    expect(img.attributes('src')).toBe('/api/showcase/featured/uploads/relative-image.jpg')
+  })
+
+  it('prefers obverse or reverse face images before primary or first fallback', () => {
+    const wrapper = mount(MuseumTrayWell, {
+      props: {
+        coin: {
+          ...mockCoin,
+          images: [
+            { id: 11, filePath: 'cards/slab.webp', imageType: 'card', isPrimary: true },
+            { id: 12, filePath: 'coins/reverse.webp', imageType: 'reverse', isPrimary: false },
+            { id: 13, filePath: 'coins/obverse.webp', imageType: 'obverse', isPrimary: false },
+          ],
+        },
+        renderSizePx: 70,
+        imageSrcResolver: (filePath: string) => `/api/showcase/featured/uploads/${filePath}`,
+      },
+    })
+
+    const img = wrapper.find('img')
+    expect(img.attributes('src')).toBe('/api/showcase/featured/uploads/coins/obverse.webp')
+  })
+
+  it('can render as a non-interactive public well', async () => {
+    const wrapper = mount(MuseumTrayWell, {
+      props: {
+        coin: mockCoin,
+        renderSizePx: 70,
+        interactive: false,
+      },
+    })
+
+    const well = wrapper.find('.tray-well')
+    expect(well.attributes('role')).toBeUndefined()
+    expect(well.attributes('tabindex')).toBeUndefined()
+
+    await well.trigger('click')
+    await well.trigger('keydown.enter')
+    expect(wrapper.emitted('coin-clicked')).toBeFalsy()
+  })
+
   it('emits coin-clicked on click', async () => {
     const wrapper = mount(MuseumTrayWell, {
       props: {

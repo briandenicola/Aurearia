@@ -1,33 +1,36 @@
 <template>
   <div class="stats-section card">
     <h2>{{ title }}</h2>
-    <div class="bar-chart">
-      <div
-        v-for="item in items"
-        :key="String(item.label)"
-        class="bar-row"
-        :class="{ 'bar-row-wide': wide }"
-      >
-        <span class="bar-label" :class="{ 'bar-label-wide': wide }">
-          <slot name="label" :item="item">
-            {{ item.label }}
-          </slot>
-        </span>
-        <div class="bar-track">
-          <div
-            class="bar-fill"
-            :class="fillClass(item.label)"
-            :style="{ width: `${(item.count / maxCount) * 100}%` }"
-          ></div>
+    <ZoomableSurface :aria-label="`Zoomable ${title} bar chart. Use controls, wheel, pinch, drag, or keyboard shortcuts to inspect dense rows.`">
+      <div class="bar-chart">
+        <div
+          v-for="item in items"
+          :key="String(item.label)"
+          class="bar-row"
+          :class="{ 'bar-row-wide': wide }"
+        >
+          <span class="bar-label" :class="{ 'bar-label-wide': wide }">
+            <slot name="label" :item="item">
+              {{ item.label }}
+            </slot>
+          </span>
+          <div class="bar-track">
+            <div
+              class="bar-fill"
+              :class="fillClass(item.label)"
+              :style="{ width: `${(item.count / maxCount) * 100}%` }"
+            ></div>
+          </div>
+          <span class="bar-value">{{ item.count }}</span>
         </div>
-        <span class="bar-value">{{ item.count }}</span>
       </div>
-    </div>
+    </ZoomableSurface>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import ZoomableSurface from '@/components/ZoomableSurface.vue'
 
 export interface BarItem {
   label: string
@@ -56,6 +59,7 @@ const maxCount = computed(() =>
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  padding: 0.75rem;
 }
 
 .bar-row {
@@ -79,21 +83,21 @@ const maxCount = computed(() =>
 .bar-fill {
   height: 100%;
   border-radius: var(--radius-sm);
-  transition: width 0.5s ease;
+  transition: width var(--transition-med);
   min-width: 4px;
 }
 
 /* Category fills */
-.fill-roman { background: linear-gradient(90deg, #7b2d8e, #9b59b6); }
-.fill-greek { background: linear-gradient(90deg, #4a6e18, #6b8e23); }
-.fill-byzantine { background: linear-gradient(90deg, #8b1a1a, #c0392b); }
-.fill-modern { background: linear-gradient(90deg, #2c5f8a, #4682b4); }
-.fill-other { background: linear-gradient(90deg, #555, #888); }
+.fill-roman { background: linear-gradient(90deg, var(--cat-roman), var(--accent-gold)); }
+.fill-greek { background: linear-gradient(90deg, var(--cat-greek), var(--accent-gold)); }
+.fill-byzantine { background: linear-gradient(90deg, var(--cat-byzantine), var(--accent-gold)); }
+.fill-modern { background: linear-gradient(90deg, var(--cat-modern), var(--accent-gold)); }
+.fill-other { background: linear-gradient(90deg, var(--cat-other), var(--text-secondary)); }
 .fill-material { background: linear-gradient(90deg, var(--accent-bronze), var(--accent-gold)); }
-.fill-grade { background: linear-gradient(90deg, #2c5f8a, #7ab3d4); }
-.fill-era { background: linear-gradient(90deg, #6b4c3b, #a67c52); }
-.fill-ruler { background: linear-gradient(90deg, #8b6914, var(--accent-gold)); }
-.fill-price { background: linear-gradient(90deg, #2e7d32, #66bb6a); }
+.fill-grade { background: linear-gradient(90deg, var(--cat-modern), var(--accent-gold)); }
+.fill-era { background: linear-gradient(90deg, var(--accent-bronze), var(--accent-gold)); }
+.fill-ruler { background: linear-gradient(90deg, var(--text-muted), var(--accent-gold)); }
+.fill-price { background: linear-gradient(90deg, var(--color-positive), var(--accent-gold)); }
 
 .bar-row-wide {
   grid-template-columns: 150px 1fr 40px;

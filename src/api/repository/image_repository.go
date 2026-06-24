@@ -100,7 +100,8 @@ func (r *ImageRepository) CoinImagePathInActiveShowcase(slug, filePath string) (
 	err := r.db.Table("coin_images").
 		Joins("JOIN showcase_coins ON showcase_coins.coin_id = coin_images.coin_id").
 		Joins("JOIN showcases ON showcases.id = showcase_coins.showcase_id").
-		Where("showcases.slug = ? AND showcases.is_active = ? AND coin_images.file_path = ?", slug, true, filePath).
+		Joins("JOIN coins ON coins.id = coin_images.coin_id").
+		Where("showcases.slug = ? AND showcases.is_active = ? AND showcases.user_id = coins.user_id AND coin_images.file_path = ?", slug, true, filePath).
 		Count(&count).Error
 	if err != nil {
 		return false, err

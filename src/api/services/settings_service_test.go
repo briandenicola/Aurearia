@@ -178,6 +178,62 @@ func TestGetSetting_CoinEras_ReturnsDefault(t *testing.T) {
 	}
 }
 
+func TestResolveLLMConfigAnthropicOmitsOllamaOnlyURLs(t *testing.T) {
+	svc, db := newTestSettingsService(t)
+
+	db.Create(&models.AppSetting{Key: SettingAIProvider, Value: "anthropic"})
+	db.Create(&models.AppSetting{Key: SettingAnthropicAPIKey, Value: "anthropic-key"})
+	db.Create(&models.AppSetting{Key: SettingAnthropicModel, Value: "claude-test"})
+	db.Create(&models.AppSetting{Key: SettingOllamaURL, Value: "https://ai.denicolafamily.com"})
+	db.Create(&models.AppSetting{Key: SettingSearXNGURL, Value: "https://search.denicolafamily.com"})
+
+	cfg, err := svc.ResolveLLMConfig()
+	if err != nil {
+		t.Fatalf("ResolveLLMConfig returned error: %v", err)
+	}
+
+	if cfg.Provider != "anthropic" {
+		t.Fatalf("Provider = %q, want anthropic", cfg.Provider)
+	}
+	if cfg.APIKey != "anthropic-key" {
+		t.Fatalf("APIKey = %q, want anthropic-key", cfg.APIKey)
+	}
+	if cfg.Model != "claude-test" {
+		t.Fatalf("Model = %q, want claude-test", cfg.Model)
+	}
+	if cfg.OllamaURL != "" || cfg.SearXNGURL != "" {
+		t.Fatalf("Anthropic config included Ollama-only URLs: OllamaURL=%q SearXNGURL=%q", cfg.OllamaURL, cfg.SearXNGURL)
+	}
+}
+
+func TestResolveLLMConfigOllamaIncludesOllamaOnlyURLs(t *testing.T) {
+	svc, db := newTestSettingsService(t)
+
+	db.Create(&models.AppSetting{Key: SettingAIProvider, Value: "ollama"})
+	db.Create(&models.AppSetting{Key: SettingOllamaModel, Value: "llava-test"})
+	db.Create(&models.AppSetting{Key: SettingOllamaURL, Value: "http://ollama:11434"})
+	db.Create(&models.AppSetting{Key: SettingSearXNGURL, Value: "http://searxng:8080"})
+	db.Create(&models.AppSetting{Key: SettingAnthropicAPIKey, Value: "anthropic-key"})
+
+	cfg, err := svc.ResolveLLMConfig()
+	if err != nil {
+		t.Fatalf("ResolveLLMConfig returned error: %v", err)
+	}
+
+	if cfg.Provider != "ollama" {
+		t.Fatalf("Provider = %q, want ollama", cfg.Provider)
+	}
+	if cfg.Model != "llava-test" {
+		t.Fatalf("Model = %q, want llava-test", cfg.Model)
+	}
+	if cfg.OllamaURL != "http://ollama:11434" || cfg.SearXNGURL != "http://searxng:8080" {
+		t.Fatalf("Ollama config missing Ollama URLs: OllamaURL=%q SearXNGURL=%q", cfg.OllamaURL, cfg.SearXNGURL)
+	}
+	if cfg.APIKey != "" {
+		t.Fatalf("Ollama config included Anthropic API key")
+	}
+}
+
 func TestSetSetting_CoinCategories_AllowsCustomization(t *testing.T) {
 	svc, _ := newTestSettingsService(t)
 

@@ -1,16 +1,25 @@
 <template>
   <div
     class="tray-well"
+    :class="{ 'is-interactive': interactive }"
     :style="{ width: `${renderSizePx}px`, height: `${renderSizePx}px` }"
     :aria-label="coin.name"
-    tabindex="0"
-    role="button"
+    :tabindex="interactive ? 0 : undefined"
+    :role="interactive ? 'button' : undefined"
     @click="handleClick"
     @keydown.enter="handleClick"
   >
     <div class="well-container">
+      <img
+        v-if="resolvedImageSrc"
+        :src="resolvedImageSrc"
+        :alt="coin.name"
+        class="well-coin"
+        loading="eager"
+        decoding="async"
+      />
       <AuthenticatedImage
-        v-if="primaryImage"
+        v-else-if="primaryImage"
         :media-path="primaryImage"
         :alt="coin.name"
         class="well-coin"
@@ -27,21 +36,28 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Coins } from 'lucide-vue-next'
-import type { TrayCoin } from '@/utils/trayLayout'
+import { selectTrayCoinImage, type TrayCoin } from '@/utils/trayLayout'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 
 interface Props {
   coin: TrayCoin
   renderSizePx: number
+  imageSrcResolver?: (filePath: string) => string
+  interactive?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  imageSrcResolver: undefined,
+  interactive: true,
+})
 const emit = defineEmits<{
   'coin-clicked': [coinId: number]
 }>()
 
+const selectedImagePath = computed(() => selectTrayCoinImage(props.coin.images)?.filePath ?? null)
+
 const primaryImage = computed(() => {
-  const path = props.coin.images.find(img => img.isPrimary)?.filePath ?? props.coin.images[0]?.filePath ?? null
+  const path = selectedImagePath.value
   if (!path) return null
   // Preserve absolute URLs; prefix relative paths with /uploads/
   if (path.startsWith('/') || path.startsWith('http://') || path.startsWith('https://')) {
@@ -50,7 +66,14 @@ const primaryImage = computed(() => {
   return `/uploads/${path}`
 })
 
+const resolvedImageSrc = computed(() => {
+  const path = selectedImagePath.value
+  if (!path || !props.imageSrcResolver) return null
+  return props.imageSrcResolver(path)
+})
+
 function handleClick() {
+  if (!props.interactive) return
   emit('coin-clicked', props.coin.id)
 }
 </script>
@@ -58,7 +81,6 @@ function handleClick() {
 <style scoped>
 .tray-well {
   position: relative;
-  cursor: pointer;
   transition: var(--transition-fast);
   border-radius: 50%;
   background: radial-gradient(
@@ -73,7 +95,11 @@ function handleClick() {
   justify-content: center;
 }
 
-.tray-well:hover {
+.tray-well.is-interactive {
+  cursor: pointer;
+}
+
+.tray-well.is-interactive:hover {
   transform: translateY(-2px);
   filter: brightness(1.1);
 }
@@ -116,7 +142,7 @@ function handleClick() {
   .tray-well {
     transition: none;
   }
-  .tray-well:hover {
+  .tray-well.is-interactive:hover {
     transform: none;
   }
 }

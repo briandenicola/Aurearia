@@ -10,6 +10,7 @@ COPY src/web/ .
 ENV VITE_API_BASE_URL=""
 ENV VITE_APP_VERSION=${APP_VERSION}
 ENV VITE_BUILD_DATE=${BUILD_DATE}
+RUN npm run prepare-background-removal-assets
 RUN npm run build
 
 # Build Go API

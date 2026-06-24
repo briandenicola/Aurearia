@@ -9,6 +9,7 @@ vi.mock('@/api/client', () => ({
   register: vi.fn(),
   webauthnLoginBegin: vi.fn(),
   webauthnLoginFinish: vi.fn(),
+  refreshAccessToken: vi.fn(),
   onTokenRefreshed: vi.fn(),
 }))
 

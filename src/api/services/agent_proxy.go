@@ -21,6 +21,8 @@ type AgentProxy struct {
 	logger               *Logger
 }
 
+const agentMissingInternalCredentialDetail = "Internal service credential is not configured"
+
 type CollectionChatContext struct {
 	Route        string `json:"route,omitempty"`
 	ActiveCoinID *uint  `json:"activeCoinId,omitempty"`
@@ -42,14 +44,24 @@ func (p *AgentProxy) attachInternalCredential(req *http.Request) {
 	}
 }
 
+func agentServiceHTTPError(statusCode int, body []byte) error {
+	var detail struct {
+		Detail string `json:"detail"`
+	}
+	if err := json.Unmarshal(body, &detail); err == nil && strings.Contains(detail.Detail, agentMissingInternalCredentialDetail) {
+		return fmt.Errorf("agent service internal credential is not configured: set AGENT_INTERNAL_SERVICE_TOKEN on both Go API and Python agent service")
+	}
+	return fmt.Errorf("agent service returned HTTP %d", statusCode)
+}
+
 // --- Request / response types matching the Python agent service ---
 
 type LLMConfig struct {
 	Provider   string `json:"provider"`
-	APIKey     string `json:"api_key"`
+	APIKey     string `json:"api_key,omitempty"`
 	Model      string `json:"model"`
-	OllamaURL  string `json:"ollama_url"`
-	SearXNGURL string `json:"searxng_url"`
+	OllamaURL  string `json:"ollama_url,omitempty"`
+	SearXNGURL string `json:"searxng_url,omitempty"`
 }
 
 type UserContextProxy struct {
@@ -251,7 +263,7 @@ func (p *AgentProxy) AnalyzeCoin(ctx context.Context, req AnalyzeProxyRequest) (
 			errMsg = errMsg[:200] + "... (truncated)"
 		}
 		logger.Error("agent-proxy", "Analyze returned %d: %s", resp.StatusCode, errMsg)
-		return "", fmt.Errorf("agent service returned HTTP %d", resp.StatusCode)
+		return "", agentServiceHTTPError(resp.StatusCode, respBody)
 	}
 
 	var result AnalyzeProxyResponse
@@ -330,7 +342,7 @@ func (p *AgentProxy) CheckAvailability(ctx context.Context, req AvailabilityChec
 			errMsg = errMsg[:200] + "... (truncated)"
 		}
 		logger.Error("agent-proxy", "Availability check returned %d: %s", resp.StatusCode, errMsg)
-		return nil, fmt.Errorf("agent service returned HTTP %d", resp.StatusCode)
+		return nil, agentServiceHTTPError(resp.StatusCode, respBody)
 	}
 
 	var result AvailabilityCheckProxyResponse
@@ -426,7 +438,7 @@ func (p *AgentProxy) proxySSE(ctx context.Context, w http.ResponseWriter, path s
 			errMsg = errMsg[:200] + "... (truncated)"
 		}
 		logger.Error("agent-proxy", "SSE proxy %s returned %d: %s", path, resp.StatusCode, errMsg)
-		return fmt.Errorf("agent service returned HTTP %d", resp.StatusCode)
+		return agentServiceHTTPError(resp.StatusCode, respBody)
 	}
 
 	// Set SSE headers
@@ -493,7 +505,7 @@ func (p *AgentProxy) collectSSE(ctx context.Context, path string, payload any) (
 			errMsg = errMsg[:200] + "... (truncated)"
 		}
 		logger.Error("agent-proxy", "collectSSE %s returned %d: %s", path, resp.StatusCode, errMsg)
-		return "", fmt.Errorf("agent service returned HTTP %d", resp.StatusCode)
+		return "", agentServiceHTTPError(resp.StatusCode, respBody)
 	}
 
 	// Read all SSE events and extract the "done" event's message

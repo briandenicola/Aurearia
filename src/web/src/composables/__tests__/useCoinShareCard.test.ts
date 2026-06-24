@@ -64,6 +64,31 @@ describe('useCoinShareCard', () => {
     expect(sharing.value).toBe(false)
   })
 
+  it('passes optional share context into the rendered card and native share text', async () => {
+    const share = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { share, canShare: vi.fn(() => true) })
+    const { shareCoinCard } = useCoinShareCard()
+
+    const obverseReverseSummary = 'Obverse: laureate portrait of Trajan. Reverse: Victory holding wreath.'
+
+    await shareCoinCard(buildRomanDenariusCore(), {
+      context: {
+        heading: 'Coin of the Day',
+        summary: obverseReverseSummary,
+      },
+    })
+
+    expect(renderCoinShareCard).toHaveBeenCalledWith(expect.objectContaining({
+      context: {
+        heading: 'Coin of the Day',
+        summary: obverseReverseSummary,
+      },
+    }))
+    expect(share).toHaveBeenCalledWith(expect.objectContaining({
+      text: `${obverseReverseSummary}\n\nShared from Aurearia - Coin Collection`,
+    }))
+  })
+
   it('downloads the generated card when file sharing is unsupported', async () => {
     const click = vi.fn()
     const remove = vi.fn()

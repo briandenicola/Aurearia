@@ -140,6 +140,7 @@ All schedulers respect user-level Pushover notification settings and gracefully 
 | `WEBAUTHN_ORIGIN` | `http://localhost:8080` | WebAuthn allowed origin |
 | `CORS_ORIGINS` | *(empty, falls back to WebAuthn origins)* | Comma-separated allowed CORS origins |
 | `AGENT_SERVICE_URL` | `http://localhost:8081` | Python agent service base URL |
+| `AGENT_INTERNAL_SERVICE_TOKEN` | *(empty in local dev; required for hardened agent)* | Shared API → agent credential. Must match the Python agent's value when agent auth is enabled. |
 | `GIN_MODE` | `debug` | Set to `release` for production |
 
 ## Authentication Model

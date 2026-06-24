@@ -13,6 +13,7 @@ This guide walks you through setting up Ancient Coins for the first time, adding
 | `WEBAUTHN_ORIGIN` | No | `http://localhost:8080` | Full origin URL for WebAuthn (comma-separated for multiple) |
 | `CORS_ORIGINS` | No | *(smart defaults)* | Comma-separated allowed CORS origins. Falls back to WebAuthn origins + localhost |
 | `AGENT_SERVICE_URL` | No | `http://localhost:8081` | URL of the Python agent service |
+| `AGENT_INTERNAL_SERVICE_TOKEN` | **Yes** (Docker/production-like) | — | Shared API → agent credential. Set the same high-entropy value for the Go API and Python agent; AI features fail with "Internal service credential is not configured" when the agent is missing it. |
 
 Run `task --list` to see all available Taskfile commands.
 
@@ -24,6 +25,8 @@ Run the app using one of the methods described in the [README](../README.md):
 task run                    # development (Go + Vite)
 docker compose up           # production (two containers)
 ```
+
+For Docker Compose, copy `.env.example` to `.env` and set `JWT_SECRET` plus `AGENT_INTERNAL_SERVICE_TOKEN` before starting the stack.
 
 ### 2. Create Your Admin Account
 

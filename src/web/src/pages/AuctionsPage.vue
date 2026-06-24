@@ -60,6 +60,9 @@
         <button class="btn btn-primary" @click="showImport = true" style="margin-top: 0.75rem">
           <Plus :size="16" /> Import Your First Lot
         </button>
+        <SafeExternalLink href="https://www.numisbids.com/" class="btn btn-secondary auction-house-link">
+          <ExternalLink :size="16" /> Visit NumisBids
+        </SafeExternalLink>
       </div>
 
       <ImportLotModal v-if="showImport" @close="showImport = false" @imported="handleImported" />
@@ -91,7 +94,8 @@ import PullToRefresh from '@/components/PullToRefresh.vue'
 import AuctionStatusFilter from '@/components/auction/AuctionStatusFilter.vue'
 import AuctionLotDetailModal from '@/components/auction/AuctionLotDetailModal.vue'
 import AuctionBulkActionBar from '@/components/auction/AuctionBulkActionBar.vue'
-import { Plus, CirclePlus, RefreshCw, CheckSquare } from 'lucide-vue-next'
+import { Plus, CirclePlus, RefreshCw, CheckSquare, ExternalLink } from 'lucide-vue-next'
+import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { usePwa } from '@/composables/usePwa'
 
 const { isPwa } = usePwa()
@@ -266,5 +270,13 @@ fetchAllCounts()
   font-size: 0.85rem;
   color: var(--text-secondary);
   font-weight: 500;
+}
+
+.auction-house-link {
+  margin-top: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-decoration: none;
 }
 </style>

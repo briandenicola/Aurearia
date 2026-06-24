@@ -39,6 +39,8 @@ const (
 	SettingCollectionHealthSnapshotsEnabled   = "CollectionHealthSnapshotsEnabled"
 	SettingCollectionHealthSnapshotsStartTime = "CollectionHealthSnapshotsStartTime"
 	SettingExternalToolServerEnabled          = "ExternalToolServerEnabled"
+	SettingRegistrationMode                   = "RegistrationMode"
+	SettingBackupStatus                       = "BackupStatus"
 	SettingSetSnapshotEnabled                 = "SetSnapshotEnabled"
 	SettingSetSnapshotStartTime               = "SetSnapshotStartTime"
 	SettingCoinCategories                     = "CoinCategories"
@@ -100,6 +102,8 @@ var settingDefaults = map[string]string{
 	SettingCollectionHealthSnapshotsEnabled:   "false",
 	SettingCollectionHealthSnapshotsStartTime: "04:30",
 	SettingExternalToolServerEnabled:          "false",
+	SettingRegistrationMode:                   "closed",
+	SettingBackupStatus:                       "not_configured",
 	SettingSetSnapshotEnabled:                 "false",
 	SettingSetSnapshotStartTime:               "04:00",
 	SettingCoinCategories:                     "Roman\nGreek\nByzantine\nModern\nOther",
@@ -179,9 +183,7 @@ func (s *SettingsService) ResolveLLMConfig() (LLMConfig, error) {
 	}
 
 	cfg := LLMConfig{
-		Provider:   provider,
-		OllamaURL:  s.GetSetting(SettingOllamaURL),
-		SearXNGURL: s.GetSetting(SettingSearXNGURL),
+		Provider: provider,
 	}
 
 	switch provider {
@@ -193,6 +195,8 @@ func (s *SettingsService) ResolveLLMConfig() (LLMConfig, error) {
 		}
 	case "ollama":
 		cfg.Model = s.GetSetting(SettingOllamaModel)
+		cfg.OllamaURL = s.GetSetting(SettingOllamaURL)
+		cfg.SearXNGURL = s.GetSetting(SettingSearXNGURL)
 	default:
 		return LLMConfig{}, fmt.Errorf("unknown AI provider: %s", provider)
 	}

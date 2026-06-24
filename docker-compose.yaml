@@ -30,7 +30,7 @@ services:
     expose:
       - "8081"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/ready')"]
       interval: 10s
       timeout: 5s
       retries: 3

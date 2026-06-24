@@ -247,12 +247,15 @@ def create_supervisor(
     # Build Collection team as a callable node (requires token + base URL)
     collection_graph = None
     if tools_base_url and internal_token:
-        collection_graph = create_collection_chat_team(
-            llm_config,
-            tools_base_url,
-            internal_token,
-            app_context=app_context,
-        )
+        try:
+            collection_graph = create_collection_chat_team(
+                llm_config,
+                tools_base_url,
+                internal_token,
+                app_context=app_context,
+            )
+        except ValueError as exc:
+            logger.warning("Collection tools disabled: %s", exc)
 
     async def collection_node(state: MessagesState) -> dict:
         """Delegate to collection chat ReAct agent."""

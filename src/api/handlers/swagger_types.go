@@ -1,6 +1,9 @@
 package handlers
 
-import "github.com/briandenicola/ancient-coins-api/models"
+import (
+	"github.com/briandenicola/ancient-coins-api/models"
+	"github.com/briandenicola/ancient-coins-api/repository"
+)
 
 // Swagger response types for documentation
 
@@ -71,6 +74,11 @@ type StatsResponse struct {
 	ByCategory    []CategoryCount `json:"byCategory"`
 	ByMaterial    []MaterialCount `json:"byMaterial"`
 	Values        ValueSummary    `json:"values"`
+}
+
+type InvestmentBreakdownResponse struct {
+	Dimension string                                  `json:"dimension" example:"purchase-month"`
+	Segments  []repository.InvestmentBreakdownSegment `json:"segments"`
 }
 
 type CategoryCount struct {

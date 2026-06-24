@@ -41,6 +41,9 @@
         <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
           {{ settingsSaving ? 'Saving...' : 'Save Schedule Settings' }}
         </button>
+        <button class="btn btn-secondary btn-sm" :disabled="availTriggerLoading" @click="triggerManualAvailabilityCheck()">
+          {{ availTriggerLoading ? 'Running...' : 'Run Now' }}
+        </button>
         <span v-if="availSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': availSettingsError }">{{ availSettingsMsg }}</span>
       </div>
     </div>
@@ -444,6 +447,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   getAvailabilityRuns, getAvailabilityRunDetail,
+  triggerAvailabilityCheck,
   getValuationRuns, getValuationRunDetail, triggerValuation, cancelValuationRun,
   getAuctionEndingRuns, triggerAuctionEndingCheck,
   triggerCollectionHealthSnapshots,
@@ -474,6 +478,8 @@ const emit = defineEmits<{
   'update:valSettingsError': [val: boolean]
   'update:auctionSettingsMsg': [val: string]
   'update:auctionSettingsError': [val: boolean]
+  'update:availSettingsMsg': [val: string]
+  'update:availSettingsError': [val: boolean]
   'update:healthSettingsMsg': [val: string]
   'update:healthSettingsError': [val: boolean]
 }>()
@@ -504,6 +510,7 @@ const {
 const expandedRunId = ref<number | null>(null)
 const expandedResults = ref<AvailabilityRun['results']>(undefined)
 const expandedLoading = ref(false)
+const availTriggerLoading = ref(false)
 
 async function toggleRunDetail(runId: number) {
   if (expandedRunId.value === runId) {
@@ -521,6 +528,23 @@ async function toggleRunDetail(runId: number) {
     expandedResults.value = []
   } finally {
     expandedLoading.value = false
+  }
+}
+
+async function triggerManualAvailabilityCheck() {
+  availTriggerLoading.value = true
+  emit('update:availSettingsMsg', '')
+  emit('update:availSettingsError', false)
+  try {
+    const res = await triggerAvailabilityCheck()
+    emit('update:availSettingsMsg', res.data.message ?? 'Availability check run completed')
+    timers.push(setTimeout(() => { emit('update:availSettingsMsg', '') }, 10000))
+    timers.push(setTimeout(() => { loadAvailRuns() }, 2000))
+  } catch {
+    emit('update:availSettingsMsg', 'Failed to run availability check')
+    emit('update:availSettingsError', true)
+  } finally {
+    availTriggerLoading.value = false
   }
 }
 

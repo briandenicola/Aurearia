@@ -1,7 +1,7 @@
 import { ref, watch, nextTick, onMounted, onUnmounted, type Ref } from 'vue'
-import { removeBackground as removeBg } from '@imgly/background-removal'
 import { proxyImage, uploadImage, createCoin, getCoins, getCoin } from '@/api/client'
 import type { Coin } from '@/types'
+import { removeCoinBackground } from '@/utils/backgroundRemoval'
 
 export type Step = 'preview' | 'removing' | 'crop' | 'done'
 
@@ -101,9 +101,7 @@ export function useImageProcessor(
     try {
       const response = await fetch(sourceImage.value)
       const srcBlob = await response.blob()
-      const result = await removeBg(srcBlob, {
-        output: { format: 'image/png', quality: 1 },
-      })
+      const result = await removeCoinBackground(srcBlob)
       processedBlob.value = result
       const img = new Image()
       img.onload = () => {

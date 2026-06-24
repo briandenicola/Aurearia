@@ -1,44 +1,27 @@
 <template>
-  <div class="era-filter">
-    <button
-      class="chip"
-      :class="{ active: !modelValue }"
-      @click="$emit('update:modelValue', '')"
-    >
-      All Eras
-    </button>
-    <button
-      v-for="era in COIN_ERAS"
-      :key="era"
-      class="chip"
-      :class="{ active: modelValue === era }"
-      @click="$emit('update:modelValue', era)"
-    >
-      {{ formatEra(era) }}
-    </button>
-  </div>
+  <select :value="modelValue" @change="$emit('update:modelValue', ($event.target as HTMLSelectElement).value)" class="era-filter-select">
+    <option value="">All Eras</option>
+    <option v-for="era in eras" :key="era" :value="era">{{ formatEra(era) }}</option>
+  </select>
 </template>
 
 <script setup lang="ts">
-import { COIN_ERAS } from '@/types'
-import type { CoinEra } from '@/types'
+defineProps<{ modelValue: string; eras: string[] }>()
+defineEmits<{ 'update:modelValue': [value: string] }>()
 
-defineProps<{ modelValue: string }>()
-defineEmits<{ 'update:modelValue': [value: '' | CoinEra] }>()
-
-function formatEra(era: CoinEra): string {
+function formatEra(era: string): string {
   return era.charAt(0).toUpperCase() + era.slice(1)
 }
 </script>
 
 <style scoped>
-.era-filter {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-
-.chip {
-  text-transform: capitalize;
+.era-filter-select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
 }
 </style>

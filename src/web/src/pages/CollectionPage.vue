@@ -17,6 +17,7 @@
       v-model:grid-side="gridSide"
       :select-mode="selectMode"
       :user-tags="userTags"
+      :era-options="eraOptions"
       @toggle-select-mode="toggleSelectMode"
     />
 
@@ -24,12 +25,12 @@
       v-if="!isPwa"
       v-model:search="search"
       v-model:selected-category="selectedCategory"
+      v-model:selected-era="selectedEra"
       v-model:selected-tag="selectedTag"
       v-model:sort-key="sortKey"
       v-model:grid-side="gridSide"
-      :select-mode="selectMode"
       :user-tags="userTags"
-      @toggle-select-mode="toggleSelectMode"
+      :era-options="eraOptions"
     />
 
     <!-- Needs Attention Queue (when filter is active) -->
@@ -122,7 +123,7 @@ const router = useRouter()
 
 const {
   selectedCategory, search, page, sortKey, selectedTag, userTags,
-  selectedEra,
+  selectedEra, eraOptions,
   fetchUserTags, loadCoins,
 } = useCollectionFilters()
 
@@ -222,6 +223,18 @@ function toggleSelectMode() {
     showLocationPicker.value = false
   }
 }
+
+// Sync with global bulkSelectActive changes (e.g., from title bar)
+watch(bulkSelectActive, (active) => {
+  if (selectMode.value !== active) {
+    selectMode.value = active
+    if (!active) {
+      selectedCoinIds.value = new Set()
+      showTagPicker.value = false
+      showLocationPicker.value = false
+    }
+  }
+})
 
 function toggleCoinSelect(coinId: number) {
   const next = new Set(selectedCoinIds.value)

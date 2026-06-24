@@ -104,6 +104,17 @@
         <!-- Catalogs Tab -->
         <AdminCatalogsSection v-if="activeTab === 'catalogs'" />
 
+        <!-- OIDC Tab -->
+        <AdminOIDCSection v-if="activeTab === 'oidc'" />
+
+        <!-- Security Tab -->
+        <AdminSecuritySection
+          v-if="activeTab === 'security'"
+          :users="users"
+          :registration-mode="settings.RegistrationMode ?? ''"
+          @unlocked="handleUserUnlocked"
+        />
+
         <!-- Schedules Tab -->
         <AdminSchedulesSection
           v-if="activeTab === 'schedules'"
@@ -118,6 +129,8 @@
           :val-settings-msg="valSettingsMsg"
           :val-settings-error="valSettingsError"
           @save="saveSettings"
+          @update:avail-settings-msg="availSettingsMsg = $event"
+          @update:avail-settings-error="availSettingsError = $event"
           @update:val-settings-msg="valSettingsMsg = $event"
           @update:val-settings-error="valSettingsError = $event"
           @update:auction-settings-msg="auctionSettingsMsg = $event"
@@ -171,9 +184,11 @@ import AdminSchedulesSection from '@/components/admin/AdminSchedulesSection.vue'
 import AdminHealthSection from '@/components/admin/AdminHealthSection.vue'
 import AdminCatalogsSection from '@/components/admin/AdminCatalogsSection.vue'
 import AdminCoinPropertiesSection from '@/components/admin/AdminCoinPropertiesSection.vue'
-import { Users, Cpu, Wrench, ScrollText, CalendarClock, Activity, ChevronRight, BookMarked, Settings2 } from 'lucide-vue-next'
+import AdminSecuritySection from '@/components/admin/AdminSecuritySection.vue'
+import AdminOIDCSection from '@/components/admin/AdminOIDCSection.vue'
+import { Users, Cpu, Wrench, ScrollText, CalendarClock, Activity, ChevronRight, BookMarked, Settings2, ShieldAlert, KeyRound } from 'lucide-vue-next'
 
-type AdminTabId = 'users' | 'ai' | 'system' | 'properties' | 'catalogs' | 'schedules' | 'health' | 'logs'
+type AdminTabId = 'users' | 'ai' | 'system' | 'properties' | 'catalogs' | 'oidc' | 'security' | 'schedules' | 'health' | 'logs'
 type AdminGroupId = 'configuration' | 'operations'
 type AdminTab = {
   id: AdminTabId
@@ -188,6 +203,8 @@ const tabIcons: Record<AdminTabId, Component> = {
   system: Wrench,
   properties: Settings2,
   catalogs: BookMarked,
+  oidc: KeyRound,
+  security: ShieldAlert,
   schedules: CalendarClock,
   health: Activity,
   logs: ScrollText,
@@ -199,6 +216,8 @@ const tabs: AdminTab[] = [
   { id: 'system', label: 'System', group: 'configuration' },
   { id: 'properties', label: 'Coin Properties', group: 'configuration' },
   { id: 'catalogs', label: 'Catalogs', group: 'configuration' },
+  { id: 'oidc', label: 'OIDC Login', group: 'configuration' },
+  { id: 'security', label: 'Security', group: 'operations' },
   { id: 'schedules', label: 'Schedules', group: 'operations', aliases: ['schedule'] },
   { id: 'health', label: 'Health', group: 'operations' },
   { id: 'logs', label: 'Logs', group: 'operations', aliases: ['log'] },
@@ -286,6 +305,14 @@ function handleRoleUpdated(payload: { userId: number; role: UserInfo['role'] }) 
 function handleUserDeleted(userId: number) {
   users.value = users.value.filter((user) => user.id !== userId)
   editTarget.value = null
+}
+
+function handleUserUnlocked(userId: number) {
+  users.value = users.value.map((user) =>
+    user.id === userId
+      ? { ...user, lockedUntil: null, failedLoginAttempts: 0 }
+      : user
+  )
 }
 
 // Settings (from composable)

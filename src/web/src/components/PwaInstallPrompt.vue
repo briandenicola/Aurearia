@@ -6,7 +6,7 @@
           <Download :size="24" />
         </div>
         <div class="install-text">
-          <h4>Install Coin Collection</h4>
+          <h4>Aurearia - Coin Collection</h4>
           <p v-if="platform === 'ios-safari'">
             Tap the <strong>Share</strong> button
             <Share :size="14" class="inline-icon" />

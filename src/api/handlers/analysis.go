@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -164,7 +165,11 @@ func (h *AnalysisHandler) Analyze(c *gin.Context) {
 	analysis, err := h.proxy.AnalyzeCoin(c.Request.Context(), proxyReq)
 	if err != nil {
 		logger.Error("analysis", "AI analysis failed for coin %d: %v", coinID, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI analysis failed. Check agent service configuration."})
+		message := fmt.Sprintf("AI analysis failed for %s. Check agent service configuration.", side)
+		if strings.Contains(err.Error(), "AGENT_INTERNAL_SERVICE_TOKEN") {
+			message = fmt.Sprintf("AI analysis failed for %s. Internal agent service credential is not configured. Check internal agent service configuration.", side)
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": message})
 		return
 	}
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -36,6 +37,7 @@ func setupCoinHandlerTestDB(t *testing.T) *gorm.DB {
 		&models.AvailabilityResult{}, &models.AuctionLot{},
 		&models.Tag{}, &models.CoinTag{},
 		&models.CoinSet{}, &models.CoinSetMembership{},
+		&models.Showcase{}, &models.ShowcaseCoin{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)
@@ -103,8 +105,10 @@ func setupCoinHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	protected.Use(coinTestAuthMiddleware())
 	protected.GET("/coins", handler.List)
 	protected.GET("/coins/:id", handler.Get)
+	protected.GET("/stats/investment-breakdown", handler.InvestmentBreakdown)
 	protected.POST("/coins", handler.Create)
 	protected.PUT("/coins/:id", handler.Update)
+	protected.POST("/coins/:id/duplicate", handler.Duplicate)
 	protected.DELETE("/coins/:id", handler.Delete)
 
 	return r, db
@@ -263,6 +267,170 @@ func TestCoinHandler_Create_InvalidPayload(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for invalid JSON, got %d", w.Code)
+	}
+}
+
+// --- Duplicate ---
+
+func TestCoinHandler_Duplicate_PreservesOwnedDataAndAssociationsExcludingMedia(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "owner")
+
+	location := models.StorageLocation{UserID: 1, Name: "Tray A"}
+	if err := db.Create(&location).Error; err != nil {
+		t.Fatalf("failed to seed storage location: %v", err)
+	}
+	purchasePrice := 125.50
+	currentValue := 175.75
+	purchaseDate := time.Date(2025, time.March, 14, 0, 0, 0, 0, time.UTC)
+	coin := models.Coin{
+		Name:               "Augustus Denarius",
+		Category:           models.CategoryRoman,
+		Denomination:       "Denarius",
+		Ruler:              "Augustus",
+		Era:                models.EraAncient,
+		Mint:               "Rome",
+		Material:           models.MaterialSilver,
+		PurchasePrice:      &purchasePrice,
+		CurrentValue:       &currentValue,
+		PurchaseDate:       &purchaseDate,
+		PurchaseLocation:   "Auction",
+		Notes:              "Cabinet tone",
+		ReferenceURL:       "https://example.test/reference",
+		ReferenceText:      "RIC I 1",
+		IsPrivate:          true,
+		StorageLocationID:  &location.ID,
+		UserID:             1,
+		ObverseInscription: "CAESAR",
+		ReverseInscription: "AVGVSTVS",
+		ObverseDescription: "Laureate head",
+		ReverseDescription: "Temple",
+		AIAnalysis:         "Existing analysis",
+		ObverseAnalysis:    "Obverse analysis",
+		ReverseAnalysis:    "Reverse analysis",
+		ListingStatus:      "available",
+		ListingCheckReason: "seeded",
+		ListingCheckedAt:   &purchaseDate,
+	}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+	if err := db.Create(&models.CoinImage{CoinID: coin.ID, FilePath: "uploads/original-obverse.jpg", ImageType: models.ImageTypeObverse, IsPrimary: true}).Error; err != nil {
+		t.Fatalf("failed to seed image: %v", err)
+	}
+	if err := db.Create(&models.CoinReference{CoinID: coin.ID, Catalog: "RIC", Volume: "I", Number: "12", InvoiceNumber: "INV-1", URI: "https://example.test/ric"}).Error; err != nil {
+		t.Fatalf("failed to seed reference: %v", err)
+	}
+	tag := models.Tag{UserID: 1, Name: "Favorites", Color: "#c9a84c"}
+	if err := db.Create(&tag).Error; err != nil {
+		t.Fatalf("failed to seed tag: %v", err)
+	}
+	if err := repository.NewTagRepository(db).AttachToCoin(coin.ID, tag.ID, 1); err != nil {
+		t.Fatalf("failed to attach tag: %v", err)
+	}
+	setRepo := repository.NewSetRepository(db)
+	set := models.CoinSet{UserID: 1, Name: "Roman Core", SetType: models.CoinSetTypeOpen}
+	if err := setRepo.Create(&set); err != nil {
+		t.Fatalf("failed to seed set: %v", err)
+	}
+	if err := setRepo.AddCoinToSet(coin.ID, set.ID, 1, "keeper"); err != nil {
+		t.Fatalf("failed to attach set: %v", err)
+	}
+	if err := db.Model(&models.CoinSetMembership{}).Where("coin_id = ? AND set_id = ?", coin.ID, set.ID).Update("sort_order", 7).Error; err != nil {
+		t.Fatalf("failed to set membership sort order: %v", err)
+	}
+	var originalMembership models.CoinSetMembership
+	if err := db.Where("coin_id = ? AND set_id = ?", coin.ID, set.ID).First(&originalMembership).Error; err != nil {
+		t.Fatalf("failed to load original membership: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/coins/%d/duplicate", coin.ID), nil)
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var duplicated models.Coin
+	if err := json.Unmarshal(w.Body.Bytes(), &duplicated); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if duplicated.ID == 0 || duplicated.ID == coin.ID {
+		t.Fatalf("expected a new coin id, got %d from original %d", duplicated.ID, coin.ID)
+	}
+	if duplicated.Name != "Augustus Denarius (duplicate)" {
+		t.Fatalf("expected duplicate suffix, got %q", duplicated.Name)
+	}
+	if duplicated.UserID != 1 || duplicated.Category != coin.Category || duplicated.Material != coin.Material || duplicated.Era != coin.Era {
+		t.Fatalf("expected owned scalar data to be preserved, got user=%d category=%q material=%q era=%q", duplicated.UserID, duplicated.Category, duplicated.Material, duplicated.Era)
+	}
+	if duplicated.StorageLocationID == nil || *duplicated.StorageLocationID != location.ID {
+		t.Fatalf("expected storage location %d to be preserved, got %v", location.ID, duplicated.StorageLocationID)
+	}
+	if len(duplicated.Images) != 0 {
+		t.Fatalf("expected duplicate response to exclude images/media, got %#v", duplicated.Images)
+	}
+	if len(duplicated.Tags) != 1 || duplicated.Tags[0].ID != tag.ID {
+		t.Fatalf("expected tag association to be preserved, got %#v", duplicated.Tags)
+	}
+	if len(duplicated.Sets) != 1 || duplicated.Sets[0].ID != set.ID {
+		t.Fatalf("expected set association to be preserved, got %#v", duplicated.Sets)
+	}
+	if len(duplicated.References) != 1 || duplicated.References[0].Catalog != "RIC" || duplicated.References[0].Number != "12" {
+		t.Fatalf("expected reference association to be preserved, got %#v", duplicated.References)
+	}
+
+	var newImageCount int64
+	if err := db.Model(&models.CoinImage{}).Where("coin_id = ?", duplicated.ID).Count(&newImageCount).Error; err != nil {
+		t.Fatalf("failed to count duplicated images: %v", err)
+	}
+	if newImageCount != 0 {
+		t.Fatalf("expected no image rows for duplicated coin, got %d", newImageCount)
+	}
+	var membership models.CoinSetMembership
+	if err := db.Where("coin_id = ? AND set_id = ?", duplicated.ID, set.ID).First(&membership).Error; err != nil {
+		t.Fatalf("expected duplicated set membership: %v", err)
+	}
+	if membership.Notes != originalMembership.Notes || membership.SortOrder != originalMembership.SortOrder || !membership.AddedAt.Equal(originalMembership.AddedAt) {
+		t.Fatalf("expected membership metadata to be preserved, got %#v want %#v", membership, originalMembership)
+	}
+	var snapshotCount int64
+	if err := db.Model(&models.ValueSnapshot{}).Where("user_id = ?", uint(1)).Count(&snapshotCount).Error; err != nil {
+		t.Fatalf("failed to count value snapshots: %v", err)
+	}
+	if snapshotCount != 1 {
+		t.Fatalf("expected duplicate to record one value snapshot, got %d", snapshotCount)
+	}
+}
+
+func TestCoinHandler_Duplicate_RejectsNonOwnedCoin(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "owner")
+	createTestUser(t, db, 2, "intruder")
+
+	coin := models.Coin{Name: "Private Coin", Category: models.CategoryGreek, Material: models.MaterialSilver, UserID: 1}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/coins/%d/duplicate", coin.ID), nil)
+	req.Header.Set("Authorization", authHeader(2))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for non-owned coin, got %d: %s", w.Code, w.Body.String())
+	}
+	var duplicateCount int64
+	if err := db.Model(&models.Coin{}).Where("name = ? AND user_id = ?", "Private Coin (duplicate)", uint(2)).Count(&duplicateCount).Error; err != nil {
+		t.Fatalf("failed to count duplicates: %v", err)
+	}
+	if duplicateCount != 0 {
+		t.Fatalf("expected no duplicate for non-owner, got %d", duplicateCount)
 	}
 }
 
@@ -1254,6 +1422,130 @@ func TestCoinHandler_Unauthenticated(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401 without auth, got %d", w.Code)
+	}
+}
+
+// --- Investment breakdown ---
+
+func TestCoinHandler_InvestmentBreakdown_PurchaseMonth(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "investor")
+	createTestUser(t, db, 2, "other")
+
+	purchaseDate := time.Date(2024, time.January, 15, 0, 0, 0, 0, time.UTC)
+	noDatePrice := 999.0
+	p100, p50, pSold, pWishlist, pOther := 100.0, 50.0, 80.0, 70.0, 60.0
+	cv150, cvSold, cvWishlist, cvOther := 150.0, 90.0, 75.0, 65.0
+	coins := []models.Coin{
+		{Name: "January Denarius", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, PurchasePrice: &p100, CurrentValue: &cv150, PurchaseDate: &purchaseDate},
+		{Name: "January Fallback", Category: models.CategoryRoman, Material: models.MaterialBronze, UserID: 1, PurchasePrice: &p50, PurchaseDate: &purchaseDate},
+		{Name: "No Date", Category: models.CategoryGreek, Material: models.MaterialGold, UserID: 1, PurchasePrice: &noDatePrice},
+		{Name: "Sold Date", Category: models.CategoryGreek, Material: models.MaterialGold, UserID: 1, PurchasePrice: &pSold, CurrentValue: &cvSold, PurchaseDate: &purchaseDate, IsSold: true},
+		{Name: "Wishlist Date", Category: models.CategoryGreek, Material: models.MaterialGold, UserID: 1, PurchasePrice: &pWishlist, CurrentValue: &cvWishlist, PurchaseDate: &purchaseDate, IsWishlist: true},
+		{Name: "Other User Date", Category: models.CategoryGreek, Material: models.MaterialGold, UserID: 2, PurchasePrice: &pOther, CurrentValue: &cvOther, PurchaseDate: &purchaseDate},
+	}
+	if err := db.Create(&coins).Error; err != nil {
+		t.Fatalf("failed to seed investment coins: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/stats/investment-breakdown?dimension=purchase-month", nil)
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Dimension string                                  `json:"dimension"`
+		Segments  []repository.InvestmentBreakdownSegment `json:"segments"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Dimension != repository.InvestmentBreakdownPurchaseMonth {
+		t.Fatalf("unexpected dimension %q", resp.Dimension)
+	}
+	if len(resp.Segments) != 1 {
+		t.Fatalf("expected 1 purchase-month segment, got %d: %#v", len(resp.Segments), resp.Segments)
+	}
+	segment := resp.Segments[0]
+	if segment.Label != "Jan 2024" || segment.Year == nil || *segment.Year != 2024 || segment.Month == nil || *segment.Month != 1 {
+		t.Fatalf("unexpected purchase label/date fields: %#v", segment)
+	}
+	if segment.CoinCount != 2 || segment.MissingCurrentValueCount != 1 || segment.MissingPurchasePriceCount != 0 {
+		t.Fatalf("unexpected confidence counts: %#v", segment)
+	}
+	if segment.Invested != 150 || segment.CurrentValue != 200 || segment.GainLoss != 50 {
+		t.Fatalf("unexpected values: %#v", segment)
+	}
+	if math.Abs(segment.GainLossPct-33.3333333333) > 0.0001 {
+		t.Fatalf("unexpected gainLossPct: %f", segment.GainLossPct)
+	}
+}
+
+func TestCoinHandler_InvestmentBreakdown_Material(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "materialuser")
+
+	p100, p40, p10, pSold := 100.0, 40.0, 10.0, 1000.0
+	cv120, cv12, cvSold := 120.0, 12.0, 1200.0
+	coins := []models.Coin{
+		{Name: "Silver A", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, PurchasePrice: &p100, CurrentValue: &cv120},
+		{Name: "Silver B", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, PurchasePrice: &p40},
+		{Name: "Blank Material", Category: models.CategoryGreek, Material: "", UserID: 1, PurchasePrice: &p10, CurrentValue: &cv12},
+		{Name: "Sold Silver", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, PurchasePrice: &pSold, CurrentValue: &cvSold, IsSold: true},
+	}
+	if err := db.Create(&coins).Error; err != nil {
+		t.Fatalf("failed to seed material coins: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/stats/investment-breakdown?dimension=material", nil)
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Dimension string                                  `json:"dimension"`
+		Segments  []repository.InvestmentBreakdownSegment `json:"segments"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	segmentsByLabel := map[string]repository.InvestmentBreakdownSegment{}
+	for _, segment := range resp.Segments {
+		segmentsByLabel[segment.Label] = segment
+	}
+	silver, ok := segmentsByLabel["Silver"]
+	if !ok {
+		t.Fatalf("expected Silver segment, got %#v", resp.Segments)
+	}
+	if silver.CoinCount != 2 || silver.Invested != 140 || silver.CurrentValue != 160 || silver.GainLoss != 20 || silver.MissingCurrentValueCount != 1 {
+		t.Fatalf("unexpected Silver segment: %#v", silver)
+	}
+	other, ok := segmentsByLabel["Other"]
+	if !ok {
+		t.Fatalf("expected blank material to fall back to Other, got %#v", resp.Segments)
+	}
+	if other.CoinCount != 1 || other.Invested != 10 || other.CurrentValue != 12 || other.GainLoss != 2 {
+		t.Fatalf("unexpected Other segment: %#v", other)
+	}
+}
+
+func TestCoinHandler_InvestmentBreakdown_InvalidDimension(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "invaliddimension")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/stats/investment-breakdown?dimension=era", nil)
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

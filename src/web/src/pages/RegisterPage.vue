@@ -1,7 +1,7 @@
 <template>
   <div class="auth-page">
     <div class="auth-card">
-      <img src="/coin-logo.jpg" alt="Ancient Coins" class="auth-logo" />
+      <img src="/coin-logo.jpg" alt="Aurearia - Coin Collection" class="auth-logo" />
       <h1>Create Account</h1>
       <p class="auth-subtitle">Start tracking your collection</p>
       <form @submit.prevent="handleRegister" class="auth-form">

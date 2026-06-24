@@ -3,7 +3,10 @@ package services
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -18,7 +21,11 @@ const (
 	availabilityUserAgent      = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
 		"AppleWebKit/537.36 (KHTML, like Gecko) " +
 		"Chrome/131.0.0.0 Safari/537.36"
+	// Max body bytes to read for keyword detection (prevent memory exhaustion).
+	maxBodyReadBytes = 512 * 1024 // 512KB
 )
+
+var soldHTMLPattern = regexp.MustCompile(`(?i)>\s*sold\s*<`)
 
 // URLCheckResult holds the outcome of checking a single URL.
 type URLCheckResult struct {
@@ -71,8 +78,8 @@ func NewAvailabilityService(
 }
 
 // CheckURL performs an HTTP GET to check basic connectivity and status.
-// All successful (HTTP 200) responses are marked as "unknown" and escalated to the AI agent
-// to avoid false positives from simple keyword matching.
+// For HTTP 200 responses, reads the body and checks for common sold/unavailable indicators.
+// If no clear signal is found, marks as "unknown" for AI agent escalation.
 func (s *AvailabilityService) CheckURL(url string) (*URLCheckResult, error) {
 	client := &http.Client{
 		Timeout: availabilityHTTPTimeout,
@@ -117,8 +124,65 @@ func (s *AvailabilityService) CheckURL(url string) (*URLCheckResult, error) {
 		return result, nil
 	}
 
-	// For HTTP 200, mark as unknown and let the Python agent analyze
-	// Simple keyword matching produces too many false positives
+	// For HTTP 200, read body and check for sold/unavailable keywords before
+	// escalating to the AI agent. This catches common cases and reduces agent load.
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyReadBytes))
+	if err != nil {
+		// If body read fails, fall back to agent escalation
+		result.Status = "unknown"
+		result.Reason = "Requires AI analysis to determine availability"
+		return result, nil
+	}
+
+	bodyLower := strings.ToLower(string(bodyBytes))
+
+	// Check for strong sold indicators.
+	if soldHTMLPattern.MatchString(bodyLower) {
+		result.Status = "unavailable"
+		result.Reason = "Detected as sold/unavailable"
+		return result, nil
+	}
+
+	soldIndicators := []string{
+		"status: sold", // VCoins and others
+		"this item is sold",
+		"no longer available",
+		"item has been sold",
+		"sold out",
+	}
+
+	for _, indicator := range soldIndicators {
+		if strings.Contains(bodyLower, indicator) {
+			result.Status = "unavailable"
+			result.Reason = "Detected as sold/unavailable"
+			return result, nil
+		}
+	}
+
+	// Check for availability indicators (lower confidence, but helpful)
+	availIndicators := []string{
+		"add to cart",
+		"add to basket",
+		"buy now",
+		"available for purchase",
+		"in stock",
+	}
+
+	hasAvailIndicator := false
+	for _, indicator := range availIndicators {
+		if strings.Contains(bodyLower, indicator) {
+			hasAvailIndicator = true
+			break
+		}
+	}
+
+	if hasAvailIndicator {
+		result.Status = "available"
+		result.Reason = "Detected purchase option in page content"
+		return result, nil
+	}
+
+	// No clear signal — escalate to AI agent
 	result.Status = "unknown"
 	result.Reason = "Requires AI analysis to determine availability"
 	return result, nil
@@ -175,7 +239,7 @@ func (s *AvailabilityService) CheckWishlistForUser(
 
 		allResults = append(allResults, coinResult{coin: coin, result: result, dbResult: avResult})
 
-		// Collect ambiguous results for agent escalation
+		// Collect ambiguous results (still "unknown" after keyword check) for agent escalation
 		if result.Status == "unknown" && result.HttpStatus != nil && *result.HttpStatus == 200 {
 			if _, exists := seenAmbiguousURLs[coin.ReferenceURL]; !exists {
 				ambiguousItems = append(ambiguousItems, AvailabilityCheckProxyItem{
@@ -252,19 +316,10 @@ func (s *AvailabilityService) escalateToAgent(
 	allResults []coinResult,
 	ambiguousItems []AvailabilityCheckProxyItem,
 ) {
-	// Build LLM config from app settings
-	provider := s.settingsSvc.GetSetting(SettingAIProvider)
-	if provider == "" {
-		s.logger.Warn("availability", "No AI provider configured, skipping agent escalation")
+	llmConfig, err := s.settingsSvc.ResolveLLMConfig()
+	if err != nil {
+		s.logger.Warn("availability", "Unable to resolve AI provider config, skipping agent escalation: %v", err)
 		return
-	}
-
-	llmConfig := LLMConfig{
-		Provider:   provider,
-		APIKey:     s.settingsSvc.GetSetting(SettingAnthropicAPIKey),
-		Model:      s.settingsSvc.GetSetting(SettingAnthropicModel),
-		OllamaURL:  s.settingsSvc.GetSetting(SettingOllamaURL),
-		SearXNGURL: s.settingsSvc.GetSetting(SettingSearXNGURL),
 	}
 
 	resolvedURLs := make(map[string]struct{})

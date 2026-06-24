@@ -57,12 +57,12 @@ func (r *ShowcaseRepository) GetBySlug(slug string) (*models.Showcase, error) {
 	return &showcase, err
 }
 
-// GetShowcaseCoins returns coins in a showcase with images, ordered by sort_order.
-func (r *ShowcaseRepository) GetShowcaseCoins(showcaseID uint) ([]models.Coin, error) {
+// GetShowcaseCoins returns coins owned by the showcase owner and linked to a showcase, with images, ordered by sort_order.
+func (r *ShowcaseRepository) GetShowcaseCoins(showcaseID uint, ownerID uint) ([]models.Coin, error) {
 	var coins []models.Coin
 	err := r.db.
 		Joins("JOIN showcase_coins ON showcase_coins.coin_id = coins.id").
-		Where("showcase_coins.showcase_id = ?", showcaseID).
+		Where("showcase_coins.showcase_id = ? AND coins.user_id = ?", showcaseID, ownerID).
 		Preload("Images").
 		Preload("Tags").
 		Preload("StorageLocation").

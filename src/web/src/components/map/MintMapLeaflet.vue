@@ -1,5 +1,5 @@
 <template>
-  <section class="mint-map-card card" aria-label="Ancient mint map">
+  <section class="mint-map-card card" aria-label="Mint map">
     <div ref="mapElement" class="mint-map-leaflet" data-testid="mint-map-leaflet"></div>
   </section>
 </template>

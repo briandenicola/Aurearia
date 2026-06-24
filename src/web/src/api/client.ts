@@ -1,11 +1,51 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, ValuationRun, AuctionEndingRun, CollectionHealthSnapshotRunResult, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, UserNote, NoteInput, NoteListResponse } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, ValueEstimate, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, ValuationRun, AuctionEndingRun, CollectionHealthSnapshotRunResult, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
 const api = axios.create({
   baseURL: `${API_BASE}/api`,
 })
+
+type ApiErrorPayload = {
+  error?: unknown
+  message?: unknown
+  detail?: unknown
+}
+
+export function getApiErrorMessage(error: unknown): string {
+  if (typeof error === 'string') return error
+
+  if (typeof error === 'object' && error !== null) {
+    const maybeResponse = error as { response?: { data?: ApiErrorPayload } }
+    const data = maybeResponse.response?.data ?? (error as ApiErrorPayload)
+    const candidate = data.error ?? data.message ?? data.detail
+    if (typeof candidate === 'string') return candidate
+  }
+
+  if (error instanceof Error) return error.message
+
+  return ''
+}
+
+export function formatAgentServiceError(error: unknown, fallback = 'Agent service unavailable. Check the internal agent service configuration.'): string {
+  const message = getApiErrorMessage(error).trim()
+  if (!message) return fallback
+
+  if (/internal service credential is not configured/i.test(message)) {
+    return 'Internal agent service credential is not configured. Check the internal agent service configuration.'
+  }
+
+  if (/agent service unavailable/i.test(message) || /^HTTP 503$/i.test(message)) {
+    return 'Agent service unavailable. Check the internal agent service configuration.'
+  }
+
+  if (/check agent service configuration/i.test(message)) {
+    return 'Check the agent service configuration and retry.'
+  }
+
+  return message
+}
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
@@ -103,6 +143,14 @@ export const login = (username: string, password: string) =>
 export const register = (username: string, password: string, email?: string) =>
   api.post<AuthResponse>('/auth/register', { username, password, email })
 
+// OIDC auth
+export const getOIDCPublicProviders = () =>
+  api.get<OIDCPublicProvidersResponse>('/auth/oidc/providers')
+export const startOIDCLogin = (providerId: number, request: OIDCStartFlowRequest) =>
+  api.post<OIDCStartFlowResponse>(`/auth/oidc/${providerId}/start`, request)
+export const completeOIDCLoginCallback = (providerId: number, code: string, state: string) =>
+  api.get<AuthResponse>(`/auth/oidc/${providerId}/callback`, { params: { code, state } })
+
 // Coins
 export const getCoins = (params?: {
   category?: string
@@ -163,6 +211,7 @@ export const purchaseCoin = (id: number, data?: { purchasePrice?: number; purcha
   api.post<Coin>(`/coins/${id}/purchase`, data || {})
 export const sellCoin = (id: number, soldPrice: number | null, soldTo: string) =>
   api.post<Coin>(`/coins/${id}/sell`, { soldPrice, soldTo })
+export const duplicateCoin = (id: number) => api.post<Coin>(`/coins/${id}/duplicate`)
 export const deleteCoin = (id: number) => api.delete(`/coins/${id}`)
 export const getCoinReferences = (coinId: number) => api.get<CoinReference[]>(`/coins/${coinId}/references`)
 export const createCoinReference = (coinId: number, reference: CoinReferenceInput) =>
@@ -332,7 +381,7 @@ export async function agentChatStream(
 
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }))
-      onError(err.error || `HTTP ${resp.status}`)
+      onError(formatAgentServiceError(err, `HTTP ${resp.status}`))
       return
     }
 
@@ -379,7 +428,10 @@ export async function agentChatStream(
             event.collection,
           )
         } else if (event.type === 'error') {
-          sendError(typeof event.message === 'string' ? event.message : 'Agent stream error')
+          sendError(formatAgentServiceError(
+            typeof event.message === 'string' ? event.message : '',
+            'Agent stream error',
+          ))
         }
       } catch {
         // Ignore malformed stream chunks.
@@ -493,6 +545,8 @@ export const getAIStatus = () =>
 // Stats
 export const getStats = () => api.get<StatsResponse>('/stats')
 export const getDistribution = () => api.get<{ cells: { era: string; category: string; count: number }[] }>('/stats/distribution')
+export const getInvestmentBreakdown = (dimension: InvestmentBreakdownDimension) =>
+  api.get<InvestmentBreakdownResponse>('/stats/investment-breakdown', { params: { dimension } })
 export const getValueHistory = () => api.get<ValueSnapshot[]>('/value-history')
 export const getCollectionHealthSummary = () => api.get<CollectionHealthSummary>('/stats/health')
 export const getCoinHealthList = (params?: { scope?: 'all' | 'needs_attention'; page?: number; limit?: number }) =>
@@ -517,6 +571,16 @@ export const scrapeImage = (url: string) =>
   api.get<{ imageUrl: string }>('/scrape-image', { params: { url } })
 export const importCollection = (coins: Partial<Coin>[]) => api.post('/user/import', coins)
 
+// OIDC account linking
+export const startOIDCLink = (providerId: number, request: OIDCStartFlowRequest) =>
+  api.post<OIDCStartFlowResponse>(`/auth/oidc/${providerId}/link/start`, request)
+export const completeOIDCLinkCallback = (providerId: number, code: string, state: string) =>
+  api.get<OIDCLinkCallbackResponse>(`/auth/oidc/${providerId}/link/callback`, { params: { code, state } })
+export const getOIDCIdentities = () =>
+  api.get<OIDCLinkedIdentitiesResponse>('/user/oidc-identities')
+export const deleteOIDCIdentity = (identityId: number) =>
+  api.delete<OIDCMessageResponse>(`/user/oidc-identities/${identityId}`)
+
 // API Keys
 export const generateApiKey = (name: string, scope?: 'read' | 'read,write') =>
   api.post<{ key: string; apiKey: ApiKey }>('/auth/api-keys', { name, scope })
@@ -530,15 +594,54 @@ export const resetUserPassword = (id: number, newPassword: string) =>
   api.post(`/admin/users/${id}/reset-password`, { newPassword })
 export const updateUserRole = (id: number, role: UserInfo['role']) =>
   api.put(`/admin/users/${id}/role`, { role })
+export const unlockUser = (id: number) => api.post(`/admin/users/${id}/unlock`)
 export const getAppSettings = () => api.get<AppSettings>('/admin/settings')
 export const getAppSettingDefaults = () => api.get<AppSettings>('/admin/settings/defaults')
 export const updateAppSettings = (settings: { key: string; value: string }[]) =>
   api.put('/admin/settings', settings)
+export const getSecuritySummary = () =>
+  api.get<SecuritySummary | { summary?: Partial<SecuritySummary>; backupStatus?: string }>('/admin/security/summary')
+export const getSecurityEvents = (filters?: SecurityEventFilters) => {
+  const params = filters ? { ...filters } : undefined
+  if (params?.ip && !params.clientIp) {
+    params.clientIp = params.ip
+    delete params.ip
+  }
+  return api.get<SecurityEventsResponse>('/admin/security/events', { params })
+}
+export const getSecurityIpRules = () =>
+  api.get<{ rules?: SecurityIpRule[]; ipRules?: SecurityIpRule[] } | SecurityIpRule[]>('/admin/security/ip-rules')
+export const createSecurityIpRule = (payload: CreateSecurityIpRuleRequest) => {
+  const body: { cidr: string; reason: string; durationMinutes?: number; expiresAt?: string } = {
+    cidr: payload.cidr,
+    reason: payload.reason,
+  }
+  const durationMinutes = payload.durationMinutes ?? parseDurationMinutes(payload.duration)
+  if (durationMinutes) body.durationMinutes = durationMinutes
+  if (payload.expiresAt) body.expiresAt = payload.expiresAt
+  return api.post<SecurityIpRule>('/admin/security/ip-rules', body)
+}
+export const deleteSecurityIpRule = (id: number) =>
+  api.delete(`/admin/security/ip-rules/${id}`)
+export const getSecurityExposureCheck = () =>
+  api.get<SecurityExposureCheck>('/admin/security/exposure-check')
 export const getAdminLogs = (limit = 500, level?: string) => {
   const params: Record<string, string> = { limit: String(limit) }
   if (level) params.level = level
   return api.get<{ logs: LogEntry[]; count: number; logLevel: string }>('/admin/logs', { params })
 }
+
+// Admin OIDC providers
+export const getAdminOIDCProviders = () =>
+  api.get<OIDCAdminProvidersResponse>('/admin/oidc/providers')
+export const createAdminOIDCProvider = (provider: OIDCAdminProviderInput) =>
+  api.post<OIDCAdminProvider>('/admin/oidc/providers', provider)
+export const updateAdminOIDCProvider = (providerId: number, provider: OIDCAdminProviderUpdate) =>
+  api.put<OIDCAdminProvider>(`/admin/oidc/providers/${providerId}`, provider)
+export const deleteAdminOIDCProvider = (providerId: number) =>
+  api.delete(`/admin/oidc/providers/${providerId}`)
+export const testAdminOIDCProvider = (providerId: number) =>
+  api.post<OIDCProviderTestResponse>(`/admin/oidc/providers/${providerId}/test`)
 
 type ConnectivityResult = { available: boolean; message: string }
 export const testAnthropicConnection = () =>
@@ -736,6 +839,8 @@ export const getAvailabilityRuns = (page = 1, limit = 20) =>
   api.get<{ runs: AvailabilityRun[]; total: number }>('/admin/availability-runs', { params: { page, limit } })
 export const getAvailabilityRunDetail = (runId: number) =>
   api.get<AvailabilityRun>(`/admin/availability-runs/${runId}`)
+export const triggerAvailabilityCheck = () =>
+  api.post<{ message: string }>('/admin/availability/run')
 
 // Valuation Runs
 export const getValuationRuns = (page = 1, limit = 20) =>
@@ -778,3 +883,14 @@ export const deleteNotification = (id: number) =>
   api.delete(`/notifications/${id}`)
 
 export default api
+
+function parseDurationMinutes(duration: string | undefined) {
+  const value = duration?.trim()
+  if (!value) return undefined
+  const match = value.match(/^(\d+)\s*([mhdw])?$/i)
+  if (!match) return undefined
+  const amount = Number(match[1] ?? 0)
+  const unit = (match[2] ?? 'm').toLowerCase()
+  const multipliers: Record<string, number> = { m: 1, h: 60, d: 1440, w: 10080 }
+  return amount * (multipliers[unit] ?? 1)
+}

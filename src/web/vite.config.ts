@@ -48,9 +48,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['coin-logo.jpg'],
       manifest: {
-        name: 'Ancient Coins Collection',
-        short_name: 'Coins',
-        description: 'Track and manage your ancient coin collection',
+        name: 'Aurearia - Coin Collection',
+        short_name: 'Aurearia',
+        description: 'Track and manage your coin collection',
         theme_color: '#1a1a2e',
         background_color: '#0f0f1a',
         display: 'standalone',

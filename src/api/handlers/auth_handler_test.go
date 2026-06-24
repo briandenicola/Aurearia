@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/briandenicola/ancient-coins-api/middleware"
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/briandenicola/ancient-coins-api/services"
@@ -23,7 +25,7 @@ func setupAuthHandlerTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	err = db.AutoMigrate(&models.User{}, &models.RefreshToken{})
+	err = db.AutoMigrate(&models.User{}, &models.RefreshToken{}, &models.AppSetting{}, &models.SecurityEvent{}, &models.IPRule{})
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
@@ -45,6 +47,48 @@ func setupAuthHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	api.POST("/auth/login", handler.Login)
 	api.POST("/auth/refresh", handler.Refresh)
 	api.GET("/auth/setup", handler.NeedsSetup)
+
+	return r, db
+}
+
+func setupAuthHandlerRouterWithSettings(t *testing.T) (*gin.Engine, *gorm.DB, *services.SettingsService) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+
+	db := setupAuthHandlerTestDB(t)
+	authRepo := repository.NewAuthRepository(db)
+	settingsSvc := services.NewSettingsService(repository.NewSettingsRepository(db))
+	securitySvc := services.NewSecurityService(repository.NewSecurityRepository(db))
+	authSvc := services.NewAuthService(authRepo, testJWTSecret).WithSettings(settingsSvc).WithSecurity(securitySvc)
+	handler := NewAuthHandler(testJWTSecret, authRepo, authSvc)
+
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("clientIP", c.ClientIP())
+		c.Next()
+	})
+	api := r.Group("/api")
+	api.POST("/auth/register", handler.Register)
+	api.POST("/auth/login", handler.Login)
+	api.POST("/auth/refresh", handler.Refresh)
+	api.GET("/auth/setup", handler.NeedsSetup)
+
+	return r, db, settingsSvc
+}
+
+func setupAuthHandlerRouterWithLoginLimit(t *testing.T, limit int) (*gin.Engine, *gorm.DB) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+
+	db := setupAuthHandlerTestDB(t)
+	authRepo := repository.NewAuthRepository(db)
+	authSvc := services.NewAuthService(authRepo, testJWTSecret)
+	handler := NewAuthHandler(testJWTSecret, authRepo, authSvc)
+
+	r := gin.New()
+	api := r.Group("/api")
+	api.POST("/auth/register", handler.Register)
+	api.POST("/auth/login", middleware.RateLimit(limit, time.Minute), handler.Login)
 
 	return r, db
 }
@@ -161,6 +205,50 @@ func TestRegisterHandler_DuplicateUsername(t *testing.T) {
 	}
 }
 
+func TestRegisterHandler_RegistrationModeDefaultClosedAfterFirstUser(t *testing.T) {
+	routerWithSettings, _, _ := setupAuthHandlerRouterWithSettings(t)
+	first := registerTestUser(t, routerWithSettings, "first", "first@example.com", "password123")
+	if first["token"] == nil {
+		t.Fatalf("expected first user registration to be allowed when setup is empty: %#v", first)
+	}
+
+	body, _ := json.Marshal(map[string]string{
+		"username": "second",
+		"email":    "second@example.com",
+		"password": "password123",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	routerWithSettings.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 when registration is closed, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRegisterHandler_RegistrationModeOpenAllowsSecondUser(t *testing.T) {
+	router, _, settingsSvc := setupAuthHandlerRouterWithSettings(t)
+	registerTestUser(t, router, "first", "first@example.com", "password123")
+	if err := settingsSvc.SetSetting(services.SettingRegistrationMode, "open"); err != nil {
+		t.Fatalf("failed to open registration: %v", err)
+	}
+
+	body, _ := json.Marshal(map[string]string{
+		"username": "second",
+		"email":    "second@example.com",
+		"password": "password123",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 when registration is open, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 // --- Login Tests ---
 
 func TestLoginHandler_Success(t *testing.T) {
@@ -189,6 +277,71 @@ func TestLoginHandler_Success(t *testing.T) {
 	}
 	if resp["refreshToken"] == nil {
 		t.Error("expected refreshToken in login response")
+	}
+}
+
+func TestLocalPasswordLoginAndRefreshRegressionWithOIDCSchema(t *testing.T) {
+	router, db := setupAuthHandlerRouter(t)
+	if err := db.AutoMigrate(&models.OIDCProvider{}, &models.ExternalIdentity{}, &models.OIDCAuthState{}); err != nil {
+		t.Fatalf("failed to migrate OIDC schema: %v", err)
+	}
+
+	registerTestUser(t, router, "local-oidc-regression", "local-oidc@example.com", "password123")
+
+	loginBody, _ := json.Marshal(map[string]string{
+		"username": "local-oidc-regression",
+		"password": "password123",
+	})
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(loginBody))
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginW := httptest.NewRecorder()
+	router.ServeHTTP(loginW, loginReq)
+
+	if loginW.Code != http.StatusOK {
+		t.Fatalf("expected local login to stay successful with OIDC schema present, got %d: %s", loginW.Code, loginW.Body.String())
+	}
+
+	var loginResp struct {
+		Token        string  `json:"token"`
+		RefreshToken string  `json:"refreshToken"`
+		User         UserDTO `json:"user"`
+	}
+	if err := json.Unmarshal(loginW.Body.Bytes(), &loginResp); err != nil {
+		t.Fatalf("failed to parse login response: %v", err)
+	}
+	if loginResp.Token == "" || loginResp.RefreshToken == "" {
+		t.Fatalf("expected local login auth response tokens, got token=%q refresh=%q", loginResp.Token, loginResp.RefreshToken)
+	}
+	if loginResp.User.Username != "local-oidc-regression" {
+		t.Fatalf("expected local login user payload to be preserved, got %+v", loginResp.User)
+	}
+
+	refreshBody, _ := json.Marshal(map[string]string{"refreshToken": loginResp.RefreshToken})
+	refreshReq := httptest.NewRequest(http.MethodPost, "/api/auth/refresh", bytes.NewReader(refreshBody))
+	refreshReq.Header.Set("Content-Type", "application/json")
+	refreshW := httptest.NewRecorder()
+	router.ServeHTTP(refreshW, refreshReq)
+
+	if refreshW.Code != http.StatusOK {
+		t.Fatalf("expected refresh to stay successful with OIDC schema present, got %d: %s", refreshW.Code, refreshW.Body.String())
+	}
+
+	var refreshResp struct {
+		Token        string  `json:"token"`
+		RefreshToken string  `json:"refreshToken"`
+		User         UserDTO `json:"user"`
+	}
+	if err := json.Unmarshal(refreshW.Body.Bytes(), &refreshResp); err != nil {
+		t.Fatalf("failed to parse refresh response: %v", err)
+	}
+	if refreshResp.Token == "" || refreshResp.RefreshToken == "" {
+		t.Fatalf("expected refreshed auth response tokens, got token=%q refresh=%q", refreshResp.Token, refreshResp.RefreshToken)
+	}
+	if refreshResp.RefreshToken == loginResp.RefreshToken {
+		t.Fatal("expected refresh token rotation to remain one-time-use")
+	}
+	if refreshResp.User.Username != "local-oidc-regression" {
+		t.Fatalf("expected refreshed user payload to be preserved, got %+v", refreshResp.User)
 	}
 }
 
@@ -227,6 +380,73 @@ func TestLoginHandler_NonExistentUser(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestLoginHandler_BadPasswordThresholdReturns429GenericResponse(t *testing.T) {
+	router, _ := setupAuthHandlerRouterWithLoginLimit(t, 2)
+	registerTestUser(t, router, "limiteduser", "limited@example.com", "password123")
+
+	for i := 0; i < 2; i++ {
+		w := loginFromIP(t, router, "limiteduser", "wrong-password", "203.0.113.10")
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d: expected 401 before threshold, got %d: %s", i+1, w.Code, w.Body.String())
+		}
+		assertErrorMessage(t, w, "Invalid credentials")
+	}
+
+	w := loginFromIP(t, router, "limiteduser", "wrong-password", "203.0.113.10")
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 after same-IP threshold, got %d: %s", w.Code, w.Body.String())
+	}
+	assertErrorMessage(t, w, "Too many requests. Please try again later.")
+}
+
+func TestLoginHandler_NonexistentUsernameContributesToIPThrottleWithoutEnumeration(t *testing.T) {
+	router, _ := setupAuthHandlerRouterWithLoginLimit(t, 2)
+	registerTestUser(t, router, "knownuser", "known@example.com", "password123")
+
+	first := loginFromIP(t, router, "missing-user", "password123", "203.0.113.11")
+	if first.Code != http.StatusUnauthorized {
+		t.Fatalf("expected nonexistent username to return generic 401, got %d: %s", first.Code, first.Body.String())
+	}
+	assertErrorMessage(t, first, "Invalid credentials")
+
+	second := loginFromIP(t, router, "knownuser", "wrong-password", "203.0.113.11")
+	if second.Code != http.StatusUnauthorized {
+		t.Fatalf("expected second bad login before threshold to return 401, got %d: %s", second.Code, second.Body.String())
+	}
+	assertErrorMessage(t, second, "Invalid credentials")
+
+	throttled := loginFromIP(t, router, "knownuser", "password123", "203.0.113.11")
+	if throttled.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected nonexistent username attempt to consume same IP throttle bucket, got %d: %s", throttled.Code, throttled.Body.String())
+	}
+	assertErrorMessage(t, throttled, "Too many requests. Please try again later.")
+}
+
+func loginFromIP(t *testing.T, router *gin.Engine, username, password, ip string) *httptest.ResponseRecorder {
+	t.Helper()
+	body, _ := json.Marshal(map[string]string{
+		"username": username,
+		"password": password,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = ip + ":12345"
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
+
+func assertErrorMessage(t *testing.T, w *httptest.ResponseRecorder, expected string) {
+	t.Helper()
+	var resp map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse error response: %v; body=%s", err, w.Body.String())
+	}
+	if resp["error"] != expected {
+		t.Fatalf("expected generic error %q, got %q", expected, resp["error"])
 	}
 }
 

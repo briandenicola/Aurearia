@@ -215,6 +215,7 @@ GET    /api/ai-status               # Check agent provider status
 | Issue | Solution |
 |-------|----------|
 | "Agent service unavailable" | Ensure Python agent is running; check `AGENT_SERVICE_URL` |
+| Logs show "Internal service credential is not configured" | Set the same `AGENT_INTERNAL_SERVICE_TOKEN` in both the Go API and Python agent containers, then recreate both containers |
 | Chat freezes | Increase timeout in admin settings or try again |
 | No search results | Try simpler description; check provider configuration |
 | Wrong results | Refine description; provide more context (era, material, etc.) |

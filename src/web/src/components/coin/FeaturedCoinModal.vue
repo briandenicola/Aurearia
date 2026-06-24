@@ -46,6 +46,15 @@
             >
               View Full Coin
             </router-link>
+            <button
+              v-if="featured.coin"
+              class="btn btn-secondary btn-sm featured-share-button"
+              :disabled="sharing"
+              @click="handleShare"
+            >
+              <Share2 :size="14" />
+              {{ sharing ? 'Sharing...' : 'Share' }}
+            </button>
             <button class="btn btn-primary btn-sm" @click="close">Close</button>
           </div>
         </div>
@@ -56,12 +65,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Sparkles, X } from 'lucide-vue-next'
+import { Share2, Sparkles, X } from 'lucide-vue-next'
 import { getFeaturedCoin } from '@/api/client'
 import type { FeaturedCoin } from '@/types'
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+import { useCoinShareCard } from '@/composables/useCoinShareCard'
 
 const props = defineProps<{ featuredCoinId: number }>()
 const emit = defineEmits<{ close: [] }>()
@@ -71,6 +81,7 @@ const md = new MarkdownIt({ html: false })
 const featured = ref<FeaturedCoin | null>(null)
 const loading = ref(false)
 const error = ref('')
+const { sharing, shareCoinCard } = useCoinShareCard()
 
 const images = computed(() => {
   const all = featured.value?.coin?.images || []
@@ -108,6 +119,18 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+async function handleShare() {
+  const coin = featured.value?.coin
+  if (!coin) return
+
+  await shareCoinCard(coin, {
+    context: {
+      heading: 'Coin of the Day',
+      summary: featured.value?.summary ?? '',
+    },
+  })
 }
 
 function close() {
@@ -323,5 +346,12 @@ watch(() => props.featuredCoinId, load)
   margin-top: 1.25rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+.featured-share-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 </style>

@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeDiameterMm, hasKnownDiameterMm, getCoinRenderSizePx, getDrawerCoins, getTotalDrawers } from '../trayLayout'
+import {
+  normalizeDiameterMm,
+  hasKnownDiameterMm,
+  selectTrayCoinImagePath,
+  getCoinRenderSizePx,
+  getDrawerCoins,
+  getTotalDrawers,
+} from '../trayLayout'
 import type { TrayCoin } from '../trayLayout'
 
 describe('trayLayout', () => {
@@ -99,6 +106,30 @@ describe('trayLayout', () => {
       const seventeenHalfMmSize = getCoinRenderSizePx(17.5, allDiameters, options)
 
       expect(seventeenHalfMmSize / sixteenMmSize).toBeCloseTo(17.5 / 16, 1)
+    })
+  })
+
+  describe('selectTrayCoinImagePath', () => {
+    it('prefers coin-face images over card, detail, and primary fallback images', () => {
+      const path = selectTrayCoinImagePath([
+        { filePath: 'cards/display-card.webp', imageType: 'card', isPrimary: true },
+        { filePath: 'details/edge.webp', imageType: 'detail' },
+        { filePath: 'coins/reverse.webp', imageType: 'reverse' },
+        { filePath: 'coins/obverse.webp', imageType: 'obverse' },
+      ])
+
+      expect(path).toBe('coins/obverse.webp')
+    })
+
+    it('falls back to primary and then first image when no coin-face image is available', () => {
+      expect(selectTrayCoinImagePath([
+        { filePath: 'details/edge.webp', imageType: 'detail' },
+        { filePath: 'cards/display-card.webp', imageType: 'card', isPrimary: true },
+      ])).toBe('cards/display-card.webp')
+
+      expect(selectTrayCoinImagePath([
+        { filePath: 'details/edge.webp', imageType: 'detail' },
+      ])).toBe('details/edge.webp')
     })
   })
 

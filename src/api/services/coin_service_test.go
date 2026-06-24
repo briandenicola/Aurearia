@@ -25,6 +25,8 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&models.CoinValueHistory{}, &models.CoinComment{},
 		&models.AvailabilityResult{}, &models.AuctionLot{},
 		&models.Tag{}, &models.CoinTag{},
+		&models.CoinSet{}, &models.CoinSetMembership{},
+		&models.Showcase{}, &models.ShowcaseCoin{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)
@@ -103,6 +105,164 @@ func TestCreateCoin_Success(t *testing.T) {
 	}
 	if snapshots[0].CoinCount != 1 {
 		t.Errorf("expected snapshot coin count 1, got %d", snapshots[0].CoinCount)
+	}
+}
+
+func TestDuplicateCoin_CopiesFieldsAssociationsAndExcludesMediaAndCardState(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinService(db)
+
+	purchasePrice := 250.0
+	currentValue := 375.0
+	weight := 3.42
+	diameter := 19.5
+	now := time.Now().UTC().Truncate(time.Second)
+	storageLocation := models.StorageLocation{UserID: 1, Name: "Tray A"}
+	if err := db.Create(&storageLocation).Error; err != nil {
+		t.Fatalf("failed to seed storage location: %v", err)
+	}
+	source := models.Coin{
+		Name:                  "Augustus Denarius",
+		Category:              models.CategoryRoman,
+		Denomination:          "Denarius",
+		Ruler:                 "Augustus",
+		Era:                   models.EraAncient,
+		Mint:                  "Lugdunum",
+		Material:              models.MaterialSilver,
+		WeightGrams:           &weight,
+		DiameterMm:            &diameter,
+		Grade:                 "VF",
+		ObverseInscription:    "CAESAR AVGVSTVS",
+		ReverseInscription:    "DIVI F",
+		ObverseDescription:    "Laureate head right",
+		ReverseDescription:    "Bull butting right",
+		RarityRating:          "RIC I 167a",
+		PurchasePrice:         &purchasePrice,
+		CurrentValue:          &currentValue,
+		CurrentValueUpdatedAt: &now,
+		PurchaseDate:          &now,
+		PurchaseLocation:      "Dealer",
+		Notes:                 "Important provenance",
+		AIAnalysis:            "Combined analysis",
+		ObverseAnalysis:       "Obverse analysis",
+		ReverseAnalysis:       "Reverse analysis",
+		ReferenceURL:          "https://example.test/ref",
+		ReferenceText:         "Reference text",
+		IsSold:                true,
+		SoldPrice:             &currentValue,
+		SoldDate:              &now,
+		SoldTo:                "Collector",
+		ListingStatus:         "available",
+		ListingCheckedAt:      &now,
+		ListingCheckReason:    "checked",
+		StorageLocationID:     &storageLocation.ID,
+		IsPrivate:             true,
+		UserID:                1,
+	}
+	if err := db.Create(&source).Error; err != nil {
+		t.Fatalf("failed to seed source coin: %v", err)
+	}
+	if err := db.Create(&models.CoinImage{CoinID: source.ID, FilePath: "coins/source-obverse.jpg", ImageType: models.ImageTypeObverse, IsPrimary: true}).Error; err != nil {
+		t.Fatalf("failed to seed image: %v", err)
+	}
+	if err := db.Create(&models.CoinReference{CoinID: source.ID, Catalog: "RIC", Volume: "I", Number: "167a", InvoiceNumber: "INV-1", URI: "https://example.test/ric"}).Error; err != nil {
+		t.Fatalf("failed to seed reference: %v", err)
+	}
+	tag := models.Tag{UserID: 1, Name: "Silver", Color: "#cccccc"}
+	if err := db.Create(&tag).Error; err != nil {
+		t.Fatalf("failed to seed tag: %v", err)
+	}
+	if err := db.Create(&models.CoinTag{CoinID: source.ID, TagID: tag.ID}).Error; err != nil {
+		t.Fatalf("failed to seed coin tag: %v", err)
+	}
+	set := models.CoinSet{UserID: 1, Name: "Twelve Caesars", SetType: models.CoinSetTypeOpen}
+	if err := db.Create(&set).Error; err != nil {
+		t.Fatalf("failed to seed set: %v", err)
+	}
+	if err := db.Create(&models.CoinSetMembership{CoinID: source.ID, SetID: set.ID, AddedAt: now, SortOrder: 7, Notes: "set note"}).Error; err != nil {
+		t.Fatalf("failed to seed set membership: %v", err)
+	}
+	showcase := models.Showcase{UserID: 1, Slug: "public-tray", Title: "Public Tray"}
+	if err := db.Create(&showcase).Error; err != nil {
+		t.Fatalf("failed to seed showcase: %v", err)
+	}
+	if err := db.Create(&models.ShowcaseCoin{ShowcaseID: showcase.ID, CoinID: source.ID, SortOrder: 3}).Error; err != nil {
+		t.Fatalf("failed to seed showcase coin: %v", err)
+	}
+
+	duplicate, err := svc.DuplicateCoin(source.ID, 1)
+	if err != nil {
+		t.Fatalf("DuplicateCoin failed: %v", err)
+	}
+
+	if duplicate.ID == source.ID {
+		t.Fatal("expected duplicate to receive a new ID")
+	}
+	if duplicate.Name != "Augustus Denarius (duplicate)" {
+		t.Fatalf("unexpected duplicate name: %q", duplicate.Name)
+	}
+	if duplicate.UserID != source.UserID || duplicate.Category != source.Category || duplicate.Material != source.Material || duplicate.Era != source.Era {
+		t.Fatalf("duplicate did not preserve owner/category/material/era: %#v", duplicate)
+	}
+	if duplicate.AIAnalysis != source.AIAnalysis || duplicate.ObverseAnalysis != source.ObverseAnalysis || duplicate.ReverseAnalysis != source.ReverseAnalysis {
+		t.Fatalf("duplicate did not preserve analysis fields")
+	}
+	if duplicate.StorageLocationID == nil || *duplicate.StorageLocationID != storageLocation.ID {
+		t.Fatalf("expected storage location %d, got %v", storageLocation.ID, duplicate.StorageLocationID)
+	}
+	if duplicate.CurrentValue == nil || *duplicate.CurrentValue != currentValue || duplicate.PurchasePrice == nil || *duplicate.PurchasePrice != purchasePrice {
+		t.Fatalf("duplicate did not preserve value fields")
+	}
+	if len(duplicate.Images) != 0 {
+		t.Fatalf("expected images to be excluded, got %#v", duplicate.Images)
+	}
+	if len(duplicate.References) != 1 || duplicate.References[0].CoinID != duplicate.ID || duplicate.References[0].Catalog != "RIC" {
+		t.Fatalf("expected copied reference for duplicate, got %#v", duplicate.References)
+	}
+	if len(duplicate.Tags) != 1 || duplicate.Tags[0].ID != tag.ID {
+		t.Fatalf("expected copied tag association, got %#v", duplicate.Tags)
+	}
+	if len(duplicate.Sets) != 1 || duplicate.Sets[0].ID != set.ID {
+		t.Fatalf("expected copied set association, got %#v", duplicate.Sets)
+	}
+	var copiedMembership models.CoinSetMembership
+	if err := db.Where("coin_id = ? AND set_id = ?", duplicate.ID, set.ID).First(&copiedMembership).Error; err != nil {
+		t.Fatalf("expected copied set membership: %v", err)
+	}
+	if copiedMembership.SortOrder != 7 || copiedMembership.Notes != "set note" || !copiedMembership.AddedAt.Equal(now) {
+		t.Fatalf("membership metadata was not copied correctly: %#v", copiedMembership)
+	}
+	var imageCount, showcaseCount int64
+	if err := db.Model(&models.CoinImage{}).Where("coin_id = ?", duplicate.ID).Count(&imageCount).Error; err != nil {
+		t.Fatalf("failed to count duplicate images: %v", err)
+	}
+	if err := db.Model(&models.ShowcaseCoin{}).Where("coin_id = ?", duplicate.ID).Count(&showcaseCount).Error; err != nil {
+		t.Fatalf("failed to count duplicate showcase rows: %v", err)
+	}
+	if imageCount != 0 || showcaseCount != 0 {
+		t.Fatalf("expected media/card state to be excluded, got images=%d showcaseRows=%d", imageCount, showcaseCount)
+	}
+}
+
+func TestDuplicateCoin_RejectsOtherUsersCoin(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinService(db)
+
+	source := models.Coin{Name: "Private Coin", Category: models.CategoryGreek, UserID: 1}
+	if err := db.Create(&source).Error; err != nil {
+		t.Fatalf("failed to seed source coin: %v", err)
+	}
+
+	duplicate, err := svc.DuplicateCoin(source.ID, 2)
+	if !repository.IsRecordNotFound(err) {
+		t.Fatalf("expected not found for another user's coin, duplicate=%#v err=%v", duplicate, err)
+	}
+	var count int64
+	if err := db.Model(&models.Coin{}).Where("name = ?", "Private Coin (duplicate)").Count(&count).Error; err != nil {
+		t.Fatalf("failed to count duplicate coins: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected no duplicate to be created, got %d", count)
 	}
 }
 

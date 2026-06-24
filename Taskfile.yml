@@ -86,6 +86,7 @@ tasks:
   run-agent:
     desc: Run the Python agent dev server
     dir: src/agent
+    dotenv: ['../../.env']
     cmds:
       - uvicorn app.main:app --host 0.0.0.0 --port 8081 --reload
 
@@ -146,12 +147,14 @@ tasks:
         {{.DOCKER_REPO}}/ancient-coins:{{.COMMIT_SHA}}
 
   init:
-    desc: Generate a .env file with a random JWT secret
-    status:
-      - test -f .env
+    desc: Generate or update .env with required local secrets
     cmds:
       - |
-        cat > .env <<EOF
-        JWT_SECRET=$(openssl rand -base64 48)
-        EOF
-      - echo ".env file created with a generated JWT secret."
+        touch .env
+        if ! grep -q '^JWT_SECRET=' .env; then
+          printf 'JWT_SECRET=%s\n' "$(openssl rand -base64 48)" >> .env
+        fi
+        if ! grep -q '^AGENT_INTERNAL_SERVICE_TOKEN=' .env; then
+          printf 'AGENT_INTERNAL_SERVICE_TOKEN=%s\n' "$(openssl rand -base64 48)" >> .env
+        fi
+      - echo ".env file is ready with required local secrets."

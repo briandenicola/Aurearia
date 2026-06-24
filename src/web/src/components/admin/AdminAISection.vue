@@ -90,6 +90,9 @@
 
       <!-- Shared Prompt Settings (visible when a provider is selected) -->
       <template v-if="settings.AIProvider">
+        <p class="form-hint">
+          Provider tests validate the selected AI provider only. Agent chat and image analysis also require the internal agent service to be configured and running.
+        </p>
         <hr class="section-divider" />
         <h3 class="subsection-title">Agent Prompts</h3>
         <div class="form-group">

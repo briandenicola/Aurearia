@@ -162,6 +162,7 @@ CI builds and pushes both images. `docker-compose` only references images — no
 | `WEBAUTHN_RP_ID`  | `localhost`                                           | WebAuthn Relying Party ID            |
 | `WEBAUTHN_ORIGIN` | `http://localhost:8080`                               | WebAuthn origin URL                  |
 | `AGENT_SERVICE_URL` | `http://agent:8081`                                 | Python agent service URL             |
+| `AGENT_INTERNAL_SERVICE_TOKEN` | —                                      | Shared API → agent credential        |
 | `AGENT_LOG_LEVEL` | `INFO`                                                | Python agent log level               |
 
 ## Admin-Managed Settings (stored in DB)

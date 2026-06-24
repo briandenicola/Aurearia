@@ -48,6 +48,11 @@ async def health():
 
 @app.get("/ready")
 async def ready():
+    if not settings.internal_service_token:
+        raise HTTPException(
+            status_code=503,
+            detail="Internal service credential is not configured; set AGENT_INTERNAL_SERVICE_TOKEN",
+        )
     return {"status": "ready", "service": "agent"}
 
 

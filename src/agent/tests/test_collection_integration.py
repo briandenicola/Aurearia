@@ -55,6 +55,23 @@ def test_supervisor_without_collection_tokens(llm_config):
     assert graph is not None
 
 
+def test_supervisor_disables_untrusted_collection_tools_without_breaking_search(monkeypatch):
+    """Coin search chat should still compile if collection callback URL is not trusted."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "trusted_outbound_origins", "http://app:8080")
+    monkeypatch.setattr(settings, "allow_local_outbound", False)
+
+    graph = create_supervisor(
+        LLMConfig(provider="anthropic", model="claude"),
+        user_message="Find me Roman silver denarii of Julius Caesar",
+        tools_base_url="http://coins:8080",
+        internal_token="test-token",
+    )
+
+    assert graph is not None
+
+
 @pytest.mark.asyncio
 async def test_collection_node_requires_tokens(llm_config):
     """Verify collection node returns error without tokens."""

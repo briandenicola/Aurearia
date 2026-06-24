@@ -71,7 +71,12 @@ func main() {
 	logger.Debug("startup", "Upload directory: %s", cfg.UploadDir)
 
 	r := gin.Default()
+	if err := r.SetTrustedProxies(cfg.TrustedProxyList()); err != nil {
+		log.Fatalf("Failed to configure trusted proxies: %v", err)
+	}
 	r.MaxMultipartMemory = middleware.DefaultMultipartMemoryBytes
+	r.Use(middleware.SecurityHeaders())
+	r.Use(middleware.ResolvedClientIP())
 
 	// CORS middleware — restrict to configured origins
 	allowedOrigins := cfg.AllowedOrigins()
@@ -101,25 +106,7 @@ func main() {
 	// Serve Vue SPA from wwwroot
 	wwwroot := filepath.Join(".", "wwwroot")
 	if _, err := os.Stat(wwwroot); err == nil {
-		r.Static("/assets", filepath.Join(wwwroot, "assets"))
-		r.StaticFile("/coin-logo.jpg", filepath.Join(wwwroot, "coin-logo.jpg"))
-		r.StaticFile("/manifest.webmanifest", filepath.Join(wwwroot, "manifest.webmanifest"))
-		r.StaticFile("/sw.js", filepath.Join(wwwroot, "sw.js"))
-		r.StaticFile("/registerSW.js", filepath.Join(wwwroot, "registerSW.js"))
-
-		// SPA fallback
-		r.NoRoute(func(c *gin.Context) {
-			// Don't serve index.html for API routes
-			if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
-				c.JSON(404, gin.H{"error": "Not found"})
-				return
-			}
-			if len(c.Request.URL.Path) >= 8 && c.Request.URL.Path[:8] == "/uploads" {
-				c.JSON(404, gin.H{"error": "Not found"})
-				return
-			}
-			c.File(filepath.Join(wwwroot, "index.html"))
-		})
+		configureStaticRoutes(r, wwwroot)
 	}
 
 	// Health check (no auth, for container orchestration)
@@ -135,7 +122,11 @@ func main() {
 
 	// Auth routes (public) — rate limited to prevent brute force
 	authRepo := repository.NewAuthRepository(database.DB)
-	authSvc := services.NewAuthService(authRepo, cfg.JWTSecret)
+	securityRepo := repository.NewSecurityRepository(database.DB)
+	securitySvc := services.NewSecurityService(securityRepo)
+	oidcRepo := repository.NewOIDCRepository(database.DB)
+	authSvc := services.NewAuthService(authRepo, cfg.JWTSecret).WithSettings(settingsSvc).WithSecurity(securitySvc)
+	oidcSvc := services.NewOIDCService(oidcRepo, services.NewDefaultOIDCDiscoveryFactory()).WithSecurity(securitySvc).WithAuth(authSvc)
 	authHandler := handlers.NewAuthHandler(cfg.JWTSecret, authRepo, authSvc)
 	webauthnRepo := repository.NewWebAuthnRepository(database.DB)
 	webauthnHandler, err := handlers.NewWebAuthnHandler(cfg.WebAuthnID, cfg.WebAuthnOrigin, authHandler, webauthnRepo, logger)
@@ -149,10 +140,11 @@ func main() {
 	imageHandler := handlers.NewImageHandler(cfg.UploadDir, imageRepo, imageSvc, logger)
 
 	authRateLimit := middleware.RateLimit(10, 1*time.Minute)
-	apiRateLimit := middleware.RateLimit(120, 1*time.Minute)  // General API rate limit
-	writeRateLimit := middleware.RateLimit(30, 1*time.Minute) // Write operations
+	apiRateLimit := middleware.AuthenticatedRateLimit(600, 1*time.Minute)  // Authenticated browsing
+	writeRateLimit := middleware.AuthenticatedRateLimit(30, 1*time.Minute) // Write operations
 
-	r.GET("/uploads/*filepath", middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth), apiRateLimit, imageHandler.ServeUpload)
+	r.Use(middleware.IPDenyRules(securitySvc))
+	r.GET("/uploads/*filepath", middleware.AuthRequiredWithSecurity(cfg.JWTSecret, apiKeyAuth, securitySvc), apiRateLimit, imageHandler.ServeUpload)
 
 	api := r.Group("/api")
 	api.Use(middleware.RequestBodyLimit(middleware.DefaultRequestBodyLimitBytes))
@@ -161,6 +153,11 @@ func main() {
 		api.POST("/auth/register", authRateLimit, authHandler.Register)
 		api.POST("/auth/login", authRateLimit, authHandler.Login)
 		api.POST("/auth/refresh", authRateLimit, authHandler.Refresh)
+		oidcHandler := handlers.NewOIDCHandler(oidcSvc)
+		api.GET("/auth/oidc/providers", authRateLimit, oidcHandler.ListPublicProviders)
+		api.POST("/auth/oidc/:providerId/start", authRateLimit, oidcHandler.StartLogin)
+		api.GET("/auth/oidc/:providerId/callback", authRateLimit, oidcHandler.Callback)
+		api.GET("/auth/oidc/:providerId/link/callback", authRateLimit, oidcHandler.LinkCallback)
 
 		// WebAuthn public routes (login ceremony)
 		api.POST("/auth/webauthn/login/begin", authRateLimit, webauthnHandler.LoginBegin)
@@ -211,7 +208,7 @@ func main() {
 	collectionSvc := services.NewCollectionToolsService(coinRepo, collectionProposalRepo)
 
 	protected := api.Group("")
-	protected.Use(middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth))
+	protected.Use(middleware.AuthRequiredWithSecurity(cfg.JWTSecret, apiKeyAuth, securitySvc))
 	protected.Use(apiRateLimit)
 	{
 		coinReferenceRepo := repository.NewCoinReferenceRepository(database.DB)
@@ -233,6 +230,7 @@ func main() {
 		protected.GET("/coins", coinHandler.List)
 		protected.GET("/coins/:id", coinHandler.Get)
 		protected.POST("/coins", coinHandler.Create)
+		protected.POST("/coins/:id/duplicate", writeRateLimit, coinHandler.Duplicate)
 		protected.POST("/coins/intake/draft", writeRateLimit, coinIntakeHandler.CreateDraft)
 		protected.POST("/coins/intake/commit", writeRateLimit, coinIntakeHandler.CommitDraft)
 		protected.POST("/coins/lookup", writeRateLimit, coinLookupHandler.Lookup)
@@ -312,6 +310,7 @@ func main() {
 		protected.GET("/coins/health", healthHandler.ListCoinHealth)
 		protected.GET("/coins/:id/health", healthHandler.GetCoinHealth)
 		protected.GET("/stats/distribution", coinHandler.Distribution)
+		protected.GET("/stats/investment-breakdown", coinHandler.InvestmentBreakdown)
 		protected.GET("/value-history", coinHandler.ValueHistory)
 		protected.GET("/coins/:id/value-history", coinHandler.CoinValueHistory)
 		protected.GET("/suggestions", coinHandler.Suggestions)
@@ -358,7 +357,7 @@ func main() {
 		protected.POST("/auctions/validate-credentials", auctionLotHandler.ValidateNumisBids)
 
 		// Wishlist availability checking
-		availHandler := handlers.NewAvailabilityHandler(availSvc, availRepo, coinRepo)
+		availHandler := handlers.NewAvailabilityHandler(availSvc, availScheduler, availRepo, coinRepo)
 		protected.POST("/wishlist/check-availability", availHandler.CheckAvailability)
 		protected.PUT("/coins/:id/listing-status", availHandler.UpdateListingStatus)
 
@@ -386,11 +385,15 @@ func main() {
 
 		// User self-service routes
 		userHandler := handlers.NewUserHandler(cfg.UploadDir, userRepo, pushoverSvc, logger)
+		oidcUserHandler := handlers.NewOIDCHandler(oidcSvc)
 		protected.GET("/auth/me", userHandler.GetMe)
 		protected.POST("/auth/change-password", userHandler.ChangePassword)
+		protected.POST("/auth/oidc/:providerId/link/start", oidcUserHandler.StartLink)
 		protected.PUT("/user/profile", userHandler.UpdateProfile)
 		protected.POST("/user/avatar", userHandler.UploadAvatar)
 		protected.DELETE("/user/avatar", userHandler.DeleteAvatar)
+		protected.GET("/user/oidc-identities", oidcUserHandler.ListLinkedIdentities)
+		protected.DELETE("/user/oidc-identities/:identityId", oidcUserHandler.UnlinkIdentity)
 		protected.GET("/user/export", userHandler.ExportCollection)
 		protected.GET("/user/export/catalog", userHandler.ExportCatalogPDF)
 		protected.POST("/user/import", writeRateLimit, userHandler.ImportCollection)
@@ -471,12 +474,13 @@ func main() {
 
 	// Admin-only routes
 	admin := api.Group("/admin")
-	admin.Use(middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth))
+	admin.Use(middleware.AuthRequiredWithSecurity(cfg.JWTSecret, apiKeyAuth, securitySvc))
 	admin.Use(middleware.RejectAPIKeyAuth())
 	admin.Use(handlers.AdminRequired())
 	{
 		adminRepo := repository.NewAdminRepository(database.DB)
-		adminHandler := handlers.NewAdminHandler(cfg.UploadDir, adminRepo, agentProxy, settingsSvc, logger)
+		adminRecoverySvc := services.NewAdminRecoveryService(adminRepo, securitySvc)
+		adminHandler := handlers.NewAdminHandler(cfg.UploadDir, adminRepo, adminRecoverySvc, agentProxy, settingsSvc, logger)
 		admin.GET("/users", adminHandler.ListUsers)
 		admin.DELETE("/users/:id", adminHandler.DeleteUser)
 		admin.POST("/users/:id/reset-password", adminHandler.ResetPassword)
@@ -487,6 +491,30 @@ func main() {
 		admin.GET("/logs", adminHandler.GetLogs)
 		admin.GET("/test-anthropic", adminHandler.TestAnthropicConnection)
 		admin.GET("/test-searxng", adminHandler.TestSearXNGConnection)
+
+		oidcHandler := handlers.NewOIDCHandler(oidcSvc)
+		admin.GET("/oidc/providers", oidcHandler.ListAdminProviders)
+		admin.POST("/oidc/providers", oidcHandler.CreateAdminProvider)
+		admin.PUT("/oidc/providers/:providerId", oidcHandler.UpdateAdminProvider)
+		admin.DELETE("/oidc/providers/:providerId", oidcHandler.DeleteAdminProvider)
+		admin.POST("/oidc/providers/:providerId/test", oidcHandler.TestAdminProvider)
+
+		securityAdminHandler := handlers.NewSecurityAdminHandler(securitySvc, settingsSvc, handlers.SecurityExposureConfig{
+			PublicAppURL:             settingsSvc.GetSetting(services.SettingPublicAppURL),
+			WebAuthnOrigin:           cfg.WebAuthnOrigin,
+			CORSOrigins:              cfg.AllowedOrigins(),
+			TrustedProxiesConfigured: cfg.TrustedProxies != "",
+			AgentInternalTokenSet:    cfg.AgentInternalServiceToken != "",
+			RegistrationMode:         settingsSvc.GetSetting(services.SettingRegistrationMode),
+			BackupStatus:             settingsSvc.GetSetting(services.SettingBackupStatus),
+		})
+		admin.GET("/security/summary", securityAdminHandler.SecuritySummary)
+		admin.GET("/security/events", securityAdminHandler.SecurityEvents)
+		admin.GET("/security/ip-rules", securityAdminHandler.ListIPRules)
+		admin.POST("/security/ip-rules", securityAdminHandler.CreateIPRule)
+		admin.DELETE("/security/ip-rules/:id", securityAdminHandler.DeleteIPRule)
+		admin.POST("/users/:id/unlock", securityAdminHandler.UnlockUser)
+		admin.GET("/security/exposure-check", securityAdminHandler.ExposureCheck)
 
 		// Catalog registry management (shared handler from protected scope)
 		catalogRegistryRepo := repository.NewCatalogRegistryRepository(database.DB)
@@ -504,10 +532,11 @@ func main() {
 		admin.PUT("/mint-locations/:id", mintLocationHandler.Update)
 		admin.DELETE("/mint-locations/:id", mintLocationHandler.Delete)
 
-		// Availability check run history (reuse availRepo from outer scope)
-		adminAvailHandler := handlers.NewAvailabilityHandler(nil, availRepo, nil)
+		// Availability check run history and manual trigger (reuse outer scope services)
+		adminAvailHandler := handlers.NewAvailabilityHandler(nil, availScheduler, availRepo, nil)
 		admin.GET("/availability-runs", adminAvailHandler.ListRuns)
 		admin.GET("/availability-runs/:id", adminAvailHandler.GetRunDetail)
+		admin.POST("/availability/run", adminAvailHandler.TriggerRun)
 
 		// Valuation run history and manual trigger
 		valAdminHandler := handlers.NewValuationAdminHandler(valRepo, valSvc, logger)
@@ -554,7 +583,7 @@ func main() {
 	// Authenticated tool endpoints (auth + rate limit)
 	v1Tools := api.Group("/v1/tools")
 	v1Tools.Use(middleware.ExternalToolServerEnabled(settingsSvc))
-	v1Tools.Use(middleware.AuthRequired(cfg.JWTSecret, apiKeyAuth))
+	v1Tools.Use(middleware.AuthRequiredWithSecurity(cfg.JWTSecret, apiKeyAuth, securitySvc))
 	v1Tools.Use(externalToolsRateLimit)
 	{
 		externalToolsHandler := handlers.NewExternalToolsHandler(collectionSvc)
@@ -631,4 +660,27 @@ func main() {
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+}
+
+func configureStaticRoutes(r *gin.Engine, wwwroot string) {
+	r.Static("/assets", filepath.Join(wwwroot, "assets"))
+	r.Static("/imgly-background-removal", filepath.Join(wwwroot, "imgly-background-removal"))
+	r.StaticFile("/coin-logo.jpg", filepath.Join(wwwroot, "coin-logo.jpg"))
+	r.StaticFile("/manifest.webmanifest", filepath.Join(wwwroot, "manifest.webmanifest"))
+	r.StaticFile("/sw.js", filepath.Join(wwwroot, "sw.js"))
+	r.StaticFile("/registerSW.js", filepath.Join(wwwroot, "registerSW.js"))
+
+	// SPA fallback
+	r.NoRoute(func(c *gin.Context) {
+		// Don't serve index.html for API routes
+		if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
+			c.JSON(404, gin.H{"error": "Not found"})
+			return
+		}
+		if len(c.Request.URL.Path) >= 8 && c.Request.URL.Path[:8] == "/uploads" {
+			c.JSON(404, gin.H{"error": "Not found"})
+			return
+		}
+		c.File(filepath.Join(wwwroot, "index.html"))
+	})
 }

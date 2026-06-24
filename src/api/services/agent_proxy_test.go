@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -41,6 +42,105 @@ func TestAgentProxyFetchLogsWithoutCredentialIsRejected(t *testing.T) {
 	logs := proxy.FetchLogs(context.Background(), 10, "")
 	if logs != nil {
 		t.Fatalf("expected no logs when internal credential is missing, got %#v", logs)
+	}
+}
+
+func TestAgentProxyAnalyzeCoinSendsInternalCredential(t *testing.T) {
+	const token = "test-internal-service-token"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/analyze" {
+			t.Fatalf("expected /api/analyze path, got %s", r.URL.Path)
+		}
+		if got := r.Header.Get("X-Internal-Service-Token"); got != token {
+			t.Fatalf("expected internal token header %q, got %q", token, got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"analysis":"authenticated analysis"}`))
+	}))
+	defer server.Close()
+
+	proxy := NewAgentProxy(server.URL, token, NewLogger(10))
+	analysis, err := proxy.AnalyzeCoin(context.Background(), AnalyzeProxyRequest{
+		LLM: LLMConfig{Provider: "anthropic", APIKey: "provider-key", Model: "claude-test"},
+		Coin: CoinDataProxy{
+			ID:   42,
+			Name: "Test Denarius",
+		},
+		Images: []string{"base64-image"},
+		Side:   "obverse",
+	})
+	if err != nil {
+		t.Fatalf("AnalyzeCoin returned error: %v", err)
+	}
+	if analysis != "authenticated analysis" {
+		t.Fatalf("AnalyzeCoin analysis = %q, want authenticated analysis", analysis)
+	}
+}
+
+func TestAgentProxyAnalyzeCoinInternalCredentialConfigErrorIsNotProviderKeyFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"detail":"Internal service credential is not configured"}`))
+	}))
+	defer server.Close()
+
+	proxy := NewAgentProxy(server.URL, "go-token", NewLogger(10))
+	_, err := proxy.AnalyzeCoin(context.Background(), AnalyzeProxyRequest{
+		LLM: LLMConfig{Provider: "anthropic", APIKey: "valid-provider-key", Model: "claude-test"},
+		Coin: CoinDataProxy{
+			ID:   42,
+			Name: "Test Denarius",
+		},
+		Images: []string{"base64-image"},
+		Side:   "obverse",
+	})
+	if err == nil {
+		t.Fatal("expected AnalyzeCoin to return an error for internal service credential config failure")
+	}
+
+	errText := strings.ToLower(err.Error())
+	if strings.Contains(errText, "anthropic") || strings.Contains(errText, "provider") || strings.Contains(errText, "api key") {
+		t.Fatalf("internal credential config failure was misclassified as provider-key failure: %v", err)
+	}
+	if !strings.Contains(errText, "set agent_internal_service_token on both go api and python agent service") {
+		t.Fatalf("expected actionable internal credential configuration error, got %v", err)
+	}
+}
+
+func TestLLMConfigJSONOmitsProviderIrrelevantFields(t *testing.T) {
+	body, err := json.Marshal(LLMConfig{
+		Provider:  "anthropic",
+		APIKey:    "anthropic-key",
+		Model:     "claude-test",
+		OllamaURL: "",
+	})
+	if err != nil {
+		t.Fatalf("marshal LLMConfig: %v", err)
+	}
+
+	bodyText := string(body)
+	if strings.Contains(bodyText, "ollama_url") || strings.Contains(bodyText, "searxng_url") {
+		t.Fatalf("Anthropic LLMConfig JSON included provider-irrelevant URLs: %s", bodyText)
+	}
+
+	body, err = json.Marshal(LLMConfig{
+		Provider:   "ollama",
+		Model:      "llava-test",
+		OllamaURL:  "http://ollama:11434",
+		SearXNGURL: "http://searxng:8080",
+	})
+	if err != nil {
+		t.Fatalf("marshal LLMConfig: %v", err)
+	}
+
+	bodyText = string(body)
+	if strings.Contains(bodyText, "api_key") {
+		t.Fatalf("Ollama LLMConfig JSON included Anthropic API key field: %s", bodyText)
+	}
+	if !strings.Contains(bodyText, "ollama_url") {
+		t.Fatalf("Ollama LLMConfig JSON omitted ollama_url: %s", bodyText)
 	}
 }
 

@@ -1,8 +1,10 @@
 import { ref, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useCoinsStore } from '@/stores/coins'
-import { getSets, getTags } from '@/api/client'
+import { getAppSettings, getSets, getTags } from '@/api/client'
 import { usePwa } from '@/composables/usePwa'
+import { COIN_ERAS } from '@/types'
 import type { CollectionSetOption } from '@/types'
+import { parseOptionList } from '@/utils/options'
 
 const RANDOM_SEED_KEY = 'coins:randomSeed'
 const PWA_RESUME_THRESHOLD_MS = 30_000
@@ -35,13 +37,15 @@ export function useCollectionFilters() {
   const sortKey = ref(store.activeSortKey || localStorage.getItem('defaultSort') || 'updated_at_desc')
   const selectedTag = ref('')
   const userTags = ref<CollectionSetOption[]>([])
+  const eraOptions = ref<string[]>([...COIN_ERAS])
 
   let debounceTimer: ReturnType<typeof setTimeout>
   let hiddenAt = 0
 
   async function fetchUserTags() {
     try {
-      const [tagRes, setRes] = await Promise.all([getTags(), getSets()])
+      const settingsPromise = getAppSettings().catch(() => null)
+      const [tagRes, setRes, settingsRes] = await Promise.all([getTags(), getSets(), settingsPromise])
       const tagOptions = (tagRes.data?.tags ?? []).map((tag) => ({
         id: tag.id,
         name: tag.name,
@@ -60,6 +64,7 @@ export function useCollectionFilters() {
           source: 'set' as const,
         }))
       userTags.value = [...tagOptions, ...setOptions]
+      eraOptions.value = parseOptionList(settingsRes?.data?.CoinEras, COIN_ERAS)
     } catch { /* ignore */ }
   }
 
@@ -178,6 +183,7 @@ export function useCollectionFilters() {
     sortKey,
     selectedTag,
     userTags,
+    eraOptions,
     fetchUserTags,
     loadCoins,
   }

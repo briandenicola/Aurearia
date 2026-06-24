@@ -104,6 +104,38 @@ describe('API Client', () => {
   })
 
   // ========================================================================
+  // Agent service error formatting
+  // ========================================================================
+
+  describe('formatAgentServiceError', () => {
+    it('maps missing internal credential config to a service-configuration message', () => {
+      const message = client.formatAgentServiceError({
+        response: {
+          data: {
+            detail: 'Internal service credential is not configured',
+          },
+        },
+      })
+
+      expect(message).toContain('Internal agent service credential is not configured')
+      expect(message).toContain('internal agent service configuration')
+      expect(message).not.toMatch(/Anthropic|API provider/i)
+    })
+
+    it('does not rewrite provider-key failures as internal service configuration', () => {
+      const message = client.formatAgentServiceError({
+        response: {
+          data: {
+            error: 'Anthropic API key is invalid',
+          },
+        },
+      })
+
+      expect(message).toBe('Anthropic API key is invalid')
+    })
+  })
+
+  // ========================================================================
   // sanitizeCoin
   // ========================================================================
 
@@ -382,6 +414,40 @@ describe('API Client', () => {
   // API wrapper methods — URL construction
   // ========================================================================
 
+  describe('AI agent error messaging', () => {
+    it('extracts backend error payloads from axios-style errors', () => {
+      const message = client.getApiErrorMessage({
+        response: {
+          data: {
+            error: 'Agent service unavailable',
+          },
+        },
+      })
+
+      expect(message).toBe('Agent service unavailable')
+    })
+
+    it('points agent-service outages at internal service configuration, not provider settings', () => {
+      expect(client.formatAgentServiceError({
+        response: {
+          data: {
+            error: 'Agent service unavailable',
+          },
+        },
+      })).toBe('Agent service unavailable. Check the internal agent service configuration.')
+    })
+
+    it('keeps the internal credential failure actionable without exposing credential values', () => {
+      expect(client.formatAgentServiceError({
+        detail: 'Internal service credential is not configured',
+      })).toBe('Internal agent service credential is not configured. Check the internal agent service configuration.')
+    })
+
+    it('treats bare HTTP 503 stream failures as agent-service configuration failures', () => {
+      expect(client.formatAgentServiceError('HTTP 503')).toBe('Agent service unavailable. Check the internal agent service configuration.')
+    })
+  })
+
   describe('API method wrappers', () => {
     it('login sends POST to /auth/login', async () => {
       mockApi.post.mockResolvedValue({ data: {} })
@@ -413,6 +479,12 @@ describe('API Client', () => {
       expect(mockApi.delete).toHaveBeenCalledWith('/coins/99')
     })
 
+    it('duplicateCoin sends POST to /coins/:id/duplicate', async () => {
+      mockApi.post.mockResolvedValue({ data: {} })
+      await client.duplicateCoin(99)
+      expect(mockApi.post).toHaveBeenCalledWith('/coins/99/duplicate')
+    })
+
     it('notes CRUD methods use the /notes contract', async () => {
       mockApi.get.mockResolvedValue({ data: { notes: [] } })
       mockApi.post.mockResolvedValue({ data: {} })
@@ -442,6 +514,14 @@ describe('API Client', () => {
       expect(mockApi.get).toHaveBeenCalledWith('/stats')
     })
 
+    it('getInvestmentBreakdown sends GET with dimension param', async () => {
+      mockApi.get.mockResolvedValue({ data: [] })
+      await client.getInvestmentBreakdown('purchase-month')
+      expect(mockApi.get).toHaveBeenCalledWith('/stats/investment-breakdown', {
+        params: { dimension: 'purchase-month' },
+      })
+    })
+
     it('sellCoin sends POST with soldPrice and soldTo', async () => {
       mockApi.post.mockResolvedValue({ data: {} })
       await client.sellCoin(5, 100, 'buyer')
@@ -452,6 +532,34 @@ describe('API Client', () => {
       mockApi.post.mockResolvedValue({ data: {} })
       await client.triggerCollectionHealthSnapshots()
       expect(mockApi.post).toHaveBeenCalledWith('/admin/collection-health-snapshots/run')
+    })
+
+    it('admin security wrappers use the public exposure hardening contract', async () => {
+      mockApi.get.mockResolvedValue({ data: {} })
+      mockApi.post.mockResolvedValue({ data: {} })
+      mockApi.delete.mockResolvedValue({ data: {} })
+
+      await client.getSecuritySummary()
+      await client.getSecurityEvents({ type: 'failed_login', username: 'alice', ip: '203.0.113.10', limit: 50 })
+      await client.getSecurityIpRules()
+      await client.createSecurityIpRule({ cidr: '203.0.113.0/24', duration: '1h', reason: 'credential stuffing' })
+      await client.deleteSecurityIpRule(12)
+      await client.unlockUser(3)
+      await client.getSecurityExposureCheck()
+
+      expect(mockApi.get).toHaveBeenCalledWith('/admin/security/summary')
+      expect(mockApi.get).toHaveBeenCalledWith('/admin/security/events', {
+        params: { type: 'failed_login', username: 'alice', clientIp: '203.0.113.10', limit: 50 },
+      })
+      expect(mockApi.get).toHaveBeenCalledWith('/admin/security/ip-rules')
+      expect(mockApi.post).toHaveBeenCalledWith('/admin/security/ip-rules', {
+        cidr: '203.0.113.0/24',
+        durationMinutes: 60,
+        reason: 'credential stuffing',
+      })
+      expect(mockApi.delete).toHaveBeenCalledWith('/admin/security/ip-rules/12')
+      expect(mockApi.post).toHaveBeenCalledWith('/admin/users/3/unlock')
+      expect(mockApi.get).toHaveBeenCalledWith('/admin/security/exposure-check')
     })
   })
 })

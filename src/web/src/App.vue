@@ -4,10 +4,24 @@
     <nav v-if="auth.isAuthenticated" class="nav-bar" :class="{ 'pwa-mode': isPwa }">
       <div class="nav-content">
         <button class="nav-brand" @click="sidebarOpen = !sidebarOpen">
-          <img src="/coin-logo.jpg" alt="Ancient Coins" class="nav-logo" />
-          <span class="nav-title">Coin Collection</span>
+          <img src="/coin-logo.jpg" alt="Aurearia - Coin Collection" class="nav-logo" />
+          <span class="nav-title">Aurearia<span class="nav-title-suffix"> - Coin Collection</span></span>
         </button>
         <div class="nav-actions">
+          <template v-if="showCollectionActions">
+            <button 
+              class="nav-bell"
+              :class="{ active: bulkSelectActive }" 
+              :aria-label="bulkSelectActive ? 'Cancel selection mode' : 'Select coins'"
+              :title="bulkSelectActive ? 'Cancel selection mode' : 'Select coins'"
+              @click="toggleCollectionSelectMode"
+            >
+              <CheckSquare :size="20" />
+            </button>
+            <router-link to="/add" class="nav-bell" aria-label="Add Coin" title="Add Coin">
+              <CirclePlus :size="20" />
+            </router-link>
+          </template>
           <router-link v-if="isPwa" to="/add" class="nav-bell nav-add" aria-label="Add Coin">
             <Plus :size="20" />
           </router-link>
@@ -26,10 +40,10 @@
 
     <!-- Slide-in sidebar -->
     <Transition name="sidebar-slide">
-      <aside v-if="sidebarOpen" class="sidebar">
+      <aside v-if="sidebarOpen" class="sidebar" :class="{ 'pwa-mode': isPwa }">
         <div class="sidebar-header">
-          <img src="/coin-logo.jpg" alt="Ancient Coins" class="sidebar-logo" />
-          <span class="sidebar-title">Coin Collection</span>
+          <img src="/coin-logo.jpg" alt="Aurearia - Coin Collection" class="sidebar-logo" />
+          <span class="sidebar-title">Aurearia<span class="sidebar-title-suffix"> - Coin Collection</span></span>
           <button class="sidebar-header-btn" :class="{ active: editMode }" @click="toggleEditMode" :title="editMode ? 'Done' : 'Reorder menu'">
             <GripVertical :size="18" />
           </button>
@@ -139,7 +153,7 @@
 
     <div v-if="showOnboardingPrompt" class="modal-overlay" @click.self="dismissOnboardingPrompt">
       <div class="modal card">
-        <h3>Welcome to Coin Collection</h3>
+        <h3>Aurearia - Coin Collection</h3>
         <p>Start with the Getting Started guide to download the CSV template, build your file, and import your first collection.</p>
         <div class="modal-actions">
           <button class="btn btn-secondary" @click="dismissOnboardingPrompt">Not now</button>
@@ -156,8 +170,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, markRaw, type Component } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
-import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Bot, Gavel, X, Bell, Plus, CalendarDays, Share2, GripVertical, BookOpen, Layers3, Search, NotebookPen, ChevronRight, ChevronDown } from 'lucide-vue-next'
+import { useRouter, useRoute } from 'vue-router'
+import { Landmark, Bookmark, BadgeDollarSign, BarChart3, CirclePlus, Settings, ShieldCheck, LogOut, Users as UsersIcon, Bot, Gavel, X, Bell, Plus, CalendarDays, Share2, GripVertical, BookOpen, Layers3, Search, NotebookPen, ChevronRight, ChevronDown, CheckSquare } from 'lucide-vue-next'
 import { updateProfile, getMe } from '@/api/client'
 import { useNotifications } from '@/composables/useNotifications'
 import { useBulkSelect } from '@/composables/useBulkSelect'
@@ -186,6 +200,7 @@ interface NavSubItem {
 
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 const { isPwa } = usePwa()
 
 const showChat = ref(false)
@@ -201,6 +216,9 @@ const { unreadCount, startPolling, stopPolling } = useNotifications()
 const { bulkSelectActive } = useBulkSelect()
 const statsExpanded = ref(false)
 const collectionExpanded = ref(false)
+
+const isCollectionPage = computed(() => route.name === 'collection')
+const showCollectionActions = computed(() => isCollectionPage.value && !isPwa)
 
 const defaultNavItems: NavItem[] = [
   {
@@ -232,6 +250,7 @@ const defaultNavItems: NavItem[] = [
       { id: 'stats-map', label: 'Map', to: '/stats/mint-map' },
       { id: 'stats-health', label: 'Health', to: '/stats/health' },
       { id: 'stats-value-trends', label: 'Value Details', to: '/stats/value-trends' },
+      { id: 'stats-investment-breakdown', label: 'Investment Breakdown', to: '/stats/investment-breakdown' },
     ],
   },
   { id: 'sets', label: 'Sets', icon: markRaw(Layers3), to: '/sets', visible: true },
@@ -305,6 +324,10 @@ function handleNavClick(item: NavItem) {
 
 function toggleEditMode() {
   editMode.value = !editMode.value
+}
+
+function toggleCollectionSelectMode() {
+  bulkSelectActive.value = !bulkSelectActive.value
 }
 
 function initSortable() {
@@ -494,14 +517,29 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+@media (max-width: 480px) {
+  .nav-title-suffix,
+  .sidebar-title-suffix {
+    display: none;
+  }
+}
+
+.nav-bar.pwa-mode .nav-title-suffix,
+.sidebar.pwa-mode .sidebar-title-suffix {
+  display: none;
+}
+
 .nav-bell {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: transparent;
+  border: none;
   color: var(--text-secondary);
   padding: 0.4rem;
   border-radius: var(--radius-sm);
+  cursor: pointer;
   transition: color var(--transition-fast), background var(--transition-fast);
   text-decoration: none;
 }
@@ -513,6 +551,11 @@ onUnmounted(() => {
 }
 
 .nav-bell:hover {
+  color: var(--accent-gold);
+  background: var(--accent-gold-glow);
+}
+
+.nav-bell.active {
   color: var(--accent-gold);
   background: var(--accent-gold-glow);
 }

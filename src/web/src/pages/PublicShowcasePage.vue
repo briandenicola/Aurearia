@@ -14,28 +14,20 @@
         <p v-if="showcase.description" class="description">{{ showcase.description }}</p>
       </div>
 
-      <div v-if="coins.length" class="coins-grid">
-        <div v-for="coin in coins" :key="coin.id" class="card coin-card">
-          <div class="coin-image-container">
-            <img
-              v-if="getPrimaryImage(coin)"
-              :src="imageUrl(getPrimaryImage(coin)!)"
-              :alt="coin.name ?? 'Coin'"
-              class="coin-image"
-            />
-            <div v-else class="coin-image-placeholder">
-              <Coins :size="32" />
-            </div>
-          </div>
-          <div class="coin-details">
-            <h3 class="coin-name">{{ coin.name ?? 'Untitled' }}</h3>
-            <div class="coin-meta">
-              <span v-if="coin.era" class="meta-tag">{{ coin.era }}</span>
-              <span v-if="coin.category" class="meta-tag">{{ coin.category }}</span>
-              <span v-if="coin.grade" class="meta-tag grade">{{ coin.grade }}</span>
-            </div>
-          </div>
-        </div>
+      <div v-if="trayCoins.length" class="public-tray-section">
+        <MuseumTray
+          :coins="currentDrawerCoins"
+          :felt-theme="feltColor"
+          :image-src-resolver="imageUrl"
+          :interactive="false"
+        />
+        <TrayControls
+          v-if="totalDrawers > 1"
+          :drawer-index="drawerIndex"
+          :total-drawers="totalDrawers"
+          @prev="handlePrevDrawer"
+          @next="handleNextDrawer"
+        />
       </div>
 
       <div v-else class="empty-state">
@@ -46,25 +38,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Coins } from 'lucide-vue-next'
 import { getPublicShowcase } from '@/api/client'
+import MuseumTray from '@/components/tray/MuseumTray.vue'
+import TrayControls from '@/components/tray/TrayControls.vue'
+import { useTrayPreference } from '@/composables/useTrayPreference'
 import { publicShowcaseMediaUrl } from '@/utils/media'
+import { getDrawerCoins, getTotalDrawers, type TrayCoin } from '@/utils/trayLayout'
 
-interface CoinImage {
+interface PublicCoinImage {
   id: number
   filePath: string
   imageType: string
+  isPrimary?: boolean
 }
 
 interface PublicCoin {
   id: number
   name?: string
+  diameterMm?: number | null
   era?: string
   category?: string
   grade?: string
-  images?: CoinImage[]
+  images?: PublicCoinImage[]
 }
 
 interface PublicShowcase {
@@ -74,18 +71,42 @@ interface PublicShowcase {
 }
 
 const route = useRoute()
+const { feltColor } = useTrayPreference()
 const loading = ref(true)
 const notFound = ref(false)
 const showcase = ref<PublicShowcase | null>(null)
 const coins = ref<PublicCoin[]>([])
+const drawerIndex = ref(0)
+const coinsPerDrawer = 12
 
-function getPrimaryImage(coin: PublicCoin): CoinImage | undefined {
-  if (!coin.images?.length) return undefined
-  return coin.images?.[0]
+const trayCoins = computed((): TrayCoin[] => coins.value.map(coin => ({
+  id: coin.id,
+  name: coin.name ?? 'Untitled',
+  diameterMm: coin.diameterMm ?? null,
+  images: coin.images ?? [],
+})))
+
+const currentDrawerCoins = computed(() => getDrawerCoins(trayCoins.value, drawerIndex.value, coinsPerDrawer))
+const totalDrawers = computed(() => getTotalDrawers(trayCoins.value.length, coinsPerDrawer))
+
+watch(totalDrawers, (drawers) => {
+  if (drawers === 0) {
+    drawerIndex.value = 0
+    return
+  }
+  drawerIndex.value = Math.min(drawerIndex.value, drawers - 1)
+})
+
+function imageUrl(filePath: string): string {
+  return publicShowcaseMediaUrl(route.params.slug as string, filePath)
 }
 
-function imageUrl(img: CoinImage): string {
-  return publicShowcaseMediaUrl(route.params.slug as string, img.filePath)
+function handlePrevDrawer() {
+  drawerIndex.value = Math.max(0, drawerIndex.value - 1)
+}
+
+function handleNextDrawer() {
+  drawerIndex.value = Math.min(totalDrawers.value - 1, drawerIndex.value + 1)
 }
 
 async function loadShowcase() {
@@ -95,6 +116,7 @@ async function loadShowcase() {
     const res = await getPublicShowcase(slug)
     showcase.value = res.data?.showcase ?? null
     coins.value = res.data?.coins ?? []
+    drawerIndex.value = 0
     if (!showcase.value) notFound.value = true
   } catch {
     notFound.value = true
@@ -108,6 +130,7 @@ onMounted(loadShowcase)
 
 <style scoped>
 .container { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+.public-tray-section { display: flex; flex-direction: column; gap: 1rem; padding-bottom: 5rem; }
 .loading-state { text-align: center; padding: 2rem; color: var(--text-secondary); }
 .empty-state { text-align: center; padding: 3rem; color: var(--text-secondary); }
 .empty-state h3 { color: var(--text-primary); margin-bottom: 0.5rem; }
@@ -117,18 +140,7 @@ onMounted(loadShowcase)
 .owner { color: var(--accent-gold); font-size: 0.9rem; margin: 0 0 0.5rem; }
 .description { color: var(--text-secondary); font-size: 1rem; max-width: 600px; margin: 0 auto; line-height: 1.5; }
 
-.coins-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.25rem; }
-
-.coin-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px; overflow: hidden; padding: 0; transition: border-color 0.2s; }
-.coin-card:hover { border-color: var(--accent-gold); }
-
-.coin-image-container { width: 100%; aspect-ratio: 1; overflow: hidden; background: rgba(0, 0, 0, 0.2); }
-.coin-image { width: 100%; height: 100%; object-fit: cover; }
-.coin-image-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
-
-.coin-details { padding: 1rem; }
-.coin-name { font-size: 1rem; color: var(--text-primary); margin: 0 0 0.5rem; line-height: 1.3; }
-.coin-meta { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-.meta-tag { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 4px; background: rgba(255, 255, 255, 0.06); color: var(--text-secondary); }
-.meta-tag.grade { background: rgba(212, 175, 55, 0.12); color: var(--accent-gold); }
+@media (max-width: 575px) {
+  .container { padding: 1rem 0.75rem; }
+}
 </style>

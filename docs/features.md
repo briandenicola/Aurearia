@@ -397,6 +397,7 @@ Generate a downloadable PDF catalog of your collection with photos, grades, prov
 | `WEBAUTHN_RP_ID`  | `localhost`                     | Relying Party ID for FIDO2/WebAuthn |
 | `WEBAUTHN_ORIGIN` | `http://localhost:8080`         | Origin URL for WebAuthn |
 | `AGENT_SERVICE_URL` | `http://agent:8081`           | Python agent service URL |
+| `AGENT_INTERNAL_SERVICE_TOKEN` | —                 | Shared API → agent credential required by hardened agent endpoints |
 | `AGENT_LOG_LEVEL` | `INFO`                          | Python agent log level |
 | `CORS_ORIGINS`    | *(WebAuthn origin + localhost)* | Comma-separated allowed CORS origins |
 

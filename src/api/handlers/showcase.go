@@ -78,7 +78,7 @@ func (h *ShowcaseHandler) GetShowcase(c *gin.Context) {
 		return
 	}
 
-	coins, _ := h.repo.GetShowcaseCoins(showcase.ID)
+	coins, _ := h.repo.GetShowcaseCoins(showcase.ID, showcase.UserID)
 	entries, _ := h.repo.GetShowcaseCoinEntries(showcase.ID)
 
 	coinIDs := make([]uint, 0, len(entries))
@@ -287,7 +287,7 @@ func (h *ShowcaseHandler) GetPublicShowcase(c *gin.Context) {
 		return
 	}
 
-	coins, _ := h.repo.GetShowcaseCoins(showcase.ID)
+	coins, _ := h.repo.GetShowcaseCoins(showcase.ID, showcase.UserID)
 	owner, _ := h.repo.GetOwnerUsername(showcase.UserID)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -311,6 +311,7 @@ func limitCoinDataSlice(coins []models.Coin) []gin.H {
 				"id":        img.ID,
 				"filePath":  img.FilePath,
 				"imageType": img.ImageType,
+				"isPrimary": img.IsPrimary,
 			})
 		}
 
@@ -332,6 +333,7 @@ func limitCoinDataSlice(coins []models.Coin) []gin.H {
 			"material":     coin.Material,
 			"ruler":        coin.Ruler,
 			"denomination": coin.Denomination,
+			"diameterMm":   coin.DiameterMm,
 			"notes":        coin.Notes,
 			"images":       images,
 			"tags":         tags,

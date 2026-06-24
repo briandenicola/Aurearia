@@ -516,6 +516,19 @@ definitions:
     required:
     - coin_id
     type: object
+  handlers.IPRuleCreateRequest:
+    properties:
+      cidr:
+        type: string
+      durationMinutes:
+        type: integer
+      expiresAt:
+        type: string
+      reason:
+        type: string
+    required:
+    - cidr
+    type: object
   handlers.ImageDeletedResponse:
     properties:
       message:
@@ -638,6 +651,16 @@ definitions:
       value:
         example: Trajan
         type: string
+    type: object
+  handlers.InvestmentBreakdownResponse:
+    properties:
+      dimension:
+        example: purchase-month
+        type: string
+      segments:
+        items:
+          $ref: '#/definitions/repository.InvestmentBreakdownSegment'
+        type: array
     type: object
   handlers.LinkEventRequest:
     properties:
@@ -1096,6 +1119,27 @@ definitions:
         type: string
       title:
         type: string
+    type: object
+  handlers.oidcAdminProviderListResponse:
+    properties:
+      providers:
+        items:
+          $ref: '#/definitions/services.OIDCAdminProviderDTO'
+        type: array
+    type: object
+  handlers.oidcLinkedIdentityListResponse:
+    properties:
+      identities:
+        items:
+          $ref: '#/definitions/services.OIDCLinkedIdentityDTO'
+        type: array
+    type: object
+  handlers.oidcPublicProviderListResponse:
+    properties:
+      providers:
+        items:
+          $ref: '#/definitions/services.OIDCPublicProviderDTO'
+        type: array
     type: object
   handlers.refreshRequest:
     properties:
@@ -1634,6 +1678,26 @@ definitions:
       userId:
         type: integer
     type: object
+  models.OIDCProviderTestStatus:
+    enum:
+    - unknown
+    - ok
+    - failed
+    type: string
+    x-enum-varnames:
+    - OIDCProviderTestStatusUnknown
+    - OIDCProviderTestStatusOK
+    - OIDCProviderTestStatusFailed
+  models.OIDCProviderType:
+    enum:
+    - entra
+    - pocket_id
+    - generic
+    type: string
+    x-enum-varnames:
+    - OIDCProviderTypeEntra
+    - OIDCProviderTypePocketID
+    - OIDCProviderTypeGeneric
   models.StorageLocation:
     properties:
       createdAt:
@@ -1712,6 +1776,29 @@ definitions:
         type: integer
       era:
         type: string
+    type: object
+  repository.InvestmentBreakdownSegment:
+    properties:
+      coinCount:
+        type: integer
+      currentValue:
+        type: number
+      gainLoss:
+        type: number
+      gainLossPct:
+        type: number
+      invested:
+        type: number
+      label:
+        type: string
+      missingCurrentValueCount:
+        type: integer
+      missingPurchasePriceCount:
+        type: integer
+      month:
+        type: integer
+      year:
+        type: integer
     type: object
   services.AdminHealthSummary:
     properties:
@@ -1915,6 +2002,132 @@ definitions:
         type: string
       percentage:
         type: number
+    type: object
+  services.OIDCAdminProviderDTO:
+    properties:
+      callbackPath:
+        type: string
+      clientId:
+        type: string
+      clientSecretConfigured:
+        type: boolean
+      createdAt:
+        type: string
+      displayName:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: integer
+      issuerUrl:
+        type: string
+      lastTestMessage:
+        type: string
+      lastTestStatus:
+        $ref: '#/definitions/models.OIDCProviderTestStatus'
+      lastTestedAt:
+        type: string
+      name:
+        type: string
+      providerType:
+        $ref: '#/definitions/models.OIDCProviderType'
+      requireVerifiedEmail:
+        type: boolean
+      scopes:
+        items:
+          type: string
+        type: array
+      updatedAt:
+        type: string
+    type: object
+  services.OIDCAdminProviderInput:
+    properties:
+      callbackPath:
+        type: string
+      clientId:
+        type: string
+      clientSecret:
+        type: string
+      displayName:
+        type: string
+      enabled:
+        type: boolean
+      issuerUrl:
+        type: string
+      name:
+        type: string
+      providerType:
+        $ref: '#/definitions/models.OIDCProviderType'
+      requireVerifiedEmail:
+        type: boolean
+      scopes:
+        items:
+          type: string
+        type: array
+    type: object
+  services.OIDCLinkCallbackResult:
+    properties:
+      identity:
+        $ref: '#/definitions/services.OIDCLinkedIdentityDTO'
+      message:
+        type: string
+    type: object
+  services.OIDCLinkedIdentityDTO:
+    properties:
+      createdAt:
+        type: string
+      email:
+        type: string
+      emailVerified:
+        type: boolean
+      id:
+        type: integer
+      issuer:
+        type: string
+      lastLoginAt:
+        type: string
+      providerDisplayName:
+        type: string
+      providerId:
+        type: integer
+      subjectPreview:
+        type: string
+    type: object
+  services.OIDCProviderTestResult:
+    properties:
+      authorizationEndpoint:
+        type: string
+      available:
+        type: boolean
+      issuer:
+        type: string
+      message:
+        type: string
+      tokenEndpoint:
+        type: string
+    type: object
+  services.OIDCPublicProviderDTO:
+    properties:
+      displayName:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      providerType:
+        $ref: '#/definitions/models.OIDCProviderType'
+    type: object
+  services.OIDCStartLoginInput:
+    properties:
+      redirectPath:
+        type: string
+    type: object
+  services.OIDCStartLoginResult:
+    properties:
+      authorizationUrl:
+        type: string
+      expiresAt:
+        type: string
     type: object
 info:
   contact: {}
@@ -2121,6 +2334,35 @@ paths:
       security:
       - BearerAuth: []
       summary: Get availability run detail
+      tags:
+      - Admin
+  /admin/availability/run:
+    post:
+      description: Manually triggers a wishlist availability check for all users.
+        Runs synchronously and records the triggering admin user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Trigger manual wishlist availability check
       tags:
       - Admin
   /admin/catalogs:
@@ -2516,6 +2758,375 @@ paths:
       summary: Update mint location
       tags:
       - Mint Locations
+  /admin/oidc/providers:
+    get:
+      description: Returns all configured OIDC providers with client secrets redacted.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.oidcAdminProviderListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List admin OIDC providers
+      tags:
+      - OIDC
+    post:
+      consumes:
+      - application/json
+      description: Creates an admin-managed OIDC provider. Client secrets are write-only.
+      parameters:
+      - description: OIDC provider
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.OIDCAdminProviderInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/services.OIDCAdminProviderDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create OIDC provider
+      tags:
+      - OIDC
+  /admin/oidc/providers/{providerId}:
+    delete:
+      description: Deletes an OIDC provider only when no external identities reference
+        it.
+      parameters:
+      - description: Provider ID
+        in: path
+        name: providerId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete OIDC provider
+      tags:
+      - OIDC
+    put:
+      consumes:
+      - application/json
+      description: Updates an admin-managed OIDC provider. Empty or omitted clientSecret
+        preserves the existing secret.
+      parameters:
+      - description: Provider ID
+        in: path
+        name: providerId
+        required: true
+        type: integer
+      - description: OIDC provider
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.OIDCAdminProviderInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.OIDCAdminProviderDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update OIDC provider
+      tags:
+      - OIDC
+  /admin/oidc/providers/{providerId}/test:
+    post:
+      description: Validates provider discovery metadata and records safe status without
+        exposing secrets.
+      parameters:
+      - description: Provider ID
+        in: path
+        name: providerId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.OIDCProviderTestResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/services.OIDCProviderTestResult'
+      security:
+      - BearerAuth: []
+      summary: Test OIDC provider
+      tags:
+      - OIDC
+  /admin/security/events:
+    get:
+      description: Returns persisted auth/security events with optional type, username,
+        clientIp, and limit filters. Admin only.
+      parameters:
+      - description: Event type
+        in: query
+        name: type
+        type: string
+      - description: Username
+        in: query
+        name: username
+        type: string
+      - description: Client IP
+        in: query
+        name: clientIp
+        type: string
+      - default: 100
+        description: Maximum events
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List security events
+      tags:
+      - Admin Security
+  /admin/security/exposure-check:
+    get:
+      description: Returns release-readiness warnings for public-facing configuration.
+        Admin only.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get exposure check
+      tags:
+      - Admin Security
+  /admin/security/ip-rules:
+    get:
+      description: Returns active IP/CIDR deny rules by default. Admin only.
+      parameters:
+      - description: Include expired rules
+        in: query
+        name: includeExpired
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List IP deny rules
+      tags:
+      - Admin Security
+    post:
+      consumes:
+      - application/json
+      description: Creates an IP/CIDR deny rule with optional expiration. Admin only.
+      parameters:
+      - description: IP rule
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.IPRuleCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create IP deny rule
+      tags:
+      - Admin Security
+  /admin/security/ip-rules/{id}:
+    delete:
+      description: Deletes an IP/CIDR deny rule. Admin only.
+      parameters:
+      - description: IP rule ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete IP deny rule
+      tags:
+      - Admin Security
+  /admin/security/summary:
+    get:
+      description: Returns aggregate auth/security counters and backup status. Admin
+        only.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get security summary
+      tags:
+      - Admin Security
   /admin/settings:
     get:
       description: Returns all application settings merged with defaults. Admin only.
@@ -2804,6 +3415,35 @@ paths:
       summary: Update user role
       tags:
       - Admin
+  /admin/users/{id}/unlock:
+    post:
+      description: Clears a user's account lock state. Admin only.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Unlock user
+      tags:
+      - Admin Security
   /admin/valuation-runs:
     get:
       description: Returns paginated history of scheduled collection valuation runs.
@@ -3934,6 +4574,219 @@ paths:
       summary: Get current user
       tags:
       - User
+  /auth/oidc/{providerId}/callback:
+    get:
+      description: Exchanges the provider code, validates the ID token, finds a linked
+        identity, and returns app JWT/refresh tokens in the JSON body. Tokens are
+        never placed in URL query strings.
+      parameters:
+      - description: Provider ID
+        in: path
+        name: providerId
+        required: true
+        type: integer
+      - description: Authorization code
+        in: query
+        name: code
+        required: true
+        type: string
+      - description: Opaque state
+        in: query
+        name: state
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.AuthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Complete OIDC login
+      tags:
+      - OIDC
+  /auth/oidc/{providerId}/link/callback:
+    get:
+      description: Exchanges the provider code, validates the ID token, and links
+        the external identity to the user recorded in state.
+      parameters:
+      - description: Provider ID
+        in: path
+        name: providerId
+        required: true
+        type: integer
+      - description: Authorization code
+        in: query
+        name: code
+        required: true
+        type: string
+      - description: Opaque state
+        in: query
+        name: state
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.OIDCLinkCallbackResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Complete OIDC account link
+      tags:
+      - OIDC
+  /auth/oidc/{providerId}/link/start:
+    post:
+      consumes:
+      - application/json
+      description: Creates short-lived link state with PKCE and nonce for the authenticated
+        user and returns the provider authorization URL.
+      parameters:
+      - description: Provider ID
+        in: path
+        name: providerId
+        required: true
+        type: integer
+      - description: Link start payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.OIDCStartLoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.OIDCStartLoginResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Start OIDC account link
+      tags:
+      - OIDC
+  /auth/oidc/{providerId}/start:
+    post:
+      consumes:
+      - application/json
+      description: Creates short-lived state with PKCE and nonce and returns the provider
+        authorization URL.
+      parameters:
+      - description: Provider ID
+        in: path
+        name: providerId
+        required: true
+        type: integer
+      - description: Login start payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.OIDCStartLoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.OIDCStartLoginResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Start OIDC login
+      tags:
+      - OIDC
+  /auth/oidc/providers:
+    get:
+      description: Returns enabled OIDC providers safe for unauthenticated login UI.
+        Secrets, issuer URLs, and client IDs are omitted.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.oidcPublicProviderListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: List public OIDC providers
+      tags:
+      - OIDC
   /auth/refresh:
     post:
       consumes:
@@ -4755,6 +5608,44 @@ paths:
       summary: Analyze coin images
       tags:
       - Analysis
+  /coins/{id}/duplicate:
+    post:
+      description: Creates a copy of an existing coin owned by the authenticated user.
+        Images and card-related media/state are not copied.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Coin'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Duplicate a coin
+      tags:
+      - Coins
   /coins/{id}/estimate-value:
     post:
       description: Uses the configured AI provider to estimate current market value
@@ -8087,6 +8978,44 @@ paths:
       summary: Get collection health summary
       tags:
       - Health
+  /stats/investment-breakdown:
+    get:
+      description: Returns investment, current value, gain/loss, and confidence counts
+        grouped by purchase month or material for the authenticated user's active
+        collection.
+      parameters:
+      - description: Breakdown dimension
+        enum:
+        - purchase-month
+        - material
+        in: query
+        name: dimension
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.InvestmentBreakdownResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get investment breakdown
+      tags:
+      - Coins
   /storage-locations:
     get:
       description: Returns all storage locations belonging to the authenticated user.
@@ -8569,6 +9498,72 @@ paths:
       summary: Import collection
       tags:
       - User
+  /user/oidc-identities:
+    get:
+      description: Returns linked OIDC identities for the current user with subject-safe
+        previews.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.oidcLinkedIdentityListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List linked OIDC identities
+      tags:
+      - OIDC
+  /user/oidc-identities/{identityId}:
+    delete:
+      description: Unlinks an OIDC identity unless it would leave the account without
+        a usable sign-in method.
+      parameters:
+      - description: Identity ID
+        in: path
+        name: identityId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Unlink OIDC identity
+      tags:
+      - OIDC
   /user/profile:
     put:
       consumes:

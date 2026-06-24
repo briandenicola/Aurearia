@@ -731,6 +731,7 @@ cd src/web && npx vue-tsc --noEmit
 | `WEBAUTHN_ORIGIN` | `http://localhost:8080` | WebAuthn expected origin |
 | `CORS_ORIGINS` | (derived) | Allowed CORS origins |
 | `AGENT_SERVICE_URL` | `http://localhost:8081` | Python agent base URL |
+| `AGENT_INTERNAL_SERVICE_TOKEN` | — | Shared API → agent credential for hardened agent endpoints |
 
 ### Python Agent (`src/agent/app/config.py`)
 
@@ -738,6 +739,7 @@ cd src/web && npx vue-tsc --noEmit
 |---------|---------|---------|
 | `AGENT_DEBUG` | `false` | Debug mode |
 | `AGENT_LOG_LEVEL` | `INFO` | Log level |
+| `AGENT_INTERNAL_SERVICE_TOKEN` | — | Shared API → agent credential; required for every endpoint except `/health` and `/ready` |
 | `AGENT_SEARXNG_URL` | — | SearXNG instance URL (Ollama search) |
 | `AGENT_MAX_SEARCH_RESULTS` | — | Limit search results |
 | `AGENT_VERIFICATION_TIMEOUT` | — | URL verification timeout |

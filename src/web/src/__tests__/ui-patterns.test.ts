@@ -129,6 +129,19 @@ describe('UI pattern recipes', () => {
     expect(agentFabCss).toContain('right: calc(24px + env(safe-area-inset-right))')
   })
 
+  it('keeps the agent chat overlay above tray pagination controls', () => {
+    const chat = readRepoFile(join('components', 'CoinSearchChat.vue'))
+    const trayControls = readRepoFile(join('components', 'tray', 'TrayControls.vue'))
+    const chatOverlayCss = extractCssBlock(chat, '.chat-overlay')
+    const trayControlsCss = extractCssBlock(trayControls, '.tray-controls')
+    const chatZIndex = Number(chatOverlayCss.match(/z-index:\s*(\d+)/)?.[1] ?? 0)
+    const trayZIndex = Number(trayControlsCss.match(/z-index:\s*(\d+)/)?.[1] ?? 0)
+
+    expect(chatOverlayCss).toContain('position: fixed')
+    expect(trayControlsCss).toContain('position: fixed')
+    expect(chatZIndex).toBeGreaterThan(trayZIndex)
+  })
+
   it('keeps the generated service worker from importing hashed Workbox runtime files', () => {
     const viteConfig = readFileSync(join(REPO_ROOT, 'src', 'web', 'vite.config.ts'), 'utf-8')
 

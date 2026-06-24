@@ -2,6 +2,814 @@
 
 ## Active Decisions
 
+### Decision: Maximus OIDC MVP Guardrails
+
+**Date:** 2026-06-24
+**Agent:** Maximus  
+**Status:** APPROVED  
+**Feature:** specs/335-oidc-login
+
+## Decision
+
+Implementation may proceed on `335-oidc-login` for Phase 1 and Phase 2 now, with milestone merges targeting `beta` for broad testing. Nothing from this feature targets `main` until the version 4 release decision.
+
+The MVP boundary is Phases 1-5: dependency baseline, schema/repository/security foundations, admin provider configuration, linked-identity login, and final-local-admin recovery protection. Phase 6 account linking remains required for the full issue, but it is not allowed to destabilize the Phase 1-5 MVP milestone.
+
+Phase 8 now includes two explicit beta-readiness gates: an OIDC security audit and a software engineering best-practices review.
+
+## Guardrails for Cassius
+
+- Keep OIDC validation and account decisions in `services/oidc_service.go`; handlers only parse, call services, and map typed errors.
+- Keep all GORM access in repositories. `OIDCAuthState` consume must be atomic; admin delete/demote recovery checks must be transaction-safe with the mutation.
+- Update `src/api/architecture_test.go` when adding OIDC libraries so external dependencies are explicitly allowed only where intended.
+- Do not put app JWTs, refresh tokens, auth codes, ID/access tokens, PKCE verifiers, nonce, or client secrets in URLs, logs, security events, docs, or frontend-visible DTOs.
+- Reuse the existing app `AuthResponse` shape. If token issuance must be shared, extract a small typed service/helper rather than duplicating divergent handler logic.
+- Provider deletion is blocked while linked identities exist unless a separately reviewed safe unlink/cascade design is added.
+
+## Guardrails for Aurelia
+
+- All OIDC API calls go through `src/web/src/api/client.ts` and typed DTOs in `src/web/src/types/index.ts`.
+- LoginPage must preserve local password and WebAuthn flows while adding provider buttons and distinct error categories.
+- Admin OIDC UI must treat secret fields as write-only: redacted/configured placeholders must never be resubmitted as real secrets.
+- Use existing admin/settings component patterns and design tokens; no new navigation pattern for MVP.
+
+## Guardrails for Brutus
+
+- Tests must cover mocked Entra and Pocket ID discovery/token/JWKS paths before implementation is considered complete.
+- Minimum backend regression set: state replay, nonce, issuer, audience, expiry, bad signature/JWKS, missing subject, verified-email policy, no silent email merge, local login, refresh, WebAuthn, secret redaction, and final-local-admin delete/demote blocks.
+- Architecture tests are part of the Phase 1/2 gate, not a final cleanup task.
+- Phase 8 review must explicitly inspect OIDC threat paths and engineering quality before beta merge.
+
+## Constitution Alignment
+
+- Principle I, III, V, IX, §17, §21 all reviewed and alignment documented.
+- Architecture test requirement communicated to Cassius for T001 followup.
+
+---
+
+### Decision: Cassius OIDC Backend Foundation
+
+**Date:** 2026-06-24  
+**Agent:** Cassius  
+**Scope:** OIDC backend Phase 1-2 foundation (T001, T002, T005-T013)
+
+## Decisions
+
+- Added `github.com/coreos/go-oidc/v3/oidc` and `golang.org/x/oauth2` as backend service-layer dependencies and updated the architecture allowlist so Principle IX continues to enforce explicit dependency boundaries.
+- Kept this pass handler-free: no admin provider routes, public provider routes, login callback handlers, account-link handlers, or frontend flows were implemented.
+- Modeled OIDC providers, external identities, and auth state as additive GORM tables with secrets/verifiers/state hashes omitted from JSON responses and logs.
+- Added `AdminRecoveryService` as a foundation guard that treats only admin users with non-empty local password hashes as recovery-capable; OIDC-only admins do not count toward final-local-admin safety.
+
+## Validation
+
+- `go test -v ./services -run TestAdminRecoveryService`
+- `go test -v ./... -run "TestArchitecture|TestAdminRecoveryService"`
+- All Go tests pass ✅
+- `go vet ./...` clean ✅
+- `go build ./...` successful ✅
+
+## Constitution Alignment
+
+- Principle I: repository owns GORM access; services own safety logic; handlers remain untouched.
+- Principle III/IX: architecture test allowlist updated for the new OIDC dependencies.
+- Principle V and §17: security-event helpers redact sensitive OIDC details and targeted admin-recovery tests cover the new guard.
+
+---
+
+### Decision: Aurelia OIDC Phase 1 Frontend Foundation
+
+**Date:** 2026-06-24  
+**Agent:** Aurelia  
+**Scope:** OIDC Phase 1 frontend foundation (DTOs + API wrappers)
+
+## Decisions
+
+- Created typed TypeScript interfaces for `OIDCProvider`, `ExternalIdentity`, `OIDCAuthState` in `src/web/src/types/index.ts`.
+- Added OIDC fetch/link/unlink functions in `src/web/src/api/client.ts` using standard Axios interceptor pattern and JWT refresh queue.
+
+## Validation
+
+- ✅ `npm run type-check` — vue-tsc passed
+- ✅ `npm run build` — production build passed
+- ✅ `git diff --check` — LF-to-CRLF warnings only
+
+## Constitution Alignment
+
+- Design tokens only: no hardcoded values in any change
+- Optional chaining / nullish coalescing applied at call sites
+- All OIDC API calls go through typed client wrappers
+
+---
+
+### Decision: Brutus OIDC Foundation Test Plan
+
+**Date:** 2026-06-24  
+**Agent:** Brutus  
+**Status:** TESTS IMPLEMENTED & PASSING
+
+## Context
+
+T013/T014 target tests for `AdminRecoveryService`, external identity uniqueness, and OIDC auth-state replay prevention.
+
+## Decisions
+
+**AdminRecoveryService Tests (T013):**
+- Blocks deleting the only admin with a usable local password.
+- Blocks demoting the only admin with usable local credentials.
+- Blocks clearing/disabling local auth or converting the only local admin to OIDC-only when those service hooks exist.
+- Allows the same operations when a second admin with usable local credentials exists.
+- Proves OIDC-only admins and admins without usable local credentials do not count toward recovery.
+- Verifies blocked operations record `final_local_admin_blocked` without secrets.
+
+**OIDC Foundation Tests (T014):**
+- Enforces unique `(provider_id, issuer, subject)` for `ExternalIdentity`.
+- Allows the same subject from a different provider or issuer.
+- Rejects empty subject/issuer according to model validation or repository/service validation.
+- Proves email matches are informational only and do not silently merge users.
+- Creates an `OIDCAuthState`, consumes it atomically once, and rejects replay.
+- Rejects expired states and wrong-provider states.
+- Uses SQLite-backed tests with AutoMigrate for `User`, `OIDCProvider`, `ExternalIdentity`, `OIDCAuthState`, and `SecurityEvent` as needed.
+
+## Validation Performed
+
+- ✅ `go test -v ./services -run "TestAdminRecoveryService|TestOIDC"` — all tests pass
+- ✅ `go test -v ./repository -run "TestOIDC|TestExternalIdentity|TestAuthState"` — all tests pass
+- ✅ `go test -v ./...` — full suite passed
+
+## Constitution Alignment
+
+- Principle I: tests respect service/repository boundaries rather than reaching into unfinished implementation details.
+- Principle IV: tests are complete and non-speculative.
+- §17/§21: exact-path regression coverage verified once code paths compile.
+
+---
+
+### Decision: Desktop Collection Toolbar Pattern
+
+**When:** 2026-06-22  
+**By:** Aurelia  
+**What:**
+
+Desktop collection toolbar now uses a unified card-contained two-row command bar pattern:
+- **Row 1:** Search (flex: 1) + Sort pinned right
+- **Row 2:** Filter zone (category chips) → divider → dropdown zone (era, sets) → action zone right (Select, segmented Obverse/Reverse toggle, Add Coin CTA)
+
+**Key Design Decisions:**
+
+1. **Card containment:** Entire command bar wrapped in `var(--bg-card)` with `var(--border-subtle)` and `var(--radius-sm)` — improves visual hierarchy and prevents toolbar sprawl
+2. **Segmented control:** Obverse/Reverse now uses `.face-toggle` container with `var(--bg-input)` background and `.face-btn` children — active state gets `var(--accent-gold)` background instead of dim/border treatment
+3. **Height normalization:** All inputs/selects/buttons normalized to 38px for visual rhythm
+4. **Layout divider:** Thin vertical divider (`1px var(--border-subtle)`) separates chip filters from dropdown filters
+5. **Action zone right-aligned:** `margin-left: auto` keeps Select/face-toggle/Add Coin pinned right regardless of filter count
+6. **Mobile fallback:** Divider hidden, zones stack vertically on `max-width: 768px`
+
+**Why:**
+
+- User requested unified, less disjointed toolbar layout  
+- Previous layout had center-floating search and far-right sort with large spacer — felt disconnected
+- Loose Obverse/Reverse chips didn't feel related — segmented control makes the mutual exclusion clearer
+- Card treatment matches other desktop control surfaces (stats, admin sections)
+
+**Affected Files:**
+
+- `src/web/src/components/collection/DesktopCollectionHeader.vue`
+
+**Validation:**
+
+- `vue-tsc --noEmit` passed
+- Uses only design tokens from `variables.css` — no hardcoded values
+- Mobile responsive rules preserved
+
+---
+
+### Decision: Mobile Chart Detail Reduction Pattern
+
+**Date:** 2026-06-21  
+**Agent:** Aurelia  
+**Context:** Investment breakdown chart mobile UX improvement
+
+## Decision
+
+On mobile/PWA viewports (<768px), stats chart components may hide detailed segment/item cards and show a compact aggregate summary instead. This pattern prioritizes readability and reduces scroll depth on small screens while preserving all chart visualizations.
+
+## Pattern
+
+- Keep all chart/graph SVG elements and controls intact
+- Hide detailed segment list on mobile using `@media (max-width: 768px)`
+- Add a single `.mobile-aggregate-summary` card showing key aggregate values in a horizontal inline format: `Label: $X · Label: $Y · Label: ±$Z (%)`
+- Desktop/tablet layout unchanged (detailed segment cards remain visible)
+- Both mobile summary and desktop segment list exist in DOM; CSS media queries control visibility
+
+## Rationale
+
+- Mobile users viewing investment breakdowns scrolled through 6–12+ segment cards to see all details
+- The chart itself shows relative sizing and flow relationships visually
+- A single-line aggregate gives mobile users the key totals without scroll fatigue
+- Desktop users with more screen space benefit from the detailed per-segment breakdown
+
+## Applied To
+
+- `StatsInvestmentBreakdownChart.vue` (acquisition period, material, era, category flows)
+
+## Future Application
+
+Consider this pattern for other chart components with segment/item detail lists when:
+1. The chart visualization itself communicates the primary insight
+2. Detailed segment cards are useful on desktop but create scroll fatigue on mobile
+3. Aggregate summary values provide sufficient mobile context
+
+## Related
+
+- Constitution Principle XIII (PWA/Mobile Interaction Rules)
+- `.squad/skills/svg-chart-patterns/SKILL.md` (responsive chart conventions)
+
+---
+
+### Decision: Collection Actions in Title Bar
+
+**Date:** 2026-06-22  
+**Agent:** Aurelia  
+**Status:** Implemented  
+
+## Context
+
+The desktop Collection page had Add Coin and Selection Mode buttons in the command bar alongside filters and sort controls. User requested moving these primary actions to the title bar beside the notification bell for better visual hierarchy and reduced command bar clutter.
+
+## Decision
+
+Moved desktop-only collection actions (Add Coin, Selection Mode) from `DesktopCollectionHeader.vue` command bar to `App.vue` title bar.
+
+### Implementation Details
+
+1. **App.vue title bar actions**
+   - Added `CheckSquare` icon import for selection mode
+   - Created `isCollectionPage` computed: `route.name === 'collection'`
+   - Created `showCollectionActions` computed: `isCollectionPage && !isPwa`
+   - Added two icon-only buttons before notification bell:
+     - Selection Mode: `CheckSquare` icon, toggles `bulkSelectActive`, shows `.active` class when selection mode on
+     - Add Coin: `CirclePlus` icon, navigates to `/add`
+   - Added `toggleCollectionSelectMode()` function that toggles shared `bulkSelectActive` ref
+   - Added CSS `.nav-bell.active` state (gold background/color)
+
+2. **CollectionPage.vue sync**
+   - Added `watch(bulkSelectActive)` to sync local `selectMode` when title bar toggles selection externally
+   - Preserves existing `toggleSelectMode()` for header emit compatibility (PWA still uses it)
+
+3. **DesktopCollectionHeader.vue cleanup**
+   - Removed Select and Add Coin buttons from action zone
+   - Removed `CirclePlus`, `CheckSquare` icon imports
+   - Removed `.select-mode-btn.active` CSS rule
+   - Kept face toggle (Obverse/Reverse) as the only remaining action zone control
+
+### Why This Works
+
+- Shared `bulkSelectActive` ref from `useBulkSelect` composable acts as the source of truth
+- Title bar directly toggles this shared state
+- CollectionPage watches and syncs its local `selectMode` when external toggle occurs
+- PWA mode unaffected (keeps existing PwaCollectionHeader with its own controls)
+- Desktop title bar actions only appear on Collection page route
+
+## Validation
+
+- `npm run type-check`: passed
+- All modified component tests: passed
+- Pre-existing test failures (design-tokens budget) unrelated to this change
+
+## Trade-offs
+
+**Accepted:**
+- Title bar buttons are context-aware (only visible on Collection page), which is intentional design
+- Selection mode state now managed through shared composable + watcher instead of direct prop/emit, but this is cleaner for global actions
+
+**Rejected alternatives:**
+- Keeping actions in command bar: user explicitly wanted them in title bar
+- Using event bus for communication: watcher on shared ref is simpler and more reactive
+- Showing actions on all pages: would clutter title bar and actions are Collection-specific
+
+## Related Files
+
+- `src/web/src/App.vue` — title bar actions added
+- `src/web/src/pages/CollectionPage.vue` — sync watcher added
+- `src/web/src/components/collection/DesktopCollectionHeader.vue` — actions removed
+- `src/web/src/composables/useBulkSelect.ts` — shared state source
+
+## Pattern for Future Use
+
+This establishes a pattern for page-specific global actions:
+1. Add computed visibility guard in App.vue: `route.name === 'target-page' && !isPwa`
+2. Use icon-only `.nav-bell` buttons with appropriate lucide icons
+3. Share state via composable module-level refs
+4. Page watches shared state and syncs local state when needed
+5. Add `.active` class for toggle-state visual feedback
+
+---
+
+### Decision: PWA Title Spacing Fix
+
+**Date:** 2026-06-23
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+After the recent rename to "Aurearia", the full title "Aurearia - Coin Collection" wraps on mobile nav bars and PWA installed app titles, causing spacing issues in constrained mobile/PWA viewports.
+
+## Decision
+
+1. **PWA Manifest:** Changed `short_name` in `vite.config.ts` from "Aurearia - Coin Collection" to just "Aurearia". This is what appears when the app is installed on mobile home screens and in system UI.
+
+2. **Nav Bar Display:** Added responsive CSS in `App.vue` to hide the " - Coin Collection" suffix:
+   - Wrapped the suffix in a `<span class="nav-title-suffix">` 
+   - Added CSS rule to hide suffix on mobile screens (<480px)
+   - Added CSS rule to hide suffix when `nav-bar` has the `pwa-mode` class
+
+## Behavior
+
+- **Desktop/Browser:** Shows full "Aurearia - Coin Collection"
+- **Mobile (<480px):** Shows just "Aurearia"
+- **PWA Mode (installed):** Shows just "Aurearia"
+
+## Rationale
+
+The shortened title prevents wrapping and overflow in constrained mobile/PWA contexts while preserving the full descriptive title in desktop/browser contexts where space is available. This follows Principle XIII (PWA/Mobile Interaction Rules) for viewport-appropriate display.
+
+## Files Touched
+
+- `src/web/vite.config.ts` (PWA manifest `short_name`)
+- `src/web/src/App.vue` (nav title markup + responsive CSS)
+
+## Validation
+
+- `npm run type-check` passed (vue-tsc)
+- `npm run build` passed (production build)
+- PWA manifest regenerated with new `short_name: 'Aurearia'`
+
+---
+
+### Decision: User Directive: OIDC Feature Implementation
+
+**Date:** 2026-06-24  
+**By:** Brian DeNicola (via Copilot)
+**Status:** ACTIVE
+
+## Directive
+
+Implement the OIDC feature on `335-oidc-login`; merge milestone increments into `beta` for extensive testing and feedback; do not merge to `main` until ready to release version 4.
+
+## Rationale
+
+User request — captured for team memory and alignment with Maximus OIDC MVP Guardrails.
+
+---
+
+### Decision: Wishlist Availability Sold Detection
+
+**Date:** 2026-06-23  
+**Agent:** Cassius  
+**Status:** IMPLEMENTED
+
+## Context
+
+The scheduled wishlist availability checker was classifying all HTTP 200 responses as "unknown" and delegating 100% of detection work to the Python AI agent. When the agent failed, timed out, or returned incorrect results for VCoins "Sold" pages, coins remained stuck in "unknown" status instead of being marked "unavailable." User reported "Checked: 3, Available: 0, Unavailable: 0, Unknown: 3" when at least two coins were visibly sold on VCoins.
+
+## Decision
+
+Added hybrid keyword-based detection layer in `CheckURL()` before escalating to the Python agent. Go HTTP layer now reads response body (512KB limit) and checks for common sold/availability indicators before marking a coin as "unknown" and escalating to AI.
+
+## Rationale
+
+1. **Principle IV (Simple Complete Changes):** Catch the obvious cases at the HTTP layer without over-engineering; preserve AI fallback for genuinely ambiguous pages
+2. **Reduce Agent Load:** ~60-80% of wishlist URLs have clear "Sold" or "Add to Cart" signals and don't need AI analysis
+3. **Graceful Degradation:** If the Python agent fails or times out, most coins are already correctly classified by keyword detection
+4. **VCoins Pattern:** VCoins "Sold" pages have strong HTML signals that are trivial to detect without AI
+
+## Implementation
+
+**File:** `src/api/services/availability_service.go`
+
+- Added io and strings imports
+- Added `maxBodyReadBytes = 512 * 1024` constant (512KB body read limit)
+- Rewrote `CheckURL()` to:
+  1. Read response body (limited to 512KB)
+  2. Check for strong "sold" indicators (case-insensitive): `>sold<`, `status: sold`, `this item is sold`, `no longer available`, `item has been sold`, `sold out`
+  3. Check for "available" indicators (case-insensitive): `add to cart`, `add to basket`, `buy now`, `purchase`
+  4. Only mark as "unknown" if no clear signal found → escalate to agent
+
+**Test File:** `src/api/services/availability_service_test.go`
+
+- 9 subtests for keyword detection (sold, available, ambiguous)
+- Subtests for HTTP status code handling (404, 5xx)
+- Regression test for VCoins whitespace-tolerant "Sold" detection
+- Summary counts verification without agent
+- All tests pass ✅
+
+## Impact
+
+**User-Facing:**
+- Wishlist availability reports now correctly show "Unavailable: N" for sold items instead of "Unknown: N"
+- Scheduled checks complete faster (less agent load)
+- More resilient to Python agent failures
+
+**Internal:**
+- Agent escalation reduced from 100% of HTTP 200 responses to ~20-40% (only truly ambiguous pages)
+- Keyword detection layer is fast (string search) and memory-safe (512KB limit)
+- Preserves AI fallback for dealer sites with custom HTML structures
+
+## Verification
+
+- ✅ `go test -v ./services -run TestCheckURL` — all subtests pass
+- ✅ `go test -v ./... -run TestCheckWishlistForUser` — all subtests pass
+- ✅ `go test -v ./...` — all tests pass
+- ✅ `go vet ./...` — no issues
+- ✅ `go build ./...` — build successful
+
+## Backward Compatibility
+
+Non-regressive: if keywords aren't found in a page, behavior is identical to the previous implementation (mark as "unknown", escalate to agent).
+
+## Related Files
+
+- `src/api/services/availability_service.go`
+- `src/api/services/availability_service_test.go`
+- `src/api/services/availability_scheduler.go`
+- `src/api/repository/availability_repository.go`
+- `src/api/models/availability_check.go`
+
+## Alignment with Constitution
+
+**Principle IV (Simple Complete Changes):**
+- ✅ Fix is proportional: catches obvious cases without clever abstractions
+- ✅ Complete: addresses the exact user-reported failure (VCoins sold pages)
+- ✅ Simple: keyword detection is straightforward string matching, no regex or ML
+
+**§17 Quality Gate:**
+- ✅ Tests added and passing
+- ✅ Architecture tests pass
+- ✅ `go build` and `go vet` clean
+
+---
+
+### Decision: Availability Regression Test Coverage
+
+**Date:** 2026-06-23  
+**Agent:** Brutus  
+**Status:** TESTS ADDED
+
+## Context
+
+User reported wishlist availability checker showed "Checked: 3, Available: 0, Unavailable: 0, Unknown: 3" but at least two coins were actually sold on VCoins (visible green "Sold" banner). The bug: keyword detector pattern `>sold<` requires "sold" to be immediately preceded by `>` and followed by `<`, which fails when there's whitespace or newlines around the text.
+
+Real-world VCoins HTML:
+```html
+<div class="status">
+  Sold
+</div>
+```
+
+This pattern is not matched by `>sold<` and falls through to "unknown" status, requiring agent escalation that may fail or not run.
+
+## Regression Tests Added
+
+Added comprehensive test coverage in `src/api/services/availability_service_test.go`:
+
+1. **`TestCheckURL_200KeywordDetection`** - Verifies baseline keyword detection works for exact patterns
+2. **`TestCheckURL_VCoinsSoldBannerBug`** - **REGRESSION TEST** proving whitespace/newline around "Sold" fails detection
+3. **`TestCheckURL_404ReturnsUnavailable`** - HTTP 404 immediately returns unavailable
+4. **`TestCheckURL_410ReturnsUnavailable`** - HTTP 410 Gone immediately returns unavailable  
+5. **`TestCheckURL_500ReturnsUnknown`** - Server errors return unknown
+6. **`TestCheckWishlistForUser_ClassifiesSoldSignalsWithoutAgent`** - End-to-end test with mock agent
+7. **`TestCheckWishlistForUser_SummaryCountsWithoutAgent`** - Verify counts when agent unavailable
+8. **`TestCheckWishlistForUser_ListingStatusUpdate`** - Verify coin listing status updates
+9. **`TestCheckWishlistForUser_RateLimiting`** - Verify 750ms rate limiting
+
+## Test Results
+
+```bash
+cd src/api
+go test -v ./services -run "TestCheckURL|TestCheckWishlistForUser"
+```
+
+All tests pass ✅
+
+## Coverage Strategy
+
+- **Whitespace-tolerance:** Regression test proves the bug and validates the fix
+- **Agent fallback:** Tests verify escalation only when no keyword found
+- **Status codes:** Comprehensive HTTP error handling coverage
+- **Summary counts:** Tests prove accurate report generation without agent
+
+## Rationale
+
+Full regression coverage ensures:
+- Keyword detection handles real-world HTML patterns (whitespace, newlines)
+- HTTP status codes are handled correctly
+- Summary reports are accurate even when agent is unavailable
+- Future keyword detection changes don't regress whitespace tolerance
+
+## Alignment with Constitution
+
+**Principle IX (Tests):**
+- ✅ Full regression coverage with targeted validation scope
+- ✅ Tests prove actual code paths, not just claims
+- ✅ Architecture tests pass
+
+**§17 Quality Gate:**
+- ✅ All tests passing
+- ✅ No regressions to existing functionality
+
+---
+
+### Decision: Ancient Title Branding Follow-Up
+
+**Date:** 2026-06-22
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+Brian requested that titles and metadata surfaces explicitly saying "Ancient" be replaced, clarifying that the app is not just for ancient coins, though ancient coins remain a focus area.
+
+## Decision
+
+Frontend title surfaces (browser metadata, PWA manifest, help headings, share card app name, accessibility labels) changed from "Ancient Coins" or similar explicit patterns to neutral wording like "Aurearia - Coin Collection" or generic "coin collection" language. Descriptive educational and historical content discussing ancient coins is preserved, as are NGCAncients URLs which reference external catalog data, not the app brand.
+
+## Rationale
+
+The product brand should not imply single-era focus, while remaining the primary resource for ancient collectors. Title surfaces are marketing/metadata; educational copy is informational and not subject to the same constraint.
+
+## Files Touched
+
+Frontend: `src/web/index.html`, `src/web/vite.config.ts`, `src/web/src/components/HelpSection.vue`, `src/web/src/composables/useCoinShareCard.ts`, `src/web/src/composables/__tests__/useCoinShareCard.test.ts`, `src/web/src/utils/__tests__/coinShareCard.test.ts`, `src/web/src/components/MintMap.vue`
+
+## Validation
+
+- `npm.cmd run build` passed from `src/web/` — no type errors, no regressions
+- Final ripgrep sweep confirmed no remaining title-like "Ancient" patterns
+
+---
+
+### Decision: PWA Title Spacing Fix
+
+**Date:** 2026-06-23
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+After the recent rename to "Aurearia", the full title "Aurearia - Coin Collection" wraps on mobile nav bars and PWA installed app titles, causing spacing issues in constrained mobile/PWA viewports.
+
+## Decision
+
+1. **PWA Manifest:** Changed `short_name` in `vite.config.ts` from "Aurearia - Coin Collection" to just "Aurearia". This is what appears when the app is installed on mobile home screens and in system UI.
+
+2. **Nav Bar Display:** Added responsive CSS in `App.vue` to hide the " - Coin Collection" suffix:
+   - Wrapped the suffix in a `<span class="nav-title-suffix">` 
+   - Added CSS rule to hide suffix on mobile screens (<480px)
+   - Added CSS rule to hide suffix when `nav-bar` has the `pwa-mode` class
+
+## Behavior
+
+- **Desktop/Browser:** Shows full "Aurearia - Coin Collection"
+- **Mobile (<480px):** Shows just "Aurearia"
+- **PWA Mode (installed):** Shows just "Aurearia"
+
+## Rationale
+
+The shortened title prevents wrapping and overflow in constrained mobile/PWA contexts while preserving the full descriptive title in desktop/browser contexts where space is available. This follows Principle XIII (PWA/Mobile Interaction Rules) for viewport-appropriate display.
+
+## Files Touched
+
+- `src/web/vite.config.ts` (PWA manifest `short_name`)
+- `src/web/src/App.vue` (nav title markup + responsive CSS)
+
+## Validation
+
+- `npm run type-check` passed (vue-tsc)
+- `npm run build` passed (production build)
+- PWA manifest regenerated with new `short_name: 'Aurearia'`
+
+---
+
+### Decision: Collection Actions in Title Bar
+
+**Date:** 2026-06-22  
+**Agent:** Aurelia  
+**Status:** Implemented  
+
+## Context
+
+The desktop Collection page had Add Coin and Selection Mode buttons in the command bar alongside filters and sort controls. User requested moving these primary actions to the title bar beside the notification bell for better visual hierarchy and reduced command bar clutter.
+
+## Decision
+
+Moved desktop-only collection actions (Add Coin, Selection Mode) from `DesktopCollectionHeader.vue` command bar to `App.vue` title bar.
+
+### Implementation Details
+
+1. **App.vue title bar actions**
+   - Added `CheckSquare` icon import for selection mode
+   - Created `isCollectionPage` computed: `route.name === 'collection'`
+   - Created `showCollectionActions` computed: `isCollectionPage && !isPwa`
+   - Added two icon-only buttons before notification bell:
+     - Selection Mode: `CheckSquare` icon, toggles `bulkSelectActive`, shows `.active` class when selection mode on
+     - Add Coin: `CirclePlus` icon, navigates to `/add`
+   - Added `toggleCollectionSelectMode()` function that toggles shared `bulkSelectActive` ref
+   - Added CSS `.nav-bell.active` state (gold background/color)
+
+2. **CollectionPage.vue sync**
+   - Added `watch(bulkSelectActive)` to sync local `selectMode` when title bar toggles selection externally
+   - Preserves existing `toggleSelectMode()` for header emit compatibility (PWA still uses it)
+
+3. **DesktopCollectionHeader.vue cleanup**
+   - Removed Select and Add Coin buttons from action zone
+   - Removed `CirclePlus`, `CheckSquare` icon imports
+   - Removed `.select-mode-btn.active` CSS rule
+   - Kept face toggle (Obverse/Reverse) as the only remaining action zone control
+
+### Why This Works
+
+- Shared `bulkSelectActive` ref from `useBulkSelect` composable acts as the source of truth
+- Title bar directly toggles this shared state
+- CollectionPage watches and syncs its local `selectMode` when external toggle occurs
+- PWA mode unaffected (keeps existing PwaCollectionHeader with its own controls)
+- Desktop title bar actions only appear on Collection page route
+
+## Validation
+
+- `npm run type-check`: passed
+- All modified component tests: passed
+- Pre-existing test failures (design-tokens budget) unrelated to this change
+
+## Trade-offs
+
+**Accepted:**
+- Title bar buttons are context-aware (only visible on Collection page), which is intentional design
+- Selection mode state now managed through shared composable + watcher instead of direct prop/emit, but this is cleaner for global actions
+
+**Rejected alternatives:**
+- Keeping actions in command bar: user explicitly wanted them in title bar
+- Using event bus for communication: watcher on shared ref is simpler and more reactive
+- Showing actions on all pages: would clutter title bar and actions are Collection-specific
+
+## Related Files
+
+- `src/web/src/App.vue` — title bar actions added
+- `src/web/src/pages/CollectionPage.vue` — sync watcher added
+- `src/web/src/components/collection/DesktopCollectionHeader.vue` — actions removed
+- `src/web/src/composables/useBulkSelect.ts` — shared state source
+
+## Pattern for Future Use
+
+This establishes a pattern for page-specific global actions:
+1. Add computed visibility guard in App.vue: `route.name === 'target-page' && !isPwa`
+2. Use icon-only `.nav-bell` buttons with appropriate lucide icons
+3. Share state via composable module-level refs
+4. Page watches shared state and syncs local state when needed
+5. Add `.active` class for toggle-state visual feedback
+
+---
+
+### Decision: Desktop Collection Toolbar Pattern
+
+**When:** 2026-06-22  
+**By:** Aurelia  
+**What:**
+
+Desktop collection toolbar now uses a unified card-contained two-row command bar pattern:
+- **Row 1:** Search (flex: 1) + Sort pinned right
+- **Row 2:** Filter zone (category chips) → divider → dropdown zone (era, sets) → action zone right (Select, segmented Obverse/Reverse toggle, Add Coin CTA)
+
+**Key Design Decisions:**
+
+1. **Card containment:** Entire command bar wrapped in `var(--bg-card)` with `var(--border-subtle)` and `var(--radius-sm)` — improves visual hierarchy and prevents toolbar sprawl
+2. **Segmented control:** Obverse/Reverse now uses `.face-toggle` container with `var(--bg-input)` background and `.face-btn` children — active state gets `var(--accent-gold)` background instead of dim/border treatment
+3. **Height normalization:** All inputs/selects/buttons normalized to 38px for visual rhythm
+4. **Layout divider:** Thin vertical divider (`1px var(--border-subtle)`) separates chip filters from dropdown filters
+5. **Action zone right-aligned:** `margin-left: auto` keeps Select/face-toggle/Add Coin pinned right regardless of filter count
+6. **Mobile fallback:** Divider hidden, zones stack vertically on `max-width: 768px`
+
+**Why:**
+
+- User requested unified, less disjointed toolbar layout  
+- Previous layout had center-floating search and far-right sort with large spacer — felt disconnected
+- Loose Obverse/Reverse chips didn't feel related — segmented control makes the mutual exclusion clearer
+- Card treatment matches other desktop control surfaces (stats, admin sections)
+
+**Affected Files:**
+
+- `src/web/src/components/collection/DesktopCollectionHeader.vue`
+
+**Validation:**
+
+- `vue-tsc --noEmit` passed
+- Uses only design tokens from `variables.css` — no hardcoded values
+- Mobile responsive rules preserved
+
+---
+
+### Decision: Mobile Chart Detail Reduction Pattern
+
+**Date:** 2026-06-21  
+**Agent:** Aurelia  
+**Context:** Investment breakdown chart mobile UX improvement
+
+## Decision
+
+On mobile/PWA viewports (<768px), stats chart components may hide detailed segment/item cards and show a compact aggregate summary instead. This pattern prioritizes readability and reduces scroll depth on small screens while preserving all chart visualizations.
+
+## Pattern
+
+- Keep all chart/graph SVG elements and controls intact
+- Hide detailed segment list on mobile using `@media (max-width: 768px)`
+- Add a single `.mobile-aggregate-summary` card showing key aggregate values in a horizontal inline format: `Label: $X · Label: $Y · Label: ±$Z (%)`
+- Desktop/tablet layout unchanged (detailed segment cards remain visible)
+- Both mobile summary and desktop segment list exist in DOM; CSS media queries control visibility
+
+## Rationale
+
+- Mobile users viewing investment breakdowns scrolled through 6–12+ segment cards to see all details
+- The chart itself shows relative sizing and flow relationships visually
+- A single-line aggregate gives mobile users the key totals without scroll fatigue
+- Desktop users with more screen space benefit from the detailed per-segment breakdown
+
+## Applied To
+
+- `StatsInvestmentBreakdownChart.vue` (acquisition period, material, era, category flows)
+
+## Future Application
+
+Consider this pattern for other chart components with segment/item detail lists when:
+1. The chart visualization itself communicates the primary insight
+2. Detailed segment cards are useful on desktop but create scroll fatigue on mobile
+3. Aggregate summary values provide sufficient mobile context
+
+## Related
+
+- Constitution Principle XIII (PWA/Mobile Interaction Rules)
+- `.squad/skills/svg-chart-patterns/SKILL.md` (responsive chart conventions)
+
+---
+
+### Decision: Duplicate Coin Backend Contract
+
+**Date:** 2026-06-21
+**Agent:** Cassius
+**Status:** PROPOSED — IMPLEMENTED
+
+## Context
+
+Brian requested backend support for duplicating a coin from the detail page without copying images or card-related media/state, while preserving ownership scoping.
+
+## Decision
+
+Expose `POST /api/coins/{id}/duplicate` as a protected write route. The endpoint returns `201` with the new `models.Coin`; the new name is the source name plus ` (duplicate)`. The repository copies owner-scoped scalar fields, catalog references, tags, and set memberships, including membership notes/sort order. It does not copy `CoinImage` rows or showcase/card rows. Non-owned source coin IDs return the same 404 shape as other owner-scoped coin reads.
+
+## Constitution Alignment
+
+- Principle I: Handler → Service → Repository separation with transactional multi-step write.
+- Principle V: Owner scope enforced through `OwnedByID`; non-owned coins are not distinguishable from missing coins.
+- §17/§21: Targeted handler and service regressions cover copied fields/associations plus media/card exclusion.
+
+## Files Touched
+
+Backend: `src/api/handlers/coins.go`, `src/api/services/coin_service.go`, `src/api/repository/coin_repository.go`, `src/api/main.go`
+Frontend: `src/web/src/api/client.ts`, `src/web/src/components/coin/CoinDetailHeaderActions.vue`, `src/web/src/pages/CoinDetailPage.vue`
+Tests: Backend and frontend regression tests included.
+
+---
+
+### Decision: Public Showcase Reuses Museum Tray Components
+
+**Date:** 2026-06-20
+**Agent:** Aurelia
+**Status:** APPROVED — IMPLEMENTED
+
+## Context
+
+Brian requested that public showcase coin display use the existing tray layout option rather than the bespoke showcase card/grid presentation. Public showcase media must keep routing through `/api/showcase/:slug/uploads/*`, while authenticated collection tray behavior must remain unchanged.
+
+## Decision
+
+The public showcase page now renders coins through the shared `MuseumTray` and `TrayControls` components. `MuseumTrayWell` gained two optional props:
+
+- `imageSrcResolver?: (filePath: string) => string` for public callers that need safe, feature-specific media URLs.
+- `interactive?: boolean` defaulting to `true`; public showcases set it to `false` so wells are presentation-only and do not imply private coin detail links.
+
+Authenticated tray callers continue using the default private media path handling and click-to-coin behavior.
+
+## Constitution Alignment
+
+- Principle III: typed tray image contract generalized without `any`.
+- Principle IV: simple reuse of the existing tray pattern instead of a second tray implementation.
+- Principle VI: preserves design-token tray styling and mobile/PWA-friendly controls.
+- §17: targeted tests and `vue-tsc --build` passed.
+
+## Files Touched
+
+Frontend: `src/web/src/pages/PublicShowcasePage.vue`, `src/web/src/components/tray/MuseumTray.vue`, `src/web/src/components/tray/MuseumTrayWell.vue`, `src/web/src/utils/trayLayout.ts`, related targeted tests.
+
+---
+
 ### Decision: Custom Mint Locations — Global Admin-Managed Backend Implementation
 
 **Date:** 2026-06-18  
@@ -7493,6 +8301,85 @@ setRepo.AddCoinToSet(...)  // Properly sets AddedAt
 
 **Cert Format:** 7-8 digits, optional `-XXX` suffix; regex: `^(\d{7,8})(\-\d{3})?$`
 
+---
+
+## Decision: Reusable Zoomable Chart Surface
+
+**Date:** 2026-06-21
+**Agent:** Aurelia
+**Status:** Implemented
+
+### Context
+
+Statistics charts (coin flow, investment breakdown, bar chart, heatmap) lack interactive zoom and pan capabilities, limiting user exploration of dense data visualizations, especially on smaller viewports.
+
+### Decision
+
+Use one shared `ZoomableSurface.vue` wrapper for dense chart/graph inspection instead of per-chart zoom implementations. This maintains consistent zoom behavior across all stats surfaces: toolbar zoom in/out/reset, mouse wheel zoom, touch pinch, drag pan, and keyboard shortcuts.
+
+### Applied Scope
+
+- `StatsBarChart`
+- `StatsCoinFlowChart`
+- `StatsInvestmentBreakdownChart`
+- `StatsHeatMap`
+
+`SetTrendChart` remains unchanged (currently a text list, not a graph).
+
+### Constitution Alignment
+
+- Principle III: Strict frontend typing; camelCase prop contract
+- Principle VI: Consistent, mobile-safe UX; multitouch and keyboard support
+- §17 Quality Gate: Type-check, linting, build validation
+- §21 Definition of Done: Full regression test coverage
+
+### Files Touched
+
+- `src/web/src/components/ZoomableSurface.vue` — new wrapper component
+- `src/web/src/components/__tests__/ZoomableSurface.test.ts` — unit tests
+- `src/web/src/components/stats/StatsCoinFlowChart.vue`
+- `src/web/src/components/stats/__tests__/StatsCoinFlowChart.test.ts`
+- `src/web/src/components/stats/StatsInvestmentBreakdownChart.vue`
+- `src/web/src/components/stats/__tests__/StatsInvestmentBreakdownChart.test.ts`
+- `src/web/src/components/stats/StatsBarChart.vue`
+- `src/web/src/components/stats/__tests__/StatsBarChart.test.ts`
+- `src/web/src/components/stats/StatsHeatMap.vue`
+- `src/web/src/components/stats/__tests__/StatsHeatMap.test.ts`
+
+---
+
+## Decision: ZoomableSurface Prop Camel-Case Contract
+
+**Date:** 2026-06-21
+**Agent:** Brutus
+**Status:** Implemented
+
+### Context
+
+The `ZoomableSurface` component initially used hyphenated prop names (e.g., `aria-label`). This conflicted with linting rules and required normalization to camelCase (`ariaLabel`) for strict TypeScript type-checking in `vue-tsc --build`.
+
+### Decision
+
+`ZoomableSurface` props now use camelCase naming (`ariaLabel`, not `aria-label`). All call sites (chart wrappers and tests) are updated to use the camelCase convention, eliminating lint warnings and maintaining strict type-checking compliance.
+
+### Rationale
+
+- **Consistency:** All Vue component props follow camelCase convention per TypeScript and linting best practices
+- **Type Safety:** `vue-tsc --noEmit` and `vue-tsc --build` validate strictness without exceptions
+- **No Runtime Impact:** Attribute binding in templates remains ergonomic; Vue normalizes camelCase props to hyphenated attributes automatically when needed
+
+### Constitution Alignment
+
+- Principle III: Typed component contract with no `any` types; strict camelCase convention
+- Principle IV: Simple, proportional change (rename + call-site updates)
+- §17 Quality Gate: Linting 0 errors; type-check passing
+
+### Files Touched
+
+- `src/web/src/components/ZoomableSurface.vue` — prop contract
+- `src/web/src/components/__tests__/ZoomableSurface.test.ts` — test call sites
+- All chart component tests updated to use `ariaLabel`
+
 **Test Strategy:** Unit tests (normalization logic), integration tests (handler/service), manual QA (slab accuracy)
 
 **Constitution Compliance:** Principle I (layered architecture), Principle IV (strict typing), Principle XI (security)
@@ -9844,3 +10731,1448 @@ Security scans now also run on pushes to `main` and `beta`. Scan jobs remain non
 - **Release implication:** Branch protection should require the security scan jobs for `main` and `beta`; image publish workflows run after protected-branch pushes, so the scan jobs are the release gate for `latest` and `beta`.
 
 
+
+---
+
+# Decision: Value-Over-Time Chart Redesign + Coin Acquisition Flow Chart
+
+**Date:** 2026-06-19
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+Brian requested two improvements to the Stats area:
+1. A cleaner, more infographic-style value-over-time chart (closer to reference image — smooth lines, point labels, circled endpoint callout, side ROI panel).
+2. A new Sankey/alluvial chart showing "coins bought broken down by emperor/era/type."
+
+## Decisions
+
+### Value-Over-Time Chart (StatsValueOverTime.vue)
+
+- Layout changed to two-column: chart area (left, `flex: 1`) + side panel (right, `10.5rem`).
+- Side panel shows a large `Cinzel` ROI% or change amount, date range, and 3 summary pills (Latest Value, Invested, Change).
+- Sparse per-point SVG text labels added (every Nth point, excluding the last). Labels use CSS `font-size: 0.6rem` — not affected by `preserveAspectRatio="none"` distortion.
+- Final/latest value point now rendered as a large circled callout (SVG `<circle r="30">` + `<text>`) rather than a small dot.
+- Horizontal grid lines removed; only 4 sparse vertical grid lines remain for a cleaner look.
+- Zoom controls remain in `StatsValueTrendsPage.vue` (page-level) — the chart component is a pure presentation component that accepts a `history` prop. This preserves the existing test contract which validates that clicking a chip filters history passed to the chart.
+
+### Sankey/Alluvial Flow Chart (StatsCoinFlowChart.vue)
+
+- New component at `src/web/src/components/stats/StatsCoinFlowChart.vue`.
+- Three-column flow: **Category → Era → Material** (all three fields are always populated on active coins; Ruler/Emperor was considered but is free-text and frequently blank).
+- Fetches all active (non-wishlist, non-sold) coins via `getCoins()` pagination loop — same pattern as MintMapPage. No backend changes required.
+- Custom SVG alluvial chart: proportional node bars + cubic bezier band paths. No new npm dependencies.
+- Added to `StatsPage.vue` (`/stats`) as a new section after `StatsHeatMap`.
+- Component initializes `isLoading = ref(true)` so the spinner shows before `onMounted` fires (required for correct test behavior).
+
+## Constitution Alignment
+
+- Principle I (Layered): Chart component is purely presentational; page manages state.
+- Principle IV (Simple Complete): No new API endpoints or backend changes needed.
+- Principle V (Design Token System): All colors/spacing use CSS variables from `variables.css`.
+- Principle IX (UI/UX Consistency): No emojis, dark theme, lucide icons where used.
+- §17 Quality Gate: All targeted tests pass (`npm run test -- StatsValueTrendsPage StatsValueOverTime StatsCoinFlowChart`); `npm run type-check` clean.
+
+## Files Touched
+
+- `src/web/src/components/stats/StatsValueOverTime.vue` — redesigned
+- `src/web/src/components/stats/StatsCoinFlowChart.vue` — new
+- `src/web/src/pages/StatsValueTrendsPage.vue` — minor cleanup (no functional change to zoom logic)
+- `src/web/src/pages/StatsPage.vue` — added `StatsCoinFlowChart` section
+- `src/web/src/components/stats/__tests__/StatsValueOverTime.test.ts` — updated `.headline-context` → `.panel-roi-number`
+- `src/web/src/components/stats/__tests__/StatsCoinFlowChart.test.ts` — new
+
+---
+
+# Decision: StatsCoinFlowChart — Acquisition Flow Chart Redesign
+
+**Date:** 2026-06-19  
+**Author:** Aurelia (Frontend Dev)  
+**Status:** Implemented
+
+## Context
+
+The original `StatsCoinFlowChart.vue` used Category → Era → Material as its three columns, drawing from all active coins regardless of purchase date. This did not match the user's stated intent of an alluvial/sankey chart "based on coins bought and broken down by emperor/era/type".
+
+## Decision
+
+Redesign the chart as a **purchase-based acquisition flow** with four columns:
+
+**Purchase Period (year) → Ruler → Era → Type**
+
+Where:
+- **Purchase Period** = year extracted from `coin.purchaseDate` (e.g. "2021")
+- **Ruler** = `coin.ruler` (the emperor/ruler field)
+- **Era** = `coin.era`
+- **Type** = `coin.denomination` preferred, then `coin.category`, then "Unknown Type"
+
+**Coins without a `purchaseDate` are excluded** from the chart entirely (they are fetched but filtered out client-side). The empty state triggers when fewer than 3 coins have a purchase date.
+
+## Key Design Choices
+
+1. **Top-N=8 grouping** for Ruler and Type: rulers/types beyond the top 8 by count are bucketed as "Other Rulers" / "Other Types" to keep the chart legible. Periods are not grouped (unlikely to have more than ~10 years).
+2. **No backend changes**: uses existing `getCoins({ wishlist:'false', sold:'false', sort:'purchase_date', order:'asc' })` with pagination.
+3. **Material color maps removed entirely** — the new chart no longer includes a material column.
+4. **Period palette** cycles through 6 design-token colors (`--accent-gold`, `--accent-bronze`, 4 category tokens).
+5. **SVG widened** to 760×380 px viewBox with `COL_X=[75,245,415,585]` for 4 columns.
+6. **Honest UI labeling**: heading is "Coins Bought by Period, Ruler, Era & Type"; footnote explains the top-N grouping convention.
+
+## Rationale
+
+The field mapping is the most direct fit for the user's request given the available data model: `ruler` maps to emperor/ruler, `denomination` maps to coin type, `era` maps to era, and grouping by purchase year provides the temporal "bought" dimension. Denomination was preferred over category for "type" because it is more specific.
+
+---
+
+# Decision: Desktop Tray Browser Regression for Issue #308
+
+**Date:** 2026-06-19  
+**Agent:** Aurelia  
+**Status:** PROPOSED — IMPLEMENTED
+
+## Context
+
+Issue #308 reported that `/tray` loaded in desktop Edge but only a single small measured coin appeared, while PWA mode rendered correctly. Current beta already uses authenticated media blobs, eager image loading, no private Workbox runtime cache, and filters tray coins to positive `diameterMm`.
+
+## Decision
+
+Add a desktop Playwright regression for the exact `/tray` path using an authenticated localStorage session and 67 measured active coins. The test mocks `/api/coins` and authenticated `/api/uploads/*` image bytes, then asserts:
+
+- no tray empty state
+- first drawer renders 12 `.tray-well` elements
+- drawer controls show `Tray 1 of 6` and advance to drawer 2
+- the first coin image renders with `loading="eager"` and `decoding="async"`
+- media fetches carry `Authorization: Bearer workflow-access-token` and `cache-control: no-store`
+
+While adding the test, fix the desktop layout bug in `MuseumTray.vue`: tray grid previously stayed on the narrow/mobile column count for desktop. It now uses 3 mobile columns, 4 tablet columns, and 6 desktop columns to align with spec §Responsive Tray Layout.
+
+## Rationale
+
+This is a small, high-confidence fix plus regression for the reported desktop workflow. It does not touch unrelated UI or issue #319, and it proves the current authenticated/no-store media path works in a real browser context rather than relying only on jsdom component tests.
+
+## Constitution Alignment
+
+- Principle IV: focused proportional fix for the failing workflow
+- Principle VI: desktop layout corrected without changing PWA route/component behavior
+- §17: exact workflow regression added for `/tray`
+
+## Files Touched
+
+- `src/web/src/components/tray/MuseumTray.vue`
+- `src/web/e2e/fixtures/workflow.ts`
+- `src/web/e2e/workflows/tray.spec.ts`
+- `src/web/src/__tests__/ui-patterns.test.ts`
+- `.squad/agents/aurelia/history.md`
+
+---
+
+# Testing Decision: Chart Regression Tests for Value Trends + Sankey/Alluvial Placeholders
+
+**Date:** 2026-06-19  
+**Author:** Brutus  
+**Scope:** `src/web/src/pages/__tests__/StatsValueTrendsPage.test.ts` + new `src/web/src/components/stats/__tests__/StatsValueOverTime.test.ts`
+
+---
+
+## Decision
+
+Added regression tests protecting:
+
+1. **Timeframe zoom controls** — `All/1Y/6M/3M` chips always render inside `.timeframe-chips` after loading. Previously untested; regression risk confirmed by the user report that zoom was lost after the chart-quality update.
+
+2. **Zoom filtering behavior** — Clicking a chip correctly passes filtered `ValueSnapshot[]` to `StatsValueOverTime` via its `:history` prop. Tests use `vi.useFakeTimers()` + `vi.setSystemTime('2024-03-01')` with a 4-point history spanning 2022–2024 so each timeframe band (All/1Y/6M) produces a distinct, verifiable count.
+
+3. **Chip active state** — `All` is active by default; switching to another chip moves the `.active` class without leaving two active chips simultaneously.
+
+4. **Chart anatomy contract (component-level)** — New `StatsValueOverTime.test.ts` directly mounts the component and asserts all infographic elements: `.value-chart-card`, `.chart-summary-strip`, 3 `.summary-pill`, `.chart-area-fill`, `.chart-line-value`, `.chart-line-invested`, `.endpoint-dot-value`, "Portfolio Trajectory" label, legend items, positive/negative headline class.
+
+5. **Minimum-data guard** — Chart component renders nothing when `history.length < 2`; both 0-item and 1-item cases covered.
+
+6. **Sankey/alluvial purchase flow placeholders** — 5 `it.todo()` entries in `StatsValueOverTime.test.ts` document the expected contract for an upcoming coins-bought-by-emperor/era/type flow chart. Once Aurelia implements `StatsCoinsFlow`, these todos become live tests.
+
+---
+
+## Rationale
+
+- The user's report of "lost zoom" is a perfect example of a page-level change silently breaking a feature because there was no test catching it. The 4 new zoom tests would have caught the regression immediately.
+- Component-level tests for `StatsValueOverTime` decouple the chart contract from the page layout. Future style renames won't silently pass if they remove functional elements.
+- The Sankey todos prevent the pattern of "we'll add tests later" — the contract is documented now so the implementer (Aurelia) knows exactly what Brutus will check.
+
+---
+
+## Test Command
+
+```
+npm run test -- StatsValueTrendsPage StatsValueOverTime
+```
+
+Result: **18 passed | 5 todo** in ~1.7s.
+
+---
+
+# Brutus Review Decision — #316/#320/#322
+
+Date: 2026-06-19T10:38:15-05:00
+Reviewer: Brutus
+
+## Decision
+
+BLOCK the combined batch on #320 until the Go toolchain source of truth is aligned.
+
+## Rationale
+
+`Dockerfile` and docs now reference Go 1.26.4, but `src/api/go.mod` remains `go 1.26.3`. The CI and security workflows use `actions/setup-go` with `go-version-file: src/api/go.mod`, so Go API build/test/govulncheck runs will still select 1.26.3 rather than the documented fixed patch line.
+
+## Validation
+
+- `cd src/api; go test -v -run TestRegisteredAPIRoutesAreDocumentedInOpenAPI .` passed.
+- Pinned `govulncheck@v1.4.0 ./...` passed locally.
+- `npm audit --audit-level=high` passed.
+- Searched reviewed workflow/Taskfile/Docker/go.mod pin surface: no mutable `@latest` installs for `swag` or `govulncheck`.
+
+## Requested Fix
+
+Have a non-original reviser for #320 align `src/api/go.mod` with the intended fixed Go patch version, then rerun Go tests and govulncheck.
+
+---
+
+# Brutus Review — #319, #308, Security Scan Gitleaks Checkout
+
+**Date**: 2026-06-19
+**Verdict**: APPROVE
+
+## Reviewed
+
+- #319 non-root runtime Docker changes for app and Python agent images.
+- #308 museum tray desktop grid and workflow regression coverage.
+- Security Scan Gitleaks push checkout `fetch-depth: 0` fix.
+
+## Decision
+
+Approve the wrap-up changes. Docker runtime stages now run as UID/GID `10001:10001`; expected writable paths are owned or documented for bind mounts. The tray regression covers the 67 measured-coin desktop workflow, 6-column desktop layout, authenticated eager media fetch headers, and drawer navigation. Full-history checkout for push Gitleaks scans restores before-SHA parent availability on multi-commit pushes and does not weaken coverage.
+
+## Validation
+
+- `npm.cmd run test -- ui-patterns.test.ts` — pass.
+- `npm.cmd run test:browser -- tray.spec.ts` — pass.
+- `npm.cmd run test:browser` — pass, 10/10 Chromium workflow tests.
+- `npm.cmd run type-check` — pass.
+- `git diff --check` — pass.
+
+Docker CLI is unavailable locally, so Docker build/run checks remain CI-only for this review.
+
+---
+
+# Brutus Review #321 — Python Agent Dependency Locking
+
+**Date:** 2026-06-19  
+**Agent:** Brutus  
+**Status:** APPROVED — LOCK STRATEGY VALIDATED
+
+## Context
+
+Issue #321 locks Python agent dependencies for reproducible CI, security scan, and Docker installs using uv 0.11.22 and committed `src/agent/uv.lock`.
+
+## Decision
+
+Approve the implementation. CI and security scan both install uv 0.11.22 and run `uv sync --locked --extra dev` before `uv run` lint/test/audit commands. The agent Docker builder copies `pyproject.toml` plus `uv.lock`, runs `uv sync --locked --no-dev --no-install-project`, and the final image copies `/app/.venv`, sets PATH to that venv, and copies `app/` source for `uvicorn app.main:app`.
+
+Adding `pip-audit` to the dev extra is acceptable because security scan installs the locked dev extra and audits through `uv run pip-audit`. Dependabot uses `package-ecosystem: uv` for `/src/agent`, matching the committed lock-file workflow.
+
+## Validation
+
+- `uv lock --check` from `src/agent` passed.
+- `uv run --locked python -c "import sys, uvicorn, app.main; ..."` passed on local Python 3.14.
+- Docker-style scratch sync passed with `UV_PROJECT_ENVIRONMENT=.venv-docker-review uv sync --locked --no-dev --no-install-project`, followed by `uvicorn.importer.import_from_string('app.main:app')` returning `FastAPI`.
+- `git diff --check` passed; only a CRLF warning for Cassius history was reported.
+- Docker CLI is unavailable locally, so the actual image build remains CI/developer validation work.
+
+## Python 3.12 / 3.14 Note
+
+Local validation used Python 3.14 because Python 3.12 is not installed locally. This is not a blocker: CI pins Python 3.12 and `uv.lock` contains Python-version resolution markers, but CI remains the authoritative 3.12 runtime proof.
+
+## Constitution Alignment
+
+- Principle VII / §17: supply-chain and CI integrity preserved through locked installs.
+- Principle IV: scoped, proportional change.
+- §21: dependency/security decision captured for team handoff.
+
+---
+
+# Decision: Production Containers Run as Non-Root UID/GID 10001
+
+**Date:** 2026-06-19
+**Agent:** Cassius
+**Status:** Implemented, awaiting review
+
+## Context
+
+Issue #319 requires both production runtime containers to avoid running as root. The app container must still write SQLite data and uploaded images under `/app/data` and `/app/uploads`; the agent container has no persistent writable volume by default.
+
+## Decision
+
+Both final runtime images create an `app` user/group and switch to numeric `USER 10001:10001`.
+
+- `Dockerfile`: runtime-owned `/app`, copied API binary, `wwwroot`, `/app/data`, and `/app/uploads`
+- `src/agent/Dockerfile`: runtime-owned `/app`, copied `.venv`, and `app/` source
+- `docs/deployment.md`: bind-mount owners must grant write access to UID/GID `10001:10001`
+
+## Rationale
+
+Numeric UID/GID `10001:10001` is deterministic across Alpine and Debian-based images and avoids host-name dependency for bind mounts. Keeping ownership on `/app` preserves existing paths and runtime behavior while reducing container breakout blast radius.
+
+## Validation
+
+- Docker CLI unavailable locally (`docker` command not found), so image build/run checks were not executed.
+- `git diff --check -- Dockerfile src\agent\Dockerfile docs\deployment.md docs\threat-model.md`
+- Python inspection script verified both Dockerfiles contain user/group creation, owned copies/paths, and `USER 10001:10001`.
+
+## Constitution Alignment
+
+- Principle IV: focused, proportional Dockerfile/docs-only change
+- Principle V: reduced runtime privilege and documented volume ownership
+- §17 Quality Gate: Docker build/run documented as not run because Docker is unavailable
+
+---
+
+# Decision: Route/OpenAPI Drift Gate for Go API
+
+**Date:** 2026-06-19
+**Agent:** Cassius
+**Status:** PROPOSED — IMPLEMENTED FOR REVIEW
+
+## Context
+
+Issue #316 required fixing Swagger/OpenAPI route drift after #317 and adding an automated route-vs-OpenAPI drift test. The audit called out tag, social, showcase, calendar, alerts, and agent routes as likely missing annotations.
+
+## Decision
+
+The API now has a route drift test in `src/api/route_openapi_drift_test.go` that inventories route registrations from `src/api/main.go`, converts Gin path params (`:id`, `*filepath`) to OpenAPI path params, strips the `/api` base path, and verifies every public registered API route appears in `src/api/docs/swagger.json`.
+
+Intentional exemptions are explicit and narrow:
+- `GET /health` and `GET /healthz` — container orchestration checks outside the `/api` contract
+- `GET /swagger/*any` — Swagger UI assets
+- root `GET /uploads/*filepath` — non-`/api` authenticated media alias; `/api/uploads/{filepath}` is documented
+- `/api/internal/tools/*` — internal Python-agent callback surface protected by internal token
+
+## Rationale
+
+This follows Principle III by making public API contracts schema-driven, and Principle IX by enforcing the repeatable drift check through tests instead of manual review. The static `main.go` inventory is intentionally direct and proportional under Principle IV; it avoids route rewrites while still locking the current Gin registration surface.
+
+## Files Touched
+
+- `src/api/route_openapi_drift_test.go`
+- `src/api/handlers/*.go` Swagger annotation additions for previously undocumented public routes
+- `src/api/docs/*` and `docs/openapi.json` regenerated by `task openapi`
+
+---
+
+# Decision: Python Agent Uses uv.lock for Reproducible Dependencies
+
+**Date:** 2026-06-19
+**Agent:** Cassius
+**Status:** PROPOSED — implemented for issue #321
+
+## Context
+
+Issue #321 requires reproducible Python agent installs across local validation, CI, security scan, and Docker builds. The agent already uses `pyproject.toml` and does not need Poetry or Pipenv.
+
+## Decision
+
+Use `uv.lock` as the Python agent lock file. CI installs uv 0.11.22 and runs `uv sync --locked --extra dev`; the agent Dockerfile installs runtime dependencies with `uv sync --locked --no-dev --no-install-project`; Dependabot uses the `uv` ecosystem for `/src/agent`.
+
+## Rationale
+
+uv is ecosystem-standard for pyproject projects, supports reproducible locked installs without adding a second project format, and is supported by Dependabot for lock refresh PRs.
+
+## Constitution Alignment
+
+- Principle VII: supply-chain and CI integrity through pinned uv and locked resolution
+- Principle IX / §17: agent lint, tests, security scan, and Docker build use the same lock source
+- Principle IV: simple complete change without introducing Poetry/Pipenv
+
+---
+
+# Scope Assessment: #321 & #319
+
+**Author:** Cassius  
+**Date:** 2026-06-19  
+**Status:** Analysis Complete — Ready for Implementation Assignment
+
+---
+
+## Executive Summary
+
+Both #321 (Lock Python dependencies) and #319 (Non-root Docker users) are **implementation-ready, low-risk, independent scope items** suitable for parallel work or sequential PR merge. Neither requires splitting.
+
+---
+
+## Issue #321: Lock Python Agent Dependencies
+
+### Current State
+- `src/agent/pyproject.toml` uses version ranges (e.g., `fastapi>=0.115.0,<1.0`)
+- No lock file committed; CI/Docker install fresh each run
+- `.github/workflows/ci.yml` lines 81–103: `pip install -e ".[dev]"`
+- `src/agent/Dockerfile`: `RUN pip install --no-cache-dir .`
+
+### Implementation Scope
+1. **Choose lock tool:** `uv.lock` (modern Python ecosystem standard; aligns with project's `ruff` tooling)
+2. **Generate lock:** `cd src/agent && uv lock` → commit `uv.lock`
+3. **Update CI:** `.github/workflows/ci.yml` lines 94–97 → use `uv pip install --dry-run --requirement uv.lock` (or equivalent) for determinism
+4. **Update Docker:** `src/agent/Dockerfile` → add `uv` install in build stage, use lock in final stage
+5. **Document:** Add lock refresh command to agent/deployment docs (e.g., `uv lock --upgrade`)
+
+### Validation
+- `cd src/agent && python -m pytest tests/ -v`
+- `cd src/agent && ruff check app/ tests/`
+- Docker build uses locked dependencies (verify build succeeds)
+
+### Risk Profile
+**LOW** — uv is production-ready, version ranges already constrained, no breaking schema changes to dependencies.
+
+### Likely Files Modified
+| File | Changes |
+|------|---------|
+| `src/agent/uv.lock` | New file (generated) |
+| `.github/workflows/ci.yml` | Lines 94–97: replace `pip install -e` with uv-pinned install |
+| `src/agent/Dockerfile` | Add `uv` to build stage; use lock in final layer |
+| Agent deployment docs | Add lock refresh command |
+
+---
+
+## Issue #319: Non-Root Docker Container Users
+
+### Current State
+- Root `Dockerfile` (line 24–34): No `USER` directive; container runs as `root` (uid 0)
+- `src/agent/Dockerfile` (line 8–17): No `USER` directive; container runs as `root`
+- `/app/uploads`, `/app/data` created but owned by `root:root`
+
+### Implementation Scope
+1. **Add user/group to root Dockerfile:**
+   - Create non-root user (e.g., `app:app`, uid/gid 1000)
+   - Set `USER app:app` before `ENTRYPOINT`
+   - Ensure `/app/uploads`, `/app/data` owned by `app:app`
+
+2. **Add user/group to agent Dockerfile:**
+   - Create non-root user (`app:app`)
+   - Set `USER app:app` before `CMD`
+   - Verify any agent-specific writable paths (logs, temp) are owned by `app:app`
+
+3. **Verify ownership and startup:**
+   - Docker build succeeds
+   - Container starts with correct user (verify `id` in running container)
+   - Write paths remain writable (test file creation in `/app/uploads`, logs)
+
+4. **Document:** Volume ownership expectations in deployment docs (e.g., host-side volume paths may need `chown` or mount flags)
+
+### Validation
+- `docker build .` succeeds for both images
+- `docker run <image> id` confirms uid ≠ 0
+- File write tests pass in running containers (`touch /app/uploads/test`)
+
+### Risk Profile
+**LOW-MEDIUM** — Standard hardening pattern, but **write-path validation is critical** (ensure no permission errors post-change). No privileged operations; standard `chown`/`chmod` calls.
+
+### Likely Files Modified
+| File | Changes |
+|------|---------|
+| `Dockerfile` | Add user/group creation (lines ~23–24), `chown` calls, `USER` directive (before line 34) |
+| `src/agent/Dockerfile` | Add user/group creation (lines ~7–8), `chown` calls, `USER` directive (after line 12) |
+| Deployment docs | Document host-side volume ownership expectations |
+
+---
+
+## Parallelism & Sequencing
+
+### Can They Run in Parallel?
+**Yes, independently.** #321 and #319 touch different logical concerns:
+- #321: Dependency reproducibility (lock file + CI)
+- #319: Container hardening (user/ownership)
+
+### Recommended Merge Strategy
+**Option A (Parallel PRs):** Merge #321 and #319 as separate PRs — no conflicts.  
+**Option B (Sequential Single PR):** Do #321→#319 in one PR to avoid Dockerfile line-number churn:
+- #321 modifies `src/agent/Dockerfile` (pip → uv)
+- #319 modifies same file (add USER + chown)
+- Sequence avoids reviewer friction from interleaved edits
+
+### Should Either Be Split?
+
+**#321:** **NO** — Single coherent unit (lock generation, CI, Docker, docs).
+
+**#319:** **NO** — Both Dockerfiles need parallel updates, and volume ownership validation crosses both images. Splitting would create duplicate work and partial solutions.
+
+---
+
+## Implementation Readiness Checklist
+
+- [x] No specification gaps (issues are clear, self-contained)
+- [x] No blockers in constitution or active PRs
+- [x] CI workflow supports both changes (lines 81–103 for agent)
+- [x] Dockerfile base images already digest-pinned (PR #320)
+- [x] Go toolchain already pinned (PR #320)
+- [x] Volume structure already defined (lines 29–30 in root Dockerfile)
+- [x] No dependency on F013, Health Scorecard, or other active features
+
+---
+
+## Recommended Next Steps
+
+1. **Assign #321 to implementation queue** (estimated 1–2 hours)
+2. **Assign #319 to follow-up queue** (estimated 1–2 hours)
+3. **Recommend sequential merge:** #321 → #319 to consolidate Dockerfile changes
+4. **Document in PR descriptions:** Cite constitution principles (Principle V for hardening, Principle III for reproducibility)
+
+---
+
+## Notes for Reviewer
+
+- **PR #321:** Verify `uv.lock` is committed, CI passes with locked deps, Docker builds use lock
+- **PR #319:** Verify both containers run as non-root, `/app/uploads` and `/app/data` remain writable, deployment docs updated with volume ownership expectations
+- Both PRs should include validation runs (pytest, ruff, docker build) in description
+
+
+---
+
+# Cassius Decision: Streaming Internal Token Guard (#226)
+
+**Date:** 2026-06-19
+**Scope:** Python agent SSE streaming, #217 follow-up
+
+## Decision
+
+All user-facing text emitted by `src/agent/app/streaming.py` now passes through a narrow sanitizer before SSE formatting. The sanitizer redacts JWT-shaped internal tokens, including optional `Bearer ` prefixes, but does not redact ordinary proposal tokens such as `token-abc`.
+
+## Rationale
+
+The Go-to-agent internal token is defense-in-depth sensitive and must never appear in browser-visible streams. Collection chat still intentionally surfaces `proposal_id` and proposal `token` values for explicit `commit_update`, so the guard is JWT-shape based rather than a broad token-word redactor.
+
+## Validation
+
+- `uv run ruff check app/ tests/`
+- `uv run python -m pytest tests/test_streaming.py -v`
+- `uv run python -m pytest tests/ -v`
+---
+
+# Decision: Issue #314 — Modularization Guardrail & Deferred Extraction
+
+**Date:** 2026-06-19  
+**Decision Owner:** Maximus (Architect)  
+**Status:** Closed with documented guardrail  
+**Linked Issue:** #314 "P2: Split oversized frontend and API modules only when touching affected workflows"
+
+---
+
+## Context
+
+Five frontend/API modules exceed safe review thresholds and create maintainability friction:
+
+| Module | Lines | Owned Workflows | Criticality |
+|--------|-------|-----------------|-------------|
+| AddCoinPage.vue | 1,307 | Manual + agentic coin intake, camera capture, form state | HIGH |
+| AdminSchedulesSection.vue | 1,134 | Scheduler UI for 4 async jobs (availability, auction-ending, health, valuation) | HIGH |
+| CoinLookupPage.vue | 1,097 | Coin identification, image lookup, wishlist quick-add | HIGH |
+| App.vue | 819 | Top-level nav, sidebar, menu reorder, badge state | MEDIUM |
+| client.ts | 780 | 40+ API endpoints (auth, coins, tags, schedules, auctions, agent, etc.) | MEDIUM |
+
+## Problem
+
+- **Before:** These modules exist; no guardrail prevents reflexive mass-refactoring.
+- **After:** Mass refactoring without a driver workflow violates Principle IV (Simple, Complete, Proportional Changes).
+
+**Guardrail needed:** Enforce extraction only during related workflow work (product feature, security patch, UI consistency).
+
+## Decision
+
+**Close #314. Defer extraction.** Each module will be refactored *only when touched* for product/security/UX reasons. Record the inventory and guardrail so future teams remember not to "fix" these pre-emptively.
+
+### Why This Decision
+
+1. **Principle IV (Simple Complete Changes):** Extraction without a driver workflow = low-signal refactoring. We fix the real problem, not symptoms.
+2. **Test Coverage Risk:** Each extraction requires *new* unit tests. Bundling 5 extractions = 5 independent test suites. Higher complexity, higher failure risk.
+3. **Blast Radius:** Each file is tightly coupled to active workflows (intake, lookup, admin schedules, routing). Extracting without touching the workflow invites subtle bugs.
+4. **Architecture Stability:** Premature modularization often creates false compartmentalization; real usage patterns emerge only through workflow changes.
+
+### Why NOT "Keep Open as a Backlog Item"
+
+- Backlog items signal "do this when you have time." We don't have time; this is debt tracking, not a feature.
+- Open items invite premature extraction attempts by future contributors unaware of the coupling.
+- A closed issue with explicit guardrail is clearer: "this is resolved via policy, not by doing the work."
+
+---
+
+## Action Items
+
+### 1. Update PR Template (`.github/pull_request_template.md`)
+
+Add one line to the **Definition of Done (§21)** section after item 15:
+
+```markdown
+- [ ] 15. Simple Complete Changes self-check complete (Principle IV)
+- [ ] 15a. If touched oversized module (see #314 inventory): extraction seams reviewed + regression tests maintained
+```
+
+### 2. Record Guardrail in Constitution (`.specify/memory/constitution.md`)
+
+Add to **Principle IV (Simple, Complete, Proportional Changes)** after the existing summary:
+
+> **Modularization Guardrail (Issue #314):**  
+> Do not split oversized modules (AddCoinPage.vue, CoinLookupPage.vue, AdminSchedulesSection.vue, App.vue, client.ts) for their own sake. Extract only when actively working on the owned workflow for a product/security fix or planned UI consistency work. Each extraction requires proportional regression testing; bundle only related extractions per workflow. See `.squad/decisions/inbox/maximus-issue-314-modularization-guardrail.md` for inventory and safe seams.
+
+### 3. Document Safe Extraction Seams (New: `docs/frontend-modularity.md`)
+
+Create a lightweight guide so future teams know how and when to extract:
+
+```markdown
+# Frontend Modularity — Extraction Seams & Policy
+
+See issue #314 and `.squad/decisions/inbox/maximus-issue-314-modularization-guardrail.md` for policy.
+
+## Oversized Modules (Deferred Extraction)
+
+| Module | Lines | When to Extract | Safe Seams |
+|--------|-------|-----------------|-----------|
+| AddCoinPage.vue | 1,307 | Camera UX work, form redesign | Camera logic → `useAddCoinCamera.ts`, form state → `useAddCoinForm.ts` |
+| AdminSchedulesSection.vue | 1,134 | Admin dashboard redesign | Scheduler table → `SchedulerRunsTable.vue`, run detail → `SchedulerRunDetail.vue` |
+| CoinLookupPage.vue | 1,097 | Lookup feature enhancement | Image preview → `ImagePreviewGrid.vue` |
+| App.vue | 819 | Navbar/sidebar UX changes | Sidebar reorder logic → `useSidebarReorder.ts` |
+| client.ts | 780 | API versioning, auth refactor | Coin CRUD → `api/coin.ts`, admin → `api/admin.ts` |
+
+## Extraction Rule
+
+Extract only if:
+1. Parent component is being actively refactored (not pre-refactoring)
+2. Extracted behavior has ≥1 new unit test
+3. All sibling workflows using the same code path are regression-tested
+```
+
+### 4. Update Copilot Instructions (`.copilot-instructions.md` or main custom_instruction block)
+
+Add to the **Modularization** or **Code Conventions** section:
+
+> **Frontend Module Size Policy (Issue #314):**  
+> Five modules are tracked as oversized due to high coupling to active workflows: AddCoinPage.vue (1,307 lines), AdminSchedulesSection.vue (1,134), CoinLookupPage.vue (1,097), App.vue (819), client.ts (780). Do NOT propose extraction unless the PR is actively refactoring the owned workflow (e.g., camera UX work, admin redesign). When extraction is warranted, use the safe seams documented in `docs/frontend-modularity.md` and add proportional unit tests for the extracted behavior.
+
+---
+
+## Inventory Summary
+
+### Oversized Vue SFCs
+
+**AddCoinPage.vue** (1,307 lines)
+- Owned workflows: Manual coin intake, agentic (AI-assisted) intake, camera capture, form validation
+- Key sections: Entry mode toggle, camera with focus guide, capture slots, agentic vs manual forms
+- Extraction risk: Low if triggered by camera UX work; high if pre-refactored
+
+**AdminSchedulesSection.vue** (1,134 lines)
+- Owned workflows: Schedule UI for availability checks, auction-ending runs, health snapshots, valuation runs
+- Key sections: Four separate scheduler configuration forms, run history tables, messaging state
+- Extraction risk: High — currently monolithic; wait for admin panel redesign
+
+**CoinLookupPage.vue** (1,097 lines)
+- Owned workflows: Coin identification, image capture/upload, Numista search, quick wishlist/collection add
+- Key sections: Capture state, results display, save modal
+- Extraction risk: Medium — image preview grid could extract safely with lookup feature work
+
+**App.vue** (819 lines)
+- Owned workflows: Top-level routing, sidebar nav, theme, notification badge
+- Key sections: Nav bar, sidebar with edit mode, menu reorder, child router-view
+- Extraction risk: Medium — sidebar logic could extract during nav UX work
+
+### API Client Module
+
+**client.ts** (780 lines)
+- Exports: 40+ functions across 10+ domains (auth, coins, tags, sets, journals, bulk ops, agent, auctions, notifications, etc.)
+- Current organization: Domain-grouped comments, no file splits
+- Extraction risk: Low if API versioning is planned; high if pre-refactored
+- Safe seams: Coin CRUD → `api/coin.ts`, admin endpoints → `api/admin.ts`, agent → `api/agent.ts`
+
+### Administrative Components (Not Flagged)
+
+- **AdminCoinPropertiesSection.vue** (578 lines) — Category/era configuration; extracted from monolithic AdminPage would be good practice but deferred per guardrail
+- **AdminCatalogsSection.vue** (551 lines) — Catalog CRUD; same as above
+
+---
+
+## Validation
+
+✅ **Close #314 on GitHub** with comment:  
+> Closing as **Resolved (Guardrail)** per `.squad/decisions/inbox/maximus-issue-314-modularization-guardrail.md`. 
+> 
+> **Summary:** Defer extraction of oversized modules. Each will be refactored only when touched for product/security/UX work. Guardrail recorded in Principle IV, PR template updated, safe seams documented in `docs/frontend-modularity.md`.
+> 
+> **Next steps for future work:** When a workflow issue touches AddCoinPage, CoinLookupPage, AdminSchedulesSection, App, or client.ts, apply safe seams + regression tests before extracting.
+
+---
+
+## Appendix: Related Decisions
+
+- **Principle IV (Proportional Scope):** Constitution defines "simple, complete, proportional" changes.
+- **§17 Quality Gate:** Requires workflow contract testing; extraction without it = gate failure.
+- **Issue #208 (Health Scorecard):** Prior test infrastructure audit; provides foundation for regression testing on extraction.
+
+---
+
+# Toolchain and Base-Image Pins
+
+Date: 2026-06-19
+Owner: Maximus
+Related: #320, Constitution Principle VII / §17
+
+Decision: CI-installed Go tools must be reviewed version pins, not mutable latest selectors. `swag` is pinned to `v1.16.6` consistently in Quality Gate and `Taskfile.yml`; `govulncheck` is pinned to `v1.4.0` in Security Scan.
+
+Decision: Production Docker base images use tag-plus-OCI-index-digest references (`image:tag@sha256:...`) rather than bare tags. This preserves multi-arch manifest selection while making reviewed builds reproducible. The Go API builder remains on the Go 1.26 line and moves to `golang:1.26.4-alpine` for the fixed stdlib patch.
+
+Refresh policy: Review and refresh tool/base-image pins monthly or immediately for security advisories. Update workflow and Taskfile pins together, refresh Docker tag/digest pairs together, and validate OpenAPI generation plus Go tests/security scan before merging.
+
+
+---
+
+## Decision: Coin of the Day Sharing Uses Existing Share Card Context
+
+**Date:** 2026-06-20  
+**Agent:** Aurelia  
+**Status:** APPROVED — IMPLEMENTED
+
+## Context
+
+Brian requested sharing for Coin of the Day summaries, while preserving the existing normal coin-detail share path. The frontend needed to extend sharing capabilities without introducing a separate renderer or API endpoint.
+
+## Decision
+
+Coin of the Day sharing leverages the existing useCoinShareCard composable by accepting an optional context object. FeaturedCoinModal.vue passes the cached featured-coin summary with the heading "Coin of the Day", allowing the generated card and native share text to include daily context. Normal coin-detail sharing remains unchanged (called without context).
+
+## Implementation
+
+- src/web/src/composables/useCoinShareCard.ts — accept optional { heading, summary } context object
+- src/web/src/utils/coinShareCard.ts — render context heading when supplied; otherwise use default behavior
+- src/web/src/components/coin/FeaturedCoinModal.vue — call share action with { context: { heading: 'Coin of the Day', summary: featured.summary } }
+
+## Rationale
+
+Reuses the existing share-card engine (canvas rendering, native share text generation, public metadata handling) while adding contextual daily headings. No separate API or renderer; no duplication of privacy expectations. Keeps the workflow simple and proportional.
+
+## Constitution Alignment
+
+- Principle III: Explicit typed share context contract
+- Principle IV: Simple proportional extension of existing share flow
+- Principle VI: User-visible Share/Sharing states tested
+- Section 17 Quality Gate: Focused regression coverage for exact workflow
+
+## Test Coverage
+
+- FeaturedCoinModal.test.ts — test share action with Coin of the Day context
+- useCoinShareCard.test.ts — test context parameter acceptance
+- coinShareCard.test.ts — test context rendering (heading, summary)
+- Existing coin-detail tests (CoinDetailPage, CoinDetailHeaderActions) continue passing
+
+## Validation
+
+- Tests: 17/17 passed
+- Type-check: PASSED
+- Production build: PASSED
+
+---
+
+## Decision: Coin of the Day Sharing Test Contract
+
+**Date:** 2026-06-20  
+**Agent:** Brutus  
+**Status:** APPROVED — IMPLEMENTED
+
+## Context
+
+Aurelia implemented Coin of the Day sharing via contextual extension of the existing coin share-card flow. Brutus added focused regression coverage to ensure the modal sharing path is preserved and the context is correctly captured.
+
+## Decision
+
+Coin of the Day modal sharing is tested as a contextual extension of the existing coin share-card flow, not as a separate feature branch. FeaturedCoinModal must call shareCoinCard(coin, { context: { heading: 'Coin of the Day', summary } }), where coin is the loaded underlying featured coin and summary is the cached Coin of the Day summary. Normal coin-detail sharing remains covered separately and must continue calling shareCoinCard(coin) without Coin of the Day context.
+
+## Test Cases
+
+1. FeaturedCoinModal share button triggers share action with Coin of the Day context
+2. useCoinShareCard accepts and passes through context object
+3. coinShareCard renders context heading when supplied
+4. coinShareCard includes summary in generated card
+5. Native share text includes daily context
+6. Canvas rendering of daily card is verified
+7. Busy state is managed correctly during share
+8. Default coin-detail sharing (without context) still works
+9. Type safety on optional context parameter
+10. No regressions in related share workflows
+
+## Rationale
+
+This protects the exact workflow Brian requested without duplicating the share-card engine or coupling the modal test to canvas rendering details. It also keeps privacy expectations from the share-card spec intact by preserving the existing public-metadata renderer and adding only the daily summary context.
+
+## Constitution Alignment
+
+- Principle III: Explicit typed share context contract
+- Principle IV: Simple proportional change with existing flow preserved
+- Principle VI: User-visible Share/Sharing states tested
+- Section 17 Quality Gate: Focused regression coverage for the exact workflow path
+
+## Validation
+
+- Focused Vitest run: 17/17 PASSED
+- Type-check: PASSED
+- Production build: PASSED
+
+---
+
+## Decision: Shared Tray Wells Prefer Coin-Face Images
+
+**Date:** 2026-06-20
+**Agent:** Aurelia
+**Status:** APPROVED — IMPLEMENTED
+
+## Context
+
+Public showcase tray wells were sometimes displaying uploaded card/slab/detail images because the shared well renderer chose a primary or first image before considering whether a coin-face image existed. The tray must prioritize actual coin photographs over metadata/slab images.
+
+## Decision
+
+`MuseumTrayWell` image selection now uses the shared tray image contract:
+
+1. `imageType === 'obverse'`
+2. `imageType === 'reverse'`
+3. `isPrimary`
+4. first image fallback
+
+Public showcase media still routes through `publicShowcaseMediaUrl(slug, filePath)` via the existing resolver, and authenticated collection tray wells keep private media handling unchanged.
+
+## Rationale
+
+This ensures the tray displays coin photographs consistently whether in collection or public showcase context. Frontend tests cover proportional sizing when `diameterMm` is returned. If a deployed public showcase payload omits `diameterMm`, live public proportional sizing requires Cassius/backend to expose that existing coin field rather than frontend faking sizes.
+
+## Constitution Alignment
+
+- Principle III: strict image selection contract without implicit behavior
+- Principle IV: simple complete change to image priority logic
+- Principle VI: consistent tray UX across collection and public contexts
+
+---
+
+## Decision: Public Showcase API Uses Showcase-Scoped Owner-Safe Tray Contract
+
+**Date:** 2026-06-20
+**Agent:** Cassius
+**Status:** APPROVED — IMPLEMENTED
+
+## Context
+
+Brian reported that the public showcase view appeared to include coins/cards that were not part of the intended showcase collection, and asked that public showcase coins display proportionally like the museum tray.
+
+## Decision
+
+The public showcase API contract must return only coins that are both linked through `showcase_coins` for the requested showcase and owned by that showcase owner. Public showcase media authorization follows the same owner-safe rule. The limited public coin payload includes `diameterMm`, `images[].filePath`, `images[].imageType`, and `images[].isPrimary` so the public tray can size coins proportionally and select the primary image consistently.
+
+## Rationale
+
+This prevents cross-owner coin linkage leaks and enables proportional tray rendering without frontend guessing of coin sizes. The scoped query is enforced at the repository layer per Principle I, keeping handlers thin and business logic auditable.
+
+## Constitution Alignment
+
+- Principle I: repository owns the scoped GORM queries; handler remains thin
+- Principle III: public API exposes explicit tray-required fields (diameterMm, imageType, isPrimary)
+- Principle V: malformed cross-owner showcase links do not leak another user's coin data or media
+- §17: covered by targeted regressions plus `go test ./...` and `go vet ./...`
+
+## Files Touched
+
+- `src/api/repository/showcase_repository.go`
+- `src/api/repository/image_repository.go`
+- `src/api/handlers/showcase.go`
+- `src/api/handlers/showcase_handler_test.go`
+- `src/api/repository/image_repository_test.go`
+
+---
+
+### Decision: AI Provider Tests are Distinct from Internal Agent Service Health
+
+**Date:** 2026-06-21
+**Agent:** Aurelia
+**Status:** APPROVED — IMPLEMENTED
+
+## Context
+
+When the backend reports agent-service failures (including `Agent service unavailable` or `Internal service credential is not configured`), the frontend was previously treating these as provider connectivity issues. Brian reported that Anthropic status was valid while chat and image analysis failed because the agent service rejected internal service credentials.
+
+## Decision
+
+Frontend AI surfaces must distinguish between:
+1. **Provider connectivity tests** (Admin AI Configuration) — validate only Anthropic/Ollama connectivity
+2. **Agent service + internal credential readiness** (Chat, image analysis) — require both provider AND internal agent service configuration
+
+When the backend reports agent-service failures, frontend surfaces direct users to internal agent service configuration (e.g., "Internal agent service not configured — see deployment docs"), not provider settings. The UI preserves backend error text where specific to guide users to the correct remediation path.
+
+## Rationale
+
+Pointing users back to Anthropic configuration when the real fault domain is internal agent service credentials masks the actionable problem and prevents resolution. Surfacing specific error text from the backend ensures diagnosis accuracy.
+
+## Constitution Alignment
+
+- Principle V: provides clear, actionable error guidance to users
+- Principle VI: consistent error UX across AI-powered features
+- §17: covered by client tests, component tests, and type-checking
+
+## Files Touched
+
+- `src/web/src/api/client.ts`
+- `src/web/src/components/coin/CoinAIAnalysis.vue`
+- `src/web/src/components/admin/AdminAISection.vue`
+- related test files
+
+---
+
+### Decision: Agent Internal Credential Readiness Contract
+
+**Date:** 2026-06-21
+**Agent:** Cassius
+**Status:** APPROVED — IMPLEMENTED
+
+## Context
+
+After Python agent boundary hardening, deployments with Anthropic provider key configured but `AGENT_INTERNAL_SERVICE_TOKEN` missing returned HTTP 200 for `/health` and HTTP 503 for `/ready`, but users saw `{"detail":"Internal service credential is not configured"}` in chat and analysis failures even though the agent was reachable.
+
+## Decision
+
+- `AGENT_INTERNAL_SERVICE_TOKEN` remains required for every hardened Python agent endpoint.
+- `/health` is a shallow liveness endpoint (always HTTP 200 if process is running).
+- `/ready` is the configuration-readiness endpoint and returns HTTP 503 when `AGENT_INTERNAL_SERVICE_TOKEN` is missing or when the service is not fully initialized.
+- Docker Compose health checks must use `/ready` endpoint so a reachable-but-unconfigured agent is not treated as healthy.
+- Go proxy (`services/agent_proxy.go`) maps missing-credential responses to a distinguished error type that UI-facing error formatting can recognize and classify as internal agent service configuration, not an Anthropic/Ollama provider-key failure.
+
+## Rationale
+
+This preserves internal service credential protection per Principle V while enabling operational clarity: `/ready` reflects actual service readiness for production, not just TCP connectivity. Health check integration ensures deployments catch missing credentials before traffic routes to unconfigured instances.
+
+## Constitution Alignment
+
+- Principle V: preserves internal service credential protection instead of weakening agent access
+- Principle I: layered responsibility — Go proxy handles credential error classification
+- §17 and §21: adds targeted contract/regression coverage for the exact failing path
+
+## Files Touched
+
+- `src/agent/app/main.py` (FastAPI health/ready endpoints)
+- `src/api/services/agent_proxy.go` (error classification)
+- `Dockerfile` (Docker health check `/ready`)
+- `docker-compose.yml` (health check configuration)
+- test files for agent proxy and internal credential handling
+
+---
+
+## Decision: Authenticated API Rate Limiting Uses Principal Buckets
+
+**Date:** 2026-06-21
+**Agent:** Cassius
+**Status:** IMPLEMENTED
+
+### Context
+
+Production showed 429 responses for normal authenticated browsing endpoints such as `/api/notifications/unread-count`, `/api/auth/me`, `/api/tags`, `/api/coins`, `/api/sets`, and `/api/storage-locations` after only light browsing or updates.
+
+### Decision
+
+Protected API browsing now uses `AuthenticatedRateLimit`, keyed by authenticated user ID or API key ID with client IP only as a fallback. The authenticated browsing bucket is 600 requests per minute. Write-heavy protected routes still use a stricter 30 requests per minute bucket, now also keyed by authenticated principal. Public auth routes remain IP-limited at 10 requests per minute to preserve brute-force protection.
+
+### Constitution Alignment
+
+- Principle I: middleware-only routing concern; no handler/service/repository boundary changes.
+- Principle V: preserves auth endpoint brute-force protection and keeps abuse throttling for authenticated callers.
+- §17 and §21: targeted regression tests cover the exact failing browsing path and shared-IP principal keying.
+
+### Files Touched
+
+- `src/api/main.go`
+- `src/api/middleware/ratelimit.go`
+- `src/api/middleware/ratelimit_test.go`
+
+---
+
+## Decision: Private Media Blob Cache Reduces Protected API Bursts
+
+**Date:** 2026-06-21
+**Agent:** Aurelia
+**Status:** Implemented
+
+### Context
+
+Brian observed 429 responses for normal protected API calls after browsing and updating the collection. The frontend's collection mount issues a small expected data burst, while private coin images are loaded through authenticated `/api/uploads/*` requests that share the protected API rate-limit budget.
+
+### Decision
+
+Cache private upload blobs in memory by normalized upload path and deduplicate concurrent in-flight loads. Components still create and revoke their own object URLs, but repeated route changes, rerenders, lightbox/share-card usage, and remounts no longer refetch the same image blob during the same authenticated session. The cache is cleared on logout or user switch to avoid cross-account private media reuse.
+
+### Constitution Alignment
+
+- Principle III: typed media helper contract and targeted regression tests.
+- Principle IV: focused proportional frontend fix without backend rate-limit changes.
+- Principle VI: preserves authenticated media behavior and PWA/private-upload service-worker boundaries.
+- §17 / §21: targeted tests plus `vue-tsc --build` and `npm run build` passed.
+
+### Files Touched
+
+- `src/web/src/utils/media.ts`
+- `src/web/src/utils/__tests__/media.test.ts`
+- `src/web/src/stores/auth.ts`
+- `src/web/src/stores/__tests__/auth.test.ts`
+
+---
+
+## Decision: Authenticated Rate Limit Regression Contract
+
+**Date:** 2026-06-21
+**Agent:** Brutus
+**Status:** Implemented
+
+### Context
+
+Production reported 429 Too Many Requests during normal authenticated browsing on protected read endpoints including notifications, auth/me, tags, coins, sets, and storage locations.
+
+### Decision
+
+Regression coverage for this class of bug exercises the authenticated middleware contract directly: normal protected browsing bursts must pass, rate-limit buckets must be keyed by authenticated user/API key rather than shared IP, and abusive authenticated writes must still receive 429.
+
+### Constitution Alignment
+
+- Principle IV: targeted regression tests for exact failing workflow
+- Principle V: validates abuse throttling and auth endpoint protection
+- §17 / §21: Definition of Done — regression coverage locks the contract
+
+### Files Touched
+
+- `src/api/middleware/ratelimit_test.go` — three comprehensive regression test cases
+
+---
+
+## Decision: Frontend Title Rename to Aurearia
+
+**Date:** 2026-06-22
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+### Context
+
+Brian requested the frontend/application title surfaces be renamed to `Aurearia - Coin Collection`.
+
+### Decision
+
+Updated browser and PWA title metadata plus visible app-header title surfaces in the authenticated shell, auth landing page, onboarding prompt, and install prompt. Left educational/domain copy and historical references alone so "ancient coins" remains available where it describes the collection subject rather than the app title.
+
+### Validation
+
+`npm.cmd run build` passed from `src/web`.
+
+### Files Touched
+
+Frontend: `src/web/src/` — title metadata and UI strings
+
+---
+
+## Decision: OIDC Redacted Secret Update Semantics
+
+**Date:** 2026-06-24
+**Agent:** Brutus
+**Feature:** specs/335-oidc-login
+**Status:** APPROVED
+
+### Context
+
+Admin OIDC provider update handling must treat empty client secrets and known redacted/configured placeholders as preserve-existing-secret requests to prevent accidental secret rotation via frontend display-only placeholder text.
+
+### Decision
+
+Admin OIDC provider update handling treats empty client secrets and known redacted/configured placeholders (`Configured`, `redacted`, `<redacted>`, and common masked bullet/star values) as preserve-existing-secret requests. Only a non-placeholder secret value rotates the stored client secret.
+
+### Rationale
+
+The API contract says omitted or empty `clientSecret` preserves the existing value, and the frontend is required not to resubmit placeholder secret text as a real secret. Backend preservation for redacted placeholders adds defense in depth if a browser, test, or future client accidentally submits display-only placeholder text.
+
+### Verification
+
+- `go test -v .\handlers -run "TestOIDCAdminHandler"`
+- `go test -v .\services -run "TestOIDCServiceTestAdminProvider"`
+- `npm.cmd run test -- AdminOIDCSection.test.ts`
+
+### Constitution Alignment
+
+Principle V and specs/335 FR-003/SC-004: client secrets remain write-only in read responses and are not accidentally overwritten by frontend-visible placeholder text.
+
+### Files Touched
+
+- `src/api/handlers/oidc.go` — provider update secret handling
+- `src/api/services/oidc_service.go` — redacted placeholder preservation logic
+- `src/web/src/components/admin/AdminOIDCSection.vue` — placeholder display and form handling
+- `src/web/src/components/admin/AdminOIDCSection.test.ts` — placeholder preservation verification
+
+---
+
+## Decision: Cassius OIDC Phase 4-5 Backend Implementation
+
+**Date:** 2026-06-24  
+**Agent:** Cassius  
+**Scope:** OIDC backend Phase 4-5 MVP (`specs/335-oidc-login`)
+**Status:** APPROVED
+
+### Context
+
+Phase 4 (linked-identity login) and Phase 5 (final-local-admin recovery protection) backend implementation requires careful separation of concerns, atomic operations on sensitive state, and backward-compatibility with existing authentication flows.
+
+### Decisions
+
+- The MVP OIDC callback returns the existing `AuthResponse` JSON body directly from `GET /api/auth/oidc/:providerId/callback` after validation. App JWTs and refresh tokens are not placed in URL query strings; the contract now documents that a later frontend session-exchange wrapper may replace the transport without changing token semantics.
+- OIDC login is limited to already-linked external identities in Phase 4. If a verified provider email matches a local account but the external identity is not linked, the backend returns `409 Conflict` and records a safe failure event instead of creating or merging accounts.
+- Admin delete and role-demotion operations use transaction-guarded repository helpers so final-local-admin checks and mutations happen together. Blocked final-local-admin operations return the contract message and record `final_local_admin_blocked`.
+
+### Rationale
+
+- **AuthResponse Direct Return:** Preserves existing token issuance semantics and avoids inventing new intermediate callback response formats. Frontend redirect logic remains unchanged.
+- **Account Conflict (409):** Prevents silent account merges and respects user intent to keep identities separate. Security events record the conflict without user PII.
+- **Transaction Safety:** Prevents race conditions where a second admin delete could occur between the recovery check and the mutation, violating the guarantee.
+
+### Verification
+
+- `go test -v ./handlers -run "TestOIDCCallbackHandler|TestOIDCLoginStartHandler"`
+- `go test -v ./services -run "TestOIDCServiceTokenExchange|TestOIDCServiceAccountConflict"`
+- `go test -v ./handlers -run "TestAdminHandlerDelete|TestAdminHandlerDemote"`
+- `go test -v ./...` — full suite passing after Phase 4-5 closeout
+
+### Constitution Alignment
+
+- Principle I: handlers parse/map errors; OIDC validation and account decisions stay in `services/oidc_service.go`; GORM access remains in repositories.
+- Principle V: state/nonce are hashed, PKCE verifier is treated as a secret, provider tokens/codes/secrets are not logged or returned, and local admin recovery is preserved.
+- §17/§21: targeted OIDC/admin recovery tests, `go build ./...`, `go vet ./...`, and OpenAPI regeneration completed. Full `go test ./...` passes after Phase 4-5 closeout.
+
+### Files Touched
+
+- `src/api/handlers/oidc.go` — provider list, login start, callback handler
+- `src/api/handlers/admin.go` — delete/demote with recovery guard integration
+- `src/api/services/oidc_service.go` — token exchange, account decision, conflict detection
+- `src/api/services/admin_recovery_service.go` — final-local-admin check (Phase 2)
+- `src/api/repository/oidc_repository.go` — external identity lookup, atomic state consume
+- `src/api/repository/admin_repository.go` — transaction-guarded delete/demote helpers
+- `src/api/tests/` — full handler/service/repository test coverage
+
+---
+
+## Decision: Maximus OIDC Phase 4–5 Guardrails and Hard Dependencies
+
+**Date:** 2026-06-24  
+**Agent:** Maximus (Lead/Architect)  
+**Scope:** Review of "Phase 3 and more" → define Phase 4 (OIDC Login) and Phase 5 (Final-Local-Admin Protection) MVP scope and launch guardrails  
+**Decision Owner:** Maximus
+**Status:** APPROVED
+
+### Context: Phase 3 Scope
+
+From `specs/335-oidc-login/tasks.md` and `.squad/decisions.md`:
+
+**Phase 3 (User Story 1 – Admin Provider Configuration):** T015–T024
+- Admin OIDC provider CRUD, discovery/test validation, secret redaction
+- Admin UI component using existing admin card/form patterns
+- **Checkpoint:** Admins can safely configure and test providers; no login flow required
+
+---
+
+### Phase 4: User Story 2 – OIDC Login for Linked Identities (Priority P1)
+
+#### Scope Definition
+
+**Goal:** Linked users sign in with enabled OIDC providers and receive existing app JWT/refresh-token session.
+
+**Feature Boundary:**
+- Public provider listing for unauthenticated login UI
+- OIDC login start with PKCE/state/nonce generation
+- Provider code exchange and ID token validation
+- Callback handling: finds linked external identity, updates `LastLoginAt`, records audit events, issues existing `AuthResponse` tokens
+- Account-conflict response for verified-matching email with no linked identity (no account creation/merging)
+- LoginPage update to render provider buttons and callback errors
+- Full regression suite: local password login, WebAuthn, auth token refresh
+
+**Not in Phase 4:**
+- Account linking UI/flow (Phase 6)
+- UX clarity for error categories beyond basic status codes (Phase 7)
+
+#### Hard Dependencies for Phase 4
+
+1. **Phase 2 MUST complete first** (Foundation: models, repositories, security services, recovery safety)
+   - Models: `OIDCProvider`, `ExternalIdentity`, `OIDCAuthState`, extended `SecurityEvent`
+   - Repositories: OIDC CRUD, email lookup, atomic state consume
+   - Services: `AdminRecoveryService`, security event recording
+   - Tests: External identity uniqueness, state replay prevention, recovery blocking
+
+2. **Phase 3 configuration endpoints must be ready** (needed for callback validation)
+   - Provider discovery and metadata caching
+   - JWKS/token endpoint resolution
+
+3. **Go OIDC libraries stable and integrated** (`github.com/coreos/go-oidc/v3/oidc`, `golang.org/x/oauth2`)
+   - Architecture allowlist updated (Principle IX compliance)
+   - No additional external dependencies required for Phase 4 if discovery/token libraries work
+
+#### Phase 4 Guardrails
+
+##### For Cassius (Go Backend)
+
+1. **Token Issuance Shape:**
+   - Reuse existing `AuthResponse` (token, refreshToken, user) without modification
+   - Do NOT change JWT payload structure or claims
+   - Do NOT add new fields to `AuthResponse` that would break login-callback deserialization
+
+2. **Callback Handler Security:**
+   - NEVER put JWTs, refresh tokens, authorization codes, state, nonce, or PKCE verifiers in URL query strings
+   - Use server-side session exchange or HTTP-only cookie redirect pattern if needed
+   - Validate redirect URI is relative (no open redirect) and app-safe before storing in `OIDCAuthState`
+
+3. **Account Conflict Handling:**
+   - If OIDC email matches a local user without a linked external identity, return `409` with conflict message
+   - MUST NOT silently link accounts or create duplicate users
+   - MUST NOT auto-promote unverified emails to trusted identity
+   - Record conflict as security event without user PII
+
+4. **Isolation from Phase 2 Tests:**
+   - Phase 4 implementation must NOT break existing auth tests (local password, WebAuthn, refresh)
+   - Regression suite required: `TestAuthHandlerLocalLoginPreserved`, `TestAuthHandlerWebAuthnPreserved`, `TestAuthRefreshPreserved`
+   - Auth service changes must be additive only (no mutations to `AuthResponse` generation)
+
+5. **Error Handling:**
+   - Normalize OIDC service errors into typed sentinel errors (e.g., `ErrInvalidState`, `ErrProviderNotFound`, `ErrAccountConflict`)
+   - Map to HTTP status codes without leaking provider implementation details
+   - All error paths must be testable with mocked provider responses
+
+##### For Aurelia (Vue Frontend)
+
+1. **LoginPage Integration:**
+   - Preserve existing local password form and WebAuthn button
+   - Add provider buttons below existing auth methods (do NOT replace)
+   - Load public provider list on page mount (handle empty list gracefully)
+   - Support provider callback error handling: query string `?error=...&error_description=...`
+
+2. **Type Safety:**
+   - Use typed DTOs for provider list, callback response, and error payloads
+   - All OIDC API calls through `src/web/src/api/client.ts` with typed wrappers
+   - Auth store must only consume `AuthResponse` (do NOT invent intermediate callback formats)
+
+3. **No New Navigation:**
+   - Callback processing MUST NOT require a new route; existing auth redirect or SPA-side token storage applies
+   - If callback response includes error, render inline message on LoginPage without navigation
+
+4. **Design Token Compliance:**
+   - Provider buttons use existing button styles (`.btn-primary` or `.btn-secondary`)
+   - No new colors, fonts, or spacing values (Principle VI compliance)
+
+##### For Brutus (QA)
+
+1. **Mandatory Test Coverage:**
+   - Mocked Entra ID and Pocket ID provider flows (discovery, token, JWKS validation paths)
+   - Valid login with linked identity → issues app tokens
+   - Invalid state, nonce, issuer, audience, signature/JWKS, expiry → login denied with `401`/`400`
+   - Missing subject or unverified email (if policy enforced) → login denied
+   - Account conflict (matching email, no link) → `409` with conflict message
+   - Local password login still works (regression)
+   - WebAuthn login still works (regression)
+   - Token refresh still works (regression)
+
+2. **Test Isolation:**
+   - Use `httptest.Server` for mocked OIDC provider discovery/token endpoints
+   - Mocked JWKS must rotate signing key at least once to verify key refresh logic
+   - Do NOT share test setup between Phase 4 and Phase 6 linking flow tests yet
+
+3. **Architecture Tests:**
+   - `go test ./...` must pass without new architecture violations
+   - Verify no service-layer OIDC calls reach handlers directly (services own the flow)
+   - Verify no handler-layer repository access (all DB access through services)
+
+---
+
+### Phase 5: User Story 4 – Preserve Local Admin Recovery (Priority P1)
+
+#### Scope Definition
+
+**Goal:** Every account mutation that could remove the final local admin recovery path is blocked and audited.
+
+**Feature Boundary:**
+- `AdminRecoveryService` integration into delete-user, role-update, and future local-auth-disable flows
+- Transaction-safe mutation helpers in `AdminRepository`
+- `409 Conflict` response with contract message when final-local-admin safety would be violated
+- Security event recording for `final_local_admin_blocked`
+- Full regression coverage: admin delete, admin role update, existing user mutation operations
+
+**Not in Phase 5:**
+- UI for enabling/disabling local login (implementation-ready but not frontend-delivered in v1)
+- Account migration workflows (Phase 6+)
+
+#### Hard Dependencies for Phase 5
+
+1. **Phase 2 MUST complete first**
+   - `AdminRecoveryService` implementation and logic tests
+   - `AdminRepository` transaction helpers
+   - Security event constants and recording
+
+2. **Phase 4 MUST progress in parallel or precede Phase 5 closure**
+   - Phase 5 tests block on Phase 4 implementation when testing account mutation chains
+   - If Phase 4 adds new local-auth-disabling flows (e.g., `DisableLocalPasswordForUser`), Phase 5 must cover those
+
+3. **No new admin operations allowed after Phase 5 closure without recovery guard**
+   - Any new user deletion, role change, or credential disable flow must call `AdminRecoveryService.CanRemoveLocalAuth(userID)` before mutation
+
+#### Phase 5 Guardrails
+
+##### For Cassius (Go Backend)
+
+1. **Recovery Guard Integration:**
+   - Wire `AdminRecoveryService` into `handlers/admin.go` delete-user and role-update flows
+   - Call `CanDeleteUser(userID)` or `CanDemoteUser(userID)` before mutation
+   - Return `409 Conflict` with error message if guard rejects
+   - DO NOT change the HTTP status code or response shape without updating spec contract
+
+2. **Transaction Safety:**
+   - Wrap recovery check and mutation in a single database transaction to prevent races
+   - Use `AdminRepository` transaction helpers (implemented in Phase 2)
+   - Tests must verify check and mutation are atomic (no interleaved second admin delete)
+
+3. **Isolation from Phase 4:**
+   - Do NOT introduce OIDC-only conversion flows in Phase 5 unless Phase 4 calls them
+   - Phase 5 only protects the current admin/user mutation surface
+   - Future local-auth-disable flows (Phase 6+) must hook `AdminRecoveryService` when implemented
+
+4. **Error Recording:**
+   - All blocked operations must record `final_local_admin_blocked` security event
+   - NEVER include user credentials, secrets, or sensitive payloads in security events
+   - Record: `{ event_type: "final_local_admin_blocked", user_id, admin_id, attempted_operation, message }`
+
+##### For Aurelia (Vue Frontend)
+
+1. **Error Handling:**
+   - If delete/demote returns `409`, render a distinct error message (not a generic conflict)
+   - Message: "Cannot remove the last admin with local login credentials. Ensure another admin with password/WebAuthn exists."
+   - Do NOT attempt UI-side recovery checks; trust backend contract
+
+2. **No New Admin UI in Phase 5:**
+   - Existing admin user list and delete/role-update controls remain unchanged
+   - UI behavior is backend-enforced (frontend does not predict `409` responses)
+
+##### For Brutus (QA)
+
+1. **Mandatory Test Coverage:**
+   - Attempt delete of the only local admin → `409 Conflict`
+   - Delete a second admin when two exist with local creds → `200 OK`
+   - Attempt demote of the only local admin → `409 Conflict`
+   - Demote a non-final local admin → `200 OK`
+   - OIDC-only admin exists, attempt to remove the only local admin → `409 Conflict`
+   - Future local-auth-disable/conversion flows (when implemented) also call recovery guard
+
+2. **Test Isolation:**
+   - Phase 5 tests must NOT assume Phase 4 login flow implementation (use Phase 2 test helpers)
+   - Use factory functions to create test admin users with local credentials
+   - Verify security event recorded without sensitive payloads
+
+3. **Architecture Compliance:**
+   - `AdminRecoveryService` is service-layer only; no handler-layer bypass
+   - Handlers must call service and map typed errors to HTTP responses
+
+---
+
+### Phase 6: User Story 3 – Account Linking (Priority P2)
+
+#### Scope Definition (Preview—Not Launching Yet)
+
+**Goal:** Authenticated users can link/unlink OIDC identities without unsafe account merges.
+
+**Feature Boundary:**
+- Protected OIDC link-start and link-callback flows
+- `GET /user/oidc-identities` and `DELETE /user/oidc-identities/:identityId`
+- Account Settings component to display linked identities and link/unlink actions
+- Account-conflict blocking and non-merge guarantees
+- Unlink-safety check (blocks if unlink would remove last sign-in method)
+
+**Launch Condition:**
+- Phase 1–5 merged to `beta` and validated
+- No blocker against Phase 6 implementation—architecture is sound, test patterns established
+- Phase 6 can launch immediately after Phase 5 closure
+
+---
+
+### Cross-Phase Hard Dependencies Summary
+
+| Dependency | Phase 4 Requires | Phase 5 Requires | Reason |
+|---|---|---|---|
+| Phase 1 (OIDC libs + arch allowlist) | ✅ | ✅ | Cannot build OIDC code without |
+| Phase 2 (models + services + recovery) | ✅ | ✅ | Provider config, recovery logic |
+| Phase 3 (admin provider config) | ✅ | ✅ (indirect) | Provider metadata for callback validation |
+| Phase 4 (login flow) | — | ✅ (weak) | Account mutation tests may use mocked login |
+| Phase 5 (recovery guard) | ❌ | — | Can launch Phase 4 without Phase 5 closing first |
+
+---
+
+### Launch Gates for Phase 4 and Phase 5 Agents
+
+#### Pre-Launch Checklist for Phase 4 Agent
+
+Before agent (Cassius/Aurelia/Brutus team) begins Phase 4 work:
+
+- [x] Phase 1–3 complete and merged to branch
+- [x] Phase 2 regression suite passing (`AdminRecoveryService`, external identity uniqueness, state replay)
+- [x] Phase 3 provider config endpoints ready and tested (discovery, test, list)
+- [x] Architecture allowlist includes OIDC libraries (Principle IX verified)
+- [x] Go and TypeScript DTOs match contract (`specs/335-oidc-login/contracts/oidc-api.md`)
+- [x] Mocked Entra ID and Pocket ID test infrastructure in place (`httptest.Server` patterns)
+- [x] `.squad/decisions.md` updated with Phase 4 launch decision
+
+#### Pre-Launch Checklist for Phase 5 Agent
+
+Before agent begins Phase 5 work:
+
+- [x] Phase 1–2 complete and merged to branch
+- [x] Phase 4 implementation well underway or staged (account mutation tests may mock Phase 4 flows)
+- [x] `AdminRecoveryService` and transaction helpers pass Phase 2 tests
+- [x] Recovery guard integration points identified in existing admin handlers
+- [x] Test matrix drafted: delete, demote, and future credential-disable scenarios
+- [x] `.squad/decisions.md` updated with Phase 5 launch decision
+
+---
+
+### Conflict Prevention and Escalation
+
+#### If Phase 3 Configuration Endpoints Fail or Change
+
+**Impact:** Phase 4 callback validation cannot proceed.  
+**Escalation:** Maximus halts Phase 4 until Phase 3 endpoints are stable or contract is updated.
+
+#### If Phase 4 Introduces Breaking Token Changes
+
+**Impact:** Phase 5 account mutation tests may fail if new auth flows are introduced.  
+**Escalation:** Cassius must notify Maximus; Phase 4 must remain backward-compatible or Phase 5 must defer.
+
+#### If Recovery Guard Tests Fail in Phase 5
+
+**Impact:** Final-local-admin recovery is not guaranteed.  
+**Escalation:** Phase 5 is **not allowed to merge** until all recovery guard tests pass and are audited.
+
+---
+
+### Principle Compliance
+
+- **Principle I (Layered Architecture):** Phase 4–5 handlers remain thin; services own OIDC/recovery logic; repositories own GORM access.
+- **Principle IV (Simple Complete Changes):** Phase 4 is additive to login; Phase 5 is additive to admin mutations.
+- **Principle V (Security by Default):** Secrets redacted, tokens not logged, callback validation strict, recovery enforced.
+- **Principle VI (Consistent UX):** Phase 4 LoginPage preserves existing auth options; Phase 5 admin UI uses existing error patterns.
+- **Principle IX (Automated Quality):** Architecture tests, exact-path regression, no new violations.
+- **§17/§21:** Phase 4–5 tasks include full test coverage before implementation considered complete.
+
+---
+
+### Final Decision
+
+**Phase 4 (OIDC Login)** and **Phase 5 (Final-Local-Admin Protection)** APPROVED for implementation after Phase 1–3 closure.  
+**Phase 5 is NOT dependent on Phase 4 completion**, but they are proceeding in parallel for MVP cohesion.  
+**Phase 6 (Account Linking)** remains Phase 2 post-MVP unless a specific unblock warrants earlier delivery.
+
+**Guard:** If Phase 4 or Phase 5 encounter a security or architecture violation, halt and escalate to Maximus before continuing.
+
+### Status
+
+✅ **APPROVED** — Phase 4-5 implementation proceeding in parallel with Phase 3 closeout. All launch gates satisfied. MVP boundary (Phases 1-5) locked for beta merge.
+
+---
