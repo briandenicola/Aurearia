@@ -49,10 +49,6 @@
 
 - **2026-06-19 (Charts Session):** Completed OpenAPI route-drift automation (`route_openapi_drift_test.go`), non-root Docker hardening, Python dependency locking strategy (`uv.lock`), and streaming token guard. All four deliverables are implementation-ready.
 
-- **2026-06-24 (OIDC Phase 3-5 MVP Closure):** Implemented admin provider CRUD and discovery endpoints (Phase 3), OIDC linked-identity login with callback handling (Phase 4), and final-local-admin recovery guards on admin mutations (Phase 5). All Go tests passing; OpenAPI updated. Phase 3-5 backend complete and integrated with Aurelia frontend and Brutus test suite. MVP boundary (Phases 1-5) APPROVED for beta merge. Orchestration log: `.squad/orchestration-log/2026-06-24T14-15-00Z-cassius.md`.
-
-- **2026-06-24 (Session Handoff - OIDC Phase 1-2 MVP Foundation):** Implemented backend OIDC foundation tasks T001/T002/T005-T013. Added `github.com/coreos/go-oidc/v3/oidc` and `golang.org/x/oauth2` dependencies to services layer; updated `src/api/architecture_test.go` service external allowlist so Principle IX continues enforcing explicit boundaries. Modeled OIDC providers, external identities, and auth state as additive GORM tables; secrets/verifiers/state hashes redacted from JSON + logs. Implemented `AdminRecoveryService` guard: treats only admins with non-empty local password hashes as recovery-capable; OIDC-only admins excluded from final-local-admin count. All Go tests pass: `go test -v ./... -run "TestArchitecture|TestAdminRecoveryService"`. Coordination checkpoint complete; frontend and test coverage ready; Phase 3 awaits handler implementation.
-
 - **2026-06-09:** F013 Phase 3 golden fixtures complete (T014). Implemented Go fixture builders covering all 9 F013 golden coin names/traits. Approved by Maximus Lead Review. Go build/test/vet all pass.
 
 - **2026-06-18:** Mint Map Backend Analysis — Pagination Limit Investigation. Confirmed `GET /coins` correctly implemented as paginated collection API; no backend total cap; frontend should paginate with `limit=100`.
@@ -574,37 +570,3 @@ Created src/api/services/availability_service_test.go with comprehensive test co
 - Keyword detection uses case-insensitive matching (strings.ToLower) and checks for strong structural patterns (e.g., >sold< matches HTML button/div tags)
 - Any coin with a clear "add to cart" / "buy now" button is marked "available" immediately without agent escalation, reducing agent load by ~60-80% on typical wishlist checks
 
-
-## 2026-06-24 — OIDC Backend Foundation (Phase 1-2)
-
-Implemented backend-only OIDC foundation tasks T001, T002, and T005-T013 for `specs/335-oidc-login/` without adding login/admin handlers. Added Go OIDC dependencies, additive provider/external-identity/auth-state models, AutoMigrate wiring, OIDC repository methods, OIDC security event constants/helpers, and `AdminRecoveryService` final-local-admin guards.
-
-**Validation:** `go test -v ./services -run TestAdminRecoveryService` and `go test -v ./... -run "TestArchitecture|TestAdminRecoveryService"` passed.
-
-**Learning:** The architecture import allowlist must be updated when adding new service-layer third-party packages, otherwise Principle IX correctly blocks even dependency-only foundation code. Final-local-admin recovery should count only admins with non-empty local password hashes; OIDC-only admins are intentionally excluded per OIDC spec FR-012/FR-013.
-
-## 2026-06-24 — OIDC Admin Provider Backend (Phase 3 T018-T021)
-
-Implemented admin OIDC provider DTOs, validation, create/update/delete/list/test service methods, admin handlers, and route wiring. Provider read DTOs expose `clientSecretConfigured` and never return `clientSecret`; update preserves the existing secret when `clientSecret` is omitted or empty. Provider deletion is blocked while linked identities exist, and provider test uses the OIDC discovery library to validate metadata while saving only safe status messages.
-
-**Validation:** `task openapi`; `go test ./...`; `go vet ./...`; `go build ./...` all passed from `src/api`/repo root as applicable.
-
-**Learning:** Route/OpenAPI drift tests require Swagger artifacts to be regenerated whenever admin handler annotations add routes. Handlers cannot import middleware under the architecture matrix, so audit metadata must be gathered through allowed Gin context methods or passed from wiring without crossing handler import boundaries.
-
-## 2026-06-24 — OIDC Backend Login + Recovery MVP (Phase 4-5)
-
-Implemented backend Phase 4-5 MVP tasks T030-T035 and T042-T045 for `specs/335-oidc-login/`. Public OIDC provider listing and login start now create short-lived state with PKCE/nonce and safe relative redirects; callback exchanges the code, validates the ID token, blocks silent email merges, updates external identity `LastLoginAt`, records security events, and returns the existing JSON `AuthResponse` without URL tokens. Admin delete/demote flows now use `AdminRecoveryService` with transaction-guarded repository mutations and return the contract 409 recovery message when the final local admin would be removed.
-
-**Validation:** Targeted backend tests passed (`go test ./services -run 'TestOIDCServiceLoginCallback|TestAdminRecoveryService'`, `go test ./handlers -run 'TestAdminHandler.*FinalLocalAdmin|TestOIDCAdminHandler'`, `go test ./repository -run 'TestOIDCRepository|TestAdminRepository'`); `go build ./...` and `go vet ./...` passed from `src/api` after `task openapi`. Full `go test ./...` currently hits unrelated pre-existing/flaky service failures in mint/storage-location tests.
-
-**Learning:** OIDC PKCE callback handling needs the original code verifier at token exchange time, so the auth-state row must treat that stored value as a secret and keep it out of JSON, logs, audit events, and URLs. Route drift tests catch new public routes immediately, so Swagger/OpenAPI regeneration is part of backend route work, not a later cleanup.
-
-## 2026-06-24 — OIDC Backend Account Linking + Error Docs (Phase 6-7)
-
-Implemented backend Phase 6-7 tasks for `specs/335-oidc-login/`: protected account-link start, link callback, linked identity list/unlink endpoints, duplicate-link and matching-email conflict guards, unlink last-sign-in-method protection, safe link/unlink audit events, normalized OIDC error categories, OpenAPI updates, and `docs/oidc-setup.md`.
-
-**Validation:** `go test -v ./handlers -run "TestOIDCHandler"`, `go test -v ./services -run "TestOIDCService(LoginCallback|LinkCallback|UnlinkIdentity)"`, targeted route/architecture/OIDC tests, full `go test -v ./...`, `go build ./...`, and `go vet ./...` all passed from `src/api` after `task openapi`.
-
-**Learning:** Account linking needs its own registered provider redirect URI (`/api/auth/oidc/{providerId}/link/callback`) because the token exchange redirect URI must match the link start authorization request. Unlink safety should consider every usable sign-in path together: local password, WebAuthn credential, and remaining OIDC identities.
-
-- **2026-06-24 (OIDC Entra authorize endpoint regression):** Fixed StartLogin runtime config to build OAuth2 endpoints directly from discovery metadata so browser redirects use `authorization_endpoint`, not `token_endpoint`. Added Entra-style regression asserting `/oauth2/v2.0/authorize` and not `/oauth2/v2.0/token`. Validation: `go test -v ./services -run "TestOIDCService.*(StartLogin|TestAdminProviderDiscoversEntraTenantIssuer|LoginCallback)"`; `npm.cmd test -- LoginPage.test.ts --run`.
