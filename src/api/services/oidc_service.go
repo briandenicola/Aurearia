@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -424,7 +425,7 @@ func (s *OIDCService) exchangeAndValidateCallback(ctx context.Context, provider 
 	runtime.OAuth2Config.RedirectURL = redirectURI
 	token, err := runtime.OAuth2Config.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", consumed.PKCEVerifierHash))
 	if err != nil {
-		return nil, oidcLoginClaims{}, fmt.Errorf("%w: %v", ErrOIDCCodeExchangeFailed, err)
+		return nil, oidcLoginClaims{}, oidcTokenExchangeError(err)
 	}
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok || rawIDToken == "" {
@@ -606,6 +607,9 @@ func (s *OIDCService) BuildRuntimeConfig(ctx context.Context, provider models.OI
 	if err != nil {
 		return OIDCRuntimeConfig{}, ErrOIDCProviderConfiguration
 	}
+	if provider.ProviderType == models.OIDCProviderTypeEntra {
+		endpoint.AuthStyle = oauth2.AuthStyleInParams
+	}
 	return OIDCRuntimeConfig{
 		Provider: discovered,
 		OAuth2Config: oauth2.Config{
@@ -737,6 +741,9 @@ func oidcOAuth2Endpoint(discovered *oidc.Provider) (oauth2.Endpoint, error) {
 	endpoint := discovered.Endpoint()
 	endpoint.AuthURL = authURL
 	endpoint.TokenURL = tokenURL
+	if strings.Contains(strings.ToLower(metadata.Issuer), "login.microsoftonline.com/") {
+		endpoint.AuthStyle = oauth2.AuthStyleInParams
+	}
 	return endpoint, nil
 }
 
@@ -962,12 +969,80 @@ func oidcFailureReason(err error) string {
 	case errors.Is(err, ErrOIDCProviderConfiguration):
 		return "provider configuration failed"
 	case errors.Is(err, ErrOIDCCodeExchangeFailed):
+		if detail := OIDCClientErrorDetail(err); detail != "" {
+			return "code exchange failed: " + detail
+		}
 		return "code exchange failed"
 	case errors.Is(err, ErrOIDCValidationFailed):
 		return "id token validation failed"
 	default:
 		return "oidc request failed"
 	}
+}
+
+func OIDCClientErrorDetail(err error) string {
+	var exchangeErr *oidcCodeExchangeError
+	if errors.As(err, &exchangeErr) && exchangeErr.Detail != "" {
+		return exchangeErr.Detail
+	}
+	return ""
+}
+
+type oidcCodeExchangeError struct {
+	Cause  error
+	Detail string
+}
+
+func (e *oidcCodeExchangeError) Error() string {
+	if e == nil || e.Cause == nil {
+		return ErrOIDCCodeExchangeFailed.Error()
+	}
+	return ErrOIDCCodeExchangeFailed.Error() + ": " + e.Cause.Error()
+}
+
+func (e *oidcCodeExchangeError) Unwrap() error {
+	if e == nil {
+		return ErrOIDCCodeExchangeFailed
+	}
+	return errors.Join(ErrOIDCCodeExchangeFailed, e.Cause)
+}
+
+func oidcTokenExchangeError(err error) error {
+	return &oidcCodeExchangeError{Cause: err, Detail: oidcTokenExchangeDetail(err)}
+}
+
+func oidcTokenExchangeDetail(err error) string {
+	var retrieveErr *oauth2.RetrieveError
+	if errors.As(err, &retrieveErr) {
+		errorCode := retrieveErr.ErrorCode
+		errorDescription := retrieveErr.ErrorDescription
+		if (errorCode == "" || errorDescription == "") && len(retrieveErr.Body) > 0 {
+			var body struct {
+				Error            string `json:"error"`
+				ErrorDescription string `json:"error_description"`
+			}
+			if json.Unmarshal(retrieveErr.Body, &body) == nil {
+				if errorCode == "" {
+					errorCode = body.Error
+				}
+				if errorDescription == "" {
+					errorDescription = body.ErrorDescription
+				}
+			}
+		}
+		raw := strings.ToLower(errorCode + " " + errorDescription + " " + string(retrieveErr.Body))
+		switch {
+		case strings.Contains(raw, "aadsts7000215") || strings.Contains(raw, "invalid client secret"):
+			return "provider rejected the client secret; for Entra, paste the client secret Value, not the Secret ID"
+		case strings.Contains(raw, "redirect_uri") || strings.Contains(raw, "reply url") || strings.Contains(raw, "aadsts50011"):
+			return "provider rejected the redirect URI; confirm the exact beta callback URL is registered"
+		case strings.Contains(raw, "expired") || strings.Contains(raw, "already redeemed") || strings.Contains(raw, "invalid_grant"):
+			return "provider rejected the authorization code as expired, reused, or invalid"
+		case errorCode != "":
+			return "provider token endpoint returned " + sanitizeSecurityEventDetail(errorCode)
+		}
+	}
+	return ""
 }
 
 func (s *OIDCService) recordProviderConfigChanged(audit OIDCAuditContext, provider models.OIDCProvider, action string) {

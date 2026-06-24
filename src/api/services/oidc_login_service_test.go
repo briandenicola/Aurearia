@@ -19,6 +19,7 @@ import (
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/glebarez/sqlite"
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 )
@@ -95,6 +96,45 @@ func TestOIDCServiceStartLoginUsesEntraAuthorizationEndpoint(t *testing.T) {
 	}
 	if strings.Contains(authURL.Path, "/oauth2/v2.0/token") {
 		t.Fatalf("expected browser URL not to use Entra token endpoint path, got %q", authURL.Path)
+	}
+	runtime, err := svc.BuildRuntimeConfig(context.Background(), provider)
+	if err != nil {
+		t.Fatalf("failed to build runtime config: %v", err)
+	}
+	if runtime.OAuth2Config.Endpoint.AuthStyle != oauth2.AuthStyleInParams {
+		t.Fatalf("expected Entra token exchange to send client secret in params, got auth style %v", runtime.OAuth2Config.Endpoint.AuthStyle)
+	}
+}
+
+func TestOIDCServiceLoginCallbackReportsInvalidEntraClientSecret(t *testing.T) {
+	db, svc := setupOIDCLoginServiceTest(t)
+	issuer := startMockOIDCProviderWithOptions(t, oidcMockProviderOptions{
+		Subject:                    "subject-123",
+		Email:                      "collector@example.com",
+		EmailVerified:              true,
+		TokenErrorCode:             "invalid_client",
+		TokenErrorDescription:      "AADSTS7000215: Invalid client secret provided.",
+		TokenErrorHTTPResponseCode: http.StatusUnauthorized,
+	})
+	provider := createOIDCLoginProvider(t, db, issuer)
+
+	start, err := svc.StartLogin(context.Background(), provider.ID, "/", "http://app.example")
+	if err != nil {
+		t.Fatalf("start login failed: %v", err)
+	}
+	authURL, _ := url.Parse(start.AuthorizationURL)
+	currentOIDCTestNonce = authURL.Query().Get("nonce")
+
+	_, err = svc.CompleteLoginCallback(context.Background(), provider.ID, "valid-code", authURL.Query().Get("state"), "http://app.example", OIDCAuditContext{})
+	if !errors.Is(err, ErrOIDCCodeExchangeFailed) {
+		t.Fatalf("expected code exchange failure, got %v", err)
+	}
+	detail := OIDCClientErrorDetail(err)
+	if !strings.Contains(detail, "client secret Value") {
+		t.Fatalf("expected actionable client secret detail, got %q", detail)
+	}
+	if reason := oidcFailureReason(err); !strings.Contains(reason, "client secret Value") {
+		t.Fatalf("expected security event reason to include safe detail, got %q", reason)
 	}
 }
 
@@ -362,15 +402,18 @@ func startMockOIDCProvider(t *testing.T, subject, email string, emailVerified bo
 }
 
 type oidcMockProviderOptions struct {
-	Subject              string
-	Email                string
-	EmailVerified        bool
-	Issuer               string
-	Audience             string
-	ExpiresAt            time.Time
-	OmitSubject          bool
-	SignWithUntrustedKey bool
-	ExpectedRedirectURI  string
+	Subject                    string
+	Email                      string
+	EmailVerified              bool
+	Issuer                     string
+	Audience                   string
+	ExpiresAt                  time.Time
+	OmitSubject                bool
+	SignWithUntrustedKey       bool
+	ExpectedRedirectURI        string
+	TokenErrorCode             string
+	TokenErrorDescription      string
+	TokenErrorHTTPResponseCode int
 }
 
 func startMockOIDCProviderWithOptions(t *testing.T, options oidcMockProviderOptions) string {
@@ -398,6 +441,18 @@ func startMockOIDCProviderWithOptions(t *testing.T, options oidcMockProviderOpti
 			}
 			if options.ExpectedRedirectURI != "" && r.Form.Get("redirect_uri") != options.ExpectedRedirectURI {
 				http.Error(w, "redirect_uri mismatch", http.StatusBadRequest)
+				return
+			}
+			if options.TokenErrorCode != "" {
+				status := options.TokenErrorHTTPResponseCode
+				if status == 0 {
+					status = http.StatusBadRequest
+				}
+				w.WriteHeader(status)
+				writeJSON(t, w, map[string]string{
+					"error":             options.TokenErrorCode,
+					"error_description": options.TokenErrorDescription,
+				})
 				return
 			}
 			nonce := r.Form.Get("nonce")

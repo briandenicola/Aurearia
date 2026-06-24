@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 
@@ -401,6 +402,11 @@ func (h *OIDCHandler) handleOIDCError(c *gin.Context, err error) {
 	case errors.Is(err, services.ErrOIDCInvalidState):
 		respondError(c, http.StatusBadRequest, "Invalid OIDC state", err)
 	case errors.Is(err, services.ErrOIDCCodeExchangeFailed):
+		if detail := services.OIDCClientErrorDetail(err); detail != "" {
+			log.Printf("[%s %s] OIDC authorization code was rejected: %v", c.Request.Method, c.Request.URL.Path, err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "OIDC authorization code was rejected", "detail": detail})
+			return
+		}
 		respondError(c, http.StatusBadRequest, "OIDC authorization code was rejected", err)
 	case errors.Is(err, services.ErrOIDCValidationFailed):
 		respondError(c, http.StatusUnauthorized, "OIDC validation failed", err)
