@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.60.0",
+    "@playwright/test": "^1.61.1",
     "@testing-library/vue": "^8.1.0",
     "@tsconfig/node24": "^24.0.4",
     "@types/dompurify": "^3.2.0",
