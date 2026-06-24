@@ -406,6 +406,8 @@ onUnmounted(() => {
 
 <style scoped>
 .admin-layout {
+  --admin-nav-title-offset: 1.62rem;
+
   max-width: 1200px;
   margin-left: auto;
   margin-right: auto;
@@ -481,6 +483,7 @@ onUnmounted(() => {
 
 .settings-content {
   min-width: 0;
+  margin-top: var(--admin-nav-title-offset);
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -489,6 +492,10 @@ onUnmounted(() => {
 @media (max-width: 980px) {
   .admin-layout {
     grid-template-columns: 1fr;
+  }
+
+  .settings-content {
+    margin-top: 0;
   }
 }
 </style>

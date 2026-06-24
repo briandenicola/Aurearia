@@ -596,12 +596,16 @@ func (s *OIDCService) BuildRuntimeConfig(ctx context.Context, provider models.OI
 	if err != nil {
 		return OIDCRuntimeConfig{}, ErrOIDCProviderConfiguration
 	}
+	endpoint, err := oidcOAuth2Endpoint(discovered)
+	if err != nil {
+		return OIDCRuntimeConfig{}, ErrOIDCProviderConfiguration
+	}
 	return OIDCRuntimeConfig{
 		Provider: discovered,
 		OAuth2Config: oauth2.Config{
 			ClientID:     provider.ClientID,
 			ClientSecret: provider.ClientSecret,
-			Endpoint:     discovered.Endpoint(),
+			Endpoint:     endpoint,
 			Scopes:       []string(provider.Scopes),
 			RedirectURL:  provider.CallbackPath,
 		},
@@ -698,7 +702,10 @@ func (s *OIDCService) testProviderDiscovery(ctx context.Context, provider models
 	if err := discovered.Claims(&metadata); err != nil {
 		return OIDCProviderTestResult{Available: false, Message: "Discovery metadata is invalid"}
 	}
-	endpoint := discovered.Endpoint()
+	endpoint, err := oidcOAuth2Endpoint(discovered)
+	if err != nil {
+		return OIDCProviderTestResult{Available: false, Message: "Discovery metadata is incomplete"}
+	}
 	if metadata.Issuer == "" || endpoint.AuthURL == "" || endpoint.TokenURL == "" {
 		return OIDCProviderTestResult{Available: false, Message: "Discovery metadata is incomplete"}
 	}
@@ -709,6 +716,22 @@ func (s *OIDCService) testProviderDiscovery(ctx context.Context, provider models
 		AuthorizationEndpoint: endpoint.AuthURL,
 		TokenEndpoint:         endpoint.TokenURL,
 	}
+}
+
+func oidcOAuth2Endpoint(discovered *oidc.Provider) (oauth2.Endpoint, error) {
+	metadata := oidcDiscoveryMetadata{}
+	if err := discovered.Claims(&metadata); err != nil {
+		return oauth2.Endpoint{}, err
+	}
+	authURL := strings.TrimSpace(metadata.AuthorizationEndpoint)
+	tokenURL := strings.TrimSpace(metadata.TokenEndpoint)
+	if authURL == "" || tokenURL == "" || authURL == tokenURL {
+		return oauth2.Endpoint{}, ErrOIDCProviderDiscovery
+	}
+	endpoint := discovered.Endpoint()
+	endpoint.AuthURL = authURL
+	endpoint.TokenURL = tokenURL
+	return endpoint, nil
 }
 
 func validateOIDCProvider(provider models.OIDCProvider) error {
