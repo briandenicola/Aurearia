@@ -22,12 +22,15 @@ describe('App sidebar navigation', () => {
     expect(source).not.toContain('#value-over-time')
   })
 
-  it('adds Quick Capture while preserving Add Coin navigation', () => {
+  it('uses Identify Coin as the single merged quick capture entry point', () => {
     const source = fs.readFileSync(appPath, 'utf8')
 
-    expect(source).toContain("id: 'quick-capture'")
-    expect(source).toContain("label: 'Quick Capture'")
-    expect(source).toContain("to: '/quick-capture'")
+    expect(source).not.toContain("id: 'quick-capture'")
+    expect(source).not.toContain("label: 'Quick Capture'")
+    expect(source).not.toContain("to: '/quick-capture'")
+    expect(source).toContain("id: 'lookup'")
+    expect(source).toContain("label: 'Identify Coin'")
+    expect(source).toContain("to: '/lookup'")
     expect(source).toContain("id: 'add-coin'")
     expect(source).toContain("label: 'Add Coin'")
   })
