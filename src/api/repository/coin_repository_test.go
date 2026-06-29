@@ -23,6 +23,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&models.AvailabilityResult{}, &models.AuctionLot{},
 		&models.Tag{}, &models.CoinTag{},
 		&models.CoinSet{}, &models.CoinSetMembership{},
+		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)
@@ -203,6 +204,51 @@ func TestCoinRepository_Scopes_ActiveCollection(t *testing.T) {
 	}
 	if coins[0].Name != "Active" {
 		t.Errorf("expected 'Active', got %q", coins[0].Name)
+	}
+}
+
+func TestCoinRepository_QuickCaptureDraftsExcludedAndPromotedCoinAppearsOnce(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewCoinRepository(db)
+	userID := uint(1)
+
+	active := models.Coin{Name: "Active normal coin", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: userID, IsWishlist: false, IsSold: false}
+	wishlist := models.Coin{Name: "Wishlist coin", Category: models.CategoryGreek, Material: models.MaterialGold, UserID: userID, IsWishlist: true, IsSold: false}
+	sold := models.Coin{Name: "Sold coin", Category: models.CategoryRoman, Material: models.MaterialBronze, UserID: userID, IsWishlist: false, IsSold: true}
+	promoted := models.Coin{Name: "Promoted Quick Capture coin", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: userID, IsWishlist: false, IsSold: false}
+	for _, coin := range []*models.Coin{&active, &wishlist, &sold, &promoted} {
+		if err := db.Create(coin).Error; err != nil {
+			t.Fatalf("seed coin: %v", err)
+		}
+	}
+	promotedCoinID := promoted.ID
+	drafts := []models.QuickCaptureDraft{
+		{UserID: userID, WorkingTitle: "Sparse active draft", Status: models.QuickCaptureDraftStatusActive},
+		{UserID: userID, WorkingTitle: "Promoted draft", Status: models.QuickCaptureDraftStatusPromoted, PromotedCoinID: &promotedCoinID},
+	}
+	for i := range drafts {
+		if err := db.Create(&drafts[i]).Error; err != nil {
+			t.Fatalf("seed draft: %v", err)
+		}
+	}
+
+	activeFilter := false
+	coins, total, err := repo.List(userID, CoinListFilters{Wishlist: &activeFilter, Sold: &activeFilter, Page: 1, Limit: 50, SortField: "name", SortOrder: "asc"})
+	if err != nil {
+		t.Fatalf("list active coins: %v", err)
+	}
+	if total != 2 || len(coins) != 2 {
+		t.Fatalf("expected only active normal/promoted coins, total=%d len=%d coins=%+v", total, len(coins), coins)
+	}
+	names := map[string]int{}
+	for _, coin := range coins {
+		names[coin.Name]++
+	}
+	if names["Sparse active draft"] != 0 || names["Promoted draft"] != 0 {
+		t.Fatalf("quick-capture draft rows leaked into normal coin list: %v", names)
+	}
+	if names["Promoted Quick Capture coin"] != 1 {
+		t.Fatalf("promoted normal coin should appear exactly once, got names=%v", names)
 	}
 }
 

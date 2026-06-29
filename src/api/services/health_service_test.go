@@ -22,6 +22,9 @@ func setupHealthServiceTestDB(t *testing.T) *gorm.DB {
 		&models.Coin{},
 		&models.CoinImage{},
 		&models.CollectionHealthSnapshot{},
+		&models.QuickCaptureDraft{},
+		&models.QuickCaptureDraftImage{},
+		&models.DraftLifecycleEvent{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)
@@ -171,6 +174,55 @@ func TestGetCollectionHealthSummary_WithActiveCoins(t *testing.T) {
 	}
 	if summary.Weights.Metadata != 40 {
 		t.Errorf("expected metadata weight=40, got %d", summary.Weights.Metadata)
+	}
+}
+
+func TestGetCollectionHealthSummary_QuickCaptureDraftExcludedUntilPromotion(t *testing.T) {
+	db := setupHealthServiceTestDB(t)
+	svc := setupHealthService(t, db)
+
+	user := models.User{Username: "quickcapture-health", Email: "quickcapture-health@test.com"}
+	db.Create(&user)
+
+	active := models.Coin{Name: "Active", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: user.ID}
+	wishlist := models.Coin{Name: "Wishlist", Category: models.CategoryGreek, Material: models.MaterialGold, UserID: user.ID, IsWishlist: true}
+	sold := models.Coin{Name: "Sold", Category: models.CategoryRoman, Material: models.MaterialBronze, UserID: user.ID, IsSold: true}
+	for _, coin := range []*models.Coin{&active, &wishlist, &sold} {
+		if err := db.Create(coin).Error; err != nil {
+			t.Fatalf("seed coin: %v", err)
+		}
+	}
+	draft := models.QuickCaptureDraft{UserID: user.ID, WorkingTitle: "Unpromoted draft", Status: models.QuickCaptureDraftStatusActive}
+	if err := db.Create(&draft).Error; err != nil {
+		t.Fatalf("seed draft: %v", err)
+	}
+
+	before, err := svc.GetCollectionHealthSummary(user.ID)
+	if err != nil {
+		t.Fatalf("health before promotion: %v", err)
+	}
+	if before.EligibleCoinCount != 1 {
+		t.Fatalf("active Quick Capture draft, wishlist, and sold rows must not affect health eligible rows, got %d", before.EligibleCoinCount)
+	}
+
+	promoted := models.Coin{Name: "Promoted", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: user.ID}
+	if err := db.Create(&promoted).Error; err != nil {
+		t.Fatalf("seed promoted coin: %v", err)
+	}
+	promotedID := promoted.ID
+	if err := db.Model(&draft).Updates(map[string]interface{}{
+		"status":           models.QuickCaptureDraftStatusPromoted,
+		"promoted_coin_id": promotedID,
+	}).Error; err != nil {
+		t.Fatalf("mark draft promoted: %v", err)
+	}
+
+	after, err := svc.GetCollectionHealthSummary(user.ID)
+	if err != nil {
+		t.Fatalf("health after promotion: %v", err)
+	}
+	if after.EligibleCoinCount != 2 {
+		t.Fatalf("promoted Quick Capture coin should contribute once to health eligible rows, got %d", after.EligibleCoinCount)
 	}
 }
 

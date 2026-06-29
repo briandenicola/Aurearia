@@ -74,6 +74,24 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/quick-capture',
+      name: 'quick-capture',
+      component: () => import('@/pages/QuickCapturePage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/quick-capture/drafts',
+      name: 'quick-capture-drafts',
+      component: () => import('@/pages/QuickCaptureDraftsPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/quick-capture/drafts/:id',
+      name: 'quick-capture-draft',
+      component: () => import('@/pages/QuickCaptureDraftPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/lookup',
       name: 'lookup',
       component: () => import('@/pages/CoinLookupPage.vue'),

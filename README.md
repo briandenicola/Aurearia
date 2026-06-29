@@ -36,6 +36,8 @@ Built for a single collector plus invited friends. Not a marketplace, SaaS, or r
 ### 🏛️ Collection Management
 Organize coins with rich metadata: denomination, ruler, material, weight, inscriptions, grades, provenance, images, and free-text notes. Flexible filtering, full-text search, random shuffle with deterministic seed, and swipe/grid gallery views. **[Learn more →](docs/features/collection-management.md)**
 
+**Quick Capture** — Save sparse mobile/PWA intake drafts with photos or notes, resume/edit/discard them later, and explicitly promote a completed draft into exactly one normal collection coin without affecting collection, wishlist, sold, stats, or health counts before promotion. **[Learn more →](docs/quick-capture.md)**
+
 ### 🤖 AI-Powered Analysis
 **Obverse & Reverse Analysis** — Upload coin photos for AI inspection with condition assessment, grade estimates, historical context, and market insights. Supports Anthropic Claude or self-hosted Ollama vision models.
 
@@ -109,6 +111,7 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 ## 🆕 What's New
 
 **v2.0 (Latest)**
+- **Quick Capture** — Mobile-first draft intake for show-floor photos/notes, resumable drafts, owner-scoped media, and idempotent promotion into normal collection coins.
 - **Coin Lookup** — Photo-based show workflow for NGC Ancients cert extraction, official NGC verification links, Numista fallback matches, and saving lookups to wish list or collection.
 - **Configurable Coin Properties** — Admin-managed Era and Category options used by coin forms and lookup saves.
 - **Coin Sets** — Organize coins into themed collections with trend tracking and completion analysis. Open, defined, goal, and smart (rule-based) set types. Snapshot history and value milestones.

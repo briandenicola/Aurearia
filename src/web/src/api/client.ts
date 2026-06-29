@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, ValuationRun, AuctionEndingRun, CollectionHealthSnapshotRunResult, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse, AIJob, AIJobStartResponse } from '@/types'
+import type { QuickCaptureDraft, QuickCaptureDraftInput, QuickCaptureDraftUpdateInput, QuickCaptureDraftListResponse, QuickCaptureDraftStatus, QuickCapturePromoteRequest, QuickCapturePromotionResponse } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -200,6 +201,61 @@ export async function createIntakeDraft(images: File[], coinCardImage?: File) {
   }
   return api.post<IntakeDraft>('/coins/intake/draft', formData)
 }
+
+function appendOptionalFormValue(formData: FormData, key: string, value?: string | null) {
+  const trimmed = value?.trim()
+  if (trimmed) formData.append(key, trimmed)
+}
+
+export async function createQuickCaptureDraft(input: QuickCaptureDraftInput) {
+  const formData = new FormData()
+  appendOptionalFormValue(formData, 'workingTitle', input.workingTitle)
+  appendOptionalFormValue(formData, 'dateRange', input.dateRange)
+  appendOptionalFormValue(formData, 'era', input.era)
+  appendOptionalFormValue(formData, 'acquisitionSource', input.acquisitionSource)
+  appendOptionalFormValue(formData, 'notes', input.notes)
+  if (input.purchasePrice !== undefined && input.purchasePrice !== null) {
+    formData.append('purchasePrice', String(input.purchasePrice))
+  }
+  if (input.obverseImage) formData.append('obverseImage', input.obverseImage)
+  if (input.reverseImage) formData.append('reverseImage', input.reverseImage)
+  for (const image of input.detailImages ?? []) {
+    formData.append('detailImages', image)
+  }
+  return api.post<QuickCaptureDraft>('/quick-capture/drafts', formData)
+}
+export const listQuickCaptureDrafts = (params?: { status?: QuickCaptureDraftStatus; page?: number; limit?: number }) =>
+  api.get<QuickCaptureDraftListResponse>('/quick-capture/drafts', { params })
+export const getQuickCaptureDraft = (id: number) => api.get<QuickCaptureDraft>(`/quick-capture/drafts/${id}`)
+
+export async function updateQuickCaptureDraft(id: number, input: QuickCaptureDraftUpdateInput) {
+  const formData = new FormData()
+  formData.append('workingTitle', input.workingTitle)
+  formData.append('dateRange', input.dateRange)
+  formData.append('era', input.era)
+  formData.append('acquisitionSource', input.acquisitionSource)
+  formData.append('notes', input.notes)
+  if (input.purchasePrice !== null && input.purchasePrice !== undefined) {
+    formData.append('purchasePrice', String(input.purchasePrice))
+  }
+  if (input.removeImageIds) {
+    formData.append('removeImageIds', input.removeImageIds)
+  }
+  if (input.replaceObverse) formData.append('replaceObverse', 'true')
+  if (input.replaceReverse) formData.append('replaceReverse', 'true')
+  if (input.obverseImage) formData.append('obverseImage', input.obverseImage)
+  if (input.reverseImage) formData.append('reverseImage', input.reverseImage)
+  for (const file of input.detailImages ?? []) {
+    formData.append('detailImages', file)
+  }
+  return api.put<QuickCaptureDraft>(`/quick-capture/drafts/${id}`, formData)
+}
+
+export const discardQuickCaptureDraft = (id: number) =>
+  api.post<QuickCaptureDraft>(`/quick-capture/drafts/${id}/discard`)
+
+export const promoteQuickCaptureDraft = (id: number, request: QuickCapturePromoteRequest) =>
+  api.post<QuickCapturePromotionResponse>(`/quick-capture/drafts/${id}/promote`, request)
 export const commitIntakeDraft = (request: IntakeCommitRequest) =>
   api.post<IntakeCommitResponse>('/coins/intake/commit', {
     ...request,

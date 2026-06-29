@@ -13,4 +13,14 @@ describe('CollectionPage', () => {
     expect(source).not.toContain('class="add-fab"')
     expect(source).not.toMatch(/\.add-fab\s*\{/)
   })
+
+  it('continues to use the normal collection filters so draft rows stay excluded', () => {
+    const source = fs.readFileSync(collectionPagePath, 'utf8')
+    const filterSource = fs.readFileSync(path.resolve(__dirname, '../../composables/useCollectionFilters.ts'), 'utf8')
+
+    expect(source).toContain('useCollectionFilters')
+    expect(source).not.toContain('listQuickCaptureDrafts')
+    expect(filterSource).toContain("wishlist: 'false'")
+    expect(filterSource).toContain("sold: 'false'")
+  })
 })

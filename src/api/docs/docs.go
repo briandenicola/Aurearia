@@ -8117,6 +8117,427 @@ const docTemplate = `{
                 }
             }
         },
+        "/quick-capture/drafts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lists owner-scoped Quick Capture drafts, defaulting to active drafts.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Capture"
+                ],
+                "summary": "List Quick Capture drafts",
+                "parameters": [
+                    {
+                        "enum": [
+                            "active",
+                            "promoted",
+                            "discarded"
+                        ],
+                        "type": "string",
+                        "description": "Draft status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.quickCaptureDraftListResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates an owner-scoped sparse draft with optional obverse/reverse/detail images.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Capture"
+                ],
+                "summary": "Create Quick Capture draft",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Working title",
+                        "name": "workingTitle",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Freeform date range",
+                        "name": "dateRange",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Era",
+                        "name": "era",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Acquisition source",
+                        "name": "acquisitionSource",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Purchase price",
+                        "name": "purchasePrice",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Notes",
+                        "name": "notes",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Obverse image",
+                        "name": "obverseImage",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Reverse image",
+                        "name": "reverseImage",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Detail images",
+                        "name": "detailImages",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.QuickCaptureDraft"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/quick-capture/drafts/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one owner-scoped Quick Capture draft with image metadata.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Capture"
+                ],
+                "summary": "Get Quick Capture draft",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Draft ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.QuickCaptureDraft"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates an active owner-scoped draft. Supports field changes and image replacement/removal.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Capture"
+                ],
+                "summary": "Update Quick Capture draft",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Draft ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Working title",
+                        "name": "workingTitle",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Notes",
+                        "name": "notes",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date range",
+                        "name": "dateRange",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Era",
+                        "name": "era",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Acquisition source",
+                        "name": "acquisitionSource",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Purchase price",
+                        "name": "purchasePrice",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated image IDs to remove",
+                        "name": "removeImageIds",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Replace existing obverse images",
+                        "name": "replaceObverse",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Replace existing reverse images",
+                        "name": "replaceReverse",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "New obverse image",
+                        "name": "obverseImage",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "New reverse image",
+                        "name": "reverseImage",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "New detail images",
+                        "name": "detailImages",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.QuickCaptureDraft"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/quick-capture/drafts/{id}/discard": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Marks an active owner-scoped draft as discarded. Idempotent for already-discarded drafts.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Capture"
+                ],
+                "summary": "Discard Quick Capture draft",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Draft ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.QuickCaptureDraft"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/quick-capture/drafts/{id}/promote": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Transactionally promotes a valid active draft into a normal Coin. Idempotent on repeat.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Capture"
+                ],
+                "summary": "Promote Quick Capture draft",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Draft ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Promotion request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.promoteDraftRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/references/migrate-legacy": {
             "post": {
                 "security": [
@@ -13977,6 +14398,60 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.promoteDraftRequest": {
+            "type": "object",
+            "properties": {
+                "confirm": {
+                    "type": "boolean"
+                },
+                "overrides": {
+                    "type": "object",
+                    "properties": {
+                        "category": {
+                            "type": "string"
+                        },
+                        "era": {
+                            "type": "string"
+                        },
+                        "material": {
+                            "type": "string"
+                        },
+                        "name": {
+                            "type": "string"
+                        },
+                        "notes": {
+                            "type": "string"
+                        },
+                        "purchaseLocation": {
+                            "type": "string"
+                        },
+                        "purchasePrice": {
+                            "type": "number"
+                        }
+                    }
+                }
+            }
+        },
+        "handlers.quickCaptureDraftListResponse": {
+            "type": "object",
+            "properties": {
+                "drafts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.QuickCaptureDraft"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "handlers.refreshRequest": {
             "type": "object",
             "required": [
@@ -14853,6 +15328,105 @@ const docTemplate = `{
                 "OIDCProviderTypeEntra",
                 "OIDCProviderTypePocketID",
                 "OIDCProviderTypeGeneric"
+            ]
+        },
+        "models.QuickCaptureDraft": {
+            "type": "object",
+            "properties": {
+                "acquisitionSource": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "dateRange": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "discardedAt": {
+                    "type": "string"
+                },
+                "era": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "images": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.QuickCaptureDraftImage"
+                    }
+                },
+                "notes": {
+                    "type": "string",
+                    "maxLength": 5000
+                },
+                "promotedAt": {
+                    "type": "string"
+                },
+                "promotedCoinId": {
+                    "type": "integer"
+                },
+                "purchasePrice": {
+                    "type": "number"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.QuickCaptureDraftStatus"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "integer"
+                },
+                "workingTitle": {
+                    "type": "string",
+                    "maxLength": 200
+                }
+            }
+        },
+        "models.QuickCaptureDraftImage": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "displayOrder": {
+                    "type": "integer"
+                },
+                "draftId": {
+                    "type": "integer"
+                },
+                "filePath": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "imageType": {
+                    "$ref": "#/definitions/models.ImageType"
+                },
+                "isPrimary": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.QuickCaptureDraftStatus": {
+            "type": "string",
+            "enum": [
+                "active",
+                "promoting",
+                "promoted",
+                "discarded"
+            ],
+            "x-enum-varnames": [
+                "QuickCaptureDraftStatusActive",
+                "QuickCaptureDraftStatusPromoting",
+                "QuickCaptureDraftStatusPromoted",
+                "QuickCaptureDraftStatusDiscarded"
             ]
         },
         "models.StorageLocation": {
