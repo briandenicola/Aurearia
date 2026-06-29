@@ -365,3 +365,8 @@ Investigated production 429s on collection browsing. App mount makes expected da
 - **2026-06-24:** Admin OIDC Entra configuration now collects Tenant ID in the UI and derives `issuerUrl` (`https://login.microsoftonline.com/{tenant-id}/v2.0`) for the unchanged backend contract; edit mode infers the tenant from saved Entra issuer URLs where possible.
 
 - **2026-06-24:** AdminPage two-column layout now offsets the shared settings content column by the nav section-label height so all admin panels align with the first navigation card row; the offset resets at the single-column/mobile breakpoint.
+- **2026-06-29:** Wishlist search alerts page (`src/web/src/pages/WishlistAlertsPage.vue`) now keeps alert list and review/results state explicitly separate: no initial auto-selection, selected/deleted alerts clear runs/candidates/messages, and the review panel divider is token-based and only renders once an alert is selected.
+
+## Learning: Alert Panel State Isolation Pattern
+
+**2026-06-29** — When a detail/results panel is conditionally shown (e.g., selected alert reveals review results), keep the list and panel selections as separate refs. Deleting the active selection must clear both the selection state AND any nested panel state (runs/candidates/messages). This prevents stale renders and accidental data leakage when the user navigates back to the list. The pattern applies to any master-detail view where the detail can be dismissed and reopened (WishlistAlertsPage, future filters, note archives, etc.).
