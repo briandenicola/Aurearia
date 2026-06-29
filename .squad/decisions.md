@@ -11410,3 +11410,220 @@ Updated browser and PWA title metadata plus visible app-header title surfaces in
 Frontend: `src/web/src/` — title metadata and UI strings
 
 ---
+
+## Decision: ImageLightbox Processing Overlay Pattern
+
+**Date:** 2026-06-28  
+**Agent:** Aurelia  
+**Status:** Fixed regression
+
+### Context
+
+The `ImageLightbox.vue` component had a regression where the "Removing background..." processing indicator was rendering as a flex sibling of the image, pushing the image left off-screen on narrow viewports.
+
+### Decision
+
+Processing overlays in image components must use **absolutely positioned overlays** within a relative-positioned container, not flex siblings. The pattern already existed in `ImageProcessor.vue` and is now applied consistently to `ImageLightbox.vue`.
+
+### Template Structure
+
+```vue
+<div class="image-container" :class="{ processing }">
+  <img ... />
+  <div v-if="processing" class="processing-overlay">
+    <!-- spinner, text -->
+  </div>
+</div>
+```
+
+### CSS Requirements
+
+```css
+.image-container {
+  position: relative;
+}
+
+.processing-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-container.processing img {
+  opacity: 0.3;
+  filter: blur(2px);
+}
+```
+
+### Rationale
+
+- **Overlay semantics:** Processing indicators should overlay the content being processed, not replace or displace it
+- **Spatial stability:** The image stays in place while processing, maintaining visual continuity
+- **Responsive safety:** Flex siblings can push content off-screen on narrow viewports; absolute overlays cannot
+- **Pattern consistency:** `ImageProcessor.vue` already implements this correctly; `ImageLightbox.vue` now matches
+
+### Impact
+
+- **Components affected:** `ImageLightbox.vue`
+- **Pattern established:** All future image processing overlays should follow this structure
+- **PWA safe:** Mobile viewports no longer risk horizontal overflow during background removal
+
+---
+
+## Decision: Aurelia OIDC Link Result Page
+
+**Date:** 2026-06-24  
+**Agent:** Aurelia  
+**Status:** IMPLEMENTED
+
+### Context
+
+Account linking flows need a branded result page to improve UX when external identity (Entra ID or Pocket ID) linking succeeds or fails.
+
+### Decision
+
+Account linking now sends provider redirects to the Vue route `/settings/oidc/link/callback/{providerId}`. The page removes callback query parameters from the browser URL, calls the existing API callback through `completeOIDCLinkCallback`, and renders a branded success or error card with a return action to Account Settings.
+
+### Backend Contract
+
+The link-start payload may include `callbackPath`. The Go API validates it as a same-origin relative callback path, stores the resulting redirect URI in auth state, and uses that stored URI during token exchange so providers accept the frontend callback redirect.
+
+### Constitution Alignment
+
+- Principle II: Vue still completes work through the Go API; no direct provider token handling is added to the SPA.
+- Principle III and §17: callback code/state are removed from the visible URL after capture, and targeted frontend plus backend validation covers the changed path.
+- Principle VI: the raw JSON callback is replaced with a branded, token-based app surface.
+
+---
+
+## Decision: OIDC Account Link Callback Requires Stored Redirect URI
+
+**Date:** 2026-06-24  
+**Agent:** Cassius  
+**Status:** IMPLEMENTED
+
+### Context
+
+Production OIDC account-link callback was failing with 400 error after the feature was merged to main. The error occurred when users tried to link an external identity (Entra ID or Pocket ID) from Account Settings.
+
+The frontend passes a custom callback path (`/settings/oidc/link/callback/:providerId`) so the provider redirects to the SPA, which then completes the secure exchange with the API. This design allows a branded user experience while maintaining security.
+
+### Issue
+
+The `RedirectURI` field in `OIDCAuthState` was added in commit `4674e49` to fix proxy-related issues by storing the exact redirect URI used during the authorization request and reusing it during the token exchange.
+
+However, if:
+1. The database migration didn't run properly (column missing), or
+2. An auth state was created just before deployment (column NULL), or  
+3. The column exists but contains an empty string
+
+Then `consumed.RedirectURI` would be empty. The fallback logic would reconstruct it using `oidcFlowCallbackPath(provider, consumed.FlowType)`, which returns the **API path** (`/api/auth/oidc/:id/link/callback`), NOT the custom frontend path that was registered with the provider during the authorization request.
+
+This causes the OAuth2 token exchange to fail because the provider validates that the `redirect_uri` parameter matches exactly what was registered.
+
+### Decision
+
+**For link flows, fail explicitly if `RedirectURI` is missing instead of silently falling back to the wrong path.**
+
+The fallback logic now checks:
+1. If `consumed.RedirectURI` is empty AND `FlowType` is `OIDCFlowTypeLink`, return `ErrOIDCInvalidState` with message "stored redirect URI missing for link callback"
+2. For login flows, the fallback is safe because the callback path is stored in `provider.CallbackPath` and doesn't change per-request
+
+### Rationale
+
+- **Security:** Link flows allow custom callback paths chosen by the frontend. We can't safely reconstruct them without storing them.
+- **Clarity:** An explicit error ("stored redirect URI missing") is better than a confusing provider rejection ("redirect_uri mismatch").
+- **Forward compatibility:** Once all auth states have `RedirectURI` populated (10-minute TTL ensures quick turnover), this fallback will never trigger in production.
+
+### Constitution Alignment
+
+- Principle V (Security, Auth, and Privacy by Default)
+
+---
+
+## Decision: OIDC Account Link Callback Redirect URI Regression Test
+
+**Date:** 2026-06-24  
+**Agent:** Brutus  
+**Status:** COMPLETE
+
+### Context
+
+Production OIDC account linking was failing with 400 Bad Request. The root cause was identified as redirect URI mismatch when behind proxies.
+
+### Root Cause Analysis
+
+Before commit `4674e49`:
+- OIDC link callback reconstructed `redirect_uri` from `requestOrigin` + callback path at callback time
+- In production behind load balancers/proxies, `requestOrigin` can differ between flow start and callback
+- OIDC provider validates `redirect_uri` must match exactly between authorization request and token exchange
+- Mismatch causes provider to reject token exchange with 400 Bad Request
+
+### Fix Applied
+
+Cassius persisted the exact `RedirectURI` at flow start in `models.OIDCAuthState` and reused it during callback token exchange, eliminating dependency on callback-time `requestOrigin`.
+
+### Regression Test Added
+
+**File:** `src/api/services/oidc_login_service_test.go`  
+**Test:** `TestOIDCServiceLinkCallbackReusesPersistedRedirectURI`
+
+What it proves:
+1. Starts OIDC link flow from `http://app.example` (frontend origin)
+2. Mock provider records expected redirect URI: `http://app.example/api/auth/oidc/1/link/callback`
+3. Completes callback from different origin: `http://internal-api:8080` (internal proxy)
+4. Mock provider validates token exchange receives original persisted redirect URI, not reconstructed proxy URI
+5. Link succeeds, identity is created, no 400 error
+
+### Coverage Achieved
+
+- ✅ Service layer: redirect URI persistence and reuse in proxy environments
+- ✅ Link callback flow: same coverage parity as login callback flow
+- ✅ Mock provider validation: enforces real provider redirect URI matching behavior
+- ✅ Different origins: `http://app.example` (start) vs `http://internal-api:8080` (callback)
+- ✅ End-to-end: flow start → provider redirect → callback validation → identity creation
+
+---
+
+## Decision: Dependabot Batch PRs #342-#352 Approved for Coordinator Merge
+
+**Date:** 2026-06-24  
+**Agent:** Maximus  
+**Status:** APPROVED
+
+### Context
+
+Brian asked whether the 11 open Dependabot PRs (#342-#352) can be resolved as a batch. Provided PR metadata shows all are clean, ready, and have passing required checks across the full cross-stack quality gate.
+
+### Reviewed PRs
+
+- #342 actions/setup-python 6.2.0 -> 6.3.0
+- #343 actions/setup-go 6.4.0 -> 6.5.0
+- #344 @playwright/test 1.60.0 -> 1.61.1
+- #345 axios 1.18.0 -> 1.18.1
+- #346 @types/node 25.9.2 -> 26.0.0
+- #347 langchain 1.3.10 -> 1.3.11
+- #348 typescript-eslint 8.61.1 -> 8.62.0
+- #349 ruff 0.15.18 -> 0.15.19
+- #350 sse-starlette 3.4.4 -> 3.4.5
+- #351 fastapi 0.137.2 -> 0.138.0
+- #352 langchain-anthropic 1.4.6 -> 1.4.7
+
+### Decision
+
+APPROVE the batch. Coordinator may merge all 11 PRs.
+
+### Rationale
+
+These are narrow Dependabot version bumps, all individually clean and ready, and the supplied status matrix shows the full cross-stack quality/supply-chain gate is green. No PR adds application architecture coupling, changes service boundaries, or introduces unverified runtime behavior beyond dependency/toolchain updates already covered by CI.
+
+### Constitution Alignment
+
+- Principle VII (CI, Supply Chain, and Release Integrity)
+- Principle IX (Automated Enforcement)
+- §17 Quality Gate, §21 Definition of Done
+
+---
