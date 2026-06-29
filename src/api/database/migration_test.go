@@ -38,6 +38,7 @@ func TestAutoMigrateAddsStorageLocationToExistingCoinTableWithReferences(t *test
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
+
 	if err := db.Exec("PRAGMA foreign_keys=ON").Error; err != nil {
 		t.Fatalf("failed to enable foreign keys: %v", err)
 	}
@@ -71,5 +72,20 @@ func TestAutoMigrateAddsStorageLocationToExistingCoinTableWithReferences(t *test
 	}
 	if imageCount != 1 {
 		t.Fatalf("expected existing coin image to survive migration, got %d", imageCount)
+	}
+}
+
+func TestQuickCaptureModelsAutoMigrate(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to open test db: %v", err)
+	}
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}); err != nil {
+		t.Fatalf("quick capture automigrate failed: %v", err)
+	}
+	for _, table := range []string{"quick_capture_drafts", "quick_capture_draft_images", "draft_lifecycle_events"} {
+		if !db.Migrator().HasTable(table) {
+			t.Fatalf("expected table %s", table)
+		}
 	}
 }

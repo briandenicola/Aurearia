@@ -14,4 +14,15 @@ describe('EditCoinPage', () => {
     expect(source).not.toContain('COIN_ERAS')
     expect(source).not.toContain('form.era = \'\'')
   })
+
+  it('keeps promoted Quick Capture coins on the existing edit and image-upload contract', () => {
+    const source = fs.readFileSync(editCoinPagePath, 'utf8')
+
+    expect(source).toContain('getCoin')
+    expect(source).toContain('updateCoin')
+    expect(source).toContain('uploadImage')
+    expect(source).toContain('deleteImage')
+    expect(source).not.toContain('getQuickCaptureDraft')
+    expect(source).not.toContain('updateQuickCaptureDraft')
+  })
 })

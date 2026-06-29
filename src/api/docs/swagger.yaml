@@ -1130,6 +1130,41 @@ definitions:
           $ref: '#/definitions/services.OIDCPublicProviderDTO'
         type: array
     type: object
+  handlers.promoteDraftRequest:
+    properties:
+      confirm:
+        type: boolean
+      overrides:
+        properties:
+          category:
+            type: string
+          era:
+            type: string
+          material:
+            type: string
+          name:
+            type: string
+          notes:
+            type: string
+          purchaseLocation:
+            type: string
+          purchasePrice:
+            type: number
+        type: object
+    type: object
+  handlers.quickCaptureDraftListResponse:
+    properties:
+      drafts:
+        items:
+          $ref: '#/definitions/models.QuickCaptureDraft'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+    type: object
   handlers.refreshRequest:
     properties:
       refreshToken:
@@ -1736,6 +1771,75 @@ definitions:
     - OIDCProviderTypeEntra
     - OIDCProviderTypePocketID
     - OIDCProviderTypeGeneric
+  models.QuickCaptureDraft:
+    properties:
+      acquisitionSource:
+        maxLength: 500
+        type: string
+      createdAt:
+        type: string
+      dateRange:
+        maxLength: 200
+        type: string
+      discardedAt:
+        type: string
+      era:
+        maxLength: 64
+        type: string
+      id:
+        type: integer
+      images:
+        items:
+          $ref: '#/definitions/models.QuickCaptureDraftImage'
+        type: array
+      notes:
+        maxLength: 5000
+        type: string
+      promotedAt:
+        type: string
+      promotedCoinId:
+        type: integer
+      purchasePrice:
+        type: number
+      status:
+        $ref: '#/definitions/models.QuickCaptureDraftStatus'
+      updatedAt:
+        type: string
+      userId:
+        type: integer
+      workingTitle:
+        maxLength: 200
+        type: string
+    type: object
+  models.QuickCaptureDraftImage:
+    properties:
+      createdAt:
+        type: string
+      displayOrder:
+        type: integer
+      draftId:
+        type: integer
+      filePath:
+        type: string
+      id:
+        type: integer
+      imageType:
+        $ref: '#/definitions/models.ImageType'
+      isPrimary:
+        type: boolean
+    type: object
+  models.QuickCaptureDraftStatus:
+    enum:
+    - active
+    - promoting
+    - promoted
+    - discarded
+    type: string
+    x-enum-varnames:
+    - QuickCaptureDraftStatusActive
+    - QuickCaptureDraftStatusPromoting
+    - QuickCaptureDraftStatusPromoted
+    - QuickCaptureDraftStatusDiscarded
   models.StorageLocation:
     properties:
       createdAt:
@@ -7460,6 +7564,282 @@ paths:
       summary: Proxy an external image
       tags:
       - Images
+  /quick-capture/drafts:
+    get:
+      description: Lists owner-scoped Quick Capture drafts, defaulting to active drafts.
+      parameters:
+      - description: Draft status
+        enum:
+        - active
+        - promoted
+        - discarded
+        in: query
+        name: status
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.quickCaptureDraftListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List Quick Capture drafts
+      tags:
+      - Quick Capture
+    post:
+      consumes:
+      - multipart/form-data
+      description: Creates an owner-scoped sparse draft with optional obverse/reverse/detail
+        images.
+      parameters:
+      - description: Working title
+        in: formData
+        name: workingTitle
+        type: string
+      - description: Freeform date range
+        in: formData
+        name: dateRange
+        type: string
+      - description: Era
+        in: formData
+        name: era
+        type: string
+      - description: Acquisition source
+        in: formData
+        name: acquisitionSource
+        type: string
+      - description: Purchase price
+        in: formData
+        name: purchasePrice
+        type: number
+      - description: Notes
+        in: formData
+        name: notes
+        type: string
+      - description: Obverse image
+        in: formData
+        name: obverseImage
+        type: file
+      - description: Reverse image
+        in: formData
+        name: reverseImage
+        type: file
+      - description: Detail images
+        in: formData
+        name: detailImages
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.QuickCaptureDraft'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create Quick Capture draft
+      tags:
+      - Quick Capture
+  /quick-capture/drafts/{id}:
+    get:
+      description: Returns one owner-scoped Quick Capture draft with image metadata.
+      parameters:
+      - description: Draft ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.QuickCaptureDraft'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Quick Capture draft
+      tags:
+      - Quick Capture
+    put:
+      consumes:
+      - multipart/form-data
+      description: Updates an active owner-scoped draft. Supports field changes and
+        image replacement/removal.
+      parameters:
+      - description: Draft ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Working title
+        in: formData
+        name: workingTitle
+        type: string
+      - description: Notes
+        in: formData
+        name: notes
+        type: string
+      - description: Date range
+        in: formData
+        name: dateRange
+        type: string
+      - description: Era
+        in: formData
+        name: era
+        type: string
+      - description: Acquisition source
+        in: formData
+        name: acquisitionSource
+        type: string
+      - description: Purchase price
+        in: formData
+        name: purchasePrice
+        type: number
+      - description: Comma-separated image IDs to remove
+        in: formData
+        name: removeImageIds
+        type: string
+      - description: Replace existing obverse images
+        in: formData
+        name: replaceObverse
+        type: boolean
+      - description: Replace existing reverse images
+        in: formData
+        name: replaceReverse
+        type: boolean
+      - description: New obverse image
+        in: formData
+        name: obverseImage
+        type: file
+      - description: New reverse image
+        in: formData
+        name: reverseImage
+        type: file
+      - description: New detail images
+        in: formData
+        name: detailImages
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.QuickCaptureDraft'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update Quick Capture draft
+      tags:
+      - Quick Capture
+  /quick-capture/drafts/{id}/discard:
+    post:
+      description: Marks an active owner-scoped draft as discarded. Idempotent for
+        already-discarded drafts.
+      parameters:
+      - description: Draft ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.QuickCaptureDraft'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Discard Quick Capture draft
+      tags:
+      - Quick Capture
+  /quick-capture/drafts/{id}/promote:
+    post:
+      consumes:
+      - application/json
+      description: Transactionally promotes a valid active draft into a normal Coin.
+        Idempotent on repeat.
+      parameters:
+      - description: Draft ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Promotion request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.promoteDraftRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Promote Quick Capture draft
+      tags:
+      - Quick Capture
   /references/migrate-legacy:
     post:
       description: Migrates legacy rarity_rating text to structured CoinReference

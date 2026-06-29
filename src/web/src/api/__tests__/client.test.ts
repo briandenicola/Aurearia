@@ -479,6 +479,58 @@ describe('API Client', () => {
       expect(mockApi.delete).toHaveBeenCalledWith('/coins/99')
     })
 
+    it('createQuickCaptureDraft sends sparse fields and images as multipart form data', async () => {
+      mockApi.post.mockResolvedValue({ data: {} })
+      const obverse = new File(['image'], 'obverse.png', { type: 'image/png' })
+      const reverse = new File(['image'], 'reverse.png', { type: 'image/png' })
+      await client.createQuickCaptureDraft({
+        workingTitle: 'Unattributed denarius',
+        notes: 'Needs ruler check',
+        obverseImage: obverse,
+        reverseImage: reverse,
+      })
+
+      expect(mockApi.post).toHaveBeenCalledWith('/quick-capture/drafts', expect.any(FormData))
+    })
+
+    it('quick capture list/get methods use draft routes', async () => {
+      mockApi.get.mockResolvedValue({ data: {} })
+      await client.listQuickCaptureDrafts({ status: 'active', limit: 50 })
+      await client.getQuickCaptureDraft(12)
+      expect(mockApi.get).toHaveBeenCalledWith('/quick-capture/drafts', { params: { status: 'active', limit: 50 } })
+      expect(mockApi.get).toHaveBeenCalledWith('/quick-capture/drafts/12')
+    })
+
+    it('quick capture update/discard/promote methods use owner-scoped draft routes', async () => {
+      mockApi.put.mockResolvedValue({ data: {} })
+      mockApi.post.mockResolvedValue({ data: {} })
+      const replacement = new File(['image'], 'obverse.png', { type: 'image/png' })
+
+      await client.updateQuickCaptureDraft(12, {
+        workingTitle: 'Updated draft',
+        dateRange: 'c. 330-335',
+        era: 'ancient',
+        acquisitionSource: 'Coin show',
+        purchasePrice: 12.5,
+        notes: 'Ready to promote',
+        removeImageIds: '3',
+        replaceObverse: true,
+        obverseImage: replacement,
+      })
+      await client.discardQuickCaptureDraft(13)
+      await client.promoteQuickCaptureDraft(12, {
+        confirm: true,
+        overrides: { name: 'Constantine follis', era: 'ancient' },
+      })
+
+      expect(mockApi.put).toHaveBeenCalledWith('/quick-capture/drafts/12', expect.any(FormData))
+      expect(mockApi.post).toHaveBeenCalledWith('/quick-capture/drafts/13/discard')
+      expect(mockApi.post).toHaveBeenCalledWith('/quick-capture/drafts/12/promote', {
+        confirm: true,
+        overrides: { name: 'Constantine follis', era: 'ancient' },
+      })
+    })
+
     it('duplicateCoin sends POST to /coins/:id/duplicate', async () => {
       mockApi.post.mockResolvedValue({ data: {} })
       await client.duplicateCoin(99)

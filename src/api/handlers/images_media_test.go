@@ -26,7 +26,7 @@ func setupImageMediaRouter(t *testing.T) (*gin.Engine, *gorm.DB, string) {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.Follow{}, &models.Showcase{}, &models.ShowcaseCoin{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.Follow{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
 
@@ -90,6 +90,37 @@ func createStoredCoinImage(t *testing.T, db *gorm.DB, uploadDir string, ownerID 
 	return relPath
 }
 
+func createStoredDraftImage(t *testing.T, db *gorm.DB, uploadDir string, ownerID uint) string {
+	t.Helper()
+	owner := models.User{ID: ownerID, Username: fmt.Sprintf("draft-owner-%d", ownerID), Email: fmt.Sprintf("draft-owner-%d@example.com", ownerID), PasswordHash: "hash"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("failed to create draft owner: %v", err)
+	}
+	if ownerID != 2 {
+		other := models.User{ID: 2, Username: "draft-other", Email: "draft-other@example.com", PasswordHash: "hash"}
+		if err := db.Create(&other).Error; err != nil {
+			t.Fatalf("failed to create other user: %v", err)
+		}
+	}
+	draft := models.QuickCaptureDraft{UserID: ownerID, WorkingTitle: "Draft media", Status: models.QuickCaptureDraftStatusActive}
+	if err := db.Create(&draft).Error; err != nil {
+		t.Fatalf("failed to create draft: %v", err)
+	}
+	relPath := filepath.ToSlash(filepath.Join(fmt.Sprintf("quick-capture-draft-%d", draft.ID), "obverse.jpg"))
+	fullPath := filepath.Join(uploadDir, filepath.FromSlash(relPath))
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		t.Fatalf("failed to create draft upload dir: %v", err)
+	}
+	if err := os.WriteFile(fullPath, []byte("owner-draft-image"), 0644); err != nil {
+		t.Fatalf("failed to write draft image file: %v", err)
+	}
+	image := models.QuickCaptureDraftImage{DraftID: draft.ID, UserID: ownerID, FilePath: relPath, ImageType: models.ImageTypeObverse, IsPrimary: true}
+	if err := db.Create(&image).Error; err != nil {
+		t.Fatalf("failed to create draft image record: %v", err)
+	}
+	return relPath
+}
+
 func TestImageHandler_ServeUpload_AuthorizesPrivateCoinMedia(t *testing.T) {
 	router, db, uploadDir := setupImageMediaRouter(t)
 	relPath := createStoredCoinImage(t, db, uploadDir, 1, true)
@@ -124,6 +155,35 @@ func TestImageHandler_ServeUpload_AuthorizesPrivateCoinMedia(t *testing.T) {
 		}
 		if !strings.Contains(w.Body.String(), "owner-private-image") {
 			t.Fatalf("expected image bytes in response, got %q", w.Body.String())
+		}
+	})
+}
+
+func TestImageHandler_ServeUpload_AuthorizesDraftMediaByOwnerOnly(t *testing.T) {
+	router, db, uploadDir := setupImageMediaRouter(t)
+	relPath := createStoredDraftImage(t, db, uploadDir, 1)
+	url := "/uploads/" + relPath
+
+	t.Run("different user cannot fetch draft media", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+		req.Header.Set("Authorization", authHeader(2))
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("owner can fetch draft media", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+		req.Header.Set("Authorization", authHeader(1))
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		if !strings.Contains(w.Body.String(), "owner-draft-image") {
+			t.Fatalf("expected draft image bytes in response, got %q", w.Body.String())
 		}
 	})
 }

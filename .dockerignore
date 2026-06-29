@@ -1,0 +1,15 @@
+.git/
+.dockerignore
+Dockerfile*
+node_modules/
+src/web/node_modules/
+src/web/dist/
+src/api/uploads/
+*.log*
+.env*
+coverage/
+src/web/coverage/
+src/web/test-results/
+src/web/playwright-report/
+.DS_Store
+Thumbs.db

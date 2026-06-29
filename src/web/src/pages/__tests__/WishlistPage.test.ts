@@ -105,6 +105,19 @@ describe('WishlistPage', () => {
     expect(wrapper.find('.pagination').exists()).toBe(false)
   })
 
+  it('continues to fetch only wishlist coins and never quick-capture drafts', () => {
+    shallowMount(WishlistPage, {
+      global: {
+        stubs: {
+          RouterLink: routerLinkStub,
+        },
+      },
+    })
+
+    expect(mockStore.fetchCoins).toHaveBeenCalledWith({ wishlist: 'true', sort: 'updated_at', order: 'desc', page: 1 })
+    expect(mockStore.fetchCoins).not.toHaveBeenCalledWith(expect.objectContaining({ sold: 'true' }))
+  })
+
   it('shows the empty state when no wishlist coins are present', () => {
     const wrapper = shallowMount(WishlistPage, {
       global: {

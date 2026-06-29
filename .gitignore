@@ -21,7 +21,10 @@ src/api/uploads/
 # Node
 node_modules/
 src/web/node_modules/
+dist/
+build/
 src/web/dist/
+*.log
 
 # Playwright
 src/web/test-results/
@@ -29,6 +32,7 @@ src/web/playwright-report/
 
 # Environment
 .env
+.env*
 *.local
 
 # IDE

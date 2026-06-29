@@ -174,6 +174,93 @@ export interface IntakeCommitResponse {
   coinId: number
 }
 
+export type QuickCaptureDraftStatus = 'active' | 'promoting' | 'promoted' | 'discarded'
+export type QuickCaptureImageType = 'obverse' | 'reverse' | 'detail' | 'other'
+
+export interface QuickCaptureDraftImage {
+  id: number
+  draftId: number
+  filePath: string
+  imageType: QuickCaptureImageType
+  isPrimary: boolean
+  displayOrder: number
+  createdAt: string
+}
+
+export interface QuickCaptureDraft {
+  id: number
+  userId: number
+  workingTitle: string
+  dateRange: string
+  era: string
+  acquisitionSource: string
+  purchasePrice: number | null
+  notes: string
+  status: QuickCaptureDraftStatus
+  promotedCoinId: number | null
+  promotedAt: string | null
+  discardedAt: string | null
+  images: QuickCaptureDraftImage[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface QuickCaptureDraftListResponse {
+  drafts: QuickCaptureDraft[]
+  total: number
+  page: number
+  limit: number
+}
+
+export interface QuickCaptureDraftInput {
+  workingTitle?: string
+  dateRange?: string
+  era?: string
+  acquisitionSource?: string
+  purchasePrice?: number | null
+  notes?: string
+  obverseImage?: File | null
+  reverseImage?: File | null
+  detailImages?: File[]
+}
+
+export interface QuickCaptureDraftUpdateInput {
+  workingTitle: string
+  dateRange: string
+  era: string
+  acquisitionSource: string
+  purchasePrice: number | null
+  notes: string
+  removeImageIds?: string // comma-separated IDs
+  replaceObverse?: boolean
+  replaceReverse?: boolean
+  obverseImage?: File | null
+  reverseImage?: File | null
+  detailImages?: File[]
+}
+
+export interface QuickCapturePromoteOverrides {
+  name?: string
+  category?: string
+  material?: string
+  era?: string
+  purchasePrice?: number | null
+  purchaseLocation?: string
+  notes?: string
+}
+
+export interface QuickCapturePromoteRequest {
+  confirm: boolean
+  overrides?: QuickCapturePromoteOverrides
+}
+
+export interface QuickCapturePromotionResponse {
+  draftId: number
+  status: 'promoted'
+  coinId: number
+  alreadyPromoted: boolean
+}
+
 export interface CoinImage {
   id: number
   coinId: number
