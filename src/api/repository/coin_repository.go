@@ -880,6 +880,30 @@ func (r *CoinRepository) CoinExists(coinID uint, userID uint) (bool, error) {
 	return count > 0, err
 }
 
+// FindWishlistByReferenceURL returns an owned wishlist coin matching the exact source URL.
+func (r *CoinRepository) FindWishlistByReferenceURL(userID uint, referenceURL string) (*models.Coin, error) {
+	var coin models.Coin
+	err := r.db.Scopes(OwnedBy(userID)).
+		Where("is_wishlist = ? AND reference_url = ?", true, referenceURL).
+		First(&coin).Error
+	if err != nil {
+		return nil, err
+	}
+	return &coin, nil
+}
+
+// FindWishlistBySourceAlertCandidateID returns an owned wishlist coin converted from a candidate.
+func (r *CoinRepository) FindWishlistBySourceAlertCandidateID(userID uint, candidateID uint) (*models.Coin, error) {
+	var coin models.Coin
+	err := r.db.Scopes(OwnedBy(userID)).
+		Where("is_wishlist = ? AND source_alert_candidate_id = ?", true, candidateID).
+		First(&coin).Error
+	if err != nil {
+		return nil, err
+	}
+	return &coin, nil
+}
+
 // RecordValueHistory creates a coin value history entry.
 func (r *CoinRepository) RecordValueHistory(entry *models.CoinValueHistory) error {
 	return r.db.Create(entry).Error

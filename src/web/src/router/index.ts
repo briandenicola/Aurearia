@@ -110,6 +110,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/wishlist/search-alerts',
+      name: 'wishlist-search-alerts',
+      component: () => import('@/pages/WishlistAlertsPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/sold',
       name: 'sold',
       component: () => import('@/pages/SoldPage.vue'),

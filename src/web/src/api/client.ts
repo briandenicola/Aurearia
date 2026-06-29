@@ -1,6 +1,7 @@
 import axios from 'axios'
 import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, ValuationRun, AuctionEndingRun, CollectionHealthSnapshotRunResult, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse, AIJob, AIJobStartResponse } from '@/types'
 import type { QuickCaptureDraft, QuickCaptureDraftInput, QuickCaptureDraftUpdateInput, QuickCaptureDraftListResponse, QuickCaptureDraftStatus, QuickCapturePromoteRequest, QuickCapturePromotionResponse } from '@/types'
+import type { WishlistSearchAlert, WishlistSearchAlertInput, WishlistSearchAlertListResponse, AlertRun, AlertRunListResponse, AlertRunResult, AlertCandidate, AlertCandidateListResponse, AlertCandidateState, CandidateProvenanceStatus, DismissWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateResponse, AdjustWishlistSearchAlertCriteriaInput } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -167,6 +168,34 @@ export const getCoins = (params?: {
   order?: string
   seed?: number
 }) => api.get<CoinListResponse>('/coins', { params })
+
+// Wishlist Search Alerts (acquisition discovery; separate from availability checking)
+export const listWishlistSearchAlerts = (params?: { active?: boolean; page?: number; limit?: number }) =>
+  api.get<WishlistSearchAlertListResponse>('/wishlist/search-alerts', { params })
+export const createWishlistSearchAlert = (alert: WishlistSearchAlertInput) =>
+  api.post<WishlistSearchAlert>('/wishlist/search-alerts', alert)
+export const getWishlistSearchAlert = (id: number) =>
+  api.get<WishlistSearchAlert>(`/wishlist/search-alerts/${id}`)
+export const updateWishlistSearchAlert = (id: number, alert: WishlistSearchAlertInput) =>
+  api.put<WishlistSearchAlert>(`/wishlist/search-alerts/${id}`, alert)
+export const deleteWishlistSearchAlert = (id: number) =>
+  api.delete<void>(`/wishlist/search-alerts/${id}`)
+export const runWishlistSearchAlert = (id: number, maxCandidates = 20) =>
+  api.post<AlertRunResult>(`/wishlist/search-alerts/${id}/run`, { maxCandidates })
+export const listWishlistSearchAlertRuns = (id: number, params?: { page?: number; limit?: number }) =>
+  api.get<AlertRunListResponse>(`/wishlist/search-alerts/${id}/runs`, { params })
+export const getWishlistSearchAlertRun = (alertId: number, runId: number) =>
+  api.get<AlertRun>(`/wishlist/search-alerts/${alertId}/runs/${runId}`)
+export const listWishlistSearchAlertCandidates = (id: number, params?: { state?: AlertCandidateState | ''; provenanceStatus?: CandidateProvenanceStatus | ''; page?: number; limit?: number }) =>
+  api.get<AlertCandidateListResponse>(`/wishlist/search-alerts/${id}/candidates`, { params })
+export const dismissWishlistSearchAlertCandidate = (alertId: number, candidateId: number, input: DismissWishlistSearchAlertCandidateInput) =>
+  api.post<AlertCandidate>(`/wishlist/search-alerts/${alertId}/candidates/${candidateId}/dismiss`, input)
+export const restoreWishlistSearchAlertCandidate = (alertId: number, candidateId: number) =>
+  api.post<AlertCandidate>(`/wishlist/search-alerts/${alertId}/candidates/${candidateId}/restore`)
+export const convertWishlistSearchAlertCandidate = (alertId: number, candidateId: number, input: ConvertWishlistSearchAlertCandidateInput) =>
+  api.post<ConvertWishlistSearchAlertCandidateResponse>(`/wishlist/search-alerts/${alertId}/candidates/${candidateId}/convert`, input)
+export const adjustWishlistSearchAlertCriteria = (alertId: number, input: AdjustWishlistSearchAlertCriteriaInput) =>
+  api.post<WishlistSearchAlert>(`/wishlist/search-alerts/${alertId}/criteria-adjustments`, input)
 
 const NULLABLE_FIELDS: (keyof Coin)[] = ['weightGrams', 'diameterMm', 'purchasePrice', 'currentValue', 'purchaseDate', 'storageLocationId']
 

@@ -32,6 +32,18 @@ type CoinService struct {
 	settingsSvc         *SettingsService
 }
 
+type preparedCoinCreator struct {
+	service *CoinService
+	coin    *models.Coin
+}
+
+func (c preparedCoinCreator) CreateCoinInTransaction(tx *gorm.DB) (uint, error) {
+	if err := c.service.createPreparedCoinInTx(tx, c.coin); err != nil {
+		return 0, err
+	}
+	return c.coin.ID, nil
+}
+
 // NewCoinService creates a new CoinService.
 func NewCoinService(repo *repository.CoinRepository, notifSvc *NotificationService) *CoinService {
 	return &CoinService{repo: repo, notifSvc: notifSvc}
@@ -65,8 +77,38 @@ func (s *CoinService) WithSettingsSupport(settingsSvc *SettingsService) *CoinSer
 	return s
 }
 
+func (s *CoinService) PreparedCoinCreator(coin *models.Coin) repository.TransactionalCoinCreator {
+	return preparedCoinCreator{service: s, coin: coin}
+}
+
 // CreateCoin creates a coin and records a value snapshot in a single transaction.
 func (s *CoinService) CreateCoin(coin *models.Coin) error {
+	if err := s.prepareCoinForCreate(coin); err != nil {
+		return err
+	}
+	err := s.createPreparedCoinInTx(nil, coin)
+	if err != nil {
+		return err
+	}
+
+	// Notify followers after commit (async to avoid slowing the response)
+	if s.notifSvc != nil {
+		go s.notifSvc.NotifyNewCoin(coin.UserID, *coin)
+	}
+
+	return nil
+}
+
+// CreateCoinInTx creates a coin using the same validation path as CreateCoin.
+// When tx is provided, the write and value snapshot are part of that caller-owned transaction.
+func (s *CoinService) CreateCoinInTx(tx *gorm.DB, coin *models.Coin) error {
+	if err := s.prepareCoinForCreate(coin); err != nil {
+		return err
+	}
+	return s.createPreparedCoinInTx(tx, coin)
+}
+
+func (s *CoinService) prepareCoinForCreate(coin *models.Coin) error {
 	if err := s.validateStorageLocation(coin.StorageLocationID, coin.UserID); err != nil {
 		return err
 	}
@@ -74,7 +116,11 @@ func (s *CoinService) CreateCoin(coin *models.Coin) error {
 	if err := s.validateCoinEra(coin.Era); err != nil {
 		return err
 	}
-	err := s.repo.DB().Transaction(func(tx *gorm.DB) error {
+	return nil
+}
+
+func (s *CoinService) createPreparedCoinInTx(tx *gorm.DB, coin *models.Coin) error {
+	create := func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)
 		if err := txRepo.Create(coin); err != nil {
 			return err
@@ -99,17 +145,11 @@ func (s *CoinService) CreateCoin(coin *models.Coin) error {
 		}
 
 		return txRepo.RecordValueSnapshot(coin.UserID)
-	})
-	if err != nil {
-		return err
 	}
-
-	// Notify followers after commit (async to avoid slowing the response)
-	if s.notifSvc != nil {
-		go s.notifSvc.NotifyNewCoin(coin.UserID, *coin)
+	if tx != nil {
+		return create(tx)
 	}
-
-	return nil
+	return s.repo.DB().Transaction(create)
 }
 
 // UpdateCoin applies updates to an existing coin. If the current value changed

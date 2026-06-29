@@ -89,3 +89,21 @@ func TestQuickCaptureModelsAutoMigrate(t *testing.T) {
 		}
 	}
 }
+
+func TestWishlistSearchAlertModelsAutoMigrate(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to open test db: %v", err)
+	}
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.WishlistSearchAlert{}, &models.AlertRun{}, &models.AlertCandidate{}, &models.CandidateProvenance{}, &models.CandidateReviewAction{}); err != nil {
+		t.Fatalf("wishlist search alert automigrate failed: %v", err)
+	}
+	for _, table := range []string{"wishlist_search_alerts", "alert_runs", "alert_candidates", "candidate_provenances", "candidate_review_actions"} {
+		if !db.Migrator().HasTable(table) {
+			t.Fatalf("expected table %s", table)
+		}
+	}
+	if !db.Migrator().HasColumn(&models.Coin{}, "SourceAlertCandidateID") {
+		t.Fatal("expected coins.source_alert_candidate_id to be migrated")
+	}
+}

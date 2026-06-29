@@ -8,6 +8,9 @@
           <span v-if="checking" class="spinner-sm"></span>
           <ShieldCheck v-else :size="22" />
         </button>
+        <router-link to="/wishlist/search-alerts" class="pwa-icon-btn" title="Search Alerts">
+          <Search :size="22" />
+        </router-link>
         <router-link to="/lookup" class="pwa-icon-btn" title="Identify Coin">
           <CirclePlus :size="22" />
         </router-link>
@@ -24,6 +27,7 @@
           {{ checking ? 'Checking...' : 'Check Availability' }}
         </button>
         <router-link to="/lookup" class="btn btn-secondary"><CirclePlus :size="16" /> Identify Coin</router-link>
+        <router-link to="/wishlist/search-alerts" class="btn btn-secondary"><Search :size="16" /> Search Alerts</router-link>
       </div>
     </div>
 
@@ -83,7 +87,7 @@ import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import PurchaseModal from '@/components/PurchaseModal.vue'
 import { purchaseCoin, checkWishlistAvailability, updateListingStatus } from '@/api/client'
 import type { Coin, AvailabilityRunSummary } from '@/types'
-import { CirclePlus, Bot, ShieldCheck } from 'lucide-vue-next'
+import { CirclePlus, Bot, ShieldCheck, Search } from 'lucide-vue-next'
 import { usePwa } from '@/composables/usePwa'
 
 const store = useCoinsStore()

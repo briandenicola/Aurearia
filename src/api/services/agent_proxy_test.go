@@ -223,3 +223,60 @@ func TestAgentChatProxyRequestJSONOmitsNilAppContext(t *testing.T) {
 		t.Fatalf("app_context should be omitted when nil: %s", body)
 	}
 }
+
+func TestAgentProxyDiscoverAlertCandidatesSendsTypedPayload(t *testing.T) {
+	const token = "test-internal-service-token"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/search/alerts" {
+			t.Fatalf("expected /api/search/alerts path, got %s", r.URL.Path)
+		}
+		if got := r.Header.Get("X-Internal-Service-Token"); got != token {
+			t.Fatalf("expected internal token header %q, got %q", token, got)
+		}
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		alert := payload["alert"].(map[string]any)
+		if alert["max_candidates"] != float64(20) {
+			t.Fatalf("max_candidates = %#v", alert["max_candidates"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"candidates":[{"source_url":"https://dealer.example/item","title":"Domitian Denarius","reason_for_match":"matches","last_seen_at":"2026-06-29T17:00:00Z","provenance_status":"verified","provenance":[{"field":"source_url","value":"https://dealer.example/item","source_url":"https://dealer.example/item","observed_at":"2026-06-29T17:00:00Z","confidence":"high","verification_state":"verified"}]}],"warnings":[],"partial":false}`))
+	}))
+	defer server.Close()
+
+	proxy := NewAgentProxy(server.URL, token, NewLogger(10))
+	resp, err := proxy.DiscoverAlertCandidates(context.Background(), AlertDiscoveryProxyRequest{
+		LLM: LLMConfig{Provider: "ollama", Model: "test"},
+		Alert: AlertDiscoveryRequestDetail{
+			AlertID:       1,
+			MaxCandidates: 20,
+			CriteriaSnapshot: AlertDiscoveryCriteriaSnapshotProxy{
+				Name: "Domitian",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("DiscoverAlertCandidates returned error: %v", err)
+	}
+	if len(resp.Candidates) != 1 || resp.Candidates[0].SourceURL == "" {
+		t.Fatalf("unexpected discovery response: %+v", resp)
+	}
+}
+
+func TestAgentProxyDiscoverAlertCandidatesSanitizesHTTPError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"detail":"secret stack trace with provider-key"}`))
+	}))
+	defer server.Close()
+	proxy := NewAgentProxy(server.URL, "token", NewLogger(10))
+	_, err := proxy.DiscoverAlertCandidates(context.Background(), AlertDiscoveryProxyRequest{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), "provider-key") {
+		t.Fatalf("error leaked response body: %v", err)
+	}
+}

@@ -24,6 +24,7 @@ MAX_PORTFOLIO_MAP_ITEMS = 200
 MAX_PORTFOLIO_LIST_ITEMS = 200
 MAX_TOP_COINS = 100
 MAX_AVAILABILITY_ITEMS = 10
+MAX_ALERT_CANDIDATES = 50
 
 BoundedMessage = Annotated[str, StringConstraints(max_length=MAX_MESSAGE_LENGTH)]
 BoundedHistoryMessage = Annotated[str, StringConstraints(max_length=MAX_HISTORY_MESSAGE_LENGTH)]
@@ -250,3 +251,49 @@ class AvailabilityCheckRequest(StrictRequestModel):
         if len(set(urls)) != len(urls):
             raise ValueError("items contain duplicate URLs")
         return items
+
+
+# Wishlist search alert discovery DTOs.
+# Contract anchor: specs/337-wishlist-search-alerts/contracts/agent-discovery-contract.md
+class AlertDiscoveryCriteriaSnapshot(StrictRequestModel):
+    """Immutable criteria snapshot supplied by the Go API."""
+
+    name: BoundedName
+    ruler_or_issuer: BoundedName = ""
+    coin_type: BoundedName = ""
+    date_from: int | None = None
+    date_to: int | None = None
+    mint: BoundedName = ""
+    material: BoundedName = ""
+    grade_or_condition: BoundedName = ""
+    price_min: float | None = Field(default=None, ge=0)
+    price_max: float | None = Field(default=None, ge=0)
+    currency: Annotated[str, StringConstraints(max_length=3)] = "USD"
+    dealer_preference: BoundedName = ""
+    source_filters: list[Annotated[str, StringConstraints(max_length=253)]] = Field(default_factory=list, max_length=20)
+    keywords: Annotated[str, StringConstraints(max_length=500)] = ""
+    notes: BoundedNotes = ""
+
+    @model_validator(mode="after")
+    def validate_ranges(self) -> "AlertDiscoveryCriteriaSnapshot":
+        if self.price_min is not None and self.price_max is not None and self.price_min > self.price_max:
+            raise ValueError("price_min must be less than or equal to price_max")
+        if self.date_from is not None and self.date_to is not None and self.date_from > self.date_to:
+            raise ValueError("date_from must be less than or equal to date_to")
+        self.currency = self.currency.upper()
+        return self
+
+
+class AlertDiscoveryDetail(StrictRequestModel):
+    """Alert discovery request details supplied by Go."""
+
+    alert_id: int = Field(ge=1)
+    criteria_snapshot: AlertDiscoveryCriteriaSnapshot
+    max_candidates: int = Field(default=20, ge=1, le=MAX_ALERT_CANDIDATES)
+
+
+class AlertDiscoveryRequest(StrictRequestModel):
+    """Stateless alert discovery request. Python never persists or scopes users."""
+
+    llm: LLMConfig
+    alert: AlertDiscoveryDetail

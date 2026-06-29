@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 
 from app.config import settings
 from app.models.requests import (
+    AlertDiscoveryRequest,
     AnalyzeRequest,
     AvailabilityCheckRequest,
     CoinSearchRequest,
@@ -16,6 +17,7 @@ from app.models.requests import (
 )
 from app.models.responses import (
     AgentResponse,
+    AlertDiscoveryResponse,
     AvailabilityCheckResponse,
     AvailabilityVerdict,
     IntakeDraftResponse,
@@ -29,12 +31,29 @@ from app.teams.availability_check import (
 )
 from app.teams.coin_analysis import create_coin_analysis_team
 from app.teams.coin_intake import generate_intake_draft
+from app.teams.coin_search import discover_alert_candidates
 
 logger = logging.getLogger(__name__)
 
 _RECURSION_CONFIG = {"recursion_limit": settings.max_supervisor_iterations}
 
 router = APIRouter(prefix="/api")
+
+# Wishlist search alert discovery route anchor:
+# specs/337-wishlist-search-alerts/contracts/agent-discovery-contract.md
+
+
+@router.post("/search/alerts", response_model=AlertDiscoveryResponse)
+async def search_alerts(request: AlertDiscoveryRequest):
+    """Discover source-backed wishlist search alert candidates. Stateless; no persistence."""
+    logger.info(
+        "POST /search/alerts — provider=%s, model=%s, alert_id=%s, max=%d",
+        request.llm.provider,
+        request.llm.model,
+        request.alert.alert_id,
+        request.alert.max_candidates,
+    )
+    return await discover_alert_candidates(request)
 
 
 def _build_messages(message: str, history: list | None = None, system_prompt: str = ""):

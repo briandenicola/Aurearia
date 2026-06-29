@@ -9,19 +9,31 @@ Phase 3: Format the extracted listings into the CoinSuggestion JSON schema.
 import json
 import logging
 import re
+from datetime import UTC, datetime
 from typing import Annotated, TypedDict
+from urllib.parse import urlparse
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
 from app.llm.provider import create_search_agent, get_chat_model, get_search_model
 from app.llm.retry import ainvoke_with_retry
-from app.models.requests import LLMConfig
+from app.models.requests import AlertDiscoveryRequest, LLMConfig
+from app.models.responses import AlertDiscoveryCandidate, AlertDiscoveryProvenance, AlertDiscoveryResponse
 from app.safety import with_safety
 from app.tools.numismatic_authority import normalize_candidate_references
 from app.tools.search import fetch_dealer_page
 
 logger = logging.getLogger(__name__)
+
+TRUSTED_ALERT_FETCH_HOSTS = {
+    "vcoins.com",
+    "ma-shops.com",
+    "forumancientcoins.com",
+    "biddr.com",
+    "catawiki.com",
+    "hjbltd.com",
+}
 
 SEARCH_PROMPT = with_safety("""You are a numismatic search specialist. Search the web to find coins
 currently for sale that match the user's request.
@@ -101,12 +113,17 @@ class CoinSearchState(TypedDict):
     user_message: str
 
 
-def create_coin_search_team(llm_config: LLMConfig, search_prompt: str = ""):
+def create_coin_search_team(
+    llm_config: LLMConfig,
+    search_prompt: str = "",
+    allowed_fetch_hosts: set[str] | None = None,
+):
     """Create the coin search pipeline.
 
     Args:
         llm_config: LLM provider configuration
         search_prompt: Additional context from admin settings (prepended)
+        allowed_fetch_hosts: Optional host allowlist for fetched listing pages
     """
     if search_prompt:
         combined_search = f"{search_prompt}\n\n{SEARCH_PROMPT}"
@@ -154,6 +171,7 @@ def create_coin_search_team(llm_config: LLMConfig, search_prompt: str = ""):
 
         search_results = state.get("search_results", "")
         urls = _extract_urls(search_results)
+        urls = _filter_allowed_fetch_urls(urls, allowed_fetch_hosts)
         logger.debug("[coin_search] fetch_node — found %d URLs to fetch", len(urls))
 
         if not urls:
@@ -263,3 +281,187 @@ def _enrich_references_with_authority_links(text: str) -> str:
 
     enriched = json.dumps(payload, ensure_ascii=False, indent=2)
     return f"{text[:match.start()]}```json\n{enriched}\n```{text[match.end():]}"
+
+
+async def discover_alert_candidates(request: AlertDiscoveryRequest) -> AlertDiscoveryResponse:
+    """Run stateless wishlist alert discovery using the existing coin search pipeline."""
+    query = _alert_criteria_query(request.alert.criteria_snapshot)
+    allowed_fetch_hosts = _trusted_alert_fetch_hosts(request.alert.criteria_snapshot.source_filters)
+    graph = create_coin_search_team(request.llm, allowed_fetch_hosts=allowed_fetch_hosts)
+    try:
+        result = await graph.ainvoke({
+            "messages": [],
+            "search_results": "",
+            "fetched_listings": "",
+            "user_message": query,
+        })
+    except Exception:
+        logger.exception("Wishlist alert discovery failed")
+        return AlertDiscoveryResponse(
+            candidates=[],
+            warnings=["Discovery could not complete. Please try again later."],
+            partial=True,
+        )
+
+    suggestions = _extract_json_array(_last_message_content(result))
+    if not suggestions:
+        return AlertDiscoveryResponse(candidates=[], warnings=[], partial=False)
+
+    candidates: list[AlertDiscoveryCandidate] = []
+    warnings: list[str] = []
+    for item in suggestions[: request.alert.max_candidates]:
+        candidate = _candidate_from_suggestion(item)
+        if candidate is None:
+            warnings.append("One result was omitted because required source-backed fields were missing.")
+            continue
+        candidates.append(candidate)
+    if len(suggestions) > request.alert.max_candidates:
+        warnings.append("Some candidates were omitted because the result cap was reached.")
+    return AlertDiscoveryResponse(candidates=candidates, warnings=warnings, partial=bool(warnings))
+
+
+def _alert_criteria_query(criteria) -> str:
+    parts = [
+        criteria.name,
+        criteria.ruler_or_issuer,
+        criteria.coin_type,
+        criteria.mint,
+        criteria.material,
+        criteria.grade_or_condition,
+        criteria.dealer_preference,
+        criteria.keywords,
+    ]
+    if criteria.date_from is not None or criteria.date_to is not None:
+        parts.append(f"date range {criteria.date_from or ''} to {criteria.date_to or ''}")
+    if criteria.price_min is not None or criteria.price_max is not None:
+        parts.append(f"price {criteria.price_min or 0} to {criteria.price_max or ''} {criteria.currency}")
+    for source in criteria.source_filters:
+        parts.append(f"site:{source}")
+    return " ".join(part for part in parts if part).strip() or criteria.name
+
+
+def _source_filter_hosts(source_filters: list[str]) -> set[str]:
+    hosts: set[str] = set()
+    for source in source_filters:
+        parsed = urlparse(source if "://" in source else f"https://{source}")
+        if parsed.hostname:
+            hosts.add(parsed.hostname.lower().removeprefix("www."))
+    return hosts
+
+
+def _trusted_alert_fetch_hosts(source_filters: list[str]) -> set[str]:
+    requested = _source_filter_hosts(source_filters)
+    if not requested:
+        return set(TRUSTED_ALERT_FETCH_HOSTS)
+    return {
+        trusted
+        for trusted in TRUSTED_ALERT_FETCH_HOSTS
+        if any(requested_host == trusted or requested_host.endswith(f".{trusted}") for requested_host in requested)
+    }
+
+
+def _url_matches_allowed_hosts(url: str, allowed_hosts: set[str]) -> bool:
+    parsed = urlparse(url)
+    if not parsed.hostname:
+        return False
+    host = parsed.hostname.lower().removeprefix("www.")
+    return any(host == allowed or host.endswith(f".{allowed}") for allowed in allowed_hosts)
+
+
+def _filter_allowed_fetch_urls(urls: list[str], allowed_fetch_hosts: set[str] | None) -> list[str]:
+    if allowed_fetch_hosts is None:
+        return urls
+    allowed_hosts = {host.lower() for host in allowed_fetch_hosts if host}
+    return [url for url in urls if _url_matches_allowed_hosts(url, allowed_hosts)]
+
+
+def _last_message_content(result: dict) -> str:
+    messages = result.get("messages", [])
+    if not messages:
+        return ""
+    content = getattr(messages[-1], "content", "")
+    return content if isinstance(content, str) else str(content)
+
+
+def _extract_json_array(text: str) -> list[dict]:
+    match = re.search(r"```json\s*\n(.*?)\n```", text, flags=re.DOTALL)
+    payload = match.group(1).strip() if match else text.strip()
+    try:
+        parsed = json.loads(payload)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [item for item in parsed if isinstance(item, dict)]
+
+
+def _candidate_from_suggestion(item: dict) -> AlertDiscoveryCandidate | None:
+    source_url = str(item.get("sourceUrl") or item.get("source_url") or "").strip()
+    title = str(item.get("name") or item.get("title") or "").strip()
+    if not source_url or not title:
+        return None
+    source_name = str(item.get("sourceName") or item.get("source_name") or "").strip()
+    price_text = str(item.get("estPrice") or item.get("price") or "").strip()
+    observed_price, observed_currency = _parse_price(price_text)
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    provenance = [
+        AlertDiscoveryProvenance(
+            field="source_url",
+            value=source_url,
+            source_url=source_url,
+            observed_at=now,
+            confidence="high",
+            verification_state="verified",
+            notes="URL came from fetched search/listing data.",
+        ),
+        AlertDiscoveryProvenance(
+            field="title",
+            value=title,
+            source_url=source_url,
+            observed_at=now,
+            confidence="high",
+            verification_state="verified",
+            notes="Title came from fetched search/listing data.",
+        ),
+    ]
+    if price_text:
+        provenance.append(
+            AlertDiscoveryProvenance(
+                field="observed_price",
+                value=price_text,
+                source_url=source_url,
+                observed_at=now,
+                confidence="medium" if observed_price is not None else "low",
+                verification_state="verified" if observed_price is not None else "partial",
+                notes="Price text came from fetched listing data.",
+            )
+        )
+    return AlertDiscoveryCandidate(
+        source_url=source_url,
+        source_name=source_name,
+        title=title,
+        observed_price=observed_price,
+        observed_currency=observed_currency,
+        reason_for_match="Candidate title and source listing matched the saved alert criteria.",
+        last_seen_at=now,
+        provenance_status="verified",
+        fields={
+            "ruler": str(item.get("ruler") or ""),
+            "denomination": str(item.get("denomination") or ""),
+            "material": str(item.get("material") or ""),
+            "grade_or_condition": str(item.get("grade") or ""),
+        },
+        provenance=provenance,
+    )
+
+
+def _parse_price(price_text: str) -> tuple[float | None, str]:
+    match = re.search(r"(US\$|\$|USD|EUR|GBP)\s*([\d,]+(?:\.\d{1,2})?)", price_text, re.IGNORECASE)
+    if not match:
+        return None, ""
+    currency_token = match.group(1).upper()
+    currency = "USD" if currency_token in {"$", "US$", "USD"} else currency_token
+    try:
+        return float(match.group(2).replace(",", "")), currency
+    except ValueError:
+        return None, currency

@@ -11627,3 +11627,65 @@ These are narrow Dependabot version bumps, all individually clean and ready, and
 - §17 Quality Gate, §21 Definition of Done
 
 ---
+
+# Brutus #357 Validation Decision
+
+Date: 2026-06-29
+Feature: Wishlist Search Alerts (#357 / specs/337-wishlist-search-alerts)
+
+## Decision
+Alert Run Now responses must include populated candidate provenance in the returned candidate payload, not only in persisted `candidate_provenances` rows. This is required for US2/FR-009/FR-012 review screens and API consumers to prove source-backed results immediately after a manual run.
+
+## Evidence
+A focused regression initially failed because `AlertRunResult.Candidates[0].Provenance` was empty after creating a new candidate. The fix assigns created/replaced provenance back onto the returned candidate structs. Targeted Go service tests now pass and preserve duplicate suppression, duplicate-warning, conversion, and availability-separation behavior.
+
+## Validation
+- `go test .\services`
+- `go test . .\handlers .\repository .\models .\database`
+- `pytest tests/test_alert_discovery_contract.py tests/test_alert_discovery_route.py -v`
+- `npm.cmd run type-check -- --pretty false`
+- `npm.cmd run test -- src\pages\__tests__\WishlistPage.test.ts src\__tests__\AppNavigation.test.ts`
+- `npm.cmd run build -- --emptyOutDir=false`
+
+---
+
+# Maximus #357 Final Gate — BLOCK
+
+Date: 2026-06-29
+Spec: specs/337-wishlist-search-alerts
+Constitution: Principle I, Principle V, Principle IX, §17, §21
+
+Decision: Do not merge #357 to beta yet.
+
+Blockers:
+1. Candidate conversion bypasses the normal CoinService creation path. `WishlistSearchAlertService.ConvertCandidate` accepts a client-supplied `models.Coin`, sets a few fields, and calls `WishlistSearchAlertRepository.ConvertCandidateToWishlist`, which directly `tx.Create(coin)`. This skips `CoinService.CreateCoin` validation such as storage-location ownership and configured coin-era validation.
+2. Merge quality gate is incomplete for touched agent and repository-wide surfaces: Python lint/tests, repository-level validation, manual quickstart validation, secret/error review, and final architecture review remain unchecked in tasks.md.
+
+Fix owner: Cassius should fix the Go conversion path and Brutus should verify the quality-gate closure. The original implementer should not self-clear this block.
+
+---
+
+## Decision: #357 Wishlist Search Alerts Final Gate Cleared
+
+**Date:** 2026-06-29  
+**Agent:** Scribe  
+**Status:** CLEARED FOR COMPLETION REVIEW
+
+### Context
+
+The #357 completion/review batch closed the implementation and blocker-remediation cycle for `specs/337-wishlist-search-alerts` on branch `feature/357-wishlist-search-alerts`.
+
+### Closure Summary
+
+- Repository-managed soft delete preserves alert history.
+- Candidate conversion uses source-backed persisted candidate fields for prefill.
+- Candidate persistence failures no longer return success-shaped run results.
+- Manual Run Now acquisition is owned by a repository transaction.
+- Alert discovery fetches are constrained to trusted dealer allowlist; an empty allowlist blocks all fetch URLs.
+- Brutus validation, Maximus architecture review, drift code review, SSRF security review, and the final full gate passed.
+
+### Constitution Alignment
+
+- Principle I (layered architecture and repository-owned transactions)
+- Principle V (trusted-source SSRF controls and privacy)
+- Principle IX, §17, §21 (automated enforcement and Definition of Done)

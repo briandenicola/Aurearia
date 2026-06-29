@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,9 +13,12 @@ import (
 	"gorm.io/gorm"
 )
 
+var testDBCounter uint64
+
 func setupTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:coin_service_%d?mode=memory&cache=shared", time.Now().UnixNano())), &gorm.Config{})
+	dbName := fmt.Sprintf("file:coin_service_%d_%d?mode=memory&cache=shared", time.Now().UnixNano(), atomic.AddUint64(&testDBCounter, 1))
+	db, err := gorm.Open(sqlite.Open(dbName), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}

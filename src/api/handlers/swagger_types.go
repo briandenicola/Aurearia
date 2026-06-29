@@ -68,6 +68,91 @@ type NoteListResponse struct {
 	Notes []models.Note `json:"notes"`
 }
 
+type WishlistSearchAlertCriteriaRequest struct {
+	RulerOrIssuer    string   `json:"rulerOrIssuer" example:"Domitian"`
+	CoinType         string   `json:"coinType" example:"Denarius"`
+	DateFrom         *int     `json:"dateFrom" example:"81"`
+	DateTo           *int     `json:"dateTo" example:"96"`
+	Mint             string   `json:"mint" example:"Rome"`
+	Material         string   `json:"material" example:"Silver"`
+	GradeOrCondition string   `json:"gradeOrCondition" example:"VF or better"`
+	PriceMin         *float64 `json:"priceMin" example:"0"`
+	PriceMax         *float64 `json:"priceMax" example:"300"`
+	Currency         string   `json:"currency" example:"USD"`
+	DealerPreference string   `json:"dealerPreference" example:"VCoins or MA-Shops"`
+	SourceFilters    []string `json:"sourceFilters" example:"vcoins.com,ma-shops.com"`
+	Keywords         string   `json:"keywords" example:"RIC Minerva"`
+	Notes            string   `json:"notes" example:"Prefer clear legends"`
+}
+
+type WishlistSearchAlertRequest struct {
+	Name     string                             `json:"name" example:"Domitian denarius under $300"`
+	Criteria WishlistSearchAlertCriteriaRequest `json:"criteria"`
+	Cadence  string                             `json:"cadence" example:"manual"`
+	IsActive bool                               `json:"isActive" example:"true"`
+}
+
+type WishlistSearchAlertListResponse struct {
+	Alerts []models.WishlistSearchAlert `json:"alerts"`
+	Total  int64                        `json:"total" example:"1"`
+	Page   int                          `json:"page" example:"1"`
+	Limit  int                          `json:"limit" example:"20"`
+}
+
+type WishlistSearchAlertRunRequest struct {
+	MaxCandidates int `json:"maxCandidates" example:"20"`
+}
+
+type WishlistSearchAlertRunResponse struct {
+	RunID           uint                    `json:"runId" example:"42"`
+	AlertID         uint                    `json:"alertId" example:"1"`
+	Status          models.AlertRunStatus   `json:"status" example:"completed"`
+	StartedAt       string                  `json:"startedAt" example:"2026-06-29T17:00:00Z"`
+	CompletedAt     string                  `json:"completedAt" example:"2026-06-29T17:00:10Z"`
+	ResultCount     int                     `json:"resultCount" example:"8"`
+	NewCount        int                     `json:"newCount" example:"5"`
+	DuplicateCount  int                     `json:"duplicateCount" example:"3"`
+	DismissedCount  int                     `json:"dismissedCount" example:"0"`
+	PartialWarnings []string                `json:"partialWarnings"`
+	RateLimitStatus string                  `json:"rateLimitStatus" example:"ok"`
+	Candidates      []models.AlertCandidate `json:"candidates,omitempty"`
+}
+
+type WishlistSearchAlertRunListResponse struct {
+	Runs  []models.AlertRun `json:"runs"`
+	Total int64             `json:"total" example:"1"`
+	Page  int               `json:"page" example:"1"`
+	Limit int               `json:"limit" example:"20"`
+}
+
+type WishlistSearchAlertCandidateListResponse struct {
+	Candidates []models.AlertCandidate `json:"candidates"`
+	Total      int64                   `json:"total" example:"1"`
+	Page       int                     `json:"page" example:"1"`
+	Limit      int                     `json:"limit" example:"20"`
+}
+
+type WishlistSearchAlertDismissRequest struct {
+	Reason string `json:"reason" example:"price_too_high"`
+	Notes  string `json:"notes" example:"Too expensive with shipping"`
+}
+
+type WishlistSearchAlertConvertRequest struct {
+	Coin                        models.Coin `json:"coin"`
+	AcknowledgeDuplicateWarning bool        `json:"acknowledgeDuplicateWarning" example:"false"`
+}
+
+type WishlistSearchAlertConvertResponse struct {
+	Coin      models.Coin           `json:"coin"`
+	Candidate models.AlertCandidate `json:"candidate"`
+	Warnings  []string              `json:"warnings"`
+}
+
+type WishlistSearchAlertCriteriaAdjustRequest struct {
+	CandidateIDs []uint                             `json:"candidateIds"`
+	Criteria     WishlistSearchAlertCriteriaRequest `json:"criteria"`
+}
+
 type StatsResponse struct {
 	TotalCoins    int64           `json:"totalCoins" example:"25"`
 	TotalWishlist int64           `json:"totalWishlist" example:"5"`
