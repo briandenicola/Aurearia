@@ -20,6 +20,7 @@
         </button>
       </div>
       <p v-if="!aiAvailable" class="ai-unavailable">{{ aiMessage || 'AI unavailable — configure a provider in Admin → AI Configuration' }}</p>
+      <p v-if="jobStatusMessage" class="ai-job-status">{{ jobStatusMessage }}</p>
 
       <div v-if="obverseAnalysis" class="ai-result-section">
         <div class="ai-result-header">
@@ -49,11 +50,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { analyzeCoin, deleteAnalysis, formatAgentServiceError, getAIStatus } from '@/api/client'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { analyzeCoin, deleteAnalysis, formatAgentServiceError, getAIJob, getAIStatus, getCoinAIJobs } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
+import { useNotifications } from '@/composables/useNotifications'
+import { useToast } from '@/composables/useToast'
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
+import type { AIJob, AIJobStartResponse } from '@/types'
 
 const props = defineProps<{
   coinId: number
@@ -69,16 +73,27 @@ const emit = defineEmits<{
 }>()
 
 const { showConfirm, showAlert } = useDialog()
+const { refresh: refreshNotifications } = useNotifications()
+const { showToast } = useToast()
 const md = new MarkdownIt({ html: false })
+const POLL_INTERVAL_MS = 3_000
 
 const analyzing = ref(false)
 const analyzingSide = ref<string | null>(null)
 const aiAvailable = ref(true)
 const aiMessage = ref('')
+const activeJob = ref<AIJob | null>(null)
+let pollTimer: ReturnType<typeof setTimeout> | null = null
+let unmounted = false
 
 const renderedObverse = computed(() => (props.obverseAnalysis ? DOMPurify.sanitize(md.render(props.obverseAnalysis)) : ''))
 const renderedReverse = computed(() => (props.reverseAnalysis ? DOMPurify.sanitize(md.render(props.reverseAnalysis)) : ''))
 const renderedLegacy = computed(() => (props.aiAnalysis ? DOMPurify.sanitize(md.render(props.aiAnalysis)) : ''))
+const jobStatusMessage = computed(() => {
+  if (!activeJob.value || !analyzingSide.value) return ''
+  const status = activeJob.value.status || 'queued'
+  return `${capitalize(analyzingSide.value)} analysis ${formatStatus(status)}. This will continue in the background; you can leave this page.`
+})
 
 onMounted(async () => {
   try {
@@ -89,18 +104,28 @@ onMounted(async () => {
     aiAvailable.value = false
     aiMessage.value = 'Unable to check AI status'
   }
+  await resumeAnalysisJob()
+})
+
+onUnmounted(() => {
+  unmounted = true
+  clearPollTimer()
 })
 
 async function handleAnalyze(side: 'obverse' | 'reverse') {
+  clearPollTimer()
   analyzing.value = true
   analyzingSide.value = side
+  activeJob.value = null
   try {
-    await analyzeCoin(props.coinId, side)
-    emit('analysisUpdated')
+    const res = await analyzeCoin(props.coinId, side)
+    const job = normalizeStartedJob(res.data, side)
+    rememberJob(side, job.id)
+    showToast(`${capitalize(side)} analysis queued. You can leave this page; we will notify you when it is done.`, 'info')
+    await pollAnalysisJob(job.id, side, job)
   } catch (err) {
     const detail = formatAgentServiceError(err, 'Check the internal agent service configuration and retry.')
     await showAlert(`AI analysis failed for ${side}. ${detail}`, { title: 'Analysis Failed' })
-  } finally {
     analyzing.value = false
     analyzingSide.value = null
   }
@@ -114,6 +139,144 @@ async function handleDeleteAnalysis(side: 'obverse' | 'reverse') {
   } catch {
     await showAlert(`Failed to delete ${side} analysis`, { title: 'Error' })
   }
+}
+
+async function resumeAnalysisJob() {
+  try {
+    const res = await getCoinAIJobs(props.coinId, true)
+    const jobs = normalizeJobList(res.data)
+    const activeAnalysis = jobs.find((job) => isAnalysisJob(job) && !isTerminalStatus(job.status))
+    if (activeAnalysis?.id) {
+      const side = activeAnalysis.side === 'reverse' ? 'reverse' : 'obverse'
+      analyzing.value = true
+      analyzingSide.value = side
+      await pollAnalysisJob(activeAnalysis.id, side, activeAnalysis)
+      return
+    }
+  } catch {
+    // Stored job IDs below still give navigation recovery a chance.
+  }
+
+  for (const side of ['obverse', 'reverse'] as const) {
+    const jobId = sessionStorage.getItem(jobStorageKey(side))
+    if (!jobId) continue
+    try {
+      const res = await getAIJob(jobId)
+      if (!isAnalysisJob(res.data)) continue
+      if (isTerminalStatus(res.data.status)) {
+        await finishAnalysisJob(res.data, side)
+      } else {
+        analyzing.value = true
+        analyzingSide.value = side
+        await pollAnalysisJob(jobId, side, res.data)
+      }
+      return
+    } catch {
+      sessionStorage.removeItem(jobStorageKey(side))
+    }
+  }
+}
+
+async function pollAnalysisJob(jobId: string, side: 'obverse' | 'reverse', knownJob?: AIJob) {
+  if (unmounted) return
+  if (knownJob) activeJob.value = knownJob
+  try {
+    const res = await getAIJob(jobId)
+    activeJob.value = res.data
+    if (isTerminalStatus(res.data.status)) {
+      await finishAnalysisJob(res.data, side)
+      return
+    }
+  } catch {
+    // Keep polling; transient network errors should not lose the backend job.
+  }
+  schedulePoll(jobId, side)
+}
+
+function schedulePoll(jobId: string, side: 'obverse' | 'reverse') {
+  clearPollTimer()
+  pollTimer = setTimeout(() => {
+    void pollAnalysisJob(jobId, side)
+  }, POLL_INTERVAL_MS)
+}
+
+async function finishAnalysisJob(job: AIJob, side: 'obverse' | 'reverse') {
+  clearPollTimer()
+  sessionStorage.removeItem(jobStorageKey(side))
+  activeJob.value = job
+  analyzing.value = false
+  analyzingSide.value = null
+  if (isFailedStatus(job.status)) {
+    const message = job.errorMessage || 'AI analysis failed. Please retry.'
+    showToast(message, 'error')
+    await showAlert(message, { title: 'Analysis Failed' })
+    return
+  }
+  activeJob.value = null
+  emit('analysisUpdated')
+  showToast(`${capitalize(side)} analysis complete.`, 'success')
+  await refreshNotifications()
+}
+
+function clearPollTimer() {
+  if (pollTimer) {
+    clearTimeout(pollTimer)
+    pollTimer = null
+  }
+}
+
+function normalizeStartedJob(job: AIJobStartResponse, side: 'obverse' | 'reverse'): AIJob {
+  const data = job.job ?? job
+  const id = String(('jobId' in data ? data.jobId : data.id) ?? '')
+  if (!id) throw new Error('Missing AI job ID')
+  return {
+    id,
+    coinId: data.coinId,
+    jobType: data.jobType,
+    side: data.side ?? side,
+    status: data.status,
+    result: data.result,
+    errorMessage: data.errorMessage,
+    createdAt: data.createdAt ?? '',
+    updatedAt: data.updatedAt ?? '',
+    startedAt: data.startedAt,
+    completedAt: data.completedAt,
+  }
+}
+
+function normalizeJobList(data: AIJob[] | { jobs?: AIJob[] }): AIJob[] {
+  return Array.isArray(data) ? data : data.jobs ?? []
+}
+
+function isAnalysisJob(job: AIJob) {
+  return job.coinId === props.coinId && /analy/i.test(job.jobType)
+}
+
+function isTerminalStatus(status: string) {
+  return ['completed', 'succeeded', 'success', 'failed', 'error', 'cancelled', 'canceled'].includes(status.toLowerCase())
+}
+
+function isFailedStatus(status: string) {
+  return ['failed', 'error', 'cancelled', 'canceled'].includes(status.toLowerCase())
+}
+
+function rememberJob(side: 'obverse' | 'reverse', jobId: string) {
+  sessionStorage.setItem(jobStorageKey(side), jobId)
+}
+
+function jobStorageKey(side: 'obverse' | 'reverse') {
+  return `aiJob:analysis:${props.coinId}:${side}`
+}
+
+function formatStatus(status: string) {
+  const normalized = status.toLowerCase()
+  if (normalized === 'queued' || normalized === 'pending') return 'queued'
+  if (normalized === 'running' || normalized === 'processing') return 'in progress'
+  return normalized
+}
+
+function capitalize(value: string) {
+  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`
 }
 </script>
 
@@ -197,8 +360,14 @@ async function handleDeleteAnalysis(side: 'obverse' | 'reverse') {
 
 .ai-unavailable {
   font-size: 0.85rem;
-  color: #e67e22;
+  color: var(--accent-bronze);
   font-style: italic;
+  margin-bottom: 0.5rem;
+}
+
+.ai-job-status {
+  font-size: 0.85rem;
+  color: var(--accent-gold);
   margin-bottom: 0.5rem;
 }
 </style>

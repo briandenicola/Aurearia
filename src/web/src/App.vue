@@ -163,6 +163,7 @@
     </div>
 
     <AppDialog />
+    <AppToasts />
     <PwaInstallPrompt />
   </div>
 </template>
@@ -178,6 +179,7 @@ import { useBulkSelect } from '@/composables/useBulkSelect'
 import { usePwa } from '@/composables/usePwa'
 import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import AppDialog from '@/components/AppDialog.vue'
+import AppToasts from '@/components/AppToasts.vue'
 import PwaInstallPrompt from '@/components/PwaInstallPrompt.vue'
 import Sortable from 'sortablejs'
 
