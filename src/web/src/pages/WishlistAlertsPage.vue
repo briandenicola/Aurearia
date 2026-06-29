@@ -21,7 +21,7 @@
       <button class="btn btn-primary" type="button" @click="startCreate"><Search :size="16" /> Create Search Alert</button>
     </div>
 
-    <div v-else class="alerts-layout">
+    <div v-else class="alerts-layout" :class="{ 'has-selection': selectedAlert }">
       <aside class="alerts-list" aria-label="Search alerts">
         <article v-for="alert in alerts" :key="alert.id" class="alert-card" :class="{ selected: selectedAlert?.id === alert.id }">
           <button class="select-alert" type="button" @click="selectAlert(alert)">
@@ -37,8 +37,8 @@
         </article>
       </aside>
 
-      <main class="review-panel">
-        <section v-if="selectedAlert" class="selected-summary">
+      <main v-if="selectedAlert" class="review-panel">
+        <section class="selected-summary">
           <div>
             <p class="section-label">Selected alert</p>
             <h2>{{ selectedAlert.name }}</h2>
@@ -48,11 +48,10 @@
             <Play :size="16" /> {{ running ? 'Running...' : 'Run Now' }}
           </button>
         </section>
-        <p v-if="selectedAlert && !selectedAlert.isActive" class="message">Enable this search alert before running discovery.</p>
+        <p v-if="!selectedAlert.isActive" class="message">Enable this search alert before running discovery.</p>
         <p v-if="runMessage" class="message">{{ runMessage }}</p>
 
         <AlertRunHistory
-          v-if="selectedAlert"
           :runs="runs"
           :selected-run="selectedRun"
           :selected-run-id="selectedRun?.id ?? null"
@@ -62,7 +61,7 @@
           @refresh="loadRuns"
         />
 
-        <section v-if="selectedAlert" class="candidate-section">
+        <section class="candidate-section">
           <div class="section-header">
             <div>
               <h3>Candidate review</h3>
@@ -174,9 +173,9 @@ async function load() {
   try {
     const res = await listWishlistSearchAlerts({ page: 1, limit: 100 })
     alerts.value = res.data.alerts
-    if (!selectedAlertId.value && alerts.value[0]) selectedAlertId.value = alerts.value[0].id
-    if (selectedAlertId.value && !alerts.value.some((alert) => alert.id === selectedAlertId.value)) selectedAlertId.value = alerts.value[0]?.id ?? null
+    if (selectedAlertId.value && !alerts.value.some((alert) => alert.id === selectedAlertId.value)) clearSelection()
     if (selectedAlertId.value) await loadSelectedData()
+    else clearReviewState()
   } catch (err) {
     error.value = getApiErrorMessage(err) || 'Failed to load search alerts.'
   } finally {
@@ -193,10 +192,24 @@ function edit(alert: WishlistSearchAlert) { editing.value = alert; creating.valu
 function closeEditor() { creating.value = false; editing.value = null }
 function noop() {}
 
+function clearReviewState() {
+  selectedRun.value = null
+  runs.value = []
+  runsError.value = ''
+  candidates.value = []
+  candidatesError.value = ''
+  duplicateWarnings.value = {}
+  runMessage.value = ''
+}
+
+function clearSelection() {
+  selectedAlertId.value = null
+  clearReviewState()
+}
+
 async function selectAlert(alert: WishlistSearchAlert) {
   selectedAlertId.value = alert.id
-  selectedRun.value = null
-  duplicateWarnings.value = {}
+  clearReviewState()
   await loadSelectedData()
 }
 
@@ -228,6 +241,7 @@ async function toggle(alert: WishlistSearchAlert) {
 async function remove(alert: WishlistSearchAlert) {
   if (!confirm(`Delete search alert "${alert.name}"?`)) return
   await deleteWishlistSearchAlert(alert.id)
+  if (selectedAlertId.value === alert.id) clearSelection()
   await load()
 }
 
@@ -371,8 +385,9 @@ onMounted(load)
 
 <style scoped>
 .subtitle, .manual-copy, .message { color: var(--text-muted); margin: 0.25rem 0 0; }
-.alerts-layout { display: grid; grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.6fr); gap: 1rem; align-items: start; }
+.alerts-layout { display: grid; gap: 1rem; align-items: start; }
 .alerts-list, .review-panel, .candidate-section { display: grid; gap: 1rem; }
+.review-panel { border-top: 1px solid var(--border-accent); padding-top: 1rem; }
 .alert-card, .editor-panel, .selected-summary, .candidate-section, .criteria-adjustment { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-card); padding: 1rem; }
 .alert-card.selected { border-color: var(--accent-gold); box-shadow: var(--shadow-glow); }
 .select-alert { width: 100%; border: 0; background: transparent; color: inherit; padding: 0; text-align: left; cursor: pointer; }
@@ -386,5 +401,8 @@ onMounted(load)
 .editor-panel { margin-top: 1rem; }
 .page-error { color: var(--accent-bronze); }
 .section-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: 0; }
-@media (max-width: 900px) { .alerts-layout { grid-template-columns: 1fr; } }
+@media (min-width: 901px) {
+  .alerts-layout.has-selection { grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.6fr); }
+  .review-panel { border-top: 0; border-left: 1px solid var(--border-accent); padding-top: 0; padding-left: 1rem; }
+}
 </style>
