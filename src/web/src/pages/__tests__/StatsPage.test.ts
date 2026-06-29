@@ -45,6 +45,8 @@ describe('StatsPage', () => {
 
     expect(wrapper.text()).toContain('Coins Owned')
     expect(wrapper.text()).toContain('On Wishlist')
+    expect(wrapper.text()).toContain('42')
+    expect(wrapper.text()).toContain('7')
 
     // Value detail block has moved to Value Details page
     expect(wrapper.text()).not.toContain('Value Summary')
@@ -57,5 +59,22 @@ describe('StatsPage', () => {
 
     expect(wrapper.text()).not.toContain('Open Mint Map')
     expect(wrapper.findAll('a[href^="/stats/"]')).toHaveLength(0)
+  })
+
+  it('renders stats from the normal stats store without querying quick-capture drafts', () => {
+    store.stats = stats
+
+    const wrapper = mount(StatsPage, {
+      global: {
+        stubs: {
+          PullToRefresh: { template: '<div><slot /></div>' },
+          StatsHeatMap: { template: '<div />', methods: { fetchDistribution: () => {} } },
+          StatsCoinFlowChart: { template: '<div />' },
+        },
+      },
+    })
+
+    expect(store.fetchStats).toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('Quick Capture Draft')
   })
 })

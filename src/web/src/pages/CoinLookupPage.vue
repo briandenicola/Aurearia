@@ -7,7 +7,7 @@
     <!-- Capture State -->
     <div v-if="state === 'capture'" class="lookup-capture">
       <p class="lookup-instructions card">
-        Take a photo of the coin or certification slab to identify it. Save only when you want to add the result to your wishlist.
+        Use the camera or upload an obverse image to start a quick AI draft. Reverse and slab detail photos are optional, but improve attribution and NGC number capture.
       </p>
 
       <div class="camera-first-card">
@@ -58,6 +58,7 @@
       <!-- Image preview grid -->
       <div v-if="capturedImages.length > 0" class="captured-images">
         <div v-for="(img, idx) in capturedImages" :key="idx" class="captured-image-card">
+          <span class="image-type-chip">{{ imageTypeLabel(idx) }}</span>
           <img :src="img.preview" alt="Captured coin" />
           <button class="remove-image-btn" @click="removeImage(idx)" title="Remove">
             <X :size="16" />
@@ -82,7 +83,7 @@
       >
         <span v-if="submitting" class="spinner-sm"></span>
         <Search v-else :size="20" />
-        {{ submitting ? 'Analyzing...' : 'Analyze Coin' }}
+        {{ submitting ? 'Analyzing...' : 'Create Quick AI Draft' }}
       </button>
     </div>
 
@@ -92,7 +93,7 @@
         <div class="spinner"></div>
       </div>
       <h3>Analyzing Images...</h3>
-      <p>Extracting coin details and searching for matches</p>
+      <p>Extracting minimum draft details and checking for visible NGC data</p>
     </div>
 
     <!-- Results State -->
@@ -138,6 +139,10 @@
               <ShieldCheck :size="20" />
               <span>NGC Certification: {{ ngcCertNumber }}</span>
             </div>
+            <label class="form-group">
+              <span class="section-label">NGC Coin Number</span>
+              <input v-model="ngcForm.certNumber" class="input" type="text">
+            </label>
             <SafeExternalLink
               :href="ngcLookupUrl"
               class="btn btn-secondary btn-sm"
@@ -179,7 +184,7 @@
         </div>
 
         <!-- Non-NGC Path (editable review form) -->
-        <form v-else class="result-section card" @submit.prevent="handleSaveToWishlist">
+        <form v-else class="result-section card" @submit.prevent="handleSaveAsDraft">
           <h3>Review Coin Details</h3>
 
           <div class="review-grid">
@@ -241,22 +246,21 @@
             <X :size="16" />
             Cancel
           </button>
-          <button class="btn btn-primary" :disabled="saving" @click="handleSaveToWishlist">
+          <button class="btn btn-primary" :disabled="saving" @click="handleSaveAsDraft">
             <span v-if="saving" class="spinner-sm"></span>
             <Bookmark v-else :size="16" />
-            {{ saving ? 'Saving...' : 'Save to Wishlist' }}
+            {{ saving ? 'Saving...' : 'Save as Draft' }}
           </button>
         </div>
       </div>
     </div>
-
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { createCoin, createCoinReference, createIntakeDraft, lookupCoin, uploadImage } from '@/api/client'
+import { createQuickCaptureDraft, lookupCoin } from '@/api/client'
 import type { CoinLookupResponse, CoinMutationPayload } from '@/types'
 import {
   Camera,
@@ -299,11 +303,20 @@ const reviewForm = reactive<CoinMutationPayload>({
   notes: '',
 })
 
+const ngcForm = reactive({
+  certNumber: '',
+  lookupUrl: '',
+  grade: '',
+  labelText: '',
+  confidence: '',
+})
+
 const ngcCertNumber = computed(() => {
-  return results.value?.extractedData.ngc?.normalizedCert ?? null
+  return ngcForm.certNumber || results.value?.extractedData.ngc?.normalizedCert || null
 })
 
 const ngcLookupUrl = computed(() => {
+  if (ngcForm.lookupUrl) return ngcForm.lookupUrl
   if (results.value?.extractedData.ngc?.lookupURL) return results.value.extractedData.ngc.lookupURL
   if (!ngcCertNumber.value) return ''
   const compactCert = ngcCertNumber.value.replace(/\D/g, '')
@@ -335,6 +348,14 @@ function applyDraftToReviewForm(prefilled: CoinMutationPayload) {
     reverseDescription: prefilled.reverseDescription || '',
     notes: prefilled.notes || prefilled.aiAnalysis || '',
   })
+}
+
+function applyLookupMetadata(lookup: CoinLookupResponse) {
+  ngcForm.certNumber = lookup.extractedData.ngc?.normalizedCert ?? lookup.extractedData.ngc?.certNumber ?? ''
+  ngcForm.lookupUrl = lookup.extractedData.ngc?.lookupURL ?? ''
+  ngcForm.grade = lookup.extractedData.ngc?.grade ?? ''
+  ngcForm.labelText = lookup.extractedData.labelText ?? ''
+  ngcForm.confidence = lookup.extractedData.confidence ?? ''
 }
 
 async function startCamera() {
@@ -390,6 +411,12 @@ function stopCamera() {
 function addCapturedFile(file: File) {
   const preview = URL.createObjectURL(file)
   capturedImages.value.push({ file, preview })
+}
+
+function imageTypeLabel(index: number) {
+  if (index === 0) return 'Obverse'
+  if (index === 1) return 'Reverse optional'
+  return 'Detail'
 }
 
 function computeCoverCropRect(
@@ -491,17 +518,8 @@ async function handleSubmit() {
     const files = capturedImages.value.map(img => img.file)
     const lookup = await lookupCoin(files)
     results.value = lookup.data
-
-    if (lookup.data.extractedData.ngc) {
-      applyDraftToReviewForm(lookup.data.prefilledDraft ?? {})
-    } else {
-      const intake = await createIntakeDraft(files)
-      results.value = {
-        ...lookup.data,
-        prefilledDraft: intake.data.coin,
-      }
-      applyDraftToReviewForm(intake.data.coin)
-    }
+    applyLookupMetadata(lookup.data)
+    applyDraftToReviewForm(lookup.data.prefilledDraft ?? {})
 
     state.value = 'results'
   } catch (err: unknown) {
@@ -521,6 +539,13 @@ function handleRetake() {
   capturedImages.value = []
   results.value = null
   error.value = ''
+  Object.assign(ngcForm, {
+    certNumber: '',
+    lookupUrl: '',
+    grade: '',
+    labelText: '',
+    confidence: '',
+  })
 
   applyDraftToReviewForm({})
 
@@ -532,41 +557,37 @@ function handleCancel() {
   router.back()
 }
 
-async function createWishlistCoinFromLookup() {
-  if (!results.value) return
-
-  const payload: CoinMutationPayload = {
-    ...reviewForm,
-    name: reviewForm.name || 'Untitled Coin',
-    category: reviewForm.category || 'Other',
-    material: reviewForm.material || 'Other',
-    era: normalizedEra(reviewForm.era),
-    isWishlist: true,
-  }
-  const created = await createCoin(payload)
-  const coinId = created.data.id
-
-  for (let index = 0; index < capturedImages.value.length; index += 1) {
-    const image = capturedImages.value[index]?.file
-    if (!image) continue
-    const imageType = index === 0 ? 'obverse' : index === 1 ? 'reverse' : 'detail'
-    await uploadImage(coinId, image, imageType, index === 0, false)
-  }
-
-  for (const reference of results.value.candidateReferences ?? []) {
-    await createCoinReference(coinId, reference)
-  }
+function buildDraftNotes() {
+  const parts = [
+    reviewForm.obverseDescription ? `Obverse: ${reviewForm.obverseDescription}` : '',
+    reviewForm.reverseDescription ? `Reverse: ${reviewForm.reverseDescription}` : '',
+    reviewForm.notes ?? '',
+  ].filter(Boolean)
+  return parts.join('\n\n')
 }
 
-async function handleSaveToWishlist() {
+async function handleSaveAsDraft() {
   if (saving.value) return
   saving.value = true
   try {
-    await createWishlistCoinFromLookup()
-    router.push('/wishlist')
+    const draft = await createQuickCaptureDraft({
+      workingTitle: reviewForm.name || 'Unidentified Coin',
+      era: normalizedEra(reviewForm.era),
+      notes: buildDraftNotes(),
+      source: 'find_coin_ai',
+      ngcCertNumber: ngcForm.certNumber,
+      ngcLookupUrl: ngcLookupUrl.value,
+      ngcGrade: ngcForm.grade || reviewForm.grade,
+      labelText: ngcForm.labelText,
+      aiConfidence: ngcForm.confidence,
+      obverseImage: capturedImages.value[0]?.file ?? null,
+      reverseImage: capturedImages.value[1]?.file ?? null,
+      detailImages: capturedImages.value.slice(2).map(img => img.file),
+    })
+    router.push(`/quick-capture/drafts/${draft.data.id}`)
   } catch (err: unknown) {
-    console.error('Failed to save to wishlist:', err)
-    error.value = err instanceof Error ? err.message : 'Failed to save to wishlist'
+    console.error('Failed to save draft:', err)
+    error.value = err instanceof Error ? err.message : 'Failed to save draft'
   } finally {
     saving.value = false
   }
@@ -765,12 +786,26 @@ onBeforeUnmount(() => {
   aspect-ratio: 1;
   overflow: hidden;
   border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
 }
 
 .captured-image-card img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.image-type-chip {
+  position: absolute;
+  left: 0.5rem;
+  top: 0.5rem;
+  z-index: 1;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
 }
 
 .remove-image-btn {

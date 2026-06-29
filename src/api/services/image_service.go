@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -27,6 +28,8 @@ var (
 	ErrMediaNotFound     = errors.New("media not found")
 )
 
+const MaxImageUploadBytes = 20 * 1024 * 1024
+
 // ImageService handles image upload orchestration and file management.
 type ImageService struct {
 	repo      *repository.ImageRepository
@@ -43,11 +46,11 @@ func (s *ImageService) UploadImage(coinID, userID uint, fileData []byte, ext str
 	if _, err := s.repo.FindCoinByOwner(coinID, userID); err != nil {
 		return nil, ErrCoinNotFound
 	}
-	safeExt, err := normalizeImageExt(ext)
+	safeExt, err := NormalizeImageExt(ext)
 	if err != nil {
 		return nil, err
 	}
-	safeImageType, err := normalizeImageType(imageType)
+	safeImageType, err := NormalizeImageType(imageType)
 	if err != nil {
 		return nil, err
 	}
@@ -101,8 +104,7 @@ func (s *ImageService) UploadBase64Image(coinID, userID uint, base64Data string,
 		}
 	}
 
-	const maxSize = 20 * 1024 * 1024
-	if len(decoded) > maxSize {
+	if len(decoded) > MaxImageUploadBytes {
 		return nil, ErrImageTooLarge
 	}
 
@@ -113,7 +115,7 @@ func (s *ImageService) UploadBase64Image(coinID, userID uint, base64Data string,
 	return s.UploadImage(coinID, userID, decoded, ext, imageType, isPrimary)
 }
 
-func normalizeImageType(imageType string) (models.ImageType, error) {
+func NormalizeImageType(imageType string) (models.ImageType, error) {
 	switch strings.ToLower(strings.TrimSpace(imageType)) {
 	case string(models.ImageTypeObverse):
 		return models.ImageTypeObverse, nil
@@ -128,7 +130,7 @@ func normalizeImageType(imageType string) (models.ImageType, error) {
 	}
 }
 
-func normalizeImageExt(ext string) (string, error) {
+func NormalizeImageExt(ext string) (string, error) {
 	normalized := strings.ToLower(strings.TrimSpace(ext))
 	if !strings.HasPrefix(normalized, ".") {
 		normalized = "." + normalized
@@ -139,6 +141,22 @@ func normalizeImageExt(ext string) (string, error) {
 		return normalized, nil
 	default:
 		return "", ErrInvalidFileExt
+	}
+}
+
+func ValidateImageData(fileData []byte) error {
+	if len(fileData) == 0 {
+		return ErrInvalidFileExt
+	}
+	if len(fileData) > MaxImageUploadBytes {
+		return ErrImageTooLarge
+	}
+	contentType := http.DetectContentType(fileData)
+	switch contentType {
+	case "image/jpeg", "image/png", "image/gif", "image/webp":
+		return nil
+	default:
+		return ErrInvalidFileExt
 	}
 }
 
@@ -171,6 +189,13 @@ func (s *ImageService) ResolveAuthorizedMediaPath(rawPath string, viewerID uint)
 
 	if media, err := s.repo.FindCoinImageMediaByPath(relPath); err == nil {
 		if !s.canViewCoinImage(media, viewerID) {
+			return "", ErrMediaNotFound
+		}
+		return s.safeExistingUploadPath(relPath)
+	}
+
+	if media, err := s.repo.FindDraftImageMediaByPath(relPath); err == nil {
+		if media.UserID != viewerID {
 			return "", ErrMediaNotFound
 		}
 		return s.safeExistingUploadPath(relPath)

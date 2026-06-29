@@ -26,6 +26,9 @@ func setupHealthHandlerTestDB(t *testing.T) *gorm.DB {
 		&models.Coin{},
 		&models.CoinImage{},
 		&models.CollectionHealthSnapshot{},
+		&models.QuickCaptureDraft{},
+		&models.QuickCaptureDraftImage{},
+		&models.DraftLifecycleEvent{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)
@@ -99,6 +102,59 @@ func TestHealthHandler_CollectionSummary_Success(t *testing.T) {
 	}
 	if resp.Trend30D.Status == "" {
 		t.Error("expected trend30d status to be set")
+	}
+}
+
+func TestHealthHandler_CollectionSummary_QuickCaptureDraftExcludedUntilPromotion(t *testing.T) {
+	router, db, userID := setupHealthHandlerRouter(t)
+
+	active := models.Coin{Name: "Active", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: userID}
+	if err := db.Create(&active).Error; err != nil {
+		t.Fatalf("seed active coin: %v", err)
+	}
+	draft := models.QuickCaptureDraft{UserID: userID, WorkingTitle: "Draft excluded from health", Status: models.QuickCaptureDraftStatusActive}
+	if err := db.Create(&draft).Error; err != nil {
+		t.Fatalf("seed draft: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/stats/health", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var before services.CollectionHealthSummary
+	if err := json.Unmarshal(w.Body.Bytes(), &before); err != nil {
+		t.Fatalf("parse before response: %v", err)
+	}
+	if before.EligibleCoinCount != 1 {
+		t.Fatalf("draft should not affect health eligible count, got %d", before.EligibleCoinCount)
+	}
+
+	promoted := models.Coin{Name: "Promoted Quick Capture coin", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: userID}
+	if err := db.Create(&promoted).Error; err != nil {
+		t.Fatalf("seed promoted coin: %v", err)
+	}
+	promotedID := promoted.ID
+	if err := db.Model(&draft).Updates(map[string]interface{}{
+		"status":           models.QuickCaptureDraftStatusPromoted,
+		"promoted_coin_id": promotedID,
+	}).Error; err != nil {
+		t.Fatalf("mark draft promoted: %v", err)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/stats/health", nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 after promotion, got %d: %s", w.Code, w.Body.String())
+	}
+	var after services.CollectionHealthSummary
+	if err := json.Unmarshal(w.Body.Bytes(), &after); err != nil {
+		t.Fatalf("parse after response: %v", err)
+	}
+	if after.EligibleCoinCount != 2 {
+		t.Fatalf("promoted Quick Capture coin should affect health eligible count once, got %d", after.EligibleCoinCount)
 	}
 }
 

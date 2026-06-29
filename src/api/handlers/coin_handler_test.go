@@ -38,6 +38,7 @@ func setupCoinHandlerTestDB(t *testing.T) *gorm.DB {
 		&models.Tag{}, &models.CoinTag{},
 		&models.CoinSet{}, &models.CoinSetMembership{},
 		&models.Showcase{}, &models.ShowcaseCoin{},
+		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)
@@ -112,6 +113,63 @@ func setupCoinHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	protected.DELETE("/coins/:id", handler.Delete)
 
 	return r, db
+}
+
+func TestCoinHandler_Update_PromotedQuickCaptureCoinUsesExistingEditContract(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "promoted-editor")
+
+	coin := models.Coin{
+		Name:       "Quick Capture promoted coin",
+		Category:   models.CategoryRoman,
+		Material:   models.MaterialSilver,
+		Era:        models.EraAncient,
+		UserID:     1,
+		Notes:      "Promoted from Quick Capture",
+		IsWishlist: false,
+		IsSold:     false,
+	}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("create promoted coin: %v", err)
+	}
+	promotedCoinID := coin.ID
+	promotedAt := time.Now()
+	if err := db.Create(&models.QuickCaptureDraft{
+		UserID:         1,
+		WorkingTitle:   "Quick Capture promoted coin",
+		Status:         models.QuickCaptureDraftStatusPromoted,
+		PromotedCoinID: &promotedCoinID,
+		PromotedAt:     &promotedAt,
+	}).Error; err != nil {
+		t.Fatalf("create linked promoted draft: %v", err)
+	}
+
+	payload := map[string]interface{}{
+		"name":     "Edited promoted coin",
+		"notes":    "Existing edit flow works after promotion",
+		"era":      string(models.EraAncient),
+		"category": string(models.CategoryGreek),
+		"material": string(models.MaterialBronze),
+	}
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected promoted coin edit to use normal 200 contract, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp models.Coin
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode edited coin: %v", err)
+	}
+	if resp.Name != "Edited promoted coin" || resp.Notes != "Existing edit flow works after promotion" {
+		t.Fatalf("promoted coin edit did not persist normal fields: %+v", resp)
+	}
+	if resp.IsWishlist || resp.IsSold {
+		t.Fatalf("Quick Capture v1 promoted coin should remain active collection coin, got wishlist=%v sold=%v", resp.IsWishlist, resp.IsSold)
+	}
 }
 
 func createTestUser(t *testing.T, db *gorm.DB, id uint, username string) {

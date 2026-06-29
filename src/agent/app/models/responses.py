@@ -2,7 +2,13 @@
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+
+class StrictResponseModel(BaseModel):
+    """Base response model with contract drift detection."""
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class CandidateReference(BaseModel):
@@ -80,6 +86,37 @@ class AvailabilityCheckResponse(BaseModel):
     """Response from the availability check endpoint."""
 
     results: list[AvailabilityVerdict] = []
+
+
+# Wishlist search alert discovery DTOs.
+# Contract anchor: specs/337-wishlist-search-alerts/contracts/agent-discovery-contract.md
+class AlertDiscoveryProvenance(StrictResponseModel):
+    field: Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    value: Annotated[str, StringConstraints(min_length=1, max_length=4000)]
+    source_url: Annotated[str, StringConstraints(min_length=1, max_length=2048)]
+    observed_at: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    confidence: Literal["high", "medium", "low"]
+    verification_state: Literal["verified", "partial", "unverified"]
+    notes: Annotated[str, StringConstraints(max_length=1000)] = ""
+
+
+class AlertDiscoveryCandidate(StrictResponseModel):
+    source_url: Annotated[str, StringConstraints(min_length=1, max_length=2048)]
+    source_name: Annotated[str, StringConstraints(max_length=500)] = ""
+    title: Annotated[str, StringConstraints(min_length=1, max_length=500)]
+    observed_price: float | None = Field(default=None, ge=0)
+    observed_currency: Annotated[str, StringConstraints(max_length=3)] = ""
+    reason_for_match: Annotated[str, StringConstraints(min_length=1, max_length=4000)]
+    last_seen_at: Annotated[str, StringConstraints(min_length=1, max_length=64)]
+    provenance_status: Literal["verified", "partial", "unverified"]
+    fields: dict[str, str] = Field(default_factory=dict, max_length=50)
+    provenance: list[AlertDiscoveryProvenance] = Field(default_factory=list, min_length=1)
+
+
+class AlertDiscoveryResponse(StrictResponseModel):
+    candidates: list[AlertDiscoveryCandidate] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    partial: bool = False
 
 
 class IntakeConfidenceSummary(BaseModel):

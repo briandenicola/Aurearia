@@ -11,6 +11,9 @@ import (
 // StringList stores a JSON array of strings in SQLite.
 type StringList []string
 
+// StringMap stores a JSON object of strings in SQLite.
+type StringMap map[string]string
+
 // Value serializes the string list for database storage.
 func (s StringList) Value() (driver.Value, error) {
 	if s == nil {
@@ -51,6 +54,49 @@ func (s *StringList) Scan(value interface{}) error {
 		return err
 	}
 	*s = StringList(values)
+	return nil
+}
+
+// Value serializes the string map for database storage.
+func (s StringMap) Value() (driver.Value, error) {
+	if s == nil {
+		return "{}", nil
+	}
+	data, err := json.Marshal(map[string]string(s))
+	if err != nil {
+		return nil, err
+	}
+	return string(data), nil
+}
+
+// Scan deserializes a string map from database storage.
+func (s *StringMap) Scan(value interface{}) error {
+	if value == nil {
+		*s = StringMap{}
+		return nil
+	}
+
+	var data []byte
+	switch v := value.(type) {
+	case []byte:
+		data = v
+	case string:
+		data = []byte(v)
+	default:
+		*s = StringMap{}
+		return nil
+	}
+
+	if len(data) == 0 {
+		*s = StringMap{}
+		return nil
+	}
+
+	values := map[string]string{}
+	if err := json.Unmarshal(data, &values); err != nil {
+		return err
+	}
+	*s = StringMap(values)
 	return nil
 }
 

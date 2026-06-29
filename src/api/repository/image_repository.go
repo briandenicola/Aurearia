@@ -16,6 +16,11 @@ type CoinImageMediaAccess struct {
 	OwnerIsPublic  bool
 }
 
+type DraftImageMediaAccess struct {
+	FilePath string
+	UserID   uint
+}
+
 // ImageRepository encapsulates all image-related database operations.
 type ImageRepository struct {
 	db *gorm.DB
@@ -83,6 +88,22 @@ func (r *ImageRepository) FindAvatarOwnerByPath(filePath string) (*models.User, 
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (r *ImageRepository) FindDraftImageMediaByPath(filePath string) (*DraftImageMediaAccess, error) {
+	var media DraftImageMediaAccess
+	tx := r.db.Table("quick_capture_draft_images").
+		Select("file_path, user_id").
+		Where("file_path = ?", filePath).
+		Limit(1).
+		Scan(&media)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &media, nil
 }
 
 // IsAcceptedFollower checks whether followerID is accepted to view followingID's collection.

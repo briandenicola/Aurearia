@@ -8,6 +8,9 @@
           <span v-if="checking" class="spinner-sm"></span>
           <ShieldCheck v-else :size="22" />
         </button>
+        <router-link v-if="store.coins.length" to="/wishlist/search-alerts" class="pwa-icon-btn" title="Add Wish List Finder Agent" aria-label="Add Wish List Finder Agent">
+          <CalendarClock :size="22" />
+        </router-link>
         <router-link to="/lookup" class="pwa-icon-btn" title="Identify Coin">
           <CirclePlus :size="22" />
         </router-link>
@@ -23,6 +26,9 @@
           <ShieldCheck v-else :size="16" />
           {{ checking ? 'Checking...' : 'Check Availability' }}
         </button>
+        <router-link v-if="store.coins.length" to="/wishlist/search-alerts" class="pwa-icon-btn" title="Add Wish List Finder Agent" aria-label="Add Wish List Finder Agent">
+          <CalendarClock :size="22" />
+        </router-link>
         <router-link to="/lookup" class="btn btn-secondary"><CirclePlus :size="16" /> Identify Coin</router-link>
       </div>
     </div>
@@ -53,9 +59,14 @@
     <div v-else class="empty-state">
       <h3>Your wishlist is empty</h3>
       <p>Add coins to your wishlist to track what you're looking for</p>
-      <button class="btn btn-primary" @click="showChat = true" style="margin-top: 0.75rem">
-        <Bot :size="16" /> Search for Coins with AI
-      </button>
+      <div class="empty-actions">
+        <button class="btn btn-primary" @click="showChat = true">
+          <Bot :size="16" /> Search for Coins with AI
+        </button>
+        <router-link to="/wishlist/search-alerts" class="btn btn-secondary" title="Add Wish List Finder Agent">
+          <CalendarClock :size="16" /> Add Wish List Finder Agent
+        </router-link>
+      </div>
     </div>
 
     <div v-if="store.coins.length && store.total > pageSize" class="pagination">
@@ -83,7 +94,7 @@ import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import PurchaseModal from '@/components/PurchaseModal.vue'
 import { purchaseCoin, checkWishlistAvailability, updateListingStatus } from '@/api/client'
 import type { Coin, AvailabilityRunSummary } from '@/types'
-import { CirclePlus, Bot, ShieldCheck } from 'lucide-vue-next'
+import { CirclePlus, Bot, ShieldCheck, CalendarClock } from 'lucide-vue-next'
 import { usePwa } from '@/composables/usePwa'
 
 const store = useCoinsStore()
@@ -155,6 +166,14 @@ onBeforeUnmount(() => {
   gap: 0.75rem;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.empty-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
 }
 
 .spinner-sm {

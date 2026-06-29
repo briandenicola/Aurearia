@@ -93,7 +93,7 @@ function logLevelClass(level: string) {
   border-radius: var(--radius-sm);
   padding: 0.5rem;
   font-family: 'Courier New', Courier, monospace;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   line-height: 1.5;
 }
 

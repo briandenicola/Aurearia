@@ -11627,3 +11627,157 @@ These are narrow Dependabot version bumps, all individually clean and ready, and
 - §17 Quality Gate, §21 Definition of Done
 
 ---
+
+# Brutus #357 Validation Decision
+
+Date: 2026-06-29
+Feature: Wishlist Search Alerts (#357 / specs/337-wishlist-search-alerts)
+
+## Decision
+Alert Run Now responses must include populated candidate provenance in the returned candidate payload, not only in persisted `candidate_provenances` rows. This is required for US2/FR-009/FR-012 review screens and API consumers to prove source-backed results immediately after a manual run.
+
+## Evidence
+A focused regression initially failed because `AlertRunResult.Candidates[0].Provenance` was empty after creating a new candidate. The fix assigns created/replaced provenance back onto the returned candidate structs. Targeted Go service tests now pass and preserve duplicate suppression, duplicate-warning, conversion, and availability-separation behavior.
+
+## Validation
+- `go test .\services`
+- `go test . .\handlers .\repository .\models .\database`
+- `pytest tests/test_alert_discovery_contract.py tests/test_alert_discovery_route.py -v`
+- `npm.cmd run type-check -- --pretty false`
+- `npm.cmd run test -- src\pages\__tests__\WishlistPage.test.ts src\__tests__\AppNavigation.test.ts`
+- `npm.cmd run build -- --emptyOutDir=false`
+
+---
+
+# Maximus #357 Final Gate — BLOCK
+
+Date: 2026-06-29
+Spec: specs/337-wishlist-search-alerts
+Constitution: Principle I, Principle V, Principle IX, §17, §21
+
+Decision: Do not merge #357 to beta yet.
+
+Blockers:
+1. Candidate conversion bypasses the normal CoinService creation path. `WishlistSearchAlertService.ConvertCandidate` accepts a client-supplied `models.Coin`, sets a few fields, and calls `WishlistSearchAlertRepository.ConvertCandidateToWishlist`, which directly `tx.Create(coin)`. This skips `CoinService.CreateCoin` validation such as storage-location ownership and configured coin-era validation.
+2. Merge quality gate is incomplete for touched agent and repository-wide surfaces: Python lint/tests, repository-level validation, manual quickstart validation, secret/error review, and final architecture review remain unchecked in tasks.md.
+
+Fix owner: Cassius should fix the Go conversion path and Brutus should verify the quality-gate closure. The original implementer should not self-clear this block.
+
+---
+
+## Decision: #357 Wishlist Search Alerts Final Gate Cleared
+
+**Date:** 2026-06-29  
+**Agent:** Scribe  
+**Status:** CLEARED FOR COMPLETION REVIEW
+
+### Context
+
+The #357 completion/review batch closed the implementation and blocker-remediation cycle for `specs/337-wishlist-search-alerts` on branch `feature/357-wishlist-search-alerts`.
+
+### Closure Summary
+
+- Repository-managed soft delete preserves alert history.
+- Candidate conversion uses source-backed persisted candidate fields for prefill.
+- Candidate persistence failures no longer return success-shaped run results.
+- Manual Run Now acquisition is owned by a repository transaction.
+- Alert discovery fetches are constrained to trusted dealer allowlist; an empty allowlist blocks all fetch URLs.
+- Brutus validation, Maximus architecture review, drift code review, SSRF security review, and the final full gate passed.
+
+### Constitution Alignment
+
+- Principle I (layered architecture and repository-owned transactions)
+- Principle V (trusted-source SSRF controls and privacy)
+- Principle IX, §17, §21 (automated enforcement and Definition of Done)
+
+---
+
+## Decision: Unified Quick Capture with Camera and NGC Support
+
+**Date:** 2026-06-29
+**Agent:** Squad
+**Status:** IMPLEMENTED
+
+### Context
+
+User directive: merged Quick Add / Find Coin flow should support camera capture, make reverse image optional, and capture the NGC coin number as a data point. Previously, Quick Add and Find Coin were separate flows. CoinLookupPage (from Find Coin) has become the unified entry point and now integrates with Quick Capture drafts, supporting structured NGC certification data.
+
+### Decision
+
+1. **Unified Flow:** CoinLookupPage serves as the single entry point for both quick lookup and immediate capture. Lookup results (coin details + AI analysis) are persisted as Quick Capture drafts instead of wishlist coins.
+
+2. **Camera-First Image Capture:** Frontend supports camera input (device camera API) in addition to file upload. Images are captured in order: obverse first, reverse optional.
+
+3. **Optional Reverse Image:** Reverse image slot is now optional (previously implicit for 2-image coins). Slot labels mark reverse as optional.
+
+4. **NGC Certification Capture:** QuickCaptureDraft now stores:
+   - `source` (camera, upload, paste-OCR)
+   - `ngcNumber` (cert number)
+   - `ngcLookupNumber` (dealer-supplied lookup reference)
+   - `ngcGrade` (captured or OCR'd grade)
+   - `labelText` (OCR from label, if available)
+   - `aiConfidence` (AI model confidence metadata)
+
+5. **Quick Lookup Prompt:** Coin lookup AI prompt is now quick/minimum-detail focused (fast inference).
+
+### Implementation
+
+**Backend Changes (Go):**
+- `models/quick_capture_draft.go`: Extended QuickCaptureDraft model with source, NGC fields, label text, and AI confidence
+- `services/quick_capture_service.go`: New service for draft creation and persistence
+- `handlers/quick_capture_handler.go`: Endpoints for draft creation from AI results
+- `services/coin_lookup_service.go`: Refactored to return minimal coin summary + AI analysis
+- Created draft parsing and validation logic in service layer
+
+**Frontend Changes (Vue/TypeScript):**
+- `pages/CoinLookupPage.vue`: Unified entry point; saves lookup results as drafts instead of wishlist coins
+- `components/QuickCaptureCamera.vue`: New component supporting device camera API with obverse/reverse ordering
+- `components/QuickCaptureUpload.vue`: Enhanced to support optional reverse slot
+- `pages/QuickCapturePage.vue`: Display and edit draft cards, showing NGC metadata and AI results
+- NGC number field is editable in the UI
+- Navigate to created draft after lookup/AI analysis completes
+
+**Tests & Validation:**
+- ✅ Targeted Go quick capture tests: `go test -v ./services -run TestQuickCapture`
+- ✅ Full suite: `go test -v ./...`
+- ✅ Go linter: `go vet ./...`
+- ✅ TypeScript: `npm run type-check`
+- ✅ Targeted Vitest: Quick Capture component tests
+- ✅ Full Vite build: `npm run build`
+- ✅ Full npm test: `npm test -- --run`
+- ✅ Linter: `npm run lint` (exit 0 with pre-existing warnings only)
+
+### Rationale
+
+1. **Principle IV (Simple Complete Changes):** One unified entry point (CoinLookupPage) is simpler than maintaining two flows; camera support is additive without breaking uploads; NGC capture is a straightforward data field.
+2. **User Experience:** Camera-first for mobile users collecting coins; optional reverse reduces friction for single-sided analysis; NGC number capture aligns with real collection practices.
+3. **Data Completeness:** Structured NGC fields enable future validation (verify cert number against official databases), audit trails, and portfolio reporting.
+
+### Verification
+
+- ✅ Go architecture tests pass (layered imports, DI wiring)
+- ✅ Frontend builds without type errors (Vue strict mode)
+- ✅ All targeted and full test suites pass
+- ✅ Linter/vet clean
+- ✅ Session validation successful: specs, plan, drafts saved
+
+### Files Modified
+
+- `src/api/models/quick_capture_draft.go`
+- `src/api/services/quick_capture_service.go`
+- `src/api/services/coin_lookup_service.go`
+- `src/api/handlers/quick_capture_handler.go`
+- `src/web/src/pages/CoinLookupPage.vue`
+- `src/web/src/pages/QuickCapturePage.vue`
+- `src/web/src/components/QuickCaptureCamera.vue`
+- `src/web/src/components/QuickCaptureUpload.vue`
+- `specs/336-quick-capture/spec.md` (updated)
+- `specs/336-quick-capture/plan.md` (updated)
+
+### Alignment with Constitution
+
+- **Principle I (Clear Layered Architecture):** Service layer owns draft creation; repository owns persistence; handlers expose only necessary API surface
+- **Principle IV (Simple Complete Changes):** Unified flow, additive camera support, straightforward NGC data model
+- **Principle V (Security & Privacy):** Image data is user-owned; NGC capture is optional; no external API calls without user consent
+- **§17 Quality Gate:** Tests, vet, build, and manual validation all pass
+- **§21 Definition of Done:** Spec updated, implementation verified, all gates pass

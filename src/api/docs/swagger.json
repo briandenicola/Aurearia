@@ -8110,6 +8110,499 @@
                 }
             }
         },
+        "/quick-capture/drafts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lists owner-scoped Quick Capture drafts, defaulting to active drafts.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Capture"
+                ],
+                "summary": "List Quick Capture drafts",
+                "parameters": [
+                    {
+                        "enum": [
+                            "active",
+                            "promoted",
+                            "discarded"
+                        ],
+                        "type": "string",
+                        "description": "Draft status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.quickCaptureDraftListResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates an owner-scoped sparse draft with optional obverse/reverse/detail images.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Capture"
+                ],
+                "summary": "Create Quick Capture draft",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Working title",
+                        "name": "workingTitle",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Freeform date range",
+                        "name": "dateRange",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Era",
+                        "name": "era",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Acquisition source",
+                        "name": "acquisitionSource",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Purchase price",
+                        "name": "purchasePrice",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Notes",
+                        "name": "notes",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Draft source",
+                        "name": "source",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "NGC certification number",
+                        "name": "ngcCertNumber",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "NGC lookup URL",
+                        "name": "ngcLookupUrl",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "NGC grade",
+                        "name": "ngcGrade",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Visible label text",
+                        "name": "labelText",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "AI confidence",
+                        "name": "aiConfidence",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Obverse image",
+                        "name": "obverseImage",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Reverse image",
+                        "name": "reverseImage",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Detail images",
+                        "name": "detailImages",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.QuickCaptureDraft"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/quick-capture/drafts/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one owner-scoped Quick Capture draft with image metadata.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Capture"
+                ],
+                "summary": "Get Quick Capture draft",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Draft ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.QuickCaptureDraft"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates an active owner-scoped draft. Supports field changes and image replacement/removal.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Capture"
+                ],
+                "summary": "Update Quick Capture draft",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Draft ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Working title",
+                        "name": "workingTitle",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Notes",
+                        "name": "notes",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date range",
+                        "name": "dateRange",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Era",
+                        "name": "era",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Acquisition source",
+                        "name": "acquisitionSource",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Purchase price",
+                        "name": "purchasePrice",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Draft source",
+                        "name": "source",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "NGC certification number",
+                        "name": "ngcCertNumber",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "NGC lookup URL",
+                        "name": "ngcLookupUrl",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "NGC grade",
+                        "name": "ngcGrade",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Visible label text",
+                        "name": "labelText",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "AI confidence",
+                        "name": "aiConfidence",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated image IDs to remove",
+                        "name": "removeImageIds",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Replace existing obverse images",
+                        "name": "replaceObverse",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Replace existing reverse images",
+                        "name": "replaceReverse",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "New obverse image",
+                        "name": "obverseImage",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "New reverse image",
+                        "name": "reverseImage",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "New detail images",
+                        "name": "detailImages",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.QuickCaptureDraft"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/quick-capture/drafts/{id}/discard": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Marks an active owner-scoped draft as discarded. Idempotent for already-discarded drafts.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Capture"
+                ],
+                "summary": "Discard Quick Capture draft",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Draft ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.QuickCaptureDraft"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/quick-capture/drafts/{id}/promote": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Transactionally promotes a valid active draft into a normal Coin. Idempotent on repeat.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Capture"
+                ],
+                "summary": "Promote Quick Capture draft",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Draft ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Promotion request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.promoteDraftRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/references/migrate-legacy": {
             "post": {
                 "security": [
@@ -12309,6 +12802,769 @@
                     }
                 }
             }
+        },
+        "/wishlist/search-alerts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Lists acquisition discovery search alerts. This is separate from wishlist availability checking.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist Search Alerts"
+                ],
+                "summary": "List wishlist search alerts",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Filter by active state",
+                        "name": "active",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.WishlistSearchAlertListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a saved discovery alert without creating wishlist items or availability rows.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist Search Alerts"
+                ],
+                "summary": "Create wishlist search alert",
+                "parameters": [
+                    {
+                        "description": "Alert",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.WishlistSearchAlertRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.WishlistSearchAlert"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/wishlist/search-alerts/{alertId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Gets one acquisition discovery alert owned by the authenticated collector.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist Search Alerts"
+                ],
+                "summary": "Get wishlist search alert",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "alertId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.WishlistSearchAlert"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates saved discovery criteria/cadence/active metadata without changing availability state.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist Search Alerts"
+                ],
+                "summary": "Update wishlist search alert",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "alertId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Alert",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.WishlistSearchAlertRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.WishlistSearchAlert"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Soft-deletes a saved discovery alert while preserving history.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist Search Alerts"
+                ],
+                "summary": "Delete wishlist search alert",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "alertId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/wishlist/search-alerts/{alertId}/candidates": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist Search Alerts"
+                ],
+                "summary": "List wishlist search alert candidates",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "alertId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Candidate state",
+                        "name": "state",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provenance status",
+                        "name": "provenanceStatus",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.WishlistSearchAlertCandidateListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/wishlist/search-alerts/{alertId}/candidates/{candidateId}/convert": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist Search Alerts"
+                ],
+                "summary": "Convert wishlist search alert candidate",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "alertId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Candidate ID",
+                        "name": "candidateId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Convert request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.WishlistSearchAlertConvertRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.WishlistSearchAlertConvertResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/wishlist/search-alerts/{alertId}/candidates/{candidateId}/dismiss": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist Search Alerts"
+                ],
+                "summary": "Dismiss wishlist search alert candidate",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "alertId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Candidate ID",
+                        "name": "candidateId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Dismiss request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.WishlistSearchAlertDismissRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.AlertCandidate"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/wishlist/search-alerts/{alertId}/candidates/{candidateId}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist Search Alerts"
+                ],
+                "summary": "Restore wishlist search alert candidate",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "alertId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Candidate ID",
+                        "name": "candidateId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.AlertCandidate"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/wishlist/search-alerts/{alertId}/criteria-adjustments": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist Search Alerts"
+                ],
+                "summary": "Adjust wishlist search alert criteria",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "alertId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Criteria adjustment",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.WishlistSearchAlertCriteriaAdjustRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.WishlistSearchAlert"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/wishlist/search-alerts/{alertId}/run": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Manually runs a saved discovery alert and stores candidates separately from availability checks.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist Search Alerts"
+                ],
+                "summary": "Run wishlist search alert",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "alertId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Run request",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.WishlistSearchAlertRunRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.WishlistSearchAlertRunResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/wishlist/search-alerts/{alertId}/runs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist Search Alerts"
+                ],
+                "summary": "List wishlist search alert runs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "alertId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.WishlistSearchAlertRunListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/wishlist/search-alerts/{alertId}/runs/{runId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Wishlist Search Alerts"
+                ],
+                "summary": "Get wishlist search alert run",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "alertId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Run ID",
+                        "name": "runId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.AlertRun"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -13757,6 +15013,288 @@
                 }
             }
         },
+        "handlers.WishlistSearchAlertCandidateListResponse": {
+            "type": "object",
+            "properties": {
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.AlertCandidate"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "handlers.WishlistSearchAlertConvertRequest": {
+            "type": "object",
+            "properties": {
+                "acknowledgeDuplicateWarning": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "coin": {
+                    "$ref": "#/definitions/models.Coin"
+                }
+            }
+        },
+        "handlers.WishlistSearchAlertConvertResponse": {
+            "type": "object",
+            "properties": {
+                "candidate": {
+                    "$ref": "#/definitions/models.AlertCandidate"
+                },
+                "coin": {
+                    "$ref": "#/definitions/models.Coin"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handlers.WishlistSearchAlertCriteriaAdjustRequest": {
+            "type": "object",
+            "properties": {
+                "candidateIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "criteria": {
+                    "$ref": "#/definitions/handlers.WishlistSearchAlertCriteriaRequest"
+                }
+            }
+        },
+        "handlers.WishlistSearchAlertCriteriaRequest": {
+            "type": "object",
+            "properties": {
+                "coinType": {
+                    "type": "string",
+                    "example": "Denarius"
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "USD"
+                },
+                "dateFrom": {
+                    "type": "integer",
+                    "example": 81
+                },
+                "dateTo": {
+                    "type": "integer",
+                    "example": 96
+                },
+                "dealerPreference": {
+                    "type": "string",
+                    "example": "VCoins or MA-Shops"
+                },
+                "gradeOrCondition": {
+                    "type": "string",
+                    "example": "VF or better"
+                },
+                "keywords": {
+                    "type": "string",
+                    "example": "RIC Minerva"
+                },
+                "material": {
+                    "type": "string",
+                    "example": "Silver"
+                },
+                "mint": {
+                    "type": "string",
+                    "example": "Rome"
+                },
+                "notes": {
+                    "type": "string",
+                    "example": "Prefer clear legends"
+                },
+                "priceMax": {
+                    "type": "number",
+                    "example": 300
+                },
+                "priceMin": {
+                    "type": "number",
+                    "example": 0
+                },
+                "rulerOrIssuer": {
+                    "type": "string",
+                    "example": "Domitian"
+                },
+                "sourceFilters": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "vcoins.com",
+                        "ma-shops.com"
+                    ]
+                }
+            }
+        },
+        "handlers.WishlistSearchAlertDismissRequest": {
+            "type": "object",
+            "properties": {
+                "notes": {
+                    "type": "string",
+                    "example": "Too expensive with shipping"
+                },
+                "reason": {
+                    "type": "string",
+                    "example": "price_too_high"
+                }
+            }
+        },
+        "handlers.WishlistSearchAlertListResponse": {
+            "type": "object",
+            "properties": {
+                "alerts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.WishlistSearchAlert"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "handlers.WishlistSearchAlertRequest": {
+            "type": "object",
+            "properties": {
+                "cadence": {
+                    "type": "string",
+                    "example": "manual"
+                },
+                "criteria": {
+                    "$ref": "#/definitions/handlers.WishlistSearchAlertCriteriaRequest"
+                },
+                "isActive": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Domitian denarius under $300"
+                }
+            }
+        },
+        "handlers.WishlistSearchAlertRunListResponse": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "runs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.AlertRun"
+                    }
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "handlers.WishlistSearchAlertRunRequest": {
+            "type": "object",
+            "properties": {
+                "maxCandidates": {
+                    "type": "integer",
+                    "example": 20
+                }
+            }
+        },
+        "handlers.WishlistSearchAlertRunResponse": {
+            "type": "object",
+            "properties": {
+                "alertId": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.AlertCandidate"
+                    }
+                },
+                "completedAt": {
+                    "type": "string",
+                    "example": "2026-06-29T17:00:10Z"
+                },
+                "dismissedCount": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "duplicateCount": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "newCount": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "partialWarnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rateLimitStatus": {
+                    "type": "string",
+                    "example": "ok"
+                },
+                "resultCount": {
+                    "type": "integer",
+                    "example": 8
+                },
+                "runId": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "startedAt": {
+                    "type": "string",
+                    "example": "2026-06-29T17:00:00Z"
+                },
+                "status": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.AlertRunStatus"
+                        }
+                    ],
+                    "example": "completed"
+                }
+            }
+        },
         "handlers.base64ImageRequest": {
             "type": "object",
             "required": [
@@ -13970,6 +15508,60 @@
                 }
             }
         },
+        "handlers.promoteDraftRequest": {
+            "type": "object",
+            "properties": {
+                "confirm": {
+                    "type": "boolean"
+                },
+                "overrides": {
+                    "type": "object",
+                    "properties": {
+                        "category": {
+                            "type": "string"
+                        },
+                        "era": {
+                            "type": "string"
+                        },
+                        "material": {
+                            "type": "string"
+                        },
+                        "name": {
+                            "type": "string"
+                        },
+                        "notes": {
+                            "type": "string"
+                        },
+                        "purchaseLocation": {
+                            "type": "string"
+                        },
+                        "purchasePrice": {
+                            "type": "number"
+                        }
+                    }
+                }
+            }
+        },
+        "handlers.quickCaptureDraftListResponse": {
+            "type": "object",
+            "properties": {
+                "drafts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.QuickCaptureDraft"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "handlers.refreshRequest": {
             "type": "object",
             "required": [
@@ -14134,6 +15726,203 @@
                 }
             }
         },
+        "models.AlertCandidate": {
+            "type": "object",
+            "properties": {
+                "alertId": {
+                    "type": "integer"
+                },
+                "canonicalSourceUrl": {
+                    "type": "string"
+                },
+                "convertedCoinId": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "dismissalReason": {
+                    "type": "string"
+                },
+                "duplicateKey": {
+                    "type": "string"
+                },
+                "duplicateOfCandidateId": {
+                    "type": "integer"
+                },
+                "fields": {
+                    "$ref": "#/definitions/models.StringMap"
+                },
+                "firstSeenAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "lastSeenAt": {
+                    "type": "string"
+                },
+                "lifecycleState": {
+                    "$ref": "#/definitions/models.AlertCandidateState"
+                },
+                "matchingWishlistCoinId": {
+                    "type": "integer"
+                },
+                "normalizedTitle": {
+                    "type": "string"
+                },
+                "observedCurrency": {
+                    "type": "string"
+                },
+                "observedPrice": {
+                    "type": "number"
+                },
+                "provenance": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.CandidateProvenance"
+                    }
+                },
+                "provenanceStatus": {
+                    "$ref": "#/definitions/models.CandidateProvenanceStatus"
+                },
+                "reasonForMatch": {
+                    "type": "string"
+                },
+                "runId": {
+                    "type": "integer"
+                },
+                "sourceName": {
+                    "type": "string"
+                },
+                "sourceUrl": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.AlertCandidateState": {
+            "type": "string",
+            "enum": [
+                "active",
+                "dismissed",
+                "converted",
+                "suppressed",
+                "needs_review"
+            ],
+            "x-enum-varnames": [
+                "AlertCandidateStateActive",
+                "AlertCandidateStateDismissed",
+                "AlertCandidateStateConverted",
+                "AlertCandidateStateSuppressed",
+                "AlertCandidateStateNeedsReview"
+            ]
+        },
+        "models.AlertRun": {
+            "type": "object",
+            "properties": {
+                "alertId": {
+                    "type": "integer"
+                },
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.AlertCandidate"
+                    }
+                },
+                "completedAt": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "criteriaSnapshot": {
+                    "type": "string"
+                },
+                "dismissedCount": {
+                    "type": "integer"
+                },
+                "duplicateCount": {
+                    "type": "integer"
+                },
+                "durationMs": {
+                    "type": "integer"
+                },
+                "errorMessage": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "newCount": {
+                    "type": "integer"
+                },
+                "partialWarnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rateLimitStatus": {
+                    "type": "string"
+                },
+                "resultCount": {
+                    "type": "integer"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.AlertRunStatus"
+                },
+                "triggerType": {
+                    "$ref": "#/definitions/models.AlertRunTriggerType"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.AlertRunStatus": {
+            "type": "string",
+            "enum": [
+                "queued",
+                "running",
+                "completed",
+                "failed",
+                "partial",
+                "rate_limited",
+                "cancelled"
+            ],
+            "x-enum-varnames": [
+                "AlertRunStatusQueued",
+                "AlertRunStatusRunning",
+                "AlertRunStatusCompleted",
+                "AlertRunStatusFailed",
+                "AlertRunStatusPartial",
+                "AlertRunStatusRateLimited",
+                "AlertRunStatusCancelled"
+            ]
+        },
+        "models.AlertRunTriggerType": {
+            "type": "string",
+            "enum": [
+                "manual",
+                "scheduled"
+            ],
+            "x-enum-varnames": [
+                "AlertRunTriggerManual",
+                "AlertRunTriggerScheduled"
+            ]
+        },
         "models.ApiKey": {
             "type": "object",
             "properties": {
@@ -14293,6 +16082,51 @@
                 "AuctionStatusWon",
                 "AuctionStatusLost",
                 "AuctionStatusPassed"
+            ]
+        },
+        "models.CandidateProvenance": {
+            "type": "object",
+            "properties": {
+                "candidateId": {
+                    "type": "integer"
+                },
+                "confidence": {
+                    "type": "string"
+                },
+                "field": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "observedAt": {
+                    "type": "string"
+                },
+                "sourceUrl": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                },
+                "verificationState": {
+                    "$ref": "#/definitions/models.CandidateProvenanceStatus"
+                }
+            }
+        },
+        "models.CandidateProvenanceStatus": {
+            "type": "string",
+            "enum": [
+                "verified",
+                "partial",
+                "unverified"
+            ],
+            "x-enum-varnames": [
+                "CandidateProvenanceVerified",
+                "CandidateProvenancePartial",
+                "CandidateProvenanceUnverified"
             ]
         },
         "models.CatalogRegistry": {
@@ -14497,6 +16331,9 @@
                 },
                 "soldTo": {
                     "type": "string"
+                },
+                "sourceAlertCandidateId": {
+                    "type": "integer"
                 },
                 "storageLocation": {
                     "$ref": "#/definitions/models.StorageLocation"
@@ -14848,6 +16685,129 @@
                 "OIDCProviderTypeGeneric"
             ]
         },
+        "models.QuickCaptureDraft": {
+            "type": "object",
+            "properties": {
+                "acquisitionSource": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "aiConfidence": {
+                    "type": "string",
+                    "maxLength": 20
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "dateRange": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "discardedAt": {
+                    "type": "string"
+                },
+                "era": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "images": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.QuickCaptureDraftImage"
+                    }
+                },
+                "labelText": {
+                    "type": "string",
+                    "maxLength": 5000
+                },
+                "ngcCertNumber": {
+                    "type": "string",
+                    "maxLength": 32
+                },
+                "ngcGrade": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "ngcLookupUrl": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "notes": {
+                    "type": "string",
+                    "maxLength": 5000
+                },
+                "promotedAt": {
+                    "type": "string"
+                },
+                "promotedCoinId": {
+                    "type": "integer"
+                },
+                "purchasePrice": {
+                    "type": "number"
+                },
+                "source": {
+                    "type": "string",
+                    "maxLength": 40
+                },
+                "status": {
+                    "$ref": "#/definitions/models.QuickCaptureDraftStatus"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "integer"
+                },
+                "workingTitle": {
+                    "type": "string",
+                    "maxLength": 200
+                }
+            }
+        },
+        "models.QuickCaptureDraftImage": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "displayOrder": {
+                    "type": "integer"
+                },
+                "draftId": {
+                    "type": "integer"
+                },
+                "filePath": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "imageType": {
+                    "$ref": "#/definitions/models.ImageType"
+                },
+                "isPrimary": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.QuickCaptureDraftStatus": {
+            "type": "string",
+            "enum": [
+                "active",
+                "promoting",
+                "promoted",
+                "discarded"
+            ],
+            "x-enum-varnames": [
+                "QuickCaptureDraftStatusActive",
+                "QuickCaptureDraftStatusPromoting",
+                "QuickCaptureDraftStatusPromoted",
+                "QuickCaptureDraftStatusDiscarded"
+            ]
+        },
         "models.StorageLocation": {
             "type": "object",
             "properties": {
@@ -14869,6 +16829,12 @@
                 "userId": {
                     "type": "integer"
                 }
+            }
+        },
+        "models.StringMap": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
             }
         },
         "models.Tag": {
@@ -14948,6 +16914,95 @@
                 },
                 "signCount": {
                     "type": "integer"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.WishlistAlertCadence": {
+            "type": "string",
+            "enum": [
+                "manual",
+                "daily",
+                "weekly",
+                "monthly"
+            ],
+            "x-enum-varnames": [
+                "WishlistAlertCadenceManual",
+                "WishlistAlertCadenceDaily",
+                "WishlistAlertCadenceWeekly",
+                "WishlistAlertCadenceMonthly"
+            ]
+        },
+        "models.WishlistSearchAlert": {
+            "type": "object",
+            "properties": {
+                "cadence": {
+                    "$ref": "#/definitions/models.WishlistAlertCadence"
+                },
+                "coinType": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "dateFrom": {
+                    "type": "integer"
+                },
+                "dateTo": {
+                    "type": "integer"
+                },
+                "dealerPreference": {
+                    "type": "string"
+                },
+                "gradeOrCondition": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isActive": {
+                    "type": "boolean"
+                },
+                "keywords": {
+                    "type": "string"
+                },
+                "lastRunAt": {
+                    "type": "string"
+                },
+                "material": {
+                    "type": "string"
+                },
+                "mint": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "priceMax": {
+                    "type": "number"
+                },
+                "priceMin": {
+                    "type": "number"
+                },
+                "rulerOrIssuer": {
+                    "type": "string"
+                },
+                "sourceFilters": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updatedAt": {
+                    "type": "string"
                 },
                 "userId": {
                     "type": "integer"

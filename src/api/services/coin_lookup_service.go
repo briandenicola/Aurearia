@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// CoinLookupService handles coin lookup from images with NGC cert extraction and coin draft enrichment.
+// CoinLookupService handles quick coin lookup from images with NGC cert extraction and minimum draft enrichment.
 type CoinLookupService struct {
 	proxy       *AgentProxy
 	settingsSvc *SettingsService
@@ -95,7 +95,7 @@ var (
 	compactCertRegex  = regexp.MustCompile(`^\d{9,10}$`)
 )
 
-// Lookup performs coin lookup from images: extracts NGC certs first, then falls back to structured coin fields.
+// Lookup performs coin lookup from images: extracts NGC certs first, then falls back to minimum structured draft fields.
 func (s *CoinLookupService) Lookup(ctx context.Context, userID uint, req CoinLookupRequest) (*CoinLookupResponse, error) {
 	logger := s.logger
 	logger.Info("coin-lookup", "Starting lookup for user %d with %d images", userID, len(req.Images))
@@ -206,28 +206,24 @@ func (s *CoinLookupService) extractDataFromImages(ctx context.Context, images []
 	return extractedData, nil
 }
 
-// buildVisionPrompt creates a specialized prompt for coin lookup vision analysis.
+// buildVisionPrompt creates a specialized prompt for quick coin lookup vision analysis.
 func (s *CoinLookupService) buildVisionPrompt() string {
-	return `You are analyzing a coin or coin slab photo for lookup purposes. Extract:
+	return `You are analyzing a coin or coin slab photo for a quick capture draft. Be fast and conservative. Extract only details visible or strongly inferable from the image.
 
 1. NGC Certification: If this is an NGC slab/holder or the image shows an NGC certification number, extract the NGC certification number (format: XXXXXXX-XXX, e.g., 823160-093 or 1234567-001). Also extract the grade (e.g., "Ch AU", "NGC AU", etc.) and any description text on the label.
 
-2. Visible Text: Extract ALL visible text from the image (inscriptions, labels, holder text, etc.). Be thorough.
+2. Visible Text: Extract visible slab/label text and obvious coin inscriptions. Do not attempt a full transcription if unclear.
 
-3. Coin Attribution: If no NGC slab/cert is visible, analyze the raw coin image like the standard Add Coin image analysis and infer as many draft fields as possible:
+3. Minimum Coin Draft: Infer only the minimum useful draft fields:
    - Name/title (short collector-friendly attribution)
    - Ruler (e.g., "Augustus", "Constantine I", "Philip II")
-   - Mint if visible or confidently inferable
    - Era (ancient, medieval, or modern)
    - Denomination (e.g., "Denarius", "Tetradrachm", "Solidus")
    - Material (Gold, Silver, Bronze, Copper, Electrum, Other)
    - Category (Roman, Greek, Byzantine, Modern, Other)
-   - Obverse inscription
-   - Reverse inscription
-   - Obverse description
-   - Reverse description
-   - Weight in grams and diameter in mm only if visible in text
-   - Rarity rating or grade only if visible
+   - One short obverse description
+   - One short reverse description if a reverse image is present
+   - Grade only if visible on a slab/label
 
 Return your response in this EXACT JSON format (no markdown, no extra text):
 {
@@ -237,23 +233,23 @@ Return your response in this EXACT JSON format (no markdown, no extra text):
   "labelText": "all visible text here",
   "name": "short coin attribution or null",
   "ruler": "ruler name or null",
-  "mint": "mint name or null",
+  "mint": null,
   "era": "ancient/medieval/modern or null",
   "denomination": "denomination or null",
   "material": "material or null",
   "category": "category or null",
   "obverseInscription": "obverse legend or null",
   "reverseInscription": "reverse legend or null",
-  "obverseDescription": "obverse design or null",
-  "reverseDescription": "reverse design or null",
-  "weightGrams": number or null,
-  "diameterMm": number or null,
-  "rarityRating": "rarity text or null",
+  "obverseDescription": "short obverse design or null",
+  "reverseDescription": "short reverse design or null",
+  "weightGrams": null,
+  "diameterMm": null,
+  "rarityRating": null,
   "grade": "grade text or null",
   "confidence": "high/medium/low"
 }
 
-Be precise. If uncertain, use null. Prefer NGC cert extraction when a slab/cert is present; otherwise return the best standard coin image draft you can infer.`
+Be precise. If uncertain, use null. Do not include long history, market analysis, catalog references, or broad commentary. Prefer NGC cert extraction when a slab/cert is present; otherwise return the smallest useful draft.`
 }
 
 // extractNGCCert parses NGC certification data from analysis text.

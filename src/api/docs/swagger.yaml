@@ -986,6 +986,202 @@ definitions:
         example: 1250
         type: number
     type: object
+  handlers.WishlistSearchAlertCandidateListResponse:
+    properties:
+      candidates:
+        items:
+          $ref: '#/definitions/models.AlertCandidate'
+        type: array
+      limit:
+        example: 20
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 1
+        type: integer
+    type: object
+  handlers.WishlistSearchAlertConvertRequest:
+    properties:
+      acknowledgeDuplicateWarning:
+        example: false
+        type: boolean
+      coin:
+        $ref: '#/definitions/models.Coin'
+    type: object
+  handlers.WishlistSearchAlertConvertResponse:
+    properties:
+      candidate:
+        $ref: '#/definitions/models.AlertCandidate'
+      coin:
+        $ref: '#/definitions/models.Coin'
+      warnings:
+        items:
+          type: string
+        type: array
+    type: object
+  handlers.WishlistSearchAlertCriteriaAdjustRequest:
+    properties:
+      candidateIds:
+        items:
+          type: integer
+        type: array
+      criteria:
+        $ref: '#/definitions/handlers.WishlistSearchAlertCriteriaRequest'
+    type: object
+  handlers.WishlistSearchAlertCriteriaRequest:
+    properties:
+      coinType:
+        example: Denarius
+        type: string
+      currency:
+        example: USD
+        type: string
+      dateFrom:
+        example: 81
+        type: integer
+      dateTo:
+        example: 96
+        type: integer
+      dealerPreference:
+        example: VCoins or MA-Shops
+        type: string
+      gradeOrCondition:
+        example: VF or better
+        type: string
+      keywords:
+        example: RIC Minerva
+        type: string
+      material:
+        example: Silver
+        type: string
+      mint:
+        example: Rome
+        type: string
+      notes:
+        example: Prefer clear legends
+        type: string
+      priceMax:
+        example: 300
+        type: number
+      priceMin:
+        example: 0
+        type: number
+      rulerOrIssuer:
+        example: Domitian
+        type: string
+      sourceFilters:
+        example:
+        - vcoins.com
+        - ma-shops.com
+        items:
+          type: string
+        type: array
+    type: object
+  handlers.WishlistSearchAlertDismissRequest:
+    properties:
+      notes:
+        example: Too expensive with shipping
+        type: string
+      reason:
+        example: price_too_high
+        type: string
+    type: object
+  handlers.WishlistSearchAlertListResponse:
+    properties:
+      alerts:
+        items:
+          $ref: '#/definitions/models.WishlistSearchAlert'
+        type: array
+      limit:
+        example: 20
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 1
+        type: integer
+    type: object
+  handlers.WishlistSearchAlertRequest:
+    properties:
+      cadence:
+        example: manual
+        type: string
+      criteria:
+        $ref: '#/definitions/handlers.WishlistSearchAlertCriteriaRequest'
+      isActive:
+        example: true
+        type: boolean
+      name:
+        example: Domitian denarius under $300
+        type: string
+    type: object
+  handlers.WishlistSearchAlertRunListResponse:
+    properties:
+      limit:
+        example: 20
+        type: integer
+      page:
+        example: 1
+        type: integer
+      runs:
+        items:
+          $ref: '#/definitions/models.AlertRun'
+        type: array
+      total:
+        example: 1
+        type: integer
+    type: object
+  handlers.WishlistSearchAlertRunRequest:
+    properties:
+      maxCandidates:
+        example: 20
+        type: integer
+    type: object
+  handlers.WishlistSearchAlertRunResponse:
+    properties:
+      alertId:
+        example: 1
+        type: integer
+      candidates:
+        items:
+          $ref: '#/definitions/models.AlertCandidate'
+        type: array
+      completedAt:
+        example: "2026-06-29T17:00:10Z"
+        type: string
+      dismissedCount:
+        example: 0
+        type: integer
+      duplicateCount:
+        example: 3
+        type: integer
+      newCount:
+        example: 5
+        type: integer
+      partialWarnings:
+        items:
+          type: string
+        type: array
+      rateLimitStatus:
+        example: ok
+        type: string
+      resultCount:
+        example: 8
+        type: integer
+      runId:
+        example: 42
+        type: integer
+      startedAt:
+        example: "2026-06-29T17:00:00Z"
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/models.AlertRunStatus'
+        example: completed
+    type: object
   handlers.base64ImageRequest:
     properties:
       circleClip:
@@ -1130,6 +1326,41 @@ definitions:
           $ref: '#/definitions/services.OIDCPublicProviderDTO'
         type: array
     type: object
+  handlers.promoteDraftRequest:
+    properties:
+      confirm:
+        type: boolean
+      overrides:
+        properties:
+          category:
+            type: string
+          era:
+            type: string
+          material:
+            type: string
+          name:
+            type: string
+          notes:
+            type: string
+          purchaseLocation:
+            type: string
+          purchasePrice:
+            type: number
+        type: object
+    type: object
+  handlers.quickCaptureDraftListResponse:
+    properties:
+      drafts:
+        items:
+          $ref: '#/definitions/models.QuickCaptureDraft'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+    type: object
   handlers.refreshRequest:
     properties:
       refreshToken:
@@ -1242,6 +1473,144 @@ definitions:
       userId:
         type: integer
     type: object
+  models.AlertCandidate:
+    properties:
+      alertId:
+        type: integer
+      canonicalSourceUrl:
+        type: string
+      convertedCoinId:
+        type: integer
+      createdAt:
+        type: string
+      dismissalReason:
+        type: string
+      duplicateKey:
+        type: string
+      duplicateOfCandidateId:
+        type: integer
+      fields:
+        $ref: '#/definitions/models.StringMap'
+      firstSeenAt:
+        type: string
+      id:
+        type: integer
+      lastSeenAt:
+        type: string
+      lifecycleState:
+        $ref: '#/definitions/models.AlertCandidateState'
+      matchingWishlistCoinId:
+        type: integer
+      normalizedTitle:
+        type: string
+      observedCurrency:
+        type: string
+      observedPrice:
+        type: number
+      provenance:
+        items:
+          $ref: '#/definitions/models.CandidateProvenance'
+        type: array
+      provenanceStatus:
+        $ref: '#/definitions/models.CandidateProvenanceStatus'
+      reasonForMatch:
+        type: string
+      runId:
+        type: integer
+      sourceName:
+        type: string
+      sourceUrl:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+      userId:
+        type: integer
+    type: object
+  models.AlertCandidateState:
+    enum:
+    - active
+    - dismissed
+    - converted
+    - suppressed
+    - needs_review
+    type: string
+    x-enum-varnames:
+    - AlertCandidateStateActive
+    - AlertCandidateStateDismissed
+    - AlertCandidateStateConverted
+    - AlertCandidateStateSuppressed
+    - AlertCandidateStateNeedsReview
+  models.AlertRun:
+    properties:
+      alertId:
+        type: integer
+      candidates:
+        items:
+          $ref: '#/definitions/models.AlertCandidate'
+        type: array
+      completedAt:
+        type: string
+      createdAt:
+        type: string
+      criteriaSnapshot:
+        type: string
+      dismissedCount:
+        type: integer
+      duplicateCount:
+        type: integer
+      durationMs:
+        type: integer
+      errorMessage:
+        type: string
+      id:
+        type: integer
+      newCount:
+        type: integer
+      partialWarnings:
+        items:
+          type: string
+        type: array
+      rateLimitStatus:
+        type: string
+      resultCount:
+        type: integer
+      startedAt:
+        type: string
+      status:
+        $ref: '#/definitions/models.AlertRunStatus'
+      triggerType:
+        $ref: '#/definitions/models.AlertRunTriggerType'
+      userId:
+        type: integer
+    type: object
+  models.AlertRunStatus:
+    enum:
+    - queued
+    - running
+    - completed
+    - failed
+    - partial
+    - rate_limited
+    - cancelled
+    type: string
+    x-enum-varnames:
+    - AlertRunStatusQueued
+    - AlertRunStatusRunning
+    - AlertRunStatusCompleted
+    - AlertRunStatusFailed
+    - AlertRunStatusPartial
+    - AlertRunStatusRateLimited
+    - AlertRunStatusCancelled
+  models.AlertRunTriggerType:
+    enum:
+    - manual
+    - scheduled
+    type: string
+    x-enum-varnames:
+    - AlertRunTriggerManual
+    - AlertRunTriggerScheduled
   models.ApiKey:
     properties:
       capabilities:
@@ -1351,6 +1720,37 @@ definitions:
     - AuctionStatusWon
     - AuctionStatusLost
     - AuctionStatusPassed
+  models.CandidateProvenance:
+    properties:
+      candidateId:
+        type: integer
+      confidence:
+        type: string
+      field:
+        type: string
+      id:
+        type: integer
+      notes:
+        type: string
+      observedAt:
+        type: string
+      sourceUrl:
+        type: string
+      value:
+        type: string
+      verificationState:
+        $ref: '#/definitions/models.CandidateProvenanceStatus'
+    type: object
+  models.CandidateProvenanceStatus:
+    enum:
+    - verified
+    - partial
+    - unverified
+    type: string
+    x-enum-varnames:
+    - CandidateProvenanceVerified
+    - CandidateProvenancePartial
+    - CandidateProvenanceUnverified
   models.CatalogRegistry:
     properties:
       catalog:
@@ -1492,6 +1892,8 @@ definitions:
         type: number
       soldTo:
         type: string
+      sourceAlertCandidateId:
+        type: integer
       storageLocation:
         $ref: '#/definitions/models.StorageLocation'
       storageLocationId:
@@ -1736,6 +2138,93 @@ definitions:
     - OIDCProviderTypeEntra
     - OIDCProviderTypePocketID
     - OIDCProviderTypeGeneric
+  models.QuickCaptureDraft:
+    properties:
+      acquisitionSource:
+        maxLength: 500
+        type: string
+      aiConfidence:
+        maxLength: 20
+        type: string
+      createdAt:
+        type: string
+      dateRange:
+        maxLength: 200
+        type: string
+      discardedAt:
+        type: string
+      era:
+        maxLength: 64
+        type: string
+      id:
+        type: integer
+      images:
+        items:
+          $ref: '#/definitions/models.QuickCaptureDraftImage'
+        type: array
+      labelText:
+        maxLength: 5000
+        type: string
+      ngcCertNumber:
+        maxLength: 32
+        type: string
+      ngcGrade:
+        maxLength: 100
+        type: string
+      ngcLookupUrl:
+        maxLength: 500
+        type: string
+      notes:
+        maxLength: 5000
+        type: string
+      promotedAt:
+        type: string
+      promotedCoinId:
+        type: integer
+      purchasePrice:
+        type: number
+      source:
+        maxLength: 40
+        type: string
+      status:
+        $ref: '#/definitions/models.QuickCaptureDraftStatus'
+      updatedAt:
+        type: string
+      userId:
+        type: integer
+      workingTitle:
+        maxLength: 200
+        type: string
+    type: object
+  models.QuickCaptureDraftImage:
+    properties:
+      createdAt:
+        type: string
+      displayOrder:
+        type: integer
+      draftId:
+        type: integer
+      filePath:
+        type: string
+      id:
+        type: integer
+      imageType:
+        $ref: '#/definitions/models.ImageType'
+      isPrimary:
+        type: boolean
+    type: object
+  models.QuickCaptureDraftStatus:
+    enum:
+    - active
+    - promoting
+    - promoted
+    - discarded
+    type: string
+    x-enum-varnames:
+    - QuickCaptureDraftStatusActive
+    - QuickCaptureDraftStatusPromoting
+    - QuickCaptureDraftStatusPromoted
+    - QuickCaptureDraftStatusDiscarded
   models.StorageLocation:
     properties:
       createdAt:
@@ -1750,6 +2239,10 @@ definitions:
         type: string
       userId:
         type: integer
+    type: object
+  models.StringMap:
+    additionalProperties:
+      type: string
     type: object
   models.Tag:
     properties:
@@ -1803,6 +2296,67 @@ definitions:
         type: string
       signCount:
         type: integer
+      userId:
+        type: integer
+    type: object
+  models.WishlistAlertCadence:
+    enum:
+    - manual
+    - daily
+    - weekly
+    - monthly
+    type: string
+    x-enum-varnames:
+    - WishlistAlertCadenceManual
+    - WishlistAlertCadenceDaily
+    - WishlistAlertCadenceWeekly
+    - WishlistAlertCadenceMonthly
+  models.WishlistSearchAlert:
+    properties:
+      cadence:
+        $ref: '#/definitions/models.WishlistAlertCadence'
+      coinType:
+        type: string
+      createdAt:
+        type: string
+      currency:
+        type: string
+      dateFrom:
+        type: integer
+      dateTo:
+        type: integer
+      dealerPreference:
+        type: string
+      gradeOrCondition:
+        type: string
+      id:
+        type: integer
+      isActive:
+        type: boolean
+      keywords:
+        type: string
+      lastRunAt:
+        type: string
+      material:
+        type: string
+      mint:
+        type: string
+      name:
+        type: string
+      notes:
+        type: string
+      priceMax:
+        type: number
+      priceMin:
+        type: number
+      rulerOrIssuer:
+        type: string
+      sourceFilters:
+        items:
+          type: string
+        type: array
+      updatedAt:
+        type: string
       userId:
         type: integer
     type: object
@@ -7460,6 +8014,330 @@ paths:
       summary: Proxy an external image
       tags:
       - Images
+  /quick-capture/drafts:
+    get:
+      description: Lists owner-scoped Quick Capture drafts, defaulting to active drafts.
+      parameters:
+      - description: Draft status
+        enum:
+        - active
+        - promoted
+        - discarded
+        in: query
+        name: status
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.quickCaptureDraftListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List Quick Capture drafts
+      tags:
+      - Quick Capture
+    post:
+      consumes:
+      - multipart/form-data
+      description: Creates an owner-scoped sparse draft with optional obverse/reverse/detail
+        images.
+      parameters:
+      - description: Working title
+        in: formData
+        name: workingTitle
+        type: string
+      - description: Freeform date range
+        in: formData
+        name: dateRange
+        type: string
+      - description: Era
+        in: formData
+        name: era
+        type: string
+      - description: Acquisition source
+        in: formData
+        name: acquisitionSource
+        type: string
+      - description: Purchase price
+        in: formData
+        name: purchasePrice
+        type: number
+      - description: Notes
+        in: formData
+        name: notes
+        type: string
+      - description: Draft source
+        in: formData
+        name: source
+        type: string
+      - description: NGC certification number
+        in: formData
+        name: ngcCertNumber
+        type: string
+      - description: NGC lookup URL
+        in: formData
+        name: ngcLookupUrl
+        type: string
+      - description: NGC grade
+        in: formData
+        name: ngcGrade
+        type: string
+      - description: Visible label text
+        in: formData
+        name: labelText
+        type: string
+      - description: AI confidence
+        in: formData
+        name: aiConfidence
+        type: string
+      - description: Obverse image
+        in: formData
+        name: obverseImage
+        type: file
+      - description: Reverse image
+        in: formData
+        name: reverseImage
+        type: file
+      - description: Detail images
+        in: formData
+        name: detailImages
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.QuickCaptureDraft'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create Quick Capture draft
+      tags:
+      - Quick Capture
+  /quick-capture/drafts/{id}:
+    get:
+      description: Returns one owner-scoped Quick Capture draft with image metadata.
+      parameters:
+      - description: Draft ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.QuickCaptureDraft'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Quick Capture draft
+      tags:
+      - Quick Capture
+    put:
+      consumes:
+      - multipart/form-data
+      description: Updates an active owner-scoped draft. Supports field changes and
+        image replacement/removal.
+      parameters:
+      - description: Draft ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Working title
+        in: formData
+        name: workingTitle
+        type: string
+      - description: Notes
+        in: formData
+        name: notes
+        type: string
+      - description: Date range
+        in: formData
+        name: dateRange
+        type: string
+      - description: Era
+        in: formData
+        name: era
+        type: string
+      - description: Acquisition source
+        in: formData
+        name: acquisitionSource
+        type: string
+      - description: Purchase price
+        in: formData
+        name: purchasePrice
+        type: number
+      - description: Draft source
+        in: formData
+        name: source
+        type: string
+      - description: NGC certification number
+        in: formData
+        name: ngcCertNumber
+        type: string
+      - description: NGC lookup URL
+        in: formData
+        name: ngcLookupUrl
+        type: string
+      - description: NGC grade
+        in: formData
+        name: ngcGrade
+        type: string
+      - description: Visible label text
+        in: formData
+        name: labelText
+        type: string
+      - description: AI confidence
+        in: formData
+        name: aiConfidence
+        type: string
+      - description: Comma-separated image IDs to remove
+        in: formData
+        name: removeImageIds
+        type: string
+      - description: Replace existing obverse images
+        in: formData
+        name: replaceObverse
+        type: boolean
+      - description: Replace existing reverse images
+        in: formData
+        name: replaceReverse
+        type: boolean
+      - description: New obverse image
+        in: formData
+        name: obverseImage
+        type: file
+      - description: New reverse image
+        in: formData
+        name: reverseImage
+        type: file
+      - description: New detail images
+        in: formData
+        name: detailImages
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.QuickCaptureDraft'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update Quick Capture draft
+      tags:
+      - Quick Capture
+  /quick-capture/drafts/{id}/discard:
+    post:
+      description: Marks an active owner-scoped draft as discarded. Idempotent for
+        already-discarded drafts.
+      parameters:
+      - description: Draft ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.QuickCaptureDraft'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Discard Quick Capture draft
+      tags:
+      - Quick Capture
+  /quick-capture/drafts/{id}/promote:
+    post:
+      consumes:
+      - application/json
+      description: Transactionally promotes a valid active draft into a normal Coin.
+        Idempotent on repeat.
+      parameters:
+      - description: Draft ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Promotion request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.promoteDraftRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Promote Quick Capture draft
+      tags:
+      - Quick Capture
   /references/migrate-legacy:
     post:
       description: Migrates legacy rarity_rating text to structured CoinReference
@@ -10169,6 +11047,499 @@ paths:
       summary: Check wishlist availability
       tags:
       - Wishlist
+  /wishlist/search-alerts:
+    get:
+      description: Lists acquisition discovery search alerts. This is separate from
+        wishlist availability checking.
+      parameters:
+      - description: Filter by active state
+        in: query
+        name: active
+        type: boolean
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.WishlistSearchAlertListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List wishlist search alerts
+      tags:
+      - Wishlist Search Alerts
+    post:
+      consumes:
+      - application/json
+      description: Creates a saved discovery alert without creating wishlist items
+        or availability rows.
+      parameters:
+      - description: Alert
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.WishlistSearchAlertRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.WishlistSearchAlert'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create wishlist search alert
+      tags:
+      - Wishlist Search Alerts
+  /wishlist/search-alerts/{alertId}:
+    delete:
+      description: Soft-deletes a saved discovery alert while preserving history.
+      parameters:
+      - description: Alert ID
+        in: path
+        name: alertId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete wishlist search alert
+      tags:
+      - Wishlist Search Alerts
+    get:
+      description: Gets one acquisition discovery alert owned by the authenticated
+        collector.
+      parameters:
+      - description: Alert ID
+        in: path
+        name: alertId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.WishlistSearchAlert'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get wishlist search alert
+      tags:
+      - Wishlist Search Alerts
+    put:
+      consumes:
+      - application/json
+      description: Updates saved discovery criteria/cadence/active metadata without
+        changing availability state.
+      parameters:
+      - description: Alert ID
+        in: path
+        name: alertId
+        required: true
+        type: integer
+      - description: Alert
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.WishlistSearchAlertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.WishlistSearchAlert'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update wishlist search alert
+      tags:
+      - Wishlist Search Alerts
+  /wishlist/search-alerts/{alertId}/candidates:
+    get:
+      parameters:
+      - description: Alert ID
+        in: path
+        name: alertId
+        required: true
+        type: integer
+      - description: Candidate state
+        in: query
+        name: state
+        type: string
+      - description: Provenance status
+        in: query
+        name: provenanceStatus
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.WishlistSearchAlertCandidateListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List wishlist search alert candidates
+      tags:
+      - Wishlist Search Alerts
+  /wishlist/search-alerts/{alertId}/candidates/{candidateId}/convert:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Alert ID
+        in: path
+        name: alertId
+        required: true
+        type: integer
+      - description: Candidate ID
+        in: path
+        name: candidateId
+        required: true
+        type: integer
+      - description: Convert request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.WishlistSearchAlertConvertRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.WishlistSearchAlertConvertResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Convert wishlist search alert candidate
+      tags:
+      - Wishlist Search Alerts
+  /wishlist/search-alerts/{alertId}/candidates/{candidateId}/dismiss:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Alert ID
+        in: path
+        name: alertId
+        required: true
+        type: integer
+      - description: Candidate ID
+        in: path
+        name: candidateId
+        required: true
+        type: integer
+      - description: Dismiss request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.WishlistSearchAlertDismissRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AlertCandidate'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Dismiss wishlist search alert candidate
+      tags:
+      - Wishlist Search Alerts
+  /wishlist/search-alerts/{alertId}/candidates/{candidateId}/restore:
+    post:
+      parameters:
+      - description: Alert ID
+        in: path
+        name: alertId
+        required: true
+        type: integer
+      - description: Candidate ID
+        in: path
+        name: candidateId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AlertCandidate'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Restore wishlist search alert candidate
+      tags:
+      - Wishlist Search Alerts
+  /wishlist/search-alerts/{alertId}/criteria-adjustments:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Alert ID
+        in: path
+        name: alertId
+        required: true
+        type: integer
+      - description: Criteria adjustment
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.WishlistSearchAlertCriteriaAdjustRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.WishlistSearchAlert'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Adjust wishlist search alert criteria
+      tags:
+      - Wishlist Search Alerts
+  /wishlist/search-alerts/{alertId}/run:
+    post:
+      consumes:
+      - application/json
+      description: Manually runs a saved discovery alert and stores candidates separately
+        from availability checks.
+      parameters:
+      - description: Alert ID
+        in: path
+        name: alertId
+        required: true
+        type: integer
+      - description: Run request
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/handlers.WishlistSearchAlertRunRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.WishlistSearchAlertRunResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Run wishlist search alert
+      tags:
+      - Wishlist Search Alerts
+  /wishlist/search-alerts/{alertId}/runs:
+    get:
+      parameters:
+      - description: Alert ID
+        in: path
+        name: alertId
+        required: true
+        type: integer
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.WishlistSearchAlertRunListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List wishlist search alert runs
+      tags:
+      - Wishlist Search Alerts
+  /wishlist/search-alerts/{alertId}/runs/{runId}:
+    get:
+      parameters:
+      - description: Alert ID
+        in: path
+        name: alertId
+        required: true
+        type: integer
+      - description: Run ID
+        in: path
+        name: runId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AlertRun'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get wishlist search alert run
+      tags:
+      - Wishlist Search Alerts
 securityDefinitions:
   ApiKeyAuth:
     description: Enter your API key, e.g. "ak_a1b2c3d4..."

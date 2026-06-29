@@ -220,6 +220,64 @@ type AvailabilityCheckProxyResponse struct {
 	Results []AvailabilityVerdictProxy `json:"results"`
 }
 
+type AlertDiscoveryCriteriaSnapshotProxy struct {
+	Name             string   `json:"name"`
+	RulerOrIssuer    string   `json:"ruler_or_issuer,omitempty"`
+	CoinType         string   `json:"coin_type,omitempty"`
+	DateFrom         *int     `json:"date_from,omitempty"`
+	DateTo           *int     `json:"date_to,omitempty"`
+	Mint             string   `json:"mint,omitempty"`
+	Material         string   `json:"material,omitempty"`
+	GradeOrCondition string   `json:"grade_or_condition,omitempty"`
+	PriceMin         *float64 `json:"price_min,omitempty"`
+	PriceMax         *float64 `json:"price_max,omitempty"`
+	Currency         string   `json:"currency,omitempty"`
+	DealerPreference string   `json:"dealer_preference,omitempty"`
+	SourceFilters    []string `json:"source_filters,omitempty"`
+	Keywords         string   `json:"keywords,omitempty"`
+	Notes            string   `json:"notes,omitempty"`
+}
+
+type AlertDiscoveryRequestDetail struct {
+	AlertID          uint                                `json:"alert_id"`
+	CriteriaSnapshot AlertDiscoveryCriteriaSnapshotProxy `json:"criteria_snapshot"`
+	MaxCandidates    int                                 `json:"max_candidates"`
+}
+
+type AlertDiscoveryProxyRequest struct {
+	LLM   LLMConfig                   `json:"llm"`
+	Alert AlertDiscoveryRequestDetail `json:"alert"`
+}
+
+type AlertDiscoveryProvenanceProxy struct {
+	Field             string `json:"field"`
+	Value             string `json:"value"`
+	SourceURL         string `json:"source_url"`
+	ObservedAt        string `json:"observed_at"`
+	Confidence        string `json:"confidence"`
+	VerificationState string `json:"verification_state"`
+	Notes             string `json:"notes,omitempty"`
+}
+
+type AlertCandidateProxy struct {
+	SourceURL        string                          `json:"source_url"`
+	SourceName       string                          `json:"source_name,omitempty"`
+	Title            string                          `json:"title"`
+	ObservedPrice    *float64                        `json:"observed_price,omitempty"`
+	ObservedCurrency string                          `json:"observed_currency,omitempty"`
+	ReasonForMatch   string                          `json:"reason_for_match"`
+	LastSeenAt       string                          `json:"last_seen_at"`
+	ProvenanceStatus string                          `json:"provenance_status"`
+	Fields           map[string]string               `json:"fields,omitempty"`
+	Provenance       []AlertDiscoveryProvenanceProxy `json:"provenance"`
+}
+
+type AlertDiscoveryProxyResponse struct {
+	Candidates []AlertCandidateProxy `json:"candidates"`
+	Warnings   []string              `json:"warnings"`
+	Partial    bool                  `json:"partial"`
+}
+
 // StreamChat POSTs to the Python agent's /api/search/coins endpoint and
 // transparently proxies the SSE stream back to the caller.
 func (p *AgentProxy) StreamChat(ctx context.Context, w http.ResponseWriter, req AgentChatProxyRequest) error {
@@ -348,6 +406,42 @@ func (p *AgentProxy) CheckAvailability(ctx context.Context, req AvailabilityChec
 	var result AvailabilityCheckProxyResponse
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		return nil, fmt.Errorf("parse availability check response: %w", err)
+	}
+	return &result, nil
+}
+
+// DiscoverAlertCandidates POSTs to the Python agent's stateless /api/search/alerts endpoint.
+func (p *AgentProxy) DiscoverAlertCandidates(ctx context.Context, req AlertDiscoveryProxyRequest) (*AlertDiscoveryProxyResponse, error) {
+	logger := p.logger
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal alert discovery request: %w", err)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", p.baseURL+"/api/search/alerts", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create alert discovery request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	p.attachInternalCredential(httpReq)
+
+	resp, err := p.requestClient.Do(httpReq)
+	if err != nil {
+		logger.Error("agent-proxy", "Alert discovery request failed: %v", err)
+		return nil, fmt.Errorf("agent service unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		errMsg := string(respBody)
+		if len(errMsg) > 200 {
+			errMsg = errMsg[:200] + "... (truncated)"
+		}
+		logger.Error("agent-proxy", "Alert discovery returned %d: %s", resp.StatusCode, errMsg)
+		return nil, agentServiceHTTPError(resp.StatusCode, respBody)
+	}
+	var result AlertDiscoveryProxyResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse alert discovery response: %w", err)
 	}
 	return &result, nil
 }
