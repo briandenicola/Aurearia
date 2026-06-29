@@ -8298,6 +8298,237 @@
                         }
                     }
                 }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates an active owner-scoped draft. Supports field changes and image replacement/removal.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Capture"
+                ],
+                "summary": "Update Quick Capture draft",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Draft ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Working title",
+                        "name": "workingTitle",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Notes",
+                        "name": "notes",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date range",
+                        "name": "dateRange",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Era",
+                        "name": "era",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Acquisition source",
+                        "name": "acquisitionSource",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Purchase price",
+                        "name": "purchasePrice",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated image IDs to remove",
+                        "name": "removeImageIds",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Replace existing obverse images",
+                        "name": "replaceObverse",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Replace existing reverse images",
+                        "name": "replaceReverse",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "New obverse image",
+                        "name": "obverseImage",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "New reverse image",
+                        "name": "reverseImage",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "New detail images",
+                        "name": "detailImages",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.QuickCaptureDraft"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/quick-capture/drafts/{id}/discard": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Marks an active owner-scoped draft as discarded. Idempotent for already-discarded drafts.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Capture"
+                ],
+                "summary": "Discard Quick Capture draft",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Draft ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.QuickCaptureDraft"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/quick-capture/drafts/{id}/promote": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Transactionally promotes a valid active draft into a normal Coin. Idempotent on repeat.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Quick Capture"
+                ],
+                "summary": "Promote Quick Capture draft",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Draft ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Promotion request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.promoteDraftRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
             }
         },
         "/references/migrate-legacy": {
@@ -14156,6 +14387,40 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/services.OIDCPublicProviderDTO"
+                    }
+                }
+            }
+        },
+        "handlers.promoteDraftRequest": {
+            "type": "object",
+            "properties": {
+                "confirm": {
+                    "type": "boolean"
+                },
+                "overrides": {
+                    "type": "object",
+                    "properties": {
+                        "category": {
+                            "type": "string"
+                        },
+                        "era": {
+                            "type": "string"
+                        },
+                        "material": {
+                            "type": "string"
+                        },
+                        "name": {
+                            "type": "string"
+                        },
+                        "notes": {
+                            "type": "string"
+                        },
+                        "purchaseLocation": {
+                            "type": "string"
+                        },
+                        "purchasePrice": {
+                            "type": "number"
+                        }
                     }
                 }
             }
