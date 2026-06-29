@@ -161,7 +161,7 @@ let unmounted = false
 const estimateStatusMessage = computed(() => {
   const status = activeEstimateJob.value?.status
   if (!status) return ''
-  return `Value estimate ${formatStatus(status)}.`
+  return `Value estimate ${formatStatus(status)}. This will continue in the background; you can leave this page.`
 })
 
 onMounted(() => {
@@ -249,7 +249,7 @@ async function handleEstimateValue() {
     const res = await estimateCoinValue(props.coinId)
     const job = normalizeStartedJob(res.data)
     rememberEstimateJob(job.id)
-    showToast('Value estimate queued.', 'info')
+    showToast('Value estimate queued. You can leave this page; we will notify you when it is done.', 'info')
     await pollEstimateJob(job.id, job)
   } catch (err: unknown) {
     estimateError.value = err instanceof Error ? err.message : 'Failed to estimate value'

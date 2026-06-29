@@ -92,7 +92,7 @@ const renderedLegacy = computed(() => (props.aiAnalysis ? DOMPurify.sanitize(md.
 const jobStatusMessage = computed(() => {
   if (!activeJob.value || !analyzingSide.value) return ''
   const status = activeJob.value.status || 'queued'
-  return `${capitalize(analyzingSide.value)} analysis ${formatStatus(status)}.`
+  return `${capitalize(analyzingSide.value)} analysis ${formatStatus(status)}. This will continue in the background; you can leave this page.`
 })
 
 onMounted(async () => {
@@ -121,7 +121,7 @@ async function handleAnalyze(side: 'obverse' | 'reverse') {
     const res = await analyzeCoin(props.coinId, side)
     const job = normalizeStartedJob(res.data, side)
     rememberJob(side, job.id)
-    showToast(`${capitalize(side)} analysis queued.`, 'info')
+    showToast(`${capitalize(side)} analysis queued. You can leave this page; we will notify you when it is done.`, 'info')
     await pollAnalysisJob(job.id, side, job)
   } catch (err) {
     const detail = formatAgentServiceError(err, 'Check the internal agent service configuration and retry.')

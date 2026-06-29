@@ -182,8 +182,9 @@ func (s *NotificationService) NotifyAIJobCompleted(userID, jobID, coinID uint, c
 	if coinName == "" {
 		coinName = "coin"
 	}
-	title := "AI job complete"
-	message := fmt.Sprintf("%s is ready for %s.", coinName, formatAIJobType(jobType))
+	label := formatAIJobType(jobType)
+	title := fmt.Sprintf("AI %s complete", label)
+	message := fmt.Sprintf("%s is ready.", coinName)
 	refURL := fmt.Sprintf("/coin/%d", coinID)
 	n := &models.Notification{
 		UserID:       userID,
@@ -201,8 +202,9 @@ func (s *NotificationService) NotifyAIJobCompleted(userID, jobID, coinID uint, c
 
 // NotifyAIJobFailed creates a notification when an asynchronous AI job fails.
 func (s *NotificationService) NotifyAIJobFailed(userID, jobID, coinID uint, jobType, reason string) {
-	title := "AI job failed"
-	message := fmt.Sprintf("AI %s could not be completed.", formatAIJobType(jobType))
+	label := formatAIJobType(jobType)
+	title := fmt.Sprintf("AI %s failed", label)
+	message := fmt.Sprintf("AI %s could not be completed.", label)
 	if reason != "" {
 		message = fmt.Sprintf("%s Please check AI provider configuration and try again.", message)
 	}

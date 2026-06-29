@@ -54,6 +54,10 @@ const { toasts, removeToast } = useToast()
   border-color: var(--accent-gold);
 }
 
+.toast-info {
+  border-color: var(--border-accent);
+}
+
 .toast-error {
   border-color: var(--color-negative);
 }
