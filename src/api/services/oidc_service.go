@@ -1051,7 +1051,7 @@ func oidcTokenExchangeDetail(err error) string {
 		case strings.Contains(raw, "aadsts7000215") || strings.Contains(raw, "invalid client secret"):
 			return "provider rejected the client secret; for Entra, paste the client secret Value, not the Secret ID"
 		case strings.Contains(raw, "redirect_uri") || strings.Contains(raw, "reply url") || strings.Contains(raw, "aadsts50011"):
-			return "provider rejected the redirect URI; confirm the exact beta callback URL is registered"
+			return "provider rejected the redirect URI; confirm the exact callback URL is registered"
 		case strings.Contains(raw, "expired") || strings.Contains(raw, "already redeemed") || strings.Contains(raw, "invalid_grant"):
 			return "provider rejected the authorization code as expired, reused, or invalid"
 		case errorCode != "":

@@ -1235,14 +1235,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Validates provider discovery metadata and records safe status without exposing secrets.",
+                "description": "Validates provider discovery metadata and records safe status without exposing secrets. This does not validate the client secret; the provider verifies that only during sign-in or account linking.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "OIDC"
                 ],
-                "summary": "Test OIDC provider",
+                "summary": "Test OIDC provider discovery",
                 "parameters": [
                     {
                         "type": "integer",

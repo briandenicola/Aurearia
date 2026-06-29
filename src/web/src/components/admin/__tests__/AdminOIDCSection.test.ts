@@ -204,15 +204,16 @@ describe('AdminOIDCSection', () => {
     const wrapper = mount(AdminOIDCSection)
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Test failed')
+    expect(wrapper.text()).toContain('Discovery failed')
     expect(wrapper.text()).toContain('Issuer metadata is unreachable')
 
-    await buttonByText(wrapper, 'Test').trigger('click')
+    await buttonByText(wrapper, 'Test Discovery').trigger('click')
     await flushPromises()
 
     expect(mockTestAdminOIDCProvider).toHaveBeenCalledWith(7)
     expect(wrapper.text()).toContain('Discovery failed')
     expect(wrapper.text()).toContain('Discovery endpoint returned 404')
+    expect(wrapper.text()).toContain('Discovery tests do not validate the client secret.')
   })
 
   it('shows save errors from the admin provider API', async () => {

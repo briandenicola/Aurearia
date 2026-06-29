@@ -84,7 +84,7 @@ describe('OIDCLinkCallbackPage', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Linking Failed')
-    expect(wrapper.text()).toContain('The sign-in provider is not configured correctly. Ask an administrator to test the provider settings.')
+    expect(wrapper.text()).toContain('The sign-in provider is not configured correctly: provider rejected the redirect URI; confirm the exact callback URL is registered. Ask an administrator to review the provider settings.')
     expect(wrapper.text()).not.toContain('The provider response could not be validated.')
   })
 })

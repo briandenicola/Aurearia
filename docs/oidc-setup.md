@@ -22,7 +22,7 @@ Local development may use `http://localhost` redirect URIs. Production deploymen
 3. Create a client secret and copy the **Value** column immediately; do not use the Secret ID. Aurearia stores the secret value write-only and never returns it from read APIs.
 4. Enter the Tenant ID in Admin Settings and confirm the derived issuer URL shown under the field is `https://login.microsoftonline.com/{tenant-id}/v2.0`.
 5. Configure scopes: `openid`, `profile`, and `email`.
-6. Save and test the provider from Admin Settings before enabling it.
+6. Save and run **Test Discovery** from Admin Settings before enabling it. Discovery testing verifies issuer metadata only; the client secret is verified by Entra only during sign-in or account linking.
 
 ## Pocket ID
 
@@ -31,7 +31,7 @@ Local development may use `http://localhost` redirect URIs. Production deploymen
 3. Copy the client ID and client secret.
 4. Use the Pocket ID issuer URL that serves `/.well-known/openid-configuration`.
 5. Configure scopes: `openid`, `profile`, and `email`.
-6. Save and test the provider from Admin Settings before enabling it.
+6. Save and run **Test Discovery** from Admin Settings before enabling it. Discovery testing verifies issuer metadata only; the client secret is verified by the provider only during sign-in or account linking.
 
 ## User linking
 

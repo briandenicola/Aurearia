@@ -349,8 +349,8 @@ func (h *OIDCHandler) DeleteAdminProvider(c *gin.Context) {
 
 // TestAdminProvider validates OIDC discovery metadata for a provider.
 //
-//	@Summary		Test OIDC provider
-//	@Description	Validates provider discovery metadata and records safe status without exposing secrets.
+//	@Summary		Test OIDC provider discovery
+//	@Description	Validates provider discovery metadata and records safe status without exposing secrets. This does not validate the client secret; the provider verifies that only during sign-in or account linking.
 //	@Tags			OIDC
 //	@Produce		json
 //	@Param			providerId	path		int	true	"Provider ID"

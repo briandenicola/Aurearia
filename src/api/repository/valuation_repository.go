@@ -88,11 +88,13 @@ func (r *ValuationRepository) RecoverStaleRuns(timeout time.Duration) {
 		})
 }
 
-// GetOwnedCoins returns owned (not sold, not wishlist) coins for a user, limited to maxCoins.
+// GetOwnedCoins returns owned (not sold, not wishlist) coins for a user, prioritizing stale valuations.
 func (r *ValuationRepository) GetOwnedCoins(userID uint, maxCoins int) ([]models.Coin, error) {
 	var coins []models.Coin
 	err := r.db.Where("user_id = ? AND is_wishlist = ? AND is_sold = ?", userID, false, false).
-		Order("updated_at DESC").
+		Order("current_value_updated_at IS NOT NULL ASC").
+		Order("current_value_updated_at ASC").
+		Order("id ASC").
 		Limit(maxCoins).
 		Find(&coins).Error
 	return coins, err

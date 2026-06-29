@@ -2932,7 +2932,8 @@ paths:
   /admin/oidc/providers/{providerId}/test:
     post:
       description: Validates provider discovery metadata and records safe status without
-        exposing secrets.
+        exposing secrets. This does not validate the client secret; the provider verifies
+        that only during sign-in or account linking.
       parameters:
       - description: Provider ID
         in: path
@@ -2968,7 +2969,7 @@ paths:
             $ref: '#/definitions/services.OIDCProviderTestResult'
       security:
       - BearerAuth: []
-      summary: Test OIDC provider
+      summary: Test OIDC provider discovery
       tags:
       - OIDC
   /admin/security/events:

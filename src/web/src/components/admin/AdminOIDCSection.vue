@@ -66,7 +66,7 @@
 
           <div class="provider-actions">
             <button type="button" class="btn btn-secondary btn-xs" :disabled="testingProviderId === provider.id" @click="testProvider(provider.id)">
-              {{ testingProviderId === provider.id ? 'Testing...' : 'Test' }}
+              {{ testingProviderId === provider.id ? 'Testing discovery...' : 'Test Discovery' }}
             </button>
             <button type="button" class="btn btn-ghost btn-xs" :disabled="savingProviderId === provider.id" @click="toggleProvider(provider)">
               {{ provider.enabled ? 'Disable' : 'Enable' }}
@@ -77,6 +77,11 @@
             <button type="button" class="btn btn-danger btn-xs" :disabled="deletingProviderId === provider.id" @click="deleteProvider(provider)">
               {{ deletingProviderId === provider.id ? 'Deleting...' : 'Delete' }}
             </button>
+          </div>
+
+          <div class="status-message info oidc-test-note">
+            <AlertCircle :size="16" />
+            <span>Discovery tests do not validate the client secret. Entra verifies the secret only when a user completes sign-in or account linking.</span>
           </div>
         </article>
       </div>
@@ -192,6 +197,11 @@
               />
               <span class="form-hint">{{ secretHint }}</span>
             </div>
+          </div>
+
+          <div class="status-message info oidc-test-note">
+            <AlertCircle :size="16" />
+            <span>Discovery tests do not validate the client secret. Entra verifies the secret only when a user completes sign-in or account linking.</span>
           </div>
 
           <div class="form-grid">
@@ -360,13 +370,13 @@ function providerTypeLabel(type: OIDCProviderType) {
 }
 
 function statusLabel(provider: OIDCAdminProvider) {
-  if (provider.lastTestStatus === 'ok') return 'Test passed'
-  if (provider.lastTestStatus === 'failed') return 'Test failed'
-  return 'Not tested'
+  if (provider.lastTestStatus === 'ok') return 'Discovery passed'
+  if (provider.lastTestStatus === 'failed') return 'Discovery failed'
+  return 'Discovery not tested'
 }
 
 function statusMessage(provider: OIDCAdminProvider) {
-  return provider.lastTestMessage || 'Run a provider test to verify discovery metadata.'
+  return provider.lastTestMessage || 'Run a discovery test to verify issuer metadata. Client secrets are verified only during sign-in or account linking.'
 }
 
 function statusClass(provider: OIDCAdminProvider) {
@@ -740,6 +750,12 @@ onMounted(() => {
   background: color-mix(in srgb, var(--color-negative) 14%, transparent);
 }
 
+.status-message.info {
+  border-color: var(--border-accent);
+  background: var(--accent-gold-glow);
+  color: var(--text-secondary);
+}
+
 .provider-status.unknown {
   border-color: var(--border-subtle);
 }
@@ -765,6 +781,10 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 0.35rem;
   justify-content: flex-end;
+}
+
+.oidc-test-note {
+  font-size: 0.8rem;
 }
 
 .modal-overlay {

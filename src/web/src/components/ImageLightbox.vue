@@ -10,24 +10,26 @@
         </div>
 
         <div class="lightbox-body">
-          <div v-if="processing" class="lightbox-processing">
-            <div class="spinner"></div>
-            <p>Removing background...</p>
-            <p class="processing-hint">This may take 30-60 seconds...</p>
-          </div>
+          <div class="lightbox-image-container" :class="{ processing }">
+            <img
+              v-if="processedImageUrl"
+              :src="processedImageUrl"
+              :alt="formatImageType(imageType)"
+              class="lightbox-image"
+            />
+            <AuthenticatedImage
+              v-else
+              :media-path="imagePath"
+              :alt="formatImageType(imageType)"
+              class="lightbox-image"
+            />
 
-          <img
-            v-if="processedImageUrl"
-            :src="processedImageUrl"
-            :alt="formatImageType(imageType)"
-            class="lightbox-image"
-          />
-          <AuthenticatedImage
-            v-else
-            :media-path="imagePath"
-            :alt="formatImageType(imageType)"
-            class="lightbox-image"
-          />
+            <div v-if="processing" class="lightbox-processing-overlay">
+              <div class="spinner"></div>
+              <p>Removing background...</p>
+              <p class="processing-hint">This may take 30-60 seconds...</p>
+            </div>
+          </div>
         </div>
 
         <div class="lightbox-actions">
@@ -233,6 +235,20 @@ onUnmounted(() => {
   background: var(--bg-input);
 }
 
+.lightbox-image-container {
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightbox-image-container.processing .lightbox-image {
+  opacity: 0.3;
+  filter: blur(2px);
+}
+
 .lightbox-image {
   max-width: 100%;
   max-height: 100%;
@@ -241,16 +257,20 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.lightbox-processing {
+.lightbox-processing-overlay {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 1rem;
-  color: var(--text-secondary);
+  color: var(--accent-gold);
   text-align: center;
+  pointer-events: none;
 }
 
-.lightbox-processing p {
+.lightbox-processing-overlay p {
   margin: 0;
   font-size: 0.9rem;
 }

@@ -138,7 +138,7 @@ function mapCallbackError(error: unknown) {
   }
 
   if (normalized.includes('redirect uri') || normalized.includes('client secret') || normalized.includes('configuration') || normalized.includes('discovery') || response?.status === 500) {
-    return 'The sign-in provider is not configured correctly. Ask an administrator to test the provider settings.'
+    return providerConfigurationMessage(detailText)
   }
 
   if (normalized.includes('state') || normalized.includes('claims') || response?.status === 400 || response?.status === 401) {
@@ -160,6 +160,14 @@ function getErrorDetail(error: unknown) {
   const response = (error as { response?: { data?: { detail?: unknown } } }).response
   const detail = response?.data?.detail
   return typeof detail === 'string' ? detail : ''
+}
+
+function providerConfigurationMessage(detail: string) {
+  const safeDetail = detail.trim()
+  if (safeDetail) {
+    return `The sign-in provider is not configured correctly: ${safeDetail}. Ask an administrator to review the provider settings.`
+  }
+  return 'The sign-in provider is not configured correctly. Ask an administrator to review the provider settings.'
 }
 </script>
 
