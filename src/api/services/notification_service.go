@@ -177,6 +177,67 @@ func (s *NotificationService) NotifyCoinOfDay(userID uint, featuredCoinID, coinI
 	go s.sendPushoverMessage(userID, buildCoinOfDayPushoverMessage(title, coinID, coinName, summary, s.publicAppBaseURL()))
 }
 
+// NotifyAIJobCompleted creates a notification when an asynchronous AI job completes.
+func (s *NotificationService) NotifyAIJobCompleted(userID, jobID, coinID uint, coinName, jobType string) {
+	if coinName == "" {
+		coinName = "coin"
+	}
+	title := "AI job complete"
+	message := fmt.Sprintf("%s is ready for %s.", coinName, formatAIJobType(jobType))
+	refURL := fmt.Sprintf("/coin/%d", coinID)
+	n := &models.Notification{
+		UserID:       userID,
+		Type:         "ai_job_completed",
+		Title:        title,
+		Message:      message,
+		ReferenceID:  jobID,
+		ReferenceURL: refURL,
+	}
+	if err := s.notifRepo.Create(n); err != nil {
+		s.logger.Error("notifications", "Failed to create AI job completion notification for user %d, job %d: %v", userID, jobID, err)
+	}
+	go s.sendPushover(userID, title, message, refURL)
+}
+
+// NotifyAIJobFailed creates a notification when an asynchronous AI job fails.
+func (s *NotificationService) NotifyAIJobFailed(userID, jobID, coinID uint, jobType, reason string) {
+	title := "AI job failed"
+	message := fmt.Sprintf("AI %s could not be completed.", formatAIJobType(jobType))
+	if reason != "" {
+		message = fmt.Sprintf("%s Please check AI provider configuration and try again.", message)
+	}
+	refURL := fmt.Sprintf("/coin/%d", coinID)
+	n := &models.Notification{
+		UserID:       userID,
+		Type:         "ai_job_failed",
+		Title:        title,
+		Message:      message,
+		ReferenceID:  jobID,
+		ReferenceURL: refURL,
+	}
+	if err := s.notifRepo.Create(n); err != nil {
+		s.logger.Error("notifications", "Failed to create AI job failure notification for user %d, job %d: %v", userID, jobID, err)
+	}
+	go s.sendPushover(userID, title, message, refURL)
+}
+
+// NotifyValuationRunComplete creates an in-app notification when a background valuation run completes.
+func (s *NotificationService) NotifyValuationRunComplete(userID, runID uint, checked, updated, skipped, errors int) {
+	title := "Valuation complete"
+	message := fmt.Sprintf("Checked: %d | Updated: %d | Skipped: %d | Errors: %d", checked, updated, skipped, errors)
+	n := &models.Notification{
+		UserID:       userID,
+		Type:         "valuation_complete",
+		Title:        title,
+		Message:      message,
+		ReferenceID:  runID,
+		ReferenceURL: "/stats/value-trends",
+	}
+	if err := s.notifRepo.Create(n); err != nil {
+		s.logger.Error("notifications", "Failed to create valuation completion notification for user %d, run %d: %v", userID, runID, err)
+	}
+}
+
 // NotifyAPIKeyRotationRequired creates a single actionable notification that lists
 // active API key names that must be recreated.
 func (s *NotificationService) NotifyAPIKeyRotationRequired(userID uint, keyNames []string) error {
@@ -273,6 +334,17 @@ func buildCoinOfDayPushoverMessage(title string, coinID uint, coinName, summary,
 		Message: body,
 		URL:     coinURL,
 		HTML:    true,
+	}
+}
+
+func formatAIJobType(jobType string) string {
+	switch jobType {
+	case "analysis":
+		return "analysis"
+	case "value_estimate":
+		return "value estimate"
+	default:
+		return "AI job"
 	}
 }
 

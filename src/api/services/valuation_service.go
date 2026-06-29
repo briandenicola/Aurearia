@@ -32,6 +32,7 @@ type ValuationService struct {
 	agentProxy  *AgentProxy
 	userRepo    *repository.UserRepository
 	pushoverSvc *PushoverService
+	notifSvc    *NotificationService
 	settingsSvc *SettingsService
 	logger      *Logger
 	cancelMap   sync.Map
@@ -44,6 +45,7 @@ func NewValuationService(
 	agentProxy *AgentProxy,
 	userRepo *repository.UserRepository,
 	pushoverSvc *PushoverService,
+	notifSvc *NotificationService,
 	settingsSvc *SettingsService,
 	logger *Logger,
 ) *ValuationService {
@@ -53,6 +55,7 @@ func NewValuationService(
 		agentProxy:  agentProxy,
 		userRepo:    userRepo,
 		pushoverSvc: pushoverSvc,
+		notifSvc:    notifSvc,
 		settingsSvc: settingsSvc,
 		logger:      logger,
 	}
@@ -385,8 +388,11 @@ func (s *ValuationService) ValuateCollectionForUser(
 	return run, nil
 }
 
-// notifyRunComplete sends a Pushover notification with valuation run details.
+// notifyRunComplete sends in-app and Pushover notifications with valuation run details.
 func (s *ValuationService) notifyRunComplete(userID uint, run *models.ValuationRun) {
+	if s.notifSvc != nil {
+		s.notifSvc.NotifyValuationRunComplete(userID, run.ID, run.CoinsChecked, run.CoinsUpdated, run.CoinsSkipped, run.Errors)
+	}
 	if s.pushoverSvc == nil || s.userRepo == nil {
 		return
 	}

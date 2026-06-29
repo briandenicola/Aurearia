@@ -798,6 +798,39 @@ export interface ValueEstimate {
   comparables: ValueComparable[]
 }
 
+export type AIJobStatus = string
+
+export interface AIJob {
+  id: string
+  userId?: number
+  coinId: number
+  jobType: string
+  side?: 'obverse' | 'reverse' | null
+  status: AIJobStatus
+  result?: unknown
+  errorMessage?: string | null
+  createdAt: string
+  updatedAt: string
+  startedAt?: string | null
+  completedAt?: string | null
+}
+
+export interface AIJobStartResponse {
+  id?: string | number
+  jobId?: string | number
+  job?: AIJob
+  status: AIJobStatus
+  jobType: string
+  coinId: number
+  side?: 'obverse' | 'reverse' | null
+  result?: unknown
+  errorMessage?: string | null
+  createdAt?: string
+  updatedAt?: string
+  startedAt?: string | null
+  completedAt?: string | null
+}
+
 export interface CoinValueHistory {
   id: number
   coinId: number
@@ -1140,7 +1173,7 @@ export interface CollectionHealthSnapshotRunResult {
 export interface Notification {
   id: number
   userId: number
-  type: 'wishlist_unavailable' | 'friend_new_coin' | 'follow_request' | 'coin_of_day' | 'api_key_rotation_required' | 'set_milestone'
+  type: 'wishlist_unavailable' | 'friend_new_coin' | 'follow_request' | 'coin_of_day' | 'api_key_rotation_required' | 'set_milestone' | 'ai_job_completed' | 'ai_job_failed' | 'valuation_complete'
   title: string
   message: string
   referenceId: number

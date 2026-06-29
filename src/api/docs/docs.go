@@ -2730,6 +2730,58 @@ const docTemplate = `{
                 }
             }
         },
+        "/ai-jobs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns user-scoped AI job status and result details.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Jobs"
+                ],
+                "summary": "Get AI job",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "AI Job ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.AIJob"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/ai-status": {
             "get": {
                 "security": [
@@ -5526,6 +5578,73 @@ const docTemplate = `{
                 }
             }
         },
+        "/coins/{id}/ai-jobs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns user-scoped AI jobs for a coin. Set activeOnly=true to include only queued/running jobs.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Jobs"
+                ],
+                "summary": "List coin AI jobs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Only queued or running jobs",
+                        "name": "activeOnly",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.AIJob"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/coins/{id}/analyze": {
             "post": {
                 "security": [
@@ -5533,14 +5652,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Sends coin images to Ollama for AI-powered analysis. Can analyze a specific side (obverse/reverse) or all images.",
+                "description": "Queues asynchronous AI-powered analysis for the obverse or reverse image of a coin. If side is omitted, all coin images are analyzed.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Analysis"
                 ],
-                "summary": "Analyze coin images",
+                "summary": "Queue coin image analysis",
                 "parameters": [
                     {
                         "type": "integer",
@@ -5555,16 +5674,16 @@ const docTemplate = `{
                             "reverse"
                         ],
                         "type": "string",
-                        "description": "Analyze a specific side only",
+                        "description": "Analyze a specific side",
                         "name": "side",
                         "in": "query"
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "202": {
+                        "description": "Accepted",
                         "schema": {
-                            "$ref": "#/definitions/handlers.AnalysisResponse"
+                            "$ref": "#/definitions/services.AIJobSubmissionResponse"
                         }
                     },
                     "400": {
@@ -5720,14 +5839,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Uses the configured AI provider to estimate current market value for a coin owned by the authenticated user.",
+                "description": "Queues asynchronous AI-powered current value estimation for a coin owned by the authenticated user.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Agent"
                 ],
-                "summary": "Estimate coin value",
+                "summary": "Queue coin value estimate",
                 "parameters": [
                     {
                         "type": "integer",
@@ -5738,14 +5857,20 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "202": {
+                        "description": "Accepted",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/services.AIJobSubmissionResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -5756,8 +5881,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
                     },
-                    "503": {
-                        "description": "Service Unavailable",
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -12260,22 +12385,6 @@ const docTemplate = `{
                 }
             }
         },
-        "handlers.AnalysisResponse": {
-            "type": "object",
-            "properties": {
-                "analysis": {
-                    "type": "string",
-                    "example": "This coin appears to be a Roman denarius..."
-                },
-                "coin": {
-                    "$ref": "#/definitions/models.Coin"
-                },
-                "side": {
-                    "type": "string",
-                    "example": "obverse"
-                }
-            }
-        },
         "handlers.AuctionLotListResponse": {
             "type": "object",
             "properties": {
@@ -13939,6 +14048,76 @@ const docTemplate = `{
                 }
             }
         },
+        "models.AIJob": {
+            "type": "object",
+            "properties": {
+                "attempts": {
+                    "type": "integer"
+                },
+                "coinId": {
+                    "type": "integer"
+                },
+                "completedAt": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "errorMessage": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "jobType": {
+                    "$ref": "#/definitions/models.AIJobType"
+                },
+                "result": {
+                    "type": "string"
+                },
+                "side": {
+                    "type": "string"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.AIJobStatus"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.AIJobStatus": {
+            "type": "string",
+            "enum": [
+                "queued",
+                "running",
+                "completed",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "AIJobStatusQueued",
+                "AIJobStatusRunning",
+                "AIJobStatusCompleted",
+                "AIJobStatusFailed"
+            ]
+        },
+        "models.AIJobType": {
+            "type": "string",
+            "enum": [
+                "analysis",
+                "value_estimate"
+            ],
+            "x-enum-varnames": [
+                "AIJobTypeAnalysis",
+                "AIJobTypeValueEstimate"
+            ]
+        },
         "models.AgentConversation": {
             "type": "object",
             "properties": {
@@ -14828,6 +15007,14 @@ const docTemplate = `{
                 },
                 "year": {
                     "type": "integer"
+                }
+            }
+        },
+        "services.AIJobSubmissionResponse": {
+            "type": "object",
+            "properties": {
+                "job": {
+                    "$ref": "#/definitions/models.AIJob"
                 }
             }
         },

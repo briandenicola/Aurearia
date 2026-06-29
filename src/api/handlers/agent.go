@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"time"
 
-	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
@@ -489,11 +487,11 @@ func (h *AgentHandler) GetCoinShowsPrompt(c *gin.Context) {
 func (h *AgentHandler) GetValuationPrompt(c *gin.Context) {
 	prompt := h.settingsSvc.GetSetting(services.SettingValuationPrompt)
 	if prompt == "" {
-		prompt = DefaultValuationPrompt
+		prompt = services.DefaultValuationPrompt
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"prompt":  prompt,
-		"default": DefaultValuationPrompt,
+		"default": services.DefaultValuationPrompt,
 	})
 }
 
@@ -520,139 +518,6 @@ func (h *AgentHandler) PortfolioSummary(c *gin.Context) {
 		"rulers":        summary.Rulers,
 		"topCoins":      summary.TopCoins,
 		"missingFields": summary.MissingFields,
-	})
-}
-
-const DefaultValuationPrompt = `You are an expert numismatist and coin appraiser. Estimate the current fair market value of a coin.
-
-Instructions:
-1. Search for CURRENT listings and RECENT sales of comparable coins.
-2. Focus on coins with similar denomination, ruler, era, material, and grade.
-3. Check sources: VCoins, MA-Shops, CNG, Heritage Auctions, Biddr, ForumAncientCoins.
-4. Consider grade/condition when comparing.
-
-CRITICAL: Return your response as ONLY a JSON object (wrapped in ` + "```json" + ` and ` + "```" + ` markers) with NO other text before or after:
-- estimatedValue: number (USD, single number not a range)
-- confidence: "high" (3+ comparables), "medium" (1-2), or "low" (general knowledge)
-- reasoning: string (2-3 SHORT sentences only — what you found and how you arrived at the estimate)
-- comparables: array of { "source": "dealer name", "price": "$X", "url": "listing URL" }
-
-` + "```json" + `
-{
-  "estimatedValue": 275,
-  "confidence": "high",
-  "reasoning": "Found 4 comparable Augustus denarii in VF condition listed at $250-300. Grade and strike quality place this coin at mid-range.",
-  "comparables": [
-    { "source": "VCoins - Example Dealer", "price": "$285", "url": "https://www.vcoins.com/..." },
-    { "source": "MA-Shops", "price": "$250", "url": "https://www.ma-shops.com/..." }
-  ]
-}
-` + "```" + `
-
-Only include real listings from your search. Do not fabricate URLs or prices. Do not write any text outside the JSON block.`
-
-func (h *AgentHandler) getValuationPrompt() string {
-	prompt := h.settingsSvc.GetSetting(services.SettingValuationPrompt)
-	if prompt == "" {
-		return DefaultValuationPrompt
-	}
-	return prompt
-}
-
-// EstimateValue estimates the current market value of a coin using the agent service.
-//
-//	@Summary		Estimate coin value
-//	@Description	Uses the configured AI provider to estimate current market value for a coin owned by the authenticated user.
-//	@Tags			Agent
-//	@Produce		json
-//	@Param			id	path		int	true	"Coin ID"
-//	@Success		200	{object}	object
-//	@Failure		400	{object}	ErrorResponse
-//	@Failure		404	{object}	ErrorResponse
-//	@Failure		503	{object}	ErrorResponse
-//	@Security		BearerAuth
-//	@Router			/coins/{id}/estimate-value [post]
-func (h *AgentHandler) EstimateValue(c *gin.Context) {
-	logger := h.logger
-
-	coinID, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid coin ID"})
-		return
-	}
-
-	userID := c.GetUint("userId")
-	coin, err := h.repo.FindCoinForUser(uint(coinID), userID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
-		return
-	}
-
-	// Resolve LLM provider from shared config
-	llmCfg, cfgErr := h.settingsSvc.ResolveLLMConfig()
-	if cfgErr != nil {
-		respondError(c, http.StatusBadRequest, "Unable to configure valuation provider", cfgErr)
-		return
-	}
-
-	var zipCode string
-	if user, err := h.userRepo.FindByID(userID); err == nil {
-		zipCode = user.ZipCode
-	}
-
-	description := services.BuildCoinDescription(coin)
-	userMessage := fmt.Sprintf("Estimate the current market value of this coin:\n\n%s\n\n"+
-		"Return ONLY the JSON block as specified in your instructions. No preamble or extra text.", description)
-
-	proxyReq := services.PortfolioReviewProxyRequest{
-		LLM: llmCfg,
-		User: services.UserContextProxy{
-			UserID:  userID,
-			ZipCode: zipCode,
-		},
-		Message:         userMessage,
-		ValuationPrompt: h.getValuationPrompt(),
-	}
-
-	// Collect the full AI response (not streaming — the frontend expects JSON)
-	aiText, err := h.proxy.CollectPortfolioReview(c.Request.Context(), proxyReq)
-	if err != nil {
-		logger.Error("agent", "EstimateValue proxy failed: %v", err)
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Agent service unavailable"})
-		return
-	}
-
-	if aiText == "" {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "No response from AI"})
-		return
-	}
-
-	// Parse structured fields using the shared parser
-	estimate := services.ParseValueEstimate(aiText)
-
-	// Save estimate to the coin's journal
-	if estimate.EstimatedValue > 0 {
-		journalText := fmt.Sprintf("AI Value Estimate: $%.2f (%s confidence)", estimate.EstimatedValue, estimate.Confidence)
-		entry := models.CoinJournal{
-			CoinID: uint(coinID),
-			UserID: userID,
-			Entry:  journalText,
-		}
-		if err := h.journalRepo.CreateEntry(&entry); err != nil {
-			logger.Warn("agent", "Failed to save estimate to journal: %v", err)
-		}
-	}
-
-	// Convert to gin.H for API response compatibility
-	comps := make([]gin.H, 0, len(estimate.Comparables))
-	for _, comp := range estimate.Comparables {
-		comps = append(comps, gin.H{"source": comp.Source, "price": comp.Price, "url": comp.URL})
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"estimatedValue": estimate.EstimatedValue,
-		"confidence":     estimate.Confidence,
-		"reasoning":      estimate.Reasoning,
-		"comparables":    comps,
 	})
 }
 
