@@ -54,19 +54,22 @@ const relativeTime = computed(() => {
 .draft-preview {
   width: 76px;
   height: 76px;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-sm);
   object-fit: cover;
-  background: var(--color-surface-muted);
+  background: var(--bg-input);
 }
+
 .empty {
   display: grid;
   place-items: center;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   font-size: 0.8rem;
 }
+
 .draft-info h3, .draft-info p {
   margin: 0 0 0.35rem;
 }
+
 .draft-meta {
   display: flex;
   align-items: center;
@@ -75,6 +78,6 @@ const relativeTime = computed(() => {
 }
 .updated-at {
   font-size: 0.8rem;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
 }
 </style>

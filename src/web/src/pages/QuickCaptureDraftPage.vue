@@ -80,28 +80,28 @@
 
             <div class="field-grid">
               <label class="form-group">
-                <span>Working title</span>
-                <input v-model="workingTitle" type="text" maxlength="200" placeholder="Unattributed denarius">
+                <span class="section-label">Working title</span>
+                <input v-model="workingTitle" class="form-input" type="text" maxlength="200" placeholder="Unattributed denarius">
               </label>
               <label class="form-group">
-                <span>Date range</span>
-                <input v-model="dateRange" type="text" placeholder="c. 330–335">
+                <span class="section-label">Date range</span>
+                <input v-model="dateRange" class="form-input" type="text" placeholder="c. 330-335">
               </label>
               <label class="form-group">
-                <span>Era</span>
-                <input v-model="era" type="text" placeholder="ancient">
+                <span class="section-label">Era</span>
+                <input v-model="era" class="form-input" type="text" placeholder="ancient">
               </label>
               <label class="form-group">
-                <span>Acquisition source</span>
-                <input v-model="acquisitionSource" type="text" placeholder="Show table">
+                <span class="section-label">Acquisition source</span>
+                <input v-model="acquisitionSource" class="form-input" type="text" placeholder="Show table">
               </label>
               <label class="form-group">
-                <span>Purchase price</span>
-                <input v-model.number="purchasePrice" type="number" min="0" step="0.01">
+                <span class="section-label">Purchase price</span>
+                <input v-model.number="purchasePrice" class="form-input" type="number" min="0" step="0.01">
               </label>
               <label class="form-group full-width">
-                <span>Notes</span>
-                <textarea v-model="notes" rows="4" placeholder="Quick notes for later attribution"></textarea>
+                <span class="section-label">Notes</span>
+                <textarea v-model="notes" class="form-textarea" rows="4" placeholder="Quick notes for later attribution"></textarea>
               </label>
             </div>
 
@@ -263,8 +263,17 @@ function onPromoted(coinId: number) {
 </script>
 
 <style scoped>
+.card {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.card h2,
+.card h3 {
+  margin: 0;
+}
+
 .ai-summary {
-  margin-bottom: 1rem;
   padding: 1rem;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
@@ -286,14 +295,16 @@ function onPromoted(coinId: number) {
   font-size: 0.85rem;
 }
 .existing-images {
-  margin-bottom: 1rem;
+  display: grid;
+  gap: 0.75rem;
 }
+
 .image-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
-  margin-top: 0.5rem;
 }
+
 .image-item {
   display: flex;
   flex-direction: column;
@@ -304,20 +315,73 @@ function onPromoted(coinId: number) {
   width: 80px;
   height: 80px;
   object-fit: cover;
-  border-radius: 0.75rem;
-  background: var(--color-surface-muted);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
 }
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.form-input,
+.form-textarea {
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 2px var(--accent-gold-glow);
+}
+
+.form-textarea {
+  min-height: 7rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
 .action-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
-  margin-top: 1.25rem;
 }
+
 .remove-btn {
   background: none;
   border: none;
   cursor: pointer;
   padding: 0;
+}
+
+@media (max-width: 600px) {
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .action-row .btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
 }
 </style>

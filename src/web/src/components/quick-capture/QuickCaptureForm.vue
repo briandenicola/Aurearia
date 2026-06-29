@@ -8,28 +8,28 @@
 
     <div class="field-grid">
       <label class="form-group">
-        <span>Working title</span>
-        <input v-model="workingTitle" type="text" maxlength="200" placeholder="Unattributed denarius">
+        <span class="section-label">Working title</span>
+        <input v-model="workingTitle" class="form-input" type="text" maxlength="200" placeholder="Unattributed denarius">
       </label>
       <label class="form-group">
-        <span>Date range</span>
-        <input v-model="dateRange" type="text" placeholder="c. 330-335">
+        <span class="section-label">Date range</span>
+        <input v-model="dateRange" class="form-input" type="text" placeholder="c. 330-335">
       </label>
       <label class="form-group">
-        <span>Era</span>
-        <input v-model="era" type="text" placeholder="ancient">
+        <span class="section-label">Era</span>
+        <input v-model="era" class="form-input" type="text" placeholder="ancient">
       </label>
       <label class="form-group">
-        <span>Acquisition source</span>
-        <input v-model="acquisitionSource" type="text" placeholder="Show table">
+        <span class="section-label">Acquisition source</span>
+        <input v-model="acquisitionSource" class="form-input" type="text" placeholder="Show table">
       </label>
       <label class="form-group">
-        <span>Purchase price</span>
-        <input v-model.number="purchasePrice" type="number" min="0" step="0.01">
+        <span class="section-label">Purchase price</span>
+        <input v-model.number="purchasePrice" class="form-input" type="number" min="0" step="0.01">
       </label>
       <label class="form-group full-width">
-        <span>Notes</span>
-        <textarea v-model="notes" rows="4" placeholder="Quick notes for later attribution"></textarea>
+        <span class="section-label">Notes</span>
+        <textarea v-model="notes" class="form-textarea" rows="4" placeholder="Quick notes for later attribution"></textarea>
       </label>
     </div>
 
@@ -103,16 +103,56 @@ async function saveDraft() {
   display: grid;
   gap: 1rem;
 }
+
 .field-grid {
   display: grid;
   gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
 .full-width {
   grid-column: 1 / -1;
 }
+
+.form-input,
+.form-textarea {
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 2px var(--accent-gold-glow);
+}
+
+.form-textarea {
+  min-height: 7rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
 .helper-text {
-  color: var(--color-text-muted);
+  color: var(--text-secondary);
   margin: 0;
+}
+
+@media (max-width: 600px) {
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

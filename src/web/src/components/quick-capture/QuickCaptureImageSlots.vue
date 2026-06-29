@@ -3,22 +3,25 @@
     <label class="slot-card">
       <span class="slot-title">Obverse</span>
       <img v-if="obverseUrl" :src="obverseUrl" alt="Obverse preview" class="slot-preview">
-      <button v-if="obverseImage" type="button" class="slot-clear" @click.prevent="emit('update:obverseImage', null)">Remove obverse</button>
       <span v-else class="slot-empty">Take or upload obverse photo</span>
-      <input type="file" accept="image/*" capture="environment" @change="onFile('obverse', $event)">
+      <span class="slot-action">{{ obverseImage ? 'Replace photo' : 'Choose photo' }}</span>
+      <button v-if="obverseImage" type="button" class="slot-clear" @click.prevent="emit('update:obverseImage', null)">Remove</button>
+      <input class="slot-input" type="file" accept="image/*" capture="environment" @change="onFile('obverse', $event)">
     </label>
     <label class="slot-card">
       <span class="slot-title">Reverse</span>
       <img v-if="reverseUrl" :src="reverseUrl" alt="Reverse preview" class="slot-preview">
-      <button v-if="reverseImage" type="button" class="slot-clear" @click.prevent="emit('update:reverseImage', null)">Remove reverse</button>
       <span v-else class="slot-empty">Optional reverse photo</span>
-      <input type="file" accept="image/*" capture="environment" @change="onFile('reverse', $event)">
+      <span class="slot-action">{{ reverseImage ? 'Replace photo' : 'Choose photo' }}</span>
+      <button v-if="reverseImage" type="button" class="slot-clear" @click.prevent="emit('update:reverseImage', null)">Remove</button>
+      <input class="slot-input" type="file" accept="image/*" capture="environment" @change="onFile('reverse', $event)">
     </label>
     <label class="slot-card detail">
       <span class="slot-title">Detail photos</span>
       <span class="slot-empty">{{ detailCountText }}</span>
-      <button v-if="detailImages.length" type="button" class="slot-clear" @click.prevent="emit('update:detailImages', [])">Remove detail photos</button>
-      <input type="file" accept="image/*" multiple @change="onDetails">
+      <span class="slot-action">{{ detailImages.length ? 'Replace details' : 'Choose details' }}</span>
+      <button v-if="detailImages.length" type="button" class="slot-clear" @click.prevent="emit('update:detailImages', [])">Remove</button>
+      <input class="slot-input" type="file" accept="image/*" multiple @change="onDetails">
     </label>
   </div>
 </template>
@@ -75,37 +78,80 @@ function onDetails(event: Event) {
 <style scoped>
 .quick-capture-slots {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 1rem;
 }
+
 .slot-card {
-  border: 1px dashed var(--color-border);
-  border-radius: 1rem;
+  position: relative;
+  display: grid;
+  gap: 0.75rem;
+  min-height: 170px;
+  border: 1px dashed var(--border-accent);
+  border-radius: var(--radius-sm);
   padding: 1rem;
-  background: var(--color-surface);
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
 }
+
+.slot-card:hover {
+  border-color: var(--accent-gold);
+  background: var(--bg-card-hover);
+}
+
 .slot-title {
-  display: block;
+  color: var(--text-heading);
+  font-size: 0.9rem;
   font-weight: 600;
-  margin-bottom: 0.5rem;
 }
+
 .slot-preview {
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
 }
+
 .slot-empty {
-  display: block;
-  min-height: 4rem;
-  color: var(--color-text-muted);
+  display: grid;
+  min-height: 5rem;
+  place-items: center;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 0.75rem;
 }
-input {
-  margin-top: 0.75rem;
-  max-width: 100%;
+
+.slot-action {
+  justify-self: start;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-accent);
+  padding: 0.25rem 0.7rem;
+  color: var(--accent-gold);
+  font-size: 0.75rem;
+  font-weight: 500;
 }
+
+.slot-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
 .slot-clear {
-  display: block;
-  margin-top: 0.5rem;
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: var(--cat-byzantine);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0;
+  text-decoration: underline;
+  z-index: 1;
 }
 </style>
