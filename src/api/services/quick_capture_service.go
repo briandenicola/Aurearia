@@ -87,13 +87,14 @@ type UpdateQuickCaptureDraftInput struct {
 
 // PromoteOverrides are optional coin-field overrides provided by the user at promotion time.
 type PromoteOverrides struct {
-	Name             string
-	Category         string
-	Material         string
-	Era              string
+	Name             *string
+	Category         *string
+	Material         *string
+	Era              *string
 	PurchasePrice    *float64
-	PurchaseLocation string
-	Notes            string
+	PurchasePriceSet bool
+	PurchaseLocation *string
+	Notes            *string
 }
 
 // PromoteDraftInput holds promotion request data.
@@ -501,34 +502,22 @@ func targetForPromotedCoin(coin *models.Coin) QuickCapturePromotionTarget {
 
 // buildCoinFromDraft constructs a Coin struct from a draft and promotion overrides.
 func (s *QuickCaptureService) buildCoinFromDraft(draft *models.QuickCaptureDraft, overrides PromoteOverrides) *models.Coin {
-	name := strings.TrimSpace(overrides.Name)
-	if name == "" {
-		name = strings.TrimSpace(draft.WorkingTitle)
-	}
-	notes := strings.TrimSpace(overrides.Notes)
-	if notes == "" {
-		notes = strings.TrimSpace(draft.Notes)
-	}
-	purchaseLocation := strings.TrimSpace(overrides.PurchaseLocation)
-	if purchaseLocation == "" {
-		purchaseLocation = strings.TrimSpace(draft.AcquisitionSource)
-	}
+	name := stringOverride(overrides.Name, draft.WorkingTitle)
+	notes := stringOverride(overrides.Notes, draft.Notes)
+	purchaseLocation := stringOverride(overrides.PurchaseLocation, draft.AcquisitionSource)
 
-	category := models.Category(strings.TrimSpace(overrides.Category))
+	category := models.Category(stringOverride(overrides.Category, ""))
 	if category == "" {
 		category = models.CategoryOther
 	}
-	material := models.Material(strings.TrimSpace(overrides.Material))
+	material := models.Material(stringOverride(overrides.Material, ""))
 	if material == "" {
 		material = models.MaterialOther
 	}
-	era := models.Era(strings.TrimSpace(overrides.Era))
-	if era == "" {
-		era = models.Era(strings.TrimSpace(draft.Era))
-	}
+	era := models.Era(stringOverride(overrides.Era, draft.Era))
 
 	var purchasePrice *float64
-	if overrides.PurchasePrice != nil {
+	if overrides.PurchasePriceSet {
 		purchasePrice = overrides.PurchasePrice
 	} else {
 		purchasePrice = draft.PurchasePrice
@@ -545,6 +534,13 @@ func (s *QuickCaptureService) buildCoinFromDraft(draft *models.QuickCaptureDraft
 		PurchasePrice:    purchasePrice,
 		CurrentValue:     purchasePrice,
 	}
+}
+
+func stringOverride(value *string, fallback string) string {
+	if value != nil {
+		return strings.TrimSpace(*value)
+	}
+	return strings.TrimSpace(fallback)
 }
 
 // ValidateCoinMinimumForPromotion checks that the built coin satisfies minimum create rules.

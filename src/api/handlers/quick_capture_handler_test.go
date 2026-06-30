@@ -162,7 +162,10 @@ func TestQuickCaptureDraftResumeDiscardPromoteContracts(t *testing.T) {
 	otherDraft := models.QuickCaptureDraft{UserID: 99, WorkingTitle: "Other draft", Status: models.QuickCaptureDraftStatusActive}
 	discardDraft := models.QuickCaptureDraft{UserID: viewerID, WorkingTitle: "Discard draft", Status: models.QuickCaptureDraftStatusActive}
 	needsName := models.QuickCaptureDraft{UserID: viewerID, Notes: "No title", Status: models.QuickCaptureDraftStatusActive}
-	for _, draft := range []*models.QuickCaptureDraft{&ownerDraft, &otherDraft, &discardDraft, &needsName} {
+	savedPrice := 100.0
+	explicitEmptyDraft := models.QuickCaptureDraft{UserID: viewerID, WorkingTitle: "Saved title", Era: string(models.EraAncient), AcquisitionSource: "Saved source", Notes: "Saved notes", Status: models.QuickCaptureDraftStatusActive}
+	explicitNullPriceDraft := models.QuickCaptureDraft{UserID: viewerID, WorkingTitle: "Saved priced title", Era: string(models.EraAncient), PurchasePrice: &savedPrice, Status: models.QuickCaptureDraftStatusActive}
+	for _, draft := range []*models.QuickCaptureDraft{&ownerDraft, &otherDraft, &discardDraft, &needsName, &explicitEmptyDraft, &explicitNullPriceDraft} {
 		if err := db.Create(draft).Error; err != nil {
 			t.Fatalf("create draft: %v", err)
 		}
@@ -233,6 +236,67 @@ func TestQuickCaptureDraftResumeDiscardPromoteContracts(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "fields") || !strings.Contains(rec.Body.String(), "name") {
 		t.Fatalf("expected field-level promotion validation, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	body, _ = json.Marshal(map[string]interface{}{
+		"confirm": true,
+		"overrides": map[string]interface{}{
+			"name":             "",
+			"purchaseLocation": "",
+			"notes":            "",
+		},
+	})
+	req = httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/quick-capture/drafts/%d/promote", explicitEmptyDraft.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "fields") || !strings.Contains(rec.Body.String(), "name") {
+		t.Fatalf("expected explicit empty JSON name override to fail validation, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	body, _ = json.Marshal(map[string]interface{}{
+		"confirm": true,
+		"overrides": map[string]interface{}{
+			"name":             "HTTP current title",
+			"purchaseLocation": "",
+			"notes":            "",
+		},
+	})
+	req = httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/quick-capture/drafts/%d/promote", explicitEmptyDraft.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected explicit optional clears to promote successfully, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var clearedCoin models.Coin
+	if err := db.Where("name = ?", "HTTP current title").First(&clearedCoin).Error; err != nil {
+		t.Fatalf("load explicitly cleared promoted coin: %v", err)
+	}
+	if clearedCoin.PurchaseLocation != "" || clearedCoin.Notes != "" {
+		t.Fatalf("expected explicit empty optional JSON overrides to clear values, got source=%q notes=%q", clearedCoin.PurchaseLocation, clearedCoin.Notes)
+	}
+
+	body, _ = json.Marshal(map[string]interface{}{
+		"confirm": true,
+		"overrides": map[string]interface{}{
+			"name":          "HTTP current priced title",
+			"purchasePrice": nil,
+		},
+	})
+	req = httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/quick-capture/drafts/%d/promote", explicitNullPriceDraft.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected explicit null price override to promote successfully, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var nullPriceCoin models.Coin
+	if err := db.Where("name = ?", "HTTP current priced title").First(&nullPriceCoin).Error; err != nil {
+		t.Fatalf("load explicitly null price promoted coin: %v", err)
+	}
+	if nullPriceCoin.PurchasePrice != nil || nullPriceCoin.CurrentValue != nil {
+		t.Fatalf("expected explicit null price override to clear saved price, got price=%v value=%v", nullPriceCoin.PurchasePrice, nullPriceCoin.CurrentValue)
 	}
 
 	body, _ = json.Marshal(map[string]interface{}{"confirm": true, "overrides": map[string]interface{}{"era": string(models.EraAncient)}})

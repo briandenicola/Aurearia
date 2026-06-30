@@ -136,7 +136,7 @@
           </form>
 
           <!-- Promotion panel -->
-          <PromotionReadinessPanel :draft="draft" @promoted="onPromoted" />
+          <PromotionReadinessPanel :draft="draft" :promotion-overrides="promotionOverrides" @promoted="onPromoted" />
         </template>
       </template>
     </div>
@@ -144,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   getApiErrorMessage,
@@ -152,7 +152,7 @@ import {
   updateQuickCaptureDraft,
   discardQuickCaptureDraft,
 } from '@/api/client'
-import type { QuickCaptureDraft } from '@/types'
+import type { QuickCaptureDraft, QuickCapturePromoteOverrides } from '@/types'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 import QuickCaptureImageSlots from '@/components/quick-capture/QuickCaptureImageSlots.vue'
 import PromotionReadinessPanel from '@/components/quick-capture/PromotionReadinessPanel.vue'
@@ -184,6 +184,18 @@ const saveSuccess = ref(false)
 // Discard state
 const confirmingDiscard = ref(false)
 const discarding = ref(false)
+
+const promotionOverrides = computed<QuickCapturePromoteOverrides>(() => ({
+  name: workingTitle.value.trim(),
+  era: era.value.trim(),
+  purchaseLocation: acquisitionSource.value.trim(),
+  purchasePrice: currentPurchasePrice(),
+  notes: notes.value.trim(),
+}))
+
+function currentPurchasePrice(): number | null {
+  return typeof purchasePrice.value === 'number' ? purchasePrice.value : null
+}
 
 function populateForm(d: QuickCaptureDraft) {
   workingTitle.value = d.workingTitle ?? ''
@@ -228,7 +240,7 @@ async function saveDraft() {
       dateRange: dateRange.value,
       era: era.value,
       acquisitionSource: acquisitionSource.value,
-      purchasePrice: purchasePrice.value,
+      purchasePrice: currentPurchasePrice(),
       notes: notes.value,
       removeImageIds: removeImageIds.value.size > 0 ? [...removeImageIds.value].join(',') : undefined,
       obverseImage: newObverse.value,
