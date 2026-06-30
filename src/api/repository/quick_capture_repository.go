@@ -80,6 +80,14 @@ func (r *QuickCaptureRepository) GetDraftForOwner(draftID, userID uint) (*models
 	return &draft, nil
 }
 
+func (r *QuickCaptureRepository) GetCoinForOwner(coinID, userID uint) (*models.Coin, error) {
+	var coin models.Coin
+	if err := r.db.Where("id = ? AND user_id = ?", coinID, userID).First(&coin).Error; err != nil {
+		return nil, err
+	}
+	return &coin, nil
+}
+
 func (r *QuickCaptureRepository) ListDraftsForOwner(userID uint, status models.QuickCaptureDraftStatus, page, limit int) ([]models.QuickCaptureDraft, int64, error) {
 	var drafts []models.QuickCaptureDraft
 	var total int64

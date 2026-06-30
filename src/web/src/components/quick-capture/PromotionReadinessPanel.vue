@@ -1,6 +1,11 @@
 <template>
   <section class="card readiness-panel">
-    <h2>Promote to Coin</h2>
+    <div class="panel-heading">
+      <div>
+        <span class="section-label">Ready for cataloging</span>
+        <h2>Promote Draft</h2>
+      </div>
+    </div>
 
     <!-- Already promoted -->
     <template v-if="alreadyPromoted">
@@ -16,13 +21,35 @@
 
     <!-- Promotion form -->
     <template v-else>
-      <p class="helper-text">Fill required fields to promote this draft into a normal coin record. Repeated promotion is safe.</p>
+      <p class="helper-text">Choose where this coin should land, fill any missing required fields, then promote it. Repeated promotion is safe.</p>
+
+      <fieldset class="destination-options">
+        <legend class="section-label">Promote to</legend>
+        <label class="destination-option" :class="{ selected: target === 'collection' }">
+          <input v-model="target" type="radio" value="collection">
+          <Coins :size="20" />
+          <span>
+            <strong>Collection</strong>
+            <small>Counts as an owned collection coin.</small>
+          </span>
+        </label>
+        <label class="destination-option" :class="{ selected: target === 'wishlist' }">
+          <input v-model="target" type="radio" value="wishlist">
+          <Bookmark :size="20" />
+          <span>
+            <strong>Wishlist</strong>
+            <small>Tracks as a wanted coin instead.</small>
+          </span>
+        </label>
+        <span v-if="fieldErrors.target" class="field-error">{{ fieldErrors.target }}</span>
+      </fieldset>
 
       <div class="field-grid">
         <label class="form-group full-width">
-          <span>Name <span class="required">*</span></span>
+          <span class="section-label">Name <span class="required">*</span></span>
           <input
             v-model="overrideName"
+            class="form-input"
             type="text"
             maxlength="200"
             :placeholder="draft.workingTitle || 'Required for promotion'"
@@ -30,8 +57,8 @@
           <span v-if="fieldErrors.name" class="field-error">{{ fieldErrors.name }}</span>
         </label>
         <label class="form-group">
-          <span>Category</span>
-          <select v-model="overrideCategory">
+          <span class="section-label">Category</span>
+          <select v-model="overrideCategory" class="form-select">
             <option value="">Other (default)</option>
             <option value="Roman">Roman</option>
             <option value="Greek">Greek</option>
@@ -42,8 +69,8 @@
           </select>
         </label>
         <label class="form-group">
-          <span>Material</span>
-          <select v-model="overrideMaterial">
+          <span class="section-label">Material</span>
+          <select v-model="overrideMaterial" class="form-select">
             <option value="">Other (default)</option>
             <option value="Gold">Gold</option>
             <option value="Silver">Silver</option>
@@ -54,8 +81,8 @@
           </select>
         </label>
         <label class="form-group">
-          <span>Era</span>
-          <select v-model="overrideEra">
+          <span class="section-label">Era</span>
+          <select v-model="overrideEra" class="form-select">
             <option value="">Use draft value</option>
             <option value="ancient">Ancient</option>
             <option value="medieval">Medieval</option>
@@ -64,30 +91,32 @@
           <span v-if="fieldErrors.era" class="field-error">{{ fieldErrors.era }}</span>
         </label>
         <label class="form-group">
-          <span>Purchase price</span>
-          <input v-model.number="overridePrice" type="number" min="0" step="0.01" :placeholder="draft.purchasePrice != null ? String(draft.purchasePrice) : ''">
+          <span class="section-label">Purchase price</span>
+          <input v-model.number="overridePrice" class="form-input" type="number" min="0" step="0.01" :placeholder="draft.purchasePrice != null ? String(draft.purchasePrice) : ''">
         </label>
         <label class="form-group full-width">
-          <span>Notes</span>
-          <textarea v-model="overrideNotes" rows="3" :placeholder="draft.notes || ''"></textarea>
+          <span class="section-label">Notes</span>
+          <textarea v-model="overrideNotes" class="form-textarea" rows="3" :placeholder="draft.notes || ''"></textarea>
         </label>
       </div>
 
       <label class="confirm-row">
         <input v-model="confirmed" type="checkbox">
-        <span>I confirm promotion. This creates a permanent coin record.</span>
+        <span>I confirm promotion to {{ destinationLabel }}. This creates a permanent coin record.</span>
       </label>
 
       <p v-if="promoteError" class="status-text status-warning">{{ promoteError }}</p>
 
-      <button
-        type="button"
-        class="btn btn-primary"
-        :disabled="!confirmed || promoting"
-        @click="doPromote"
-      >
-        {{ promoting ? 'Promoting...' : 'Promote to Coin' }}
-      </button>
+      <div class="promotion-actions">
+        <button
+          type="button"
+          class="btn btn-primary"
+          :disabled="!confirmed || promoting"
+          @click="doPromote"
+        >
+          {{ promoting ? 'Promoting...' : `Promote to ${destinationLabel}` }}
+        </button>
+      </div>
     </template>
   </section>
 </template>
@@ -97,9 +126,12 @@ import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { getApiErrorMessage, promoteQuickCaptureDraft } from '@/api/client'
 import type { QuickCaptureDraft } from '@/types'
+import { Bookmark, Coins } from 'lucide-vue-next'
 
 const props = defineProps<{ draft: QuickCaptureDraft }>()
 const emit = defineEmits<{ promoted: [coinId: number] }>()
+
+type PromotionTarget = 'collection' | 'wishlist'
 
 const alreadyPromoted = computed(
   () => props.draft.status === 'promoted' && props.draft.promotedCoinId != null
@@ -112,11 +144,13 @@ const overrideMaterial = ref('')
 const overrideEra = ref('')
 const overridePrice = ref<number | null>(null)
 const overrideNotes = ref('')
+const target = ref<PromotionTarget>('collection')
 const confirmed = ref(false)
 const promoting = ref(false)
 const promoteError = ref('')
 const fieldErrors = ref<Record<string, string>>({})
 const successCoinId = ref<number | null>(null)
+const destinationLabel = computed(() => target.value === 'wishlist' ? 'Wishlist' : 'Collection')
 
 async function doPromote() {
   promoting.value = true
@@ -125,6 +159,7 @@ async function doPromote() {
   try {
     const res = await promoteQuickCaptureDraft(props.draft.id, {
       confirm: true,
+      target: target.value,
       overrides: {
         name: overrideName.value || undefined,
         category: overrideCategory.value || undefined,
@@ -160,23 +195,128 @@ async function doPromote() {
 .readiness-panel {
   margin-top: 1.5rem;
 }
+
+.panel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.panel-heading h2 {
+  margin: 0.25rem 0 0;
+}
+
+.destination-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.destination-options legend {
+  grid-column: 1 / -1;
+  margin-bottom: 0.25rem;
+}
+
+.destination-option {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.destination-option.selected {
+  border-color: var(--accent-gold);
+  background: var(--accent-gold-glow);
+  box-shadow: var(--shadow-glow);
+}
+
+.destination-option input {
+  margin-top: 0.2rem;
+  accent-color: var(--accent-gold);
+}
+
+.destination-option svg {
+  flex: 0 0 auto;
+  color: var(--accent-gold);
+}
+
+.destination-option span {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.destination-option strong {
+  font-size: 0.9rem;
+}
+
+.destination-option small {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
 .confirm-row {
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
   margin: 1rem 0;
   cursor: pointer;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
 }
 .confirm-row input[type='checkbox'] {
   margin-top: 0.15rem;
   flex-shrink: 0;
+  accent-color: var(--accent-gold);
 }
 .field-error {
-  color: var(--color-warning, #d97706);
+  color: var(--text-warning);
   font-size: 0.85rem;
 }
 .required {
-  color: var(--color-warning, #d97706);
+  color: var(--text-warning);
+}
+
+.promotion-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 600px) {
+  .destination-options,
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .promotion-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 </style>

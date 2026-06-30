@@ -165,7 +165,8 @@ func (h *QuickCaptureHandler) GetDraft(c *gin.Context) {
 
 // promoteDraftRequest is the JSON body for POST /quick-capture/drafts/:id/promote.
 type promoteDraftRequest struct {
-	Confirm   bool `json:"confirm"`
+	Confirm   bool   `json:"confirm"`
+	Target    string `json:"target"`
 	Overrides struct {
 		Name             string   `json:"name"`
 		Category         string   `json:"category"`
@@ -316,11 +317,11 @@ func (h *QuickCaptureHandler) DiscardDraft(c *gin.Context) {
 	c.JSON(http.StatusOK, draft)
 }
 
-// PromoteDraft promotes an active Quick Capture draft into a normal Coin record.
+// PromoteDraft promotes an active Quick Capture draft into a Coin record in the collection or wishlist.
 // Idempotent: repeated calls return the existing promoted coin.
 //
 //	@Summary		Promote Quick Capture draft
-//	@Description	Transactionally promotes a valid active draft into a normal Coin. Idempotent on repeat.
+//	@Description	Transactionally promotes a valid active draft into a normal Coin. Optional target accepts "collection" or "wishlist" and defaults to "collection". Idempotent on repeat.
 //	@Tags			Quick Capture
 //	@Accept			json
 //	@Produce		json
@@ -354,6 +355,7 @@ func (h *QuickCaptureHandler) PromoteDraft(c *gin.Context) {
 
 	input := services.PromoteDraftInput{
 		Confirm: req.Confirm,
+		Target:  services.QuickCapturePromotionTarget(req.Target),
 		Overrides: services.PromoteOverrides{
 			Name:             req.Overrides.Name,
 			Category:         req.Overrides.Category,
@@ -392,6 +394,7 @@ func (h *QuickCaptureHandler) PromoteDraft(c *gin.Context) {
 		"status":          "promoted",
 		"coinId":          result.CoinID,
 		"alreadyPromoted": result.AlreadyPromoted,
+		"target":          result.Target,
 	})
 }
 

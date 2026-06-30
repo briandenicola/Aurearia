@@ -8551,7 +8551,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Transactionally promotes a valid active draft into a normal Coin. Idempotent on repeat.",
+                "description": "Transactionally promotes a valid active draft into a normal Coin. Optional target accepts \"collection\" or \"wishlist\" and defaults to \"collection\". Idempotent on repeat.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15546,6 +15546,9 @@ const docTemplate = `{
                             "type": "number"
                         }
                     }
+                },
+                "target": {
+                    "type": "string"
                 }
             }
         },

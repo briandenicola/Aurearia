@@ -32,4 +32,12 @@ describe('QuickCaptureDraftPage', () => {
     expect(source).toContain('This draft has been discarded.')
     expect(source).toContain('router.push(`/coin/${coinId}`)')
   })
+
+  it('uses a compact drafts header action and concise page title', () => {
+    expect(source).toContain('<h1>Draft</h1>')
+    expect(source).toContain('aria-label="All drafts"')
+    expect(source).toContain('pwa-icon-btn')
+    expect(source).not.toContain('<h1>Quick Capture Draft</h1>')
+    expect(source).not.toContain('>All drafts</RouterLink>')
+  })
 })

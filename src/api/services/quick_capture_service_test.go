@@ -57,9 +57,9 @@ func TestQuickCaptureServicePersistsFindCoinMetadata(t *testing.T) {
 		Source:        "find_coin_ai",
 		NGCCertNumber: "1234567-001",
 		NGCLookupURL:  "https://www.ngccoin.com/certlookup/1234567001/NGCAncients/",
-		NGCGrade:     "Ch VF",
-		LabelText:    "NGC Ancients Augustus Denarius",
-		AIConfidence: "high",
+		NGCGrade:      "Ch VF",
+		LabelText:     "NGC Ancients Augustus Denarius",
+		AIConfidence:  "high",
 		Images: []QuickCaptureImageUpload{{
 			Filename:  "obverse.png",
 			Data:      validQuickCapturePNG(),
@@ -261,6 +261,56 @@ func TestQuickCaptureServicePromoteDraftValidatesAndIsIdempotent(t *testing.T) {
 	}
 	if total != 1 || len(active) != 1 || active[0].ID != missingName.ID {
 		t.Fatalf("promoted draft should be hidden from active list, total=%d active=%#v", total, active)
+	}
+}
+
+func TestQuickCaptureServicePromoteDraftCanTargetWishlist(t *testing.T) {
+	price := 42.5
+	svc, db := newQuickCaptureServiceAndDBForTest(t, t.TempDir())
+	draft, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID:        1,
+		WorkingTitle:  "Wishlist denarius",
+		Era:           string(models.EraAncient),
+		PurchasePrice: &price,
+	})
+	if err != nil {
+		t.Fatalf("create promotable draft: %v", err)
+	}
+
+	result, err := svc.PromoteDraft(1, draft.ID, PromoteDraftInput{
+		Confirm: true,
+		Target:  QuickCapturePromotionTargetWishlist,
+	})
+	if err != nil {
+		t.Fatalf("promote to wishlist: %v", err)
+	}
+	if result.Target != QuickCapturePromotionTargetWishlist {
+		t.Fatalf("expected wishlist target in result, got %q", result.Target)
+	}
+
+	var coin models.Coin
+	if err := db.First(&coin, result.CoinID).Error; err != nil {
+		t.Fatalf("load promoted coin: %v", err)
+	}
+	if !coin.IsWishlist || coin.IsSold {
+		t.Fatalf("expected promoted coin to be wishlist and unsold, wishlist=%v sold=%v", coin.IsWishlist, coin.IsSold)
+	}
+	if coin.UserID != 1 {
+		t.Fatalf("expected promoted coin to preserve owner 1, got %d", coin.UserID)
+	}
+}
+
+func TestQuickCaptureServicePromoteDraftRejectsInvalidTarget(t *testing.T) {
+	svc, _ := newQuickCaptureServiceAndDBForTest(t, t.TempDir())
+	draft, err := svc.CreateDraft(CreateQuickCaptureDraftInput{UserID: 1, WorkingTitle: "Target validation"})
+	if err != nil {
+		t.Fatalf("create draft: %v", err)
+	}
+
+	_, err = svc.PromoteDraft(1, draft.ID, PromoteDraftInput{Confirm: true, Target: "archive"})
+	var validationErr *QuickCapturePromotionValidationError
+	if !errors.As(err, &validationErr) || validationErr.Fields["target"] == "" {
+		t.Fatalf("expected target validation error, got %v", err)
 	}
 }
 

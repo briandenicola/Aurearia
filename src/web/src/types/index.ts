@@ -441,6 +441,7 @@ export interface QuickCapturePromoteOverrides {
 
 export interface QuickCapturePromoteRequest {
   confirm: boolean
+  target?: 'collection' | 'wishlist'
   overrides?: QuickCapturePromoteOverrides
 }
 
@@ -449,6 +450,7 @@ export interface QuickCapturePromotionResponse {
   status: 'promoted'
   coinId: number
   alreadyPromoted: boolean
+  target: 'collection' | 'wishlist'
 }
 
 export interface CoinImage {

@@ -48,6 +48,7 @@ interface QuickCapturePromotionResponse {
   status: 'promoted'
   coinId: number
   alreadyPromoted: boolean
+  target: 'collection' | 'wishlist'
 }
 ```
 
@@ -160,15 +161,16 @@ Missing, non-owned, promoted, or discarded draft.
 
 ## `POST /quick-capture/drafts/{id}/promote`
 
-Explicitly promotes a valid active draft into one normal `Coin`.
+Explicitly promotes a valid active draft into one normal `Coin` in either the user's collection or wishlist.
 
 ### Request body
 
-Optional overrides in normal coin mutation shape. Used for fields not present in sparse draft UI or final correction before promotion.
+Optional `target` plus overrides in normal coin mutation shape. `target` defaults to `collection` when omitted, preserving the original Quick Capture promotion behavior. Use `wishlist` to create the promoted coin with `isWishlist: true`.
 
 ```json
 {
   "confirm": true,
+  "target": "collection",
   "overrides": {
     "name": "Augustus Denarius",
     "category": "Roman",
@@ -192,7 +194,8 @@ First success:
   "draftId": 12,
   "status": "promoted",
   "coinId": 91,
-  "alreadyPromoted": false
+  "alreadyPromoted": false,
+  "target": "collection"
 }
 ```
 
@@ -203,13 +206,14 @@ Repeated promote after success:
   "draftId": 12,
   "status": "promoted",
   "coinId": 91,
-  "alreadyPromoted": true
+  "alreadyPromoted": true,
+  "target": "collection"
 }
 ```
 
 ### 400
 
-Missing `confirm: true` or normal-coin validation failure. Draft remains active/editable.
+Missing `confirm: true`, invalid `target`, or normal-coin validation failure. Draft remains active/editable.
 
 ```json
 {

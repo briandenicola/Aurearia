@@ -21,6 +21,13 @@ var (
 	ErrQuickCaptureDraftConcurrentAction = errors.New("draft is currently being promoted or is not in an active state")
 )
 
+type QuickCapturePromotionTarget string
+
+const (
+	QuickCapturePromotionTargetCollection QuickCapturePromotionTarget = "collection"
+	QuickCapturePromotionTargetWishlist   QuickCapturePromotionTarget = "wishlist"
+)
+
 // QuickCapturePromotionValidationError carries per-field validation messages for promotion.
 type QuickCapturePromotionValidationError struct {
 	Fields map[string]string
@@ -92,6 +99,7 @@ type PromoteOverrides struct {
 // PromoteDraftInput holds promotion request data.
 type PromoteDraftInput struct {
 	Confirm   bool
+	Target    QuickCapturePromotionTarget
 	Overrides PromoteOverrides
 }
 
@@ -100,6 +108,7 @@ type PromoteDraftResult struct {
 	DraftID         uint
 	CoinID          uint
 	AlreadyPromoted bool
+	Target          QuickCapturePromotionTarget
 }
 
 type QuickCaptureService struct {
@@ -411,6 +420,12 @@ func (s *QuickCaptureService) PromoteDraft(userID, draftID uint, input PromoteDr
 			Fields: map[string]string{"confirm": "confirm must be true to promote"},
 		}
 	}
+	target, err := normalizeQuickCapturePromotionTarget(input.Target)
+	if err != nil {
+		return nil, &QuickCapturePromotionValidationError{
+			Fields: map[string]string{"target": "target must be collection or wishlist"},
+		}
+	}
 
 	draft, err := s.repo.GetDraftForOwner(draftID, userID)
 	if err != nil {
@@ -419,10 +434,15 @@ func (s *QuickCaptureService) PromoteDraft(userID, draftID uint, input PromoteDr
 
 	// Idempotent: already promoted
 	if draft.Status == models.QuickCaptureDraftStatusPromoted && draft.PromotedCoinID != nil {
+		existingTarget := target
+		if promotedCoin, err := s.repo.GetCoinForOwner(*draft.PromotedCoinID, userID); err == nil {
+			existingTarget = targetForPromotedCoin(promotedCoin)
+		}
 		return &PromoteDraftResult{
 			DraftID:         draftID,
 			CoinID:          *draft.PromotedCoinID,
 			AlreadyPromoted: true,
+			Target:          existingTarget,
 		}, nil
 	}
 
@@ -437,6 +457,7 @@ func (s *QuickCaptureService) PromoteDraft(userID, draftID uint, input PromoteDr
 
 	// Build coin from draft fields + overrides
 	coin := s.buildCoinFromDraft(draft, input.Overrides)
+	coin.IsWishlist = target == QuickCapturePromotionTargetWishlist
 
 	// Validate minimum coin requirements
 	if fieldErrors := ValidateCoinMinimumForPromotion(coin); len(fieldErrors) > 0 {
@@ -456,7 +477,26 @@ func (s *QuickCaptureService) PromoteDraft(userID, draftID uint, input PromoteDr
 		DraftID:         draftID,
 		CoinID:          createdCoin.ID,
 		AlreadyPromoted: false,
+		Target:          target,
 	}, nil
+}
+
+func normalizeQuickCapturePromotionTarget(target QuickCapturePromotionTarget) (QuickCapturePromotionTarget, error) {
+	switch QuickCapturePromotionTarget(strings.ToLower(strings.TrimSpace(string(target)))) {
+	case "", QuickCapturePromotionTargetCollection:
+		return QuickCapturePromotionTargetCollection, nil
+	case QuickCapturePromotionTargetWishlist:
+		return QuickCapturePromotionTargetWishlist, nil
+	default:
+		return "", fmt.Errorf("invalid quick capture promotion target")
+	}
+}
+
+func targetForPromotedCoin(coin *models.Coin) QuickCapturePromotionTarget {
+	if coin != nil && coin.IsWishlist {
+		return QuickCapturePromotionTargetWishlist
+	}
+	return QuickCapturePromotionTargetCollection
 }
 
 // buildCoinFromDraft constructs a Coin struct from a draft and promotion overrides.

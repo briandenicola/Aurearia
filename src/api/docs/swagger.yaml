@@ -1347,6 +1347,8 @@ definitions:
           purchasePrice:
             type: number
         type: object
+      target:
+        type: string
     type: object
   handlers.quickCaptureDraftListResponse:
     properties:
@@ -8299,6 +8301,7 @@ paths:
       consumes:
       - application/json
       description: Transactionally promotes a valid active draft into a normal Coin.
+        Optional target accepts "collection" or "wishlist" and defaults to "collection".
         Idempotent on repeat.
       parameters:
       - description: Draft ID

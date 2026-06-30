@@ -49,10 +49,13 @@ const relativeTime = computed(() => {
 <style scoped>
 .draft-card {
   display: grid;
-  grid-template-columns: 76px 1fr;
+  grid-template-columns: 76px minmax(0, 1fr);
   gap: 1rem;
   text-decoration: none;
   color: inherit;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
 }
 .draft-preview {
   width: 76px;
@@ -69,14 +72,24 @@ const relativeTime = computed(() => {
   font-size: 0.8rem;
 }
 
+.draft-info {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .draft-info h3, .draft-context {
   margin: 0 0 0.35rem;
+}
+
+.draft-info h3 {
+  overflow-wrap: anywhere;
 }
 
 .draft-context {
   color: var(--text-secondary);
   font-size: 0.85rem;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .markdown-rendered {
@@ -100,9 +113,30 @@ const relativeTime = computed(() => {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.draft-meta .chip-sm {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .updated-at {
   font-size: 0.8rem;
   color: var(--text-muted);
+}
+
+@media (max-width: 600px) {
+  .draft-card {
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  .draft-preview {
+    width: 64px;
+    height: 64px;
+  }
 }
 </style>

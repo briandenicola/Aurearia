@@ -7,6 +7,10 @@ const routerPush = vi.fn()
 const routerBack = vi.fn()
 
 vi.mock('vue-router', () => ({
+  RouterLink: {
+    props: ['to'],
+    template: '<a><slot /></a>',
+  },
   useRouter: () => ({
     push: routerPush,
     back: routerBack,
@@ -87,6 +91,7 @@ describe('CoinLookupPage', () => {
           ExternalLink: true,
           RotateCcw: true,
           Bookmark: true,
+          List: true,
         },
       },
     })
@@ -96,6 +101,7 @@ describe('CoinLookupPage', () => {
       value: [file],
       configurable: true,
     })
+
     await input.trigger('change')
 
     await wrapper.find('.btn-submit').trigger('click')
@@ -128,6 +134,29 @@ describe('CoinLookupPage', () => {
       reverseImage: null,
     }))
     expect(routerPush).toHaveBeenCalledWith('/quick-capture/drafts/42')
+  })
+
+  it('links the Identify Coin header to all quick capture drafts', () => {
+    const wrapper = mount(CoinLookupPage, {
+      global: {
+        stubs: {
+          Camera: true,
+          Images: true,
+          Search: true,
+          X: true,
+          AlertCircle: true,
+          ShieldCheck: true,
+          ExternalLink: true,
+          RotateCcw: true,
+          Bookmark: true,
+          List: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('Identify Coin')
+    expect(wrapper.find('[aria-label="All drafts"]').exists()).toBe(true)
+    expect(wrapper.find('.pwa-icon-btn').exists()).toBe(true)
   })
 
   it('renders safe AI observations narrative instead of editable side description boxes', async () => {

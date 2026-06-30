@@ -23,4 +23,13 @@ describe('QuickCaptureDraftCard', () => {
     expect(source).toContain('No image')
     expect(source).not.toContain('<img')
   })
+
+  it('constrains long draft names and metadata inside the PWA viewport', () => {
+    expect(source).toContain('grid-template-columns: 76px minmax(0, 1fr)')
+    expect(source).toContain('.draft-info {')
+    expect(source).toContain('overflow-wrap: anywhere')
+    expect(source).toContain('.draft-meta .chip-sm')
+    expect(source).toContain('text-overflow: ellipsis')
+    expect(source).toContain('@media (max-width: 600px)')
+  })
 })

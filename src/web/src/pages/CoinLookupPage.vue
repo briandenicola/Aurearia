@@ -2,6 +2,11 @@
   <div class="container">
     <div class="page-header">
       <h1>Identify Coin</h1>
+      <div class="pwa-actions">
+        <RouterLink class="pwa-icon-btn" to="/quick-capture/drafts" title="All drafts" aria-label="All drafts">
+          <List :size="22" />
+        </RouterLink>
+      </div>
     </div>
 
     <!-- Capture State -->
@@ -263,7 +268,7 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { createQuickCaptureDraft, lookupCoin } from '@/api/client'
 import { MATERIALS, type CoinLookupResponse, type CoinMutationPayload, type Material } from '@/types'
 import { renderSafeMarkdown } from '@/composables/useMarkdown'
@@ -277,6 +282,7 @@ import {
   ExternalLink,
   RotateCcw,
   Bookmark,
+  List,
 } from 'lucide-vue-next'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 

@@ -2,8 +2,12 @@
   <div class="container">
     <div class="form-wrapper">
       <div class="page-header">
-        <h1>Quick Capture Draft</h1>
-        <RouterLink class="btn btn-secondary" to="/quick-capture/drafts">All drafts</RouterLink>
+        <h1>Draft</h1>
+        <div class="pwa-actions">
+          <RouterLink class="pwa-icon-btn" to="/quick-capture/drafts" title="All drafts" aria-label="All drafts">
+            <List :size="22" />
+          </RouterLink>
+        </div>
       </div>
 
       <p v-if="loading" class="status-text">Loading draft...</p>
@@ -152,6 +156,7 @@ import type { QuickCaptureDraft } from '@/types'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 import QuickCaptureImageSlots from '@/components/quick-capture/QuickCaptureImageSlots.vue'
 import PromotionReadinessPanel from '@/components/quick-capture/PromotionReadinessPanel.vue'
+import { List } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()

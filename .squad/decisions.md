@@ -11805,3 +11805,100 @@ This preserves the existing endpoint and frontend response shape while giving ba
 ## Impact
 
 Go and Python proxy/request types now include the opt-in field. Future callers that need machine-readable `/api/analyze` output should explicitly set `format_output=false`; user-facing analysis should continue using the default formatted output.
+
+---
+
+### Decision: Quick Capture Promotion Target Field
+
+**Date:** 2026-06-30  
+**Agents:** Cassius (backend), Aurelia (frontend)  
+**Status:** IMPLEMENTED
+
+## Context
+
+Draft promotion workflow required a user-visible choice: promote a draft into either the normal collection (default) or the wishlist. Backend needed to accept this choice via API contract; frontend needed to display target selection UI and send the correct target on promotion.
+
+## Decision
+
+`POST /api/quick-capture/drafts/{id}/promote` accepts an optional top-level `target` field with values `"collection"` (default) or `"wishlist"`. Omitted or empty `target` defaults to `collection` for backward compatibility.
+
+**Backend behavior:**
+- `target: "collection"` creates the promoted `Coin` with `isWishlist=false` (default)
+- `target: "wishlist"` creates the promoted `Coin` with `isWishlist=true`
+- Promotion response includes the target for consistent routing: `{ draftId, status, coinId, alreadyPromoted, target }`
+
+**Frontend behavior:**
+- Promotion panel displays two mutually exclusive target cards (Collection | Wishlist)
+- User selects target before confirming promotion
+- `QuickCapturePromoteRequest` includes `target` field matching the backend contract
+- Success confirms with target-specific messaging (e.g., "Added to Wishlist")
+
+## Rationale
+
+1. **Principle I (Clear Layered Architecture):** Top-level `target` is clearer than overloading `overrides.isWishlist`; keeps Quick Capture promotion semantics explicit at the draft boundary
+2. **Principle IV (Simple Complete Changes):** Single field is simpler than multi-level nesting; preserves existing default collection behavior
+3. **Type safety:** Explicit `target` union (`"collection" | "wishlist"`) is more maintainable than generic `overrides` object
+4. **User experience:** Clear visual distinction between targets matches real user workflow (normal collection vs. watchlist)
+
+## Implementation
+
+**Backend (Cassius):**
+- Service: `PromoteDraft()` accepts and validates `target` parameter
+- Repository: Sets `Coin.IsWishlist` on wishlist promotions
+- Handler: Deserializes `target` from request, enforces defaults, returns typed response
+- Tests: Full TestQuickCapture coverage (services, handlers, repository)
+- OpenAPI: Endpoint contract updated with `target` parameter and response field
+
+**Frontend (Aurelia):**
+- Component: `PromotionReadinessPanel` displays Collection and Wishlist target cards
+- Types: `QuickCapturePromoteRequest` includes `target: "collection" | "wishlist"`
+- Page: `QuickCaptureDraftPage` routes target selection to promotion endpoint
+- Navigation: All-drafts page includes icon-only back link for PWA mobile safety
+- Tests: 19/19 Vitest tests (draft, lookup, promotion components)
+
+## Verification
+
+**Backend:**
+- ✅ `go test -v ./services ./handlers ./repository -run TestQuickCapture` — all passed
+- ✅ `go vet ./services ./handlers ./repository` — no issues
+- ✅ OpenAPI spec contracts verified
+
+**Frontend:**
+- ✅ Vitest: 19/19 tests passed (draft, lookup, promotion components)
+- ✅ `npm run type-check` — no type errors
+- ✅ ESLint: targeted draft/lookup/promotion files passed
+
+**Integration & QA:**
+- ✅ End-to-end promotion flow (draft → target selection → promotion → success)
+- ✅ PWA viewport constraints (no horizontal scroll, tap targets preserved)
+- ✅ Backward compatibility (omitted `target` defaults to `collection`)
+- ✅ QA validation passed (Brutus APPROVED)
+
+## Backward Compatibility
+
+Non-regressive: existing promote calls omit `target` and default to collection behavior. New calls explicitly specify `"collection"` or `"wishlist"`.
+
+## Related Files
+
+**Backend:**
+- `src/api/services/quick_capture_service.go`
+- `src/api/handlers/quick_capture_handler.go`
+- `src/api/repository/quick_capture_repository.go`
+- `src/api/models/quick_capture_draft.go`
+- Tests: `*_test.go` for services, handlers, repository
+
+**Frontend:**
+- `src/web/src/pages/QuickCaptureDraftPage.vue`
+- `src/web/src/pages/CoinLookupPage.vue`
+- `src/web/src/components/draft/QuickCaptureDraftCard.vue`
+- `src/web/src/components/promotion/PromotionReadinessPanel.vue`
+- Types: promotion target union in request/response models
+- Tests: `*.test.ts` for all four components
+
+## Alignment with Constitution
+
+- **Principle I (Clear Layered Architecture):** Handler → Service → Repository flow; no cross-layer imports; typed request/response boundaries
+- **Principle IV (Simple Complete Changes):** Single explicit field; no clever overrides; complete feature with all gates passing
+- **Principle VI (Consistent User Experience):** PWA-safe UI, mobile-first responsive design, clear visual hierarchy for target selection
+- **§17 Quality Gate:** All tests pass, lint clean, type-check clean, no regressions
+- **§21 Definition of Done:** Spec exists, implementation verified, all validation gates pass, QA approved
