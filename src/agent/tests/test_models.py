@@ -185,6 +185,16 @@ def test_analyze_request_rejects_oversized_base64_image():
         )
 
 
+def test_analyze_request_accepts_raw_format_opt_in():
+    request = AnalyzeRequest(
+        llm=LLMConfig(provider="anthropic"),
+        coin=CoinData(id=1, name="Coin"),
+        format_output=False,
+    )
+
+    assert request.format_output is False
+
+
 def test_intake_request_requires_at_least_one_image():
     with pytest.raises(ValidationError):
         IntakeDraftRequest(

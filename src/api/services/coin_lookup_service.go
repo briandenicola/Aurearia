@@ -155,14 +155,16 @@ func (s *CoinLookupService) extractDataFromImages(ctx context.Context, images []
 	prompt := s.buildVisionPrompt()
 
 	// Call agent proxy for vision analysis
+	formatOutput := false
 	proxyReq := AnalyzeProxyRequest{
 		LLM: llmCfg,
 		Coin: CoinDataProxy{
 			Name: "Lookup Candidate",
 		},
-		Images: images,
-		Side:   "lookup",
-		Prompt: prompt,
+		Images:       images,
+		Side:         "lookup",
+		Prompt:       prompt,
+		FormatOutput: &formatOutput,
 	}
 
 	analysis, err := s.proxy.AnalyzeCoin(ctx, proxyReq)
@@ -332,6 +334,25 @@ func (s *CoinLookupService) extractLabelText(analysis string) string {
 			return strings.TrimSpace(labelText)
 		}
 	}
+	for _, line := range strings.Split(analysis, "\n") {
+		parts := strings.SplitN(strings.TrimSpace(line), ":", 2)
+		if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[0]), "label text") {
+			value := cleanInferredValue(parts[1])
+			if value != "" && !isNonSpecificExtraction(value) {
+				return value
+			}
+		}
+	}
+	if strings.Contains(analysis, "/") {
+		for _, line := range strings.Split(analysis, "\n") {
+			line = cleanInferredValue(line)
+			upper := strings.ToUpper(line)
+			if strings.Count(line, "/") >= 2 &&
+				(strings.Contains(upper, "NGC") || strings.Contains(upper, "EMPIRE") || strings.Contains(upper, "MINT")) {
+				return line
+			}
+		}
+	}
 	return ""
 }
 
@@ -341,6 +362,8 @@ func (s *CoinLookupService) extractCoinFields(analysis string) map[string]any {
 
 	var parsed map[string]any
 	if err := json.Unmarshal([]byte(analysis), &parsed); err != nil {
+		mergeLinePatternFields(analysis, fields)
+		mergeNGCLabelFields(analysis, fields)
 		return fields
 	}
 
@@ -348,8 +371,214 @@ func (s *CoinLookupService) extractCoinFields(analysis string) map[string]any {
 	if nested, ok := parsed["coin"].(map[string]any); ok {
 		copyCoinFieldsFromMap(nested, fields)
 	}
+	for _, key := range []string{"labelText", "ngcDescription", "description", "notes"} {
+		if value, ok := parsed[key].(string); ok {
+			mergeLinePatternFields(value, fields)
+			mergeNGCLabelFields(value, fields)
+		}
+	}
+	mergeLinePatternFields(analysis, fields)
+	mergeNGCLabelFields(analysis, fields)
 
 	return fields
+}
+
+func mergeLinePatternFields(text string, fields map[string]any) {
+	fieldAliases := map[string]string{
+		"name":                "name",
+		"title":               "name",
+		"ruler":               "ruler",
+		"issuer":              "ruler",
+		"denomination":        "denomination",
+		"type":                "denomination",
+		"category":            "category",
+		"material":            "material",
+		"metal":               "material",
+		"mint":                "mint",
+		"mintmark":            "mint",
+		"mint mark":           "mint",
+		"era":                 "era",
+		"grade":               "grade",
+		"obverse":             "obverseDescription",
+		"obverse description": "obverseDescription",
+		"reverse":             "reverseDescription",
+		"reverse description": "reverseDescription",
+	}
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(strings.TrimLeft(line, "-*• "))
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.ToLower(strings.TrimSpace(strings.Trim(parts[0], "*_` ")))
+		targetKey, ok := fieldAliases[key]
+		if !ok {
+			continue
+		}
+		copyInferredStringField(fields, targetKey, parts[1])
+	}
+}
+
+func mergeNGCLabelFields(text string, fields map[string]any) {
+	for _, label := range candidateLabelTexts(text) {
+		segments := splitLabelSegments(label)
+		if len(segments) < 2 {
+			continue
+		}
+		for _, segment := range segments {
+			upper := strings.ToUpper(segment)
+			switch {
+			case strings.Contains(upper, "ROMAN EMPIRE"):
+				copyInferredStringField(fields, "category", "Roman")
+				copyInferredStringField(fields, "era", "ancient")
+			case strings.Contains(upper, "GREEK"):
+				copyInferredStringField(fields, "category", "Greek")
+				copyInferredStringField(fields, "era", "ancient")
+			case strings.Contains(upper, "BYZANTINE"):
+				copyInferredStringField(fields, "category", "Byzantine")
+				copyInferredStringField(fields, "era", "medieval")
+			}
+			if strings.Contains(upper, " MINT") || strings.HasSuffix(upper, "MINT") {
+				mint := strings.TrimSpace(strings.TrimSuffix(strings.TrimSuffix(segment, "Mint"), "MINT"))
+				copyInferredStringField(fields, "mint", titleVisibleMint(mint))
+			}
+			if ruler := parseVisibleRuler(segment); ruler != "" {
+				copyInferredStringField(fields, "ruler", ruler)
+			}
+			material, denomination := parseMaterialDenomination(segment)
+			if material != "" {
+				copyInferredStringField(fields, "material", material)
+			}
+			if denomination != "" {
+				copyInferredStringField(fields, "denomination", denomination)
+			}
+		}
+	}
+	if _, hasName := fields["name"]; !hasName {
+		ruler, rulerOK := fields["ruler"].(string)
+		denomination, denominationOK := fields["denomination"].(string)
+		if rulerOK && denominationOK {
+			copyInferredStringField(fields, "name", strings.TrimSpace(ruler+" "+denomination))
+		}
+	}
+}
+
+func candidateLabelTexts(text string) []string {
+	candidates := []string{text}
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "/") {
+			candidates = append(candidates, line)
+		}
+	}
+	return candidates
+}
+
+func splitLabelSegments(label string) []string {
+	rawSegments := strings.Split(label, "/")
+	segments := make([]string, 0, len(rawSegments))
+	for _, segment := range rawSegments {
+		segment = cleanInferredValue(segment)
+		if segment != "" {
+			segments = append(segments, segment)
+		}
+	}
+	return segments
+}
+
+func parseVisibleRuler(segment string) string {
+	segment = cleanInferredValue(segment)
+	if segment == "" || strings.Contains(strings.ToUpper(segment), "MINT") {
+		return ""
+	}
+	if comma := strings.Index(segment, ","); comma > 0 {
+		segment = strings.TrimSpace(segment[:comma])
+	}
+	if strings.ContainsAny(segment, "0123456789") {
+		return ""
+	}
+	upper := strings.ToUpper(segment)
+	if strings.Contains(upper, "EMPIRE") || strings.Contains(upper, "NGC") {
+		return ""
+	}
+	words := strings.Fields(segment)
+	if len(words) < 2 || len(words) > 4 {
+		return ""
+	}
+	return segment
+}
+
+func parseMaterialDenomination(segment string) (string, string) {
+	words := strings.Fields(cleanInferredValue(segment))
+	if len(words) < 2 {
+		return "", ""
+	}
+	materialCodes := map[string]string{
+		"AV": "Gold",
+		"AR": "Silver",
+		"AE": "Bronze",
+		"BI": "Billon",
+	}
+	material, ok := materialCodes[strings.ToUpper(strings.Trim(words[0], "."))]
+	if !ok {
+		return "", ""
+	}
+	denomination := strings.Join(words[1:], " ")
+	return material, denomination
+}
+
+func titleVisibleMint(mint string) string {
+	words := strings.Fields(strings.ToLower(mint))
+	for i, word := range words {
+		if word == "" {
+			continue
+		}
+		words[i] = strings.ToUpper(word[:1]) + word[1:]
+	}
+	return strings.Join(words, " ")
+}
+
+func copyInferredStringField(fields map[string]any, key string, rawValue string) {
+	if _, exists := fields[key]; exists {
+		return
+	}
+	value := cleanInferredValue(rawValue)
+	if value == "" || isNonSpecificExtraction(value) {
+		return
+	}
+	fields[key] = value
+}
+
+func cleanInferredValue(value string) string {
+	value = strings.TrimSpace(value)
+	value = strings.Trim(value, "\"'`*_ ")
+	value = strings.TrimSuffix(value, ".")
+	return strings.TrimSpace(value)
+}
+
+func isNonSpecificExtraction(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == "" || normalized == "null" || normalized == "n/a" || normalized == "unknown" {
+		return true
+	}
+	nonSpecific := []string{
+		"not visible",
+		"not shown",
+		"not provided",
+		"unclear",
+		"illegible",
+		"cannot determine",
+		"can't determine",
+	}
+	for _, marker := range nonSpecific {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func copyCoinFieldsFromMap(source map[string]any, target map[string]any) {
@@ -584,15 +813,20 @@ func (s *CoinLookupService) buildPrefilledDraft(data *LookupExtractedData, candi
 
 	// Include NGC data in notes if present
 	if data.NGC != nil {
-		notes := fmt.Sprintf("NGC Cert: %s\n", data.NGC.NormalizedCert)
+		notesParts := []string{
+			fmt.Sprintf("NGC Cert: %s", data.NGC.NormalizedCert),
+		}
 		if data.NGC.Grade != "" {
-			notes += fmt.Sprintf("Grade: %s\n", data.NGC.Grade)
+			notesParts = append(notesParts, fmt.Sprintf("Grade: %s", data.NGC.Grade))
 		}
 		if data.NGC.Description != "" {
-			notes += fmt.Sprintf("Description: %s\n", data.NGC.Description)
+			notesParts = append(notesParts, fmt.Sprintf("Description: %s", data.NGC.Description))
 		}
-		notes += fmt.Sprintf("Lookup URL: %s\n", data.NGC.LookupURL)
-		draft["notes"] = notes
+		notesParts = append(notesParts, fmt.Sprintf("Lookup URL: %s", data.NGC.LookupURL))
+		if existingNotes, ok := draft["notes"].(string); ok && strings.TrimSpace(existingNotes) != "" {
+			notesParts = append(notesParts, strings.TrimSpace(existingNotes))
+		}
+		draft["notes"] = strings.Join(notesParts, "\n")
 	}
 
 	return draft

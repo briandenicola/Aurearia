@@ -11781,3 +11781,27 @@ User directive: merged Quick Add / Find Coin flow should support camera capture,
 - **Principle V (Security & Privacy):** Image data is user-owned; NGC capture is optional; no external API calls without user consent
 - **§17 Quality Gate:** Tests, vet, build, and manual validation all pass
 - **§21 Definition of Done:** Spec updated, implementation verified, all gates pass
+
+---
+
+### Decision: Raw Analyze Response Opt-In for Find Coin Lookup
+
+**Date:** 2026-06-29
+**Agent:** Cassius
+**Status:** PROPOSED
+
+## Context
+
+Find Coin uses the Go `CoinLookupService` and Python `/api/analyze` route to seed quick draft fields from images. The Go prompt requested exact JSON, but the Python coin-analysis team always ran a formatter that converted raw model output into narrative text, causing JSON-only parsing to fail and drafts to fall back to `Unidentified Coin`.
+
+## Decision
+
+Extend the existing `/api/analyze` request contract with backward-compatible `format_output` (default `true`). Find Coin lookup sends `format_output=false`, which skips the narrative formatter and returns `raw_analysis`; all normal coin analysis calls omit the field and keep existing formatted narrative behavior.
+
+## Rationale
+
+This preserves the existing endpoint and frontend response shape while giving backend lookup a structured/no-format path. It follows Principle II by keeping AI inference in Python behind the Go proxy and Principle IV by changing only the lookup-specific path instead of replacing the broader analysis pipeline.
+
+## Impact
+
+Go and Python proxy/request types now include the opt-in field. Future callers that need machine-readable `/api/analyze` output should explicitly set `format_output=false`; user-facing analysis should continue using the default formatted output.

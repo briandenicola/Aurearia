@@ -126,9 +126,10 @@ async def search_shows(request: CoinShowSearchRequest):
 async def analyze_coin(request: AnalyzeRequest):
     """Analyze coin images using vision model. Returns structured response."""
     logger.info(
-        "POST /analyze — provider=%s, model=%s, images=%d, side=%s",
+        "POST /analyze — provider=%s, model=%s, images=%d, side=%s, format_output=%s",
         request.llm.provider, request.llm.model,
         len(request.images or []), request.side or "general",
+        request.format_output,
     )
     graph = create_coin_analysis_team(
         llm_config=request.llm,
@@ -136,6 +137,7 @@ async def analyze_coin(request: AnalyzeRequest):
         images=request.images,
         side=request.side,
         custom_prompt=request.prompt,
+        format_output=request.format_output,
     )
     # Don't pass image_contents, coin_context, or analysis_prompt in the
     # initial state — the team constructor captures them via closure and
@@ -152,7 +154,7 @@ async def analyze_coin(request: AnalyzeRequest):
         return AgentResponse(
             analysis="Unable to complete the analysis. Please try again with clearer, well-lit images of the coin."
         )
-    analysis_text = result.get("formatted_analysis", "")
+    analysis_text = result.get("formatted_analysis" if request.format_output else "raw_analysis", "")
     if not analysis_text:
         # Fall back to messages
         msgs = result.get("messages", [])

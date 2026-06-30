@@ -13,6 +13,16 @@
 
 ## Recent Updates
 
+- **2026-06-30:** Find Coin Review Cycle — NGC Label Fallback Block + Strict Lockout Clearance
+  - Initial review identified BLOCK: NGC slash-label fallback in frontend normalization could save full label (e.g., `NGC:1234567/Green Label`) when user intends only numeric reference
+  - Block raised for data integrity risk (Principle IV violation — unintended side effect of fallback chain)
+  - Maximus applied fix under Strict Lockout protocol: NGC label extraction now correctly parses numeric reference only from slash-delimited string
+  - Re-review confirmed fix quality: proportional implementation, all tests passing, no regressions
+  - Final verdict: APPROVED. Feature ready for merge across all layers (backend/agent/frontend)
+  - Tests verified: `go test ./services` ✅, `pytest tests/test_api.py tests/test_models.py -v` ✅, `npx vitest run src/pages/__tests__/CoinLookupPage.test.ts` ✅
+  - Architecture/lint/type-check all clean
+  - Review logs: `.squad/orchestration-log/2026-06-30T02-12-02Z-brutus-find-coin-review-initial.md`, `.squad/orchestration-log/2026-06-30T02-12-02Z-brutus-find-coin-review-approved.md`
+
 - **2026-06-23:** Wishlist Availability Tracker — Regression Test Coverage
   - Comprehensive test suite added for VCoins sold-page detection edge case
   - 9 regression tests covering HTTP status codes, keyword detection, agent escalation, and summary counts

@@ -104,40 +104,44 @@
       </div>
 
       <div v-if="results" class="results-content">
-        <!-- NGC Certification Path (read-only display) -->
-        <div v-if="ngcCertNumber" class="result-section card">
-          <h3>Extracted Details</h3>
-          <div class="details-grid">
-            <div v-if="reviewForm.name" class="detail-item">
-              <label>Name</label>
-              <span>{{ reviewForm.name }}</span>
-            </div>
-            <div v-if="reviewForm.ruler" class="detail-item">
-              <label>Ruler</label>
-              <span>{{ reviewForm.ruler }}</span>
-            </div>
-            <div v-if="reviewForm.denomination" class="detail-item">
-              <label>Denomination</label>
-              <span>{{ reviewForm.denomination }}</span>
-            </div>
-            <div v-if="reviewForm.era" class="detail-item">
-              <label>Era</label>
-              <span>{{ reviewForm.era }}</span>
-            </div>
-            <div v-if="reviewForm.mint" class="detail-item">
-              <label>Mint</label>
-              <span>{{ reviewForm.mint }}</span>
-            </div>
-            <div v-if="reviewForm.material" class="detail-item">
-              <label>Material</label>
-              <span>{{ reviewForm.material }}</span>
-            </div>
+        <!-- NGC Certification Path -->
+        <form v-if="ngcCertNumber" class="result-section card" @submit.prevent="handleSaveAsDraft">
+          <h3>Review Coin Details</h3>
+          <div class="review-grid">
+            <label class="form-group full-width">
+              <span class="section-label">Name</span>
+              <input v-model="reviewForm.name" class="input" type="text" required>
+            </label>
+
+            <label class="form-group">
+              <span class="section-label">Ruler</span>
+              <input v-model="reviewForm.ruler" class="input" type="text">
+            </label>
+
+            <label class="form-group">
+              <span class="section-label">Denomination</span>
+              <input v-model="reviewForm.denomination" class="input" type="text">
+            </label>
+
+            <label class="form-group">
+              <span class="section-label">Category</span>
+              <input v-model="reviewForm.category" class="input" type="text">
+            </label>
+
+            <label class="form-group">
+              <span class="section-label">Grade</span>
+              <input v-model="reviewForm.grade" class="input" type="text">
+            </label>
           </div>
 
           <div class="ngc-cert">
             <div class="ngc-cert-header">
               <ShieldCheck :size="20" />
               <span>NGC Certification: {{ ngcCertNumber }}</span>
+            </div>
+            <div v-if="ngcForm.grade" class="detail-item ngc-grade-display">
+              <label>NGC Grade</label>
+              <span>{{ ngcForm.grade }}</span>
             </div>
             <label class="form-group">
               <span class="section-label">NGC Coin Number</span>
@@ -167,21 +171,11 @@
             </div>
           </div>
 
-          <!-- Descriptions -->
-          <div v-if="reviewForm.obverseDescription || reviewForm.reverseDescription" class="descriptions">
-            <h4>Descriptions</h4>
-            <div class="description-grid">
-              <div v-if="reviewForm.obverseDescription" class="description-side">
-                <label>Obverse</label>
-                <p>{{ reviewForm.obverseDescription }}</p>
-              </div>
-              <div v-if="reviewForm.reverseDescription" class="description-side">
-                <label>Reverse</label>
-                <p>{{ reviewForm.reverseDescription }}</p>
-              </div>
-            </div>
+          <div v-if="aiObservations" class="ai-observations">
+            <h4>AI Observations</h4>
+            <div class="ai-observations-content markdown-rendered" v-html="renderedAiObservations"></div>
           </div>
-        </div>
+        </form>
 
         <!-- Non-NGC Path (editable review form) -->
         <form v-else class="result-section card" @submit.prevent="handleSaveAsDraft">
@@ -193,20 +187,30 @@
               <input v-model="reviewForm.name" class="input" type="text" required>
             </label>
 
-            <label class="form-group full-width">
-              <span class="section-label">Obverse Description</span>
-              <textarea v-model="reviewForm.obverseDescription" class="input textarea" rows="3"></textarea>
+            <label class="form-group">
+              <span class="section-label">Ruler</span>
+              <input v-model="reviewForm.ruler" class="input" type="text">
             </label>
 
-            <label class="form-group full-width">
-              <span class="section-label">Reverse Description</span>
-              <textarea v-model="reviewForm.reverseDescription" class="input textarea" rows="3"></textarea>
+            <label class="form-group">
+              <span class="section-label">Denomination</span>
+              <input v-model="reviewForm.denomination" class="input" type="text">
             </label>
 
-            <label class="form-group full-width">
-              <span class="section-label">Notes</span>
-              <textarea v-model="reviewForm.notes" class="input textarea" rows="3"></textarea>
+            <label class="form-group">
+              <span class="section-label">Category</span>
+              <input v-model="reviewForm.category" class="input" type="text">
             </label>
+
+            <label class="form-group">
+              <span class="section-label">Grade</span>
+              <input v-model="reviewForm.grade" class="input" type="text">
+            </label>
+
+            <div v-if="aiObservations" class="form-group full-width ai-observations">
+              <span class="section-label">AI Observations</span>
+              <div class="ai-observations-content markdown-rendered" v-html="renderedAiObservations"></div>
+            </div>
           </div>
         </form>
 
@@ -261,7 +265,8 @@
 import { ref, computed, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { createQuickCaptureDraft, lookupCoin } from '@/api/client'
-import type { CoinLookupResponse, CoinMutationPayload } from '@/types'
+import { MATERIALS, type CoinLookupResponse, type CoinMutationPayload, type Material } from '@/types'
+import { renderSafeMarkdown } from '@/composables/useMarkdown'
 import {
   Camera,
   Images,
@@ -295,6 +300,7 @@ const submitting = ref(false)
 const saving = ref(false)
 const error = ref('')
 const results = ref<CoinLookupResponse | null>(null)
+const aiObservations = ref('')
 
 const reviewForm = reactive<CoinMutationPayload>({
   name: '',
@@ -325,6 +331,266 @@ const ngcLookupUrl = computed(() => {
 
 const numistaResults = computed(() => results.value?.numistaCandidates ?? [])
 const cameraReady = computed(() => cameraStream.value !== null && videoReady.value)
+const renderedAiObservations = computed(() => renderSafeMarkdown(aiObservations.value))
+
+type NormalizableLookupField =
+  | 'name'
+  | 'ruler'
+  | 'denomination'
+  | 'era'
+  | 'mint'
+  | 'material'
+  | 'category'
+  | 'grade'
+  | 'obverseInscription'
+  | 'reverseInscription'
+  | 'obverseDescription'
+  | 'reverseDescription'
+
+const lookupFieldAliases: Record<NormalizableLookupField, string[]> = {
+  name: ['name', 'coin name', 'title', 'attribution'],
+  ruler: ['ruler', 'issuer', 'emperor', 'authority'],
+  denomination: ['denomination', 'coin type', 'type'],
+  era: ['era', 'period'],
+  mint: ['mint', 'mint location'],
+  material: ['material', 'metal', 'composition'],
+  category: ['category', 'culture', 'region'],
+  grade: ['grade', 'condition'],
+  obverseInscription: ['obverse inscription', 'obverse legend'],
+  reverseInscription: ['reverse inscription', 'reverse legend'],
+  obverseDescription: ['obverse description', 'obverse'],
+  reverseDescription: ['reverse description', 'reverse'],
+}
+
+function normalizeLookupKey(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
+function cleanLookupValue(value: unknown) {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+function isPlaceholderLookupValue(value: string | undefined) {
+  if (!value) return true
+  const normalized = value.trim().toLowerCase()
+  return normalized === '' || normalized === 'unidentified coin' || normalized === 'unknown' || normalized === 'n/a'
+}
+
+function getAliasedField(source: Record<string, unknown> | null | undefined, field: NormalizableLookupField) {
+  if (!source) return undefined
+  const aliases = new Set(lookupFieldAliases[field].map(normalizeLookupKey))
+  const entry = Object.entries(source).find(([key]) => aliases.has(normalizeLookupKey(key)))
+  return entry ? cleanLookupValue(entry[1]) : undefined
+}
+
+function parseLookupLineFields(text: string | undefined) {
+  const fields: Partial<Record<NormalizableLookupField, string>> = {}
+  if (!text) return fields
+
+  for (const line of text.split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Za-z][A-Za-z\s/()-]{0,40})\s*:\s*(.+?)\s*$/)
+    if (!match) continue
+
+    const label = match[1] ?? ''
+    const value = cleanLookupValue(match[2])
+    if (!value) continue
+
+    const normalizedLabel = normalizeLookupKey(label)
+    const field = Object.entries(lookupFieldAliases).find(([, aliases]) =>
+      aliases.map(normalizeLookupKey).includes(normalizedLabel)
+    )?.[0] as NormalizableLookupField | undefined
+
+    if (field && !fields[field]) {
+      fields[field] = value
+    }
+  }
+
+  return fields
+}
+
+function parseJsonLookupFields(text: string | undefined) {
+  if (!text) return null
+  try {
+    return asRecord(JSON.parse(text))
+  } catch {
+    return null
+  }
+}
+
+function normalizeMaterial(value: string): Material {
+  const normalized = value.trim().toLowerCase()
+  const aliases: Record<string, Material> = {
+    ar: 'Silver',
+    silver: 'Silver',
+    ae: 'Bronze',
+    bronze: 'Bronze',
+    copper: 'Copper',
+    au: 'Gold',
+    gold: 'Gold',
+    electrum: 'Electrum',
+  }
+  return aliases[normalized] ?? MATERIALS.find(material => material.toLowerCase() === normalized) ?? 'Other'
+}
+
+function normalizeObservationForCompare(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[`*_>#-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function appendUniqueObservation(parts: string[], value: string | undefined, heading?: string) {
+  const clean = cleanLookupValue(value)
+  if (!clean) return
+
+  const normalizedClean = normalizeObservationForCompare(clean)
+  const isDuplicate = parts.some(part => {
+    const normalizedPart = normalizeObservationForCompare(part)
+    return normalizedPart.includes(normalizedClean) || normalizedClean.includes(normalizedPart)
+  })
+  if (isDuplicate) return
+
+  parts.push(heading ? `**${heading}:** ${clean}` : clean)
+}
+
+function deriveAiObservations(lookup: CoinLookupResponse, draft: CoinMutationPayload) {
+  const parts: string[] = []
+
+  appendUniqueObservation(parts, draft.notes)
+  appendUniqueObservation(parts, draft.aiAnalysis)
+  if (!parseJsonLookupFields(lookup.extractedData.rawAnalysis)) {
+    appendUniqueObservation(parts, lookup.extractedData.rawAnalysis)
+  }
+  appendUniqueObservation(parts, draft.obverseDescription, 'Obverse')
+  appendUniqueObservation(parts, draft.reverseDescription, 'Reverse')
+
+  return parts.join('\n\n')
+}
+
+function hasFieldValue(draft: CoinMutationPayload, field: NormalizableLookupField) {
+  const value = draft[field]
+  return typeof value === 'string' && !isPlaceholderLookupValue(value)
+}
+
+function setMissingLookupField(draft: CoinMutationPayload, field: NormalizableLookupField, value: string | undefined) {
+  if (!value || hasFieldValue(draft, field)) return
+
+  switch (field) {
+    case 'name':
+      draft.name = value
+      break
+    case 'ruler':
+      draft.ruler = value
+      break
+    case 'denomination':
+      draft.denomination = value
+      break
+    case 'era':
+      draft.era = value
+      break
+    case 'mint':
+      draft.mint = value
+      break
+    case 'material':
+      draft.material = normalizeMaterial(value)
+      break
+    case 'category':
+      draft.category = value
+      break
+    case 'grade':
+      draft.grade = value
+      break
+    case 'obverseInscription':
+      draft.obverseInscription = value
+      break
+    case 'reverseInscription':
+      draft.reverseInscription = value
+      break
+    case 'obverseDescription':
+      draft.obverseDescription = value
+      break
+    case 'reverseDescription':
+      draft.reverseDescription = value
+      break
+  }
+}
+
+function applyLookupFieldSource(draft: CoinMutationPayload, source: Record<string, unknown> | null | undefined) {
+  for (const field of Object.keys(lookupFieldAliases) as NormalizableLookupField[]) {
+    setMissingLookupField(draft, field, getAliasedField(source, field))
+  }
+}
+
+function applyParsedLookupText(draft: CoinMutationPayload, text: string | undefined) {
+  applyLookupFieldSource(draft, parseJsonLookupFields(text))
+  const parsedLines = parseLookupLineFields(text)
+  for (const [field, value] of Object.entries(parsedLines) as Array<[NormalizableLookupField, string]>) {
+    setMissingLookupField(draft, field, value)
+  }
+}
+
+function deriveNameFromParts(draft: CoinMutationPayload) {
+  if (hasFieldValue(draft, 'name')) return
+  const parts = [draft.ruler, draft.denomination].filter((part): part is string => Boolean(part?.trim()))
+  if (parts.length > 0) {
+    draft.name = parts.join(' ')
+  }
+}
+
+function reliableNgcLabelName(labelText: string | undefined) {
+  if (!labelText) return undefined
+  const unreliable = /\b(ngc|cert|certification|ancients|authentic|grade|ch\s*vf|vf|xf|ms|fine)\b/i
+  const contextOnly = /\b(empire|kingdom|republic|provincial|mint)\b/i
+  const dateOnly = /^(?:c\.?\s*)?(?:ad|bc|ce|bce)?\s*[\d\s./-]+(?:ad|bc|ce|bce)?$/i
+  const cleanLabelPart = (part: string) => part
+    .trim()
+    .replace(/,\s*(?:c\.?\s*)?(?:ad|bc|ce|bce)?\s*[\d\s./-]+.*$/i, '')
+    .replace(/^(?:ae|ar|av|au|bi|billon|silver|gold|bronze)\s+/i, '')
+    .trim()
+
+  const lines = labelText
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line.length >= 5 && line.length <= 120 && !unreliable.test(line))
+
+  for (const line of lines) {
+    const parts = line
+      .split(/\s*\/\s*/)
+      .map(cleanLabelPart)
+      .filter(part => part.length >= 2 && !unreliable.test(part) && !contextOnly.test(part) && !dateOnly.test(part))
+
+    if (parts.length >= 2) {
+      return parts.join(' ')
+    }
+  }
+
+  return lines.find(line => line.length <= 80 && !line.includes('/'))
+}
+
+function normalizeLookupDraft(lookup: CoinLookupResponse): CoinMutationPayload {
+  const draft: CoinMutationPayload = { ...(lookup.prefilledDraft ?? {}) }
+  if (!draft.notes) {
+    draft.notes = draft.aiAnalysis ?? ''
+  }
+
+  applyLookupFieldSource(draft, lookup.extractedData.coinFields)
+  applyParsedLookupText(draft, draft.notes)
+  applyParsedLookupText(draft, draft.aiAnalysis)
+  applyParsedLookupText(draft, lookup.extractedData.rawAnalysis)
+  deriveNameFromParts(draft)
+  setMissingLookupField(draft, 'name', lookup.extractedData.ngc?.description)
+  setMissingLookupField(draft, 'name', reliableNgcLabelName(lookup.extractedData.labelText))
+
+  return draft
+}
 
 function normalizedEra(value: unknown): 'ancient' | 'medieval' | 'modern' | undefined {
   if (typeof value !== 'string') return undefined
@@ -342,6 +608,7 @@ function applyDraftToReviewForm(prefilled: CoinMutationPayload) {
     mint: prefilled.mint,
     material: prefilled.material,
     category: prefilled.category,
+    grade: prefilled.grade,
     obverseInscription: prefilled.obverseInscription,
     reverseInscription: prefilled.reverseInscription,
     obverseDescription: prefilled.obverseDescription || '',
@@ -517,9 +784,11 @@ async function handleSubmit() {
   try {
     const files = capturedImages.value.map(img => img.file)
     const lookup = await lookupCoin(files)
+    const normalizedDraft = normalizeLookupDraft(lookup.data)
     results.value = lookup.data
     applyLookupMetadata(lookup.data)
-    applyDraftToReviewForm(lookup.data.prefilledDraft ?? {})
+    applyDraftToReviewForm(normalizedDraft)
+    aiObservations.value = deriveAiObservations(lookup.data, normalizedDraft)
 
     state.value = 'results'
   } catch (err: unknown) {
@@ -538,6 +807,7 @@ function handleRetake() {
   }
   capturedImages.value = []
   results.value = null
+  aiObservations.value = ''
   error.value = ''
   Object.assign(ngcForm, {
     certNumber: '',
@@ -558,11 +828,27 @@ function handleCancel() {
 }
 
 function buildDraftNotes() {
-  const parts = [
-    reviewForm.obverseDescription ? `Obverse: ${reviewForm.obverseDescription}` : '',
-    reviewForm.reverseDescription ? `Reverse: ${reviewForm.reverseDescription}` : '',
-    reviewForm.notes ?? '',
+  const parts: string[] = []
+  const extractedFields = [
+    reviewForm.ruler ? `Ruler: ${reviewForm.ruler}` : '',
+    reviewForm.denomination ? `Denomination: ${reviewForm.denomination}` : '',
+    reviewForm.category ? `Category: ${reviewForm.category}` : '',
+    reviewForm.grade ? `Grade: ${reviewForm.grade}` : '',
+    reviewForm.mint ? `Mint: ${reviewForm.mint}` : '',
+    reviewForm.material ? `Material: ${reviewForm.material}` : '',
   ].filter(Boolean)
+
+  if (extractedFields.length > 0) {
+    parts.push(`**Extracted fields**\n${extractedFields.join('\n')}`)
+  }
+
+  appendUniqueObservation(parts, aiObservations.value)
+  if (!aiObservations.value.trim()) {
+    appendUniqueObservation(parts, reviewForm.notes)
+    appendUniqueObservation(parts, reviewForm.obverseDescription, 'Obverse')
+    appendUniqueObservation(parts, reviewForm.reverseDescription, 'Reverse')
+  }
+
   return parts.join('\n\n')
 }
 
@@ -900,6 +1186,7 @@ onBeforeUnmount(() => {
 
 .review-grid {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
 }
 
@@ -982,27 +1269,24 @@ onBeforeUnmount(() => {
 }
 
 .inscriptions,
-.descriptions {
+.ai-observations {
   margin-top: 0.5rem;
 }
 
-.inscription-grid,
-.description-grid {
+.inscription-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 1rem;
   margin-top: 0.5rem;
 }
 
-.inscription-side,
-.description-side {
+.inscription-side {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
 
-.inscription-side label,
-.description-side label {
+.inscription-side label {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1010,11 +1294,37 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 
-.inscription-side p,
-.description-side p {
+.inscription-side p {
   color: var(--text-secondary);
   font-size: 0.85rem;
   line-height: 1.5;
+}
+
+.ai-observations-content {
+  padding: 0.75rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.markdown-rendered :deep(p),
+.markdown-rendered :deep(ul),
+.markdown-rendered :deep(ol) {
+  margin: 0 0 0.75rem;
+}
+
+.markdown-rendered :deep(p:last-child),
+.markdown-rendered :deep(ul:last-child),
+.markdown-rendered :deep(ol:last-child) {
+  margin-bottom: 0;
+}
+
+.markdown-rendered :deep(strong) {
+  color: var(--accent-gold);
+  font-weight: 600;
 }
 
 .numista-results {
@@ -1102,8 +1412,7 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr;
   }
 
-  .inscription-grid,
-  .description-grid {
+  .inscription-grid {
     grid-template-columns: 1fr;
   }
 

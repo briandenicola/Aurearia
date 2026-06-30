@@ -156,11 +156,12 @@ type CoinDataProxy struct {
 }
 
 type AnalyzeProxyRequest struct {
-	LLM    LLMConfig     `json:"llm"`
-	Coin   CoinDataProxy `json:"coin"`
-	Images []string      `json:"images"`
-	Side   string        `json:"side"`
-	Prompt string        `json:"prompt"`
+	LLM          LLMConfig     `json:"llm"`
+	Coin         CoinDataProxy `json:"coin"`
+	Images       []string      `json:"images"`
+	Side         string        `json:"side"`
+	Prompt       string        `json:"prompt"`
+	FormatOutput *bool         `json:"format_output,omitempty"`
 }
 
 type AnalyzeProxyResponse struct {

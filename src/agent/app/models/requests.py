@@ -192,6 +192,7 @@ class AnalyzeRequest(StrictRequestModel):
     images: list[BoundedImageBase64] = Field(default_factory=list, max_length=MAX_IMAGE_COUNT)
     side: Annotated[str, StringConstraints(max_length=16)] = ""  # "obverse", "reverse", or "" for both
     prompt: BoundedPrompt = ""  # Analysis prompt from admin settings
+    format_output: bool = True  # False returns raw model output for structured lookup flows
 
 
 class IntakeDraftRequest(StrictRequestModel):

@@ -64,6 +64,7 @@ def create_coin_analysis_team(
     images: list[str] | None = None,
     side: str = "",
     custom_prompt: str = "",
+    format_output: bool = True,
 ):
     """Create the Team 3 coin analysis graph.
 
@@ -73,6 +74,7 @@ def create_coin_analysis_team(
         images: Base64-encoded image data
         side: "obverse", "reverse", or "" for general analysis
         custom_prompt: Custom analysis prompt from admin settings
+        format_output: Whether to run the narrative formatter after raw analysis
     """
     model = get_chat_model(llm_config)
 
@@ -147,8 +149,11 @@ def create_coin_analysis_team(
     graph.add_node("format", format_node)
 
     graph.set_entry_point("analyze")
-    graph.add_edge("analyze", "format")
-    graph.add_edge("format", END)
+    if format_output:
+        graph.add_edge("analyze", "format")
+        graph.add_edge("format", END)
+    else:
+        graph.add_edge("analyze", END)
 
     return graph.compile()
 

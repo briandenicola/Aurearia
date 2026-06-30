@@ -281,6 +281,34 @@ func TestExtractCoinFields(t *testing.T) {
 			input:         "not json",
 			wantFieldsLen: 0,
 		},
+		{
+			name: "note-like fields from raw analysis",
+			input: `Name: Julia Domna Denarius
+Ruler: Julia Domna
+Denomination: Denarius
+Category: Roman`,
+			wantFields: map[string]string{
+				"name":         "Julia Domna Denarius",
+				"ruler":        "Julia Domna",
+				"denomination": "Denarius",
+				"category":     "Roman",
+			},
+			wantFieldsLen: 4,
+		},
+		{
+			name:  "NGC label text extracts visible attribution",
+			input: `ROMAN EMPIRE / Constantine I, AD 307-337 / BI Reduced Nummus / LONDON MINT`,
+			wantFields: map[string]string{
+				"name":         "Constantine I Reduced Nummus",
+				"ruler":        "Constantine I",
+				"denomination": "Reduced Nummus",
+				"material":     "Billon",
+				"category":     "Roman",
+				"era":          "ancient",
+				"mint":         "London",
+			},
+			wantFieldsLen: 7,
+		},
 	}
 
 	svc := &CoinLookupService{}
@@ -464,6 +492,53 @@ func TestBuildPrefilledDraftKeepsExplicitNameFromAnalysis(t *testing.T) {
 
 	if draft["name"] != "Augustus Denarius" {
 		t.Fatalf("draft name = %q, want explicit analysis name", draft["name"])
+	}
+}
+
+func TestBuildPrefilledDraftUsesBackfilledNoteLikeName(t *testing.T) {
+	svc := &CoinLookupService{}
+	fields := svc.extractCoinFields(`Name: Julia Domna Denarius
+Ruler: Julia Domna
+Denomination: Denarius
+Category: Roman`)
+
+	draft := svc.buildPrefilledDraft(&LookupExtractedData{CoinFields: fields}, nil)
+
+	if draft["name"] != "Julia Domna Denarius" {
+		t.Fatalf("draft name = %q, want Julia Domna Denarius", draft["name"])
+	}
+}
+
+func TestBuildPrefilledDraftUsesNGCLabelTextAttribution(t *testing.T) {
+	svc := &CoinLookupService{}
+	fields := svc.extractCoinFields("ROMAN EMPIRE / Constantine I, AD 307-337 / BI Reduced Nummus / LONDON MINT")
+
+	draft := svc.buildPrefilledDraft(&LookupExtractedData{
+		NGC: &NGCData{
+			NormalizedCert: "2068676-077",
+			LookupURL:      "https://www.ngccoin.com/certlookup/2068676077/NGCAncients/",
+		},
+		CoinFields: fields,
+	}, nil)
+
+	if draft["name"] == "Unidentified Coin" {
+		t.Fatalf("draft name should not be Unidentified Coin when visible NGC label attribution is present")
+	}
+	if draft["name"] != "Constantine I Reduced Nummus" {
+		t.Fatalf("draft name = %q, want Constantine I Reduced Nummus", draft["name"])
+	}
+	if draft["mint"] != "London" {
+		t.Errorf("draft mint = %q, want London", draft["mint"])
+	}
+	if draft["material"] != "Billon" {
+		t.Errorf("draft material = %q, want Billon", draft["material"])
+	}
+	notes, ok := draft["notes"].(string)
+	if !ok {
+		t.Fatalf("draft notes = %T, want string", draft["notes"])
+	}
+	if !strings.Contains(notes, "NGC Cert: 2068676-077") {
+		t.Errorf("draft notes = %q, want NGC cert", notes)
 	}
 }
 

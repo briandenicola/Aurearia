@@ -104,6 +104,10 @@ describe('CoinLookupPage', () => {
     // No NGC cert, so should show editable review form
     expect(wrapper.text()).toContain('Review Coin Details')
     expect(wrapper.find('input[type="text"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('AI Observations')
+    expect(wrapper.text()).not.toContain('Obverse Description')
+    expect(wrapper.text()).not.toContain('Reverse Description')
+    expect(wrapper.findAll('textarea')).toHaveLength(0)
     expect(wrapper.text()).not.toContain('Add to Collection')
     expect(wrapper.text()).toContain('Save as Draft')
 
@@ -124,6 +128,217 @@ describe('CoinLookupPage', () => {
       reverseImage: null,
     }))
     expect(routerPush).toHaveBeenCalledWith('/quick-capture/drafts/42')
+  })
+
+  it('renders safe AI observations narrative instead of editable side description boxes', async () => {
+    const file = new File(['obverse'], 'observations.jpg', { type: 'image/jpeg' })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: {
+          confidence: 'medium',
+          rawAnalysis: 'AI saw a silver denarius.',
+        },
+        numistaCandidates: [],
+        prefilledDraft: {
+          name: 'Trajan Denarius',
+          ruler: 'Trajan',
+          denomination: 'Denarius',
+          category: 'Roman',
+          grade: 'VF',
+          obverseDescription: 'Laureate bust of Trajan right',
+          reverseDescription: 'Victory standing left',
+          notes: '**Observed:** Laureate bust of Trajan right\n\n<script>alert("x")</script>',
+        },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+    vi.mocked(createQuickCaptureDraft).mockResolvedValue({ data: { id: 45 } } as Awaited<ReturnType<typeof createQuickCaptureDraft>>)
+
+    const wrapper = mount(CoinLookupPage, {
+      global: {
+        stubs: {
+          CameraCaptureModal: true,
+          Camera: true,
+          Upload: true,
+          Search: true,
+          ArrowLeft: true,
+          X: true,
+          AlertCircle: true,
+          ShieldCheck: true,
+          ExternalLink: true,
+          RotateCcw: true,
+          Bookmark: true,
+        },
+      },
+    })
+
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [file],
+      configurable: true,
+    })
+    await input.trigger('change')
+
+    await wrapper.find('.btn-submit').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('AI Observations')
+    expect(wrapper.find('.markdown-rendered strong').text()).toBe('Observed:')
+    expect(wrapper.text()).toContain('AI saw a silver denarius.')
+    expect(wrapper.html()).not.toContain('<script>')
+    expect(wrapper.text()).toContain('Victory standing left')
+    expect(wrapper.text()).not.toContain('Obverse Description')
+    expect(wrapper.text()).not.toContain('Reverse Description')
+    expect(wrapper.findAll('textarea')).toHaveLength(0)
+
+    const inputs = wrapper.findAll('input[type="text"]')
+    expect((inputs[0]!.element as HTMLInputElement).value).toBe('Trajan Denarius')
+    expect((inputs[1]!.element as HTMLInputElement).value).toBe('Trajan')
+    expect((inputs[2]!.element as HTMLInputElement).value).toBe('Denarius')
+    expect((inputs[3]!.element as HTMLInputElement).value).toBe('Roman')
+    expect((inputs[4]!.element as HTMLInputElement).value).toBe('VF')
+
+    const actionButtons = wrapper.findAll('.result-actions button')
+    await actionButtons[2]!.trigger('click')
+    await flushPromises()
+
+    const payload = vi.mocked(createQuickCaptureDraft).mock.calls[0]?.[0]
+    expect(payload?.notes).toContain('**Extracted fields**')
+    expect(payload?.notes).toContain('Ruler: Trajan')
+    expect(payload?.notes).toContain('Denomination: Denarius')
+    expect(payload?.notes).toContain('Category: Roman')
+    expect(payload?.notes).toContain('Grade: VF')
+    expect(payload?.notes).toContain('**Observed:** Laureate bust of Trajan right')
+    expect(payload?.notes).toContain('**Reverse:** Victory standing left')
+    expect(payload?.notes?.match(/Laureate bust of Trajan right/g)).toHaveLength(1)
+    expect(payload?.source).toBe('find_coin_ai')
+  })
+
+  it('promotes missing review fields from extracted coin fields before saving', async () => {
+    const file = new File(['obverse'], 'coin-fields.jpg', { type: 'image/jpeg' })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: {
+          confidence: 'medium',
+          rawAnalysis: 'coin fields extracted',
+          coinFields: {
+            Name: 'Julia Domna Denarius',
+            Ruler: 'Julia Domna',
+            Denomination: 'Denarius',
+            Category: 'Roman',
+          },
+        },
+        numistaCandidates: [],
+        prefilledDraft: {
+          notes: 'Backend returned notes but no title.',
+        },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+    vi.mocked(createQuickCaptureDraft).mockResolvedValue({ data: { id: 43 } } as Awaited<ReturnType<typeof createQuickCaptureDraft>>)
+
+    const wrapper = mount(CoinLookupPage, {
+      global: {
+        stubs: {
+          CameraCaptureModal: true,
+          Camera: true,
+          Upload: true,
+          Search: true,
+          ArrowLeft: true,
+          X: true,
+          AlertCircle: true,
+          ShieldCheck: true,
+          ExternalLink: true,
+          RotateCcw: true,
+          Bookmark: true,
+        },
+      },
+    })
+
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [file],
+      configurable: true,
+    })
+    await input.trigger('change')
+
+    await wrapper.find('.btn-submit').trigger('click')
+    await flushPromises()
+
+    const nameInput = wrapper.find('input[type="text"]')
+    expect((nameInput.element as HTMLInputElement).value).toBe('Julia Domna Denarius')
+    expect(wrapper.text()).toContain('Review Coin Details')
+
+    const actionButtons = wrapper.findAll('.result-actions button')
+    await actionButtons[2]!.trigger('click')
+    await flushPromises()
+
+    expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
+      workingTitle: 'Julia Domna Denarius',
+      source: 'find_coin_ai',
+      obverseImage: file,
+    }))
+  })
+
+  it('promotes a clear name from raw analysis lines when the draft title is missing', async () => {
+    const file = new File(['obverse'], 'raw-analysis.jpg', { type: 'image/jpeg' })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: {
+          confidence: 'medium',
+          rawAnalysis: [
+            'Name: Julia Domna Denarius',
+            'Ruler: Julia Domna',
+            'Denomination: Denarius',
+            'Category: Roman',
+          ].join('\n'),
+        },
+        numistaCandidates: [],
+        prefilledDraft: {
+          name: 'Unidentified Coin',
+          notes: 'Name: Julia Domna Denarius\nRuler: Julia Domna',
+        },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+    vi.mocked(createQuickCaptureDraft).mockResolvedValue({ data: { id: 44 } } as Awaited<ReturnType<typeof createQuickCaptureDraft>>)
+
+    const wrapper = mount(CoinLookupPage, {
+      global: {
+        stubs: {
+          CameraCaptureModal: true,
+          Camera: true,
+          Upload: true,
+          Search: true,
+          ArrowLeft: true,
+          X: true,
+          AlertCircle: true,
+          ShieldCheck: true,
+          ExternalLink: true,
+          RotateCcw: true,
+          Bookmark: true,
+        },
+      },
+    })
+
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [file],
+      configurable: true,
+    })
+    await input.trigger('change')
+
+    await wrapper.find('.btn-submit').trigger('click')
+    await flushPromises()
+
+    const nameInput = wrapper.find('input[type="text"]')
+    expect((nameInput.element as HTMLInputElement).value).toBe('Julia Domna Denarius')
+
+    const actionButtons = wrapper.findAll('.result-actions button')
+    await actionButtons[2]!.trigger('click')
+    await flushPromises()
+
+    expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
+      workingTitle: 'Julia Domna Denarius',
+      source: 'find_coin_ai',
+    }))
   })
 
   it('lets the user cancel results without saving', async () => {
@@ -176,7 +391,7 @@ describe('CoinLookupPage', () => {
     expect(routerBack).toHaveBeenCalled()
   })
 
-  it('shows read-only details when NGC cert is detected', async () => {
+  it('shows editable review details when NGC cert is detected', async () => {
     const file = new File(['slab'], 'slab.jpg', { type: 'image/jpeg' })
     vi.mocked(lookupCoin).mockResolvedValue({
       data: {
@@ -233,28 +448,127 @@ describe('CoinLookupPage', () => {
     await wrapper.find('.btn-submit').trigger('click')
     await flushPromises()
 
-    // NGC path should show read-only display
-    expect(wrapper.text()).toContain('Extracted Details')
+    // NGC path should keep the review form editable while preserving certification details.
+    expect(wrapper.text()).toContain('Review Coin Details')
     expect(wrapper.text()).toContain('NGC Certification: 1234567001')
+    expect(wrapper.text()).toContain('NGC Grade')
     expect(wrapper.text()).toContain('Verify on NGC')
 
-    // Should NOT show the full editable coin form, but the captured NGC number remains editable.
-    expect(wrapper.text()).not.toContain('Review Coin Details')
-    expect(wrapper.findAll('input[type="text"]')).toHaveLength(1)
-    expect((wrapper.find('input[type="text"]').element as HTMLInputElement).value).toBe('1234567001')
+    const textInputs = wrapper.findAll('input[type="text"]')
+    expect(textInputs).toHaveLength(6)
+    expect((textInputs[0]!.element as HTMLInputElement).value).toBe('Augustus Denarius')
+    expect((textInputs[1]!.element as HTMLInputElement).value).toBe('Augustus')
+    expect((textInputs[2]!.element as HTMLInputElement).value).toBe('Denarius')
+    expect((textInputs[3]!.element as HTMLInputElement).value).toBe('Roman')
+    expect((textInputs[4]!.element as HTMLInputElement).value).toBe('Ch VF')
+    expect((textInputs[5]!.element as HTMLInputElement).value).toBe('1234567001')
+
+    await textInputs[0]!.setValue('Augustus AR Denarius')
+    await textInputs[1]!.setValue('Octavian Augustus')
+    await textInputs[2]!.setValue('AR Denarius')
+    await textInputs[3]!.setValue('Roman Imperial')
+    await textInputs[4]!.setValue('Choice VF')
+
     const actionButtons = wrapper.findAll('.result-actions button')
     await actionButtons[2]!.trigger('click')
     await flushPromises()
 
     expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
-      workingTitle: 'Augustus Denarius',
+      workingTitle: 'Augustus AR Denarius',
       source: 'find_coin_ai',
       ngcCertNumber: '1234567001',
       ngcLookupUrl: 'https://www.ngccoin.com/certlookup/1234567001/NGCAncients/',
       ngcGrade: 'Ch VF',
+      notes: expect.stringContaining('Ruler: Octavian Augustus'),
       obverseImage: file,
     }))
+    expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
+      notes: expect.stringContaining('Denomination: AR Denarius'),
+    }))
+    expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
+      notes: expect.stringContaining('Category: Roman Imperial'),
+    }))
+    expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
+      notes: expect.stringContaining('Grade: Choice VF'),
+    }))
   })
+
+  it.each([undefined, 'Unidentified Coin'] as Array<string | undefined>)(
+    'derives Constantine title from slash-delimited NGC label when draft name is %s',
+    async (draftName) => {
+      const file = new File(['slab'], 'constantine-slab.jpg', { type: 'image/jpeg' })
+      vi.mocked(lookupCoin).mockResolvedValue({
+        data: {
+          extractedData: {
+            confidence: 'high',
+            rawAnalysis: 'NGC cert detected',
+            labelText: 'ROMAN EMPIRE / Constantine I, AD 307-337 / BI Reduced Nummus / LONDON MINT',
+            ngc: {
+              certNumber: '6828608-004',
+              normalizedCert: '6828608004',
+              lookupURL: 'https://www.ngccoin.com/certlookup/6828608004/NGCAncients/',
+              grade: 'Ch VF',
+            },
+          },
+          numistaCandidates: [],
+          prefilledDraft: draftName === undefined
+            ? { notes: 'Backend returned no title.' }
+            : { name: draftName, notes: 'Backend returned placeholder title.' },
+        },
+      } as Awaited<ReturnType<typeof lookupCoin>>)
+      vi.mocked(createQuickCaptureDraft).mockResolvedValue({ data: { id: 100 } } as Awaited<ReturnType<typeof createQuickCaptureDraft>>)
+
+      const wrapper = mount(CoinLookupPage, {
+        global: {
+          stubs: {
+            CameraCaptureModal: true,
+            Camera: true,
+            Upload: true,
+            Search: true,
+            ArrowLeft: true,
+            X: true,
+            AlertCircle: true,
+            ShieldCheck: true,
+            ExternalLink: true,
+            RotateCcw: true,
+            Bookmark: true,
+          },
+        },
+      })
+
+      const input = wrapper.find('input[type="file"]')
+      Object.defineProperty(input.element, 'files', {
+        value: [file],
+        configurable: true,
+      })
+      await input.trigger('change')
+
+      await wrapper.find('.btn-submit').trigger('click')
+      await flushPromises()
+
+      const textInputs = wrapper.findAll('input[type="text"]')
+      expect(textInputs).toHaveLength(6)
+      expect((textInputs[0]!.element as HTMLInputElement).value).toBe('Constantine I Reduced Nummus')
+      expect((textInputs[5]!.element as HTMLInputElement).value).toBe('6828608004')
+      await textInputs[0]!.setValue('Constantine I BI Reduced Nummus')
+      await textInputs[4]!.setValue('Choice VF')
+
+      expect(wrapper.text()).not.toContain('ROMAN EMPIRE / Constantine I')
+
+      const actionButtons = wrapper.findAll('.result-actions button')
+      await actionButtons[2]!.trigger('click')
+      await flushPromises()
+
+      expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
+        workingTitle: 'Constantine I BI Reduced Nummus',
+        source: 'find_coin_ai',
+        ngcCertNumber: '6828608004',
+        notes: expect.stringContaining('Grade: Choice VF'),
+        labelText: 'ROMAN EMPIRE / Constantine I, AD 307-337 / BI Reduced Nummus / LONDON MINT',
+        obverseImage: file,
+      }))
+    }
+  )
 
   it('renders only safe external lookup links from API results', async () => {
     const file = new File(['coin'], 'coin.jpg', { type: 'image/jpeg' })

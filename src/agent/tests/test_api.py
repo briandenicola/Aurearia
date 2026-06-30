@@ -133,6 +133,40 @@ def test_analyze_anthropic_ignores_non_ollama_url():
     assert resp.status_code == 200
 
 
+def test_analyze_raw_format_returns_unformatted_analysis(monkeypatch):
+    import app.routes as routes
+
+    captured = {}
+
+    class FakeGraph:
+        async def ainvoke(self, _state):
+            return {
+                "raw_analysis": '{"name":"Julia Domna Denarius"}',
+                "formatted_analysis": "Formatted narrative should not be returned",
+                "messages": [],
+            }
+
+    def fake_create_coin_analysis_team(**kwargs):
+        captured.update(kwargs)
+        return FakeGraph()
+
+    monkeypatch.setattr(routes, "create_coin_analysis_team", fake_create_coin_analysis_team)
+
+    resp = client.post(
+        "/api/analyze",
+        json={
+            "llm": {"provider": "anthropic", "api_key": "k", "model": "claude-opus-4-8"},
+            "coin": {"id": 1, "name": "Lookup Candidate"},
+            "format_output": False,
+        },
+        headers=AUTH_HEADERS,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["analysis"] == '{"name":"Julia Domna Denarius"}'
+    assert captured["format_output"] is False
+
+
 def test_search_coins_anthropic_accepts_stale_urls_and_unrelated_callback(monkeypatch):
     captured = {}
 

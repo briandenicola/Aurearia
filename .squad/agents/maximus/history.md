@@ -31,6 +31,16 @@
   - **Hard Blocker:** Spec #216 (AI Intake Draft) must land before Coin Lookup begins.
   - **Decision Owner:** Maximus. Review required from Brian (product), Brutus (Python feasibility), Aurelia (UX/PWA). Next: Brian confirms NGC/offline decisions, Maximus creates spec scaffold.
 
+- **2026-06-30:** Find Coin Strict Lockout Revision — NGC Label Normalization Fix
+  - Applied Strict Lockout fix per Brutus BLOCK on NGC slash-label fallback
+  - Issue: Frontend normalization could save full catalog label (e.g., `NGC:1234567/Green Label`) instead of numeric reference only
+  - Fix: Modified label extraction logic to split on `/` and retain catalog number only; preserves schema compatibility with Cassius backend
+  - Implementation quality: minimal, proportional change aligned with Principle IV (Complete, Proportional Changes)
+  - All tests pass with new logic: `npx vitest run src/pages/__tests__/CoinLookupPage.test.ts` ✅, `npm run type-check` ✅
+  - Compliance verified: Constitution §18.2 Strict Lockout protocol followed (non-blocking agent fixing blocked area)
+  - Outcome: Fix ready for Brutus final approval
+  - Orchestration log: `.squad/orchestration-log/2026-06-30T02-12-02Z-maximus-find-coin-strict-lockout-fix.md`
+
 - **2026-06-24 (OIDC Phase 3-5 MVP Closure & Architecture Review):** Reviewed and approved OIDC Phases 3-5 implementation across all layers. Cassius backend honors Principle I/V guardrails; Aurelia frontend honors Principle VI design compliance; Brutus regression suite covers all critical paths. MVP boundary (Phases 1-5) LOCKED for beta merge. Phase 6 (Account Linking) reserved for post-MVP. Phase 8 beta-readiness gates (security audit + best-practices review) required before main branch merge. All cross-agent dependencies satisfied; guardrails enforcement verified; constitution alignment confirmed. Orchestration log: `.squad/orchestration-log/2026-06-24T14-15-00Z-maximus.md`.
 
 ## 2026-06-09 — F013 promotion learning
@@ -161,3 +171,7 @@
 ## 2026-06-29 — #357 final reviewer gate
 
 Outcome: BLOCK. The alert architecture is mostly correctly layered and Python remains stateless, but candidate conversion currently creates `Coin` rows directly from the alert service/repository instead of routing through the normal coin creation validation path. This leaves owner-scoped coin invariants such as storage-location validation and future coin-service rules unprotected. Remaining unchecked quality-gate tasks for Python lint/tests, root validation, manual quickstart, security review, and final architecture review also remain merge blockers under constitution §17/§21.
+
+- **2026-06-29 — NGC label frontend lockout revision:** Slash-delimited NGC slab labels need structured segment promotion: discard issuer/mint context, remove date ranges and metal prefixes, then derive collector title (e.g., Constantine I + Reduced Nummus). Regression coverage should exercise both missing and placeholder draft names because Unidentified Coin must be treated as replaceable fallback, not a backend-provided title.
+
+- **2026-06-29 — Find Coin NGC editable review lockout:** The NGC result branch must reuse the key editable review fields (Name, Ruler, Denomination, Category, Grade) rather than a read-only details grid; keep NGC cert verification/grade metadata as a separate certification block and cover the Constantine slash-label NGC path in targeted Vitest regression.

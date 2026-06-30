@@ -57,6 +57,16 @@
 
 ## Learnings
 
+- **2026-06-30:** Find Coin Backend Implementation — Structured Extraction and Backfill
+  - Implemented structured Find Coin extraction in Python agent and Go backfill layer
+  - Files: `src/agent/app/models/requests.py` (FindCoinRequest), `src/agent/app/routes.py` (`/find-coin`), `src/agent/app/teams/coin_analysis.py` (LangGraph team), `src/api/services/coin_lookup_service.go` (Numista backfill), `src/api/services/agent_proxy.go` (SSE proxy)
+  - Python agent produces typed `FindCoinResponse` with structured fields (ruler, denomination, era, material, mint, metadata)
+  - Go service implements Numista enrichment and lookup backfill
+  - All tests pass: `pytest tests/test_api.py tests/test_models.py -v` ✅, `go test ./services` ✅
+  - Ruff lint clean; architecture compliance verified
+  - Status: COMPLETE, ready for frontend integration
+  - Orchestration log: `.squad/orchestration-log/2026-06-30T02-12-02Z-cassius-find-coin-backend.md`
+
 - **2026-06-24 — OIDC Link Callback RedirectURI Fallback Bug:** Production OIDC account-link callback 400s after deployment. Root cause: `exchangeAndValidateCallback` fallback logic reconstructed redirect URI using API path (`/api/auth/oidc/:id/link/callback`) instead of the custom frontend path (`/settings/oidc/link/callback/:id`) that was registered with the provider during the authorization request. Link flows allow frontend to specify custom callback paths (sent to provider), but if `consumed.RedirectURI` is empty (migration issue or old auth state pre-column-addition), the fallback can't safely reconstruct the custom path from the callback request alone. **Fix:** Fail explicitly with `ErrOIDCInvalidState` ("stored redirect URI missing for link callback") if `RedirectURI` is empty for link flows; keep safe fallback for login flows where callback path is stored in `provider.CallbackPath`. Added regression test `TestOIDCServiceLinkCallbackFailsWhenRedirectURINotStored`. Since auth states TTL = 10 minutes, all pre-migration states expire quickly once `RedirectURI` column exists.
 
 - **2026-06-19 — PR #320 Go Toolchain Lockout Revision:** Corrected `src/api/go.mod` to `go 1.26.4` for alignment across setup-go, Docker/docs/workflows, and module pin.
@@ -572,3 +582,5 @@ Created src/api/services/availability_service_test.go with comprehensive test co
 - Keyword detection uses case-insensitive matching (strings.ToLower) and checks for strong structural patterns (e.g., >sold< matches HTML button/div tags)
 - Any coin with a clear "add to cart" / "buy now" button is marked "available" immediately without agent escalation, reducing agent load by ~60-80% on typical wishlist checks
 
+
+- **2026-06-29 — Find Coin structured lookup analysis:** Find Coin image lookup now sends `format_output=false` to the Python `/api/analyze` contract so the vision model's raw JSON is returned instead of the normal narrative formatter. Go lookup parsing now backfills safe `Name:`, `Ruler:`, `Denomination:`, `Category:`, and NGC slash-label fields before falling back to `Unidentified Coin`; NGC labels like `ROMAN EMPIRE / Constantine I, AD 307-337 / BI Reduced Nummus / LONDON MINT` produce Constantine/Reduced Nummus/London/Billon/Roman fields. Targeted validation: `go test -v .\services -run "Test(ExtractCoinFields|BuildPrefilledDraftUses|BuildPrefilledDraftKeeps|BuildPrefilledDraftFalls)"`, targeted agent pytest for raw format opt-in, and `ruff check` on changed Python files.
