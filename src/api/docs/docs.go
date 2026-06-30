@@ -15515,6 +15515,32 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.promoteDraftOverridesRequest": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "era": {
+                    "type": "string"
+                },
+                "material": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "purchaseLocation": {
+                    "type": "string"
+                },
+                "purchasePrice": {
+                    "type": "number"
+                }
+            }
+        },
         "handlers.promoteDraftRequest": {
             "type": "object",
             "properties": {
@@ -15522,30 +15548,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "overrides": {
-                    "type": "object",
-                    "properties": {
-                        "category": {
-                            "type": "string"
-                        },
-                        "era": {
-                            "type": "string"
-                        },
-                        "material": {
-                            "type": "string"
-                        },
-                        "name": {
-                            "type": "string"
-                        },
-                        "notes": {
-                            "type": "string"
-                        },
-                        "purchaseLocation": {
-                            "type": "string"
-                        },
-                        "purchasePrice": {
-                            "type": "number"
-                        }
-                    }
+                    "$ref": "#/definitions/handlers.promoteDraftOverridesRequest"
                 },
                 "target": {
                     "type": "string"

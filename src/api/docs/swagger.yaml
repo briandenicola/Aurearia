@@ -1326,27 +1326,29 @@ definitions:
           $ref: '#/definitions/services.OIDCPublicProviderDTO'
         type: array
     type: object
+  handlers.promoteDraftOverridesRequest:
+    properties:
+      category:
+        type: string
+      era:
+        type: string
+      material:
+        type: string
+      name:
+        type: string
+      notes:
+        type: string
+      purchaseLocation:
+        type: string
+      purchasePrice:
+        type: number
+    type: object
   handlers.promoteDraftRequest:
     properties:
       confirm:
         type: boolean
       overrides:
-        properties:
-          category:
-            type: string
-          era:
-            type: string
-          material:
-            type: string
-          name:
-            type: string
-          notes:
-            type: string
-          purchaseLocation:
-            type: string
-          purchasePrice:
-            type: number
-        type: object
+        $ref: '#/definitions/handlers.promoteDraftOverridesRequest'
       target:
         type: string
     type: object
