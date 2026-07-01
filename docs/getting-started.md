@@ -9,6 +9,7 @@ This guide walks you through setting up Ancient Coins for the first time, adding
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `JWT_SECRET` | **Yes** (production) | dev default | JWT signing key. Must be 32+ characters. In release mode (`GIN_MODE=release`), the app fatals on startup if missing. |
+| `AUCTION_CREDENTIAL_ENCRYPTION_KEY` | **Yes** (production) | disabled | Base64-encoded 32-byte key for encrypting stored NumisBids/CNG passwords. Generate with `openssl rand -base64 32`. If lost, users must re-enter provider passwords. |
 | `WEBAUTHN_RP_ID` | No | `localhost` | Domain name for WebAuthn Relying Party ID |
 | `WEBAUTHN_ORIGIN` | No | `http://localhost:8080` | Full origin URL for WebAuthn (comma-separated for multiple) |
 | `CORS_ORIGINS` | No | *(smart defaults)* | Comma-separated allowed CORS origins. Falls back to WebAuthn origins + localhost |

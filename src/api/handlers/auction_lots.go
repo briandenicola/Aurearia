@@ -15,17 +15,22 @@ import (
 
 // AuctionLotHandler handles HTTP requests for auction lot operations.
 type AuctionLotHandler struct {
-	repo     *repository.AuctionLotRepository
-	svc      *services.AuctionLotService
-	userRepo *repository.UserRepository
-	nbSvc    *services.NumisBidsService
-	cngSvc   *services.CNGAuctionService
-	logger   *services.Logger
+	repo        *repository.AuctionLotRepository
+	svc         *services.AuctionLotService
+	userRepo    *repository.UserRepository
+	nbSvc       *services.NumisBidsService
+	cngSvc      *services.CNGAuctionService
+	logger      *services.Logger
+	credentials *services.CredentialEncryptionService
 }
 
 // NewAuctionLotHandler creates a new AuctionLotHandler.
-func NewAuctionLotHandler(repo *repository.AuctionLotRepository, svc *services.AuctionLotService, userRepo *repository.UserRepository, nbSvc *services.NumisBidsService, cngSvc *services.CNGAuctionService, logger *services.Logger) *AuctionLotHandler {
-	return &AuctionLotHandler{repo: repo, svc: svc, userRepo: userRepo, nbSvc: nbSvc, cngSvc: cngSvc, logger: logger}
+func NewAuctionLotHandler(repo *repository.AuctionLotRepository, svc *services.AuctionLotService, userRepo *repository.UserRepository, nbSvc *services.NumisBidsService, cngSvc *services.CNGAuctionService, logger *services.Logger, credentialSvc ...*services.CredentialEncryptionService) *AuctionLotHandler {
+	credentials := services.NewDisabledCredentialEncryptionService()
+	if len(credentialSvc) > 0 && credentialSvc[0] != nil {
+		credentials = credentialSvc[0]
+	}
+	return &AuctionLotHandler{repo: repo, svc: svc, userRepo: userRepo, nbSvc: nbSvc, cngSvc: cngSvc, logger: logger, credentials: credentials}
 }
 
 // List returns a paginated list of auction lots for the authenticated user.
@@ -657,8 +662,18 @@ func (h *AuctionLotHandler) SyncWatchlist(c *gin.Context) {
 		return
 	}
 
+	password, shouldMigrate, err := h.decryptStoredCredential(user.ID, "numis_bids_password", user.NumisBidsPassword)
+	if err != nil {
+		h.warn("NumisBids credential decrypt failed for user %d: %v", userID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read stored NumisBids credentials"})
+		return
+	}
+
+	if shouldMigrate {
+		h.migrateStoredCredential(user, "numis_bids_password", password)
+	}
 	h.debug("NumisBids sync logging in for user %d", userID)
-	client, err := h.nbSvc.Login(user.NumisBidsUsername, user.NumisBidsPassword)
+	client, err := h.nbSvc.Login(user.NumisBidsUsername, password)
 	if err != nil {
 		h.warn("NumisBids login failed for user %d: %v", userID, err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "NumisBids login failed. Check your credentials in Settings."})
@@ -772,7 +787,17 @@ func (h *AuctionLotHandler) syncCNGWatchlist(c *gin.Context, userID uint, user *
 		return
 	}
 
-	client, err := h.cngSvc.Login(user.CNGUsername, user.CNGPassword)
+	password, shouldMigrate, err := h.decryptStoredCredential(user.ID, "cng_password", user.CNGPassword)
+	if err != nil {
+		h.warn("CNG credential decrypt failed for user %d: %v", userID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read stored CNG credentials"})
+		return
+	}
+
+	if shouldMigrate {
+		h.migrateStoredCredential(user, "cng_password", password)
+	}
+	client, err := h.cngSvc.Login(user.CNGUsername, password)
 	if err != nil {
 		h.warn("CNG login failed for user %d: %v", userID, err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "CNG login failed. Check your credentials in Settings."})
@@ -869,6 +894,28 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func (h *AuctionLotHandler) decryptStoredCredential(userID uint, field string, stored string) (plain string, shouldMigrate bool, err error) {
+	plain, wasEncrypted, err := h.credentials.DecryptStringWithAAD(stored, auctionCredentialAAD(userID, field))
+	if err != nil {
+		return "", false, err
+	}
+	return plain, h.credentials.Enabled() && !wasEncrypted && stored != "", nil
+}
+
+func (h *AuctionLotHandler) migrateStoredCredential(user *models.User, field string, plain string) {
+	encrypted, err := h.credentials.EncryptStringWithAAD(plain, auctionCredentialAAD(user.ID, field))
+	if err != nil {
+		h.warn("Failed to encrypt legacy auction credential for user %d: %v", user.ID, err)
+		return
+	}
+	if encrypted == plain {
+		return
+	}
+	if err := h.userRepo.UpdateField(user, field, encrypted); err != nil {
+		h.warn("Failed to save encrypted legacy auction credential for user %d: %v", user.ID, err)
+	}
 }
 
 func (h *AuctionLotHandler) debug(format string, args ...interface{}) {

@@ -20,9 +20,9 @@ type User struct {
 	Bio               string     `gorm:"type:text" json:"bio"`
 	ZipCode           string     `gorm:"type:varchar(10)" json:"zipCode"`
 	NumisBidsUsername string     `gorm:"type:varchar(100)" json:"-"`
-	NumisBidsPassword string     `gorm:"type:varchar(100)" json:"-"`
+	NumisBidsPassword string     `gorm:"type:text" json:"-"`
 	CNGUsername       string     `gorm:"type:varchar(100)" json:"-"`
-	CNGPassword       string     `gorm:"type:varchar(100)" json:"-"`
+	CNGPassword       string     `gorm:"type:text" json:"-"`
 	PushoverUserKey   string     `gorm:"type:varchar(100)" json:"-"`
 	PushoverEnabled   bool       `gorm:"default:false" json:"pushoverEnabled"`
 	CoinOfDayEnabled  bool       `gorm:"default:true" json:"coinOfDayEnabled"`

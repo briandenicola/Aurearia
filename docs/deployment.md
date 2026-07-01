@@ -111,14 +111,23 @@ Copy `.env.example` to `.env` and replace the placeholders before starting the a
 ```env
 JWT_SECRET=<48-byte random value>
 AGENT_INTERNAL_SERVICE_TOKEN=<48-byte random value shared by app and agent>
+AUCTION_CREDENTIAL_ENCRYPTION_KEY=<32-byte random value for auction credential encryption>
 TRUSTED_PROXIES=none
 ```
 
-Generate the two secrets with:
+Generate `JWT_SECRET` and `AGENT_INTERNAL_SERVICE_TOKEN` with:
 
 ```sh
 openssl rand -base64 48
 ```
+
+Generate `AUCTION_CREDENTIAL_ENCRYPTION_KEY` with:
+
+```sh
+openssl rand -base64 32
+```
+
+The auction credential key encrypts stored NumisBids and CNG provider passwords. Existing plaintext rows are lazily migrated the next time the credential is saved or used for sync. If this key is lost or changed without re-encrypting existing values, users must re-enter provider passwords.
 
 `AGENT_INTERNAL_SERVICE_TOKEN` is **not** an Anthropic/Ollama API key. It is a private shared credential between the Go API and Python agent service. If it is missing from either process, Admin AI provider tests can still pass, but coin analysis and agent chat will fail with an internal agent service credential error.
 
@@ -152,6 +161,7 @@ AGENT_ALLOW_LOCAL_OUTBOUND=true
 | Variable | Default | Description |
 |---|---|---|
 | `JWT_SECRET` | `dev-secret-key-change-in-production-min32chars` | JWT signing key (**min 32 chars, must change for production**) |
+| `AUCTION_CREDENTIAL_ENCRYPTION_KEY` | *(required in `GIN_MODE=release`)* | Base64-encoded 32-byte AES-GCM key for stored auction-provider passwords. Existing plaintext credentials lazily migrate on next use. |
 | `DB_PATH` | `./ancientcoins.db` | SQLite database file path |
 | `PORT` | `8080` | HTTP server port |
 | `UPLOAD_DIR` | `./uploads` | Directory for uploaded coin images |
