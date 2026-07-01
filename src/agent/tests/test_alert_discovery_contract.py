@@ -5,7 +5,12 @@ from pydantic import ValidationError
 
 from app.models.requests import MAX_ALERT_CANDIDATES, AlertDiscoveryRequest
 from app.models.responses import AlertDiscoveryCandidate, AlertDiscoveryProvenance
-from app.teams.coin_search import _filter_allowed_fetch_urls, _trusted_alert_fetch_hosts, _url_matches_allowed_hosts
+from app.teams.coin_search import (
+    _candidate_from_suggestion,
+    _filter_allowed_fetch_urls,
+    _trusted_alert_fetch_hosts,
+    _url_matches_allowed_hosts,
+)
 
 
 def valid_request_payload() -> dict:
@@ -103,3 +108,19 @@ def test_alert_discovery_empty_fetch_allowlist_blocks_all_urls():
     assert _filter_allowed_fetch_urls(urls, None) == urls
     assert _filter_allowed_fetch_urls(urls, set()) == []
     assert _filter_allowed_fetch_urls(urls, {"vcoins.com"}) == ["https://vcoins.com/item"]
+
+
+def test_alert_discovery_candidate_preserves_availability_text():
+    candidate = _candidate_from_suggestion(
+        {
+            "sourceUrl": "https://www.vcoins.com/sold-item",
+            "name": "Aspendos AR Stater",
+            "estPrice": "US$ 680.00",
+            "availability": "Sold",
+            "material": "Silver",
+        }
+    )
+
+    assert candidate is not None
+    assert candidate.fields["availability"] == "Sold"
+    assert any(item.field == "availability" and item.value == "Sold" for item in candidate.provenance)

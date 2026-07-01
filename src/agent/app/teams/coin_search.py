@@ -66,6 +66,7 @@ Structure each listing into this exact JSON schema:
     "material": "Gold|Silver|Bronze|Copper|Other",
     "denomination": "e.g. Denarius, Tetradrachm",
     "estPrice": "Listed price e.g. $150.00",
+    "availability": "Available|Sold|Unknown based only on listing text",
     "imageUrl": "",
     "sourceUrl": "The exact URL from the listing data — never fabricate",
     "sourceName": "Dealer or site name",
@@ -86,6 +87,8 @@ Rules:
 - sourceUrl MUST be copied exactly from the data. NEVER fabricate URLs.
 - Set imageUrl to "" (the frontend handles images)
 - Infer category, era, ruler, material, denomination from the listing text
+- Exclude listings that are clearly sold, sold out, unavailable, or no longer available
+- Set availability from explicit listing text only; use "Unknown" when the listing does not say
 - Add candidateReferences only when a catalog reference appears in the listing text
 - candidateReferences items require catalog and number; volume and uri are optional
 - If you cannot determine a field, use an empty string
@@ -402,6 +405,7 @@ def _candidate_from_suggestion(item: dict) -> AlertDiscoveryCandidate | None:
         return None
     source_name = str(item.get("sourceName") or item.get("source_name") or "").strip()
     price_text = str(item.get("estPrice") or item.get("price") or "").strip()
+    availability = str(item.get("availability") or item.get("status") or "").strip()
     observed_price, observed_currency = _parse_price(price_text)
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     provenance = [
@@ -436,6 +440,18 @@ def _candidate_from_suggestion(item: dict) -> AlertDiscoveryCandidate | None:
                 notes="Price text came from fetched listing data.",
             )
         )
+    if availability:
+        provenance.append(
+            AlertDiscoveryProvenance(
+                field="availability",
+                value=availability,
+                source_url=source_url,
+                observed_at=now,
+                confidence="high",
+                verification_state="verified",
+                notes="Availability text came from fetched listing data.",
+            )
+        )
     return AlertDiscoveryCandidate(
         source_url=source_url,
         source_name=source_name,
@@ -450,6 +466,7 @@ def _candidate_from_suggestion(item: dict) -> AlertDiscoveryCandidate | None:
             "denomination": str(item.get("denomination") or ""),
             "material": str(item.get("material") or ""),
             "grade_or_condition": str(item.get("grade") or ""),
+            "availability": availability,
         },
         provenance=provenance,
     )
