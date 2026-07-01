@@ -15,7 +15,7 @@ func setupAuctionTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	err = db.AutoMigrate(&models.User{}, &models.AuctionLot{})
+	err = db.AutoMigrate(&models.User{}, &models.AuctionEvent{}, &models.AuctionLot{})
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
@@ -346,10 +346,10 @@ func TestAuctionLotRepository_UpsertUsesSourceURL(t *testing.T) {
 		UserID:       1,
 	}
 
-	if err := repo.Upsert(numisLot); err != nil {
+	if _, err := repo.Upsert(numisLot); err != nil {
 		t.Fatalf("upsert numis lot: %v", err)
 	}
-	if err := repo.Upsert(cngLot); err != nil {
+	if _, err := repo.Upsert(cngLot); err != nil {
 		t.Fatalf("upsert cng lot: %v", err)
 	}
 
@@ -362,12 +362,13 @@ func TestAuctionLotRepository_UpsertUsesSourceURL(t *testing.T) {
 	}
 
 	cngLot.Title = "CNG Lot Updated"
-	if err := repo.Upsert(cngLot); err != nil {
+	if _, err := repo.Upsert(cngLot); err != nil {
 		t.Fatalf("upsert cng update: %v", err)
 	}
 	if err := db.Model(&models.AuctionLot{}).Count(&count).Error; err != nil {
 		t.Fatalf("count lots after update: %v", err)
 	}
+
 	if count != 2 {
 		t.Fatalf("lot count after update = %d, want 2", count)
 	}
@@ -378,6 +379,238 @@ func TestAuctionLotRepository_UpsertUsesSourceURL(t *testing.T) {
 	}
 	if found.Title != "CNG Lot Updated" {
 		t.Fatalf("CNG title = %q, want updated title", found.Title)
+	}
+}
+
+func TestAuctionLotRepository_UpsertWithCalendarEventCreatesOnlyForNewWatchableLots(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+	endTime := time.Date(2026, 7, 2, 15, 30, 0, 0, time.UTC)
+	estimate := 250.0
+	lot := &models.AuctionLot{
+		NumisBidsURL:   "https://www.numisbids.com/n.php?p=lot&sid=1&lot=100",
+		Source:         models.AuctionSourceNumisBids,
+		SourceURL:      "https://www.numisbids.com/n.php?p=lot&sid=1&lot=100",
+		SourceSaleID:   "sale-1",
+		Title:          "Aurelian Antoninianus",
+		AuctionHouse:   "Numis House",
+		SaleName:       "Summer Sale",
+		LotNumber:      100,
+		AuctionEndTime: &endTime,
+		Estimate:       &estimate,
+		Status:         models.AuctionStatusWatching,
+		UserID:         7,
+	}
+
+	result, err := repo.UpsertWithCalendarEvent(lot)
+	if err != nil {
+		t.Fatalf("upsert with event: %v", err)
+	}
+	if !result.Created || !result.EventCreated || result.EventID == nil {
+		t.Fatalf("result = %#v, want created lot and event", result)
+	}
+
+	upserted, err := repo.GetBySourceURL(models.AuctionSourceNumisBids, lot.SourceURL, 7)
+	if err != nil {
+		t.Fatalf("reload upserted lot: %v", err)
+	}
+	if upserted.EventID == nil || *upserted.EventID != *result.EventID {
+		t.Fatalf("lot event id = %v, want %d", upserted.EventID, *result.EventID)
+	}
+
+	var event models.AuctionEvent
+	if err := db.First(&event, *result.EventID).Error; err != nil {
+		t.Fatalf("reload event: %v", err)
+	}
+	if event.UserID != 7 || event.Title != "Lot 100 - Aurelian Antoninianus" || event.AuctionHouse != "Numis House" {
+		t.Fatalf("unexpected event fields: %#v", event)
+	}
+	if event.StartDate == nil || !event.StartDate.Equal(endTime) || event.EndDate == nil || !event.EndDate.Equal(endTime) {
+		t.Fatalf("event dates = %v/%v, want %v", event.StartDate, event.EndDate, endTime)
+	}
+	if event.URL != lot.SourceURL {
+		t.Fatalf("event url = %q, want %q", event.URL, lot.SourceURL)
+	}
+
+	lot.Title = "Updated title"
+	second, err := repo.UpsertWithCalendarEvent(lot)
+	if err != nil {
+		t.Fatalf("second upsert with event: %v", err)
+	}
+	if second.Created || second.EventCreated || second.EventID != nil {
+		t.Fatalf("second result = %#v, want update without duplicate event", second)
+	}
+
+	var eventCount int64
+	if err := db.Model(&models.AuctionEvent{}).Count(&eventCount).Error; err != nil {
+		t.Fatalf("count events: %v", err)
+	}
+	if eventCount != 1 {
+		t.Fatalf("event count = %d, want 1", eventCount)
+	}
+}
+
+func TestAuctionLotRepository_UpsertWithCalendarEventSkipsPassedAndExistingLots(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+	closedLots := []*models.AuctionLot{
+		{
+			NumisBidsURL: "https://www.numisbids.com/passed",
+			Source:       models.AuctionSourceNumisBids,
+			SourceURL:    "https://www.numisbids.com/passed",
+			Title:        "Passed lot",
+			Status:       models.AuctionStatusPassed,
+			UserID:       8,
+		},
+		{
+			NumisBidsURL: "https://www.numisbids.com/won",
+			Source:       models.AuctionSourceNumisBids,
+			SourceURL:    "https://www.numisbids.com/won",
+			Title:        "Won lot",
+			Status:       models.AuctionStatusWon,
+			UserID:       8,
+		},
+		{
+			NumisBidsURL: "https://www.numisbids.com/lost",
+			Source:       models.AuctionSourceNumisBids,
+			SourceURL:    "https://www.numisbids.com/lost",
+			Title:        "Lost lot",
+			Status:       models.AuctionStatusLost,
+			UserID:       8,
+		},
+	}
+	for _, lot := range closedLots {
+		if result, err := repo.UpsertWithCalendarEvent(lot); err != nil {
+			t.Fatalf("upsert %s lot: %v", lot.Status, err)
+		} else if !result.Created || result.EventCreated {
+			t.Fatalf("%s result = %#v, want created lot without event", lot.Status, result)
+		}
+	}
+
+	existing := &models.AuctionLot{
+		NumisBidsURL: "https://www.numisbids.com/existing",
+		Source:       models.AuctionSourceNumisBids,
+		SourceURL:    "https://www.numisbids.com/existing",
+		Title:        "Already tracked",
+		Status:       models.AuctionStatusWatching,
+		UserID:       8,
+	}
+	if err := repo.Create(existing); err != nil {
+		t.Fatalf("create existing lot: %v", err)
+	}
+	existing.Title = "Already tracked updated"
+	if result, err := repo.UpsertWithCalendarEvent(existing); err != nil {
+		t.Fatalf("upsert existing lot: %v", err)
+	} else if result.Created || result.EventCreated {
+		t.Fatalf("existing result = %#v, want update without event", result)
+	}
+
+	linkedEvent := models.AuctionEvent{
+		UserID: 8,
+		Title:  "Manually linked event",
+	}
+	if err := db.Create(&linkedEvent).Error; err != nil {
+		t.Fatalf("create linked event: %v", err)
+	}
+	existingWithEvent := &models.AuctionLot{
+		NumisBidsURL: "https://www.numisbids.com/existing-linked",
+		Source:       models.AuctionSourceNumisBids,
+		SourceURL:    "https://www.numisbids.com/existing-linked",
+		Title:        "Already tracked and linked",
+		Status:       models.AuctionStatusWatching,
+		EventID:      &linkedEvent.ID,
+		UserID:       8,
+	}
+	if err := repo.Create(existingWithEvent); err != nil {
+		t.Fatalf("create existing linked lot: %v", err)
+	}
+	existingWithEvent.Title = "Already tracked and linked updated"
+	if result, err := repo.UpsertWithCalendarEvent(existingWithEvent); err != nil {
+		t.Fatalf("upsert existing linked lot: %v", err)
+	} else if result.Created || result.EventCreated {
+		t.Fatalf("existing linked result = %#v, want update without event", result)
+	}
+	reloadedLinked, err := repo.GetBySourceURL(models.AuctionSourceNumisBids, existingWithEvent.SourceURL, 8)
+	if err != nil {
+		t.Fatalf("reload existing linked lot: %v", err)
+	}
+	if reloadedLinked.EventID == nil || *reloadedLinked.EventID != linkedEvent.ID {
+		t.Fatalf("existing linked event id = %v, want %d", reloadedLinked.EventID, linkedEvent.ID)
+	}
+
+	var eventCount int64
+	if err := db.Model(&models.AuctionEvent{}).Count(&eventCount).Error; err != nil {
+		t.Fatalf("count events: %v", err)
+	}
+	if eventCount != 1 {
+		t.Fatalf("event count = %d, want 1 existing manual event only", eventCount)
+	}
+}
+
+func TestAuctionLotRepository_UpsertWithCalendarEventIsSourceAwareForCNG(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+	sharedURL := "https://example.com/shared-lot"
+	cngEndTime := time.Date(2026, 7, 3, 18, 0, 0, 0, time.UTC)
+	lots := []*models.AuctionLot{
+		{
+			NumisBidsURL: sharedURL,
+			Source:       models.AuctionSourceNumisBids,
+			SourceURL:    sharedURL,
+			Title:        "NumisBids Shared Lot",
+			Status:       models.AuctionStatusWatching,
+			UserID:       9,
+		},
+		{
+			NumisBidsURL:   sharedURL,
+			Source:         models.AuctionSourceCNG,
+			SourceURL:      sharedURL,
+			SourceLotID:    "4-CNGLOT",
+			Title:          "CNG Shared Lot",
+			Status:         models.AuctionStatusBidding,
+			AuctionEndTime: &cngEndTime,
+			UserID:         9,
+		},
+	}
+
+	for _, lot := range lots {
+		result, err := repo.UpsertWithCalendarEvent(lot)
+		if err != nil {
+			t.Fatalf("upsert %s lot: %v", lot.Source, err)
+		}
+		if !result.Created || !result.EventCreated {
+			t.Fatalf("%s result = %#v, want provider-specific event", lot.Source, result)
+		}
+	}
+
+	var lotCount int64
+	if err := db.Model(&models.AuctionLot{}).Count(&lotCount).Error; err != nil {
+		t.Fatalf("count lots: %v", err)
+	}
+	if lotCount != 2 {
+		t.Fatalf("lot count = %d, want 2 provider-specific rows", lotCount)
+	}
+	var eventCount int64
+	if err := db.Model(&models.AuctionEvent{}).Count(&eventCount).Error; err != nil {
+		t.Fatalf("count events: %v", err)
+	}
+	if eventCount != 2 {
+		t.Fatalf("event count = %d, want 2 source-aware events", eventCount)
+	}
+
+	cngLot, err := repo.GetBySourceURL(models.AuctionSourceCNG, sharedURL, 9)
+	if err != nil {
+		t.Fatalf("reload CNG lot: %v", err)
+	}
+	if cngLot.EventID == nil {
+		t.Fatalf("CNG lot EventID is nil, want linked event")
+	}
+	var cngEvent models.AuctionEvent
+	if err := db.First(&cngEvent, *cngLot.EventID).Error; err != nil {
+		t.Fatalf("reload CNG event: %v", err)
+	}
+	if cngEvent.StartDate == nil || !cngEvent.StartDate.Equal(cngEndTime) {
+		t.Fatalf("CNG event start date = %v, want %v", cngEvent.StartDate, cngEndTime)
 	}
 }
 
