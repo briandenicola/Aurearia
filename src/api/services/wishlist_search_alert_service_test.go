@@ -227,6 +227,105 @@ func TestWishlistSearchAlertService_RunNowEnqueuesWithoutWaitingForAgent(t *test
 	}
 }
 
+func TestWishlistSearchAlertService_RunNowFiltersSoldAndOutOfRangeCandidates(t *testing.T) {
+	agent := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"candidates":[
+				{
+					"source_url":"https://www.vcoins.com/valid",
+					"source_name":"VCoins",
+					"title":"Aspendos AR Stater",
+					"observed_price":225.0,
+					"observed_currency":"USD",
+					"reason_for_match":"Title and price match the alert.",
+					"last_seen_at":"2026-06-29T17:00:10Z",
+					"provenance_status":"verified",
+					"fields":{"material":"Silver"},
+					"provenance":[{"field":"observed_price","value":"US$ 225.00","source_url":"https://www.vcoins.com/valid","observed_at":"2026-06-29T17:00:10Z","confidence":"high","verification_state":"verified"}]
+				},
+				{
+					"source_url":"https://www.vcoins.com/sold",
+					"source_name":"VCoins",
+					"title":"Aspendos AR Stater",
+					"observed_price":225.0,
+					"observed_currency":"USD",
+					"reason_for_match":"Title and price match the alert.",
+					"last_seen_at":"2026-06-29T17:00:10Z",
+					"provenance_status":"verified",
+					"fields":{"availability":"Sold"},
+					"provenance":[{"field":"availability","value":"Sold","source_url":"https://www.vcoins.com/sold","observed_at":"2026-06-29T17:00:10Z","confidence":"high","verification_state":"verified"}]
+				},
+				{
+					"source_url":"https://www.vcoins.com/too-expensive",
+					"source_name":"VCoins",
+					"title":"Aspendos AR Stater",
+					"observed_price":680.0,
+					"observed_currency":"USD",
+					"reason_for_match":"Title matches the alert.",
+					"last_seen_at":"2026-06-29T17:00:10Z",
+					"provenance_status":"verified",
+					"fields":{"material":"Silver"},
+					"provenance":[{"field":"observed_price","value":"US$ 680.00","source_url":"https://www.vcoins.com/too-expensive","observed_at":"2026-06-29T17:00:10Z","confidence":"high","verification_state":"verified"}]
+				},
+				{
+					"source_url":"https://www.vcoins.com/too-cheap",
+					"source_name":"VCoins",
+					"title":"Aspendos AR Stater",
+					"observed_price":25.0,
+					"observed_currency":"USD",
+					"reason_for_match":"Title matches the alert.",
+					"last_seen_at":"2026-06-29T17:00:10Z",
+					"provenance_status":"verified",
+					"fields":{"material":"Silver"},
+					"provenance":[{"field":"observed_price","value":"US$ 25.00","source_url":"https://www.vcoins.com/too-cheap","observed_at":"2026-06-29T17:00:10Z","confidence":"high","verification_state":"verified"}]
+				},
+				{
+					"source_url":"https://www.vcoins.com/no-price",
+					"source_name":"VCoins",
+					"title":"Aspendos AR Stater",
+					"reason_for_match":"Title matches the alert.",
+					"last_seen_at":"2026-06-29T17:00:10Z",
+					"provenance_status":"verified",
+					"fields":{"material":"Silver"},
+					"provenance":[{"field":"source_url","value":"https://www.vcoins.com/no-price","source_url":"https://www.vcoins.com/no-price","observed_at":"2026-06-29T17:00:10Z","confidence":"high","verification_state":"verified"}]
+				}
+			],
+			"warnings":[],
+			"partial":false
+		}`))
+	}
+	svc, _, cleanup := setupWishlistSearchAlertDiscoveryService(t, agent)
+	defer cleanup()
+	input := validAlertInput()
+	input.Criteria.PriceMin = alertFloatPtr(50)
+	input.Criteria.PriceMax = alertFloatPtr(350)
+	alert, err := svc.CreateAlert(1, input)
+	if err != nil {
+		t.Fatalf("create alert: %v", err)
+	}
+	queued, err := svc.RunNow(alert.ID, 1, RunAlertInput{MaxCandidates: 20})
+	if err != nil {
+		t.Fatalf("queue run: %v", err)
+	}
+	if err := svc.ProcessRun(queued.RunID); err != nil {
+		t.Fatalf("process run: %v", err)
+	}
+	run, err := svc.GetRun(alert.ID, queued.RunID, 1)
+	if err != nil {
+		t.Fatalf("load run: %v", err)
+	}
+	if run.Status != models.AlertRunStatusPartial || run.NewCount != 1 || run.ResultCount != 1 {
+		t.Fatalf("expected only the valid candidate to persist as partial run, got %+v", run)
+	}
+	if len(run.Candidates) != 1 || run.Candidates[0].SourceURL != "https://www.vcoins.com/valid" {
+		t.Fatalf("unexpected persisted candidates: %+v", run.Candidates)
+	}
+	if len(run.PartialWarnings) != 4 {
+		t.Fatalf("expected four omission warnings, got %+v", run.PartialWarnings)
+	}
+}
+
 func TestWishlistSearchAlertService_RunNowRejectsDisabledAndRunningAlert(t *testing.T) {
 	svc, db, cleanup := setupWishlistSearchAlertDiscoveryService(t, func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("agent should not be called")

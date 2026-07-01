@@ -337,6 +337,10 @@ func (s *WishlistSearchAlertService) ingestCandidates(run *models.AlertRun, aler
 	if resp == nil {
 		resp = &AlertDiscoveryProxyResponse{}
 	}
+	criteria, _, err := alertDiscoveryCriteriaFromSnapshot(run.CriteriaSnapshot)
+	if err != nil {
+		return nil, fmt.Errorf("read alert criteria snapshot: %w", err)
+	}
 	candidates := resp.Candidates
 	if len(candidates) > AlertResultCapMax {
 		candidates = candidates[:AlertResultCapMax]
@@ -350,6 +354,11 @@ func (s *WishlistSearchAlertService) ingestCandidates(run *models.AlertRun, aler
 			continue
 		}
 		candidate, provenance := buildCandidateFromProxy(run, alert, proxyCandidate)
+		if reason := candidateReviewExclusionReason(candidate, provenance, criteria); reason != "" {
+			resp.Warnings = append(resp.Warnings, reason)
+			resp.Partial = true
+			continue
+		}
 		matched := s.matchExistingWishlist(alert.UserID, candidate.SourceURL, candidate.CanonicalSourceURL)
 		if matched != nil {
 			candidate.MatchingWishlistCoinID = &matched.ID
@@ -630,6 +639,48 @@ func alertDiscoveryCriteriaFromSnapshot(snapshot string) (AlertDiscoveryCriteria
 		Keywords:         criteria.Keywords,
 		Notes:            criteria.Notes,
 	}, maxCandidates, nil
+}
+
+func candidateReviewExclusionReason(candidate *models.AlertCandidate, provenance []models.CandidateProvenance, criteria AlertDiscoveryCriteriaSnapshotProxy) string {
+	if candidateHasSoldSignal(candidate, provenance) {
+		return "One result was omitted because the source listing appears to be sold or unavailable."
+	}
+	if criteria.PriceMin != nil || criteria.PriceMax != nil {
+		if candidate.ObservedPrice == nil {
+			return "One result was omitted because it did not include a source-backed price for the alert range."
+		}
+		if criteria.Currency != "" && candidate.ObservedCurrency != "" && !strings.EqualFold(candidate.ObservedCurrency, criteria.Currency) {
+			return "One result was omitted because its currency did not match the alert price range currency."
+		}
+		if criteria.PriceMin != nil && *candidate.ObservedPrice < *criteria.PriceMin {
+			return "One result was omitted because its price was below the alert minimum."
+		}
+		if criteria.PriceMax != nil && *candidate.ObservedPrice > *criteria.PriceMax {
+			return "One result was omitted because its price exceeded the alert maximum."
+		}
+	}
+	return ""
+}
+
+var soldSignalPattern = regexp.MustCompile(`\b(sold|sold out|unavailable|no longer available)\b`)
+
+func candidateHasSoldSignal(candidate *models.AlertCandidate, provenance []models.CandidateProvenance) bool {
+	values := []string{
+		candidate.Title,
+		candidate.ReasonForMatch,
+	}
+	for key, value := range candidate.Fields {
+		values = append(values, key, value)
+	}
+	for _, item := range provenance {
+		values = append(values, item.Field, item.Value, item.Notes)
+	}
+	for _, value := range values {
+		if soldSignalPattern.MatchString(strings.ToLower(value)) {
+			return true
+		}
+	}
+	return false
 }
 
 func buildAlertFromInput(userID uint, existing *models.WishlistSearchAlert, input WishlistSearchAlertInput) (*models.WishlistSearchAlert, error) {
