@@ -13430,7 +13430,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Manually runs a saved discovery alert and stores candidates separately from availability checks.",
+                "description": "Queues a saved discovery alert run and stores candidates separately from availability checks when processing completes.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13459,8 +13459,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "202": {
+                        "description": "Accepted",
                         "schema": {
                             "$ref": "#/definitions/handlers.WishlistSearchAlertRunResponse"
                         }

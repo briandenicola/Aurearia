@@ -11480,8 +11480,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Manually runs a saved discovery alert and stores candidates separately
-        from availability checks.
+      description: Queues a saved discovery alert run and stores candidates separately
+        from availability checks when processing completes.
       parameters:
       - description: Alert ID
         in: path
@@ -11496,8 +11496,8 @@ paths:
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "202":
+          description: Accepted
           schema:
             $ref: '#/definitions/handlers.WishlistSearchAlertRunResponse'
         "400":

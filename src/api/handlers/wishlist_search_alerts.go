@@ -160,16 +160,16 @@ func (h *WishlistSearchAlertHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// RunNow runs an active alert immediately and persists auditable results.
+// RunNow queues an active alert for asynchronous discovery and persists auditable results.
 //
 //	@Summary		Run wishlist search alert
-//	@Description	Manually runs a saved discovery alert and stores candidates separately from availability checks.
+//	@Description	Queues a saved discovery alert run and stores candidates separately from availability checks when processing completes.
 //	@Tags			Wishlist Search Alerts
 //	@Accept			json
 //	@Produce		json
 //	@Param			alertId	path	int						true	"Alert ID"
 //	@Param			body	body	WishlistSearchAlertRunRequest	false	"Run request"
-//	@Success		200		{object}	WishlistSearchAlertRunResponse
+//	@Success		202		{object}	WishlistSearchAlertRunResponse
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
@@ -190,7 +190,7 @@ func (h *WishlistSearchAlertHandler) RunNow(c *gin.Context) {
 		respondWishlistSearchAlertError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusAccepted, result)
 }
 
 // ListRuns lists run history for one alert.

@@ -38,6 +38,7 @@ var (
 const (
 	AlertResultCapDefault          = 20
 	AlertResultCapMax              = 50
+	wishlistAlertRunQueueSize      = 100
 	wishlistAlertDiscoveryTimeout  = 5 * time.Minute
 	wishlistAlertRunningLockWindow = wishlistAlertDiscoveryTimeout
 )
@@ -71,10 +72,11 @@ type WishlistSearchAlertService struct {
 	agentProxy *AgentProxy
 	settings   *SettingsService
 	coinSvc    *CoinService
+	queue      chan uint
 }
 
 func NewWishlistSearchAlertService(repo *repository.WishlistSearchAlertRepository) *WishlistSearchAlertService {
-	return &WishlistSearchAlertService{repo: repo}
+	return &WishlistSearchAlertService{repo: repo, queue: make(chan uint, wishlistAlertRunQueueSize)}
 }
 
 func (s *WishlistSearchAlertService) WithDiscovery(agentProxy *AgentProxy, settings *SettingsService) *WishlistSearchAlertService {
@@ -86,6 +88,20 @@ func (s *WishlistSearchAlertService) WithDiscovery(agentProxy *AgentProxy, setti
 func (s *WishlistSearchAlertService) WithCoinCreation(coinSvc *CoinService) *WishlistSearchAlertService {
 	s.coinSvc = coinSvc
 	return s
+}
+
+func (s *WishlistSearchAlertService) StartWorkers(workerCount int) {
+	if workerCount < 1 {
+		workerCount = 1
+	}
+	if ids, err := s.repo.RecoverStaleAlertRuns(wishlistAlertDiscoveryTimeout); err == nil {
+		for _, id := range ids {
+			s.enqueueRunID(id)
+		}
+	}
+	for i := 0; i < workerCount; i++ {
+		go s.worker()
+	}
 }
 
 type RunAlertInput struct {
@@ -216,7 +232,7 @@ func (s *WishlistSearchAlertService) RunNow(alertID, userID uint, input RunAlert
 		AlertID:          alert.ID,
 		UserID:           userID,
 		TriggerType:      models.AlertRunTriggerManual,
-		Status:           models.AlertRunStatusRunning,
+		Status:           models.AlertRunStatusQueued,
 		StartedAt:        time.Now(),
 		CriteriaSnapshot: snapshot,
 		RateLimitStatus:  "ok",
@@ -228,52 +244,81 @@ func (s *WishlistSearchAlertService) RunNow(alertID, userID uint, input RunAlert
 	if !acquired {
 		return nil, ErrWishlistSearchAlertRunLimited
 	}
+	s.enqueueRunID(run.ID)
+	return runResult(run, nil), nil
+}
+
+func (s *WishlistSearchAlertService) enqueueRunID(runID uint) {
+	select {
+	case s.queue <- runID:
+	default:
+		go func() { s.queue <- runID }()
+	}
+}
+
+func (s *WishlistSearchAlertService) worker() {
+	for runID := range s.queue {
+		_ = s.ProcessRun(runID)
+	}
+}
+
+func (s *WishlistSearchAlertService) ProcessRun(runID uint) error {
+	run, claimed, err := s.repo.ClaimQueuedRun(runID)
+	if err != nil {
+		return err
+	}
+	if !claimed {
+		return nil
+	}
+	return s.processClaimedRun(run)
+}
+
+func (s *WishlistSearchAlertService) processClaimedRun(run *models.AlertRun) error {
+	alert, err := s.GetAlert(run.AlertID, run.UserID)
+	if err != nil {
+		_, failErr := s.failRun(run, "Search alert is unavailable.", err)
+		return failErr
+	}
 	if s.agentProxy == nil || s.settings == nil {
-		return s.failRun(run, "Discovery service is unavailable.", ErrWishlistSearchAlertAgent)
+		_, failErr := s.failRun(run, "Discovery service is unavailable.", ErrWishlistSearchAlertAgent)
+		return failErr
 	}
 	llmConfig, err := s.settings.ResolveLLMConfig()
 	if err != nil {
-		return s.failRun(run, "Discovery service is not configured.", ErrWishlistSearchAlertAgent)
+		_, failErr := s.failRun(run, "Discovery service is not configured.", ErrWishlistSearchAlertAgent)
+		return failErr
+	}
+	criteria, maxCandidates, err := alertDiscoveryCriteriaFromSnapshot(run.CriteriaSnapshot)
+	if err != nil {
+		_, failErr := s.failRun(run, "Unable to read alert criteria snapshot.", err)
+		return failErr
 	}
 	proxyReq := AlertDiscoveryProxyRequest{
 		LLM: llmConfig,
 		Alert: AlertDiscoveryRequestDetail{
-			AlertID: alert.ID,
-			CriteriaSnapshot: AlertDiscoveryCriteriaSnapshotProxy{
-				Name:             alert.Name,
-				RulerOrIssuer:    alert.RulerOrIssuer,
-				CoinType:         alert.CoinType,
-				DateFrom:         alert.DateFrom,
-				DateTo:           alert.DateTo,
-				Mint:             alert.Mint,
-				Material:         alert.Material,
-				GradeOrCondition: alert.GradeOrCondition,
-				PriceMin:         alert.PriceMin,
-				PriceMax:         alert.PriceMax,
-				Currency:         alert.Currency,
-				DealerPreference: alert.DealerPreference,
-				SourceFilters:    []string(alert.SourceFilters),
-				Keywords:         alert.Keywords,
-				Notes:            alert.Notes,
-			},
-			MaxCandidates: maxCandidates,
+			AlertID:          alert.ID,
+			CriteriaSnapshot: criteria,
+			MaxCandidates:    maxCandidates,
 		},
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), wishlistAlertDiscoveryTimeout)
 	resp, err := s.agentProxy.DiscoverAlertCandidates(ctx, proxyReq)
 	cancel()
 	if err != nil {
-		return s.failRun(run, "Discovery service is unavailable.", ErrWishlistSearchAlertAgent)
+		_, failErr := s.failRun(run, "Discovery service is unavailable.", ErrWishlistSearchAlertAgent)
+		return failErr
 	}
-	result, err := s.ingestCandidates(run, alert, resp)
+	_, err = s.ingestCandidates(run, alert, resp)
 	if err != nil {
-		return s.failRun(run, "Unable to save discovered candidates.", err)
+		_, failErr := s.failRun(run, "Unable to save discovered candidates.", err)
+		return failErr
 	}
 	alert.LastRunAt = &run.StartedAt
 	if err := s.repo.UpdateAlert(alert); err != nil {
-		return s.failRun(run, "Unable to save alert run metadata.", err)
+		_, failErr := s.failRun(run, "Unable to save alert run metadata.", err)
+		return failErr
 	}
-	return result, nil
+	return nil
 }
 
 func (s *WishlistSearchAlertService) failRun(run *models.AlertRun, message string, retErr error) (*AlertRunResult, error) {
@@ -541,6 +586,50 @@ func (s *WishlistSearchAlertService) CriteriaSnapshot(alert *models.WishlistSear
 	}
 	b, err := json.Marshal(snapshot)
 	return string(b), err
+}
+
+type alertRunCriteriaSnapshot struct {
+	Name             string   `json:"name"`
+	RulerOrIssuer    string   `json:"rulerOrIssuer"`
+	CoinType         string   `json:"coinType"`
+	DateFrom         *int     `json:"dateFrom"`
+	DateTo           *int     `json:"dateTo"`
+	Mint             string   `json:"mint"`
+	Material         string   `json:"material"`
+	GradeOrCondition string   `json:"gradeOrCondition"`
+	PriceMin         *float64 `json:"priceMin"`
+	PriceMax         *float64 `json:"priceMax"`
+	Currency         string   `json:"currency"`
+	DealerPreference string   `json:"dealerPreference"`
+	SourceFilters    []string `json:"sourceFilters"`
+	Keywords         string   `json:"keywords"`
+	Notes            string   `json:"notes"`
+	MaxCandidates    int      `json:"maxCandidates"`
+}
+
+func alertDiscoveryCriteriaFromSnapshot(snapshot string) (AlertDiscoveryCriteriaSnapshotProxy, int, error) {
+	var criteria alertRunCriteriaSnapshot
+	if err := json.Unmarshal([]byte(snapshot), &criteria); err != nil {
+		return AlertDiscoveryCriteriaSnapshotProxy{}, 0, err
+	}
+	maxCandidates := normalizeMaxCandidates(criteria.MaxCandidates)
+	return AlertDiscoveryCriteriaSnapshotProxy{
+		Name:             criteria.Name,
+		RulerOrIssuer:    criteria.RulerOrIssuer,
+		CoinType:         criteria.CoinType,
+		DateFrom:         criteria.DateFrom,
+		DateTo:           criteria.DateTo,
+		Mint:             criteria.Mint,
+		Material:         criteria.Material,
+		GradeOrCondition: criteria.GradeOrCondition,
+		PriceMin:         criteria.PriceMin,
+		PriceMax:         criteria.PriceMax,
+		Currency:         criteria.Currency,
+		DealerPreference: criteria.DealerPreference,
+		SourceFilters:    criteria.SourceFilters,
+		Keywords:         criteria.Keywords,
+		Notes:            criteria.Notes,
+	}, maxCandidates, nil
 }
 
 func buildAlertFromInput(userID uint, existing *models.WishlistSearchAlert, input WishlistSearchAlertInput) (*models.WishlistSearchAlert, error) {
