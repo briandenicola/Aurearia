@@ -1,6 +1,6 @@
 # Features Index
 
-Ancient Coins provides a comprehensive set of features for managing a personal ancient coin collection. This directory contains detailed documentation for each major feature area.
+Aurearia provides a comprehensive set of features for managing a personal coin collection, with deep support for ancient and historical coins. This directory contains detailed documentation for each major feature area.
 
 ## Visual Assets
 
@@ -16,7 +16,7 @@ The repository currently includes app icons in `src/web/public/` but does not in
 
 - **[Coin Lookup](coin-lookup.md)** — Photograph a coin or slab at a show, extract NGC Ancients certs, verify with NGC, and save to wish list or collection
 - **[Wish List](wish-list.md)** — Track coins you'd like to acquire with AI-powered search and availability checking
-- **[Auction Tracking](auction-tracking.md)** — Monitor NumisBids lots through bidding lifecycle with price alerts and reminders
+- **[Auction Tracking](auction-tracking.md)** — Monitor NumisBids and CNG Auctions lots through bidding lifecycle with price alerts and reminders
 - **[Sold Coins](sold-coins.md)** — Track coins you've sold with profit/loss analysis
 
 ## AI Features

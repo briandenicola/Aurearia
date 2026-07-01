@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -32,10 +34,18 @@ func (r *AuctionLotRepository) Transaction(fn func(tx *gorm.DB) error) error {
 type AuctionLotListFilters struct {
 	Status    string
 	Search    string
+	Source    string
 	SortField string
 	SortOrder string
 	Page      int
 	Limit     int
+}
+
+// AuctionLotUpsertResult describes whether an upsert inserted a new lot and calendar event.
+type AuctionLotUpsertResult struct {
+	Created      bool
+	EventCreated bool
+	EventID      *uint
 }
 
 // List returns a paginated list of auction lots for the given user.
@@ -47,6 +57,9 @@ func (r *AuctionLotRepository) List(userID uint, filters AuctionLotListFilters) 
 
 	if filters.Status != "" {
 		query = query.Where("status = ?", filters.Status)
+	}
+	if filters.Source != "" {
+		query = query.Where("source = ?", filters.Source)
 	}
 	if filters.Search != "" {
 		like := "%" + filters.Search + "%"
@@ -103,8 +116,14 @@ func (r *AuctionLotRepository) GetByID(id, userID uint) (*models.AuctionLot, err
 
 // GetByURL finds an auction lot by its NumisBids URL for the given user.
 func (r *AuctionLotRepository) GetByURL(url string, userID uint) (*models.AuctionLot, error) {
+	return r.GetBySourceURL(models.AuctionSourceNumisBids, url, userID)
+}
+
+// GetBySourceURL finds an auction lot by source URL for the given user.
+func (r *AuctionLotRepository) GetBySourceURL(source models.AuctionSource, sourceURL string, userID uint) (*models.AuctionLot, error) {
 	var lot models.AuctionLot
-	err := r.db.Where("numis_bids_url = ? AND user_id = ?", url, userID).First(&lot).Error
+	source, sourceURL = normalizeAuctionSourceURL(source, sourceURL)
+	err := r.db.Where("source = ? AND source_url = ? AND user_id = ?", source, sourceURL, userID).First(&lot).Error
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +132,7 @@ func (r *AuctionLotRepository) GetByURL(url string, userID uint) (*models.Auctio
 
 // Create inserts a new auction lot.
 func (r *AuctionLotRepository) Create(lot *models.AuctionLot) error {
+	normalizeAuctionLotSource(lot)
 	return r.db.Create(lot).Error
 }
 
@@ -143,6 +163,11 @@ func (r *AuctionLotRepository) CountByStatus(userID uint) (map[string]int64, err
 	return r.countByStatus(r.db.Where("user_id = ?", userID))
 }
 
+// CountByStatusForSource returns per-status counts for the given user's source-specific auction lots.
+func (r *AuctionLotRepository) CountByStatusForSource(userID uint, source models.AuctionSource) (map[string]int64, error) {
+	return r.countByStatus(r.db.Where("user_id = ? AND source = ?", userID, source))
+}
+
 // CountAll returns the total number of auction lots across all users.
 func (r *AuctionLotRepository) CountAll() (int64, error) {
 	var total int64
@@ -171,27 +196,63 @@ func (r *AuctionLotRepository) countByStatus(db *gorm.DB) (map[string]int64, err
 	return counts, nil
 }
 
-// Upsert creates or updates an auction lot by its NumisBids URL for the given user.
-func (r *AuctionLotRepository) Upsert(lot *models.AuctionLot) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
+// Upsert creates or updates an auction lot by its source URL for the given user.
+func (r *AuctionLotRepository) Upsert(lot *models.AuctionLot) (AuctionLotUpsertResult, error) {
+	return r.upsert(lot, false)
+}
+
+// UpsertWithCalendarEvent creates or updates an auction lot and auto-links a calendar
+// event only when the lot is newly tracked with a watchable status.
+func (r *AuctionLotRepository) UpsertWithCalendarEvent(lot *models.AuctionLot) (AuctionLotUpsertResult, error) {
+	return r.upsert(lot, true)
+}
+
+func (r *AuctionLotRepository) upsert(lot *models.AuctionLot, autoCreateEvent bool) (AuctionLotUpsertResult, error) {
+	normalizeAuctionLotSource(lot)
+	result := AuctionLotUpsertResult{}
+	err := r.db.Transaction(func(tx *gorm.DB) error {
 		txRepo := &AuctionLotRepository{db: tx}
-		existing, err := txRepo.GetByURL(lot.NumisBidsURL, lot.UserID)
+		existing, err := txRepo.GetBySourceURL(lot.Source, lot.SourceURL, lot.UserID)
 		if err != nil {
-			// Not found — create
-			return tx.Create(lot).Error
+			if !IsRecordNotFound(err) {
+				return err
+			}
+			if err := tx.Create(lot).Error; err != nil {
+				return err
+			}
+			result.Created = true
+			if autoCreateEvent && shouldAutoCreateCalendarEvent(lot) {
+				event := auctionEventFromLot(lot)
+				if err := tx.Create(&event).Error; err != nil {
+					return err
+				}
+				if err := tx.Model(lot).Update("event_id", event.ID).Error; err != nil {
+					return err
+				}
+				lot.EventID = &event.ID
+				result.EventCreated = true
+				result.EventID = &event.ID
+			}
+			return nil
 		}
 		// Update fields that may have changed
 		updates := map[string]interface{}{
-			"current_bid":   lot.CurrentBid,
-			"estimate":      lot.Estimate,
-			"title":         lot.Title,
-			"description":   lot.Description,
-			"image_url":     lot.ImageURL,
-			"auction_house": lot.AuctionHouse,
-			"sale_name":     lot.SaleName,
-			"sale_date":     lot.SaleDate,
-			"currency":      lot.Currency,
-			"lot_number":    lot.LotNumber,
+			"current_bid":      lot.CurrentBid,
+			"estimate":         lot.Estimate,
+			"title":            lot.Title,
+			"description":      lot.Description,
+			"image_url":        lot.ImageURL,
+			"auction_house":    lot.AuctionHouse,
+			"sale_name":        lot.SaleName,
+			"sale_date":        lot.SaleDate,
+			"currency":         lot.Currency,
+			"lot_number":       lot.LotNumber,
+			"auction_end_time": lot.AuctionEndTime,
+			"source":           lot.Source,
+			"source_url":       lot.SourceURL,
+			"source_lot_id":    lot.SourceLotID,
+			"source_sale_id":   lot.SourceSaleID,
+			"numis_bids_url":   lot.NumisBidsURL,
 		}
 		// Only update status if the lot is being marked as passed (don't overwrite bidding/won/lost)
 		if lot.Status == models.AuctionStatusPassed && existing.Status == models.AuctionStatusWatching {
@@ -199,6 +260,93 @@ func (r *AuctionLotRepository) Upsert(lot *models.AuctionLot) error {
 		}
 		return txRepo.UpdateFields(existing, updates)
 	})
+	return result, err
+}
+
+func shouldAutoCreateCalendarEvent(lot *models.AuctionLot) bool {
+	return lot.Status == models.AuctionStatusWatching || lot.Status == models.AuctionStatusBidding
+}
+
+func auctionEventFromLot(lot *models.AuctionLot) models.AuctionEvent {
+	eventDate := lot.AuctionEndTime
+	if eventDate == nil {
+		eventDate = lot.SaleDate
+	}
+	startDate := cloneTime(eventDate)
+	endDate := cloneTime(eventDate)
+	return models.AuctionEvent{
+		UserID:       lot.UserID,
+		Title:        auctionEventTitle(lot),
+		AuctionHouse: lot.AuctionHouse,
+		StartDate:    startDate,
+		EndDate:      endDate,
+		URL:          firstNonBlank(lot.SourceURL, lot.NumisBidsURL),
+		Notes:        auctionEventNotes(lot),
+	}
+}
+
+func auctionEventTitle(lot *models.AuctionLot) string {
+	title := strings.TrimSpace(lot.Title)
+	if title == "" {
+		title = "Auction lot"
+	}
+	if lot.LotNumber > 0 && !strings.Contains(strings.ToLower(title), "lot ") {
+		return "Lot " + strconv.Itoa(lot.LotNumber) + " - " + title
+	}
+	return title
+}
+
+func auctionEventNotes(lot *models.AuctionLot) string {
+	parts := []string{"Auto-created from " + string(lot.Source) + " watchlist sync."}
+	if strings.TrimSpace(lot.SaleName) != "" {
+		parts = append(parts, "Sale: "+strings.TrimSpace(lot.SaleName))
+	}
+	if lot.LotNumber > 0 {
+		parts = append(parts, "Lot: "+strconv.Itoa(lot.LotNumber))
+	}
+	if strings.TrimSpace(lot.SourceSaleID) != "" {
+		parts = append(parts, "Source sale ID: "+strings.TrimSpace(lot.SourceSaleID))
+	}
+	if strings.TrimSpace(lot.SourceLotID) != "" {
+		parts = append(parts, "Source lot ID: "+strings.TrimSpace(lot.SourceLotID))
+	}
+	return strings.Join(parts, "\n")
+}
+
+func cloneTime(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+func firstNonBlank(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func normalizeAuctionLotSource(lot *models.AuctionLot) {
+	source, sourceURL := normalizeAuctionSourceURL(lot.Source, lot.SourceURL)
+	lot.Source = source
+	lot.SourceURL = sourceURL
+	if lot.NumisBidsURL == "" {
+		lot.NumisBidsURL = sourceURL
+	}
+	if lot.SourceURL == "" {
+		lot.SourceURL = lot.NumisBidsURL
+	}
+}
+
+func normalizeAuctionSourceURL(source models.AuctionSource, sourceURL string) (models.AuctionSource, string) {
+	if source == "" {
+		source = models.AuctionSourceNumisBids
+	}
+	return source, sourceURL
 }
 
 // MarkPastAuctionsAsPassed updates all "watching" lots for a user where sale_date is before now.

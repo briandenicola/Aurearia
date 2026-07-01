@@ -276,7 +276,7 @@ function testSearxngConn() {
 }
 
 .msg.error {
-  color: #e74c3c;
+  color: var(--color-negative);
 }
 
 .ai-actions {
@@ -309,13 +309,13 @@ function testSearxngConn() {
 .connectivity-result.success {
   background: rgba(46, 204, 113, 0.1);
   border: 1px solid rgba(46, 204, 113, 0.3);
-  color: #2ecc71;
+  color: var(--color-positive);
 }
 
 .connectivity-result.error {
   background: rgba(231, 76, 60, 0.1);
   border: 1px solid rgba(231, 76, 60, 0.3);
-  color: #e74c3c;
+  color: var(--color-negative);
 }
 
 .connectivity-icon {
@@ -343,7 +343,7 @@ function testSearxngConn() {
   gap: 0.25rem;
   padding: 1rem;
   border: 2px solid var(--border-subtle, #333);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
 }
@@ -377,7 +377,7 @@ function testSearxngConn() {
   padding: 0.5rem 0.75rem;
   background: rgba(231, 176, 60, 0.1);
   border: 1px solid rgba(231, 176, 60, 0.3);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: #e7b03c;
   font-size: 0.85rem;
 }

@@ -1,6 +1,6 @@
 # Testing Strategy
 
-This document is the canonical testing strategy for Ancient Coins. It explains what we test, what we intentionally do not test, and how contributors should add new tests across the Go API, Vue PWA, and Python agent.
+This document is the canonical testing strategy for Aurearia. It explains what we test, what we intentionally do not test, and how contributors should add new tests across the Go API, Vue PWA, and Python agent.
 
 ## 1. Testing Philosophy
 
@@ -38,7 +38,7 @@ Notes:
 ## 3. What we DON'T test
 
 - We do **not** test SQLite, GORM, Gin, Vitest, FastAPI, or LangGraph themselves; we test our usage of them.
-- We do **not** hit third-party services in automated tests. Anthropic, Ollama, SearXNG, NumisBids, and Pushover should be mocked or stubbed at the service boundary.
+- We do **not** hit third-party services in automated tests. Anthropic, Ollama, SearXNG, NumisBids, CNG Auctions, and Pushover should be mocked or stubbed at the service boundary.
 - Browser workflow tests are deterministic smoke checks with mocked APIs; they do **not** require a live backend or production data.
 - We do **not** attempt deterministic end-to-end assertions for LLM quality. For agent work we test input validation, parsing, retry behavior, routing helpers, and schema-shaped outputs.
 - We do **not** add tests for trivial getters or thin pass-through code just to raise coverage numbers.

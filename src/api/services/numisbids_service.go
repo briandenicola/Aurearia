@@ -42,6 +42,8 @@ var (
 // WatchlistLot represents a single lot parsed from a NumisBids watchlist page.
 type WatchlistLot struct {
 	URL          string   `json:"url"`
+	SourceLotID  string   `json:"sourceLotId"`
+	SourceSaleID string   `json:"sourceSaleId"`
 	SaleID       string   `json:"saleId"`
 	LotNumber    int      `json:"lotNumber"`
 	Title        string   `json:"title"`
@@ -337,10 +339,11 @@ func (s *NumisBidsService) ParseWatchlist(rawHTML string) []WatchlistLot {
 		block := rawHTML[start:end]
 
 		lot := WatchlistLot{
-			URL:       match.url,
-			SaleID:    match.saleID,
-			LotNumber: match.lotNumber,
-			Currency:  "USD",
+			URL:          match.url,
+			SourceSaleID: match.saleID,
+			SaleID:       match.saleID,
+			LotNumber:    match.lotNumber,
+			Currency:     "USD",
 		}
 
 		// Image URL

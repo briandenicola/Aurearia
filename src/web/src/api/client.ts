@@ -826,8 +826,8 @@ interface PublicKeyCredentialRequestOptionsPublicKeyJSON {
 // --- Social / Profile API ---
 
 // Profile
-export const updateProfile = (data: { email?: string; bio?: string; zipCode?: string; isPublic?: boolean; numisBidsUsername?: string; numisBidsPassword?: string; pushoverUserKey?: string; coinOfDayEnabled?: boolean }) =>
-  api.put<{ id: number; username: string; role: string; email: string; avatarPath: string; isPublic: boolean; bio: string; zipCode: string; numisBidsUsername: string; numisBidsConfigured: boolean; pushoverEnabled: boolean; coinOfDayEnabled: boolean }>('/user/profile', data)
+export const updateProfile = (data: { email?: string; bio?: string; zipCode?: string; isPublic?: boolean; numisBidsUsername?: string; numisBidsPassword?: string; cngUsername?: string; cngPassword?: string; pushoverUserKey?: string; coinOfDayEnabled?: boolean }) =>
+  api.put<{ id: number; username: string; role: string; email: string; avatarPath: string; isPublic: boolean; bio: string; zipCode: string; numisBidsUsername: string; numisBidsConfigured: boolean; cngUsername: string; cngConfigured: boolean; pushoverEnabled: boolean; coinOfDayEnabled: boolean }>('/user/profile', data)
 export const uploadAvatar = (file: File) => {
   const form = new FormData()
   form.append('avatar', file)
@@ -897,10 +897,10 @@ export const rateCoin = (coinId: number, rating: number) =>
   api.put<CoinRating>(`/social/coins/${coinId}/rating`, { rating })
 
 // Auction lots
-export const getAuctionLots = (params?: { status?: string; search?: string; sort?: string; order?: string; page?: number; limit?: number }) =>
+export const getAuctionLots = (params?: { status?: string; search?: string; source?: string; sort?: string; order?: string; page?: number; limit?: number }) =>
   api.get<AuctionLotListResponse>('/auctions', { params })
-export const getAuctionLotCounts = () =>
-  api.get<{ counts: Record<string, number> }>('/auctions/counts')
+export const getAuctionLotCounts = (params?: { source?: string }) =>
+  api.get<{ counts: Record<string, number> }>('/auctions/counts', { params })
 export const updateAuctionLotStatus = (id: number, status: string, maxBid?: number | null) => api.put<AuctionLot>(`/auctions/${id}/status`, { status, ...(maxBid != null ? { maxBid } : {}) })
 export const updateAuctionLot = (id: number, data: {
   title?: string
@@ -920,12 +920,12 @@ export const convertAuctionLotToCoin = (id: number) => api.post<Coin>(`/auctions
 export const deleteAuctionLot = (id: number) => api.delete(`/auctions/${id}`)
 export const linkAuctionLotEvent = (id: number, eventId: number | null) => api.put<AuctionLot>(`/auctions/${id}/event`, { eventId })
 export const bulkLinkAuctionLotEvent = (lotIds: number[], eventId: number | null) => api.put<{ updated: number }>('/auctions/bulk-link-event', { lotIds, eventId })
-export const importAuctionLot = (data: { url: string; title?: string; description?: string; auctionHouse?: string; saleName?: string; category?: string; imageUrl?: string; estimate?: number | null; currentBid?: number | null; currency?: string }) =>
+export const importAuctionLot = (data: { url: string; source?: string; title?: string; description?: string; auctionHouse?: string; saleName?: string; category?: string; imageUrl?: string; estimate?: number | null; currentBid?: number | null; currency?: string }) =>
   api.post<AuctionLot>('/auctions/import', data)
-export const syncNumisBidsWatchlist = () =>
-  api.post<{ synced: number; lots: AuctionLot[] }>('/auctions/sync')
-export const validateNumisBidsCredentials = (username: string, password: string) =>
-  api.post<{ valid: boolean; error?: string }>('/auctions/validate-credentials', { username, password })
+export const syncNumisBidsWatchlist = (source = 'numisbids') =>
+  api.post<{ synced: number; lots: AuctionLot[] }>('/auctions/sync', { source })
+export const validateNumisBidsCredentials = (username: string, password: string, source = 'numisbids') =>
+  api.post<{ valid: boolean; error?: string }>('/auctions/validate-credentials', { username, password, source })
 
 // Pushover notifications
 export const testPushover = () =>

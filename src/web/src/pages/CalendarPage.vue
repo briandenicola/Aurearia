@@ -79,8 +79,8 @@
                   <span v-if="lot.currentBid" class="bid-info">Current bid: {{ lot.currentBid }}</span>
                   <span v-if="lot.estimate" class="estimate-info">Est: {{ lot.estimate }}</span>
                 </div>
-                <SafeExternalLink v-if="lot.numisBidsUrl" :href="lot.numisBidsUrl" target="_blank" rel="noopener" class="lot-link">
-                  <ExternalLink :size="13" /> View on NumisBids
+                <SafeExternalLink v-if="auctionLotUrl(lot)" :href="auctionLotUrl(lot) ?? ''" target="_blank" rel="noopener" class="lot-link">
+                  <ExternalLink :size="13" /> View on {{ auctionProviderLabel(lot) }}
                 </SafeExternalLink>
               </div>
             </div>
@@ -180,7 +180,7 @@
                   <span class="status-tag" :class="`status-${lot.status}`">{{ lot.status }}</span>
                 </span>
               </div>
-              <SafeExternalLink v-if="lot.numisBidsUrl" :href="lot.numisBidsUrl" target="_blank" rel="noopener" class="lot-ext-link" @click.stop>
+              <SafeExternalLink v-if="auctionLotUrl(lot)" :href="auctionLotUrl(lot) ?? ''" target="_blank" rel="noopener" class="lot-ext-link" @click.stop>
                 <ExternalLink :size="13" />
               </SafeExternalLink>
             </div>
@@ -256,10 +256,20 @@ interface CalendarLot {
   status?: string
   currentBid?: string
   estimate?: string
+  source?: string
+  sourceUrl?: string
   numisBidsUrl?: string
   imageUrl?: string
   saleDate?: string
   auctionEndTime?: string
+}
+
+function auctionLotUrl(lot: CalendarLot | AuctionLot): string | null {
+  return lot.sourceUrl || lot.numisBidsUrl || null
+}
+
+function auctionProviderLabel(lot: CalendarLot | AuctionLot): string {
+  return lot.source === 'cng' ? 'CNG' : 'NumisBids'
 }
 
 interface CalendarEvent {

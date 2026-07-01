@@ -2,21 +2,21 @@
   <div class="modal-overlay" @click.self="emit('close')">
     <div class="modal card">
       <div class="modal-header">
-        <h3>Add from NumisBids</h3>
+        <h3>Add Auction Lot</h3>
         <button class="btn-close" @click="emit('close')"><X :size="18" /></button>
       </div>
 
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">NumisBids Lot URL</label>
+          <label class="form-label">Auction Lot URL</label>
           <input
             v-model="url"
             type="url"
             class="form-input"
-            placeholder="https://www.numisbids.com/n.php?p=lot&sid=..."
+            placeholder="https://www.numisbids.com/... or https://auctions.cngcoins.com/..."
             :disabled="importing"
           />
-          <p class="form-hint">Paste the URL of a lot page from numisbids.com</p>
+          <p class="form-hint">Paste a lot page URL from NumisBids or CNG Auctions</p>
         </div>
 
         <div v-if="error" class="error-msg">{{ error }}</div>
@@ -64,6 +64,15 @@ const error = ref('')
 const preview = ref<AuctionLot | null>(null)
 const previewSourceUrl = computed(() => preview.value?.imageUrl ?? '')
 const { proxiedImageUrl } = useProxiedImage(previewSourceUrl)
+const source = computed(() => {
+  try {
+    const hostname = new URL(url.value).hostname.toLowerCase()
+    if (hostname === 'auctions.cngcoins.com' || hostname.endsWith('.auctions.cngcoins.com')) return 'cng'
+  } catch {
+    // Invalid URL input; fall back to default source
+  }
+  return 'numisbids'
+})
 
 async function handleImport() {
   if (!url.value) return
@@ -71,14 +80,15 @@ async function handleImport() {
   importing.value = true
 
   try {
-    // Scrape the lot page for an image first
     let imageUrl = ''
-    try {
-      const scraped = await scrapeImage(url.value)
-      imageUrl = scraped.data.imageUrl || ''
-    } catch { /* scrape is best-effort */ }
+    if (source.value === 'numisbids') {
+      try {
+        const scraped = await scrapeImage(url.value)
+        imageUrl = scraped.data.imageUrl || ''
+      } catch { /* scrape is best-effort */ }
+    }
 
-    const res = await importAuctionLot({ url: url.value, imageUrl })
+    const res = await importAuctionLot({ url: url.value, source: source.value, imageUrl })
     preview.value = res.data
     emit('imported', res.data)
   } catch (e: unknown) {

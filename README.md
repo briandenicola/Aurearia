@@ -1,6 +1,6 @@
-# Ancient Coins
+# Aurearia
 
-> A self-hosted Progressive Web App for cataloging, analyzing, and sharing a personal ancient coin collection.
+> A self-hosted Progressive Web App for cataloging, analyzing, and sharing a personal coin collection.
 
 > **Note:** This application is 100% vibe coded. It exists for the author to learn and experiment with GitHub Copilot CLI.
 
@@ -14,7 +14,7 @@
 
 ## What is this?
 
-**Ancient Coins** is a self-hosted, full-featured Progressive Web App for managing a personal ancient coin collection end-to-end. Catalog, value, analyze, organize, and share your coins with powerful AI-assisted tools, offline access, and community features — all on your own server.
+**Aurearia** is a self-hosted, full-featured Progressive Web App for managing a personal coin collection end-to-end, with an emphasis on ancient and historical coins. Catalog, value, analyze, organize, and share your coins with powerful AI-assisted tools, offline access, and community features — all on your own server.
 
 **For collectors who want:**
 - 🏛️ Detailed numismatic records with provenance, images, and structured references
@@ -50,7 +50,7 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 
 **Wish List** — Track coins you want with automatic availability checking, AI search, price tracking, and one-click purchase-to-collection conversion.
 
-**Auction Tracking** — Monitor NumisBids lots through bidding lifecycle with status workflow, price alerts, bid reminders, auto-conversion to collection when won. **[Learn more →](docs/features/wish-list.md)**
+**Auction Tracking** — Monitor NumisBids and CNG Auctions lots through bidding lifecycle with status workflow, source filters, price alerts, bid reminders, and auto-conversion to collection when won. **[Learn more →](docs/features/auction-tracking.md)**
 
 ### 📊 Portfolio Intelligence
 **Collection Statistics** — Dashboard with portfolio value trends, category/material/grade distributions, top coins by value, era/region heat maps, ROI tracking, and health scorecards.
@@ -114,6 +114,8 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 - **Quick Capture** — Mobile-first draft intake for show-floor photos/notes, resumable drafts, owner-scoped media, and idempotent promotion into normal collection coins.
 - **Coin Lookup** — Photo-based show workflow for NGC Ancients cert extraction, official NGC verification links, Numista fallback matches, and saving lookups to wish list or collection.
 - **Configurable Coin Properties** — Admin-managed Era and Category options used by coin forms and lookup saves.
+- **CNG Auctions Support** — Import CNG lots, sync CNG watched lots, and filter auction tracking by provider alongside NumisBids.
+- **Encrypted Auction Credentials** — Stored NumisBids and CNG provider passwords are encrypted at rest with lazy migration for existing plaintext values.
 - **Coin Sets** — Organize coins into themed collections with trend tracking and completion analysis. Open, defined, goal, and smart (rule-based) set types. Snapshot history and value milestones.
 - **Health Scorecard** — Track AI coverage, image coverage, and metadata completeness.
 - Enhanced AI agent teams (grading, price trends, gap analysis, photography guide, similar lots).
@@ -123,7 +125,7 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 - ✅ AI-powered coin analysis (Claude/Ollama)
 - ✅ AI coin search agent with dealer discovery
 - ✅ Wish list with availability checking
-- ✅ Auction tracking (NumisBids)
+- ✅ Auction tracking (NumisBids and CNG Auctions)
 - ✅ Sold coin tracking with profit/loss
 - ✅ Social features (follow, comment, rate)
 - ✅ Collection statistics and portfolios

@@ -8,7 +8,6 @@ The supervisor examines the user's message and delegates to:
 - Team 5 (Auction Search) for searching NumisBids auction lots
 - Team 6 (Coin Grading) for AI grade estimation from photos
 - Team 7 (Gap Analysis) for collection completeness analysis
-- Team 8 (Photo Guide) for coin photography improvement tips
 - Team 9 (Price Trends) for auction price trend analysis
 - Team 10 (Similar Lots) for finding similar lots at auction
 """
@@ -77,8 +76,6 @@ Respond with ONLY one of these words:
   ownership lookups and compound questions about specific coins they own.
 - "gap_analysis" — if the user asks about collection gaps, what's missing,
   completeness, or wants suggestions for what to collect next
-- "photo_guide" — if the user asks about improving coin photography, photo tips,
-  or wants feedback on their coin photos
 - "price_trends" — if the user asks about price history, market trends, auction prices,
   how much a coin type is worth over time, or market direction
 - "similar_lots" — if the user wants to find similar coins at auction, comparable lots,
@@ -193,7 +190,7 @@ def create_router(llm_config: LLMConfig):
 
     RouteTarget = Literal[
         "collection", "coin_search", "coin_shows", "analysis", "grading",
-        "portfolio", "gap_analysis", "photo_guide", "price_trends",
+        "portfolio", "gap_analysis", "price_trends",
         "similar_lots", "auction_search", "general",
     ]
 
@@ -207,7 +204,7 @@ def create_router(llm_config: LLMConfig):
 
         valid_routes = {
             "collection", "coin_search", "coin_shows", "analysis", "grading",
-            "portfolio", "gap_analysis", "photo_guide", "price_trends",
+            "portfolio", "gap_analysis", "price_trends",
             "similar_lots", "auction_search", "general",
         }
         if route not in valid_routes:
@@ -230,7 +227,6 @@ def create_supervisor(
     app_context: AppContext | None = None,
     analysis_node=None,
     grading_node=None,
-    photo_guide_node=None,
     tools_base_url: str = "",
     internal_token: str = "",
 ):
@@ -458,7 +454,6 @@ def create_supervisor(
             "- **Coin Grading**: AI grade estimation from coin photos\n"
             "- **Portfolio Review**: Analyze collection for strengths and recommendations\n"
             "- **Collection Gap Analysis**: Identify what's missing and suggest acquisitions\n"
-            "- **Photo Guide**: Tips for improving coin photography\n"
             "- **Price Trends**: Track auction prices and market direction\n"
             "- **Similar Lot Finder**: Find similar coins at active auctions\n"
             "- **Auction Search**: Search NumisBids for coins at auction\n\n"
@@ -482,7 +477,6 @@ def create_supervisor(
     graph.add_node("grading", grading_node or passthrough)
     graph.add_node("portfolio", portfolio_node)
     graph.add_node("gap_analysis", gap_analysis_node)
-    graph.add_node("photo_guide", photo_guide_node or passthrough)
     graph.add_node("price_trends", price_trends_node)
     graph.add_node("similar_lots", similar_lots_node)
     graph.add_node("auction_search", auction_search_node)
@@ -497,7 +491,6 @@ def create_supervisor(
     graph.add_edge("grading", END)
     graph.add_edge("portfolio", END)
     graph.add_edge("gap_analysis", END)
-    graph.add_edge("photo_guide", END)
     graph.add_edge("price_trends", END)
     graph.add_edge("similar_lots", END)
     graph.add_edge("auction_search", END)

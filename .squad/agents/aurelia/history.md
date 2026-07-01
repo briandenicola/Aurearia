@@ -40,6 +40,18 @@
 - **2026-06-19 (SVG text):** SVG `<text>` elements placed inside a `preserveAspectRatio="none"` SVG will have their x/y POSITION distorted proportionally to the viewBox scaling, but CSS `font-size` is applied in actual screen pixels. This means text labels at data point coordinates work well on desktop (horizontal scale ≈ 1:1) but may appear horizontally compressed on narrow mobile screens. Acceptable tradeoff for sparse inline chart labels.
  The legacy `coin-images` CacheStorage bucket is now a cleanup-only compatibility concern cleared from `src/web/src/stores/auth.ts` on logout and user switch; uploaded media URLs remain unchanged until backend authenticated media routes land.
 
+- **2026-06-30 (CNG Auctions Spike — Frontend/UX Assessment)**
+  - Analyzed current NumisBids integration: `AuctionsPage.vue` → lot list/filter → import via URL → sync watchlist
+  - Feature parity matrix created (all core features needed for CNG)
+  - UI changes identified: import modal provider selector, lot card provider badge, settings credentials section
+  - Phased frontend tasks outlined (5 phases: types → UI → import → credentials → filtering)
+  - Recommended UX: minimal MVP adds provider selector to import modal, shows badge on cards, syncs CNG via settings
+  - Data model refactor needed: add `provider` enum field to `AuctionLot` (backend-first)
+  - Credential storage: CNG username/password added to User model (encrypted at rest, like NumisBids)
+  - Public assessment complete; authenticated validation requires temporary CNG credentials (user will provide + rotate)
+  - Findings recorded in `.squad/decisions/inbox/aurelia-cng-auction-frontend.md`
+  - Assessment covers responsive/PWA concerns, mobile URL input validation, provider badge sizing, empty-state copy
+
 - **2026-06-30:** Find Coin Frontend Integration — Structured Field Normalization
   - Implemented Find Coin frontend layer with structured field normalization and camera integration
   - Files: `src/web/src/pages/CoinLookupPage.vue` (UI + NGC label fix), `src/web/src/pages/__tests__/CoinLookupPage.test.ts` (tests)
@@ -387,3 +399,16 @@ Investigated production 429s on collection browsing. App mount makes expected da
 - **2026-06-30:** Quick Capture draft navigation now uses compact lucide `List` icon links in Identify Coin and Draft headers. Promotion UI uses the existing backend `target: "collection" | "wishlist"` contract, tokenized destination cards, and global form/button classes. Validation passed with targeted Vitest for CoinLookup/Draft/Promotion and `npm.cmd run type-check`.
 
 - **2026-06-30:** Draft Entry promotion consolidation — removed duplicate promotion-panel edit fields from `PromotionReadinessPanel.vue`, replaced them with compact readiness/confirmation UI, and passed current draft form values from `QuickCaptureDraftPage.vue` as promotion overrides so collection/wishlist promotion uses the edited fields above. Targeted Vitest and `npm run type-check` passed.
+
+- **2026-06-30 — CNG Auctions Frontend Spike (Complete):** Completed UX/frontend assessment for CNG Auctions integration spike. Decision documented in .squad/decisions.md. Key findings:
+  - **Feature parity:** Achievable with phased UI changes. No new routes, no major restructuring.
+  - **Current state:** NumisBids-only; AuctionLot hardcoded to NumisBids. Refactor: add provider enum ('numisbids' | 'cng') to enable multi-source.
+  - **MVP scope (Phases 1–3):** Types + provider badge + import modal with provider selector.
+  - **Nice-to-have (Phases 4–5):** Settings credentials section + provider filtering.
+  - **Risk:** LOW. Reuses existing chip/badge/modal patterns. Visual regression minimal. Type safety MEDIUM (requires backend provider field).
+  - **Responsive:** Provider selector: radio/tabs on desktop, dropdown on PWA/mobile.
+  - **Migration:** Existing NumisBids lots backfilled by backend (provider='numisbids'); no frontend breaking change.
+  - **Implementation roadmap:** 5 phases, ~10 turns total. Phase 1 (1 turn) and Phases 2–3 can proceed in parallel with Cassius backend work.
+  - **Orchestration log:** .squad/orchestration-log/2026-06-30T22-43-42Z-aurelia.md.
+
+- **2026-07-01:** Auctions filter toolbar now keeps source chips visible in the primary row and moves status filters behind a right-aligned lucide menu button. This preserves the existing `activeStatus` / `activeSource` query behavior while reducing stacked filter rows on PWA/mobile.

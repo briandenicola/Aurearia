@@ -2963,6 +2963,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "description": "Filter by auction source (numisbids, cng)",
+                        "name": "source",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
                         "description": "Search across title, description, auction house",
                         "name": "search",
                         "in": "query"
@@ -3116,7 +3122,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns a map of status → count for the authenticated user.",
+                "description": "Returns a map of status → count for the authenticated user, optionally scoped to one auction source.",
                 "produces": [
                     "application/json"
                 ],
@@ -3124,6 +3130,14 @@ const docTemplate = `{
                     "Auctions"
                 ],
                 "summary": "Get auction lot counts by status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by auction source (numisbids, cng)",
+                        "name": "source",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -3190,14 +3204,30 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Logs into NumisBids with the user's stored credentials, fetches their watchlist, and upserts each lot.",
+                "description": "Logs into NumisBids or CNG with the user's stored credentials, fetches the selected watchlist, and upserts each lot. Defaults to NumisBids when source is omitted.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Auctions"
                 ],
-                "summary": "Sync NumisBids watchlist",
+                "summary": "Sync auction watchlist",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Auction source (numisbids, cng)",
+                        "name": "source",
+                        "in": "query"
+                    },
+                    {
+                        "description": "Auction source request",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SyncWatchlistRequest"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -3233,7 +3263,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Attempts to log in to NumisBids with the provided credentials to verify they are correct.",
+                "description": "Attempts to log in to NumisBids or CNG with the provided credentials. Defaults to NumisBids when source is omitted.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3243,10 +3273,10 @@ const docTemplate = `{
                 "tags": [
                     "Auctions"
                 ],
-                "summary": "Validate NumisBids credentials",
+                "summary": "Validate auction provider credentials",
                 "parameters": [
                     {
-                        "description": "NumisBids credentials",
+                        "description": "Auction provider credentials",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -14372,6 +14402,9 @@ const docTemplate = `{
                 "saleName": {
                     "type": "string"
                 },
+                "source": {
+                    "type": "string"
+                },
                 "title": {
                     "type": "string"
                 },
@@ -14844,6 +14877,14 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.SyncWatchlistRequest": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.SyncWatchlistResponse": {
             "type": "object",
             "properties": {
@@ -14992,6 +15033,9 @@ const docTemplate = `{
             ],
             "properties": {
                 "password": {
+                    "type": "string"
+                },
+                "source": {
                     "type": "string"
                 },
                 "username": {
@@ -16066,6 +16110,18 @@ const docTemplate = `{
                 "saleName": {
                     "type": "string"
                 },
+                "source": {
+                    "$ref": "#/definitions/models.AuctionSource"
+                },
+                "sourceLotId": {
+                    "type": "string"
+                },
+                "sourceSaleId": {
+                    "type": "string"
+                },
+                "sourceUrl": {
+                    "type": "string"
+                },
                 "status": {
                     "$ref": "#/definitions/models.AuctionLotStatus"
                 },
@@ -16095,6 +16151,17 @@ const docTemplate = `{
                 "AuctionStatusWon",
                 "AuctionStatusLost",
                 "AuctionStatusPassed"
+            ]
+        },
+        "models.AuctionSource": {
+            "type": "string",
+            "enum": [
+                "numisbids",
+                "cng"
+            ],
+            "x-enum-varnames": [
+                "AuctionSourceNumisBids",
+                "AuctionSourceCNG"
             ]
         },
         "models.CandidateProvenance": {
@@ -17597,8 +17664,8 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "",
 	BasePath:         "/api",
 	Schemes:          []string{},
-	Title:            "Ancient Coins API",
-	Description:      "REST API for managing an ancient coin collection. Supports coin CRUD, image uploads, AI-powered analysis via Ollama, user management, and admin features.",
+	Title:            "Aurearia API",
+	Description:      "REST API for managing a personal coin collection. Supports coin CRUD, image uploads, AI-powered analysis, user management, auction tracking, and admin features.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

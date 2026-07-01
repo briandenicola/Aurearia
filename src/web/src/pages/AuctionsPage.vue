@@ -19,7 +19,7 @@
         <div v-else class="header-actions">
           <button class="btn btn-secondary" :disabled="syncing" @click="syncWatchlist">
             <RefreshCw :size="16" :class="{ spinning: syncing }" />
-            {{ syncing ? 'Syncing...' : 'Sync Watchlist' }}
+            {{ syncing ? 'Syncing...' : 'Sync Watchlists' }}
           </button>
           <button class="btn" :class="selectMode ? 'btn-primary' : 'btn-secondary'" @click="toggleSelectMode">
             <CheckSquare :size="16" /> {{ selectMode ? 'Cancel' : 'Select' }}
@@ -30,7 +30,20 @@
 
       <div v-if="syncMessage" class="sync-toast">{{ syncMessage }}</div>
 
-      <AuctionStatusFilter v-model="activeStatus" :counts="statusCounts" />
+      <div class="auction-filter-toolbar">
+        <div class="source-filter" aria-label="Auction source filter">
+          <button
+            v-for="source in sourceOptions"
+            :key="source.value"
+            class="chip"
+            :class="{ active: activeSource === source.value }"
+            @click="activeSource = source.value"
+          >
+            {{ source.label }}
+          </button>
+        </div>
+        <AuctionStatusFilter v-model="activeStatus" :counts="statusCounts" />
+      </div>
 
       <div v-if="selectMode" class="select-controls">
         <button class="btn btn-sm btn-secondary" @click="selectAllLots">Select All</button>
@@ -55,13 +68,16 @@
       </div>
 
       <div v-else class="empty-state">
-        <h3>No auction lots{{ activeStatus ? ` with status "${activeStatus}"` : '' }}</h3>
-        <p>Import lots from NumisBids to start tracking auctions</p>
-        <button class="btn btn-primary" @click="showImport = true" style="margin-top: 0.75rem">
+        <h3>No auction lots{{ emptyStateSuffix }}</h3>
+        <p>Import lots from NumisBids or CNG Auctions to start tracking auctions</p>
+        <button class="btn btn-primary import-first-btn" @click="showImport = true">
           <Plus :size="16" /> Import Your First Lot
         </button>
         <SafeExternalLink href="https://www.numisbids.com/" class="btn btn-secondary auction-house-link">
           <ExternalLink :size="16" /> Visit NumisBids
+        </SafeExternalLink>
+        <SafeExternalLink href="https://auctions.cngcoins.com/" class="btn btn-secondary auction-house-link">
+          <ExternalLink :size="16" /> Visit CNG Auctions
         </SafeExternalLink>
       </div>
 
@@ -85,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { getAuctionLots, getAuctionLotCounts, syncNumisBidsWatchlist, listCalendarEvents, bulkLinkAuctionLotEvent } from '@/api/client'
 import type { AuctionLot } from '@/types'
 import AuctionLotCard from '@/components/AuctionLotCard.vue'
@@ -97,8 +113,10 @@ import AuctionBulkActionBar from '@/components/auction/AuctionBulkActionBar.vue'
 import { Plus, CirclePlus, RefreshCw, CheckSquare, ExternalLink } from 'lucide-vue-next'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { usePwa } from '@/composables/usePwa'
+import { useAuthStore } from '@/stores/auth'
 
 const { isPwa } = usePwa()
+const auth = useAuthStore()
 
 const lots = ref<AuctionLot[]>([])
 const statusCounts = ref<Record<string, number>>({})
@@ -106,12 +124,18 @@ const loading = ref(true)
 const showImport = ref(false)
 const selectedLot = ref<AuctionLot | null>(null)
 const activeStatus = ref('bidding')
+const activeSource = ref('')
 const syncing = ref(false)
 const syncMessage = ref('')
 const calendarEvents = ref<Array<{ id: number; title: string; auctionHouse: string; startDate: string | null }>>([])
 
 const selectMode = ref(false)
 const selectedLotIds = ref(new Set<number>())
+const sourceOptions = [
+  { value: '', label: 'All' },
+  { value: 'numisbids', label: 'NumisBids' },
+  { value: 'cng', label: 'CNG' },
+]
 
 function toggleSelectMode() {
   selectMode.value = !selectMode.value
@@ -154,13 +178,18 @@ async function handleBulkLinkEvent(eventIdRaw: number | string) {
   } catch { /* ignore */ }
 }
 
-watch(activeStatus, () => fetchLots())
+watch([activeStatus, activeSource], () => {
+  selectedLotIds.value = new Set()
+  fetchLots()
+  fetchAllCounts()
+})
 
 async function fetchLots() {
   loading.value = true
   try {
     const params: Record<string, string> = { sort: 'updated_at', order: 'desc' }
     if (activeStatus.value) params.status = activeStatus.value
+    if (activeSource.value) params.source = activeSource.value
     const res = await getAuctionLots(params)
     lots.value = res.data?.lots ?? []
   } catch {
@@ -172,7 +201,8 @@ async function fetchLots() {
 
 async function fetchAllCounts() {
   try {
-    const res = await getAuctionLotCounts()
+    const params = activeSource.value ? { source: activeSource.value } : undefined
+    const res = await getAuctionLotCounts(params)
     statusCounts.value = res.data?.counts ?? {}
   } catch { /* ignore */ }
 }
@@ -201,9 +231,19 @@ async function syncWatchlist() {
   syncing.value = true
   syncMessage.value = ''
   try {
-    const res = await syncNumisBidsWatchlist()
-    const count = res.data?.synced ?? 0
-    syncMessage.value = `Synced ${count} lot${count !== 1 ? 's' : ''} from NumisBids`
+    const providers = configuredAuctionProviders()
+    if (!providers.length) {
+      syncMessage.value = 'Configure auction provider credentials in Settings before syncing'
+      setTimeout(() => { syncMessage.value = '' }, 5000)
+      return
+    }
+    const results = await Promise.allSettled(providers.map((source) => syncNumisBidsWatchlist(source)))
+    const synced = results.reduce((total, result) => total + (result.status === 'fulfilled' ? result.value.data?.synced ?? 0 : 0), 0)
+    const failed = results.filter((result) => result.status === 'rejected')
+    const providerLabel = providers.length > 1 ? 'watchlists' : providerName(providers[0] ?? 'numisbids')
+    syncMessage.value = failed.length
+      ? `Synced ${synced} lot${synced !== 1 ? 's' : ''}; ${failed.length} provider${failed.length !== 1 ? 's' : ''} failed`
+      : `Synced ${synced} lot${synced !== 1 ? 's' : ''} from ${providerLabel}`
     fetchLots()
     fetchAllCounts()
     setTimeout(() => { syncMessage.value = '' }, 4000)
@@ -215,6 +255,24 @@ async function syncWatchlist() {
     syncing.value = false
   }
 }
+
+function configuredAuctionProviders(): string[] {
+  const providers: string[] = []
+  if (auth.user?.numisBidsConfigured) providers.push('numisbids')
+  if (auth.user?.cngConfigured) providers.push('cng')
+  return providers
+}
+
+function providerName(source: string): string {
+  return source === 'cng' ? 'CNG Auctions' : 'NumisBids'
+}
+
+const emptyStateSuffix = computed(() => {
+  const parts: string[] = []
+  if (activeStatus.value) parts.push(`status "${activeStatus.value}"`)
+  if (activeSource.value) parts.push(providerName(activeSource.value))
+  return parts.length ? ` matching ${parts.join(' and ')}` : ''
+})
 
 fetchLots()
 fetchAllCounts()
@@ -243,6 +301,32 @@ fetchAllCounts()
   font-size: 0.85rem;
   text-align: center;
   animation: fadeIn 0.2s ease;
+}
+
+.auction-filter-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: nowrap;
+  margin-bottom: 1rem;
+}
+
+.source-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.auction-filter-toolbar :deep(.status-filter-menu) {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.import-first-btn {
+  margin-top: 0.75rem;
 }
 
 @keyframes spin {

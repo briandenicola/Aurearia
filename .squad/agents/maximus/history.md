@@ -41,6 +41,36 @@
   - Outcome: Fix ready for Brutus final approval
   - Orchestration log: `.squad/orchestration-log/2026-06-30T02-12-02Z-maximus-find-coin-strict-lockout-fix.md`
 
+- **2026-06-30:** CNG Auctions Integration Spike — Architecture Analysis
+  - **Scope:** Research phase to assess feasibility of adding CNG Auctions alongside existing NumisBids auction tracking
+  - **Current State:** NumisBids is fully integrated: dedicated scraper service, user credential storage (plaintext in `User.NumisBidsUsername/Password`), cookie-based session auth, HTML parsing with regex, provider-specific handler endpoints
+  - **AuctionLot Schema:** Single-provider; uses `NumisBidsURL` field; no `provider` column; lot statuses (watching/bidding/won/lost/passed) are provider-agnostic
+  - **Recommended Approach (Option 1):** Provider-agnostic factory pattern
+    - Add `provider` column to `AuctionLot` (values: 'numisbids' | 'cng')
+    - Create `AuctionProvider` interface with implementations for NumisBids and CNG
+    - Create `CNGAuctionService` parallel to `NumisBidsService`
+    - Extend repository with provider-aware queries
+    - Handler layer gains optional `?provider=` param on sync/import endpoints
+    - Frontend ImportLotModal detects provider from domain; Settings adds CNG credential fields
+  - **Rejected Approach (Option 2):** Separate `CngAuctionLot` table violates DRY; ruled out
+  - **Implementation Phases:** 
+    1. Phase 1 (Research, 3-5d): Verify CNG site structure, auth method, HTML scraping feasibility, lot URL format
+    2. Phase 2 (Schema+Service, 3-5d): Add provider column, implement CNGAuctionService, extend repository
+    3. Phase 3 (Handler+Settings, 2-3d): Extend endpoints, API for credential management
+    4. Phase 4 (Frontend, 2-3d): ImportLotModal tabs, Settings section, provider filter chip
+    5. **Total Estimate: 10-16 days (2-3 weeks)**
+  - **Critical Blockers:** 
+    - If CNG requires JavaScript rendering, Go HTTP client is insufficient; fallback to headless browser (Chromium subprocess) or Node.js wrapper — significantly increases deployment complexity
+    - Plaintext credential storage risk: recommend Phase 0 prerequisite to encrypt both NumisBids + CNG passwords at rest
+  - **Credentials Handling for Research Phase:** User provides temporary CNG login via secure local mechanism only (encrypted file / env var / test account from CNG); no credentials in chat; follow-on production uses same Settings UI pattern as NumisBids
+  - **Risk Profile:** Medium risk on site structure stability + bot detection; low risk on architectural integration
+  - **Spike Deliverables:** 
+    1. CNG site structure + auth research report
+    2. PoC HTML extraction patterns (if feasible)
+    3. Credential storage encryption ADR (prerequisite)
+    4. Implementation plan draft with task breakdown
+  - **Key Learning:** NumisBids scraper is well-structured for replication; provider factory pattern is clean; biggest risk is CNG technical dependency (JS rendering, rate limiting) not architecture.
+
 - **2026-06-24 (OIDC Phase 3-5 MVP Closure & Architecture Review):** Reviewed and approved OIDC Phases 3-5 implementation across all layers. Cassius backend honors Principle I/V guardrails; Aurelia frontend honors Principle VI design compliance; Brutus regression suite covers all critical paths. MVP boundary (Phases 1-5) LOCKED for beta merge. Phase 6 (Account Linking) reserved for post-MVP. Phase 8 beta-readiness gates (security audit + best-practices review) required before main branch merge. All cross-agent dependencies satisfied; guardrails enforcement verified; constitution alignment confirmed. Orchestration log: `.squad/orchestration-log/2026-06-24T14-15-00Z-maximus.md`.
 
 ## 2026-06-09 — F013 promotion learning
@@ -175,3 +205,11 @@ Outcome: BLOCK. The alert architecture is mostly correctly layered and Python re
 - **2026-06-29 — NGC label frontend lockout revision:** Slash-delimited NGC slab labels need structured segment promotion: discard issuer/mint context, remove date ranges and metal prefixes, then derive collector title (e.g., Constantine I + Reduced Nummus). Regression coverage should exercise both missing and placeholder draft names because Unidentified Coin must be treated as replaceable fallback, not a backend-provided title.
 
 - **2026-06-29 — Find Coin NGC editable review lockout:** The NGC result branch must reuse the key editable review fields (Name, Ruler, Denomination, Category, Grade) rather than a read-only details grid; keep NGC cert verification/grade metadata as a separate certification block and cover the Constantine slash-label NGC path in targeted Vitest regression.
+
+- **2026-06-30 — CNG Auctions Integration Spike (Complete):** Led parallel team spike with Cassius (backend), Aurelia (frontend), and Brutus (QA). Consensus: **Feature parity achievable with phased implementation; research phase is prerequisite gate for Phase 2 approval.**
+  - **Architecture decision:** Provider-agnostic factory pattern approved. Add provider enum to AuctionLot; create AuctionProvider interface with NumisBids + CNG implementations.
+  - **Phasing:** 7–16d total (Research 3–5d → Schema+Service 3–5d → Handler+Settings 2–3d → Frontend 2–3d).
+  - **Gate:** Research phase must verify CNG doesn't require JavaScript rendering; scraping must be feasible. No Phase 2 start without research completion.
+  - **Blocker:** Credential storage prerequisite — cannot expand plaintext storage. Requires encryption layer before Phase 2 (or explicit Brian approval to defer).
+  - **Deliverables:** Architecture spike doc, phased roadmap, risk matrix, CNG-specific research deliverables. Orchestration log: .squad/orchestration-log/2026-06-30T22-43-42Z-maximus.md. Decisions merged to .squad/decisions.md.
+  - **Next step:** Schedule Phase 1 research kickoff with Brian (provide temp CNG credentials); upon completion produce go/no-go decision.

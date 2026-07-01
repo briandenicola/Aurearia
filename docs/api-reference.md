@@ -1,6 +1,6 @@
 # API Reference
 
-Complete REST API reference for Ancient Coins. All endpoints are served under the `/api` prefix (e.g., `http://localhost:8080/api/coins`). Interactive documentation is also available via Swagger UI at `/swagger/index.html`, and the committed review artifact lives at `docs/openapi.json`.
+Complete REST API reference for Aurearia. All endpoints are served under the `/api` prefix (e.g., `http://localhost:8080/api/coins`). Interactive documentation is also available via Swagger UI at `/swagger/index.html`, and the committed review artifact lives at `docs/openapi.json`.
 
 ## Authentication
 
@@ -1834,6 +1834,7 @@ List auction lots with optional filtering.
 | Param | Type | Description |
 |-------|------|-------------|
 | `status` | string | Filter by status: `watching`, `bidding`, `won`, `lost`, `passed` |
+| `source` | string | Filter by auction source: `numisbids` or `cng` |
 | `search` | string | Full-text search across title, description, auction house |
 | `sort` | string | Sort field (default: `createdAt`) |
 | `order` | string | `asc` or `desc` (default: `desc`) |
@@ -1868,27 +1869,31 @@ Delete an auction lot.
 
 ### POST /api/auctions/import
 
-Import a lot from a NumisBids URL. Accepts scraped data from the frontend.
+Import a lot from a NumisBids or CNG Auctions URL. Accepts scraped data from the frontend and stores provider source metadata.
 
-**Body:** `{ "url": "https://www.numisbids.com/sale/123/lot/45", "title": "...", "imageUrl": "...", ... }`
+**Body:** `{ "url": "https://www.numisbids.com/sale/123/lot/45", "source": "numisbids", "title": "...", "imageUrl": "...", ... }`
 
 ### POST /api/auctions/sync
 
-Sync the user's NumisBids watchlist. Requires NumisBids credentials configured in user settings. Logs into NumisBids, fetches the watchlist page, parses lots, and upserts them. Returns the number synced and the lot objects.
+Sync the user's NumisBids or CNG watchlist. Requires provider credentials configured in user settings. Logs into the selected provider, fetches the watchlist, parses lots, and upserts them. Defaults to NumisBids when `source` is omitted.
+
+**Query Parameters:** `source=numisbids|cng`
 
 **Response:** `{ "synced": 5, "lots": [...] }`
 
 ### POST /api/auctions/validate-credentials
 
-Validate NumisBids credentials by attempting a login. Does not save anything.
+Validate NumisBids or CNG credentials by attempting a login. Does not save anything.
 
-**Body:** `{ "username": "user@example.com", "password": "..." }`
+**Body:** `{ "source": "cng", "username": "user@example.com", "password": "..." }`
 
 **Response:** `{ "valid": true }` or `{ "valid": false, "error": "Login failed. Check your credentials." }`
 
 ### GET /api/auctions/counts
 
-Get auction lot counts grouped by status for the authenticated user.
+Get auction lot counts grouped by status for the authenticated user, optionally scoped to one source.
+
+**Query Parameters:** `source=numisbids|cng`
 
 **Response:**
 

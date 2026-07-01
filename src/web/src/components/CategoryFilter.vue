@@ -56,9 +56,9 @@ defineEmits<{ 'update:modelValue': [value: string] }>()
   color: var(--accent-gold);
 }
 
-.filter-roman.active { background: rgba(155, 89, 182, 0.2); border-color: #9b59b6; color: #b57edc; }
-.filter-greek.active { background: rgba(107, 142, 35, 0.2); border-color: #6b8e23; color: #9ab85a; }
-.filter-byzantine.active { background: rgba(192, 57, 43, 0.2); border-color: #c0392b; color: #e67e73; }
-.filter-modern.active { background: rgba(70, 130, 180, 0.2); border-color: #4682b4; color: #7ab3d4; }
-.filter-other.active { background: rgba(136, 136, 136, 0.2); border-color: #888; color: #aaa; }
+.filter-roman.active { background: color-mix(in srgb, var(--cat-roman) 20%, transparent); border-color: var(--cat-roman); color: var(--cat-roman); }
+.filter-greek.active { background: color-mix(in srgb, var(--cat-greek) 20%, transparent); border-color: var(--cat-greek); color: var(--cat-greek); }
+.filter-byzantine.active { background: color-mix(in srgb, var(--cat-byzantine) 20%, transparent); border-color: var(--cat-byzantine); color: var(--cat-byzantine); }
+.filter-modern.active { background: color-mix(in srgb, var(--cat-modern) 20%, transparent); border-color: var(--cat-modern); color: var(--cat-modern); }
+.filter-other.active { background: color-mix(in srgb, var(--cat-other) 20%, transparent); border-color: var(--cat-other); color: var(--cat-other); }
 </style>

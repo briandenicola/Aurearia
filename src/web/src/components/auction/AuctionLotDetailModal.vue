@@ -68,7 +68,7 @@
           <input v-model="editForm.title" type="text" class="form-input" />
         </div>
         <div class="form-group">
-          <label class="detail-label">NumisBids URL</label>
+          <label class="detail-label">Auction URL</label>
           <input v-model="editForm.numisBidsUrl" type="url" class="form-input" placeholder="https://..." />
         </div>
         <div class="form-grid">
@@ -132,7 +132,7 @@
             <option value="lost">Lost</option>
             <option value="passed">Passed</option>
           </select>
-          <button class="btn btn-secondary" @click="changeStatus" :disabled="newStatus === lot.status">
+          <button class="btn btn-secondary" @click="changeStatus" :disabled="!hasPendingStatusUpdate">
             Update Status
           </button>
         </div>
@@ -166,8 +166,8 @@
           </div>
         </div>
         <div class="action-row">
-          <SafeExternalLink v-if="lot.numisBidsUrl" :href="lot.numisBidsUrl" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
-            <ExternalLink :size="14" /> View on NumisBids
+          <SafeExternalLink v-if="externalUrl" :href="externalUrl" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
+            <ExternalLink :size="14" /> View on {{ providerLabel }}
           </SafeExternalLink>
           <button v-if="lot.status === 'won'" class="btn btn-primary" @click="convertToCoin">
             <ArrowRightCircle :size="14" /> Add to Collection
@@ -209,6 +209,11 @@ const selectedEventId = ref<number | string>(props.lot.eventId ?? '')
 
 const lotImageSource = computed(() => props.lot.imageUrl ?? '')
 const { proxiedImageUrl } = useProxiedImage(lotImageSource)
+const providerLabel = computed(() => props.lot.source === 'cng' ? 'CNG' : 'NumisBids')
+const externalUrl = computed(() => props.lot.sourceUrl || props.lot.numisBidsUrl)
+const normalizedMaxBidInput = computed(() => typeof maxBidInput.value === 'number' && !Number.isNaN(maxBidInput.value) ? maxBidInput.value : null)
+const maxBidChanged = computed(() => newStatus.value === 'bidding' && normalizedMaxBidInput.value !== null && normalizedMaxBidInput.value !== (props.lot.maxBid ?? null))
+const hasPendingStatusUpdate = computed(() => newStatus.value !== props.lot.status || maxBidChanged.value)
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
@@ -280,7 +285,7 @@ function isoToDateTimeLocalInput(iso: string | null): string {
 function startEdit() {
   editError.value = ''
   editForm.title = props.lot.title || ''
-  editForm.numisBidsUrl = props.lot.numisBidsUrl || ''
+  editForm.numisBidsUrl = externalUrl.value || ''
   editForm.auctionHouse = props.lot.auctionHouse || ''
   editForm.saleName = props.lot.saleName || ''
   editForm.lotNumber = props.lot.lotNumber || null
@@ -354,7 +359,7 @@ async function linkEvent() {
 
 async function changeStatus() {
   try {
-    const bid = newStatus.value === 'bidding' ? maxBidInput.value : undefined
+    const bid = maxBidChanged.value ? normalizedMaxBidInput.value : undefined
     await updateAuctionLotStatus(props.lot.id, newStatus.value, bid)
 
     if (newStatus.value === 'won') {

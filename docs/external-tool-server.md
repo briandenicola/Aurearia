@@ -470,7 +470,7 @@ This prevents accidental or conversational auto-writes. Proposals expire after a
 
 ## Client Setup Guides
 
-The following guides show how to connect popular external AI clients to your Ancient Coins instance. All require an API key and the OpenAPI URL from your running instance.
+The following guides show how to connect popular external AI clients to your Aurearia instance. All require an API key and the OpenAPI URL from your running instance.
 
 ### OpenWebUI / Ollama
 
@@ -479,7 +479,7 @@ OpenWebUI supports OpenAPI tool import natively.
 **Prerequisites:**
 
 - OpenWebUI installed and running
-- An API key with `read` or `read,write` capability from your Ancient Coins instance
+- An API key with `read` or `read,write` capability from your Aurearia instance
 
 **Steps:**
 
@@ -512,7 +512,7 @@ LibreChat supports OpenAPI tool import via its admin panel.
 
 - LibreChat installed and running
 - Admin access to LibreChat
-- An API key with `read` or `read,write` capability from your Ancient Coins instance
+- An API key with `read` or `read,write` capability from your Aurearia instance
 
 **Steps:**
 
@@ -520,11 +520,11 @@ LibreChat supports OpenAPI tool import via its admin panel.
 2. Navigate to **Admin Panel → Tools → OpenAPI**
 3. Click **Add OpenAPI Tool**
 4. Fill in the form:
-   - **Name:** Ancient Coins
+   - **Name:** Aurearia
    - **OpenAPI URL:** `http://your-ancient-coins-host:8080/api/v1/tools/openapi.json`
    - **Headers:** Add `X-API-Key` with your API key value
 5. Click **Save**
-6. Navigate to a conversation and select the **Ancient Coins** tool from the tool picker
+6. Navigate to a conversation and select the **Aurearia** tool from the tool picker
 
 **Testing:**
 
@@ -541,7 +541,7 @@ n8n supports HTTP requests with OpenAPI schema import.
 **Prerequisites:**
 
 - n8n installed and running
-- An API key with `read` or `read,write` capability from your Ancient Coins instance
+- An API key with `read` or `read,write` capability from your Aurearia instance
 
 **Steps:**
 

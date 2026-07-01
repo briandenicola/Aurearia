@@ -16,6 +16,7 @@
         <span v-if="lot.lotNumber" class="meta-item lot-number">Lot {{ lot.lotNumber }}</span>
       </div>
       <div class="lot-details">
+        <span class="detail provider-detail">{{ providerLabel }}</span>
         <span v-if="lot.category" class="detail" :class="`category-${lot.category.toLowerCase()}`">{{ lot.category }}</span>
         <span v-if="lot.currency && lot.currency !== 'USD'" class="detail">{{ lot.currency }}</span>
       </div>
@@ -26,14 +27,14 @@
       </div>
       <div v-if="saleCountdown" class="lot-countdown">{{ saleCountdown }}</div>
       <SafeExternalLink
-        v-if="lot.numisBidsUrl"
-        :href="lot.numisBidsUrl"
+        v-if="externalUrl"
+        :href="externalUrl"
         class="lot-link"
         target="_blank"
         rel="noopener noreferrer"
         @click.stop
       >
-        View on NumisBids
+        View on {{ providerLabel }}
       </SafeExternalLink>
     </div>
   </div>
@@ -59,6 +60,8 @@ const emit = defineEmits<{
   select: [lot: AuctionLot]
   'toggle-select': [lotId: number]
 }>()
+const providerLabel = computed(() => props.lot.source === 'cng' ? 'CNG' : 'NumisBids')
+const externalUrl = computed(() => props.lot.sourceUrl || props.lot.numisBidsUrl)
 
 function handleClick() {
   if (props.selectable) {
@@ -162,28 +165,28 @@ const saleCountdown = computed(() => {
 }
 
 .status-watching {
-  background: rgba(100, 150, 255, 0.85);
-  color: #fff;
+  background: var(--bg-input);
+  color: var(--text-primary);
 }
 
 .status-bidding {
-  background: rgba(201, 168, 76, 0.9);
-  color: #1a1a2e;
+  background: var(--accent-gold);
+  color: var(--bg-primary);
 }
 
 .status-won {
-  background: rgba(74, 222, 128, 0.85);
-  color: #1a1a2e;
+  background: var(--cat-greek);
+  color: var(--text-primary);
 }
 
 .status-lost {
-  background: rgba(248, 113, 113, 0.8);
-  color: #fff;
+  background: var(--cat-byzantine);
+  color: var(--text-primary);
 }
 
 .status-passed {
-  background: rgba(120, 120, 120, 0.8);
-  color: #fff;
+  background: var(--text-muted);
+  color: var(--bg-primary);
 }
 
 .lot-body {
@@ -272,11 +275,11 @@ const saleCountdown = computed(() => {
   text-decoration: underline;
 }
 
-.category-roman { color: #b57edc; }
-.category-greek { color: #9ab85a; }
-.category-byzantine { color: #e67e73; }
-.category-modern { color: #7ab3d4; }
-.category-other { color: #aaa; }
+.category-roman { color: var(--cat-roman); }
+.category-greek { color: var(--cat-greek); }
+.category-byzantine { color: var(--cat-byzantine); }
+.category-modern { color: var(--cat-modern); }
+.category-other { color: var(--cat-other); }
 
 @media (display-mode: standalone) {
   .lot-image-container {

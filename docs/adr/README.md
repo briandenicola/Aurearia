@@ -1,7 +1,7 @@
 # Architecture Decision Records
 
 This directory holds Architecture Decision Records (ADRs) for the
-Ancient Coins project, using the [Michael Nygard format][nygard]
+Aurearia project, using the [Michael Nygard format][nygard]
 (Context / Decision / Consequences / Related).
 
 ADRs capture *why* a material design choice was made — the forces

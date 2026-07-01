@@ -681,6 +681,8 @@ export interface User {
   zipCode: string
   numisBidsUsername?: string
   numisBidsConfigured?: boolean
+  cngUsername?: string
+  cngConfigured?: boolean
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean
 }
@@ -957,6 +959,8 @@ export interface UserInfo {
   emailMissing: boolean
   numisBidsUsername: string
   numisBidsConfigured: boolean
+  cngUsername?: string
+  cngConfigured?: boolean
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean
   lockedUntil?: string | null
@@ -1308,10 +1312,15 @@ export interface LimitedCoin {
 }
 
 export type AuctionLotStatus = 'watching' | 'bidding' | 'won' | 'lost' | 'passed'
+export type AuctionSource = 'numisbids' | 'cng'
 
 export interface AuctionLot {
   id: number
   numisBidsUrl: string
+  source: AuctionSource
+  sourceUrl: string
+  sourceLotId?: string
+  sourceSaleId?: string
   saleId: string
   lotNumber: number
   auctionHouse: string

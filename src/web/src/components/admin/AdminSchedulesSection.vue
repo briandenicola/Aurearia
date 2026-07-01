@@ -813,7 +813,7 @@ onUnmounted(() => {
 }
 
 .avail-save-error {
-  color: #e74c3c;
+  color: var(--color-negative);
 }
 
 .toggle-switch {
@@ -913,9 +913,9 @@ onUnmounted(() => {
   background: var(--bg-primary);
 }
 
-.avail-count-available { color: #2ecc71; font-weight: 600; }
-.avail-count-unavailable { color: #e74c3c; font-weight: 600; }
-.avail-count-unknown { color: #f1c40f; font-weight: 600; }
+.avail-count-available { color: var(--color-positive); font-weight: 600; }
+.avail-count-unavailable { color: var(--color-negative); font-weight: 600; }
+.avail-count-unknown { color: var(--text-warning); font-weight: 600; }
 
 .avail-detail-row td {
   padding: 0.5rem;
@@ -1002,17 +1002,17 @@ onUnmounted(() => {
 
 .listing-available {
   background: rgba(46, 204, 113, 0.15);
-  color: #2ecc71;
+  color: var(--color-positive);
 }
 
 .listing-unavailable {
   background: rgba(231, 76, 60, 0.15);
-  color: #e74c3c;
+  color: var(--color-negative);
 }
 
 .listing-unknown {
   background: rgba(241, 196, 15, 0.15);
-  color: #f1c40f;
+  color: var(--text-warning);
 }
 
 /* Valuation */
@@ -1038,12 +1038,12 @@ onUnmounted(() => {
 
 .val-status-completed {
   background: rgba(46, 204, 113, 0.15);
-  color: #2ecc71;
+  color: var(--color-positive);
 }
 
 .val-status-failed {
   background: rgba(231, 76, 60, 0.15);
-  color: #e74c3c;
+  color: var(--color-negative);
 }
 
 .val-status-cancelled {
@@ -1058,7 +1058,7 @@ onUnmounted(() => {
   border: 1px solid rgba(231, 76, 60, 0.4);
   border-radius: var(--radius-full);
   background: transparent;
-  color: #e74c3c;
+  color: var(--color-negative);
   cursor: pointer;
   vertical-align: middle;
 }
@@ -1074,29 +1074,29 @@ onUnmounted(() => {
 .val-confidence {
   display: inline-block;
   padding: 0.1rem 0.3rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   font-size: 0.7rem;
   font-weight: 600;
 }
 
 .val-conf-high {
   background: rgba(46, 204, 113, 0.15);
-  color: #2ecc71;
+  color: var(--confidence-high);
 }
 
 .val-conf-medium {
   background: rgba(241, 196, 15, 0.15);
-  color: #f1c40f;
+  color: var(--confidence-medium);
 }
 
 .val-conf-low {
   background: rgba(231, 76, 60, 0.15);
-  color: #e74c3c;
+  color: var(--confidence-low);
 }
 
 .val-result-success {
   background: rgba(46, 204, 113, 0.15);
-  color: #2ecc71;
+  color: var(--color-positive);
 }
 
 .val-result-skipped {
@@ -1106,7 +1106,7 @@ onUnmounted(() => {
 
 .val-result-error {
   background: rgba(231, 76, 60, 0.15);
-  color: #e74c3c;
+  color: var(--color-negative);
 }
 
 .val-detail-table th:nth-child(1),

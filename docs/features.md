@@ -16,7 +16,7 @@
 ### 🎯 Discovery & Acquisition
 - [**Coin Lookup**](features/coin-lookup.md) — Photo-based lookup for NGC Ancients slabs and Numista matches
 - [**Wish List**](features/wish-list.md) — Track coins with AI search and availability checking
-- [**Auction Tracking**](features/auction-tracking.md) — Monitor NumisBids lots through bidding lifecycle
+- [**Auction Tracking**](features/auction-tracking.md) — Monitor NumisBids and CNG Auctions lots through bidding lifecycle
 - [**Sold Coins**](features/sold-coins.md) — Track sales with profit/loss analysis
 
 ### 🤖 AI Features
@@ -95,15 +95,15 @@ Track coins you've sold with profit/loss visibility:
 
 ## Auction Tracking
 
-Track auction lots from NumisBids through a complete bidding lifecycle:
+Track auction lots from NumisBids and CNG Auctions through a complete bidding lifecycle:
 
-- **Add Lots** — Manually add lots by pasting a NumisBids URL. The app scrapes the lot page for title, image, estimate, auction house, and sale name.
-- **NumisBids Watchlist Sync** — Connect your NumisBids account (username and password stored per-user, validated on save) and sync your watchlist with one click. Each synced lot gets a full-resolution image scraped from the lot page.
+- **Add Lots** — Manually add lots by pasting a NumisBids or CNG Auctions URL. The app detects the provider and scrapes the lot page for title, image, estimate, auction house, and sale name.
+- **Watchlist Sync** — Connect your NumisBids and/or CNG account in Settings → Account and sync configured watchlists with one click. Stored provider passwords are encrypted at rest and legacy plaintext values migrate on next use.
 - **Status Workflow** — Lots progress through statuses: Watching → Bidding → Won / Lost / Passed. Status transitions are validated (e.g., only Bidding lots can be marked Won).
-- **Filtered Views** — Filter the auctions page by status. Counts for each status appear as badges on filter buttons.
+- **Filtered Views** — Filter the auctions page by status and source. Counts for each status appear as badges on filter buttons.
 - **Won → Collection** — When a lot is marked as Won, it is automatically converted into a coin in your collection (mapping title, category, auction house, sale date, bid price) and the edit page opens so you can add details. A manual "Add to Collection" button is also available.
-- **AI Auction Search** — Ask the AI agent to search NumisBids for coins matching a description. The agent (Team 5) searches, fetches lot details, and formats results.
-- **Credential Validation** — NumisBids credentials are validated against the live site before being saved. The Settings page shows connected/error/validating status indicators.
+- **AI Auction Search** — Ask the AI agent to search supported auction sources such as NumisBids and CNG Auctions for coins matching a description. The agent (Team 5) searches, fetches lot details, and formats results.
+- **Credential Validation** — NumisBids and CNG credentials are validated against the live provider before being saved. The Settings page shows connected/error/validating status indicators.
 
 ## Coin Details
 

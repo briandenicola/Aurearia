@@ -33,9 +33,9 @@ func (r *SchedulerRegistry) StartAll() {
 	}
 }
 
-//	@title						Ancient Coins API
+//	@title						Aurearia API
 //	@version					1.0
-//	@description				REST API for managing an ancient coin collection. Supports coin CRUD, image uploads, AI-powered analysis via Ollama, user management, and admin features.
+//	@description				REST API for managing a personal coin collection. Supports coin CRUD, image uploads, AI-powered analysis, user management, auction tracking, and admin features.
 //	@BasePath					/api
 //	@securityDefinitions.apikey	BearerAuth
 //	@in							header
@@ -60,6 +60,14 @@ func main() {
 
 	// Create internal token service for Python agent callbacks
 	internalTokenSvc := services.NewInternalTokenService(cfg.JWTSecret)
+	credentialEncryptionSvc := services.NewDisabledCredentialEncryptionService()
+	if cfg.AuctionCredentialEncryptionKey != "" {
+		var err error
+		credentialEncryptionSvc, err = services.NewCredentialEncryptionService(cfg.AuctionCredentialEncryptionKey)
+		if err != nil {
+			log.Fatalf("Failed to configure auction credential encryption: %v", err)
+		}
+	}
 
 	logger.Info("startup", "Application starting")
 	logger.Info("startup", "Database connected: %s", cfg.DBPath)
@@ -358,8 +366,9 @@ func main() {
 
 		auctionLotSvc := services.NewAuctionLotService(auctionLotRepo, coinRepo)
 		nbSvc := services.NewNumisBidsService(logger)
+		cngSvc := services.NewCNGAuctionService(logger)
 		auctionUserRepo := repository.NewUserRepository(database.DB)
-		auctionLotHandler := handlers.NewAuctionLotHandler(auctionLotRepo, auctionLotSvc, auctionUserRepo, nbSvc, logger)
+		auctionLotHandler := handlers.NewAuctionLotHandler(auctionLotRepo, auctionLotSvc, auctionUserRepo, nbSvc, cngSvc, logger, credentialEncryptionSvc)
 		protected.GET("/auctions", auctionLotHandler.List)
 		protected.GET("/auctions/counts", auctionLotHandler.Counts)
 		protected.PUT("/auctions/bulk-link-event", auctionLotHandler.BulkLinkEvent)
@@ -416,7 +425,7 @@ func main() {
 		protected.DELETE("/agent/conversations/:id", convHandler.Delete)
 
 		// User self-service routes
-		userHandler := handlers.NewUserHandler(cfg.UploadDir, userRepo, pushoverSvc, logger)
+		userHandler := handlers.NewUserHandler(cfg.UploadDir, userRepo, pushoverSvc, logger, credentialEncryptionSvc)
 		oidcUserHandler := handlers.NewOIDCHandler(oidcSvc)
 		protected.GET("/auth/me", userHandler.GetMe)
 		protected.POST("/auth/change-password", userHandler.ChangePassword)

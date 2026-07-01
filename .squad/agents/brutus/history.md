@@ -45,6 +45,27 @@
 
 ## Learnings
 
+### 2026-06-30: CNG Auctions Spike QA Assessment
+
+**Context:** Brian requested QA assessment for spike to add CNG Auctions (https://auctions.cngcoins.com/) alongside NumisBids with similar feature parity.
+
+**Key Findings:**
+1. **NumisBids Test Coverage is Fair but Incomplete:** Parser tests exist (`numisbids_service_test.go` with 7 unit tests covering watchlist parsing, link formats, currency, auth). But gaps include: no rate-limiting tests, no session expiry handling, no network failure recovery, no multi-page watchlist tests. Repository/handler/frontend tests are minimal/absent.
+
+2. **Regex Parser Fragility is Known Risk:** Both NumisBids and Availability services use regex-based HTML parsing. Change in site schema breaks scraper. Mitigations: fixture snapshots (committed HTML; never live calls in tests), unit tests per field, sentinel errors.
+
+3. **Credential Handling Anti-Pattern Established:** Do not store credentials in tests, even test accounts. Use httptest stubs in unit tests; environment variables in integration tests; post-spike credential rotation (never VCS).
+
+4. **External HTTP Patterns Consistent:** Timeout 10-30s, User-Agent header set, error handling (timeouts → unknown, 404/410 → unavailable, 5xx → unknown/escalate). Apply same to CNG.
+
+5. **Data Mapping Risk Identified:** `AuctionLot.NumisBidsURL` is hard-coded field. Adding CNG requires schema migration (new `AuctionSource` enum or generic `ExternalURL` + source field), which risks data loss. Migration rollback tests required.
+
+6. **Spike Acceptance Gate:** Public-only testing (fixtures, stubs) in spike phase. Authenticated testing deferred to Phase 2 with temporary credentials. Fixture strategy: snapshot one real CNG lot page, commit to VCS as test reference.
+
+**Decision:** Produce spike QA document (`.squad/decisions/inbox/brutus-cng-auction-qa.md`) with 8-point acceptance gate: test plan approval, fixtures committed, parser unit tests pass, schema migration tested, auth stub tests pass, regression tests pass (NumisBids still working), documentation complete, security review passed.
+
+**Deliverable:** `.squad/decisions/inbox/brutus-cng-auction-qa.md` — comprehensive QA/risk assessment with test strategy, risk matrix (8 risks, 2 HIGH), fixture needs, and post-spike roadmap.
+
 ### 2026-06-23: Wishlist Availability Keyword Detection Edge Case
 
 **Issue:** VCoins sold pages were classified as "unknown" instead of "unavailable" because the keyword pattern `>sold<` requires "sold" to be immediately between `>` and `<` with no whitespace. Real VCoins HTML has `<div>\n  Sold\n</div>` which doesn't match.
@@ -183,3 +204,12 @@
 - **2026-06-24:** OIDC account-link callback redirect URI regression coverage added after production 400 Bad Request discovered. Commit `4674e49` had persisted `RedirectURI` at flow start and reused it during callback exchange to fix proxy-origin mismatches, but link callback tests did NOT exercise proxy-style different-origin behavior. New `TestOIDCServiceLinkCallbackReusesPersistedRedirectURI` starts link flow from `http://app.example`, completes callback from different origin `http://internal-api:8080`, and verifies mock provider receives original persisted redirect URI (not reconstructed from callback `requestOrigin`). Validation passed: all link-related Go tests pass (`go test -v ./services -run "TestOIDCService.*Link"`), all handler tests pass (`go test -v ./handlers -run "TestOIDCHandler.*Link"`). Test would have FAILED before `4674e49` fix, proving it guards against regression. File: `src/api/services/oidc_login_service_test.go`.
 
 - **2026-06-29:** #357 Wishlist Search Alerts QA validation. Added focused regressions proving Run Now responses include source-backed provenance/lifecycle state/audit metadata, duplicate warning does not create a wishlist item or mutate candidate state before acknowledgement, acknowledged conversion marks the candidate converted, and converted candidates cannot be restored. Found and fixed a US2 contract gap: newly-created/updated run-result candidates were returned without populated `Provenance` even though rows were persisted. Validation passed: `go test . .\handlers .\repository .\models .\database`, `go test .\services`, focused wishlist alert service tests, Python `pytest tests/test_alert_discovery_contract.py tests/test_alert_discovery_route.py -v`, frontend `npm.cmd run type-check -- --pretty false`, targeted Vitest Wishlist/AppNavigation tests, and `npm.cmd run build -- --emptyOutDir=false`.
+
+- **2026-06-30 — CNG Auctions QA/Risk Assessment Spike (Complete):** Completed QA strategy and test planning for CNG Auctions integration spike. Decision documented in .squad/decisions.md. Key findings:
+  - **Existing NumisBids coverage:** Service layer FAIR (parser + auth tested; gaps: rate-limiting, session expiry, network recovery); Repository MINIMAL (status transitions only); Handler BASIC (likely integration only); Frontend ABSENT (manual only).
+  - **Regression risks:** Parser fragility (HIGH), auth/rate-limiting (HIGH), data mapping (MEDIUM), external downtime (MEDIUM), watchlist pagination (MEDIUM). Risk matrix produced with mitigation strategies.
+  - **Test strategy:** Unit tests with httptest stubs (no live credentials). Fixture-based testing (public page snapshots committed as immutable). No live network calls in CI. Phase 2 (post-spike) adds credentialed integration tests with temporary credentials.
+  - **Fixture approach:** Scrape one CNG lot page (public), commit HTML to 	estutil/fixtures/cng_*.html, test parsers against fixture. No credential-based testing in spike.
+  - **Spike acceptance gate:** 8 criteria (test plan approved, fixtures committed, parser tests pass, migration tested, auth stub tests pass, regression tests pass, docs complete, security review).
+  - **Learnings captured:** Reusable skill created: .squad/skills/external-service-scraping-with-fixtures/SKILL.md. Documents NumisBids + Availability Checker + Wishlist Alert patterns for future external integrations.
+  - **Orchestration log:** .squad/orchestration-log/2026-06-30T22-43-42Z-brutus.md.

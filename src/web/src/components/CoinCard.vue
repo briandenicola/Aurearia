@@ -347,12 +347,12 @@ const cardInscription = computed(() => {
 
 .card-profit {
   font-weight: 600;
-  color: #4ade80;
+  color: var(--color-positive);
   font-size: 0.82rem;
 }
 
 .card-profit.loss {
-  color: #f87171;
+  color: var(--color-negative);
 }
 
 .card-sold-to {
@@ -361,17 +361,17 @@ const cardInscription = computed(() => {
   margin-top: 0.15rem;
 }
 
-.category-roman { color: #b57edc; }
-.category-greek { color: #9ab85a; }
-.category-byzantine { color: #e67e73; }
-.category-modern { color: #7ab3d4; }
-.category-other { color: #aaa; }
+.category-roman { color: var(--cat-roman); }
+.category-greek { color: var(--cat-greek); }
+.category-byzantine { color: var(--cat-byzantine); }
+.category-modern { color: var(--cat-modern); }
+.category-other { color: var(--cat-other); }
 
-.material-gold { color: #d4af37; }
-.material-silver { color: #a8a9ad; }
-.material-bronze { color: #cd7f32; }
-.material-copper { color: #b87333; }
-.material-ae { color: #cd7f32; }
+.material-gold { color: var(--mat-gold); }
+.material-silver { color: var(--mat-silver); }
+.material-bronze { color: var(--mat-bronze); }
+.material-copper { color: var(--mat-copper); }
+.material-ae { color: var(--mat-bronze); }
 
 /* Listing status overlay & badge */
 .listing-overlay {
@@ -428,11 +428,11 @@ const cardInscription = computed(() => {
 }
 
 .status-dot-available {
-  background: #2ecc71;
+  background: var(--color-positive);
 }
 
 .status-dot-unknown {
-  background: #f1c40f;
+  background: var(--text-warning);
 }
 
 /* Select mode */
