@@ -165,28 +165,28 @@ const saleCountdown = computed(() => {
 }
 
 .status-watching {
-  background: rgba(100, 150, 255, 0.85);
-  color: #fff;
+  background: var(--bg-input);
+  color: var(--text-primary);
 }
 
 .status-bidding {
-  background: rgba(201, 168, 76, 0.9);
-  color: #1a1a2e;
+  background: var(--accent-gold);
+  color: var(--bg-primary);
 }
 
 .status-won {
-  background: rgba(74, 222, 128, 0.85);
-  color: #1a1a2e;
+  background: var(--cat-greek);
+  color: var(--text-primary);
 }
 
 .status-lost {
-  background: rgba(248, 113, 113, 0.8);
-  color: #fff;
+  background: var(--cat-byzantine);
+  color: var(--text-primary);
 }
 
 .status-passed {
-  background: rgba(120, 120, 120, 0.8);
-  color: #fff;
+  background: var(--text-muted);
+  color: var(--bg-primary);
 }
 
 .lot-body {

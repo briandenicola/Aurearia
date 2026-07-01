@@ -407,3 +407,31 @@ func TestAuctionLotRepository_ListFiltersBySource(t *testing.T) {
 		t.Fatalf("unexpected CNG lot: %#v", found[0])
 	}
 }
+
+func TestAuctionLotRepository_CountByStatusForSource(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+
+	lots := []*models.AuctionLot{
+		{NumisBidsURL: "https://example.com/numis-watching", Source: models.AuctionSourceNumisBids, SourceURL: "https://example.com/numis-watching", Title: "Numis Watching", Status: models.AuctionStatusWatching, UserID: 1},
+		{NumisBidsURL: "https://example.com/cng-watching", Source: models.AuctionSourceCNG, SourceURL: "https://example.com/cng-watching", Title: "CNG Watching", Status: models.AuctionStatusWatching, UserID: 1},
+		{NumisBidsURL: "https://example.com/cng-bidding", Source: models.AuctionSourceCNG, SourceURL: "https://example.com/cng-bidding", Title: "CNG Bidding", Status: models.AuctionStatusBidding, UserID: 1},
+		{NumisBidsURL: "https://example.com/cng-user2", Source: models.AuctionSourceCNG, SourceURL: "https://example.com/cng-user2", Title: "CNG User 2", Status: models.AuctionStatusWatching, UserID: 2},
+	}
+	for _, lot := range lots {
+		if err := repo.Create(lot); err != nil {
+			t.Fatalf("create lot %q: %v", lot.Title, err)
+		}
+	}
+
+	counts, err := repo.CountByStatusForSource(1, models.AuctionSourceCNG)
+	if err != nil {
+		t.Fatalf("CountByStatusForSource failed: %v", err)
+	}
+	if counts[string(models.AuctionStatusWatching)] != 1 {
+		t.Fatalf("CNG watching count = %d, want 1", counts[string(models.AuctionStatusWatching)])
+	}
+	if counts[string(models.AuctionStatusBidding)] != 1 {
+		t.Fatalf("CNG bidding count = %d, want 1", counts[string(models.AuctionStatusBidding)])
+	}
+}

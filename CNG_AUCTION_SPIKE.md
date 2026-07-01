@@ -3,8 +3,8 @@
 **Date:** 2026-06-30  
 **Owner:** Maximus (Lead/Architect)  
 **Objective:** Assess architecture and implementation effort to add CNG Auctions (https://auctions.cngcoins.com/) alongside existing NumisBids auction tracking.  
-**Scope:** Architecture analysis only. No implementation code.  
-**Credentials:** No user credentials requested or stored. Public-only assessment with documented authentication gaps.
+**Scope:** Spike plus first provider-aware implementation on `spike/cng-auctions`.  
+**Credentials:** Temporary credentials were used only through local environment/HAR-assisted verification and were not committed.
 
 ---
 
@@ -14,7 +14,7 @@ Ancient Coins currently tracks auction lots exclusively from NumisBids. The spik
 
 **Key Finding:** The existing NumisBids architecture is provider-specific (hardcoded URLs, login flow, HTML scraping). CNG will require parallel scraper, separate credential storage, and provider-agnostic UI toggles — but reuses the entire data model and service layer.
 
-**Implementation Estimate:** 3–4 phases over 2–3 weeks (research + implementation). Moderate risk on CNG site structure stability and authentication method changes.
+**Implementation Status:** Provider-aware CNG manual import and watched-lot sync are implemented. Remaining rollout risk is CNG site structure stability, credential storage parity with existing NumisBids behavior, and beta feedback.
 
 ---
 
@@ -128,6 +128,18 @@ Create separate `CngAuctionLot` table; reuse `AuctionLot` for NumisBids only.
 ---
 
 ## Implementation Phases
+
+### Current Status Summary
+
+| Phase | Status | Notes |
+|---|---|---|
+| Phase 1: Research & Auth | Complete | CNG login, public lot pages, and authenticated `/watched-lots` were verified with normal Go HTTP; no headless browser required. |
+| Phase 2: Schema & Service Layer | Complete | `AuctionLot` now has source/source URL/source IDs; `CNGAuctionService` parses `viewVars` and handles paginated watchlists. |
+| Phase 3: Handler & Settings | Complete | Existing auction endpoints accept optional `source`; profile settings store CNG credentials and validation supports CNG. |
+| Phase 4: Frontend & UX | Complete for MVP | Settings, import, sync, cards, detail modal, and calendar links are provider-aware and use existing UI patterns. |
+| Phase 5: QA Hardening | Complete for MVP | Fixture-backed CNG service tests, provider-aware repository tests, OpenAPI regeneration, backend tests, vet, type-check, and frontend build pass. |
+| Phase 6: Rollout | Ready for beta | Merge to beta after review; rotate the temporary CNG password after validation. |
+| Phase 7: Future Hardening | Backlog | Credential encryption/secrets refactor and optional CNG AJAX/API refresh can be handled separately because NumisBids has the same credential-storage baseline. |
 
 ### Phase 1: Research & Auth (3–5 days)
 **Goal:** Verify CNG site structure and authentication model.
@@ -394,4 +406,3 @@ Consider gradual rollout:
 Adding CNG Auctions is feasible within the existing architecture. The work is clean, moderate-effort, and follows established patterns. **Critical path: Phase 1 research** to confirm CNG site structure and authentication method. **Prerequisite: Encrypt credential storage** to avoid plaintext proliferation.
 
 **Recommended Next Step:** Spike Phase 1 (research) with temporary secure credential access from user.
-

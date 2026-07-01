@@ -3,6 +3,7 @@ package services
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -63,6 +64,7 @@ func TestCNGAuctionService_ParseWatchlist(t *testing.T) {
 
 func TestCNGAuctionService_LoginAndFetchWatchlist(t *testing.T) {
 	var loggedIn bool
+	var watchedLotRequests []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/":
@@ -103,7 +105,12 @@ func TestCNGAuctionService_LoginAndFetchWatchlist(t *testing.T) {
 				http.Redirect(w, r, "/login", http.StatusFound)
 				return
 			}
-			w.Write([]byte(cngWatchlistFixture()))
+			watchedLotRequests = append(watchedLotRequests, r.URL.RawQuery)
+			if r.URL.Query().Get("page") == "2" {
+				w.Write([]byte(cngWatchlistPageFixture(2, 3, 2, []string{"4-LOT3"})))
+				return
+			}
+			w.Write([]byte(cngWatchlistPageFixture(1, 3, 2, []string{"4-LOT1", "4-LOT2"})))
 			return
 		}
 		http.NotFound(w, r)
@@ -124,6 +131,16 @@ func TestCNGAuctionService_LoginAndFetchWatchlist(t *testing.T) {
 	}
 	if got := svc.ParseWatchlist(raw); len(got) != 2 {
 		t.Fatalf("parsed %d watched lots, want 2", len(got))
+	}
+	lots, err := svc.FetchWatchlistLots(client)
+	if err != nil {
+		t.Fatalf("FetchWatchlistLots returned error: %v", err)
+	}
+	if len(lots) != 3 {
+		t.Fatalf("FetchWatchlistLots returned %d lots, want 3", len(lots))
+	}
+	if len(watchedLotRequests) != 3 || watchedLotRequests[2] != "page=2" {
+		t.Fatalf("unexpected watched-lots requests: %#v", watchedLotRequests)
 	}
 }
 
@@ -147,6 +164,25 @@ func TestCNGAuctionService_LoginInvalidCredentials(t *testing.T) {
 	svc := NewCNGAuctionService(nil)
 	if _, err := svc.Login("bad@example.com", "wrong"); err == nil {
 		t.Fatal("Login succeeded, want error")
+	}
+}
+
+func TestCNGAuctionService_ScrapeLotRejectsNonCNGURL(t *testing.T) {
+	svc := NewCNGAuctionService(nil)
+	tests := []string{
+		"http://auctions.cngcoins.com/lots/view/4-LOT/test",
+		"https://example.com/lots/view/4-LOT/test",
+		"https://localhost/lots/view/4-LOT/test",
+		"https://127.0.0.1/lots/view/4-LOT/test",
+		"https://auctions.cngcoins.com/auctions/4-SALE/test",
+		"://bad",
+	}
+	for _, rawURL := range tests {
+		t.Run(rawURL, func(t *testing.T) {
+			if _, err := svc.ScrapeLot(rawURL); err == nil {
+				t.Fatal("ScrapeLot succeeded, want URL validation error")
+			}
+		})
 	}
 }
 
@@ -196,34 +232,37 @@ viewVars = {
 }
 
 func cngWatchlistFixture() string {
+	return cngWatchlistPageFixture(1, 2, 48, []string{"4-LOT1", "4-LOT2"})
+}
+
+func cngWatchlistPageFixture(page, total, pageSize int, lotIDs []string) string {
+	lots := make([]string, 0, len(lotIDs))
+	for index, lotID := range lotIDs {
+		lotNumber := ((page - 1) * pageSize) + index + 1
+		currency := `"currency_code":"USD",`
+		if lotID == "4-LOT2" {
+			currency = ""
+		}
+		lots = append(lots, `{
+        "row_id":"`+lotID+`",
+        "lot_number":`+strconv.Itoa(lotNumber)+`,
+        "title":"Lot `+strconv.Itoa(lotNumber)+`",
+        "truncated_description":"<b>Lot</b> description",
+        "estimate_low":"100.00",
+        `+currency+`
+        "starting_price":"60.00",
+        "_detail_url":"/lots/view/`+lotID+`/lot-`+strconv.Itoa(lotNumber)+`",
+        "cover_thumbnail":"https://images.example/`+strconv.Itoa(lotNumber)+`.jpg",
+        "auction":{"row_id":"4-SALEID","title":"Electronic Auction 612","currency_code":"USD","effective_end_time":"2026-07-01T21:15:00Z"}
+      }`)
+	}
 	return `<!doctype html><html><script>
 viewVars = {
   "currentRouteName":"watched-lots-index",
   "lots":{
-    "query_info":{"total_num_results":2,"page_size":48},
+    "query_info":{"total_num_results":` + strconv.Itoa(total) + `,"page_size":` + strconv.Itoa(pageSize) + `},
     "result_page":[
-      {
-        "row_id":"4-LOT1",
-        "lot_number":1,
-        "title":"Lot One",
-        "truncated_description":"<b>Lot</b> one description",
-        "estimate_low":"100.00",
-        "currency_code":"USD",
-        "starting_price":"60.00",
-        "_detail_url":"/lots/view/4-LOT1/lot-one",
-        "cover_thumbnail":"https://images.example/1.jpg",
-        "auction":{"row_id":"4-SALEID","title":"Electronic Auction 612","currency_code":"USD","effective_end_time":"2026-07-01T21:15:00Z"}
-      },
-      {
-        "row_id":"4-LOT2",
-        "lot_number":2,
-        "title":"Lot Two",
-        "estimate_low":"200.00",
-        "starting_price":"120.00",
-        "_detail_url":"/lots/view/4-LOT2/lot-two",
-        "cover_thumbnail":"https://images.example/2.jpg",
-        "auction":{"row_id":"4-SALEID","title":"Electronic Auction 612","currency_code":"USD","effective_end_time":"2026-07-01T21:15:00Z"}
-      }
+      ` + strings.Join(lots, ",") + `
     ]
   }
 };

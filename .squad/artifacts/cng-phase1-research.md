@@ -246,11 +246,10 @@ Authenticated watchlist sync is feasible with normal Go HTTP:
 
 ## Recommended Next Steps
 
-1. Correct `CNG_USERNAME` if live env-based integration tests are needed; the current value differs from the successful HAR login username.
-2. Begin implementation with provider-aware CNG manual import and watchlist sync.
-3. Use `/watched-lots` HTML parsing for watchlist sync; defer `/ajax/watching/` unless pagination or live refresh requires it.
-4. Use fixture-based tests from `.squad/skills/external-service-scraping-with-fixtures/SKILL.md`; committed fixtures should be sanitized public lot/auction HTML only unless an authenticated fixture is reviewed for personal data.
-5. Rotate the temporary CNG password after the spike/implementation validation is complete.
+1. Merge the provider-aware implementation branch to beta for real-account testing.
+2. Use `/watched-lots` HTML parsing for watchlist sync; `/ajax/watching/` remains optional follow-up research.
+3. Keep committed tests fixture-based and sanitized; do not commit HAR files or authenticated HTML containing personal data.
+4. Rotate the temporary CNG password after validation is complete.
 
 ## Implementation Notes
 
@@ -265,3 +264,10 @@ Authenticated watchlist sync is feasible with normal Go HTTP:
 - `auction.effective_end_time` appears to be the best source for `AuctionEndTime` on timed sales.
 - Direct Auction Mobility API calls currently return `401`; avoid relying on them unless authenticated access is solved.
 - The root HAR file is sensitive and is locally excluded through `.git/info/exclude`; do not commit HAR files or credentials.
+
+## Implementation Completion Notes
+
+- `src/api/services/cng_auction_service.go` implements CNG login, auth verification, manual lot parsing, and paginated watched-lot sync from `viewVars.lots`.
+- Existing auction endpoints remain the public API surface; CNG is selected through `source = "cng"` or inferred from `auctions.cngcoins.com` URLs.
+- The frontend adds CNG account fields under Settings > Account, accepts CNG lot URLs in the auction import modal, syncs configured watchlists, and labels CNG lots in auction/card/detail/calendar views.
+- Password storage intentionally matches the existing NumisBids baseline for MVP parity; encryption/secrets hardening should be handled as a shared auction-credential follow-up.

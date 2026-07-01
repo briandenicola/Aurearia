@@ -154,6 +154,11 @@ func (r *AuctionLotRepository) CountByStatus(userID uint) (map[string]int64, err
 	return r.countByStatus(r.db.Where("user_id = ?", userID))
 }
 
+// CountByStatusForSource returns per-status counts for the given user's source-specific auction lots.
+func (r *AuctionLotRepository) CountByStatusForSource(userID uint, source models.AuctionSource) (map[string]int64, error) {
+	return r.countByStatus(r.db.Where("user_id = ? AND source = ?", userID, source))
+}
+
 // CountAll returns the total number of auction lots across all users.
 func (r *AuctionLotRepository) CountAll() (int64, error) {
 	var total int64

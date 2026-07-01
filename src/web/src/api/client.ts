@@ -899,8 +899,8 @@ export const rateCoin = (coinId: number, rating: number) =>
 // Auction lots
 export const getAuctionLots = (params?: { status?: string; search?: string; source?: string; sort?: string; order?: string; page?: number; limit?: number }) =>
   api.get<AuctionLotListResponse>('/auctions', { params })
-export const getAuctionLotCounts = () =>
-  api.get<{ counts: Record<string, number> }>('/auctions/counts')
+export const getAuctionLotCounts = (params?: { source?: string }) =>
+  api.get<{ counts: Record<string, number> }>('/auctions/counts', { params })
 export const updateAuctionLotStatus = (id: number, status: string, maxBid?: number | null) => api.put<AuctionLot>(`/auctions/${id}/status`, { status, ...(maxBid != null ? { maxBid } : {}) })
 export const updateAuctionLot = (id: number, data: {
   title?: string

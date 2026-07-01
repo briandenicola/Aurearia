@@ -32,6 +32,18 @@
 
       <AuctionStatusFilter v-model="activeStatus" :counts="statusCounts" />
 
+      <div class="source-filter" aria-label="Auction source filter">
+        <button
+          v-for="source in sourceOptions"
+          :key="source.value"
+          class="chip"
+          :class="{ active: activeSource === source.value }"
+          @click="activeSource = source.value"
+        >
+          {{ source.label }}
+        </button>
+      </div>
+
       <div v-if="selectMode" class="select-controls">
         <button class="btn btn-sm btn-secondary" @click="selectAllLots">Select All</button>
         <button class="btn btn-sm btn-secondary" @click="deselectAllLots">Deselect All</button>
@@ -55,9 +67,9 @@
       </div>
 
       <div v-else class="empty-state">
-        <h3>No auction lots{{ activeStatus ? ` with status "${activeStatus}"` : '' }}</h3>
+        <h3>No auction lots{{ emptyStateSuffix }}</h3>
         <p>Import lots from NumisBids or CNG Auctions to start tracking auctions</p>
-        <button class="btn btn-primary" @click="showImport = true" style="margin-top: 0.75rem">
+        <button class="btn btn-primary import-first-btn" @click="showImport = true">
           <Plus :size="16" /> Import Your First Lot
         </button>
         <SafeExternalLink href="https://www.numisbids.com/" class="btn btn-secondary auction-house-link">
@@ -88,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { getAuctionLots, getAuctionLotCounts, syncNumisBidsWatchlist, listCalendarEvents, bulkLinkAuctionLotEvent } from '@/api/client'
 import type { AuctionLot } from '@/types'
 import AuctionLotCard from '@/components/AuctionLotCard.vue'
@@ -111,12 +123,18 @@ const loading = ref(true)
 const showImport = ref(false)
 const selectedLot = ref<AuctionLot | null>(null)
 const activeStatus = ref('bidding')
+const activeSource = ref('')
 const syncing = ref(false)
 const syncMessage = ref('')
 const calendarEvents = ref<Array<{ id: number; title: string; auctionHouse: string; startDate: string | null }>>([])
 
 const selectMode = ref(false)
 const selectedLotIds = ref(new Set<number>())
+const sourceOptions = [
+  { value: '', label: 'All' },
+  { value: 'numisbids', label: 'NumisBids' },
+  { value: 'cng', label: 'CNG' },
+]
 
 function toggleSelectMode() {
   selectMode.value = !selectMode.value
@@ -159,13 +177,18 @@ async function handleBulkLinkEvent(eventIdRaw: number | string) {
   } catch { /* ignore */ }
 }
 
-watch(activeStatus, () => fetchLots())
+watch([activeStatus, activeSource], () => {
+  selectedLotIds.value = new Set()
+  fetchLots()
+  fetchAllCounts()
+})
 
 async function fetchLots() {
   loading.value = true
   try {
     const params: Record<string, string> = { sort: 'updated_at', order: 'desc' }
     if (activeStatus.value) params.status = activeStatus.value
+    if (activeSource.value) params.source = activeSource.value
     const res = await getAuctionLots(params)
     lots.value = res.data?.lots ?? []
   } catch {
@@ -177,7 +200,8 @@ async function fetchLots() {
 
 async function fetchAllCounts() {
   try {
-    const res = await getAuctionLotCounts()
+    const params = activeSource.value ? { source: activeSource.value } : undefined
+    const res = await getAuctionLotCounts(params)
     statusCounts.value = res.data?.counts ?? {}
   } catch { /* ignore */ }
 }
@@ -237,6 +261,13 @@ function providerName(source: string): string {
   return source === 'cng' ? 'CNG Auctions' : 'NumisBids'
 }
 
+const emptyStateSuffix = computed(() => {
+  const parts: string[] = []
+  if (activeStatus.value) parts.push(`status "${activeStatus.value}"`)
+  if (activeSource.value) parts.push(providerName(activeSource.value))
+  return parts.length ? ` matching ${parts.join(' and ')}` : ''
+})
+
 fetchLots()
 fetchAllCounts()
 </script>
@@ -264,6 +295,17 @@ fetchAllCounts()
   font-size: 0.85rem;
   text-align: center;
   animation: fadeIn 0.2s ease;
+}
+
+.source-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.import-first-btn {
+  margin-top: 0.75rem;
 }
 
 @keyframes spin {

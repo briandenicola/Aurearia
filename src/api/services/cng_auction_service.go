@@ -128,7 +128,42 @@ func (s *CNGAuctionService) verifyAuthentication(client *http.Client) error {
 
 // FetchWatchlist retrieves the authenticated user's watched lots HTML.
 func (s *CNGAuctionService) FetchWatchlist(client *http.Client) (string, error) {
-	req, err := http.NewRequest("GET", cngWatchlistURL, nil)
+	return s.fetchWatchlistPage(client, 1)
+}
+
+// FetchWatchlistLots retrieves every available CNG watched-lots page and parses the lots.
+func (s *CNGAuctionService) FetchWatchlistLots(client *http.Client) ([]WatchlistLot, error) {
+	firstPage, err := s.fetchWatchlistPage(client, 1)
+	if err != nil {
+		return nil, err
+	}
+
+	lots, info, err := s.parseLotsPage(firstPage)
+	if err != nil {
+		return nil, err
+	}
+	totalPages := info.totalPages()
+	for page := 2; page <= totalPages; page++ {
+		rawPage, err := s.fetchWatchlistPage(client, page)
+		if err != nil {
+			return nil, err
+		}
+		pageLots, _, err := s.parseLotsPage(rawPage)
+		if err != nil {
+			return nil, err
+		}
+		lots = append(lots, pageLots...)
+	}
+	s.info("Fetched %d CNG watched lots across %d page(s)", len(lots), totalPages)
+	return lots, nil
+}
+
+func (s *CNGAuctionService) fetchWatchlistPage(client *http.Client, page int) (string, error) {
+	watchlistURL, err := cngWatchlistPageURL(page)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequest("GET", watchlistURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create watchlist request: %w", err)
 	}
@@ -136,7 +171,7 @@ func (s *CNGAuctionService) FetchWatchlist(client *http.Client) (string, error) 
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("watchlist request failed: %w", err)
+		return "", fmt.Errorf("watchlist page %d request failed: %w", page, err)
 	}
 	defer resp.Body.Close()
 
@@ -144,7 +179,7 @@ func (s *CNGAuctionService) FetchWatchlist(client *http.Client) (string, error) 
 		return "", ErrCNGAuthenticationRequired
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("watchlist returned HTTP %d", resp.StatusCode)
+		return "", fmt.Errorf("watchlist page %d returned HTTP %d", page, resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -169,6 +204,9 @@ func (s *CNGAuctionService) ScrapeLotPage(lotURL string) (*LotPageDetails, error
 
 // ScrapeLot fetches a CNG lot page and extracts a source-aware lot summary.
 func (s *CNGAuctionService) ScrapeLot(lotURL string) (WatchlistLot, error) {
+	if err := validateCNGLotURL(lotURL); err != nil {
+		return WatchlistLot{}, err
+	}
 	req, err := http.NewRequest("GET", lotURL, nil)
 	if err != nil {
 		return WatchlistLot{}, err
@@ -196,7 +234,7 @@ func (s *CNGAuctionService) ScrapeLot(lotURL string) (WatchlistLot, error) {
 
 // ParseWatchlist extracts watched lots from CNG's viewVars.lots.result_page payload.
 func (s *CNGAuctionService) ParseWatchlist(rawHTML string) []WatchlistLot {
-	lots, err := s.parseLotsPage(rawHTML)
+	lots, _, err := s.parseLotsPage(rawHTML)
 	if err != nil {
 		s.warn("Failed to parse CNG watchlist: %v", err)
 		return nil
@@ -216,10 +254,10 @@ func (s *CNGAuctionService) parseLotPage(rawHTML string) (WatchlistLot, error) {
 	return cngLotToWatchlistLot(*root.Lot), nil
 }
 
-func (s *CNGAuctionService) parseLotsPage(rawHTML string) ([]WatchlistLot, error) {
+func (s *CNGAuctionService) parseLotsPage(rawHTML string) ([]WatchlistLot, cngQueryInfo, error) {
 	var root cngViewVars
 	if err := parseCNGViewVars(rawHTML, &root); err != nil {
-		return nil, err
+		return nil, cngQueryInfo{}, err
 	}
 	lots := make([]WatchlistLot, 0, len(root.Lots.ResultPage))
 	for _, lot := range root.Lots.ResultPage {
@@ -229,7 +267,7 @@ func (s *CNGAuctionService) parseLotsPage(rawHTML string) ([]WatchlistLot, error
 		}
 		lots = append(lots, parsed)
 	}
-	return lots, nil
+	return lots, root.Lots.QueryInfo, nil
 }
 
 func parseCNGViewVars(rawHTML string, target interface{}) error {
@@ -287,8 +325,28 @@ func findJSONObjectEnd(raw string, start int) (int, error) {
 type cngViewVars struct {
 	Lot  *cngLot `json:"lot"`
 	Lots struct {
-		ResultPage []cngLot `json:"result_page"`
+		ResultPage []cngLot     `json:"result_page"`
+		QueryInfo  cngQueryInfo `json:"query_info"`
 	} `json:"lots"`
+}
+
+type cngQueryInfo struct {
+	TotalNumResults int `json:"total_num_results"`
+	PageSize        int `json:"page_size"`
+}
+
+func (q cngQueryInfo) totalPages() int {
+	if q.TotalNumResults <= 0 || q.PageSize <= 0 {
+		return 1
+	}
+	pages := q.TotalNumResults / q.PageSize
+	if q.TotalNumResults%q.PageSize != 0 {
+		pages++
+	}
+	if pages < 1 {
+		return 1
+	}
+	return pages
 }
 
 type cngLot struct {
@@ -373,6 +431,7 @@ func normalizeCNGURL(raw string) string {
 	if raw == "" {
 		return ""
 	}
+
 	parsed, err := url.Parse(raw)
 	if err == nil && parsed.IsAbs() {
 		return parsed.String()
@@ -381,6 +440,19 @@ func normalizeCNGURL(raw string) string {
 		return cngBase + raw
 	}
 	return cngBase + "/" + raw
+}
+
+func cngWatchlistPageURL(page int) (string, error) {
+	parsed, err := url.Parse(cngWatchlistURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid CNG watchlist URL: %w", err)
+	}
+	if page > 1 {
+		query := parsed.Query()
+		query.Set("page", strconv.Itoa(page))
+		parsed.RawQuery = query.Encode()
+	}
+	return parsed.String(), nil
 }
 
 func parseCNGLotID(rawURL string) string {
@@ -392,6 +464,20 @@ func parseCNGLotID(rawURL string) string {
 		return match[1]
 	}
 	return ""
+}
+
+func validateCNGLotURL(rawURL string) error {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return fmt.Errorf("invalid CNG lot URL: %w", err)
+	}
+	if parsed.Scheme != "https" || strings.ToLower(parsed.Hostname()) != "auctions.cngcoins.com" {
+		return fmt.Errorf("CNG lot URL must be on https://auctions.cngcoins.com")
+	}
+	if parseCNGLotID(rawURL) == "" {
+		return fmt.Errorf("CNG lot URL must be a /lots/view/ URL")
+	}
+	return nil
 }
 
 func parseCNGDecimal(raw string) (*float64, string) {

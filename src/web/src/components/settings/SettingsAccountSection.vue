@@ -44,11 +44,11 @@
     <div class="form-group">
       <label class="form-label">ZIP Code</label>
       <input v-model="profileZipCode" class="form-input" placeholder="e.g. 90210" maxlength="10" />
-      <span class="setting-desc" style="font-size: 0.8rem; margin-top: 0.25rem; display: block">Used by the Agent to find nearby coin shows and dealers</span>
+      <span class="setting-hint">Used by the Agent to find nearby coin shows and dealers</span>
     </div>
 
     <h3>NumisBids Integration</h3>
-    <p class="setting-desc" style="margin-bottom: 0.75rem">
+    <p class="setting-desc integration-desc">
       Connect your NumisBids account to sync your watchlist and track auction lots.
     </p>
     <div class="form-group">
@@ -58,7 +58,7 @@
     <div class="form-group">
       <label class="form-label">NumisBids Password</label>
       <input v-model="nbPassword" type="password" class="form-input" placeholder="Your NumisBids password" autocomplete="new-password" />
-      <span class="setting-desc" style="font-size: 0.8rem; margin-top: 0.25rem; display: block">Stored securely on the server. Used only for watchlist sync.</span>
+      <span class="setting-hint">Stored securely on the server. Used only for watchlist sync.</span>
     </div>
     <div v-if="nbValidating" class="nb-status validating">
       Validating NumisBids credentials...
@@ -71,7 +71,7 @@
     </div>
 
     <h3>CNG Auctions Integration</h3>
-    <p class="setting-desc" style="margin-bottom: 0.75rem">
+    <p class="setting-desc integration-desc">
       Connect your CNG Auctions account to sync your watched lots.
     </p>
     <div class="form-group">
@@ -81,7 +81,7 @@
     <div class="form-group">
       <label class="form-label">CNG Password</label>
       <input v-model="cngPassword" type="password" class="form-input" placeholder="Your CNG password" autocomplete="new-password" />
-      <span class="setting-desc" style="font-size: 0.8rem; margin-top: 0.25rem; display: block">Stored on the server and used only for watched-lot sync.</span>
+      <span class="setting-hint">Stored on the server and used only for watched-lot sync.</span>
     </div>
     <div v-if="cngValidating" class="nb-status validating">
       Validating CNG credentials...
@@ -134,7 +134,7 @@
         <span class="toggle-slider"></span>
       </label>
     </div>
-    <button class="btn btn-primary btn-sm" @click="handleSaveProfile" :disabled="profileSaving || nbValidating || cngValidating" style="margin-top: 0.5rem">
+    <button class="btn btn-primary btn-sm save-profile-btn" @click="handleSaveProfile" :disabled="profileSaving || nbValidating || cngValidating">
       {{ nbValidating || cngValidating ? 'Validating...' : profileSaving ? 'Saving...' : 'Save Profile' }}
     </button>
     <p v-if="profileMsg" class="msg" :class="{ error: profileError }" style="margin-top: 0.5rem">{{ profileMsg }}</p>
@@ -145,7 +145,7 @@
         <div class="modal-content card" style="max-width: 440px;">
           <div class="modal-header">
             <h2 style="display: flex; align-items: center; gap: 0.5rem; margin: 0; font-size: 1rem;">
-              ⚠️ Make Collection Private?
+              Make Collection Private?
             </h2>
           </div>
           <div class="modal-body" style="padding: 1.25rem;">
@@ -785,6 +785,21 @@ defineExpose({ loadCredentials, loadOIDCAccounts })
 .setting-desc {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.setting-hint {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.integration-desc {
+  margin-bottom: 0.75rem;
+}
+
+.save-profile-btn {
+  margin-top: 0.5rem;
 }
 
 .btn-danger {

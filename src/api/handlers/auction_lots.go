@@ -35,6 +35,7 @@ func NewAuctionLotHandler(repo *repository.AuctionLotRepository, svc *services.A
 //	@Tags			Auctions
 //	@Produce		json
 //	@Param			status	query		string	false	"Filter by status (watching, bidding, won, lost, passed)"
+//	@Param			source	query		string	false	"Filter by auction source (numisbids, cng)"
 //	@Param			search	query		string	false	"Search across title, description, auction house"
 //	@Param			page	query		int		false	"Page number"	default(1)
 //	@Param			limit	query		int		false	"Items per page"	default(50)
@@ -72,15 +73,27 @@ func (h *AuctionLotHandler) List(c *gin.Context) {
 // Counts returns per-status counts for the authenticated user's auction lots.
 //
 //	@Summary		Get auction lot counts by status
-//	@Description	Returns a map of status → count for the authenticated user.
+//	@Description	Returns a map of status → count for the authenticated user, optionally scoped to one auction source.
 //	@Tags			Auctions
 //	@Produce		json
+//	@Param			source	query	string	false	"Filter by auction source (numisbids, cng)"
 //	@Success		200	{object}	map[string]int64
 //	@Security		BearerAuth
 //	@Router			/auctions/counts [get]
 func (h *AuctionLotHandler) Counts(c *gin.Context) {
 	userID := c.GetUint("userId")
-	counts, err := h.repo.CountByStatus(userID)
+	source := models.AuctionSource(c.Query("source"))
+	var counts map[string]int64
+	var err error
+	if source != "" {
+		if source != models.AuctionSourceNumisBids && source != models.AuctionSourceCNG {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported auction source"})
+			return
+		}
+		counts, err = h.repo.CountByStatusForSource(userID, source)
+	} else {
+		counts, err = h.repo.CountByStatus(userID)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count auction lots"})
 		return
@@ -244,6 +257,10 @@ func (h *AuctionLotHandler) Update(c *gin.Context) {
 			return
 		}
 		fields["numis_bids_url"] = url
+		fields["source_url"] = url
+		if existing.Source == "" {
+			fields["source"] = auctionSourceFromRequest("", url)
+		}
 	}
 	if req.AuctionHouse != nil {
 		fields["auction_house"] = strings.TrimSpace(*req.AuctionHouse)
@@ -593,12 +610,14 @@ func (h *AuctionLotHandler) ImportFromURL(c *gin.Context) {
 	c.JSON(http.StatusCreated, imported)
 }
 
-// SyncWatchlist syncs auction lots from the user's NumisBids watchlist.
+// SyncWatchlist syncs auction lots from the user's configured auction provider watchlist.
 //
-//	@Summary		Sync NumisBids watchlist
-//	@Description	Logs into NumisBids with the user's stored credentials, fetches their watchlist, and upserts each lot.
+//	@Summary		Sync auction watchlist
+//	@Description	Logs into NumisBids or CNG with the user's stored credentials, fetches the selected watchlist, and upserts each lot. Defaults to NumisBids when source is omitted.
 //	@Tags			Auctions
 //	@Produce		json
+//	@Param			source	query	string	false	"Auction source (numisbids, cng)"
+//	@Param			body	body	SyncWatchlistRequest	false	"Auction source request"
 //	@Success		200	{object}	SyncWatchlistResponse
 //	@Failure		400	{object}	ErrorResponse
 //	@Failure		401	{object}	ErrorResponse
@@ -760,7 +779,7 @@ func (h *AuctionLotHandler) syncCNGWatchlist(c *gin.Context, userID uint, user *
 		return
 	}
 
-	rawHTML, err := h.cngSvc.FetchWatchlist(client)
+	parsed, err := h.cngSvc.FetchWatchlistLots(client)
 	if err != nil {
 		if errors.Is(err, services.ErrCNGAuthenticationRequired) {
 			h.warn("CNG watchlist returned login page for user %d after login", userID)
@@ -771,8 +790,6 @@ func (h *AuctionLotHandler) syncCNGWatchlist(c *gin.Context, userID uint, user *
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch watched lots from CNG"})
 		return
 	}
-
-	parsed := h.cngSvc.ParseWatchlist(rawHTML)
 	h.debug("CNG watchlist parsed for user %d: lots=%d", userID, len(parsed))
 
 	var synced []models.AuctionLot
@@ -882,14 +899,14 @@ type SyncWatchlistRequest struct {
 	Source string `json:"source"`
 }
 
-// ValidateNumisBids tests the given credentials against NumisBids.
+// ValidateNumisBids tests the given credentials against an auction provider.
 //
-//	@Summary		Validate NumisBids credentials
-//	@Description	Attempts to log in to NumisBids with the provided credentials to verify they are correct.
+//	@Summary		Validate auction provider credentials
+//	@Description	Attempts to log in to NumisBids or CNG with the provided credentials. Defaults to NumisBids when source is omitted.
 //	@Tags			Auctions
 //	@Accept			json
 //	@Produce		json
-//	@Param			body	body		ValidateNumisBidsRequest	true	"NumisBids credentials"
+//	@Param			body	body		ValidateNumisBidsRequest	true	"Auction provider credentials"
 //	@Success		200		{object}	map[string]bool
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
