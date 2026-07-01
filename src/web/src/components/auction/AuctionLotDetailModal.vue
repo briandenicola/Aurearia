@@ -132,7 +132,7 @@
             <option value="lost">Lost</option>
             <option value="passed">Passed</option>
           </select>
-          <button class="btn btn-secondary" @click="changeStatus" :disabled="newStatus === lot.status">
+          <button class="btn btn-secondary" @click="changeStatus" :disabled="!hasPendingStatusUpdate">
             Update Status
           </button>
         </div>
@@ -211,6 +211,9 @@ const lotImageSource = computed(() => props.lot.imageUrl ?? '')
 const { proxiedImageUrl } = useProxiedImage(lotImageSource)
 const providerLabel = computed(() => props.lot.source === 'cng' ? 'CNG' : 'NumisBids')
 const externalUrl = computed(() => props.lot.sourceUrl || props.lot.numisBidsUrl)
+const normalizedMaxBidInput = computed(() => typeof maxBidInput.value === 'number' && !Number.isNaN(maxBidInput.value) ? maxBidInput.value : null)
+const maxBidChanged = computed(() => newStatus.value === 'bidding' && normalizedMaxBidInput.value !== null && normalizedMaxBidInput.value !== (props.lot.maxBid ?? null))
+const hasPendingStatusUpdate = computed(() => newStatus.value !== props.lot.status || maxBidChanged.value)
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
@@ -356,7 +359,7 @@ async function linkEvent() {
 
 async function changeStatus() {
   try {
-    const bid = newStatus.value === 'bidding' ? maxBidInput.value : undefined
+    const bid = maxBidChanged.value ? normalizedMaxBidInput.value : undefined
     await updateAuctionLotStatus(props.lot.id, newStatus.value, bid)
 
     if (newStatus.value === 'won') {

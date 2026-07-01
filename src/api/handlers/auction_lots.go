@@ -346,28 +346,44 @@ func (h *AuctionLotHandler) UpdateStatus(c *gin.Context) {
 	}
 
 	newStatus := models.AuctionLotStatus(req.Status)
-	if err := h.svc.UpdateStatus(uint(id), userID, newStatus); err != nil {
-		if errors.Is(err, services.ErrAuctionLotNotFound) {
+	lot, err := h.repo.GetByID(uint(id), userID)
+	if err != nil {
+		if repository.IsRecordNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Auction lot not found"})
-			return
-		}
-		if errors.Is(err, services.ErrInvalidStatus) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid status transition"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
 		return
 	}
 
-	// Save max bid if provided (typically when transitioning to "bidding")
-	if req.MaxBid != nil {
-		lot, _ := h.repo.GetByID(uint(id), userID)
-		if lot != nil {
-			h.repo.UpdateFields(lot, map[string]interface{}{"max_bid": req.MaxBid})
+	if lot.Status != newStatus {
+		if err := h.svc.UpdateStatus(uint(id), userID, newStatus); err != nil {
+			if errors.Is(err, services.ErrAuctionLotNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Auction lot not found"})
+				return
+			}
+			if errors.Is(err, services.ErrInvalidStatus) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid status transition"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
+			return
 		}
 	}
 
-	lot, _ := h.repo.GetByID(uint(id), userID)
+	if req.MaxBid != nil {
+		lot, err = h.repo.GetByID(uint(id), userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
+			return
+		}
+		if err := h.repo.UpdateFields(lot, map[string]interface{}{"max_bid": *req.MaxBid}); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update max bid"})
+			return
+		}
+	}
+
+	lot, _ = h.repo.GetByID(uint(id), userID)
 	c.JSON(http.StatusOK, lot)
 }
 
