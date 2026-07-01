@@ -2,6 +2,33 @@
 
 ## Active Decisions
 
+### Decision: User-Initiated Camera Start
+
+**Date:** 2026-06-30
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+iOS/PWA users should not see a camera permission prompt just by opening Add Coin agentic mode or Identify Coin. The app still needs to preserve the guided live camera experience once the user intentionally starts capture.
+
+## Decision
+
+`src/web/src/pages/AddCoinPage.vue` and `src/web/src/pages/CoinLookupPage.vue` no longer start camera streams from page mount, agentic mode entry, or Identify Coin retake. Both pages show a clear "Start Camera" placeholder action that calls `startCamera()` only from a user tap. Existing upload-library actions remain available, shutter buttons stay disabled until `cameraReady`, and Add Coin continues stopping active streams when leaving agentic mode.
+
+## Validation
+
+- `npm.cmd run test -- src/pages/__tests__/CoinLookupPage.test.ts src/__tests__/ui-patterns.test.ts`
+- `npm.cmd run type-check`
+
+## Alignment
+
+- Principle III: Vue strict type-check passed.
+- Principle IV: Simple complete change across both affected camera entry points.
+- Principle VI: Preserves existing dark, token-based camera UI and upload fallback.
+
+---
+
 ### Decision: Wishlist Availability Sold Detection
 
 **Date:** 2026-06-23  
@@ -11902,3 +11929,508 @@ Non-regressive: existing promote calls omit `target` and default to collection b
 - **Principle VI (Consistent User Experience):** PWA-safe UI, mobile-first responsive design, clear visual hierarchy for target selection
 - **§17 Quality Gate:** All tests pass, lint clean, type-check clean, no regressions
 - **§21 Definition of Done:** Spec exists, implementation verified, all validation gates pass, QA approved
+
+---
+
+### Decision: CNG Auctions Spike — Architecture Pattern
+
+**Date:** 2026-06-30  
+**Status:** DECISION (Architecture Approved)  
+**Owner:** Maximus (Lead)  
+**Consensus:** Architecture pattern recommended; implementation phased; research phase gates further work.
+
+## Context
+
+Brian requests feasibility analysis for integrating https://auctions.cngcoins.com/ alongside numisbids.com as an auction source. Parallel team spike (Maximus, Cassius, Aurelia, Brutus) conducted to assess architecture, backend, frontend, and QA requirements.
+
+## Decision
+
+Approve proceeding with **CNG Auctions integration as a second auction provider** within the existing AuctionLot schema using a provider-agnostic factory pattern.
+
+### Recommended Pattern
+
+```
+AuctionProvider Interface
+├── Login(username, password) → *http.Client
+├── FetchWatchlist(client) → HTML string
+├── ParseWatchlist(html) → []WatchlistLot
+└── ScrapeLotPage(lotURL) → LotPageDetails
+
+Implementations:
+├── NumisBidsProvider (existing NumisBidsService)
+└── CNGProvider (new CNGAuctionService)
+
+AuctionLot Schema:
+├── provider: "numisbids" | "cng"  ← NEW
+├── sourceUrl: string
+└── (existing fields)
+
+Handler:
+├── SyncWatchlist(provider) ← auto-detect or param
+├── ImportFromURL(url, provider) ← auto-detect domain
+└── ValidateCredentials(provider, user, pass)
+```
+
+### Why This Pattern
+
+1. **Reuses existing service logic:** Status transitions, currency parsing, date handling, conversion-to-coin logic remain unchanged.
+2. **Scales to 3+ providers:** Adding Bonhams, Sotheby's, eBay later is a factory registration + implementation, not handler rewrites.
+3. **Provider abstraction in service, not handler:** Keeps handlers thin (Principle I).
+4. **Clear API versioning path:** Frontend can query supported providers; settings UI scales automatically.
+
+## Phasing
+
+| Phase | Duration | Gate | Owner |
+|-------|----------|------|-------|
+| 1: Research | 3–5d | Verify CNG site structure, auth method, JS requirement, lot URL format | Maximus + User research access |
+| 2: Schema + Service | 3–5d | CNGAuctionService working with test credentials; repository supports provider queries | Cassius (backend) |
+| 3: Handler + Settings API | 2–3d | Credential management endpoints; provider filter endpoints | Cassius |
+| 4: Frontend | 2–3d | ImportLotModal tabs, Settings section, provider filter chip | Aurelia |
+| **Total** | **10–16d** | | |
+
+**Research Phase (1) is a prerequisite gate.** If CNG requires JavaScript rendering or bot detection blocks scraping, decision escalates to ADR (headless browser feasibility).
+
+## Credential Storage Prerequisite
+
+**Do NOT proceed to Phase 2 without resolving this.**
+
+Currently: `User.NumisBidsPassword` stored plaintext (unacceptable to expand).
+
+**Recommendation:** 
+- Before Phase 2: Add encryption layer for credential storage (either existing vault or new AES-256 encrypted column).
+- Phase 2+: Both NumisBids and CNG credentials encrypted at rest.
+- Alternative (if encryption unavailable): Document as Phase 2 ADR; require explicit Brian approval to store CNG plaintext.
+
+## Research Phase Deliverables
+
+Phase 1 must produce:
+
+1. **CNG Site Analysis Report**
+   - Lot URL structure and watchlist URL structure
+   - Authentication method (form-based? API token? Cookie-based like NumisBids?)
+   - HTML structure for lot pages (fields: title, image, estimate, current bid, sale date, lot number, description)
+   - Any anti-scraping measures, rate limits, or user-agent requirements
+
+2. **JavaScript Rendering Decision**
+   - Does CNG use client-side JavaScript for watchlist or lot pages?
+   - If yes: Headless browser cost estimate (deployment, memory, performance)
+   - If no: Proceed to Phase 2 with Go HTTP client + regex parsing
+
+3. **Sample Data**
+   - Copy of CNG watchlist HTML (anonymized)
+   - Sample lot detail page HTML
+   - Extract patterns using regex (image, current bid, etc.)
+
+4. **Risk Assessment Update**
+   - Any CNG-specific risks identified (e.g., IP-based rate limiting, CAPTCHA, session instability)
+
+5. **Go-No-Go Recommendation**
+   - Proceed to Phase 2 if CNG is scrape-feasible (no JS, no CAPTCHA)
+   - Escalate to ADR if headless browser needed
+   - Defer entirely if CNG blocks automated access
+
+## Constraints & Guardrails
+
+- **No credentials in chat.** User provides temp access via local secure mechanism only (env var, encrypted file, or CNG test account).
+- **Principle I compliance:** Provider abstraction lives in `services/` layer; handlers remain thin.
+- **Principle V (Security):** Credential storage must be encrypted; audit API responses to confirm `CngPassword` never leaks (json tag `"-"`).
+- **Architecture test:** Add test enforcing no direct CNG HTTP calls outside service layer (same as NumisBids).
+- **Backward compatibility:** Existing NumisBids lots backfilled with `provider = 'numisbids'` in migration.
+
+## Out of Scope for Spike
+
+- API key integration (CNG doesn't expose public API; scraping only)
+- Rate limiting optimization (accept current NumisBids pattern; tune if issues arise in production)
+- Multi-currency normalization (accept local currency per lot, as NumisBids does)
+- Live price updates (manual sync only, as NumisBids)
+
+## Next Step
+
+1. Maximus: Schedule research phase kickoff with Brian (provide CNG temp credentials).
+2. Coordinate Phase 1 research.
+3. Upon Phase 1 completion: Produce go/no-go decision; if GO, proceed to Phase 2 with Cassius (backend) assignment.
+
+## Sign-off
+
+- **Maximus (Lead/Architect):** Approved. Architecture pattern sound; phasing clear; research gate appropriate.
+- **Brian (Owner):** Approval pending Phase 1 research completion and credential handling agreement.
+
+---
+
+### Decision: CNG Auctions Backend Architecture
+
+**Date:** 2026-06-30  
+**Engineer:** Cassius (Backend Developer)  
+**Status:** Spike Findings (Ready for Team Review)
+
+## Context
+
+Feasibility analysis for integrating https://auctions.cngcoins.com/ alongside numisbids.com as an auction source. This decision captures the backend architectural recommendations.
+
+## Primary Decision: Multi-Source Service Interface
+
+**Recommendation:** Use service interface abstraction (Option A) rather than per-source handler routes.
+
+```go
+type AuctionSourceService interface {
+    Login(username, password string) (*http.Client, error)
+    FetchWatchlist(client *http.Client) (string, error)
+    ScrapeLotPage(lotURL string) (*LotPageDetails, error)
+    ParseWatchlist(rawHTML string) []WatchlistLot
+}
+```
+
+**Rationale:**
+1. Reusable logic: Both NumisBidsService and CNGAuctionsService implement the same interface
+2. DRY handler: Single `SyncWatchlist()` route dispatches to the correct service via a map
+3. Extensible: Future auction sources (Heritage, Sotheby's, etc.) plug in without route bloat
+4. Testable: Mock interface for unit tests, not separate test doubles per handler
+
+**Alternative rejected:** Per-source routes (`/auctions/sync/cng`, `/auctions/sync/heritage`) — creates n copies of handler logic.
+
+## Secondary Decision: Credential Storage (No Persistence)
+
+**Recommendation:** Accept credentials per-request only; do NOT persist in database.
+
+**Rationale:**
+1. Security: Eliminates encryption key rotation, credential leak surface, audit compliance burden
+2. UX acceptable: Users re-enter credentials on each sync (comparable to browser login workflow)
+3. Future-proof: If encrypted storage becomes necessary (scheduled sync), add opt-in in Phase 2
+
+**Implementation:**
+- Accept credentials in request body (HTTPS enforced)
+- Create authenticated HTTP client within handler
+- Fetch and parse data; discard credentials after response
+- Store only results (`AuctionLot` records)
+
+**Alternate considered:** Encrypted credential storage — adds complexity; defer to Phase 2 if users request scheduled sync.
+
+## Tertiary Decision: Data Model Changes (Minimal, Backward-Compatible)
+
+**Recommendation:** Add `Source`, `SourceLotID`, `SourceSaleID`, `SourceURL` fields; keep `NumisBidsURL` for fallback.
+
+**Schema:**
+```sql
+ALTER TABLE auction_lots ADD COLUMN source VARCHAR(20) DEFAULT 'numisbids';
+ALTER TABLE auction_lots ADD COLUMN source_lot_id VARCHAR(50) INDEX;
+ALTER TABLE auction_lots ADD COLUMN source_sale_id VARCHAR(50);
+ALTER TABLE auction_lots ADD COLUMN source_url VARCHAR(2048);
+
+-- Backfill existing records
+UPDATE auction_lots SET source_url = numisbids_url WHERE source = 'numisbids' AND source_url IS NULL;
+```
+
+**Rationale:**
+1. No breaking changes: Existing NumisBids lots default to `source = 'numisbids'`
+2. Extensible: Future sources inherit same schema
+3. Indexed: `source_lot_id` indexed for lookup efficiency
+4. Canonical URLs: Can reconstruct URLs from source + source_lot_id
+
+**Alternative rejected:** Drop `NumisBidsURL`, use only `SourceURL` — breaks existing data/serialization; prefer additive schema.
+
+## Implementation Phases
+
+### Phase 1: Core Service (1 sprint)
+- `CNGAuctionsService` (login, watchlist fetch, auth verification)
+- Unit tests (mocked HTTP)
+- HTML parsing fixtures from credentialed testing
+
+### Phase 2: Integration (1 sprint)
+- Watchlist parsing, lot detail scraping
+- Handler refactor (interface-based)
+- Schema migration, integration tests
+
+### Phase 3: UX & Admin (0.5–1 sprint)
+- Frontend source filter, validation UI
+- Admin dashboard (source breakdown, last-sync times)
+- Optional: scheduled sync (Phase 2 feedback decision)
+
+## Risk Mitigation
+
+| Risk | Mitigation |
+|------|-----------|
+| **CNG auth unknown** | Spike Phase 1 tests login; fast feedback on blockers |
+| **DOM fragility** | Unit tests with fixtures; monitor error logs; rapid response process documented |
+| **Rate limiting** | Stress testing Phase 2; implement backoff; per-user rate limit if needed |
+| **Credential leaks** | Sanitize errors, never log passwords, HTTPS enforced, rate limit credential endpoint |
+| **Schema complexity** | Additive schema; backward compatible; no breaking migrations |
+
+## Open Questions (Require Credentialed Testing)
+
+Brian must provide temporary credentials + CNG account access. Cassius will:
+1. Test login endpoint and session cookie behavior
+2. Identify watchlist URL and HTML structure
+3. Map lot page URL pattern and key DOM selectors
+4. Analyze date formats, currency handling, image URLs
+5. Verify rate limiting thresholds
+
+Results feed into Phase 1 implementation.
+
+## Success Criteria
+
+- [ ] Phase 1: `CNGAuctionsService` passes unit tests; auth flow documented
+- [ ] Phase 2: Sync endpoint works end-to-end; backward compatibility verified
+- [ ] Phase 3: User can filter auctions by source; admin sees source stats
+- [ ] Zero breaking changes to existing NumisBids workflow
+- [ ] Architecture tests pass; no layer violations
+
+## Dependencies
+
+- **User input:** Temporary CNG credentials + account access (Phase 1 blocker)
+- **Frontend:** Concurrent UI changes (not in this spike; Brian/Aurelia scope)
+- **Admin:** Optional Phase 2 refinement (depends on early feedback)
+
+## Related Artifacts
+
+- Full spike analysis: `.squad/artifacts/cng-auction-backend-spike.md`
+- Existing NumisBids reference: `src/api/services/numisbids_service.go`, tests in `numisbids_service_test.go`
+- Constitution compliance: Principles I (layered), II (service boundary), XI (security), VII (schema-driven)
+
+---
+
+### Decision: CNG Auctions Frontend Spike — Phase 1 Assessment
+
+**Date:** 2026-06-30  
+**Owner:** Aurelia  
+**Status:** Analysis Complete (No Implementation)
+
+## Context
+
+Frontend/UX impact assessment for adding CNG Auctions (https://auctions.cngcoins.com/) alongside existing NumisBids integration. Core finding: **Feature parity achievable with phased UI changes + backend model refactor**. Current `AuctionLot` model hardcoded to NumisBids; refactor to add `provider` enum field enables multi-source support.
+
+## Current State (NumisBids Only)
+
+**Pages & Routes:**
+- `AuctionsPage.vue` — lot list, status filter, pagination, sync/import buttons
+- `Route: /auctions` — main entry point
+
+**Components:**
+- `AuctionLotCard.vue` — displays title, meta, pricing, status badge, external link
+- `AuctionLotDetailModal.vue` — edit mode for title, notes, URL, dates, bids
+- `ImportLotModal.vue` — "Add from NumisBids" modal; accepts URL, scrapes metadata
+- `AuctionStatusFilter.vue` — tab filter (watching, bidding, won, lost, passed) with counts
+- `AuctionBulkActionBar.vue` — link lots to calendar events
+
+**Data Model (`AuctionLot`):**
+```
+- NumisBidsURL (provider-specific; named field)
+- AuctionHouse (generic, e.g., "Heritage Auctions")
+- Title, Description, Notes (generic)
+- Status, Estimate, CurrentBid, MaxBid (generic)
+- Category, Currency (generic)
+- ImageURL, SaleDate, AuctionEndTime (generic)
+```
+
+**API Client Methods:**
+- `getAuctionLots(params)` → filter by status, search, sort, page
+- `importAuctionLot(url)` → scrape + parse metadata
+- `syncNumisBidsWatchlist()` → sync account watchlist (NumisBids-specific)
+- `validateNumisBidsCredentials()` → test login
+- `updateAuctionLotStatus()`, `updateAuctionLot()` → edit operations
+
+**User Credentials:**
+- `User.NumisBidsUsername`, `User.NumisBidsPassword` (encrypted at rest)
+- Stored per-user; used by sync endpoint to fetch watchlist
+
+## Feature Parity Analysis
+
+| Feature | NumisBids | CNG | Notes |
+|---------|-----------|-----|-------|
+| URL import | ✅ | ✅ | CNG URLs differ; import logic provider-aware |
+| Watchlist sync | ✅ | ✅ | Requires CNG auth API (TBD by Cassius) |
+| Status lifecycle | ✅ | ✅ | watching → bidding → won/lost/passed |
+| Max bid tracking | ✅ | ✅ | Same field semantics |
+| Estimate/bid history | ✅ | ✅ | CNG may expose via Paddle or scraping |
+| Image caching | ✅ | ✅ | Same proxy pattern |
+| Calendar integration | ✅ | ✅ | Lot ↔ event linking, generic |
+| Bulk operations | ✅ | ✅ | Status change, link events, generic |
+| Status filtering | ✅ | ✅ | Same filter UI + counts |
+
+**Outcome:** Feature parity achievable; core UX patterns remain unchanged.
+
+## Phased Implementation Roadmap
+
+| Phase | Tasks | Files | Owner | Est. |
+|-------|-------|-------|-------|------|
+| 1 | Add `provider` type; update `AuctionLot` type | `types/index.ts` | Aurelia + Cassius | 1 turn |
+| 2 | Add provider badge; update card/modal display | `AuctionLotCard.vue`, `AuctionLotDetailModal.vue` | Aurelia | 2 turns |
+| 3 | Expand import modal with provider selector | `ImportLotModal.vue`, `client.ts` | Aurelia + Cassius | 2 turns |
+| 4 | Add credentials section to settings | `SettingsAuctionProvidersSection.vue`, `User` model, auth endpoints | Aurelia + Cassius | 3 turns |
+| 5 | Provider filtering & per-provider sync (optional) | `AuctionsPage.vue`, `AuctionStatusFilter.vue`, endpoints | Aurelia + Cassius | 2 turns |
+
+**MVP scope:** Phases 1–3 (types + UI + import flow)  
+**Nice-to-have:** Phases 4–5 (full feature parity)
+
+## What This Spike Cannot Validate
+
+**Requires Authenticated Access to CNG:**
+- CNG watchlist API schema & pagination
+- CNG lot page scraping robustness
+- CNG authentication flow (cookies, CSRF, MFA)
+- Real-world sync performance (lot count, rate limits)
+- Paddle integration (if applicable)
+- Image server CDN compatibility
+
+**Recommendation:** Use temporary CNG credentials (user-provided, rotated post-spike) to test backend scraper + API integration on a staging environment.
+
+## Conclusion
+
+Frontend/UX impact is **low-risk and contained**. No new routes, no major component restructuring. Phased approach allows backend to proceed in parallel (CNG scraper, Paddle API, credential endpoints). MVP requires only Phases 1–3 (types + UI + import flow); Phases 4–5 are "nice-to-have" for full feature parity.
+
+**Next:** Cassius to assess backend complexity (CNG scraper difficulty, auth API availability, credential storage).
+
+---
+
+### Decision: CNG Auctions QA/Risk Assessment
+
+**Author:** Brutus (QA/Tester)  
+**Date:** 2026-06-30  
+**Status:** Spike Findings (Ready for Team Review)
+
+## Executive Summary
+
+Adding CNG Auctions feature parity requires parallel authentication, scraping, and data mapping to NumisBids' current implementation. Key risks are external site fragility, credential lifecycle, and parser regression. Test strategy leverages existing patterns (httptest, fixtures, contract tests) with public/authenticated stubs for spike scope.
+
+## Existing NumisBids Test Coverage
+
+### Service Layer
+- ✅ Watchlist link parsing (absolute `/sale/{saleID}/lot/{lotNum}` URLs)
+- ✅ Legacy link format (`/n.php?p=lot&sid=X&lot=Y`)
+- ✅ Currency extraction (AUD, USD, EUR, etc.)
+- ✅ Authentication: POST email/password, session cookie capture, watchlist fetch verification
+- ✅ Login rejection: non-success JSON status, login prompt detection
+- ✅ HTML parsing edge cases: multiple `<div class="description">` blocks (takes last one to skip postbid/watchnote)
+
+**Gaps:** Rate-limiting, session expiry, network failure recovery, data freshness validation, multi-page watchlist
+
+### Repository Layer
+- ✅ Status transitions (watching → bidding/passed, bidding → won/lost/watching, etc.)
+- ✅ 24-hour rolling window for "ending soon" queries
+- ✅ Pagination and sorting
+- ✅ User ownership scoping
+
+**Gaps:** URL uniqueness constraints, multi-auction-house conflicts, concurrent update safety
+
+## Likely Regression Areas
+
+### 1. **Parser Fragility** (HIGH RISK)
+- NumisBids parser is regex-based with hard-coded patterns
+- CNG may vary in URL structure, estimate field naming, image field (og:image? og:media:image? data-src?)
+- **Test Strategy:** Public site snapshot (committed fixtures), parser unit tests per field
+
+### 2. **Authentication & Credential Lifecycle** (HIGH RISK)
+- Current NumisBids: `Login()` → POST, capture session cookie; cache in memory only
+- CNG unknowns: Session cookies? JWT tokens? OAuth? Rate limiting on login? Scraper user agent detection?
+- **Test Strategy:** httptest stubs (unit tests); live testing deferred to Phase 2; verify cookie jar properly scoped
+
+### 3. **Data Mapping & Enrichment** (MEDIUM RISK)
+- `AuctionLot` has NumisBids-specific field (`NumisBidsURL`)
+- Coin conversion relies on assumptions about data shape (title, description, reference) that CNG may not provide identically
+- **Test Strategy:** Schema migration tests; data mapping tests; coin conversion tests
+
+### 4. **External Site Downtime** (MEDIUM RISK)
+- NumisBids unavailability → scraper fails; CNG unavailability → same
+- Current handling: Timeout 30s; 404/5xx → logs error, returns nil
+- **Test Strategy:** Timeout tests (httptest with slow response); error response tests (5xx, 429); cascading failure tests
+
+## External-Site Test Strategy
+
+### Phase 1: Spike (Unit Tests, Public Pages Only)
+
+**Allowed:**
+- ✅ httptest stubs mimicking CNG responses
+- ✅ Fixture files with real CNG HTML snapshots (scraped once, committed, never updated)
+- ✅ Public (unauthenticated) CNG lot page parsing (if accessible)
+
+**Not Allowed:**
+- ❌ Live HTTP requests to production auctions.cngcoins.com
+- ❌ Storing credentials in test files or VCS
+- ❌ Authenticated testing against real CNG account
+
+**Fixture Strategy:**
+1. Manually scrape one real CNG lot page
+2. Save HTML to `src/api/testutil/fixtures/cng_lot_page.html`
+3. Test parsers against fixture (no live network calls)
+
+### Phase 2: Authenticated Testing (Post-Spike)
+
+- Temporary CNG account (credentials rotated after spike approval)
+- Environment variable injection (never hardcoded)
+- Integration test suite that connects to real CNG (in separate `integration_test.go` file, skippable)
+- VCS exclusion (no `.env` or `secrets/` folder tracked)
+
+### Phase 3: Contract/Recording Tests
+
+- Use a recording proxy (e.g., VCR for Go) to capture real HTTP exchanges
+- Replay recorded cassettes in CI (no live calls)
+- Update cassettes when CNG schema changes (reviewed in PR)
+
+## Risk Matrix
+
+| Risk | Likelihood | Impact | Mitigation | Status |
+|------|-----------|--------|-----------|--------|
+| **Parser breaks on CNG schema drift** | HIGH | HIGH | Fixture snapshots + unit tests; PR review | Design in spike |
+| **Authentication fails / rate-limited** | HIGH | MEDIUM | Stub-based spike tests; live testing deferred | Design in spike |
+| **Credential leakage** | MEDIUM | CRITICAL | Env vars only; post-spike rotation; vault | Process in spike |
+| **Data schema collision** | MEDIUM | MEDIUM | Migration rollback tested; unique constraint | Schema design in spike |
+| **Watchlist pagination unhandled** | MEDIUM | MEDIUM | Add paginator abstraction; multi-page parsing | Design in spike |
+| **Concurrent lot updates** | MEDIUM | LOW | Transactional updates; race tests | Out of spike |
+| **Frontend regression (auction list)** | MEDIUM | MEDIUM | Vue snapshot tests + E2E | Post-spike |
+| **Performance: large watchlists** | LOW | MEDIUM | Batch size limits; pagination | Post-spike |
+
+## Recommended Test Strategy
+
+### Go Backend
+
+**Unit Tests:**
+```bash
+go test -v ./services -run "TestCNG"             # CNG service tests (parser, auth stub)
+go test -v ./repository -run "TestAuctionLot.*"  # Auction lot repo (no CNG-specific, regression)
+go test -v ./models -run ".*Migration"           # Schema migration tests
+go test -v ./... -run "TestArchitecture"         # Architecture rules (verify DI unchanged)
+```
+
+**Coverage Target:** Parser 100%, auth stub 100%, data mapping 80%, error handling 85%
+
+**Test Files to Create:**
+- `src/api/services/cng_auction_service.go` + `cng_auction_service_test.go`
+- `src/api/testutil/fixtures/cng_*.html` (snapshots)
+- `src/api/models/migration_test.go` (if not already comprehensive)
+
+### Vue Frontend
+
+**Component Tests:** (Deferred to post-spike)
+- Auction list filter (both sources visible? sorting works?)
+- Lot details modal (fields render correctly for both CNG and NumisBids?)
+- Add-to-watchlist form (source picker?)
+
+## Spike Acceptance Criteria (QA Gate)
+
+Before "Spike Complete" can be declared:
+
+1. ✅ **Test Plan Approved**
+2. ✅ **Fixtures Committed** (CNG public lot page HTML snapshot)
+3. ✅ **Parser Unit Tests Pass** (all required fields extractable)
+4. ✅ **Schema Migration Tested** (new fields, data preservation, rollback)
+5. ✅ **Auth Stub Tests Pass** (login, session verification, sentinel errors)
+6. ✅ **Regression Tests Pass** (NumisBids parser unchanged; architecture rules pass)
+7. ✅ **Documentation Complete** (spike scope, fixture handling, credential strategy)
+8. ✅ **Security Review** (no credentials in code/VCS; env vars documented)
+
+## Learnings for Project Memory
+
+### Pattern: External Service Integration with Fixtures
+1. NumisBids (Authenticated): Service layer owns scraping; repository stores parsed data; handler exposes REST API
+2. Availability Checker: Lightweight HTTP client; keyword-based detection; escalates to AI agent
+3. Wishlist Search Alert: Async agent-driven discovery; results stored as candidates; user review step
+
+**Key Pattern:** Spike on public/stub testing first, then authenticated testing with temporary credentials post-spike.
+
+### Pattern: Regex Parser Fragility
+- All external site parsers are fragile to schema changes
+- Mitigations: Fixture snapshots (immutable test data), unit tests per field (isolated validation), sentinel errors (parser reports which field failed), logging (trace captures intermediate steps)
+
+### Anti-Pattern: Credential Handling
+- Do NOT store credentials in tests, even "test" accounts
+- Use httptest stubs (unit tests), environment variables (integration tests)
+- Document credential rotation strategy

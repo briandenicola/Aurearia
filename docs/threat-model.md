@@ -1,6 +1,6 @@
 # Threat Model
 
-> The live inventory of known security threats and security-review findings for Ancient Coins. This document keeps the original **backend / frontend / supply-chain** split because those are the operational owners and remediation surfaces in this repo.
+> The live inventory of known security threats and security-review findings for Aurearia. This document keeps the original **backend / frontend / supply-chain** split because those are the operational owners and remediation surfaces in this repo.
 
 ## How to add a new threat finding
 
@@ -14,10 +14,10 @@
 
 | Domain | Findings | Mitigated | Open | Accepted |
 |---|---:|---:|---:|---:|
-| Backend API | 10 | 9 | 1 | 0 |
+| Backend API | 11 | 10 | 1 | 0 |
 | Frontend | 8 | 3 | 4 | 1 |
 | Supply chain & infrastructure | 7 | 2 | 5 | 0 |
-| **Total** | **25 enumerated** | **14** | **10** | **1** |
+| **Total** | **26 enumerated** | **15** | **10** | **1** |
 
 **Last reconciliation:** 2026-06-01. Recent mitigations include B-2 (SQL injection whitelist), B-6/B-7/B-8 (request size limits, WebAuthn TTL and origin validation), B-10 (external tool server capability scoping, two-phase writes, kill switch, per-key rate limiting, tenant isolation), F-1/F-2/F-4 (DOMPurify sanitization for XSS), SC-1/SC-2 (GitHub Actions SHA pins, Taskfile secret generation). Status table reflects current code state.
 
@@ -35,6 +35,7 @@
 | B-8 | Medium | Mitigated | `src/api/handlers/webauthn.go` | WebAuthn origin validation now restricts to configured RP origins; dynamic trust from request headers removed. | Ensure RP origin configuration is correct at deployment time; document in security-principles.md. See issue #202. |
 | B-9 | Low | Open (P3) | `src/api/handlers/numista.go` | Some error responses expose more internal detail than clients need. | Return generic client-facing errors and keep specifics in logs only. [#163](https://github.com/briandenicola/coin-collection-app/issues/163) |
 | B-10 | High | Mitigated | `src/api/handlers/external_tools.go`, `src/api/middleware/external_tools_gate.go`, `src/api/middleware/capability.go`, `src/api/main.go` (lines 469–506), `src/api/models/api_key.go` | External tool server (`/api/v1/tools/*`) exposes write operations over a public HTTP surface, introducing risk of unauthorized or accidental writes. Mitigations: (1) Default-off admin kill switch (`ExternalToolServerEnabled`), (2) API key capability scopes (`read` default, `read,write` opt-in), (3) Two-phase proposal+confirm flow (no auto-writes), (4) Field allowlist (identity fields rejected), (5) Per-key rate limiting (50 req/min, stricter than in-app), (6) Journaled audit trail with source `external_tool_server` and API key id/name/capabilities, (7) Server-side tenant isolation (user identity derived from key, no cross-user access). See [external-tool-server.md](external-tool-server.md) for full security model. | Maintain the layered defenses (kill switch, least-privilege scopes, confirm gate, allowlist, rate limits, journaling). Monitor audit logs for unexpected external commits. Periodically review API key scopes and revoke unused keys. Issue #218. |
+| B-11 | High | Mitigated | `src/api/services/credential_encryption_service.go`, `src/api/handlers/user.go`, `src/api/handlers/auction_lots.go`, `src/api/models/user.go` | NumisBids and CNG provider credentials are stored per-user and encrypted at rest. | Keep provider passwords encrypted with AES-GCM using `AUCTION_CREDENTIAL_ENCRYPTION_KEY`; legacy plaintext values migrate lazily to `enc:v1:` on next save or sync. If the key is lost or changed without re-encrypting, users must re-enter provider passwords. |
 
 ## Frontend findings
 

@@ -542,6 +542,8 @@ definitions:
         type: string
       saleName:
         type: string
+      source:
+        type: string
       title:
         type: string
       url:
@@ -870,6 +872,11 @@ definitions:
       values:
         $ref: '#/definitions/handlers.ValueSummary'
     type: object
+  handlers.SyncWatchlistRequest:
+    properties:
+      source:
+        type: string
+    type: object
   handlers.SyncWatchlistResponse:
     properties:
       lots:
@@ -964,6 +971,8 @@ definitions:
   handlers.ValidateNumisBidsRequest:
     properties:
       password:
+        type: string
+      source:
         type: string
       username:
         type: string
@@ -1326,27 +1335,29 @@ definitions:
           $ref: '#/definitions/services.OIDCPublicProviderDTO'
         type: array
     type: object
+  handlers.promoteDraftOverridesRequest:
+    properties:
+      category:
+        type: string
+      era:
+        type: string
+      material:
+        type: string
+      name:
+        type: string
+      notes:
+        type: string
+      purchaseLocation:
+        type: string
+      purchasePrice:
+        type: number
+    type: object
   handlers.promoteDraftRequest:
     properties:
       confirm:
         type: boolean
       overrides:
-        properties:
-          category:
-            type: string
-          era:
-            type: string
-          material:
-            type: string
-          name:
-            type: string
-          notes:
-            type: string
-          purchaseLocation:
-            type: string
-          purchasePrice:
-            type: number
-        type: object
+        $ref: '#/definitions/handlers.promoteDraftOverridesRequest'
       target:
         type: string
     type: object
@@ -1699,6 +1710,14 @@ definitions:
         type: string
       saleName:
         type: string
+      source:
+        $ref: '#/definitions/models.AuctionSource'
+      sourceLotId:
+        type: string
+      sourceSaleId:
+        type: string
+      sourceUrl:
+        type: string
       status:
         $ref: '#/definitions/models.AuctionLotStatus'
       title:
@@ -1722,6 +1741,14 @@ definitions:
     - AuctionStatusWon
     - AuctionStatusLost
     - AuctionStatusPassed
+  models.AuctionSource:
+    enum:
+    - numisbids
+    - cng
+    type: string
+    x-enum-varnames:
+    - AuctionSourceNumisBids
+    - AuctionSourceCNG
   models.CandidateProvenance:
     properties:
       candidateId:
@@ -2732,9 +2759,10 @@ definitions:
     type: object
 info:
   contact: {}
-  description: REST API for managing an ancient coin collection. Supports coin CRUD,
-    image uploads, AI-powered analysis via Ollama, user management, and admin features.
-  title: Ancient Coins API
+  description: REST API for managing a personal coin collection. Supports coin CRUD,
+    image uploads, AI-powered analysis, user management, auction tracking, and admin
+    features.
+  title: Aurearia API
   version: "1.0"
 paths:
   /admin/api-keys/notify-rotation:
@@ -4630,6 +4658,10 @@ paths:
         in: query
         name: status
         type: string
+      - description: Filter by auction source (numisbids, cng)
+        in: query
+        name: source
+        type: string
       - description: Search across title, description, auction house
         in: query
         name: search
@@ -4911,7 +4943,13 @@ paths:
       - Auctions
   /auctions/counts:
     get:
-      description: Returns a map of status → count for the authenticated user.
+      description: Returns a map of status → count for the authenticated user, optionally
+        scoped to one auction source.
+      parameters:
+      - description: Filter by auction source (numisbids, cng)
+        in: query
+        name: source
+        type: string
       produces:
       - application/json
       responses:
@@ -4957,8 +4995,19 @@ paths:
       - Auctions
   /auctions/sync:
     post:
-      description: Logs into NumisBids with the user's stored credentials, fetches
-        their watchlist, and upserts each lot.
+      description: Logs into NumisBids or CNG with the user's stored credentials,
+        fetches the selected watchlist, and upserts each lot. Defaults to NumisBids
+        when source is omitted.
+      parameters:
+      - description: Auction source (numisbids, cng)
+        in: query
+        name: source
+        type: string
+      - description: Auction source request
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/handlers.SyncWatchlistRequest'
       produces:
       - application/json
       responses:
@@ -4980,17 +5029,17 @@ paths:
             $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Sync NumisBids watchlist
+      summary: Sync auction watchlist
       tags:
       - Auctions
   /auctions/validate-credentials:
     post:
       consumes:
       - application/json
-      description: Attempts to log in to NumisBids with the provided credentials to
-        verify they are correct.
+      description: Attempts to log in to NumisBids or CNG with the provided credentials.
+        Defaults to NumisBids when source is omitted.
       parameters:
-      - description: NumisBids credentials
+      - description: Auction provider credentials
         in: body
         name: body
         required: true
@@ -5015,7 +5064,7 @@ paths:
             $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Validate NumisBids credentials
+      summary: Validate auction provider credentials
       tags:
       - Auctions
   /auth/api-keys:

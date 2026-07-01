@@ -37,6 +37,56 @@ describe('CoinLookupPage', () => {
       value: vi.fn(),
       configurable: true,
     })
+    Object.defineProperty(navigator, 'mediaDevices', {
+      value: undefined,
+      configurable: true,
+    })
+  })
+
+  it('waits for a user tap before requesting camera permission', async () => {
+    const getUserMedia = vi.fn().mockResolvedValue({
+      getTracks: () => [{ stop: vi.fn() }],
+    })
+    Object.defineProperty(navigator, 'mediaDevices', {
+      value: { getUserMedia },
+      configurable: true,
+    })
+    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+      value: vi.fn().mockResolvedValue(undefined),
+      configurable: true,
+    })
+
+    const wrapper = mount(CoinLookupPage, {
+      global: {
+        stubs: {
+          Camera: true,
+          Images: true,
+          Search: true,
+          X: true,
+          AlertCircle: true,
+          ShieldCheck: true,
+          ExternalLink: true,
+          RotateCcw: true,
+          Bookmark: true,
+          List: true,
+        },
+      },
+    })
+
+    await flushPromises()
+    expect(getUserMedia).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Start Camera')
+    expect(wrapper.find('.shutter-btn').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('.upload-icon-btn').exists()).toBe(true)
+
+    await wrapper.find('.camera-start-btn').trigger('click')
+    await flushPromises()
+
+    expect(getUserMedia).toHaveBeenCalledTimes(1)
+    expect(getUserMedia).toHaveBeenCalledWith({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false,
+    })
   })
 
   it('saves lookup results as a quick capture draft', async () => {

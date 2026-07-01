@@ -586,3 +586,23 @@ Created src/api/services/availability_service_test.go with comprehensive test co
 - **2026-06-29 — Find Coin structured lookup analysis:** Find Coin image lookup now sends `format_output=false` to the Python `/api/analyze` contract so the vision model's raw JSON is returned instead of the normal narrative formatter. Go lookup parsing now backfills safe `Name:`, `Ruler:`, `Denomination:`, `Category:`, and NGC slash-label fields before falling back to `Unidentified Coin`; NGC labels like `ROMAN EMPIRE / Constantine I, AD 307-337 / BI Reduced Nummus / LONDON MINT` produce Constantine/Reduced Nummus/London/Billon/Roman fields. Targeted validation: `go test -v .\services -run "Test(ExtractCoinFields|BuildPrefilledDraftUses|BuildPrefilledDraftKeeps|BuildPrefilledDraftFalls)"`, targeted agent pytest for raw format opt-in, and `ruff check` on changed Python files.
 
 - **2026-06-30 — Quick Capture Promotion Target Backend:** Added backward-compatible `target` support to `POST /api/quick-capture/drafts/:id/promote`. Omitted/empty target defaults to `collection`; `wishlist` sets `Coin.IsWishlist=true` while preserving owner scope, idempotent promoted coin reuse, draft lifecycle, image transfer, and validation errors. Updated Quick Capture service/handler tests and regenerated OpenAPI via `task openapi`. Validation: `go test -v ./services ./handlers ./repository -run "TestQuickCapture"` ✅ and `go vet ./services ./handlers ./repository` ✅.
+
+- **2026-06-30 — CNG Auctions Backend Integration Spike:** Analyzed feasibility of adding https://auctions.cngcoins.com/ as an auction source alongside NumisBids. No code written; findings documented in `.squad/artifacts/cng-auction-backend-spike.md`. Key findings:
+  - **Feasible**: Follows established NumisBids scraping pattern already in codebase
+  - **Scope**: ~3–4 sprints (21–34 pts) across Phase 1 (core service), Phase 2 (parsing + handler), Phase 3 (settings/admin)
+  - **Architecture approach**: Abstract scraping behind `AuctionSourceService` interface (Option A recommended); add `Source`, `SourceLotID`, `SourceURL` fields to `AuctionLot` model; keep credential handling ephemeral (no DB persistence)
+  - **Key risks**: CNG uses undocumented Auction Mobility platform (AngularJS SPA), no public API, DOM fragility, authentication flow unknown, rate limiting/bot detection unknown
+  - **Blockers**: Requires credentialed testing to map URL structure, watchlist endpoint, authentication flow, DOM selectors. User must provide temporary credentials; Cassius will analyze HTML samples.
+  - **Security**: Never persist credentials; accept only per-request; enforce HTTPS; rate-limit credential endpoints; use same error sanitization patterns as NumisBids
+  - **Data model**: Add optional `Source` column (default 'numisbids'), `SourceLotID` (CNG lot ID), `SourceSaleID`, `SourceURL`; backward-compatible (no breaking migrations)
+  - **Learnings**: NumisBids integration is clean and reusable; multi-source architecture should use service interface, not separate handlers per source; credential handling requires careful design; scraping-based sources need DOM stability monitoring and rapid response to platform changes.
+
+- **2026-06-30 — CNG Auctions Backend Integration Spike (Complete):** Completed backend analysis for CNG Auctions integration spike. Decision documented in .squad/decisions.md. Key recommendations:
+  - **Architecture:** Multi-source service interface pattern (Option A) — single AuctionSourceService interface with NumisBidsService + CNGAuctionsService implementations.
+  - **Credential handling:** Accept per-request only; do NOT persist in DB. Users re-enter on each sync. Future: Phase 2 can add optional encrypted storage if scheduled sync needed.
+  - **Data model:** Add source, source_lot_id, source_sale_id, source_url fields (backward-compatible; existing NumisBids lots default to source='numisbids').
+  - **Phases:** Phase 1 core service (1 sprint), Phase 2 integration + handler refactor (1 sprint), Phase 3 UX/admin (0.5–1 sprint).
+  - **Risks:** CNG auth unknown, DOM fragility, rate limiting, credential leaks (mitigated by fixture-based testing + Phase 1 credentialed research).
+  - **Blocker:** Phase 1 requires credentialed CNG testing (user-provided account) to verify login, watchlist structure, DOM selectors.
+  - **Quality gate:** No implementation started. Awaiting Phase 1 research go/no-go decision and encryption layer prerequisite resolution.
+  - **Orchestration log:** .squad/orchestration-log/2026-06-30T22-43-42Z-cassius.md.

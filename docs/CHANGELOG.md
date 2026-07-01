@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the Ancient Coins project are documented in this file.
+All notable changes to the Aurearia project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Project constitution** — 16 principles (v1.1.0) governing all code changes, referenced by Squad agent charters
 - **Constitution enforcement** — Automated design token tests (border-radius, hex colors, font-size budgets)
 - **Layer READMEs** — New README.md files for `src/api/`, `src/agent/`, replaced default Vite template in `src/web/`
+- **CNG Auctions support** — Import CNG lots, sync CNG watched lots, and filter auction tracking by provider alongside NumisBids
+- **Encrypted auction credentials** — Stored NumisBids and CNG provider passwords are encrypted at rest with lazy plaintext migration
 
 ### Changed
 
@@ -44,7 +46,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Image management** — Multi-image upload (file + base64), obverse/reverse/detail types, primary image selection, proxy and scrape helpers
 - **AI analysis** — Vision model coin analysis, text extraction, multi-provider support (Anthropic + Ollama)
 - **Multi-agent service** — Python FastAPI/LangGraph service with 5 team pipelines (Coin Search, Coin Shows, Coin Analysis, Portfolio Review, Availability Check)
-- **Auction tracking** — NumisBids integration, import/sync watchlists, lot-to-coin conversion, calendar event linking
+- **Auction tracking** — NumisBids and CNG Auctions integration, import/sync watchlists, lot-to-coin conversion, calendar event linking
 - **Social features** — Follow/accept/block users, view follower coins, comments, ratings, public profiles
 - **Showcases** — Curated public galleries with drag-and-drop ordering, shareable slugs
 - **Collection tools** — Tags, bulk operations, journal entries, value history tracking, suggestions autocomplete

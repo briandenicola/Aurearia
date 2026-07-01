@@ -33,11 +33,24 @@
 
 ## Learnings
 
+- **2026-06-30 (User-initiated camera start):** `src/web/src/pages/AddCoinPage.vue` and `src/web/src/pages/CoinLookupPage.vue` now keep the custom live viewfinder and circular alignment overlay, but never call `getUserMedia()` on mount. Camera placeholders show a user-tapped "Start Camera" action; shutter controls stay disabled until `cameraReady`, upload remains available, and Add Coin still stops active streams when leaving agentic mode.
 - **2026-06-19 (Charts):** Redesigned `StatsValueOverTime.vue` with a two-column layout: left = chart area, right = side panel showing a large ROI% number + 3 summary pills. Sparse per-point SVG text labels use CSS `font-size` which stays readable even with `preserveAspectRatio="none"` because CSS rem units are not affected by SVG viewBox distortion. The circled endpoint callout is a large SVG `<circle r="30">` with an overlaid `<text>` element — CSS `font-size` on SVG text is not distorted. The zoom chips live in the PAGE (`StatsValueTrendsPage`) not inside the chart component; the page filters history and passes it via the `history` prop, so the chart is a pure presentation component. `isLoading = ref(true)` (not false) at initialization ensures the loading spinner is visible immediately before `onMounted` fires, which is required for unit tests that check loading state.
 - **2026-06-19 (Sankey v2 — Acquisition Flow):** Revised `StatsCoinFlowChart.vue` from Category→Era→Material to a purchase-based flow: **Purchase Period (year) → Ruler → Era → Type** (denomination preferred, category fallback, "Unknown Type" if both empty). Coins without a `purchaseDate` are excluded entirely — `chartCoins` is a computed filter over all loaded coins. Fetch now passes `sort: 'purchase_date', order: 'asc'` so results arrive in temporal order. Top-N=8 grouping applied to Ruler and Type: excess nodes are bucketed as "Other Rulers" / "Other Types" with muted color tokens. Material color maps removed; period nodes cycle through a PERIOD_PALETTE of 6 design-token colors. SVG widened to 760×380 with COL_X=[75,245,415,585] for 4 columns. `buildNodes()` signature changed from `(k: string) => string` to `(k: string, i: number) => string` to support index-based period palette cycling.
 - **2026-06-19 (Test: negative text check anti-pattern):** Asserting `wrapper.text()` does NOT contain a label string is fragile when that string also appears in footnote prose. Better approach: count `.sankey-node` elements or check specific SVG label elements rather than using `not.toContain()` on the full text dump.
 - **2026-06-19 (SVG text):** SVG `<text>` elements placed inside a `preserveAspectRatio="none"` SVG will have their x/y POSITION distorted proportionally to the viewBox scaling, but CSS `font-size` is applied in actual screen pixels. This means text labels at data point coordinates work well on desktop (horizontal scale ≈ 1:1) but may appear horizontally compressed on narrow mobile screens. Acceptable tradeoff for sparse inline chart labels.
  The legacy `coin-images` CacheStorage bucket is now a cleanup-only compatibility concern cleared from `src/web/src/stores/auth.ts` on logout and user switch; uploaded media URLs remain unchanged until backend authenticated media routes land.
+
+- **2026-06-30 (CNG Auctions Spike — Frontend/UX Assessment)**
+  - Analyzed current NumisBids integration: `AuctionsPage.vue` → lot list/filter → import via URL → sync watchlist
+  - Feature parity matrix created (all core features needed for CNG)
+  - UI changes identified: import modal provider selector, lot card provider badge, settings credentials section
+  - Phased frontend tasks outlined (5 phases: types → UI → import → credentials → filtering)
+  - Recommended UX: minimal MVP adds provider selector to import modal, shows badge on cards, syncs CNG via settings
+  - Data model refactor needed: add `provider` enum field to `AuctionLot` (backend-first)
+  - Credential storage: CNG username/password added to User model (encrypted at rest, like NumisBids)
+  - Public assessment complete; authenticated validation requires temporary CNG credentials (user will provide + rotate)
+  - Findings recorded in `.squad/decisions/inbox/aurelia-cng-auction-frontend.md`
+  - Assessment covers responsive/PWA concerns, mobile URL input validation, provider badge sizing, empty-state copy
 
 - **2026-06-30:** Find Coin Frontend Integration — Structured Field Normalization
   - Implemented Find Coin frontend layer with structured field normalization and camera integration
@@ -384,3 +397,16 @@ Investigated production 429s on collection browsing. App mount makes expected da
 - **2026-06-29:** Find Coin frontend normalization now derives missing review fields from prefilled drafts, extracted coinFields, parseable notes/raw analysis lines, and reliable NGC description/label fallbacks before saving Quick Capture drafts. Regression coverage lives in src/web/src/pages/__tests__/CoinLookupPage.test.ts; targeted Vitest (threads pool) and vue-tsc type-check passed.
 - **2026-06-29:** Find Coin review now treats obverse/reverse descriptions as source observations, not primary editable fields. `CoinLookupPage.vue` keeps compact editable structured fields (name, ruler, denomination, category, grade) and renders AI observations through `renderSafeMarkdown`; save notes are built from the deduplicated narrative so side descriptions are preserved without repeated text. Targeted coverage: `npm.cmd run test -- CoinLookupPage.test.ts`; strict check: `npm.cmd run type-check`.
 - **2026-06-30:** Quick Capture draft navigation now uses compact lucide `List` icon links in Identify Coin and Draft headers. Promotion UI uses the existing backend `target: "collection" | "wishlist"` contract, tokenized destination cards, and global form/button classes. Validation passed with targeted Vitest for CoinLookup/Draft/Promotion and `npm.cmd run type-check`.
+
+- **2026-06-30:** Draft Entry promotion consolidation — removed duplicate promotion-panel edit fields from `PromotionReadinessPanel.vue`, replaced them with compact readiness/confirmation UI, and passed current draft form values from `QuickCaptureDraftPage.vue` as promotion overrides so collection/wishlist promotion uses the edited fields above. Targeted Vitest and `npm run type-check` passed.
+
+- **2026-06-30 — CNG Auctions Frontend Spike (Complete):** Completed UX/frontend assessment for CNG Auctions integration spike. Decision documented in .squad/decisions.md. Key findings:
+  - **Feature parity:** Achievable with phased UI changes. No new routes, no major restructuring.
+  - **Current state:** NumisBids-only; AuctionLot hardcoded to NumisBids. Refactor: add provider enum ('numisbids' | 'cng') to enable multi-source.
+  - **MVP scope (Phases 1–3):** Types + provider badge + import modal with provider selector.
+  - **Nice-to-have (Phases 4–5):** Settings credentials section + provider filtering.
+  - **Risk:** LOW. Reuses existing chip/badge/modal patterns. Visual regression minimal. Type safety MEDIUM (requires backend provider field).
+  - **Responsive:** Provider selector: radio/tabs on desktop, dropdown on PWA/mobile.
+  - **Migration:** Existing NumisBids lots backfilled by backend (provider='numisbids'); no frontend breaking change.
+  - **Implementation roadmap:** 5 phases, ~10 turns total. Phase 1 (1 turn) and Phases 2–3 can proceed in parallel with Cassius backend work.
+  - **Orchestration log:** .squad/orchestration-log/2026-06-30T22-43-42Z-aurelia.md.

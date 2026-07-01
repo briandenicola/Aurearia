@@ -12,6 +12,15 @@ describe('QuickCaptureDraftPage', () => {
     expect(source).toContain('populateForm(res.data)')
     expect(source).toContain('updateQuickCaptureDraft')
     expect(source).toContain('workingTitle: workingTitle.value')
+    expect(source).toContain('name: workingTitle.value.trim()')
+    expect(source).toContain('purchaseLocation: acquisitionSource.value.trim()')
+    expect(source).toContain('purchasePrice: currentPurchasePrice()')
+    expect(source).toContain("return typeof purchasePrice.value === 'number' ? purchasePrice.value : null")
+    expect(source).toContain('notes: notes.value.trim()')
+    expect(source).not.toContain('name: workingTitle.value.trim() || undefined')
+    expect(source).not.toContain('purchaseLocation: acquisitionSource.value.trim() || undefined')
+    expect(source).not.toContain('purchasePrice.value ?? undefined')
+    expect(source).not.toContain('notes: notes.value.trim() || undefined')
     expect(source).toContain('removeImageIds.value.size > 0')
     expect(source).toContain('QuickCaptureImageSlots')
     expect(source).toContain('Draft saved.')
@@ -27,6 +36,7 @@ describe('QuickCaptureDraftPage', () => {
 
   it('preserves promotion integration and links terminal states without broad page coupling', () => {
     expect(source).toContain('PromotionReadinessPanel')
+    expect(source).toContain(':promotion-overrides="promotionOverrides"')
     expect(source).toContain('This draft was promoted to a coin.')
     expect(source).toContain('View Coin')
     expect(source).toContain('This draft has been discarded.')

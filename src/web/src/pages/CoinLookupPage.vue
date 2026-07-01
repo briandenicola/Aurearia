@@ -28,7 +28,15 @@
           />
           <div v-if="!cameraStream" class="camera-placeholder">
             <Camera :size="48" />
-            <p>Camera starting...</p>
+            <p>Start the camera when you're ready.</p>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm camera-start-btn"
+              @click="startCamera"
+            >
+              <Camera :size="16" />
+              Start Camera
+            </button>
           </div>
           <div v-if="cameraError" class="camera-error-banner">{{ cameraError }}</div>
 
@@ -267,7 +275,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, reactive, onBeforeUnmount, nextTick } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { createQuickCaptureDraft, lookupCoin } from '@/api/client'
 import { MATERIALS, type CoinLookupResponse, type CoinMutationPayload, type Material } from '@/types'
@@ -826,7 +834,6 @@ function handleRetake() {
   applyDraftToReviewForm({})
 
   state.value = 'capture'
-  void startCamera()
 }
 
 function handleCancel() {
@@ -884,10 +891,6 @@ async function handleSaveAsDraft() {
     saving.value = false
   }
 }
-
-onMounted(() => {
-  void startCamera()
-})
 
 onBeforeUnmount(() => {
   stopCamera()
@@ -952,6 +955,16 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: 0.5rem;
   color: var(--text-muted);
+}
+
+.camera-placeholder p {
+  margin: 0;
+}
+
+.camera-start-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .camera-error-banner {

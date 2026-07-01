@@ -188,7 +188,7 @@ GET    /admin/availability-runs/:id     # Admin: view details of one run
 - [Collection Management](collection-management.md) — Browse owned coins
 - [Coin Details](coin-details.md) — Full metadata for each coin
 - [AI Coin Search Agent](ai-search-agent.md) — Deep dive on agent capabilities
-- [Auction Tracking](auction-tracking.md) — Track NumisBids lots instead
+- [Auction Tracking](auction-tracking.md) — Track NumisBids and CNG Auctions lots instead
 - [Collection Statistics](statistics.md) — Portfolio analytics
 
 ## See Also

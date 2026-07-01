@@ -62,9 +62,14 @@ describe('UI pattern recipes', () => {
 
   it('keeps Identify Coin camera-first with Add Coin upload icon pattern', () => {
     const lookupPage = readRepoFile(join('pages', 'CoinLookupPage.vue'))
+    const addCoinPage = readRepoFile(join('pages', 'AddCoinPage.vue'))
 
     expect(lookupPage).toContain('ref="cameraVideo"')
-    expect(lookupPage).toContain('void startCamera()')
+    expect(lookupPage).toContain('Start Camera')
+    expect(lookupPage).toContain('@click="startCamera"')
+    expect(addCoinPage).toContain('Start Camera')
+    expect(addCoinPage).toContain('@click="startCamera"')
+    expect(addCoinPage).not.toContain('await startCamera()')
     expect(lookupPage).toContain('class="shutter-btn"')
     expect(lookupPage).toContain('class="upload-icon-btn"')
     expect(lookupPage).toContain('<Images :size="20" />')

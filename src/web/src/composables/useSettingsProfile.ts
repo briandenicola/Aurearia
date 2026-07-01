@@ -46,6 +46,8 @@ export function useSettingsProfile() {
   const profileZipCode = ref(auth.user?.zipCode || '')
   const nbUsername = ref(auth.user?.numisBidsUsername || '')
   const nbPassword = ref('')
+  const cngUsername = ref(auth.user?.cngUsername || '')
+  const cngPassword = ref('')
   const pushoverKey = ref('')
   const pushoverTesting = ref(false)
   const pushoverTestMsg = ref('')
@@ -79,12 +81,15 @@ export function useSettingsProfile() {
   // NumisBids validation
   const nbValidating = ref(false)
   const nbValidationError = ref('')
+  const cngValidating = ref(false)
+  const cngValidationError = ref('')
 
   async function handleSaveProfile() {
     profileMsg.value = ''
     profileError.value = false
     profileSaving.value = true
     nbValidationError.value = ''
+    cngValidationError.value = ''
     try {
       if (nbPassword.value && nbUsername.value) {
         nbValidating.value = true
@@ -105,6 +110,25 @@ export function useSettingsProfile() {
           nbValidating.value = false
         }
       }
+      if (cngPassword.value && cngUsername.value) {
+        cngValidating.value = true
+        try {
+          const valRes = await validateNumisBidsCredentials(cngUsername.value, cngPassword.value, 'cng')
+          if (!valRes.data.valid) {
+            cngValidationError.value = valRes.data.error || 'Invalid CNG credentials'
+            profileSaving.value = false
+            cngValidating.value = false
+            return
+          }
+        } catch {
+          cngValidationError.value = 'Could not validate CNG credentials. Check your username and password.'
+          profileSaving.value = false
+          cngValidating.value = false
+          return
+        } finally {
+          cngValidating.value = false
+        }
+      }
 
       const data: Record<string, unknown> = {
         email: profileEmail.value,
@@ -112,10 +136,14 @@ export function useSettingsProfile() {
         zipCode: profileZipCode.value,
         isPublic: profilePublic.value,
         numisBidsUsername: nbUsername.value,
+        cngUsername: cngUsername.value,
         coinOfDayEnabled: coinOfDayEnabled.value,
       }
       if (nbPassword.value) {
         data.numisBidsPassword = nbPassword.value
+      }
+      if (cngPassword.value) {
+        data.cngPassword = cngPassword.value
       }
       if (pushoverKey.value !== '') {
         data.pushoverUserKey = pushoverKey.value
@@ -128,11 +156,14 @@ export function useSettingsProfile() {
         auth.user.isPublic = res.data.isPublic
         auth.user.numisBidsUsername = res.data.numisBidsUsername
         auth.user.numisBidsConfigured = res.data.numisBidsConfigured
+        auth.user.cngUsername = res.data.cngUsername
+        auth.user.cngConfigured = res.data.cngConfigured
         auth.user.pushoverEnabled = res.data.pushoverEnabled
         auth.user.coinOfDayEnabled = res.data.coinOfDayEnabled
         localStorage.setItem('user', JSON.stringify(auth.user))
       }
       nbPassword.value = ''
+      cngPassword.value = ''
       pushoverKey.value = ''
       profileMsg.value = 'Profile saved'
     } catch {
@@ -203,6 +234,8 @@ export function useSettingsProfile() {
     profileZipCode,
     nbUsername,
     nbPassword,
+    cngUsername,
+    cngPassword,
     pushoverKey,
     pushoverTesting,
     pushoverTestMsg,
@@ -218,6 +251,8 @@ export function useSettingsProfile() {
     cancelGoPrivate,
     nbValidating,
     nbValidationError,
+    cngValidating,
+    cngValidationError,
     handleSaveProfile,
     coinOfDayEnabled,
     // Password

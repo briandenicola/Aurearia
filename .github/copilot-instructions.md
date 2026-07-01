@@ -5,7 +5,7 @@
 
 ## Project Overview
 
-Ancient Coins is a full-stack PWA for managing a personal ancient coin collection. Go/Gin API backend with Vue 3/TypeScript frontend, SQLite database, and a Python LangGraph multi-agent service for AI features.
+Aurearia is a full-stack PWA for managing a personal coin collection, with deep support for ancient and historical coins. Go/Gin API backend with Vue 3/TypeScript frontend, SQLite database, and a Python LangGraph multi-agent service for AI features.
 
 | Layer | Tech | Path |
 |---|---|---|

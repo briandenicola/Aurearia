@@ -1,4 +1,4 @@
-# Ancient Coins — Product Requirements Document
+# Aurearia — Product Requirements Document
 
 **Status:** v1 draft (2026-05-28) | **Owner:** Brian (briandenicola)
 **Constitution alignment:** Authored under §19 (Documentation Requirements). This document is item #2 in §0 Hierarchy of Authority — second only to the constitution.
@@ -7,7 +7,7 @@
 
 ## 1. Vision
 
-Ancient Coins is a **personal-scale, self-hosted Progressive Web App** for managing a private ancient coin collection end-to-end. It's built for a single primary user (Brian) plus invited friends, enabling him to catalog coins with provenance, valuation, AI-assisted discovery, and social engagement — all stored on his own server, not in the cloud. The app emphasizes **depth over scale**: Roman/Greek/Byzantine/Modern taxonomy, dealer-enriched search results, vision-model analysis of obverse/reverse photos, and curator-approved statistics. It is decidedly not a marketplace, not a multi-tenant SaaS, and not a replacement for numismatic reference databases — it is a personal museum.
+Aurearia is a **personal-scale, self-hosted Progressive Web App** for managing a private ancient coin collection end-to-end. It's built for a single primary user (Brian) plus invited friends, enabling him to catalog coins with provenance, valuation, AI-assisted discovery, and social engagement — all stored on his own server, not in the cloud. The app emphasizes **depth over scale**: Roman/Greek/Byzantine/Modern taxonomy, dealer-enriched search results, vision-model analysis of obverse/reverse photos, and curator-approved statistics. It is decidedly not a marketplace, not a multi-tenant SaaS, and not a replacement for numismatic reference databases — it is a personal museum.
 
 ---
 
@@ -37,7 +37,7 @@ Ancient Coins is a **personal-scale, self-hosted Progressive Web App** for manag
 3. **Surface coins via discovery** — List, search (by inscription, ruler, denomination), filter (by category, material, status), sort (by date added, value, random with deterministic seed), and paginate efficiently.
 4. **Deliver five AI-assisted experiences** — Coin search (dealer discovery), coin shows (upcoming auctions), coin analysis (vision-model inspection of uploaded photos), portfolio review (collection valuation and gap analysis), and availability checking (monitor wishlist URL status).
 5. **Surface one coin daily** — Coin of the Day scheduler picks an un-shown coin each morning, caches a summary, and dispatches in-app + Pushover notifications. Idempotent across restarts.
-6. **Track wishlist & auctions** — Add wishlist coins with AI search; check availability; track NumisBids lots through bidding lifecycle; convert won lots to collection coins.
+6. **Track wishlist & auctions** — Add wishlist coins with AI search; check availability; track NumisBids and CNG Auctions lots through bidding lifecycle; convert won lots to collection coins.
 7. **Enable social engagement** — Follow other collectors, accept/block followers, leave comments and star ratings on their coins, upload avatars, control privacy (public/private profiles and per-coin privacy).
 8. **Install as PWA** — Installable on iOS, Android, and desktop. Service-worker-cached offline read-only view of collection. Swipe carousel on mobile, grid on desktop.
 9. **Admin-controlled AI provider selection** — Anthropic (Claude + web search) or Ollama (self-hosted models). Admins choose, configure keys, and customize analysis prompts.
@@ -80,10 +80,10 @@ Ancient Coins is a **personal-scale, self-hosted Progressive Web App** for manag
 **Out of scope:** Offline agent execution; multi-provider concurrent calls.
 
 ### 5.4 Wishlist & Auction Tracking
-**Capability:** Mark coins as wishlist; AI-search for listings; track NumisBids lots through Watching → Bidding → Won/Lost workflow; verify availability of URLs on demand or via scheduled checks; auto-convert won lots to collection coins.  
+**Capability:** Mark coins as wishlist; AI-search for listings; track NumisBids and CNG Auctions lots through Watching → Bidding → Won/Lost workflow; verify availability of URLs on demand or via scheduled checks; auto-convert won lots to collection coins.  
 **Cross-linked specs:** F002 (Wishlist & Availability).  
-**Status:** Shipped (v1.0).  
-**Out of scope:** Other auction houses besides NumisBids; live price scraping.
+**Status:** Shipped (v1.0 NumisBids; v2.0 CNG Auctions).  
+**Out of scope:** Live price scraping during auctions; additional auction houses beyond NumisBids and CNG Auctions.
 
 ### 5.5 Social & Profiles
 **Capability:** Send follow requests (pending → accepted/blocked); browse follower galleries (read-only, pricing/AI hidden); leave comments and 1–5 star ratings; manage privacy (public/private profile, per-coin private flag); search for collectors by username; upload avatars; add bio.  

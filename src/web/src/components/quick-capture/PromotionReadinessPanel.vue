@@ -21,7 +21,7 @@
 
     <!-- Promotion form -->
     <template v-else>
-      <p class="helper-text">Choose where this coin should land, fill any missing required fields, then promote it. Repeated promotion is safe.</p>
+      <p class="helper-text">Choose where this coin should land, review readiness, then promote it. Repeated promotion is safe.</p>
 
       <fieldset class="destination-options">
         <legend class="section-label">Promote to</legend>
@@ -44,60 +44,27 @@
         <span v-if="fieldErrors.target" class="field-error">{{ fieldErrors.target }}</span>
       </fieldset>
 
-      <div class="field-grid">
-        <label class="form-group full-width">
-          <span class="section-label">Name <span class="required">*</span></span>
-          <input
-            v-model="overrideName"
-            class="form-input"
-            type="text"
-            maxlength="200"
-            :placeholder="draft.workingTitle || 'Required for promotion'"
-          >
-          <span v-if="fieldErrors.name" class="field-error">{{ fieldErrors.name }}</span>
-        </label>
-        <label class="form-group">
-          <span class="section-label">Category</span>
-          <select v-model="overrideCategory" class="form-select">
-            <option value="">Other (default)</option>
-            <option value="Roman">Roman</option>
-            <option value="Greek">Greek</option>
-            <option value="Byzantine">Byzantine</option>
-            <option value="Medieval">Medieval</option>
-            <option value="Modern">Modern</option>
-            <option value="Other">Other</option>
-          </select>
-        </label>
-        <label class="form-group">
-          <span class="section-label">Material</span>
-          <select v-model="overrideMaterial" class="form-select">
-            <option value="">Other (default)</option>
-            <option value="Gold">Gold</option>
-            <option value="Silver">Silver</option>
-            <option value="Bronze">Bronze</option>
-            <option value="Copper">Copper</option>
-            <option value="Electrum">Electrum</option>
-            <option value="Other">Other</option>
-          </select>
-        </label>
-        <label class="form-group">
-          <span class="section-label">Era</span>
-          <select v-model="overrideEra" class="form-select">
-            <option value="">Use draft value</option>
-            <option value="ancient">Ancient</option>
-            <option value="medieval">Medieval</option>
-            <option value="modern">Modern</option>
-          </select>
-          <span v-if="fieldErrors.era" class="field-error">{{ fieldErrors.era }}</span>
-        </label>
-        <label class="form-group">
-          <span class="section-label">Purchase price</span>
-          <input v-model.number="overridePrice" class="form-input" type="number" min="0" step="0.01" :placeholder="draft.purchasePrice != null ? String(draft.purchasePrice) : ''">
-        </label>
-        <label class="form-group full-width">
-          <span class="section-label">Notes</span>
-          <textarea v-model="overrideNotes" class="form-textarea" rows="3" :placeholder="draft.notes || ''"></textarea>
-        </label>
+      <div class="readiness-summary" aria-live="polite">
+        <div class="readiness-item" :class="{ ready: hasRequiredName }">
+          <CheckCircle v-if="hasRequiredName" :size="18" />
+          <AlertCircle v-else :size="18" />
+          <span>
+            <strong>{{ hasRequiredName ? 'Required title is ready' : 'Working title is required' }}</strong>
+            <small>{{ hasRequiredName ? 'Promotion uses the current draft title above.' : 'Add a working title in the draft form before promoting.' }}</small>
+          </span>
+        </div>
+        <div class="readiness-item ready">
+          <ImageIcon :size="18" />
+          <span>
+            <strong>{{ imageCountLabel }}</strong>
+            <small>Saved draft images will move with the promoted coin.</small>
+          </span>
+        </div>
+        <p class="summary-note">Draft fields stay editable in the form above. This panel only chooses the destination and confirms the final action.</p>
+        <span v-if="fieldErrors.name" class="field-error">{{ fieldErrors.name }}</span>
+        <div v-if="readinessFieldErrors.length" class="field-error-list">
+          <span v-for="[field, message] in readinessFieldErrors" :key="field">{{ message }}</span>
+        </div>
       </div>
 
       <label class="confirm-row">
@@ -111,7 +78,7 @@
         <button
           type="button"
           class="btn btn-primary"
-          :disabled="!confirmed || promoting"
+          :disabled="!confirmed || promoting || !hasRequiredName"
           @click="doPromote"
         >
           {{ promoting ? 'Promoting...' : `Promote to ${destinationLabel}` }}
@@ -125,10 +92,13 @@
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { getApiErrorMessage, promoteQuickCaptureDraft } from '@/api/client'
-import type { QuickCaptureDraft } from '@/types'
-import { Bookmark, Coins } from 'lucide-vue-next'
+import type { QuickCaptureDraft, QuickCapturePromoteOverrides } from '@/types'
+import { AlertCircle, Bookmark, CheckCircle, Coins, Image as ImageIcon } from 'lucide-vue-next'
 
-const props = defineProps<{ draft: QuickCaptureDraft }>()
+const props = withDefaults(
+  defineProps<{ draft: QuickCaptureDraft; promotionOverrides?: QuickCapturePromoteOverrides }>(),
+  { promotionOverrides: () => ({}) }
+)
 const emit = defineEmits<{ promoted: [coinId: number] }>()
 
 type PromotionTarget = 'collection' | 'wishlist'
@@ -138,12 +108,6 @@ const alreadyPromoted = computed(
 )
 const promotedCoinId = computed(() => props.draft.promotedCoinId)
 
-const overrideName = ref('')
-const overrideCategory = ref('')
-const overrideMaterial = ref('')
-const overrideEra = ref('')
-const overridePrice = ref<number | null>(null)
-const overrideNotes = ref('')
 const target = ref<PromotionTarget>('collection')
 const confirmed = ref(false)
 const promoting = ref(false)
@@ -151,23 +115,26 @@ const promoteError = ref('')
 const fieldErrors = ref<Record<string, string>>({})
 const successCoinId = ref<number | null>(null)
 const destinationLabel = computed(() => target.value === 'wishlist' ? 'Wishlist' : 'Collection')
+const hasRequiredName = computed(() => (props.promotionOverrides.name ?? props.draft.workingTitle ?? '').trim().length > 0)
+const imageCount = computed(() => props.draft.images?.length ?? 0)
+const imageCountLabel = computed(() => `${imageCount.value} saved ${imageCount.value === 1 ? 'image' : 'images'}`)
+const readinessFieldErrors = computed(() => Object.entries(fieldErrors.value)
+  .filter(([field]) => !['target', 'name', 'confirm'].includes(field)))
 
 async function doPromote() {
-  promoting.value = true
   promoteError.value = ''
   fieldErrors.value = {}
+  if (!hasRequiredName.value) {
+    fieldErrors.value = { name: 'Name is required' }
+    promoteError.value = 'Complete required fields before promotion.'
+    return
+  }
+  promoting.value = true
   try {
     const res = await promoteQuickCaptureDraft(props.draft.id, {
       confirm: true,
       target: target.value,
-      overrides: {
-        name: overrideName.value || undefined,
-        category: overrideCategory.value || undefined,
-        material: overrideMaterial.value || undefined,
-        era: overrideEra.value || undefined,
-        purchasePrice: overridePrice.value ?? undefined,
-        notes: overrideNotes.value || undefined,
-      },
+      overrides: props.promotionOverrides,
     })
     if (res.data.alreadyPromoted) {
       // trigger idempotent path in parent
@@ -264,21 +231,53 @@ async function doPromote() {
   font-size: 0.8rem;
 }
 
-.field-grid {
+.readiness-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
 }
 
-.form-group {
+.readiness-item {
   display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  margin-bottom: 0;
+  gap: 0.75rem;
+  align-items: flex-start;
+  color: var(--text-secondary);
 }
 
-.full-width {
-  grid-column: 1 / -1;
+.readiness-item.ready {
+  color: var(--text-primary);
+}
+
+.readiness-item svg {
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+  color: var(--text-warning);
+}
+
+.readiness-item.ready svg {
+  color: var(--accent-gold);
+}
+
+.readiness-item span {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.readiness-item strong {
+  font-size: 0.9rem;
+}
+
+.readiness-item small,
+.summary-note {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.summary-note {
+  margin: 0;
 }
 
 .confirm-row {
@@ -295,22 +294,22 @@ async function doPromote() {
   flex-shrink: 0;
   accent-color: var(--accent-gold);
 }
-.field-error {
+.field-error,
+.field-error-list {
   color: var(--text-warning);
   font-size: 0.85rem;
 }
-.required {
-  color: var(--text-warning);
-}
 
+.field-error-list {
+  display: grid;
+}
 .promotion-actions {
   display: flex;
   justify-content: flex-end;
 }
 
 @media (max-width: 600px) {
-  .destination-options,
-  .field-grid {
+  .destination-options {
     grid-template-columns: 1fr;
   }
 

@@ -1,12 +1,12 @@
 # Production Deployment Guide
 
-This guide covers deploying the Ancient Coins application to a production environment. For local development setup, see the [README](../README.md).
+This guide covers deploying Aurearia to a production environment. For local development setup, see the [README](../README.md).
 
 > **Public exposure warning:** The default Docker Compose file is suitable for local development or a trusted home network. Do **not** place it directly on the public internet without TLS, a hardened reverse proxy, trusted proxy configuration, closed or invite-only registration, backups, monitoring, and firewall rules from this guide. Treat internet-facing deployment as a different threat model: anonymous attackers can brute-force auth, upload payloads, scrape public media, and probe the Python agent boundary continuously.
 
 ## Architecture Overview
 
-Ancient Coins runs as **two Docker containers** orchestrated via `docker-compose.yaml`:
+Aurearia runs as **two Docker containers** orchestrated via `docker-compose.yaml`:
 
 | Container | Image | Port | Purpose |
 |---|---|---|---|
@@ -111,14 +111,23 @@ Copy `.env.example` to `.env` and replace the placeholders before starting the a
 ```env
 JWT_SECRET=<48-byte random value>
 AGENT_INTERNAL_SERVICE_TOKEN=<48-byte random value shared by app and agent>
+AUCTION_CREDENTIAL_ENCRYPTION_KEY=<32-byte random value for auction credential encryption>
 TRUSTED_PROXIES=none
 ```
 
-Generate the two secrets with:
+Generate `JWT_SECRET` and `AGENT_INTERNAL_SERVICE_TOKEN` with:
 
 ```sh
 openssl rand -base64 48
 ```
+
+Generate `AUCTION_CREDENTIAL_ENCRYPTION_KEY` with:
+
+```sh
+openssl rand -base64 32
+```
+
+The auction credential key encrypts stored NumisBids and CNG provider passwords at rest with AES-GCM. Existing plaintext rows are lazily migrated the next time the credential is saved or used for sync. **If this key is lost or changed without re-encrypting existing values, all stored provider credentials become unrecoverable and users must re-enter their NumisBids and CNG passwords.** Back up this key securely with the database backup.
 
 `AGENT_INTERNAL_SERVICE_TOKEN` is **not** an Anthropic/Ollama API key. It is a private shared credential between the Go API and Python agent service. If it is missing from either process, Admin AI provider tests can still pass, but coin analysis and agent chat will fail with an internal agent service credential error.
 
@@ -152,6 +161,7 @@ AGENT_ALLOW_LOCAL_OUTBOUND=true
 | Variable | Default | Description |
 |---|---|---|
 | `JWT_SECRET` | `dev-secret-key-change-in-production-min32chars` | JWT signing key (**min 32 chars, must change for production**) |
+| `AUCTION_CREDENTIAL_ENCRYPTION_KEY` | *(required in `GIN_MODE=release`)* | Base64-encoded 32-byte AES-GCM key for stored auction-provider passwords. Existing plaintext credentials lazily migrate on next use. |
 | `DB_PATH` | `./ancientcoins.db` | SQLite database file path |
 | `PORT` | `8080` | HTTP server port |
 | `UPLOAD_DIR` | `./uploads` | Directory for uploaded coin images |
@@ -250,7 +260,7 @@ uv sync --locked --extra dev
 
 ## WebAuthn / Passkeys in Production
 
-Ancient Coins supports passwordless authentication via WebAuthn. In production, two environment variables **must** be configured correctly:
+Aurearia supports passwordless authentication via WebAuthn. In production, two environment variables **must** be configured correctly:
 
 ### `WEBAUTHN_RP_ID`
 
@@ -652,6 +662,7 @@ Use this gate before inviting beta users or pointing public DNS at the host.
 
 - [ ] **Agent port privacy**: agent service is private (`expose`, no host `ports` for 8081), is not published, and requires `AGENT_INTERNAL_SERVICE_TOKEN`.
 - [ ] Backups cover SQLite plus uploads, are encrypted, and have an off-host copy.
+- [ ] `AUCTION_CREDENTIAL_ENCRYPTION_KEY` is backed up securely; encrypted auction credentials cannot be recovered without it.
 - [ ] **Backup restore drill** has succeeded before beta invites.
 - [ ] Alerts exist for failed-login bursts, bans, account lockouts, admin logins, direct agent traffic, and backup failures.
 - [ ] Review security/audit logs daily for the first beta week.

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -165,17 +166,35 @@ func (h *QuickCaptureHandler) GetDraft(c *gin.Context) {
 
 // promoteDraftRequest is the JSON body for POST /quick-capture/drafts/:id/promote.
 type promoteDraftRequest struct {
-	Confirm   bool   `json:"confirm"`
-	Target    string `json:"target"`
-	Overrides struct {
-		Name             string   `json:"name"`
-		Category         string   `json:"category"`
-		Material         string   `json:"material"`
-		Era              string   `json:"era"`
-		PurchasePrice    *float64 `json:"purchasePrice"`
-		PurchaseLocation string   `json:"purchaseLocation"`
-		Notes            string   `json:"notes"`
-	} `json:"overrides"`
+	Confirm   bool                         `json:"confirm"`
+	Target    string                       `json:"target"`
+	Overrides promoteDraftOverridesRequest `json:"overrides"`
+}
+
+type promoteDraftOverridesRequest struct {
+	Name             *string  `json:"name"`
+	Category         *string  `json:"category"`
+	Material         *string  `json:"material"`
+	Era              *string  `json:"era"`
+	PurchasePrice    *float64 `json:"purchasePrice"`
+	PurchasePriceSet bool     `json:"-"`
+	PurchaseLocation *string  `json:"purchaseLocation"`
+	Notes            *string  `json:"notes"`
+}
+
+func (r *promoteDraftOverridesRequest) UnmarshalJSON(data []byte) error {
+	type alias promoteDraftOverridesRequest
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	var decoded alias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*r = promoteDraftOverridesRequest(decoded)
+	_, r.PurchasePriceSet = raw["purchasePrice"]
+	return nil
 }
 
 // UpdateDraft updates an active Quick Capture draft for the authenticated owner.
@@ -362,6 +381,7 @@ func (h *QuickCaptureHandler) PromoteDraft(c *gin.Context) {
 			Material:         req.Overrides.Material,
 			Era:              req.Overrides.Era,
 			PurchasePrice:    req.Overrides.PurchasePrice,
+			PurchasePriceSet: req.Overrides.PurchasePriceSet,
 			PurchaseLocation: req.Overrides.PurchaseLocation,
 			Notes:            req.Overrides.Notes,
 		},

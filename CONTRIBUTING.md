@@ -1,6 +1,6 @@
 # Contributing
 
-Guidelines for contributing to the Ancient Coins application.
+Guidelines for contributing to the Aurearia application.
 
 ## Getting Started
 

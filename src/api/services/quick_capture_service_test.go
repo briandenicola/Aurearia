@@ -264,6 +264,132 @@ func TestQuickCaptureServicePromoteDraftValidatesAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestQuickCaptureServicePromoteDraftDistinguishesExplicitEmptyOverridesFromOmitted(t *testing.T) {
+	stringPtr := func(value string) *string { return &value }
+	pricePtr := func(value float64) *float64 { return &value }
+	svc, db := newQuickCaptureServiceAndDBForTest(t, t.TempDir())
+
+	fallbackDraft, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID:            1,
+		WorkingTitle:      "Saved title",
+		Era:               string(models.EraAncient),
+		AcquisitionSource: "Saved source",
+		Notes:             "Saved notes",
+	})
+	if err != nil {
+		t.Fatalf("create fallback draft: %v", err)
+	}
+	fallbackResult, err := svc.PromoteDraft(1, fallbackDraft.ID, PromoteDraftInput{Confirm: true})
+	if err != nil {
+		t.Fatalf("promote fallback draft: %v", err)
+	}
+	var fallbackCoin models.Coin
+	if err := db.First(&fallbackCoin, fallbackResult.CoinID).Error; err != nil {
+		t.Fatalf("load fallback coin: %v", err)
+	}
+	if fallbackCoin.Name != "Saved title" || fallbackCoin.PurchaseLocation != "Saved source" || fallbackCoin.Notes != "Saved notes" {
+		t.Fatalf("omitted overrides should fall back to saved draft fields, got name=%q source=%q notes=%q", fallbackCoin.Name, fallbackCoin.PurchaseLocation, fallbackCoin.Notes)
+	}
+
+	priceDraft, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID:            1,
+		WorkingTitle:      "Saved priced title",
+		Era:               string(models.EraAncient),
+		AcquisitionSource: "Saved source",
+		PurchasePrice:     pricePtr(100),
+	})
+	if err != nil {
+		t.Fatalf("create priced draft: %v", err)
+	}
+	priceFallbackResult, err := svc.PromoteDraft(1, priceDraft.ID, PromoteDraftInput{Confirm: true})
+	if err != nil {
+		t.Fatalf("promote priced fallback draft: %v", err)
+	}
+	var priceFallbackCoin models.Coin
+	if err := db.First(&priceFallbackCoin, priceFallbackResult.CoinID).Error; err != nil {
+		t.Fatalf("load price fallback coin: %v", err)
+	}
+	if priceFallbackCoin.PurchasePrice == nil || *priceFallbackCoin.PurchasePrice != 100 {
+		t.Fatalf("omitted price override should use saved draft price, got %v", priceFallbackCoin.PurchasePrice)
+	}
+
+	clearedPriceDraft, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID:            1,
+		WorkingTitle:      "Saved priced title",
+		Era:               string(models.EraAncient),
+		AcquisitionSource: "Saved source",
+		PurchasePrice:     pricePtr(100),
+	})
+	if err != nil {
+		t.Fatalf("create cleared price draft: %v", err)
+	}
+	clearedPriceResult, err := svc.PromoteDraft(1, clearedPriceDraft.ID, PromoteDraftInput{
+		Confirm: true,
+		Overrides: PromoteOverrides{
+			Name:             stringPtr("Current priced title"),
+			PurchasePriceSet: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("promote cleared price draft: %v", err)
+	}
+	var clearedPriceCoin models.Coin
+	if err := db.First(&clearedPriceCoin, clearedPriceResult.CoinID).Error; err != nil {
+		t.Fatalf("load cleared price coin: %v", err)
+	}
+	if clearedPriceCoin.PurchasePrice != nil || clearedPriceCoin.CurrentValue != nil {
+		t.Fatalf("explicit nil price override should clear saved draft price/current value, got price=%v value=%v", clearedPriceCoin.PurchasePrice, clearedPriceCoin.CurrentValue)
+	}
+
+	clearedDraft, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID:            1,
+		WorkingTitle:      "Saved title",
+		Era:               string(models.EraAncient),
+		AcquisitionSource: "Saved source",
+		Notes:             "Saved notes",
+	})
+	if err != nil {
+		t.Fatalf("create cleared draft: %v", err)
+	}
+	clearedResult, err := svc.PromoteDraft(1, clearedDraft.ID, PromoteDraftInput{
+		Confirm: true,
+		Overrides: PromoteOverrides{
+			Name:             stringPtr("Current title"),
+			PurchaseLocation: stringPtr(""),
+			Notes:            stringPtr(""),
+		},
+	})
+	if err != nil {
+		t.Fatalf("promote cleared draft: %v", err)
+	}
+	var clearedCoin models.Coin
+	if err := db.First(&clearedCoin, clearedResult.CoinID).Error; err != nil {
+		t.Fatalf("load cleared coin: %v", err)
+	}
+	if clearedCoin.Name != "Current title" || clearedCoin.PurchaseLocation != "" || clearedCoin.Notes != "" {
+		t.Fatalf("explicit empty overrides should not use saved draft fields, got name=%q source=%q notes=%q", clearedCoin.Name, clearedCoin.PurchaseLocation, clearedCoin.Notes)
+	}
+
+	missingTitleDraft, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID:       1,
+		WorkingTitle: "Saved title",
+		Era:          string(models.EraAncient),
+	})
+	if err != nil {
+		t.Fatalf("create missing-title draft: %v", err)
+	}
+	_, err = svc.PromoteDraft(1, missingTitleDraft.ID, PromoteDraftInput{
+		Confirm: true,
+		Overrides: PromoteOverrides{
+			Name: stringPtr(""),
+		},
+	})
+	var validationErr *QuickCapturePromotionValidationError
+	if !errors.As(err, &validationErr) || validationErr.Fields["name"] == "" {
+		t.Fatalf("expected explicit empty name override to fail validation, got %v", err)
+	}
+}
+
 func TestQuickCaptureServicePromoteDraftCanTargetWishlist(t *testing.T) {
 	price := 42.5
 	svc, db := newQuickCaptureServiceAndDBForTest(t, t.TempDir())

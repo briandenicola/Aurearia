@@ -33,12 +33,20 @@ func Connect(dbPath string) {
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
+	if err := DB.Migrator().AlterColumn(&models.User{}, "NumisBidsPassword"); err != nil {
+		log.Fatalf("Failed to widen NumisBids password column: %v", err)
+	}
+	if err := DB.Migrator().AlterColumn(&models.User{}, "CNGPassword"); err != nil {
+		log.Fatalf("Failed to widen CNG password column: %v", err)
+	}
 
 	// Note: CurrentValueUpdatedAt is a new nullable time.Time column.
 	// SQLite AutoMigrate adds it as a plain NULL column without FK constraints — safe additive change.
 
 	// Backfill existing api_keys with default read-only capability
 	DB.Exec("UPDATE api_keys SET capabilities='read' WHERE capabilities IS NULL OR capabilities=''")
+	DB.Exec("UPDATE auction_lots SET source='numisbids' WHERE source IS NULL OR source=''")
+	DB.Exec("UPDATE auction_lots SET source_url=numis_bids_url WHERE (source_url IS NULL OR source_url='') AND numis_bids_url IS NOT NULL AND numis_bids_url<>''")
 
 	if err := seedCatalogRegistry(DB); err != nil {
 		log.Fatalf("Failed to seed catalog registry: %v", err)

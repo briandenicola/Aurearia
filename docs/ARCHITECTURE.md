@@ -1,6 +1,6 @@
 # Architecture
 
-> Full-system architecture for the Ancient Coins PWA. Covers all three services, their interactions, and the design rules that keep the system maintainable.
+> Full-system architecture for the Aurearia PWA. Covers all three services, their interactions, and the design rules that keep the system maintainable.
 
 ---
 
@@ -52,7 +52,7 @@
 
 ## System Overview
 
-Ancient Coins is a full-stack PWA for managing a personal ancient coin collection. The system is composed of three services:
+Aurearia is a full-stack PWA for managing a personal coin collection, with deep support for ancient and historical coins. The system is composed of three services:
 
 | Service | Tech Stack | Port | Path |
 |---------|-----------|------|------|
@@ -381,7 +381,7 @@ Each team is a LangGraph `StateGraph` with verification stages:
 | 2 | Coin Shows | Search → Verify dates are future → Format | Upcoming numismatic events |
 | 3 | Coin Analysis | Vision model analysis → Format | AI image analysis |
 | 4 | Portfolio Review | Read holdings → Valuate → Analyze | Collection recommendations |
-| 5 | Auction Search | Search NumisBids → Fetch → Format | Auction lot discovery |
+| 5 | Auction Search | Search auction sources → Fetch → Format | Auction lot discovery |
 | 6 | Availability Check | Check URLs → Analyze results → Verdict | Verify listings still for sale |
 | 7 | Coin Grading | Analyze photos → Grade → Format | Grade estimation with confidence |
 | 8 | Gap Analysis | Read portfolio → Analyze gaps → Suggest | Collection completeness |
@@ -552,7 +552,7 @@ SQLite via GORM. All tables are auto-migrated from Go model structs in `database
 
 | Model | Table | Key Fields |
 |-------|-------|-----------|
-| `AuctionLot` | `auction_lots` | NumisBidsURL, AuctionHouse, SaleName, Title, Estimate, CurrentBid, MaxBid, Status, CoinID (optional), EventID (optional), UserID |
+| `AuctionLot` | `auction_lots` | Source (`numisbids`/`cng`), SourceURL, SourceSaleID, SourceLotID, NumisBidsURL (legacy compatibility), AuctionHouse, SaleName, Title, Estimate, CurrentBid, MaxBid, Status, CoinID (optional), EventID (optional), UserID |
 | `AuctionEvent` | `auction_events` | UserID, Title, AuctionHouse, StartDate, EndDate, URL |
 | `PriceAlert` | `price_alerts` | AuctionLotID, UserID, TargetPrice |
 | `BidReminder` | `bid_reminders` | AuctionLotID, UserID, RemindAt |

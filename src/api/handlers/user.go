@@ -23,10 +23,15 @@ type UserHandler struct {
 	repo        *repository.UserRepository
 	pushoverSvc *services.PushoverService
 	logger      *services.Logger
+	credentials *services.CredentialEncryptionService
 }
 
-func NewUserHandler(uploadDir string, repo *repository.UserRepository, pushoverSvc *services.PushoverService, logger *services.Logger) *UserHandler {
-	return &UserHandler{UploadDir: uploadDir, repo: repo, pushoverSvc: pushoverSvc, logger: logger}
+func NewUserHandler(uploadDir string, repo *repository.UserRepository, pushoverSvc *services.PushoverService, logger *services.Logger, credentialSvc ...*services.CredentialEncryptionService) *UserHandler {
+	credentials := services.NewDisabledCredentialEncryptionService()
+	if len(credentialSvc) > 0 && credentialSvc[0] != nil {
+		credentials = credentialSvc[0]
+	}
+	return &UserHandler{UploadDir: uploadDir, repo: repo, pushoverSvc: pushoverSvc, logger: logger, credentials: credentials}
 }
 
 // ChangePassword allows a user to change their own password.
@@ -117,6 +122,8 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 		"createdAt":           user.CreatedAt,
 		"numisBidsUsername":   user.NumisBidsUsername,
 		"numisBidsConfigured": user.NumisBidsUsername != "" && user.NumisBidsPassword != "",
+		"cngUsername":         user.CNGUsername,
+		"cngConfigured":       user.CNGUsername != "" && user.CNGPassword != "",
 		"pushoverEnabled":     user.PushoverEnabled,
 		"coinOfDayEnabled":    user.CoinOfDayEnabled,
 	})
@@ -242,6 +249,8 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		ZipCode           *string `json:"zipCode"`
 		NumisBidsUsername *string `json:"numisBidsUsername"`
 		NumisBidsPassword *string `json:"numisBidsPassword"`
+		CNGUsername       *string `json:"cngUsername"`
+		CNGPassword       *string `json:"cngPassword"`
 		PushoverUserKey   *string `json:"pushoverUserKey"`
 		CoinOfDayEnabled  *bool   `json:"coinOfDayEnabled"`
 	}
@@ -284,7 +293,23 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		updates["numis_bids_username"] = strings.TrimSpace(*req.NumisBidsUsername)
 	}
 	if req.NumisBidsPassword != nil {
-		updates["numis_bids_password"] = *req.NumisBidsPassword
+		encrypted, err := h.credentials.EncryptStringWithAAD(*req.NumisBidsPassword, auctionCredentialAAD(user.ID, "numis_bids_password"))
+		if err != nil {
+			respondError(c, http.StatusInternalServerError, "Failed to protect NumisBids credentials", err)
+			return
+		}
+		updates["numis_bids_password"] = encrypted
+	}
+	if req.CNGUsername != nil {
+		updates["cng_username"] = strings.TrimSpace(*req.CNGUsername)
+	}
+	if req.CNGPassword != nil {
+		encrypted, err := h.credentials.EncryptStringWithAAD(*req.CNGPassword, auctionCredentialAAD(user.ID, "cng_password"))
+		if err != nil {
+			respondError(c, http.StatusInternalServerError, "Failed to protect CNG credentials", err)
+			return
+		}
+		updates["cng_password"] = encrypted
 	}
 	if req.PushoverUserKey != nil {
 		key := strings.TrimSpace(*req.PushoverUserKey)
@@ -331,9 +356,15 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		"zipCode":             user.ZipCode,
 		"numisBidsUsername":   user.NumisBidsUsername,
 		"numisBidsConfigured": user.NumisBidsUsername != "" && user.NumisBidsPassword != "",
+		"cngUsername":         user.CNGUsername,
+		"cngConfigured":       user.CNGUsername != "" && user.CNGPassword != "",
 		"pushoverEnabled":     user.PushoverEnabled,
 		"coinOfDayEnabled":    user.CoinOfDayEnabled,
 	})
+}
+
+func auctionCredentialAAD(userID uint, field string) []byte {
+	return []byte(fmt.Sprintf("auction-credential:%d:%s", userID, field))
 }
 
 // UploadAvatar uploads a profile avatar image for the authenticated user.

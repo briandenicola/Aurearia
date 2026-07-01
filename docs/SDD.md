@@ -1,6 +1,6 @@
 # Software Design Document (SDD)
 
-## Ancient Coins Collection Manager
+## Aurearia Collection Manager
 
 | | |
 |---|---|
@@ -30,7 +30,7 @@
 
 ### 1.1 Purpose
 
-This Software Design Document describes the architecture, components, interfaces, and data design of the Ancient Coins Collection Manager — a full-stack Progressive Web Application (PWA) for managing a personal ancient coin collection with AI-powered analysis and search capabilities.
+This Software Design Document describes the architecture, components, interfaces, and data design of Aurearia — a full-stack Progressive Web Application (PWA) for managing a personal ancient coin collection with AI-powered analysis and search capabilities.
 
 ### 1.2 Scope
 

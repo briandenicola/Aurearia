@@ -79,7 +79,7 @@ func (s *AuctionLotService) ConvertToCoin(lotID, userID uint) (*models.Coin, err
 		Name:         lot.Title,
 		Notes:        lot.Description,
 		Category:     lot.Category,
-		ReferenceURL: lot.NumisBidsURL,
+		ReferenceURL: firstNonEmptyAuctionURL(lot.SourceURL, lot.NumisBidsURL),
 		ReferenceText: func() string {
 			if lot.AuctionHouse != "" && lot.SaleName != "" {
 				return lot.AuctionHouse + " — " + lot.SaleName
@@ -105,4 +105,13 @@ func (s *AuctionLotService) ConvertToCoin(lotID, userID uint) (*models.Coin, err
 	}
 
 	return coin, nil
+}
+
+func firstNonEmptyAuctionURL(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
