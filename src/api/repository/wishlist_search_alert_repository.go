@@ -103,7 +103,7 @@ func (r *WishlistSearchAlertRepository) CreateManualRunIfAvailable(run *models.A
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var count int64
 		if err := tx.Model(&models.AlertRun{}).
-			Where("alert_id = ? AND user_id = ? AND status = ? AND started_at >= ?", run.AlertID, run.UserID, models.AlertRunStatusRunning, runningSince).
+			Where("alert_id = ? AND user_id = ? AND status IN ? AND started_at >= ?", run.AlertID, run.UserID, []models.AlertRunStatus{models.AlertRunStatusQueued, models.AlertRunStatusRunning}, runningSince).
 			Count(&count).Error; err != nil {
 			return err
 		}
@@ -119,8 +119,56 @@ func (r *WishlistSearchAlertRepository) CreateManualRunIfAvailable(run *models.A
 	return acquired, err
 }
 
+func (r *WishlistSearchAlertRepository) ClaimQueuedRun(runID uint) (*models.AlertRun, bool, error) {
+	now := time.Now()
+	var run models.AlertRun
+	claimed := false
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&models.AlertRun{}).
+			Where("id = ? AND status = ?", runID, models.AlertRunStatusQueued).
+			Updates(map[string]interface{}{
+				"status":            models.AlertRunStatusRunning,
+				"started_at":        now,
+				"completed_at":      nil,
+				"duration_ms":       0,
+				"error_message":     "",
+				"rate_limit_status": "ok",
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+		claimed = true
+		return tx.First(&run, runID).Error
+	})
+	return &run, claimed, err
+}
+
 func (r *WishlistSearchAlertRepository) UpdateRun(run *models.AlertRun) error {
 	return r.db.Save(run).Error
+}
+
+func (r *WishlistSearchAlertRepository) RecoverStaleAlertRuns(timeout time.Duration) ([]uint, error) {
+	cutoff := time.Now().Add(-timeout)
+	if err := r.db.Model(&models.AlertRun{}).
+		Where("status = ? AND started_at < ?", models.AlertRunStatusRunning, cutoff).
+		Updates(map[string]interface{}{
+			"status":            models.AlertRunStatusQueued,
+			"completed_at":      nil,
+			"duration_ms":       0,
+			"error_message":     "",
+			"rate_limit_status": "ok",
+		}).Error; err != nil {
+		return nil, err
+	}
+	var ids []uint
+	err := r.db.Model(&models.AlertRun{}).
+		Where("status = ?", models.AlertRunStatusQueued).
+		Order("created_at ASC").
+		Pluck("id", &ids).Error
+	return ids, err
 }
 
 func (r *WishlistSearchAlertRepository) ListRuns(alertID, userID uint, page, limit int) ([]models.AlertRun, int64, error) {
