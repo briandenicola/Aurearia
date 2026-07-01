@@ -81,3 +81,13 @@ func (r *UserRepository) ListCoinOfDayEnabled() ([]models.User, error) {
 	err := r.db.Where("coin_of_day_enabled = ?", true).Find(&users).Error
 	return users, err
 }
+
+// ListAuctionWatchDigestEligible returns users who can receive scheduled auction watch bid digests.
+func (r *UserRepository) ListAuctionWatchDigestEligible() ([]models.User, error) {
+	var users []models.User
+	err := r.db.
+		Where("pushover_enabled = ? AND pushover_user_key <> ''", true).
+		Where("(numis_bids_username <> '' AND numis_bids_password <> '') OR (cng_username <> '' AND cng_password <> '')").
+		Find(&users).Error
+	return users, err
+}

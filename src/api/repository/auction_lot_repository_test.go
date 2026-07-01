@@ -265,6 +265,86 @@ func TestAuctionLotRepository_GetEndingSoon_MultipleUsers(t *testing.T) {
 	}
 }
 
+func TestAuctionLotRepository_GetActiveWatchBidDigestLots(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+
+	now := time.Now()
+	in12Hours := now.Add(12 * time.Hour)
+	in48Hours := now.Add(48 * time.Hour)
+	ended := now.Add(-1 * time.Hour)
+	bid := 300.0
+
+	lots := []models.AuctionLot{
+		{
+			NumisBidsURL: "https://example.com/watching-future",
+			Title:        "Watching Future",
+			Status:       models.AuctionStatusWatching,
+			SaleDate:     &in12Hours,
+			CurrentBid:   &bid,
+			LotNumber:    1,
+			UserID:       1,
+		},
+		{
+			NumisBidsURL:   "https://example.com/bidding-future",
+			Title:          "Bidding Future",
+			Status:         models.AuctionStatusBidding,
+			AuctionEndTime: &in48Hours,
+			CurrentBid:     &bid,
+			LotNumber:      2,
+			UserID:         1,
+		},
+		{
+			NumisBidsURL: "https://example.com/ended",
+			Title:        "Ended",
+			Status:       models.AuctionStatusWatching,
+			SaleDate:     &ended,
+			CurrentBid:   &bid,
+			LotNumber:    3,
+			UserID:       1,
+		},
+		{
+			NumisBidsURL: "https://example.com/passed",
+			Title:        "Passed",
+			Status:       models.AuctionStatusPassed,
+			SaleDate:     &in12Hours,
+			CurrentBid:   &bid,
+			LotNumber:    4,
+			UserID:       1,
+		},
+		{
+			NumisBidsURL: "https://example.com/no-date",
+			Title:        "No Date",
+			Status:       models.AuctionStatusWatching,
+			CurrentBid:   &bid,
+			LotNumber:    5,
+			UserID:       1,
+		},
+	}
+	for i := range lots {
+		if err := repo.Create(&lots[i]); err != nil {
+			t.Fatalf("create lot %d: %v", i, err)
+		}
+	}
+
+	got, err := repo.GetActiveWatchBidDigestLots()
+	if err != nil {
+		t.Fatalf("GetActiveWatchBidDigestLots: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d lots, want 2: %#v", len(got), got)
+	}
+	found := map[string]bool{}
+	for _, lot := range got {
+		found[lot.NumisBidsURL] = true
+	}
+	for _, url := range []string{"https://example.com/watching-future", "https://example.com/bidding-future"} {
+		if !found[url] {
+			t.Fatalf("expected active digest lot %s", url)
+		}
+	}
+}
+
 func TestAuctionLotRepository_CountAllAndCountAllByStatus(t *testing.T) {
 	db := setupAuctionTestDB(t)
 	repo := NewAuctionLotRepository(db)
@@ -379,6 +459,40 @@ func TestAuctionLotRepository_UpsertUsesSourceURL(t *testing.T) {
 	}
 	if found.Title != "CNG Lot Updated" {
 		t.Fatalf("CNG title = %q, want updated title", found.Title)
+	}
+}
+
+func TestAuctionLotRepository_UpsertRefreshesCurrentBid(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+
+	originalBid := 125.0
+	lot := &models.AuctionLot{
+		NumisBidsURL: "https://example.com/bid-refresh",
+		Source:       models.AuctionSourceNumisBids,
+		SourceURL:    "https://example.com/bid-refresh",
+		Title:        "Tracked Lot",
+		Status:       models.AuctionStatusWatching,
+		CurrentBid:   &originalBid,
+		LotNumber:    30,
+		UserID:       1,
+	}
+	if _, err := repo.Upsert(lot); err != nil {
+		t.Fatalf("initial upsert: %v", err)
+	}
+
+	refreshedBid := 300.0
+	lot.CurrentBid = &refreshedBid
+	if _, err := repo.Upsert(lot); err != nil {
+		t.Fatalf("refresh upsert: %v", err)
+	}
+
+	found, err := repo.GetBySourceURL(models.AuctionSourceNumisBids, lot.SourceURL, 1)
+	if err != nil {
+		t.Fatalf("GetBySourceURL: %v", err)
+	}
+	if found.CurrentBid == nil || *found.CurrentBid != refreshedBid {
+		t.Fatalf("CurrentBid = %v, want %v", found.CurrentBid, refreshedBid)
 	}
 }
 

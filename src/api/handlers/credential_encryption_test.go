@@ -94,7 +94,7 @@ func TestAuctionLotHandlerLazyMigratesLegacyAuctionCredentials(t *testing.T) {
 	if stored.NumisBidsPassword == "legacy-nb" || !strings.HasPrefix(stored.NumisBidsPassword, "enc:v1:") {
 		t.Fatalf("legacy NumisBids credential was not migrated: %q", stored.NumisBidsPassword)
 	}
-	decrypted, wasEncrypted, err := credentialSvc.DecryptStringWithAAD(stored.NumisBidsPassword, auctionCredentialAAD(user.ID, "numis_bids_password"))
+	decrypted, wasEncrypted, err := credentialSvc.DecryptStringWithAAD(stored.NumisBidsPassword, services.AuctionCredentialAAD(user.ID, "numis_bids_password"))
 	if err != nil {
 		t.Fatalf("decrypt migrated credential: %v", err)
 	}
