@@ -579,7 +579,7 @@ func (h *AuctionLotHandler) ImportFromURL(c *gin.Context) {
 		if req.Category != "" {
 			lot.Category = models.Category(req.Category)
 		}
-		if err := h.repo.Upsert(&lot); err != nil {
+		if _, err := h.repo.Upsert(&lot); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to import auction lot"})
 			return
 		}
@@ -617,7 +617,7 @@ func (h *AuctionLotHandler) ImportFromURL(c *gin.Context) {
 	}
 
 	// Upsert: if already tracking this lot, update it
-	if err := h.repo.Upsert(&lot); err != nil {
+	if _, err := h.repo.Upsert(&lot); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to import auction lot"})
 		return
 	}
@@ -777,7 +777,7 @@ func (h *AuctionLotHandler) SyncWatchlist(c *gin.Context) {
 			lot.Currency = "USD"
 		}
 
-		if err := h.repo.Upsert(&lot); err != nil {
+		if _, err := h.repo.UpsertWithCalendarEvent(&lot); err != nil {
 			h.warn("Failed to upsert NumisBids lot for user %d url=%s: %v", userID, wl.URL, err)
 			continue
 		}
@@ -843,7 +843,7 @@ func (h *AuctionLotHandler) syncCNGWatchlist(c *gin.Context, userID uint, user *
 		}
 
 		lot := auctionLotFromWatchlist(models.AuctionSourceCNG, userID, wl, status, auctionEndTime)
-		if err := h.repo.Upsert(&lot); err != nil {
+		if _, err := h.repo.UpsertWithCalendarEvent(&lot); err != nil {
 			h.warn("Failed to upsert CNG lot for user %d url=%s: %v", userID, wl.URL, err)
 			continue
 		}

@@ -606,3 +606,4 @@ Created src/api/services/availability_service_test.go with comprehensive test co
   - **Blocker:** Phase 1 requires credentialed CNG testing (user-provided account) to verify login, watchlist structure, DOM selectors.
   - **Quality gate:** No implementation started. Awaiting Phase 1 research go/no-go decision and encryption layer prerequisite resolution.
   - **Orchestration log:** .squad/orchestration-log/2026-06-30T22-43-42Z-cassius.md.
+- **2026-07-01:** Auction watchlist sync now uses repository-level `UpsertWithCalendarEvent` to create and link in-app `AuctionEvent` rows only for newly tracked `watching`/`bidding` NumisBids/CNG lots. Existing source-aware `(source, source_url, user_id)` upserts remain idempotent; passed/won/lost lots skip auto-events.
