@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -213,6 +214,30 @@ func TestWishlistSearchAlertService_RunNowRejectsDisabledAndRunningAlert(t *test
 	}
 	if _, err := svc.RunNow(alert.ID, 1, RunAlertInput{}); !errors.Is(err, ErrWishlistSearchAlertRunLimited) {
 		t.Fatalf("running run error = %v", err)
+	}
+}
+
+func TestWishlistSearchAlertService_RunNowKeepsRunningLockBeyondThirtySeconds(t *testing.T) {
+	if wishlistAlertDiscoveryTimeout <= 30*time.Second {
+		t.Fatalf("discovery timeout should allow normal agent runs beyond 30 seconds, got %s", wishlistAlertDiscoveryTimeout)
+	}
+
+	svc, db, cleanup := setupWishlistSearchAlertDiscoveryService(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("agent should not be called while a prior run is still locked")
+	})
+	defer cleanup()
+	alert, err := svc.CreateAlert(1, validAlertInput())
+	if err != nil {
+		t.Fatalf("create alert: %v", err)
+	}
+	if err := db.Create(&models.AlertRun{
+		AlertID: alert.ID, UserID: 1, TriggerType: models.AlertRunTriggerManual,
+		Status: models.AlertRunStatusRunning, StartedAt: time.Now().Add(-2 * time.Minute), CriteriaSnapshot: "{}",
+	}).Error; err != nil {
+		t.Fatalf("seed running run: %v", err)
+	}
+	if _, err := svc.RunNow(alert.ID, 1, RunAlertInput{}); !errors.Is(err, ErrWishlistSearchAlertRunLimited) {
+		t.Fatalf("running run beyond 30 seconds error = %v", err)
 	}
 }
 

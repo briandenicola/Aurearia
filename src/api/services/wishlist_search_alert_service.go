@@ -36,8 +36,10 @@ var (
 )
 
 const (
-	AlertResultCapDefault = 20
-	AlertResultCapMax     = 50
+	AlertResultCapDefault          = 20
+	AlertResultCapMax              = 50
+	wishlistAlertDiscoveryTimeout  = 5 * time.Minute
+	wishlistAlertRunningLockWindow = wishlistAlertDiscoveryTimeout
 )
 
 type WishlistAlertCriteriaInput struct {
@@ -219,7 +221,7 @@ func (s *WishlistSearchAlertService) RunNow(alertID, userID uint, input RunAlert
 		CriteriaSnapshot: snapshot,
 		RateLimitStatus:  "ok",
 	}
-	acquired, err := s.repo.CreateManualRunIfAvailable(run, time.Now().Add(-30*time.Second))
+	acquired, err := s.repo.CreateManualRunIfAvailable(run, time.Now().Add(-wishlistAlertRunningLockWindow))
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +259,7 @@ func (s *WishlistSearchAlertService) RunNow(alertID, userID uint, input RunAlert
 			MaxCandidates: maxCandidates,
 		},
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), wishlistAlertDiscoveryTimeout)
 	resp, err := s.agentProxy.DiscoverAlertCandidates(ctx, proxyReq)
 	cancel()
 	if err != nil {
