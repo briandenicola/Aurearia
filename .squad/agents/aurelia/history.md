@@ -410,3 +410,5 @@ Investigated production 429s on collection browsing. App mount makes expected da
   - **Migration:** Existing NumisBids lots backfilled by backend (provider='numisbids'); no frontend breaking change.
   - **Implementation roadmap:** 5 phases, ~10 turns total. Phase 1 (1 turn) and Phases 2–3 can proceed in parallel with Cassius backend work.
   - **Orchestration log:** .squad/orchestration-log/2026-06-30T22-43-42Z-aurelia.md.
+
+- **2026-07-01:** Auctions filter toolbar now keeps source chips visible in the primary row and moves status filters behind a right-aligned lucide menu button. This preserves the existing `activeStatus` / `activeSource` query behavior while reducing stacked filter rows on PWA/mobile.

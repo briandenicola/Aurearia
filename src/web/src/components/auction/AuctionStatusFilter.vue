@@ -1,12 +1,28 @@
 <template>
-  <div class="filter-bar">
-    <div class="status-filters">
+  <div class="status-filter-menu" @keydown.esc="menuOpen = false">
+    <button
+      type="button"
+      class="btn btn-sm btn-ghost menu-button"
+      :class="{ active: modelValue }"
+      aria-label="Auction status filters"
+      aria-haspopup="menu"
+      :aria-expanded="menuOpen"
+      title="Status filters"
+      @click="menuOpen = !menuOpen"
+    >
+      <Menu :size="18" />
+    </button>
+
+    <div v-if="menuOpen" class="status-menu" role="menu" aria-label="Auction status filters">
       <button
         v-for="s in statuses"
         :key="s.value"
-        class="filter-btn"
+        type="button"
+        class="chip status-option"
         :class="{ active: modelValue === s.value }"
-        @click="$emit('update:modelValue', s.value)"
+        role="menuitemradio"
+        :aria-checked="modelValue === s.value"
+        @click="selectStatus(s.value)"
       >
         {{ s.label }}
         <span v-if="counts[s.value]" class="count-badge">{{ counts[s.value] }}</span>
@@ -16,14 +32,19 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
+import { Menu } from 'lucide-vue-next'
+
 defineProps<{
   modelValue: string
   counts: Record<string, number>
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
+
+const menuOpen = ref(false)
 
 const statuses = [
   { value: '', label: 'All' },
@@ -33,42 +54,52 @@ const statuses = [
   { value: 'lost', label: 'Lost' },
   { value: 'passed', label: 'Passed' },
 ]
+
+function selectStatus(value: string) {
+  emit('update:modelValue', value)
+  menuOpen.value = false
+}
 </script>
 
 <style scoped>
-.filter-bar {
-  margin-bottom: 1.25rem;
-}
-
-.status-filters {
+.status-filter-menu {
+  position: relative;
   display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.filter-btn {
-  padding: 0.4rem 0.9rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
+.menu-button {
+  justify-content: center;
+  padding-inline: 0.75rem;
 }
 
-.filter-btn:hover {
-  border-color: var(--accent-gold-dim);
-  color: var(--text-primary);
-}
-
-.filter-btn.active {
+.menu-button.active {
   background: var(--accent-gold-glow);
-  border-color: var(--accent-gold-dim);
+  border-color: var(--accent-gold);
   color: var(--accent-gold);
+}
+
+.status-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  min-width: 9rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+}
+
+.status-option {
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
 }
 
 .count-badge {

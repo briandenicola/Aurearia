@@ -30,18 +30,19 @@
 
       <div v-if="syncMessage" class="sync-toast">{{ syncMessage }}</div>
 
-      <AuctionStatusFilter v-model="activeStatus" :counts="statusCounts" />
-
-      <div class="source-filter" aria-label="Auction source filter">
-        <button
-          v-for="source in sourceOptions"
-          :key="source.value"
-          class="chip"
-          :class="{ active: activeSource === source.value }"
-          @click="activeSource = source.value"
-        >
-          {{ source.label }}
-        </button>
+      <div class="auction-filter-toolbar">
+        <div class="source-filter" aria-label="Auction source filter">
+          <button
+            v-for="source in sourceOptions"
+            :key="source.value"
+            class="chip"
+            :class="{ active: activeSource === source.value }"
+            @click="activeSource = source.value"
+          >
+            {{ source.label }}
+          </button>
+        </div>
+        <AuctionStatusFilter v-model="activeStatus" :counts="statusCounts" />
       </div>
 
       <div v-if="selectMode" class="select-controls">
@@ -297,11 +298,26 @@ fetchAllCounts()
   animation: fadeIn 0.2s ease;
 }
 
+.auction-filter-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: nowrap;
+  margin-bottom: 1rem;
+}
+
 .source-filter {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  margin-bottom: 1rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.auction-filter-toolbar :deep(.status-filter-menu) {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .import-first-btn {
