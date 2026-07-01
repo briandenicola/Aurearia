@@ -118,7 +118,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Search, Pencil, Trash2, Play } from 'lucide-vue-next'
 import AlertCriteriaSummary from '@/components/wishlist-alerts/AlertCriteriaSummary.vue'
 import AlertForm from '@/components/wishlist-alerts/AlertForm.vue'
@@ -164,6 +164,8 @@ const provenanceStatus = ref<CandidateProvenanceStatus | ''>('')
 const candidateBusyId = ref<number | null>(null)
 const duplicateWarnings = ref<Record<number, string[]>>({})
 const { isPwa } = usePwa()
+const RUN_POLL_INTERVAL_MS = 3000
+let runPollTimer: ReturnType<typeof setTimeout> | null = null
 
 const selectedAlert = computed(() => alerts.value.find((alert) => alert.id === selectedAlertId.value) ?? null)
 
@@ -193,6 +195,8 @@ function closeEditor() { creating.value = false; editing.value = null }
 function noop() {}
 
 function clearReviewState() {
+  clearRunPollTimer()
+  running.value = false
   selectedRun.value = null
   runs.value = []
   runsError.value = ''
@@ -208,6 +212,7 @@ function clearSelection() {
 }
 
 async function selectAlert(alert: WishlistSearchAlert) {
+  clearRunPollTimer()
   selectedAlertId.value = alert.id
   clearReviewState()
   await loadSelectedData()
@@ -250,15 +255,19 @@ async function runNow() {
   running.value = true
   runMessage.value = ''
   error.value = ''
+  let queued = false
   try {
+    const alertId = selectedAlert.value.id
     const res = await runWishlistSearchAlert(selectedAlert.value.id, 20)
-    runMessage.value = runResultMessage(res.data.status, res.data.resultCount, res.data.duplicateCount)
-    await Promise.all([load(), loadRuns(), loadCandidates()])
-    if (res.data.runId) await loadRunDetail(res.data.runId)
+    queued = true
+    runMessage.value = 'Search alert run queued. You can leave this page; results will appear in run history.'
+    await Promise.all([load(), loadRuns()])
+    if (res.data.runId) await pollAlertRun(alertId, res.data.runId)
   } catch (err) {
     error.value = getApiErrorMessage(err) || 'Search alert discovery failed. Try again later.'
-  } finally {
     running.value = false
+  } finally {
+    if (!queued) running.value = false
   }
 }
 
@@ -269,7 +278,13 @@ async function loadRuns() {
   try {
     const res = await listWishlistSearchAlertRuns(selectedAlertId.value, { page: 1, limit: 20 })
     runs.value = res.data.runs
-    if (!selectedRun.value && runs.value[0]) await loadRunDetail(runs.value[0].id)
+    if (!selectedRun.value && runs.value[0]) {
+      const run = await loadRunDetail(runs.value[0].id)
+      if (run && !isTerminalRunStatus(run.status)) {
+        running.value = true
+        scheduleRunPoll(run.alertId, run.id)
+      }
+    }
   } catch (err) {
     runsError.value = getApiErrorMessage(err) || 'Failed to load run history.'
   } finally {
@@ -278,9 +293,10 @@ async function loadRuns() {
 }
 
 async function loadRunDetail(runId: number) {
-  if (!selectedAlertId.value) return
+  if (!selectedAlertId.value) return null
   const res = await getWishlistSearchAlertRun(selectedAlertId.value, runId)
   selectedRun.value = res.data
+  return res.data
 }
 
 async function loadCandidates() {
@@ -374,13 +390,56 @@ function toInputCriteria(alert: WishlistSearchAlert): WishlistSearchAlertInput['
 }
 
 function runResultMessage(status: string, count: number, duplicates: number) {
+  if (status === 'queued' || status === 'running') return 'Run is still processing. Results will appear when discovery finishes.'
   if (status === 'failed') return 'Run failed with a stored, sanitized error. Review run history for details.'
   if (status === 'rate_limited') return 'Run was rate limited. Review run history before retrying.'
   if (count === 0) return 'Run completed with no candidates. Consider broadening criteria.'
   return `Run ${status.replace(/_/g, ' ')} with ${count} candidates and ${duplicates} duplicates.`
 }
 
+async function pollAlertRun(alertId: number, runId: number) {
+  if (selectedAlertId.value !== alertId) return
+  try {
+    const res = await getWishlistSearchAlertRun(alertId, runId)
+    selectedRun.value = res.data
+    if (isTerminalRunStatus(res.data.status)) {
+      await finishAlertRun(res.data)
+      return
+    }
+  } catch {
+    // Keep polling; transient network errors should not lose the backend-owned run.
+  }
+  scheduleRunPoll(alertId, runId)
+}
+
+function scheduleRunPoll(alertId: number, runId: number) {
+  clearRunPollTimer()
+  runPollTimer = setTimeout(() => {
+    void pollAlertRun(alertId, runId)
+  }, RUN_POLL_INTERVAL_MS)
+}
+
+async function finishAlertRun(run: AlertRun) {
+  clearRunPollTimer()
+  running.value = false
+  runMessage.value = runResultMessage(run.status, run.resultCount, run.duplicateCount)
+  await Promise.all([load(), loadRuns(), loadCandidates()])
+  await loadRunDetail(run.id)
+}
+
+function isTerminalRunStatus(status: AlertRun['status']) {
+  return ['completed', 'failed', 'partial', 'rate_limited', 'cancelled'].includes(status)
+}
+
+function clearRunPollTimer() {
+  if (runPollTimer) {
+    clearTimeout(runPollTimer)
+    runPollTimer = null
+  }
+}
+
 onMounted(load)
+onBeforeUnmount(clearRunPollTimer)
 </script>
 
 <style scoped>

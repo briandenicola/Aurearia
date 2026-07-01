@@ -142,9 +142,19 @@ func TestWishlistSearchAlertService_RunNowPersistsCandidatesAndSuppressesDuplica
 	if err := db.Create(&savedCoin).Error; err != nil {
 		t.Fatalf("seed saved wishlist coin: %v", err)
 	}
-	first, err := svc.RunNow(alert.ID, 1, RunAlertInput{MaxCandidates: 20})
+	firstQueued, err := svc.RunNow(alert.ID, 1, RunAlertInput{MaxCandidates: 20})
 	if err != nil {
-		t.Fatalf("first run: %v", err)
+		t.Fatalf("queue first run: %v", err)
+	}
+	if firstQueued.Status != models.AlertRunStatusQueued || firstQueued.ResultCount != 0 {
+		t.Fatalf("first run should return queued before agent processing: %+v", firstQueued)
+	}
+	if err := svc.ProcessRun(firstQueued.RunID); err != nil {
+		t.Fatalf("process first run: %v", err)
+	}
+	first, err := svc.GetRun(alert.ID, firstQueued.RunID, 1)
+	if err != nil {
+		t.Fatalf("load first run: %v", err)
 	}
 	if first.Status != models.AlertRunStatusCompleted || first.NewCount != 1 || first.DuplicateCount != 0 {
 		t.Fatalf("unexpected first run: %+v", first)
@@ -159,15 +169,22 @@ func TestWishlistSearchAlertService_RunNowPersistsCandidatesAndSuppressesDuplica
 		t.Fatalf("first run did not preserve source-backed fields: %+v", first.Candidates[0].Fields)
 	}
 	var storedRun models.AlertRun
-	if err := db.First(&storedRun, first.RunID).Error; err != nil {
+	if err := db.First(&storedRun, firstQueued.RunID).Error; err != nil {
 		t.Fatalf("load stored run: %v", err)
 	}
 	if storedRun.CriteriaSnapshot == "" || storedRun.CompletedAt == nil {
 		t.Fatalf("run missing audit metadata: %+v", storedRun)
 	}
-	second, err := svc.RunNow(alert.ID, 1, RunAlertInput{MaxCandidates: 20})
+	secondQueued, err := svc.RunNow(alert.ID, 1, RunAlertInput{MaxCandidates: 20})
 	if err != nil {
-		t.Fatalf("second run: %v", err)
+		t.Fatalf("queue second run: %v", err)
+	}
+	if err := svc.ProcessRun(secondQueued.RunID); err != nil {
+		t.Fatalf("process second run: %v", err)
+	}
+	second, err := svc.GetRun(alert.ID, secondQueued.RunID, 1)
+	if err != nil {
+		t.Fatalf("load second run: %v", err)
 	}
 	if second.NewCount != 0 || second.DuplicateCount != 1 {
 		t.Fatalf("duplicate was not suppressed: %+v", second)
@@ -184,6 +201,29 @@ func TestWishlistSearchAlertService_RunNowPersistsCandidatesAndSuppressesDuplica
 	}
 	if after.ListingStatus != "available" || after.ListingCheckedAt != nil || after.ListingCheckReason != "seeded" {
 		t.Fatalf("alert run mutated listing status fields: %+v", after)
+	}
+}
+
+func TestWishlistSearchAlertService_RunNowEnqueuesWithoutWaitingForAgent(t *testing.T) {
+	agentCalled := false
+	svc, _, cleanup := setupWishlistSearchAlertDiscoveryService(t, func(w http.ResponseWriter, r *http.Request) {
+		agentCalled = true
+		t.Fatal("agent should not be called until a worker processes the queued run")
+	})
+	defer cleanup()
+	alert, err := svc.CreateAlert(1, validAlertInput())
+	if err != nil {
+		t.Fatalf("create alert: %v", err)
+	}
+	result, err := svc.RunNow(alert.ID, 1, RunAlertInput{})
+	if err != nil {
+		t.Fatalf("queue run: %v", err)
+	}
+	if result.Status != models.AlertRunStatusQueued || result.CompletedAt != nil {
+		t.Fatalf("expected queued run response, got %+v", result)
+	}
+	if agentCalled {
+		t.Fatal("agent was called synchronously during RunNow")
 	}
 }
 
