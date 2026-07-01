@@ -62,7 +62,6 @@ The top-level supervisor (`app/supervisor.py`) uses a LangGraph `StateGraph` wit
 | **Coin Grading** | Photo analysis → Grade estimation | AI grade estimation from coin photos |
 | **Portfolio Review** | Read holdings → Valuate → Analyze | Portfolio analysis and valuation |
 | **Gap Analysis** | Summarize collection → Analyze gaps → Suggest | Collection completeness analysis |
-| **Photo Guide** | Analyze photos → Provide tips | Coin photography improvement advice |
 | **Price Trends** | Search auctions → Analyze trends | Auction price history and market direction |
 | **Similar Lots** | Search → Score similarity → Format | Find similar coins at active auctions |
 | **Auction Search** | Search NumisBids → Fetch lots → Format | Search auction lots |
@@ -99,7 +98,6 @@ app/
     portfolio_review.py  # Team 4: Portfolio review pipeline
     availability_check.py # Team 5: URL availability checking
     gap_analysis.py  # Team 7: Collection gap analysis
-    photo_guide.py   # Team 8: Photography tips
     price_trends.py  # Team 9: Auction price trends
     similar_lots.py  # Team 10: Similar lot finder
     auction_search.py # Team 5: Auction lot search

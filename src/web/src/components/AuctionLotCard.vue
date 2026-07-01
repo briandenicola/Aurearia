@@ -275,11 +275,11 @@ const saleCountdown = computed(() => {
   text-decoration: underline;
 }
 
-.category-roman { color: #b57edc; }
-.category-greek { color: #9ab85a; }
-.category-byzantine { color: #e67e73; }
-.category-modern { color: #7ab3d4; }
-.category-other { color: #aaa; }
+.category-roman { color: var(--cat-roman); }
+.category-greek { color: var(--cat-greek); }
+.category-byzantine { color: var(--cat-byzantine); }
+.category-modern { color: var(--cat-modern); }
+.category-other { color: var(--cat-other); }
 
 @media (display-mode: standalone) {
   .lot-image-container {
