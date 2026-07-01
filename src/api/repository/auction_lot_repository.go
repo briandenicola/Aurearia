@@ -388,6 +388,28 @@ func (r *AuctionLotRepository) GetEndingSoon() ([]models.AuctionLot, error) {
 	return lots, err
 }
 
+// GetActiveWatchBidDigestLots returns watched or bidding lots that have not reached their known auction end date.
+func (r *AuctionLotRepository) GetActiveWatchBidDigestLots() ([]models.AuctionLot, error) {
+	var lots []models.AuctionLot
+	now := time.Now()
+	statuses := []string{
+		string(models.AuctionStatusWatching),
+		string(models.AuctionStatusBidding),
+	}
+
+	err := r.db.Where("LOWER(status) IN ? AND ("+
+		"(auction_end_time IS NOT NULL AND auction_end_time > ?) OR "+
+		"(auction_end_time IS NULL AND sale_date IS NOT NULL AND sale_date > ?)"+
+		")",
+		statuses,
+		now, now).
+		Order("user_id ASC").
+		Order("COALESCE(auction_end_time, sale_date) ASC").
+		Order("lot_number ASC").
+		Find(&lots).Error
+	return lots, err
+}
+
 // AuctionLotDebugInfo holds enriched lot data for debugging date/status issues.
 type AuctionLotDebugInfo struct {
 	ID             uint       `json:"id"`

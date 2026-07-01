@@ -293,7 +293,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		updates["numis_bids_username"] = strings.TrimSpace(*req.NumisBidsUsername)
 	}
 	if req.NumisBidsPassword != nil {
-		encrypted, err := h.credentials.EncryptStringWithAAD(*req.NumisBidsPassword, auctionCredentialAAD(user.ID, "numis_bids_password"))
+		encrypted, err := h.credentials.EncryptStringWithAAD(*req.NumisBidsPassword, services.AuctionCredentialAAD(user.ID, "numis_bids_password"))
 		if err != nil {
 			respondError(c, http.StatusInternalServerError, "Failed to protect NumisBids credentials", err)
 			return
@@ -304,7 +304,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		updates["cng_username"] = strings.TrimSpace(*req.CNGUsername)
 	}
 	if req.CNGPassword != nil {
-		encrypted, err := h.credentials.EncryptStringWithAAD(*req.CNGPassword, auctionCredentialAAD(user.ID, "cng_password"))
+		encrypted, err := h.credentials.EncryptStringWithAAD(*req.CNGPassword, services.AuctionCredentialAAD(user.ID, "cng_password"))
 		if err != nil {
 			respondError(c, http.StatusInternalServerError, "Failed to protect CNG credentials", err)
 			return
@@ -361,10 +361,6 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		"pushoverEnabled":     user.PushoverEnabled,
 		"coinOfDayEnabled":    user.CoinOfDayEnabled,
 	})
-}
-
-func auctionCredentialAAD(userID uint, field string) []byte {
-	return []byte(fmt.Sprintf("auction-credential:%d:%s", userID, field))
 }
 
 // UploadAvatar uploads a profile avatar image for the authenticated user.

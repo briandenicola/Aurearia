@@ -205,7 +205,10 @@ func main() {
 	// Create schedulers before routes so they can be passed to admin handlers
 	availScheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, availRepo, settingsSvc, logger)
 	valScheduler := services.NewValuationScheduler(valSvc, coinRepo, valRepo, settingsSvc, logger)
-	auctionEndingScheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepoForVal, pushoverSvc, settingsSvc, logger)
+	nbWatchSyncSvc := services.NewNumisBidsService(logger)
+	cngWatchSyncSvc := services.NewCNGAuctionService(logger)
+	auctionWatchlistSyncSvc := services.NewAuctionWatchlistSyncService(auctionLotRepo, userRepoForVal, nbWatchSyncSvc, cngWatchSyncSvc, credentialEncryptionSvc, logger)
+	auctionEndingScheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepoForVal, pushoverSvc, settingsSvc, logger).WithWatchlistSync(auctionWatchlistSyncSvc)
 	healthScheduler := services.NewCollectionHealthScheduler(healthSvc, settingsSvc, logger)
 	featuredCoinRepo := repository.NewFeaturedCoinRepository(database.DB)
 	coinOfDayScheduler := services.NewCoinOfDayScheduler(featuredCoinRepo, userRepoForVal, coinRepo, notifSvc, settingsSvc, logger)

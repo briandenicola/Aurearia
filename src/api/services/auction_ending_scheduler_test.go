@@ -1,6 +1,8 @@
 package services
 
 import (
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -106,5 +108,67 @@ func TestAuctionEndingTimeUntilNextRun_IgnoresManualRuns(t *testing.T) {
 	wait := s.timeUntilNextRun()
 	if wait < 1*time.Hour+55*time.Minute || wait > 2*time.Hour+5*time.Minute {
 		t.Fatalf("expected ~2h wait when only manual runs exist, got %v", wait)
+	}
+}
+
+func TestAuctionEndingNotifyUserIncludesCurrentHighBids(t *testing.T) {
+	db := setupAuctionEndingSchedulerDB(t)
+	if err := db.AutoMigrate(&models.User{}); err != nil {
+		t.Fatalf("failed to migrate users: %v", err)
+	}
+
+	user := models.User{
+		Username:        "bidder",
+		Email:           "bidder@example.com",
+		PasswordHash:    "hash",
+		PushoverEnabled: true,
+		PushoverUserKey: "user-key",
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	var captured url.Values
+	pushoverSvc, cleanup := newTestPushoverService(t, &captured)
+	defer cleanup()
+
+	settingsSvc := NewSettingsService(repository.NewSettingsRepository(db))
+	scheduler := NewAuctionEndingScheduler(
+		nil,
+		repository.NewAuctionEndingRepository(db),
+		repository.NewUserRepository(db),
+		pushoverSvc,
+		settingsSvc,
+		NewLogger(100),
+	)
+
+	bidOne := 125.5
+	bidTwo := 300.0
+	sent := scheduler.notifyUser(user.ID, []models.AuctionLot{
+		{AuctionHouse: "The Coin Cabinet", SaleName: "Ancients Auction 35", LotNumber: 30, CurrentBid: &bidOne, Currency: "GBP"},
+		{AuctionHouse: "Classical Numismatic Group", SaleName: "Keystone 17", LotNumber: 95, CurrentBid: &bidTwo, Currency: "USD"},
+	})
+	if !sent {
+		t.Fatal("notifyUser returned false")
+	}
+
+	if got := captured.Get("title"); got != "Auction Watch Bid Digest" {
+		t.Fatalf("title = %q, want Auction Watch Bid Digest", got)
+	}
+	message := captured.Get("message")
+	for _, want := range []string{
+		"2 watched auction lot(s):",
+		"The Coin Cabinet - Ancients Auction 35 (Lot 30): current high bid 125.50 GBP",
+		"Classical Numismatic Group - Keystone 17 (Lot 95): current high bid 300.00 USD",
+	} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("message %q missing %q", message, want)
+		}
+	}
+}
+
+func TestFormatAuctionBidHandlesMissingBid(t *testing.T) {
+	if got := formatAuctionBid(nil, "USD"); got != "current high bid unavailable" {
+		t.Fatalf("formatAuctionBid(nil) = %q", got)
 	}
 }

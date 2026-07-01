@@ -913,7 +913,7 @@ func firstNonEmpty(values ...string) string {
 }
 
 func (h *AuctionLotHandler) decryptStoredCredential(userID uint, field string, stored string) (plain string, shouldMigrate bool, err error) {
-	plain, wasEncrypted, err := h.credentials.DecryptStringWithAAD(stored, auctionCredentialAAD(userID, field))
+	plain, wasEncrypted, err := h.credentials.DecryptStringWithAAD(stored, services.AuctionCredentialAAD(userID, field))
 	if err != nil {
 		return "", false, err
 	}
@@ -921,7 +921,7 @@ func (h *AuctionLotHandler) decryptStoredCredential(userID uint, field string, s
 }
 
 func (h *AuctionLotHandler) migrateStoredCredential(user *models.User, field string, plain string) {
-	encrypted, err := h.credentials.EncryptStringWithAAD(plain, auctionCredentialAAD(user.ID, field))
+	encrypted, err := h.credentials.EncryptStringWithAAD(plain, services.AuctionCredentialAAD(user.ID, field))
 	if err != nil {
 		h.warn("Failed to encrypt legacy auction credential for user %d: %v", user.ID, err)
 		return
