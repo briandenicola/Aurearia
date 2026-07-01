@@ -46,6 +46,38 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
     </details>
 
     <details class="help-accordion">
+      <summary class="help-summary">Using Aurearia - Coin Collection Features</summary>
+      <div class="help-content">
+        <p>Aurearia - Coin Collection supports collection cataloging, acquisition planning, auctions, social sharing, and AI-assisted research. These workflows are optional; start with collection import or Quick Capture, then enable integrations as needed.</p>
+
+        <h4>Fast Intake</h4>
+        <ul>
+          <li><strong>Quick Capture</strong> — Save show-floor photos and notes as drafts, resume them later, and promote a completed draft into either your collection or wish list. Drafts stay out of collection, wish list, stats, and health totals until promotion.</li>
+          <li><strong>Coin Lookup</strong> — Photograph a coin or NGC Ancients slab, review extracted details, and save the result to your collection or wish list.</li>
+        </ul>
+
+        <h4>Auctions</h4>
+        <ul>
+          <li><strong>Manual import</strong> — Paste a NumisBids or CNG Auctions lot URL from the Auctions page.</li>
+          <li><strong>Watchlist sync</strong> — Add NumisBids and/or CNG credentials in <strong>Settings → Account</strong>, then use <strong>Sync Watchlists</strong> on the Auctions page.</li>
+          <li><strong>Source filters</strong> — Filter auction lots by All, NumisBids, or CNG in addition to status.</li>
+          <li><strong>Security</strong> — Stored auction-provider passwords are encrypted on the server. Existing plaintext values are migrated automatically the next time they are saved or used for sync.</li>
+        </ul>
+
+        <h4>Sharing and Discovery</h4>
+        <ul>
+          <li><strong>Public showcases</strong> — Create curated public sets with shareable links. Only public-safe coin fields are exposed; private notes, prices, and AI analysis stay hidden.</li>
+          <li><strong>Wishlist search alerts</strong> — Save search criteria, run alerts on a schedule or manually, review candidates, dismiss poor matches, and convert accepted candidates into wish list items.</li>
+          <li><strong>Collection health</strong> — Use Stats health views to track score trends, missing images, metadata gaps, AI coverage gaps, and suggested improvements.</li>
+          <li><strong>Museum Tray</strong> — Use the Tray view to arrange coins visually with size-aware spacing for a cabinet-style browsing experience.</li>
+          <li><strong>Mint Map</strong> — Use Stats → Map to see mint locations and geographic distribution for coins with mapped mint data.</li>
+          <li><strong>Coin of the Day</strong> — Enable daily featured coin notifications in Settings → Account to rediscover coins from your own collection.</li>
+          <li><strong>Connected sign-in providers</strong> — After signing in locally, open Settings → Account → Connected Sign-in Providers to link Microsoft Entra ID, Pocket ID, or another configured OIDC provider.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="help-accordion">
       <summary class="help-summary">Historical Coin Types</summary>
       <div class="help-content">
         <p>Ancient coins span thousands of years across many civilizations. Here are the major categories:</p>
@@ -58,7 +90,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           <li><strong>Obol</strong> — Small silver coin, originally 1/6 of a drachm</li>
           <li><strong>Hemidrachm</strong> — Half a drachm, commonly found in smaller denominations</li>
         </ul>
-        <p class="help-tip">💡 <strong>Popular starting points:</strong> Athenian owl tetradrachms, Alexander the Great drachms, and Ptolemaic bronzes are widely available and recognizable.</p>
+        <p class="help-tip"><strong>Popular starting points:</strong> Athenian owl tetradrachms, Alexander the Great drachms, and Ptolemaic bronzes are widely available and recognizable.</p>
 
         <h4>Roman Republic (c. 280 – 27 BC)</h4>
         <p>Coins of the Roman Republic feature anonymous designs early on, evolving to depict political figures and events.</p>
@@ -78,7 +110,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           <li><strong>Follis</strong> — Late Roman bronze, common in the 4th century</li>
           <li><strong>Solidus</strong> — Gold coin introduced by Constantine I, replaced the aureus</li>
         </ul>
-        <p class="help-tip">💡 <strong>Best for beginners:</strong> Late Roman bronzes (4th century) are affordable, plentiful, and come in recognizable emperor portraits. Start with Constantine I, Constantius II, or Valentinian I.</p>
+        <p class="help-tip"><strong>Best for beginners:</strong> Late Roman bronzes (4th century) are affordable, plentiful, and come in recognizable emperor portraits. Start with Constantine I, Constantius II, or Valentinian I.</p>
 
         <h4>Byzantine (330 – 1453 AD)</h4>
         <p>Continuation of the Eastern Roman Empire. Notable for their distinctive cup-shaped coins (scyphate) and religious imagery.</p>
@@ -117,7 +149,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           </tbody>
         </table>
 
-        <p class="help-tip">💡 <strong>For ancient coins</strong>, VF is considered a very respectable grade. Many ancient coins in EF or above command significant premiums. Don't expect modern-coin perfection — 2,000-year-old coins have character!</p>
+        <p class="help-tip"><strong>For ancient coins</strong>, VF is considered a very respectable grade. Many ancient coins in EF or above command significant premiums. Don't expect modern-coin perfection — 2,000-year-old coins have character!</p>
 
         <h4>Grading Services</h4>
         <p>Professional grading services (NGC Ancients, PCGS) authenticate and grade coins, sealing them in tamper-proof holders ("slabs"). This adds cost but provides confidence in authenticity and grade. NGC Ancients is the most widely used service for ancient coins.</p>
@@ -146,7 +178,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           </tbody>
         </table>
 
-        <p class="help-tip">💡 <strong>Getting started:</strong> You don't need to buy these expensive books right away. Websites like <a href="https://www.wildwinds.com" target="_blank" rel="noopener">WildWinds</a>, <a href="https://www.acsearch.info" target="_blank" rel="noopener">ACSearch</a>, and <a href="https://en.numista.com" target="_blank" rel="noopener">Numista</a> provide free searchable databases with images and catalog references.</p>
+        <p class="help-tip"><strong>Getting started:</strong> You don't need to buy these expensive books right away. Websites like <a href="https://www.wildwinds.com" target="_blank" rel="noopener">WildWinds</a>, <a href="https://www.acsearch.info" target="_blank" rel="noopener">ACSearch</a>, and <a href="https://en.numista.com" target="_blank" rel="noopener">Numista</a> provide free searchable databases with images and catalog references.</p>
 
         <h4>How to Read a Catalog Reference</h4>
         <p><strong>Example: "RIC VII 162"</strong></p>
@@ -209,7 +241,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           <li><strong>Worn legends</strong> — Use known text patterns and reference photos to fill gaps</li>
         </ul>
 
-        <p class="help-tip">💡 <strong>Pro tip:</strong> The obverse legend usually tells you WHO (the emperor) and WHEN (via titles like TR P and COS numbers). The reverse tells you the MESSAGE (propaganda, virtues, military victories).</p>
+        <p class="help-tip"><strong>Pro tip:</strong> The obverse legend usually tells you WHO (the emperor) and WHEN (via titles like TR P and COS numbers). The reverse tells you the MESSAGE (propaganda, virtues, military victories).</p>
       </div>
     </details>
 
@@ -251,7 +283,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
     </details>
 
     <details class="help-accordion">
-      <summary class="help-summary">⚠️ What to Watch Out For</summary>
+      <summary class="help-summary">What to Watch Out For</summary>
       <div class="help-content">
         <h4>Forgeries & Fakes</h4>
         <p>Forgery has been a problem in numismatics for centuries. Modern fakes, especially from certain overseas workshops, can be very convincing. Here's how to protect yourself:</p>

@@ -1,6 +1,6 @@
 # Getting Started Guide
 
-This guide walks you through setting up Ancient Coins for the first time, adding your first coin, and importing your collection with JSON or CSV.
+This guide walks you through setting up Aurearia for the first time, adding your first coin, and importing your collection with JSON or CSV.
 
 ## First-Time Setup
 
@@ -45,9 +45,19 @@ As admin, click **Admin** in the navigation bar to configure:
 - **System** — Set the log level (`trace`, `debug`, `info`, `warn`, `error`) and configure the Numista API key for catalog lookups.
 - **Logs** — View real-time application logs with level filtering and auto-refresh
 
+### Settings → Account: Auction Providers
+
+Configure NumisBids and/or CNG Auctions credentials in **Settings → Account** to enable watchlist sync:
+
+- **NumisBids Credentials** — Username and password for NumisBids.
+- **CNG Auctions Credentials** — Username and password for CNG Auctions.
+- Use **Test Connection** before saving to confirm provider login works.
+
+Stored provider passwords are encrypted at rest with `AUCTION_CREDENTIAL_ENCRYPTION_KEY`. Legacy plaintext values migrate automatically on next save or sync.
+
 ### 4. Start Adding Coins
 
-Click **➕ Add Coin** from the collection page. Fill in as many fields as you like — only **Name** is required. Toggle **"Add to wishlist"** at the bottom if you don't own the coin yet.
+Click **Add Coin** from the collection page. Fill in as many fields as you like — only **Name** is required. Toggle **"Add to wishlist"** at the bottom if you don't own the coin yet.
 
 After saving, you can upload images (obverse, reverse, detail) from the coin detail page.
 

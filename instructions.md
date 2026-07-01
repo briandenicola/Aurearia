@@ -1,4 +1,4 @@
-# Ancient Coins -- Agent Instructions
+# Aurearia -- Agent Instructions
 
 > **Note:** This file is superseded by `.github/copilot-instructions.md` (auto-read by Copilot),
 > `docs/ARCHITECTURE.md`, and `CONTRIBUTING.md`. This file is retained for reference but
@@ -62,7 +62,7 @@ src/
 │   │   ├── models/                   # Pydantic request/response schemas
 │   │   ├── llm/provider.py           # Anthropic vs Ollama LLM factory
 │   │   ├── tools/search.py           # SearXNG search + URL verify tools
-│   │   ├── tools/numisbids.py        # NumisBids scraping tools (lot, watchlist, search)
+│   │   ├── tools/numisbids.py        # NumisBids auction search tool; CNG support lives in provider-aware auction services
 │   │   └── teams/                    # Multi-agent team pipelines
 │   │       ├── coin_search.py        # Team 1: Search → Verify → Format
 │   │       ├── coin_shows.py         # Team 2: Search → Date verify → Format

@@ -58,7 +58,7 @@
     <div class="form-group">
       <label class="form-label">NumisBids Password</label>
       <input v-model="nbPassword" type="password" class="form-input" placeholder="Your NumisBids password" autocomplete="new-password" />
-      <span class="setting-hint">Stored securely on the server. Used only for watchlist sync.</span>
+      <span class="setting-hint">Encrypted at rest on the server. Used only for watchlist sync; legacy stored passwords migrate on next save or sync.</span>
     </div>
     <div v-if="nbValidating" class="nb-status validating">
       Validating NumisBids credentials...
@@ -81,7 +81,7 @@
     <div class="form-group">
       <label class="form-label">CNG Password</label>
       <input v-model="cngPassword" type="password" class="form-input" placeholder="Your CNG password" autocomplete="new-password" />
-      <span class="setting-hint">Stored on the server and used only for watched-lot sync.</span>
+      <span class="setting-hint">Encrypted at rest on the server. Used only for watched-lot sync; legacy stored passwords migrate on next save or sync.</span>
     </div>
     <div v-if="cngValidating" class="nb-status validating">
       Validating CNG credentials...

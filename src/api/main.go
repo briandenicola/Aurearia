@@ -33,9 +33,9 @@ func (r *SchedulerRegistry) StartAll() {
 	}
 }
 
-//	@title						Ancient Coins API
+//	@title						Aurearia API
 //	@version					1.0
-//	@description				REST API for managing an ancient coin collection. Supports coin CRUD, image uploads, AI-powered analysis via Ollama, user management, and admin features.
+//	@description				REST API for managing a personal coin collection. Supports coin CRUD, image uploads, AI-powered analysis, user management, auction tracking, and admin features.
 //	@BasePath					/api
 //	@securityDefinitions.apikey	BearerAuth
 //	@in							header

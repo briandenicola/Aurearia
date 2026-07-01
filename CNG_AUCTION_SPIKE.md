@@ -10,20 +10,20 @@
 
 ## Executive Summary
 
-Ancient Coins currently tracks auction lots exclusively from NumisBids. The spike analyzes adding CNG Auctions as a second auction source using the same feature boundaries. **Recommended approach: treat CNG as a second "auction provider" within the existing AuctionLot schema**, reusing the current UI/service layers with provider-aware scrapers and credential storage.
+Aurearia now tracks auction lots from NumisBids and CNG Auctions. The spike analyzed adding CNG as a second auction source using the same feature boundaries. **Implemented approach: treat CNG as a second auction provider within the existing AuctionLot schema**, reusing the current UI/service layers with provider-aware scrapers and credential storage.
 
-**Key Finding:** The existing NumisBids architecture is provider-specific (hardcoded URLs, login flow, HTML scraping). CNG will require parallel scraper, separate credential storage, and provider-agnostic UI toggles — but reuses the entire data model and service layer.
+**Key Finding:** The original NumisBids architecture was provider-specific (hardcoded URLs, login flow, HTML scraping). CNG required a parallel scraper, separate credential fields, and provider-aware UI controls while reusing the auction lifecycle model and service boundaries.
 
-**Implementation Status:** Provider-aware CNG manual import and watched-lot sync are implemented. Remaining rollout risk is CNG site structure stability, credential storage parity with existing NumisBids behavior, and beta feedback.
+**Implementation Status:** Provider-aware CNG manual import, watched-lot sync, source filtering, provider-aware links, OpenAPI updates, and encrypted stored provider credentials are implemented. Remaining rollout risk is CNG site structure stability and beta feedback.
 
 ---
 
 ## Current NumisBids Architecture
 
 ### Data Model
-- **AuctionLot** table: single `NumisBidsURL` field; no `provider` or `auction_source` column
+- **AuctionLot** table: provider-aware source fields (`Source`, `SourceURL`, `SourceSaleID`, `SourceLotID`) plus legacy `NumisBidsURL` compatibility
 - Lot statuses: `watching`, `bidding`, `won`, `lost`, `passed`
-- User stores credentials in `User.NumisBidsUsername` and `User.NumisBidsPassword` (plaintext in DB; considered acceptable per design)
+- User stores provider credentials in separate NumisBids and CNG fields. Passwords are encrypted at rest with `AUCTION_CREDENTIAL_ENCRYPTION_KEY`; legacy plaintext values migrate lazily on next save or sync.
 - **AuctionEvent** for calendar linking (separate from NumisBids; supports both sources)
 
 ### Service Layer
@@ -139,7 +139,7 @@ Create separate `CngAuctionLot` table; reuse `AuctionLot` for NumisBids only.
 | Phase 4: Frontend & UX | Complete for MVP | Settings, import, sync, cards, detail modal, and calendar links are provider-aware and use existing UI patterns. |
 | Phase 5: QA Hardening | Complete for MVP | Fixture-backed CNG service tests, provider-aware repository tests, OpenAPI regeneration, backend tests, vet, type-check, and frontend build pass. |
 | Phase 6: Rollout | Ready for beta | Merge to beta after review; rotate the temporary CNG password after validation. |
-| Phase 7: Future Hardening | Backlog | Credential encryption/secrets refactor and optional CNG AJAX/API refresh can be handled separately because NumisBids has the same credential-storage baseline. |
+| Phase 7: Future Hardening | Partially complete | Credential encryption with lazy migration is complete. Remaining backlog is optional CNG AJAX/API refresh, rate-limit tuning, and beta feedback hardening. |
 
 ### Phase 1: Research & Auth (3–5 days)
 **Goal:** Verify CNG site structure and authentication model.
@@ -234,11 +234,9 @@ Create separate `CngAuctionLot` table; reuse `AuctionLot` for NumisBids only.
 ## Security & Privacy Considerations
 
 ### Credential Handling
-- **Current:** NumisBids creds stored plaintext in `User` table (`NumisBidsPassword` VARCHAR(100))
-- **Recommendation for CNG:** **Do not introduce new plaintext storage**
-  - **Option A (Recommended):** Migrate NumisBids to encrypted storage using existing vault/key management (if available)
-  - **Option B (Quick):** Continue plaintext for CNG; document as known limitation; add admin warning
-  - **Option C (Future):** Implement credential rotation endpoint (user enters password once per session, encrypted at rest, key refreshed on logout)
+- **Implemented:** NumisBids and CNG provider passwords are encrypted at rest with AES-GCM using `AUCTION_CREDENTIAL_ENCRYPTION_KEY`.
+- **Lazy migration:** Legacy plaintext values remain readable and are rewritten as encrypted `enc:v1:` values the next time the user saves credentials or runs a provider sync.
+- **Operational note:** If the encryption key is lost or changed without re-encrypting existing values, users must re-enter provider passwords.
 
 ### HTTP Client Behavior
 - Both NumisBids and CNG scrapers use cookie-based sessions
@@ -258,37 +256,33 @@ Create separate `CngAuctionLot` table; reuse `AuctionLot` for NumisBids only.
 
 ---
 
-## Open Questions (Research Phase 1)
+## Resolved Research Questions
 
 1. **Does CNG offer a watchlist feature similar to NumisBids?**
-   - If not, fall back to manual import only (acceptable but less convenience)
+   - Yes. Authenticated `/watched-lots` exposes watched lots and pagination metadata.
 
 2. **What is the CNG lot URL structure?**
    - NumisBids: `/sale/SALEID/lot/LOTNUMBER`
-   - CNG: Unknown (sample needed)
-   - Important: Must be parseable to extract `saleId` and `lotNumber` for deduplication
+   - CNG: `https://auctions.cngcoins.com/lots/view/...`
+   - Deduplication uses provider-aware source URL/source identifiers.
 
 3. **Does CNG require JavaScript to render watchlist or lot detail pages?**
-   - If yes, Go HTTP client cannot scrape; requires headless browser
-   - If no, regex + HTML parser works
+   - No headless browser was required for the observed login, watched-lot sync, and lot detail scraping paths. Go HTTP plus embedded `viewVars` JSON parsing was sufficient.
 
 4. **What fields does CNG provide for each lot?**
-   - Minimum needed: title, image, estimate, current bid, sale date, lot number, auction house
-   - Optional: description, currency, hammer price
+   - Required tracking fields are available: title, image, estimate/current bid where present, sale date, lot number/source identifiers, auction house, and source URL.
 
-5. **Does CNG's login credential format differ?** (email vs username; different password encoding?)
+5. **Does CNG's login credential format differ?**
+   - Login uses the CNG username/password form flow. Credentials are stored separately from NumisBids and encrypted with the shared auction credential encryption service.
 
 6. **Are there any rate limits, bot detection, or anti-scraping measures?**
-   - May need request throttling, retry logic, or proxy rotation
-   - Risk: If detected, site could block the Ancient Coins app
+   - No blocker was observed during spike validation. Beta should still monitor scraper errors and avoid excessive sync frequency.
 
 7. **Does CNG have a public API or RSS feed?**
-   - If available, reduces scraping risk entirely
-   - Worth checking developer docs before committing to HTML scraping
+   - No public API dependency was required for MVP.
 
 8. **How frequently do CNG lot pages update?**
-   - Affects sync interval recommendations
-   - If real-time, consider polling strategy
+   - Not required for MVP. Sync is user-triggered watchlist import; future scheduled refresh can tune cadence from beta telemetry.
 
 ---
 
@@ -301,7 +295,7 @@ Create separate `CngAuctionLot` table; reuse `AuctionLot` for NumisBids only.
 | Login credentials fail silently | User doesn't notice; lots don't sync | Medium | Add credential validation endpoint; periodic test login; error messages in UI |
 | Rate limiting / bot detection | App gets IP-blocked | Low | Add exponential backoff; respect robots.txt; limit sync frequency |
 | CNG watchlist not available | Feature limited to manual import | Low | Acceptable; document in settings |
-| Plaintext credential storage | Compromise of DB exposes both NumisBids + CNG logins | Medium | Encrypt at rest (Phase 0 prerequisite) |
+| Auction credential key loss | Existing encrypted provider passwords cannot be decrypted | Medium | Document key backup; users re-enter provider passwords if key changes |
 | Lot URL collision | Deduplication fails; user tracks same lot twice | Very Low | Add provider column to uniqueness constraint |
 
 ---
@@ -403,6 +397,6 @@ Consider gradual rollout:
 
 ## Conclusion
 
-Adding CNG Auctions is feasible within the existing architecture. The work is clean, moderate-effort, and follows established patterns. **Critical path: Phase 1 research** to confirm CNG site structure and authentication method. **Prerequisite: Encrypt credential storage** to avoid plaintext proliferation.
+Adding CNG Auctions was feasible within the existing architecture. The implemented work follows the established auction lifecycle, adds provider-aware scraping and UI, and encrypts stored NumisBids/CNG provider passwords to avoid plaintext proliferation.
 
-**Recommended Next Step:** Spike Phase 1 (research) with temporary secure credential access from user.
+**Recommended Next Step:** Merge to beta after documentation review and rotate the temporary CNG password used during validation.

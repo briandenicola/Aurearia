@@ -50,9 +50,9 @@ The agent uses specialized teams for different tasks:
 - Identifies gaps and suggests acquisitions
 - Returns: gap analysis, targeted recommendations with estimated prices
 
-### Team 5: Coin Shows (Alternative)
-- Supplementary searches for auction events
-- Specialized in NumisBids integration
+### Team 5: Auction Search
+- Searches supported auction sources for matching lots
+- Formats auction lot candidates with provider links and source context
 
 ### Team 6: Availability Check
 - Verifies URLs are still live and listings active
@@ -225,7 +225,7 @@ GET    /api/ai-status               # Check agent provider status
 
 - [Wish List](wish-list.md) — Add search results to wishlist
 - [AI Coin Analysis](ai-analysis.md) — Vision-model analysis of uploaded photos
-- [Auction Tracking](auction-tracking.md) — Track NumisBids lots found by agent
+- [Auction Tracking](auction-tracking.md) — Track NumisBids and CNG Auctions lots found by agent
 - [Price Trends](price-trends.md) — Analyze auction market trends
 
 ## Architecture Deep Dive

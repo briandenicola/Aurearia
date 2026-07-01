@@ -1,6 +1,6 @@
 # Progressive Web App (PWA) Guide
 
-Ancient Coins is a Progressive Web App — you can install it on your phone, tablet, or desktop and use it just like a native app. Once installed, it launches in its own window (no browser toolbar), loads instantly from cache, and gives you quick access to your collection right from your home screen.
+Aurearia is a Progressive Web App — you can install it on your phone, tablet, or desktop and use it just like a native app. Once installed, it launches in its own window (no browser toolbar), loads instantly from cache, and gives you quick access to your collection right from your home screen.
 
 The app is built with the [VitePWA](https://vite-pwa-org.netlify.app/) plugin and works on iOS, Android, and desktop browsers.
 
@@ -15,7 +15,7 @@ The app is built with the [VitePWA](https://vite-pwa-org.netlify.app/) plugin an
 3. Scroll down and tap **"Add to Home Screen"**
 4. Give it a name and tap **Add**
 
-The app icon will appear on your home screen. Tap it to launch Ancient Coins in full-screen standalone mode.
+The app icon will appear on your home screen. Tap it to launch Aurearia in full-screen standalone mode.
 
 ### Android (Chrome)
 
@@ -37,7 +37,7 @@ The app will open in its own window without browser chrome. You can find it in y
 
 ## How the PWA Differs from the Desktop Experience
 
-When you run Ancient Coins as an installed PWA, the interface adapts to give you a more mobile-friendly experience. Here's what changes:
+When you run Aurearia as an installed PWA, the interface adapts to give you a more mobile-friendly experience. Here's what changes:
 
 ### Gallery View
 
@@ -70,11 +70,11 @@ Pull-to-refresh only activates when you're scrolled to the very top of the page,
 
 ### Camera Capture
 
-On mobile and PWA, a **📷 Photo** button appears on image upload sections (coin detail page, add/edit coin forms). Tapping it opens your device's rear camera directly so you can photograph a coin without switching to a separate camera app first.
+On mobile and PWA, a **Photo** button appears on image upload sections (coin detail page, add/edit coin forms). Tapping it opens your device's rear camera directly so you can photograph a coin without switching to a separate camera app first.
 
 ### Biometric Login (Face ID / Touch ID / Fingerprint)
 
-Ancient Coins supports WebAuthn/FIDO2 passkey authentication, letting you sign in with your device's biometrics instead of typing a password.
+Aurearia supports WebAuthn/FIDO2 passkey authentication, letting you sign in with your device's biometrics instead of typing a password.
 
 #### Setting Up Biometric Login
 
