@@ -18,16 +18,18 @@ var ErrCNGAuthenticationRequired = errors.New("cng authentication required")
 
 const (
 	cngBase      = "https://auctions.cngcoins.com"
+	cngHost      = "auctions.cngcoins.com"
 	cngUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
 		"AppleWebKit/537.36 (KHTML, like Gecko) " +
 		"Chrome/138.0.0.0 Safari/537.36"
 )
 
 var (
-	cngLoginURL     = cngBase + "/login"
-	cngWatchlistURL = cngBase + "/watched-lots"
-	cngRefreshMeURL = cngBase + "/ajax/refresh-me"
-	cngLotPathRe    = regexp.MustCompile(`^/lots/view/([^/]+)(?:/|$)`)
+	cngLoginURL      = cngBase + "/login"
+	cngWatchlistURL  = cngBase + "/watched-lots"
+	cngRefreshMeURL  = cngBase + "/ajax/refresh-me"
+	cngLotPathRe     = regexp.MustCompile(`^/lots/view/([^/]+)(?:/|$)`)
+	cngLotSafePathRe = regexp.MustCompile(`^/lots/view/[A-Za-z0-9._~-]+(?:/[A-Za-z0-9._~%-]+)?/?$`)
 )
 
 // CNGAuctionService handles HTTP interactions with auctions.cngcoins.com.
@@ -204,13 +206,15 @@ func (s *CNGAuctionService) ScrapeLotPage(lotURL string) (*LotPageDetails, error
 
 // ScrapeLot fetches a CNG lot page and extracts a source-aware lot summary.
 func (s *CNGAuctionService) ScrapeLot(lotURL string) (WatchlistLot, error) {
-	if err := validateCNGLotURL(lotURL); err != nil {
-		return WatchlistLot{}, err
-	}
-	req, err := http.NewRequest("GET", lotURL, nil)
+	lotPath, err := canonicalCNGLotPath(lotURL)
 	if err != nil {
 		return WatchlistLot{}, err
 	}
+	req, err := http.NewRequest("GET", cngBase, nil)
+	if err != nil {
+		return WatchlistLot{}, err
+	}
+	req.URL.Path = lotPath
 	req.Header.Set("User-Agent", cngUserAgent)
 
 	resp, err := http.DefaultClient.Do(req)
@@ -467,17 +471,29 @@ func parseCNGLotID(rawURL string) string {
 }
 
 func validateCNGLotURL(rawURL string) error {
+	_, err := canonicalCNGLotPath(rawURL)
+	return err
+}
+
+func canonicalCNGLotPath(rawURL string) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil {
-		return fmt.Errorf("invalid CNG lot URL: %w", err)
+		return "", fmt.Errorf("invalid CNG lot URL: %w", err)
 	}
-	if parsed.Scheme != "https" || strings.ToLower(parsed.Hostname()) != "auctions.cngcoins.com" {
-		return fmt.Errorf("CNG lot URL must be on https://auctions.cngcoins.com")
+	if parsed.Scheme != "https" || strings.ToLower(parsed.Hostname()) != cngHost || parsed.User != nil {
+		return "", fmt.Errorf("CNG lot URL must be on https://auctions.cngcoins.com")
 	}
-	if parseCNGLotID(rawURL) == "" {
-		return fmt.Errorf("CNG lot URL must be a /lots/view/ URL")
+	if port := parsed.Port(); port != "" && port != "443" {
+		return "", fmt.Errorf("CNG lot URL must use the standard HTTPS port")
 	}
-	return nil
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", fmt.Errorf("CNG lot URL must not include query parameters or fragments")
+	}
+	path := parsed.EscapedPath()
+	if !cngLotSafePathRe.MatchString(path) || parseCNGLotID(path) == "" {
+		return "", fmt.Errorf("CNG lot URL must be a /lots/view/ URL")
+	}
+	return path, nil
 }
 
 func parseCNGDecimal(raw string) (*float64, string) {

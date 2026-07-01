@@ -174,6 +174,11 @@ func TestCNGAuctionService_ScrapeLotRejectsNonCNGURL(t *testing.T) {
 		"https://example.com/lots/view/4-LOT/test",
 		"https://localhost/lots/view/4-LOT/test",
 		"https://127.0.0.1/lots/view/4-LOT/test",
+		"https://auctions.cngcoins.com.evil.example/lots/view/4-LOT/test",
+		"https://attacker@example.com@auctions.cngcoins.com/lots/view/4-LOT/test",
+		"https://auctions.cngcoins.com:8443/lots/view/4-LOT/test",
+		"https://auctions.cngcoins.com/lots/view/4-LOT/test?next=https://example.com",
+		"https://auctions.cngcoins.com/lots/view/4-LOT/test#fragment",
 		"https://auctions.cngcoins.com/auctions/4-SALE/test",
 		"://bad",
 	}
@@ -181,6 +186,42 @@ func TestCNGAuctionService_ScrapeLotRejectsNonCNGURL(t *testing.T) {
 		t.Run(rawURL, func(t *testing.T) {
 			if _, err := svc.ScrapeLot(rawURL); err == nil {
 				t.Fatal("ScrapeLot succeeded, want URL validation error")
+			}
+		})
+	}
+}
+
+func TestCanonicalCNGLotPath(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{
+			name: "basic lot path",
+			raw:  "https://auctions.cngcoins.com/lots/view/4-LOT/test-lot",
+			want: "/lots/view/4-LOT/test-lot",
+		},
+		{
+			name: "standard https port",
+			raw:  "https://auctions.cngcoins.com:443/lots/view/4-LOT/test-lot",
+			want: "/lots/view/4-LOT/test-lot",
+		},
+		{
+			name: "trailing slash",
+			raw:  "https://auctions.cngcoins.com/lots/view/4-LOT/test-lot/",
+			want: "/lots/view/4-LOT/test-lot/",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := canonicalCNGLotPath(tt.raw)
+			if err != nil {
+				t.Fatalf("canonicalCNGLotPath returned error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("canonicalCNGLotPath = %q, want %q", got, tt.want)
 			}
 		})
 	}
