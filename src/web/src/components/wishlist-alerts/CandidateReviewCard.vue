@@ -69,7 +69,11 @@
             <label>Material <input v-model.trim="coin.material" /></label>
             <label>Grade <input v-model.trim="coin.grade" /></label>
             <label>Price <input v-model.number="coin.purchasePrice" type="number" min="0" step="0.01" /></label>
-            <label>Source <input v-model.trim="coin.referenceUrl" /></label>
+            <div class="convert-source">
+              <span>Source</span>
+              <SafeExternalLink v-if="coin.referenceUrl" :href="coin.referenceUrl" class="source-link">{{ coin.referenceUrl }}</SafeExternalLink>
+              <span v-else class="muted">No source URL provided</span>
+            </div>
           </div>
           <p class="muted">Review missing or uncertain fields before saving. Only source-backed candidate fields are prefilled.</p>
           <p v-if="convertError" class="error-text">{{ convertError }}</p>
@@ -188,7 +192,8 @@ h3 { margin: 0.15rem 0 0; }
 .review-actions { border-top: 1px solid var(--border-subtle); padding-top: 0.75rem; display: grid; gap: 0.75rem; }
 select, input { border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.5rem; background: var(--bg-input); color: var(--text-primary); }
 .convert-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-top: 0.75rem; }
-.convert-grid label { display: grid; gap: 0.25rem; color: var(--text-secondary); }
+.convert-grid label, .convert-source { display: grid; gap: 0.25rem; color: var(--text-secondary); }
+.convert-source a { overflow-wrap: anywhere; }
 .ack { display: flex; gap: 0.5rem; align-items: center; color: var(--text-secondary); margin-top: 0.75rem; }
 .error-text { color: var(--accent-bronze); margin: 0.75rem 0 0; }
 @media (max-width: 640px) { .candidate-header { flex-direction: column; } .dismiss-controls { align-items: stretch; } .dismiss-controls > * { width: 100%; } }
