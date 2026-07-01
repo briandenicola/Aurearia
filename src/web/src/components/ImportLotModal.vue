@@ -65,8 +65,12 @@ const preview = ref<AuctionLot | null>(null)
 const previewSourceUrl = computed(() => preview.value?.imageUrl ?? '')
 const { proxiedImageUrl } = useProxiedImage(previewSourceUrl)
 const source = computed(() => {
-  const normalized = url.value.toLowerCase()
-  if (normalized.includes('auctions.cngcoins.com')) return 'cng'
+  try {
+    const hostname = new URL(url.value).hostname.toLowerCase()
+    if (hostname === 'auctions.cngcoins.com' || hostname.endsWith('.auctions.cngcoins.com')) return 'cng'
+  } catch {
+    // Invalid URL input; fall back to default source
+  }
   return 'numisbids'
 })
 
