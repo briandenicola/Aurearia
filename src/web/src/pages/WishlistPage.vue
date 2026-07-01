@@ -26,8 +26,8 @@
           <ShieldCheck v-else :size="16" />
           {{ checking ? 'Checking...' : 'Check Availability' }}
         </button>
-        <router-link v-if="store.coins.length" to="/wishlist/search-alerts" class="pwa-icon-btn" title="Add Wish List Finder Agent" aria-label="Add Wish List Finder Agent">
-          <CalendarClock :size="22" />
+        <router-link v-if="store.coins.length" to="/wishlist/search-alerts" class="btn btn-secondary" title="Search Alerts">
+          <CalendarClock :size="16" /> Search Alerts
         </router-link>
         <router-link to="/lookup" class="btn btn-secondary"><CirclePlus :size="16" /> Identify Coin</router-link>
       </div>

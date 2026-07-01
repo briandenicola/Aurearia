@@ -150,7 +150,7 @@ describe('WishlistPage', () => {
     expect(links.some(link => link.attributes('href') === '/add?wishlist=true')).toBe(false)
   })
 
-  it('shows the finder agent icon action when wishlist coins are present', () => {
+  it('shows the desktop search alerts action with text when wishlist coins are present', () => {
     mockStore.coins = [createCoin(1)]
     mockStore.total = 1
 
@@ -162,10 +162,10 @@ describe('WishlistPage', () => {
       },
     })
 
-    const finderLink = wrapper.find('a[title="Add Wish List Finder Agent"]')
+    const finderLink = wrapper.find('.header-actions a[href="/wishlist/search-alerts"]')
     expect(finderLink.exists()).toBe(true)
     expect(finderLink.attributes('href')).toBe('/wishlist/search-alerts')
-    expect(finderLink.text()).not.toContain('Search Alerts')
+    expect(finderLink.text()).toContain('Search Alerts')
   })
 
   it('routes the PWA plus icon to the Identify Coin workflow', () => {
@@ -198,8 +198,9 @@ describe('WishlistPage', () => {
       },
     })
 
-    const finderLink = wrapper.find('a[title="Add Wish List Finder Agent"]')
+    const finderLink = wrapper.find('.pwa-actions a[href="/wishlist/search-alerts"]')
     expect(finderLink.exists()).toBe(true)
     expect(finderLink.attributes('href')).toBe('/wishlist/search-alerts')
+    expect(finderLink.text()).not.toContain('Search Alerts')
   })
 })
