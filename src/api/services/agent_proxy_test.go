@@ -109,6 +109,45 @@ func TestAgentProxyAnalyzeCoinInternalCredentialConfigErrorIsNotProviderKeyFailu
 	}
 }
 
+func TestAgentProxyGradeCoinSendsInternalCredential(t *testing.T) {
+	const token = "test-internal-service-token"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/grade" {
+			t.Fatalf("expected /api/grade path, got %s", r.URL.Path)
+		}
+		if got := r.Header.Get("X-Internal-Service-Token"); got != token {
+			t.Fatalf("expected internal token header %q, got %q", token, got)
+		}
+		var payload GradeProxyRequest
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode grade request: %v", err)
+		}
+		if payload.Coin.ID != 42 || len(payload.Images) != 1 {
+			t.Fatalf("unexpected grade payload: %+v", payload)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"report":"**Estimated Grade: VF-20** (Confidence: Medium)"}`))
+	}))
+	defer server.Close()
+
+	proxy := NewAgentProxy(server.URL, token, NewLogger(10))
+	report, err := proxy.GradeCoin(context.Background(), GradeProxyRequest{
+		LLM: LLMConfig{Provider: "anthropic", APIKey: "provider-key", Model: "claude-test"},
+		Coin: CoinDataProxy{
+			ID:   42,
+			Name: "Test Denarius",
+		},
+		Images: []string{"base64-image"},
+	})
+	if err != nil {
+		t.Fatalf("GradeCoin returned error: %v", err)
+	}
+	if report != "**Estimated Grade: VF-20** (Confidence: Medium)" {
+		t.Fatalf("GradeCoin report = %q", report)
+	}
+}
+
 func TestLLMConfigJSONOmitsProviderIrrelevantFields(t *testing.T) {
 	body, err := json.Marshal(LLMConfig{
 		Provider:  "anthropic",

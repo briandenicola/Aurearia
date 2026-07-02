@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getAIJob: vi.fn(),
   getAIStatus: vi.fn(),
   getCoinAIJobs: vi.fn(),
+  gradeCoin: vi.fn(),
   refreshNotifications: vi.fn(),
   showAlert: vi.fn(),
   showConfirm: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock('@/api/client', async (importOriginal) => {
     getAIJob: mocks.getAIJob,
     getAIStatus: mocks.getAIStatus,
     getCoinAIJobs: mocks.getCoinAIJobs,
+    gradeCoin: mocks.gradeCoin,
   }
 })
 
@@ -169,6 +171,175 @@ describe('CoinAIAnalysis', () => {
     expect(sessionStorage.getItem('aiJob:analysis:42:obverse')).toBeNull()
   })
 
+  it('disables coin grading until at least one coin image is available', async () => {
+    const wrapper = mountAnalysis({ hasObverse: false, hasReverse: false })
+    await flushPromises()
+
+    const gradeButton = wrapper.findAll('button').find((button) => button.text().includes('Grade Coin'))!
+
+    expect(gradeButton.attributes('disabled')).toBeDefined()
+    expect(gradeButton.attributes('title')).toBe('Add coin photos before requesting grading')
+    await gradeButton.trigger('click')
+    expect(mocks.gradeCoin).not.toHaveBeenCalled()
+  })
+
+  it('allows coin grading when only one side image is available', async () => {
+    vi.useFakeTimers()
+    mocks.gradeCoin.mockResolvedValue({
+      data: {
+        jobId: 'job-grade-one-side',
+        coinId: 42,
+        jobType: 'coin_grading',
+        status: 'queued',
+      },
+    })
+    mocks.getAIJob.mockResolvedValueOnce({
+      data: {
+        id: 'job-grade-one-side',
+        coinId: 42,
+        jobType: 'coin_grading',
+        status: 'completed',
+        result: { gradingReport: 'Estimated grade: Fine. Limited by missing reverse image.' },
+        createdAt: '',
+        updatedAt: '',
+      },
+    })
+
+    const wrapper = mountAnalysis({ hasReverse: false })
+    await flushPromises()
+
+    const gradeButton = wrapper.findAll('button').find((button) => button.text().includes('Grade Coin'))!
+    expect(gradeButton.attributes('disabled')).toBeUndefined()
+    await gradeButton.trigger('click')
+    await flushPromises()
+
+    expect(mocks.gradeCoin).toHaveBeenCalledWith(42)
+    expect(wrapper.text()).toContain('Limited by missing reverse image')
+  })
+
+  it('submits a grading job, polls, and displays the completed report', async () => {
+    vi.useFakeTimers()
+    mocks.gradeCoin.mockResolvedValue({
+      data: {
+        jobId: 'job-grade',
+        coinId: 42,
+        jobType: 'coin_grading',
+        status: 'queued',
+      },
+    })
+    mocks.getAIJob
+      .mockResolvedValueOnce({
+        data: {
+          id: 'job-grade',
+          coinId: 42,
+          jobType: 'coin_grading',
+          status: 'running',
+          createdAt: '',
+          updatedAt: '',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'job-grade',
+          coinId: 42,
+          jobType: 'coin_grading',
+          status: 'completed',
+          result: {
+            gradingReport: 'Estimated grade: VF. Moderate wear with clear major details.',
+          },
+          createdAt: '',
+          updatedAt: '',
+        },
+      })
+
+    const wrapper = mountAnalysis()
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text().includes('Grade Coin'))!.trigger('click')
+    await flushPromises()
+
+    expect(mocks.gradeCoin).toHaveBeenCalledWith(42)
+    expect(wrapper.text()).toContain('Coin grading in progress.')
+
+    await vi.advanceTimersByTimeAsync(3_000)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Grading Report')
+    expect(wrapper.text()).toContain('Estimated grade: VF')
+    expect(wrapper.text()).toContain('saved coin grade is not changed automatically')
+    expect(mocks.refreshNotifications).toHaveBeenCalled()
+    expect(sessionStorage.getItem('aiJob:grading:42')).toBeNull()
+  })
+
+  it('recovers the most recent completed grading report without session storage', async () => {
+    mocks.getCoinAIJobs
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'old-grade',
+            coinId: 42,
+            jobType: 'coin_grading',
+            status: 'completed',
+            result: { gradingReport: 'Estimated grade: F. Older report.' },
+            createdAt: '2026-07-01T10:00:00Z',
+            updatedAt: '2026-07-01T10:01:00Z',
+            completedAt: '2026-07-01T10:01:00Z',
+          },
+          {
+            id: 'new-grade',
+            coinId: 42,
+            jobType: 'coin_grading',
+            status: 'completed',
+            result: { gradingReport: 'Estimated grade: VF. Newest completed report.' },
+            createdAt: '2026-07-02T10:00:00Z',
+            updatedAt: '2026-07-02T10:01:00Z',
+            completedAt: '2026-07-02T10:01:00Z',
+          },
+        ],
+      })
+
+    const wrapper = mountAnalysis()
+    await flushPromises()
+
+    expect(sessionStorage.getItem('aiJob:grading:42')).toBeNull()
+    expect(mocks.getCoinAIJobs).toHaveBeenNthCalledWith(1, 42, true)
+    expect(mocks.getCoinAIJobs).toHaveBeenNthCalledWith(2, 42, false)
+    expect(wrapper.text()).toContain('Grading Report')
+    expect(wrapper.text()).toContain('Estimated grade: VF')
+    expect(wrapper.text()).not.toContain('Older report')
+  })
+
+  it('shows grading job failures without changing saved analysis', async () => {
+    mocks.gradeCoin.mockResolvedValue({
+      data: {
+        jobId: 'job-grade-failed',
+        coinId: 42,
+        jobType: 'coin_grading',
+        status: 'queued',
+      },
+    })
+    mocks.getAIJob.mockResolvedValueOnce({
+      data: {
+        id: 'job-grade-failed',
+        coinId: 42,
+        jobType: 'coin_grading',
+        status: 'failed',
+        errorMessage: 'Coin images are required for grading',
+        createdAt: '',
+        updatedAt: '',
+      },
+    })
+
+    const wrapper = mountAnalysis()
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text().includes('Grade Coin'))!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Coin images are required for grading')
+    expect(mocks.showAlert).toHaveBeenCalledWith('Coin images are required for grading', { title: 'Grading Failed' })
+    expect(wrapper.emitted('analysisUpdated')).toBeUndefined()
+  })
+
   it('shows a failed job status and does not emit refresh', async () => {
     mocks.analyzeCoin.mockResolvedValue({
       data: {
@@ -237,7 +408,7 @@ describe('CoinAIAnalysis', () => {
   })
 })
 
-function mountAnalysis() {
+function mountAnalysis(propOverrides: Partial<InstanceType<typeof CoinAIAnalysis>['$props']> = {}) {
   return mount(CoinAIAnalysis, {
     props: {
       coinId: 42,
@@ -246,6 +417,7 @@ function mountAnalysis() {
       obverseAnalysis: null,
       reverseAnalysis: null,
       aiAnalysis: null,
+      ...propOverrides,
     },
   })
 }

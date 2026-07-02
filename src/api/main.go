@@ -356,6 +356,7 @@ func main() {
 		analysisHandler := handlers.NewAnalysisHandler(analysisRepo, agentProxy, settingsSvc, logger)
 		aiJobHandler := handlers.NewAIJobHandler(aiJobSvc, logger)
 		protected.POST("/coins/:id/analyze", writeRateLimit, aiJobHandler.Analyze)
+		protected.POST("/coins/:id/grade", writeRateLimit, aiJobHandler.Grade)
 		protected.DELETE("/coins/:id/analyze", analysisHandler.DeleteAnalysis)
 		protected.GET("/ai-jobs/:id", aiJobHandler.GetJob)
 		protected.GET("/coins/:id/ai-jobs", aiJobHandler.ListCoinJobs)

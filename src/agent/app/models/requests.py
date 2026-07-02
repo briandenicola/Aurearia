@@ -195,6 +195,21 @@ class AnalyzeRequest(StrictRequestModel):
     format_output: bool = True  # False returns raw model output for structured lookup flows
 
 
+class GradeRequest(StrictRequestModel):
+    """Request to estimate a coin grade from owner-scoped coin images."""
+
+    llm: LLMConfig
+    coin: CoinData
+    images: list[BoundedImageBase64] = Field(default_factory=list, max_length=MAX_IMAGE_COUNT)
+
+    @field_validator("images")
+    @classmethod
+    def validate_images_present(cls, images: list[str]) -> list[str]:
+        if not images:
+            raise ValueError("at least one coin image is required for grading")
+        return images
+
+
 class IntakeDraftRequest(StrictRequestModel):
     """Request to generate an intake draft from observation images."""
 

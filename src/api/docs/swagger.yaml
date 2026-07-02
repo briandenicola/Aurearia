@@ -1467,10 +1467,12 @@ definitions:
     enum:
     - analysis
     - value_estimate
+    - coin_grading
     type: string
     x-enum-varnames:
     - AIJobTypeAnalysis
     - AIJobTypeValueEstimate
+    - AIJobTypeCoinGrading
   models.AgentConversation:
     properties:
       createdAt:
@@ -6496,6 +6498,45 @@ paths:
       summary: Duplicate a coin
       tags:
       - Coins
+  /coins/{id}/grade:
+    post:
+      description: Queues asynchronous AI-powered coin grade estimation for a coin owned
+        by the authenticated user. The grading report is stored in the AI job result and
+        does not update the coin's saved grade.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/services.AIJobSubmissionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Queue coin grading
+      tags:
+      - Analysis
   /coins/{id}/estimate-value:
     post:
       description: Queues asynchronous AI-powered current value estimation for a coin

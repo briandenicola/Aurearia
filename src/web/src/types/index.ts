@@ -1082,12 +1082,17 @@ export interface ValueEstimate {
 }
 
 export type AIJobStatus = string
+export type AIJobType = 'coin_analysis' | 'coin_grading' | 'coin_value_estimate' | 'value_estimate' | 'valuation' | (string & {})
+
+export interface CoinGradingResult {
+  gradingReport: string
+}
 
 export interface AIJob {
   id: string
   userId?: number
   coinId: number
-  jobType: string
+  jobType: AIJobType
   side?: 'obverse' | 'reverse' | null
   status: AIJobStatus
   result?: unknown

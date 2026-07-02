@@ -167,6 +167,80 @@ def test_analyze_raw_format_returns_unformatted_analysis(monkeypatch):
     assert captured["format_output"] is False
 
 
+def test_grade_rejects_no_images():
+    resp = client.post(
+        "/api/grade",
+        json={
+            "llm": {"provider": "anthropic", "api_key": "k", "model": "claude-opus-4-8"},
+            "coin": {"id": 1, "name": "Test Coin"},
+            "images": [],
+        },
+        headers=AUTH_HEADERS,
+    )
+
+    assert resp.status_code == 422
+
+
+def test_grade_returns_report(monkeypatch):
+    import app.routes as routes
+
+    captured = {}
+
+    class FakeGraph:
+        async def ainvoke(self, state):
+            captured["state"] = state
+            return {
+                "raw_assessment": "raw grade",
+                "formatted_assessment": "**Estimated Grade: VF-20** (Confidence: Medium)",
+                "messages": [],
+            }
+
+    def fake_create_coin_grading_team(**kwargs):
+        captured.update(kwargs)
+        return FakeGraph()
+
+    monkeypatch.setattr(routes, "create_coin_grading_team", fake_create_coin_grading_team)
+
+    resp = client.post(
+        "/api/grade",
+        json={
+            "llm": {"provider": "anthropic", "api_key": "k", "model": "claude-opus-4-8"},
+            "coin": {"id": 1, "name": "Test Denarius", "grade": "F"},
+            "images": ["aW1hZ2U="],
+        },
+        headers=AUTH_HEADERS,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"report": "**Estimated Grade: VF-20** (Confidence: Medium)"}
+    assert captured["coin"].name == "Test Denarius"
+    assert captured["images"] == ["aW1hZ2U="]
+    assert captured["state"]["formatted_assessment"] == ""
+
+
+def test_grade_model_failure_returns_502(monkeypatch):
+    import app.routes as routes
+
+    class FakeGraph:
+        async def ainvoke(self, _state):
+            raise RuntimeError("model unavailable")
+
+    monkeypatch.setattr(routes, "create_coin_grading_team", lambda **_kwargs: FakeGraph())
+
+    resp = client.post(
+        "/api/grade",
+        json={
+            "llm": {"provider": "anthropic", "api_key": "k", "model": "claude-opus-4-8"},
+            "coin": {"id": 1, "name": "Test Denarius"},
+            "images": ["aW1hZ2U="],
+        },
+        headers=AUTH_HEADERS,
+    )
+
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "Coin grading failed"
+
+
 def test_search_coins_anthropic_accepts_stale_urls_and_unrelated_callback(monkeypatch):
     captured = {}
 

@@ -15,6 +15,7 @@ import (
 
 type fakeAIJobAgent struct {
 	analysisResponse  string
+	gradingResponse   string
 	valuationResponse string
 }
 
@@ -23,6 +24,13 @@ func (f fakeAIJobAgent) AnalyzeCoin(ctx context.Context, req AnalyzeProxyRequest
 		return "", errors.New("analysis not configured")
 	}
 	return f.analysisResponse, nil
+}
+
+func (f fakeAIJobAgent) GradeCoin(ctx context.Context, req GradeProxyRequest) (string, error) {
+	if f.gradingResponse == "" {
+		return "", errors.New("grading not configured")
+	}
+	return f.gradingResponse, nil
 }
 
 func (f fakeAIJobAgent) CollectPortfolioReview(ctx context.Context, req PortfolioReviewProxyRequest) (string, error) {
@@ -50,6 +58,7 @@ func newAIJobServiceTestDB(t *testing.T) (*gorm.DB, *AIJobService) {
 		repository.NewAIJobRepository(db),
 		fakeAIJobAgent{
 			analysisResponse:  "obverse analysis text",
+			gradingResponse:   "**Estimated Grade: VF-20** (Confidence: Medium)",
 			valuationResponse: "```json\n{\"estimatedValue\":321,\"confidence\":\"high\",\"reasoning\":\"Comparable listings support the estimate.\",\"comparables\":[{\"source\":\"VCoins\",\"price\":\"$321\",\"url\":\"https://example.com\"}]}\n```",
 		},
 		repository.NewUserRepository(db),
@@ -189,5 +198,53 @@ func TestAIJobServiceValueEstimateJournalsWithoutApplyingValue(t *testing.T) {
 	}
 	if stored.Status != models.AIJobStatusCompleted || stored.Result == "" {
 		t.Fatalf("job status/result = %s/%q", stored.Status, stored.Result)
+	}
+}
+
+func TestAIJobServiceCoinGradingRequiresOwnedCoinWithImage(t *testing.T) {
+	db, svc := newAIJobServiceTestDB(t)
+	coin := createAIJobTestCoin(t, db, 1)
+
+	if _, _, err := svc.EnqueueCoinGrading(1, coin.ID); !errors.Is(err, ErrAIJobNoImagesForGrading) {
+		t.Fatalf("expected no-image grading error, got %v", err)
+	}
+
+	addAIJobTestImage(t, db, coin.ID, models.ImageTypeObverse)
+	if _, _, err := svc.EnqueueCoinGrading(2, coin.ID); !repository.IsRecordNotFound(err) {
+		t.Fatalf("expected owner-scoped lookup to hide another user's coin, got %v", err)
+	}
+}
+
+func TestAIJobServiceCoinGradingStoresReportWithoutUpdatingCoinGrade(t *testing.T) {
+	db, svc := newAIJobServiceTestDB(t)
+	coin := createAIJobTestCoin(t, db, 1)
+	coin.Grade = "F-12"
+	if err := db.Save(&coin).Error; err != nil {
+		t.Fatalf("save grade: %v", err)
+	}
+	addAIJobTestImage(t, db, coin.ID, models.ImageTypeObverse)
+
+	job, _, err := svc.EnqueueCoinGrading(1, coin.ID)
+	if err != nil {
+		t.Fatalf("enqueue grading: %v", err)
+	}
+	svc.processJob(job.ID)
+
+	var updated models.Coin
+	if err := db.First(&updated, coin.ID).Error; err != nil {
+		t.Fatalf("load coin: %v", err)
+	}
+	if updated.Grade != "F-12" {
+		t.Fatalf("coin grade was unexpectedly updated: %q", updated.Grade)
+	}
+	stored, err := svc.GetJob(1, job.ID)
+	if err != nil {
+		t.Fatalf("get job: %v", err)
+	}
+	if stored.Status != models.AIJobStatusCompleted {
+		t.Fatalf("job status = %s, want completed (error=%q)", stored.Status, stored.ErrorMessage)
+	}
+	if stored.Result != `{"gradingReport":"**Estimated Grade: VF-20** (Confidence: Medium)"}` {
+		t.Fatalf("job result = %q", stored.Result)
 	}
 }
