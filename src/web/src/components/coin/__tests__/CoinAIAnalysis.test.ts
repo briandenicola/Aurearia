@@ -90,7 +90,7 @@ describe('CoinAIAnalysis', () => {
 
     const wrapper = mountAnalysis()
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text().includes('Analyze Obverse'))!.trigger('click')
+    await findActionButton(wrapper, 'Analyze obverse').trigger('click')
     await flushPromises()
 
     expect(mocks.showAlert).toHaveBeenCalledWith(
@@ -110,7 +110,7 @@ describe('CoinAIAnalysis', () => {
 
     const wrapper = mountAnalysis()
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text().includes('Analyze Obverse'))!.trigger('click')
+    await findActionButton(wrapper, 'Analyze obverse').trigger('click')
     await flushPromises()
 
     expect(mocks.showAlert).toHaveBeenCalledWith(
@@ -157,7 +157,7 @@ describe('CoinAIAnalysis', () => {
 
     const wrapper = mountAnalysis()
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text().includes('Analyze Obverse'))!.trigger('click')
+    await findActionButton(wrapper, 'Analyze obverse').trigger('click')
     await flushPromises()
 
     expect(mocks.analyzeCoin).toHaveBeenCalledWith(42, 'obverse')
@@ -175,7 +175,7 @@ describe('CoinAIAnalysis', () => {
     const wrapper = mountAnalysis({ hasObverse: false, hasReverse: false })
     await flushPromises()
 
-    const gradeButton = wrapper.findAll('button').find((button) => button.text().includes('Grade Coin'))!
+    const gradeButton = findActionButton(wrapper, 'Grade coin')
 
     expect(gradeButton.attributes('disabled')).toBeDefined()
     expect(gradeButton.attributes('title')).toBe('Add coin photos before requesting grading')
@@ -208,7 +208,7 @@ describe('CoinAIAnalysis', () => {
     const wrapper = mountAnalysis({ hasReverse: false })
     await flushPromises()
 
-    const gradeButton = wrapper.findAll('button').find((button) => button.text().includes('Grade Coin'))!
+    const gradeButton = findActionButton(wrapper, 'Grade coin')
     expect(gradeButton.attributes('disabled')).toBeUndefined()
     await gradeButton.trigger('click')
     await flushPromises()
@@ -254,7 +254,7 @@ describe('CoinAIAnalysis', () => {
 
     const wrapper = mountAnalysis()
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text().includes('Grade Coin'))!.trigger('click')
+    await findActionButton(wrapper, 'Grade coin').trigger('click')
     await flushPromises()
 
     expect(mocks.gradeCoin).toHaveBeenCalledWith(42)
@@ -332,7 +332,7 @@ describe('CoinAIAnalysis', () => {
 
     const wrapper = mountAnalysis()
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text().includes('Grade Coin'))!.trigger('click')
+    await findActionButton(wrapper, 'Grade coin').trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('Coin images are required for grading')
@@ -365,7 +365,7 @@ describe('CoinAIAnalysis', () => {
 
     const wrapper = mountAnalysis()
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text().includes('Analyze Reverse'))!.trigger('click')
+    await findActionButton(wrapper, 'Analyze reverse').trigger('click')
     await flushPromises()
 
     expect(mocks.showAlert).toHaveBeenCalledWith('Analysis could not complete', { title: 'Analysis Failed' })
@@ -397,7 +397,7 @@ describe('CoinAIAnalysis', () => {
 
     const wrapper = mountAnalysis()
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text().includes('Analyze Obverse'))!.trigger('click')
+    await findActionButton(wrapper, 'Analyze obverse').trigger('click')
     await flushPromises()
 
     expect(mocks.getAIJob).toHaveBeenCalledTimes(1)
@@ -420,4 +420,10 @@ function mountAnalysis(propOverrides: Partial<InstanceType<typeof CoinAIAnalysis
       ...propOverrides,
     },
   })
+}
+
+function findActionButton(wrapper: ReturnType<typeof mountAnalysis>, label: string) {
+  const button = wrapper.findAll('button').find((candidate) => candidate.attributes('aria-label') === label)
+  if (!button) throw new Error(`Missing action button: ${label}`)
+  return button
 }

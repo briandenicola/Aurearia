@@ -5,26 +5,29 @@
         <button
           class="btn btn-primary btn-sm ai-action-btn"
           :disabled="busy || !hasObverse || !aiAvailable"
+          aria-label="Analyze obverse"
           :title="!aiAvailable ? aiMessage : !hasObverse ? 'No obverse image' : ''"
           @click="handleAnalyze('obverse')"
         >
-          {{ analyzingSide === 'obverse' ? 'Analyzing...' : 'Analyze Obverse' }}
+          {{ analyzingSide === 'obverse' ? 'Analyzing...' : 'Obverse' }}
         </button>
         <button
           class="btn btn-primary btn-sm ai-action-btn"
           :disabled="busy || !hasReverse || !aiAvailable"
+          aria-label="Analyze reverse"
           :title="!aiAvailable ? aiMessage : !hasReverse ? 'No reverse image' : ''"
           @click="handleAnalyze('reverse')"
         >
-          {{ analyzingSide === 'reverse' ? 'Analyzing...' : 'Analyze Reverse' }}
+          {{ analyzingSide === 'reverse' ? 'Analyzing...' : 'Reverse' }}
         </button>
         <button
           class="btn btn-primary btn-sm ai-action-btn"
           :disabled="busy || !canGradeCoin || !aiAvailable"
+          aria-label="Grade coin"
           :title="gradingDisabledTitle"
           @click="handleGradeCoin"
         >
-          {{ grading ? 'Grading...' : 'Grade Coin' }}
+          {{ grading ? 'Grading...' : 'Grade' }}
         </button>
       </div>
       <p v-if="!aiAvailable" class="ai-unavailable">{{ aiMessage || 'AI unavailable — configure a provider in Admin → AI Configuration' }}</p>
@@ -506,9 +509,9 @@ function capitalize(value: string) {
 
 .ai-action-btn {
   min-width: 0;
-  min-height: 3.25rem;
+  min-height: 2.75rem;
   justify-content: center;
-  white-space: normal;
+  white-space: nowrap;
   line-height: 1.25;
 }
 
