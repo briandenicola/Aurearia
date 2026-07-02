@@ -35,111 +35,69 @@
           </div>
         </div>
 
-        <div v-if="isPwa" class="camera-first-card">
-          <div class="camera-container">
-            <video
-              ref="cameraVideo"
-              class="camera-preview"
-              v-show="cameraStream !== null"
-              autoplay
-              playsinline
-              muted
-              @loadedmetadata="onVideoMetadataLoaded"
-            />
-            <div v-if="!cameraStream" class="camera-placeholder">
-              <Camera :size="48" />
-              <p>Start the camera when you're ready.</p>
+        <InlineCameraCapturePanel
+          v-if="isPwa"
+          ref="cameraPanel"
+          :filename-prefix="nextCaptureTarget"
+          @captured="handleCameraCapture"
+          @upload="triggerFileInput(nextCaptureTarget)"
+        >
+          <template #before-actions>
+            <div class="capture-slots">
+              <div class="capture-tile" :class="{ filled: obverseFile, active: nextCaptureTarget === 'obverse' }">
+                <div v-if="obverseFile" class="tile-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(obverseFile)})` }">
+                  <button type="button" class="tile-clear-btn" @click="clearCapturedImage('obverse')" aria-label="Clear obverse">×</button>
+                </div>
+                <div v-else class="tile-empty">
+                  <span class="tile-dot"></span>
+                  <span class="tile-label">Obverse</span>
+                </div>
+              </div>
+
+              <div class="capture-tile" :class="{ filled: reverseFile, active: nextCaptureTarget === 'reverse' }">
+                <div v-if="reverseFile" class="tile-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(reverseFile)})` }">
+                  <button type="button" class="tile-clear-btn" @click="clearCapturedImage('reverse')" aria-label="Clear reverse">×</button>
+                </div>
+                <div v-else class="tile-empty">
+                  <span class="tile-dot"></span>
+                  <span class="tile-label">Reverse</span>
+                </div>
+              </div>
+
+              <div class="capture-tile" :class="{ filled: cardFile, active: nextCaptureTarget === 'card' }">
+                <span class="tile-opt-badge">Opt</span>
+                <div v-if="cardFile" class="tile-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(cardFile)})` }">
+                  <button type="button" class="tile-clear-btn" @click="clearCapturedImage('card')" aria-label="Clear card">×</button>
+                </div>
+                <div v-else class="tile-empty">
+                  <span class="tile-dot"></span>
+                  <span class="tile-label">Card</span>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <template #footer>
+            <div class="camera-footer">
               <button
                 type="button"
-                class="btn btn-secondary btn-sm camera-start-btn"
-                @click="startCamera"
+                class="btn btn-primary"
+                :disabled="intakeLoading || observationImages.length === 0"
+                @click="generateDraft"
               >
-                <Camera :size="16" />
-                Start Camera
+                Generate Intake Draft
+              </button>
+              <button
+                type="button"
+                class="manual-mode-link"
+                @click="switchToManualMode"
+              >
+                Use manual mode instead
               </button>
             </div>
-            <div v-if="cameraError" class="camera-error-banner">{{ cameraError }}</div>
-            
-            <!-- Circular focus-guide overlay (only when camera active) -->
-            <div v-if="cameraStream !== null" class="focus-overlay">
-              <div class="focus-mask"></div>
-              <div class="focus-ring"></div>
-              <p class="focus-instruction">Focus one coin in the circle</p>
-            </div>
-          </div>
-
-          <div class="capture-slots">
-            <div class="capture-tile" :class="{ filled: obverseFile, active: nextCaptureTarget === 'obverse' }">
-              <div v-if="obverseFile" class="tile-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(obverseFile)})` }">
-                <button type="button" class="tile-clear-btn" @click="clearCapturedImage('obverse')" aria-label="Clear obverse">×</button>
-              </div>
-              <div v-else class="tile-empty">
-                <span class="tile-dot"></span>
-                <span class="tile-label">Obverse</span>
-              </div>
-            </div>
-
-            <div class="capture-tile" :class="{ filled: reverseFile, active: nextCaptureTarget === 'reverse' }">
-              <div v-if="reverseFile" class="tile-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(reverseFile)})` }">
-                <button type="button" class="tile-clear-btn" @click="clearCapturedImage('reverse')" aria-label="Clear reverse">×</button>
-              </div>
-              <div v-else class="tile-empty">
-                <span class="tile-dot"></span>
-                <span class="tile-label">Reverse</span>
-              </div>
-            </div>
-
-            <div class="capture-tile" :class="{ filled: cardFile, active: nextCaptureTarget === 'card' }">
-              <span class="tile-opt-badge">Opt</span>
-              <div v-if="cardFile" class="tile-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(cardFile)})` }">
-                <button type="button" class="tile-clear-btn" @click="clearCapturedImage('card')" aria-label="Clear card">×</button>
-              </div>
-              <div v-else class="tile-empty">
-                <span class="tile-dot"></span>
-                <span class="tile-label">Card</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="camera-actions">
-            <button
-              type="button"
-              class="shutter-btn"
-              :disabled="!cameraReady"
-              @click="captureFromCamera()"
-              aria-label="Capture photo"
-            >
-              <Camera :size="32" />
-            </button>
-            <button
-              type="button"
-              class="upload-icon-btn"
-              @click="triggerFileInput(nextCaptureTarget)"
-              aria-label="Upload from library"
-            >
-              <Images :size="20" />
-            </button>
-          </div>
-
-          <div class="camera-footer">
-            <button
-              type="button"
-              class="btn btn-primary"
-              :disabled="intakeLoading || observationImages.length === 0"
-              @click="generateDraft"
-            >
-              Generate Intake Draft
-            </button>
-            <button
-              type="button"
-              class="manual-mode-link"
-              @click="switchToManualMode"
-            >
-              Use manual mode instead
-            </button>
-          </div>
+          </template>
           <p v-if="intakeError" class="status-text status-warning">{{ intakeError }}</p>
-        </div>
+        </InlineCameraCapturePanel>
 
         <div v-else class="intake-card">
           <h2 class="form-section-title">Upload Photos</h2>
@@ -290,7 +248,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { Category, Coin, CoinMutationPayload, IntakeDraft, Material } from '@/types'
 import {
@@ -304,8 +262,8 @@ import { useCoinsStore } from '@/stores/coins'
 import CoinForm from '@/components/CoinForm.vue'
 import { useDialog } from '@/composables/useDialog'
 import { usePwa } from '@/composables/usePwa'
-import { Camera, Images } from 'lucide-vue-next'
 import { useCoinOptions } from '@/composables/useCoinOptions'
+import InlineCameraCapturePanel from '@/components/InlineCameraCapturePanel.vue'
 
 type EntryMode = 'manual' | 'agentic'
 type CaptureTarget = 'obverse' | 'reverse' | 'card'
@@ -333,10 +291,7 @@ const cardFile = ref<File | null>(null)
 const obverseFromCamera = ref(false)
 const reverseFromCamera = ref(false)
 
-const cameraVideo = ref<HTMLVideoElement | null>(null)
-const cameraStream = ref<MediaStream | null>(null)
-const cameraError = ref('')
-const videoReady = ref(false)
+const cameraPanel = ref<InstanceType<typeof InlineCameraCapturePanel> | null>(null)
 const nextCaptureTarget = ref<CaptureTarget>('obverse')
 
 const draft = ref<IntakeDraft | null>(null)
@@ -380,7 +335,6 @@ const form = reactive<Partial<Coin>>(createEmptyForm(defaultCategory.value, defa
 const reviewForm = reactive<Partial<Coin>>(createEmptyForm('Other', 'Other'))
 
 const observationImages = computed(() => [obverseFile.value, reverseFile.value].filter(Boolean) as File[])
-const cameraReady = computed(() => cameraStream.value !== null && videoReady.value)
 
 const confidenceClass = computed(() => {
   const level = draft.value?.confidenceSummary?.overall ?? 'low'
@@ -517,133 +471,9 @@ function apiErrorMessage(error: unknown, fallback: string): string {
   return fallback
 }
 
-async function startCamera() {
-  if (!isPwa || entryMode.value !== 'agentic') return
-  if (cameraStream.value) return
-  if (!navigator.mediaDevices?.getUserMedia) {
-    cameraError.value = 'Camera access is unavailable on this device.'
-    return
-  }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' } },
-      audio: false,
-    })
-    cameraStream.value = stream
-    cameraError.value = ''
-    videoReady.value = false
-    
-    // Wait for DOM to update before assigning srcObject
-    await nextTick()
-    
-    if (cameraVideo.value) {
-      cameraVideo.value.srcObject = stream
-      await cameraVideo.value.play()
-    }
-  } catch (error) {
-    const err = error as { name?: string }
-    if (err.name === 'NotAllowedError') {
-      cameraError.value = 'Camera permission was denied. You can still upload images.'
-    } else if (err.name === 'NotFoundError') {
-      cameraError.value = 'No camera found on this device.'
-    } else {
-      cameraError.value = 'Camera is unavailable. You can still upload images.'
-    }
-  }
-}
+function handleCameraCapture(file: File) {
+  const actualTarget = nextCaptureTarget.value
 
-function onVideoMetadataLoaded() {
-  const video = cameraVideo.value
-  if (video && video.videoWidth > 0 && video.videoHeight > 0) {
-    videoReady.value = true
-  }
-}
-
-function stopCamera() {
-  if (!cameraStream.value) return
-  for (const track of cameraStream.value.getTracks()) {
-    track.stop()
-  }
-  cameraStream.value = null
-  videoReady.value = false
-}
-
-/**
- * Compute the source rectangle from a raw video frame that corresponds
- * to the displayed portion when using object-fit: cover.
- * Returns { sx, sy, sw, sh } in native video coordinates.
- */
-function computeCoverCropRect(
-  videoWidth: number,
-  videoHeight: number,
-  displayWidth: number,
-  displayHeight: number
-): { sx: number; sy: number; sw: number; sh: number } {
-  const videoAspect = videoWidth / (videoHeight || 1)
-  const displayAspect = displayWidth / (displayHeight || 1)
-
-  let sx: number, sy: number, sw: number, sh: number
-
-  if (videoAspect > displayAspect) {
-    // Video is wider than display → crop horizontally
-    sh = videoHeight
-    sw = sh * displayAspect
-    sy = 0
-    sx = (videoWidth - sw) / 2
-  } else {
-    // Video is taller than display → crop vertically
-    sw = videoWidth
-    sh = sw / displayAspect
-    sx = 0
-    sy = (videoHeight - sh) / 2
-  }
-
-  return { sx, sy, sw, sh }
-}
-
-async function captureFromCamera(target?: CaptureTarget) {
-  const video = cameraVideo.value
-  if (!video || !cameraReady.value || video.videoWidth === 0 || video.videoHeight === 0) {
-    cameraError.value = 'Camera is not ready yet. Try again in a moment.'
-    return
-  }
-  
-  const actualTarget = target ?? nextCaptureTarget.value
-
-  // Get displayed video box dimensions (object-fit: cover uses these)
-  const displayWidth = video.clientWidth ?? 0
-  const displayHeight = video.clientHeight ?? 0
-  
-  if (displayWidth === 0 || displayHeight === 0) {
-    cameraError.value = 'Could not determine video display size.'
-    return
-  }
-
-  // Compute the cover-crop region that matches what the user sees on screen
-  const { sx, sy, sw, sh } = computeCoverCropRect(
-    video.videoWidth,
-    video.videoHeight,
-    displayWidth,
-    displayHeight
-  )
-  
-  const canvas = document.createElement('canvas')
-  canvas.width = sw
-  canvas.height = sh
-  const context = canvas.getContext('2d')
-  if (!context) return
-
-  // Draw only the displayed region (cover-cropped) to the canvas
-  context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh)
-  
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92))
-  if (!blob) {
-    cameraError.value = 'Could not capture image from camera.'
-    return
-  }
-  const file = new File([blob], `${actualTarget}-${Date.now()}.jpg`, { type: 'image/jpeg' })
-  
-  // Store file and mark as camera-captured for circleClip flag
   if (actualTarget === 'obverse') {
     obverseFile.value = file
     obverseFromCamera.value = true
@@ -655,8 +485,7 @@ async function captureFromCamera(target?: CaptureTarget) {
   if (actualTarget === 'card') {
     cardFile.value = file
   }
-  
-  // Update next capture target
+
   updateNextCaptureTarget()
 }
 
@@ -799,7 +628,7 @@ async function handleManualSubmit() {
 }
 
 watch(entryMode, (mode) => {
-  if (!isPwa || mode !== 'agentic') stopCamera()
+  if (!isPwa || mode !== 'agentic') cameraPanel.value?.stopCamera()
 })
 
 watch([obverseFile, reverseFile, cardFile], () => {
@@ -814,7 +643,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  stopCamera()
+  cameraPanel.value?.stopCamera()
 })
 </script>
 
@@ -891,114 +720,6 @@ onBeforeUnmount(() => {
   color: var(--text-primary);
   font-size: 0.9rem;
   text-align: center;
-}
-
-.camera-first-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.camera-container {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  background: #000;
-  border: 1px solid var(--border-subtle);
-}
-
-.camera-preview {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.camera-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  color: var(--text-muted);
-}
-
-.camera-placeholder p {
-  margin: 0;
-}
-
-.camera-start-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.camera-error-banner {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: var(--error-bg);
-  color: #fff;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.8rem;
-  text-align: center;
-  z-index: 10;
-}
-
-/* Circular focus-guide overlay */
-.focus-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  z-index: 5;
-}
-
-.focus-mask {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    circle at 50% 52%,
-    transparent 0%,
-    transparent 36%,
-    rgba(10, 12, 20, 0.2) 37%,
-    rgba(10, 12, 20, 0.62) 100%
-  );
-}
-
-.focus-ring {
-  position: absolute;
-  top: 52%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 74%;
-  max-width: 360px;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.55);
-}
-
-.focus-instruction {
-  position: absolute;
-  top: calc(env(safe-area-inset-top) + 20px);
-  left: 50%;
-  transform: translateX(-50%);
-  color: #fff;
-  font-size: 0.85rem;
-  font-weight: 500;
-  text-align: center;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
-  margin: 0;
 }
 
 .capture-slots {
@@ -1104,62 +825,6 @@ onBeforeUnmount(() => {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
-}
-
-.camera-actions {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.shutter-btn {
-  grid-column: 2;
-  justify-self: center;
-  width: 4rem;
-  height: 4rem;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
-  border: 2px solid var(--border-white-dim);
-  color: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.shutter-btn:hover:not(:disabled) {
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.shutter-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.upload-icon-btn {
-  grid-column: 3;
-  justify-self: end;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.upload-icon-btn:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
 }
 
 .camera-footer {
