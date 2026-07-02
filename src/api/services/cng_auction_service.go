@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -46,25 +44,17 @@ func NewCNGAuctionService(logger *Logger) *CNGAuctionService {
 func (s *CNGAuctionService) Login(username, password string) (*http.Client, error) {
 	s.debug("Attempting login to CNG")
 
-	jar, err := cookiejar.New(nil)
+	client, err := newScraperClient()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create cookie jar: %w", err)
+		return nil, err
 	}
-	client := &http.Client{Jar: jar}
 
-	req, err := http.NewRequest("GET", cngLoginURL, nil)
+	req, err := newScraperRequest(http.MethodGet, cngLoginURL, nil, cngDefaultHeaders())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create login page request: %w", err)
 	}
-	req.Header.Set("User-Agent", cngUserAgent)
-	if resp, err := client.Do(req); err != nil {
-		return nil, fmt.Errorf("login page request failed: %w", err)
-	} else {
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("login page returned HTTP %d", resp.StatusCode)
-		}
+	if _, err := doScraperRequest(client, req, "login page"); err != nil {
+		return nil, err
 	}
 
 	form := url.Values{
@@ -72,25 +62,14 @@ func (s *CNGAuctionService) Login(username, password string) (*http.Client, erro
 		"password": {password},
 		"Login":    {"Login"},
 	}
-	req, err = http.NewRequest("POST", cngLoginURL, strings.NewReader(form.Encode()))
+	req, err = newScraperFormRequest(cngLoginURL, form, cngLoginHeaders())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create login request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("User-Agent", cngUserAgent)
-	req.Header.Set("Origin", cngBase)
-	req.Header.Set("Referer", cngLoginURL)
 
-	resp, err := client.Do(req)
-	if err != nil {
+	if _, err := doScraperRequest(client, req, "login", http.StatusOK, http.StatusFound); err != nil {
 		s.error("CNG login HTTP request failed: %v", err)
-		return nil, fmt.Errorf("login request failed: %w", err)
-	}
-	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusFound {
-		return nil, fmt.Errorf("login returned HTTP %d", resp.StatusCode)
+		return nil, err
 	}
 	if err := s.verifyAuthentication(client); err != nil {
 		s.warn("CNG authentication verification failed: %v", err)
@@ -102,25 +81,14 @@ func (s *CNGAuctionService) Login(username, password string) (*http.Client, erro
 }
 
 func (s *CNGAuctionService) verifyAuthentication(client *http.Client) error {
-	req, err := http.NewRequest("GET", cngRefreshMeURL, nil)
+	req, err := newScraperRequest(http.MethodGet, cngRefreshMeURL, nil, cngRefreshHeaders())
 	if err != nil {
 		return fmt.Errorf("failed to create refresh-me request: %w", err)
 	}
-	req.Header.Set("User-Agent", cngUserAgent)
-	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	req.Header.Set("Accept", "application/json, text/plain, */*")
 
-	resp, err := client.Do(req)
+	body, err := doScraperRequest(client, req, "refresh-me")
 	if err != nil {
-		return fmt.Errorf("refresh-me request failed: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("refresh-me returned HTTP %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read refresh-me body: %w", err)
+		return err
 	}
 	if strings.TrimSpace(string(body)) == "null" {
 		return ErrCNGAuthenticationRequired
@@ -165,28 +133,22 @@ func (s *CNGAuctionService) fetchWatchlistPage(client *http.Client, page int) (s
 	if err != nil {
 		return "", err
 	}
-	req, err := http.NewRequest("GET", watchlistURL, nil)
+	req, err := newScraperRequest(http.MethodGet, watchlistURL, nil, cngDefaultHeaders())
 	if err != nil {
 		return "", fmt.Errorf("failed to create watchlist request: %w", err)
 	}
-	req.Header.Set("User-Agent", cngUserAgent)
 
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("watchlist page %d request failed: %w", page, err)
 	}
-	defer resp.Body.Close()
 
+	body, err := readScraperResponseBody(resp, fmt.Sprintf("watchlist page %d", page), http.StatusOK, http.StatusFound, http.StatusUnauthorized)
+	if err != nil {
+		return "", err
+	}
 	if resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusUnauthorized {
 		return "", ErrCNGAuthenticationRequired
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("watchlist page %d returned HTTP %d", page, resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read watchlist body: %w", err)
 	}
 	bodyStr := string(body)
 	if isCNGLoginPrompt(bodyStr) {
@@ -210,22 +172,13 @@ func (s *CNGAuctionService) ScrapeLot(lotURL string) (WatchlistLot, error) {
 	if err != nil {
 		return WatchlistLot{}, err
 	}
-	req, err := http.NewRequest("GET", cngBase, nil)
+	req, err := newScraperRequest(http.MethodGet, cngBase, nil, cngDefaultHeaders())
 	if err != nil {
 		return WatchlistLot{}, err
 	}
 	req.URL.Path = lotPath
-	req.Header.Set("User-Agent", cngUserAgent)
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return WatchlistLot{}, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return WatchlistLot{}, fmt.Errorf("lot page returned HTTP %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(resp.Body)
+	body, err := doScraperRequest(http.DefaultClient, req, "lot page")
 	if err != nil {
 		return WatchlistLot{}, err
 	}
@@ -526,6 +479,26 @@ func isCNGLoginPrompt(rawHTML string) bool {
 	return strings.Contains(normalized, `action="/login"`) &&
 		strings.Contains(normalized, `name="username"`) &&
 		strings.Contains(normalized, `name="password"`)
+}
+
+func cngDefaultHeaders() map[string]string {
+	return map[string]string{
+		"User-Agent": cngUserAgent,
+	}
+}
+
+func cngLoginHeaders() map[string]string {
+	headers := cngDefaultHeaders()
+	headers["Origin"] = cngBase
+	headers["Referer"] = cngLoginURL
+	return headers
+}
+
+func cngRefreshHeaders() map[string]string {
+	headers := cngDefaultHeaders()
+	headers["X-Requested-With"] = "XMLHttpRequest"
+	headers["Accept"] = "application/json, text/plain, */*"
+	return headers
 }
 
 func firstNonEmpty(values ...string) string {
