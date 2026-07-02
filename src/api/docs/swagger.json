@@ -3256,7 +3256,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns a map of status \u00e2\u2020\u2019 count for the authenticated user, optionally scoped to one auction source.",
+                "description": "Returns a map of status → count for the authenticated user, optionally scoped to one auction source.",
                 "produces": [
                     "application/json"
                 ],
@@ -5996,21 +5996,21 @@
                 }
             }
         },
-        "/coins/{id}/grade": {
+        "/coins/{id}/estimate-value": {
             "post": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Queues asynchronous AI-powered coin grade estimation for a coin owned by the authenticated user. The grading report is stored in the AI job result and does not update the coin's saved grade.",
+                "description": "Queues asynchronous AI-powered current value estimation for a coin owned by the authenticated user.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Analysis"
+                    "Agent"
                 ],
-                "summary": "Queue coin grading",
+                "summary": "Queue coin value estimate",
                 "parameters": [
                     {
                         "type": "integer",
@@ -6054,21 +6054,21 @@
                 }
             }
         },
-        "/coins/{id}/estimate-value": {
+        "/coins/{id}/grade": {
             "post": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Queues asynchronous AI-powered current value estimation for a coin owned by the authenticated user.",
+                "description": "Queues asynchronous AI-powered coin grade estimation for a coin owned by the authenticated user. The grading report is stored in the AI job result and does not update the coin's saved grade.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Agent"
+                    "Analysis"
                 ],
-                "summary": "Queue coin value estimate",
+                "summary": "Queue coin grading",
                 "parameters": [
                     {
                         "type": "integer",
@@ -11362,7 +11362,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns era \u00c3\u2014 category counts for the heat map visualization.",
+                "description": "Returns era × category counts for the heat map visualization.",
                 "produces": [
                     "application/json"
                 ],

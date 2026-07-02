@@ -6003,21 +6003,21 @@ const docTemplate = `{
                 }
             }
         },
-        "/coins/{id}/grade": {
+        "/coins/{id}/estimate-value": {
             "post": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Queues asynchronous AI-powered coin grade estimation for a coin owned by the authenticated user. The grading report is stored in the AI job result and does not update the coin's saved grade.",
+                "description": "Queues asynchronous AI-powered current value estimation for a coin owned by the authenticated user.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Analysis"
+                    "Agent"
                 ],
-                "summary": "Queue coin grading",
+                "summary": "Queue coin value estimate",
                 "parameters": [
                     {
                         "type": "integer",
@@ -6061,21 +6061,21 @@ const docTemplate = `{
                 }
             }
         },
-        "/coins/{id}/estimate-value": {
+        "/coins/{id}/grade": {
             "post": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Queues asynchronous AI-powered current value estimation for a coin owned by the authenticated user.",
+                "description": "Queues asynchronous AI-powered coin grade estimation for a coin owned by the authenticated user. The grading report is stored in the AI job result and does not update the coin's saved grade.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Agent"
+                    "Analysis"
                 ],
-                "summary": "Queue coin value estimate",
+                "summary": "Queue coin grading",
                 "parameters": [
                     {
                         "type": "integer",
