@@ -609,3 +609,7 @@ Created src/api/services/availability_service_test.go with comprehensive test co
   - **Quality gate:** No implementation started. Awaiting Phase 1 research go/no-go decision and encryption layer prerequisite resolution.
   - **Orchestration log:** .squad/orchestration-log/2026-06-30T22-43-42Z-cassius.md.
 - **2026-07-01:** Auction watchlist sync now uses repository-level `UpsertWithCalendarEvent` to create and link in-app `AuctionEvent` rows only for newly tracked `watching`/`bidding` NumisBids/CNG lots. Existing source-aware `(source, source_url, user_id)` upserts remain idempotent; passed/won/lost lots skip auto-events.
+
+- **2026-07-01 — Coin Grading Backend Workflow (#374):** Added dedicated grading path through existing AI jobs: Go `POST /coins/:id/grade` owner-scopes coin images, rejects image-less coins, enqueues `coin_grading`, calls Python `/api/grade`, and stores `gradingReport` only in the AI job result (does not mutate `Coin.Grade`). Agent route returns `{report}` and fails model errors as 502 so the worker can mark jobs failed.
+
+- **2026-07-02 — #374 Coin Grading Completion (Validated):** Coin grading workflow completed and validated. Verified all backend dependencies met: agent endpoint working, job submission passing, grading service correctly handling image bytes and report response, no mutations to `Coin.Grade` field. All Go tests passing; integrated with existing AI job state machine and result persistence. Feature release-ready. Session log: .squad/log/2026-07-02T10-55-14-coin-grading-workflow.md.

@@ -22,12 +22,14 @@ const (
 )
 
 var (
-	ErrAIJobInvalidSide = errors.New("side must be 'obverse' or 'reverse'")
-	ErrAIJobNoImages    = errors.New("coin has no matching image to analyze")
+	ErrAIJobInvalidSide        = errors.New("side must be 'obverse' or 'reverse'")
+	ErrAIJobNoImages           = errors.New("coin has no matching image to analyze")
+	ErrAIJobNoImagesForGrading = errors.New("coin has no image available for grading")
 )
 
 type AIJobAgent interface {
 	AnalyzeCoin(ctx context.Context, req AnalyzeProxyRequest) (string, error)
+	GradeCoin(ctx context.Context, req GradeProxyRequest) (string, error)
 	CollectPortfolioReview(ctx context.Context, req PortfolioReviewProxyRequest) (string, error)
 }
 
@@ -118,6 +120,22 @@ func (s *AIJobService) EnqueueValueEstimate(userID, coinID uint) (*models.AIJob,
 	return job, created, nil
 }
 
+func (s *AIJobService) EnqueueCoinGrading(userID, coinID uint) (*models.AIJob, bool, error) {
+	coin, err := s.repo.FindCoinWithImages(coinID, userID)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(coin.Images) == 0 {
+		return nil, false, ErrAIJobNoImagesForGrading
+	}
+	job, created, err := s.repo.EnqueueOrFindActive(userID, coinID, models.AIJobTypeCoinGrading, "")
+	if err != nil {
+		return nil, false, err
+	}
+	s.enqueueID(job.ID)
+	return job, created, nil
+}
+
 func (s *AIJobService) GetJob(userID, jobID uint) (*models.AIJob, error) {
 	return s.repo.GetByIDForUser(jobID, userID)
 }
@@ -178,6 +196,8 @@ func (s *AIJobService) processJobWithRetry(job *models.AIJob) error {
 			processErr = s.processAnalysisJob(job)
 		case models.AIJobTypeValueEstimate:
 			processErr = s.processValueEstimateJob(job)
+		case models.AIJobTypeCoinGrading:
+			processErr = s.processCoinGradingJob(job)
 		default:
 			return fmt.Errorf("unknown AI job type: %s", job.JobType)
 		}
@@ -204,16 +224,7 @@ func (s *AIJobService) processAnalysisJob(job *models.AIJob) error {
 		return ErrAIJobNoImages
 	}
 
-	base64Images := make([]string, 0, len(images))
-	for _, img := range images {
-		p := filepath.Join("uploads", img.FilePath)
-		data, err := os.ReadFile(p)
-		if err != nil {
-			s.logger.Warn("ai-jobs", "Failed to read image %s for job %d: %v", p, job.ID, err)
-			continue
-		}
-		base64Images = append(base64Images, base64.StdEncoding.EncodeToString(data))
-	}
+	base64Images := s.readImagesAsBase64(images, job.ID)
 	if len(base64Images) == 0 {
 		return fmt.Errorf("no valid images found")
 	}
@@ -251,6 +262,48 @@ func (s *AIJobService) processAnalysisJob(job *models.AIJob) error {
 		return err
 	}
 	result := map[string]string{"analysis": analysis, "side": job.Side}
+	resultJSON, _ := json.Marshal(result)
+	if err := s.repo.Complete(job.ID, string(resultJSON)); err != nil {
+		return err
+	}
+	s.notifyComplete(job, coin.Name)
+	return nil
+}
+
+func (s *AIJobService) processCoinGradingJob(job *models.AIJob) error {
+	coin, err := s.repo.FindCoinWithImages(job.CoinID, job.UserID)
+	if err != nil {
+		return fmt.Errorf("coin not found")
+	}
+	if len(coin.Images) == 0 {
+		return ErrAIJobNoImagesForGrading
+	}
+
+	base64Images := s.readImagesAsBase64(coin.Images, job.ID)
+	if len(base64Images) == 0 {
+		return fmt.Errorf("no valid images found")
+	}
+
+	llmCfg, err := s.settingsSvc.ResolveLLMConfig()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), aiJobAnalyzeTimeout)
+	defer cancel()
+	report, err := s.agentProxy.GradeCoin(ctx, GradeProxyRequest{
+		LLM:    llmCfg,
+		Coin:   buildCoinDataProxy(coin),
+		Images: base64Images,
+	})
+	if err != nil {
+		return err
+	}
+	if report == "" {
+		return fmt.Errorf("no grading report from AI")
+	}
+
+	result := map[string]string{"gradingReport": report}
 	resultJSON, _ := json.Marshal(result)
 	if err := s.repo.Complete(job.ID, string(resultJSON)); err != nil {
 		return err
@@ -318,6 +371,20 @@ func (s *AIJobService) processValueEstimateJob(job *models.AIJob) error {
 	}
 	s.notifyComplete(job, coin.Name)
 	return nil
+}
+
+func (s *AIJobService) readImagesAsBase64(images []models.CoinImage, jobID uint) []string {
+	base64Images := make([]string, 0, len(images))
+	for _, img := range images {
+		p := filepath.Join("uploads", img.FilePath)
+		data, err := os.ReadFile(p)
+		if err != nil {
+			s.logger.Warn("ai-jobs", "Failed to read image %s for job %d: %v", p, jobID, err)
+			continue
+		}
+		base64Images = append(base64Images, base64.StdEncoding.EncodeToString(data))
+	}
+	return base64Images
 }
 
 func (s *AIJobService) getValuationPrompt() string {

@@ -213,3 +213,12 @@
   - **Spike acceptance gate:** 8 criteria (test plan approved, fixtures committed, parser tests pass, migration tested, auth stub tests pass, regression tests pass, docs complete, security review).
   - **Learnings captured:** Reusable skill created: .squad/skills/external-service-scraping-with-fixtures/SKILL.md. Documents NumisBids + Availability Checker + Wishlist Alert patterns for future external integrations.
   - **Orchestration log:** .squad/orchestration-log/2026-06-30T22-43-42Z-brutus.md.
+
+- **2026-07-02 — #374 Coin Grading Workflow QA Review → Maximus Revision → Approval (Complete):**
+  - **Initial Review (BLOCK):** Found two critical gaps in coin grading feature:
+    1. Dead-end supervisor chat grading route still advertised in `src/agent/app/supervisor.py`; chat requests to grade coins landed on passthrough instead of dedicated `/api/grade` endpoint.
+    2. Completed grading reports lost after sessionStorage cleared (browser restart, new tab, notification click); no durable persistent recovery path in frontend.
+  - **Maximus Revision Applied:** Removed supervisor grading routing/advertising, added stale router fallback regression test, added persistent job recovery in `CoinAIAnalysis`, added sessionStorage-less recovery regression test.
+  - **Validation Passed:** Python 21 tests + ruff ✅, Go all tests + vet + build ✅, Vue 420 tests + type-check + build ✅.
+  - **Outcome:** APPROVED. Feature ready for merge across all layers.
+  - **Orchestration log:** .squad/orchestration-log/2026-07-02T10-55-14-brutus.md.

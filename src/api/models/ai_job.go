@@ -7,6 +7,7 @@ type AIJobType string
 const (
 	AIJobTypeAnalysis      AIJobType = "analysis"
 	AIJobTypeValueEstimate AIJobType = "value_estimate"
+	AIJobTypeCoinGrading   AIJobType = "coin_grading"
 )
 
 type AIJobStatus string

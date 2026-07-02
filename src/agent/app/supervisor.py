@@ -6,7 +6,6 @@ The supervisor examines the user's message and delegates to:
 - Team 3 (Coin Analysis) for analyzing coin images
 - Team 4 (Portfolio Review) for portfolio analysis and valuation
 - Team 5 (Auction Search) for searching NumisBids auction lots
-- Team 6 (Coin Grading) for AI grade estimation from photos
 - Team 7 (Gap Analysis) for collection completeness analysis
 - Team 9 (Price Trends) for auction price trend analysis
 - Team 10 (Similar Lots) for finding similar lots at auction
@@ -69,8 +68,6 @@ Respond with ONLY one of these words:
 - "coin_shows" — if the user asks about coin shows, conventions, expos, or events,
   OR if the user is providing location info following a coin shows conversation
 - "analysis" — if the user wants to analyze coin images or get AI analysis of a coin
-- "grading" — if the user wants a grade estimate for a coin, asks about grading,
-  or wants to know the condition/grade of a coin from photos
 - "portfolio" — if the user wants aggregate portfolio ANALYSIS or valuation narrative of
   their ENTIRE collection (high-level summary and trends). Prefer "collection" for
   ownership lookups and compound questions about specific coins they own.
@@ -82,7 +79,9 @@ Respond with ONLY one of these words:
   or coins like one they own that are currently for sale
 - "auction_search" — if the user wants to search for auction lots, find coins at auction,
   search NumisBids, or asks about upcoming auctions/sales
-- "general" — if the request doesn't fit the above categories, is off-topic, or is inappropriate
+- "general" — if the request doesn't fit the above categories, is off-topic, is inappropriate,
+  or asks chat to estimate a coin's grade/condition from photos; grading is only available
+  through the dedicated coin detail grading workflow, not a chat team
 
 Respond with ONLY the category word, nothing else."""
 
@@ -189,7 +188,7 @@ def create_router(llm_config: LLMConfig):
     model = get_chat_model(llm_config)
 
     RouteTarget = Literal[
-        "collection", "coin_search", "coin_shows", "analysis", "grading",
+        "collection", "coin_search", "coin_shows", "analysis",
         "portfolio", "gap_analysis", "price_trends",
         "similar_lots", "auction_search", "general",
     ]
@@ -203,7 +202,7 @@ def create_router(llm_config: LLMConfig):
         route = content.strip().lower().replace('"', "").replace("'", "")
 
         valid_routes = {
-            "collection", "coin_search", "coin_shows", "analysis", "grading",
+            "collection", "coin_search", "coin_shows", "analysis",
             "portfolio", "gap_analysis", "price_trends",
             "similar_lots", "auction_search", "general",
         }
@@ -226,7 +225,6 @@ def create_supervisor(
     portfolio: PortfolioSummary | None = None,
     app_context: AppContext | None = None,
     analysis_node=None,
-    grading_node=None,
     tools_base_url: str = "",
     internal_token: str = "",
 ):
@@ -451,7 +449,6 @@ def create_supervisor(
             "- **Coin Search**: Find coins currently for sale from reputable dealers\n"
             "- **Coin Shows**: Find upcoming coin shows and events near the user\n"
             "- **Coin Analysis**: Analyze coin images for identification and authenticity\n"
-            "- **Coin Grading**: AI grade estimation from coin photos\n"
             "- **Portfolio Review**: Analyze collection for strengths and recommendations\n"
             "- **Collection Gap Analysis**: Identify what's missing and suggest acquisitions\n"
             "- **Price Trends**: Track auction prices and market direction\n"
@@ -474,7 +471,6 @@ def create_supervisor(
     graph.add_node("coin_search", coin_search_node)
     graph.add_node("coin_shows", coin_shows_node)
     graph.add_node("analysis", analysis_node or passthrough)
-    graph.add_node("grading", grading_node or passthrough)
     graph.add_node("portfolio", portfolio_node)
     graph.add_node("gap_analysis", gap_analysis_node)
     graph.add_node("price_trends", price_trends_node)
@@ -488,7 +484,6 @@ def create_supervisor(
     graph.add_edge("coin_search", END)
     graph.add_edge("coin_shows", END)
     graph.add_edge("analysis", END)
-    graph.add_edge("grading", END)
     graph.add_edge("portfolio", END)
     graph.add_edge("gap_analysis", END)
     graph.add_edge("price_trends", END)

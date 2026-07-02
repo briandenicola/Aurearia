@@ -72,6 +72,12 @@ class AgentResponse(BaseModel):
     analysis: str = ""
 
 
+class GradeResponse(BaseModel):
+    """Coin grading report returned to the Go API proxy."""
+
+    report: str = ""
+
+
 class AvailabilityVerdict(BaseModel):
     """AI-determined availability verdict for a single URL."""
 

@@ -3256,7 +3256,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns a map of status → count for the authenticated user, optionally scoped to one auction source.",
+                "description": "Returns a map of status \u00e2\u2020\u2019 count for the authenticated user, optionally scoped to one auction source.",
                 "produces": [
                     "application/json"
                 ],
@@ -5967,6 +5967,64 @@
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/models.Coin"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/coins/{id}/grade": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Queues asynchronous AI-powered coin grade estimation for a coin owned by the authenticated user. The grading report is stored in the AI job result and does not update the coin's saved grade.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Analysis"
+                ],
+                "summary": "Queue coin grading",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/services.AIJobSubmissionResponse"
                         }
                     },
                     "400": {
@@ -11304,7 +11362,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns era × category counts for the heat map visualization.",
+                "description": "Returns era \u00c3\u2014 category counts for the heat map visualization.",
                 "produces": [
                     "application/json"
                 ],
@@ -15887,11 +15945,13 @@
             "type": "string",
             "enum": [
                 "analysis",
-                "value_estimate"
+                "value_estimate",
+                "coin_grading"
             ],
             "x-enum-varnames": [
                 "AIJobTypeAnalysis",
-                "AIJobTypeValueEstimate"
+                "AIJobTypeValueEstimate",
+                "AIJobTypeCoinGrading"
             ]
         },
         "models.AgentConversation": {

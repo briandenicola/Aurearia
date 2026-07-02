@@ -74,6 +74,33 @@ func (h *AIJobHandler) EstimateValue(c *gin.Context) {
 	c.JSON(http.StatusAccepted, services.AIJobSubmissionResponse{Job: *job})
 }
 
+// Grade enqueues AI coin grading for a coin.
+//
+//	@Summary		Queue coin grading
+//	@Description	Queues asynchronous AI-powered coin grade estimation for a coin owned by the authenticated user. The grading report is stored in the AI job result and does not update the coin's saved grade.
+//	@Tags			Analysis
+//	@Produce		json
+//	@Param			id	path	int	true	"Coin ID"
+//	@Success		202	{object}	services.AIJobSubmissionResponse
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/coins/{id}/grade [post]
+func (h *AIJobHandler) Grade(c *gin.Context) {
+	coinID, ok := parseUintParam(c, "id")
+	if !ok {
+		return
+	}
+	job, _, err := h.service.EnqueueCoinGrading(c.GetUint("userId"), coinID)
+	if err != nil {
+		h.respondJobError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, services.AIJobSubmissionResponse{Job: *job})
+}
+
 // GetJob returns an AI job by ID for the authenticated user.
 //
 //	@Summary		Get AI job
@@ -154,6 +181,8 @@ func (h *AIJobHandler) respondJobError(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "side query param must be omitted, 'obverse', or 'reverse'"})
 	case errors.Is(err, services.ErrAIJobNoImages):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No matching image found"})
+	case errors.Is(err, services.ErrAIJobNoImagesForGrading):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No image available for grading"})
 	case repository.IsRecordNotFound(err):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Coin not found"})
 	default:

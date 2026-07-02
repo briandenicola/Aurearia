@@ -4,7 +4,7 @@
       <div class="ai-buttons">
         <button
           class="btn btn-primary btn-sm"
-          :disabled="analyzing || !hasObverse || !aiAvailable"
+          :disabled="busy || !hasObverse || !aiAvailable"
           :title="!aiAvailable ? aiMessage : !hasObverse ? 'No obverse image' : ''"
           @click="handleAnalyze('obverse')"
         >
@@ -12,15 +12,38 @@
         </button>
         <button
           class="btn btn-primary btn-sm"
-          :disabled="analyzing || !hasReverse || !aiAvailable"
+          :disabled="busy || !hasReverse || !aiAvailable"
           :title="!aiAvailable ? aiMessage : !hasReverse ? 'No reverse image' : ''"
           @click="handleAnalyze('reverse')"
         >
           {{ analyzingSide === 'reverse' ? 'Analyzing...' : 'Analyze Reverse' }}
         </button>
+        <button
+          class="btn btn-secondary btn-sm"
+          :disabled="busy || !canGradeCoin || !aiAvailable"
+          :title="gradingDisabledTitle"
+          @click="handleGradeCoin"
+        >
+          {{ grading ? 'Grading...' : 'Grade Coin' }}
+        </button>
       </div>
       <p v-if="!aiAvailable" class="ai-unavailable">{{ aiMessage || 'AI unavailable — configure a provider in Admin → AI Configuration' }}</p>
       <p v-if="jobStatusMessage" class="ai-job-status">{{ jobStatusMessage }}</p>
+      <div class="grading-panel">
+        <div class="grading-copy">
+          <p class="grading-limit">
+            AI grading is an assisted estimate, not professional certification. Image quality and missing sides can reduce confidence. The saved coin grade is not changed automatically.
+          </p>
+          <p v-if="!canGradeCoin" class="grading-hint">
+            Add coin photos before requesting a grading estimate.
+          </p>
+          <p v-if="gradingError" class="grading-error">{{ gradingError }}</p>
+        </div>
+        <div v-if="gradingReport" class="ai-result-section grading-result">
+          <h5 class="ai-result-heading">Grading Report</h5>
+          <div class="ai-content" v-html="renderedGradingReport"></div>
+        </div>
+      </div>
 
       <div v-if="obverseAnalysis" class="ai-result-section">
         <div class="ai-result-header">
@@ -51,13 +74,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { analyzeCoin, deleteAnalysis, formatAgentServiceError, getAIJob, getAIStatus, getCoinAIJobs } from '@/api/client'
+import { analyzeCoin, deleteAnalysis, formatAgentServiceError, getAIJob, getAIStatus, getCoinAIJobs, gradeCoin } from '@/api/client'
 import { useDialog } from '@/composables/useDialog'
 import { useNotifications } from '@/composables/useNotifications'
 import { useToast } from '@/composables/useToast'
 import MarkdownIt from 'markdown-it'
 import DOMPurify from 'dompurify'
-import type { AIJob, AIJobStartResponse } from '@/types'
+import type { AIJob, AIJobStartResponse, CoinGradingResult } from '@/types'
 
 const props = defineProps<{
   coinId: number
@@ -80,6 +103,9 @@ const POLL_INTERVAL_MS = 3_000
 
 const analyzing = ref(false)
 const analyzingSide = ref<string | null>(null)
+const grading = ref(false)
+const gradingReport = ref('')
+const gradingError = ref('')
 const aiAvailable = ref(true)
 const aiMessage = ref('')
 const activeJob = ref<AIJob | null>(null)
@@ -89,8 +115,21 @@ let unmounted = false
 const renderedObverse = computed(() => (props.obverseAnalysis ? DOMPurify.sanitize(md.render(props.obverseAnalysis)) : ''))
 const renderedReverse = computed(() => (props.reverseAnalysis ? DOMPurify.sanitize(md.render(props.reverseAnalysis)) : ''))
 const renderedLegacy = computed(() => (props.aiAnalysis ? DOMPurify.sanitize(md.render(props.aiAnalysis)) : ''))
+const renderedGradingReport = computed(() => (gradingReport.value ? DOMPurify.sanitize(md.render(gradingReport.value)) : ''))
+const busy = computed(() => analyzing.value || grading.value)
+const canGradeCoin = computed(() => props.hasObverse || props.hasReverse)
+const gradingDisabledTitle = computed(() => {
+  if (!aiAvailable.value) return aiMessage.value
+  if (!canGradeCoin.value) return 'Add coin photos before requesting grading'
+  return ''
+})
 const jobStatusMessage = computed(() => {
-  if (!activeJob.value || !analyzingSide.value) return ''
+  if (!activeJob.value) return ''
+  if (grading.value) {
+    const status = activeJob.value.status || 'queued'
+    return `Coin grading ${formatStatus(status)}. This will continue in the background; you can leave this page.`
+  }
+  if (!analyzingSide.value) return ''
   const status = activeJob.value.status || 'queued'
   return `${capitalize(analyzingSide.value)} analysis ${formatStatus(status)}. This will continue in the background; you can leave this page.`
 })
@@ -116,6 +155,7 @@ async function handleAnalyze(side: 'obverse' | 'reverse') {
   clearPollTimer()
   analyzing.value = true
   analyzingSide.value = side
+  grading.value = false
   activeJob.value = null
   try {
     const res = await analyzeCoin(props.coinId, side)
@@ -128,6 +168,28 @@ async function handleAnalyze(side: 'obverse' | 'reverse') {
     await showAlert(`AI analysis failed for ${side}. ${detail}`, { title: 'Analysis Failed' })
     analyzing.value = false
     analyzingSide.value = null
+  }
+}
+
+async function handleGradeCoin() {
+  clearPollTimer()
+  grading.value = true
+  gradingError.value = ''
+  gradingReport.value = ''
+  analyzing.value = false
+  analyzingSide.value = null
+  activeJob.value = null
+  try {
+    const res = await gradeCoin(props.coinId)
+    const job = normalizeStartedJob(res.data)
+    rememberGradingJob(job.id)
+    showToast('Coin grading queued. You can leave this page; we will notify you when it is done.', 'info')
+    await pollGradingJob(job.id, job)
+  } catch (err) {
+    const detail = formatAgentServiceError(err, 'Unable to start coin grading. Confirm both obverse and reverse images are available, then retry.')
+    gradingError.value = detail
+    await showAlert(`Coin grading failed. ${detail}`, { title: 'Grading Failed' })
+    grading.value = false
   }
 }
 
@@ -145,6 +207,13 @@ async function resumeAnalysisJob() {
   try {
     const res = await getCoinAIJobs(props.coinId, true)
     const jobs = normalizeJobList(res.data)
+    const activeGrading = jobs.find((job) => isGradingJob(job) && !isTerminalStatus(job.status))
+    if (activeGrading?.id) {
+      grading.value = true
+      gradingError.value = ''
+      await pollGradingJob(activeGrading.id, activeGrading)
+      return
+    }
     const activeAnalysis = jobs.find((job) => isAnalysisJob(job) && !isTerminalStatus(job.status))
     if (activeAnalysis?.id) {
       const side = activeAnalysis.side === 'reverse' ? 'reverse' : 'obverse'
@@ -175,6 +244,27 @@ async function resumeAnalysisJob() {
       sessionStorage.removeItem(jobStorageKey(side))
     }
   }
+
+  const gradingJobId = sessionStorage.getItem(gradingJobStorageKey())
+  if (gradingJobId) {
+    try {
+      const res = await getAIJob(gradingJobId)
+      if (isGradingJob(res.data)) {
+        if (isTerminalStatus(res.data.status)) {
+          await finishGradingJob(res.data)
+        } else {
+          grading.value = true
+          gradingError.value = ''
+          await pollGradingJob(gradingJobId, res.data)
+        }
+        return
+      }
+    } catch {
+      sessionStorage.removeItem(gradingJobStorageKey())
+    }
+  }
+
+  await recoverCompletedGradingJob()
 }
 
 async function pollAnalysisJob(jobId: string, side: 'obverse' | 'reverse', knownJob?: AIJob) {
@@ -200,6 +290,29 @@ function schedulePoll(jobId: string, side: 'obverse' | 'reverse') {
   }, POLL_INTERVAL_MS)
 }
 
+async function pollGradingJob(jobId: string, knownJob?: AIJob) {
+  if (unmounted) return
+  if (knownJob) activeJob.value = knownJob
+  try {
+    const res = await getAIJob(jobId)
+    activeJob.value = res.data
+    if (isTerminalStatus(res.data.status)) {
+      await finishGradingJob(res.data)
+      return
+    }
+  } catch {
+    // Keep polling; transient network errors should not lose the backend job.
+  }
+  scheduleGradingPoll(jobId)
+}
+
+function scheduleGradingPoll(jobId: string) {
+  clearPollTimer()
+  pollTimer = setTimeout(() => {
+    void pollGradingJob(jobId)
+  }, POLL_INTERVAL_MS)
+}
+
 async function finishAnalysisJob(job: AIJob, side: 'obverse' | 'reverse') {
   clearPollTimer()
   sessionStorage.removeItem(jobStorageKey(side))
@@ -218,6 +331,51 @@ async function finishAnalysisJob(job: AIJob, side: 'obverse' | 'reverse') {
   await refreshNotifications()
 }
 
+async function finishGradingJob(job: AIJob) {
+  clearPollTimer()
+  sessionStorage.removeItem(gradingJobStorageKey())
+  activeJob.value = job
+  grading.value = false
+  if (isFailedStatus(job.status)) {
+    gradingError.value = job.errorMessage || 'Coin grading failed. Please retry.'
+    showToast(gradingError.value, 'error')
+    await showAlert(gradingError.value, { title: 'Grading Failed' })
+    return
+  }
+
+  const parsed = parseGradingResult(job.result)
+  if (!parsed?.gradingReport) {
+    gradingError.value = 'No grading report returned from AI'
+    return
+  }
+
+  gradingReport.value = parsed.gradingReport
+  activeJob.value = null
+  showToast('Coin grading report ready.', 'success')
+  await refreshNotifications()
+}
+
+async function recoverCompletedGradingJob() {
+  try {
+    const res = await getCoinAIJobs(props.coinId, false)
+    const jobs = normalizeJobList(res.data)
+    const completedGrading = jobs
+      .filter((job) => isGradingJob(job) && isSuccessfulStatus(job.status) && parseGradingResult(job.result)?.gradingReport)
+      .sort((a, b) => jobTimestamp(b) - jobTimestamp(a))[0]
+    if (!completedGrading) return
+
+    const parsed = parseGradingResult(completedGrading.result)
+    if (!parsed?.gradingReport) return
+
+    gradingReport.value = parsed.gradingReport
+    gradingError.value = ''
+    grading.value = false
+    activeJob.value = null
+  } catch {
+    // Completed-job recovery is best effort; active jobs and explicit actions still work.
+  }
+}
+
 function clearPollTimer() {
   if (pollTimer) {
     clearTimeout(pollTimer)
@@ -225,7 +383,7 @@ function clearPollTimer() {
   }
 }
 
-function normalizeStartedJob(job: AIJobStartResponse, side: 'obverse' | 'reverse'): AIJob {
+function normalizeStartedJob(job: AIJobStartResponse, side?: 'obverse' | 'reverse'): AIJob {
   const data = job.job ?? job
   const id = String(('jobId' in data ? data.jobId : data.id) ?? '')
   if (!id) throw new Error('Missing AI job ID')
@@ -233,7 +391,7 @@ function normalizeStartedJob(job: AIJobStartResponse, side: 'obverse' | 'reverse
     id,
     coinId: data.coinId,
     jobType: data.jobType,
-    side: data.side ?? side,
+    side: data.side ?? side ?? null,
     status: data.status,
     result: data.result,
     errorMessage: data.errorMessage,
@@ -252,6 +410,37 @@ function isAnalysisJob(job: AIJob) {
   return job.coinId === props.coinId && /analy/i.test(job.jobType)
 }
 
+function isGradingJob(job: AIJob) {
+  return job.coinId === props.coinId && /grading/i.test(job.jobType)
+}
+
+function parseGradingResult(result: unknown): CoinGradingResult | null {
+  const raw = unwrapGradingResult(result)
+  if (!raw || typeof raw !== 'object') return null
+  const data = raw as Record<string, unknown>
+  const gradingReport = typeof data.gradingReport === 'string'
+    ? data.gradingReport
+    : typeof data.grading_report === 'string'
+      ? data.grading_report
+      : ''
+  return gradingReport ? { gradingReport } : null
+}
+
+function unwrapGradingResult(result: unknown): unknown {
+  if (typeof result === 'string') {
+    try {
+      return unwrapGradingResult(JSON.parse(result))
+    } catch {
+      return { gradingReport: result }
+    }
+  }
+  if (result && typeof result === 'object') {
+    const data = result as Record<string, unknown>
+    return data.gradingResult ?? data.result ?? result
+  }
+  return result
+}
+
 function isTerminalStatus(status: string) {
   return ['completed', 'succeeded', 'success', 'failed', 'error', 'cancelled', 'canceled'].includes(status.toLowerCase())
 }
@@ -260,12 +449,28 @@ function isFailedStatus(status: string) {
   return ['failed', 'error', 'cancelled', 'canceled'].includes(status.toLowerCase())
 }
 
+function isSuccessfulStatus(status: string) {
+  return ['completed', 'succeeded', 'success'].includes(status.toLowerCase())
+}
+
+function jobTimestamp(job: AIJob) {
+  return Date.parse(job.completedAt ?? job.updatedAt ?? job.createdAt ?? '') || 0
+}
+
 function rememberJob(side: 'obverse' | 'reverse', jobId: string) {
   sessionStorage.setItem(jobStorageKey(side), jobId)
 }
 
+function rememberGradingJob(jobId: string) {
+  sessionStorage.setItem(gradingJobStorageKey(), jobId)
+}
+
 function jobStorageKey(side: 'obverse' | 'reverse') {
   return `aiJob:analysis:${props.coinId}:${side}`
+}
+
+function gradingJobStorageKey() {
+  return `aiJob:grading:${props.coinId}`
 }
 
 function formatStatus(status: string) {
@@ -369,5 +574,37 @@ function capitalize(value: string) {
   font-size: 0.85rem;
   color: var(--accent-gold);
   margin-bottom: 0.5rem;
+}
+
+.grading-panel {
+  margin-bottom: 1rem;
+}
+
+.grading-copy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.grading-limit,
+.grading-hint,
+.grading-error {
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.grading-limit {
+  color: var(--text-secondary);
+}
+
+.grading-hint {
+  color: var(--text-muted);
+}
+
+.grading-error {
+  color: var(--accent-bronze);
+}
+
+.grading-result {
+  margin-top: 0.75rem;
 }
 </style>

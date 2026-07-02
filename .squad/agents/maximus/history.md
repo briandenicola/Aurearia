@@ -139,6 +139,8 @@
 
 ## Learnings
 
+- **2026-07-02:** Coin grading is intentionally limited to the dedicated `/api/grade` plus Go `POST /coins/:id/grade` AI job workflow; supervisor/chat must not advertise or route to a grading capability unless a real chat implementation is wired.
+
 - **2026-06-29 — #357 Wishlist Search Alerts engineering review:** Blocked on lifecycle/contract drift. Alert deletion must preserve auditable run/candidate history with a real soft-delete mechanism, and candidate conversion must not prefill non-source-backed coin facts such as era/material defaults; unknowns should stay blank and require collector review per FR-015.
 
 - **2026-06-19 — Docker release gate (#312):** Docker publish workflows must be downstream of `Quality Gate` via `workflow_run`, restricted to successful push runs, and must checkout/tag `github.event.workflow_run.head_sha`; repository branch protection/rulesets remain a GitHub settings blocker, not a repo-file change.
@@ -213,3 +215,5 @@ Outcome: BLOCK. The alert architecture is mostly correctly layered and Python re
   - **Blocker:** Credential storage prerequisite — cannot expand plaintext storage. Requires encryption layer before Phase 2 (or explicit Brian approval to defer).
   - **Deliverables:** Architecture spike doc, phased roadmap, risk matrix, CNG-specific research deliverables. Orchestration log: .squad/orchestration-log/2026-06-30T22-43-42Z-maximus.md. Decisions merged to .squad/decisions.md.
   - **Next step:** Schedule Phase 1 research kickoff with Brian (provide temp CNG credentials); upon completion produce go/no-go decision.
+
+- **2026-07-02 — #374 Coin Grading Workflow Revision & Approval (Complete):** Applied Strict Lockout remediation per Brutus QA BLOCK. Removed supervisor grading routing/advertising to eliminate dead-end chat path (chat requests no longer land on passthrough without an image-capable implementation). Added stale grading router fallback regression test to prevent regressions. Implemented persistent grading job result recovery in `CoinAIAnalysis` component so users can discover completed grading reports even after sessionStorage is cleared (browser restart, new tab, notification click). Added comprehensive regression coverage for sessionStorage-less recovery. Validated against Principles I/II/IV/VI/IX and §17 Quality Gate. All tests pass: Python 21 tests ✅, Go all tests ✅, Vue 420 tests + type-check + build ✅. Outcome: APPROVED. Feature ready for merge. Orchestration log: .squad/orchestration-log/2026-07-02T10-55-14-maximus.md.

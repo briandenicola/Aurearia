@@ -6003,6 +6003,64 @@ const docTemplate = `{
                 }
             }
         },
+        "/coins/{id}/grade": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Queues asynchronous AI-powered coin grade estimation for a coin owned by the authenticated user. The grading report is stored in the AI job result and does not update the coin's saved grade.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Analysis"
+                ],
+                "summary": "Queue coin grading",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/services.AIJobSubmissionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/coins/{id}/estimate-value": {
             "post": {
                 "security": [
@@ -15894,11 +15952,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "analysis",
-                "value_estimate"
+                "value_estimate",
+                "coin_grading"
             ],
             "x-enum-varnames": [
                 "AIJobTypeAnalysis",
-                "AIJobTypeValueEstimate"
+                "AIJobTypeValueEstimate",
+                "AIJobTypeCoinGrading"
             ]
         },
         "models.AgentConversation": {

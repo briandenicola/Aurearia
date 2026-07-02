@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.config import settings
@@ -12,6 +12,7 @@ from app.models.requests import (
     AvailabilityCheckRequest,
     CoinSearchRequest,
     CoinShowSearchRequest,
+    GradeRequest,
     IntakeDraftRequest,
     PortfolioReviewRequest,
 )
@@ -20,6 +21,7 @@ from app.models.responses import (
     AlertDiscoveryResponse,
     AvailabilityCheckResponse,
     AvailabilityVerdict,
+    GradeResponse,
     IntakeDraftResponse,
 )
 from app.streaming import stream_graph_events
@@ -30,6 +32,7 @@ from app.teams.availability_check import (
     parse_verdicts,
 )
 from app.teams.coin_analysis import create_coin_analysis_team
+from app.teams.coin_grading import create_coin_grading_team
 from app.teams.coin_intake import generate_intake_draft
 from app.teams.coin_search import discover_alert_candidates
 
@@ -162,6 +165,41 @@ async def analyze_coin(request: AnalyzeRequest):
             analysis_text = msgs[-1].content if hasattr(msgs[-1], "content") else str(msgs[-1])
 
     return AgentResponse(analysis=analysis_text)
+
+
+@router.post("/grade", response_model=GradeResponse)
+async def grade_coin(request: GradeRequest):
+    """Estimate a coin grade from owner-scoped images. Stateless; no persistence."""
+    logger.info(
+        "POST /grade — provider=%s, model=%s, coin_id=%s, images=%d",
+        request.llm.provider,
+        request.llm.model,
+        request.coin.id,
+        len(request.images),
+    )
+    graph = create_coin_grading_team(
+        llm_config=request.llm,
+        coin=request.coin,
+        images=request.images,
+    )
+    try:
+        result = await graph.ainvoke({
+            "messages": [],
+            "raw_assessment": "",
+            "formatted_assessment": "",
+        })
+    except Exception as exc:
+        logger.exception("Coin grading graph execution failed")
+        raise HTTPException(status_code=502, detail="Coin grading failed") from exc
+
+    report = result.get("formatted_assessment", "")
+    if not report:
+        msgs = result.get("messages", [])
+        if msgs:
+            report = msgs[-1].content if hasattr(msgs[-1], "content") else str(msgs[-1])
+    if not report:
+        raise HTTPException(status_code=502, detail="Coin grading returned no report")
+    return GradeResponse(report=report)
 
 
 @router.post("/intake/draft", response_model=IntakeDraftResponse)

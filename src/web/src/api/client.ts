@@ -627,6 +627,8 @@ export const analyzeCoin = (coinId: number, side?: 'obverse' | 'reverse') => {
   const params = side ? `?side=${side}` : ''
   return api.post<AIJobStartResponse>(`/coins/${coinId}/analyze${params}`)
 }
+export const gradeCoin = (coinId: number) =>
+  api.post<AIJobStartResponse>(`/coins/${coinId}/grade`)
 export const getAIJob = (id: string | number) =>
   api.get<AIJob>(`/ai-jobs/${id}`)
 export const getCoinAIJobs = (coinId: number, activeOnly = false) =>

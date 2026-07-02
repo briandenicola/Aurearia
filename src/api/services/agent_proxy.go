@@ -168,6 +168,16 @@ type AnalyzeProxyResponse struct {
 	Analysis string `json:"analysis"`
 }
 
+type GradeProxyRequest struct {
+	LLM    LLMConfig     `json:"llm"`
+	Coin   CoinDataProxy `json:"coin"`
+	Images []string      `json:"images"`
+}
+
+type GradeProxyResponse struct {
+	Report string `json:"report"`
+}
+
 type IntakeProxyDraftRequest struct {
 	LLM           LLMConfig `json:"llm"`
 	Images        []string  `json:"images"`
@@ -330,6 +340,46 @@ func (p *AgentProxy) AnalyzeCoin(ctx context.Context, req AnalyzeProxyRequest) (
 		return "", fmt.Errorf("parse analyze response: %w", err)
 	}
 	return result.Analysis, nil
+}
+
+// GradeCoin POSTs to /api/grade and returns the grading report.
+func (p *AgentProxy) GradeCoin(ctx context.Context, req GradeProxyRequest) (string, error) {
+	logger := p.logger
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return "", fmt.Errorf("marshal grade request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", p.baseURL+"/api/grade", bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("create grade request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	p.attachInternalCredential(httpReq)
+
+	resp, err := p.requestClient.Do(httpReq)
+	if err != nil {
+		logger.Error("agent-proxy", "Grade request failed: %v", err)
+		return "", fmt.Errorf("agent service unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		errMsg := string(respBody)
+		if len(errMsg) > 200 {
+			errMsg = errMsg[:200] + "... (truncated)"
+		}
+		logger.Error("agent-proxy", "Grade returned %d: %s", resp.StatusCode, errMsg)
+		return "", agentServiceHTTPError(resp.StatusCode, respBody)
+	}
+
+	var result GradeProxyResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return "", fmt.Errorf("parse grade response: %w", err)
+	}
+	return result.Report, nil
 }
 
 func (p *AgentProxy) GenerateIntakeDraft(llmConfig LLMConfig, images []string, coinCardImage *string) (*IntakeProxyDraftResponse, error) {
