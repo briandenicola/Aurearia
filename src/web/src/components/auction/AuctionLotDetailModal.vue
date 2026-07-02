@@ -560,13 +560,17 @@ onMounted(fetchCalendarEvents)
   justify-content: center;
   z-index: 1000;
   padding: 1rem;
+  overflow: hidden;
 }
 
 .lot-detail {
   max-width: 560px;
   width: 100%;
   max-height: 90vh;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   padding: 0;
 }
 
@@ -583,6 +587,9 @@ onMounted(fetchCalendarEvents)
   font-size: 1.1rem;
   line-height: 1.35;
   margin: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
 }
 
 .btn-close {
@@ -677,7 +684,11 @@ onMounted(fetchCalendarEvents)
   margin-top: 0.4rem;
   line-height: 1.5;
   max-height: 120px;
+  overflow-x: hidden;
   overflow-y: auto;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  overscroll-behavior: contain;
 }
 
 .lot-alerts-panel {
