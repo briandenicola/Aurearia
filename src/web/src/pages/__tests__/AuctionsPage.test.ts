@@ -2,13 +2,15 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AuctionsPage from '../AuctionsPage.vue'
-import { getAuctionLotCounts, getAuctionLots, syncNumisBidsWatchlist } from '@/api/client'
+import { getAuctionLotCounts, getAuctionLots, listAlerts, listReminders, syncNumisBidsWatchlist } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 
 vi.mock('@/api/client', () => ({
   getAuctionLots: vi.fn(),
   getAuctionLotCounts: vi.fn(),
   syncNumisBidsWatchlist: vi.fn(),
+  listAlerts: vi.fn(),
+  listReminders: vi.fn(),
   listCalendarEvents: vi.fn(),
   bulkLinkAuctionLotEvent: vi.fn(),
   onTokenRefreshed: vi.fn(),
@@ -45,9 +47,13 @@ describe('AuctionsPage', () => {
     vi.mocked(getAuctionLots).mockReset()
     vi.mocked(getAuctionLotCounts).mockReset()
     vi.mocked(syncNumisBidsWatchlist).mockReset()
+    vi.mocked(listAlerts).mockReset()
+    vi.mocked(listReminders).mockReset()
     vi.mocked(getAuctionLots).mockResolvedValue({ data: { lots: [], total: 0, page: 1, limit: 50 } } as Awaited<ReturnType<typeof getAuctionLots>>)
     vi.mocked(getAuctionLotCounts).mockResolvedValue({ data: { counts: {} } } as Awaited<ReturnType<typeof getAuctionLotCounts>>)
     vi.mocked(syncNumisBidsWatchlist).mockResolvedValue({ data: { synced: 3, lots: [] } } as Awaited<ReturnType<typeof syncNumisBidsWatchlist>>)
+    vi.mocked(listAlerts).mockResolvedValue({ data: { alerts: [] } } as Awaited<ReturnType<typeof listAlerts>>)
+    vi.mocked(listReminders).mockResolvedValue({ data: { reminders: [] } } as Awaited<ReturnType<typeof listReminders>>)
   })
 
   it('syncs only CNG when only CNG credentials are configured', async () => {

@@ -60,6 +60,68 @@
           <span class="detail-label">Notes</span>
           <p>{{ lot.notes }}</p>
         </div>
+
+        <section v-if="canManageAlerts" class="lot-alerts-panel">
+          <div class="alerts-section">
+            <div class="alerts-section-header">
+              <span class="detail-label">Price Alerts</span>
+              <span v-if="priceAlerts.length" class="chip-sm">{{ priceAlerts.length }}</span>
+            </div>
+            <div v-if="priceAlerts.length" class="alert-list">
+              <div v-for="alert in priceAlerts" :key="alert.id" class="alert-item">
+                <div>
+                  <span class="alert-main">{{ alert.direction === 'above' ? 'At or above' : 'At or below' }} {{ formatCurrency(alert.targetPrice, lot.currency) }}</span>
+                  <span class="alert-state">{{ alert.isTriggered ? `Triggered ${formatOptionalDate(alert.triggeredAt)}` : 'Waiting' }}</span>
+                </div>
+                <button class="btn btn-ghost btn-xs" :disabled="alertBusy" @click="removeAlert(alert.id)">Delete</button>
+              </div>
+            </div>
+            <div class="compact-form">
+              <select v-model="alertForm.direction" class="form-input compact-select" aria-label="Price alert direction">
+                <option value="above">Above current bid</option>
+                <option value="below">Below current bid</option>
+              </select>
+              <input
+                v-model.number="alertForm.targetPrice"
+                type="number"
+                class="form-input compact-number"
+                min="0"
+                step="0.01"
+                :placeholder="lot.currentBid ? String(lot.currentBid) : 'Target'"
+                aria-label="Target price"
+              />
+              <button class="btn btn-secondary btn-sm" :disabled="alertBusy || !canCreateAlert" @click="saveAlert">Add Alert</button>
+            </div>
+          </div>
+
+          <div class="alerts-section">
+            <div class="alerts-section-header">
+              <span class="detail-label">Bid Reminders</span>
+              <span v-if="bidReminders.length" class="chip-sm">{{ bidReminders.length }}</span>
+            </div>
+            <div v-if="bidReminders.length" class="alert-list">
+              <div v-for="reminder in bidReminders" :key="reminder.id" class="alert-item">
+                <div>
+                  <span class="alert-main">{{ reminder.minutesBefore }} minutes before close</span>
+                  <span class="alert-state">{{ reminder.isNotified ? `Notified ${formatOptionalDate(reminder.notifiedAt)}` : 'Waiting' }}</span>
+                </div>
+                <button class="btn btn-ghost btn-xs" :disabled="reminderBusy" @click="removeReminder(reminder.id)">Delete</button>
+              </div>
+            </div>
+            <div class="compact-form">
+              <input
+                v-model.number="reminderForm.minutesBefore"
+                type="number"
+                class="form-input compact-number"
+                min="1"
+                step="5"
+                aria-label="Reminder minutes before close"
+              />
+              <button class="btn btn-secondary btn-sm" :disabled="reminderBusy || !canCreateReminder" @click="saveReminder">Add Reminder</button>
+            </div>
+          </div>
+          <p v-if="alertMessage" class="alert-message" :class="{ 'alert-message-error': alertError }">{{ alertMessage }}</p>
+        </section>
       </div>
 
       <div v-else class="detail-body edit-body">
@@ -184,20 +246,23 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { updateAuctionLotStatus, updateAuctionLot, convertAuctionLotToCoin, deleteAuctionLot, listCalendarEvents, linkAuctionLotEvent } from '@/api/client'
+import { updateAuctionLotStatus, updateAuctionLot, convertAuctionLotToCoin, deleteAuctionLot, listCalendarEvents, linkAuctionLotEvent, createAlert, deleteAlert, createReminder, deleteReminder } from '@/api/client'
 import { useProxiedImage } from '@/composables/useProxiedImage'
-import type { AuctionLot, AuctionLotStatus } from '@/types'
+import type { AuctionLot, AuctionLotStatus, BidReminder, PriceAlert, PriceAlertDirection } from '@/types'
 import { X, ExternalLink, ArrowRightCircle, Trash2, CalendarDays, Pencil } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 const props = defineProps<{
   lot: AuctionLot
+  priceAlerts?: PriceAlert[]
+  bidReminders?: BidReminder[]
 }>()
 
 const emit = defineEmits<{
   close: []
   updated: []
+  alertsUpdated: []
 }>()
 
 const router = useRouter()
@@ -214,6 +279,22 @@ const externalUrl = computed(() => props.lot.sourceUrl || props.lot.numisBidsUrl
 const normalizedMaxBidInput = computed(() => typeof maxBidInput.value === 'number' && !Number.isNaN(maxBidInput.value) ? maxBidInput.value : null)
 const maxBidChanged = computed(() => newStatus.value === 'bidding' && normalizedMaxBidInput.value !== null && normalizedMaxBidInput.value !== (props.lot.maxBid ?? null))
 const hasPendingStatusUpdate = computed(() => newStatus.value !== props.lot.status || maxBidChanged.value)
+const priceAlerts = computed(() => props.priceAlerts ?? [])
+const bidReminders = computed(() => props.bidReminders ?? [])
+const canManageAlerts = computed(() => props.lot.status === 'watching' || props.lot.status === 'bidding')
+const alertBusy = ref(false)
+const reminderBusy = ref(false)
+const alertMessage = ref('')
+const alertError = ref(false)
+const alertForm = reactive<{ targetPrice: number | null; direction: PriceAlertDirection }>({
+  targetPrice: props.lot.currentBid ?? props.lot.maxBid ?? props.lot.estimate ?? null,
+  direction: 'above',
+})
+const reminderForm = reactive<{ minutesBefore: number | null }>({
+  minutesBefore: 30,
+})
+const canCreateAlert = computed(() => typeof alertForm.targetPrice === 'number' && alertForm.targetPrice > 0)
+const canCreateReminder = computed(() => typeof reminderForm.minutesBefore === 'number' && reminderForm.minutesBefore > 0)
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
@@ -227,6 +308,16 @@ function formatDateTime(dateStr: string) {
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+function formatOptionalDate(dateStr: string | null) {
+  if (!dateStr) return ''
+  return formatDate(dateStr)
+}
+
+function setAlertMessage(message: string, isError = false) {
+  alertMessage.value = message
+  alertError.value = isError
 }
 
 // Edit mode
@@ -355,6 +446,71 @@ async function linkEvent() {
     await linkAuctionLotEvent(props.lot.id, eventId)
     emit('updated')
   } catch { /* ignore */ }
+}
+
+async function saveAlert() {
+  if (!canCreateAlert.value) return
+  alertBusy.value = true
+  setAlertMessage('')
+  try {
+    await createAlert({
+      auctionLotId: props.lot.id,
+      targetPrice: alertForm.targetPrice ?? 0,
+      direction: alertForm.direction,
+    })
+    emit('alertsUpdated')
+    setAlertMessage('Price alert saved')
+  } catch {
+    setAlertMessage('Failed to save price alert', true)
+  } finally {
+    alertBusy.value = false
+  }
+}
+
+async function removeAlert(id: number) {
+  alertBusy.value = true
+  setAlertMessage('')
+  try {
+    await deleteAlert(id)
+    emit('alertsUpdated')
+    setAlertMessage('Price alert deleted')
+  } catch {
+    setAlertMessage('Failed to delete price alert', true)
+  } finally {
+    alertBusy.value = false
+  }
+}
+
+async function saveReminder() {
+  if (!canCreateReminder.value) return
+  reminderBusy.value = true
+  setAlertMessage('')
+  try {
+    await createReminder({
+      auctionLotId: props.lot.id,
+      minutesBefore: reminderForm.minutesBefore ?? 30,
+    })
+    emit('alertsUpdated')
+    setAlertMessage('Bid reminder saved')
+  } catch {
+    setAlertMessage('Failed to save bid reminder', true)
+  } finally {
+    reminderBusy.value = false
+  }
+}
+
+async function removeReminder(id: number) {
+  reminderBusy.value = true
+  setAlertMessage('')
+  try {
+    await deleteReminder(id)
+    emit('alertsUpdated')
+    setAlertMessage('Bid reminder deleted')
+  } catch {
+    setAlertMessage('Failed to delete bid reminder', true)
+  } finally {
+    reminderBusy.value = false
+  }
 }
 
 async function changeStatus() {
@@ -522,6 +678,83 @@ onMounted(fetchCalendarEvents)
   line-height: 1.5;
   max-height: 120px;
   overflow-y: auto;
+}
+
+.lot-alerts-panel {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 0.75rem;
+}
+
+.alerts-section {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.alerts-section-header,
+.alert-item,
+.compact-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.alerts-section-header {
+  justify-content: space-between;
+}
+
+.alert-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.alert-item {
+  justify-content: space-between;
+  padding: 0.5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card-hover);
+}
+
+.alert-main,
+.alert-state {
+  display: block;
+  font-size: 0.8rem;
+}
+
+.alert-main {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.alert-state {
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+}
+
+.compact-form {
+  flex-wrap: wrap;
+}
+
+.compact-select {
+  flex: 1;
+  min-width: 150px;
+}
+
+.compact-number {
+  max-width: 120px;
+}
+
+.alert-message {
+  margin: 0;
+  color: var(--accent-gold);
+  font-size: 0.8rem;
+}
+
+.alert-message-error {
+  color: var(--color-negative);
 }
 
 .detail-actions {
