@@ -29,14 +29,6 @@
         >
           {{ grading ? 'Grading...' : 'Grade' }}
         </button>
-        <button
-          class="btn btn-secondary btn-sm"
-          :disabled="busy || !canGradeCoin || !aiAvailable"
-          :title="gradingDisabledTitle"
-          @click="handleGradeCoin"
-        >
-          {{ grading ? 'Grading...' : 'Grade Coin' }}
-        </button>
       </div>
       <p v-if="!aiAvailable" class="ai-unavailable">{{ aiMessage || 'AI unavailable — configure a provider in Admin → AI Configuration' }}</p>
       <p v-if="jobStatusMessage" class="ai-job-status">{{ jobStatusMessage }}</p>
