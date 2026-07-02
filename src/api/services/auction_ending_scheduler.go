@@ -3,7 +3,6 @@ package services
 import (
 	"fmt"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -17,7 +16,6 @@ type AuctionEndingScheduler struct {
 	auctionEndingRepo *repository.AuctionEndingRepository
 	userRepo          *repository.UserRepository
 	pushoverSvc       *PushoverService
-	watchlistSyncSvc  *AuctionWatchlistSyncService
 	settingsSvc       *SettingsService
 	logger            *Logger
 	stopCh            chan struct{}
@@ -47,12 +45,6 @@ func NewAuctionEndingScheduler(
 		stopCh:            make(chan struct{}),
 		lastNotified:      make(map[uint]string),
 	}
-}
-
-// WithWatchlistSync refreshes stored watchlist lots before each digest cycle.
-func (s *AuctionEndingScheduler) WithWatchlistSync(syncSvc *AuctionWatchlistSyncService) *AuctionEndingScheduler {
-	s.watchlistSyncSvc = syncSvc
-	return s
 }
 
 // Start begins the periodic check loop. Call from a goroutine.
@@ -202,15 +194,10 @@ func (s *AuctionEndingScheduler) runCycleWithTrigger(triggerType string, trigger
 		return nil, err
 	}
 
-	if s.watchlistSyncSvc != nil {
-		stats := s.watchlistSyncSvc.SyncDigestEligibleUsers()
-		s.logger.Info("scheduler", "Auction watchlist sync complete — %d users checked, %d lots synced, %d errors", stats.UsersChecked, stats.LotsSynced, stats.Errors)
-	}
-
-	// Execute the digest from active watched lots after refreshing provider data.
-	lots, err := s.auctionRepo.GetActiveWatchBidDigestLots()
+	// Execute the check
+	lots, err := s.auctionRepo.GetEndingSoon()
 	if err != nil {
-		s.logger.Error("scheduler", "Failed to fetch active auction watch lots: %s", err)
+		s.logger.Error("scheduler", "Failed to fetch auction lots ending soon: %s", err)
 		now := time.Now()
 		run.Status = "error"
 		run.ErrorMessage = fmt.Sprintf("Failed to fetch lots: %v", err)
@@ -223,7 +210,7 @@ func (s *AuctionEndingScheduler) runCycleWithTrigger(triggerType string, trigger
 	run.LotsChecked = len(lots)
 
 	if len(lots) == 0 {
-		s.logger.Info("scheduler", "No active auction watch lots")
+		s.logger.Info("scheduler", "No auction lots ending soon")
 		now := time.Now()
 		run.Status = "success"
 		run.CompletedAt = &now
@@ -238,7 +225,7 @@ func (s *AuctionEndingScheduler) runCycleWithTrigger(triggerType string, trigger
 		userLots[lot.UserID] = append(userLots[lot.UserID], lot)
 	}
 
-	s.logger.Info("scheduler", "Found %d active auction watch lots across %d users", len(lots), len(userLots))
+	s.logger.Info("scheduler", "Found %d lots ending soon across %d users", len(lots), len(userLots))
 
 	today := time.Now().Format("2006-01-02")
 	alertsSent := 0
@@ -266,7 +253,7 @@ func (s *AuctionEndingScheduler) runCycleWithTrigger(triggerType string, trigger
 
 	run.AlertsSent = alertsSent
 
-	s.logger.Info("scheduler", "%s auction watch bid digest cycle complete — %d lots checked, %d alerts sent", triggerType, run.LotsChecked, run.AlertsSent)
+	s.logger.Info("scheduler", "%s auction ending check cycle complete — %d lots checked, %d alerts sent", triggerType, run.LotsChecked, run.AlertsSent)
 
 	now := time.Now()
 	run.Status = "success"
@@ -277,7 +264,7 @@ func (s *AuctionEndingScheduler) runCycleWithTrigger(triggerType string, trigger
 	return run, nil
 }
 
-// notifyUser sends a consolidated Pushover notification to one user for their active watched auctions.
+// notifyUser sends a consolidated Pushover notification to one user for their ending auctions.
 // Returns true if a notification was sent, false otherwise.
 func (s *AuctionEndingScheduler) notifyUser(userID uint, lots []models.AuctionLot) bool {
 	user, err := s.userRepo.FindByID(userID)
@@ -291,9 +278,8 @@ func (s *AuctionEndingScheduler) notifyUser(userID uint, lots []models.AuctionLo
 		return false
 	}
 
-	title := "Auction Watch Bid Digest"
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("%d watched auction lot(s):\n\n", len(lots)))
+	title := "Auctions Ending Soon"
+	message := fmt.Sprintf("%d auction(s) you are bidding on end within 24 hours:\n\n", len(lots))
 
 	for _, lot := range lots {
 		auctionHouse := lot.AuctionHouse
@@ -304,28 +290,16 @@ func (s *AuctionEndingScheduler) notifyUser(userID uint, lots []models.AuctionLo
 		if saleName == "" {
 			saleName = "Sale"
 		}
-		builder.WriteString(fmt.Sprintf("- %s - %s (Lot %d): %s\n", auctionHouse, saleName, lot.LotNumber, formatAuctionBid(lot.CurrentBid, lot.Currency)))
+		message += fmt.Sprintf("- %s - %s (Lot %d)\n", auctionHouse, saleName, lot.LotNumber)
 	}
-	message := builder.String()
 
 	// Send notification
 	sent := false
 	if err := s.pushoverSvc.SendNotification(user.PushoverUserKey, title, message, ""); err != nil {
 		s.logger.Error("pushover", "Failed to send auction ending notification to user %d: %v", userID, err)
 	} else {
-		s.logger.Info("scheduler", "Notified user %d of %d watched auction bids", userID, len(lots))
+		s.logger.Info("scheduler", "Notified user %d of %d ending auctions", userID, len(lots))
 		sent = true
 	}
 	return sent
-}
-
-func formatAuctionBid(bid *float64, currency string) string {
-	if bid == nil {
-		return "current high bid unavailable"
-	}
-	currency = strings.TrimSpace(currency)
-	if currency == "" {
-		currency = "USD"
-	}
-	return fmt.Sprintf("current high bid %.2f %s", *bid, currency)
 }
