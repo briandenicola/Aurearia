@@ -74,6 +74,8 @@ export function useAdminConfig() {
   const availSettingsError = ref(false)
   const auctionSettingsMsg = ref('')
   const auctionSettingsError = ref(false)
+  const watchBidDigestSettingsMsg = ref('')
+  const watchBidDigestSettingsError = ref(false)
   const healthSettingsMsg = ref('')
   const healthSettingsError = ref(false)
   const valSettingsMsg = ref('')
@@ -105,6 +107,15 @@ export function useAdminConfig() {
       }
       if (!settings.value.AuctionEndingCheckInterval) {
         settings.value.AuctionEndingCheckInterval = '1440'
+      }
+      if (!settings.value.AuctionWatchBidDigestEnabled) {
+        settings.value.AuctionWatchBidDigestEnabled = 'false'
+      }
+      if (!settings.value.AuctionWatchBidDigestStartTime) {
+        settings.value.AuctionWatchBidDigestStartTime = '08:00'
+      }
+      if (!settings.value.AuctionWatchBidDigestInterval) {
+        settings.value.AuctionWatchBidDigestInterval = '1440'
       }
 
       // Apply defaults for collection health snapshot settings if not set
@@ -157,6 +168,8 @@ export function useAdminConfig() {
     availSettingsError.value = false
     auctionSettingsMsg.value = ''
     auctionSettingsError.value = false
+    watchBidDigestSettingsMsg.value = ''
+    watchBidDigestSettingsError.value = false
     healthSettingsMsg.value = ''
     healthSettingsError.value = false
     valSettingsMsg.value = ''
@@ -167,10 +180,11 @@ export function useAdminConfig() {
       settingsMsg.value = 'Settings saved'
       availSettingsMsg.value = 'Settings saved'
       auctionSettingsMsg.value = 'Settings saved'
+      watchBidDigestSettingsMsg.value = 'Settings saved'
       healthSettingsMsg.value = 'Settings saved'
       valSettingsMsg.value = 'Settings saved'
       if (saveTimerId) clearTimeout(saveTimerId)
-      saveTimerId = setTimeout(() => { availSettingsMsg.value = ''; auctionSettingsMsg.value = ''; healthSettingsMsg.value = ''; valSettingsMsg.value = '' }, 3000)
+      saveTimerId = setTimeout(() => { availSettingsMsg.value = ''; auctionSettingsMsg.value = ''; watchBidDigestSettingsMsg.value = ''; healthSettingsMsg.value = ''; valSettingsMsg.value = '' }, 3000)
     } catch {
       settingsMsg.value = 'Failed to save settings'
       settingsError.value = true
@@ -178,6 +192,8 @@ export function useAdminConfig() {
       availSettingsError.value = true
       auctionSettingsMsg.value = 'Failed to save settings'
       auctionSettingsError.value = true
+      watchBidDigestSettingsMsg.value = 'Failed to save settings'
+      watchBidDigestSettingsError.value = true
       healthSettingsMsg.value = 'Failed to save settings'
       healthSettingsError.value = true
       valSettingsMsg.value = 'Failed to save settings'
@@ -260,6 +276,8 @@ export function useAdminConfig() {
     availSettingsError,
     auctionSettingsMsg,
     auctionSettingsError,
+    watchBidDigestSettingsMsg,
+    watchBidDigestSettingsError,
     healthSettingsMsg,
     healthSettingsError,
     valSettingsMsg,

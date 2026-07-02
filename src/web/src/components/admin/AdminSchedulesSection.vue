@@ -41,10 +41,10 @@
         <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
           {{ settingsSaving ? 'Saving...' : 'Save Schedule Settings' }}
         </button>
-        <button class="btn btn-secondary btn-sm" :disabled="availTriggerLoading" @click="triggerManualAvailabilityCheck()">
+        <span v-if="availSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': availSettingsError }">{{ availSettingsMsg }}</span>
+        <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="availTriggerLoading" @click="triggerManualAvailabilityCheck()">
           {{ availTriggerLoading ? 'Running...' : 'Run Now' }}
         </button>
-        <span v-if="availSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': availSettingsError }">{{ availSettingsMsg }}</span>
       </div>
     </div>
 
@@ -138,7 +138,7 @@
 
     <!-- Auction Ending Alerts -->
     <h3 class="subsection-title">Auction Ending Alerts</h3>
-    <p class="subsection-desc">Sends a Pushover alert each day for auction lots you are bidding on that end today.</p>
+    <p class="subsection-desc">Checks watched auction lots that are ending soon and sends Pushover reminders before bidding closes.</p>
     <div class="avail-settings">
       <div class="form-group avail-toggle-row">
         <label class="form-label">Enable Automatic Alerts</label>
@@ -158,7 +158,7 @@
           class="form-input avail-interval-input"
           type="time"
         />
-        <span class="form-hint">The first check runs at this time each day.</span>
+        <span class="form-hint">The first ending-alert check runs at this time each day.</span>
       </div>
       <div class="form-group">
         <label class="form-label">Repeat Interval (minutes)</label>
@@ -169,24 +169,24 @@
           min="60"
           step="60"
         />
-        <span class="form-hint">How often to repeat after the start time. Default 1440 (daily).</span>
+        <span class="form-hint">How often to check for lots ending soon after the start time. Default 1440 (daily).</span>
       </div>
       <div class="avail-save-row">
         <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
           {{ settingsSaving ? 'Saving...' : 'Save Alert Settings' }}
         </button>
-        <button class="btn btn-secondary btn-sm" :disabled="auctionTriggerLoading" @click="triggerManualAuctionCheck()">
+        <span v-if="auctionSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': auctionSettingsError }">{{ auctionSettingsMsg }}</span>
+        <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="auctionTriggerLoading" @click="triggerManualAuctionCheck()">
           {{ auctionTriggerLoading ? 'Starting...' : 'Run Now' }}
         </button>
-        <span v-if="auctionSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': auctionSettingsError }">{{ auctionSettingsMsg }}</span>
       </div>
     </div>
 
     <hr class="section-divider" />
-    <h3 class="subsection-title">Auction Ending Run History</h3>
+    <h3 class="subsection-title">Auction Ending Alert Run History</h3>
 
     <div v-if="auctionLoading" class="loading-overlay"><div class="spinner"></div></div>
-    <div v-else-if="auctionRuns.length === 0" class="logs-empty">No auction ending runs recorded yet.</div>
+    <div v-else-if="auctionRuns.length === 0" class="logs-empty">No auction ending alert runs recorded yet.</div>
     <template v-else>
       <table class="users-table avail-table">
         <thead>
@@ -225,6 +225,100 @@
         <button class="btn btn-secondary btn-sm" :disabled="auctionPage <= 1" @click="prevAuctionPage()">Prev</button>
         <span class="avail-page-info">Page {{ auctionPage }}</span>
         <button class="btn btn-secondary btn-sm" :disabled="auctionRuns.length < 5" @click="nextAuctionPage()">Next</button>
+      </div>
+    </template>
+
+    <hr class="section-divider" />
+
+    <!-- Auction Watch Bid Digest -->
+    <h3 class="subsection-title">Auction Watch Bid Digest</h3>
+    <p class="subsection-desc">Refreshes NumisBids and CNG watched lots, updates current high bids in Auctions, and sends one Pushover digest while lots are active.</p>
+    <div class="avail-settings">
+      <div class="form-group avail-toggle-row">
+        <label class="form-label">Enable Automatic Digests</label>
+        <label class="toggle-switch">
+          <input
+            type="checkbox"
+            :checked="settings.AuctionWatchBidDigestEnabled === 'true'"
+            @change="settings.AuctionWatchBidDigestEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
+          />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Start Time (daily anchor)</label>
+        <input
+          v-model="settings.AuctionWatchBidDigestStartTime"
+          class="form-input avail-interval-input"
+          type="time"
+        />
+        <span class="form-hint">The first digest run starts at this time each day.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Repeat Interval (minutes)</label>
+        <input
+          v-model="settings.AuctionWatchBidDigestInterval"
+          class="form-input avail-interval-input"
+          type="number"
+          min="60"
+          step="60"
+        />
+        <span class="form-hint">How often to refresh watched lots and send the digest after the start time. Default 1440 (daily).</span>
+      </div>
+      <div class="avail-save-row">
+        <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
+          {{ settingsSaving ? 'Saving...' : 'Save Digest Settings' }}
+        </button>
+        <span v-if="watchBidDigestSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': watchBidDigestSettingsError }">{{ watchBidDigestSettingsMsg }}</span>
+        <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="watchBidDigestTriggerLoading" @click="triggerManualWatchBidDigest()">
+          {{ watchBidDigestTriggerLoading ? 'Starting...' : 'Run Now' }}
+        </button>
+      </div>
+    </div>
+
+    <hr class="section-divider" />
+    <h3 class="subsection-title">Auction Watch Bid Digest Run History</h3>
+
+    <div v-if="watchBidDigestLoading" class="loading-overlay"><div class="spinner"></div></div>
+    <div v-else-if="watchBidDigestRuns.length === 0" class="logs-empty">No auction watch bid digest runs recorded yet.</div>
+    <template v-else>
+      <table class="users-table avail-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th class="hide-mobile">Trigger</th>
+            <th>Lots</th>
+            <th>Digests</th>
+            <th class="hide-mobile">Status</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template v-for="run in watchBidDigestRuns" :key="run.id">
+            <tr>
+              <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
+              <td class="hide-mobile">
+                <span class="listing-status-badge" :class="run.triggerType === 'manual' ? 'listing-unavailable' : 'listing-unknown'">
+                  {{ run.triggerType }}
+                </span>
+              </td>
+              <td>{{ run.lotsChecked }}</td>
+              <td class="avail-count-available">{{ run.digestsSent }}</td>
+              <td class="hide-mobile">
+                <span class="listing-status-badge" :class="run.status === 'error' ? 'listing-unavailable' : (run.status === 'success' ? 'listing-available' : 'listing-unknown')">
+                  {{ run.status }}
+                </span>
+              </td>
+              <td>{{ formatDuration(run.durationMs) }}</td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+
+      <div class="avail-pagination">
+        <button class="btn btn-secondary btn-sm" :disabled="watchBidDigestPage <= 1" @click="prevWatchBidDigestPage()">Prev</button>
+        <span class="avail-page-info">Page {{ watchBidDigestPage }}</span>
+        <button class="btn btn-secondary btn-sm" :disabled="watchBidDigestRuns.length < 5" @click="nextWatchBidDigestPage()">Next</button>
       </div>
     </template>
 
@@ -279,10 +373,10 @@
         <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
           {{ settingsSaving ? 'Saving...' : 'Save Valuation Settings' }}
         </button>
-        <button class="btn btn-secondary btn-sm" :disabled="valTriggerLoading" @click="triggerManualValuation()">
+        <span v-if="valSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': valSettingsError }">{{ valSettingsMsg }}</span>
+        <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="valTriggerLoading" @click="triggerManualValuation()">
           {{ valTriggerLoading ? 'Starting...' : 'Run Now' }}
         </button>
-        <span v-if="valSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': valSettingsError }">{{ valSettingsMsg }}</span>
       </div>
     </div>
 
@@ -397,10 +491,10 @@
         <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
           {{ settingsSaving ? 'Saving...' : 'Save Snapshot Settings' }}
         </button>
-        <button class="btn btn-secondary btn-sm" :disabled="healthTriggerLoading" @click="triggerManualHealthSnapshots()">
+        <span v-if="healthSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': healthSettingsError }">{{ healthSettingsMsg }}</span>
+        <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="healthTriggerLoading" @click="triggerManualHealthSnapshots()">
           {{ healthTriggerLoading ? 'Running...' : 'Run Now' }}
         </button>
-        <span v-if="healthSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': healthSettingsError }">{{ healthSettingsMsg }}</span>
       </div>
     </div>
 
@@ -434,10 +528,10 @@
         <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
           {{ settingsSaving ? 'Saving...' : 'Save Coin of the Day Settings' }}
         </button>
-        <button class="btn btn-secondary btn-sm" :disabled="cotdTriggerLoading" @click="triggerManualCoinOfDay()">
+        <span v-if="cotdSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': cotdSettingsError }">{{ cotdSettingsMsg }}</span>
+        <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="cotdTriggerLoading" @click="triggerManualCoinOfDay()">
           {{ cotdTriggerLoading ? 'Running...' : 'Run Now' }}
         </button>
-        <span v-if="cotdSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': cotdSettingsError }">{{ cotdSettingsMsg }}</span>
       </div>
     </div>
   </section>
@@ -450,13 +544,14 @@ import {
   triggerAvailabilityCheck,
   getValuationRuns, getValuationRunDetail, triggerValuation, cancelValuationRun,
   getAuctionEndingRuns, triggerAuctionEndingCheck,
+  getAuctionWatchBidDigestRuns, triggerAuctionWatchBidDigest,
   triggerCollectionHealthSnapshots,
   triggerCoinOfDayRun,
 } from '@/api/client'
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
-import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun } from '@/types'
+import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun, AuctionWatchBidDigestRun } from '@/types'
 
 // Props are type-checked but not referenced directly in script
 const _props = defineProps<{
@@ -466,6 +561,8 @@ const _props = defineProps<{
   availSettingsError: boolean
   auctionSettingsMsg: string
   auctionSettingsError: boolean
+  watchBidDigestSettingsMsg: string
+  watchBidDigestSettingsError: boolean
   healthSettingsMsg: string
   healthSettingsError: boolean
   valSettingsMsg: string
@@ -478,6 +575,8 @@ const emit = defineEmits<{
   'update:valSettingsError': [val: boolean]
   'update:auctionSettingsMsg': [val: string]
   'update:auctionSettingsError': [val: boolean]
+  'update:watchBidDigestSettingsMsg': [val: string]
+  'update:watchBidDigestSettingsError': [val: boolean]
   'update:availSettingsMsg': [val: string]
   'update:availSettingsError': [val: boolean]
   'update:healthSettingsMsg': [val: string]
@@ -580,10 +679,42 @@ async function triggerManualAuctionCheck() {
     }
     timers.push(setTimeout(() => { loadAuctionRuns() }, 2000))
   } catch {
-    emit('update:auctionSettingsMsg', 'Failed to trigger auction ending check')
+    emit('update:auctionSettingsMsg', 'Failed to trigger auction ending alerts')
     emit('update:auctionSettingsError', true)
   } finally {
     auctionTriggerLoading.value = false
+  }
+}
+
+// Auction Watch Bid Digest
+const {
+  runs: watchBidDigestRuns,
+  total: _watchBidDigestTotal,
+  page: watchBidDigestPage,
+  loading: watchBidDigestLoading,
+  loadRuns: loadWatchBidDigestRuns,
+  prevPage: prevWatchBidDigestPage,
+  nextPage: nextWatchBidDigestPage,
+} = useRunHistoryPagination<AuctionWatchBidDigestRun>(async (page, limit) => {
+  const res = await getAuctionWatchBidDigestRuns(page, limit)
+  return res.data ?? {}
+})
+const watchBidDigestTriggerLoading = ref(false)
+
+async function triggerManualWatchBidDigest() {
+  watchBidDigestTriggerLoading.value = true
+  emit('update:watchBidDigestSettingsMsg', '')
+  emit('update:watchBidDigestSettingsError', false)
+  try {
+    const res = await triggerAuctionWatchBidDigest()
+    emit('update:watchBidDigestSettingsMsg', res.data.message ?? 'Auction watch bid digest started')
+    timers.push(setTimeout(() => { emit('update:watchBidDigestSettingsMsg', '') }, 10000))
+    timers.push(setTimeout(() => { loadWatchBidDigestRuns() }, 2000))
+  } catch {
+    emit('update:watchBidDigestSettingsMsg', 'Failed to trigger auction watch bid digest')
+    emit('update:watchBidDigestSettingsError', true)
+  } finally {
+    watchBidDigestTriggerLoading.value = false
   }
 }
 
@@ -745,6 +876,7 @@ onMounted(() => {
   window.addEventListener('resize', onResize)
   loadAvailRuns()
   loadAuctionRuns()
+  loadWatchBidDigestRuns()
   loadValRuns()
 })
 
@@ -805,11 +937,17 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.75rem;
   margin-top: 1rem;
+  width: 100%;
 }
 
 .avail-save-msg {
   font-size: 0.85rem;
   color: var(--accent-gold);
+  margin-right: auto;
+}
+
+.schedule-run-now {
+  margin-left: auto;
 }
 
 .avail-save-error {

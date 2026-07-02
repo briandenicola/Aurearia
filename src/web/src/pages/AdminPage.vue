@@ -124,6 +124,8 @@
           :avail-settings-error="availSettingsError"
           :auction-settings-msg="auctionSettingsMsg"
           :auction-settings-error="auctionSettingsError"
+          :watch-bid-digest-settings-msg="watchBidDigestSettingsMsg"
+          :watch-bid-digest-settings-error="watchBidDigestSettingsError"
           :health-settings-msg="healthSettingsMsg"
           :health-settings-error="healthSettingsError"
           :val-settings-msg="valSettingsMsg"
@@ -135,6 +137,8 @@
           @update:val-settings-error="valSettingsError = $event"
           @update:auction-settings-msg="auctionSettingsMsg = $event"
           @update:auction-settings-error="auctionSettingsError = $event"
+          @update:watch-bid-digest-settings-msg="watchBidDigestSettingsMsg = $event"
+          @update:watch-bid-digest-settings-error="watchBidDigestSettingsError = $event"
           @update:health-settings-msg="healthSettingsMsg = $event"
           @update:health-settings-error="healthSettingsError = $event"
         />
@@ -322,7 +326,7 @@ const {
   anthropicTesting, anthropicTestResult, anthropicTestOk, anthropicModels,
   searxngTesting, searxngTestResult, searxngTestOk,
   coinSearchPromptDefault, coinShowsPromptDefault, valuationPromptDefault,
-  availSettingsMsg, availSettingsError, auctionSettingsMsg, auctionSettingsError, healthSettingsMsg, healthSettingsError, valSettingsMsg, valSettingsError,
+  availSettingsMsg, availSettingsError, auctionSettingsMsg, auctionSettingsError, watchBidDigestSettingsMsg, watchBidDigestSettingsError, healthSettingsMsg, healthSettingsError, valSettingsMsg, valSettingsError,
   loadSettings, saveSettings,
   testOllamaConnection, testAnthropicConn, testSearxngConn,
   cleanup: cleanupAdminConfig,

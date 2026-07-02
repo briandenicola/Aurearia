@@ -1449,6 +1449,20 @@ export interface AuctionEndingRun {
   createdAt: string
 }
 
+export interface AuctionWatchBidDigestRun {
+  id: number
+  triggerType: 'scheduled' | 'manual'
+  triggerUserId: number | null
+  status: 'running' | 'success' | 'error'
+  lotsChecked: number
+  digestsSent: number
+  durationMs: number
+  startedAt: string
+  completedAt: string | null
+  errorMessage: string
+  createdAt: string
+}
+
 export interface CollectionHealthSnapshotRunResult {
   message?: string
   users?: number

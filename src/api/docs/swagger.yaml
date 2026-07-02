@@ -2757,6 +2757,38 @@ definitions:
       expiresAt:
         type: string
     type: object
+  services.SchedulerStatus:
+    properties:
+      enabled:
+        type: boolean
+      isRunning:
+        type: boolean
+      name:
+        type: string
+      nextRunIn:
+        $ref: '#/definitions/time.Duration'
+    type: object
+  time.Duration:
+    enum:
+    - -9223372036854775808
+    - 9223372036854775807
+    - 1
+    - 1000
+    - 1000000
+    - 1000000000
+    - 60000000000
+    - 3600000000000
+    format: int64
+    type: integer
+    x-enum-varnames:
+    - minDuration
+    - maxDuration
+    - Nanosecond
+    - Microsecond
+    - Millisecond
+    - Second
+    - Minute
+    - Hour
 info:
   contact: {}
   description: REST API for managing a personal coin collection. Supports coin CRUD,
@@ -2890,6 +2922,96 @@ paths:
       security:
       - BearerAuth: []
       summary: Trigger manual auction ending check
+      tags:
+      - Admin
+  /admin/auction-watch-bid-digest-runs:
+    get:
+      description: Returns paginated history of auction watch bid digest runs.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List auction watch bid digest runs
+      tags:
+      - Admin
+  /admin/auction-watch-bid-digest/run:
+    post:
+      description: Refreshes watched auction lots and sends current-bid digest notifications.
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Trigger manual auction watch bid digest
+      tags:
+      - Admin
+  /admin/auction-watch-bid-digest/status:
+    get:
+      description: Returns runtime status for the auction watch bid digest scheduler.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.SchedulerStatus'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get auction watch bid digest scheduler status
       tags:
       - Admin
   /admin/availability-runs:
