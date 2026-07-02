@@ -15,58 +15,12 @@
         Use the camera or upload an obverse image to start a quick AI draft. Reverse and slab detail photos are optional, but improve attribution and NGC number capture.
       </p>
 
-      <div class="camera-first-card">
-        <div class="camera-container">
-          <video
-            ref="cameraVideo"
-            class="camera-preview"
-            v-show="cameraStream !== null"
-            autoplay
-            playsinline
-            muted
-            @loadedmetadata="onVideoMetadataLoaded"
-          />
-          <div v-if="!cameraStream" class="camera-placeholder">
-            <Camera :size="48" />
-            <p>Start the camera when you're ready.</p>
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm camera-start-btn"
-              @click="startCamera"
-            >
-              <Camera :size="16" />
-              Start Camera
-            </button>
-          </div>
-          <div v-if="cameraError" class="camera-error-banner">{{ cameraError }}</div>
-
-          <div v-if="cameraStream !== null" class="focus-overlay">
-            <div class="focus-mask"></div>
-            <div class="focus-ring"></div>
-            <p class="focus-instruction">Focus one coin in the circle</p>
-          </div>
-        </div>
-
-        <div class="camera-actions">
-          <button
-            type="button"
-            class="shutter-btn"
-            :disabled="!cameraReady"
-            @click="captureFromCamera"
-            aria-label="Capture photo"
-          >
-            <Camera :size="32" />
-          </button>
-          <button
-            type="button"
-            class="upload-icon-btn"
-            @click="triggerFileUpload"
-            aria-label="Upload from library"
-          >
-            <Images :size="20" />
-          </button>
-        </div>
-      </div>
+      <InlineCameraCapturePanel
+        ref="cameraPanel"
+        filename-prefix="lookup"
+        @captured="addCapturedFile"
+        @upload="triggerFileUpload"
+      />
 
       <!-- Image preview grid -->
       <div v-if="capturedImages.length > 0" class="captured-images">
@@ -275,14 +229,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, reactive, onBeforeUnmount } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { createQuickCaptureDraft, lookupCoin } from '@/api/client'
-import { MATERIALS, type CoinLookupResponse, type CoinMutationPayload, type Material } from '@/types'
+import type { CoinLookupResponse, CoinMutationPayload } from '@/types'
 import { renderSafeMarkdown } from '@/composables/useMarkdown'
+import { appendUniqueObservation, deriveAiObservations, normalizedEra, normalizeLookupDraft } from '@/utils/coinLookupDraft'
 import {
-  Camera,
-  Images,
   Search,
   X,
   AlertCircle,
@@ -292,6 +245,7 @@ import {
   Bookmark,
   List,
 } from 'lucide-vue-next'
+import InlineCameraCapturePanel from '@/components/InlineCameraCapturePanel.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 interface CapturedImage {
@@ -306,10 +260,7 @@ const router = useRouter()
 const state = ref<LookupState>('capture')
 const capturedImages = ref<CapturedImage[]>([])
 const fileInput = ref<HTMLInputElement | null>(null)
-const cameraVideo = ref<HTMLVideoElement | null>(null)
-const cameraStream = ref<MediaStream | null>(null)
-const cameraError = ref('')
-const videoReady = ref(false)
+const cameraPanel = ref<InstanceType<typeof InlineCameraCapturePanel> | null>(null)
 const submitting = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -344,274 +295,7 @@ const ngcLookupUrl = computed(() => {
 })
 
 const numistaResults = computed(() => results.value?.numistaCandidates ?? [])
-const cameraReady = computed(() => cameraStream.value !== null && videoReady.value)
 const renderedAiObservations = computed(() => renderSafeMarkdown(aiObservations.value))
-
-type NormalizableLookupField =
-  | 'name'
-  | 'ruler'
-  | 'denomination'
-  | 'era'
-  | 'mint'
-  | 'material'
-  | 'category'
-  | 'grade'
-  | 'obverseInscription'
-  | 'reverseInscription'
-  | 'obverseDescription'
-  | 'reverseDescription'
-
-const lookupFieldAliases: Record<NormalizableLookupField, string[]> = {
-  name: ['name', 'coin name', 'title', 'attribution'],
-  ruler: ['ruler', 'issuer', 'emperor', 'authority'],
-  denomination: ['denomination', 'coin type', 'type'],
-  era: ['era', 'period'],
-  mint: ['mint', 'mint location'],
-  material: ['material', 'metal', 'composition'],
-  category: ['category', 'culture', 'region'],
-  grade: ['grade', 'condition'],
-  obverseInscription: ['obverse inscription', 'obverse legend'],
-  reverseInscription: ['reverse inscription', 'reverse legend'],
-  obverseDescription: ['obverse description', 'obverse'],
-  reverseDescription: ['reverse description', 'reverse'],
-}
-
-function normalizeLookupKey(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, '')
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
-  return value as Record<string, unknown>
-}
-
-function cleanLookupValue(value: unknown) {
-  if (typeof value !== 'string') return undefined
-  const trimmed = value.trim()
-  return trimmed.length > 0 ? trimmed : undefined
-}
-
-function isPlaceholderLookupValue(value: string | undefined) {
-  if (!value) return true
-  const normalized = value.trim().toLowerCase()
-  return normalized === '' || normalized === 'unidentified coin' || normalized === 'unknown' || normalized === 'n/a'
-}
-
-function getAliasedField(source: Record<string, unknown> | null | undefined, field: NormalizableLookupField) {
-  if (!source) return undefined
-  const aliases = new Set(lookupFieldAliases[field].map(normalizeLookupKey))
-  const entry = Object.entries(source).find(([key]) => aliases.has(normalizeLookupKey(key)))
-  return entry ? cleanLookupValue(entry[1]) : undefined
-}
-
-function parseLookupLineFields(text: string | undefined) {
-  const fields: Partial<Record<NormalizableLookupField, string>> = {}
-  if (!text) return fields
-
-  for (const line of text.split(/\r?\n/)) {
-    const match = line.match(/^\s*([A-Za-z][A-Za-z\s/()-]{0,40})\s*:\s*(.+?)\s*$/)
-    if (!match) continue
-
-    const label = match[1] ?? ''
-    const value = cleanLookupValue(match[2])
-    if (!value) continue
-
-    const normalizedLabel = normalizeLookupKey(label)
-    const field = Object.entries(lookupFieldAliases).find(([, aliases]) =>
-      aliases.map(normalizeLookupKey).includes(normalizedLabel)
-    )?.[0] as NormalizableLookupField | undefined
-
-    if (field && !fields[field]) {
-      fields[field] = value
-    }
-  }
-
-  return fields
-}
-
-function parseJsonLookupFields(text: string | undefined) {
-  if (!text) return null
-  try {
-    return asRecord(JSON.parse(text))
-  } catch {
-    return null
-  }
-}
-
-function normalizeMaterial(value: string): Material {
-  const normalized = value.trim().toLowerCase()
-  const aliases: Record<string, Material> = {
-    ar: 'Silver',
-    silver: 'Silver',
-    ae: 'Bronze',
-    bronze: 'Bronze',
-    copper: 'Copper',
-    au: 'Gold',
-    gold: 'Gold',
-    electrum: 'Electrum',
-  }
-  return aliases[normalized] ?? MATERIALS.find(material => material.toLowerCase() === normalized) ?? 'Other'
-}
-
-function normalizeObservationForCompare(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[`*_>#-]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function appendUniqueObservation(parts: string[], value: string | undefined, heading?: string) {
-  const clean = cleanLookupValue(value)
-  if (!clean) return
-
-  const normalizedClean = normalizeObservationForCompare(clean)
-  const isDuplicate = parts.some(part => {
-    const normalizedPart = normalizeObservationForCompare(part)
-    return normalizedPart.includes(normalizedClean) || normalizedClean.includes(normalizedPart)
-  })
-  if (isDuplicate) return
-
-  parts.push(heading ? `**${heading}:** ${clean}` : clean)
-}
-
-function deriveAiObservations(lookup: CoinLookupResponse, draft: CoinMutationPayload) {
-  const parts: string[] = []
-
-  appendUniqueObservation(parts, draft.notes)
-  appendUniqueObservation(parts, draft.aiAnalysis)
-  if (!parseJsonLookupFields(lookup.extractedData.rawAnalysis)) {
-    appendUniqueObservation(parts, lookup.extractedData.rawAnalysis)
-  }
-  appendUniqueObservation(parts, draft.obverseDescription, 'Obverse')
-  appendUniqueObservation(parts, draft.reverseDescription, 'Reverse')
-
-  return parts.join('\n\n')
-}
-
-function hasFieldValue(draft: CoinMutationPayload, field: NormalizableLookupField) {
-  const value = draft[field]
-  return typeof value === 'string' && !isPlaceholderLookupValue(value)
-}
-
-function setMissingLookupField(draft: CoinMutationPayload, field: NormalizableLookupField, value: string | undefined) {
-  if (!value || hasFieldValue(draft, field)) return
-
-  switch (field) {
-    case 'name':
-      draft.name = value
-      break
-    case 'ruler':
-      draft.ruler = value
-      break
-    case 'denomination':
-      draft.denomination = value
-      break
-    case 'era':
-      draft.era = value
-      break
-    case 'mint':
-      draft.mint = value
-      break
-    case 'material':
-      draft.material = normalizeMaterial(value)
-      break
-    case 'category':
-      draft.category = value
-      break
-    case 'grade':
-      draft.grade = value
-      break
-    case 'obverseInscription':
-      draft.obverseInscription = value
-      break
-    case 'reverseInscription':
-      draft.reverseInscription = value
-      break
-    case 'obverseDescription':
-      draft.obverseDescription = value
-      break
-    case 'reverseDescription':
-      draft.reverseDescription = value
-      break
-  }
-}
-
-function applyLookupFieldSource(draft: CoinMutationPayload, source: Record<string, unknown> | null | undefined) {
-  for (const field of Object.keys(lookupFieldAliases) as NormalizableLookupField[]) {
-    setMissingLookupField(draft, field, getAliasedField(source, field))
-  }
-}
-
-function applyParsedLookupText(draft: CoinMutationPayload, text: string | undefined) {
-  applyLookupFieldSource(draft, parseJsonLookupFields(text))
-  const parsedLines = parseLookupLineFields(text)
-  for (const [field, value] of Object.entries(parsedLines) as Array<[NormalizableLookupField, string]>) {
-    setMissingLookupField(draft, field, value)
-  }
-}
-
-function deriveNameFromParts(draft: CoinMutationPayload) {
-  if (hasFieldValue(draft, 'name')) return
-  const parts = [draft.ruler, draft.denomination].filter((part): part is string => Boolean(part?.trim()))
-  if (parts.length > 0) {
-    draft.name = parts.join(' ')
-  }
-}
-
-function reliableNgcLabelName(labelText: string | undefined) {
-  if (!labelText) return undefined
-  const unreliable = /\b(ngc|cert|certification|ancients|authentic|grade|ch\s*vf|vf|xf|ms|fine)\b/i
-  const contextOnly = /\b(empire|kingdom|republic|provincial|mint)\b/i
-  const dateOnly = /^(?:c\.?\s*)?(?:ad|bc|ce|bce)?\s*[\d\s./-]+(?:ad|bc|ce|bce)?$/i
-  const cleanLabelPart = (part: string) => part
-    .trim()
-    .replace(/,\s*(?:c\.?\s*)?(?:ad|bc|ce|bce)?\s*[\d\s./-]+.*$/i, '')
-    .replace(/^(?:ae|ar|av|au|bi|billon|silver|gold|bronze)\s+/i, '')
-    .trim()
-
-  const lines = labelText
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(line => line.length >= 5 && line.length <= 120 && !unreliable.test(line))
-
-  for (const line of lines) {
-    const parts = line
-      .split(/\s*\/\s*/)
-      .map(cleanLabelPart)
-      .filter(part => part.length >= 2 && !unreliable.test(part) && !contextOnly.test(part) && !dateOnly.test(part))
-
-    if (parts.length >= 2) {
-      return parts.join(' ')
-    }
-  }
-
-  return lines.find(line => line.length <= 80 && !line.includes('/'))
-}
-
-function normalizeLookupDraft(lookup: CoinLookupResponse): CoinMutationPayload {
-  const draft: CoinMutationPayload = { ...(lookup.prefilledDraft ?? {}) }
-  if (!draft.notes) {
-    draft.notes = draft.aiAnalysis ?? ''
-  }
-
-  applyLookupFieldSource(draft, lookup.extractedData.coinFields)
-  applyParsedLookupText(draft, draft.notes)
-  applyParsedLookupText(draft, draft.aiAnalysis)
-  applyParsedLookupText(draft, lookup.extractedData.rawAnalysis)
-  deriveNameFromParts(draft)
-  setMissingLookupField(draft, 'name', lookup.extractedData.ngc?.description)
-  setMissingLookupField(draft, 'name', reliableNgcLabelName(lookup.extractedData.labelText))
-
-  return draft
-}
-
-function normalizedEra(value: unknown): 'ancient' | 'medieval' | 'modern' | undefined {
-  if (typeof value !== 'string') return undefined
-  const normalized = value.trim().toLowerCase()
-  if (normalized === 'ancient' || normalized === 'medieval' || normalized === 'modern') return normalized
-  return undefined
-}
 
 function applyDraftToReviewForm(prefilled: CoinMutationPayload) {
   Object.assign(reviewForm, {
@@ -639,56 +323,6 @@ function applyLookupMetadata(lookup: CoinLookupResponse) {
   ngcForm.confidence = lookup.extractedData.confidence ?? ''
 }
 
-async function startCamera() {
-  if (cameraStream.value) return
-  if (!navigator.mediaDevices?.getUserMedia) {
-    cameraError.value = 'Camera access is unavailable on this device.'
-    return
-  }
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' } },
-      audio: false,
-    })
-    cameraStream.value = stream
-    cameraError.value = ''
-    videoReady.value = false
-
-    await nextTick()
-
-    if (cameraVideo.value) {
-      cameraVideo.value.srcObject = stream
-      await cameraVideo.value.play()
-    }
-  } catch (error) {
-    const err = error as { name?: string }
-    if (err.name === 'NotAllowedError') {
-      cameraError.value = 'Camera permission was denied. You can still upload images.'
-    } else if (err.name === 'NotFoundError') {
-      cameraError.value = 'No camera found on this device.'
-    } else {
-      cameraError.value = 'Camera is unavailable. You can still upload images.'
-    }
-  }
-}
-
-function onVideoMetadataLoaded() {
-  const video = cameraVideo.value
-  if (video && video.videoWidth > 0 && video.videoHeight > 0) {
-    videoReady.value = true
-  }
-}
-
-function stopCamera() {
-  if (!cameraStream.value) return
-  for (const track of cameraStream.value.getTracks()) {
-    track.stop()
-  }
-  cameraStream.value = null
-  videoReady.value = false
-}
-
 function addCapturedFile(file: File) {
   const preview = URL.createObjectURL(file)
   capturedImages.value.push({ file, preview })
@@ -698,64 +332,6 @@ function imageTypeLabel(index: number) {
   if (index === 0) return 'Obverse'
   if (index === 1) return 'Reverse optional'
   return 'Detail'
-}
-
-function computeCoverCropRect(
-  videoWidth: number,
-  videoHeight: number,
-  displayWidth: number,
-  displayHeight: number
-): { sx: number; sy: number; sw: number; sh: number } {
-  const videoAspect = videoWidth / (videoHeight || 1)
-  const displayAspect = displayWidth / (displayHeight || 1)
-
-  if (videoAspect > displayAspect) {
-    const sh = videoHeight
-    const sw = sh * displayAspect
-    return { sx: (videoWidth - sw) / 2, sy: 0, sw, sh }
-  }
-
-  const sw = videoWidth
-  const sh = sw / displayAspect
-  return { sx: 0, sy: (videoHeight - sh) / 2, sw, sh }
-}
-
-async function captureFromCamera() {
-  const video = cameraVideo.value
-  if (!video || !cameraReady.value || video.videoWidth === 0 || video.videoHeight === 0) {
-    cameraError.value = 'Camera is not ready yet. Try again in a moment.'
-    return
-  }
-
-  const displayWidth = video.clientWidth ?? 0
-  const displayHeight = video.clientHeight ?? 0
-  if (displayWidth === 0 || displayHeight === 0) {
-    cameraError.value = 'Could not determine video display size.'
-    return
-  }
-
-  const { sx, sy, sw, sh } = computeCoverCropRect(
-    video.videoWidth,
-    video.videoHeight,
-    displayWidth,
-    displayHeight
-  )
-
-  const canvas = document.createElement('canvas')
-  canvas.width = sw
-  canvas.height = sh
-  const context = canvas.getContext('2d')
-  if (!context) return
-
-  context.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh)
-
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92))
-  if (!blob) {
-    cameraError.value = 'Could not capture image from camera.'
-    return
-  }
-
-  addCapturedFile(new File([blob], `lookup-${Date.now()}.jpg`, { type: 'image/jpeg' }))
 }
 
 function triggerFileUpload() {
@@ -793,7 +369,7 @@ async function handleSubmit() {
   submitting.value = true
   error.value = ''
   state.value = 'analyzing'
-  stopCamera()
+  cameraPanel.value?.stopCamera()
 
   try {
     const files = capturedImages.value.map(img => img.file)
@@ -893,7 +469,7 @@ async function handleSaveAsDraft() {
 }
 
 onBeforeUnmount(() => {
-  stopCamera()
+  cameraPanel.value?.stopCamera()
   for (const img of capturedImages.value) {
     URL.revokeObjectURL(img.preview)
   }
@@ -918,166 +494,6 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
   font-size: 0.9rem;
   line-height: 1.5;
-}
-
-.camera-first-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.camera-container {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-}
-
-.camera-preview {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.camera-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  color: var(--text-muted);
-}
-
-.camera-placeholder p {
-  margin: 0;
-}
-
-.camera-start-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.camera-error-banner {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: var(--error-bg);
-  color: var(--text-primary);
-  padding: 0.5rem 0.75rem;
-  font-size: 0.8rem;
-  text-align: center;
-  z-index: 10;
-}
-
-.focus-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 5;
-}
-
-.focus-mask {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    circle at 50% 52%,
-    transparent 0%,
-    transparent 36%,
-    rgba(10, 12, 20, 0.2) 37%,
-    rgba(10, 12, 20, 0.62) 100%
-  );
-}
-
-.focus-ring {
-  position: absolute;
-  top: 52%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 74%;
-  max-width: 360px;
-  aspect-ratio: 1;
-  border-radius: var(--radius-full);
-  border: 2px solid var(--border-white-dim);
-}
-
-.focus-instruction {
-  position: absolute;
-  top: calc(env(safe-area-inset-top) + 20px);
-  left: 50%;
-  transform: translateX(-50%);
-  color: var(--text-primary);
-  font-size: 0.85rem;
-  font-weight: 500;
-  text-align: center;
-  text-shadow: 0 2px 8px var(--overlay-dark);
-  margin: 0;
-}
-
-.camera-actions {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.shutter-btn {
-  grid-column: 2;
-  justify-self: center;
-  width: 4rem;
-  height: 4rem;
-  border-radius: var(--radius-full);
-  background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
-  border: 2px solid var(--border-white-dim);
-  color: var(--bg-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  box-shadow: var(--shadow-card);
-}
-
-.shutter-btn:hover:not(:disabled) {
-  transform: scale(1.05);
-  box-shadow: var(--shadow-glow);
-}
-
-.shutter-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.upload-icon-btn {
-  grid-column: 3;
-  justify-self: end;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: var(--radius-full);
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.upload-icon-btn:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
 }
 
 .captured-images {
