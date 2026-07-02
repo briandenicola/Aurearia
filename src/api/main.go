@@ -201,6 +201,7 @@ func main() {
 	aiJobSvc.StartWorkers(1)
 	healthRepo := repository.NewHealthRepository(database.DB)
 	healthSvc := services.NewHealthService(healthRepo, logger)
+	auctionWatchBidDigestRepo := repository.NewAuctionWatchBidDigestRepository(database.DB)
 
 	// Create schedulers before routes so they can be passed to admin handlers
 	availScheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, availRepo, settingsSvc, logger)
@@ -208,7 +209,8 @@ func main() {
 	nbWatchSyncSvc := services.NewNumisBidsService(logger)
 	cngWatchSyncSvc := services.NewCNGAuctionService(logger)
 	auctionWatchlistSyncSvc := services.NewAuctionWatchlistSyncService(auctionLotRepo, userRepoForVal, nbWatchSyncSvc, cngWatchSyncSvc, credentialEncryptionSvc, logger)
-	auctionEndingScheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepoForVal, pushoverSvc, settingsSvc, logger).WithWatchlistSync(auctionWatchlistSyncSvc)
+	auctionEndingScheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepoForVal, pushoverSvc, settingsSvc, logger)
+	auctionWatchBidDigestScheduler := services.NewAuctionWatchBidDigestScheduler(auctionLotRepo, auctionWatchBidDigestRepo, userRepoForVal, pushoverSvc, auctionWatchlistSyncSvc, settingsSvc, logger)
 	healthScheduler := services.NewCollectionHealthScheduler(healthSvc, settingsSvc, logger)
 	featuredCoinRepo := repository.NewFeaturedCoinRepository(database.DB)
 	coinOfDayScheduler := services.NewCoinOfDayScheduler(featuredCoinRepo, userRepoForVal, coinRepo, notifSvc, settingsSvc, logger)
@@ -216,6 +218,7 @@ func main() {
 	schedulerRegistry.Register(availScheduler)
 	schedulerRegistry.Register(valScheduler)
 	schedulerRegistry.Register(auctionEndingScheduler)
+	schedulerRegistry.Register(auctionWatchBidDigestScheduler)
 	schedulerRegistry.Register(healthScheduler)
 
 	// Create shared repositories for cross-group access
@@ -594,6 +597,10 @@ func main() {
 		auctionEndingAdminHandler := handlers.NewAuctionEndingAdminHandler(auctionEndingRepo, auctionEndingScheduler, logger)
 		admin.GET("/auction-ending-runs", auctionEndingAdminHandler.ListRuns)
 		admin.POST("/auction-ending/run", auctionEndingAdminHandler.TriggerRun)
+		auctionWatchBidDigestAdminHandler := handlers.NewAuctionWatchBidDigestAdminHandler(auctionWatchBidDigestScheduler, auctionWatchBidDigestRepo)
+		admin.GET("/auction-watch-bid-digest-runs", auctionWatchBidDigestAdminHandler.ListRuns)
+		admin.GET("/auction-watch-bid-digest/status", auctionWatchBidDigestAdminHandler.GetStatus)
+		admin.POST("/auction-watch-bid-digest/run", auctionWatchBidDigestAdminHandler.RunNow)
 
 		// Coin of the Day manual trigger
 		coinOfDayAdminHandler := handlers.NewCoinOfDayAdminHandler(coinOfDayScheduler, logger)

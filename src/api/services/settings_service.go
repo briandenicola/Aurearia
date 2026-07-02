@@ -34,6 +34,9 @@ const (
 	SettingAuctionEndingCheckEnabled          = "AuctionEndingCheckEnabled"
 	SettingAuctionEndingCheckInterval         = "AuctionEndingCheckInterval"
 	SettingAuctionEndingCheckStartTime        = "AuctionEndingCheckStartTime"
+	SettingAuctionWatchBidDigestEnabled       = "AuctionWatchBidDigestEnabled"
+	SettingAuctionWatchBidDigestInterval      = "AuctionWatchBidDigestInterval"
+	SettingAuctionWatchBidDigestStartTime     = "AuctionWatchBidDigestStartTime"
 	SettingCoinOfDayEnabled                   = "CoinOfDayEnabled"
 	SettingCoinOfDayStartTime                 = "CoinOfDayStartTime"
 	SettingCollectionHealthSnapshotsEnabled   = "CollectionHealthSnapshotsEnabled"
@@ -97,6 +100,9 @@ var settingDefaults = map[string]string{
 	SettingAuctionEndingCheckEnabled:          "false",
 	SettingAuctionEndingCheckInterval:         "1440",
 	SettingAuctionEndingCheckStartTime:        "08:00",
+	SettingAuctionWatchBidDigestEnabled:       "false",
+	SettingAuctionWatchBidDigestInterval:      "1440",
+	SettingAuctionWatchBidDigestStartTime:     "08:00",
 	SettingCoinOfDayEnabled:                   "false",
 	SettingCoinOfDayStartTime:                 "07:00",
 	SettingCollectionHealthSnapshotsEnabled:   "false",
