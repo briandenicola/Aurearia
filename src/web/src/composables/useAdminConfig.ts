@@ -9,6 +9,12 @@ import type { AppSettings } from '@/types'
 import { CATEGORIES, COIN_ERAS } from '@/types'
 import { formatOptionList } from '@/utils/options'
 
+const legacyAuctionAlertSettingKeys = [
+  'PriceAlertCheckEnabled',
+  'PriceAlertCheckStartTime',
+  'PriceAlertCheckInterval',
+] as const
+
 export function useAdminConfig() {
   const settings = ref<AppSettings>({
     AIProvider: '',
@@ -21,6 +27,9 @@ export function useAdminConfig() {
     SearXNGURL: '',
     LogLevel: 'info',
     PublicAppURL: '',
+    AuctionAlertsCheckEnabled: 'false',
+    AuctionAlertsCheckStartTime: '08:00',
+    AuctionAlertsCheckInterval: '60',
     CoinCategories: '',
     CoinEras: '',
   })
@@ -35,6 +44,9 @@ export function useAdminConfig() {
     SearXNGURL: '',
     LogLevel: '',
     PublicAppURL: '',
+    AuctionAlertsCheckEnabled: 'false',
+    AuctionAlertsCheckStartTime: '08:00',
+    AuctionAlertsCheckInterval: '60',
     CoinCategories: '',
     CoinEras: '',
   })
@@ -74,6 +86,8 @@ export function useAdminConfig() {
   const availSettingsError = ref(false)
   const auctionSettingsMsg = ref('')
   const auctionSettingsError = ref(false)
+  const alertReminderSettingsMsg = ref('')
+  const alertReminderSettingsError = ref(false)
   const watchBidDigestSettingsMsg = ref('')
   const watchBidDigestSettingsError = ref(false)
   const healthSettingsMsg = ref('')
@@ -89,6 +103,9 @@ export function useAdminConfig() {
       ])
       settingDefaults.value = { ...settingDefaults.value, ...defaultsRes.data }
       settings.value = { ...settings.value, ...settingsRes.data }
+      legacyAuctionAlertSettingKeys.forEach(key => {
+        delete settings.value[key]
+      })
 
       // Apply defaults for coin property options if not set
       if (!settings.value.CoinCategories) {
@@ -107,6 +124,15 @@ export function useAdminConfig() {
       }
       if (!settings.value.AuctionEndingCheckInterval) {
         settings.value.AuctionEndingCheckInterval = '1440'
+      }
+      if (!settings.value.AuctionAlertsCheckEnabled) {
+        settings.value.AuctionAlertsCheckEnabled = 'false'
+      }
+      if (!settings.value.AuctionAlertsCheckStartTime) {
+        settings.value.AuctionAlertsCheckStartTime = '08:00'
+      }
+      if (!settings.value.AuctionAlertsCheckInterval) {
+        settings.value.AuctionAlertsCheckInterval = '60'
       }
       if (!settings.value.AuctionWatchBidDigestEnabled) {
         settings.value.AuctionWatchBidDigestEnabled = 'false'
@@ -168,6 +194,8 @@ export function useAdminConfig() {
     availSettingsError.value = false
     auctionSettingsMsg.value = ''
     auctionSettingsError.value = false
+    alertReminderSettingsMsg.value = ''
+    alertReminderSettingsError.value = false
     watchBidDigestSettingsMsg.value = ''
     watchBidDigestSettingsError.value = false
     healthSettingsMsg.value = ''
@@ -180,11 +208,12 @@ export function useAdminConfig() {
       settingsMsg.value = 'Settings saved'
       availSettingsMsg.value = 'Settings saved'
       auctionSettingsMsg.value = 'Settings saved'
+      alertReminderSettingsMsg.value = 'Settings saved'
       watchBidDigestSettingsMsg.value = 'Settings saved'
       healthSettingsMsg.value = 'Settings saved'
       valSettingsMsg.value = 'Settings saved'
       if (saveTimerId) clearTimeout(saveTimerId)
-      saveTimerId = setTimeout(() => { availSettingsMsg.value = ''; auctionSettingsMsg.value = ''; watchBidDigestSettingsMsg.value = ''; healthSettingsMsg.value = ''; valSettingsMsg.value = '' }, 3000)
+      saveTimerId = setTimeout(() => { availSettingsMsg.value = ''; auctionSettingsMsg.value = ''; alertReminderSettingsMsg.value = ''; watchBidDigestSettingsMsg.value = ''; healthSettingsMsg.value = ''; valSettingsMsg.value = '' }, 3000)
     } catch {
       settingsMsg.value = 'Failed to save settings'
       settingsError.value = true
@@ -192,6 +221,8 @@ export function useAdminConfig() {
       availSettingsError.value = true
       auctionSettingsMsg.value = 'Failed to save settings'
       auctionSettingsError.value = true
+      alertReminderSettingsMsg.value = 'Failed to save settings'
+      alertReminderSettingsError.value = true
       watchBidDigestSettingsMsg.value = 'Failed to save settings'
       watchBidDigestSettingsError.value = true
       healthSettingsMsg.value = 'Failed to save settings'
@@ -276,6 +307,8 @@ export function useAdminConfig() {
     availSettingsError,
     auctionSettingsMsg,
     auctionSettingsError,
+    alertReminderSettingsMsg,
+    alertReminderSettingsError,
     watchBidDigestSettingsMsg,
     watchBidDigestSettingsError,
     healthSettingsMsg,

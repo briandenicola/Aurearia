@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// PriceAlertRepository encapsulates price-alert persistence.
 type PriceAlertRepository struct {
 	db *gorm.DB
 }
@@ -32,48 +33,37 @@ func (r *PriceAlertRepository) ListByUser(userID uint) ([]models.PriceAlert, err
 	return alerts, err
 }
 
-func (r *PriceAlertRepository) ListByLot(lotID uint, userID uint) ([]models.PriceAlert, error) {
+func (r *PriceAlertRepository) ListPendingWithLots() ([]models.PriceAlert, error) {
 	var alerts []models.PriceAlert
-	err := r.db.Where("auction_lot_id = ? AND user_id = ?", lotID, userID).Find(&alerts).Error
+	statuses := []string{string(models.AuctionStatusWatching), string(models.AuctionStatusBidding)}
+	err := r.db.Joins("JOIN auction_lots ON auction_lots.id = price_alerts.auction_lot_id").
+		Where("price_alerts.is_triggered = ? AND auction_lots.current_bid IS NOT NULL AND LOWER(auction_lots.status) IN ?", false, statuses).
+		Preload("AuctionLot").
+		Order("price_alerts.user_id ASC").
+		Find(&alerts).Error
 	return alerts, err
 }
 
-// CheckAndTrigger checks all un-triggered alerts for a user and triggers any that match.
-// Returns the triggered alerts (used by sync flow to send notifications).
-func (r *PriceAlertRepository) CheckAndTrigger(userID uint) ([]models.PriceAlert, error) {
-	var alerts []models.PriceAlert
-	err := r.db.Where("user_id = ? AND is_triggered = ?", userID, false).
-		Preload("AuctionLot").
-		Find(&alerts).Error
-	if err != nil {
-		return nil, err
-	}
-
-	var triggered []models.PriceAlert
-	now := time.Now()
-	for _, alert := range alerts {
-		bid := alert.AuctionLot.CurrentBid
-		if bid == nil {
-			continue
-		}
-		shouldTrigger := false
-		if alert.Direction == "above" && *bid >= alert.TargetPrice {
-			shouldTrigger = true
-		} else if alert.Direction == "below" && *bid <= alert.TargetPrice {
-			shouldTrigger = true
-		}
-		if shouldTrigger {
-			alert.IsTriggered = true
-			alert.TriggeredAt = &now
-			r.db.Save(&alert)
-			triggered = append(triggered, alert)
-		}
-	}
-	return triggered, nil
+func (r *PriceAlertRepository) MarkTriggeredIfPending(id uint, triggeredAt time.Time) (bool, error) {
+	result := r.db.Model(&models.PriceAlert{}).
+		Where("id = ? AND is_triggered = ?", id, false).
+		Updates(map[string]interface{}{
+			"is_triggered": true,
+			"triggered_at": triggeredAt,
+		})
+	return result.RowsAffected == 1, result.Error
 }
 
-// Bid Reminders
+func (r *PriceAlertRepository) ResetTriggered(id uint) error {
+	return r.db.Model(&models.PriceAlert{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"is_triggered": false,
+			"triggered_at": nil,
+		}).Error
+}
 
+// BidReminderRepository encapsulates bid-reminder persistence.
 type BidReminderRepository struct {
 	db *gorm.DB
 }
@@ -99,30 +89,105 @@ func (r *BidReminderRepository) ListByUser(userID uint) ([]models.BidReminder, e
 	return reminders, err
 }
 
-// GetDueReminders returns un-notified reminders whose auction end time is within minutesBefore.
-func (r *BidReminderRepository) GetDueReminders(userID uint) ([]models.BidReminder, error) {
+func (r *BidReminderRepository) ListPendingWithLots() ([]models.BidReminder, error) {
 	var reminders []models.BidReminder
-	err := r.db.Where("user_id = ? AND is_notified = ?", userID, false).
+	statuses := []string{string(models.AuctionStatusWatching), string(models.AuctionStatusBidding)}
+	err := r.db.Joins("JOIN auction_lots ON auction_lots.id = bid_reminders.auction_lot_id").
+		Where("bid_reminders.is_notified = ? AND auction_lots.auction_end_time IS NOT NULL AND LOWER(auction_lots.status) IN ?", false, statuses).
 		Preload("AuctionLot").
+		Order("bid_reminders.user_id ASC").
 		Find(&reminders).Error
-	if err != nil {
-		return nil, err
+	return reminders, err
+}
+
+func (r *BidReminderRepository) MarkNotifiedIfPending(id uint, notifiedAt time.Time) (bool, error) {
+	result := r.db.Model(&models.BidReminder{}).
+		Where("id = ? AND is_notified = ?", id, false).
+		Updates(map[string]interface{}{
+			"is_notified": true,
+			"notified_at": notifiedAt,
+		})
+	return result.RowsAffected == 1, result.Error
+}
+
+func (r *BidReminderRepository) ResetNotified(id uint) error {
+	return r.db.Model(&models.BidReminder{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"is_notified": false,
+			"notified_at": nil,
+		}).Error
+}
+
+// AuctionAlertRunRepository encapsulates auction-alert run-log persistence.
+type AuctionAlertRunRepository struct {
+	db *gorm.DB
+}
+
+func NewAuctionAlertRunRepository(db *gorm.DB) *AuctionAlertRunRepository {
+	return &AuctionAlertRunRepository{db: db}
+}
+
+func (r *AuctionAlertRunRepository) CreateRun(run *models.AuctionAlertRun) error {
+	return r.db.Create(run).Error
+}
+
+func (r *AuctionAlertRunRepository) CompleteRun(run *models.AuctionAlertRun) error {
+	err := r.db.Model(run).Updates(map[string]interface{}{
+		"status":                 run.Status,
+		"lots_checked":           run.LotsChecked,
+		"price_alerts_triggered": run.PriceAlertsTriggered,
+		"bid_reminders_sent":     run.BidRemindersSent,
+		"duration_ms":            run.DurationMs,
+		"completed_at":           run.CompletedAt,
+		"error_message":          run.ErrorMessage,
+	}).Error
+	if err == nil {
+		r.PruneOldRuns(100)
+	}
+	return err
+}
+
+func (r *AuctionAlertRunRepository) ListRuns(page, limit int) ([]models.AuctionAlertRun, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
 	}
 
-	var due []models.BidReminder
-	now := time.Now()
-	for _, rem := range reminders {
-		endTime := rem.AuctionLot.AuctionEndTime
-		if endTime == nil {
-			continue
-		}
-		threshold := endTime.Add(-time.Duration(rem.MinutesBefore) * time.Minute)
-		if now.After(threshold) && now.Before(*endTime) {
-			rem.IsNotified = true
-			rem.NotifiedAt = &now
-			r.db.Save(&rem)
-			due = append(due, rem)
-		}
+	var total int64
+	if err := r.db.Model(&models.AuctionAlertRun{}).Count(&total).Error; err != nil {
+		return nil, 0, err
 	}
-	return due, nil
+
+	var runs []models.AuctionAlertRun
+	offset := (page - 1) * limit
+	err := r.db.Order("started_at DESC").Offset(offset).Limit(limit).Find(&runs).Error
+	return runs, total, err
+}
+
+func (r *AuctionAlertRunRepository) GetLastScheduledRun() *models.AuctionAlertRun {
+	var run models.AuctionAlertRun
+	err := r.db.Where("trigger_type = ? AND completed_at IS NOT NULL", "scheduled").
+		Order("started_at DESC").Limit(1).First(&run).Error
+	if err != nil {
+		return nil
+	}
+	return &run
+}
+
+func (r *AuctionAlertRunRepository) PruneOldRuns(keep int) {
+	var count int64
+	r.db.Model(&models.AuctionAlertRun{}).Count(&count)
+	if count <= int64(keep) {
+		return
+	}
+
+	var cutoffRun models.AuctionAlertRun
+	if err := r.db.Order("started_at DESC").Offset(keep).Limit(1).First(&cutoffRun).Error; err != nil {
+		return
+	}
+
+	r.db.Where("started_at <= ?", cutoffRun.StartedAt).Delete(&models.AuctionAlertRun{})
 }

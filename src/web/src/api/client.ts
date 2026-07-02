@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, ValuationRun, AuctionEndingRun, AuctionWatchBidDigestRun, CollectionHealthSnapshotRunResult, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse, AIJob, AIJobStartResponse } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, ValuationRun, AuctionEndingRun, AuctionWatchBidDigestRun, CollectionHealthSnapshotRunResult, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse, AIJob, AIJobStartResponse, PriceAlert, BidReminder, PriceAlertDirection, AuctionAlertReminderRun } from '@/types'
 import type { QuickCaptureDraft, QuickCaptureDraftInput, QuickCaptureDraftUpdateInput, QuickCaptureDraftListResponse, QuickCaptureDraftStatus, QuickCapturePromoteRequest, QuickCapturePromotionResponse } from '@/types'
 import type { WishlistSearchAlert, WishlistSearchAlertInput, WishlistSearchAlertListResponse, AlertRun, AlertRunListResponse, AlertRunResult, AlertCandidate, AlertCandidateListResponse, AlertCandidateState, CandidateProvenanceStatus, DismissWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateResponse, AdjustWishlistSearchAlertCriteriaInput } from '@/types'
 
@@ -866,14 +866,14 @@ export const updateCalendarEvent = (id: number, data: Record<string, unknown>) =
 export const deleteCalendarEvent = (id: number) => api.delete(`/calendar/events/${id}`)
 
 // Price Alerts
-export const listAlerts = () => api.get('/alerts')
-export const createAlert = (data: { auctionLotId: number; targetPrice: number; direction?: string }) => api.post('/alerts', data)
-export const deleteAlert = (id: number) => api.delete(`/alerts/${id}`)
+export const listAlerts = () => api.get<{ alerts: PriceAlert[] }>('/alerts')
+export const createAlert = (data: { auctionLotId: number; targetPrice: number; direction?: PriceAlertDirection }) => api.post<PriceAlert>('/alerts', data)
+export const deleteAlert = (id: number) => api.delete<{ message: string }>(`/alerts/${id}`)
 
 // Bid Reminders
-export const listReminders = () => api.get('/reminders')
-export const createReminder = (data: { auctionLotId: number; minutesBefore?: number }) => api.post('/reminders', data)
-export const deleteReminder = (id: number) => api.delete(`/reminders/${id}`)
+export const listReminders = () => api.get<{ reminders: BidReminder[] }>('/reminders')
+export const createReminder = (data: { auctionLotId: number; minutesBefore?: number }) => api.post<BidReminder>('/reminders', data)
+export const deleteReminder = (id: number) => api.delete<{ message: string }>(`/reminders/${id}`)
 
 export const unblockFollower = (userId: number) => api.delete(`/social/followers/${userId}/block`)
 export const getFollowers = () => api.get<{ followers: FollowUser[] }>('/social/followers')
@@ -960,6 +960,12 @@ export const getAuctionEndingRuns = (page = 1, limit = 20) =>
   api.get<{ runs: AuctionEndingRun[]; total: number; page: number; limit: number }>('/admin/auction-ending-runs', { params: { page, limit } })
 export const triggerAuctionEndingCheck = () =>
   api.post<{ runId: number; lotsChecked: number; alertsSent: number; status: string; durationMs: number }>('/admin/auction-ending/run')
+
+// Auction Alert and Reminder Runs
+export const getAuctionAlertReminderRuns = (page = 1, limit = 20) =>
+  api.get<{ runs: AuctionAlertReminderRun[]; total: number; page: number; limit: number }>('/admin/auction-alert-runs', { params: { page, limit } })
+export const triggerAuctionAlertReminderCheck = () =>
+  api.post<{ message?: string; runId?: number; lotsChecked?: number; alertsTriggered?: number; alertsSent?: number; priceAlertsTriggered?: number; remindersNotified?: number; remindersSent?: number; bidRemindersSent?: number; status?: string; durationMs?: number }>('/admin/auction-alerts/run')
 
 // Auction Watch Bid Digest Runs
 export const getAuctionWatchBidDigestRuns = (page = 1, limit = 20) =>

@@ -2443,6 +2443,15 @@ definitions:
           $ref: '#/definitions/services.MissingFieldStat'
         type: array
     type: object
+  services.BidReminderCreateRequest:
+    properties:
+      auctionLotId:
+        type: integer
+      minutesBefore:
+        type: integer
+    required:
+    - auctionLotId
+    type: object
   services.CancelCollectionProposalResult:
     properties:
       message:
@@ -2759,6 +2768,18 @@ definitions:
       expiresAt:
         type: string
     type: object
+  services.PriceAlertCreateRequest:
+    properties:
+      auctionLotId:
+        type: integer
+      direction:
+        type: string
+      targetPrice:
+        type: number
+    required:
+    - auctionLotId
+    - targetPrice
+    type: object
   services.SchedulerStatus:
     properties:
       enabled:
@@ -2826,6 +2847,98 @@ paths:
       security:
       - BearerAuth: []
       summary: Create API key rotation notifications
+      tags:
+      - Admin
+  /admin/auction-alert-runs:
+    get:
+      description: Returns paginated history of price alert and bid reminder scheduler
+        runs.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List auction alert runs
+      tags:
+      - Admin
+  /admin/auction-alerts/run:
+    post:
+      description: Refreshes watched auction lots and evaluates price alerts and bid
+        reminders.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Trigger manual auction alert check
+      tags:
+      - Admin
+  /admin/auction-alerts/status:
+    get:
+      description: Returns runtime status for the auction alert scheduler.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.SchedulerStatus'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get auction alert scheduler status
       tags:
       - Admin
   /admin/auction-ending-runs:
@@ -4716,19 +4829,20 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a price alert for an auction lot.
+      description: Creates a one-shot price alert for an auction lot watched by the
+        authenticated user.
       parameters:
       - description: Request payload
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/services.PriceAlertCreateRequest'
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Created
           schema:
             type: object
         "400":
@@ -8599,19 +8713,20 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a bid reminder for an auction lot.
+      description: Creates a one-shot bid reminder for an auction lot watched by the
+        authenticated user.
       parameters:
       - description: Request payload
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/services.BidReminderCreateRequest'
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Created
           schema:
             type: object
         "400":

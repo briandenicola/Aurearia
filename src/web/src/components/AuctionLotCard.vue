@@ -25,6 +25,10 @@
         <div v-if="lot.currentBid" class="lot-bid">Bid: {{ formatCurrency(lot.currentBid, lot.currency) }}</div>
         <div v-if="lot.maxBid" class="lot-max-bid">Max: {{ formatCurrency(lot.maxBid, lot.currency) }}</div>
       </div>
+      <div v-if="priceAlerts.length || bidReminders.length" class="lot-alert-summary" aria-label="Auction alerts">
+        <span v-if="priceAlerts.length" class="chip-sm">{{ priceAlerts.length }} price {{ priceAlerts.length === 1 ? 'alert' : 'alerts' }}</span>
+        <span v-if="bidReminders.length" class="chip-sm">{{ bidReminders.length }} {{ bidReminders.length === 1 ? 'reminder' : 'reminders' }}</span>
+      </div>
       <div v-if="saleCountdown" class="lot-countdown">{{ saleCountdown }}</div>
       <SafeExternalLink
         v-if="externalUrl"
@@ -41,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import type { AuctionLot } from '@/types'
+import type { AuctionLot, BidReminder, PriceAlert } from '@/types'
 import { computed } from 'vue'
 import { Gavel, Check } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
@@ -52,9 +56,13 @@ const props = withDefaults(defineProps<{
   lot: AuctionLot
   selectable?: boolean
   selected?: boolean
+  priceAlerts?: PriceAlert[]
+  bidReminders?: BidReminder[]
 }>(), {
   selectable: false,
   selected: false,
+  priceAlerts: () => [],
+  bidReminders: () => [],
 })
 const emit = defineEmits<{
   select: [lot: AuctionLot]
@@ -242,6 +250,12 @@ const saleCountdown = computed(() => {
   flex-wrap: wrap;
   margin-top: auto;
   font-size: 0.82rem;
+}
+
+.lot-alert-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
 .lot-estimate {

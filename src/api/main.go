@@ -202,6 +202,9 @@ func main() {
 	healthRepo := repository.NewHealthRepository(database.DB)
 	healthSvc := services.NewHealthService(healthRepo, logger)
 	auctionWatchBidDigestRepo := repository.NewAuctionWatchBidDigestRepository(database.DB)
+	priceAlertRepo := repository.NewPriceAlertRepository(database.DB)
+	bidReminderRepo := repository.NewBidReminderRepository(database.DB)
+	auctionAlertRunRepo := repository.NewAuctionAlertRunRepository(database.DB)
 
 	// Create schedulers before routes so they can be passed to admin handlers
 	availScheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, availRepo, settingsSvc, logger)
@@ -211,6 +214,8 @@ func main() {
 	auctionWatchlistSyncSvc := services.NewAuctionWatchlistSyncService(auctionLotRepo, userRepoForVal, nbWatchSyncSvc, cngWatchSyncSvc, credentialEncryptionSvc, logger)
 	auctionEndingScheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepoForVal, pushoverSvc, settingsSvc, logger)
 	auctionWatchBidDigestScheduler := services.NewAuctionWatchBidDigestScheduler(auctionLotRepo, auctionWatchBidDigestRepo, userRepoForVal, pushoverSvc, auctionWatchlistSyncSvc, settingsSvc, logger)
+	auctionAlertEvaluator := services.NewAuctionAlertEvaluator(priceAlertRepo, bidReminderRepo, userRepoForVal, pushoverSvc, logger)
+	auctionAlertScheduler := services.NewAuctionAlertScheduler(auctionAlertEvaluator, auctionAlertRunRepo, auctionWatchlistSyncSvc, settingsSvc, logger)
 	healthScheduler := services.NewCollectionHealthScheduler(healthSvc, settingsSvc, logger)
 	featuredCoinRepo := repository.NewFeaturedCoinRepository(database.DB)
 	coinOfDayScheduler := services.NewCoinOfDayScheduler(featuredCoinRepo, userRepoForVal, coinRepo, notifSvc, settingsSvc, logger)
@@ -219,6 +224,7 @@ func main() {
 	schedulerRegistry.Register(valScheduler)
 	schedulerRegistry.Register(auctionEndingScheduler)
 	schedulerRegistry.Register(auctionWatchBidDigestScheduler)
+	schedulerRegistry.Register(auctionAlertScheduler)
 	schedulerRegistry.Register(healthScheduler)
 
 	// Create shared repositories for cross-group access
@@ -510,9 +516,8 @@ func main() {
 		protected.DELETE("/calendar/events/:id", calendarHandler.DeleteEvent)
 
 		// Price Alerts & Bid Reminders
-		priceAlertRepo := repository.NewPriceAlertRepository(database.DB)
-		bidReminderRepo := repository.NewBidReminderRepository(database.DB)
-		alertHandler := handlers.NewAlertHandler(priceAlertRepo, bidReminderRepo)
+		alertSvc := services.NewAuctionAlertService(priceAlertRepo, bidReminderRepo, auctionLotRepo)
+		alertHandler := handlers.NewAlertHandler(alertSvc)
 		protected.GET("/alerts", alertHandler.ListAlerts)
 		protected.POST("/alerts", alertHandler.CreateAlert)
 		protected.DELETE("/alerts/:id", alertHandler.DeleteAlert)
@@ -602,6 +607,10 @@ func main() {
 		admin.GET("/auction-watch-bid-digest-runs", auctionWatchBidDigestAdminHandler.ListRuns)
 		admin.GET("/auction-watch-bid-digest/status", auctionWatchBidDigestAdminHandler.GetStatus)
 		admin.POST("/auction-watch-bid-digest/run", auctionWatchBidDigestAdminHandler.RunNow)
+		auctionAlertAdminHandler := handlers.NewAuctionAlertAdminHandler(auctionAlertScheduler, auctionAlertRunRepo)
+		admin.GET("/auction-alert-runs", auctionAlertAdminHandler.ListRuns)
+		admin.GET("/auction-alerts/status", auctionAlertAdminHandler.GetStatus)
+		admin.POST("/auction-alerts/run", auctionAlertAdminHandler.RunNow)
 
 		// Coin of the Day manual trigger
 		coinOfDayAdminHandler := handlers.NewCoinOfDayAdminHandler(coinOfDayScheduler, logger)
