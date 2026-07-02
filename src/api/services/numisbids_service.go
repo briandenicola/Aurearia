@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -71,42 +69,28 @@ func NewNumisBidsService(logger *Logger) *NumisBidsService {
 func (s *NumisBidsService) Login(username, password string) (*http.Client, error) {
 	s.debug("Attempting login to NumisBids")
 
-	jar, err := cookiejar.New(nil)
+	client, err := newScraperClient()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create cookie jar: %w", err)
+		return nil, err
 	}
-
-	client := &http.Client{Jar: jar}
 
 	form := url.Values{
 		"email":    {username},
 		"password": {password},
 	}
 
-	req, err := http.NewRequest("POST", numisbidsLoginURL, strings.NewReader(form.Encode()))
+	req, err := newScraperFormRequest(numisbidsLoginURL, form, numisbidsLoginHeaders())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create login request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("User-Agent", numisbidsUserAgent)
-	req.Header.Set("Referer", numisbidsBase+"/")
-	req.Header.Set("X-Requested-With", "XMLHttpRequest")
 
-	resp, err := client.Do(req)
+	body, err := doScraperRequest(client, req, "login", http.StatusOK, http.StatusFound)
 	if err != nil {
 		s.error("Login HTTP request failed: %v", err)
-		return nil, fmt.Errorf("login request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	s.debug("Login response status: %d", resp.StatusCode)
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusFound {
-		return nil, fmt.Errorf("login returned HTTP %d", resp.StatusCode)
+		return nil, err
 	}
 
 	// Read body to check the JSON result returned by NumisBids' AJAX login.
-	body, _ := io.ReadAll(resp.Body)
 	bodyStr := string(body)
 
 	s.trace("Login response body length: %d bytes", len(bodyStr))
@@ -125,7 +109,7 @@ func (s *NumisBidsService) Login(username, password string) (*http.Client, error
 
 	// Verify session cookie was set by checking the login host for PHPSESSID or similar.
 	parsedURL, _ := url.Parse(numisbidsLoginURL)
-	cookies := jar.Cookies(parsedURL)
+	cookies := client.Jar.Cookies(parsedURL)
 	if len(cookies) == 0 {
 		s.warn("No session cookie received after login")
 		return nil, fmt.Errorf("no session cookie received — login may have failed")
@@ -146,21 +130,14 @@ func (s *NumisBidsService) Login(username, password string) (*http.Client, error
 // verifyAuthentication checks that the client is actually authenticated by fetching
 // the watchlist page and checking for login indicators.
 func (s *NumisBidsService) verifyAuthentication(client *http.Client) error {
-	req, err := http.NewRequest("GET", numisbidsWatchlistURL, nil)
+	req, err := newScraperRequest(http.MethodGet, numisbidsWatchlistURL, nil, numisbidsDefaultHeaders())
 	if err != nil {
 		return fmt.Errorf("failed to create verification request: %w", err)
 	}
-	req.Header.Set("User-Agent", numisbidsUserAgent)
 
-	resp, err := client.Do(req)
+	body, err := doScraperRequest(client, req, "verification")
 	if err != nil {
-		return fmt.Errorf("verification request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read verification response: %w", err)
+		return err
 	}
 
 	bodyStr := strings.ToLower(string(body))
@@ -180,25 +157,14 @@ func (s *NumisBidsService) verifyAuthentication(client *http.Client) error {
 
 // FetchWatchlist retrieves the authenticated user's watchlist HTML.
 func (s *NumisBidsService) FetchWatchlist(client *http.Client) (string, error) {
-	req, err := http.NewRequest("GET", numisbidsWatchlistURL, nil)
+	req, err := newScraperRequest(http.MethodGet, numisbidsWatchlistURL, nil, numisbidsDefaultHeaders())
 	if err != nil {
 		return "", fmt.Errorf("failed to create watchlist request: %w", err)
 	}
-	req.Header.Set("User-Agent", numisbidsUserAgent)
 
-	resp, err := client.Do(req)
+	body, err := doScraperRequest(client, req, "watchlist")
 	if err != nil {
-		return "", fmt.Errorf("watchlist request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("watchlist returned HTTP %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read watchlist body: %w", err)
+		return "", err
 	}
 	bodyStr := string(body)
 	if isNumisBidsLoginPrompt(bodyStr) {
@@ -245,23 +211,12 @@ func (s *NumisBidsService) ScrapeLotImage(lotURL string) (string, error) {
 // ScrapeLotPage fetches a NumisBids lot page and extracts image, auction house,
 // sale name, and current bid.
 func (s *NumisBidsService) ScrapeLotPage(lotURL string) (*LotPageDetails, error) {
-	req, err := http.NewRequest("GET", lotURL, nil)
+	req, err := newScraperRequest(http.MethodGet, lotURL, nil, numisbidsDefaultHeaders())
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", numisbidsUserAgent)
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("lot page returned HTTP %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
+	body, err := doScraperRequest(http.DefaultClient, req, "lot page")
 	if err != nil {
 		return nil, err
 	}
@@ -415,6 +370,19 @@ func (s *NumisBidsService) WatchlistDiagnostics(rawHTML string) WatchlistDiagnos
 		HasLoginPrompt:     isNumisBidsLoginPrompt(rawHTML),
 		HasWatchlistText:   strings.Contains(strings.ToLower(rawHTML), "watch list"),
 	}
+}
+
+func numisbidsDefaultHeaders() map[string]string {
+	return map[string]string{
+		"User-Agent": numisbidsUserAgent,
+	}
+}
+
+func numisbidsLoginHeaders() map[string]string {
+	headers := numisbidsDefaultHeaders()
+	headers["Referer"] = numisbidsBase + "/"
+	headers["X-Requested-With"] = "XMLHttpRequest"
+	return headers
 }
 
 type WatchlistDiagnostics struct {
