@@ -13,16 +13,18 @@ type PriceAlert struct {
 	IsTriggered  bool       `gorm:"default:false" json:"isTriggered"`
 	TriggeredAt  *time.Time `json:"triggeredAt"`
 	CreatedAt    time.Time  `json:"createdAt"`
+	UpdatedAt    time.Time  `json:"updatedAt"`
 }
 
 type BidReminder struct {
-	ID             uint       `gorm:"primaryKey" json:"id"`
-	AuctionLotID   uint       `gorm:"not null;index" json:"auctionLotId"`
-	AuctionLot     AuctionLot `gorm:"foreignKey:AuctionLotID" json:"-"`
-	UserID         uint       `gorm:"not null;index" json:"userId"`
-	User           User       `gorm:"foreignKey:UserID" json:"-"`
-	MinutesBefore  int        `gorm:"not null;default:30" json:"minutesBefore"`
-	IsNotified     bool       `gorm:"default:false" json:"isNotified"`
-	NotifiedAt     *time.Time `json:"notifiedAt"`
-	CreatedAt      time.Time  `json:"createdAt"`
+	ID            uint       `gorm:"primaryKey" json:"id"`
+	AuctionLotID  uint       `gorm:"not null;index" json:"auctionLotId"`
+	AuctionLot    AuctionLot `gorm:"foreignKey:AuctionLotID" json:"-"`
+	UserID        uint       `gorm:"not null;index" json:"userId"`
+	User          User       `gorm:"foreignKey:UserID" json:"-"`
+	MinutesBefore int        `gorm:"not null;default:30" json:"minutesBefore"`
+	IsNotified    bool       `gorm:"default:false" json:"isNotified"`
+	NotifiedAt    *time.Time `json:"notifiedAt"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	UpdatedAt     time.Time  `json:"updatedAt"`
 }

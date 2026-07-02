@@ -230,6 +230,102 @@
 
     <hr class="section-divider" />
 
+    <!-- Auction Price Alerts and Bid Reminders -->
+    <h3 class="subsection-title">Auction Price Alerts and Bid Reminders</h3>
+    <p class="subsection-desc">Checks watched auction lots for price thresholds and close-time bid reminders.</p>
+    <div class="avail-settings">
+      <div class="form-group avail-toggle-row">
+        <label class="form-label">Enable Automatic Checks</label>
+        <label class="toggle-switch">
+          <input
+            type="checkbox"
+            :checked="settings.AuctionAlertsCheckEnabled === 'true'"
+            @change="settings.AuctionAlertsCheckEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
+          />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Start Time (daily anchor)</label>
+        <input
+          v-model="settings.AuctionAlertsCheckStartTime"
+          class="form-input avail-interval-input"
+          type="time"
+        />
+        <span class="form-hint">The first price-alert and reminder check runs at this time each day.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Repeat Interval (minutes)</label>
+        <input
+          v-model="settings.AuctionAlertsCheckInterval"
+          class="form-input avail-interval-input"
+          type="number"
+          min="15"
+          step="15"
+        />
+        <span class="form-hint">How often to re-check price thresholds and bid reminder windows. Default 60 (hourly).</span>
+      </div>
+      <div class="avail-save-row">
+        <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
+          {{ settingsSaving ? 'Saving...' : 'Save Alert and Reminder Settings' }}
+        </button>
+        <span v-if="alertReminderSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': alertReminderSettingsError }">{{ alertReminderSettingsMsg }}</span>
+        <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="alertReminderTriggerLoading" @click="triggerManualAlertReminderCheck()">
+          {{ alertReminderTriggerLoading ? 'Starting...' : 'Run Now' }}
+        </button>
+      </div>
+    </div>
+
+    <hr class="section-divider" />
+    <h3 class="subsection-title">Auction Price Alert and Reminder Run History</h3>
+
+    <div v-if="alertReminderLoading" class="loading-overlay"><div class="spinner"></div></div>
+    <div v-else-if="alertReminderRuns.length === 0" class="logs-empty">No auction price alert or reminder runs recorded yet.</div>
+    <template v-else>
+      <table class="users-table avail-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th class="hide-mobile">Trigger</th>
+            <th>Lots</th>
+            <th>Alerts</th>
+            <th>Reminders</th>
+            <th class="hide-mobile">Status</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template v-for="run in alertReminderRuns" :key="run.id">
+            <tr>
+              <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
+              <td class="hide-mobile">
+                <span class="listing-status-badge" :class="run.triggerType === 'manual' ? 'listing-unavailable' : 'listing-unknown'">
+                  {{ run.triggerType }}
+                </span>
+              </td>
+              <td>{{ run.lotsChecked ?? run.alertsChecked ?? 0 }}</td>
+              <td class="avail-count-available">{{ run.priceAlertsTriggered ?? run.alertsSent ?? run.alertsTriggered ?? 0 }}</td>
+              <td class="avail-count-available">{{ run.bidRemindersSent ?? run.remindersSent ?? run.remindersNotified ?? 0 }}</td>
+              <td class="hide-mobile">
+                <span class="listing-status-badge" :class="run.status === 'error' ? 'listing-unavailable' : (run.status === 'success' ? 'listing-available' : 'listing-unknown')">
+                  {{ run.status }}
+                </span>
+              </td>
+              <td>{{ formatDuration(run.durationMs) }}</td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+
+      <div class="avail-pagination">
+        <button class="btn btn-secondary btn-sm" :disabled="alertReminderPage <= 1" @click="prevAlertReminderPage()">Prev</button>
+        <span class="avail-page-info">Page {{ alertReminderPage }}</span>
+        <button class="btn btn-secondary btn-sm" :disabled="alertReminderRuns.length < 5" @click="nextAlertReminderPage()">Next</button>
+      </div>
+    </template>
+
+    <hr class="section-divider" />
+
     <!-- Auction Watch Bid Digest -->
     <h3 class="subsection-title">Auction Watch Bid Digest</h3>
     <p class="subsection-desc">Refreshes NumisBids and CNG watched lots, updates current high bids in Auctions, and sends one Pushover digest while lots are active.</p>
@@ -544,6 +640,7 @@ import {
   triggerAvailabilityCheck,
   getValuationRuns, getValuationRunDetail, triggerValuation, cancelValuationRun,
   getAuctionEndingRuns, triggerAuctionEndingCheck,
+  getAuctionAlertReminderRuns, triggerAuctionAlertReminderCheck,
   getAuctionWatchBidDigestRuns, triggerAuctionWatchBidDigest,
   triggerCollectionHealthSnapshots,
   triggerCoinOfDayRun,
@@ -551,7 +648,7 @@ import {
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
-import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun, AuctionWatchBidDigestRun } from '@/types'
+import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun, AuctionAlertReminderRun, AuctionWatchBidDigestRun } from '@/types'
 
 // Props are type-checked but not referenced directly in script
 const _props = defineProps<{
@@ -561,6 +658,8 @@ const _props = defineProps<{
   availSettingsError: boolean
   auctionSettingsMsg: string
   auctionSettingsError: boolean
+  alertReminderSettingsMsg: string
+  alertReminderSettingsError: boolean
   watchBidDigestSettingsMsg: string
   watchBidDigestSettingsError: boolean
   healthSettingsMsg: string
@@ -575,6 +674,8 @@ const emit = defineEmits<{
   'update:valSettingsError': [val: boolean]
   'update:auctionSettingsMsg': [val: string]
   'update:auctionSettingsError': [val: boolean]
+  'update:alertReminderSettingsMsg': [val: string]
+  'update:alertReminderSettingsError': [val: boolean]
   'update:watchBidDigestSettingsMsg': [val: string]
   'update:watchBidDigestSettingsError': [val: boolean]
   'update:availSettingsMsg': [val: string]
@@ -683,6 +784,49 @@ async function triggerManualAuctionCheck() {
     emit('update:auctionSettingsError', true)
   } finally {
     auctionTriggerLoading.value = false
+  }
+}
+
+// Auction Price Alerts and Bid Reminders
+const {
+  runs: alertReminderRuns,
+  total: _alertReminderTotal,
+  page: alertReminderPage,
+  loading: alertReminderLoading,
+  loadRuns: loadAlertReminderRuns,
+  prevPage: prevAlertReminderPage,
+  nextPage: nextAlertReminderPage,
+} = useRunHistoryPagination<AuctionAlertReminderRun>(async (page, limit) => {
+  const res = await getAuctionAlertReminderRuns(page, limit)
+  return res.data ?? {}
+})
+const alertReminderTriggerLoading = ref(false)
+
+async function triggerManualAlertReminderCheck() {
+  alertReminderTriggerLoading.value = true
+  emit('update:alertReminderSettingsMsg', '')
+  emit('update:alertReminderSettingsError', false)
+  try {
+    const res = await triggerAuctionAlertReminderCheck()
+    const { message, runId, alertsTriggered, alertsSent, priceAlertsTriggered, remindersNotified, remindersSent, bidRemindersSent, status, durationMs } = res.data
+    if (status === 'error') {
+      emit('update:alertReminderSettingsMsg', runId ? `Run #${runId} failed` : 'Alert and reminder check failed')
+      emit('update:alertReminderSettingsError', true)
+    } else if (message) {
+      emit('update:alertReminderSettingsMsg', message)
+    } else {
+      const alertCount = priceAlertsTriggered ?? alertsSent ?? alertsTriggered ?? 0
+      const reminderCount = bidRemindersSent ?? remindersSent ?? remindersNotified ?? 0
+      const durationPart = durationMs != null ? ` in ${(durationMs / 1000).toFixed(1)}s` : ''
+      emit('update:alertReminderSettingsMsg', `Run${runId ? ` #${runId}` : ''} completed — ${alertCount} alerts, ${reminderCount} reminders${durationPart}`)
+    }
+    timers.push(setTimeout(() => { emit('update:alertReminderSettingsMsg', '') }, 10000))
+    timers.push(setTimeout(() => { loadAlertReminderRuns() }, 2000))
+  } catch {
+    emit('update:alertReminderSettingsMsg', 'Failed to trigger auction price alerts and bid reminders')
+    emit('update:alertReminderSettingsError', true)
+  } finally {
+    alertReminderTriggerLoading.value = false
   }
 }
 
@@ -876,6 +1020,7 @@ onMounted(() => {
   window.addEventListener('resize', onResize)
   loadAvailRuns()
   loadAuctionRuns()
+  loadAlertReminderRuns()
   loadWatchBidDigestRuns()
   loadValRuns()
 })

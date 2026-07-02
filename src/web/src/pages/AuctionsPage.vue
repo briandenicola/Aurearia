@@ -62,6 +62,8 @@
           :lot="lot"
           :selectable="selectMode"
           :selected="selectedLotIds.has(lot.id)"
+          :price-alerts="alertsByLot[lot.id] ?? []"
+          :bid-reminders="remindersByLot[lot.id] ?? []"
           @select="openLot"
           @toggle-select="toggleLotSelect"
         />
@@ -86,8 +88,11 @@
       <AuctionLotDetailModal
         v-if="selectedLot"
         :lot="selectedLot"
+        :price-alerts="alertsByLot[selectedLot.id] ?? []"
+        :bid-reminders="remindersByLot[selectedLot.id] ?? []"
         @close="selectedLot = null"
         @updated="handleLotUpdated"
+        @alerts-updated="fetchAlertState"
       />
 
       <AuctionBulkActionBar
@@ -102,8 +107,8 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { getAuctionLots, getAuctionLotCounts, syncNumisBidsWatchlist, listCalendarEvents, bulkLinkAuctionLotEvent } from '@/api/client'
-import type { AuctionLot } from '@/types'
+import { getAuctionLots, getAuctionLotCounts, syncNumisBidsWatchlist, listCalendarEvents, bulkLinkAuctionLotEvent, listAlerts, listReminders } from '@/api/client'
+import type { AuctionLot, BidReminder, PriceAlert } from '@/types'
 import AuctionLotCard from '@/components/AuctionLotCard.vue'
 import ImportLotModal from '@/components/ImportLotModal.vue'
 import PullToRefresh from '@/components/PullToRefresh.vue'
@@ -128,6 +133,8 @@ const activeSource = ref('')
 const syncing = ref(false)
 const syncMessage = ref('')
 const calendarEvents = ref<Array<{ id: number; title: string; auctionHouse: string; startDate: string | null }>>([])
+const priceAlerts = ref<PriceAlert[]>([])
+const bidReminders = ref<BidReminder[]>([])
 
 const selectMode = ref(false)
 const selectedLotIds = ref(new Set<number>())
@@ -136,6 +143,16 @@ const sourceOptions = [
   { value: 'numisbids', label: 'NumisBids' },
   { value: 'cng', label: 'CNG' },
 ]
+const alertsByLot = computed(() => groupByLot(priceAlerts.value))
+const remindersByLot = computed(() => groupByLot(bidReminders.value))
+
+function groupByLot<T extends { auctionLotId: number }>(items: T[]): Record<number, T[]> {
+  return items.reduce<Record<number, T[]>>((acc, item) => {
+    if (!acc[item.auctionLotId]) acc[item.auctionLotId] = []
+    acc[item.auctionLotId]?.push(item)
+    return acc
+  }, {})
+}
 
 function toggleSelectMode() {
   selectMode.value = !selectMode.value
@@ -208,8 +225,7 @@ async function fetchAllCounts() {
 }
 
 async function handleRefresh() {
-  await fetchLots()
-  await fetchAllCounts()
+  await Promise.all([fetchLots(), fetchAllCounts(), fetchAlertState()])
 }
 
 function openLot(lot: AuctionLot) {
@@ -225,6 +241,17 @@ function handleImported() {
 function handleLotUpdated() {
   fetchLots()
   fetchAllCounts()
+}
+
+async function fetchAlertState() {
+  try {
+    const [alertsRes, remindersRes] = await Promise.all([listAlerts(), listReminders()])
+    priceAlerts.value = alertsRes.data?.alerts ?? []
+    bidReminders.value = remindersRes.data?.reminders ?? []
+  } catch {
+    priceAlerts.value = []
+    bidReminders.value = []
+  }
 }
 
 async function syncWatchlist() {
@@ -276,6 +303,7 @@ const emptyStateSuffix = computed(() => {
 
 fetchLots()
 fetchAllCounts()
+fetchAlertState()
 </script>
 
 <style scoped>

@@ -37,6 +37,9 @@ const (
 	SettingAuctionWatchBidDigestEnabled       = "AuctionWatchBidDigestEnabled"
 	SettingAuctionWatchBidDigestInterval      = "AuctionWatchBidDigestInterval"
 	SettingAuctionWatchBidDigestStartTime     = "AuctionWatchBidDigestStartTime"
+	SettingAuctionAlertsCheckEnabled          = "AuctionAlertsCheckEnabled"
+	SettingAuctionAlertsCheckInterval         = "AuctionAlertsCheckInterval"
+	SettingAuctionAlertsCheckStartTime        = "AuctionAlertsCheckStartTime"
 	SettingCoinOfDayEnabled                   = "CoinOfDayEnabled"
 	SettingCoinOfDayStartTime                 = "CoinOfDayStartTime"
 	SettingCollectionHealthSnapshotsEnabled   = "CollectionHealthSnapshotsEnabled"
@@ -103,6 +106,9 @@ var settingDefaults = map[string]string{
 	SettingAuctionWatchBidDigestEnabled:       "false",
 	SettingAuctionWatchBidDigestInterval:      "1440",
 	SettingAuctionWatchBidDigestStartTime:     "08:00",
+	SettingAuctionAlertsCheckEnabled:          "false",
+	SettingAuctionAlertsCheckInterval:         "60",
+	SettingAuctionAlertsCheckStartTime:        "08:00",
 	SettingCoinOfDayEnabled:                   "false",
 	SettingCoinOfDayStartTime:                 "07:00",
 	SettingCollectionHealthSnapshotsEnabled:   "false",
