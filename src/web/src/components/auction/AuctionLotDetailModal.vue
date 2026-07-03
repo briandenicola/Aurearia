@@ -556,21 +556,20 @@ onMounted(fetchCalendarEvents)
   inset: 0;
   background: rgba(0, 0, 0, 0.7);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 1000;
   padding: 1rem;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .lot-detail {
   max-width: 560px;
-  width: 100%;
-  max-height: 90vh;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
+  width: min(100%, 560px);
+  min-width: 0;
+  margin: auto 0;
   padding: 0;
 }
 
@@ -587,8 +586,7 @@ onMounted(fetchCalendarEvents)
   font-size: 1.1rem;
   line-height: 1.35;
   margin: 0;
-  overflow-wrap: break-word;
-  word-break: break-word;
+  overflow-wrap: anywhere;
   min-width: 0;
 }
 
@@ -633,6 +631,14 @@ onMounted(fetchCalendarEvents)
   padding: 0.5rem 0;
   border-bottom: 1px solid var(--border-subtle);
   font-size: 0.88rem;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.detail-row span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .detail-label {
@@ -683,12 +689,7 @@ onMounted(fetchCalendarEvents)
   color: var(--text-secondary);
   margin-top: 0.4rem;
   line-height: 1.5;
-  max-height: 120px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overflow-wrap: break-word;
-  word-break: break-word;
-  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
 }
 
 .lot-alerts-panel {

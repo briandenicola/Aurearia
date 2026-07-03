@@ -85,15 +85,17 @@
 
       <ImportLotModal v-if="showImport" @close="showImport = false" @imported="handleImported" />
 
-      <AuctionLotDetailModal
-        v-if="selectedLot"
-        :lot="selectedLot"
-        :price-alerts="alertsByLot[selectedLot.id] ?? []"
-        :bid-reminders="remindersByLot[selectedLot.id] ?? []"
-        @close="selectedLot = null"
-        @updated="handleLotUpdated"
-        @alerts-updated="fetchAlertState"
-      />
+      <Teleport to="body">
+        <AuctionLotDetailModal
+          v-if="selectedLot"
+          :lot="selectedLot"
+          :price-alerts="alertsByLot[selectedLot.id] ?? []"
+          :bid-reminders="remindersByLot[selectedLot.id] ?? []"
+          @close="selectedLot = null"
+          @updated="handleLotUpdated"
+          @alerts-updated="fetchAlertState"
+        />
+      </Teleport>
 
       <AuctionBulkActionBar
         v-if="selectMode"
