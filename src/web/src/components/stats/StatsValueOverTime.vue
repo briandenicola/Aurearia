@@ -4,6 +4,9 @@
       <div>
         <p class="section-label">Portfolio Trajectory</p>
         <h2>Value Over Time</h2>
+        <p class="chart-subtitle">
+          Active collection value movement between the first and latest snapshot in this timeframe.
+        </p>
       </div>
     </div>
 
@@ -128,7 +131,7 @@
       <!-- Side panel -->
       <div class="chart-side-panel">
         <div class="panel-roi">
-          <p class="section-label">Portfolio Change</p>
+          <p class="section-label">Period Value Change</p>
           <span class="panel-roi-number" :class="changeAmount >= 0 ? 'positive' : 'negative'">
             <template v-if="changePercent !== null">
               {{ changePercent >= 0 ? '+' : '' }}{{ changePercent.toFixed(1) }}%
@@ -145,7 +148,7 @@
 
         <div class="chart-summary-strip" aria-label="Value history summary">
           <div class="summary-pill">
-            <span class="summary-label">Latest Value</span>
+            <span class="summary-label">Latest Snapshot</span>
             <strong>{{ formatCurrency(latestValue) }}</strong>
           </div>
           <div class="summary-pill">
@@ -153,7 +156,7 @@
             <strong>{{ formatCurrency(latestInvested) }}</strong>
           </div>
           <div class="summary-pill">
-            <span class="summary-label">Change</span>
+            <span class="summary-label">Period Change</span>
             <strong :class="changeAmount >= 0 ? 'positive' : 'negative'">
               {{ changeAmount >= 0 ? '+' : '' }}{{ formatCurrency(changeAmount) }}
             </strong>
@@ -310,6 +313,12 @@ function formatShortDate(dateStr: string) {
 .chart-card-header h2 {
   margin: 0.15rem 0 0;
   font-size: 1.5rem;
+}
+
+.chart-subtitle {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
 }
 
 /* Main two-column layout: chart left, side panel right */

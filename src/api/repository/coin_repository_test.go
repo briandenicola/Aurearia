@@ -287,6 +287,11 @@ func TestCoinRepository_RecordValueSnapshot(t *testing.T) {
 		Name: "Wishlist", Category: models.CategoryRoman, UserID: 1,
 		IsWishlist: true, PurchasePrice: ptrFloat(9999.0),
 	})
+	// Sold coin should be excluded so snapshots match active collection stats
+	db.Create(&models.Coin{
+		Name: "Sold", Category: models.CategoryRoman, UserID: 1,
+		IsSold: true, PurchasePrice: ptrFloat(50.0), CurrentValue: ptrFloat(5000.0),
+	})
 
 	if err := repo.RecordValueSnapshot(1); err != nil {
 		t.Fatalf("RecordValueSnapshot failed: %v", err)

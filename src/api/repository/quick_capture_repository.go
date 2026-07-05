@@ -300,25 +300,5 @@ func (r *QuickCaptureRepository) PromoteDraftTransaction(
 }
 
 func recordValueSnapshotInTx(tx *gorm.DB, userID uint) error {
-	type result struct {
-		TotalValue    float64
-		TotalInvested float64
-		CoinCount     int64
-	}
-	var res result
-	if err := tx.Model(&models.Coin{}).
-		Select("COALESCE(SUM(current_value), 0) as total_value, COALESCE(SUM(purchase_price), 0) as total_invested, COUNT(*) as coin_count").
-		Where("user_id = ? AND is_wishlist = ?", userID, false).
-		Scan(&res).Error; err != nil {
-		return err
-	}
-
-	snapshot := models.ValueSnapshot{
-		UserID:        userID,
-		TotalValue:    res.TotalValue,
-		TotalInvested: res.TotalInvested,
-		CoinCount:     res.CoinCount,
-		RecordedAt:    time.Now(),
-	}
-	return tx.Create(&snapshot).Error
+	return recordActiveCollectionValueSnapshot(tx, userID)
 }
