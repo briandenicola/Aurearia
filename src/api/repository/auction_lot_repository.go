@@ -222,15 +222,15 @@ func (r *AuctionLotRepository) upsert(lot *models.AuctionLot, autoCreateEvent bo
 			}
 			result.Created = true
 			if autoCreateEvent && shouldAutoCreateCalendarEvent(lot) {
-				event := auctionEventFromLot(lot)
-				if err := tx.Create(&event).Error; err != nil {
+				event, created, err := txRepo.findOrCreateCalendarEventForLot(lot)
+				if err != nil {
 					return err
 				}
 				if err := tx.Model(lot).Update("event_id", event.ID).Error; err != nil {
 					return err
 				}
 				lot.EventID = &event.ID
-				result.EventCreated = true
+				result.EventCreated = created
 				result.EventID = &event.ID
 			}
 			return nil
@@ -267,6 +267,26 @@ func shouldAutoCreateCalendarEvent(lot *models.AuctionLot) bool {
 	return lot.Status == models.AuctionStatusWatching || lot.Status == models.AuctionStatusBidding
 }
 
+func (r *AuctionLotRepository) findOrCreateCalendarEventForLot(lot *models.AuctionLot) (*models.AuctionEvent, bool, error) {
+	saleName := strings.TrimSpace(lot.SaleName)
+	if saleName != "" {
+		var existing models.AuctionEvent
+		err := r.db.Where("user_id = ? AND title = ?", lot.UserID, saleName).First(&existing).Error
+		if err == nil {
+			return &existing, false, nil
+		}
+		if !IsRecordNotFound(err) {
+			return nil, false, err
+		}
+	}
+
+	event := auctionEventFromLot(lot)
+	if err := r.db.Create(&event).Error; err != nil {
+		return nil, false, err
+	}
+	return &event, true, nil
+}
+
 func auctionEventFromLot(lot *models.AuctionLot) models.AuctionEvent {
 	eventDate := lot.AuctionEndTime
 	if eventDate == nil {
@@ -286,6 +306,10 @@ func auctionEventFromLot(lot *models.AuctionLot) models.AuctionEvent {
 }
 
 func auctionEventTitle(lot *models.AuctionLot) string {
+	if saleName := strings.TrimSpace(lot.SaleName); saleName != "" {
+		return saleName
+	}
+
 	title := strings.TrimSpace(lot.Title)
 	if title == "" {
 		title = "Auction lot"
