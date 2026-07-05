@@ -268,11 +268,17 @@ func shouldAutoCreateCalendarEvent(lot *models.AuctionLot) bool {
 }
 
 func (r *AuctionLotRepository) findOrCreateCalendarEventForLot(lot *models.AuctionLot) (*models.AuctionEvent, bool, error) {
-	saleName := strings.TrimSpace(lot.SaleName)
-	if saleName != "" {
-		var existing models.AuctionEvent
-		err := r.db.Where("user_id = ? AND title = ?", lot.UserID, saleName).First(&existing).Error
+	sourceSaleID := strings.TrimSpace(lot.SourceSaleID)
+	if sourceSaleID != "" {
+		var linkedLot models.AuctionLot
+		err := r.db.
+			Where("user_id = ? AND source = ? AND source_sale_id = ? AND event_id IS NOT NULL", lot.UserID, lot.Source, sourceSaleID).
+			First(&linkedLot).Error
 		if err == nil {
+			var existing models.AuctionEvent
+			if err := r.db.First(&existing, *linkedLot.EventID).Error; err != nil {
+				return nil, false, err
+			}
 			return &existing, false, nil
 		}
 		if !IsRecordNotFound(err) {

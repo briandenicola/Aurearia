@@ -661,7 +661,7 @@ func TestAuctionLotRepository_UpsertWithCalendarEventSkipsPassedAndExistingLots(
 	}
 }
 
-func TestAuctionLotRepository_UpsertWithCalendarEventReusesSaleNameEvent(t *testing.T) {
+func TestAuctionLotRepository_UpsertWithCalendarEventReusesSourceSaleEvent(t *testing.T) {
 	db := setupAuctionTestDB(t)
 	repo := NewAuctionLotRepository(db)
 	firstLot := &models.AuctionLot{
@@ -730,7 +730,9 @@ func TestAuctionLotRepository_UpsertWithCalendarEventIsSourceAwareForCNG(t *test
 			NumisBidsURL: sharedURL,
 			Source:       models.AuctionSourceNumisBids,
 			SourceURL:    sharedURL,
+			SourceSaleID: "numis-sale-1",
 			Title:        "NumisBids Shared Lot",
+			SaleName:     "Shared Sale",
 			Status:       models.AuctionStatusWatching,
 			UserID:       9,
 		},
@@ -739,7 +741,9 @@ func TestAuctionLotRepository_UpsertWithCalendarEventIsSourceAwareForCNG(t *test
 			Source:         models.AuctionSourceCNG,
 			SourceURL:      sharedURL,
 			SourceLotID:    "4-CNGLOT",
+			SourceSaleID:   "cng-sale-1",
 			Title:          "CNG Shared Lot",
+			SaleName:       "Shared Sale",
 			Status:         models.AuctionStatusBidding,
 			AuctionEndTime: &cngEndTime,
 			UserID:         9,
