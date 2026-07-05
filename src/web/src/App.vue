@@ -126,7 +126,12 @@
       <button
         v-if="isPwa && auth.isAuthenticated && !showChat && !bulkSelectActive"
         class="agent-fab"
-        @click="showChat = true"
+        :style="fabPositionStyle"
+        @click="handleAgentFabClick"
+        @pointerdown="startAgentFabDrag"
+        @pointermove="moveAgentFabDrag"
+        @pointerup="stopAgentFabDrag"
+        @pointercancel="stopAgentFabDrag"
         aria-label="Open AI Agent"
       >
         <Bot :size="22" />
@@ -218,6 +223,15 @@ const { unreadCount, startPolling, stopPolling } = useNotifications()
 const { bulkSelectActive } = useBulkSelect()
 const statsExpanded = ref(false)
 const collectionExpanded = ref(false)
+const agentFabPosition = ref<{ x: number; y: number } | null>(null)
+const isDraggingAgentFab = ref(false)
+const agentFabSuppressClick = ref(false)
+const agentFabPointerId = ref<number | null>(null)
+const agentFabPointerOffset = ref({ x: 0, y: 0 })
+const agentFabDragStart = ref({ x: 0, y: 0 })
+
+const AGENT_FAB_SIZE = 52
+const AGENT_FAB_VIEWPORT_MARGIN = 8
 
 const isCollectionPage = computed(() => route.name === 'collection')
 const showCollectionActions = computed(() => isCollectionPage.value && !isPwa)
@@ -297,6 +311,16 @@ const orderedNavItems = computed(() => {
   return items.filter(item => item.visible)
 })
 
+const fabPositionStyle = computed<Record<string, string> | undefined>(() => {
+  if (!agentFabPosition.value) return undefined
+  return {
+    left: `${agentFabPosition.value.x}px`,
+    top: `${agentFabPosition.value.y}px`,
+    right: 'auto',
+    bottom: 'auto',
+  }
+})
+
 // Full order including hidden items for persistence
 const fullOrder = computed(() => {
   return navOrder.value.length ? applyOrder(navOrder.value).map(i => i.id) : defaultNavItems.map(i => i.id)
@@ -330,6 +354,70 @@ function toggleEditMode() {
 
 function toggleCollectionSelectMode() {
   bulkSelectActive.value = !bulkSelectActive.value
+}
+
+function clampAgentFabPosition(x: number, y: number): { x: number; y: number } {
+  const maxX = Math.max(AGENT_FAB_VIEWPORT_MARGIN, window.innerWidth - AGENT_FAB_SIZE - AGENT_FAB_VIEWPORT_MARGIN)
+  const maxY = Math.max(AGENT_FAB_VIEWPORT_MARGIN, window.innerHeight - AGENT_FAB_SIZE - AGENT_FAB_VIEWPORT_MARGIN)
+  return {
+    x: Math.min(Math.max(x, AGENT_FAB_VIEWPORT_MARGIN), maxX),
+    y: Math.min(Math.max(y, AGENT_FAB_VIEWPORT_MARGIN), maxY),
+  }
+}
+
+function startAgentFabDrag(event: PointerEvent) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return
+  const target = event.currentTarget
+  if (!(target instanceof HTMLElement)) return
+  const rect = target.getBoundingClientRect()
+  agentFabPointerId.value = event.pointerId
+  agentFabPointerOffset.value = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+  agentFabDragStart.value = { x: event.clientX, y: event.clientY }
+  isDraggingAgentFab.value = false
+  target.setPointerCapture(event.pointerId)
+}
+
+function moveAgentFabDrag(event: PointerEvent) {
+  if (agentFabPointerId.value !== event.pointerId) return
+  const moved = Math.hypot(event.clientX - agentFabDragStart.value.x, event.clientY - agentFabDragStart.value.y) > 4
+  if (moved) {
+    isDraggingAgentFab.value = true
+  }
+  if (!isDraggingAgentFab.value) return
+  const next = clampAgentFabPosition(
+    event.clientX - agentFabPointerOffset.value.x,
+    event.clientY - agentFabPointerOffset.value.y,
+  )
+  agentFabPosition.value = next
+}
+
+function stopAgentFabDrag(event: PointerEvent) {
+  if (agentFabPointerId.value !== event.pointerId) return
+  const target = event.currentTarget
+  if (target instanceof HTMLElement && target.hasPointerCapture(event.pointerId)) {
+    target.releasePointerCapture(event.pointerId)
+  }
+  agentFabPointerId.value = null
+  if (isDraggingAgentFab.value) {
+    agentFabSuppressClick.value = true
+    window.setTimeout(() => {
+      agentFabSuppressClick.value = false
+    }, 0)
+  }
+}
+
+function handleAgentFabClick(event: MouseEvent) {
+  if (agentFabSuppressClick.value) {
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+  showChat.value = true
+}
+
+function handleAgentFabViewportResize() {
+  if (!agentFabPosition.value) return
+  agentFabPosition.value = clampAgentFabPosition(agentFabPosition.value.x, agentFabPosition.value.y)
 }
 
 function initSortable() {
@@ -387,6 +475,7 @@ watch(sidebarOpen, (open) => {
 })
 
 onMounted(async () => {
+  window.addEventListener('resize', handleAgentFabViewportResize)
   if (auth.isAuthenticated) {
     startPolling()
     try {
@@ -452,6 +541,7 @@ function handleLogout() {
 }
 
 onUnmounted(() => {
+  window.removeEventListener('resize', handleAgentFabViewportResize)
   destroySortable()
   stopPolling()
 })
