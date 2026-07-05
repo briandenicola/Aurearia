@@ -129,10 +129,15 @@ describe('UI pattern recipes', () => {
 
     expect(app).toContain('<Teleport to="body">')
     expect(app).toContain('class="agent-fab"')
+    expect(app).toContain(':style="fabPositionStyle"')
+    expect(app).toContain('@pointerdown="startAgentFabDrag"')
+    expect(app).toContain('@pointermove="moveAgentFabDrag"')
+    expect(app).toContain('@pointerup="stopAgentFabDrag"')
     expect(app).not.toContain('.agent-fab {')
     expect(agentFabCss).toContain('position: fixed')
     expect(agentFabCss).toContain('bottom: calc(24px + env(safe-area-inset-bottom))')
     expect(agentFabCss).toContain('right: calc(24px + env(safe-area-inset-right))')
+    expect(agentFabCss).toContain('touch-action: none')
   })
 
   it('keeps the agent chat overlay above tray pagination controls', () => {
