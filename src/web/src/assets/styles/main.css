@@ -451,6 +451,8 @@ a:hover {
   box-shadow: var(--shadow-card);
   z-index: 1250;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  touch-action: none;
+  user-select: none;
 }
 
 .agent-fab:active {
