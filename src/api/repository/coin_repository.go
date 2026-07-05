@@ -917,16 +917,22 @@ func (r *CoinRepository) CreateJournalEntry(entry *models.CoinJournal) error {
 // RecordValueSnapshot captures the current total value, invested amount,
 // and coin count for a user.
 func (r *CoinRepository) RecordValueSnapshot(userID uint) error {
+	return recordActiveCollectionValueSnapshot(r.db, userID)
+}
+
+func recordActiveCollectionValueSnapshot(db *gorm.DB, userID uint) error {
 	type result struct {
 		TotalValue    float64
 		TotalInvested float64
 		CoinCount     int64
 	}
 	var res result
-	r.db.Model(&models.Coin{}).
+	if err := db.Model(&models.Coin{}).
 		Select("COALESCE(SUM(current_value), 0) as total_value, COALESCE(SUM(purchase_price), 0) as total_invested, COUNT(*) as coin_count").
-		Where("user_id = ? AND is_wishlist = ?", userID, false).
-		Scan(&res)
+		Scopes(ActiveCollection(userID)).
+		Scan(&res).Error; err != nil {
+		return err
+	}
 
 	snapshot := models.ValueSnapshot{
 		UserID:        userID,
@@ -935,5 +941,5 @@ func (r *CoinRepository) RecordValueSnapshot(userID uint) error {
 		CoinCount:     res.CoinCount,
 		RecordedAt:    time.Now(),
 	}
-	return r.db.Create(&snapshot).Error
+	return db.Create(&snapshot).Error
 }

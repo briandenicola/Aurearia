@@ -51,10 +51,12 @@ describe('StatsValueOverTime', () => {
     expect(wrapper.findAll('.chart-grid-line').length).toBeGreaterThan(0)
   })
 
-  it('shows Portfolio Trajectory label and Value Over Time heading', () => {
+  it('shows Portfolio Trajectory label, Value Over Time heading, and timeframe explanation', () => {
     const wrapper = mount(StatsValueOverTime, { props: { history: [jan2024, feb2024] } })
     expect(wrapper.text()).toContain('Portfolio Trajectory')
     expect(wrapper.text()).toContain('Value Over Time')
+    expect(wrapper.text()).toContain('Active collection value movement')
+    expect(wrapper.text()).toContain('Period Value Change')
   })
 
   it('shows legend items for Current Value and Invested', () => {
@@ -68,7 +70,7 @@ describe('StatsValueOverTime', () => {
   it('summary strip first pill shows latest total value', () => {
     const wrapper = mount(StatsValueOverTime, { props: { history: [jan2024, feb2024] } })
     const pills = wrapper.findAll('.summary-pill')
-    // First pill: "Latest Value" with feb2024.totalValue = 1350
+    expect(pills[0]?.text()).toContain('Latest Snapshot')
     expect(pills[0]?.text()).toContain('$1,350')
   })
 
@@ -112,5 +114,6 @@ describe('StatsValueOverTime', () => {
     expect(wrapper.find('.chart-side-panel').exists()).toBe(true)
     expect(wrapper.find('.panel-roi-number').exists()).toBe(true)
     expect(wrapper.findAll('.summary-pill')).toHaveLength(3)
+    expect(wrapper.text()).toContain('Period Change')
   })
 })
