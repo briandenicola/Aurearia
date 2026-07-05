@@ -1,5 +1,5 @@
 <template>
-  <div class="tray-controls">
+  <div class="tray-controls" :class="{ 'is-embedded': !fixed }">
     <div class="drawer-navigation">
       <button
         class="nav-btn"
@@ -30,9 +30,12 @@ import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 interface Props {
   drawerIndex: number
   totalDrawers: number
+  fixed?: boolean
 }
 
-defineProps<Props>()
+withDefaults(defineProps<Props>(), {
+  fixed: true,
+})
 const emit = defineEmits<{
   prev: []
   next: []
@@ -49,6 +52,15 @@ const emit = defineEmits<{
   flex-direction: column;
   width: min(calc(100vw - 2rem), 420px);
   transform: translateX(-50%);
+}
+
+.tray-controls.is-embedded {
+  position: static;
+  left: auto;
+  bottom: auto;
+  width: min(100%, 420px);
+  margin: 0 auto;
+  transform: none;
 }
 
 .drawer-navigation {

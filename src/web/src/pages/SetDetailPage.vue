@@ -89,7 +89,7 @@
           <p v-if="canReorderCoins && coins.length > 1" class="order-status" :class="{ error: orderError }" aria-live="polite">
             <span v-if="savingOrder">Saving order...</span>
             <span v-else-if="orderError">{{ orderError }}</span>
-            <span v-else>Drag cards or use the arrows to arrange this set.</span>
+            <span v-else>Drag rows or use the arrows to arrange this set.</span>
           </p>
         </div>
         <div v-if="coins.length === 0" class="empty-coins">
@@ -98,25 +98,48 @@
         </div>
         <div
           v-else
-          class="coins-grid"
-          :class="{ 'is-reorderable': canReorderCoins, 'is-saving-order': savingOrder }"
+          class="set-tray-shell"
+          :class="{ 'is-saving-order': savingOrder }"
           aria-label="Coins in this set"
         >
+          <div class="set-tray-display">
+            <MuseumTray
+              :coins="currentDrawerCoins"
+              :felt-theme="feltColor"
+              @coin-clicked="goToCoin"
+            />
+            <TrayControls
+              v-if="totalDrawers > 1"
+              :drawer-index="drawerIndex"
+              :total-drawers="totalDrawers"
+              :fixed="false"
+              @prev="handlePrevDrawer"
+              @next="handleNextDrawer"
+            />
+          </div>
           <div
-            v-for="(coin, index) in coins"
-            :key="coin.id"
-            class="coin-card"
-            :class="{ dragging: draggingCoinId === coin.id, 'drag-over': dragOverCoinId === coin.id }"
-            :draggable="canReorderCoins && !savingOrder"
-            @click="goToCoin(coin.id)"
-            @dragstart="startDragging(coin.id, $event)"
-            @dragover.prevent="trackDragOver(coin.id)"
-            @dragleave="clearDragOver(coin.id)"
-            @drop.prevent="dropCoin(coin.id)"
-            @dragend="resetDragState"
+            v-if="canManageMembership"
+            class="set-coin-management"
+            :class="{ 'is-reorderable': canReorderCoins }"
+            aria-label="Manage set coin order and membership"
           >
-            <div v-if="canReorderCoins || canManageMembership" class="order-controls" @click.stop>
+            <div
+              v-for="(coin, index) in coins"
+              :key="coin.id"
+              class="set-coin-row"
+              :class="{ dragging: draggingCoinId === coin.id, 'drag-over': dragOverCoinId === coin.id }"
+              :draggable="canReorderCoins && !savingOrder"
+              @dragstart="startDragging(coin.id, $event)"
+              @dragover.prevent="trackDragOver(coin.id)"
+              @dragleave="clearDragOver(coin.id)"
+              @drop.prevent="dropCoin(coin.id)"
+              @dragend="resetDragState"
+            >
               <span class="order-rank" :aria-label="`Position ${index + 1}`">{{ index + 1 }}</span>
+              <button type="button" class="set-coin-title" @click="goToCoin(coin.id)">
+                {{ coin.name }}
+              </button>
+              <span class="set-coin-value">${{ coin.currentValue ?? 0 }}</span>
               <div class="order-buttons" aria-label="Set coin actions">
                 <button
                   v-if="canReorderCoins"
@@ -151,18 +174,6 @@
                   <X :size="16" />
                 </button>
               </div>
-            </div>
-            <div class="coin-image">
-              <AuthenticatedImage
-                v-if="coin.images?.[0]?.filePath"
-                :media-path="coin.images?.[0]?.filePath"
-                :alt="coin.name"
-              />
-              <Coins v-else :size="48" />
-            </div>
-            <div class="coin-info">
-              <h3>{{ coin.name }}</h3>
-              <p>${{ coin.currentValue || 0 }}</p>
             </div>
           </div>
         </div>
@@ -233,9 +244,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, ChevronDown, ChevronUp, CirclePlus, Coins, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
+import { ArrowLeft, ChevronDown, ChevronUp, CirclePlus, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
 import {
   addCoinToSet,
   compareSets,
@@ -256,12 +267,16 @@ import type { CoinSetAnalytics, CoinSetComparison, CoinSetCompletion, CoinSetDet
 import SetCompletionChecklist from '@/components/sets/SetCompletionChecklist.vue'
 import SetTrendChart from '@/components/sets/SetTrendChart.vue'
 import SetComparePanel from '@/components/sets/SetComparePanel.vue'
-import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+import MuseumTray from '@/components/tray/MuseumTray.vue'
+import TrayControls from '@/components/tray/TrayControls.vue'
 import { usePwa } from '@/composables/usePwa'
+import { useTrayPreference } from '@/composables/useTrayPreference'
+import { getDrawerCoins, getTotalDrawers, type TrayCoin } from '@/utils/trayLayout'
 
 const router = useRouter()
 const route = useRoute()
 const { isPwa } = usePwa()
+const { feltColor } = useTrayPreference()
 const loading = ref(true)
 const set = ref<CoinSetDetail | null>(null)
 const coins = ref<Coin[]>([])
@@ -274,6 +289,8 @@ const compareResults = ref<CoinSetComparison[]>([])
 const compareLoading = ref(false)
 const compareError = ref<string | null>(null)
 const trendRange = ref('1y')
+const drawerIndex = ref(0)
+const coinsPerDrawer = 12
 const savingOrder = ref(false)
 const orderError = ref<string | null>(null)
 const draggingCoinId = ref<number | null>(null)
@@ -292,6 +309,16 @@ const setId = Number(route.params.id)
 
 const canManageMembership = computed(() => set.value?.setType !== 'smart')
 const canReorderCoins = computed(() => canManageMembership.value && coins.value.length > 1)
+const trayCoins = computed((): TrayCoin[] =>
+  coins.value.map((coin) => ({
+    id: coin.id,
+    name: coin.name,
+    diameterMm: coin.diameterMm,
+    images: coin.images ?? [],
+  })),
+)
+const currentDrawerCoins = computed(() => getDrawerCoins(trayCoins.value, drawerIndex.value, coinsPerDrawer))
+const totalDrawers = computed(() => getTotalDrawers(trayCoins.value.length, coinsPerDrawer))
 
 const availableCoins = computed(() => {
   const existingIds = new Set(coins.value.map((coin) => coin.id))
@@ -307,6 +334,14 @@ const filteredAvailableCoins = computed(() => {
     coin.denomination,
     coin.mint,
   ].some((field) => field?.toLowerCase().includes(term)))
+})
+
+watch(totalDrawers, (drawers) => {
+  if (drawers === 0) {
+    drawerIndex.value = 0
+    return
+  }
+  drawerIndex.value = Math.min(drawerIndex.value, drawers - 1)
 })
 
 onMounted(async () => {
@@ -528,6 +563,14 @@ function resetDragState() {
   dragOverCoinId.value = null
 }
 
+function handlePrevDrawer() {
+  drawerIndex.value = Math.max(0, drawerIndex.value - 1)
+}
+
+function handleNextDrawer() {
+  drawerIndex.value = Math.min(totalDrawers.value - 1, drawerIndex.value + 1)
+}
+
 function goToCoin(coinId: number) {
   router.push({ name: 'coin-detail', params: { id: coinId } })
 }
@@ -656,51 +699,51 @@ function getErrorMessage(error: unknown, fallback: string): string {
   padding: 2rem;
 }
 
-.coins-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1rem;
-}
-
-.coins-grid.is-saving-order {
+.set-tray-shell.is-saving-order {
   opacity: 0.8;
 }
 
-.coin-card {
+.set-tray-display {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.set-coin-management {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.set-coin-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.75rem;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  padding: 1rem;
-  cursor: pointer;
-  position: relative;
+  padding: 0.6rem 0.75rem;
   transition: all var(--transition-fast);
 }
 
-.coin-card:hover {
+.set-coin-row:hover {
   border-color: var(--accent-gold);
-  box-shadow: var(--shadow-card);
 }
 
-.coin-card[draggable="true"] {
+.set-coin-row[draggable="true"] {
   cursor: grab;
 }
 
-.coin-card.dragging {
+.set-coin-row.dragging {
   opacity: 0.55;
   border-color: var(--accent-gold);
 }
 
-.coin-card.drag-over {
+.set-coin-row.drag-over {
   border-color: var(--accent-gold);
   box-shadow: var(--shadow-glow);
-}
-
-.order-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
 }
 
 .order-rank {
@@ -714,6 +757,33 @@ function getErrorMessage(error: unknown, fallback: string): string {
   color: var(--accent-gold);
   font-size: 0.75rem;
   font-weight: 600;
+}
+
+.set-coin-title {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.set-coin-title:hover {
+  color: var(--accent-gold);
+}
+
+.set-coin-value {
+  color: var(--accent-gold);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .order-buttons {
@@ -746,37 +816,6 @@ function getErrorMessage(error: unknown, fallback: string): string {
 .set-coin-action-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
-}
-
-.coin-image {
-  width: 100%;
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-input);
-  border-radius: var(--radius-sm);
-  margin-bottom: 0.5rem;
-  overflow: hidden;
-}
-
-.coin-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.coin-info h3 {
-  font-size: 0.85rem;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.coin-info p {
-  margin: 0.25rem 0 0;
-  font-weight: 600;
 }
 
 .modal-overlay {
@@ -863,8 +902,12 @@ function getErrorMessage(error: unknown, fallback: string): string {
     text-align: left;
   }
 
-  .order-controls {
-    align-items: flex-start;
+  .set-coin-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .set-coin-value {
+    display: none;
   }
 }
 </style>
