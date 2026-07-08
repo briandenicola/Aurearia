@@ -3,7 +3,7 @@ module github.com/briandenicola/ancient-coins-api
 go 1.26.4
 
 require (
-	github.com/coreos/go-oidc/v3 v3.19.0
+	github.com/coreos/go-oidc/v3 v3.20.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/glebarez/sqlite v1.11.0
 	github.com/go-pdf/fpdf v0.9.0
