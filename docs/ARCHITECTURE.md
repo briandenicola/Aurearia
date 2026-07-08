@@ -56,7 +56,7 @@ Aurearia is a full-stack PWA for managing a personal coin collection, with deep 
 
 | Service | Tech Stack | Port | Path |
 |---------|-----------|------|------|
-| **Go API** | Go 1.26.4, Gin, GORM, SQLite | 8080 | `src/api/` |
+| **Go API** | Go 1.26.5, Gin, GORM, SQLite | 8080 | `src/api/` |
 | **Vue Frontend** | Vue 3, TypeScript, Pinia, Vite, PWA | (bundled) | `src/web/` |
 | **Python Agent** | Python 3.12, FastAPI, LangGraph, LangChain | 8081 | `src/agent/` |
 
@@ -668,7 +668,7 @@ Stage 1: node:24-alpine@sha256:...
   → npm install + npm run build (Vue SPA)
   → Output: dist/
 
-Stage 2: golang:1.26.4-alpine@sha256:...
+Stage 2: golang:1.26.5-alpine@sha256:...
   → go build -o ancient-coins-api
   → Output: binary
 
