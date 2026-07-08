@@ -9,7 +9,7 @@ Aurearia is a full-stack PWA for managing a personal coin collection, with deep 
 
 | Layer | Tech | Path |
 |---|---|---|
-| Backend | Go 1.26.4, Gin, GORM, SQLite | `src/api/` |
+| Backend | Go 1.26.5, Gin, GORM, SQLite | `src/api/` |
 | Frontend | Vue 3, TypeScript, Pinia, Vite, PWA | `src/web/` |
 | Agent | Python 3.12, FastAPI, LangGraph, LangChain | `src/agent/` |
 | Build | Multi-stage Docker (2 containers) | `Dockerfile`, `src/agent/Dockerfile` |
