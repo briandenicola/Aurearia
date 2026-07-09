@@ -131,12 +131,13 @@ type InvestmentBreakdownSegment struct {
 
 // InvestmentMovementCoin holds one coin's valuation movement from the first recorded valuation to current value.
 type InvestmentMovementCoin struct {
-	CoinID       uint    `json:"coinId"`
-	Name         string  `json:"name"`
-	InitialValue float64 `json:"initialValue"`
-	CurrentValue float64 `json:"currentValue"`
-	ChangeAmount float64 `json:"changeAmount"`
-	ChangePct    float64 `json:"changePct"`
+	CoinID            uint    `json:"coinId"`
+	Name              string  `json:"name"`
+	InitialValue      float64 `json:"initialValue"`
+	CurrentValue      float64 `json:"currentValue"`
+	ChangeAmount      float64 `json:"changeAmount"`
+	ChangePct         float64 `json:"changePct"`
+	ChangeExplanation *string `json:"changeExplanation"`
 }
 
 // StaleValuationCoin holds one active coin ordered by valuation age.
@@ -845,7 +846,17 @@ func (r *CoinRepository) getInvestmentMovementCoins(userID uint, limit int, incr
 			CASE
 				WHEN first_value.value = 0 THEN 0
 				ELSE ((c.current_value - first_value.value) / first_value.value) * 100
-			END AS change_pct
+			END AS change_pct,
+			(
+				SELECT vr.change_explanation
+				FROM valuation_results vr
+				WHERE vr.coin_id = c.id
+					AND vr.status = 'success'
+					AND vr.change_explanation IS NOT NULL
+					AND vr.change_explanation != ''
+				ORDER BY vr.checked_at DESC, vr.id DESC
+				LIMIT 1
+			) AS change_explanation
 		FROM coins c
 		JOIN coin_value_histories first_value ON first_value.id = (
 			SELECT cvh.id

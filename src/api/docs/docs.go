@@ -17504,6 +17504,9 @@ const docTemplate = `{
                 "changeAmount": {
                     "type": "number"
                 },
+                "changeExplanation": {
+                    "type": "string"
+                },
                 "changePct": {
                     "type": "number"
                 },

@@ -841,6 +841,7 @@ export interface InvestmentMovementCoin {
   currentValue: number
   changeAmount: number
   changePct: number
+  changeExplanation?: string | null
 }
 
 export interface StaleValuationCoin {
@@ -1463,6 +1464,7 @@ export interface ValuationResult {
   estimatedValue: number
   confidence: string
   reasoning: string
+  changeExplanation?: string | null
   status: string
   errorMessage?: string
   checkedAt: string

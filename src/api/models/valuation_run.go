@@ -25,15 +25,16 @@ type ValuationRun struct {
 
 // ValuationResult records the valuation outcome for a single coin in a run.
 type ValuationResult struct {
-	ID             uint      `gorm:"primaryKey" json:"id"`
-	RunID          uint      `gorm:"not null;index" json:"runId"`
-	CoinID         uint      `gorm:"not null" json:"coinId"`
-	CoinName       string    `json:"coinName"`
-	PreviousValue  *float64  `json:"previousValue"`
-	EstimatedValue float64   `json:"estimatedValue"`
-	Confidence     string    `gorm:"type:varchar(20)" json:"confidence"`
-	Reasoning      string    `gorm:"type:text" json:"reasoning"`
-	Status         string    `gorm:"type:varchar(20);not null" json:"status"`
-	ErrorMessage   string    `gorm:"type:text" json:"errorMessage,omitempty"`
-	CheckedAt      time.Time `gorm:"not null" json:"checkedAt"`
+	ID                uint      `gorm:"primaryKey" json:"id"`
+	RunID             uint      `gorm:"not null;index" json:"runId"`
+	CoinID            uint      `gorm:"not null" json:"coinId"`
+	CoinName          string    `json:"coinName"`
+	PreviousValue     *float64  `json:"previousValue"`
+	EstimatedValue    float64   `json:"estimatedValue"`
+	Confidence        string    `gorm:"type:varchar(20)" json:"confidence"`
+	Reasoning         string    `gorm:"type:text" json:"reasoning"`
+	ChangeExplanation *string   `gorm:"type:text" json:"changeExplanation"`
+	Status            string    `gorm:"type:varchar(20);not null" json:"status"`
+	ErrorMessage      string    `gorm:"type:text" json:"errorMessage,omitempty"`
+	CheckedAt         time.Time `gorm:"not null" json:"checkedAt"`
 }

@@ -39,7 +39,15 @@ describe('StatsInvestmentBreakdownPage', () => {
           data: {
             segments: [segment('2024', { year: 2024 })],
             topIncreases: [
-              { coinId: 11, name: 'Aureus of Hadrian', initialValue: 1000, currentValue: 1800, changeAmount: 800, changePct: 80 },
+              {
+                coinId: 11,
+                name: 'Aureus of Hadrian',
+                initialValue: 1000,
+                currentValue: 1800,
+                changeAmount: 800,
+                changePct: 80,
+                changeExplanation: 'The value increased because recent comparable sales are stronger.',
+              },
             ],
             topDrops: [
               { coinId: 12, name: 'Denarius of Trajan', initialValue: 500, currentValue: 350, changeAmount: -150, changePct: -30 },
@@ -80,12 +88,14 @@ describe('StatsInvestmentBreakdownPage', () => {
     expect(wrapper.text()).toContain('Aureus of Hadrian')
     expect(wrapper.text()).toContain('$1,000.00')
     expect(wrapper.text()).toContain('$1,800.00')
+    expect(wrapper.text()).toContain('The value increased because recent comparable sales are stronger.')
     expect(wrapper.find('a[href="/coin/11"]').exists()).toBe(true)
 
     expect(wrapper.text()).toContain('Biggest Value Declines')
     expect(wrapper.text()).toContain('Denarius of Trajan')
     expect(wrapper.text()).toContain('$500.00')
     expect(wrapper.text()).toContain('$350.00')
+    expect(wrapper.text()).not.toContain('undefined')
     expect(wrapper.find('a[href="/coin/12"]').exists()).toBe(true)
 
     expect(wrapper.text()).toContain('Needs Refresh')

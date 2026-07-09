@@ -21,6 +21,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&models.ValueSnapshot{}, &models.CoinJournal{},
 		&models.CoinValueHistory{}, &models.CoinComment{},
 		&models.AvailabilityResult{}, &models.AuctionLot{},
+		&models.ValuationRun{}, &models.ValuationResult{},
 		&models.Tag{}, &models.CoinTag{},
 		&models.CoinSet{}, &models.CoinSetMembership{},
 		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{},
@@ -473,6 +474,24 @@ func TestCoinRepository_GetInvestmentMovementStats(t *testing.T) {
 		}
 	}
 
+	run := models.ValuationRun{UserID: 1, Status: "completed", TriggerType: "manual", StartedAt: now}
+	if err := db.Create(&run).Error; err != nil {
+		t.Fatalf("Create valuation run failed: %v", err)
+	}
+	oldExplanation := "Older explanation should not be selected."
+	gainerExplanation := "The value increased because recent comps are stronger than the first valuation."
+	dropExplanation := "The value dropped because recent comps are weaker than the first valuation."
+	results := []models.ValuationResult{
+		{RunID: run.ID, CoinID: coins[0].ID, CoinName: coins[0].Name, PreviousValue: ptrFloat(250), EstimatedValue: 300, Confidence: "high", Reasoning: "Older", ChangeExplanation: &oldExplanation, Status: "success", CheckedAt: now.Add(-2 * time.Hour)},
+		{RunID: run.ID, CoinID: coins[0].ID, CoinName: coins[0].Name, PreviousValue: ptrFloat(250), EstimatedValue: 300, Confidence: "high", Reasoning: "Latest", ChangeExplanation: &gainerExplanation, Status: "success", CheckedAt: now.Add(-time.Hour)},
+		{RunID: run.ID, CoinID: coins[2].ID, CoinName: coins[2].Name, PreviousValue: ptrFloat(200), EstimatedValue: 50, Confidence: "high", Reasoning: "Latest", ChangeExplanation: &dropExplanation, Status: "success", CheckedAt: now.Add(-time.Hour)},
+	}
+	for i := range results {
+		if err := db.Create(&results[i]).Error; err != nil {
+			t.Fatalf("Create valuation result failed: %v", err)
+		}
+	}
+
 	increases, err := repo.GetTopInvestmentIncreases(1, 5)
 	if err != nil {
 		t.Fatalf("GetTopInvestmentIncreases failed: %v", err)
@@ -483,6 +502,9 @@ func TestCoinRepository_GetInvestmentMovementStats(t *testing.T) {
 	assertFloatNear(t, increases[0].InitialValue, 100)
 	assertFloatNear(t, increases[0].CurrentValue, 300)
 	assertFloatNear(t, increases[0].ChangeAmount, 200)
+	if increases[0].ChangeExplanation == nil || *increases[0].ChangeExplanation != gainerExplanation {
+		t.Fatalf("unexpected increase explanation: %#v", increases[0].ChangeExplanation)
+	}
 
 	drops, err := repo.GetTopInvestmentDrops(1, 5)
 	if err != nil {
@@ -494,6 +516,9 @@ func TestCoinRepository_GetInvestmentMovementStats(t *testing.T) {
 	assertFloatNear(t, drops[0].InitialValue, 200)
 	assertFloatNear(t, drops[0].CurrentValue, 50)
 	assertFloatNear(t, drops[0].ChangeAmount, -150)
+	if drops[0].ChangeExplanation == nil || *drops[0].ChangeExplanation != dropExplanation {
+		t.Fatalf("unexpected drop explanation: %#v", drops[0].ChangeExplanation)
+	}
 }
 
 func TestCoinRepository_GetStaleValuationCoins(t *testing.T) {

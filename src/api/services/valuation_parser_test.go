@@ -208,3 +208,25 @@ func TestParseValueEstimate_ReasoningExtraction(t *testing.T) {
 		t.Errorf("EstimatedValue = %v, want 300", result.EstimatedValue)
 	}
 }
+
+func TestParseValueEstimate_ChangeExplanation(t *testing.T) {
+	input := "```json\n" +
+		`{"estimatedValue": 325, "confidence": "high", "reasoning": "Recent sales support the estimate.", "changeExplanation": "The value increased because comparable VF examples are selling above the prior estimate."}` +
+		"\n```"
+
+	result := ParseValueEstimate(input)
+	if result.ChangeExplanation != "The value increased because comparable VF examples are selling above the prior estimate." {
+		t.Errorf("ChangeExplanation = %q", result.ChangeExplanation)
+	}
+}
+
+func TestParseValueEstimate_ChangeExplanationBackwardCompatible(t *testing.T) {
+	input := "```json\n" +
+		`{"estimatedValue": 325, "confidence": "high", "reasoning": "Recent sales support the estimate."}` +
+		"\n```"
+
+	result := ParseValueEstimate(input)
+	if result.ChangeExplanation != "" {
+		t.Errorf("ChangeExplanation = %q, want empty", result.ChangeExplanation)
+	}
+}
