@@ -646,7 +646,7 @@ definitions:
   handlers.InvestmentBreakdownResponse:
     properties:
       dimension:
-        example: purchase-month
+        example: purchase-year
         type: string
       segments:
         items:
@@ -10357,7 +10357,7 @@ paths:
       parameters:
       - description: Breakdown dimension
         enum:
-        - purchase-month
+        - purchase-year
         - material
         in: query
         name: dimension

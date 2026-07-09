@@ -386,16 +386,18 @@ func TestCoinRepository_GetInvestmentBreakdown_MaterialAggregatesConfidenceCount
 	}
 }
 
-func TestCoinRepository_GetInvestmentBreakdown_PurchaseMonthAggregatesConfidenceCounts(t *testing.T) {
+func TestCoinRepository_GetInvestmentBreakdown_PurchaseYearAggregatesConfidenceCounts(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewCoinRepository(db)
 	jan := time.Date(2024, time.January, 15, 0, 0, 0, 0, time.UTC)
 	feb := time.Date(2024, time.February, 20, 0, 0, 0, 0, time.UTC)
+	nextYear := time.Date(2025, time.March, 20, 0, 0, 0, 0, time.UTC)
 
 	coins := []models.Coin{
 		{Name: "Jan Valued", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, PurchasePrice: ptrFloat(100), CurrentValue: ptrFloat(120), PurchaseDate: ptrTime(jan)},
 		{Name: "Jan Missing Current", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, PurchasePrice: ptrFloat(200), CurrentValue: nil, PurchaseDate: ptrTime(jan)},
 		{Name: "Feb Missing Cost", Category: models.CategoryRoman, Material: models.MaterialGold, UserID: 1, PurchasePrice: nil, CurrentValue: ptrFloat(80), PurchaseDate: ptrTime(feb)},
+		{Name: "Next Year", Category: models.CategoryRoman, Material: models.MaterialGold, UserID: 1, PurchasePrice: ptrFloat(50), CurrentValue: ptrFloat(75), PurchaseDate: ptrTime(nextYear)},
 		{Name: "No Date Excluded", Category: models.CategoryRoman, Material: models.MaterialGold, UserID: 1, PurchasePrice: ptrFloat(999), CurrentValue: ptrFloat(999)},
 	}
 	for i := range coins {
@@ -404,32 +406,32 @@ func TestCoinRepository_GetInvestmentBreakdown_PurchaseMonthAggregatesConfidence
 		}
 	}
 
-	segments, err := repo.GetInvestmentBreakdown(1, InvestmentBreakdownPurchaseMonth)
+	segments, err := repo.GetInvestmentBreakdown(1, InvestmentBreakdownPurchaseYear)
 	if err != nil {
 		t.Fatalf("GetInvestmentBreakdown failed: %v", err)
 	}
 	if len(segments) != 2 {
-		t.Fatalf("expected 2 purchase-month segments, got %d: %#v", len(segments), segments)
+		t.Fatalf("expected 2 purchase-year segments, got %d: %#v", len(segments), segments)
 	}
 
-	janSegment := segments[0]
-	if janSegment.Label != "Jan 2024" || janSegment.Year == nil || *janSegment.Year != 2024 || janSegment.Month == nil || *janSegment.Month != 1 {
-		t.Fatalf("unexpected January label/date fields: %#v", janSegment)
+	year2024 := segments[0]
+	if year2024.Label != "2024" || year2024.Year == nil || *year2024.Year != 2024 || year2024.Month != nil {
+		t.Fatalf("unexpected 2024 label/date fields: %#v", year2024)
 	}
-	assertFloatNear(t, janSegment.Invested, 300)
-	assertFloatNear(t, janSegment.CurrentValue, 320)
-	if janSegment.CoinCount != 2 || janSegment.MissingCurrentValueCount != 1 || janSegment.MissingPurchasePriceCount != 0 {
-		t.Fatalf("unexpected January counts: coin=%d missingCurrent=%d missingPurchase=%d", janSegment.CoinCount, janSegment.MissingCurrentValueCount, janSegment.MissingPurchasePriceCount)
+	assertFloatNear(t, year2024.Invested, 300)
+	assertFloatNear(t, year2024.CurrentValue, 400)
+	if year2024.CoinCount != 3 || year2024.MissingCurrentValueCount != 1 || year2024.MissingPurchasePriceCount != 1 {
+		t.Fatalf("unexpected 2024 counts: coin=%d missingCurrent=%d missingPurchase=%d", year2024.CoinCount, year2024.MissingCurrentValueCount, year2024.MissingPurchasePriceCount)
 	}
 
-	febSegment := segments[1]
-	if febSegment.Label != "Feb 2024" || febSegment.Year == nil || *febSegment.Year != 2024 || febSegment.Month == nil || *febSegment.Month != 2 {
-		t.Fatalf("unexpected February label/date fields: %#v", febSegment)
+	year2025 := segments[1]
+	if year2025.Label != "2025" || year2025.Year == nil || *year2025.Year != 2025 || year2025.Month != nil {
+		t.Fatalf("unexpected 2025 label/date fields: %#v", year2025)
 	}
-	assertFloatNear(t, febSegment.Invested, 0)
-	assertFloatNear(t, febSegment.CurrentValue, 80)
-	if febSegment.CoinCount != 1 || febSegment.MissingCurrentValueCount != 0 || febSegment.MissingPurchasePriceCount != 1 {
-		t.Fatalf("unexpected February counts: coin=%d missingCurrent=%d missingPurchase=%d", febSegment.CoinCount, febSegment.MissingCurrentValueCount, febSegment.MissingPurchasePriceCount)
+	assertFloatNear(t, year2025.Invested, 50)
+	assertFloatNear(t, year2025.CurrentValue, 75)
+	if year2025.CoinCount != 1 || year2025.MissingCurrentValueCount != 0 || year2025.MissingPurchasePriceCount != 0 {
+		t.Fatalf("unexpected 2025 counts: coin=%d missingCurrent=%d missingPurchase=%d", year2025.CoinCount, year2025.MissingCurrentValueCount, year2025.MissingPurchasePriceCount)
 	}
 }
 

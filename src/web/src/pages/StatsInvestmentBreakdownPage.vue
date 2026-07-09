@@ -5,7 +5,7 @@
         <div>
           <p class="section-label">Collection Insights</p>
           <h1>Investment Breakdown</h1>
-          <p class="page-intro">See where capital is allocated by acquisition timing and material.</p>
+          <p class="page-intro">See valuation movement, acquisition-year performance, and material allocation.</p>
         </div>
         <router-link class="back-button" to="/stats" aria-label="Back to Stats">
           <ArrowLeft :size="20" />
@@ -75,16 +75,16 @@
         </section>
 
         <StatsInvestmentBreakdownChart
-          title="Purchase Year to Month"
-          eyebrow="Acquisition Timing"
-          description="Invested capital grouped by purchase year and month."
-          :rows="purchaseMonthRows"
+          title="Acquisition Performance by Year"
+          eyebrow="Purchase Timing"
+          description="Compare each purchase year's invested capital, current value, gain/loss, and ROI."
+          :rows="purchaseYearRows"
         />
 
         <StatsInvestmentBreakdownChart
           title="Material"
-          eyebrow="Portfolio Composition"
-          description="Invested capital and current value grouped by coin material."
+          eyebrow="Material Allocation"
+          description="Compare invested capital, current value, gain/loss, and ROI by material."
           :rows="materialRows"
         />
       </template>
@@ -108,7 +108,7 @@ import type {
 
 const isLoading = ref(true)
 const errorMessage = ref('')
-const purchaseMonthRows = ref<InvestmentBreakdownSegment[]>([])
+const purchaseYearRows = ref<InvestmentBreakdownSegment[]>([])
 const materialRows = ref<InvestmentBreakdownSegment[]>([])
 const topIncreases = ref<InvestmentMovementCoin[]>([])
 const topDrops = ref<InvestmentMovementCoin[]>([])
@@ -145,13 +145,13 @@ async function loadBreakdowns() {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    const [purchaseMonthRes, materialRes] = await Promise.all([
-      getInvestmentBreakdown('purchase-month'),
+    const [purchaseYearRes, materialRes] = await Promise.all([
+      getInvestmentBreakdown('purchase-year'),
       getInvestmentBreakdown('material'),
     ])
-    purchaseMonthRows.value = normalizeBreakdown(purchaseMonthRes.data)
+    purchaseYearRows.value = normalizeBreakdown(purchaseYearRes.data)
     materialRows.value = normalizeBreakdown(materialRes.data)
-    applyHighlights(purchaseMonthRes.data)
+    applyHighlights(purchaseYearRes.data)
   } catch {
     errorMessage.value = 'Investment breakdown data could not be loaded.'
   } finally {

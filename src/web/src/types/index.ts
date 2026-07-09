@@ -819,7 +819,7 @@ export interface StatsResponse {
   }
 }
 
-export type InvestmentBreakdownDimension = 'purchase-month' | 'material'
+export type InvestmentBreakdownDimension = 'purchase-year' | 'material'
 
 export interface InvestmentBreakdownSegment {
   label: string

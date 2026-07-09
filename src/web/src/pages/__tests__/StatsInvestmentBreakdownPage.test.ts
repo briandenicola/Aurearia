@@ -34,10 +34,10 @@ describe('StatsInvestmentBreakdownPage', () => {
   beforeEach(() => {
     mockGetInvestmentBreakdown.mockReset()
     mockGetInvestmentBreakdown.mockImplementation((dimension: string) => {
-      if (dimension === 'purchase-month') {
+      if (dimension === 'purchase-year') {
         return Promise.resolve({
           data: {
-            segments: [segment('2024-01', { year: 2024, month: 1 })],
+            segments: [segment('2024', { year: 2024 })],
             topIncreases: [
               { coinId: 11, name: 'Aureus of Hadrian', initialValue: 1000, currentValue: 1800, changeAmount: 800, changePct: 80 },
             ],
@@ -55,18 +55,18 @@ describe('StatsInvestmentBreakdownPage', () => {
     })
   })
 
-  it('loads purchase-month and material investment breakdowns', async () => {
+  it('loads purchase-year and material investment breakdowns', async () => {
     const wrapper = mount(StatsInvestmentBreakdownPage, {
       global: { stubs: defaultStubs },
     })
     await flushPromises()
 
-    expect(mockGetInvestmentBreakdown).toHaveBeenCalledWith('purchase-month')
+    expect(mockGetInvestmentBreakdown).toHaveBeenCalledWith('purchase-year')
     expect(mockGetInvestmentBreakdown).toHaveBeenCalledWith('material')
     expect(wrapper.text()).toContain('Investment Breakdown')
-    expect(wrapper.text()).toContain('Purchase Year to Month')
-    expect(wrapper.text()).toContain('Material')
-    expect(wrapper.text()).toContain('2024 Jan')
+    expect(wrapper.text()).toContain('Acquisition Performance by Year')
+    expect(wrapper.text()).toContain('Material Allocation')
+    expect(wrapper.text()).toContain('2024')
     expect(wrapper.text()).toContain('Silver')
   })
 
@@ -99,13 +99,12 @@ describe('StatsInvestmentBreakdownPage', () => {
 
   it('renders confidence callouts from missing-value counts returned by the API', async () => {
     mockGetInvestmentBreakdown.mockImplementation((dimension: string) => {
-      if (dimension === 'purchase-month') {
+      if (dimension === 'purchase-year') {
         return Promise.resolve({
           data: {
             segments: [
-              segment('2024-01', {
+              segment('2024', {
                 year: 2024,
-                month: 1,
                 missingCurrentValueCount: 2,
                 missingPurchasePriceCount: 1,
               }),

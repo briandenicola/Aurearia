@@ -1485,7 +1485,7 @@ func TestCoinHandler_Unauthenticated(t *testing.T) {
 
 // --- Investment breakdown ---
 
-func TestCoinHandler_InvestmentBreakdown_PurchaseMonth(t *testing.T) {
+func TestCoinHandler_InvestmentBreakdown_PurchaseYear(t *testing.T) {
 	router, db := setupCoinHandlerRouter(t)
 	createTestUser(t, db, 1, "investor")
 	createTestUser(t, db, 2, "other")
@@ -1506,7 +1506,7 @@ func TestCoinHandler_InvestmentBreakdown_PurchaseMonth(t *testing.T) {
 		t.Fatalf("failed to seed investment coins: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/stats/investment-breakdown?dimension=purchase-month", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/stats/investment-breakdown?dimension=purchase-year", nil)
 	req.Header.Set("Authorization", authHeader(1))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -1521,14 +1521,14 @@ func TestCoinHandler_InvestmentBreakdown_PurchaseMonth(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	if resp.Dimension != repository.InvestmentBreakdownPurchaseMonth {
+	if resp.Dimension != repository.InvestmentBreakdownPurchaseYear {
 		t.Fatalf("unexpected dimension %q", resp.Dimension)
 	}
 	if len(resp.Segments) != 1 {
-		t.Fatalf("expected 1 purchase-month segment, got %d: %#v", len(resp.Segments), resp.Segments)
+		t.Fatalf("expected 1 purchase-year segment, got %d: %#v", len(resp.Segments), resp.Segments)
 	}
 	segment := resp.Segments[0]
-	if segment.Label != "Jan 2024" || segment.Year == nil || *segment.Year != 2024 || segment.Month == nil || *segment.Month != 1 {
+	if segment.Label != "2024" || segment.Year == nil || *segment.Year != 2024 || segment.Month != nil {
 		t.Fatalf("unexpected purchase label/date fields: %#v", segment)
 	}
 	if segment.CoinCount != 2 || segment.MissingCurrentValueCount != 1 || segment.MissingPurchasePriceCount != 0 {
