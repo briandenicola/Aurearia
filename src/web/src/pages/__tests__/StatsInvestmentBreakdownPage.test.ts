@@ -34,12 +34,20 @@ describe('StatsInvestmentBreakdownPage', () => {
   beforeEach(() => {
     mockGetInvestmentBreakdown.mockReset()
     mockGetInvestmentBreakdown.mockImplementation((dimension: string) => {
-      if (dimension === 'purchase-month') {
+      if (dimension === 'purchase-year') {
         return Promise.resolve({
           data: {
-            segments: [segment('2024-01', { year: 2024, month: 1 })],
+            segments: [segment('2024', { year: 2024 })],
             topIncreases: [
-              { coinId: 11, name: 'Aureus of Hadrian', initialValue: 1000, currentValue: 1800, changeAmount: 800, changePct: 80 },
+              {
+                coinId: 11,
+                name: 'Aureus of Hadrian',
+                initialValue: 1000,
+                currentValue: 1800,
+                changeAmount: 800,
+                changePct: 80,
+                changeExplanation: 'The value increased because recent comparable sales are stronger.',
+              },
             ],
             topDrops: [
               { coinId: 12, name: 'Denarius of Trajan', initialValue: 500, currentValue: 350, changeAmount: -150, changePct: -30 },
@@ -55,18 +63,18 @@ describe('StatsInvestmentBreakdownPage', () => {
     })
   })
 
-  it('loads purchase-month and material investment breakdowns', async () => {
+  it('loads purchase-year and material investment breakdowns', async () => {
     const wrapper = mount(StatsInvestmentBreakdownPage, {
       global: { stubs: defaultStubs },
     })
     await flushPromises()
 
-    expect(mockGetInvestmentBreakdown).toHaveBeenCalledWith('purchase-month')
+    expect(mockGetInvestmentBreakdown).toHaveBeenCalledWith('purchase-year')
     expect(mockGetInvestmentBreakdown).toHaveBeenCalledWith('material')
     expect(wrapper.text()).toContain('Investment Breakdown')
-    expect(wrapper.text()).toContain('Purchase Year to Month')
-    expect(wrapper.text()).toContain('Material')
-    expect(wrapper.text()).toContain('2024 Jan')
+    expect(wrapper.text()).toContain('Acquisition Performance by Year')
+    expect(wrapper.text()).toContain('Material Allocation')
+    expect(wrapper.text()).toContain('2024')
     expect(wrapper.text()).toContain('Silver')
   })
 
@@ -80,12 +88,14 @@ describe('StatsInvestmentBreakdownPage', () => {
     expect(wrapper.text()).toContain('Aureus of Hadrian')
     expect(wrapper.text()).toContain('$1,000.00')
     expect(wrapper.text()).toContain('$1,800.00')
+    expect(wrapper.text()).toContain('The value increased because recent comparable sales are stronger.')
     expect(wrapper.find('a[href="/coin/11"]').exists()).toBe(true)
 
     expect(wrapper.text()).toContain('Biggest Value Declines')
     expect(wrapper.text()).toContain('Denarius of Trajan')
     expect(wrapper.text()).toContain('$500.00')
     expect(wrapper.text()).toContain('$350.00')
+    expect(wrapper.text()).not.toContain('undefined')
     expect(wrapper.find('a[href="/coin/12"]').exists()).toBe(true)
 
     expect(wrapper.text()).toContain('Needs Refresh')
@@ -99,13 +109,12 @@ describe('StatsInvestmentBreakdownPage', () => {
 
   it('renders confidence callouts from missing-value counts returned by the API', async () => {
     mockGetInvestmentBreakdown.mockImplementation((dimension: string) => {
-      if (dimension === 'purchase-month') {
+      if (dimension === 'purchase-year') {
         return Promise.resolve({
           data: {
             segments: [
-              segment('2024-01', {
+              segment('2024', {
                 year: 2024,
-                month: 1,
                 missingCurrentValueCount: 2,
                 missingPurchasePriceCount: 1,
               }),

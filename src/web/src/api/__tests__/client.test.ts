@@ -578,9 +578,9 @@ describe('API Client', () => {
 
     it('getInvestmentBreakdown sends GET with dimension param', async () => {
       mockApi.get.mockResolvedValue({ data: [] })
-      await client.getInvestmentBreakdown('purchase-month')
+      await client.getInvestmentBreakdown('purchase-year')
       expect(mockApi.get).toHaveBeenCalledWith('/stats/investment-breakdown', {
-        params: { dimension: 'purchase-month' },
+        params: { dimension: 'purchase-year' },
       })
     })
 

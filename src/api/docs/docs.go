@@ -11586,7 +11586,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "enum": [
-                            "purchase-month",
+                            "purchase-year",
                             "material"
                         ],
                         "type": "string",
@@ -14889,7 +14889,7 @@ const docTemplate = `{
             "properties": {
                 "dimension": {
                     "type": "string",
-                    "example": "purchase-month"
+                    "example": "purchase-year"
                 },
                 "segments": {
                     "type": "array",
@@ -17503,6 +17503,9 @@ const docTemplate = `{
             "properties": {
                 "changeAmount": {
                     "type": "number"
+                },
+                "changeExplanation": {
+                    "type": "string"
                 },
                 "changePct": {
                     "type": "number"

@@ -105,6 +105,21 @@ func BuildCoinDescription(coin *models.Coin) string {
 	return strings.Join(parts, "\n")
 }
 
+func valuationChangeContext(previousValue *float64) string {
+	if previousValue == nil || *previousValue <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("\n\nPrevious valuation context:\nPrevious value: $%.2f\nIf your estimate changes from this value, include changeExplanation as one concise sentence.", *previousValue)
+}
+
+func changeExplanationForResult(previousValue *float64, estimatedValue float64, explanation string) *string {
+	trimmed := strings.TrimSpace(explanation)
+	if previousValue == nil || *previousValue <= 0 || estimatedValue <= 0 || estimatedValue == *previousValue || trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
 // coinHasEnoughMetadata returns true if the coin has enough informative fields
 // to produce a meaningful AI valuation.
 func coinHasEnoughMetadata(coin *models.Coin) bool {
@@ -273,8 +288,8 @@ func (s *ValuationService) ValuateCollectionForUser(
 		checked++
 		batchCount++
 		description := BuildCoinDescription(&coin)
-		userMessage := fmt.Sprintf("Estimate the current market value of this coin:\n\n%s\n\n"+
-			"Return ONLY the JSON block as specified in your instructions. No preamble or extra text.", description)
+		userMessage := fmt.Sprintf("Estimate the current market value of this coin:\n\n%s%s\n\n"+
+			"Return ONLY the JSON block as specified in your instructions. No preamble or extra text.", description, valuationChangeContext(coin.CurrentValue))
 
 		proxyReq := PortfolioReviewProxyRequest{
 			LLM: llmCfg,
@@ -328,15 +343,16 @@ func (s *ValuationService) ValuateCollectionForUser(
 		estimate := ParseValueEstimate(aiText)
 
 		result := &models.ValuationResult{
-			RunID:          run.ID,
-			CoinID:         coin.ID,
-			CoinName:       coin.Name,
-			PreviousValue:  coin.CurrentValue,
-			EstimatedValue: estimate.EstimatedValue,
-			Confidence:     estimate.Confidence,
-			Reasoning:      estimate.Reasoning,
-			Status:         "success",
-			CheckedAt:      time.Now(),
+			RunID:             run.ID,
+			CoinID:            coin.ID,
+			CoinName:          coin.Name,
+			PreviousValue:     coin.CurrentValue,
+			EstimatedValue:    estimate.EstimatedValue,
+			Confidence:        estimate.Confidence,
+			Reasoning:         estimate.Reasoning,
+			ChangeExplanation: changeExplanationForResult(coin.CurrentValue, estimate.EstimatedValue, estimate.ChangeExplanation),
+			Status:            "success",
+			CheckedAt:         time.Now(),
 		}
 
 		if estimate.EstimatedValue > 0 {

@@ -111,8 +111,8 @@ type DistributionCell struct {
 }
 
 const (
-	InvestmentBreakdownPurchaseMonth = "purchase-month"
-	InvestmentBreakdownMaterial      = "material"
+	InvestmentBreakdownPurchaseYear = "purchase-year"
+	InvestmentBreakdownMaterial     = "material"
 )
 
 // InvestmentBreakdownSegment holds one portfolio investment chart segment.
@@ -131,12 +131,13 @@ type InvestmentBreakdownSegment struct {
 
 // InvestmentMovementCoin holds one coin's valuation movement from the first recorded valuation to current value.
 type InvestmentMovementCoin struct {
-	CoinID       uint    `json:"coinId"`
-	Name         string  `json:"name"`
-	InitialValue float64 `json:"initialValue"`
-	CurrentValue float64 `json:"currentValue"`
-	ChangeAmount float64 `json:"changeAmount"`
-	ChangePct    float64 `json:"changePct"`
+	CoinID            uint    `json:"coinId"`
+	Name              string  `json:"name"`
+	InitialValue      float64 `json:"initialValue"`
+	CurrentValue      float64 `json:"currentValue"`
+	ChangeAmount      float64 `json:"changeAmount"`
+	ChangePct         float64 `json:"changePct"`
+	ChangeExplanation *string `json:"changeExplanation"`
 }
 
 // StaleValuationCoin holds one active coin ordered by valuation age.
@@ -751,8 +752,8 @@ func (r *CoinRepository) GetDistribution(userID uint) ([]DistributionCell, error
 // GetInvestmentBreakdown returns active-collection investment aggregates for the requested dimension.
 func (r *CoinRepository) GetInvestmentBreakdown(userID uint, dimension string) ([]InvestmentBreakdownSegment, error) {
 	switch dimension {
-	case InvestmentBreakdownPurchaseMonth:
-		return r.getInvestmentBreakdownByPurchaseMonth(userID)
+	case InvestmentBreakdownPurchaseYear:
+		return r.getInvestmentBreakdownByPurchaseYear(userID)
 	case InvestmentBreakdownMaterial:
 		return r.getInvestmentBreakdownByMaterial(userID)
 	default:
@@ -760,12 +761,11 @@ func (r *CoinRepository) GetInvestmentBreakdown(userID uint, dimension string) (
 	}
 }
 
-func (r *CoinRepository) getInvestmentBreakdownByPurchaseMonth(userID uint) ([]InvestmentBreakdownSegment, error) {
+func (r *CoinRepository) getInvestmentBreakdownByPurchaseYear(userID uint) ([]InvestmentBreakdownSegment, error) {
 	var segments []InvestmentBreakdownSegment
 	err := r.db.Model(&models.Coin{}).
 		Select(`
 			CAST(strftime('%Y', purchase_date) AS INTEGER) AS year,
-			CAST(strftime('%m', purchase_date) AS INTEGER) AS month,
 			COALESCE(SUM(purchase_price), 0) AS invested,
 			COALESCE(SUM(COALESCE(current_value, purchase_price, 0)), 0) AS current_value,
 			COALESCE(SUM(COALESCE(current_value, purchase_price, 0)), 0) - COALESCE(SUM(purchase_price), 0) AS gain_loss,
@@ -778,15 +778,15 @@ func (r *CoinRepository) getInvestmentBreakdownByPurchaseMonth(userID uint) ([]I
 			SUM(CASE WHEN purchase_price IS NULL THEN 1 ELSE 0 END) AS missing_purchase_price_count`).
 		Scopes(ActiveCollection(userID)).
 		Where("purchase_date IS NOT NULL").
-		Group("year, month").
-		Order("year ASC, month ASC").
+		Group("year").
+		Order("year ASC").
 		Scan(&segments).Error
 	if err != nil {
 		return nil, err
 	}
 	for i := range segments {
-		if segments[i].Year != nil && segments[i].Month != nil {
-			segments[i].Label = fmt.Sprintf("%s %04d", time.Month(*segments[i].Month).String()[:3], *segments[i].Year)
+		if segments[i].Year != nil {
+			segments[i].Label = fmt.Sprintf("%04d", *segments[i].Year)
 		}
 	}
 	return segments, nil
@@ -846,7 +846,17 @@ func (r *CoinRepository) getInvestmentMovementCoins(userID uint, limit int, incr
 			CASE
 				WHEN first_value.value = 0 THEN 0
 				ELSE ((c.current_value - first_value.value) / first_value.value) * 100
-			END AS change_pct
+			END AS change_pct,
+			(
+				SELECT vr.change_explanation
+				FROM valuation_results vr
+				WHERE vr.coin_id = c.id
+					AND vr.status = 'success'
+					AND vr.change_explanation IS NOT NULL
+					AND vr.change_explanation != ''
+				ORDER BY vr.checked_at DESC, vr.id DESC
+				LIMIT 1
+			) AS change_explanation
 		FROM coins c
 		JOIN coin_value_histories first_value ON first_value.id = (
 			SELECT cvh.id
