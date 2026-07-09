@@ -111,8 +111,8 @@ type DistributionCell struct {
 }
 
 const (
-	InvestmentBreakdownPurchaseMonth = "purchase-month"
-	InvestmentBreakdownMaterial      = "material"
+	InvestmentBreakdownPurchaseYear = "purchase-year"
+	InvestmentBreakdownMaterial     = "material"
 )
 
 // InvestmentBreakdownSegment holds one portfolio investment chart segment.
@@ -127,6 +127,24 @@ type InvestmentBreakdownSegment struct {
 	CoinCount                 int64   `json:"coinCount"`
 	MissingCurrentValueCount  int64   `json:"missingCurrentValueCount"`
 	MissingPurchasePriceCount int64   `json:"missingPurchasePriceCount"`
+}
+
+// InvestmentMovementCoin holds one coin's valuation movement from the first recorded valuation to current value.
+type InvestmentMovementCoin struct {
+	CoinID            uint    `json:"coinId"`
+	Name              string  `json:"name"`
+	InitialValue      float64 `json:"initialValue"`
+	CurrentValue      float64 `json:"currentValue"`
+	ChangeAmount      float64 `json:"changeAmount"`
+	ChangePct         float64 `json:"changePct"`
+	ChangeExplanation *string `json:"changeExplanation"`
+}
+
+// StaleValuationCoin holds one active coin ordered by valuation age.
+type StaleValuationCoin struct {
+	CoinID          uint       `json:"coinId"`
+	Name            string     `json:"name"`
+	LastValuationAt *time.Time `json:"lastValuationAt"`
 }
 
 // CoinRepository encapsulates all coin-related database operations.
@@ -734,8 +752,8 @@ func (r *CoinRepository) GetDistribution(userID uint) ([]DistributionCell, error
 // GetInvestmentBreakdown returns active-collection investment aggregates for the requested dimension.
 func (r *CoinRepository) GetInvestmentBreakdown(userID uint, dimension string) ([]InvestmentBreakdownSegment, error) {
 	switch dimension {
-	case InvestmentBreakdownPurchaseMonth:
-		return r.getInvestmentBreakdownByPurchaseMonth(userID)
+	case InvestmentBreakdownPurchaseYear:
+		return r.getInvestmentBreakdownByPurchaseYear(userID)
 	case InvestmentBreakdownMaterial:
 		return r.getInvestmentBreakdownByMaterial(userID)
 	default:
@@ -743,12 +761,11 @@ func (r *CoinRepository) GetInvestmentBreakdown(userID uint, dimension string) (
 	}
 }
 
-func (r *CoinRepository) getInvestmentBreakdownByPurchaseMonth(userID uint) ([]InvestmentBreakdownSegment, error) {
+func (r *CoinRepository) getInvestmentBreakdownByPurchaseYear(userID uint) ([]InvestmentBreakdownSegment, error) {
 	var segments []InvestmentBreakdownSegment
 	err := r.db.Model(&models.Coin{}).
 		Select(`
 			CAST(strftime('%Y', purchase_date) AS INTEGER) AS year,
-			CAST(strftime('%m', purchase_date) AS INTEGER) AS month,
 			COALESCE(SUM(purchase_price), 0) AS invested,
 			COALESCE(SUM(COALESCE(current_value, purchase_price, 0)), 0) AS current_value,
 			COALESCE(SUM(COALESCE(current_value, purchase_price, 0)), 0) - COALESCE(SUM(purchase_price), 0) AS gain_loss,
@@ -761,15 +778,15 @@ func (r *CoinRepository) getInvestmentBreakdownByPurchaseMonth(userID uint) ([]I
 			SUM(CASE WHEN purchase_price IS NULL THEN 1 ELSE 0 END) AS missing_purchase_price_count`).
 		Scopes(ActiveCollection(userID)).
 		Where("purchase_date IS NOT NULL").
-		Group("year, month").
-		Order("year ASC, month ASC").
+		Group("year").
+		Order("year ASC").
 		Scan(&segments).Error
 	if err != nil {
 		return nil, err
 	}
 	for i := range segments {
-		if segments[i].Year != nil && segments[i].Month != nil {
-			segments[i].Label = fmt.Sprintf("%s %04d", time.Month(*segments[i].Month).String()[:3], *segments[i].Year)
+		if segments[i].Year != nil {
+			segments[i].Label = fmt.Sprintf("%04d", *segments[i].Year)
 		}
 	}
 	return segments, nil
@@ -795,6 +812,84 @@ func (r *CoinRepository) getInvestmentBreakdownByMaterial(userID uint) ([]Invest
 		Order("invested DESC, label ASC").
 		Scan(&segments).Error
 	return segments, err
+}
+
+// GetTopInvestmentIncreases returns active coins with the largest positive movement since first valuation.
+func (r *CoinRepository) GetTopInvestmentIncreases(userID uint, limit int) ([]InvestmentMovementCoin, error) {
+	return r.getInvestmentMovementCoins(userID, limit, true)
+}
+
+// GetTopInvestmentDrops returns active coins with the largest negative movement since first valuation.
+func (r *CoinRepository) GetTopInvestmentDrops(userID uint, limit int) ([]InvestmentMovementCoin, error) {
+	return r.getInvestmentMovementCoins(userID, limit, false)
+}
+
+func (r *CoinRepository) getInvestmentMovementCoins(userID uint, limit int, increases bool) ([]InvestmentMovementCoin, error) {
+	if limit < 1 {
+		limit = 5
+	}
+	comparison := "c.current_value > first_value.value"
+	order := "change_amount DESC, c.id ASC"
+	if !increases {
+		comparison = "c.current_value < first_value.value"
+		order = "change_amount ASC, c.id ASC"
+	}
+
+	var coins []InvestmentMovementCoin
+	err := r.db.Raw(fmt.Sprintf(`
+		SELECT
+			c.id AS coin_id,
+			c.name AS name,
+			first_value.value AS initial_value,
+			c.current_value AS current_value,
+			c.current_value - first_value.value AS change_amount,
+			CASE
+				WHEN first_value.value = 0 THEN 0
+				ELSE ((c.current_value - first_value.value) / first_value.value) * 100
+			END AS change_pct,
+			(
+				SELECT vr.change_explanation
+				FROM valuation_results vr
+				WHERE vr.coin_id = c.id
+					AND vr.status = 'success'
+					AND vr.change_explanation IS NOT NULL
+					AND vr.change_explanation != ''
+				ORDER BY vr.checked_at DESC, vr.id DESC
+				LIMIT 1
+			) AS change_explanation
+		FROM coins c
+		JOIN coin_value_histories first_value ON first_value.id = (
+			SELECT cvh.id
+			FROM coin_value_histories cvh
+			WHERE cvh.coin_id = c.id AND cvh.user_id = c.user_id
+			ORDER BY cvh.recorded_at ASC, cvh.id ASC
+			LIMIT 1
+		)
+		WHERE c.user_id = ?
+			AND c.is_wishlist = ?
+			AND c.is_sold = ?
+			AND c.current_value IS NOT NULL
+			AND %s
+		ORDER BY %s
+		LIMIT ?`, comparison, order), userID, false, false, limit).Scan(&coins).Error
+	return coins, err
+}
+
+// GetStaleValuationCoins returns active coins with missing or oldest valuation timestamps first.
+func (r *CoinRepository) GetStaleValuationCoins(userID uint, limit int) ([]StaleValuationCoin, error) {
+	if limit < 1 {
+		limit = 10
+	}
+	var coins []StaleValuationCoin
+	err := r.db.Model(&models.Coin{}).
+		Select("id AS coin_id, name, current_value_updated_at AS last_valuation_at").
+		Scopes(ActiveCollection(userID)).
+		Order("current_value_updated_at IS NOT NULL ASC").
+		Order("current_value_updated_at ASC").
+		Order("id ASC").
+		Limit(limit).
+		Scan(&coins).Error
+	return coins, err
 }
 
 // validSuggestionColumns is the allowlist of columns permitted in Suggestions queries.

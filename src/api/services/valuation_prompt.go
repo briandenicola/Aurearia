@@ -12,6 +12,7 @@ CRITICAL: Return your response as ONLY a JSON object (wrapped in ` + "```json" +
 - estimatedValue: number (USD, single number not a range)
 - confidence: "high" (3+ comparables), "medium" (1-2), or "low" (general knowledge)
 - reasoning: string (2-3 SHORT sentences only — what you found and how you arrived at the estimate)
+- changeExplanation: string (one concise sentence explaining why the value increased or decreased versus the provided previous value; use "" when no previous value is provided or value is unchanged)
 - comparables: array of { "source": "dealer name", "price": "$X", "url": "listing URL" }
 
 ` + "```json" + `
@@ -19,6 +20,7 @@ CRITICAL: Return your response as ONLY a JSON object (wrapped in ` + "```json" +
   "estimatedValue": 275,
   "confidence": "high",
   "reasoning": "Found 4 comparable Augustus denarii in VF condition listed at $250-300. Grade and strike quality place this coin at mid-range.",
+  "changeExplanation": "The value increased because recent comparable VF examples are closing above the prior estimate.",
   "comparables": [
     { "source": "VCoins - Example Dealer", "price": "$285", "url": "https://www.vcoins.com/..." },
     { "source": "MA-Shops", "price": "$250", "url": "https://www.ma-shops.com/..." }

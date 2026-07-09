@@ -1,10 +1,10 @@
 <template>
-  <section class="stats-section card investment-chart-card">
-    <div class="investment-chart-header">
+  <section class="stats-section card investment-table-card">
+    <div class="investment-table-header">
       <div>
         <p class="section-label">{{ eyebrow }}</p>
         <h2>{{ title }}</h2>
-        <p v-if="description" class="chart-description">{{ description }}</p>
+        <p v-if="description" class="table-description">{{ description }}</p>
       </div>
       <span v-if="rows.length" class="coin-count">{{ totalCoinCount }} coins</span>
     </div>
@@ -30,7 +30,7 @@
           </strong>
         </div>
         <div class="summary-pill">
-          <span class="summary-label">Return</span>
+          <span class="summary-label">ROI</span>
           <strong :class="summaryGainLossPct >= 0 ? 'positive' : 'negative'">
             {{ summaryGainLossPct >= 0 ? '+' : '' }}{{ summaryGainLossPct.toFixed(1) }}%
           </strong>
@@ -44,116 +44,52 @@
         </p>
       </div>
 
-      <div class="chart-legend" aria-label="Chart legend">
-        <span class="legend-item"><span class="legend-swatch legend-invested"></span> Invested flow</span>
-        <span class="legend-item"><span class="legend-swatch legend-current"></span> Current value marker</span>
-      </div>
-
-      <ZoomableSurface
-        class="flow-layout"
-        :aria-label="`Zoomable ${title} investment flow chart. Use controls, wheel, pinch, drag, or keyboard shortcuts to inspect segments.`"
-      >
-        <svg
-          :viewBox="`0 0 ${SVG_W} ${svgHeight}`"
-          preserveAspectRatio="xMidYMid meet"
-          class="investment-flow-svg"
-          role="img"
-          :aria-label="`${title} flow chart showing invested amount by segment`"
-        >
-          <defs>
-            <linearGradient :id="gradientId" x1="0" x2="1" y1="0" y2="0">
-              <stop offset="0%" stop-color="var(--accent-gold)" stop-opacity="0.45" />
-              <stop offset="100%" stop-color="var(--accent-bronze)" stop-opacity="0.25" />
-            </linearGradient>
-          </defs>
-
-          <rect
-            class="total-node"
-            :x="TOTAL_X"
-            :y="totalNode.y"
-            :width="NODE_W"
-            :height="totalNode.height"
-          />
-          <text
-            class="node-label node-label-left"
-            :x="TOTAL_X - 10"
-            :y="totalNode.y + totalNode.height / 2"
-            dominant-baseline="middle"
-            text-anchor="end"
-          >
-            Total invested
-          </text>
-
-          <path
-            v-for="band in flowBands"
-            :key="band.key"
-            class="flow-band"
-            :d="flowPath(band)"
-            :fill="`url(#${gradientId})`"
-          />
-
-          <g v-for="node in segmentNodes" :key="node.key">
-            <rect
-              class="segment-node"
-              :x="SEGMENT_X"
-              :y="node.y"
-              :width="NODE_W"
-              :height="node.height"
-              :fill="node.color"
-            />
-            <line
-              class="current-value-marker"
-              :x1="SEGMENT_X + NODE_W + 8"
-              :x2="SEGMENT_X + NODE_W + 8 + currentMarkerWidth(node.row)"
-              :y1="node.y + node.height / 2"
-              :y2="node.y + node.height / 2"
-            />
-            <text
-              class="node-label node-label-right"
-              :x="SEGMENT_X + NODE_W + 14"
-              :y="node.y + Math.max(node.height / 2 - 7, 0)"
-              dominant-baseline="middle"
-            >
-              {{ node.label }}
-            </text>
-            <text
-              class="node-value"
-              :x="SEGMENT_X + NODE_W + 14"
-              :y="node.y + node.height / 2 + 9"
-              dominant-baseline="middle"
-            >
-              {{ formatCurrency(node.row.invested) }} invested · {{ formatCurrency(node.row.currentValue) }} current
-            </text>
-          </g>
-        </svg>
-      </ZoomableSurface>
-
-      <div class="mobile-aggregate-summary" aria-label="Investment aggregate summary">
-        Invested: {{ formatCurrency(totals.invested) }} · Current: {{ formatCurrency(totals.currentValue) }} ·
-        <span :class="totals.gainLoss >= 0 ? 'positive' : 'negative'">
-          Gain/Loss: {{ totals.gainLoss >= 0 ? '+' : '' }}{{ formatCurrency(totals.gainLoss) }} ({{ summaryGainLossPct >= 0 ? '+' : '' }}{{ summaryGainLossPct.toFixed(1) }}%)
-        </span>
-      </div>
-
-      <div class="segment-list" aria-label="Investment breakdown segments">
+      <div class="investment-row-list" aria-label="Investment performance rows">
         <article
           v-for="row in displayRows"
           :key="rowKey(row)"
-          class="segment-card"
+          class="investment-row"
         >
-          <div class="segment-card-heading">
-            <span class="segment-name">{{ formatSegmentLabel(row) }}</span>
-            <span class="chip-sm">{{ row.coinCount }} coins</span>
-          </div>
-          <div class="segment-values">
-            <span><strong>{{ formatCurrency(row.invested) }}</strong> invested</span>
-            <span><strong class="gold">{{ formatCurrency(row.currentValue) }}</strong> current</span>
-            <span :class="row.gainLoss >= 0 ? 'positive' : 'negative'">
-              {{ row.gainLoss >= 0 ? '+' : '' }}{{ formatCurrency(row.gainLoss) }}
-              <template v-if="row.gainLossPct !== null">
-                ({{ row.gainLossPct >= 0 ? '+' : '' }}{{ row.gainLossPct.toFixed(1) }}%)
-              </template>
+          <div class="row-main">
+            <div>
+              <h3>{{ formatSegmentLabel(row) }}</h3>
+              <p>{{ row.coinCount }} coins</p>
+            </div>
+            <span class="roi-pill" :class="row.gainLoss >= 0 ? 'positive-bg' : 'negative-bg'">
+              {{ row.gainLoss >= 0 ? '+' : '' }}{{ normalizedPct(row).toFixed(1) }}%
             </span>
+          </div>
+
+          <div class="value-grid">
+            <div>
+              <span class="value-label">Invested</span>
+              <strong>{{ formatCurrency(row.invested) }}</strong>
+            </div>
+            <div>
+              <span class="value-label">Current</span>
+              <strong class="gold">{{ formatCurrency(row.currentValue) }}</strong>
+            </div>
+            <div>
+              <span class="value-label">Gain / Loss</span>
+              <strong :class="row.gainLoss >= 0 ? 'positive' : 'negative'">
+                {{ row.gainLoss >= 0 ? '+' : '' }}{{ formatCurrency(row.gainLoss) }}
+              </strong>
+            </div>
+          </div>
+
+          <div class="allocation-bars" aria-hidden="true">
+            <div class="bar-row">
+              <span>Invested</span>
+              <div class="bar-track">
+                <span class="bar-fill invested" :style="{ width: `${barWidth(row.invested, maxInvested)}%` }"></span>
+              </div>
+            </div>
+            <div class="bar-row">
+              <span>Current</span>
+              <div class="bar-track">
+                <span class="bar-fill current" :style="{ width: `${barWidth(row.currentValue, maxCurrentValue)}%` }"></span>
+              </div>
+            </div>
           </div>
         </article>
       </div>
@@ -163,26 +99,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import ZoomableSurface from '@/components/ZoomableSurface.vue'
 import { formatCurrency } from '@/utils/format'
 import type { InvestmentBreakdownSegment } from '@/types'
-
-interface SegmentNode {
-  key: string
-  label: string
-  row: InvestmentBreakdownSegment
-  y: number
-  height: number
-  sourceY: number
-  color: string
-}
-
-interface FlowBand {
-  key: string
-  y0: number
-  y1: number
-  height: number
-}
 
 const props = defineProps<{
   title: string
@@ -191,228 +109,133 @@ const props = defineProps<{
   rows: InvestmentBreakdownSegment[]
 }>()
 
-const SVG_W = 760
-const TOTAL_X = 95
-const SEGMENT_X = 405
-const NODE_W = 16
-const CHART_TOP = 24
-const NODE_GAP = 10
-const MIN_NODE_H = 10
-const PALETTE = [
-  'var(--accent-gold)',
-  'var(--accent-bronze)',
-  'var(--cat-roman)',
-  'var(--cat-greek)',
-  'var(--cat-byzantine)',
-  'var(--cat-modern)',
-  'var(--mat-silver)',
-  'var(--mat-bronze)',
-]
-const MATERIAL_COLORS: Record<string, string> = {
-  gold: 'var(--mat-gold)',
-  silver: 'var(--mat-silver)',
-  bronze: 'var(--mat-bronze)',
-  copper: 'var(--accent-bronze)',
-  electrum: 'var(--accent-gold)',
-  other: 'var(--text-secondary)',
-}
-const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
+const displayRows = computed(() => props.rows)
 
-const gradientId = computed(() => `investmentFlowGradient-${props.title.replace(/\W+/g, '-')}`)
-const displayRows = computed(() =>
-  [...props.rows]
-    .filter((row) => row.coinCount > 0)
-    .sort((a, b) => {
-      if (a.year == null && b.year != null) return 1
-      if (a.year != null && b.year == null) return -1
-      if (a.year != null && b.year != null && a.year !== b.year) return a.year - b.year
-      if (a.month == null && b.month != null) return 1
-      if (a.month != null && b.month == null) return -1
-      if (a.month != null && b.month != null && a.month !== b.month) return a.month - b.month
-      return b.invested - a.invested
-    }),
-)
-const totalCoinCount = computed(() => displayRows.value.reduce((sum, row) => sum + row.coinCount, 0))
-const totals = computed(() =>
-  displayRows.value.reduce(
-    (sum, row) => ({
-      invested: sum.invested + row.invested,
-      currentValue: sum.currentValue + row.currentValue,
-      gainLoss: sum.gainLoss + row.gainLoss,
-      missingCurrentValueCount: sum.missingCurrentValueCount + row.missingCurrentValueCount,
-      missingPurchasePriceCount: sum.missingPurchasePriceCount + row.missingPurchasePriceCount,
-    }),
-    { invested: 0, currentValue: 0, gainLoss: 0, missingCurrentValueCount: 0, missingPurchasePriceCount: 0 },
-  ),
-)
+const totalCoinCount = computed(() => props.rows.reduce((sum, row) => sum + row.coinCount, 0))
+
+const totals = computed(() => props.rows.reduce(
+  (acc, row) => ({
+    invested: acc.invested + row.invested,
+    currentValue: acc.currentValue + row.currentValue,
+    gainLoss: acc.gainLoss + row.gainLoss,
+  }),
+  { invested: 0, currentValue: 0, gainLoss: 0 },
+))
+
 const summaryGainLossPct = computed(() => {
-  if (!totals.value.invested) return 0
+  if (totals.value.invested === 0) return 0
   return (totals.value.gainLoss / totals.value.invested) * 100
 })
-const hasMissingValues = computed(
-  () => totals.value.missingCurrentValueCount > 0 || totals.value.missingPurchasePriceCount > 0,
-)
+
+const maxInvested = computed(() => Math.max(...props.rows.map((row) => row.invested), 0))
+const maxCurrentValue = computed(() => Math.max(...props.rows.map((row) => row.currentValue), 0))
+
+const hasMissingValues = computed(() => props.rows.some(
+  (row) => row.missingCurrentValueCount > 0 || row.missingPurchasePriceCount > 0,
+))
+
 const missingValueSummary = computed(() => {
+  const missingPurchase = props.rows.reduce((sum, row) => sum + row.missingPurchasePriceCount, 0)
+  const missingCurrent = props.rows.reduce((sum, row) => sum + row.missingCurrentValueCount, 0)
   const parts: string[] = []
-  if (totals.value.missingPurchasePriceCount) {
-    parts.push(`${totals.value.missingPurchasePriceCount} missing purchase price`)
-  }
-  if (totals.value.missingCurrentValueCount) {
-    parts.push(`${totals.value.missingCurrentValueCount} missing current value`)
-  }
+  if (missingPurchase > 0) parts.push(`${missingPurchase} missing purchase price${missingPurchase === 1 ? '' : 's'}`)
+  if (missingCurrent > 0) parts.push(`${missingCurrent} missing current value${missingCurrent === 1 ? '' : 's'}`)
   return parts.join(' and ')
 })
-const maxCurrentValue = computed(() => Math.max(1, ...displayRows.value.map((row) => row.currentValue)))
-const svgHeight = computed(() => Math.max(240, CHART_TOP * 2 + displayRows.value.length * (MIN_NODE_H + NODE_GAP) + 90))
-const chartHeight = computed(() => svgHeight.value - CHART_TOP * 2)
-const investedScale = computed(() => {
-  const gapTotal = Math.max(0, displayRows.value.length - 1) * NODE_GAP
-  const available = Math.max(80, chartHeight.value - gapTotal)
-  return totals.value.invested ? available / totals.value.invested : 1
-})
-const totalNode = computed(() => ({
-  y: CHART_TOP,
-  height: Math.max(80, displayRows.value.reduce((sum, row) => sum + Math.max(MIN_NODE_H, row.invested * investedScale.value), 0)),
-}))
-const segmentNodes = computed<SegmentNode[]>(() => {
-  let y = CHART_TOP
-  let sourceY = totalNode.value.y
-  return displayRows.value.map((row, index) => {
-    const height = Math.max(MIN_NODE_H, row.invested * investedScale.value)
-    const node: SegmentNode = {
-      key: rowKey(row),
-      label: formatSegmentLabel(row),
-      row,
-      y,
-      height,
-      sourceY,
-      color: colorForRow(row, index),
-    }
-    y += height + NODE_GAP
-    sourceY += height
-    return node
-  })
-})
-const flowBands = computed<FlowBand[]>(() =>
-  segmentNodes.value.map((node) => ({
-    key: node.key,
-    y0: node.sourceY,
-    y1: node.y,
-    height: node.height,
-  })),
-)
 
 function rowKey(row: InvestmentBreakdownSegment): string {
-  return `${row.year ?? 'none'}-${row.month ?? 'none'}-${row.label}`
+  return `${row.label}-${row.year ?? 'none'}-${row.month ?? 'none'}`
 }
 
 function formatSegmentLabel(row: InvestmentBreakdownSegment): string {
-  if (row.year != null && row.month != null) {
-    const month = MONTH_LABELS[row.month - 1] ?? `${row.month}`
-    return `${row.year} ${month}`
-  }
-  if (row.year != null) return `${row.year}`
-  return row.label || 'Unspecified'
+  if (row.year) return `${row.year}`
+  return row.label
 }
 
-function colorForRow(row: InvestmentBreakdownSegment, index: number): string {
-  return MATERIAL_COLORS[row.label.toLowerCase()] ?? PALETTE[index % PALETTE.length]!
+function normalizedPct(row: InvestmentBreakdownSegment): number {
+  if (row.gainLossPct !== null) return row.gainLossPct
+  if (row.invested === 0) return 0
+  return (row.gainLoss / row.invested) * 100
 }
 
-function currentMarkerWidth(row: InvestmentBreakdownSegment): number {
-  return Math.max(20, (row.currentValue / maxCurrentValue.value) * 170)
-}
-
-function flowPath(band: FlowBand): string {
-  const sx = TOTAL_X + NODE_W
-  const tx = SEGMENT_X
-  const mid = (sx + tx) / 2
-  const sourceTop = band.y0
-  const sourceBottom = band.y0 + band.height
-  const targetTop = band.y1
-  const targetBottom = band.y1 + band.height
-  return `M ${sx} ${sourceTop} C ${mid} ${sourceTop} ${mid} ${targetTop} ${tx} ${targetTop} L ${tx} ${targetBottom} C ${mid} ${targetBottom} ${mid} ${sourceBottom} ${sx} ${sourceBottom} Z`
+function barWidth(value: number, max: number): number {
+  if (max <= 0 || value <= 0) return 0
+  return Math.max(6, Math.min(100, (value / max) * 100))
 }
 </script>
 
 <style scoped>
-.investment-chart-card {
+.investment-table-card {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  overflow: hidden;
+  padding: 1rem;
 }
 
-.investment-chart-header {
+.investment-table-header {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
+  justify-content: space-between;
   gap: 1rem;
 }
 
-.investment-chart-header h2 {
-  margin: 0.15rem 0 0;
-  font-size: 1.4rem;
+.investment-table-header h2 {
+  margin: 0.25rem 0 0;
+  font-size: 1.2rem;
 }
 
-.chart-description {
+.table-description,
+.empty-state p,
+.row-main p {
   margin: 0.35rem 0 0;
   color: var(--text-secondary);
   font-size: 0.85rem;
 }
 
-.coin-count {
-  color: var(--text-muted);
-  font-size: 0.8rem;
+.coin-count,
+.roi-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
   white-space: nowrap;
 }
 
-.empty-state {
-  padding: 2rem 0;
-  color: var(--text-muted);
-  text-align: center;
+.coin-count {
+  padding: 0.2rem 0.7rem;
+  color: var(--accent-gold);
+  background: var(--accent-gold-dim);
+  border: 1px solid var(--border-accent);
 }
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.75rem;
 }
 
 .summary-pill {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.25rem;
   padding: 0.75rem;
   background: var(--bg-input);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
 }
 
-.summary-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.summary-label,
+.value-label,
+.bar-row span {
+  font-size: 0.75rem;
   color: var(--text-muted);
-}
-
-.gold {
-  color: var(--accent-gold);
-}
-
-.positive {
-  color: var(--color-positive);
-}
-
-.negative {
-  color: var(--color-negative);
 }
 
 .confidence-callout {
   padding: 0.75rem;
   background: var(--accent-gold-glow);
-  border: 1px solid var(--border-accent);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
 }
 
@@ -422,131 +245,123 @@ function flowPath(band: FlowBand): string {
   font-size: 0.85rem;
 }
 
-.chart-legend {
+.investment-row-list {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 0.75rem;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
 }
 
-.legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.legend-swatch {
-  width: 1.5rem;
-  height: 0.25rem;
-  border-radius: var(--radius-full);
-}
-
-.legend-invested {
-  background: var(--accent-gold);
-}
-
-.legend-current {
-  background: var(--text-secondary);
-}
-
-.investment-flow-svg {
-  width: 100%;
-  min-width: 42rem;
-  height: auto;
-}
-
-.total-node,
-.segment-node {
-  vector-effect: non-scaling-stroke;
-}
-
-.total-node {
-  fill: var(--accent-gold);
-}
-
-.flow-band {
-  vector-effect: non-scaling-stroke;
-}
-
-.current-value-marker {
-  stroke: var(--text-secondary);
-  stroke-width: 4;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-}
-
-.node-label {
-  fill: var(--text-secondary);
-  font-size: 0.7rem;
-  font-weight: 600;
-}
-
-.node-value {
-  fill: var(--text-muted);
-  font-size: 0.62rem;
-}
-
-.segment-list {
+.investment-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: 0.75rem;
-}
-
-.segment-card {
+  grid-template-columns: minmax(9rem, 1fr) minmax(16rem, 1.5fr) minmax(13rem, 1fr);
+  gap: 1rem;
+  align-items: center;
   padding: 0.75rem;
   background: var(--bg-input);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
 }
 
-.segment-card-heading {
+.row-main {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  gap: 0.75rem;
+  align-items: flex-start;
 }
 
-.segment-name {
-  color: var(--text-primary);
-  font-weight: 600;
+.row-main h3 {
+  margin: 0;
+  color: var(--text-heading);
+  font-size: 1.2rem;
 }
 
-.segment-values {
+.roi-pill {
+  padding: 0.15rem 0.5rem;
+}
+
+.positive-bg {
+  color: var(--accent-gold);
+  background: var(--accent-gold-dim);
+}
+
+.negative-bg {
+  color: var(--cat-byzantine);
+  background: color-mix(in srgb, var(--cat-byzantine) 18%, transparent);
+}
+
+.value-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.value-grid div {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
 }
 
-.mobile-aggregate-summary {
-  display: none;
+.allocation-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-@media (max-width: 768px) {
-  .investment-chart-header {
+.bar-row {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.bar-track {
+  height: 0.45rem;
+  overflow: hidden;
+  background: var(--bg-card);
+  border-radius: var(--radius-full);
+}
+
+.bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+}
+
+.bar-fill.invested {
+  background: var(--accent-bronze);
+}
+
+.bar-fill.current {
+  background: var(--accent-gold);
+}
+
+.gold,
+.positive {
+  color: var(--accent-gold);
+}
+
+.negative {
+  color: var(--cat-byzantine);
+}
+
+@media (max-width: 900px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .investment-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .investment-table-header {
     flex-direction: column;
   }
 
-  .investment-flow-svg {
-    min-width: 34rem;
-  }
-
-  .segment-list {
-    display: none;
-  }
-
-  .mobile-aggregate-summary {
-    display: block;
-    padding: 0.75rem;
-    background: var(--bg-input);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    color: var(--text-secondary);
-    font-size: 0.85rem;
-    text-align: center;
+  .summary-grid,
+  .value-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

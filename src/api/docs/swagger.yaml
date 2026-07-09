@@ -646,11 +646,23 @@ definitions:
   handlers.InvestmentBreakdownResponse:
     properties:
       dimension:
-        example: purchase-month
+        example: purchase-year
         type: string
       segments:
         items:
           $ref: '#/definitions/repository.InvestmentBreakdownSegment'
+        type: array
+      staleValuations:
+        items:
+          $ref: '#/definitions/repository.StaleValuationCoin'
+        type: array
+      topDrops:
+        items:
+          $ref: '#/definitions/repository.InvestmentMovementCoin'
+        type: array
+      topIncreases:
+        items:
+          $ref: '#/definitions/repository.InvestmentMovementCoin'
         type: array
     type: object
   handlers.LinkEventRequest:
@@ -2422,6 +2434,32 @@ definitions:
         type: integer
       year:
         type: integer
+    type: object
+  repository.InvestmentMovementCoin:
+    properties:
+      changeAmount:
+        type: number
+      changeExplanation:
+        type: string
+      changePct:
+        type: number
+      coinId:
+        type: integer
+      currentValue:
+        type: number
+      initialValue:
+        type: number
+      name:
+        type: string
+    type: object
+  repository.StaleValuationCoin:
+    properties:
+      coinId:
+        type: integer
+      lastValuationAt:
+        type: string
+      name:
+        type: string
     type: object
   services.AIJobSubmissionResponse:
     properties:
@@ -10315,13 +10353,13 @@ paths:
       - Health
   /stats/investment-breakdown:
     get:
-      description: Returns investment, current value, gain/loss, and confidence counts
-        grouped by purchase month or material for the authenticated user's active
-        collection.
+      description: Returns investment, current value, gain/loss, confidence counts,
+        top valuation movement, and stale valuations for the authenticated user's
+        active collection.
       parameters:
       - description: Breakdown dimension
         enum:
-        - purchase-month
+        - purchase-year
         - material
         in: query
         name: dimension

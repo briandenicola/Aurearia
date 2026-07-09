@@ -524,7 +524,7 @@
                       <th>Estimated</th>
                       <th>Confidence</th>
                       <th>Status</th>
-                      <th>Reasoning</th>
+                      <th>Explanation</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -539,7 +539,10 @@
                       <td>
                         <span class="listing-status-badge" :class="'val-result-' + r.status">{{ r.status }}</span>
                       </td>
-                      <td class="avail-reason">{{ r.reasoning || r.errorMessage || '--' }}</td>
+                      <td class="avail-reason">
+                        <div v-if="r.changeExplanation" class="val-change-explanation">{{ r.changeExplanation }}</div>
+                        <div>{{ r.reasoning || r.errorMessage || '--' }}</div>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -1260,6 +1263,12 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.val-change-explanation {
+  margin-bottom: 0.35rem;
+  color: var(--accent-gold);
+  font-weight: 500;
 }
 
 .listing-status-badge {

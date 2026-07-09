@@ -11575,7 +11575,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns investment, current value, gain/loss, and confidence counts grouped by purchase month or material for the authenticated user's active collection.",
+                "description": "Returns investment, current value, gain/loss, confidence counts, top valuation movement, and stale valuations for the authenticated user's active collection.",
                 "produces": [
                     "application/json"
                 ],
@@ -11586,7 +11586,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "enum": [
-                            "purchase-month",
+                            "purchase-year",
                             "material"
                         ],
                         "type": "string",
@@ -14889,12 +14889,30 @@ const docTemplate = `{
             "properties": {
                 "dimension": {
                     "type": "string",
-                    "example": "purchase-month"
+                    "example": "purchase-year"
                 },
                 "segments": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/repository.InvestmentBreakdownSegment"
+                    }
+                },
+                "staleValuations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.StaleValuationCoin"
+                    }
+                },
+                "topDrops": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.InvestmentMovementCoin"
+                    }
+                },
+                "topIncreases": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.InvestmentMovementCoin"
                     }
                 }
             }
@@ -17477,6 +17495,46 @@ const docTemplate = `{
                 },
                 "year": {
                     "type": "integer"
+                }
+            }
+        },
+        "repository.InvestmentMovementCoin": {
+            "type": "object",
+            "properties": {
+                "changeAmount": {
+                    "type": "number"
+                },
+                "changeExplanation": {
+                    "type": "string"
+                },
+                "changePct": {
+                    "type": "number"
+                },
+                "coinId": {
+                    "type": "integer"
+                },
+                "currentValue": {
+                    "type": "number"
+                },
+                "initialValue": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "repository.StaleValuationCoin": {
+            "type": "object",
+            "properties": {
+                "coinId": {
+                    "type": "integer"
+                },
+                "lastValuationAt": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },

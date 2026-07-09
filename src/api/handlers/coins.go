@@ -582,10 +582,10 @@ func (h *CoinHandler) Distribution(c *gin.Context) {
 // InvestmentBreakdown returns active-collection investment aggregates for charting.
 //
 //	@Summary		Get investment breakdown
-//	@Description	Returns investment, current value, gain/loss, and confidence counts grouped by purchase month or material for the authenticated user's active collection.
+//	@Description	Returns investment, current value, gain/loss, confidence counts, top valuation movement, and stale valuations for the authenticated user's active collection.
 //	@Tags			Coins
 //	@Produce		json
-//	@Param			dimension	query		string	true	"Breakdown dimension"	Enums(purchase-month, material)
+//	@Param			dimension	query		string	true	"Breakdown dimension"	Enums(purchase-year, material)
 //	@Success		200			{object}	InvestmentBreakdownResponse
 //	@Failure		400			{object}	ErrorResponse
 //	@Failure		401			{object}	ErrorResponse
@@ -596,9 +596,9 @@ func (h *CoinHandler) InvestmentBreakdown(c *gin.Context) {
 	userID := c.GetUint("userId")
 	dimension := c.Query("dimension")
 	switch dimension {
-	case repository.InvestmentBreakdownPurchaseMonth, repository.InvestmentBreakdownMaterial:
+	case repository.InvestmentBreakdownPurchaseYear, repository.InvestmentBreakdownMaterial:
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "dimension must be one of: purchase-month, material"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "dimension must be one of: purchase-year, material"})
 		return
 	}
 
@@ -607,7 +607,28 @@ func (h *CoinHandler) InvestmentBreakdown(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch investment breakdown"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"dimension": dimension, "segments": segments})
+	topIncreases, err := h.repo.GetTopInvestmentIncreases(userID, 5)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch investment movement"})
+		return
+	}
+	topDrops, err := h.repo.GetTopInvestmentDrops(userID, 5)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch investment movement"})
+		return
+	}
+	staleValuations, err := h.repo.GetStaleValuationCoins(userID, 5)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch stale valuations"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"dimension":       dimension,
+		"segments":        segments,
+		"topIncreases":    topIncreases,
+		"topDrops":        topDrops,
+		"staleValuations": staleValuations,
+	})
 }
 
 // Suggestions returns distinct values for autocomplete fields.
