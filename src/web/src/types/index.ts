@@ -834,9 +834,30 @@ export interface InvestmentBreakdownSegment {
   missingPurchasePriceCount: number
 }
 
+export interface InvestmentMovementCoin {
+  coinId: number
+  name: string
+  initialValue: number
+  currentValue: number
+  changeAmount: number
+  changePct: number
+}
+
+export interface StaleValuationCoin {
+  coinId: number
+  name: string
+  lastValuationAt: string | null
+}
+
 export type InvestmentBreakdownResponse =
   | InvestmentBreakdownSegment[]
-  | { dimension?: InvestmentBreakdownDimension; segments: InvestmentBreakdownSegment[] }
+  | {
+      dimension?: InvestmentBreakdownDimension
+      segments: InvestmentBreakdownSegment[]
+      topIncreases?: InvestmentMovementCoin[]
+      topDrops?: InvestmentMovementCoin[]
+      staleValuations?: StaleValuationCoin[]
+    }
 
 export type HealthGrade = 'A' | 'B' | 'C' | 'D' | 'F'
 export type HealthTrendDirection = 'up' | 'flat' | 'down' | 'unavailable'

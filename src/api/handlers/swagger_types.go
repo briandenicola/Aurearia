@@ -162,8 +162,11 @@ type StatsResponse struct {
 }
 
 type InvestmentBreakdownResponse struct {
-	Dimension string                                  `json:"dimension" example:"purchase-month"`
-	Segments  []repository.InvestmentBreakdownSegment `json:"segments"`
+	Dimension       string                                  `json:"dimension" example:"purchase-month"`
+	Segments        []repository.InvestmentBreakdownSegment `json:"segments"`
+	TopIncreases    []repository.InvestmentMovementCoin     `json:"topIncreases"`
+	TopDrops        []repository.InvestmentMovementCoin     `json:"topDrops"`
+	StaleValuations []repository.StaleValuationCoin         `json:"staleValuations"`
 }
 
 type CategoryCount struct {
