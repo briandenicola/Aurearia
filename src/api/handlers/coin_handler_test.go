@@ -35,6 +35,7 @@ func setupCoinHandlerTestDB(t *testing.T) *gorm.DB {
 		&models.ValueSnapshot{}, &models.CoinJournal{}, &models.Note{},
 		&models.CoinValueHistory{}, &models.CoinComment{},
 		&models.AvailabilityResult{}, &models.AuctionLot{},
+		&models.ValuationRun{}, &models.ValuationResult{},
 		&models.Tag{}, &models.CoinTag{},
 		&models.CoinSet{}, &models.CoinSetMembership{},
 		&models.Showcase{}, &models.ShowcaseCoin{},

@@ -9,10 +9,11 @@ import (
 
 // ValueEstimate holds the parsed AI valuation response.
 type ValueEstimate struct {
-	EstimatedValue float64               `json:"estimatedValue"`
-	Confidence     string                `json:"confidence"`
-	Reasoning      string                `json:"reasoning"`
-	Comparables    []ValueEstimateComp   `json:"comparables"`
+	EstimatedValue    float64             `json:"estimatedValue"`
+	Confidence        string              `json:"confidence"`
+	Reasoning         string              `json:"reasoning"`
+	ChangeExplanation string              `json:"changeExplanation"`
+	Comparables       []ValueEstimateComp `json:"comparables"`
 }
 
 // ValueEstimateComp represents a comparable sale found by the AI.
@@ -76,10 +77,11 @@ func tryParseJSONEstimate(text string) *ValueEstimate {
 	jsonStr := strings.TrimSpace(text[start : start+end])
 
 	var parsed struct {
-		EstimatedValue float64 `json:"estimatedValue"`
-		Confidence     string  `json:"confidence"`
-		Reasoning      string  `json:"reasoning"`
-		Comparables    []struct {
+		EstimatedValue    float64 `json:"estimatedValue"`
+		Confidence        string  `json:"confidence"`
+		Reasoning         string  `json:"reasoning"`
+		ChangeExplanation string  `json:"changeExplanation"`
+		Comparables       []struct {
 			Source string `json:"source"`
 			Price  string `json:"price"`
 			URL    string `json:"url"`
@@ -104,10 +106,11 @@ func tryParseJSONEstimate(text string) *ValueEstimate {
 	}
 
 	return &ValueEstimate{
-		EstimatedValue: parsed.EstimatedValue,
-		Confidence:     confidence,
-		Reasoning:      parsed.Reasoning,
-		Comparables:    comps,
+		EstimatedValue:    parsed.EstimatedValue,
+		Confidence:        confidence,
+		Reasoning:         parsed.Reasoning,
+		ChangeExplanation: strings.TrimSpace(parsed.ChangeExplanation),
+		Comparables:       comps,
 	}
 }
 

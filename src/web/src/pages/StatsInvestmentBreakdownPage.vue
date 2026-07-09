@@ -36,6 +36,7 @@
                   <span class="arrow">to</span>
                   <span class="gold">{{ formatCurrency(coin.currentValue) }}</span>
                 </div>
+                <p v-if="coin.changeExplanation" class="change-explanation">{{ coin.changeExplanation }}</p>
               </li>
             </ol>
             <p v-else class="empty-copy">No valuation increases are available yet.</p>
@@ -54,6 +55,7 @@
                   <span class="arrow">to</span>
                   <span class="loss">{{ formatCurrency(coin.currentValue) }}</span>
                 </div>
+                <p v-if="coin.changeExplanation" class="change-explanation">{{ coin.changeExplanation }}</p>
               </li>
             </ol>
             <p v-else class="empty-copy">No valuation declines are available yet.</p>
@@ -278,6 +280,13 @@ onMounted(loadBreakdowns)
   align-items: center;
   gap: 0.35rem;
   flex-wrap: wrap;
+}
+
+.change-explanation {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 .arrow,
