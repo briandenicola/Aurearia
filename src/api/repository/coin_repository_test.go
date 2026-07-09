@@ -433,6 +433,106 @@ func TestCoinRepository_GetInvestmentBreakdown_PurchaseMonthAggregatesConfidence
 	}
 }
 
+func TestCoinRepository_GetInvestmentMovementStats(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewCoinRepository(db)
+	now := time.Date(2026, time.July, 1, 12, 0, 0, 0, time.UTC)
+	old := now.AddDate(-1, 0, 0)
+
+	coins := []models.Coin{
+		{Name: "Big Gainer", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, CurrentValue: ptrFloat(300), CurrentValueUpdatedAt: ptrTime(now)},
+		{Name: "Small Gainer", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, CurrentValue: ptrFloat(150), CurrentValueUpdatedAt: ptrTime(now)},
+		{Name: "Big Drop", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, CurrentValue: ptrFloat(50), CurrentValueUpdatedAt: ptrTime(now)},
+		{Name: "Small Drop", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1, CurrentValue: ptrFloat(90), CurrentValueUpdatedAt: ptrTime(now)},
+		{Name: "Wishlist Excluded", Category: models.CategoryRoman, UserID: 1, IsWishlist: true, CurrentValue: ptrFloat(999), CurrentValueUpdatedAt: ptrTime(now)},
+		{Name: "Sold Excluded", Category: models.CategoryRoman, UserID: 1, IsSold: true, CurrentValue: ptrFloat(999), CurrentValueUpdatedAt: ptrTime(now)},
+		{Name: "Other User Excluded", Category: models.CategoryRoman, UserID: 2, CurrentValue: ptrFloat(999), CurrentValueUpdatedAt: ptrTime(now)},
+		{Name: "No History Excluded", Category: models.CategoryRoman, UserID: 1, CurrentValue: ptrFloat(999), CurrentValueUpdatedAt: ptrTime(now)},
+	}
+	for i := range coins {
+		if err := db.Create(&coins[i]).Error; err != nil {
+			t.Fatalf("Create coin %q failed: %v", coins[i].Name, err)
+		}
+	}
+
+	history := []models.CoinValueHistory{
+		{CoinID: coins[0].ID, UserID: 1, Value: 100, Confidence: "medium", RecordedAt: old},
+		{CoinID: coins[0].ID, UserID: 1, Value: 250, Confidence: "high", RecordedAt: now.Add(-time.Hour)},
+		{CoinID: coins[1].ID, UserID: 1, Value: 125, Confidence: "medium", RecordedAt: old},
+		{CoinID: coins[2].ID, UserID: 1, Value: 200, Confidence: "medium", RecordedAt: old},
+		{CoinID: coins[3].ID, UserID: 1, Value: 100, Confidence: "medium", RecordedAt: old},
+		{CoinID: coins[4].ID, UserID: 1, Value: 1, Confidence: "medium", RecordedAt: old},
+		{CoinID: coins[5].ID, UserID: 1, Value: 1, Confidence: "medium", RecordedAt: old},
+		{CoinID: coins[6].ID, UserID: 2, Value: 1, Confidence: "medium", RecordedAt: old},
+	}
+	for i := range history {
+		if err := db.Create(&history[i]).Error; err != nil {
+			t.Fatalf("Create value history failed: %v", err)
+		}
+	}
+
+	increases, err := repo.GetTopInvestmentIncreases(1, 5)
+	if err != nil {
+		t.Fatalf("GetTopInvestmentIncreases failed: %v", err)
+	}
+	if len(increases) != 2 || increases[0].Name != "Big Gainer" || increases[1].Name != "Small Gainer" {
+		t.Fatalf("unexpected increases: %#v", increases)
+	}
+	assertFloatNear(t, increases[0].InitialValue, 100)
+	assertFloatNear(t, increases[0].CurrentValue, 300)
+	assertFloatNear(t, increases[0].ChangeAmount, 200)
+
+	drops, err := repo.GetTopInvestmentDrops(1, 5)
+	if err != nil {
+		t.Fatalf("GetTopInvestmentDrops failed: %v", err)
+	}
+	if len(drops) != 2 || drops[0].Name != "Big Drop" || drops[1].Name != "Small Drop" {
+		t.Fatalf("unexpected drops: %#v", drops)
+	}
+	assertFloatNear(t, drops[0].InitialValue, 200)
+	assertFloatNear(t, drops[0].CurrentValue, 50)
+	assertFloatNear(t, drops[0].ChangeAmount, -150)
+}
+
+func TestCoinRepository_GetStaleValuationCoins(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewCoinRepository(db)
+	now := time.Date(2026, time.July, 1, 12, 0, 0, 0, time.UTC)
+	oldest := now.AddDate(-1, 0, 0)
+	recent := now.Add(-24 * time.Hour)
+
+	coins := []models.Coin{
+		{Name: "Never Valued", Category: models.CategoryRoman, UserID: 1},
+		{Name: "Oldest Valuation", Category: models.CategoryRoman, UserID: 1, CurrentValueUpdatedAt: ptrTime(oldest)},
+		{Name: "Recent Valuation", Category: models.CategoryRoman, UserID: 1, CurrentValueUpdatedAt: ptrTime(recent)},
+		{Name: "Wishlist Excluded", Category: models.CategoryRoman, UserID: 1, IsWishlist: true},
+		{Name: "Sold Excluded", Category: models.CategoryRoman, UserID: 1, IsSold: true},
+		{Name: "Other User Excluded", Category: models.CategoryRoman, UserID: 2},
+	}
+	for i := range coins {
+		if err := db.Create(&coins[i]).Error; err != nil {
+			t.Fatalf("Create coin %q failed: %v", coins[i].Name, err)
+		}
+	}
+
+	stale, err := repo.GetStaleValuationCoins(1, 10)
+	if err != nil {
+		t.Fatalf("GetStaleValuationCoins failed: %v", err)
+	}
+	wantNames := []string{"Never Valued", "Oldest Valuation", "Recent Valuation"}
+	if len(stale) != len(wantNames) {
+		t.Fatalf("expected %d stale coins, got %d: %#v", len(wantNames), len(stale), stale)
+	}
+	for i, want := range wantNames {
+		if stale[i].Name != want {
+			t.Fatalf("stale coin %d = %q, want %q", i, stale[i].Name, want)
+		}
+	}
+	if stale[0].LastValuationAt != nil {
+		t.Fatalf("expected never-valued coin to have nil last valuation, got %v", stale[0].LastValuationAt)
+	}
+}
+
 func TestCoinRepository_List_RandomSort(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewCoinRepository(db)
