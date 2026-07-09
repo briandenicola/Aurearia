@@ -162,7 +162,7 @@ type StatsResponse struct {
 }
 
 type InvestmentBreakdownResponse struct {
-	Dimension       string                                  `json:"dimension" example:"purchase-month"`
+	Dimension       string                                  `json:"dimension" example:"purchase-year"`
 	Segments        []repository.InvestmentBreakdownSegment `json:"segments"`
 	TopIncreases    []repository.InvestmentMovementCoin     `json:"topIncreases"`
 	TopDrops        []repository.InvestmentMovementCoin     `json:"topDrops"`

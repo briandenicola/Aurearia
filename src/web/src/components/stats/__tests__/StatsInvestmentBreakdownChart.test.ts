@@ -20,7 +20,7 @@ function segment(overrides: Partial<InvestmentBreakdownSegment>): InvestmentBrea
 }
 
 describe('StatsInvestmentBreakdownChart', () => {
-  it('renders summary values, legend, flow SVG, and segment cards', () => {
+  it('renders summary values and responsive investment rows', () => {
     const wrapper = mount(StatsInvestmentBreakdownChart, {
       props: {
         title: 'Material',
@@ -35,25 +35,24 @@ describe('StatsInvestmentBreakdownChart', () => {
     expect(wrapper.text()).toContain('Material')
     expect(wrapper.text()).toContain('Invested')
     expect(wrapper.text()).toContain('Current Value')
-    expect(wrapper.text()).toContain('Return')
+    expect(wrapper.text()).toContain('ROI')
     expect(wrapper.text()).toContain('5 coins')
-    expect(wrapper.find('.investment-flow-svg').exists()).toBe(true)
-    expect(wrapper.findAll('.flow-band')).toHaveLength(2)
-    expect(wrapper.findAll('.segment-card')).toHaveLength(2)
+    expect(wrapper.findAll('.investment-row')).toHaveLength(2)
+    expect(wrapper.findAll('.bar-fill.current')).toHaveLength(2)
   })
 
-  it('formats purchase year and month labels', () => {
+  it('formats purchase year labels', () => {
     const wrapper = mount(StatsInvestmentBreakdownChart, {
       props: {
-        title: 'Purchase Year to Month',
-        eyebrow: 'Acquisition Timing',
+        title: 'Acquisition Performance by Year',
+        eyebrow: 'Purchase Timing',
         rows: [
-          segment({ label: '2024-01', year: 2024, month: 1, invested: 150, currentValue: 175, coinCount: 1 }),
+          segment({ label: '2024', year: 2024, invested: 150, currentValue: 175, coinCount: 1 }),
         ],
       },
     })
 
-    expect(wrapper.text()).toContain('2024 Jan')
+    expect(wrapper.text()).toContain('2024')
   })
 
   it('shows confidence callout when price or value data is missing', () => {
@@ -82,10 +81,10 @@ describe('StatsInvestmentBreakdownChart', () => {
     })
 
     expect(wrapper.find('.empty-state').exists()).toBe(true)
-    expect(wrapper.find('.investment-flow-svg').exists()).toBe(false)
+    expect(wrapper.find('.investment-row').exists()).toBe(false)
   })
 
-  it('renders mobile aggregate summary with correct values', () => {
+  it('renders aggregate summary with correct values', () => {
     const wrapper = mount(StatsInvestmentBreakdownChart, {
       props: {
         title: 'Material',
@@ -97,15 +96,15 @@ describe('StatsInvestmentBreakdownChart', () => {
       },
     })
 
-    const mobileSummary = wrapper.find('.mobile-aggregate-summary')
-    expect(mobileSummary.exists()).toBe(true)
-    expect(mobileSummary.text()).toContain('Invested: $500.00')
-    expect(mobileSummary.text()).toContain('Current: $540.00')
-    expect(mobileSummary.text()).toContain('Gain/Loss: +$40.00')
-    expect(mobileSummary.text()).toContain('(+8.0%)')
+    const summary = wrapper.find('.summary-grid')
+    expect(summary.exists()).toBe(true)
+    expect(summary.text()).toContain('$500.00')
+    expect(summary.text()).toContain('$540.00')
+    expect(summary.text()).toContain('+$40.00')
+    expect(summary.text()).toContain('+8.0%')
   })
 
-  it('renders both mobile aggregate summary and segment list in DOM', () => {
+  it('renders row list in DOM', () => {
     const wrapper = mount(StatsInvestmentBreakdownChart, {
       props: {
         title: 'Material',
@@ -116,12 +115,11 @@ describe('StatsInvestmentBreakdownChart', () => {
       },
     })
 
-    expect(wrapper.find('.mobile-aggregate-summary').exists()).toBe(true)
-    expect(wrapper.find('.segment-list').exists()).toBe(true)
-    expect(wrapper.findAll('.segment-card')).toHaveLength(1)
+    expect(wrapper.find('.investment-row-list').exists()).toBe(true)
+    expect(wrapper.findAll('.investment-row')).toHaveLength(1)
   })
 
-  it('displays negative values correctly in mobile aggregate summary', () => {
+  it('displays negative values correctly in aggregate summary', () => {
     const wrapper = mount(StatsInvestmentBreakdownChart, {
       props: {
         title: 'Material',
@@ -132,11 +130,11 @@ describe('StatsInvestmentBreakdownChart', () => {
       },
     })
 
-    const mobileSummary = wrapper.find('.mobile-aggregate-summary')
-    expect(mobileSummary.text()).toContain('Invested: $500.00')
-    expect(mobileSummary.text()).toContain('Current: $400.00')
-    expect(mobileSummary.text()).toContain('Gain/Loss: -$100.00')
-    expect(mobileSummary.text()).toContain('(-20.0%)')
-    expect(mobileSummary.find('.negative').exists()).toBe(true)
+    const summary = wrapper.find('.summary-grid')
+    expect(summary.text()).toContain('$500.00')
+    expect(summary.text()).toContain('$400.00')
+    expect(summary.text()).toContain('-$100.00')
+    expect(summary.text()).toContain('-20.0%')
+    expect(summary.find('.negative').exists()).toBe(true)
   })
 })
