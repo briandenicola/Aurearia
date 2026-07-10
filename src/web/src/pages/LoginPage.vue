@@ -1,10 +1,14 @@
 <template>
-  <div class="auth-page">
-    <div class="auth-card">
-      <img :src="coinLogoSrc" alt="Aurearia - Coin Collection" class="auth-logo" />
-      <h1>Aurearia - Coin Collection</h1>
-      <p class="auth-subtitle">Sign in to your collection</p>
-      <form @submit.prevent="handleLogin" class="auth-form">
+  <div class="min-h-screen flex items-center justify-center p-8 bg-[radial-gradient(ellipse_at_top,var(--bg-secondary)_0%,var(--bg-primary)_70%)]">
+    <div class="w-full max-w-[400px] text-center">
+      <img
+        :src="coinLogoSrc"
+        alt="Aurearia - Coin Collection"
+        class="w-20 h-20 rounded-full object-cover border-[3px] border-gold-dim mb-6 shadow-[0_0_30px_var(--accent-gold-glow)] mx-auto block"
+      />
+      <h1 class="mb-1">Aurearia - Coin Collection</h1>
+      <p class="text-text-secondary mb-8 text-base">Sign in to your collection</p>
+      <form @submit.prevent="handleLogin" class="text-left">
         <div class="form-group">
           <label class="form-label">Username</label>
           <input v-model="username" class="form-input" required autocomplete="username" @blur="checkBiometric" />
@@ -13,39 +17,47 @@
           <label class="form-label">Password</label>
           <input v-model="password" type="password" class="form-input" required autocomplete="current-password" />
         </div>
-        <p v-if="error" class="auth-error">{{ error }}</p>
-        <button type="submit" class="btn btn-primary auth-btn" :disabled="loading">
+        <p v-if="error" class="text-[var(--color-negative)] text-body mb-2">{{ error }}</p>
+        <button
+          type="submit"
+          class="btn btn-primary w-full justify-center py-3 mt-2"
+          :disabled="loading"
+        >
           {{ loading ? 'Signing in...' : 'Sign In' }}
         </button>
       </form>
       <button
         v-if="biometricAvailable"
-        class="btn btn-secondary auth-btn biometric-btn"
+        class="btn btn-secondary w-full justify-center py-3 mt-3 gap-2 text-base"
         :disabled="loading"
         @click="handleBiometricLogin"
       >
         <LockKeyhole :size="18" aria-hidden="true" />
         Sign in with Biometrics
       </button>
-      <section v-if="oidcProviders.length || oidcLoading || oidcError" class="oidc-section" aria-label="Alternate sign in">
-        <div class="auth-divider">
+      <section
+        v-if="oidcProviders.length || oidcLoading || oidcError"
+        class="mt-4"
+        aria-label="Alternate sign in"
+      >
+        <div class="flex items-center gap-3 my-4 mb-2 text-text-muted text-chip uppercase tracking-[0.08em] before:content-[''] before:flex-1 before:border-t before:border-border-subtle after:content-[''] after:flex-1 after:border-t after:border-border-subtle">
           <span>or</span>
         </div>
-        <p v-if="oidcError" class="auth-error oidc-error">{{ oidcError }}</p>
+        <p v-if="oidcError" class="text-[var(--color-negative)] text-body mb-2 text-left">{{ oidcError }}</p>
         <button
           v-for="provider in oidcProviders"
           :key="provider.id"
           type="button"
-          class="btn btn-secondary auth-btn oidc-btn"
+          class="btn btn-secondary w-full justify-center py-3 mt-2 gap-2"
           :disabled="loading || oidcLoading || startingProviderId === provider.id"
           @click="handleOIDCLogin(provider)"
         >
           <LogIn :size="18" aria-hidden="true" />
           {{ oidcButtonLabel(provider.displayName) }}
         </button>
-        <p v-if="oidcLoading" class="auth-hint">Loading sign-in providers...</p>
+        <p v-if="oidcLoading" class="text-text-muted text-chip mt-2">Loading sign-in providers...</p>
       </section>
-      <p class="auth-footer">
+      <p class="mt-6 text-body text-text-secondary">
         Don't have an account? <router-link to="/register">Create one</router-link>
       </p>
     </div>
@@ -293,104 +305,3 @@ async function handleBiometricLogin() {
 }
 </script>
 
-<style scoped>
-.auth-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  background: radial-gradient(ellipse at top, var(--bg-secondary) 0%, var(--bg-primary) 70%);
-}
-
-.auth-card {
-  width: 100%;
-  max-width: 400px;
-  text-align: center;
-}
-
-.auth-logo {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 3px solid var(--accent-gold-dim);
-  margin-bottom: 1.5rem;
-  box-shadow: 0 0 30px var(--accent-gold-glow);
-}
-
-.auth-card h1 {
-  margin-bottom: 0.25rem;
-}
-
-.auth-subtitle {
-  color: var(--text-secondary);
-  margin-bottom: 2rem;
-  font-size: 0.9rem;
-}
-
-.auth-form {
-  text-align: left;
-}
-
-.auth-error {
-  color: var(--color-negative);
-  font-size: 0.85rem;
-  margin-bottom: 0.5rem;
-}
-
-.auth-btn {
-  width: 100%;
-  justify-content: center;
-  padding: 0.75rem;
-  margin-top: 0.5rem;
-}
-
-.biometric-btn {
-  margin-top: 0.75rem;
-  font-size: 0.9rem;
-  gap: 0.5rem;
-}
-
-.oidc-section {
-  margin-top: 1rem;
-}
-
-.auth-divider {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 1rem 0 0.5rem;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.auth-divider::before,
-.auth-divider::after {
-  content: '';
-  flex: 1;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.oidc-btn {
-  gap: 0.5rem;
-}
-
-.oidc-error {
-  text-align: left;
-}
-
-.auth-hint {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  margin-top: 0.5rem;
-}
-
-.auth-footer {
-  margin-top: 1.5rem;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-</style>

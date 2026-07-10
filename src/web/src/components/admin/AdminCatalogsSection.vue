@@ -1,82 +1,102 @@
 <template>
-  <section class="admin-section card">
-    <h2>Catalog Registry</h2>
-    <p class="section-description">
+  <section class="card p-6">
+    <h2 class="text-xl font-medium text-heading">Catalog Registry</h2>
+    <p class="mb-6 text-body leading-6 text-text-secondary">
       Manage coin catalog codes used in structured references. Deleting a catalog is only allowed if no coins reference it.
     </p>
 
-    <div v-if="loading" class="loading-overlay">
+    <div v-if="loading" class="flex items-center justify-center p-12">
       <div class="spinner"></div>
     </div>
 
-    <div v-else-if="error" class="error-message">
+    <div
+      v-else-if="error"
+      class="flex items-center gap-2 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-4 text-body text-[var(--color-negative)]"
+      role="alert"
+    >
       <AlertCircle :size="20" />
       <span>{{ error }}</span>
     </div>
 
     <template v-else>
-      <div class="actions-row">
-        <button class="btn btn-primary btn-sm" @click="openCreateForm">
+      <div class="mb-4 flex justify-end">
+        <button class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="openCreateForm">
           + Add Catalog
         </button>
       </div>
 
-      <div v-if="catalogs.length === 0" class="logs-empty">
+      <div v-if="catalogs.length === 0" class="py-8 text-center text-body text-text-muted">
         No catalogs defined yet.
       </div>
 
-      <table v-else class="catalog-table">
-        <thead>
-          <tr>
-            <th>Code</th>
-            <th>Display Name</th>
-            <th class="hide-mobile">Volume Required</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="cat in catalogs" :key="cat.id">
-            <td>
-              <div class="catalog-code-cell">
-                <div class="catalog-code">{{ cat.catalog }}</div>
-                <span class="chip-sm era-badge" :class="`era-${cat.era}`">{{ cat.era }}</span>
-              </div>
-            </td>
-            <td>{{ cat.displayName }}</td>
-            <td class="hide-mobile">
-              <label class="toggle">
-                <input
-                  type="checkbox"
-                  :checked="cat.volumeRequired"
-                  disabled
-                />
-                <span class="toggle-slider"></span>
-              </label>
-            </td>
-            <td>
-              <div class="action-buttons">
-                <button class="btn btn-ghost btn-xs" @click="openEditForm(cat)">
-                  Edit
-                </button>
-                <button class="btn btn-danger btn-xs" @click="handleDelete(cat.id)">
-                  Delete
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div v-else class="overflow-x-auto">
+        <table class="w-full border-collapse text-body">
+          <thead>
+            <tr>
+              <th class="border-b border-border-subtle px-2 py-3 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Code</th>
+              <th class="border-b border-border-subtle px-2 py-3 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Display Name</th>
+              <th class="hidden border-b border-border-subtle px-2 py-3 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted md:table-cell">Volume Required</th>
+              <th class="border-b border-border-subtle px-2 py-3 text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="cat in catalogs" :key="cat.id" class="last:[&>td]:border-b-0">
+              <td class="border-b border-border-subtle px-2 py-3 align-top">
+                <div class="flex flex-col items-start gap-[0.35rem]">
+                  <div class="font-semibold text-gold">{{ cat.catalog }}</div>
+                  <span
+                    class="chip-sm capitalize"
+                    :class="cat.era === 'ancient'
+                      ? 'border-[rgba(155,89,182,0.4)] bg-[rgba(155,89,182,0.2)] text-[#bb8fce]'
+                      : cat.era === 'medieval'
+                        ? 'border-[rgba(107,142,35,0.4)] bg-[rgba(107,142,35,0.2)] text-[#9ccc65]'
+                        : 'border-[rgba(70,130,180,0.4)] bg-[rgba(70,130,180,0.2)] text-[#7eb9e0]'"
+                  >
+                    {{ cat.era }}
+                  </span>
+                </div>
+              </td>
+              <td class="border-b border-border-subtle px-2 py-3 align-top text-text-primary">{{ cat.displayName }}</td>
+              <td class="hidden border-b border-border-subtle px-2 py-3 align-top md:table-cell">
+                <label class="relative inline-block h-7 w-[50px] shrink-0" aria-label="Volume required">
+                  <input
+                    type="checkbox"
+                    :checked="cat.volumeRequired"
+                    disabled
+                    class="peer sr-only"
+                  />
+                  <span class="absolute inset-0 rounded-full border border-border-subtle bg-input transition-colors peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-disabled:cursor-not-allowed peer-disabled:opacity-60 after:absolute after:bottom-[2px] after:left-[2px] after:h-[22px] after:w-[22px] after:rounded-full after:bg-text-secondary after:content-[''] after:transition-transform peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"></span>
+                </label>
+              </td>
+              <td class="border-b border-border-subtle px-2 py-3 align-top">
+                <div class="flex flex-wrap justify-end gap-[0.35rem]">
+                  <button class="btn btn-ghost btn-xs focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="openEditForm(cat)">
+                    Edit
+                  </button>
+                  <button class="btn btn-danger btn-xs focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="handleDelete(cat.id)">
+                    Delete
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-      <!-- Create/Edit Modal -->
-      <div v-if="showForm" class="modal-overlay" @click.self="closeForm">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>{{ editingCatalog ? 'Edit Catalog' : 'Add Catalog' }}</h3>
-            <button class="modal-close" @click="closeForm">×</button>
+      <div v-if="showForm" class="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(0,0,0,0.6)] p-4" @click.self="closeForm">
+        <div class="max-h-[90vh] w-full max-w-[500px] overflow-auto rounded-md border border-border-subtle bg-card shadow-[var(--shadow-card)]">
+          <div class="flex items-center justify-between gap-4 border-b border-border-subtle px-6 py-4">
+            <h3 class="m-0 text-lg font-medium text-heading">{{ editingCatalog ? 'Edit Catalog' : 'Add Catalog' }}</h3>
+            <button
+              class="inline-flex h-[30px] w-[30px] items-center justify-center p-0 text-text-muted transition-colors hover:text-text-primary focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+              @click="closeForm"
+            >
+              ×
+            </button>
           </div>
-          <form class="modal-body" @submit.prevent="saveForm">
+          <form class="p-6" @submit.prevent="saveForm">
             <div class="form-group">
-              <label class="form-label">Catalog Code<span class="required">*</span></label>
+              <label class="form-label">Catalog Code<span class="ml-[0.15rem] text-[var(--color-negative)]">*</span></label>
               <input
                 v-model.trim="formData.catalog"
                 class="form-input"
@@ -86,7 +106,7 @@
               />
             </div>
             <div class="form-group">
-              <label class="form-label">Display Name<span class="required">*</span></label>
+              <label class="form-label">Display Name<span class="ml-[0.15rem] text-[var(--color-negative)]">*</span></label>
               <input
                 v-model.trim="formData.displayName"
                 class="form-input"
@@ -95,7 +115,7 @@
               />
             </div>
             <div class="form-group">
-              <label class="form-label">Era<span class="required">*</span></label>
+              <label class="form-label">Era<span class="ml-[0.15rem] text-[var(--color-negative)]">*</span></label>
               <select v-model="formData.era" class="form-input" required>
                 <option value="" disabled>Select era</option>
                 <option value="ancient">Ancient</option>
@@ -103,25 +123,30 @@
                 <option value="modern">Modern</option>
               </select>
             </div>
-            <div class="form-group toggle-row">
-              <label class="form-label">Volume Required</label>
-              <label class="toggle">
+            <div class="form-group flex items-center justify-between gap-4">
+              <label class="form-label mb-0">Volume Required</label>
+              <label class="relative inline-block h-7 w-[50px] shrink-0 rounded-full focus-within:outline-2 focus-within:outline-gold focus-within:outline-offset-2">
                 <input
                   v-model="formData.volumeRequired"
                   type="checkbox"
+                  class="peer sr-only"
                 />
-                <span class="toggle-slider"></span>
+                <span class="absolute inset-0 rounded-full border border-border-subtle bg-input transition-colors peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] after:absolute after:bottom-[2px] after:left-[2px] after:h-[22px] after:w-[22px] after:rounded-full after:bg-text-secondary after:content-[''] after:transition-transform peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"></span>
               </label>
             </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary btn-sm" @click="closeForm">
+            <div class="mt-6 flex flex-col gap-2 md:flex-row md:justify-end">
+              <button type="button" class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="closeForm">
                 Cancel
               </button>
-              <button type="submit" class="btn btn-primary btn-sm" :disabled="saving">
+              <button type="submit" class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" :disabled="saving">
                 {{ saving ? 'Saving...' : 'Save' }}
               </button>
             </div>
-            <div v-if="formError" class="form-error">
+            <div
+              v-if="formError"
+              class="mt-4 flex items-center gap-2 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-3 text-sm text-[var(--color-negative)]"
+              role="alert"
+            >
               <AlertCircle :size="16" />
               <span>{{ formError }}</span>
             </div>
@@ -266,286 +291,3 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
-.admin-section {
-  padding: 1.5rem;
-}
-
-.section-description {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  margin-bottom: 1.5rem;
-  line-height: 1.5;
-}
-
-.loading-overlay {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 3rem;
-}
-
-.spinner {
-  border: 3px solid var(--border-subtle);
-  border-top-color: var(--accent-gold);
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.error-message {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1rem;
-  background: rgba(231, 76, 60, 0.1);
-  border: 1px solid rgba(231, 76, 60, 0.3);
-  border-radius: var(--radius-sm);
-  color: #e74c3c;
-  font-size: 0.85rem;
-}
-
-.actions-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 1rem;
-}
-
-.logs-empty {
-  text-align: center;
-  padding: 2rem;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
-.catalog-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-}
-
-.catalog-table th,
-.catalog-table td {
-  text-align: left;
-  padding: 0.75rem 0.5rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.catalog-table th {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
-.catalog-code-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  align-items: flex-start;
-}
-
-.catalog-code {
-  font-weight: 600;
-  color: var(--accent-gold);
-}
-
-.era-badge {
-  text-transform: capitalize;
-}
-
-.era-ancient {
-  background: rgba(155, 89, 182, 0.2);
-  border-color: rgba(155, 89, 182, 0.4);
-  color: #bb8fce;
-}
-
-.era-medieval {
-  background: rgba(107, 142, 35, 0.2);
-  border-color: rgba(107, 142, 35, 0.4);
-  color: #9ccc65;
-}
-
-.era-modern {
-  background: rgba(70, 130, 180, 0.2);
-  border-color: rgba(70, 130, 180, 0.4);
-  color: #7eb9e0;
-}
-
-.toggle {
-  position: relative;
-  display: inline-block;
-  width: 50px;
-  height: 28px;
-  flex-shrink: 0;
-}
-
-.toggle input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  cursor: pointer;
-  inset: 0;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: 28px;
-  transition: background var(--transition-fast);
-}
-
-.toggle-slider::before {
-  content: '';
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  left: 2px;
-  bottom: 2px;
-  background: var(--text-secondary);
-  border-radius: 50%;
-  transition: transform var(--transition-fast);
-}
-
-.toggle input:checked + .toggle-slider {
-  background: var(--accent-gold-dim);
-  border-color: var(--accent-gold);
-}
-
-.toggle input:checked + .toggle-slider::before {
-  transform: translateX(22px);
-  background: var(--accent-gold);
-}
-
-.toggle input:disabled + .toggle-slider {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 0.35rem;
-  flex-shrink: 0;
-  justify-content: flex-end;
-}
-
-.hide-mobile {
-  display: table-cell;
-}
-
-@media (max-width: 768px) {
-  .hide-mobile {
-    display: none;
-  }
-}
-
-/* Modal styles */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-}
-
-.modal-content {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  max-width: 500px;
-  width: 100%;
-  max-height: 90vh;
-  overflow: auto;
-  box-shadow: var(--shadow-card);
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.2rem;
-  color: var(--text-heading);
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color var(--transition-fast);
-}
-
-.modal-close:hover {
-  color: var(--text-primary);
-}
-
-.modal-body {
-  padding: 1.5rem;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-label {
-  display: block;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text-primary);
-  margin-bottom: 0.35rem;
-}
-
-.required {
-  color: #e74c3c;
-  margin-left: 0.15rem;
-}
-
-.toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.modal-footer {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-  margin-top: 1.5rem;
-}
-
-.form-error {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  padding: 0.75rem;
-  background: rgba(231, 76, 60, 0.1);
-  border: 1px solid rgba(231, 76, 60, 0.3);
-  border-radius: var(--radius-sm);
-  color: #e74c3c;
-  font-size: 0.8rem;
-}
-</style>
