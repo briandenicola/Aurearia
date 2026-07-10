@@ -1,40 +1,37 @@
 <template>
-  <section class="settings-section card">
-    <h2>API Keys</h2>
-    <p class="setting-desc api-key-description">
+  <section class="card">
+    <h2 class="text-xl font-medium mb-5 pb-3 border-b border-border-subtle">API Keys</h2>
+    <p class="text-sm text-text-muted mb-4">
       Generate API keys to access your collection from external tools and scripts. Use the <code>X-API-Key</code> header to authenticate.
     </p>
 
-    <div class="apikey-generate">
+    <!-- Generate form -->
+    <div class="flex flex-wrap items-center gap-3 mb-3">
       <input
         v-model="apiKeyName"
         type="text"
-        class="form-input"
+        class="form-input flex-1 min-w-[200px]"
         placeholder="Key name (e.g. My Script)"
         :disabled="generatingKey"
       />
-      <div class="apikey-scope-selector">
+      <div class="flex items-center gap-[0.35rem]">
         <button
           type="button"
           class="chip"
           :class="{ active: apiKeyScope === 'read' }"
           :disabled="generatingKey"
           @click="apiKeyScope = 'read'"
-        >
-          Read
-        </button>
+        >Read</button>
         <button
           type="button"
           class="chip"
           :class="{ active: apiKeyScope === 'read,write' }"
           :disabled="generatingKey"
           @click="apiKeyScope = 'read,write'"
-        >
-          Read/Write
-        </button>
+        >Read/Write</button>
       </div>
       <button
-        class="btn btn-primary btn-sm icon-button"
+        class="btn btn-primary btn-sm inline-flex items-center gap-[0.35rem]"
         :disabled="!apiKeyName.trim() || generatingKey"
         @click="handleGenerateKey"
       >
@@ -43,13 +40,22 @@
       </button>
     </div>
 
-    <div v-if="newlyGeneratedKey" class="apikey-reveal">
-      <p class="apikey-reveal-warning">
+    <!-- Newly generated key reveal -->
+    <div
+      v-if="newlyGeneratedKey"
+      class="bg-surface border border-gold-dim rounded-sm px-4 py-3 mb-3"
+    >
+      <p class="text-chip text-gold font-medium mb-2">
         Copy this key now — it will not be shown again.
       </p>
-      <div class="apikey-reveal-box">
-        <code class="apikey-reveal-value">{{ newlyGeneratedKey }}</code>
-        <button class="btn btn-secondary btn-sm icon-button" @click="copyKey">
+      <div class="flex items-center gap-2">
+        <code class="flex-1 text-chip bg-card px-[0.6rem] py-[0.4rem] rounded-sm break-all select-all">
+          {{ newlyGeneratedKey }}
+        </code>
+        <button
+          class="btn btn-secondary btn-sm inline-flex items-center gap-[0.35rem]"
+          @click="copyKey"
+        >
           <Check v-if="keyCopied" :size="14" />
           <Clipboard v-else :size="14" />
           {{ keyCopied ? 'Copied' : 'Copy' }}
@@ -57,39 +63,50 @@
       </div>
     </div>
 
-    <p v-if="apiKeyMsg" class="msg" :class="{ error: apiKeyError }">{{ apiKeyMsg }}</p>
+    <p
+      v-if="apiKeyMsg"
+      class="text-body my-2"
+      :class="apiKeyError ? 'text-byzantine' : 'text-gold'"
+    >{{ apiKeyMsg }}</p>
 
-    <div v-if="apiKeys.length" class="apikey-list">
+    <!-- Key list -->
+    <div v-if="apiKeys.length" class="flex flex-col gap-2 mt-4">
       <div
         v-for="key in apiKeys"
         :key="key.id"
-        class="apikey-item"
-        :class="{ revoked: key.revokedAt }"
+        class="flex justify-between items-center py-[0.6rem] border-b border-border-subtle last:border-0 gap-3"
+        :class="{ 'opacity-50': key.revokedAt }"
       >
-        <div class="apikey-item-info">
-          <div class="apikey-title-row">
-            <span class="apikey-item-name">{{ key.name }}</span>
-            <span class="chip-sm capability-badge" :class="capabilityClass(key.capabilities)">
+        <div class="flex flex-col gap-[0.1rem] min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="text-base font-medium">{{ key.name }}</span>
+            <span
+              class="chip-sm shrink-0"
+              :class="key.capabilities === 'read,write'
+                ? 'bg-gold-glow text-gold border border-gold-dim'
+                : 'bg-input text-text-secondary border border-border-subtle'"
+            >
               {{ capabilityLabel(key.capabilities) }}
             </span>
           </div>
-          <span class="apikey-item-meta">
+          <span class="text-sm text-text-muted">
             ...{{ key.keyPrefix }}
             · Created {{ formatDate(key.createdAt) }}
             <template v-if="key.lastUsedAt"> · Last used {{ formatDate(key.lastUsedAt) }}</template>
           </span>
         </div>
-        <span v-if="key.revokedAt" class="chip-sm revoked-badge">Revoked</span>
+        <span
+          v-if="key.revokedAt"
+          class="chip-sm shrink-0 bg-surface text-text-muted"
+        >Revoked</span>
         <button
           v-else
           class="btn btn-danger btn-sm"
           @click="handleRevokeKey(key.id)"
-        >
-          Revoke
-        </button>
+        >Revoke</button>
       </div>
     </div>
-    <p v-else-if="!generatingKey" class="setting-desc no-api-keys">No API keys yet.</p>
+    <p v-else-if="!generatingKey" class="text-sm text-text-muted mt-2">No API keys yet.</p>
   </section>
 </template>
 
@@ -174,10 +191,6 @@ function capabilityLabel(capabilities: string): string {
   return capabilities === 'read,write' ? 'Read/Write' : 'Read'
 }
 
-function capabilityClass(capabilities: string): string {
-  return capabilities === 'read,write' ? 'capability-readwrite' : 'capability-read'
-}
-
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString(undefined, {
     year: 'numeric', month: 'short', day: 'numeric',
@@ -191,159 +204,3 @@ onMounted(() => {
 defineExpose({ loadApiKeys })
 </script>
 
-<style scoped>
-.settings-section h2 {
-  font-size: 1.2rem;
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.setting-desc {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.api-key-description {
-  margin-bottom: 1rem;
-}
-
-.no-api-keys {
-  margin-top: 0.5rem;
-}
-
-.apikey-generate,
-.apikey-scope-selector,
-.apikey-reveal-box,
-.apikey-title-row {
-  display: flex;
-  align-items: center;
-}
-
-.msg {
-  font-size: 0.85rem;
-  color: var(--accent-gold);
-  margin: 0.5rem 0;
-}
-
-.msg.error {
-  color: var(--cat-byzantine);
-}
-
-.apikey-generate {
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.apikey-generate .form-input {
-  flex: 1;
-  min-width: 200px;
-}
-
-.apikey-scope-selector {
-  gap: 0.35rem;
-}
-
-.icon-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.apikey-reveal {
-  background: var(--bg-primary);
-  border: 1px solid var(--accent-gold-dim);
-  border-radius: var(--radius-sm);
-  padding: 0.75rem 1rem;
-  margin-bottom: 0.75rem;
-}
-
-.apikey-reveal-warning {
-  font-size: 0.8rem;
-  color: var(--accent-gold);
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-}
-
-.apikey-reveal-box {
-  gap: 0.5rem;
-}
-
-.apikey-reveal-value {
-  flex: 1;
-  font-size: 0.8rem;
-  background: var(--bg-card);
-  padding: 0.4rem 0.6rem;
-  border-radius: var(--radius-sm);
-  word-break: break-all;
-  user-select: all;
-}
-
-.apikey-list {
-  margin-top: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.apikey-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.6rem 0;
-  border-bottom: 1px solid var(--border-subtle);
-  gap: 0.75rem;
-}
-
-.apikey-item:last-child {
-  border-bottom: none;
-}
-
-.apikey-item.revoked {
-  opacity: 0.5;
-}
-
-.apikey-item-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  min-width: 0;
-}
-
-.apikey-title-row {
-  gap: 0.5rem;
-}
-
-.apikey-item-name {
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.apikey-item-meta {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.capability-badge,
-.revoked-badge {
-  flex-shrink: 0;
-}
-
-.capability-badge.capability-read {
-  background: var(--bg-input);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-subtle);
-}
-
-.capability-badge.capability-readwrite {
-  background: var(--accent-gold-glow);
-  color: var(--accent-gold);
-  border: 1px solid var(--accent-gold-dim);
-}
-
-.revoked-badge {
-  background: var(--bg-primary);
-  color: var(--text-muted);
-}
-</style>
