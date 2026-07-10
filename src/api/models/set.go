@@ -85,6 +85,17 @@ type CoinSetMilestoneAlert struct {
 	Enabled         bool       `gorm:"default:true" json:"enabled"`
 }
 
+// SmartCriteriaTemplate is a user-saved smart criteria group for reuse across smart sets.
+type SmartCriteriaTemplate struct {
+	ID          uint       `gorm:"primaryKey" json:"id"`
+	UserID      uint       `gorm:"not null;index" json:"userId"`
+	Name        string     `gorm:"not null;type:varchar(80)" json:"name"`
+	Description string     `gorm:"type:text" json:"description"`
+	Criteria    JSONObject `gorm:"not null;type:text" json:"criteria"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+}
+
 // JSONObject is a custom type for storing JSON in GORM
 type JSONObject map[string]interface{}
 

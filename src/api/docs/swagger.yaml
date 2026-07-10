@@ -9487,6 +9487,122 @@ paths:
       summary: Compare sets
       tags:
       - sets
+  /sets/criteria-templates:
+    get:
+      description: Get all user-saved smart criteria templates
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              templates:
+                items:
+                  type: object
+                type: array
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List saved criteria templates
+      tags:
+      - sets
+    post:
+      consumes:
+      - application/json
+      description: Persist a named smart criteria group for reuse
+      parameters:
+      - description: Template data
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            criteria:
+              type: object
+            description:
+              type: string
+            name:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Save criteria template
+      tags:
+      - sets
+  /sets/criteria-templates/{id}:
+    delete:
+      description: Remove a user-saved smart criteria template
+      parameters:
+      - description: Template ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              message:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete criteria template
+      tags:
+      - sets
   /sets/import-csv:
     post:
       consumes:
@@ -9551,6 +9667,33 @@ paths:
       security:
       - BearerAuth: []
       summary: Preview smart set
+      tags:
+      - sets
+  /sets/suggested-criteria:
+    get:
+      description: Get a list of built-in suggested smart set criteria starters
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              suggestions:
+                items:
+                  type: object
+                type: array
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get suggested smart criteria
       tags:
       - sets
   /sets/templates:

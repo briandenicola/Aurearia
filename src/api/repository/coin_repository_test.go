@@ -23,7 +23,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&models.AvailabilityResult{}, &models.AuctionLot{},
 		&models.ValuationRun{}, &models.ValuationResult{},
 		&models.Tag{}, &models.CoinTag{},
-		&models.CoinSet{}, &models.CoinSetMembership{},
+		&models.CoinSet{}, &models.CoinSetMembership{}, &models.SmartCriteriaTemplate{},
 		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{},
 	)
 	if err != nil {
