@@ -4,6 +4,7 @@ import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
@@ -43,6 +44,7 @@ export default defineConfig({
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
   },
   plugins: [
+    tailwindcss(),
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
