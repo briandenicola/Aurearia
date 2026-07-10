@@ -1,21 +1,28 @@
 <template>
-  <RouterLink class="draft-card card" :to="`/quick-capture/drafts/${draft.id}`">
+  <RouterLink
+    class="card grid max-w-full grid-cols-[64px_minmax(0,1fr)] gap-3 overflow-hidden no-underline text-text-primary min-[601px]:grid-cols-[76px_minmax(0,1fr)] min-[601px]:gap-4"
+    :to="`/quick-capture/drafts/${draft.id}`"
+  >
     <AuthenticatedImage
       v-if="previewImage"
       :media-path="previewImage.filePath"
       :alt="draft.workingTitle || 'Quick Capture draft preview'"
-      class="draft-preview"
+      class="h-16 w-16 rounded-sm bg-input object-cover min-[601px]:h-[76px] min-[601px]:w-[76px]"
     />
-    <div v-else class="draft-preview empty">No image</div>
-    <div class="draft-info">
-      <h3>{{ draft.workingTitle || 'Untitled draft' }}</h3>
-      <div v-if="draft.notes" class="draft-context markdown-rendered" v-html="renderedNotes"></div>
-      <p v-else class="draft-context">{{ draft.acquisitionSource || 'Incomplete Quick Capture draft' }}</p>
-      <div class="draft-meta">
-        <span class="chip-sm">{{ draft.status }}</span>
-        <span v-if="draft.source === 'find_coin_ai'" class="chip-sm">AI draft</span>
-        <span v-if="draft.ngcCertNumber" class="chip-sm">NGC {{ draft.ngcCertNumber }}</span>
-        <span class="updated-at">{{ relativeTime }}</span>
+    <div v-else class="grid h-16 w-16 place-items-center rounded-sm bg-input text-sm text-text-muted min-[601px]:h-[76px] min-[601px]:w-[76px]">No image</div>
+    <div class="min-w-0 overflow-hidden">
+      <h3 class="mb-[0.35rem] break-words">{{ draft.workingTitle || 'Untitled draft' }}</h3>
+      <div
+        v-if="draft.notes"
+        class="mb-[0.35rem] max-h-[8.5rem] overflow-hidden break-words text-body leading-[1.4] text-text-secondary [&_ol]:mb-[0.4rem] [&_p]:mb-[0.4rem] [&_strong]:font-semibold [&_strong]:text-text-primary [&_ul]:mb-[0.4rem]"
+        v-html="renderedNotes"
+      ></div>
+      <p v-else class="mb-[0.35rem] break-words text-body leading-[1.4] text-text-secondary">{{ draft.acquisitionSource || 'Incomplete Quick Capture draft' }}</p>
+      <div class="flex min-w-0 flex-wrap items-center gap-2 overflow-hidden">
+        <span class="chip-sm inline-block max-w-full truncate align-middle">{{ draft.status }}</span>
+        <span v-if="draft.source === 'find_coin_ai'" class="chip-sm inline-block max-w-full truncate align-middle">AI draft</span>
+        <span v-if="draft.ngcCertNumber" class="chip-sm inline-block max-w-full truncate align-middle">NGC {{ draft.ngcCertNumber }}</span>
+        <span class="text-sm text-text-muted">{{ relativeTime }}</span>
       </div>
     </div>
   </RouterLink>
@@ -45,98 +52,3 @@ const relativeTime = computed(() => {
   return date.toLocaleDateString()
 })
 </script>
-
-<style scoped>
-.draft-card {
-  display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  gap: 1rem;
-  text-decoration: none;
-  color: inherit;
-  box-sizing: border-box;
-  max-width: 100%;
-  overflow: hidden;
-}
-.draft-preview {
-  width: 76px;
-  height: 76px;
-  border-radius: var(--radius-sm);
-  object-fit: cover;
-  background: var(--bg-input);
-}
-
-.empty {
-  display: grid;
-  place-items: center;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-}
-
-.draft-info {
-  min-width: 0;
-  overflow: hidden;
-}
-
-.draft-info h3, .draft-context {
-  margin: 0 0 0.35rem;
-}
-
-.draft-info h3 {
-  overflow-wrap: anywhere;
-}
-
-.draft-context {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-
-.markdown-rendered {
-  max-height: 8.5rem;
-  overflow: hidden;
-}
-
-.markdown-rendered :deep(p),
-.markdown-rendered :deep(ul),
-.markdown-rendered :deep(ol) {
-  margin: 0 0 0.4rem;
-}
-
-.markdown-rendered :deep(strong) {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.draft-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.draft-meta .chip-sm {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.updated-at {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-@media (max-width: 600px) {
-  .draft-card {
-    grid-template-columns: 64px minmax(0, 1fr);
-    gap: 0.75rem;
-  }
-
-  .draft-preview {
-    width: 64px;
-    height: 64px;
-  }
-}
-</style>

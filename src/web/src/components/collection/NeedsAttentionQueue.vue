@@ -1,51 +1,60 @@
 <template>
-  <div class="needs-attention-queue">
-    <div class="queue-header">
-      <h3>
+  <div class="card">
+    <div class="mb-5 flex items-center justify-between gap-3">
+      <h3 class="m-0 flex items-center gap-2 text-lg text-heading">
         <AlertCircle :size="20" />
         Needs Attention
       </h3>
-      <div v-if="total > 0" class="queue-count">{{ total }} coins</div>
+      <div v-if="total > 0" class="rounded-full border border-border-subtle bg-[var(--accent-gold-glow)] px-[0.7rem] py-1 text-body text-text-secondary">{{ total }} coins</div>
     </div>
 
-    <div v-if="loading" class="queue-loading">
+    <div v-if="loading" class="flex justify-center py-12">
       <div class="spinner"></div>
     </div>
 
-    <div v-else-if="coins.length === 0" class="queue-empty">
+    <div v-else-if="coins.length === 0" class="flex flex-col items-center gap-3 px-8 py-12 text-center text-text-secondary">
       <CircleCheck :size="32" />
-      <p>All coins are in good health</p>
+      <p class="m-0 text-base">All coins are in good health</p>
     </div>
 
-    <div v-else class="queue-content">
-      <div class="queue-list">
+    <div v-else class="flex flex-col gap-3">
+      <div class="flex flex-col gap-3">
         <div
           v-for="coin in coins"
           :key="coin.coinId"
-          class="queue-item"
+          class="grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 rounded-sm border border-border-subtle bg-input p-3 transition-all hover:border-border-accent hover:bg-card-hover hover:shadow-[var(--shadow-glow)] max-md:grid-cols-1 max-md:gap-3"
           @click="handleCoinClick(coin.coinId)"
         >
-          <div class="coin-basic">
-            <router-link :to="`/coins/${coin.coinId}`" class="coin-name">
+          <div class="flex flex-col gap-1">
+            <router-link :to="`/coins/${coin.coinId}`" class="text-base font-semibold text-text-primary no-underline transition-colors hover:text-gold">
               {{ coin.title || `Coin #${coin.coinId}` }}
             </router-link>
           </div>
 
-          <div class="health-info">
-            <div class="health-badge" :class="`grade-${coin.grade.toLowerCase()}`">
+          <div class="flex flex-col items-end gap-1 max-md:w-full max-md:flex-row max-md:items-center max-md:justify-between">
+            <div
+              class="flex items-center gap-[0.35rem] rounded-full border px-[0.6rem] py-1 text-chip font-semibold"
+              :class="coin.grade === 'A'
+                ? 'border-[rgba(39,174,96,0.3)] bg-[rgba(39,174,96,0.15)] text-green-400'
+                : coin.grade === 'B'
+                  ? 'border-[rgba(52,152,219,0.3)] bg-[rgba(52,152,219,0.15)] text-sky-400'
+                  : coin.grade === 'C'
+                    ? 'border-[rgba(243,156,18,0.3)] bg-[rgba(243,156,18,0.15)] text-amber-400'
+                    : coin.grade === 'D'
+                      ? 'border-[rgba(230,126,34,0.3)] bg-[rgba(230,126,34,0.15)] text-orange-400'
+                      : 'border-[rgba(231,76,60,0.3)] bg-[rgba(231,76,60,0.15)] text-red-400'"
+            >
               {{ coin.score }}
-              <span class="grade-letter">{{ coin.grade }}</span>
+              <span class="text-label uppercase tracking-[0.05em]">{{ coin.grade }}</span>
             </div>
-            <div class="missing-count">
-              {{ coin.missingItems.length }} issues
-            </div>
+            <div class="text-sm text-text-muted">{{ coin.missingItems.length }} issues</div>
           </div>
 
-          <div class="quick-actions-inline">
+          <div class="flex gap-[0.35rem] max-md:w-full max-md:justify-start">
             <button
               v-for="action in coin.quickActions.slice(0, 2)"
               :key="action"
-              class="btn-xs btn-ghost"
+              class="btn btn-xs btn-ghost"
               @click.stop="handleQuickAction(coin.coinId, action)"
             >
               {{ formatQuickAction(action) }}
@@ -54,7 +63,7 @@
         </div>
       </div>
 
-      <div v-if="total > coins.length" class="queue-pagination">
+      <div v-if="total > coins.length" class="mt-4 flex items-center justify-between gap-3 border-t border-border-subtle pt-4 max-md:flex-col">
         <button
           class="btn btn-sm btn-secondary"
           :disabled="page === 1"
@@ -62,7 +71,7 @@
         >
           <ChevronLeft :size="16" /> Previous
         </button>
-        <span class="page-info">
+        <span class="text-body text-text-secondary">
           Page {{ page }} of {{ Math.ceil(total / limit) }}
         </span>
         <button
@@ -115,222 +124,3 @@ function handleQuickAction(coinId: number, action: HealthQuickAction) {
   emit('quickAction', coinId, action)
 }
 </script>
-
-<style scoped>
-.needs-attention-queue {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 1.5rem;
-  box-shadow: var(--shadow-card);
-}
-
-.queue-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.25rem;
-}
-
-.queue-header h3 {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0;
-  color: var(--text-heading);
-  font-size: 1.2rem;
-}
-
-.queue-count {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  padding: 0.25rem 0.7rem;
-  background: var(--accent-gold-glow);
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border-subtle);
-}
-
-.queue-loading {
-  display: flex;
-  justify-content: center;
-  padding: 3rem;
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border-subtle);
-  border-top-color: var(--accent-gold);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.queue-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 3rem 2rem;
-  color: var(--text-secondary);
-  text-align: center;
-}
-
-.queue-empty p {
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-.queue-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.queue-item {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.queue-item:hover {
-  border-color: var(--border-accent);
-  background: var(--bg-card-hover);
-  box-shadow: var(--shadow-glow);
-}
-
-.coin-basic {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.coin-name {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  text-decoration: none;
-  transition: color var(--transition-fast);
-}
-
-.coin-name:hover {
-  color: var(--accent-gold);
-}
-
-.coin-category {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.health-info {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.25rem;
-}
-
-.health-badge {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.25rem 0.6rem;
-  border-radius: var(--radius-full);
-  font-size: 0.8rem;
-  font-weight: 600;
-  border: 1px solid;
-}
-
-.grade-a {
-  color: #27ae60;
-  border-color: rgba(39, 174, 96, 0.3);
-  background: rgba(39, 174, 96, 0.15);
-}
-
-.grade-b {
-  color: #3498db;
-  border-color: rgba(52, 152, 219, 0.3);
-  background: rgba(52, 152, 219, 0.15);
-}
-
-.grade-c {
-  color: #f39c12;
-  border-color: rgba(243, 156, 18, 0.3);
-  background: rgba(243, 156, 18, 0.15);
-}
-
-.grade-d {
-  color: #e67e22;
-  border-color: rgba(230, 126, 34, 0.3);
-  background: rgba(230, 126, 34, 0.15);
-}
-
-.grade-f {
-  color: #e74c3c;
-  border-color: rgba(231, 76, 60, 0.3);
-  background: rgba(231, 76, 60, 0.15);
-}
-
-.grade-letter {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.missing-count {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.quick-actions-inline {
-  display: flex;
-  gap: 0.35rem;
-}
-
-.queue-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.page-info {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-
-@media (max-width: 768px) {
-  .queue-item {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-  }
-
-  .health-info {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-  }
-
-  .quick-actions-inline {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .queue-pagination {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-}
-</style>

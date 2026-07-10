@@ -1,7 +1,6 @@
 <template>
   <g
-    class="mint-pin"
-    :class="{ active }"
+    class="mint-pin group cursor-pointer outline-none"
     :transform="`translate(${x} ${y})`"
     role="button"
     tabindex="0"
@@ -10,9 +9,23 @@
     @keydown.enter.prevent="$emit('select', group)"
     @keydown.space.prevent="$emit('select', group)"
   >
-    <circle class="pin-halo" r="20" />
-    <circle class="pin-marker" r="9" />
-    <text class="pin-count" x="13" y="-12" text-anchor="middle" dominant-baseline="central">
+    <circle
+      r="20"
+      class="pointer-events-none origin-center fill-gold-glow stroke-border-accent opacity-75 transition-all duration-150"
+      :class="active ? 'scale-110 opacity-100' : 'group-hover:scale-110 group-hover:opacity-100 group-focus-visible:scale-110 group-focus-visible:opacity-100'"
+    />
+    <circle
+      r="9"
+      class="origin-center fill-gold stroke-card [stroke-width:3] transition-all duration-150"
+      :class="active ? 'fill-heading' : 'group-focus-visible:fill-heading'"
+    />
+    <text
+      x="13"
+      y="-12"
+      text-anchor="middle"
+      dominant-baseline="central"
+      class="pointer-events-none fill-surface text-sm font-bold [paint-order:stroke] stroke-gold [stroke-width:5]"
+    >
       {{ group.count }}
     </text>
   </g>
@@ -32,47 +45,3 @@ defineEmits<{
   select: [group: MintGroup]
 }>()
 </script>
-
-<style scoped>
-.mint-pin {
-  cursor: pointer;
-  outline: none;
-}
-
-.pin-halo {
-  fill: var(--accent-gold-glow);
-  stroke: var(--border-accent);
-  stroke-width: 1;
-  opacity: 0.75;
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
-}
-
-.pin-marker {
-  fill: var(--accent-gold);
-  stroke: var(--bg-card);
-  stroke-width: 3;
-  transition: fill var(--transition-fast), transform var(--transition-fast);
-}
-
-.pin-count {
-  fill: var(--bg-primary);
-  stroke: var(--accent-gold);
-  stroke-width: 5;
-  paint-order: stroke fill;
-  font-size: 0.75rem;
-  font-weight: 700;
-  pointer-events: none;
-}
-
-.mint-pin:hover .pin-halo,
-.mint-pin:focus-visible .pin-halo,
-.mint-pin.active .pin-halo {
-  opacity: 1;
-  transform: scale(1.12);
-}
-
-.mint-pin:focus-visible .pin-marker,
-.mint-pin.active .pin-marker {
-  fill: var(--text-heading);
-}
-</style>
