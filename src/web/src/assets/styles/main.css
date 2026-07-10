@@ -1,51 +1,174 @@
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+@import "tailwindcss";
 @import './variables.css';
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* ─── Tailwind theme ────────────────────────────────────────────────────────
+ * Color tokens use @theme inline so generated utilities reference CSS vars
+ * at runtime — the [data-theme="light"] toggle keeps working without changes.
+ * Size/radius/breakpoint tokens use plain @theme (static values are fine).
+ * ────────────────────────────────────────────────────────────────────────── */
+
+@theme inline {
+  /* Background surfaces */
+  --color-surface:           var(--bg-primary);
+  --color-surface-secondary: var(--bg-secondary);
+  --color-card:              var(--bg-card);
+  --color-card-hover:        var(--bg-card-hover);
+  --color-input:             var(--bg-input);
+
+  /* Brand accents */
+  --color-gold:       var(--accent-gold);
+  --color-bronze:     var(--accent-bronze);
+  --color-gold-dim:   var(--accent-gold-dim);
+  --color-gold-glow:  var(--accent-gold-glow);
+  --color-gold-focus: var(--accent-gold-focus);
+
+  /* Text */
+  --color-text-primary:   var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted:     var(--text-muted);
+  --color-heading:        var(--text-heading);
+  --color-warning:        var(--text-warning);
+
+  /* Categories */
+  --color-roman:      var(--cat-roman);
+  --color-greek:      var(--cat-greek);
+  --color-byzantine:  var(--cat-byzantine);
+  --color-modern-cat: var(--cat-modern);
+  --color-other:      var(--cat-other);
+
+  /* Semantic feedback (distinct names to avoid clash with variables.css) */
+  --color-gain:     var(--color-positive);
+  --color-loss:     var(--color-negative);
+  --color-error-bg: var(--error-bg);
+
+  /* Confidence */
+  --color-confidence-high:   var(--confidence-high);
+  --color-confidence-medium: var(--confidence-medium);
+  --color-confidence-low:    var(--confidence-low);
+
+  /* Borders */
+  --color-border-subtle: var(--border-subtle);
+  --color-border-accent: var(--border-accent);
+
+  /* Overlays */
+  --color-overlay:      var(--overlay-dark);
+  --color-overlay-full: var(--overlay-full);
 }
 
-html {
-  font-size: 16px;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  overscroll-behavior: none;
+@theme {
+  /* Typography — 6-step consolidated scale */
+  --font-sans:    'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Cinzel', serif;
+
+  --text-label: 0.7rem;   /* section labels, uppercase tiny */
+  --text-sm:    0.75rem;  /* badges, chip-sm */
+  --text-chip:  0.8rem;   /* standard chip text */
+  --text-body:  0.85rem;  /* form labels, secondary body */
+  --text-base:  0.9rem;   /* primary body, h4 */
+  --text-lg:    1.2rem;   /* h3 */
+  --text-xl:    1.5rem;   /* h2 */
+  --text-2xl:   2rem;     /* h1 */
+
+  /* Border radii — override Tailwind defaults to match design system */
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-card:       0 4px 24px rgba(0, 0, 0, 0.4);
+  --shadow-glow:       0 0 20px rgba(201, 168, 76, 0.1);
+  --shadow-gold-soft:  0 4px 12px rgba(201, 168, 76, 0.3);
+  --shadow-gold-hover: 0 6px 16px rgba(201, 168, 76, 0.4);
+
+  /* Breakpoints — consolidated 4-point scale */
+  --breakpoint-sm: 480px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1200px;
+
+  /* Animations */
+  --animate-spin:       spin 0.8s linear infinite;
+  --animate-fade-in:    fadeIn 0.2s ease forwards;
+  --animate-slide-up:   slideUp 0.3s ease forwards;
+  --animate-pulse-gold: pulseGold 2s ease-in-out infinite;
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulseGold {
+    0%, 100% { box-shadow: 0 0 8px rgba(201, 168, 76, 0.2); }
+    50%       { box-shadow: 0 0 20px rgba(201, 168, 76, 0.5); }
+  }
 }
 
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  min-height: 100vh;
-  line-height: 1.6;
-  overscroll-behavior: none;
-  -webkit-text-size-adjust: 100%;
-  touch-action: pan-x pan-y;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-}
+/* ─── Global base overrides (applied after Tailwind preflight) ────────────── */
+@layer base {
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
+  }
 
-h1, h2, h3, h4 {
-  font-family: 'Cinzel', serif;
-  color: var(--text-heading);
-  letter-spacing: 0.02em;
-}
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    line-height: 1.6;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+    touch-action: pan-x pan-y;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
 
-h1 { font-size: 2rem; font-weight: 600; }
-h2 { font-size: 1.5rem; font-weight: 500; }
-h3 { font-size: 1.2rem; font-weight: 500; }
-h4 { font-size: 0.9rem; font-weight: 500; }
+  h1, h2, h3, h4 {
+    font-family: 'Cinzel', serif;
+    color: var(--text-heading);
+    letter-spacing: 0.02em;
+  }
 
-a {
-  color: var(--accent-gold);
-  text-decoration: none;
-  transition: color var(--transition-fast);
-}
-a:hover {
-  color: var(--accent-bronze);
+  h1 { font-size: 2rem; font-weight: 600; }
+  h2 { font-size: 1.5rem; font-weight: 500; }
+  h3 { font-size: 1.2rem; font-weight: 500; }
+  h4 { font-size: 0.9rem; font-weight: 500; }
+
+  a {
+    color: var(--accent-gold);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+  }
+  a:hover {
+    color: var(--accent-bronze);
+  }
+
+  /* Focus-visible: keyboard-only focus rings applied globally */
+  *:focus-visible {
+    outline: 2px solid var(--accent-gold);
+    outline-offset: 2px;
+  }
+  *:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Respect prefers-reduced-motion globally */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 /* Buttons */

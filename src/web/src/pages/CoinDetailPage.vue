@@ -4,8 +4,8 @@
       <div class="spinner"></div>
     </div>
 
-    <div v-else-if="coin" class="coin-detail">
-      <div class="sticky-action-bar">
+    <div v-else-if="coin">
+      <div class="md:sticky md:top-[61px] md:z-10 md:border-b md:border-border-subtle md:bg-surface md:px-0 md:py-3 md:shadow-[0_4px_12px_rgba(0,0,0,0.3)]">
         <CoinDetailHeaderActions
           :is-wishlist="coin.isWishlist"
           :is-sold="coin.isSold"
@@ -19,84 +19,84 @@
         />
       </div>
 
-      <div class="detail-layout">
+      <div class="mx-auto grid max-w-[1400px] grid-cols-1 items-start gap-8 md:grid-cols-[400px_minmax(0,1fr)]">
         <!-- T009-T011: Dual-side hero media -->
-        <div class="detail-hero-media">
-          <div class="hero-media-grid">
-            <div class="hero-slot">
+        <div class="order-1 self-start md:sticky md:top-[125px] md:h-fit">
+          <div class="grid grid-cols-2 gap-4">
+            <div class="relative aspect-square w-full overflow-hidden rounded-md border border-border-subtle bg-card">
               <AuthenticatedImage
                 v-if="obverseImage"
                 :media-path="obverseImage.filePath"
                 alt="Obverse"
-                class="hero-image"
+                class="h-full w-full cursor-pointer object-contain scale-[1.28] transition-[opacity,transform] duration-200 hover:scale-[1.32] hover:opacity-[0.85]"
                 @click="openLightbox(obverseImage)"
               />
-              <div v-else class="hero-placeholder">
-                <span class="placeholder-label">Obverse</span>
-                <span class="placeholder-text">No image</span>
+              <div v-else class="flex h-full w-full flex-col items-center justify-center gap-2">
+                <span class="text-body font-medium text-text-secondary">Obverse</span>
+                <span class="text-sm italic text-text-muted">No image</span>
               </div>
             </div>
-            <div class="hero-slot">
+            <div class="relative aspect-square w-full overflow-hidden rounded-md border border-border-subtle bg-card">
               <AuthenticatedImage
                 v-if="reverseImage"
                 :media-path="reverseImage.filePath"
                 alt="Reverse"
-                class="hero-image"
+                class="h-full w-full cursor-pointer object-contain scale-[1.28] transition-[opacity,transform] duration-200 hover:scale-[1.32] hover:opacity-[0.85]"
                 @click="openLightbox(reverseImage)"
               />
-              <div v-else class="hero-placeholder">
-                <span class="placeholder-label">Reverse</span>
-                <span class="placeholder-text">No image</span>
+              <div v-else class="flex h-full w-full flex-col items-center justify-center gap-2">
+                <span class="text-body font-medium text-text-secondary">Reverse</span>
+                <span class="text-sm italic text-text-muted">No image</span>
               </div>
             </div>
           </div>
-          <div v-if="coin.isWishlist" class="wishlist-purchase-cta">
-            <button class="btn btn-primary wishlist-purchase-button" @click="showPurchaseModal = true">
+          <div v-if="coin.isWishlist" class="mt-3">
+            <button class="btn btn-primary w-full justify-center" @click="showPurchaseModal = true">
               Mark as Purchased
             </button>
           </div>
         </div>
 
         <!-- Info -->
-        <div class="detail-info">
+        <div class="order-2">
           <!-- T012: Title hierarchy -->
-          <div class="detail-title-section">
-            <h1>{{ coin.name }}</h1>
-            <p v-if="coin.ruler" class="detail-ruler">{{ coin.ruler }}</p>
-            <div v-if="coin.category" class="title-badges">
+          <div class="mb-6">
+            <h1 class="mt-2 font-display text-2xl font-semibold text-heading">{{ coin.name }}</h1>
+            <p v-if="coin.ruler" class="mt-1 text-[1.1rem] text-text-secondary">{{ coin.ruler }}</p>
+            <div v-if="coin.category" class="mt-3 flex flex-wrap gap-2">
               <span class="badge" :class="`badge-${coin.category.toLowerCase()}`">{{ coin.category }}</span>
               <span v-if="coin.isWishlist" class="chip-sm">Wishlist</span>
               <span v-if="coin.isSold" class="chip-sm">Sold</span>
             </div>
           </div>
 
-          <div v-if="coin.obverseInscription || coin.reverseInscription || coin.obverseDescription || coin.reverseDescription" class="inscription-section">
-            <h3>Inscription</h3>
-            <div class="section-content-card">
-              <div class="inscription-grid">
-                <div v-if="coin.obverseInscription || coin.obverseDescription" class="inscription-side">
-                  <h4 class="side-heading">Obverse</h4>
-                  <div v-if="coin.obverseInscription" class="inscription-line">
-                    <span class="inscription-label">Inscription:</span>
-                    <span class="inscription-text">{{ coin.obverseInscription }}</span>
+          <div v-if="coin.obverseInscription || coin.reverseInscription || coin.obverseDescription || coin.reverseDescription" class="mb-6">
+            <h3 class="mb-3 font-display text-base font-medium text-heading">Inscription</h3>
+            <div class="rounded-sm border border-border-subtle bg-card p-4">
+              <div class="grid gap-6 md:grid-cols-2">
+                <div v-if="coin.obverseInscription || coin.obverseDescription" class="flex flex-col gap-3">
+                  <h4 class="m-0 text-base font-medium text-heading">Obverse</h4>
+                  <div v-if="coin.obverseInscription" class="flex flex-col gap-1">
+                    <span class="section-label">Inscription:</span>
+                    <span class="text-base italic text-text-secondary">{{ coin.obverseInscription }}</span>
                   </div>
-                  <p v-if="coin.obverseDescription" class="description-text">{{ coin.obverseDescription }}</p>
+                  <p v-if="coin.obverseDescription" class="m-0 text-base leading-6 text-text-secondary">{{ coin.obverseDescription }}</p>
                 </div>
-                <div v-if="coin.reverseInscription || coin.reverseDescription" class="inscription-side">
-                  <h4 class="side-heading">Reverse</h4>
-                  <div v-if="coin.reverseInscription" class="inscription-line">
-                    <span class="inscription-label">Inscription:</span>
-                    <span class="inscription-text">{{ coin.reverseInscription }}</span>
+                <div v-if="coin.reverseInscription || coin.reverseDescription" class="flex flex-col gap-3">
+                  <h4 class="m-0 text-base font-medium text-heading">Reverse</h4>
+                  <div v-if="coin.reverseInscription" class="flex flex-col gap-1">
+                    <span class="section-label">Inscription:</span>
+                    <span class="text-base italic text-text-secondary">{{ coin.reverseInscription }}</span>
                   </div>
-                  <p v-if="coin.reverseDescription" class="description-text">{{ coin.reverseDescription }}</p>
+                  <p v-if="coin.reverseDescription" class="m-0 text-base leading-6 text-text-secondary">{{ coin.reverseDescription }}</p>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- T014-T016: Metadata table -->
-          <div v-if="metadataRows.length" class="metadata-section">
-            <h3>Details</h3>
+          <div v-if="metadataRows.length" class="mb-6">
+            <h3 class="mb-3 font-display text-base font-medium text-heading">Details</h3>
             <CoinDetailMetadataTable :rows="metadataRows" />
           </div>
 
@@ -122,8 +122,8 @@
           />
 
           <!-- T019: Settings-style section links -->
-          <div class="sections-list">
-            <h3>Additional Details</h3>
+          <div class="mb-6">
+            <h3 class="mb-3 font-display text-base font-medium text-heading">Additional Details</h3>
             <CoinDetailSectionLinks :coin-id="coin.id" />
           </div>
         </div>
@@ -253,202 +253,3 @@ async function confirmSell(soldPrice: number | null, soldTo: string) {
   }
 }
 </script>
-
-<style scoped>
-.detail-layout {
-  display: grid;
-  grid-template-columns: 400px 1fr;
-  gap: 2rem;
-  align-items: start;
-  max-width: 1400px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.detail-hero-media {
-  align-self: start;
-}
-
-.wishlist-purchase-cta {
-  margin-top: 0.75rem;
-}
-
-.wishlist-purchase-button {
-  width: 100%;
-  justify-content: center;
-}
-
-/* T011: Hero media grid for dual-side default display */
-.hero-media-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.hero-slot {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-}
-
-.hero-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  transform: scale(1.28);
-  cursor: pointer;
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
-}
-
-.hero-image:hover {
-  opacity: 0.85;
-  transform: scale(1.32);
-}
-
-.hero-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  gap: 0.5rem;
-}
-
-.placeholder-label {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.placeholder-text {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-/* T012: Title hierarchy */
-.detail-title-section {
-  margin-bottom: 1.5rem;
-}
-
-.detail-title-section h1 {
-  margin-top: 0.5rem;
-}
-
-.detail-ruler {
-  color: var(--text-secondary);
-  font-size: 1.1rem;
-  margin-top: 0.25rem;
-}
-
-.title-badges {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.inscription-section,
-.metadata-section,
-.sections-list {
-  margin-bottom: 1.5rem;
-}
-
-.inscription-section h3,
-.metadata-section h3,
-.sections-list h3 {
-  margin-bottom: 0.75rem;
-  font-size: 1rem;
-}
-
-.section-content-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 1rem;
-}
-
-.inscription-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-}
-
-.inscription-side {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.side-heading {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-heading);
-  margin: 0;
-}
-
-.inscription-line {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.inscription-label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.inscription-text {
-  font-style: italic;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-
-.description-text {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  line-height: 1.5;
-  margin: 0;
-}
-
-@media (max-width: 768px) {
-  .inscription-grid {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-  }
-}
-
-/* T013: Desktop-only sticky behavior */
-@media (min-width: 769px) {
-  .sticky-action-bar {
-    position: sticky;
-    top: 61px;
-    z-index: 10;
-    background: var(--bg-primary);
-    padding: 0.75rem 0;
-    border-bottom: 1px solid var(--border-subtle);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  }
-
-  .detail-hero-media {
-    position: sticky;
-    top: 125px;
-    height: fit-content;
-  }
-}
-
-/* T013: Mobile - single-column, no sticky */
-@media (max-width: 768px) {
-  .detail-layout {
-    grid-template-columns: 1fr;
-  }
-  .detail-hero-media { order: 1; }
-  .detail-info { order: 2; }
-}
-</style>

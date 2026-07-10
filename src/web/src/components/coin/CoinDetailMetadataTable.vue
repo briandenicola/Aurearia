@@ -1,26 +1,50 @@
 <template>
-  <div class="metadata-table">
+  <div class="rounded-sm border border-border-subtle bg-card px-4 py-3">
     <div
       v-for="row in rows"
       :key="row.key"
       class="metadata-row"
-      :class="{ 'full-width': row.fullWidth }"
+      :class="{ 'w-full': row.fullWidth }"
     >
       <span v-if="!row.fullWidth" class="row-label">{{ row.label }}</span>
-      
+
       <!-- Purchase location row with Store: prefix -->
       <template v-if="row.key === 'purchaseLocation'">
-        <span class="store-prefix">Store: </span>
-        <span v-if="!row.url" class="row-value" :class="row.valueClass">{{ row.value }}</span>
-        <SafeExternalLink v-else :href="row.url" class="row-value row-link" :class="row.valueClass">
+        <span class="text-sm italic text-text-muted">Store: </span>
+        <span
+          v-if="!row.url"
+          class="row-value"
+          :class="[row.valueClass, row.fullWidth ? 'italic !text-text-secondary !text-left' : '']"
+        >{{ row.value }}</span>
+        <SafeExternalLink
+          v-else
+          :href="row.url"
+          class="row-value transition-colors"
+          :class="[
+            row.valueClass,
+            row.fullWidth ? '!text-gold italic !text-left hover:text-bronze' : '',
+          ]"
+        >
           {{ row.value }}
         </SafeExternalLink>
       </template>
-      
+
       <!-- Standard rows -->
       <template v-else>
-        <span v-if="!row.url" class="row-value" :class="row.valueClass">{{ row.value }}</span>
-        <SafeExternalLink v-else :href="row.url" class="row-value row-link" :class="row.valueClass">
+        <span
+          v-if="!row.url"
+          class="row-value"
+          :class="[row.valueClass, row.fullWidth ? 'italic !text-text-secondary !text-left' : '']"
+        >{{ row.value }}</span>
+        <SafeExternalLink
+          v-else
+          :href="row.url"
+          class="row-value transition-colors"
+          :class="[
+            row.valueClass,
+            row.fullWidth ? '!text-gold italic !text-left hover:text-bronze' : '',
+          ]"
+        >
           {{ row.value }}
         </SafeExternalLink>
       </template>
@@ -36,35 +60,3 @@ defineProps<{
   rows: CoinDetailMetadataRow[]
 }>()
 </script>
-
-<style scoped>
-.metadata-table {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 0.75rem 1rem;
-}
-
-.metadata-row.full-width {
-  grid-column: 1 / -1;
-}
-
-.metadata-row.full-width .row-value {
-  font-style: italic;
-  color: var(--text-secondary);
-}
-
-.metadata-row.full-width .row-link {
-  color: var(--accent-gold);
-  transition: color var(--transition-fast);
-}
-
-.metadata-row.full-width .row-link:hover {
-  color: var(--accent-bronze);
-}
-
-.store-prefix {
-  font-style: italic;
-  color: var(--text-muted);
-}
-</style>

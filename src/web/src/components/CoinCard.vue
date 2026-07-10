@@ -1,76 +1,86 @@
 <template>
-  <div class="coin-card card" :class="{ 'coin-card-selected': selectable && selected }" @click="handleClick">
-    <div class="card-image-container">
-      <AuthenticatedImage v-if="primaryImage" :media-path="primaryImage" :alt="coin.name" class="card-image" loading="lazy" />
-      <div v-else class="card-image-placeholder"><Coins :size="48" :stroke-width="1" /></div>
-      <div v-if="wishlist && coin.listingStatus === 'unavailable'" class="listing-overlay"></div>
-      <span v-if="wishlist && coin.listingStatus === 'unavailable'" class="listing-badge listing-badge-unavailable">Unavailable</span>
+  <div
+    class="card group flex cursor-pointer flex-col overflow-hidden p-0"
+    :class="selectable && selected ? 'outline-2 outline-gold outline-offset-[-2px]' : ''"
+    @click="handleClick"
+  >
+    <div class="relative flex aspect-square w-full items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_at_center,var(--bg-secondary)_0%,var(--bg-primary)_100%)] [@media(display-mode:standalone)]:aspect-[5/6]">
+      <AuthenticatedImage v-if="primaryImage" :media-path="primaryImage" :alt="coin.name" class="h-full w-full object-contain transition duration-300 group-hover:scale-[1.02] group-hover:brightness-110" loading="lazy" />
+      <div v-else class="text-text-primary/30"><Coins :size="48" :stroke-width="1" /></div>
+      <div v-if="wishlist && coin.listingStatus === 'unavailable'" class="pointer-events-none absolute inset-0 z-[2] bg-black/50"></div>
+      <span v-if="wishlist && coin.listingStatus === 'unavailable'" class="absolute top-2 right-2 z-[3] rounded-full bg-red-600/85 px-2 py-[0.2rem] text-label font-semibold uppercase tracking-[0.08em] text-white">Unavailable</span>
       <button
         v-if="wishlist && coin.listingStatus === 'unavailable'"
-        class="listing-dismiss-btn"
+        class="absolute right-2 bottom-2 z-[3] rounded-sm border border-border-subtle bg-black/70 px-2 py-[0.15rem] text-[0.65rem] text-text-secondary transition-colors hover:bg-black/85 hover:text-text-primary"
         @click.stop="emit('dismiss-status', coin.id)"
       >
         Dismiss
       </button>
-      <div v-if="selectable" class="select-checkbox" :class="{ checked: selected }" @click.stop="emit('toggle-select', coin.id)">
+      <div
+        v-if="selectable"
+        class="absolute top-2 left-2 z-[4] flex h-8 w-8 items-center justify-center rounded-full border-2 border-white/70 bg-black/40 transition-all [@media(display-mode:standalone)]:h-9 [@media(display-mode:standalone)]:w-9"
+        :class="selected ? 'border-gold bg-gold text-black' : ''"
+        @click.stop="emit('toggle-select', coin.id)"
+      >
         <Check v-if="selected" :size="16" :stroke-width="3" />
       </div>
+      <div class="pointer-events-none absolute inset-0 z-[1] border-b border-gold-dim shadow-[inset_0_0_40px_rgba(0,0,0,0.35)] transition-shadow duration-300 group-hover:shadow-[inset_0_0_25px_rgba(0,0,0,0.2),0_0_20px_var(--accent-gold-glow)]"></div>
     </div>
-    <div class="card-body">
-      <h3 class="card-title">
+    <div class="flex flex-1 flex-col gap-1.5 p-4">
+      <h3 class="overflow-hidden text-[1rem] leading-[1.3] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
         <span
           v-if="wishlist && coin.listingStatus === 'available'"
-          class="status-dot status-dot-available"
+          class="mr-1.5 inline-block h-2 w-2 shrink-0 align-middle rounded-full bg-gain"
           title="Available"
         ></span>
         <span
           v-if="wishlist && coin.listingStatus === 'unknown'"
-          class="status-dot status-dot-unknown"
+          class="mr-1.5 inline-block h-2 w-2 shrink-0 align-middle rounded-full bg-warning"
           title="Unknown"
         ></span>
         {{ coin.name }}
       </h3>
       <template v-if="!wishlist && !sold">
-        <p v-if="cardInscription" class="card-inscription">{{ cardInscription }}</p>
-        <div class="card-details">
+        <p v-if="cardInscription" class="overflow-hidden text-chip italic text-text-secondary [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:1]">{{ cardInscription }}</p>
+        <div class="flex flex-wrap gap-2">
           <span v-if="coin.category" class="badge" :class="`badge-${coin.category.toLowerCase()}`">{{ coin.category }}</span>
-          <span v-if="coin.denomination" class="detail">{{ coin.denomination }}</span>
-          <span v-if="coin.material" class="detail">{{ coin.material }}</span>
+          <span v-if="coin.denomination" class="rounded-full border border-border-subtle bg-surface px-[0.65rem] py-[0.2rem] text-chip text-text-secondary [@media(display-mode:standalone)]:px-3 [@media(display-mode:standalone)]:py-1 [@media(display-mode:standalone)]:text-body">{{ coin.denomination }}</span>
+          <span v-if="coin.material" class="rounded-full border border-border-subtle bg-surface px-[0.65rem] py-[0.2rem] text-chip text-text-secondary [@media(display-mode:standalone)]:px-3 [@media(display-mode:standalone)]:py-1 [@media(display-mode:standalone)]:text-body">{{ coin.material }}</span>
         </div>
-        <div v-if="coin.tags?.length" class="card-tags">
+        <div v-if="coin.tags?.length" class="mb-1 flex flex-wrap gap-1">
           <span
             v-for="tag in coin.tags"
             :key="tag.id"
-            class="tag-chip"
+            class="whitespace-nowrap rounded-full border px-2 py-[0.15rem] text-sm leading-[1.4]"
             :style="{ backgroundColor: tag.color + '22', color: tag.color, borderColor: tag.color + '44' }"
           >{{ tag.name }}</span>
         </div>
       </template>
       <template v-if="sold">
-        <div v-if="coin.tags?.length" class="card-tags">
+        <div v-if="coin.tags?.length" class="mb-1 flex flex-wrap gap-1">
           <span
             v-for="tag in coin.tags"
             :key="tag.id"
-            class="tag-chip"
+            class="whitespace-nowrap rounded-full border px-2 py-[0.15rem] text-sm leading-[1.4]"
             :style="{ backgroundColor: tag.color + '22', color: tag.color, borderColor: tag.color + '44' }"
           >{{ tag.name }}</span>
         </div>
-        <div class="card-sold-info">
-          <div v-if="coin.soldPrice" class="card-sold-price">Sold: {{ formatCurrency(coin.soldPrice) }}</div>
-          <div v-if="coin.purchasePrice" class="card-cost-basis">Paid: {{ formatCurrency(coin.purchasePrice) }}</div>
-          <div v-if="coin.soldPrice && coin.purchasePrice" class="card-profit" :class="{ loss: coin.soldPrice < coin.purchasePrice }">
+        <div class="mt-1 flex flex-col gap-[0.15rem] text-[0.82rem]">
+          <div v-if="coin.soldPrice" class="font-semibold text-gold">Sold: {{ formatCurrency(coin.soldPrice) }}</div>
+          <div v-if="coin.purchasePrice" class="text-[0.78rem] text-text-muted">Paid: {{ formatCurrency(coin.purchasePrice) }}</div>
+          <div v-if="coin.soldPrice && coin.purchasePrice" class="text-[0.82rem] font-semibold" :class="coin.soldPrice < coin.purchasePrice ? 'text-loss' : 'text-gain'">
             {{ coin.soldPrice >= coin.purchasePrice ? '+' : '' }}{{ formatCurrency(coin.soldPrice - coin.purchasePrice) }}
           </div>
-          <div v-if="coin.soldTo" class="card-sold-to">To: {{ coin.soldTo }}</div>
+          <div v-if="coin.soldTo" class="mt-[0.15rem] text-[0.78rem] text-text-secondary">To: {{ coin.soldTo }}</div>
         </div>
       </template>
-      <div v-if="wishlist && (coin.currentValue || coin.purchasePrice)" class="card-value">
+      <div v-if="wishlist && (coin.currentValue || coin.purchasePrice)" class="mt-auto text-base font-semibold text-gold">
         {{ formatCurrency(coin.currentValue || coin.purchasePrice || 0) }}
       </div>
       <SafeExternalLink
         v-if="wishlist && coin.referenceUrl"
         :href="coin.referenceUrl"
-        class="card-reference"
+        class="block truncate text-chip text-gold hover:underline"
         target="_blank"
         rel="noopener noreferrer"
         @click.stop
@@ -79,7 +89,7 @@
       </SafeExternalLink>
       <button
         v-if="wishlist"
-        class="btn btn-primary btn-sm card-purchase-btn"
+        class="btn btn-primary btn-sm mt-2 flex w-full justify-center gap-[0.35rem] text-chip"
         @click.stop="emit('purchase', coin)"
       >
         <ShoppingCart :size="14" /> Purchased
@@ -148,327 +158,4 @@ const cardInscription = computed(() => {
   }
   return props.coin.obverseInscription || props.coin.reverseInscription || ''
 })
-
-
 </script>
-
-<style scoped>
-.coin-card {
-  cursor: pointer;
-  overflow: hidden;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.card-image-container {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1;
-  overflow: hidden;
-  background: radial-gradient(ellipse at center, var(--bg-secondary) 0%, var(--bg-primary) 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Vignette overlay + gold accent border */
-.card-image-container::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.35);
-  border-bottom: 1px solid var(--accent-gold-dim);
-  pointer-events: none;
-  z-index: 1;
-  transition: box-shadow var(--transition-med);
-}
-
-.coin-card:hover .card-image-container::after {
-  box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.2),
-              0 0 20px var(--accent-gold-glow);
-}
-
-.card-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  transition: transform var(--transition-med), filter var(--transition-med);
-}
-
-.coin-card:hover .card-image {
-  transform: scale(1.02);
-  filter: brightness(1.1);
-}
-
-/* PWA: taller image area for more prominence */
-@media (display-mode: standalone) {
-  .card-image-container {
-    aspect-ratio: 5 / 6;
-  }
-}
-
-.card-image-placeholder {
-  font-size: 4rem;
-  opacity: 0.3;
-}
-
-.card-body {
-  padding: 1rem;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.card-title {
-  font-size: 1rem;
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.card-inscription {
-  font-size: 0.8rem;
-  font-style: italic;
-  color: var(--text-secondary);
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.card-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  margin-bottom: 0.25rem;
-}
-
-.tag-chip {
-  font-size: 0.75rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-full);
-  border: 1px solid;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-
-.card-meta {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.meta-item {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
-.card-details {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.detail {
-  font-size: 0.8rem;
-  padding: 0.2rem 0.65rem;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-  color: var(--text-secondary);
-}
-
-/* PWA: slightly larger pills for touch targets */
-@media (display-mode: standalone) {
-  .detail {
-    font-size: 0.85rem;
-    padding: 0.25rem 0.75rem;
-  }
-}
-
-.card-grade {
-  font-size: 0.8rem;
-  color: var(--accent-gold);
-  font-weight: 600;
-}
-
-.card-value {
-  margin-top: auto;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--accent-gold);
-}
-
-.card-reference {
-  font-size: 0.8rem;
-  color: var(--accent-gold);
-  text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: block;
-}
-
-.card-reference:hover {
-  text-decoration: underline;
-}
-
-.card-purchase-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-top: 0.5rem;
-  width: 100%;
-  justify-content: center;
-  font-size: 0.8rem;
-}
-
-.card-sold-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  margin-top: 0.25rem;
-  font-size: 0.82rem;
-}
-
-.card-sold-price {
-  font-weight: 600;
-  color: var(--accent-gold);
-}
-
-.card-cost-basis {
-  color: var(--text-muted);
-  font-size: 0.78rem;
-}
-
-.card-profit {
-  font-weight: 600;
-  color: var(--color-positive);
-  font-size: 0.82rem;
-}
-
-.card-profit.loss {
-  color: var(--color-negative);
-}
-
-.card-sold-to {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  margin-top: 0.15rem;
-}
-
-.category-roman { color: var(--cat-roman); }
-.category-greek { color: var(--cat-greek); }
-.category-byzantine { color: var(--cat-byzantine); }
-.category-modern { color: var(--cat-modern); }
-.category-other { color: var(--cat-other); }
-
-.material-gold { color: var(--mat-gold); }
-.material-silver { color: var(--mat-silver); }
-.material-bronze { color: var(--mat-bronze); }
-.material-copper { color: var(--mat-copper); }
-.material-ae { color: var(--mat-bronze); }
-
-/* Listing status overlay & badge */
-.listing-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 2;
-  pointer-events: none;
-}
-
-.listing-badge {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: var(--radius-full);
-  font-size: 0.7rem;
-  font-weight: 600;
-  z-index: 3;
-}
-
-.listing-badge-unavailable {
-  background: rgba(231, 76, 60, 0.85);
-  color: #fff;
-}
-
-.listing-dismiss-btn {
-  position: absolute;
-  bottom: 0.5rem;
-  right: 0.5rem;
-  padding: 0.15rem 0.5rem;
-  font-size: 0.65rem;
-  background: rgba(0, 0, 0, 0.7);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  z-index: 3;
-}
-
-.listing-dismiss-btn:hover {
-  color: var(--text-primary);
-  background: rgba(0, 0, 0, 0.85);
-}
-
-.status-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 0.35rem;
-  vertical-align: middle;
-  flex-shrink: 0;
-}
-
-.status-dot-available {
-  background: var(--color-positive);
-}
-
-.status-dot-unknown {
-  background: var(--text-warning);
-}
-
-/* Select mode */
-.select-checkbox {
-  position: absolute;
-  top: 0.5rem;
-  left: 0.5rem;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.7);
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 4;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s ease;
-}
-
-/* PWA: even larger checkbox for touch targets */
-@media (display-mode: standalone) {
-  .select-checkbox {
-    width: 36px;
-    height: 36px;
-  }
-}
-
-.select-checkbox.checked {
-  background: var(--accent-gold);
-  border-color: var(--accent-gold);
-  color: #000;
-}
-
-.coin-card-selected {
-  outline: 2px solid var(--accent-gold);
-  outline-offset: -2px;
-}
-</style>

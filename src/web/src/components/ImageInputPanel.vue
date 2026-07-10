@@ -1,25 +1,31 @@
 <template>
-  <div class="input-section card">
-    <h3>Load Image</h3>
-    <div class="input-methods">
+  <div class="card">
+    <h3 class="mb-4 text-base font-medium text-heading">Load Image</h3>
+    <div class="flex flex-col gap-4">
       <label
-        class="drop-zone" :class="{ dragging }" @dragover.prevent="dragging = true"
-        @dragleave="dragging = false" @drop.prevent="onDrop"
+        class="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-md border-2 border-dashed border-border-subtle px-6 py-10 text-center text-text-muted transition-colors hover:border-gold hover:bg-gold-glow hover:text-gold"
+        :class="{ 'border-gold bg-gold-glow text-gold': dragging }"
+        @dragover.prevent="dragging = true"
+        @dragleave="dragging = false"
+        @drop.prevent="onDrop"
       >
         <Upload :size="32" />
-        <span>Drop an image here or click to browse</span>
+        <span class="text-base">Drop an image here or click to browse</span>
         <input type="file" accept="image/*" hidden @change="onFileSelect" />
       </label>
-      <div class="url-input-row">
+      <div class="flex gap-2 max-sm:flex-col">
         <input
-          v-model="url" type="url" class="form-input" placeholder="Or paste an image URL..."
+          v-model="url"
+          type="url"
+          class="form-input flex-1"
+          placeholder="Or paste an image URL..."
           @keydown.enter="onUrlLoad"
         />
         <button class="btn btn-primary btn-sm" :disabled="!url || urlLoading" @click="onUrlLoad">
           {{ urlLoading ? 'Loading...' : 'Fetch' }}
         </button>
       </div>
-      <p v-if="inputError" class="msg error">{{ inputError }}</p>
+      <p v-if="inputError" class="text-body text-loss">{{ inputError }}</p>
     </div>
   </div>
 </template>
@@ -60,46 +66,3 @@ function onUrlLoad() {
   emit('url-load', url.value)
 }
 </script>
-
-<style scoped>
-.input-section h3 {
-  margin-bottom: 1rem;
-}
-
-.input-methods {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.drop-zone {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  padding: 2.5rem 1.5rem;
-  border: 2px dashed var(--border-subtle);
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  text-align: center;
-}
-
-.drop-zone:hover,
-.drop-zone.dragging {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-  background: var(--accent-gold-glow);
-}
-
-.url-input-row {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.url-input-row .form-input {
-  flex: 1;
-}
-</style>

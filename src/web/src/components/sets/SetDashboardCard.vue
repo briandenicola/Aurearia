@@ -1,14 +1,22 @@
 <template>
-  <button class="set-dashboard-card" type="button" @click="$emit('click')">
-    <span class="set-accent" :style="{ backgroundColor: set.color }" aria-hidden="true"></span>
-    <span class="set-card-main">
-      <span class="set-name">{{ set.name }}</span>
-      <span v-if="setDescription" class="set-description">{{ setDescription }}</span>
+  <button
+    class="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-border-accent bg-card px-[0.85rem] py-[0.65rem] text-left transition-[border-color,background,box-shadow] duration-200 hover:bg-card-hover hover:shadow-card min-[561px]:min-h-20 min-[561px]:gap-[1.15rem] min-[561px]:px-[1.1rem] min-[561px]:py-3"
+    type="button"
+    @click="$emit('click')"
+  >
+    <span
+      class="h-14 w-[0.45rem] rounded-full shadow-[0_0_16px_var(--accent-gold-glow)] min-[561px]:h-16"
+      :style="{ backgroundColor: set.color }"
+      aria-hidden="true"
+    ></span>
+    <span class="flex min-w-0 flex-col gap-1">
+      <span class="truncate font-display text-[1.1rem] font-medium tracking-[0.02em] text-heading min-[561px]:text-[1.35rem]">{{ set.name }}</span>
+      <span v-if="setDescription" class="text-body text-text-muted">{{ setDescription }}</span>
     </span>
-    <span class="set-card-meta">
-      <span class="set-count">
-        <span class="set-count-value">{{ set.coinCount }}</span>
-        <span class="set-count-label">{{ set.coinCount === 1 ? 'Coin' : 'Coins' }}</span>
+    <span class="flex items-center justify-end gap-[0.85rem]">
+      <span class="flex min-w-14 flex-col items-end whitespace-nowrap">
+        <span class="font-sans text-[2.25rem] leading-[0.85] font-bold text-gold min-[561px]:text-[2.75rem]">{{ set.coinCount }}</span>
+        <span class="text-sm font-semibold text-gold min-[561px]:text-base">{{ set.coinCount === 1 ? 'Coin' : 'Coins' }}</span>
       </span>
     </span>
   </button>
@@ -30,120 +38,3 @@ const setDescription = computed(() => {
   return props.set.coinCount > 0 ? 'Curated group' : 'Ready for coins'
 })
 </script>
-
-<style scoped>
-.set-dashboard-card {
-  width: 100%;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 1.15rem;
-  min-height: 5rem;
-  padding: 0.75rem 1.1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-accent);
-  border-radius: var(--radius-md);
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.set-dashboard-card:hover {
-  border-color: var(--border-accent);
-  background: var(--bg-card-hover);
-  box-shadow: var(--shadow-card);
-}
-
-.set-accent {
-  width: 0.45rem;
-  height: 4rem;
-  border-radius: var(--radius-full);
-  box-shadow: 0 0 16px var(--accent-gold-glow);
-}
-
-.set-card-main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.set-name {
-  color: var(--text-heading);
-  font-family: 'Cinzel', serif;
-  font-size: 1.35rem;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.set-description {
-  color: var(--text-muted);
-  font-size: 0.95rem;
-}
-
-.set-card-meta {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.85rem;
-}
-
-.set-count {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0;
-  white-space: nowrap;
-  min-width: 4.25rem;
-}
-
-.set-count-value {
-  color: var(--accent-gold);
-  font-size: 2.75rem;
-  font-weight: 700;
-  line-height: 0.85;
-  font-family: 'Inter', sans-serif;
-}
-
-.set-count-label {
-  color: var(--accent-gold);
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-@media (max-width: 560px) {
-  .set-dashboard-card {
-    gap: 0.75rem;
-    min-height: 4.5rem;
-    padding: 0.65rem 0.85rem;
-  }
-
-  .set-accent {
-    height: 3.5rem;
-  }
-
-  .set-name {
-    font-size: 1.1rem;
-  }
-
-  .set-description {
-    font-size: 0.85rem;
-  }
-
-  .set-count {
-    min-width: 3.5rem;
-  }
-
-  .set-count-value {
-    font-size: 2.25rem;
-  }
-
-  .set-count-label {
-    font-size: 0.75rem;
-  }
-}
-</style>

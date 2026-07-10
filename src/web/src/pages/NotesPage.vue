@@ -1,5 +1,5 @@
 <template>
-  <div class="container notes-page">
+  <div class="container pb-6">
     <div class="page-header">
       <h1>Notes</h1>
       <div v-if="isPwa" class="pwa-actions">
@@ -19,59 +19,59 @@
       <p>Loading notes...</p>
     </div>
 
-    <div v-else-if="loadError" class="empty-state card error-state">
+    <div v-else-if="loadError" class="empty-state flex flex-col items-center gap-3 rounded-md border border-border-subtle bg-card text-text-secondary shadow-[var(--shadow-card)]">
       <AlertCircle :size="42" />
       <h3>Unable to load notes</h3>
       <p>{{ loadError }}</p>
       <button class="btn btn-secondary btn-sm" @click="loadNotes">Try Again</button>
     </div>
 
-    <div v-else class="notes-layout">
-      <aside class="notes-list card" aria-label="Notes list">
-        <div class="notes-list-header">
-          <span class="section-label">All notes</span>
+    <div v-else class="grid items-start gap-4 md:grid-cols-[minmax(240px,0.85fr)_minmax(0,2fr)]">
+      <aside class="max-h-[280px] overflow-y-auto rounded-md border border-border-subtle bg-card p-4 shadow-[var(--shadow-card)] md:max-h-none md:min-h-[460px]" aria-label="Notes list">
+        <div class="mb-4 flex items-start justify-between gap-4">
+          <span class="section-label mb-0">All notes</span>
           <span class="chip-sm">{{ notes.length }} {{ notes.length === 1 ? 'note' : 'notes' }}</span>
         </div>
 
-        <div v-if="notes.length === 0 && !editMode" class="notes-empty-list">
+        <div v-if="notes.length === 0 && !editMode" class="flex min-h-[320px] flex-col items-center justify-center gap-3 text-center text-text-muted">
           <StickyNote :size="36" />
-          <h3>No notes yet</h3>
-          <p>Capture ideas, links, and research threads that do not belong to a coin.</p>
+          <h3 class="m-0 text-lg text-text-primary">No notes yet</h3>
+          <p class="max-w-[34rem] text-text-secondary">Capture ideas, links, and research threads that do not belong to a coin.</p>
           <button class="btn btn-primary btn-sm" @click="startNewNote">Create Note</button>
         </div>
 
         <button
           v-for="note in notes"
           :key="note.id"
-          class="note-list-item"
-          :class="{ active: selectedId === note.id }"
+          class="flex w-full flex-col gap-1 rounded-sm border border-transparent px-3 py-3 text-left text-text-secondary transition-all hover:border-border-accent hover:bg-gold-glow"
+          :class="selectedId === note.id ? 'border-border-accent bg-gold-glow' : ''"
           @click="selectNote(note.id)"
         >
-          <span class="note-list-topline">
-            <span class="note-list-title">{{ note.title || 'Untitled Note' }}</span>
+          <span class="flex min-w-0 items-center justify-between gap-2">
+            <span class="truncate text-base font-semibold text-text-primary">{{ note.title || 'Untitled Note' }}</span>
             <span v-if="note.body" class="chip-sm">Markdown</span>
           </span>
-          <span class="note-list-preview">{{ previewText(note.body) }}</span>
-          <span class="note-list-date">Updated {{ formatDate(note.updatedAt) }}</span>
+          <span class="truncate text-chip text-text-muted">{{ previewText(note.body) }}</span>
+          <span class="text-chip text-text-muted">Updated {{ formatDate(note.updatedAt) }}</span>
         </button>
       </aside>
 
-      <section class="note-editor card">
-        <div v-if="!editMode && !selectedNote" class="note-placeholder">
+      <section class="rounded-md border border-border-subtle bg-card p-6 shadow-[var(--shadow-card)] md:min-h-[460px]">
+        <div v-if="!editMode && !selectedNote" class="flex min-h-[320px] flex-col items-center justify-center gap-3 text-center text-text-muted">
           <BookOpen :size="44" />
-          <h2>Select or create a note</h2>
-          <p>Use notes for research leads, dealer links, show ideas, and collection thoughts.</p>
+          <h2 class="m-0 text-xl text-text-primary">Select or create a note</h2>
+          <p class="max-w-[34rem] text-text-secondary">Use notes for research leads, dealer links, show ideas, and collection thoughts.</p>
           <button class="btn btn-primary" @click="startNewNote">New Note</button>
         </div>
 
-        <form v-else-if="editMode" class="note-form" @submit.prevent="saveNote">
-          <div class="note-panel-header">
+        <form v-else-if="editMode" @submit.prevent="saveNote">
+          <div class="mb-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <p class="section-label">{{ selectedId === null ? 'New note' : 'Editing note' }}</p>
-              <h2>{{ selectedId === null ? 'Draft Note' : draftTitle || 'Untitled Note' }}</h2>
-              <p class="note-updated">Write Markdown here; links and formatting render after save.</p>
+              <h2 class="m-0 text-xl text-text-primary">{{ selectedId === null ? 'Draft Note' : draftTitle || 'Untitled Note' }}</h2>
+              <p class="text-chip text-text-muted">Write Markdown here; links and formatting render after save.</p>
             </div>
-            <div class="note-actions">
+            <div class="flex flex-wrap gap-2 md:justify-end">
               <button type="button" class="btn btn-ghost btn-sm" @click="cancelEdit">Cancel</button>
               <button type="submit" class="btn btn-primary btn-sm" :disabled="saving">
                 <Save :size="16" />
@@ -80,18 +80,18 @@
             </div>
           </div>
 
-          <p v-if="formError" class="form-error">{{ formError }}</p>
+          <p v-if="formError" class="mb-4 rounded-sm border border-error-bg bg-overlay p-3 text-base text-text-primary">{{ formError }}</p>
 
           <label class="form-group">
             <span class="form-label">Title</span>
             <input v-model="draftTitle" class="form-input" type="text" maxlength="200" placeholder="Idea, link, or research thread" />
           </label>
 
-          <label class="form-group note-body-field">
+          <label class="form-group mb-0 block">
             <span class="form-label">Markdown</span>
             <textarea
               v-model="draftBody"
-              class="form-textarea markdown-source"
+              class="form-textarea min-h-[300px] leading-[1.6] md:min-h-[360px]"
               maxlength="20000"
               rows="16"
               placeholder="Write plain Markdown here. Use links, lists, headings, and emphasis."
@@ -99,14 +99,14 @@
           </label>
         </form>
 
-        <article v-else-if="selectedNote" class="note-display">
-          <div class="note-panel-header">
+        <article v-else-if="selectedNote">
+          <div class="mb-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <p class="section-label">Display mode</p>
-              <h2>{{ selectedNote.title || 'Untitled Note' }}</h2>
-              <p class="note-updated">Updated {{ formatDate(selectedNote.updatedAt) }}</p>
+              <h2 class="m-0 text-xl text-text-primary">{{ selectedNote.title || 'Untitled Note' }}</h2>
+              <p class="text-chip text-text-muted">Updated {{ formatDate(selectedNote.updatedAt) }}</p>
             </div>
-            <div class="note-actions">
+            <div class="flex flex-wrap gap-2 md:justify-end">
               <button class="btn btn-secondary btn-sm" @click="editSelected">
                 <Pencil :size="16" />
                 Edit
@@ -118,8 +118,12 @@
             </div>
           </div>
 
-          <div v-if="selectedNote.body" class="section-content-card markdown-rendered" v-html="renderedSelectedBody"></div>
-          <div v-else class="empty-state note-empty-body">
+          <div
+            v-if="selectedNote.body"
+            class="rounded-sm border border-border-subtle bg-input p-4 text-body leading-[1.7] text-text-secondary [&_a]:break-words [&_a]:text-gold [&_blockquote]:mb-3 [&_h1]:mb-2 [&_h1]:mt-4 [&_h1]:text-gold [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-gold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-gold [&_ol]:mb-3 [&_ol]:pl-5 [&_p]:mb-3 [&_strong]:text-text-primary [&_ul]:mb-3 [&_ul]:pl-5"
+            v-html="renderedSelectedBody"
+          ></div>
+          <div v-else class="empty-state flex min-h-[320px] flex-col items-center justify-center gap-3 text-center text-text-muted">
             <p>This note has no body yet.</p>
             <button class="btn btn-secondary btn-sm" @click="editSelected">Add Markdown</button>
           </div>
@@ -276,214 +280,3 @@ function formatDate(value: string): string {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 </script>
-
-<style scoped>
-.notes-page {
-  padding-bottom: 1.5rem;
-}
-
-.note-panel-header h2 {
-  margin: 0;
-}
-
-.notes-layout {
-  display: grid;
-  grid-template-columns: minmax(240px, 0.85fr) minmax(0, 2fr);
-  gap: 1rem;
-  align-items: start;
-}
-
-.notes-list,
-.note-editor {
-  min-height: 460px;
-}
-
-.notes-list {
-  padding: 1rem;
-  border-color: var(--border-subtle);
-}
-
-.notes-list-header,
-.note-panel-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: flex-start;
-  margin-bottom: 1rem;
-}
-
-.note-list-item {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.75rem;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--text-secondary);
-  text-align: left;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.note-list-item:hover,
-.note-list-item.active {
-  border-color: var(--border-accent);
-  background: var(--accent-gold-glow);
-}
-
-.note-list-topline {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  justify-content: space-between;
-  min-width: 0;
-}
-
-.note-list-title {
-  color: var(--text-primary);
-  font-weight: 600;
-  font-size: 0.9rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.note-list-preview,
-.note-list-date,
-.note-updated {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-}
-
-.note-list-preview {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.notes-empty-list,
-.note-placeholder,
-.note-empty-body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  text-align: center;
-  color: var(--text-muted);
-  min-height: 320px;
-}
-
-.notes-empty-list h3,
-.note-placeholder h2 {
-  margin: 0;
-}
-
-.notes-empty-list p,
-.note-placeholder p {
-  max-width: 34rem;
-  color: var(--text-secondary);
-}
-
-.note-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: flex-end;
-}
-
-.form-error {
-  padding: 0.75rem;
-  margin-bottom: 1rem;
-  border: 1px solid var(--error-bg);
-  color: var(--text-primary);
-  background: var(--overlay-dark);
-}
-
-.note-editor {
-  padding: 1.5rem;
-  border-color: var(--border-subtle);
-}
-
-.note-body-field {
-  margin-bottom: 0;
-}
-
-.markdown-source {
-  min-height: 360px;
-  line-height: 1.6;
-}
-
-.markdown-rendered {
-  padding: 1rem;
-  background: var(--bg-input);
-  border-color: var(--border-subtle);
-  color: var(--text-secondary);
-  line-height: 1.7;
-}
-
-.markdown-rendered :deep(h1),
-.markdown-rendered :deep(h2),
-.markdown-rendered :deep(h3) {
-  margin: 1rem 0 0.5rem;
-  color: var(--accent-gold);
-}
-
-.markdown-rendered :deep(p),
-.markdown-rendered :deep(ul),
-.markdown-rendered :deep(ol),
-.markdown-rendered :deep(blockquote) {
-  margin-bottom: 0.75rem;
-}
-
-.markdown-rendered :deep(ul),
-.markdown-rendered :deep(ol) {
-  padding-left: 1.25rem;
-}
-
-.markdown-rendered :deep(strong) {
-  color: var(--text-primary);
-}
-
-.markdown-rendered :deep(a) {
-  color: var(--accent-gold);
-  word-break: break-word;
-}
-
-.error-state {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  align-items: center;
-}
-
-@media (max-width: 768px) {
-  .notes-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .notes-list,
-  .note-editor {
-    min-height: auto;
-  }
-
-  .notes-list {
-    max-height: 280px;
-    overflow-y: auto;
-  }
-
-  .note-panel-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .note-actions {
-    justify-content: flex-start;
-  }
-
-  .markdown-source {
-    min-height: 300px;
-  }
-}
-</style>

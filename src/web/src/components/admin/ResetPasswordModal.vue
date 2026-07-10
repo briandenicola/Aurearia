@@ -1,14 +1,18 @@
 <template>
-  <div v-if="user" class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal card">
-      <h3>Reset Password for {{ user.username }}</h3>
+  <div v-if="user" class="fixed inset-0 bg-[rgba(0,0,0,0.6)] flex items-center justify-center z-[200] p-4" @click.self="$emit('close')">
+    <div class="card w-full max-w-[400px]">
+      <h3 class="mb-4">Reset Password for {{ user.username }}</h3>
       <form @submit.prevent="handleSubmit">
         <div class="form-group">
           <label class="form-label">New Password</label>
           <input v-model="password" type="password" class="form-input" required minlength="6" />
         </div>
-        <p v-if="msg" class="msg" :class="{ error }">{{ msg }}</p>
-        <div class="modal-actions">
+        <p
+          v-if="msg"
+          class="text-body my-2"
+          :class="error ? 'text-[#e74c3c]' : 'text-gold'"
+        >{{ msg }}</p>
+        <div class="flex justify-end gap-2 mt-4">
           <button type="button" class="btn btn-secondary btn-sm" @click="$emit('close')">Cancel</button>
           <button type="submit" class="btn btn-primary btn-sm" :disabled="loading">
             {{ loading ? 'Resetting...' : 'Reset Password' }}
@@ -65,41 +69,3 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-  padding: 1rem;
-}
-
-.modal {
-  width: 100%;
-  max-width: 400px;
-}
-
-.modal h3 {
-  margin-bottom: 1rem;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.msg {
-  font-size: 0.85rem;
-  color: var(--accent-gold);
-  margin: 0.5rem 0;
-}
-
-.msg.error {
-  color: #e74c3c;
-}
-</style>

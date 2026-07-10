@@ -1,38 +1,44 @@
 <template>
-  <section class="settings-section card">
-    <h2>Account</h2>
+  <section class="card text-text-primary">
+    <h2 class="mb-5 border-b border-border-subtle pb-3 text-lg text-heading">Account</h2>
 
     <!-- Avatar -->
-    <div class="setting-item avatar-section">
-      <div class="avatar-preview">
-        <AuthenticatedImage :media-path="avatarUrl" alt="Avatar" class="avatar-img" />
+    <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 last:border-0">
+      <div class="shrink-0">
+        <AuthenticatedImage :media-path="avatarUrl" alt="Avatar" class="h-16 w-16 rounded-full border-2 border-gold-dim object-cover" />
       </div>
-      <div class="avatar-actions">
-        <label class="btn btn-secondary btn-sm">
+      <div class="flex flex-wrap gap-2">
+        <label class="btn btn-secondary btn-sm cursor-pointer focus-within:outline-2 focus-within:outline-gold focus-within:outline-offset-2">
           Upload Avatar
           <input type="file" accept="image/*" hidden @change="handleAvatarUpload" />
         </label>
-        <button v-if="auth.user?.avatarPath" class="btn btn-danger btn-sm" @click="handleAvatarDelete">Remove</button>
+        <button
+          v-if="auth.user?.avatarPath"
+          class="btn btn-danger btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+          @click="handleAvatarDelete"
+        >
+          Remove
+        </button>
       </div>
     </div>
 
-    <div class="setting-item">
-      <div class="setting-info">
-        <span class="setting-label">Username</span>
-        <span class="setting-value">{{ auth.user?.username }}</span>
+    <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 last:border-0">
+      <div class="flex flex-col gap-[0.15rem]">
+        <span class="text-base font-medium">Username</span>
+        <span class="text-base text-text-secondary">{{ auth.user?.username }}</span>
       </div>
     </div>
-    <div class="setting-item">
-      <div class="setting-info">
-        <span class="setting-label">Role</span>
-        <span class="setting-value badge" :class="`badge-${auth.user?.role === 'admin' ? 'roman' : 'modern'}`">
+    <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 last:border-0">
+      <div class="flex flex-col gap-[0.15rem]">
+        <span class="text-base font-medium">Role</span>
+        <span class="badge text-base text-text-secondary" :class="`badge-${auth.user?.role === 'admin' ? 'roman' : 'modern'}`">
           {{ auth.user?.role }}
         </span>
       </div>
     </div>
 
     <!-- Profile / Social Settings -->
-    <h3>Profile</h3>
+    <h3 class="mb-3 mt-5 text-base text-text-secondary">Profile</h3>
     <div class="form-group">
       <label class="form-label">Email</label>
       <input v-model="profileEmail" type="email" class="form-input" placeholder="you@example.com" />
@@ -44,11 +50,11 @@
     <div class="form-group">
       <label class="form-label">ZIP Code</label>
       <input v-model="profileZipCode" class="form-input" placeholder="e.g. 90210" maxlength="10" />
-      <span class="setting-hint">Used by the Agent to find nearby coin shows and dealers</span>
+      <span class="mt-1 block text-chip text-text-muted">Used by the Agent to find nearby coin shows and dealers</span>
     </div>
 
-    <h3>NumisBids Integration</h3>
-    <p class="setting-desc integration-desc">
+    <h3 class="mb-3 mt-5 text-base text-text-secondary">NumisBids Integration</h3>
+    <p class="mb-3 text-sm text-text-muted">
       Connect your NumisBids account to sync your watchlist and track auction lots.
     </p>
     <div class="form-group">
@@ -58,20 +64,29 @@
     <div class="form-group">
       <label class="form-label">NumisBids Password</label>
       <input v-model="nbPassword" type="password" class="form-input" placeholder="Your NumisBids password" autocomplete="new-password" />
-      <span class="setting-hint">Encrypted at rest on the server. Used only for watchlist sync; legacy stored passwords migrate on next save or sync.</span>
+      <span class="mt-1 block text-chip text-text-muted">Encrypted at rest on the server. Used only for watchlist sync; legacy stored passwords migrate on next save or sync.</span>
     </div>
-    <div v-if="nbValidating" class="nb-status validating">
+    <div
+      v-if="nbValidating"
+      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--text-warning)_20%,transparent)] bg-[color-mix(in_srgb,var(--text-warning)_10%,transparent)] px-3 py-[0.4rem] text-chip text-warning"
+    >
       Validating NumisBids credentials...
     </div>
-    <div v-else-if="nbValidationError" class="nb-status error">
+    <div
+      v-else-if="nbValidationError"
+      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-negative)]"
+    >
       {{ nbValidationError }}
     </div>
-    <div v-else-if="auth.user?.numisBidsConfigured" class="nb-status connected">
+    <div
+      v-else-if="auth.user?.numisBidsConfigured"
+      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+    >
       NumisBids account connected
     </div>
 
-    <h3>CNG Auctions Integration</h3>
-    <p class="setting-desc integration-desc">
+    <h3 class="mb-3 mt-5 text-base text-text-secondary">CNG Auctions Integration</h3>
+    <p class="mb-3 text-sm text-text-muted">
       Connect your CNG Auctions account to sync your watched lots.
     </p>
     <div class="form-group">
@@ -81,92 +96,117 @@
     <div class="form-group">
       <label class="form-label">CNG Password</label>
       <input v-model="cngPassword" type="password" class="form-input" placeholder="Your CNG password" autocomplete="new-password" />
-      <span class="setting-hint">Encrypted at rest on the server. Used only for watched-lot sync; legacy stored passwords migrate on next save or sync.</span>
+      <span class="mt-1 block text-chip text-text-muted">Encrypted at rest on the server. Used only for watched-lot sync; legacy stored passwords migrate on next save or sync.</span>
     </div>
-    <div v-if="cngValidating" class="nb-status validating">
+    <div
+      v-if="cngValidating"
+      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--text-warning)_20%,transparent)] bg-[color-mix(in_srgb,var(--text-warning)_10%,transparent)] px-3 py-[0.4rem] text-chip text-warning"
+    >
       Validating CNG credentials...
     </div>
-    <div v-else-if="cngValidationError" class="nb-status error">
+    <div
+      v-else-if="cngValidationError"
+      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-negative)]"
+    >
       {{ cngValidationError }}
     </div>
-    <div v-else-if="auth.user?.cngConfigured" class="nb-status connected">
+    <div
+      v-else-if="auth.user?.cngConfigured"
+      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+    >
       CNG account connected
     </div>
 
-    <h3>Pushover Notifications</h3>
-    <p class="setting-desc" style="margin-bottom: 0.75rem">
+    <h3 class="mb-3 mt-5 text-base text-text-secondary">Pushover Notifications</h3>
+    <p class="mb-3 text-sm text-text-muted">
       Receive push notifications on your phone when wishlist items become unavailable or friends add new coins.
     </p>
     <div class="form-group">
       <label class="form-label">Pushover User Key</label>
       <input v-model="pushoverKey" type="password" class="form-input" placeholder="Your Pushover User Key" autocomplete="off" />
-      <span class="setting-desc" style="font-size: 0.8rem; margin-top: 0.25rem; display: block">Find your User Key in the Pushover app or dashboard.</span>
+      <span class="mt-1 block text-chip text-text-muted">Find your User Key in the Pushover app or dashboard.</span>
     </div>
-    <div v-if="auth.user?.pushoverEnabled" class="nb-status connected" style="margin-bottom: 0.5rem">
+    <div
+      v-if="auth.user?.pushoverEnabled"
+      class="mb-2 mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+    >
       Pushover notifications active
     </div>
     <button
-      class="btn btn-secondary btn-sm"
+      class="btn btn-secondary btn-sm mb-1 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
       :disabled="pushoverTesting || !auth.user?.pushoverEnabled"
       @click="handleTestPushover"
-      style="margin-bottom: 0.25rem"
     >
       {{ pushoverTesting ? 'Sending...' : 'Test Notification' }}
     </button>
-    <p v-if="pushoverTestMsg" class="msg" :class="{ error: pushoverTestError }" style="margin-top: 0.25rem">{{ pushoverTestMsg }}</p>
-    <div class="setting-item">
-      <div class="setting-info">
-        <span class="setting-label">Public Collection</span>
-        <span class="setting-desc">Allow other users to follow you and view your coins</span>
+    <p
+      v-if="pushoverTestMsg"
+      class="mt-1 text-body text-gold"
+      :class="{ 'text-[var(--color-negative)]': pushoverTestError }"
+    >
+      {{ pushoverTestMsg }}
+    </p>
+    <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 last:border-0">
+      <div class="flex flex-col gap-[0.15rem]">
+        <span class="text-base font-medium">Public Collection</span>
+        <span class="text-sm text-text-muted">Allow other users to follow you and view your coins</span>
       </div>
-      <label class="toggle">
-        <input type="checkbox" :checked="profilePublic" @change="onPublicToggle" />
-        <span class="toggle-slider"></span>
+      <label class="relative inline-block h-7 w-[50px] shrink-0">
+        <input type="checkbox" class="peer sr-only" :checked="profilePublic" @change="onPublicToggle" />
+        <span
+          class="absolute inset-0 cursor-pointer rounded-full border border-border-subtle bg-[var(--bg-primary)] transition-colors peer-checked:border-gold peer-checked:bg-gold-dim peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2 after:absolute after:bottom-[3px] after:left-[3px] after:h-5 after:w-5 after:rounded-full after:bg-text-secondary after:transition-transform after:content-[''] peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"
+        ></span>
       </label>
     </div>
-    <div class="setting-item">
-      <div class="setting-info">
-        <span class="setting-label">Coin of the Day</span>
-        <span class="setting-desc">Receive a daily featured coin notification from your collection</span>
+    <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 last:border-0">
+      <div class="flex flex-col gap-[0.15rem]">
+        <span class="text-base font-medium">Coin of the Day</span>
+        <span class="text-sm text-text-muted">Receive a daily featured coin notification from your collection</span>
       </div>
-      <label class="toggle">
-        <input type="checkbox" v-model="coinOfDayEnabled" />
-        <span class="toggle-slider"></span>
+      <label class="relative inline-block h-7 w-[50px] shrink-0">
+        <input v-model="coinOfDayEnabled" type="checkbox" class="peer sr-only" />
+        <span
+          class="absolute inset-0 cursor-pointer rounded-full border border-border-subtle bg-[var(--bg-primary)] transition-colors peer-checked:border-gold peer-checked:bg-gold-dim peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2 after:absolute after:bottom-[3px] after:left-[3px] after:h-5 after:w-5 after:rounded-full after:bg-text-secondary after:transition-transform after:content-[''] peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"
+        ></span>
       </label>
     </div>
-    <button class="btn btn-primary btn-sm save-profile-btn" @click="handleSaveProfile" :disabled="profileSaving || nbValidating || cngValidating">
+    <button
+      class="btn btn-primary btn-sm mt-2 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+      @click="handleSaveProfile"
+      :disabled="profileSaving || nbValidating || cngValidating"
+    >
       {{ nbValidating || cngValidating ? 'Validating...' : profileSaving ? 'Saving...' : 'Save Profile' }}
     </button>
-    <p v-if="profileMsg" class="msg" :class="{ error: profileError }" style="margin-top: 0.5rem">{{ profileMsg }}</p>
+    <p v-if="profileMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--color-negative)]': profileError }">{{ profileMsg }}</p>
 
     <!-- Privacy Warning Modal -->
     <Teleport to="body">
-      <div v-if="showPrivacyWarning" class="modal-overlay" @click.self="cancelGoPrivate">
-        <div class="modal-content card" style="max-width: 440px;">
-          <div class="modal-header">
-            <h2 style="display: flex; align-items: center; gap: 0.5rem; margin: 0; font-size: 1rem;">
+      <div v-if="showPrivacyWarning" class="fixed inset-0 z-[1000] flex items-start justify-center bg-[var(--overlay-dark)] p-4 pt-[15vh]" @click.self="cancelGoPrivate">
+        <div class="card w-full max-w-[440px]">
+          <div class="border-b border-border-subtle px-5 py-4">
+            <h2 class="m-0 flex items-center gap-2 text-base text-heading">
               Make Collection Private?
             </h2>
           </div>
-          <div class="modal-body" style="padding: 1.25rem;">
-            <p style="color: var(--text-secondary); line-height: 1.5; margin: 0 0 0.75rem;">
-              Setting your profile to private will <strong style="color: var(--text-primary);">permanently remove all your followers</strong>.
+          <div class="p-5">
+            <p class="mb-3 mt-0 leading-6 text-text-secondary">
+              Setting your profile to private will <strong class="text-text-primary">permanently remove all your followers</strong>.
               They will need to send new follow requests if you make your profile public again.
             </p>
-            <p style="color: var(--text-secondary); line-height: 1.5; margin: 0 0 1rem;">
+            <p class="mb-4 mt-0 leading-6 text-text-secondary">
               You will also be hidden from user search results.
             </p>
-            <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
-              <button class="btn btn-secondary btn-sm" @click="cancelGoPrivate">Cancel</button>
-              <button class="btn btn-danger btn-sm" @click="confirmGoPrivate">Make Private</button>
+            <div class="flex justify-end gap-3">
+              <button class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="cancelGoPrivate">Cancel</button>
+              <button class="btn btn-danger btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="confirmGoPrivate">Make Private</button>
             </div>
           </div>
         </div>
       </div>
     </Teleport>
 
-    <h3>Change Password</h3>
-    <form class="password-form" @submit.prevent="handleChangePassword">
+    <h3 class="mb-3 mt-5 text-base text-text-secondary">Change Password</h3>
+    <form class="max-w-[350px]" @submit.prevent="handleChangePassword">
       <div class="form-group">
         <label class="form-label">Current Password</label>
         <input v-model="currentPassword" type="password" class="form-input" required />
@@ -179,44 +219,55 @@
         <label class="form-label">Confirm New Password</label>
         <input v-model="confirmPassword" type="password" class="form-input" required />
       </div>
-      <p v-if="passwordMsg" class="msg" :class="{ error: passwordError }">{{ passwordMsg }}</p>
-      <button type="submit" class="btn btn-primary btn-sm" :disabled="passwordLoading">
+      <p v-if="passwordMsg" class="my-2 text-body text-gold" :class="{ 'text-[var(--color-negative)]': passwordError }">{{ passwordMsg }}</p>
+      <button
+        type="submit"
+        class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+        :disabled="passwordLoading"
+      >
         {{ passwordLoading ? 'Changing...' : 'Change Password' }}
       </button>
     </form>
 
-    <h3>Connected Sign-in Providers</h3>
-    <p class="setting-desc oidc-desc">
+    <h3 class="mb-3 mt-5 text-base text-text-secondary">Connected Sign-in Providers</h3>
+    <p class="mt-2 text-sm text-text-muted">
       Link an external provider after signing in locally. This avoids unsafe automatic account merges.
     </p>
 
-    <div v-if="oidcMsg" class="oidc-status" :class="{ error: oidcError }" role="status">
+    <div v-if="oidcMsg" class="my-2 text-body text-gold" :class="{ 'text-[var(--color-negative)]': oidcError }" role="status">
       {{ oidcMsg }}
     </div>
 
-    <div v-if="oidcLoading" class="oidc-loading">
+    <div v-if="oidcLoading" class="my-2 text-body text-gold">
       Loading linked providers...
     </div>
     <div v-else>
-      <div v-if="oidcIdentities.length" class="oidc-identity-list">
-        <div v-for="identity in oidcIdentities" :key="identity.id" class="oidc-identity-item">
-          <div class="oidc-identity-info">
-            <div class="oidc-title-row">
-              <span class="oidc-provider-name">{{ identity.providerDisplayName }}</span>
-              <span class="chip-sm" :class="identity.emailVerified ? 'verified-chip' : 'unverified-chip'">
+      <div v-if="oidcIdentities.length" class="mt-4 flex flex-col gap-3">
+        <div
+          v-for="identity in oidcIdentities"
+          :key="identity.id"
+          class="flex flex-col items-stretch gap-3 rounded-sm border border-border-subtle bg-input p-3 md:flex-row md:items-start md:justify-between"
+        >
+          <div class="flex min-w-0 flex-col gap-[0.2rem]">
+            <div class="flex flex-wrap items-center gap-[0.35rem]">
+              <span class="text-base font-medium text-text-primary">{{ identity.providerDisplayName }}</span>
+              <span
+                class="chip-sm"
+                :class="identity.emailVerified ? 'border-[var(--color-positive)] text-[var(--color-positive)]' : 'border-[var(--color-negative)] text-[var(--color-negative)]'"
+              >
                 {{ identity.emailVerified ? 'Email verified' : 'Email unverified' }}
               </span>
             </div>
-            <span class="oidc-meta">Issuer: {{ identity.issuer }}</span>
-            <span class="oidc-meta">Subject: {{ identity.subjectPreview }}</span>
-            <span class="oidc-meta">Email: {{ identity.email }}</span>
-            <span class="oidc-meta">
+            <span class="text-sm text-text-muted [overflow-wrap:anywhere]">Issuer: {{ identity.issuer }}</span>
+            <span class="text-sm text-text-muted [overflow-wrap:anywhere]">Subject: {{ identity.subjectPreview }}</span>
+            <span class="text-sm text-text-muted [overflow-wrap:anywhere]">Email: {{ identity.email }}</span>
+            <span class="text-sm text-text-muted [overflow-wrap:anywhere]">
               Linked {{ formatDateTime(identity.createdAt) }}
               <template v-if="identity.lastLoginAt"> · Last login {{ formatDateTime(identity.lastLoginAt) }}</template>
             </span>
           </div>
           <button
-            class="btn btn-danger btn-sm"
+            class="btn btn-danger btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
             :disabled="unlinkingIdentityId === identity.id"
             @click="handleUnlinkIdentity(identity.id, identity.providerDisplayName)"
           >
@@ -224,14 +275,14 @@
           </button>
         </div>
       </div>
-      <p v-else class="setting-desc oidc-empty">No external sign-in providers linked.</p>
+      <p v-else class="mt-2 text-sm text-text-muted">No external sign-in providers linked.</p>
 
-      <div v-if="linkableProviders.length" class="oidc-link-actions">
+      <div v-if="linkableProviders.length" class="mt-3 flex flex-wrap gap-2">
         <button
           v-for="provider in linkableProviders"
           :key="provider.id"
           type="button"
-          class="btn btn-secondary btn-sm oidc-link-btn"
+          class="btn btn-secondary btn-sm inline-flex items-center gap-[0.35rem] focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :disabled="linkingProviderId === provider.id"
           @click="handleLinkProvider(provider.id, provider.displayName)"
         >
@@ -239,37 +290,43 @@
           {{ linkingProviderId === provider.id ? 'Starting...' : `Link ${provider.displayName}` }}
         </button>
       </div>
-      <p v-else-if="!oidcProviders.length" class="setting-desc oidc-empty">
+      <p v-else-if="!oidcProviders.length" class="mt-2 text-sm text-text-muted">
         No enabled OIDC providers are available for linking.
       </p>
     </div>
 
     <template v-if="supportsWebAuthn">
-      <h3>Biometric Login</h3>
-      <p class="setting-desc biometric-desc">
+      <h3 class="mb-3 mt-5 text-base text-text-secondary">Biometric Login</h3>
+      <p class="mb-3 text-sm text-text-muted">
         Register Face ID, Touch ID, or fingerprint for quick sign-in on this device.
       </p>
 
       <button
-        class="btn btn-primary btn-sm biometric-register-btn"
+        class="btn btn-primary btn-sm inline-flex items-center gap-[0.35rem] focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
         :disabled="registeringCredential"
         @click="handleRegisterCredential"
       >
         <LockKeyhole v-if="!registeringCredential" :size="16" aria-hidden="true" />
         {{ registeringCredential ? 'Registering...' : 'Register Biometric' }}
       </button>
-      <p v-if="credentialMsg" class="msg credential-msg" :class="{ error: credentialError }">{{ credentialMsg }}</p>
+      <p v-if="credentialMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--color-negative)]': credentialError }">{{ credentialMsg }}</p>
 
-      <div v-if="webauthnCredentials.length" class="apikey-list">
-        <div v-for="cred in webauthnCredentials" :key="cred.id" class="apikey-item">
-          <div class="apikey-item-info">
-            <span class="apikey-item-name">{{ cred.name }}</span>
-            <span class="apikey-item-meta">Registered {{ formatDate(cred.createdAt) }}</span>
+      <div v-if="webauthnCredentials.length" class="mt-4 flex flex-col gap-2">
+        <div
+          v-for="cred in webauthnCredentials"
+          :key="cred.id"
+          class="flex items-center justify-between gap-3 border-b border-border-subtle py-[0.6rem] last:border-0"
+        >
+          <div class="flex min-w-0 flex-col gap-[0.1rem]">
+            <span class="text-base font-medium">{{ cred.name }}</span>
+            <span class="text-sm text-text-muted">Registered {{ formatDate(cred.createdAt) }}</span>
           </div>
-          <button class="btn btn-danger btn-sm" @click="handleDeleteCredential(cred.id)">Remove</button>
+          <button class="btn btn-danger btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="handleDeleteCredential(cred.id)">
+            Remove
+          </button>
         </div>
       </div>
-      <p v-else-if="!registeringCredential" class="setting-desc credential-empty">No biometric credentials registered.</p>
+      <p v-else-if="!registeringCredential" class="mt-2 text-sm text-text-muted">No biometric credentials registered.</p>
     </template>
   </section>
 </template>
@@ -522,357 +579,3 @@ onMounted(() => {
 
 defineExpose({ loadCredentials, loadOIDCAccounts })
 </script>
-
-<style scoped>
-.avatar-section {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.avatar-preview {
-  flex-shrink: 0;
-}
-
-.avatar-img {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid var(--accent-gold-dim, #c9a84c);
-}
-
-.avatar-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.nb-status {
-  font-size: 0.8rem;
-  padding: 0.4rem 0.75rem;
-  border-radius: var(--radius-sm);
-  margin-top: 0.25rem;
-}
-
-.nb-status.connected {
-  background: rgba(74, 222, 128, 0.1);
-  color: #4ade80;
-  border: 1px solid rgba(74, 222, 128, 0.2);
-}
-
-.nb-status.validating {
-  background: rgba(250, 204, 21, 0.1);
-  color: #facc15;
-  border: 1px solid rgba(250, 204, 21, 0.2);
-}
-
-.nb-status.error {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.2);
-}
-
-.setting-value {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.password-form {
-  max-width: 350px;
-}
-
-.biometric-desc {
-  margin-bottom: 0.75rem;
-}
-
-.biometric-register-btn {
-  gap: 0.35rem;
-}
-
-.credential-msg,
-.credential-empty,
-.oidc-empty,
-.oidc-desc {
-  margin-top: 0.5rem;
-}
-
-.msg {
-  font-size: 0.85rem;
-  color: var(--accent-gold);
-  margin: 0.5rem 0;
-}
-
-.msg.error {
-  color: #e74c3c;
-}
-
-.apikey-list {
-  margin-top: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.apikey-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.6rem 0;
-  border-bottom: 1px solid var(--border-subtle);
-  gap: 0.75rem;
-}
-
-.apikey-item:last-child {
-  border-bottom: none;
-}
-
-.apikey-item-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  min-width: 0;
-}
-
-.apikey-item-name {
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.apikey-item-meta {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.oidc-status,
-.oidc-loading {
-  font-size: 0.85rem;
-  color: var(--accent-gold);
-  margin: 0.5rem 0;
-}
-
-.oidc-status.error {
-  color: var(--color-negative);
-}
-
-.oidc-identity-list {
-  margin-top: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.oidc-identity-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-input);
-}
-
-.oidc-identity-info {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.oidc-title-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.oidc-provider-name {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.oidc-meta {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  overflow-wrap: anywhere;
-}
-
-.verified-chip {
-  border-color: var(--color-positive);
-  color: var(--color-positive);
-}
-
-.unverified-chip {
-  border-color: var(--color-negative);
-  color: var(--color-negative);
-}
-
-.oidc-link-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-.oidc-link-btn {
-  gap: 0.35rem;
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 15vh 1rem;
-  z-index: 1000;
-}
-
-.modal-content {
-  width: 100%;
-}
-
-.modal-header {
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.modal-body {
-  padding: 1.25rem;
-}
-
-.settings-section h2 {
-  font-size: 1.2rem;
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.settings-section h3 {
-  font-size: 0.9rem;
-  margin-top: 1.25rem;
-  margin-bottom: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.setting-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--border-subtle);
-  gap: 1rem;
-}
-
-.setting-item:last-child {
-  border-bottom: none;
-}
-
-.setting-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.setting-label {
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.setting-desc {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.setting-hint {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.integration-desc {
-  margin-bottom: 0.75rem;
-}
-
-.save-profile-btn {
-  margin-top: 0.5rem;
-}
-
-.btn-danger {
-  background: #e74c3c;
-  color: #fff;
-  border: none;
-  cursor: pointer;
-}
-
-.btn-danger:hover {
-  background: #c0392b;
-}
-
-.toggle {
-  position: relative;
-  display: inline-block;
-  width: 50px;
-  height: 28px;
-  flex-shrink: 0;
-}
-
-.toggle input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  cursor: pointer;
-  inset: 0;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: 28px;
-  transition: background 0.2s;
-}
-
-.toggle-slider::before {
-  content: '';
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  left: 3px;
-  bottom: 3px;
-  background: var(--text-secondary);
-  border-radius: 50%;
-  transition: transform 0.2s;
-}
-
-.toggle input:checked + .toggle-slider {
-  background: var(--accent-gold-dim);
-  border-color: var(--accent-gold);
-}
-
-.toggle input:checked + .toggle-slider::before {
-  transform: translateX(22px);
-  background: var(--accent-gold);
-}
-
-@media (max-width: 640px) {
-  .setting-item {
-    flex-direction: row;
-    align-items: center;
-  }
-
-  .setting-item .toggle {
-    align-self: flex-start;
-    margin-top: 0.2rem;
-  }
-
-  .oidc-identity-item {
-    flex-direction: column;
-    align-items: stretch;
-  }
-}
-</style>

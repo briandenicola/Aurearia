@@ -1,13 +1,13 @@
 <template>
-  <section class="settings-section card help-section">
-    <h2>Beginner's Guide to Coin Collecting</h2>
-    <p class="setting-desc" style="margin-bottom: 1.5rem">
+  <section class="settings-section card min-w-0 overflow-hidden">
+    <h2 class="mb-2">Beginner's Guide to Coin Collecting</h2>
+    <p class="setting-desc mb-6 text-body text-text-secondary">
       Everything you need to know to start collecting coins with confidence.
     </p>
 
-    <details class="help-accordion" open>
-      <summary class="help-summary">Getting Started in the App</summary>
-      <div class="help-content">
+    <details class="group mb-2 overflow-hidden rounded-sm border border-border-subtle open:border-gold-dim" open>
+      <summary class="flex cursor-pointer list-none items-center gap-2 bg-surface px-4 py-3 text-base font-semibold text-text-primary transition-colors before:text-chip before:text-text-muted before:content-['▸'] before:transition-transform hover:bg-card-hover group-open:before:rotate-90 [&::-webkit-details-marker]:hidden">Getting Started in the App</summary>
+      <div class="overflow-x-auto px-4 py-4 text-base leading-[1.65] text-text-secondary [&_a:hover]:underline [&_code]:text-text-primary [&_h4:first-child]:mt-0 [&_h4]:mt-5 [&_h4]:mb-2 [&_h4]:text-base [&_h4]:text-text-primary [&_li]:mb-[0.35rem] [&_ol]:mb-3 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre [&_pre]:rounded-sm [&_pre]:border [&_pre]:border-border-subtle [&_pre]:bg-input [&_pre]:p-3 [&_pre]:text-chip [&_pre]:text-text-primary [&_table]:my-3 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:text-body [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.65rem] [&_td]:py-2 [&_td]:text-left [&_td]:break-words [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.65rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.03em] [&_th]:text-text-muted [&_ul]:mb-3 [&_ul]:ml-5 [&_ul]:list-disc]">
         <p>If this is a new account, you can open this guide from the first-login prompt or anytime from the sidebar under <strong>Getting Started</strong>.</p>
 
         <h4>Recommended First Steps</h4>
@@ -21,7 +21,7 @@
 
         <h4>CSV Columns</h4>
         <p>Only <code>name</code> is required. All other fields are optional.</p>
-        <table class="help-table">
+        <table>
           <thead>
             <tr><th>Column</th><th>Type</th><th>Notes</th></tr>
           </thead>
@@ -39,15 +39,15 @@
         </table>
 
         <h4>CSV Example</h4>
-        <pre class="help-code">name,category,material,denomination,ruler,era,mint,weightGrams,diameterMm,grade,purchasePrice,currentValue,purchaseDate,purchaseLocation,isWishlist
+        <pre>name,category,material,denomination,ruler,era,mint,weightGrams,diameterMm,grade,purchasePrice,currentValue,purchaseDate,purchaseLocation,isWishlist
 Augustus Denarius,Roman,Silver,Denarius,Augustus,27 BC - 14 AD,Rome,3.82,19.5,VF,450,600,2024-03-15,Heritage Auctions,false
 Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90,18.1,F,35,45,2025-01-20,Local Show,false</pre>
       </div>
     </details>
 
-    <details class="help-accordion">
-      <summary class="help-summary">Using Aurearia - Coin Collection Features</summary>
-      <div class="help-content">
+    <details class="group mb-2 overflow-hidden rounded-sm border border-border-subtle open:border-gold-dim">
+      <summary class="flex cursor-pointer list-none items-center gap-2 bg-surface px-4 py-3 text-base font-semibold text-text-primary transition-colors before:text-chip before:text-text-muted before:content-['▸'] before:transition-transform hover:bg-card-hover group-open:before:rotate-90 [&::-webkit-details-marker]:hidden">Using Aurearia - Coin Collection Features</summary>
+      <div class="overflow-x-auto px-4 py-4 text-base leading-[1.65] text-text-secondary [&_a:hover]:underline [&_code]:text-text-primary [&_h4:first-child]:mt-0 [&_h4]:mt-5 [&_h4]:mb-2 [&_h4]:text-base [&_h4]:text-text-primary [&_li]:mb-[0.35rem] [&_ol]:mb-3 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre [&_pre]:rounded-sm [&_pre]:border [&_pre]:border-border-subtle [&_pre]:bg-input [&_pre]:p-3 [&_pre]:text-chip [&_pre]:text-text-primary [&_table]:my-3 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:text-body [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.65rem] [&_td]:py-2 [&_td]:text-left [&_td]:break-words [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.65rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.03em] [&_th]:text-text-muted [&_ul]:mb-3 [&_ul]:ml-5 [&_ul]:list-disc]">
         <p>Aurearia - Coin Collection supports collection cataloging, acquisition planning, auctions, social sharing, and AI-assisted research. These workflows are optional; start with collection import or Quick Capture, then enable integrations as needed.</p>
 
         <h4>Fast Intake</h4>
@@ -77,9 +77,9 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
       </div>
     </details>
 
-    <details class="help-accordion">
-      <summary class="help-summary">Historical Coin Types</summary>
-      <div class="help-content">
+    <details class="group mb-2 overflow-hidden rounded-sm border border-border-subtle open:border-gold-dim">
+      <summary class="flex cursor-pointer list-none items-center gap-2 bg-surface px-4 py-3 text-base font-semibold text-text-primary transition-colors before:text-chip before:text-text-muted before:content-['▸'] before:transition-transform hover:bg-card-hover group-open:before:rotate-90 [&::-webkit-details-marker]:hidden">Historical Coin Types</summary>
+      <div class="overflow-x-auto px-4 py-4 text-base leading-[1.65] text-text-secondary [&_a:hover]:underline [&_code]:text-text-primary [&_h4:first-child]:mt-0 [&_h4]:mt-5 [&_h4]:mb-2 [&_h4]:text-base [&_h4]:text-text-primary [&_li]:mb-[0.35rem] [&_ol]:mb-3 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre [&_pre]:rounded-sm [&_pre]:border [&_pre]:border-border-subtle [&_pre]:bg-input [&_pre]:p-3 [&_pre]:text-chip [&_pre]:text-text-primary [&_table]:my-3 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:text-body [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.65rem] [&_td]:py-2 [&_td]:text-left [&_td]:break-words [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.65rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.03em] [&_th]:text-text-muted [&_ul]:mb-3 [&_ul]:ml-5 [&_ul]:list-disc]">
         <p>Ancient coins span thousands of years across many civilizations. Here are the major categories:</p>
 
         <h4>Greek (c. 600 BC – 31 BC)</h4>
@@ -90,7 +90,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           <li><strong>Obol</strong> — Small silver coin, originally 1/6 of a drachm</li>
           <li><strong>Hemidrachm</strong> — Half a drachm, commonly found in smaller denominations</li>
         </ul>
-        <p class="help-tip"><strong>Popular starting points:</strong> Athenian owl tetradrachms, Alexander the Great drachms, and Ptolemaic bronzes are widely available and recognizable.</p>
+        <p class="my-3 rounded-r-sm border-l-[3px] border-l-gold bg-gold-glow px-[0.85rem] py-[0.6rem] text-body"><strong>Popular starting points:</strong> Athenian owl tetradrachms, Alexander the Great drachms, and Ptolemaic bronzes are widely available and recognizable.</p>
 
         <h4>Roman Republic (c. 280 – 27 BC)</h4>
         <p>Coins of the Roman Republic feature anonymous designs early on, evolving to depict political figures and events.</p>
@@ -110,7 +110,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           <li><strong>Follis</strong> — Late Roman bronze, common in the 4th century</li>
           <li><strong>Solidus</strong> — Gold coin introduced by Constantine I, replaced the aureus</li>
         </ul>
-        <p class="help-tip"><strong>Best for beginners:</strong> Late Roman bronzes (4th century) are affordable, plentiful, and come in recognizable emperor portraits. Start with Constantine I, Constantius II, or Valentinian I.</p>
+        <p class="my-3 rounded-r-sm border-l-[3px] border-l-gold bg-gold-glow px-[0.85rem] py-[0.6rem] text-body"><strong>Best for beginners:</strong> Late Roman bronzes (4th century) are affordable, plentiful, and come in recognizable emperor portraits. Start with Constantine I, Constantius II, or Valentinian I.</p>
 
         <h4>Byzantine (330 – 1453 AD)</h4>
         <p>Continuation of the Eastern Roman Empire. Notable for their distinctive cup-shaped coins (scyphate) and religious imagery.</p>
@@ -125,12 +125,12 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
       </div>
     </details>
 
-    <details class="help-accordion">
-      <summary class="help-summary">Understanding Coin Grading</summary>
-      <div class="help-content">
+    <details class="group mb-2 overflow-hidden rounded-sm border border-border-subtle open:border-gold-dim">
+      <summary class="flex cursor-pointer list-none items-center gap-2 bg-surface px-4 py-3 text-base font-semibold text-text-primary transition-colors before:text-chip before:text-text-muted before:content-['▸'] before:transition-transform hover:bg-card-hover group-open:before:rotate-90 [&::-webkit-details-marker]:hidden">Understanding Coin Grading</summary>
+      <div class="overflow-x-auto px-4 py-4 text-base leading-[1.65] text-text-secondary [&_a:hover]:underline [&_code]:text-text-primary [&_h4:first-child]:mt-0 [&_h4]:mt-5 [&_h4]:mb-2 [&_h4]:text-base [&_h4]:text-text-primary [&_li]:mb-[0.35rem] [&_ol]:mb-3 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre [&_pre]:rounded-sm [&_pre]:border [&_pre]:border-border-subtle [&_pre]:bg-input [&_pre]:p-3 [&_pre]:text-chip [&_pre]:text-text-primary [&_table]:my-3 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:text-body [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.65rem] [&_td]:py-2 [&_td]:text-left [&_td]:break-words [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.65rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.03em] [&_th]:text-text-muted [&_ul]:mb-3 [&_ul]:ml-5 [&_ul]:list-disc]">
         <p>Grading describes a coin's physical condition and is the single biggest factor in determining value. Grades are standardized across the hobby:</p>
 
-        <table class="help-table">
+        <table>
           <thead>
             <tr><th>Grade</th><th>Abbreviation</th><th>Description</th></tr>
           </thead>
@@ -149,7 +149,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           </tbody>
         </table>
 
-        <p class="help-tip"><strong>For ancient coins</strong>, VF is considered a very respectable grade. Many ancient coins in EF or above command significant premiums. Don't expect modern-coin perfection — 2,000-year-old coins have character!</p>
+        <p class="my-3 rounded-r-sm border-l-[3px] border-l-gold bg-gold-glow px-[0.85rem] py-[0.6rem] text-body"><strong>For ancient coins</strong>, VF is considered a very respectable grade. Many ancient coins in EF or above command significant premiums. Don't expect modern-coin perfection — 2,000-year-old coins have character!</p>
 
         <h4>Grading Services</h4>
         <p>Professional grading services (NGC Ancients, PCGS) authenticate and grade coins, sealing them in tamper-proof holders ("slabs"). This adds cost but provides confidence in authenticity and grade. NGC Ancients is the most widely used service for ancient coins.</p>
@@ -157,12 +157,12 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
       </div>
     </details>
 
-    <details class="help-accordion">
-      <summary class="help-summary">Reference Catalogs (RIC, RPC, Sear & More)</summary>
-      <div class="help-content">
+    <details class="group mb-2 overflow-hidden rounded-sm border border-border-subtle open:border-gold-dim">
+      <summary class="flex cursor-pointer list-none items-center gap-2 bg-surface px-4 py-3 text-base font-semibold text-text-primary transition-colors before:text-chip before:text-text-muted before:content-['▸'] before:transition-transform hover:bg-card-hover group-open:before:rotate-90 [&::-webkit-details-marker]:hidden">Reference Catalogs (RIC, RPC, Sear & More)</summary>
+      <div class="overflow-x-auto px-4 py-4 text-base leading-[1.65] text-text-secondary [&_a:hover]:underline [&_code]:text-text-primary [&_h4:first-child]:mt-0 [&_h4]:mt-5 [&_h4]:mb-2 [&_h4]:text-base [&_h4]:text-text-primary [&_li]:mb-[0.35rem] [&_ol]:mb-3 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre [&_pre]:rounded-sm [&_pre]:border [&_pre]:border-border-subtle [&_pre]:bg-input [&_pre]:p-3 [&_pre]:text-chip [&_pre]:text-text-primary [&_table]:my-3 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:text-body [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.65rem] [&_td]:py-2 [&_td]:text-left [&_td]:break-words [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.65rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.03em] [&_th]:text-text-muted [&_ul]:mb-3 [&_ul]:ml-5 [&_ul]:list-disc]">
         <p>Reference catalogs assign standard numbers to coin types, making identification and communication precise. When you see a number like "RIC 207," it refers to a specific coin type in a specific volume.</p>
 
-        <table class="help-table">
+        <table>
           <thead>
             <tr><th>Catalog</th><th>Full Name</th><th>Coverage</th></tr>
           </thead>
@@ -178,7 +178,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           </tbody>
         </table>
 
-        <p class="help-tip"><strong>Getting started:</strong> You don't need to buy these expensive books right away. Websites like <a href="https://www.wildwinds.com" target="_blank" rel="noopener">WildWinds</a>, <a href="https://www.acsearch.info" target="_blank" rel="noopener">ACSearch</a>, and <a href="https://en.numista.com" target="_blank" rel="noopener">Numista</a> provide free searchable databases with images and catalog references.</p>
+        <p class="my-3 rounded-r-sm border-l-[3px] border-l-gold bg-gold-glow px-[0.85rem] py-[0.6rem] text-body"><strong>Getting started:</strong> You don't need to buy these expensive books right away. Websites like <a href="https://www.wildwinds.com" target="_blank" rel="noopener">WildWinds</a>, <a href="https://www.acsearch.info" target="_blank" rel="noopener">ACSearch</a>, and <a href="https://en.numista.com" target="_blank" rel="noopener">Numista</a> provide free searchable databases with images and catalog references.</p>
 
         <h4>How to Read a Catalog Reference</h4>
         <p><strong>Example: "RIC VII 162"</strong></p>
@@ -192,13 +192,13 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
       </div>
     </details>
 
-    <details class="help-accordion">
-      <summary class="help-summary">Reading Inscriptions (Legends)</summary>
-      <div class="help-content">
+    <details class="group mb-2 overflow-hidden rounded-sm border border-border-subtle open:border-gold-dim">
+      <summary class="flex cursor-pointer list-none items-center gap-2 bg-surface px-4 py-3 text-base font-semibold text-text-primary transition-colors before:text-chip before:text-text-muted before:content-['▸'] before:transition-transform hover:bg-card-hover group-open:before:rotate-90 [&::-webkit-details-marker]:hidden">Reading Inscriptions (Legends)</summary>
+      <div class="overflow-x-auto px-4 py-4 text-base leading-[1.65] text-text-secondary [&_a:hover]:underline [&_code]:text-text-primary [&_h4:first-child]:mt-0 [&_h4]:mt-5 [&_h4]:mb-2 [&_h4]:text-base [&_h4]:text-text-primary [&_li]:mb-[0.35rem] [&_ol]:mb-3 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre [&_pre]:rounded-sm [&_pre]:border [&_pre]:border-border-subtle [&_pre]:bg-input [&_pre]:p-3 [&_pre]:text-chip [&_pre]:text-text-primary [&_table]:my-3 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:text-body [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.65rem] [&_td]:py-2 [&_td]:text-left [&_td]:break-words [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.65rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.03em] [&_th]:text-text-muted [&_ul]:mb-3 [&_ul]:ml-5 [&_ul]:list-disc]">
         <p>Roman coin inscriptions follow conventions that, once understood, make identification much easier. Legends are typically in Latin and read clockwise starting from the lower left.</p>
 
         <h4>Common Obverse Elements</h4>
-        <table class="help-table">
+        <table>
           <thead>
             <tr><th>Abbreviation</th><th>Meaning</th><th>Example</th></tr>
           </thead>
@@ -216,7 +216,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
         </table>
 
         <h4>Common Reverse Inscriptions</h4>
-        <table class="help-table">
+        <table>
           <thead>
             <tr><th>Inscription</th><th>Meaning</th></tr>
           </thead>
@@ -241,13 +241,13 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           <li><strong>Worn legends</strong> — Use known text patterns and reference photos to fill gaps</li>
         </ul>
 
-        <p class="help-tip"><strong>Pro tip:</strong> The obverse legend usually tells you WHO (the emperor) and WHEN (via titles like TR P and COS numbers). The reverse tells you the MESSAGE (propaganda, virtues, military victories).</p>
+        <p class="my-3 rounded-r-sm border-l-[3px] border-l-gold bg-gold-glow px-[0.85rem] py-[0.6rem] text-body"><strong>Pro tip:</strong> The obverse legend usually tells you WHO (the emperor) and WHEN (via titles like TR P and COS numbers). The reverse tells you the MESSAGE (propaganda, virtues, military victories).</p>
       </div>
     </details>
 
-    <details class="help-accordion">
-      <summary class="help-summary">Buying Your First Coins</summary>
-      <div class="help-content">
+    <details class="group mb-2 overflow-hidden rounded-sm border border-border-subtle open:border-gold-dim">
+      <summary class="flex cursor-pointer list-none items-center gap-2 bg-surface px-4 py-3 text-base font-semibold text-text-primary transition-colors before:text-chip before:text-text-muted before:content-['▸'] before:transition-transform hover:bg-card-hover group-open:before:rotate-90 [&::-webkit-details-marker]:hidden">Buying Your First Coins</summary>
+      <div class="overflow-x-auto px-4 py-4 text-base leading-[1.65] text-text-secondary [&_a:hover]:underline [&_code]:text-text-primary [&_h4:first-child]:mt-0 [&_h4]:mt-5 [&_h4]:mb-2 [&_h4]:text-base [&_h4]:text-text-primary [&_li]:mb-[0.35rem] [&_ol]:mb-3 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre [&_pre]:rounded-sm [&_pre]:border [&_pre]:border-border-subtle [&_pre]:bg-input [&_pre]:p-3 [&_pre]:text-chip [&_pre]:text-text-primary [&_table]:my-3 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:text-body [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.65rem] [&_td]:py-2 [&_td]:text-left [&_td]:break-words [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.65rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.03em] [&_th]:text-text-muted [&_ul]:mb-3 [&_ul]:ml-5 [&_ul]:list-disc]">
         <h4>Where to Buy</h4>
         <ul>
           <li><strong>Established auction houses</strong> — CNG (Classical Numismatic Group), Heritage Auctions, Roma Numismatics, Nomos, Leu Numismatik. These guarantee authenticity.</li>
@@ -267,7 +267,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
         </ul>
 
         <h4>Budget Guidelines</h4>
-        <table class="help-table">
+        <table>
           <thead>
             <tr><th>Budget</th><th>What You Can Expect</th></tr>
           </thead>
@@ -282,9 +282,9 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
       </div>
     </details>
 
-    <details class="help-accordion">
-      <summary class="help-summary">What to Watch Out For</summary>
-      <div class="help-content">
+    <details class="group mb-2 overflow-hidden rounded-sm border border-border-subtle open:border-gold-dim">
+      <summary class="flex cursor-pointer list-none items-center gap-2 bg-surface px-4 py-3 text-base font-semibold text-text-primary transition-colors before:text-chip before:text-text-muted before:content-['▸'] before:transition-transform hover:bg-card-hover group-open:before:rotate-90 [&::-webkit-details-marker]:hidden">What to Watch Out For</summary>
+      <div class="overflow-x-auto px-4 py-4 text-base leading-[1.65] text-text-secondary [&_a:hover]:underline [&_code]:text-text-primary [&_h4:first-child]:mt-0 [&_h4]:mt-5 [&_h4]:mb-2 [&_h4]:text-base [&_h4]:text-text-primary [&_li]:mb-[0.35rem] [&_ol]:mb-3 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre [&_pre]:rounded-sm [&_pre]:border [&_pre]:border-border-subtle [&_pre]:bg-input [&_pre]:p-3 [&_pre]:text-chip [&_pre]:text-text-primary [&_table]:my-3 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:text-body [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.65rem] [&_td]:py-2 [&_td]:text-left [&_td]:break-words [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.65rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.03em] [&_th]:text-text-muted [&_ul]:mb-3 [&_ul]:ml-5 [&_ul]:list-disc]">
         <h4>Forgeries & Fakes</h4>
         <p>Forgery has been a problem in numismatics for centuries. Modern fakes, especially from certain overseas workshops, can be very convincing. Here's how to protect yourself:</p>
         <ul>
@@ -298,7 +298,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
         </ul>
 
         <h4>Cleaning</h4>
-        <p class="help-warning">🚫 <strong>Never clean an ancient coin.</strong> Cleaning almost always reduces a coin's value, often dramatically. The natural patina that develops over centuries is considered part of the coin's character and beauty.</p>
+        <p class="my-3 rounded-r-sm border-l-[3px] border-l-warning bg-[rgba(231,76,60,0.08)] px-[0.85rem] py-[0.6rem] text-body text-text-primary">🚫 <strong>Never clean an ancient coin.</strong> Cleaning almost always reduces a coin's value, often dramatically. The natural patina that develops over centuries is considered part of the coin's character and beauty.</p>
         <ul>
           <li><strong>No brushing, polishing, or chemical dips</strong> — These remove patina permanently</li>
           <li><strong>Avoid "coin cleaning" products</strong> — They are designed for modern coins and will damage ancients</li>
@@ -317,7 +317,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
         </ul>
 
         <h4>Red Flags Summary</h4>
-        <table class="help-table">
+        <table>
           <thead>
             <tr><th>🚩 Red Flag</th><th>What It Means</th></tr>
           </thead>
@@ -334,9 +334,9 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
       </div>
     </details>
 
-    <details class="help-accordion">
-      <summary class="help-summary">Connecting AI Tools (External Tool Server)</summary>
-      <div class="help-content">
+    <details class="group mb-2 overflow-hidden rounded-sm border border-border-subtle open:border-gold-dim">
+      <summary class="flex cursor-pointer list-none items-center gap-2 bg-surface px-4 py-3 text-base font-semibold text-text-primary transition-colors before:text-chip before:text-text-muted before:content-['▸'] before:transition-transform hover:bg-card-hover group-open:before:rotate-90 [&::-webkit-details-marker]:hidden">Connecting AI Tools (External Tool Server)</summary>
+      <div class="overflow-x-auto px-4 py-4 text-base leading-[1.65] text-text-secondary [&_a:hover]:underline [&_code]:text-text-primary [&_h4:first-child]:mt-0 [&_h4]:mt-5 [&_h4]:mb-2 [&_h4]:text-base [&_h4]:text-text-primary [&_li]:mb-[0.35rem] [&_ol]:mb-3 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre [&_pre]:rounded-sm [&_pre]:border [&_pre]:border-border-subtle [&_pre]:bg-input [&_pre]:p-3 [&_pre]:text-chip [&_pre]:text-text-primary [&_table]:my-3 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:text-body [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.65rem] [&_td]:py-2 [&_td]:text-left [&_td]:break-words [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.65rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.03em] [&_th]:text-text-muted [&_ul]:mb-3 [&_ul]:ml-5 [&_ul]:list-disc]">
         <p>The External Tool Server exposes your collection to external AI clients (OpenWebUI, LibreChat, n8n, and MCP-compatible clients) over a secure API. External clients can search your collection, retrieve statistics, and optionally propose updates through a two-phase confirmation workflow.</p>
         <p>For the complete technical walkthrough, see <code>docs/external-tool-server.md</code> in the repository.</p>
 
@@ -369,7 +369,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
         <ol>
           <li>
             Import the OpenAPI URL:
-            <pre class="help-code">http://your-ancient-coins-host:8080/api/v1/tools/openapi.json</pre>
+            <pre>http://your-ancient-coins-host:8080/api/v1/tools/openapi.json</pre>
           </li>
           <li>
             Add a custom header:
@@ -386,7 +386,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
         <p><strong>Base Path:</strong> <code>/api/v1/tools/*</code></p>
         <p><strong>Authentication:</strong> Send your API key in the <code>X-API-Key</code> header.</p>
         <p><strong>Available Tools:</strong></p>
-        <table class="help-table">
+        <table>
           <thead>
             <tr><th>Tool</th><th>Capability</th><th>Purpose</th></tr>
           </thead>
@@ -401,15 +401,15 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
         </table>
         <p><strong>OpenAPI Spec:</strong> <code>GET /api/v1/tools/openapi.json</code> returns the full schema (unauthenticated, respects admin kill switch only).</p>
         <p><strong>MCP Compatibility:</strong> Wrap the OpenAPI spec with <a href="https://github.com/QuantGeekDev/mcpo" target="_blank" rel="noopener">mcpo</a> to expose tools to MCP clients (Claude Desktop, Cline):</p>
-        <pre class="help-code">mcpo --openapi http://localhost:8080/api/v1/tools/openapi.json \
+        <pre>mcpo --openapi http://localhost:8080/api/v1/tools/openapi.json \
      --header "X-API-Key: ak_your_key_here"</pre>
         <p><strong>Security:</strong> All operations are user-scoped (tenant isolation). Rate limited at 50 requests/minute per key. External writes are restricted to the same allowlist as in-app updates (grade, currentValue, notes, tags, references). Identity fields are rejected.</p>
       </div>
     </details>
 
-    <details class="help-accordion" :open="route.query.section === 'oidc'">
-      <summary class="help-summary">Setting Up OIDC Login</summary>
-      <div class="help-content">
+    <details class="group mb-2 overflow-hidden rounded-sm border border-border-subtle open:border-gold-dim" :open="route.query.section === 'oidc'">
+      <summary class="flex cursor-pointer list-none items-center gap-2 bg-surface px-4 py-3 text-base font-semibold text-text-primary transition-colors before:text-chip before:text-text-muted before:content-['▸'] before:transition-transform hover:bg-card-hover group-open:before:rotate-90 [&::-webkit-details-marker]:hidden">Setting Up OIDC Login</summary>
+      <div class="overflow-x-auto px-4 py-4 text-base leading-[1.65] text-text-secondary [&_a:hover]:underline [&_code]:text-text-primary [&_h4:first-child]:mt-0 [&_h4]:mt-5 [&_h4]:mb-2 [&_h4]:text-base [&_h4]:text-text-primary [&_li]:mb-[0.35rem] [&_ol]:mb-3 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre [&_pre]:rounded-sm [&_pre]:border [&_pre]:border-border-subtle [&_pre]:bg-input [&_pre]:p-3 [&_pre]:text-chip [&_pre]:text-text-primary [&_table]:my-3 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:text-body [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.65rem] [&_td]:py-2 [&_td]:text-left [&_td]:break-words [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.65rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.03em] [&_th]:text-text-muted [&_ul]:mb-3 [&_ul]:ml-5 [&_ul]:list-disc]">
         <p>OIDC login lets administrators add Microsoft Entra ID, Pocket ID, or another OpenID Connect provider while keeping local password recovery available.</p>
         <p>For the complete technical walkthrough, see <code>docs/oidc-setup.md</code> in the repository.</p>
 
@@ -441,9 +441,9 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
       </div>
     </details>
 
-    <details class="help-accordion">
-      <summary class="help-summary">Helpful Resources</summary>
-      <div class="help-content">
+    <details class="group mb-2 overflow-hidden rounded-sm border border-border-subtle open:border-gold-dim">
+      <summary class="flex cursor-pointer list-none items-center gap-2 bg-surface px-4 py-3 text-base font-semibold text-text-primary transition-colors before:text-chip before:text-text-muted before:content-['▸'] before:transition-transform hover:bg-card-hover group-open:before:rotate-90 [&::-webkit-details-marker]:hidden">Helpful Resources</summary>
+      <div class="overflow-x-auto px-4 py-4 text-base leading-[1.65] text-text-secondary [&_a:hover]:underline [&_code]:text-text-primary [&_h4:first-child]:mt-0 [&_h4]:mt-5 [&_h4]:mb-2 [&_h4]:text-base [&_h4]:text-text-primary [&_li]:mb-[0.35rem] [&_ol]:mb-3 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre [&_pre]:rounded-sm [&_pre]:border [&_pre]:border-border-subtle [&_pre]:bg-input [&_pre]:p-3 [&_pre]:text-chip [&_pre]:text-text-primary [&_table]:my-3 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:text-body [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.65rem] [&_td]:py-2 [&_td]:text-left [&_td]:break-words [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.65rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.03em] [&_th]:text-text-muted [&_ul]:mb-3 [&_ul]:ml-5 [&_ul]:list-disc]">
         <h4>Online Databases & References</h4>
         <ul>
           <li><a href="https://www.wildwinds.com" target="_blank" rel="noopener"><strong>WildWinds</strong></a> — Free database of ancient coin images organized by ruler and catalog reference</li>
@@ -479,162 +479,3 @@ import { useRoute } from 'vue-router'
 const route = useRoute()
 </script>
 
-<style scoped>
-/* Help Section */
-.help-section {
-  overflow: hidden;
-  min-width: 0;
-}
-
-.help-section h2 {
-  margin-bottom: 0.5rem;
-}
-
-.help-accordion {
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  margin-bottom: 0.5rem;
-  overflow: hidden;
-}
-
-.help-accordion[open] {
-  border-color: var(--accent-gold-dim);
-}
-
-.help-summary {
-  padding: 0.75rem 1rem;
-  font-weight: 600;
-  font-size: 0.9rem;
-  cursor: pointer;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  list-style: none;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: background var(--transition-fast);
-}
-
-.help-summary::-webkit-details-marker {
-  display: none;
-}
-
-.help-summary::before {
-  content: '▸';
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  transition: transform 0.2s;
-}
-
-.help-accordion[open] > .help-summary::before {
-  transform: rotate(90deg);
-}
-
-.help-summary:hover {
-  background: var(--bg-card-hover, var(--bg-card));
-}
-
-.help-content {
-  padding: 1rem;
-  font-size: 0.9rem;
-  line-height: 1.65;
-  color: var(--text-secondary);
-  overflow-x: auto;
-}
-
-.help-content h4 {
-  color: var(--text-primary);
-  margin: 1.25rem 0 0.5rem;
-  font-size: 0.9rem;
-}
-
-.help-content h4:first-child {
-  margin-top: 0;
-}
-
-.help-content p {
-  margin-bottom: 0.75rem;
-}
-
-.help-content ul {
-  margin: 0 0 0.75rem 1.25rem;
-  padding: 0;
-}
-
-.help-content ol {
-  margin: 0 0 0.75rem 1.25rem;
-  padding: 0;
-}
-
-.help-content li {
-  margin-bottom: 0.35rem;
-}
-
-.help-content a {
-  color: var(--accent-gold);
-  text-decoration: none;
-}
-
-.help-content a:hover {
-  text-decoration: underline;
-}
-
-.help-tip {
-  background: var(--accent-gold-glow, rgba(212, 175, 55, 0.08));
-  border-left: 3px solid var(--accent-gold);
-  padding: 0.6rem 0.85rem;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  font-size: 0.85rem;
-  margin: 0.75rem 0;
-}
-
-.help-warning {
-  background: rgba(231, 76, 60, 0.08);
-  border-left: 3px solid #e74c3c;
-  padding: 0.6rem 0.85rem;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  font-size: 0.85rem;
-  margin: 0.75rem 0;
-  color: var(--text-primary);
-}
-
-.help-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 0.75rem 0;
-  font-size: 0.85rem;
-  table-layout: fixed;
-}
-
-.help-table th,
-.help-table td {
-  padding: 0.5rem 0.65rem;
-  text-align: left;
-  border-bottom: 1px solid var(--border-subtle);
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-}
-
-.help-table th {
-  color: var(--text-muted);
-  font-weight: 600;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.help-table tr:last-child td {
-  border-bottom: none;
-}
-
-.help-code {
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 0.75rem;
-  font-size: 0.8rem;
-  color: var(--text-primary);
-  overflow-x: auto;
-  white-space: pre;
-}
-</style>

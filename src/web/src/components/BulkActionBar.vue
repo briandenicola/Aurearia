@@ -1,18 +1,23 @@
 <template>
-  <Transition name="bar-slide">
-    <div v-if="visible" class="bulk-action-bar">
-      <span class="bulk-count">{{ selectedCount }} coin{{ selectedCount === 1 ? '' : 's' }} selected</span>
-      <div class="bulk-actions">
-        <button class="bulk-btn bulk-btn-tag" @click="$emit('tag')">
+  <Transition
+    enter-active-class="transition-all duration-300 ease-out"
+    enter-from-class="translate-y-5 opacity-0"
+    leave-active-class="transition-all duration-300 ease-in"
+    leave-to-class="translate-y-5 opacity-0"
+  >
+    <div v-if="visible" class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-[200] flex w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-col items-stretch gap-[0.6rem] rounded-md border border-gold-dim bg-card px-3 py-3 whitespace-normal shadow-[0_8px_30px_rgba(0,0,0,0.5)] min-[641px]:bottom-6 min-[641px]:w-auto min-[641px]:max-w-[calc(100vw-2rem)] min-[641px]:flex-row min-[641px]:items-center min-[641px]:gap-4 min-[641px]:px-5 min-[641px]:whitespace-nowrap">
+      <span class="text-center text-body font-medium text-text-secondary min-[641px]:text-left">{{ selectedCount }} coin{{ selectedCount === 1 ? '' : 's' }} selected</span>
+      <div class="grid grid-cols-2 gap-2 min-[641px]:flex min-[641px]:flex-wrap min-[641px]:justify-center min-[641px]:gap-2">
+        <button class="btn btn-ghost btn-sm min-w-0 justify-center" @click="$emit('tag')">
           <TagIcon :size="16" /> Tag
         </button>
-        <button class="bulk-btn" @click="$emit('location')">
+        <button class="btn btn-ghost btn-sm min-w-0 justify-center" @click="$emit('location')">
           <MapPin :size="16" /> Assign Location
         </button>
-        <button class="bulk-btn bulk-btn-sell" @click="$emit('sell')">
+        <button class="btn btn-ghost btn-sm min-w-0 justify-center hover:border-gain hover:text-gain" @click="$emit('sell')">
           <DollarSign :size="16" /> Mark Sold
         </button>
-        <button class="bulk-btn bulk-btn-delete" @click="$emit('delete')">
+        <button class="btn btn-ghost btn-sm min-w-0 justify-center hover:border-loss hover:text-loss" @click="$emit('delete')">
           <Trash2 :size="16" /> Delete
         </button>
       </div>
@@ -35,101 +40,3 @@ defineEmits<{
   delete: []
 }>()
 </script>
-
-<style scoped>
-.bulk-action-bar {
-  position: fixed;
-  bottom: 1.5rem;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  max-width: calc(100vw - 2rem);
-  background: var(--bg-card);
-  border: 1px solid var(--accent-gold-dim);
-  border-radius: var(--radius-md);
-  padding: 0.75rem 1.25rem;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-  z-index: 200;
-  white-space: nowrap;
-}
-
-.bulk-count {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.bulk-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: center;
-}
-
-.bulk-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.4rem 0.75rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.bulk-btn:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-}
-
-.bulk-btn-delete:hover {
-  border-color: #ef4444;
-  color: #ef4444;
-}
-
-.bulk-btn-sell:hover {
-  border-color: #10b981;
-  color: #10b981;
-}
-
-.bar-slide-enter-active,
-.bar-slide-leave-active {
-  transition: all 0.25s ease;
-}
-.bar-slide-enter-from,
-.bar-slide-leave-to {
-  opacity: 0;
-  transform: translateX(-50%) translateY(20px);
-}
-
-@media (max-width: 640px) {
-  .bulk-action-bar {
-    bottom: calc(1rem + env(safe-area-inset-bottom));
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.6rem;
-    width: calc(100vw - 2rem);
-    padding: 0.75rem;
-    white-space: normal;
-  }
-
-  .bulk-count {
-    text-align: center;
-  }
-
-  .bulk-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .bulk-btn {
-    justify-content: center;
-    min-width: 0;
-  }
-}
-</style>

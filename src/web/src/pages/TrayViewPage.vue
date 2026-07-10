@@ -1,11 +1,14 @@
 <template>
-  <div class="tray-view-page">
+  <div class="mx-auto max-w-[1400px] px-4 pb-24 pt-4 max-sm:px-3 max-sm:pt-3">
     <!-- Empty state -->
-    <div v-if="trayCoins.length === 0 && !loading" class="empty-state card">
-      <Landmark :size="64" :stroke-width="1" class="empty-icon" />
-      <h2>No Coins in Tray</h2>
-      <p>{{ trayEmptyMessage }}</p>
-      <div class="empty-actions">
+    <div
+      v-if="trayCoins.length === 0 && !loading"
+      class="card mx-auto mt-12 max-w-[500px] px-8 py-12 text-center max-sm:mt-8 max-sm:px-6 max-sm:py-8"
+    >
+      <Landmark :size="64" :stroke-width="1" class="mx-auto mb-4 text-text-muted" />
+      <h2 class="mb-2 text-xl text-heading">No Coins in Tray</h2>
+      <p class="mb-6 text-text-secondary">{{ trayEmptyMessage }}</p>
+      <div class="flex flex-wrap justify-center gap-3">
         <router-link to="/" class="btn btn-secondary">
           <ArrowLeft :size="18" />
           Back to Collection
@@ -18,9 +21,9 @@
     </div>
 
     <!-- Tray view -->
-    <div v-else-if="!loading" class="tray-content">
+    <div v-else-if="!loading" class="flex flex-col gap-4">
       <MuseumTray
-        class="tray-swipe-surface"
+        class="touch-pan-y select-none"
         :coins="currentDrawerCoins"
         :felt-theme="feltColor"
         :style="traySwipeStyle"
@@ -36,7 +39,7 @@
     </div>
 
     <!-- Loading state -->
-    <div v-else class="loading-state">
+    <div v-else class="loading-overlay px-8 py-16">
       <div class="spinner"></div>
       <p>Loading coins...</p>
     </div>
@@ -242,100 +245,3 @@ onBeforeUnmount(() => {
   trayAnimationTimers.forEach(clearTimeout)
 })
 </script>
-
-<style scoped>
-.tray-view-page {
-  padding: 1rem;
-  padding-bottom: 6rem;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.tray-content {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.tray-swipe-surface {
-  touch-action: pan-y;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.empty-state {
-  padding: 3rem 2rem;
-  text-align: center;
-  max-width: 500px;
-  margin: 3rem auto;
-}
-
-.empty-icon {
-  color: var(--text-muted);
-  margin-bottom: 1rem;
-}
-
-.empty-state h2 {
-  font-size: 1.5rem;
-  margin-bottom: 0.5rem;
-  color: var(--text-heading);
-}
-
-.empty-state p {
-  color: var(--text-secondary);
-  margin-bottom: 1.5rem;
-}
-
-.empty-actions {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 2rem;
-  gap: 1rem;
-}
-
-.loading-state p {
-  color: var(--text-secondary);
-}
-
-.spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid var(--border-subtle);
-  border-top-color: var(--accent-gold);
-  border-radius: var(--radius-full);
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation: none;
-    border-top-color: var(--accent-gold);
-  }
-}
-
-@media (max-width: 575px) {
-  .tray-view-page {
-    padding: 0.75rem;
-  }
-  
-  .empty-state {
-    padding: 2rem 1.5rem;
-    margin: 2rem auto;
-  }
-}
-</style>

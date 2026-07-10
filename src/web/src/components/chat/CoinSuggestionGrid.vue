@@ -1,25 +1,36 @@
 <template>
-  <div class="suggestions-grid">
-    <div v-for="(coin, j) in suggestions" :key="j" class="suggestion-card">
-      <div class="suggestion-img" v-if="getSuggestionImageUrl(coin)">
-        <img :src="getSuggestionImageUrl(coin)" :alt="coin.name" @error="handleImgError" />
+  <div class="flex w-full flex-col gap-2.5">
+    <div
+      v-for="(coin, j) in suggestions"
+      :key="j"
+      class="flex overflow-hidden rounded-md border border-border-subtle bg-card transition-colors hover:border-border-accent max-sm:flex-col"
+    >
+      <div v-if="getSuggestionImageUrl(coin)" class="h-20 w-20 shrink-0 overflow-hidden bg-surface-secondary max-sm:h-[120px] max-sm:w-full">
+        <img :src="getSuggestionImageUrl(coin)" :alt="coin.name" class="h-full w-full object-cover" @error="handleImgError" />
       </div>
-      <div class="suggestion-body">
-        <h4>{{ coin.name }}</h4>
-        <p class="suggestion-desc">{{ coin.description }}</p>
-        <div class="suggestion-meta">
-          <span v-if="coin.era" class="meta-tag">{{ coin.era }}</span>
-          <span v-if="coin.material" class="meta-tag">{{ coin.material }}</span>
-          <span v-if="coin.denomination" class="meta-tag">{{ coin.denomination }}</span>
+      <div class="min-w-0 flex-1 p-3">
+        <h4 class="mb-1 text-[0.85rem] leading-snug text-text-primary">{{ coin.name }}</h4>
+        <p class="mb-1.5 line-clamp-2 text-sm text-text-secondary">{{ coin.description }}</p>
+        <div class="mb-1.5 flex flex-wrap gap-1">
+          <span v-if="coin.era" class="chip-sm">{{ coin.era }}</span>
+          <span v-if="coin.material" class="chip-sm">{{ coin.material }}</span>
+          <span v-if="coin.denomination" class="chip-sm">{{ coin.denomination }}</span>
         </div>
-        <div class="suggestion-price" v-if="coin.estPrice">{{ coin.estPrice }}</div>
-        <div class="suggestion-actions">
-          <SafeExternalLink v-if="coin.sourceUrl" :href="coin.sourceUrl" target="_blank" rel="noopener" class="source-link">
-            <ExternalLink :size="12" /> {{ coin.sourceName || 'Source' }}
+        <div v-if="coin.estPrice" class="mb-1.5 text-chip font-semibold text-gold">{{ coin.estPrice }}</div>
+        <div class="flex items-center justify-between gap-2 max-sm:flex-wrap">
+          <SafeExternalLink
+            v-if="coin.sourceUrl"
+            :href="coin.sourceUrl"
+            target="_blank"
+            rel="noopener"
+            class="flex items-center gap-1 text-sm text-text-muted no-underline transition-colors hover:text-gold"
+          >
+            <ExternalLink :size="12" />
+            {{ coin.sourceName || 'Source' }}
           </SafeExternalLink>
           <button
             v-if="coin.era || coin.material || coin.denomination"
-            class="btn btn-primary btn-sm add-btn"
+            class="btn btn-primary btn-sm shrink-0 disabled:cursor-default disabled:opacity-60"
             :disabled="addingIdx === `${messageIndex}-${j}`"
             @click="$emit('add-to-wishlist', coin, `${messageIndex}-${j}`)"
           >
@@ -127,126 +138,3 @@ onBeforeUnmount(() => {
   scrapedImages.value.clear()
 })
 </script>
-
-<style scoped>
-.suggestions-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  width: 100%;
-}
-
-.suggestion-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  display: flex;
-  transition: border-color var(--transition-fast);
-}
-
-.suggestion-card:hover {
-  border-color: var(--accent-gold);
-}
-
-.suggestion-img {
-  width: 80px;
-  min-height: 80px;
-  flex-shrink: 0;
-  overflow: hidden;
-  background: var(--bg-body);
-}
-
-.suggestion-img img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.suggestion-body {
-  padding: 0.6rem 0.75rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.suggestion-body h4 {
-  font-size: 0.85rem;
-  margin: 0 0 0.25rem;
-  color: var(--text-primary);
-  line-height: 1.3;
-}
-
-.suggestion-desc {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  margin: 0 0 0.4rem;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.suggestion-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  margin-bottom: 0.4rem;
-}
-
-.meta-tag {
-  font-size: 0.7rem;
-  padding: 0.1rem 0.4rem;
-  border-radius: var(--radius-full);
-  background: var(--bg-body);
-  color: var(--text-muted);
-  border: 1px solid var(--border-subtle);
-}
-
-.suggestion-price {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--accent-gold);
-  margin-bottom: 0.4rem;
-}
-
-.suggestion-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.source-link {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-  transition: color var(--transition-fast);
-}
-
-.source-link:hover {
-  color: var(--accent-gold);
-}
-
-.add-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.72rem;
-  padding: 0.3rem 0.6rem;
-  flex-shrink: 0;
-}
-
-@media (max-width: 640px) {
-  .suggestion-card {
-    flex-direction: column;
-  }
-
-  .suggestion-img {
-    width: 100%;
-    height: 120px;
-  }
-}
-</style>

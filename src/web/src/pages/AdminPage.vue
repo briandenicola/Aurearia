@@ -9,33 +9,33 @@
       <p>Admin privileges required</p>
     </div>
 
-    <div v-else class="admin-layout">
-      <aside class="settings-nav">
+    <div v-else class="mx-auto grid max-w-[1200px] gap-6 md:grid-cols-[minmax(250px,300px)_minmax(0,1fr)]">
+      <aside class="flex flex-col gap-4">
         <section
           v-for="group in tabGroups"
           :key="group.id"
-          class="settings-group"
+          class="flex flex-col gap-2"
         >
-          <p class="section-label settings-group-title">{{ group.label }}</p>
-          <div class="settings-group-card">
+          <p class="section-label mb-0 ml-1">{{ group.label }}</p>
+          <div class="overflow-hidden rounded-md border border-border-subtle bg-card">
             <button
               v-for="tab in group.items"
               :key="tab.id"
-              class="settings-item"
-              :class="{ active: activeTab === tab.id }"
+              class="flex min-h-[52px] w-full items-center justify-between border-b border-border-subtle bg-transparent px-[0.9rem] py-3 text-left text-base font-medium text-text-secondary transition-all last:border-b-0 hover:bg-card-hover hover:text-text-primary"
+              :class="activeTab === tab.id ? 'bg-gold-dim text-gold' : ''"
               @click="activeTab = tab.id"
             >
-              <span class="settings-item-main">
+              <span class="inline-flex items-center gap-[0.65rem]">
                 <component :is="tabIcons[tab.id]" :size="18" />
                 <span>{{ tab.label }}</span>
               </span>
-              <ChevronRight :size="18" class="settings-item-chevron" />
+              <ChevronRight :size="18" class="opacity-65" />
             </button>
           </div>
         </section>
       </aside>
 
-      <div class="settings-content">
+      <div class="min-w-0 md:mt-[1.62rem]">
         <!-- Users Tab -->
         <AdminUsersSection
           v-if="activeTab === 'users'"
@@ -411,99 +411,3 @@ onUnmounted(() => {
   cleanupAdminConfig()
 })
 </script>
-
-<style scoped>
-.admin-layout {
-  --admin-nav-title-offset: 1.62rem;
-
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
-  display: grid;
-  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
-  gap: 1.5rem;
-}
-
-.settings-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.settings-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.settings-group-title {
-  margin: 0 0 0 0.25rem;
-}
-
-.settings-group-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.settings-item {
-  width: 100%;
-  min-height: 52px;
-  padding: 0.75rem 0.9rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  border-bottom: 1px solid var(--border-subtle);
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  text-align: left;
-}
-
-.settings-item:last-child {
-  border-bottom: none;
-}
-
-.settings-item-main {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.65rem;
-}
-
-.settings-item-chevron {
-  opacity: 0.65;
-}
-
-.settings-item:hover:not(.active) {
-  background: var(--bg-card-hover);
-  color: var(--text-primary);
-}
-
-.settings-item.active {
-  background: var(--accent-gold-dim);
-  color: var(--accent-gold);
-}
-
-.settings-content {
-  min-width: 0;
-  margin-top: var(--admin-nav-title-offset);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-@media (max-width: 980px) {
-  .admin-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .settings-content {
-    margin-top: 0;
-  }
-}
-</style>

@@ -1,6 +1,6 @@
 <template>
-  <section class="compare-card">
-    <div class="compare-heading">
+  <section class="mb-6 rounded-md border border-border-subtle bg-card p-6">
+    <div class="mb-3 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
       <div>
         <p class="section-label">Set performance</p>
         <h2>Compare Sets</h2>
@@ -14,39 +14,49 @@
       </button>
     </div>
 
-    <p class="compare-copy">
+    <p class="mb-4 text-body text-text-secondary">
       Choose one or more other sets to compare against this set over the active trend range.
     </p>
 
-    <div v-if="sets.length" class="compare-options" aria-label="Sets available for comparison">
+    <div v-if="sets.length" class="flex flex-wrap gap-[0.35rem]" aria-label="Sets available for comparison">
       <button
         v-for="set in sets"
         :key="set.id"
         type="button"
-        class="chip compare-chip"
-        :class="{ active: selected.includes(set.id) }"
+        class="chip"
+        :class="selected.includes(set.id) ? 'border-gold bg-gold-dim text-gold' : ''"
         :aria-pressed="selected.includes(set.id)"
         @click="toggleSet(set.id)"
       >
         {{ set.name }}
       </button>
     </div>
-    <p v-else class="compare-empty">Create another set to enable comparisons.</p>
+    <p v-else class="mb-4 text-body text-text-secondary">Create another set to enable comparisons.</p>
 
-    <p v-if="error" class="compare-error" role="alert">{{ error }}</p>
+    <p v-if="error" class="mt-4 text-body text-confidence-low" role="alert">{{ error }}</p>
 
-    <div v-if="results.length" class="compare-results" aria-live="polite">
-      <div class="compare-row compare-row-header">
+    <div v-if="results.length" class="mt-4 overflow-hidden rounded-sm border border-border-subtle" aria-live="polite">
+      <div class="hidden bg-input px-3 py-2 text-label font-semibold uppercase tracking-[0.08em] text-text-muted md:grid md:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))] md:gap-3">
         <span>Set</span>
         <span>Start</span>
         <span>End</span>
         <span>Change</span>
       </div>
-      <div v-for="result in results" :key="result.setId" class="compare-row">
-        <span class="compare-name">{{ result.name }}</span>
+      <div
+        v-for="result in results"
+        :key="result.setId"
+        class="grid grid-cols-1 gap-[0.35rem] border-b border-border-subtle px-3 py-[0.6rem] text-body text-text-secondary last:border-b-0 md:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))] md:gap-3"
+      >
+        <span class="text-text-primary">{{ result.name }}</span>
         <span>{{ formatCurrency(result.startValue) }}</span>
         <span>{{ formatCurrency(result.endValue) }}</span>
-        <strong :class="changeClass(result.valueChange)">
+        <strong
+          class="font-semibold text-gold"
+          :class="{
+            'text-confidence-high': result.valueChange > 0,
+            'text-confidence-low': result.valueChange < 0,
+          }"
+        >
           {{ formatChange(result.valueChangePercent) }}
         </strong>
       </div>
@@ -99,105 +109,3 @@ function changeClass(value: number): string {
   return ''
 }
 </script>
-
-<style scoped>
-.compare-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.compare-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-}
-
-.compare-heading h2 {
-  margin: 0;
-}
-
-.compare-copy,
-.compare-empty {
-  color: var(--text-secondary);
-  margin-bottom: 1rem;
-}
-
-.compare-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.compare-chip {
-  font-family: inherit;
-}
-
-.compare-error {
-  margin-top: 1rem;
-  color: var(--confidence-low);
-}
-
-.compare-results {
-  margin-top: 1rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-.compare-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-  padding: 0.6rem 0.75rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.compare-row:last-child {
-  border-bottom: none;
-}
-
-.compare-row-header {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  background: var(--bg-input);
-}
-
-.compare-name {
-  color: var(--text-primary);
-}
-
-.compare-row strong {
-  color: var(--accent-gold);
-}
-
-.compare-row strong.positive {
-  color: var(--confidence-high);
-}
-
-.compare-row strong.negative {
-  color: var(--confidence-low);
-}
-
-@media (max-width: 768px) {
-  .compare-heading {
-    flex-direction: column;
-  }
-
-  .compare-row {
-    grid-template-columns: 1fr;
-    gap: 0.35rem;
-  }
-
-  .compare-row-header {
-    display: none;
-  }
-}
-</style>

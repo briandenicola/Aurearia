@@ -1,41 +1,43 @@
 <template>
   <Teleport to="body">
-    <div class="lightbox-overlay" @click.self="close" @keydown.esc="close">
-      <div class="lightbox-content" role="dialog" :aria-label="`${imageType} image viewer`">
-        <div class="lightbox-header">
-          <h2 class="lightbox-title">{{ formatImageType(imageType) }}</h2>
-          <button class="lightbox-close" @click="close" title="Close (Esc)" aria-label="Close">
+    <div class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm" @click.self="close" @keydown.esc="close">
+      <div class="flex max-h-[90vh] w-full max-w-[900px] flex-col overflow-hidden rounded-md border border-border-accent bg-card shadow-glow max-md:max-h-screen max-md:max-w-full max-md:rounded-none" role="dialog" :aria-label="`${imageType} image viewer`">
+        <div class="flex items-center justify-between border-b border-border-subtle bg-card px-5 py-4">
+          <h2 class="m-0 font-display text-lg text-heading">{{ formatImageType(imageType) }}</h2>
+          <button class="flex items-center justify-center rounded-sm p-1 text-text-muted transition-colors hover:bg-white/5 hover:text-text-primary" @click="close" title="Close (Esc)" aria-label="Close">
             <X :size="20" />
           </button>
         </div>
 
-        <div class="lightbox-body">
-          <div class="lightbox-image-container" :class="{ processing }">
+        <div class="flex flex-1 items-center justify-center overflow-auto bg-input p-6 max-md:p-4">
+          <div class="relative flex max-h-full max-w-full items-center justify-center">
             <img
               v-if="processedImageUrl"
               :src="processedImageUrl"
               :alt="formatImageType(imageType)"
-              class="lightbox-image"
+              class="max-h-full max-w-full rounded-sm object-contain shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
+              :class="{ 'opacity-30 blur-[2px]': processing }"
             />
             <AuthenticatedImage
               v-else
               :media-path="imagePath"
               :alt="formatImageType(imageType)"
-              class="lightbox-image"
+              class="max-h-full max-w-full rounded-sm object-contain shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
+              :class="{ 'opacity-30 blur-[2px]': processing }"
             />
 
-            <div v-if="processing" class="lightbox-processing-overlay">
-              <div class="spinner"></div>
-              <p>Removing background...</p>
-              <p class="processing-hint">This may take 30-60 seconds...</p>
+            <div v-if="processing" class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-4 text-center text-gold">
+              <div class="h-10 w-10 animate-spin rounded-full border-[3px] border-border-subtle border-t-gold"></div>
+              <p class="m-0 text-base">Removing background...</p>
+              <p class="m-0 text-chip text-text-muted">This may take 30-60 seconds...</p>
             </div>
           </div>
         </div>
 
-        <div class="lightbox-actions">
+        <div class="flex justify-end gap-2 border-t border-border-subtle bg-card px-5 py-4 max-md:flex-wrap">
           <button
             v-if="!processedImageUrl"
-            class="btn btn-primary btn-sm"
+            class="btn btn-primary btn-sm inline-flex items-center gap-1.5 max-md:min-w-0 max-md:flex-1"
             :disabled="processing"
             @click="handleRemoveBackground"
           >
@@ -45,14 +47,14 @@
 
           <template v-else>
             <button
-              class="btn btn-secondary btn-sm"
+              class="btn btn-secondary btn-sm inline-flex items-center gap-1.5 max-md:min-w-0 max-md:flex-1"
               @click="resetToOriginal"
             >
               <RotateCcw :size="16" />
               Reset
             </button>
             <button
-              class="btn btn-primary btn-sm"
+              class="btn btn-primary btn-sm inline-flex items-center gap-1.5 max-md:min-w-0 max-md:flex-1"
               :disabled="saving"
               @click="saveProcessedImage"
             >
@@ -164,170 +166,3 @@ onUnmounted(() => {
   }
 })
 </script>
-
-<style scoped>
-.lightbox-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-  backdrop-filter: blur(4px);
-}
-
-.lightbox-content {
-  width: 100%;
-  max-width: 900px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-card);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-accent);
-  box-shadow: var(--shadow-glow);
-  overflow: hidden;
-}
-
-.lightbox-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-card);
-}
-
-.lightbox-title {
-  margin: 0;
-  font-family: 'Cinzel', serif;
-  font-size: 1.2rem;
-  color: var(--text-heading);
-}
-
-.lightbox-close {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: var(--radius-sm);
-  transition: color var(--transition-fast), background var(--transition-fast);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.lightbox-close:hover {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.lightbox-body {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  overflow: auto;
-  background: var(--bg-input);
-}
-
-.lightbox-image-container {
-  position: relative;
-  max-width: 100%;
-  max-height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.lightbox-image-container.processing .lightbox-image {
-  opacity: 0.3;
-  filter: blur(2px);
-}
-
-.lightbox-image {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  border-radius: var(--radius-sm);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.lightbox-processing-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  color: var(--accent-gold);
-  text-align: center;
-  pointer-events: none;
-}
-
-.lightbox-processing-overlay p {
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-.processing-hint {
-  font-size: 0.8rem !important;
-  color: var(--text-muted);
-}
-
-.spinner {
-  border: 3px solid var(--border-subtle);
-  border-top-color: var(--accent-gold);
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.lightbox-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 1rem 1.25rem;
-  border-top: 1px solid var(--border-subtle);
-  background: var(--bg-card);
-}
-
-.lightbox-actions .btn {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-@media (max-width: 768px) {
-  .lightbox-content {
-    max-width: 100%;
-    max-height: 100vh;
-    border-radius: 0;
-  }
-
-  .lightbox-body {
-    padding: 1rem;
-  }
-
-  .lightbox-actions {
-    flex-wrap: wrap;
-  }
-
-  .lightbox-actions .btn {
-    flex: 1;
-    min-width: 0;
-  }
-}
-</style>

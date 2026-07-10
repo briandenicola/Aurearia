@@ -1,96 +1,106 @@
 <template>
-  <section class="admin-section card">
-    <div class="section-heading">
+  <section class="card p-6">
+    <div class="mb-3 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
       <div>
         <p class="section-label">Collection metadata</p>
-        <h2>Coin Properties</h2>
+        <h2 class="m-0 text-xl font-medium text-heading">Coin Properties</h2>
       </div>
-      <button type="submit" form="coin-properties-form" class="btn btn-primary btn-sm" :disabled="saving">
+      <button
+        type="submit"
+        form="coin-properties-form"
+        class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+        :disabled="saving"
+      >
         {{ saving ? 'Saving...' : 'Save Properties' }}
       </button>
     </div>
 
-    <p class="section-description">
+    <p class="mb-6 text-base text-text-secondary">
       Configure the category and era choices shown on Add Coin and Edit Coin. Enter one value per line.
     </p>
 
-    <form id="coin-properties-form" class="properties-form" @submit.prevent="$emit('save')">
-      <div class="property-card">
-        <div class="property-card-header">
+    <form id="coin-properties-form" class="grid gap-4" @submit.prevent="$emit('save')">
+      <div class="rounded-md border border-border-subtle bg-card-hover p-4">
+        <div class="mb-3 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <label class="form-label" for="category-options">Category Options</label>
-            <p class="form-hint">One category per line. Empty lines are ignored.</p>
+            <label class="form-label text-heading" for="category-options">Category Options</label>
+            <p class="mt-1 text-body text-text-secondary">One category per line. Empty lines are ignored.</p>
           </div>
           <span class="chip-sm">{{ categoryPreview.length }} options</span>
         </div>
         <textarea
           id="category-options"
           v-model="localCategoryOptions"
-          class="form-textarea property-textarea"
+          class="form-textarea min-h-44 resize-y bg-input text-body leading-6"
           rows="7"
           placeholder="Roman&#10;Greek&#10;Byzantine&#10;Modern&#10;Other"
         />
-        <div class="option-preview" aria-label="Category option preview">
+        <div class="mt-3 flex flex-wrap gap-[0.35rem]" aria-label="Category option preview">
           <span v-for="option in categoryPreview" :key="option" class="chip-sm">{{ option }}</span>
         </div>
       </div>
 
-      <div class="property-card">
-        <div class="property-card-header">
+      <div class="rounded-md border border-border-subtle bg-card-hover p-4">
+        <div class="mb-3 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <label class="form-label" for="era-options">Era Options</label>
-            <p class="form-hint">One era per line. The coin form adds Unspecified automatically.</p>
+            <label class="form-label text-heading" for="era-options">Era Options</label>
+            <p class="mt-1 text-body text-text-secondary">One era per line. The coin form adds Unspecified automatically.</p>
           </div>
           <span class="chip-sm">{{ eraPreview.length }} options</span>
         </div>
         <textarea
           id="era-options"
           v-model="localEraOptions"
-          class="form-textarea property-textarea"
+          class="form-textarea min-h-44 resize-y bg-input text-body leading-6"
           rows="7"
           placeholder="ancient&#10;medieval&#10;modern"
         />
-        <div class="option-preview" aria-label="Era option preview">
+        <div class="mt-3 flex flex-wrap gap-[0.35rem]" aria-label="Era option preview">
           <span class="chip-sm">Unspecified</span>
           <span v-for="option in eraPreview" :key="option" class="chip-sm">{{ option }}</span>
         </div>
       </div>
 
-      <p v-if="msg" class="msg" :class="{ error }">{{ msg }}</p>
+      <p v-if="msg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--cat-byzantine)]': error }">{{ msg }}</p>
     </form>
 
-    <section class="property-card custom-locations-card" aria-labelledby="custom-locations-heading">
-      <div class="property-card-header">
+    <section class="mt-4 rounded-md border border-border-subtle bg-card-hover p-4" aria-labelledby="custom-locations-heading">
+      <div class="mb-3 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h3 id="custom-locations-heading">Custom Locations</h3>
-          <p class="form-hint">Global mint coordinates used by the collection map. Aliases can be comma or line separated.</p>
+          <h3 id="custom-locations-heading" class="m-0 text-lg font-medium text-heading">Custom Locations</h3>
+          <p class="mt-1 text-body text-text-secondary">Global mint coordinates used by the collection map. Aliases can be comma or line separated.</p>
         </div>
         <span class="chip-sm">{{ mintLocations.length }} locations</span>
       </div>
 
-      <p v-if="mintLocationError" class="msg error">{{ mintLocationError }}</p>
-      <p v-if="mintLocationsLoading" class="empty-state-text">Loading mint locations...</p>
+      <p v-if="mintLocationError" class="mb-2 text-body text-[var(--cat-byzantine)]">{{ mintLocationError }}</p>
+      <p v-if="mintLocationsLoading" class="text-body text-text-secondary">Loading mint locations...</p>
 
-      <div v-else class="mint-location-layout">
-        <div class="mint-location-list" aria-label="Custom mint locations">
-          <div v-if="!mintLocations.length" class="empty-location">
+      <div v-else class="grid gap-4 md:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.9fr)] md:items-start">
+        <div class="flex max-h-[28rem] min-w-0 flex-col gap-2 overflow-y-auto pr-1 [scrollbar-gutter:stable] md:max-h-[min(34rem,70vh)]" aria-label="Custom mint locations">
+          <div v-if="!mintLocations.length" class="rounded-sm border border-border-subtle bg-input p-3 text-left text-body text-text-secondary">
             No mint locations configured yet.
           </div>
           <div
             v-for="location in sortedMintLocations"
             :key="location.id"
-            class="mint-location-row"
+            class="rounded-sm border border-border-subtle bg-input p-3 text-left"
           >
-            <div class="mint-location-main">
-              <div class="mint-location-heading">
-                <strong class="mint-location-name">{{ location.displayName }}</strong>
-                <div class="location-actions">
-                  <button type="button" class="btn btn-secondary btn-sm" :disabled="mintLocationSaving" @click="startEditMintLocation(location)">
+            <div class="flex min-w-0 flex-1 flex-col items-stretch gap-1 text-left">
+              <div class="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-left">
+                <strong class="min-w-0 text-text-primary [overflow-wrap:anywhere]">{{ location.displayName }}</strong>
+                <div class="flex shrink-0 flex-wrap justify-end gap-[0.35rem]">
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+                    :disabled="mintLocationSaving"
+                    @click="startEditMintLocation(location)"
+                  >
                     Edit
                   </button>
                   <button
                     type="button"
-                    class="btn btn-danger btn-sm"
+                    class="btn btn-danger btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
                     :disabled="deletingMintLocationId === location.id"
                     @click="deleteMintLocation(location)"
                   >
@@ -98,46 +108,52 @@
                   </button>
                 </div>
               </div>
-              <span class="location-details">{{ location.region || 'No region' }} · {{ location.lat }}, {{ location.lng }}</span>
-              <span v-if="location.aliases.length" class="location-aliases">{{ location.aliases.join(', ') }}</span>
+              <span class="block text-body text-text-secondary [overflow-wrap:anywhere]">{{ location.region || 'No region' }} · {{ location.lat }}, {{ location.lng }}</span>
+              <span v-if="location.aliases.length" class="block text-body text-text-secondary [overflow-wrap:anywhere]">{{ location.aliases.join(', ') }}</span>
             </div>
           </div>
         </div>
 
-        <form class="mint-location-form" @submit.prevent="saveMintLocation">
-          <h4>{{ editingMintLocation ? 'Edit Location' : 'Add Location' }}</h4>
-          <div class="form-grid">
-            <label>
+        <form class="flex min-w-0 flex-col gap-3 self-start rounded-sm border border-border-subtle bg-input p-3" @submit.prevent="saveMintLocation">
+          <h4 class="m-0 text-lg font-medium text-heading">{{ editingMintLocation ? 'Edit Location' : 'Add Location' }}</h4>
+          <div class="grid gap-3 md:grid-cols-2">
+            <label class="flex flex-col gap-[0.35rem]">
               <span class="form-label">Display Name</span>
               <input v-model="mintLocationForm.displayName" class="form-input" type="text" maxlength="120" required />
             </label>
-            <label>
+            <label class="flex flex-col gap-[0.35rem]">
               <span class="form-label">Region</span>
               <input v-model="mintLocationForm.region" class="form-input" type="text" maxlength="120" />
             </label>
-            <label>
+            <label class="flex flex-col gap-[0.35rem]">
               <span class="form-label">Latitude</span>
               <input v-model="mintLocationForm.lat" class="form-input" type="number" min="-90" max="90" step="0.000001" required />
             </label>
-            <label>
+            <label class="flex flex-col gap-[0.35rem]">
               <span class="form-label">Longitude</span>
               <input v-model="mintLocationForm.lng" class="form-input" type="number" min="-180" max="180" step="0.000001" required />
             </label>
           </div>
-          <label>
+          <label class="flex flex-col gap-[0.35rem]">
             <span class="form-label">Aliases</span>
             <textarea
               v-model="mintLocationForm.aliases"
-              class="form-textarea aliases-textarea"
+              class="form-textarea min-h-24 resize-y bg-card text-body"
               rows="4"
               placeholder="Roma, Rome mint"
             />
           </label>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary btn-sm" :disabled="mintLocationSaving">
+          <div class="flex flex-wrap justify-start gap-[0.35rem] md:justify-end">
+            <button type="submit" class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" :disabled="mintLocationSaving">
               {{ mintLocationSaving ? 'Saving...' : editingMintLocation ? 'Save Location' : 'Add Location' }}
             </button>
-            <button v-if="editingMintLocation" type="button" class="btn btn-secondary btn-sm" :disabled="mintLocationSaving" @click="resetMintLocationForm">
+            <button
+              v-if="editingMintLocation"
+              type="button"
+              class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+              :disabled="mintLocationSaving"
+              @click="resetMintLocationForm"
+            >
               Cancel
             </button>
           </div>
@@ -329,250 +345,3 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
-.section-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-}
-
-.section-heading h2 {
-  margin: 0;
-}
-
-.section-description {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  margin: 0 0 1.5rem;
-}
-
-.properties-form {
-  display: grid;
-  gap: 1rem;
-}
-
-.property-card {
-  background: var(--bg-card-hover);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 1rem;
-}
-
-.property-card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-}
-
-.form-label {
-  color: var(--text-heading);
-}
-
-.form-hint {
-  display: block;
-  margin: 0.25rem 0 0;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-
-.property-textarea {
-  min-height: 11rem;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 0.85rem;
-  line-height: 1.5;
-  resize: vertical;
-}
-
-.property-textarea:focus {
-  border-color: var(--accent-gold);
-  box-shadow: var(--shadow-glow);
-  outline: none;
-}
-
-.option-preview {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.75rem;
-}
-
-.custom-locations-card {
-  margin-top: 1rem;
-}
-
-.custom-locations-card h3,
-.mint-location-form h4 {
-  margin: 0;
-}
-
-.mint-location-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr);
-  gap: 1rem;
-  align-items: start;
-}
-
-.mint-location-list,
-.mint-location-form {
-  min-width: 0;
-}
-
-.mint-location-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-height: min(34rem, 70vh);
-  overflow-y: auto;
-  padding-right: 0.25rem;
-  scrollbar-gutter: stable;
-}
-
-.mint-location-row,
-.empty-location {
-  padding: 0.75rem;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  text-align: left;
-}
-
-.empty-location {
-  display: flex;
-  align-items: center;
-}
-
-.empty-location,
-.empty-state-text {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-
-.mint-location-main {
-  width: 100%;
-  min-width: 0;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 0.25rem;
-  align-items: stretch;
-  text-align: left;
-}
-
-.mint-location-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 0.75rem;
-  width: 100%;
-  text-align: left;
-}
-
-.mint-location-name {
-  min-width: 0;
-  color: var(--text-primary);
-  overflow-wrap: anywhere;
-  text-align: left;
-}
-
-.mint-location-main span {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-
-.location-details,
-.location-aliases {
-  display: block;
-  overflow-wrap: anywhere;
-  text-align: left;
-}
-
-.location-actions,
-.form-actions {
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.location-actions {
-  flex-shrink: 0;
-  justify-self: end;
-}
-
-.mint-location-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  align-self: start;
-  padding: 0.75rem;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
-.form-grid label,
-.mint-location-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.aliases-textarea {
-  min-height: 6rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 0.85rem;
-  resize: vertical;
-}
-
-.msg {
-  font-size: 0.85rem;
-  color: var(--accent-gold);
-  margin: 0.5rem 0;
-}
-
-.msg.error {
-  color: var(--cat-byzantine);
-}
-
-@media (max-width: 768px) {
-  .section-heading,
-  .property-card-header {
-    flex-direction: column;
-  }
-
-  .mint-location-layout,
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .form-actions {
-    justify-content: flex-start;
-  }
-
-  .location-actions {
-    justify-content: flex-end;
-  }
-
-  .mint-location-list {
-    max-height: 28rem;
-  }
-}
-</style>

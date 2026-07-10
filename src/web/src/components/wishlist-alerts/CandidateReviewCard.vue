@@ -1,90 +1,133 @@
 <template>
-  <article class="candidate-card" :class="candidate.lifecycleState">
-    <header class="candidate-header">
+  <article
+    :class="[
+      'grid gap-3 rounded-md border border-border-subtle bg-card p-4',
+      candidate.lifecycleState === 'suppressed' ? 'opacity-75' : '',
+    ]"
+  >
+    <header class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
       <div>
         <p class="section-label">{{ candidate.sourceName || 'Unknown source' }}</p>
-        <h3>{{ candidate.title || 'Unknown title' }}</h3>
+        <h3 class="mt-1">{{ candidate.title || 'Unknown title' }}</h3>
       </div>
-      <div class="badges">
-        <span class="chip-sm" :class="candidate.provenanceStatus">{{ provenanceLabel }}</span>
-        <span class="chip-sm">{{ stateLabel }}</span>
+      <div class="flex flex-wrap items-center gap-2">
+        <span
+          :class="[
+            'chip-sm border',
+            candidate.provenanceStatus === 'verified'
+              ? 'border-gold text-gold'
+              : candidate.provenanceStatus === 'partial'
+                ? 'border-bronze text-bronze'
+                : 'border-border-subtle text-text-muted',
+          ]"
+        >
+          {{ provenanceLabel }}
+        </span>
+        <span class="chip-sm border border-border-subtle text-text-secondary">{{ stateLabel }}</span>
       </div>
     </header>
 
-    <div class="candidate-meta">
-      <div><span class="info-label">Price</span><strong>{{ priceLabel }}</strong></div>
-      <div><span class="info-label">Last seen</span><strong>{{ formatDate(candidate.lastSeenAt) }}</strong></div>
-      <div v-if="candidate.matchingWishlistCoinId"><span class="info-label">Duplicate warning</span><strong>Matches wishlist coin #{{ candidate.matchingWishlistCoinId }}</strong></div>
-      <div v-if="candidate.duplicateOfCandidateId"><span class="info-label">Suppressed duplicate</span><strong>Candidate #{{ candidate.duplicateOfCandidateId }}</strong></div>
+    <div class="grid gap-3 md:grid-cols-2">
+      <div class="grid gap-1 rounded-sm border border-border-subtle bg-input p-3"><span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Price</span><strong>{{ priceLabel }}</strong></div>
+      <div class="grid gap-1 rounded-sm border border-border-subtle bg-input p-3"><span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Last seen</span><strong>{{ formatDate(candidate.lastSeenAt) }}</strong></div>
+      <div v-if="candidate.matchingWishlistCoinId" class="grid gap-1 rounded-sm border border-border-subtle bg-input p-3"><span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Duplicate warning</span><strong>Matches wishlist coin #{{ candidate.matchingWishlistCoinId }}</strong></div>
+      <div v-if="candidate.duplicateOfCandidateId" class="grid gap-1 rounded-sm border border-border-subtle bg-input p-3"><span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Suppressed duplicate</span><strong>Candidate #{{ candidate.duplicateOfCandidateId }}</strong></div>
     </div>
 
-    <p class="reason">{{ candidate.reasonForMatch || 'No source-backed match reason provided.' }}</p>
+    <p class="m-0 text-body text-text-secondary">{{ candidate.reasonForMatch || 'No source-backed match reason provided.' }}</p>
 
-    <SafeExternalLink :href="candidate.sourceUrl" class="source-link">Open source listing</SafeExternalLink>
+    <SafeExternalLink :href="candidate.sourceUrl" class="break-words text-gold">Open source listing</SafeExternalLink>
 
-    <dl v-if="sourceFields.length" class="source-fields">
-      <div v-for="[field, value] in sourceFields" :key="field">
-        <dt>{{ formatFieldLabel(field) }}</dt>
-        <dd>{{ value }}</dd>
+    <dl v-if="sourceFields.length" class="grid gap-3 md:grid-cols-2">
+      <div
+        v-for="[field, value] in sourceFields"
+        :key="field"
+        class="grid gap-1 rounded-sm border border-border-subtle bg-input p-3"
+      >
+        <dt class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">{{ formatFieldLabel(field) }}</dt>
+        <dd class="m-0 text-text-primary">{{ value }}</dd>
       </div>
     </dl>
 
-    <details v-if="candidate.provenance?.length" class="provenance">
-      <summary>Provenance</summary>
-      <ul>
+    <details v-if="candidate.provenance?.length" class="grid gap-2">
+      <summary class="cursor-pointer text-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]">Provenance</summary>
+      <ul class="mt-3 grid gap-2 pl-5 text-body text-text-secondary">
         <li v-for="item in candidate.provenance" :key="item.id">
           <span>{{ item.field }}:</span> {{ item.value || 'Unknown' }}
-          <SafeExternalLink :href="item.sourceUrl" class="evidence-link">source</SafeExternalLink>
-          <span class="muted">{{ item.verificationState }}, {{ item.confidence || 'unknown confidence' }}</span>
+          <SafeExternalLink :href="item.sourceUrl" class="text-gold">source</SafeExternalLink>
+          <span class="text-text-muted">{{ item.verificationState }}, {{ item.confidence || 'unknown confidence' }}</span>
         </li>
       </ul>
     </details>
-    <p v-else class="muted">No detailed provenance was returned for this candidate.</p>
+    <p v-else class="m-0 text-body text-text-secondary">No detailed provenance was returned for this candidate.</p>
 
-    <section v-if="candidate.lifecycleState !== 'converted'" class="review-actions">
-      <div v-if="candidate.lifecycleState === 'dismissed'" class="actions-row">
-        <button class="btn btn-secondary btn-sm" type="button" :disabled="busy" @click="$emit('restore', candidate)">Restore</button>
+    <section v-if="candidate.lifecycleState !== 'converted'" class="grid gap-3 border-t border-border-subtle pt-3">
+      <div v-if="candidate.lifecycleState === 'dismissed'" class="flex flex-wrap items-center gap-2">
+        <button class="btn btn-secondary btn-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="button" :disabled="busy" @click="$emit('restore', candidate)">Restore</button>
       </div>
       <template v-else>
-        <div class="dismiss-controls">
-          <select v-model="dismissReason" :disabled="busy">
+        <div class="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
+          <select
+            v-model="dismissReason"
+            class="form-select md:min-w-[11rem] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+            :disabled="busy"
+          >
             <option value="irrelevant">Irrelevant</option>
             <option value="duplicate">Duplicate</option>
             <option value="price_too_high">Price too high</option>
             <option value="poor_provenance">Poor provenance</option>
             <option value="other">Other</option>
           </select>
-          <input v-model.trim="dismissNotes" :disabled="busy" maxlength="300" placeholder="Optional note" />
-          <button class="btn btn-secondary btn-sm" type="button" :disabled="busy" @click="emitDismiss">Dismiss</button>
+          <input
+            v-model.trim="dismissNotes"
+            class="form-input md:flex-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+            :disabled="busy"
+            maxlength="300"
+            placeholder="Optional note"
+          />
+          <button class="btn btn-secondary btn-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="button" :disabled="busy" @click="emitDismiss">Dismiss</button>
         </div>
-        <details class="convert-box">
-          <summary>Convert to wishlist item</summary>
-          <div class="convert-grid">
-            <label>Name <input v-model.trim="coin.name" /></label>
-            <label>Category <input v-model.trim="coin.category" /></label>
-            <label>Denomination <input v-model.trim="coin.denomination" /></label>
-            <label>Ruler <input v-model.trim="coin.ruler" /></label>
-            <label>Era <input v-model.trim="coin.era" /></label>
-            <label>Mint <input v-model.trim="coin.mint" /></label>
-            <label>Material <input v-model.trim="coin.material" /></label>
-            <label>Grade <input v-model.trim="coin.grade" /></label>
-            <label>Price <input v-model.number="coin.purchasePrice" type="number" min="0" step="0.01" /></label>
-            <div class="convert-source">
+        <details class="grid gap-3">
+          <summary class="cursor-pointer text-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]">Convert to wishlist item</summary>
+          <div class="mt-3 grid gap-3 md:grid-cols-2">
+            <label class="grid gap-1 text-base text-text-secondary">Name <input v-model.trim="coin.name" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" /></label>
+            <label class="grid gap-1 text-base text-text-secondary">Category <input v-model.trim="coin.category" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" /></label>
+            <label class="grid gap-1 text-base text-text-secondary">Denomination <input v-model.trim="coin.denomination" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" /></label>
+            <label class="grid gap-1 text-base text-text-secondary">Ruler <input v-model.trim="coin.ruler" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" /></label>
+            <label class="grid gap-1 text-base text-text-secondary">Era <input v-model.trim="coin.era" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" /></label>
+            <label class="grid gap-1 text-base text-text-secondary">Mint <input v-model.trim="coin.mint" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" /></label>
+            <label class="grid gap-1 text-base text-text-secondary">Material <input v-model.trim="coin.material" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" /></label>
+            <label class="grid gap-1 text-base text-text-secondary">Grade <input v-model.trim="coin.grade" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" /></label>
+            <label class="grid gap-1 text-base text-text-secondary">Price <input v-model.number="coin.purchasePrice" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="number" min="0" step="0.01" /></label>
+            <div class="grid gap-1 text-base text-text-secondary">
               <span>Source</span>
-              <SafeExternalLink v-if="coin.referenceUrl" :href="coin.referenceUrl" class="source-link">{{ coin.referenceUrl }}</SafeExternalLink>
-              <span v-else class="muted">No source URL provided</span>
+              <SafeExternalLink v-if="coin.referenceUrl" :href="coin.referenceUrl" class="break-words text-gold">{{ coin.referenceUrl }}</SafeExternalLink>
+              <span v-else class="text-body text-text-secondary">No source URL provided</span>
             </div>
           </div>
-          <p class="muted">Review missing or uncertain fields before saving. Only source-backed candidate fields are prefilled.</p>
-          <p v-if="convertError" class="error-text">{{ convertError }}</p>
-          <label v-if="showDuplicateAck" class="ack"><input v-model="ackDuplicate" type="checkbox" /> I acknowledge this may duplicate an existing wishlist item.</label>
-          <div class="actions-row">
-            <button class="btn btn-primary btn-sm" type="button" :disabled="busy || !canConvert" @click="emitConvert">Save as Wishlist Item</button>
+          <p class="m-0 text-body text-text-secondary">Review missing or uncertain fields before saving. Only source-backed candidate fields are prefilled.</p>
+          <p v-if="convertError" class="m-0 text-body text-bronze">{{ convertError }}</p>
+          <label v-if="showDuplicateAck" class="mt-3 flex items-center gap-2 text-base text-text-secondary">
+            <input
+              v-model="ackDuplicate"
+              class="h-4 w-4 rounded-sm border border-border-subtle bg-input accent-[var(--accent-gold)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+              type="checkbox"
+            />
+            I acknowledge this may duplicate an existing wishlist item.
+          </label>
+          <div class="flex flex-wrap items-center gap-2">
+            <button class="btn btn-primary btn-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="button" :disabled="busy || !canConvert" @click="emitConvert">Save as Wishlist Item</button>
           </div>
         </details>
       </template>
     </section>
-    <router-link v-else-if="candidate.convertedCoinId" class="btn btn-secondary btn-sm converted-link" :to="`/coin/${candidate.convertedCoinId}`">Open converted wishlist item</router-link>
+    <router-link
+      v-else-if="candidate.convertedCoinId"
+      class="btn btn-secondary btn-sm w-fit focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+      :to="`/coin/${candidate.convertedCoinId}`"
+    >
+      Open converted wishlist item
+    </router-link>
   </article>
 </template>
 
@@ -169,32 +212,3 @@ function emitConvert() {
   emit('convert', props.candidate, { ...coin }, ackDuplicate.value)
 }
 </script>
-
-<style scoped>
-.candidate-card { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-card); padding: 1rem; display: grid; gap: 0.75rem; }
-.candidate-card.suppressed { opacity: 0.75; }
-.candidate-header { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
-h3 { margin: 0.15rem 0 0; }
-.section-label, .info-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: 0; }
-.badges, .actions-row, .dismiss-controls { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
-.verified { color: var(--accent-gold); border-color: var(--accent-gold); }
-.partial { color: var(--accent-bronze); border-color: var(--accent-bronze); }
-.unverified { color: var(--text-muted); }
-.candidate-meta, .source-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; }
-.candidate-meta div, .source-fields div { border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-input); padding: 0.75rem; display: grid; gap: 0.25rem; }
-.source-fields { margin: 0; }
-.source-fields dt { color: var(--text-muted); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
-.source-fields dd { margin: 0; color: var(--text-primary); }
-.reason, .muted { color: var(--text-secondary); margin: 0; }
-.source-link, .evidence-link, .converted-link { color: var(--accent-gold); }
-.provenance summary, .convert-box summary { color: var(--accent-gold); cursor: pointer; }
-.provenance ul { margin: 0.75rem 0 0; padding-left: 1.25rem; color: var(--text-secondary); }
-.review-actions { border-top: 1px solid var(--border-subtle); padding-top: 0.75rem; display: grid; gap: 0.75rem; }
-select, input { border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.5rem; background: var(--bg-input); color: var(--text-primary); }
-.convert-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-top: 0.75rem; }
-.convert-grid label, .convert-source { display: grid; gap: 0.25rem; color: var(--text-secondary); }
-.convert-source a { overflow-wrap: anywhere; }
-.ack { display: flex; gap: 0.5rem; align-items: center; color: var(--text-secondary); margin-top: 0.75rem; }
-.error-text { color: var(--accent-bronze); margin: 0.75rem 0 0; }
-@media (max-width: 640px) { .candidate-header { flex-direction: column; } .dismiss-controls { align-items: stretch; } .dismiss-controls > * { width: 100%; } }
-</style>

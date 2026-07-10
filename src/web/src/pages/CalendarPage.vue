@@ -1,8 +1,12 @@
 <template>
   <div ref="pullContainer" class="container" :style="pullDistance > 0 ? `transform: translateY(${pullDistance}px); transition: none` : ''">
-    <div class="pull-indicator" :class="{ visible: pullDistance > 0 || refreshing, refreshing }" :style="`top: ${-50 + pullDistance * 0.6}px; opacity: ${Math.min(pullDistance / 60, 1)}`">
-      <div class="pull-spinner" :style="refreshing ? '' : `transform: rotate(${pullDistance * 3}deg)`"></div>
-      <span class="pull-text">{{ refreshing ? 'Refreshing...' : pullDistance >= 60 ? 'Release to refresh' : 'Pull to refresh' }}</span>
+    <div
+      class="pointer-events-none fixed left-1/2 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border-subtle bg-card px-4 py-[0.4rem] opacity-0 shadow-[0_2px_12px_rgba(0,0,0,0.3)] transition-opacity"
+      :class="{ 'pointer-events-auto opacity-100': pullDistance > 0 || refreshing }"
+      :style="`top: ${-50 + pullDistance * 0.6}px; opacity: ${Math.min(pullDistance / 60, 1)}`"
+    >
+      <div class="h-[18px] w-[18px] rounded-full border-2 border-border-subtle border-t-gold" :class="{ 'animate-spin': refreshing }" :style="refreshing ? '' : `transform: rotate(${pullDistance * 3}deg)`"></div>
+      <span class="whitespace-nowrap text-sm text-text-secondary">{{ refreshing ? 'Refreshing...' : pullDistance >= 60 ? 'Release to refresh' : 'Pull to refresh' }}</span>
     </div>
     <div class="page-header">
       <h1>Auction Calendar</h1>
@@ -19,37 +23,33 @@
     </div>
 
     <!-- Month Navigation -->
-    <div class="month-nav">
+    <div class="mb-5 flex items-center justify-center gap-6">
       <button class="btn btn-secondary" @click="prevMonth"><ChevronLeft :size="18" /></button>
-      <h2 class="month-label">{{ monthLabel }}</h2>
+      <h2 class="m-0 min-w-[200px] text-center text-lg text-text-primary">{{ monthLabel }}</h2>
       <button class="btn btn-secondary" @click="nextMonth"><ChevronRight :size="18" /></button>
     </div>
 
     <!-- Calendar Grid -->
-    <div class="calendar-grid">
-      <div v-for="day in dayNames" :key="day" class="day-header">{{ day }}</div>
+    <div class="mb-8 grid grid-cols-7 gap-px overflow-hidden rounded-md border border-border-subtle bg-border-subtle">
+      <div v-for="day in dayNames" :key="day" class="bg-card px-2 py-2 text-center text-sm font-semibold uppercase tracking-[0.08em] text-text-secondary">{{ day }}</div>
       <div
         v-for="(cell, idx) in calendarCells"
         :key="idx"
-        class="day-cell"
-        :class="{
-          'other-month': !cell.currentMonth,
-          'is-today': cell.isToday,
-          'has-events': (cell.lots?.length ?? 0) > 0 || (cell.events?.length ?? 0) > 0
-        }"
+        class="relative min-h-[60px] bg-card p-2"
+        :class="{ 'opacity-30': !cell.currentMonth }"
       >
-        <span class="day-number">{{ cell.day }}</span>
-        <div class="day-indicators">
+        <span class="inline-flex text-chip text-text-primary" :class="cell.isToday ? 'h-6 w-6 items-center justify-center rounded-full bg-gold font-bold text-surface' : ''">{{ cell.day }}</span>
+        <div class="mt-1 flex flex-wrap gap-[3px]">
           <span
             v-for="n in Math.min(cell.lots?.length ?? 0, 3)"
             :key="'lot-' + n"
-            class="indicator lot-indicator"
+            class="h-[7px] w-[7px] rounded-full bg-gold"
             title="Auction lot"
           ></span>
           <span
             v-for="n in Math.min(cell.events?.length ?? 0, 3)"
             :key="'ev-' + n"
-            class="indicator event-indicator"
+            class="h-[7px] w-[7px] rounded-full bg-modern-cat"
             title="Event"
           ></span>
         </div>
@@ -57,29 +57,29 @@
     </div>
 
     <!-- Event List -->
-    <div class="event-list-section">
-      <h2>Events This Month</h2>
+    <div class="mt-4">
+      <h2 class="mb-4 text-lg text-text-primary">Events This Month</h2>
 
-      <div v-if="loading" class="loading-state">Loading calendar...</div>
+      <div v-if="loading" class="py-8 text-center text-text-secondary">Loading calendar...</div>
 
       <template v-else>
         <!-- Auction Lots -->
-        <div v-if="lots.length" class="event-group">
-          <h3 class="group-title lot-accent">Auction Lots</h3>
-          <div v-for="lot in lots" :key="'lot-' + lot.id" class="card event-card">
-            <div class="event-card-body">
-              <div v-if="getProxiedImageUrl(lot.imageUrl)" class="lot-thumb-container">
-                <img :src="getProxiedImageUrl(lot.imageUrl)" class="lot-thumb" alt="" />
+        <div v-if="lots.length" class="mb-6">
+          <h3 class="mb-3 text-label font-semibold uppercase tracking-[0.08em] text-gold">Auction Lots</h3>
+          <div v-for="lot in lots" :key="'lot-' + lot.id" class="mb-2 rounded-md border border-border-subtle bg-card p-4 shadow-[var(--shadow-card)]">
+            <div class="flex items-start gap-4">
+              <div v-if="getProxiedImageUrl(lot.imageUrl)" class="h-16 w-16 shrink-0 overflow-hidden rounded-sm">
+                <img :src="getProxiedImageUrl(lot.imageUrl)" class="h-full w-full object-cover" alt="" />
               </div>
-              <div class="event-info">
-                <h4>{{ lot.title }}</h4>
-                <div class="event-meta">
-                  <span v-if="lot.auctionHouse"><Building :size="13" /> {{ lot.auctionHouse }}</span>
-                  <span v-if="lot.saleDate"><CalendarIcon :size="13" /> {{ formatDate(lot.saleDate) }}</span>
-                  <span v-if="lot.currentBid" class="bid-info">Current bid: {{ lot.currentBid }}</span>
-                  <span v-if="lot.estimate" class="estimate-info">Est: {{ lot.estimate }}</span>
+              <div class="min-w-0 flex-1">
+                <h4 class="mb-[0.35rem] text-base text-text-primary">{{ lot.title }}</h4>
+                <div class="flex flex-wrap gap-3 text-chip text-text-secondary">
+                  <span v-if="lot.auctionHouse" class="inline-flex items-center gap-1"><Building :size="13" /> {{ lot.auctionHouse }}</span>
+                  <span v-if="lot.saleDate" class="inline-flex items-center gap-1"><CalendarIcon :size="13" /> {{ formatDate(lot.saleDate) }}</span>
+                  <span v-if="lot.currentBid" class="text-gold">Current bid: {{ lot.currentBid }}</span>
+                  <span v-if="lot.estimate">Est: {{ lot.estimate }}</span>
                 </div>
-                <SafeExternalLink v-if="auctionLotUrl(lot)" :href="auctionLotUrl(lot) ?? ''" target="_blank" rel="noopener" class="lot-link">
+                <SafeExternalLink v-if="auctionLotUrl(lot)" :href="auctionLotUrl(lot) ?? ''" target="_blank" rel="noopener" class="mt-[0.35rem] inline-flex items-center gap-1 text-chip text-gold hover:underline">
                   <ExternalLink :size="13" /> View on {{ auctionProviderLabel(lot) }}
                 </SafeExternalLink>
               </div>
@@ -88,26 +88,26 @@
         </div>
 
         <!-- Manual Events -->
-        <div v-if="events.length" class="event-group">
-          <h3 class="group-title event-accent">Events</h3>
-          <div v-for="ev in events" :key="'ev-' + ev.id" class="card event-card event-card-clickable" @click="openEvent(ev.id)">
-            <div class="event-card-body">
-              <div class="event-info">
-                <h4>{{ ev.title }}</h4>
-                <div class="event-meta">
-                  <span v-if="ev.auctionHouse"><Building :size="13" /> {{ ev.auctionHouse }}</span>
-                  <span v-if="ev.startDate">
+        <div v-if="events.length" class="mb-6">
+          <h3 class="mb-3 text-label font-semibold uppercase tracking-[0.08em] text-modern-cat">Events</h3>
+          <div v-for="ev in events" :key="'ev-' + ev.id" class="mb-2 cursor-pointer rounded-md border border-border-subtle bg-card p-4 shadow-[var(--shadow-card)] transition-colors hover:border-gold-dim" @click="openEvent(ev.id)">
+            <div class="flex items-start gap-4">
+              <div class="min-w-0 flex-1">
+                <h4 class="mb-[0.35rem] text-base text-text-primary">{{ ev.title }}</h4>
+                <div class="flex flex-wrap gap-3 text-chip text-text-secondary">
+                  <span v-if="ev.auctionHouse" class="inline-flex items-center gap-1"><Building :size="13" /> {{ ev.auctionHouse }}</span>
+                  <span v-if="ev.startDate" class="inline-flex items-center gap-1">
                     <CalendarIcon :size="13" />
                     {{ formatDate(ev.startDate) }}
                     <template v-if="ev.endDate"> - {{ formatDate(ev.endDate) }}</template>
                   </span>
                 </div>
-                <p v-if="ev.notes" class="event-notes">{{ ev.notes }}</p>
-                <SafeExternalLink v-if="ev.url" :href="ev.url" target="_blank" rel="noopener" class="lot-link" @click.stop>
+                <p v-if="ev.notes" class="mt-[0.35rem] text-body leading-[1.4] text-text-secondary">{{ ev.notes }}</p>
+                <SafeExternalLink v-if="ev.url" :href="ev.url" target="_blank" rel="noopener" class="mt-[0.35rem] inline-flex items-center gap-1 text-chip text-gold hover:underline" @click.stop>
                   <ExternalLink :size="13" /> Visit
                 </SafeExternalLink>
               </div>
-              <button class="btn-remove" @click.stop="handleDeleteEvent(ev.id)" title="Delete event">
+              <button class="shrink-0 rounded-sm p-1 text-text-secondary transition-colors hover:text-error-bg" @click.stop="handleDeleteEvent(ev.id)" title="Delete event">
                 <Trash2 :size="16" />
               </button>
             </div>
@@ -123,40 +123,40 @@
     </div>
 
     <!-- Event Detail Drawer -->
-    <div v-if="selectedEvent" class="modal-overlay" @click.self="selectedEvent = null">
-      <div class="modal card event-detail-modal">
-        <div class="modal-header">
-          <h2>Edit Event</h2>
-          <button class="btn-close" @click="selectedEvent = null"><X :size="18" /></button>
+    <div v-if="selectedEvent" class="fixed inset-0 z-[100] flex items-center justify-center bg-overlay px-4" @click.self="selectedEvent = null">
+      <div class="max-h-[90vh] w-[90%] max-w-[520px] overflow-y-auto rounded-md border border-border-subtle bg-card p-6 shadow-[var(--shadow-card)]">
+        <div class="mb-4 flex items-center justify-between">
+          <h2 class="m-0 text-xl text-text-primary">Edit Event</h2>
+          <button class="rounded-sm p-1 text-text-secondary transition-colors hover:text-gold" @click="selectedEvent = null"><X :size="18" /></button>
         </div>
         <form @submit.prevent="handleUpdateEvent">
           <div class="form-group">
-            <label for="edit-title">Title</label>
-            <input id="edit-title" v-model="editEvent.title" type="text" required />
+            <label for="edit-title" class="form-label">Title</label>
+            <input id="edit-title" v-model="editEvent.title" class="form-input" type="text" required />
           </div>
           <div class="form-group">
-            <label for="edit-house">Auction House</label>
-            <input id="edit-house" v-model="editEvent.auctionHouse" type="text" />
+            <label for="edit-house" class="form-label">Auction House</label>
+            <input id="edit-house" v-model="editEvent.auctionHouse" class="form-input" type="text" />
           </div>
-          <div class="form-row">
+          <div class="grid gap-4 md:grid-cols-2">
             <div class="form-group">
-              <label for="edit-start">Start Date</label>
-              <input id="edit-start" v-model="editEvent.startDate" type="date" />
+              <label for="edit-start" class="form-label">Start Date</label>
+              <input id="edit-start" v-model="editEvent.startDate" class="form-input" type="date" />
             </div>
             <div class="form-group">
-              <label for="edit-end">End Date</label>
-              <input id="edit-end" v-model="editEvent.endDate" type="date" />
+              <label for="edit-end" class="form-label">End Date</label>
+              <input id="edit-end" v-model="editEvent.endDate" class="form-input" type="date" />
             </div>
           </div>
           <div class="form-group">
-            <label for="edit-url">URL</label>
-            <input id="edit-url" v-model="editEvent.url" type="url" />
+            <label for="edit-url" class="form-label">URL</label>
+            <input id="edit-url" v-model="editEvent.url" class="form-input" type="url" />
           </div>
           <div class="form-group">
-            <label for="edit-notes">Notes</label>
-            <textarea id="edit-notes" v-model="editEvent.notes" rows="3"></textarea>
+            <label for="edit-notes" class="form-label">Notes</label>
+            <textarea id="edit-notes" v-model="editEvent.notes" class="form-textarea" rows="3"></textarea>
           </div>
-          <div class="modal-actions">
+          <div class="mt-5 flex justify-end gap-2">
             <button type="button" class="btn btn-secondary" @click="selectedEvent = null">Cancel</button>
             <button type="submit" class="btn btn-primary" :disabled="savingEvent">
               {{ savingEvent ? 'Saving...' : 'Save' }}
@@ -165,66 +165,66 @@
         </form>
 
         <!-- Linked Auction Lots -->
-        <div class="linked-lots-section">
-          <h3 class="linked-lots-title">Linked Auction Lots <span v-if="linkedLots.length" class="linked-count">{{ linkedLots.length }}</span></h3>
-          <div v-if="linkedLots.length" class="linked-lots-list">
-            <div v-for="lot in linkedLots" :key="lot.id" class="linked-lot-item">
-              <div v-if="getProxiedImageUrl(lot.imageUrl)" class="lot-thumb-container">
-                <img :src="getProxiedImageUrl(lot.imageUrl)" class="lot-thumb" alt="" />
+        <div class="mt-6 border-t border-border-subtle pt-4">
+          <h3 class="mb-3 flex items-center gap-2 text-base text-text-primary">Linked Auction Lots <span v-if="linkedLots.length" class="rounded-full bg-gold-glow px-2 py-[0.1rem] text-sm font-semibold text-gold">{{ linkedLots.length }}</span></h3>
+          <div v-if="linkedLots.length" class="flex flex-col gap-2">
+            <div v-for="lot in linkedLots" :key="lot.id" class="flex items-center gap-3 rounded-sm border border-border-subtle bg-surface p-[0.6rem]">
+              <div v-if="getProxiedImageUrl(lot.imageUrl)" class="h-10 w-10 shrink-0 overflow-hidden rounded-sm">
+                <img :src="getProxiedImageUrl(lot.imageUrl)" class="h-full w-full object-cover" alt="" />
               </div>
-              <div class="linked-lot-info">
-                <span class="linked-lot-title">{{ lot.title }}</span>
-                <span class="linked-lot-meta">
+              <div class="flex min-w-0 flex-1 flex-col gap-[0.15rem]">
+                <span class="truncate text-body text-text-primary">{{ lot.title }}</span>
+                <span class="flex items-center gap-[0.35rem] text-sm text-text-secondary">
                   <template v-if="lot.lotNumber">Lot {{ lot.lotNumber }}</template>
                   <template v-if="lot.lotNumber && lot.status"> · </template>
-                  <span class="status-tag" :class="`status-${lot.status}`">{{ lot.status }}</span>
+                  <span class="rounded-full bg-gold-glow px-2 py-[0.1rem] text-label font-semibold uppercase" :class="lot.status === 'watching' ? 'text-modern-cat' : lot.status === 'bidding' ? 'text-gold' : lot.status === 'won' ? 'text-greek' : lot.status === 'lost' ? 'text-error-bg' : 'text-text-muted'">{{ lot.status }}</span>
                 </span>
               </div>
-              <SafeExternalLink v-if="auctionLotUrl(lot)" :href="auctionLotUrl(lot) ?? ''" target="_blank" rel="noopener" class="lot-ext-link" @click.stop>
+              <SafeExternalLink v-if="auctionLotUrl(lot)" :href="auctionLotUrl(lot) ?? ''" target="_blank" rel="noopener" class="shrink-0 p-1 text-text-secondary transition-colors hover:text-gold" @click.stop>
                 <ExternalLink :size="13" />
               </SafeExternalLink>
             </div>
           </div>
-          <p v-else class="no-linked-lots">No auction lots linked to this event. Link lots from the Auctions page.</p>
+          <p v-else class="m-0 text-body text-text-secondary">No auction lots linked to this event. Link lots from the Auctions page.</p>
         </div>
       </div>
     </div>
 
     <!-- Add Event Modal -->
-    <div v-if="showAddEvent" class="modal-overlay" @click.self="showAddEvent = false">
-      <div class="modal card">
-        <div class="modal-header">
-          <h2>Add Event</h2>
-          <button class="btn-close" @click="showAddEvent = false"><X :size="18" /></button>
+    <div v-if="showAddEvent" class="fixed inset-0 z-[100] flex items-center justify-center bg-overlay px-4" @click.self="showAddEvent = false">
+      <div class="max-h-[90vh] w-[90%] max-w-[520px] overflow-y-auto rounded-md border border-border-subtle bg-card p-6 shadow-[var(--shadow-card)]">
+        <div class="mb-4 flex items-center justify-between">
+          <h2 class="m-0 text-xl text-text-primary">Add Event</h2>
+          <button class="rounded-sm p-1 text-text-secondary transition-colors hover:text-gold" @click="showAddEvent = false"><X :size="18" /></button>
         </div>
         <form @submit.prevent="handleCreateEvent">
           <div class="form-group">
-            <label for="ev-title">Title</label>
-            <input id="ev-title" v-model="newEvent.title" type="text" required placeholder="Event title" />
+            <label for="ev-title" class="form-label">Title</label>
+            <input id="ev-title" v-model="newEvent.title" class="form-input" type="text" required placeholder="Event title" />
           </div>
           <div class="form-group">
-            <label for="ev-house">Auction House (optional)</label>
-            <input id="ev-house" v-model="newEvent.auctionHouse" type="text" placeholder="e.g. Heritage Auctions" />
+            <label for="ev-house" class="form-label">Auction House (optional)</label>
+            <input id="ev-house" v-model="newEvent.auctionHouse" class="form-input" type="text" placeholder="e.g. Heritage Auctions" />
           </div>
-          <div class="form-row">
+          <div class="grid gap-4 md:grid-cols-2">
             <div class="form-group">
-              <label for="ev-start">Start Date</label>
-              <input id="ev-start" v-model="newEvent.startDate" type="date" />
+              <label for="ev-start" class="form-label">Start Date</label>
+              <input id="ev-start" v-model="newEvent.startDate" class="form-input" type="date" />
             </div>
             <div class="form-group">
-              <label for="ev-end">End Date</label>
-              <input id="ev-end" v-model="newEvent.endDate" type="date" />
+              <label for="ev-end" class="form-label">End Date</label>
+              <input id="ev-end" v-model="newEvent.endDate" class="form-input" type="date" />
             </div>
           </div>
           <div class="form-group">
-            <label for="ev-url">URL (optional)</label>
-            <input id="ev-url" v-model="newEvent.url" type="url" placeholder="https://..." />
+            <label for="ev-url" class="form-label">URL (optional)</label>
+            <input id="ev-url" v-model="newEvent.url" class="form-input" type="url" placeholder="https://..." />
           </div>
           <div class="form-group">
-            <label for="ev-notes">Notes (optional)</label>
-            <textarea id="ev-notes" v-model="newEvent.notes" rows="3" placeholder="Any additional notes"></textarea>
+            <label for="ev-notes" class="form-label">Notes (optional)</label>
+            <textarea id="ev-notes" v-model="newEvent.notes" class="form-textarea" rows="3" placeholder="Any additional notes"></textarea>
           </div>
-          <div class="modal-actions">
+          <div class="mt-5 flex justify-end gap-2">
             <button type="button" class="btn btn-secondary" @click="showAddEvent = false">Cancel</button>
             <button type="submit" class="btn btn-primary" :disabled="creatingEvent">
               {{ creatingEvent ? 'Adding...' : 'Add Event' }}
@@ -558,150 +558,3 @@ const { pullDistance, refreshing } = usePullToRefresh(pullContainer, async () =>
   await loadCalendar()
 })
 </script>
-
-<style scoped>
-.container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
-.loading-state { text-align: center; padding: 2rem; color: var(--text-secondary); }
-.empty-state { text-align: center; padding: 3rem; color: var(--text-secondary); }
-.empty-state h3 { color: var(--text-primary); margin: 0.75rem 0 0.5rem; }
-
-/* Month Nav */
-.month-nav { display: flex; align-items: center; justify-content: center; gap: 1.5rem; margin-bottom: 1.25rem; }
-.month-label { font-size: 1.25rem; color: var(--text-primary); margin: 0; min-width: 200px; text-align: center; }
-
-/* Calendar Grid */
-.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; margin-bottom: 2rem; }
-.day-header { background: var(--bg-card); padding: 0.5rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; }
-.day-cell { background: var(--bg-card); padding: 0.5rem; min-height: 60px; position: relative; }
-.day-cell.other-month { opacity: 0.3; }
-.day-cell.is-today .day-number { background: var(--accent-gold); color: var(--bg-primary); border-radius: var(--radius-full); width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
-.day-number { font-size: 0.8rem; color: var(--text-primary); }
-.day-indicators { display: flex; gap: 3px; margin-top: 4px; flex-wrap: wrap; }
-.indicator { width: 7px; height: 7px; border-radius: var(--radius-full); }
-.lot-indicator { background: var(--accent-gold); }
-.event-indicator { background: var(--cat-modern); }
-
-/* Event List */
-.event-list-section { margin-top: 1rem; }
-.event-list-section > h2 { font-size: 1.25rem; color: var(--text-primary); margin-bottom: 1rem; }
-.event-group { margin-bottom: 1.5rem; }
-.group-title { font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; }
-.group-title.lot-accent { color: var(--accent-gold); }
-.group-title.event-accent { color: var(--cat-modern); }
-
-.event-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 0.5rem; }
-.event-card-body { display: flex; gap: 1rem; align-items: flex-start; }
-.lot-thumb-container { flex-shrink: 0; width: 64px; height: 64px; border-radius: var(--radius-sm); overflow: hidden; }
-.lot-thumb { width: 100%; height: 100%; object-fit: cover; }
-.event-info { flex: 1; min-width: 0; }
-.event-info h4 { margin: 0 0 0.35rem; color: var(--text-primary); font-size: 0.95rem; }
-.event-meta { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.8rem; color: var(--text-secondary); }
-.event-meta span { display: inline-flex; align-items: center; gap: 0.25rem; }
-.bid-info { color: var(--accent-gold); }
-.estimate-info { color: var(--text-secondary); }
-.event-notes { font-size: 0.85rem; color: var(--text-secondary); margin: 0.35rem 0 0; line-height: 1.4; }
-.lot-link { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; color: var(--accent-gold); text-decoration: none; margin-top: 0.35rem; }
-.lot-link:hover { text-decoration: underline; }
-.btn-remove { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 0.25rem; flex-shrink: 0; border-radius: var(--radius-sm); }
-.btn-remove:hover { color: var(--error-bg); }
-
-.event-card-clickable { cursor: pointer; transition: border-color var(--transition-fast); }
-.event-card-clickable:hover { border-color: var(--accent-gold-dim); }
-
-/* Modal */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
-.modal { width: 90%; max-width: 520px; padding: 1.5rem; max-height: 90vh; overflow-y: auto; }
-.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-.modal-header h2 { margin: 0; color: var(--text-primary); }
-.btn-close { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 0.25rem; }
-.form-group { margin-bottom: 1rem; }
-.form-group label { display: block; margin-bottom: 0.35rem; color: var(--text-secondary); font-size: 0.875rem; }
-.form-group input,
-.form-group textarea,
-.form-group select { width: 100%; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.5rem 0.75rem; font-size: 0.875rem; box-sizing: border-box; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; }
-
-/* Linked Lots in Event Detail */
-.linked-lots-section { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-subtle); }
-.linked-lots-title { font-size: 0.95rem; color: var(--text-primary); margin: 0 0 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
-.linked-count { background: var(--accent-gold-glow); color: var(--accent-gold); font-size: 0.75rem; padding: 0.1rem 0.5rem; border-radius: var(--radius-full); font-weight: 600; }
-
-.linked-lots-list { display: flex; flex-direction: column; gap: 0.5rem; }
-
-.linked-lot-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.6rem;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-}
-
-.linked-lot-item .lot-thumb-container { width: 40px; height: 40px; border-radius: var(--radius-sm); overflow: hidden; flex-shrink: 0; }
-.linked-lot-item .lot-thumb { width: 100%; height: 100%; object-fit: cover; }
-
-.linked-lot-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
-.linked-lot-title { font-size: 0.85rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.linked-lot-meta { font-size: 0.75rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.35rem; }
-
-.lot-ext-link { color: var(--text-secondary); padding: 0.25rem; flex-shrink: 0; }
-.lot-ext-link:hover { color: var(--accent-gold); }
-
-.no-linked-lots { font-size: 0.85rem; color: var(--text-secondary); margin: 0; }
-
-.status-tag { padding: 0.1rem 0.4rem; border-radius: var(--radius-full); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
-.status-watching { background: var(--accent-gold-glow); color: var(--cat-modern); }
-.status-bidding { background: var(--accent-gold-glow); color: var(--accent-gold); }
-.status-won { background: var(--accent-gold-glow); color: var(--cat-greek); }
-.status-lost { background: var(--accent-gold-glow); color: var(--error-bg); }
-.status-passed { background: var(--accent-gold-glow); color: var(--text-muted); }
-
-.btn-secondary { text-decoration: none; }
-
-/* --- Pull to refresh --- */
-.pull-indicator {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  z-index: 100;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.pull-indicator.visible {
-  pointer-events: auto;
-}
-
-.pull-spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid var(--border-subtle);
-  border-top-color: var(--accent-gold);
-  border-radius: var(--radius-full);
-}
-
-.pull-indicator.refreshing .pull-spinner {
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.pull-text {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-</style>

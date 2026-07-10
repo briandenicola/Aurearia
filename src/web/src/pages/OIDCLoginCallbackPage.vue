@@ -1,30 +1,49 @@
 <template>
-  <div class="auth-page">
-    <div class="auth-card oidc-result-card">
-      <img :src="coinLogoSrc" alt="Aurearia - Coin Collection" class="auth-logo" />
-      <div class="status-icon" :class="status">
-        <LoaderCircle v-if="status === 'loading'" :size="28" aria-hidden="true" class="spin" />
+  <div class="min-h-screen flex items-center justify-center p-6 bg-[radial-gradient(ellipse_at_top,var(--bg-secondary)_0%,var(--bg-primary)_70%)]">
+    <div class="w-full max-w-[420px] text-center card">
+      <img
+        :src="coinLogoSrc"
+        alt="Aurearia - Coin Collection"
+        class="w-20 h-20 rounded-full object-cover border border-gold-dim mb-4 shadow-[var(--shadow-glow)] mx-auto block"
+      />
+      <div
+        class="w-12 h-12 mx-auto mb-4 flex items-center justify-center rounded-full border bg-input"
+        :class="{
+          'border-border-subtle text-gold': status === 'loading',
+          'border-[var(--color-positive)] text-[var(--color-positive)]': status === 'success',
+          'border-[var(--color-negative)] text-[var(--color-negative)]': status === 'error',
+        }"
+      >
+        <LoaderCircle v-if="status === 'loading'" :size="28" aria-hidden="true" class="animate-spin" />
         <CheckCircle v-else-if="status === 'success'" :size="28" aria-hidden="true" />
         <AlertTriangle v-else :size="28" aria-hidden="true" />
       </div>
 
-      <h1>{{ title }}</h1>
-      <p class="auth-subtitle">{{ subtitle }}</p>
+      <h1 class="mb-1">{{ title }}</h1>
+      <p class="text-text-secondary mb-6 text-base">{{ subtitle }}</p>
 
-      <p v-if="message" class="result-message" :class="{ error: status === 'error' }">
+      <p
+        v-if="message"
+        class="text-body mb-4"
+        :class="status === 'error' ? 'text-[var(--color-negative)]' : 'text-text-secondary'"
+      >
         {{ message }}
       </p>
 
       <button
         v-if="status === 'success'"
         type="button"
-        class="btn btn-primary auth-btn"
+        class="btn btn-primary w-full justify-center gap-2 py-3"
         @click="continueToApp"
       >
         <ArrowRight :size="18" aria-hidden="true" />
         Continue to Collection
       </button>
-      <router-link v-else-if="status === 'error'" class="btn btn-secondary auth-btn" to="/login">
+      <router-link
+        v-else-if="status === 'error'"
+        class="btn btn-secondary w-full justify-center gap-2 py-3"
+        to="/login"
+      >
         <ArrowLeft :size="18" aria-hidden="true" />
         Back to Sign In
       </router-link>
@@ -171,97 +190,3 @@ function providerConfigurationMessage(detail: string) {
 }
 </script>
 
-<style scoped>
-.auth-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  background: radial-gradient(ellipse at top, var(--bg-secondary) 0%, var(--bg-primary) 70%);
-}
-
-.auth-card {
-  width: 100%;
-  max-width: 420px;
-  text-align: center;
-}
-
-.oidc-result-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 1.5rem;
-  box-shadow: var(--shadow-card);
-}
-
-.auth-logo {
-  width: 80px;
-  height: 80px;
-  border-radius: var(--radius-full);
-  object-fit: cover;
-  border: 1px solid var(--accent-gold-dim);
-  margin-bottom: 1rem;
-  box-shadow: var(--shadow-glow);
-}
-
-.status-icon {
-  width: 48px;
-  height: 48px;
-  margin: 0 auto 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-input);
-  color: var(--accent-gold);
-}
-
-.status-icon.success {
-  color: var(--color-positive);
-  border-color: var(--color-positive);
-}
-
-.status-icon.error {
-  color: var(--color-negative);
-  border-color: var(--color-negative);
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-.auth-card h1 {
-  margin-bottom: 0.25rem;
-}
-
-.auth-subtitle {
-  color: var(--text-secondary);
-  margin-bottom: 1.5rem;
-  font-size: 0.9rem;
-}
-
-.result-message {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  margin-bottom: 1rem;
-}
-
-.result-message.error {
-  color: var(--color-negative);
-}
-
-.auth-btn {
-  width: 100%;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-</style>
