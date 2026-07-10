@@ -1,11 +1,11 @@
 <template>
   <PullToRefresh :on-refresh="handleRefresh">
-    <div class="container stats-landing">
-      <header class="page-header stats-landing-header">
+    <div class="container flex flex-col gap-6">
+      <header class="page-header mb-0">
         <div>
           <p class="section-label">Collection Insights</p>
           <h1>Stats</h1>
-          <p class="page-intro">Your collection summary at a glance.</p>
+          <p class="mt-[0.35rem] text-base text-text-secondary">Your collection summary at a glance.</p>
         </div>
       </header>
 
@@ -88,21 +88,3 @@ onMounted(() => {
   heatMapRef.value?.fetchDistribution()
 })
 </script>
-
-<style scoped>
-.stats-landing {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.stats-landing-header {
-  margin-bottom: 0;
-}
-
-.page-intro {
-  margin: 0.35rem 0 0;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-</style>

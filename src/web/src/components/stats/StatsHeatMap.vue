@@ -1,33 +1,33 @@
 <template>
   <div class="stats-section card">
-    <h2>Collection Distribution</h2>
-    <div v-if="heatMapEras.length && heatMapCategories.length" class="heatmap-container">
+    <h2 class="mb-5 text-[1.1rem]">Collection Distribution</h2>
+    <div v-if="heatMapEras.length && heatMapCategories.length" class="flex flex-col gap-3">
       <ZoomableSurface aria-label="Zoomable collection distribution heat map. Use controls, wheel, pinch, drag, or keyboard shortcuts to inspect dense cells.">
-        <div class="heatmap-grid" :style="{ gridTemplateColumns: `minmax(60px, 80px) repeat(${heatMapCategories.length}, 1fr)` }">
-          <div class="heatmap-corner"></div>
-          <div v-for="cat in heatMapCategories" :key="cat" class="heatmap-col-header">{{ cat }}</div>
+        <div class="grid min-w-[300px] gap-[2px] p-3 max-[480px]:min-w-0 max-[480px]:gap-px" :style="{ gridTemplateColumns: `minmax(60px, 80px) repeat(${heatMapCategories.length}, 1fr)` }">
+          <div></div>
+          <div v-for="cat in heatMapCategories" :key="cat" class="overflow-hidden text-ellipsis whitespace-nowrap px-[0.15rem] py-[0.25rem] text-center text-[0.65rem] font-semibold text-text-secondary max-[480px]:px-[0.1rem] max-[480px]:py-[0.2rem] max-[480px]:text-[0.55rem]">{{ cat }}</div>
           <template v-for="era in heatMapEras" :key="era">
-            <div class="heatmap-row-header">{{ era }}</div>
+            <div class="flex max-w-[80px] items-center overflow-hidden text-ellipsis whitespace-nowrap pr-[0.35rem] text-[0.65rem] font-semibold text-text-secondary max-[480px]:max-w-[60px] max-[480px]:pr-[0.2rem] max-[480px]:text-[0.55rem]">{{ era }}</div>
             <div
               v-for="cat in heatMapCategories"
               :key="`${era}-${cat}`"
-              class="heatmap-cell"
+              class="flex aspect-square min-h-[28px] cursor-pointer items-center justify-center rounded-sm border border-border-subtle transition hover:z-10 hover:scale-110 hover:shadow-[var(--shadow-gold-hover)] max-[480px]:min-h-[24px]"
               :style="{ backgroundColor: cellColor(heatMapData[`${era}|${cat}`] ?? 0) }"
               :title="`${era} / ${cat}: ${heatMapData[`${era}|${cat}`] ?? 0} coins`"
               @click="navigateToFiltered(era, cat)"
             >
-              <span v-if="(heatMapData[`${era}|${cat}`] ?? 0) > 0" class="heatmap-count">{{ heatMapData[`${era}|${cat}`] }}</span>
+              <span v-if="(heatMapData[`${era}|${cat}`] ?? 0) > 0" class="text-[0.65rem] font-bold text-text-primary max-[480px]:text-[0.55rem]">{{ heatMapData[`${era}|${cat}`] }}</span>
             </div>
           </template>
         </div>
       </ZoomableSurface>
-      <div class="heatmap-legend">
-        <span class="heatmap-legend-label">0</span>
-        <div class="heatmap-legend-bar"></div>
-        <span class="heatmap-legend-label">{{ heatMapMax }}</span>
+      <div class="mt-3 flex items-center justify-center gap-2">
+        <span class="text-label text-text-muted">0</span>
+        <div class="h-[10px] w-[120px] rounded-full bg-[linear-gradient(to_right,color-mix(in_srgb,var(--color-gold)_10%,transparent),color-mix(in_srgb,var(--color-gold)_85%,transparent))]"></div>
+        <span class="text-label text-text-muted">{{ heatMapMax }}</span>
       </div>
     </div>
-    <p v-else class="chart-empty">Add coins with era and category to see distribution.</p>
+    <p v-else class="py-4 text-body italic text-text-muted">Add coins with era and category to see distribution.</p>
   </div>
 </template>
 
@@ -80,128 +80,3 @@ function navigateToFiltered(era: string, category: string) {
 
 defineExpose({ fetchDistribution })
 </script>
-
-<style scoped>
-.stats-section h2 {
-  margin-bottom: 1.25rem;
-  font-size: 1.1rem;
-}
-
-.chart-empty {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  font-style: italic;
-  padding: 1rem 0;
-}
-
-.heatmap-container {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.heatmap-grid {
-  display: grid;
-  gap: 2px;
-  min-width: 300px;
-  padding: 0.75rem;
-}
-
-.heatmap-corner {
-  background: transparent;
-}
-
-.heatmap-col-header {
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-align: center;
-  padding: 0.25rem 0.15rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.heatmap-row-header {
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  padding-right: 0.35rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 80px;
-}
-
-.heatmap-cell {
-  aspect-ratio: 1;
-  min-height: 28px;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
-  border: 1px solid var(--border-subtle);
-}
-
-.heatmap-cell:hover {
-  transform: scale(1.1);
-  box-shadow: var(--shadow-gold-hover);
-  z-index: 1;
-}
-
-.heatmap-count {
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.heatmap-legend {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-  justify-content: center;
-}
-
-.heatmap-legend-label {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-}
-
-.heatmap-legend-bar {
-  width: 120px;
-  height: 10px;
-  border-radius: var(--radius-full);
-  background: linear-gradient(
-    to right,
-    color-mix(in srgb, var(--accent-gold) 10%, transparent),
-    color-mix(in srgb, var(--accent-gold) 85%, transparent)
-  );
-}
-
-@media (max-width: 480px) {
-  .heatmap-grid {
-    gap: 1px;
-    min-width: 0;
-  }
-  .heatmap-col-header {
-    font-size: 0.55rem;
-    padding: 0.2rem 0.1rem;
-  }
-  .heatmap-row-header {
-    font-size: 0.55rem;
-    max-width: 60px;
-    padding-right: 0.2rem;
-  }
-  .heatmap-cell {
-    min-height: 24px;
-  }
-  .heatmap-count {
-    font-size: 0.55rem;
-  }
-}
-</style>

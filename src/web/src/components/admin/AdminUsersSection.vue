@@ -1,35 +1,33 @@
 <template>
-  <section class="admin-section card">
-    <h2>User Management</h2>
+  <section class="card">
+    <h2 class="text-xl font-medium mb-5 pb-3 border-b border-border-subtle">User Management</h2>
     <div v-if="loading" class="loading-overlay"><div class="spinner"></div></div>
-    <table v-else class="users-table">
+    <table v-else class="w-full border-collapse">
       <thead>
         <tr>
-          <th>Username</th>
-          <th>Role</th>
-          <th>Created</th>
-          <th>Actions</th>
+          <th class="text-left px-2 py-3 border-b border-border-subtle text-sm uppercase tracking-[0.05em] text-text-muted font-semibold">Username</th>
+          <th class="text-left px-2 py-3 border-b border-border-subtle text-sm uppercase tracking-[0.05em] text-text-muted font-semibold">Role</th>
+          <th class="text-left px-2 py-3 border-b border-border-subtle text-sm uppercase tracking-[0.05em] text-text-muted font-semibold">Created</th>
+          <th class="text-left px-2 py-3 border-b border-border-subtle text-sm uppercase tracking-[0.05em] text-text-muted font-semibold">Actions</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="user in users" :key="user.id">
-          <td>
-            <span class="username">{{ user.username }}</span>
-            <span v-if="user.id === currentUserId" class="you-badge">(you)</span>
+          <td class="px-2 py-3 border-b border-border-subtle">
+            <span class="font-medium">{{ user.username }}</span>
+            <span v-if="user.id === currentUserId" class="text-label text-text-muted ml-[0.3rem]">(you)</span>
           </td>
-          <td>
+          <td class="px-2 py-3 border-b border-border-subtle">
             <span class="badge" :class="`badge-${user.role === 'admin' ? 'roman' : 'modern'}`">
               {{ user.role }}
             </span>
           </td>
-          <td class="date-cell">{{ formatDate(user.createdAt) }}</td>
-          <td>
-            <div v-if="user.id !== currentUserId" class="action-btns">
-              <button class="btn btn-secondary btn-sm" @click="$emit('edit', user)">
-                Edit
-              </button>
+          <td class="px-2 py-3 border-b border-border-subtle text-body text-text-secondary">{{ formatDate(user.createdAt) }}</td>
+          <td class="px-2 py-3 border-b border-border-subtle">
+            <div v-if="user.id !== currentUserId" class="flex gap-[0.4rem]">
+              <button class="btn btn-secondary btn-sm" @click="$emit('edit', user)">Edit</button>
             </div>
-            <span v-else class="text-muted">—</span>
+            <span v-else class="text-text-muted">—</span>
           </td>
         </tr>
       </tbody>
@@ -54,58 +52,3 @@ function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString()
 }
 </script>
-
-<style scoped>
-.users-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.users-table th,
-.users-table td {
-  text-align: left;
-  padding: 0.75rem 0.5rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.users-table th {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
-.username {
-  font-weight: 500;
-}
-
-.you-badge {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  margin-left: 0.3rem;
-}
-
-.date-cell {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-
-.action-btns {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.text-muted {
-  color: var(--text-muted);
-}
-
-@media (max-width: 640px) {
-  .users-table {
-    font-size: 0.85rem;
-  }
-  .action-btns {
-    flex-direction: column;
-  }
-}
-</style>

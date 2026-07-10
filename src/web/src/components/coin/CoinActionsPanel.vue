@@ -1,35 +1,35 @@
 <template>
   <div class="detail-actions">
     <div class="section-content-card">
-      <div class="upload-section">
-        <h3>Upload Images</h3>
-        <div class="upload-content">
-          <div class="upload-row">
-            <select v-model="uploadType" class="form-select upload-select">
+      <div class="mb-6">
+        <h3 class="mb-3 text-base font-medium text-text-primary">Upload Images</h3>
+        <div>
+          <div class="flex gap-2 max-sm:flex-col">
+            <select v-model="uploadType" class="form-select flex-1">
               <option value="obverse">Obverse</option>
               <option value="reverse">Reverse</option>
               <option value="detail">Detail</option>
               <option value="other">Other</option>
             </select>
-            <label class="btn btn-secondary btn-sm upload-btn">
+            <label class="btn btn-secondary btn-sm cursor-pointer whitespace-nowrap">
               Choose File
               <input type="file" accept="image/*" hidden @change="handleImageUpload" />
             </label>
             <button
               v-if="isPwa"
               type="button"
-              class="btn btn-secondary btn-sm upload-btn camera-btn"
+              class="btn btn-secondary btn-sm inline-flex items-center gap-1 whitespace-nowrap"
               @click="showCameraModal = true"
             >
               <Camera :size="14" /> Photo
             </button>
           </div>
 
-          <div class="url-upload-row">
+          <div class="mt-2 flex gap-2 max-sm:flex-col">
             <input
               v-model="imageUrl"
               type="url"
-              class="form-input url-input"
+              class="form-input min-w-0 flex-1 text-[0.82rem]"
               placeholder="Or paste an image URL..."
               @keydown.enter="handleUrlUpload"
             />
@@ -42,13 +42,13 @@
             </button>
           </div>
 
-          <p v-if="uploadStatus" class="upload-status" :class="{ error: uploadError }">{{ uploadStatus }}</p>
+          <p v-if="uploadStatus" class="mt-2 text-chip" :class="uploadError ? 'text-loss' : 'text-gold'">{{ uploadStatus }}</p>
         </div>
       </div>
 
-      <div class="estimate-section">
-        <div class="estimate-header">
-          <h3>AI Value Estimate</h3>
+      <div class="mb-6">
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <h3 class="m-0 text-base font-medium text-text-primary">AI Value Estimate</h3>
           <button
             class="btn btn-secondary btn-sm"
             :disabled="estimating"
@@ -57,36 +57,43 @@
             {{ estimating ? 'Estimating...' : 'Estimate Value' }}
           </button>
         </div>
-        <div v-if="estimating" class="estimate-loading">
-          <div class="spinner" />
+        <div v-if="estimating" class="flex items-center gap-3 rounded-sm border border-border-subtle bg-card p-4 text-text-secondary">
+          <div class="h-5 w-5 animate-spin rounded-full border-2 border-border-subtle border-t-gold" />
           <span>{{ estimateStatusMessage || 'Estimating current market value...' }}</span>
         </div>
-        <div v-if="estimateError" class="estimate-error">{{ estimateError }}</div>
-        <div v-if="valueEstimate" class="estimate-result">
-          <div class="estimate-value-row">
-            <span class="estimate-value">{{ valueEstimate.estimatedValue ? formatCurrency(valueEstimate.estimatedValue) : 'N/A' }}</span>
-            <span :class="['confidence-badge', `confidence-${valueEstimate.confidence}`]">
+        <div v-if="estimateError" class="px-2 py-2 text-base text-loss">{{ estimateError }}</div>
+        <div v-if="valueEstimate" class="rounded-sm border border-border-subtle bg-card p-4">
+          <div class="mb-3 flex items-center gap-3 max-sm:flex-col max-sm:items-start">
+            <span class="text-xl font-bold text-gold">{{ valueEstimate.estimatedValue ? formatCurrency(valueEstimate.estimatedValue) : 'N/A' }}</span>
+            <span
+              class="rounded-full px-[0.6rem] py-[0.2rem] text-sm font-semibold uppercase tracking-[0.03em]"
+              :class="{
+                'bg-gold-glow text-gold': valueEstimate.confidence === 'high',
+                'bg-gold-dim text-text-primary': valueEstimate.confidence === 'medium',
+                'bg-input text-text-secondary': valueEstimate.confidence === 'low',
+              }"
+            >
               {{ valueEstimate.confidence }} confidence
             </span>
           </div>
-          <p class="estimate-reasoning">{{ valueEstimate.reasoning }}</p>
-          <div v-if="valueEstimate.comparables?.length" class="estimate-comparables">
-            <h4>Comparable Listings</h4>
-            <div v-for="(comp, i) in valueEstimate.comparables" :key="i" class="comparable-item">
+          <p class="mb-3 text-base leading-6 text-text-secondary">{{ valueEstimate.reasoning }}</p>
+          <div v-if="valueEstimate.comparables?.length" class="mb-3">
+            <h4 class="mb-2 text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Comparable Listings</h4>
+            <div v-for="(comp, i) in valueEstimate.comparables" :key="i" class="flex items-center justify-between gap-3 border-b border-border-subtle py-1.5 last:border-b-0">
               <SafeExternalLink
                 v-if="safeComparableUrl(comp.url)"
                 :href="comp.url"
                 target="_blank"
                 rel="noopener"
-                class="comparable-source"
+                class="text-body text-gold no-underline hover:underline"
               >
                 {{ comp.source }}
               </SafeExternalLink>
-              <span v-else class="comparable-source">{{ comp.source }}</span>
-              <span class="comparable-price">{{ comp.price }}</span>
+              <span v-else class="text-body text-gold">{{ comp.source }}</span>
+              <span class="text-body font-semibold text-text-primary">{{ comp.price }}</span>
             </div>
           </div>
-          <div class="estimate-actions">
+          <div class="mt-3 flex gap-2 max-sm:flex-col">
             <button class="btn btn-primary btn-sm" @click="handleApplyEstimate">
               Apply as Current Value
             </button>
@@ -103,7 +110,7 @@
         :coin-denomination="coinDenomination ?? ''"
       />
     </div>
-    
+
     <CameraCaptureModal
       :is-open="showCameraModal"
       @close="showCameraModal = false"
@@ -456,199 +463,3 @@ function formatStatus(status: string) {
   return normalized
 }
 </script>
-
-<style scoped>
-.upload-section {
-  margin-bottom: 1.5rem;
-}
-
-.upload-section h3 {
-  margin-bottom: 0.75rem;
-  font-size: 1rem;
-}
-
-.upload-row {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.upload-select {
-  flex: 1;
-}
-
-.upload-btn {
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.camera-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.upload-status {
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-  color: var(--accent-gold);
-}
-
-.upload-status.error {
-  color: var(--color-negative);
-}
-
-.url-upload-row {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.url-input {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.82rem;
-}
-
-.estimate-section {
-  margin-bottom: 1.5rem;
-}
-
-.estimate-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-
-.estimate-header h3 {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.estimate-loading {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-}
-
-.estimate-loading .spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--border-subtle);
-  border-top-color: var(--accent-gold);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.estimate-error {
-  color: var(--color-negative);
-  padding: 0.5rem;
-  font-size: 0.9rem;
-}
-
-.estimate-result {
-  padding: 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--accent-gold-dim, var(--border-subtle));
-  border-radius: var(--radius-sm);
-}
-
-.estimate-value-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-}
-
-.estimate-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--accent-gold);
-}
-
-.confidence-badge {
-  font-size: 0.75rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-full);
-  text-transform: uppercase;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-}
-
-.confidence-high {
-  background: var(--accent-gold-glow);
-  color: var(--accent-gold);
-}
-
-.confidence-medium {
-  background: var(--accent-gold-dim);
-  color: var(--text-primary);
-}
-
-.confidence-low {
-  background: var(--bg-input);
-  color: var(--text-secondary);
-}
-
-.estimate-reasoning {
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  line-height: 1.5;
-  margin-bottom: 0.75rem;
-}
-
-.estimate-comparables {
-  margin-bottom: 0.75rem;
-}
-
-.estimate-comparables h4 {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  margin: 0 0 0.5rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.comparable-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.comparable-item:last-child {
-  border-bottom: none;
-}
-
-.comparable-source {
-  color: var(--accent-gold);
-  text-decoration: none;
-  font-size: 0.85rem;
-}
-
-.comparable-source:hover {
-  text-decoration: underline;
-}
-
-.comparable-price {
-  font-weight: 600;
-  color: var(--text-primary);
-  font-size: 0.85rem;
-}
-
-.estimate-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-</style>

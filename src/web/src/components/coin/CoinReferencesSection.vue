@@ -1,25 +1,25 @@
 <template>
-  <section class="references-section">
-    <div class="references-header">
-      <h3>Catalog References</h3>
+  <section class="mb-6">
+    <div class="mb-3 flex items-center justify-between gap-3">
+      <h3 class="m-0 text-base font-medium text-text-primary">Catalog References</h3>
       <button type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="startCreate">
         + Add Reference
       </button>
     </div>
 
-    <div v-if="!rows.length && !editing" class="section-content-card references-empty">
+    <div v-if="!rows.length && !editing" class="section-content-card text-body text-text-secondary">
       No structured references added yet.
     </div>
 
-    <div v-else class="references-list">
+    <div v-else class="flex flex-col gap-2">
       <article
         v-for="ref in rows"
         :key="ref.id"
-        class="reference-card"
+        class="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-border-subtle bg-card p-3"
       >
         <template v-if="editing?.mode === 'edit' && editing.id === ref.id">
-          <form class="reference-form" @submit.prevent="saveEdit">
-            <div class="reference-grid">
+          <form class="flex w-full flex-col gap-2" @submit.prevent="saveEdit">
+            <div class="grid gap-2 md:grid-cols-3">
               <select v-model="draft.catalog" class="form-input">
                 <option value="" disabled>Select catalog</option>
                 <option v-for="opt in editingCatalogOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
@@ -27,11 +27,11 @@
               <input v-model.trim="draft.volume" class="form-input" placeholder="Volume (optional)" />
               <input v-model.trim="draft.number" class="form-input" placeholder="Number" />
             </div>
-            <div class="reference-grid reference-grid-two">
+            <div class="grid gap-2 md:grid-cols-2">
               <input v-model.trim="draft.invoiceNumber" class="form-input" placeholder="Invoice Number (optional)" />
               <input v-model.trim="draft.uri" class="form-input" placeholder="URI (optional)" />
             </div>
-            <div class="reference-actions">
+            <div class="inline-flex flex-wrap items-center gap-[0.35rem]">
               <button type="submit" class="btn btn-primary btn-sm" :disabled="saving">Save</button>
               <button type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="cancelEdit">Cancel</button>
             </div>
@@ -39,14 +39,14 @@
         </template>
 
         <template v-else>
-          <div class="reference-main">
-            <span class="chip-sm reference-catalog">{{ ref.catalog }}</span>
-            <span class="reference-value">
+          <div class="inline-flex flex-wrap items-center gap-2">
+            <span class="chip-sm border-border-accent text-gold">{{ ref.catalog }}</span>
+            <span class="text-base text-text-primary">
               <template v-if="ref.volume">{{ ref.volume }} </template>{{ ref.number }}
             </span>
-            <span v-if="ref.invoiceNumber" class="reference-invoice">{{ ref.invoiceNumber }}</span>
+            <span v-if="ref.invoiceNumber" class="text-sm text-text-secondary">{{ ref.invoiceNumber }}</span>
           </div>
-          <div class="reference-actions">
+          <div class="inline-flex flex-wrap items-center gap-[0.35rem]">
             <SafeExternalLink
               v-if="ref.uri"
               :href="ref.uri"
@@ -64,9 +64,9 @@
         </template>
       </article>
 
-      <article v-if="editing?.mode === 'create'" class="reference-card">
-        <form class="reference-form" @submit.prevent="saveCreate">
-          <div class="reference-grid">
+      <article v-if="editing?.mode === 'create'" class="rounded-sm border border-border-subtle bg-card p-3">
+        <form class="flex w-full flex-col gap-2" @submit.prevent="saveCreate">
+          <div class="grid gap-2 md:grid-cols-3">
             <select v-model="draft.catalog" class="form-input">
               <option value="" disabled>Select catalog</option>
               <option v-for="c in catalogs" :key="c.id" :value="c.catalog">{{ c.catalog }} — {{ c.displayName }}</option>
@@ -74,11 +74,11 @@
             <input v-model.trim="draft.volume" class="form-input" placeholder="Volume (optional)" />
             <input v-model.trim="draft.number" class="form-input" placeholder="Number" />
           </div>
-          <div class="reference-grid reference-grid-two">
+          <div class="grid gap-2 md:grid-cols-2">
             <input v-model.trim="draft.invoiceNumber" class="form-input" placeholder="Invoice Number (optional)" />
             <input v-model.trim="draft.uri" class="form-input" placeholder="URI (optional)" />
           </div>
-          <div class="reference-actions">
+          <div class="inline-flex flex-wrap items-center gap-[0.35rem]">
             <button type="submit" class="btn btn-primary btn-sm" :disabled="saving">Save</button>
             <button type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="cancelEdit">Cancel</button>
           </div>
@@ -253,98 +253,3 @@ function getErrorMessage(error: unknown): string {
   return err.response?.data?.error || 'Request failed.'
 }
 </script>
-
-<style scoped>
-.references-section {
-  margin-bottom: 1.5rem;
-}
-
-.references-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-}
-
-.references-header h3 {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.references-empty {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-
-.references-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.reference-card {
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-card);
-  padding: 0.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.reference-main {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.reference-catalog {
-  color: var(--accent-gold);
-  border: 1px solid var(--border-accent);
-}
-
-.reference-value {
-  font-size: 0.9rem;
-  color: var(--text-primary);
-}
-
-.reference-invoice {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.reference-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
-
-.reference-form {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.reference-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
-}
-
-.reference-grid.reference-grid-two {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-@media (max-width: 768px) {
-  .reference-grid,
-  .reference-grid.reference-grid-two {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

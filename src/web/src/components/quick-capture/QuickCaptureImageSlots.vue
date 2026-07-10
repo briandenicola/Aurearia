@@ -1,27 +1,27 @@
 <template>
-  <div class="quick-capture-slots">
-    <label class="slot-card">
-      <span class="slot-title">Obverse</span>
-      <img v-if="obverseUrl" :src="obverseUrl" alt="Obverse preview" class="slot-preview">
-      <span v-else class="slot-empty">Take or upload obverse photo</span>
-      <span class="slot-action">{{ obverseImage ? 'Replace photo' : 'Choose photo' }}</span>
-      <button v-if="obverseImage" type="button" class="slot-clear" @click.prevent="emit('update:obverseImage', null)">Remove</button>
-      <input class="slot-input" type="file" accept="image/*" capture="environment" @change="onFile('obverse', $event)">
+  <div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
+    <label class="relative grid min-h-[170px] cursor-pointer gap-3 rounded-sm border border-dashed border-border-accent bg-card p-4 transition-[border-color,background] duration-200 hover:border-gold hover:bg-card-hover">
+      <span class="text-base font-semibold text-heading">Obverse</span>
+      <img v-if="obverseUrl" :src="obverseUrl" alt="Obverse preview" class="aspect-square w-full rounded-sm border border-border-subtle object-cover">
+      <span v-else class="grid min-h-20 place-items-center rounded-sm border border-dashed border-border-subtle p-3 text-center text-body text-text-secondary">Take or upload obverse photo</span>
+      <span class="justify-self-start rounded-full border border-border-accent px-[0.7rem] py-1 text-sm font-medium text-gold">{{ obverseImage ? 'Replace photo' : 'Choose photo' }}</span>
+      <button v-if="obverseImage" type="button" class="relative z-10 justify-self-start bg-transparent p-0 text-sm text-byzantine underline" @click.prevent="emit('update:obverseImage', null)">Remove</button>
+      <input class="absolute inset-0 cursor-pointer opacity-0" type="file" accept="image/*" capture="environment" @change="onFile('obverse', $event)">
     </label>
-    <label class="slot-card">
-      <span class="slot-title">Reverse</span>
-      <img v-if="reverseUrl" :src="reverseUrl" alt="Reverse preview" class="slot-preview">
-      <span v-else class="slot-empty">Optional reverse photo</span>
-      <span class="slot-action">{{ reverseImage ? 'Replace photo' : 'Choose photo' }}</span>
-      <button v-if="reverseImage" type="button" class="slot-clear" @click.prevent="emit('update:reverseImage', null)">Remove</button>
-      <input class="slot-input" type="file" accept="image/*" capture="environment" @change="onFile('reverse', $event)">
+    <label class="relative grid min-h-[170px] cursor-pointer gap-3 rounded-sm border border-dashed border-border-accent bg-card p-4 transition-[border-color,background] duration-200 hover:border-gold hover:bg-card-hover">
+      <span class="text-base font-semibold text-heading">Reverse</span>
+      <img v-if="reverseUrl" :src="reverseUrl" alt="Reverse preview" class="aspect-square w-full rounded-sm border border-border-subtle object-cover">
+      <span v-else class="grid min-h-20 place-items-center rounded-sm border border-dashed border-border-subtle p-3 text-center text-body text-text-secondary">Optional reverse photo</span>
+      <span class="justify-self-start rounded-full border border-border-accent px-[0.7rem] py-1 text-sm font-medium text-gold">{{ reverseImage ? 'Replace photo' : 'Choose photo' }}</span>
+      <button v-if="reverseImage" type="button" class="relative z-10 justify-self-start bg-transparent p-0 text-sm text-byzantine underline" @click.prevent="emit('update:reverseImage', null)">Remove</button>
+      <input class="absolute inset-0 cursor-pointer opacity-0" type="file" accept="image/*" capture="environment" @change="onFile('reverse', $event)">
     </label>
-    <label class="slot-card detail">
-      <span class="slot-title">Detail photos</span>
-      <span class="slot-empty">{{ detailCountText }}</span>
-      <span class="slot-action">{{ detailImages.length ? 'Replace details' : 'Choose details' }}</span>
-      <button v-if="detailImages.length" type="button" class="slot-clear" @click.prevent="emit('update:detailImages', [])">Remove</button>
-      <input class="slot-input" type="file" accept="image/*" multiple @change="onDetails">
+    <label class="relative grid min-h-[170px] cursor-pointer gap-3 rounded-sm border border-dashed border-border-accent bg-card p-4 transition-[border-color,background] duration-200 hover:border-gold hover:bg-card-hover">
+      <span class="text-base font-semibold text-heading">Detail photos</span>
+      <span class="grid min-h-20 place-items-center rounded-sm border border-dashed border-border-subtle p-3 text-center text-body text-text-secondary">{{ detailCountText }}</span>
+      <span class="justify-self-start rounded-full border border-border-accent px-[0.7rem] py-1 text-sm font-medium text-gold">{{ detailImages.length ? 'Replace details' : 'Choose details' }}</span>
+      <button v-if="detailImages.length" type="button" class="relative z-10 justify-self-start bg-transparent p-0 text-sm text-byzantine underline" @click.prevent="emit('update:detailImages', [])">Remove</button>
+      <input class="absolute inset-0 cursor-pointer opacity-0" type="file" accept="image/*" multiple @change="onDetails">
     </label>
   </div>
 </template>
@@ -74,84 +74,3 @@ function onDetails(event: Event) {
   emit('update:detailImages', Array.from(input.files ?? []))
 }
 </script>
-
-<style scoped>
-.quick-capture-slots {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
-}
-
-.slot-card {
-  position: relative;
-  display: grid;
-  gap: 0.75rem;
-  min-height: 170px;
-  border: 1px dashed var(--border-accent);
-  border-radius: var(--radius-sm);
-  padding: 1rem;
-  background: var(--bg-card);
-  cursor: pointer;
-  transition: border-color var(--transition-fast), background var(--transition-fast);
-}
-
-.slot-card:hover {
-  border-color: var(--accent-gold);
-  background: var(--bg-card-hover);
-}
-
-.slot-title {
-  color: var(--text-heading);
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.slot-preview {
-  width: 100%;
-  aspect-ratio: 1;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-}
-
-.slot-empty {
-  display: grid;
-  min-height: 5rem;
-  place-items: center;
-  border: 1px dashed var(--border-subtle);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  text-align: center;
-  padding: 0.75rem;
-}
-
-.slot-action {
-  justify-self: start;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border-accent);
-  padding: 0.25rem 0.7rem;
-  color: var(--accent-gold);
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.slot-input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.slot-clear {
-  justify-self: start;
-  border: 0;
-  background: transparent;
-  color: var(--cat-byzantine);
-  cursor: pointer;
-  font-size: 0.75rem;
-  padding: 0;
-  text-decoration: underline;
-  z-index: 1;
-}
-</style>

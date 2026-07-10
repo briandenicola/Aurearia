@@ -1,5 +1,5 @@
 <template>
-  <div class="autocomplete" ref="wrapperRef">
+  <div class="relative" ref="wrapperRef">
     <input
       :value="modelValue"
       @input="onInput"
@@ -10,11 +10,14 @@
       :required="required"
       autocomplete="off"
     />
-    <ul v-if="showDropdown && suggestions.length" class="autocomplete-list">
+    <ul v-if="showDropdown && suggestions.length" class="absolute inset-x-0 top-full z-50 mt-1 max-h-[200px] overflow-y-auto rounded-sm border border-border-accent bg-card shadow-card">
       <li
         v-for="(item, i) in suggestions"
         :key="item"
-        :class="{ highlighted: i === highlightIndex }"
+        :class="[
+          'cursor-pointer px-3 py-2 text-base text-text-primary transition-colors',
+          i === highlightIndex ? 'bg-gold-dim text-heading' : 'hover:bg-gold-dim hover:text-heading',
+        ]"
         @mousedown.prevent="select(item)"
       >
         {{ item }}
@@ -109,40 +112,3 @@ onUnmounted(() => {
   clearTimeout(debounceTimer)
 })
 </script>
-
-<style scoped>
-.autocomplete {
-  position: relative;
-}
-
-.autocomplete-list {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 50;
-  max-height: 200px;
-  overflow-y: auto;
-  list-style: none;
-  margin: 0.25rem 0 0;
-  padding: 0;
-  background: var(--bg-card);
-  border: 1px solid var(--border-accent);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-card);
-}
-
-.autocomplete-list li {
-  padding: 0.5rem 0.75rem;
-  font-size: 0.9rem;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.autocomplete-list li:hover,
-.autocomplete-list li.highlighted {
-  background: var(--accent-gold-dim);
-  color: var(--text-heading);
-}
-</style>

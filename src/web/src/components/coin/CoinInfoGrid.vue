@@ -1,40 +1,40 @@
 <template>
-  <div class="info-grid">
-    <div class="info-card" v-if="purchasePrice != null">
-      <span class="info-label">Purchase Price</span>
-      <span class="info-value">{{ formatCurrency(purchasePrice) }}</span>
+  <div class="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div class="rounded-sm border border-border-subtle bg-card p-3" v-if="purchasePrice != null">
+      <span class="section-label !mb-[0.2rem] block">Purchase Price</span>
+      <span class="text-[0.95rem] font-medium text-text-primary">{{ formatCurrency(purchasePrice) }}</span>
     </div>
-    <div class="info-card" v-if="currentValue != null">
-      <span class="info-label">Current Value</span>
-      <span class="info-value gold">{{ formatCurrency(currentValue) }}</span>
+    <div class="rounded-sm border border-border-subtle bg-card p-3" v-if="currentValue != null">
+      <span class="section-label !mb-[0.2rem] block">Current Value</span>
+      <span class="text-[0.95rem] font-medium text-gold">{{ formatCurrency(currentValue) }}</span>
     </div>
-    <div class="info-card" v-if="denomination">
-      <span class="info-label">Denomination</span>
-      <span class="info-value">{{ denomination }}</span>
+    <div class="rounded-sm border border-border-subtle bg-card p-3" v-if="denomination">
+      <span class="section-label !mb-[0.2rem] block">Denomination</span>
+      <span class="text-[0.95rem] font-medium text-text-primary">{{ denomination }}</span>
     </div>
-    <div class="info-card" v-if="era">
-      <span class="info-label">Era</span>
-      <span class="info-value">{{ era }}</span>
+    <div class="rounded-sm border border-border-subtle bg-card p-3" v-if="era">
+      <span class="section-label !mb-[0.2rem] block">Era</span>
+      <span class="text-[0.95rem] font-medium text-text-primary">{{ era }}</span>
     </div>
-    <div class="info-card" v-if="mint">
-      <span class="info-label">Mint</span>
-      <span class="info-value">{{ mint }}</span>
+    <div class="rounded-sm border border-border-subtle bg-card p-3" v-if="mint">
+      <span class="section-label !mb-[0.2rem] block">Mint</span>
+      <span class="text-[0.95rem] font-medium text-text-primary">{{ mint }}</span>
     </div>
-    <div class="info-card" v-if="material">
-      <span class="info-label">Material</span>
-      <span class="info-value" :class="`material-${material.toLowerCase()}`">{{ material }}</span>
+    <div class="rounded-sm border border-border-subtle bg-card p-3" v-if="material">
+      <span class="section-label !mb-[0.2rem] block">Material</span>
+      <span class="text-[0.95rem] font-medium" :class="`material-${material.toLowerCase()}`">{{ material }}</span>
     </div>
-    <div class="info-card" v-if="weightGrams != null">
-      <span class="info-label">Weight</span>
-      <span class="info-value">{{ weightGrams }}g</span>
+    <div class="rounded-sm border border-border-subtle bg-card p-3" v-if="weightGrams != null">
+      <span class="section-label !mb-[0.2rem] block">Weight</span>
+      <span class="text-[0.95rem] font-medium text-text-primary">{{ weightGrams }}g</span>
     </div>
-    <div class="info-card" v-if="diameterMm != null">
-      <span class="info-label">Diameter</span>
-      <span class="info-value">{{ diameterMm }}mm</span>
+    <div class="rounded-sm border border-border-subtle bg-card p-3" v-if="diameterMm != null">
+      <span class="section-label !mb-[0.2rem] block">Diameter</span>
+      <span class="text-[0.95rem] font-medium text-text-primary">{{ diameterMm }}mm</span>
     </div>
-    <div class="info-card" v-if="grade">
-      <span class="info-label">Grade</span>
-      <span class="info-value gold">{{ grade }}</span>
+    <div class="rounded-sm border border-border-subtle bg-card p-3" v-if="grade">
+      <span class="section-label !mb-[0.2rem] block">Grade</span>
+      <span class="text-[0.95rem] font-medium text-gold">{{ grade }}</span>
     </div>
   </div>
 </template>
@@ -54,38 +54,3 @@ defineProps<{
   grade?: string | null
 }>()
 </script>
-
-<style scoped>
-.info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-
-.info-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 0.75rem;
-}
-
-.info-label {
-  display: block;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 0.2rem;
-}
-
-.info-value {
-  font-size: 0.95rem;
-  font-weight: 500;
-}
-
-.info-value.gold {
-  color: var(--accent-gold);
-}
-</style>

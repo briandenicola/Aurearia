@@ -2,7 +2,7 @@
   <PullToRefresh :on-refresh="handleRefresh">
     <div class="container">
       <div class="page-header">
-        <h1>Followers</h1>
+        <h1 class="flex-1">Followers</h1>
         <div v-if="isPwa" class="pwa-actions">
           <button class="pwa-icon-btn" @click="showSearchModal = true" title="Find Users">
             <UserPlus :size="22" />
@@ -15,62 +15,77 @@
         </div>
       </div>
 
-      <div class="followers-layout">
+      <div class="mx-auto flex max-w-[900px] flex-col gap-6 overflow-x-hidden">
         <!-- Tab Nav -->
-        <div class="tab-nav">
+        <div class="flex gap-1 rounded-md border border-border-subtle bg-card p-[0.3rem]">
           <button
-            class="tab-btn"
-            :class="{ active: activeTab === 'following' }"
+            class="flex flex-1 items-center justify-center gap-1.5 rounded-sm px-4 py-2.5 text-body font-medium text-text-secondary transition-[color,background-color] hover:text-text-primary"
+            :class="activeTab === 'following' ? 'bg-[var(--accent-gold-dim)] text-gold' : ''"
             @click="activeTab = 'following'"
           >
             <UserPlus :size="16" /> Following
-            <span v-if="following.length" class="tab-count">{{ following.length }}</span>
+            <span
+              v-if="following.length"
+              class="min-w-[1.3rem] rounded-full bg-border-subtle px-[0.45rem] py-[0.1rem] text-center text-label text-text-secondary"
+              :class="activeTab === 'following' ? 'bg-gold text-surface' : ''"
+            >
+              {{ following.length }}
+            </span>
           </button>
           <button
-            class="tab-btn"
-            :class="{ active: activeTab === 'followers' }"
+            class="flex flex-1 items-center justify-center gap-1.5 rounded-sm px-4 py-2.5 text-body font-medium text-text-secondary transition-[color,background-color] hover:text-text-primary"
+            :class="activeTab === 'followers' ? 'bg-[var(--accent-gold-dim)] text-gold' : ''"
             @click="activeTab = 'followers'"
           >
             <Users :size="16" /> Followers
-            <span v-if="followers.length" class="tab-count">{{ followers.length }}</span>
+            <span
+              v-if="followers.length"
+              class="min-w-[1.3rem] rounded-full bg-border-subtle px-[0.45rem] py-[0.1rem] text-center text-label text-text-secondary"
+              :class="activeTab === 'followers' ? 'bg-gold text-surface' : ''"
+            >
+              {{ followers.length }}
+            </span>
           </button>
         </div>
 
         <!-- Loading -->
-        <div v-if="loading" class="loading-state">
+        <div v-if="loading" class="flex flex-col items-center gap-3 px-4 py-12 text-text-secondary">
           <div class="spinner" />
           <p>Loading...</p>
         </div>
 
         <!-- Following Tab -->
         <div v-else-if="activeTab === 'following'">
-          <div v-if="following.length === 0" class="empty-state">
+          <div v-if="following.length === 0" class="empty-state flex flex-col items-center gap-2 !px-4 !py-12">
             <Users :size="48" />
-            <h3>Not following anyone yet</h3>
-            <p>Search for users to follow and see their collections.</p>
-            <button class="btn btn-primary btn-sm" @click="showSearchModal = true">
+            <h3 class="m-0 text-base text-text-primary">Not following anyone yet</h3>
+            <p class="m-0 text-body text-text-muted">Search for users to follow and see their collections.</p>
+            <button class="btn btn-primary btn-sm mt-2" @click="showSearchModal = true">
               <UserPlus :size="16" /> Find Users
             </button>
           </div>
-          <div v-else class="user-grid">
-            <div v-for="user in following" :key="user.id" class="user-card card">
-              <div class="user-card-body">
+          <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div v-for="user in following" :key="user.id" class="card flex flex-col gap-3 overflow-hidden !p-4">
+              <div class="flex items-center gap-3">
                 <AuthenticatedImage
                   :media-path="user.avatarPath ? user.avatarPath : '/coin-logo.jpg'"
                   :alt="user.username"
-                  class="user-avatar"
+                  class="h-12 w-12 shrink-0 rounded-full border-2 border-border-subtle object-cover"
                 />
-                <div class="user-info">
-                  <span class="user-name">{{ user.username }}</span>
-                  <p v-if="user.bio" class="user-bio">{{ truncate(user.bio, 80) }}</p>
-                  <div class="user-meta">
-                    <span v-if="user.isPublic && user.coinCount > 0" class="coin-badge">
+                <div class="min-w-0 flex-1">
+                  <span class="block truncate text-[0.95rem] font-semibold text-text-primary">{{ user.username }}</span>
+                  <p v-if="user.bio" class="mt-[0.2rem] truncate text-chip leading-[1.3] text-text-muted">{{ truncate(user.bio, 80) }}</p>
+                  <div class="mt-[0.3rem]">
+                    <span
+                      v-if="user.isPublic && user.coinCount > 0"
+                      class="inline-flex rounded-full bg-[var(--accent-gold-dim)] px-2 py-[0.15rem] text-label font-medium text-gold"
+                    >
                       {{ user.coinCount }} coins
                     </span>
                   </div>
                 </div>
               </div>
-              <div class="user-card-actions">
+              <div class="flex flex-wrap items-center gap-2">
                 <router-link
                   :to="`/followers/${user.username}/gallery`"
                   class="btn btn-secondary btn-sm"
@@ -91,27 +106,37 @@
 
         <!-- Followers Tab -->
         <div v-else-if="activeTab === 'followers'">
-          <div v-if="followers.length === 0" class="empty-state">
+          <div v-if="followers.length === 0" class="empty-state flex flex-col items-center gap-2 !px-4 !py-12">
             <Users :size="48" />
-            <h3>No followers yet</h3>
-            <p>When other users follow you, they'll appear here.</p>
+            <h3 class="m-0 text-base text-text-primary">No followers yet</h3>
+            <p class="m-0 text-body text-text-muted">When other users follow you, they'll appear here.</p>
           </div>
-          <div v-else class="user-grid">
-            <div v-for="user in followers" :key="user.id" class="user-card card">
-              <div class="user-card-body">
+          <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div v-for="user in followers" :key="user.id" class="card flex flex-col gap-3 overflow-hidden !p-4">
+              <div class="flex items-center gap-3">
                 <AuthenticatedImage
                   :media-path="user.avatarPath ? user.avatarPath : '/coin-logo.jpg'"
                   :alt="user.username"
-                  class="user-avatar"
+                  class="h-12 w-12 shrink-0 rounded-full border-2 border-border-subtle object-cover"
                 />
-                <div class="user-info">
-                  <span class="user-name">{{ user.username }}</span>
-                  <p v-if="user.bio" class="user-bio">{{ truncate(user.bio, 80) }}</p>
-                  <span v-if="user.status === 'pending'" class="status-badge pending">Pending</span>
-                  <span v-else-if="user.status === 'accepted'" class="status-badge accepted">Accepted</span>
+                <div class="min-w-0 flex-1">
+                  <span class="block truncate text-[0.95rem] font-semibold text-text-primary">{{ user.username }}</span>
+                  <p v-if="user.bio" class="mt-[0.2rem] truncate text-chip leading-[1.3] text-text-muted">{{ truncate(user.bio, 80) }}</p>
+                  <span
+                    v-if="user.status === 'pending'"
+                    class="mt-[0.3rem] inline-flex rounded-full bg-[var(--accent-gold-glow)] px-2 py-[0.15rem] text-label font-medium text-gold"
+                  >
+                    Pending
+                  </span>
+                  <span
+                    v-else-if="user.status === 'accepted'"
+                    class="mt-[0.3rem] inline-flex rounded-full bg-[var(--accent-gold-glow)] px-2 py-[0.15rem] text-label font-medium text-greek"
+                  >
+                    Accepted
+                  </span>
                 </div>
               </div>
-              <div class="user-card-actions">
+              <div class="flex flex-wrap items-center gap-2">
                 <button
                   v-if="user.status === 'pending'"
                   class="btn btn-primary btn-sm"
@@ -130,74 +155,98 @@
               </div>
             </div>
           </div>
-        </div>
       </div>
+    </div>
 
-      <!-- Search Modal -->
-      <Teleport to="body">
-        <div v-if="showSearchModal" class="modal-overlay" @click.self="closeSearchModal">
-          <div class="modal-content card">
-            <div class="modal-header">
-              <h2><Search :size="20" /> Find Users</h2>
-              <button class="modal-close" @click="closeSearchModal">
-                <X :size="20" />
-              </button>
+    </div>
+
+    <!-- Search Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showSearchModal"
+        class="fixed inset-0 z-[1000] flex justify-center overflow-y-auto bg-overlay-full px-4 py-[5vh] md:items-start"
+        @click.self="closeSearchModal"
+      >
+        <div class="card !p-0 flex max-h-[80vh] w-full max-w-[520px] flex-col">
+          <div class="flex items-center justify-between border-b border-border-subtle px-5 py-4">
+            <h2 class="m-0 flex items-center gap-2 text-base"><Search :size="20" /> Find Users</h2>
+            <button class="rounded-sm p-1 text-text-secondary transition-colors hover:text-text-primary" @click="closeSearchModal">
+              <X :size="20" />
+            </button>
+          </div>
+          <div class="flex flex-col gap-4 overflow-y-auto px-5 py-4">
+            <p class="m-0 text-chip text-text-muted">Only users with public profiles appear in search results.</p>
+            <div class="relative">
+              <Search :size="16" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+              <input
+                ref="searchInputRef"
+                v-model="searchQuery"
+                type="text"
+                class="form-input w-full pl-9"
+                placeholder="Search by username..."
+                @input="onSearchInput"
+              />
             </div>
-            <div class="modal-body">
-              <p class="search-hint">Only users with public profiles appear in search results.</p>
-              <div class="search-input-wrap">
-                <Search :size="16" class="search-icon" />
-                <input
-                  ref="searchInputRef"
-                  v-model="searchQuery"
-                  type="text"
-                  class="form-input search-input"
-                  placeholder="Search by username..."
-                  @input="onSearchInput"
-                />
-              </div>
-              <div v-if="searchLoading" class="loading-state compact">
-                <div class="spinner" />
-              </div>
-              <div v-else-if="searchResults.length > 0" class="search-results">
-                <div v-for="user in searchResults" :key="user.id" class="user-card compact">
-                  <div class="user-card-body">
-                    <AuthenticatedImage
-                      :media-path="user.avatarPath ? user.avatarPath : '/coin-logo.jpg'"
-                      :alt="user.username"
-                      class="user-avatar"
-                    />
-                    <div class="user-info">
-                      <span class="user-name">{{ user.username }}</span>
-                      <p v-if="user.bio" class="user-bio">{{ truncate(user.bio, 60) }}</p>
-                    </div>
-                  </div>
-                  <div class="user-card-actions">
-                    <span v-if="user.followStatus === 'pending'" class="status-badge pending">Pending</span>
-                    <span v-else-if="user.followStatus === 'accepted'" class="following-badge">Following</span>
-                    <span v-else-if="user.followStatus === 'blocked'" class="status-badge blocked">Blocked</span>
-                    <button
-                      v-else
-                      class="btn btn-primary btn-sm"
-                      :disabled="actionLoading === user.id"
-                      @click="handleFollow(user)"
-                    >
-                      <UserPlus :size="14" /> Follow
-                    </button>
+            <div v-if="searchLoading" class="flex flex-col items-center gap-3 px-4 py-8 text-text-secondary">
+              <div class="spinner" />
+            </div>
+            <div v-else-if="searchResults.length > 0" class="flex flex-col gap-2">
+              <div
+                v-for="user in searchResults"
+                :key="user.id"
+                class="flex items-center justify-between gap-3 rounded-md border border-border-subtle bg-card p-3"
+              >
+                <div class="flex min-w-0 flex-1 items-center gap-3">
+                  <AuthenticatedImage
+                    :media-path="user.avatarPath ? user.avatarPath : '/coin-logo.jpg'"
+                    :alt="user.username"
+                    class="h-12 w-12 shrink-0 rounded-full border-2 border-border-subtle object-cover"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <span class="block truncate text-[0.95rem] font-semibold text-text-primary">{{ user.username }}</span>
+                    <p v-if="user.bio" class="mt-[0.2rem] truncate text-chip leading-[1.3] text-text-muted">{{ truncate(user.bio, 60) }}</p>
                   </div>
                 </div>
+                <div class="shrink-0">
+                  <span
+                    v-if="user.followStatus === 'pending'"
+                    class="inline-flex rounded-full bg-[var(--accent-gold-glow)] px-2 py-[0.15rem] text-label font-medium text-gold"
+                  >
+                    Pending
+                  </span>
+                  <span
+                    v-else-if="user.followStatus === 'accepted'"
+                    class="inline-flex rounded-sm bg-[var(--accent-gold-dim)] px-[0.6rem] py-[0.3rem] text-sm font-medium text-gold"
+                  >
+                    Following
+                  </span>
+                  <span
+                    v-else-if="user.followStatus === 'blocked'"
+                    class="inline-flex rounded-full bg-[var(--accent-gold-glow)] px-2 py-[0.15rem] text-label font-medium text-[var(--error-bg)]"
+                  >
+                    Blocked
+                  </span>
+                  <button
+                    v-else
+                    class="btn btn-primary btn-sm"
+                    :disabled="actionLoading === user.id"
+                    @click="handleFollow(user)"
+                  >
+                    <UserPlus :size="14" /> Follow
+                  </button>
+                </div>
               </div>
-              <div v-else-if="searchQuery.length >= 2 && !searchLoading" class="empty-state compact">
-                <p>No users found for "{{ searchQuery }}"</p>
-              </div>
-              <div v-else class="empty-state compact">
-                <p>Type at least 2 characters to search</p>
-              </div>
+            </div>
+            <div v-else-if="searchQuery.length >= 2 && !searchLoading" class="empty-state !px-4 !py-6">
+              <p>No users found for "{{ searchQuery }}"</p>
+            </div>
+            <div v-else class="empty-state !px-4 !py-6">
+              <p>Type at least 2 characters to search</p>
             </div>
           </div>
         </div>
-      </Teleport>
-    </div>
+      </div>
+    </Teleport>
   </PullToRefresh>
 </template>
 
@@ -341,354 +390,3 @@ onBeforeUnmount(() => {
   if (searchTimeout) clearTimeout(searchTimeout)
 })
 </script>
-
-<style scoped>
-.page-header h1 {
-  flex: 1;
-}
-
-.followers-layout {
-  max-width: 900px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  overflow-x: hidden;
-}
-
-/* Tabs */
-.tab-nav {
-  display: flex;
-  gap: 0.25rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 0.3rem;
-}
-
-.tab-btn {
-  flex: 1;
-  padding: 0.6rem 1rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-}
-
-.tab-btn.active {
-  background: var(--accent-gold-dim);
-  color: var(--accent-gold);
-}
-
-.tab-btn:hover:not(.active) {
-  color: var(--text-primary);
-}
-
-.tab-count {
-  background: var(--border-subtle);
-  color: var(--text-secondary);
-  font-size: 0.7rem;
-  padding: 0.1rem 0.45rem;
-  border-radius: var(--radius-full);
-  min-width: 1.3rem;
-  text-align: center;
-}
-
-.tab-btn.active .tab-count {
-  background: var(--accent-gold);
-  color: var(--bg-primary);
-}
-
-/* User Grid */
-.user-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
-  gap: 1rem;
-}
-
-.user-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: 1rem;
-  overflow: hidden;
-}
-
-.user-card-body {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.user-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-full);
-  object-fit: cover;
-  border: 2px solid var(--border-subtle);
-  flex-shrink: 0;
-}
-
-.user-info {
-  min-width: 0;
-  flex: 1;
-}
-
-.user-name {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.user-bio {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  margin: 0.2rem 0 0;
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.user-meta {
-  margin-top: 0.3rem;
-}
-
-.coin-badge {
-  font-size: 0.7rem;
-  background: var(--accent-gold-dim);
-  color: var(--accent-gold);
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-full);
-  font-weight: 500;
-}
-
-.user-card-actions {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-/* Loading */
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 3rem 1rem;
-  color: var(--text-secondary);
-}
-
-.loading-state.compact {
-  padding: 2rem 1rem;
-}
-
-.spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid var(--border-subtle);
-  border-top-color: var(--accent-gold);
-  border-radius: var(--radius-full);
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Empty State */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 3rem 1rem;
-  color: var(--text-secondary);
-  text-align: center;
-}
-
-.empty-state.compact {
-  padding: 1.5rem 1rem;
-}
-
-.empty-state h3 {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--text-primary);
-}
-
-.empty-state p {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 5vh 1rem;
-  z-index: 1000;
-  overflow-y: auto;
-}
-
-.modal-content {
-  width: 100%;
-  max-width: 520px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.modal-header h2 {
-  font-size: 1rem;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: var(--radius-sm);
-  transition: color var(--transition-fast);
-}
-
-.modal-close:hover {
-  color: var(--text-primary);
-}
-
-.modal-body {
-  padding: 1rem 1.25rem;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.search-input-wrap {
-  position: relative;
-}
-
-.search-icon {
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  pointer-events: none;
-}
-
-.search-input {
-  padding-left: 2.25rem;
-  width: 100%;
-}
-
-.search-results {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.user-card.compact {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-}
-
-.user-card.compact .user-card-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.user-card.compact .user-card-actions {
-  flex-shrink: 0;
-}
-
-.following-badge {
-  font-size: 0.75rem;
-  color: var(--accent-gold);
-  font-weight: 500;
-  padding: 0.3rem 0.6rem;
-  background: var(--accent-gold-dim);
-  border-radius: var(--radius-sm);
-}
-
-.status-badge {
-  font-size: 0.7rem;
-  font-weight: 500;
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-full);
-}
-
-.status-badge.pending {
-  background: var(--accent-gold-glow);
-  color: var(--accent-gold);
-}
-
-.status-badge.accepted {
-  background: var(--accent-gold-glow);
-  color: var(--cat-greek);
-}
-
-.status-badge.blocked {
-  background: var(--accent-gold-glow);
-  color: var(--error-bg);
-}
-
-.search-hint {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  margin: 0;
-}
-
-/* Responsive */
-@media (max-width: 640px) {
-  .user-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .page-header h1 {
-    font-size: 1.2rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .page-header {
-    flex-direction: row;
-    align-items: center;
-  }
-}
-</style>

@@ -1,45 +1,42 @@
 <template>
-  <div class="stats-section card flow-chart-card">
-    <div class="flow-chart-header">
+  <div class="stats-section card relative overflow-hidden border-border-subtle shadow-card">
+    <div class="mb-5 flex flex-wrap items-start justify-between gap-4">
       <div>
         <p class="section-label">Acquisition Flow</p>
-        <h2>Coins Bought by Period, Ruler, Era &amp; Type</h2>
+        <h2 class="mt-[0.15rem]">Coins Bought by Period, Ruler, Era &amp; Type</h2>
       </div>
-      <span v-if="!isLoading && chartCoins.length" class="flow-total-label">
+      <span v-if="!isLoading && chartCoins.length" class="self-end text-chip text-text-muted">
         {{ chartCoins.length }} coins with purchase date
       </span>
     </div>
 
-    <div v-if="isLoading" class="flow-loading">
+    <div v-if="isLoading" class="flex justify-center py-12">
       <div class="spinner"></div>
     </div>
 
-    <div v-else-if="chartCoins.length < 3" class="flow-empty">
+    <div v-else-if="chartCoins.length < 3" class="py-8 text-center text-base text-text-muted">
       <p>
         Not enough coins with a purchase date to draw this chart.
         Set a purchase date on your coins to see their acquisition flow.
       </p>
     </div>
 
-    <div v-else class="flow-chart-body">
+    <div v-else class="flex flex-col gap-2">
       <ZoomableSurface aria-label="Zoomable acquisition flow chart. Use the controls, mouse wheel, pinch, drag, or keyboard shortcuts to inspect dense paths.">
-        <!-- Column headers -->
-        <div class="flow-col-headers" :style="colHeaderStyle">
-          <span class="flow-col-label">Purchase Period</span>
-          <span class="flow-col-label">Ruler</span>
-          <span class="flow-col-label">Era</span>
-          <span class="flow-col-label">Type</span>
+        <div class="grid pb-[0.35rem]" :style="colHeaderStyle">
+          <span class="text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Purchase Period</span>
+          <span class="text-center text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Ruler</span>
+          <span class="text-center text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Era</span>
+          <span class="text-right text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Type</span>
         </div>
 
-        <!-- SVG alluvial chart: Purchase Period → Ruler → Era → Type -->
         <svg
           :viewBox="`0 0 ${SVG_W} ${SVG_H}`"
           preserveAspectRatio="xMidYMid meet"
-          class="flow-chart-svg"
+          class="h-auto w-full overflow-visible"
           role="img"
           aria-label="Alluvial flow chart of acquired coins by purchase period, ruler, era, and type"
         >
-          <!-- Period → Ruler flows -->
           <path
             v-for="(band, i) in periodRulerFlows"
             :key="`pr-${i}`"
@@ -49,7 +46,6 @@
             opacity="0.45"
           />
 
-          <!-- Ruler → Era flows -->
           <path
             v-for="(band, i) in rulerEraFlows"
             :key="`re-${i}`"
@@ -59,7 +55,6 @@
             opacity="0.45"
           />
 
-          <!-- Era → Type flows -->
           <path
             v-for="(band, i) in eraTypeFlows"
             :key="`et-${i}`"
@@ -69,7 +64,6 @@
             opacity="0.45"
           />
 
-          <!-- Period nodes (leftmost) -->
           <g v-for="node in periodNodes" :key="`period-${node.key}`">
             <rect
               class="sankey-node"
@@ -81,7 +75,7 @@
               rx="2"
             />
             <text
-              class="sankey-label sankey-label-left"
+              class="sankey-label"
               :x="COL_X[0] - 8"
               :y="node.y + node.height / 2"
               dominant-baseline="middle"
@@ -89,7 +83,6 @@
             >{{ node.label }} ({{ node.count }})</text>
           </g>
 
-          <!-- Ruler nodes -->
           <g v-for="node in rulerNodes" :key="`ruler-${node.key}`">
             <rect
               class="sankey-node"
@@ -101,7 +94,7 @@
               rx="2"
             />
             <text
-              class="sankey-label sankey-label-center"
+              class="sankey-label"
               :x="COL_X[1] + NODE_W / 2"
               :y="node.y + node.height / 2"
               dominant-baseline="middle"
@@ -109,7 +102,6 @@
             >{{ node.label }}</text>
           </g>
 
-          <!-- Era nodes -->
           <g v-for="node in eraNodes" :key="`era-${node.key}`">
             <rect
               class="sankey-node"
@@ -121,7 +113,7 @@
               rx="2"
             />
             <text
-              class="sankey-label sankey-label-center"
+              class="sankey-label"
               :x="COL_X[2] + NODE_W / 2"
               :y="node.y + node.height / 2"
               dominant-baseline="middle"
@@ -129,7 +121,6 @@
             >{{ node.label }}</text>
           </g>
 
-          <!-- Type nodes (rightmost) -->
           <g v-for="node in typeNodes" :key="`type-${node.key}`">
             <rect
               class="sankey-node"
@@ -141,7 +132,7 @@
               rx="2"
             />
             <text
-              class="sankey-label sankey-label-right"
+              class="sankey-label"
               :x="COL_X[3] + NODE_W + 8"
               :y="node.y + node.height / 2"
               dominant-baseline="middle"
@@ -151,7 +142,7 @@
         </svg>
       </ZoomableSurface>
 
-      <p class="flow-footnote">
+      <p class="mt-2 text-sm italic text-text-muted">
         Only coins with a recorded purchase date are shown. Ruler and type columns show top
         {{ TOP_N }} by count; remaining items are grouped as "Other Rulers" / "Other Types".
       </p>
@@ -437,107 +428,15 @@ const colHeaderStyle = computed(() => ({
 </script>
 
 <style scoped>
-.flow-chart-card {
-  position: relative;
-  overflow: hidden;
-  border-color: var(--border-subtle);
-  box-shadow: var(--shadow-card);
-}
-
-.flow-chart-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-  flex-wrap: wrap;
-}
-
-.flow-chart-header h2 {
-  margin: 0.15rem 0 0;
-  font-size: 1.4rem;
-}
-
-.flow-total-label {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  align-self: flex-end;
-}
-
-.flow-loading {
-  display: flex;
-  justify-content: center;
-  padding: 3rem 0;
-}
-
-.flow-empty {
-  padding: 2rem 0;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  text-align: center;
-}
-
-.flow-chart-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.flow-col-headers {
-  display: grid;
-  padding: 0 0 0.35rem;
-}
-
-.flow-col-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  text-align: center;
-}
-
-.flow-col-label:first-child {
-  text-align: left;
-  padding-left: 0;
-}
-
-.flow-col-label:last-child {
-  text-align: right;
-  padding-right: 0;
-}
-
-.flow-chart-svg {
-  width: 100%;
-  height: auto;
-  overflow: visible;
-}
-
-/* SVG element styles */
-.sankey-node {
-  vector-effect: non-scaling-stroke;
-}
-
+/* kept: SVG chart geometry */
+.sankey-node,
 .sankey-flow {
   vector-effect: non-scaling-stroke;
 }
 
 .sankey-label {
-  font-size: 0.7rem;
   fill: var(--text-secondary);
+  font-size: 0.7rem;
   font-weight: 500;
-}
-
-.flow-footnote {
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-@media (max-width: 480px) {
-  .flow-chart-header {
-    flex-direction: column;
-  }
 }
 </style>

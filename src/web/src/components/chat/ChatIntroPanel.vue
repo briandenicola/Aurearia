@@ -1,23 +1,42 @@
 <template>
-  <div class="chat-intro">
-    <Bot :size="32" />
-    <p>Search for coins, find upcoming shows, or get a portfolio analysis -- ask me anything about collecting.</p>
-    <div class="chat-examples">
-      <button class="example-btn" @click="$emit('send', 'Find me Roman silver denarii of Julius Caesar')">
-        Roman denarii of Julius Caesar
-      </button>
-      <button class="example-btn" @click="$emit('send', 'I\'m looking for Byzantine gold solidi under $1000')">
-        Byzantine gold solidi under $1000
-      </button>
-      <button class="example-btn" @click="$emit('send', 'Show me ancient Greek tetradrachms from Athens')">
-        Greek tetradrachms from Athens
-      </button>
-      <button class="example-btn" @click="$emit('send', 'What ancient coin shows are coming up near me?')">
-        Upcoming coin shows near me
-      </button>
-      <button class="example-btn" @click="$emit('send-portfolio')">
-        Analyze my portfolio
-      </button>
+  <div class="flex shrink items-center overflow-y-auto p-4 text-center text-text-secondary">
+    <div class="flex w-full flex-col items-center gap-3">
+      <Bot :size="32" />
+      <p class="max-w-[300px] leading-relaxed">
+        Search for coins, find upcoming shows, or get a portfolio analysis -- ask me anything about collecting.
+      </p>
+      <div class="mt-2 flex w-full flex-col gap-2">
+        <button
+          class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"
+          @click="$emit('send', 'Find me Roman silver denarii of Julius Caesar')"
+        >
+          Roman denarii of Julius Caesar
+        </button>
+        <button
+          class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"
+          @click="$emit('send', 'I\'m looking for Byzantine gold solidi under $1000')"
+        >
+          Byzantine gold solidi under $1000
+        </button>
+        <button
+          class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"
+          @click="$emit('send', 'Show me ancient Greek tetradrachms from Athens')"
+        >
+          Greek tetradrachms from Athens
+        </button>
+        <button
+          class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"
+          @click="$emit('send', 'What ancient coin shows are coming up near me?')"
+        >
+          Upcoming coin shows near me
+        </button>
+        <button
+          class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"
+          @click="$emit('send-portfolio')"
+        >
+          Analyze my portfolio
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -30,47 +49,3 @@ defineEmits<{
   'send-portfolio': []
 }>()
 </script>
-
-<style scoped>
-.chat-intro {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding: 1rem;
-  color: var(--text-secondary);
-  gap: 0.75rem;
-  flex-shrink: 1;
-  overflow-y: auto;
-}
-
-.chat-intro p {
-  max-width: 300px;
-  line-height: 1.5;
-}
-
-.chat-examples {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-  width: 100%;
-}
-
-.example-btn {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 0.6rem 0.75rem;
-  color: var(--text-secondary);
-  font-size: 0.82rem;
-  cursor: pointer;
-  text-align: left;
-  transition: all var(--transition-fast);
-}
-
-.example-btn:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-}
-</style>

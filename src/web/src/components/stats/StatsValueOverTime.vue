@@ -1,26 +1,25 @@
 <template>
-  <div v-if="displayHistory.length >= 2" class="stats-section card value-chart-card">
-    <div class="chart-card-header">
+  <div v-if="displayHistory.length >= 2" class="stats-section card relative overflow-hidden border-border-accent shadow-card before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_top_right,var(--color-gold-glow),transparent_35%),linear-gradient(180deg,var(--color-card-hover),var(--color-card))] before:opacity-80 before:content-[''] [&>*]:relative [&>*]:z-[1]">
+    <div class="mb-5">
       <div>
         <p class="section-label">Portfolio Trajectory</p>
-        <h2>Value Over Time</h2>
-        <p class="chart-subtitle">
+        <h2 class="mt-[0.15rem]">Value Over Time</h2>
+        <p class="mt-[0.35rem] text-body text-text-secondary">
           Active collection value movement between the first and latest snapshot in this timeframe.
         </p>
       </div>
     </div>
 
-    <div class="chart-main-layout">
-      <!-- Chart area -->
-      <div class="chart-area">
-        <div class="line-chart-container">
-          <div class="line-chart-y-axis" aria-hidden="true">
+    <div class="flex flex-col items-start gap-5 md:flex-row">
+      <div class="min-w-0 flex-1">
+        <div class="flex min-w-0 gap-3">
+          <div class="flex min-w-[3.75rem] flex-col justify-between py-[0.35rem] text-right text-label text-text-muted max-[480px]:min-w-[3.25rem]" aria-hidden="true">
             <span>{{ formatCurrency(chartMaxValue) }}</span>
             <span>{{ formatCurrency(chartMaxValue / 2) }}</span>
             <span>$0</span>
           </div>
-          <div class="line-chart" role="img" aria-label="Current value and invested amount over time">
-            <svg viewBox="0 0 1000 320" preserveAspectRatio="none" class="line-chart-svg">
+          <div class="h-[15rem] min-w-0 flex-1 rounded-md border border-border-subtle bg-input shadow-[inset_0_1px_0_var(--color-border-subtle)] max-md:h-[13rem]" role="img" aria-label="Current value and invested amount over time">
+            <svg viewBox="0 0 1000 320" preserveAspectRatio="none" class="h-full w-full overflow-visible">
               <defs>
                 <linearGradient id="valueAreaGradient" x1="0" x2="0" y1="0" y2="1">
                   <stop offset="0%" stop-color="var(--accent-gold)" stop-opacity="0.20" />
@@ -35,7 +34,6 @@
                 </filter>
               </defs>
 
-              <!-- Sparse vertical grid lines only -->
               <line
                 v-for="tick in verticalGridTicks"
                 :key="`v-${tick}`"
@@ -52,7 +50,6 @@
               <path class="chart-line chart-line-value chart-line-glow" :d="valuePath" />
               <path class="chart-line chart-line-value" :d="valuePath" />
 
-              <!-- Interior data points (last gets the callout ring) -->
               <circle
                 v-for="(pt, i) in valuePointsList.slice(0, -1)"
                 :key="`vp-${i}`"
@@ -70,7 +67,6 @@
                 r="3"
               />
 
-              <!-- Sparse value labels above interior points -->
               <text
                 v-for="(pt, i) in sparseLabelPoints"
                 :key="`lbl-${i}`"
@@ -81,7 +77,6 @@
                 text-anchor="middle"
               >{{ formatShortAmount(pt.value) }}</text>
 
-              <!-- Circled endpoint callout for final value -->
               <g v-if="latestValuePoint">
                 <circle
                   class="endpoint-dot endpoint-dot-value"
@@ -98,7 +93,6 @@
                 >{{ formatShortAmount(latestValue) }}</text>
               </g>
 
-              <!-- Invested endpoint dot -->
               <circle
                 v-if="latestInvestedPoint"
                 class="endpoint-dot endpoint-dot-invested"
@@ -110,29 +104,28 @@
           </div>
         </div>
 
-        <div class="line-chart-footer">
-          <div class="line-chart-legend">
-            <span class="legend-item">
-              <span class="legend-line legend-value"></span>
+        <div class="mt-[0.6rem] flex justify-between gap-4 pl-[4.5rem] max-[480px]:flex-col max-[480px]:pl-0">
+          <div class="flex flex-wrap gap-3 text-chip text-text-secondary">
+            <span class="flex items-center gap-[0.4rem]">
+              <span class="inline-block h-[0.2rem] w-6 rounded-full bg-gold shadow-glow"></span>
               Current Value
             </span>
-            <span class="legend-item">
-              <span class="legend-line legend-invested"></span>
+            <span class="flex items-center gap-[0.4rem]">
+              <span class="inline-block h-[0.2rem] w-6 rounded-full bg-[repeating-linear-gradient(90deg,var(--color-text-secondary)_0,var(--color-text-secondary)_0.4rem,transparent_0.4rem,transparent_0.65rem)]"></span>
               Invested
             </span>
           </div>
-          <div class="line-chart-dates">
+          <div class="flex gap-3 whitespace-nowrap text-label text-text-muted max-[480px]:justify-between">
             <span>{{ formatShortDate(firstSnapshot?.recordedAt ?? '') }}</span>
             <span>{{ formatShortDate(lastSnapshot?.recordedAt ?? '') }}</span>
           </div>
         </div>
       </div>
 
-      <!-- Side panel -->
-      <div class="chart-side-panel">
-        <div class="panel-roi">
+      <div class="flex w-full flex-wrap items-start gap-3 md:w-[10.5rem] md:flex-shrink-0 md:flex-col md:gap-4">
+        <div class="flex min-w-[8rem] flex-1 flex-col gap-[0.2rem] md:flex-none">
           <p class="section-label">Period Value Change</p>
-          <span class="panel-roi-number" :class="changeAmount >= 0 ? 'positive' : 'negative'">
+          <span class="block font-display text-[1.9rem] font-semibold leading-[1.1]" :class="changeAmount >= 0 ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'">
             <template v-if="changePercent !== null">
               {{ changePercent >= 0 ? '+' : '' }}{{ changePercent.toFixed(1) }}%
             </template>
@@ -140,24 +133,24 @@
               {{ changeAmount >= 0 ? '+' : '' }}{{ formatCurrency(changeAmount) }}
             </template>
           </span>
-          <span class="panel-roi-period">
+          <span class="text-label text-text-muted">
             {{ formatShortDate(firstSnapshot?.recordedAt ?? '') }} —
             {{ formatShortDate(lastSnapshot?.recordedAt ?? '') }}
           </span>
         </div>
 
-        <div class="chart-summary-strip" aria-label="Value history summary">
-          <div class="summary-pill">
-            <span class="summary-label">Latest Snapshot</span>
-            <strong>{{ formatCurrency(latestValue) }}</strong>
+        <div class="flex grow basis-[14rem] flex-wrap gap-2 md:basis-auto md:flex-col">
+          <div class="flex min-w-[6rem] flex-1 flex-col gap-[0.15rem] rounded-sm border border-border-subtle bg-input px-3 py-[0.6rem] md:min-w-0 md:flex-none">
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Latest Snapshot</span>
+            <strong class="overflow-hidden text-body text-text-primary text-ellipsis whitespace-nowrap">{{ formatCurrency(latestValue) }}</strong>
           </div>
-          <div class="summary-pill">
-            <span class="summary-label">Invested</span>
-            <strong>{{ formatCurrency(latestInvested) }}</strong>
+          <div class="flex min-w-[6rem] flex-1 flex-col gap-[0.15rem] rounded-sm border border-border-subtle bg-input px-3 py-[0.6rem] md:min-w-0 md:flex-none">
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Invested</span>
+            <strong class="overflow-hidden text-body text-text-primary text-ellipsis whitespace-nowrap">{{ formatCurrency(latestInvested) }}</strong>
           </div>
-          <div class="summary-pill">
-            <span class="summary-label">Period Change</span>
-            <strong :class="changeAmount >= 0 ? 'positive' : 'negative'">
+          <div class="flex min-w-[6rem] flex-1 flex-col gap-[0.15rem] rounded-sm border border-border-subtle bg-input px-3 py-[0.6rem] md:min-w-0 md:flex-none">
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Period Change</span>
+            <strong class="overflow-hidden text-body text-ellipsis whitespace-nowrap" :class="changeAmount >= 0 ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'">
               {{ changeAmount >= 0 ? '+' : '' }}{{ formatCurrency(changeAmount) }}
             </strong>
           </div>
@@ -283,89 +276,7 @@ function formatShortDate(dateStr: string) {
 </script>
 
 <style scoped>
-.value-chart-card {
-  position: relative;
-  overflow: hidden;
-  border-color: var(--border-accent);
-  box-shadow: var(--shadow-card);
-}
-
-.value-chart-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at top right, var(--accent-gold-glow), transparent 35%),
-    linear-gradient(180deg, var(--bg-card-hover), var(--bg-card));
-  opacity: 0.8;
-  pointer-events: none;
-}
-
-.value-chart-card > * {
-  position: relative;
-  z-index: 1;
-}
-
-.chart-card-header {
-  margin-bottom: 1.25rem;
-}
-
-.chart-card-header h2 {
-  margin: 0.15rem 0 0;
-  font-size: 1.5rem;
-}
-
-.chart-subtitle {
-  margin: 0.35rem 0 0;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-
-/* Main two-column layout: chart left, side panel right */
-.chart-main-layout {
-  display: flex;
-  gap: 1.25rem;
-  align-items: flex-start;
-}
-
-.chart-area {
-  flex: 1;
-  min-width: 0;
-}
-
-.line-chart-container {
-  display: flex;
-  gap: 0.75rem;
-  min-width: 0;
-}
-
-.line-chart-y-axis {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  min-width: 3.75rem;
-  padding: 0.35rem 0;
-  color: var(--text-muted);
-  font-size: 0.7rem;
-  text-align: right;
-}
-
-.line-chart {
-  flex: 1;
-  min-width: 0;
-  height: 15rem;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  box-shadow: inset 0 1px 0 var(--border-subtle);
-}
-
-.line-chart-svg {
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
+/* kept: SVG chart geometry */
 .chart-grid-line {
   stroke: var(--border-subtle);
   stroke-width: 1;
@@ -429,14 +340,12 @@ function formatShortDate(dateStr: string) {
   opacity: 0.65;
 }
 
-/* Sparse value labels at data points */
 .chart-point-label {
   fill: var(--text-secondary);
   font-size: 0.6rem;
   font-weight: 600;
 }
 
-/* Endpoint callout (large circled final value) */
 .endpoint-dot {
   fill: var(--bg-card);
   vector-effect: non-scaling-stroke;
@@ -456,185 +365,5 @@ function formatShortDate(dateStr: string) {
   fill: var(--accent-gold);
   font-size: 0.65rem;
   font-weight: 700;
-}
-
-.line-chart-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-top: 0.6rem;
-  padding-left: 4.5rem;
-}
-
-.line-chart-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.legend-line {
-  display: inline-block;
-  width: 1.5rem;
-  height: 0.2rem;
-  border-radius: var(--radius-full);
-}
-
-.legend-value {
-  background: var(--accent-gold);
-  box-shadow: var(--shadow-glow);
-}
-
-.legend-invested {
-  background-image: repeating-linear-gradient(
-    90deg,
-    var(--text-secondary) 0,
-    var(--text-secondary) 0.4rem,
-    transparent 0.4rem,
-    transparent 0.65rem
-  );
-}
-
-.line-chart-dates {
-  display: flex;
-  gap: 0.75rem;
-  color: var(--text-muted);
-  font-size: 0.7rem;
-  white-space: nowrap;
-}
-
-/* Side panel */
-.chart-side-panel {
-  width: 10.5rem;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.panel-roi {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.panel-roi-number {
-  display: block;
-  font-family: 'Cinzel', serif;
-  font-size: 1.9rem;
-  font-weight: 600;
-  line-height: 1.1;
-}
-
-.panel-roi-number.positive {
-  color: var(--color-positive);
-}
-
-.panel-roi-number.negative {
-  color: var(--color-negative);
-}
-
-.panel-roi-period {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-}
-
-.chart-summary-strip {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.summary-pill {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 0;
-  padding: 0.6rem 0.75rem;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-}
-
-.summary-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-}
-
-.summary-pill strong {
-  overflow: hidden;
-  color: var(--text-primary);
-  font-size: 0.85rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.summary-pill strong.positive {
-  color: var(--color-positive);
-}
-
-.summary-pill strong.negative {
-  color: var(--color-negative);
-}
-
-@media (max-width: 768px) {
-  .chart-main-layout {
-    flex-direction: column;
-  }
-
-  .chart-side-panel {
-    width: 100%;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 0.75rem;
-  }
-
-  .panel-roi {
-    flex: 1;
-    min-width: 8rem;
-  }
-
-  .chart-summary-strip {
-    flex: 2;
-    min-width: 14rem;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .summary-pill {
-    flex: 1;
-    min-width: 6rem;
-  }
-
-  .line-chart {
-    height: 13rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .line-chart-footer {
-    flex-direction: column;
-    padding-left: 0;
-  }
-
-  .line-chart-dates {
-    justify-content: space-between;
-  }
-
-  .line-chart-y-axis {
-    min-width: 3.25rem;
-  }
 }
 </style>

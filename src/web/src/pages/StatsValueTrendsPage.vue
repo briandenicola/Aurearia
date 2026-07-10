@@ -1,13 +1,17 @@
 <template>
   <PullToRefresh :on-refresh="handleRefresh">
-    <div class="container stats-value-details-page">
-      <header class="page-header value-details-header">
+    <div class="container flex flex-col gap-6">
+      <header class="page-header flex flex-nowrap items-center justify-between gap-4">
         <div>
           <p class="section-label">Collection Insights</p>
           <h1>Value Details</h1>
-          <p class="page-intro">Your collection's value breakdown and history.</p>
+          <p class="mt-[0.35rem] text-base text-text-secondary">Your collection's value breakdown and history.</p>
         </div>
-        <router-link class="back-button" to="/stats" aria-label="Back to Stats">
+        <router-link
+          class="inline-flex shrink-0 items-center justify-center rounded-sm border border-border-subtle bg-transparent p-[0.4rem] text-text-secondary transition hover:border-border-accent hover:bg-gold-glow hover:text-gold"
+          to="/stats"
+          aria-label="Back to Stats"
+        >
           <ArrowLeft :size="20" />
         </router-link>
       </header>
@@ -17,61 +21,58 @@
       </div>
 
       <template v-else>
-        <!-- Value summary cards -->
-        <div v-if="stats" class="value-summary-cards">
-          <div class="stat-card">
-            <span class="stat-number gold">{{ formatCurrency(stats.values.totalCurrentValue) }}</span>
-            <span class="stat-label">Total Value</span>
+        <div v-if="stats" class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))]">
+          <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
+            <span class="font-display text-xl font-semibold text-gold">{{ formatCurrency(stats.values.totalCurrentValue) }}</span>
+            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Total Value</span>
           </div>
-          <div class="stat-card">
-            <span class="stat-number">{{ formatCurrency(stats.values.totalPurchasePrice) }}</span>
-            <span class="stat-label">Total Invested</span>
+          <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
+            <span class="font-display text-xl font-semibold text-text-primary">{{ formatCurrency(stats.values.totalPurchasePrice) }}</span>
+            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Total Invested</span>
           </div>
-          <div class="stat-card">
+          <div class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span
-              class="stat-number"
-              :class="netGainLoss >= 0 ? 'positive' : 'negative'"
+              class="font-display text-xl font-semibold"
+              :class="netGainLoss >= 0 ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'"
             >
               {{ netGainLoss >= 0 ? '+' : '' }}{{ formatCurrency(netGainLoss) }}
             </span>
-            <span class="stat-label">Net Gain / Loss</span>
+            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">Net Gain / Loss</span>
           </div>
-          <div class="stat-card" v-if="stats.values.totalPurchasePrice">
+          <div v-if="stats.values.totalPurchasePrice" class="flex flex-col gap-1 rounded-md border border-border-subtle bg-card p-6 text-center">
             <span
-              class="stat-number"
-              :class="roi >= 0 ? 'positive' : 'negative'"
+              class="font-display text-xl font-semibold"
+              :class="roi >= 0 ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'"
             >
               {{ roi >= 0 ? '+' : '' }}{{ roi.toFixed(1) }}%
             </span>
-            <span class="stat-label">ROI</span>
+            <span class="text-sm uppercase tracking-[0.08em] text-text-muted">ROI</span>
           </div>
         </div>
 
-        <!-- Average details -->
-        <div v-if="stats" class="stats-section card">
+        <div v-if="stats" class="card flex flex-col gap-5">
           <h2>Averages</h2>
-          <div class="value-stats">
-            <div class="value-stat">
-              <span class="value-stat-label">Average Purchase Price</span>
-              <span class="value-stat-amount">{{ formatCurrency(stats.values.avgPurchasePrice) }}</span>
+          <div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
+            <div class="flex flex-col gap-1">
+              <span class="text-sm text-text-muted">Average Purchase Price</span>
+              <span class="text-lg font-semibold text-text-primary">{{ formatCurrency(stats.values.avgPurchasePrice) }}</span>
             </div>
-            <div class="value-stat">
-              <span class="value-stat-label">Average Current Value</span>
-              <span class="value-stat-amount gold">{{ formatCurrency(stats.values.avgCurrentValue) }}</span>
+            <div class="flex flex-col gap-1">
+              <span class="text-sm text-text-muted">Average Current Value</span>
+              <span class="text-lg font-semibold text-gold">{{ formatCurrency(stats.values.avgCurrentValue) }}</span>
             </div>
           </div>
         </div>
 
-        <!-- Timeframe selector + chart -->
-        <div class="chart-section">
-          <div class="timeframe-row">
+        <div class="flex flex-col gap-3">
+          <div class="flex flex-wrap items-center justify-between gap-4">
             <span class="section-label">Value Over Time</span>
-            <div class="timeframe-chips">
+            <div class="flex gap-[0.35rem]">
               <button
                 v-for="tf in timeframes"
                 :key="tf.label"
                 class="chip chip-sm"
-                :class="{ active: selectedDays === tf.days }"
+                :class="{ 'border-gold bg-gold-dim text-gold': selectedDays === tf.days }"
                 type="button"
                 @click="selectedDays = tf.days"
               >
@@ -139,134 +140,3 @@ onMounted(async () => {
   isLoading.value = false
 })
 </script>
-
-<style scoped>
-.stats-value-details-page {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.value-details-header {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: nowrap;
-}
-
-.page-intro {
-  margin: 0.35rem 0 0;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-
-.back-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.4rem;
-  color: var(--text-secondary);
-  background: transparent;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  text-decoration: none;
-  transition: var(--transition-fast);
-  flex-shrink: 0;
-}
-
-.back-button:hover {
-  color: var(--accent-gold);
-  border-color: var(--border-accent);
-  background: var(--accent-gold-glow);
-}
-
-.value-summary-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 1rem;
-}
-
-.stat-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 1.5rem;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.stat-number {
-  font-family: 'Cinzel', serif;
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.stat-number.gold { color: var(--accent-gold); }
-.stat-number.positive { color: var(--color-positive); }
-.stat-number.negative { color: var(--color-negative); }
-
-.stat-label {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.stats-section h2 {
-  margin-bottom: 1.25rem;
-  font-size: 1.1rem;
-}
-
-.value-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-}
-
-.value-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.value-stat-label {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.value-stat-amount {
-  font-size: 1.2rem;
-  font-weight: 600;
-}
-
-.value-stat-amount.gold { color: var(--accent-gold); }
-
-.chart-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.timeframe-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.timeframe-chips {
-  display: flex;
-  gap: 0.35rem;
-}
-
-.chip.active {
-  background: var(--accent-gold-dim);
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-}
-</style>

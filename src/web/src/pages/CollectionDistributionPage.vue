@@ -9,7 +9,7 @@
         <div class="spinner"></div>
       </div>
 
-      <div v-else class="stats-layout">
+      <div v-else class="flex flex-col gap-6">
         <div id="summary">
           <StatsSummaryCards :stats="stats" />
         </div>
@@ -119,15 +119,3 @@ onMounted(() => {
   if (!store.coins.length) store.fetchCoins()
 })
 </script>
-
-<style scoped>
-.stats-layout {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.anchored-section {
-  scroll-margin-top: 5rem;
-}
-</style>

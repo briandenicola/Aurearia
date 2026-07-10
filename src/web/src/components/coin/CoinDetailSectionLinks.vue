@@ -1,5 +1,5 @@
 <template>
-  <div class="section-links">
+  <div class="flex flex-col gap-2">
     <router-link
       v-for="section in sections"
       :key="section.id"
@@ -25,11 +25,3 @@ defineProps<{
 
 const sections: CoinDetailSection[] = SECTION_ORDER.map(id => COIN_DETAIL_SECTIONS[id]) as CoinDetailSection[]
 </script>
-
-<style scoped>
-.section-links {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-</style>

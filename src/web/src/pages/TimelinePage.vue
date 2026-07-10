@@ -1,10 +1,13 @@
 <template>
   <PullToRefresh :on-refresh="loadCoins">
     <div class="container">
-      <div class="page-header">
-        <h1><Clock :size="24" /> Collection Timeline</h1>
-        <div class="header-controls">
-          <select v-model="filterType" class="form-input form-select">
+      <div class="page-header max-sm:flex-wrap">
+        <h1 class="flex items-center gap-2 text-lg text-heading sm:text-xl">
+          <Clock :size="24" />
+          Collection Timeline
+        </h1>
+        <div class="flex gap-2 max-sm:w-full sm:justify-end">
+          <select v-model="filterType" class="form-input form-select min-w-[150px] max-sm:w-full sm:w-auto">
             <option value="all">All Coins</option>
             <option value="collection">Collection Only</option>
             <option value="sold">Sold Only</option>
@@ -12,7 +15,7 @@
         </div>
       </div>
 
-      <div v-if="loading" class="loading-state">
+      <div v-if="loading" class="loading-overlay">
         <div class="spinner" />
         <p>Loading timeline...</p>
       </div>
@@ -23,64 +26,69 @@
         <p>Add purchase dates to your coins to see them on the timeline.</p>
       </div>
 
-      <div v-else class="timeline-container">
-        <!-- Summary bar -->
-        <div class="timeline-summary card">
-          <div class="summary-item">
-            <span class="summary-value">{{ totalCoins }}</span>
-            <span class="summary-label">Coins</span>
+      <div v-else>
+        <div class="mb-8 flex flex-wrap justify-around gap-4 rounded-md border border-border-subtle bg-card p-4 shadow-[var(--shadow-card)]">
+          <div class="flex flex-col items-center gap-1">
+            <span class="font-['Cinzel',serif] text-lg font-bold text-gold">{{ totalCoins }}</span>
+            <span class="section-label">Coins</span>
           </div>
-          <div class="summary-item">
-            <span class="summary-value">{{ yearSpan }}</span>
-            <span class="summary-label">Year Span</span>
+          <div class="flex flex-col items-center gap-1">
+            <span class="font-['Cinzel',serif] text-lg font-bold text-gold">{{ yearSpan }}</span>
+            <span class="section-label">Year Span</span>
           </div>
-          <div class="summary-item">
-            <span class="summary-value">${{ totalInvested.toLocaleString() }}</span>
-            <span class="summary-label">Invested</span>
+          <div class="flex flex-col items-center gap-1">
+            <span class="font-['Cinzel',serif] text-lg font-bold text-gold">${{ totalInvested.toLocaleString() }}</span>
+            <span class="section-label">Invested</span>
           </div>
-          <div class="summary-item">
-            <span class="summary-value">${{ totalValue.toLocaleString() }}</span>
-            <span class="summary-label">Current Value</span>
+          <div class="flex flex-col items-center gap-1">
+            <span class="font-['Cinzel',serif] text-lg font-bold text-gold">${{ totalValue.toLocaleString() }}</span>
+            <span class="section-label">Current Value</span>
           </div>
         </div>
 
-        <!-- Timeline -->
-        <div class="timeline">
-          <div v-for="group in timelineGroups" :key="group.label" class="timeline-group">
-            <div class="timeline-marker">
-              <div class="marker-dot" />
-              <div class="marker-label">{{ group.label }}</div>
-              <div class="marker-count">{{ group.coins.length }} {{ group.coins.length === 1 ? 'coin' : 'coins' }}</div>
+        <div class="relative max-w-full overflow-x-hidden pl-8 max-sm:pl-5">
+          <div class="absolute left-[0.55rem] top-0 bottom-0 w-px bg-border-subtle" />
+          <div v-for="group in timelineGroups" :key="group.label" class="relative mb-8 last:mb-0">
+            <div class="relative mb-3 flex items-center gap-3">
+              <div class="absolute -left-6 z-10 h-3 w-3 rounded-full border-2 border-surface bg-gold shadow-[0_0_0_2px_var(--accent-gold-dim)] max-sm:-left-[0.95rem] max-sm:h-2.5 max-sm:w-2.5" />
+              <div class="font-['Cinzel',serif] text-base font-semibold text-text-primary max-sm:text-[0.9rem]">{{ group.label }}</div>
+              <div class="rounded-full bg-surface-secondary px-2 py-0.5 text-sm text-text-muted">
+                {{ group.coins.length }} {{ group.coins.length === 1 ? 'coin' : 'coins' }}
+              </div>
             </div>
-            <div class="timeline-cards">
+            <div class="grid grid-cols-1 gap-3 sm:[grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]">
               <router-link
                 v-for="coin in group.coins"
                 :key="coin.id"
                 :to="`/coin/${coin.id}`"
-                class="timeline-card card"
+                class="flex min-w-0 cursor-pointer gap-3 overflow-hidden rounded-md border border-border-subtle bg-card p-3 text-inherit no-underline transition-all hover:-translate-y-px hover:bg-card-hover hover:border-border-accent"
               >
                 <AuthenticatedImage
                   v-if="getPrimaryImage(coin)"
                   :media-path="getPrimaryImage(coin)"
                   :alt="coin.name"
-                  class="card-image"
+                  class="h-12 w-12 shrink-0 rounded-sm border border-border-subtle object-cover sm:h-16 sm:w-16"
                 />
-                <div v-else class="card-image card-placeholder">
+                <div v-else class="flex h-12 w-12 shrink-0 items-center justify-center rounded-sm border border-border-subtle bg-surface-secondary text-text-muted sm:h-16 sm:w-16">
                   <ImageIcon :size="24" />
                 </div>
-                <div class="card-body">
-                  <span class="card-name">{{ coin.name }}</span>
-                  <span class="card-meta">
-                    <span class="card-category" :style="{ color: categoryColor(coin.category) }">{{ coin.category }}</span>
-                    <span v-if="coin.ruler" class="card-ruler">{{ coin.ruler }}</span>
+                <div class="min-w-0 flex flex-1 flex-col gap-1">
+                  <span class="truncate text-base font-semibold text-text-primary">{{ coin.name }}</span>
+                  <span class="flex min-w-0 gap-2 text-sm">
+                    <span class="font-medium" :style="{ color: categoryColor(coin.category) }">{{ coin.category }}</span>
+                    <span v-if="coin.ruler" class="truncate text-text-secondary">{{ coin.ruler }}</span>
                   </span>
-                  <span v-if="coin.purchaseDate" class="card-date">{{ formatDate(coin.purchaseDate) }}</span>
-                  <div class="card-values">
-                    <span v-if="coin.purchasePrice" class="card-price">
+                  <span v-if="coin.purchaseDate" class="text-sm text-text-muted">{{ formatDate(coin.purchaseDate) }}</span>
+                  <div class="mt-0.5 flex items-center gap-2">
+                    <span v-if="coin.purchasePrice" class="text-chip font-semibold text-gold">
                       ${{ coin.purchasePrice.toLocaleString() }}
                     </span>
-                    <span v-if="coin.isSold" class="card-sold-badge">Sold</span>
-                    <span v-if="coin.grade" class="card-grade">{{ coin.grade }}</span>
+                    <span v-if="coin.isSold" class="rounded-full border border-border-subtle bg-surface-secondary px-2 py-0.5 text-sm font-medium text-warning">
+                      Sold
+                    </span>
+                    <span v-if="coin.grade" class="rounded-full bg-surface-secondary px-2 py-0.5 text-sm font-medium text-gold">
+                      {{ coin.grade }}
+                    </span>
                   </div>
                 </div>
               </router-link>
@@ -211,336 +219,3 @@ async function loadCoins() {
 
 onMounted(loadCoins)
 </script>
-
-<style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.page-header h1 {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.4rem;
-  margin: 0;
-}
-
-.header-controls {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.form-select {
-  min-width: 150px;
-  padding: 0.4rem 0.75rem;
-  font-size: 0.85rem;
-}
-
-/* Summary */
-.timeline-summary {
-  display: flex;
-  justify-content: space-around;
-  padding: 1rem;
-  margin-bottom: 2rem;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.summary-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.summary-value {
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: var(--accent-gold);
-  font-family: 'Cinzel', serif;
-}
-
-.summary-label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-/* Timeline */
-.timeline {
-  position: relative;
-  padding-left: 2rem;
-  max-width: 100%;
-  overflow-x: hidden;
-}
-
-.timeline::before {
-  content: '';
-  position: absolute;
-  left: 0.55rem;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--border-subtle);
-}
-
-.timeline-group {
-  position: relative;
-  margin-bottom: 2rem;
-}
-
-.timeline-group:last-child {
-  margin-bottom: 0;
-}
-
-.timeline-marker {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-  position: relative;
-}
-
-.marker-dot {
-  position: absolute;
-  left: -1.55rem;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--accent-gold);
-  border: 2px solid var(--bg-primary);
-  box-shadow: 0 0 0 2px var(--accent-gold-dim);
-  z-index: 1;
-}
-
-.marker-label {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  font-family: 'Cinzel', serif;
-}
-
-.marker-count {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  background: var(--accent-gold-dim);
-  padding: 0.1rem 0.5rem;
-  border-radius: var(--radius-full, 999px);
-}
-
-/* Cards */
-.timeline-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 0.75rem;
-  min-width: 0;
-}
-
-.timeline-card {
-  display: flex;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  text-decoration: none;
-  color: inherit;
-  transition: all var(--transition-fast);
-  cursor: pointer;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-}
-
-.timeline-card:hover {
-  background: var(--bg-card-hover);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-glow);
-}
-
-.card-image {
-  width: 64px;
-  height: 64px;
-  border-radius: var(--radius-sm);
-  object-fit: cover;
-  flex-shrink: 0;
-  border: 1px solid var(--border-subtle);
-}
-
-.card-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-secondary);
-  color: var(--text-muted);
-}
-
-.card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  min-width: 0;
-}
-
-.card-name {
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.card-meta {
-  display: flex;
-  gap: 0.5rem;
-  font-size: 0.78rem;
-  min-width: 0;
-}
-
-.card-category {
-  font-weight: 500;
-}
-
-.card-ruler {
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.card-date {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.card-values {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  margin-top: 0.1rem;
-}
-
-.card-price {
-  font-size: 0.8rem;
-  color: var(--accent-gold);
-  font-weight: 600;
-}
-
-.card-sold-badge {
-  font-size: 0.65rem;
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-  padding: 0.1rem 0.4rem;
-  border-radius: var(--radius-full, 999px);
-  font-weight: 500;
-}
-
-.card-grade {
-  font-size: 0.7rem;
-  background: var(--accent-gold-dim);
-  color: var(--accent-gold);
-  padding: 0.1rem 0.4rem;
-  border-radius: var(--radius-full, 999px);
-  font-weight: 500;
-}
-
-/* States */
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 3rem 1rem;
-  color: var(--text-secondary);
-}
-
-.spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid var(--border-subtle);
-  border-top-color: var(--accent-gold);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 3rem 1rem;
-  color: var(--text-secondary);
-  text-align: center;
-}
-
-.empty-state h3 {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--text-primary);
-}
-
-.empty-state p {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-/* Responsive */
-@media (max-width: 640px) {
-  .container {
-    overflow-x: hidden;
-  }
-
-  .timeline {
-    padding-left: 1.25rem;
-  }
-
-  .timeline-cards {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .timeline-card {
-    padding: 0.5rem;
-  }
-
-  .card-image {
-    width: 48px;
-    height: 48px;
-  }
-
-  .page-header h1 {
-    font-size: 1.2rem;
-  }
-
-  .timeline-summary {
-    gap: 0.5rem;
-    padding: 0.75rem;
-  }
-
-  .summary-value {
-    font-size: 0.95rem;
-  }
-
-  .summary-label {
-    font-size: 0.65rem;
-  }
-
-  .marker-dot {
-    left: -0.95rem;
-    width: 10px;
-    height: 10px;
-  }
-
-  .marker-label {
-    font-size: 0.9rem;
-  }
-}
-</style>

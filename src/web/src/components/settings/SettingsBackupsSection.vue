@@ -1,43 +1,61 @@
 <template>
-  <section class="settings-section card">
-    <h2>Backups</h2>
+  <section class="card">
+    <h2 class="mb-5 border-b border-border-subtle pb-3 text-lg">Backups</h2>
 
-    <div class="setting-item">
-      <div class="setting-info">
-        <span class="setting-label">Export Collection</span>
-        <span class="setting-desc">Download your collection data and photos as a zip archive</span>
+    <div class="flex flex-col gap-4 border-b border-border-subtle py-3 md:flex-row md:items-center md:justify-between last:border-0">
+      <div class="flex min-w-0 flex-col gap-[0.15rem]">
+        <span class="text-base font-medium text-text-primary">Export Collection</span>
+        <span class="text-sm text-text-muted">Download your collection data and photos as a zip archive</span>
       </div>
-      <button class="btn btn-secondary btn-sm" :disabled="exporting" @click="handleExport">
+      <button
+        class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+        :disabled="exporting"
+        @click="handleExport"
+      >
         {{ exporting ? 'Exporting...' : 'Export ZIP' }}
       </button>
     </div>
 
-    <div class="setting-item">
-      <div class="setting-info">
-        <span class="setting-label">PDF Catalog</span>
-        <span class="setting-desc">Generate a styled PDF catalog with photos, grades, and valuations</span>
+    <div class="flex flex-col gap-4 border-b border-border-subtle py-3 md:flex-row md:items-center md:justify-between last:border-0">
+      <div class="flex min-w-0 flex-col gap-[0.15rem]">
+        <span class="text-base font-medium text-text-primary">PDF Catalog</span>
+        <span class="text-sm text-text-muted">Generate a styled PDF catalog with photos, grades, and valuations</span>
       </div>
-      <button class="btn btn-secondary btn-sm" :disabled="exportingPdf" @click="handleExportPDF">
+      <button
+        class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+        :disabled="exportingPdf"
+        @click="handleExportPDF"
+      >
         {{ exportingPdf ? 'Generating...' : 'Export PDF' }}
       </button>
     </div>
 
-    <div class="setting-item">
-      <div class="setting-info">
-        <span class="setting-label">Import Collection</span>
-        <span class="setting-desc">Import coins from a JSON or CSV file</span>
+    <div class="flex flex-col gap-4 border-b border-border-subtle py-3 md:flex-row md:items-center md:justify-between last:border-0">
+      <div class="flex min-w-0 flex-col gap-[0.15rem]">
+        <span class="text-base font-medium text-text-primary">Import Collection</span>
+        <span class="text-sm text-text-muted">Import coins from a JSON or CSV file</span>
       </div>
-      <div class="import-actions">
-        <label class="btn btn-secondary btn-sm import-btn">
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <label class="btn btn-secondary btn-sm inline-flex cursor-pointer focus-within:outline-2 focus-within:outline-gold focus-within:outline-offset-2">
           Import
           <input type="file" accept=".json,.csv,text/csv" hidden @change="handleImport" />
         </label>
-        <button class="btn btn-secondary btn-sm" @click="downloadCsvTemplate">CSV Template</button>
-        <button class="btn btn-secondary btn-sm" @click="openCsvGuide">Guide</button>
+        <button
+          class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+          @click="downloadCsvTemplate"
+        >
+          CSV Template
+        </button>
+        <button
+          class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+          @click="openCsvGuide"
+        >
+          Guide
+        </button>
       </div>
     </div>
 
-    <p v-if="dataMsg" class="msg" :class="{ error: dataError }">{{ dataMsg }}</p>
+    <p v-if="dataMsg" class="my-2 text-body" :class="dataError ? 'text-[var(--cat-byzantine)]' : 'text-gold'">{{ dataMsg }}</p>
   </section>
 </template>
 
@@ -364,62 +382,3 @@ async function handleImport(e: Event) {
   }
 }
 </script>
-
-<style scoped>
-.settings-section h2 {
-  font-size: 1.2rem;
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.setting-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--border-subtle);
-  gap: 1rem;
-}
-
-.setting-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.setting-label {
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.setting-desc {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.import-btn {
-  cursor: pointer;
-}
-
-.import-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.msg {
-  font-size: 0.85rem;
-  color: var(--accent-gold);
-  margin: 0.5rem 0;
-}
-
-@media (max-width: 640px) {
-  .setting-item {
-    flex-direction: column;
-    align-items: stretch;
-  }
-}
-</style>

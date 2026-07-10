@@ -1,9 +1,24 @@
 <template>
-  <div class="criteria-summary">
-    <span class="status" :class="{ inactive: !alert.isActive }">{{ alert.isActive ? 'Active' : 'Disabled' }}</span>
-    <span class="cadence">{{ cadenceLabel }}</span>
-    <span v-for="item in criteriaItems" :key="item" class="criterion">{{ item }}</span>
-    <span v-if="!criteriaItems.length" class="muted">No criteria</span>
+  <div class="flex flex-wrap items-center gap-1.5">
+    <span
+      :class="[
+        'inline-flex rounded-full border px-2 py-0.5 text-chip',
+        alert.isActive
+          ? 'border-[rgba(74,222,128,0.35)] bg-[rgba(74,222,128,0.08)] text-green-400'
+          : 'border-border-subtle text-text-muted',
+      ]"
+    >
+      {{ alert.isActive ? 'Active' : 'Disabled' }}
+    </span>
+    <span class="inline-flex rounded-full border border-border-subtle px-2 py-0.5 text-chip text-gold">{{ cadenceLabel }}</span>
+    <span
+      v-for="item in criteriaItems"
+      :key="item"
+      class="inline-flex rounded-full border border-border-subtle bg-card px-2 py-0.5 text-chip text-text-secondary"
+    >
+      {{ item }}
+    </span>
+    <span v-if="!criteriaItems.length" class="text-chip text-text-muted">No criteria</span>
   </div>
 </template>
 
@@ -30,13 +45,3 @@ const criteriaItems = computed(() => {
   return items
 })
 </script>
-
-<style scoped>
-.criteria-summary { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
-.status, .cadence, .criterion { border: 1px solid var(--border-subtle); border-radius: var(--radius-full); padding: .15rem .55rem; font-size: 0.8rem; }
-.status { color: var(--success); }
-.status.inactive { color: var(--text-muted); }
-.cadence { color: var(--accent-gold); }
-.criterion { color: var(--text-secondary); background: var(--bg-card); }
-.muted { color: var(--text-muted); }
-</style>

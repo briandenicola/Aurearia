@@ -1,43 +1,43 @@
 <template>
-  <form class="coin-form" @submit.prevent="$emit('submit')">
-    <div class="form-grid">
+  <form class="mx-auto max-w-[900px]" @submit.prevent="$emit('submit')">
+    <div class="grid gap-6 md:grid-cols-2">
       <!-- Basic Info -->
-      <fieldset class="form-section">
-        <h2 class="form-section-title">Basic Information</h2>
-        <div class="form-group">
+      <fieldset class="m-0 rounded-md border border-border-subtle bg-card p-5">
+        <h2 class="mb-4 font-display text-lg font-medium text-gold">Basic Information</h2>
+        <div class="form-group min-w-0">
           <label class="form-label">Name *</label>
           <AutocompleteInput v-model="form.name!" field="name" required placeholder="e.g. Augustus Denarius" />
         </div>
-        <div class="form-row">
-          <div class="form-group">
+        <div class="grid gap-3 md:grid-cols-2">
+          <div class="form-group min-w-0">
             <label class="form-label">Category</label>
             <select v-model="form.category" class="form-select">
               <option v-for="c in categoryOptions" :key="c" :value="c">{{ c }}</option>
             </select>
           </div>
-          <div class="form-group">
+          <div class="form-group min-w-0">
             <label class="form-label">Material</label>
             <select v-model="form.material" class="form-select">
               <option v-for="m in materialOptions" :key="m" :value="m">{{ m }}</option>
             </select>
           </div>
         </div>
-        <div class="form-row">
-          <div class="form-group">
+        <div class="grid gap-3 md:grid-cols-2">
+          <div class="form-group min-w-0">
             <label class="form-label">Denomination</label>
             <AutocompleteInput v-model="form.denomination!" field="denomination" placeholder="e.g. Denarius" />
           </div>
-          <div class="form-group">
+          <div class="form-group min-w-0">
             <label class="form-label">Mint</label>
             <input v-model="form.mint" class="form-input" placeholder="e.g. Rome" />
           </div>
         </div>
-        <div class="form-row">
-          <div class="form-group">
+        <div class="grid gap-3 md:grid-cols-2">
+          <div class="form-group min-w-0">
             <label class="form-label">Ruler</label>
             <AutocompleteInput v-model="form.ruler!" field="ruler" placeholder="e.g. Augustus" />
           </div>
-          <div class="form-group">
+          <div class="form-group min-w-0">
             <label class="form-label">Era</label>
             <select v-model="form.era" class="form-select">
               <option value="">Unspecified</option>
@@ -45,7 +45,7 @@
             </select>
           </div>
         </div>
-        <div class="form-group">
+        <div class="form-group min-w-0">
           <label class="form-label">Storage Location</label>
           <select v-model="storageLocationIdModel" class="form-select" :disabled="storageLocationsLoading">
             <option value="">None</option>
@@ -57,80 +57,80 @@
               {{ location.name }}
             </option>
           </select>
-          <p v-if="storageLocationError" class="form-hint form-hint-error">{{ storageLocationError }}</p>
+          <p v-if="storageLocationError" class="mt-2 text-body text-text-secondary">{{ storageLocationError }}</p>
         </div>
       </fieldset>
 
       <!-- Physical Details -->
-      <fieldset class="form-section">
-        <h2 class="form-section-title">Physical Details</h2>
-        <div class="form-row">
-          <div class="form-group">
+      <fieldset class="m-0 rounded-md border border-border-subtle bg-card p-5">
+        <h2 class="mb-4 font-display text-lg font-medium text-gold">Physical Details</h2>
+        <div class="grid gap-3 md:grid-cols-2">
+          <div class="form-group min-w-0">
             <label class="form-label">Weight (grams)</label>
             <input v-model.number="form.weightGrams" class="form-input" type="number" step="0.01" />
           </div>
-          <div class="form-group">
+          <div class="form-group min-w-0">
             <label class="form-label">Diameter (mm)</label>
             <input v-model.number="form.diameterMm" class="form-input" type="number" step="0.1" />
           </div>
         </div>
-        <div class="form-group">
+        <div class="form-group min-w-0">
           <label class="form-label">Grade</label>
           <input v-model="form.grade" class="form-input" placeholder="e.g. VF, EF, MS-65" />
         </div>
       </fieldset>
 
       <!-- Inscriptions, Images & Descriptions -->
-      <fieldset class="form-section full-width">
-        <h2 class="form-section-title">Inscriptions & Descriptions</h2>
-        <div class="form-row">
-          <div class="form-group">
+      <fieldset class="m-0 rounded-md border border-border-subtle bg-card p-5 md:col-span-2">
+        <h2 class="mb-4 font-display text-lg font-medium text-gold">Inscriptions & Descriptions</h2>
+        <div class="grid gap-3 md:grid-cols-2">
+          <div class="form-group min-w-0">
             <label class="form-label">Obverse Inscription</label>
             <input v-model="form.obverseInscription" class="form-input" placeholder="Obverse legend text" />
           </div>
-          <div class="form-group">
+          <div class="form-group min-w-0">
             <label class="form-label">Reverse Inscription</label>
             <input v-model="form.reverseInscription" class="form-input" placeholder="Reverse legend text" />
           </div>
         </div>
-        <div class="form-row">
-          <div class="form-group">
+        <div class="grid gap-3 md:grid-cols-2">
+          <div class="form-group min-w-0">
             <label class="form-label">Obverse Image</label>
-            <div v-if="obversePreview || existingObverse" class="image-preview-box">
-              <img v-if="obversePreview" :src="obversePreview" alt="Obverse" class="image-preview" />
-              <AuthenticatedImage v-else :media-path="existingObverse" alt="Obverse" class="image-preview" />
-              <button type="button" class="image-remove-btn" @click="clearObverse" title="Remove" aria-label="Remove obverse image"><X :size="12" /></button>
+            <div v-if="obversePreview || existingObverse" class="relative mb-2 inline-block">
+              <img v-if="obversePreview" :src="obversePreview" alt="Obverse" class="h-[140px] w-[140px] rounded-sm border border-border-subtle object-cover" />
+              <AuthenticatedImage v-else :media-path="existingObverse" alt="Obverse" class="h-[140px] w-[140px] rounded-sm border border-border-subtle object-cover" />
+              <button type="button" class="absolute -top-1.5 -right-1.5 flex h-[22px] w-[22px] items-center justify-center rounded-full border-0 bg-red-700 p-0 text-white" @click="clearObverse" title="Remove" aria-label="Remove obverse image"><X :size="12" /></button>
             </div>
-            <div class="file-input-row">
-              <input type="file" accept=".jpg,.jpeg,.png" class="form-input file-input" aria-label="Upload obverse image" @change="onObverseFile" ref="obverseInput" />
-              <label v-if="isPwa" class="btn btn-secondary btn-sm camera-btn">
+            <div class="flex items-center gap-2">
+              <input type="file" accept=".jpg,.jpeg,.png" class="form-input min-w-0 flex-1 text-base" aria-label="Upload obverse image" @change="onObverseFile" ref="obverseInput" />
+              <label v-if="isPwa" class="btn btn-secondary btn-sm inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap">
                 <Camera :size="14" /> Photo
                 <input type="file" accept="image/*" capture="environment" hidden @change="onObverseFile" />
               </label>
             </div>
           </div>
-          <div class="form-group">
+          <div class="form-group min-w-0">
             <label class="form-label">Reverse Image</label>
-            <div v-if="reversePreview || existingReverse" class="image-preview-box">
-              <img v-if="reversePreview" :src="reversePreview" alt="Reverse" class="image-preview" />
-              <AuthenticatedImage v-else :media-path="existingReverse" alt="Reverse" class="image-preview" />
-              <button type="button" class="image-remove-btn" @click="clearReverse" title="Remove" aria-label="Remove reverse image"><X :size="12" /></button>
+            <div v-if="reversePreview || existingReverse" class="relative mb-2 inline-block">
+              <img v-if="reversePreview" :src="reversePreview" alt="Reverse" class="h-[140px] w-[140px] rounded-sm border border-border-subtle object-cover" />
+              <AuthenticatedImage v-else :media-path="existingReverse" alt="Reverse" class="h-[140px] w-[140px] rounded-sm border border-border-subtle object-cover" />
+              <button type="button" class="absolute -top-1.5 -right-1.5 flex h-[22px] w-[22px] items-center justify-center rounded-full border-0 bg-red-700 p-0 text-white" @click="clearReverse" title="Remove" aria-label="Remove reverse image"><X :size="12" /></button>
             </div>
-            <div class="file-input-row">
-              <input type="file" accept=".jpg,.jpeg,.png" class="form-input file-input" aria-label="Upload reverse image" @change="onReverseFile" ref="reverseInput" />
-              <label v-if="isPwa" class="btn btn-secondary btn-sm camera-btn">
+            <div class="flex items-center gap-2">
+              <input type="file" accept=".jpg,.jpeg,.png" class="form-input min-w-0 flex-1 text-base" aria-label="Upload reverse image" @change="onReverseFile" ref="reverseInput" />
+              <label v-if="isPwa" class="btn btn-secondary btn-sm inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap">
                 <Camera :size="14" /> Photo
                 <input type="file" accept="image/*" capture="environment" hidden @change="onReverseFile" />
               </label>
             </div>
           </div>
         </div>
-        <div class="form-row">
-          <div class="form-group">
+        <div class="grid gap-3 md:grid-cols-2">
+          <div class="form-group min-w-0">
             <label class="form-label">Obverse Description</label>
             <textarea v-model="form.obverseDescription" class="form-textarea" placeholder="Describe the obverse design" />
           </div>
-          <div class="form-group">
+          <div class="form-group min-w-0">
             <label class="form-label">Reverse Description</label>
             <textarea v-model="form.reverseDescription" class="form-textarea" placeholder="Describe the reverse design" />
           </div>
@@ -138,24 +138,24 @@
       </fieldset>
 
       <!-- Purchase Info -->
-      <fieldset class="form-section">
-        <h2 class="form-section-title">Purchase & Value</h2>
-        <div class="form-row">
-          <div class="form-group">
+      <fieldset class="m-0 rounded-md border border-border-subtle bg-card p-5">
+        <h2 class="mb-4 font-display text-lg font-medium text-gold">Purchase & Value</h2>
+        <div class="grid gap-3 md:grid-cols-2">
+          <div class="form-group min-w-0">
             <label class="form-label">Purchase Price ($)</label>
             <input v-model.number="form.purchasePrice" class="form-input" type="number" step="0.01" />
           </div>
-          <div class="form-group">
+          <div class="form-group min-w-0">
             <label class="form-label">Current Value ($)</label>
             <input v-model.number="form.currentValue" class="form-input" type="number" step="0.01" />
           </div>
         </div>
-        <div class="form-row">
-          <div class="form-group">
+        <div class="grid gap-3 md:grid-cols-2">
+          <div class="form-group min-w-0">
             <label class="form-label">Purchase Date</label>
             <input v-model="form.purchaseDate" class="form-input" type="date" />
           </div>
-          <div class="form-group">
+          <div class="form-group min-w-0">
             <label class="form-label">Store</label>
             <AutocompleteInput v-model="form.purchaseLocation!" field="purchaseLocation" placeholder="e.g. Heritage Auctions" />
           </div>
@@ -163,43 +163,43 @@
       </fieldset>
 
       <!-- Links & Notes -->
-      <fieldset class="form-section">
-        <h2 class="form-section-title">Reference & Notes</h2>
-        <div class="form-row">
-          <div class="form-group">
+      <fieldset class="m-0 rounded-md border border-border-subtle bg-card p-5">
+        <h2 class="mb-4 font-display text-lg font-medium text-gold">Reference & Notes</h2>
+        <div class="grid gap-3 md:grid-cols-2">
+          <div class="form-group min-w-0">
             <label class="form-label">Reference URL</label>
             <input v-model="form.referenceUrl" class="form-input" type="url" placeholder="https://..." />
           </div>
-          <div class="form-group">
+          <div class="form-group min-w-0">
             <label class="form-label">Reference Text</label>
             <input v-model="form.referenceText" class="form-input" placeholder="Link display text" />
           </div>
         </div>
-        <div class="form-group">
+        <div class="form-group min-w-0">
           <label class="form-label">Store Card Image</label>
-          <p class="form-hint">Upload a photo of the store card. Text will be extracted automatically and saved to Notes.</p>
-          <div v-if="cardPreview" class="image-preview-box">
-            <img :src="cardPreview" alt="Store card" class="image-preview" />
-            <button type="button" class="image-remove-btn" @click="clearCard" title="Remove" aria-label="Remove store card image"><X :size="12" /></button>
+          <p class="mb-2 text-body text-text-muted">Upload a photo of the store card. Text will be extracted automatically and saved to Notes.</p>
+          <div v-if="cardPreview" class="relative mb-2 inline-block">
+            <img :src="cardPreview" alt="Store card" class="h-[140px] w-[140px] rounded-sm border border-border-subtle object-cover" />
+            <button type="button" class="absolute -top-1.5 -right-1.5 flex h-[22px] w-[22px] items-center justify-center rounded-full border-0 bg-red-700 p-0 text-white" @click="clearCard" title="Remove" aria-label="Remove store card image"><X :size="12" /></button>
           </div>
-          <input type="file" accept=".jpg,.jpeg,.png" class="form-input file-input" aria-label="Upload store card image" @change="onCardFile" ref="cardInput" />
+          <input type="file" accept=".jpg,.jpeg,.png" class="form-input text-base" aria-label="Upload store card image" @change="onCardFile" ref="cardInput" />
         </div>
-        <div class="form-group">
+        <div class="form-group min-w-0">
           <label class="form-label">Notes</label>
           <textarea v-model="form.notes" class="form-textarea" rows="3" placeholder="Any additional notes..." />
         </div>
-        <div class="form-group" style="display: flex; align-items: center; gap: 0.75rem;">
-          <label class="form-label" style="margin: 0;">Private Coin</label>
-          <label class="toggle">
-            <input type="checkbox" v-model="form.isPrivate" />
-            <span class="toggle-slider"></span>
+        <div class="form-group flex items-center gap-3">
+          <label class="form-label mb-0">Private Coin</label>
+          <label class="relative inline-flex cursor-pointer items-center">
+            <input v-model="form.isPrivate" type="checkbox" class="peer sr-only" />
+            <span class="relative h-6 w-11 rounded-full border border-border-subtle bg-input transition-colors peer-checked:border-border-accent peer-checked:bg-gold-dim after:absolute after:top-[1px] after:left-[1px] after:h-5 after:w-5 after:rounded-full after:bg-text-primary after:content-[''] after:transition-transform peer-checked:after:translate-x-5"></span>
           </label>
-          <span style="font-size: 0.8rem; color: var(--text-secondary);">Hidden from followers</span>
+          <span class="text-chip text-text-secondary">Hidden from followers</span>
         </div>
       </fieldset>
     </div>
 
-    <div class="form-actions">
+    <div class="mt-8 flex justify-end gap-3 border-t border-border-subtle pt-6">
       <button type="button" class="btn btn-secondary" @click="$router.back()">Cancel</button>
       <button type="submit" class="btn btn-primary" :disabled="loading">
         {{ loading ? 'Saving...' : submitLabel }}
@@ -353,132 +353,3 @@ defineExpose({
   removedReverseId,
 })
 </script>
-
-<style scoped>
-.coin-form {
-  max-width: 900px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-}
-
-.form-section {
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 1.25rem;
-  margin: 0;
-  background: var(--bg-card);
-}
-
-.form-section.full-width {
-  grid-column: 1 / -1;
-}
-
-.form-section-title {
-  font-family: 'Cinzel', serif;
-  color: var(--accent-gold);
-  font-size: 1.2rem;
-  font-weight: 500;
-  margin: 0 0 1rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
-.form-group {
-  min-width: 0;
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.file-input {
-  font-size: 0.9rem;
-  padding: 0.6rem 0.8rem;
-}
-
-.file-input-row {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.file-input-row .file-input {
-  flex: 1;
-  min-width: 0;
-}
-
-.camera-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.image-preview-box {
-  position: relative;
-  display: inline-block;
-  margin-bottom: 0.5rem;
-}
-
-.image-preview {
-  width: 140px;
-  height: 140px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-}
-
-.image-remove-btn {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: none;
-  background: #c0392b;
-  color: white;
-  font-size: 0.7rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-}
-
-.form-hint {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  margin-bottom: 0.5rem;
-}
-
-.form-hint-error {
-  color: var(--text-secondary);
-  margin-top: 0.5rem;
-}
-
-@media (max-width: 768px) {
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

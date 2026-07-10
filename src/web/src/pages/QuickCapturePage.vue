@@ -1,6 +1,6 @@
 <template>
   <div class="container">
-    <div class="form-wrapper">
+    <div class="form-wrapper grid gap-4">
       <div class="page-header">
         <h1>Quick Capture</h1>
         <div v-if="isPwa" class="pwa-actions">
@@ -14,11 +14,11 @@
           </RouterLink>
         </div>
       </div>
-      <p class="intro">Capture sparse coin details quickly. Drafts remain active and incomplete until you finish them later.</p>
+      <p class="m-0 text-base text-text-secondary">Capture sparse coin details quickly. Drafts remain active and incomplete until you finish them later.</p>
       <QuickCaptureForm @saved="onSaved" />
-      <div v-if="lastDraft" class="card saved-card">
+      <div v-if="lastDraft" class="card grid gap-1">
         <strong>Draft saved.</strong>
-        <span>Draft #{{ lastDraft.id }} is active and excluded from collection, wishlist, sold, stats, and health counts.</span>
+        <span class="text-base text-text-secondary">Draft #{{ lastDraft.id }} is active and excluded from collection, wishlist, sold, stats, and health counts.</span>
       </div>
     </div>
   </div>
@@ -39,13 +39,3 @@ function onSaved(draft: QuickCaptureDraft) {
   lastDraft.value = draft
 }
 </script>
-
-<style scoped>
-.intro, .saved-card {
-  margin-bottom: 1rem;
-}
-.saved-card {
-  display: grid;
-  gap: 0.25rem;
-}
-</style>

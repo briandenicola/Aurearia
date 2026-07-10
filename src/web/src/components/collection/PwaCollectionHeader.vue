@@ -1,53 +1,60 @@
 <template>
-  <div class="pwa-header">
-    <SearchBar :model-value="search" @update:model-value="$emit('update:search', $event)" />
-    <div class="hamburger-wrapper">
-      <button class="hamburger-btn" @click="$emit('update:menuOpen', !menuOpen)" :class="{ active: menuOpen }">
+  <div class="sticky top-[60px] z-[150] mb-3 flex items-center gap-2 bg-surface py-2">
+    <SearchBar class="!max-w-none flex-1" :model-value="search" @update:model-value="$emit('update:search', $event)" />
+    <div class="relative shrink-0">
+      <button class="flex h-10 w-10 items-center justify-center rounded-sm border border-border-subtle bg-card text-text-secondary transition-all hover:border-gold hover:bg-[var(--accent-gold-dim)] hover:text-gold" @click="$emit('update:menuOpen', !menuOpen)" :class="menuOpen ? 'border-gold bg-[var(--accent-gold-dim)] text-gold' : ''">
         <SlidersHorizontal :size="22" />
       </button>
-      <Transition name="menu-slide">
-        <div v-if="menuOpen" class="pwa-menu">
-          <div class="pwa-menu-section">
-            <span class="pwa-menu-label">Selection</span>
-            <button class="menu-toggle-btn" :class="{ active: selectMode }" @click="$emit('toggle-select-mode')">
+      <Transition
+        enter-active-class="transition-all duration-200 ease-in-out"
+        enter-from-class="-translate-y-2 opacity-0"
+        enter-to-class="translate-y-0 opacity-100"
+        leave-active-class="transition-all duration-200 ease-in-out"
+        leave-from-class="translate-y-0 opacity-100"
+        leave-to-class="-translate-y-2 opacity-0"
+      >
+        <div v-if="menuOpen" class="absolute right-0 top-[calc(100%+0.5rem)] z-[100] flex min-w-[260px] flex-col gap-3 rounded-md border border-border-subtle bg-card p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
+          <div class="flex flex-col gap-[0.4rem]">
+            <span class="section-label mb-0">Selection</span>
+            <button class="w-full rounded-sm border border-border-subtle bg-card px-[0.7rem] py-2 text-left text-body font-medium text-text-secondary transition-all hover:border-gold" :class="selectMode ? 'border-gold bg-[var(--accent-gold-dim)] text-gold' : ''" @click="$emit('toggle-select-mode')">
               {{ selectMode ? 'Exit Selection Mode' : 'Enable Selection Mode' }}
             </button>
           </div>
-          <div class="pwa-menu-section">
-            <span class="pwa-menu-label">Category</span>
+          <div class="flex flex-col gap-[0.4rem]">
+            <span class="section-label mb-0">Category</span>
             <CategoryFilter :model-value="selectedCategory" @update:model-value="$emit('update:selectedCategory', $event)" />
           </div>
-          <div class="pwa-menu-section">
-            <span class="pwa-menu-label">Era</span>
+          <div class="flex flex-col gap-[0.4rem]">
+            <span class="section-label mb-0">Era</span>
             <EraFilter :model-value="selectedEra" :eras="eraOptions" @update:model-value="$emit('update:selectedEra', $event)" />
           </div>
-          <div v-if="userTags.length" class="pwa-menu-section">
-            <span class="pwa-menu-label">Set</span>
-            <select :value="selectedTag" @change="$emit('update:selectedTag', ($event.target as HTMLSelectElement).value)" class="tag-filter-select pwa-tag-select">
+          <div v-if="userTags.length" class="flex flex-col gap-[0.4rem]">
+            <span class="section-label mb-0">Set</span>
+            <select :value="selectedTag" @change="$emit('update:selectedTag', ($event.target as HTMLSelectElement).value)" class="form-select w-full bg-card text-body">
               <option value="">All Sets</option>
               <option v-for="tag in userTags" :key="tag.filterValue" :value="tag.filterValue">{{ tag.name }}</option>
             </select>
           </div>
-          <div class="pwa-menu-section">
-            <span class="pwa-menu-label">Sort</span>
+          <div class="flex flex-col gap-[0.4rem]">
+            <span class="section-label mb-0">Sort</span>
             <SortSelect :model-value="sortKey" @update:model-value="$emit('update:sortKey', $event)" />
           </div>
-          <div class="pwa-menu-section">
-            <span class="pwa-menu-label">View</span>
-            <div class="pwa-menu-row">
-              <div class="view-toggle">
-                <button class="view-btn" :class="{ active: viewMode === 'swipe' }" @click="$emit('update:viewMode', 'swipe')" title="Swipe view">
+          <div class="flex flex-col gap-[0.4rem]">
+            <span class="section-label mb-0">View</span>
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="flex overflow-hidden rounded-sm border border-border-subtle">
+                <button class="bg-card px-[0.6rem] py-1.5 text-text-secondary transition-all hover:bg-card-hover" :class="viewMode === 'swipe' ? 'bg-[var(--accent-gold-dim)] text-gold' : ''" @click="$emit('update:viewMode', 'swipe')" title="Swipe view">
                   <Layers :size="18" />
                 </button>
-                <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="$emit('update:viewMode', 'grid')" title="Grid view">
+                <button class="bg-card px-[0.6rem] py-1.5 text-text-secondary transition-all hover:bg-card-hover" :class="viewMode === 'grid' ? 'bg-[var(--accent-gold-dim)] text-gold' : ''" @click="$emit('update:viewMode', 'grid')" title="Grid view">
                   <LayoutGrid :size="18" />
                 </button>
               </div>
             </div>
           </div>
-          <div v-if="viewMode === 'grid'" class="pwa-menu-section">
-            <span class="pwa-menu-label">Face</span>
-            <div class="face-filter">
+          <div v-if="viewMode === 'grid'" class="flex flex-col gap-[0.4rem]">
+            <span class="section-label mb-0">Face</span>
+            <div class="flex flex-wrap gap-[0.4rem]">
               <button class="chip" :class="{ active: gridSide === 'obverse' }" @click="$emit('update:gridSide', gridSide === 'obverse' ? null : 'obverse')">Obverse</button>
               <button class="chip" :class="{ active: gridSide === 'reverse' }" @click="$emit('update:gridSide', gridSide === 'reverse' ? null : 'reverse')">Reverse</button>
             </div>
@@ -56,7 +63,7 @@
       </Transition>
     </div>
   </div>
-  <div v-if="menuOpen" class="pwa-menu-backdrop" @click="$emit('update:menuOpen', false)"></div>
+  <div v-if="menuOpen" class="fixed inset-0 z-[90]" @click="$emit('update:menuOpen', false)"></div>
 </template>
 
 <script setup lang="ts">
@@ -93,206 +100,3 @@ defineEmits<{
   'toggle-select-mode': []
 }>()
 </script>
-
-<style scoped>
-.pwa-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-  position: sticky;
-  top: 60px;
-  z-index: 150;
-  background: var(--bg-primary);
-  padding: 0.5rem 0;
-}
-
-/*
- * :deep() audit — child-component slot piercing
- * Targets .search-bar and .era-filter-select rendered inside child components.
- * The PWA header controls responsive layout constraints (flex sizing, full
- * width); the child components own their CSS class names. These overrides must
- * live in the parent because sizing depends on the PWA header's layout context.
- */
-.pwa-header :deep(.search-bar) {
-  flex: 1;
-  max-width: none;
-}
-
-.hamburger-wrapper {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.hamburger-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--border-subtle);
-  border-radius:var(--radius-sm);
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.hamburger-btn.active,
-.hamburger-btn:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-  background: var(--accent-gold-dim);
-}
-
-.pwa-menu {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  right: 0;
-  z-index: 100;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius:var(--radius-md);
-  padding: 1rem;
-  min-width: 260px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-}
-
-.pwa-menu-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-}
-
-.pwa-menu-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.pwa-menu-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
-.pwa-menu-row {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.menu-slide-enter-active,
-.menu-slide-leave-active {
-  transition: all 0.2s ease;
-}
-.menu-slide-enter-from,
-.menu-slide-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-.tag-filter-select {
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border-subtle);
-  border-radius:var(--radius-sm);
-  background: var(--bg-card);
-  color: var(--text-primary);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.pwa-tag-select {
-  width: 100%;
-}
-
-.pwa-menu-section :deep(.era-filter-select) {
-  width: 100%;
-}
-
-.menu-toggle-btn {
-  width: 100%;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  padding: 0.5rem 0.7rem;
-  font-size: 0.85rem;
-  font-weight: 500;
-  text-align: left;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.menu-toggle-btn.active {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-  background: var(--accent-gold-dim);
-}
-
-.menu-toggle-btn:hover {
-  border-color: var(--accent-gold);
-}
-
-.menu-link-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  width: 100%;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  padding: 0.5rem 0.7rem;
-  font-size: 0.85rem;
-  font-weight: 500;
-  text-decoration: none;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.menu-link-btn:hover,
-.menu-link-btn:focus-visible {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-}
-
-.view-toggle {
-  display: flex;
-  border: 1px solid var(--border-subtle);
-  border-radius:var(--radius-sm);
-  overflow: hidden;
-}
-
-.view-btn {
-  padding: 0.4rem 0.6rem;
-  border: none;
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  line-height: 1;
-}
-
-.view-btn.active {
-  background: var(--accent-gold-dim);
-  color: var(--accent-gold);
-}
-
-.view-btn:hover:not(.active) {
-  background: var(--bg-card-hover);
-}
-
-.face-filter {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-</style>

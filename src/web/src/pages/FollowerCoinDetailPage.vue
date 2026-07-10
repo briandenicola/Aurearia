@@ -125,97 +125,112 @@ onMounted(loadCoin)
 </script>
 
 <template>
-  <div class="follower-coin-detail">
-    <!-- Loading -->
-    <div v-if="loading" class="loading-state">
+  <div class="mx-auto w-full max-w-[1100px] px-4 py-8 md:px-6">
+    <div v-if="loading" class="flex min-h-[40vh] flex-col items-center justify-center gap-4 text-text-secondary">
       <div class="spinner" />
       <p>Loading coin details…</p>
     </div>
 
-    <!-- Error -->
-    <div v-else-if="error" class="error-state">
+    <div v-else-if="error" class="flex min-h-[40vh] flex-col items-center justify-center gap-4 text-text-secondary">
       <p>{{ error }}</p>
-      <button class="btn-back" @click="goBack">
+      <button class="btn btn-secondary btn-sm" @click="goBack">
         <ArrowLeft :size="18" /> Go Back
       </button>
     </div>
 
-    <!-- Coin Detail -->
     <template v-else-if="coin">
-      <!-- Header -->
-      <header class="detail-header">
-        <button class="btn-back" @click="goBack">
+      <header class="mb-6 flex flex-col items-start gap-2 md:flex-row md:items-center md:gap-4">
+        <button class="btn btn-secondary btn-sm" @click="goBack">
           <ArrowLeft :size="18" />
           <span>Back to Gallery</span>
         </button>
-        <h1 class="coin-title">{{ coin.name }}</h1>
+        <h1 class="m-0 text-xl font-semibold text-heading">{{ coin.name }}</h1>
       </header>
 
-      <div class="detail-layout">
-        <!-- Image Gallery -->
-        <section class="image-gallery">
-          <div v-if="sortedImages.length" class="gallery-container" @click="cycleImage">
+      <div class="grid items-start gap-6 md:grid-cols-2">
+        <section class="md:sticky md:top-6">
+          <div
+            v-if="sortedImages.length"
+            class="relative cursor-pointer overflow-hidden rounded-md border border-border-subtle bg-card"
+            @click="cycleImage"
+          >
             <AuthenticatedImage
               :media-path="currentImage?.filePath"
               :alt="coin.name"
-              class="gallery-image"
+              class="block max-h-[500px] w-full object-contain"
             />
-            <div v-if="sortedImages.length > 1" class="gallery-controls">
-              <button class="gallery-btn" @click.stop="prevImage">
+            <div v-if="sortedImages.length > 1" class="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/70 to-transparent p-2">
+              <button
+                class="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white transition hover:bg-[var(--accent-gold)] hover:text-[var(--bg-primary)]"
+                @click.stop="prevImage"
+              >
                 <ChevronLeft :size="20" />
               </button>
-              <span class="image-counter">{{ currentImageIndex + 1 }} / {{ sortedImages.length }}</span>
-              <button class="gallery-btn" @click.stop="nextImage">
+              <span class="text-chip text-white/80">{{ currentImageIndex + 1 }} / {{ sortedImages.length }}</span>
+              <button
+                class="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white transition hover:bg-[var(--accent-gold)] hover:text-[var(--bg-primary)]"
+                @click.stop="nextImage"
+              >
                 <ChevronRight :size="20" />
               </button>
             </div>
           </div>
-          <div v-else class="no-images">No images available</div>
+          <div v-else class="rounded-md border border-border-subtle bg-card px-8 py-16 text-center text-text-muted">
+            No images available
+          </div>
         </section>
 
-        <!-- Info + Interactions -->
-        <div class="detail-content">
-          <!-- Coin Details -->
-          <section class="info-card">
-            <h2 class="section-title">Details</h2>
-            <div class="info-grid">
-              <div class="info-item">
-                <span class="info-label">Category</span>
-                <span class="category-badge" :style="{ background: categoryColor }">
+        <div class="space-y-4">
+          <section class="card p-5">
+            <h2 class="mb-4 flex items-center gap-2 text-lg font-medium text-heading">Details</h2>
+            <div class="grid gap-3 md:grid-cols-2">
+              <div class="flex flex-col gap-1">
+                <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Category</span>
+                <span class="inline-flex w-fit rounded-sm px-[0.6rem] py-[0.2rem] text-chip font-medium text-white" :style="{ background: categoryColor }">
                   {{ coin.category }}
                 </span>
               </div>
-              <div class="info-item" v-if="coin.ruler">
-                <span class="info-label">Ruler</span>
-                <span class="info-value">{{ coin.ruler }}</span>
+              <div v-if="coin.ruler" class="flex flex-col gap-1">
+                <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Ruler</span>
+                <span class="text-base text-text-primary">{{ coin.ruler }}</span>
               </div>
-              <div class="info-item" v-if="coin.era">
-                <span class="info-label">Era</span>
-                <span class="info-value">{{ coin.era }}</span>
+              <div v-if="coin.era" class="flex flex-col gap-1">
+                <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Era</span>
+                <span class="text-base text-text-primary">{{ coin.era }}</span>
               </div>
-              <div class="info-item" v-if="coin.denomination">
-                <span class="info-label">Denomination</span>
-                <span class="info-value">{{ coin.denomination }}</span>
+              <div v-if="coin.denomination" class="flex flex-col gap-1">
+                <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Denomination</span>
+                <span class="text-base text-text-primary">{{ coin.denomination }}</span>
               </div>
-              <div class="info-item" v-if="coin.material">
-                <span class="info-label">Material</span>
-                <span class="info-value material-tag" :class="`mat-${coin.material.toLowerCase()}`">
+              <div v-if="coin.material" class="flex flex-col gap-1">
+                <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Material</span>
+                <span
+                  :class="[
+                    'text-base font-medium',
+                    {
+                      'text-[var(--mat-gold)]': coin.material.toLowerCase() === 'gold',
+                      'text-[var(--mat-silver)]': coin.material.toLowerCase() === 'silver',
+                      'text-[var(--mat-bronze)]': coin.material.toLowerCase() === 'bronze',
+                      'text-[var(--mat-copper)]': coin.material.toLowerCase() === 'copper',
+                      'text-[var(--mat-electrum)]': coin.material.toLowerCase() === 'electrum',
+                    },
+                  ]"
+                >
                   {{ coin.material }}
                 </span>
               </div>
-              <div class="info-item" v-if="coin.grade">
-                <span class="info-label">Grade</span>
-                <span class="info-value">{{ coin.grade }}</span>
+              <div v-if="coin.grade" class="flex flex-col gap-1">
+                <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Grade</span>
+                <span class="text-base text-text-primary">{{ coin.grade }}</span>
               </div>
             </div>
           </section>
 
-          <!-- Rating Section -->
-          <section class="info-card">
-            <h2 class="section-title">Rating</h2>
-            <div class="rating-display">
-              <div class="aggregate-rating">
-                <div class="stars-display">
+          <section class="card p-5">
+            <h2 class="mb-4 flex items-center gap-2 text-lg font-medium text-heading">Rating</h2>
+            <div class="flex flex-col gap-4">
+              <div class="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+                <div class="flex gap-[2px]">
                   <Star
                     v-for="i in 5"
                     :key="'avg-' + i"
@@ -224,19 +239,19 @@ onMounted(loadCoin)
                     :stroke="i <= Math.round(rating.average) ? '#c9a84c' : 'var(--text-muted)'"
                   />
                 </div>
-                <span class="rating-text">
+                <span class="text-body text-text-secondary">
                   {{ rating.average.toFixed(1) }} avg · {{ rating.count }} {{ rating.count === 1 ? 'rating' : 'ratings' }}
                 </span>
               </div>
 
-              <div class="user-rating">
-                <span class="info-label">Your Rating</span>
-                <div class="stars-interactive">
+              <div class="flex flex-col gap-[0.35rem]">
+                <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Your Rating</span>
+                <div class="flex gap-[2px]">
                   <Star
                     v-for="i in 5"
                     :key="'user-' + i"
                     :size="24"
-                    class="star-btn"
+                    class="cursor-pointer transition-transform duration-150 hover:scale-110"
                     :fill="i <= (hoverUserRating || rating.userRating) ? '#c9a84c' : 'none'"
                     :stroke="i <= (hoverUserRating || rating.userRating) ? '#c9a84c' : 'var(--text-muted)'"
                     @mouseenter="hoverUserRating = i"
@@ -248,34 +263,35 @@ onMounted(loadCoin)
             </div>
           </section>
 
-          <!-- Comments Section -->
-          <section class="info-card comments-section">
-            <h2 class="section-title">
+          <section class="card p-5">
+            <h2 class="mb-4 flex items-center gap-2 text-lg font-medium text-heading">
               Comments
-              <span class="comment-count">{{ comments.length }}</span>
+              <span class="inline-flex min-w-[1.75rem] items-center justify-center rounded-full bg-[var(--accent-gold-dim)] px-2 py-px text-sm font-semibold text-gold">
+                {{ comments.length }}
+              </span>
             </h2>
 
-            <div v-if="comments.length === 0" class="no-comments">
+            <div v-if="comments.length === 0" class="py-6 text-center text-base text-text-muted">
               No comments yet. Be the first!
             </div>
 
-            <div v-else class="comments-list">
-              <div v-for="comment in comments" :key="comment.id" class="comment-card">
-                <div class="comment-header">
+            <div v-else class="mb-5 flex flex-col gap-3">
+              <div v-for="comment in comments" :key="comment.id" class="rounded-sm border border-border-subtle bg-[var(--bg-secondary)] p-3">
+                <div class="mb-2 flex items-start gap-2">
                   <AuthenticatedImage
                     v-if="comment.avatarPath"
                     :media-path="comment.avatarPath"
-                    class="comment-avatar"
+                    class="h-8 w-8 shrink-0 rounded-full object-cover"
                     alt=""
                   />
-                  <div v-else class="comment-avatar placeholder-avatar">
+                  <div v-else class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent-gold-dim)] text-chip font-semibold text-gold">
                     {{ comment.username.charAt(0).toUpperCase() }}
                   </div>
-                  <div class="comment-meta">
-                    <span class="comment-username">{{ comment.username }}</span>
-                    <span class="comment-time">{{ formatDate(comment.createdAt) }}</span>
+                  <div class="flex min-w-0 flex-1 flex-col">
+                    <span class="text-body font-medium text-text-primary">{{ comment.username }}</span>
+                    <span class="text-label tracking-normal text-text-muted">{{ formatDate(comment.createdAt) }}</span>
                   </div>
-                  <div v-if="comment.rating" class="comment-stars">
+                  <div v-if="comment.rating" class="ml-auto flex gap-px pt-[0.125rem]">
                     <Star
                       v-for="i in 5"
                       :key="'c-' + comment.id + '-' + i"
@@ -284,32 +300,35 @@ onMounted(loadCoin)
                       :stroke="i <= comment.rating ? '#c9a84c' : 'var(--text-muted)'"
                     />
                   </div>
-                  <button class="btn-delete-comment" @click="handleDeleteComment(comment.id)" title="Delete comment">
+                  <button
+                    class="flex shrink-0 items-center rounded-[4px] p-1 text-text-muted transition hover:bg-[rgba(231,76,60,0.1)] hover:text-[rgb(231,76,60)]"
+                    title="Delete comment"
+                    @click="handleDeleteComment(comment.id)"
+                  >
                     <Trash2 :size="14" />
                   </button>
                 </div>
-                <p class="comment-text">{{ comment.comment }}</p>
+                <p class="m-0 break-words text-body leading-6 text-text-secondary">{{ comment.comment }}</p>
               </div>
             </div>
 
-            <!-- Add Comment Form -->
-            <div class="add-comment-form">
-              <h3 class="form-title">Add a Comment</h3>
+            <div class="mt-2 border-t border-border-subtle pt-4">
+              <h3 class="mb-3 text-body font-medium text-text-secondary">Add a Comment</h3>
               <textarea
                 v-model="newComment"
-                class="comment-input"
+                class="min-h-[5.5rem] w-full resize-y rounded-sm border border-border-subtle bg-input px-3 py-2.5 text-body text-text-primary transition placeholder:text-text-muted focus:border-[var(--accent-gold)] focus:outline-none"
                 placeholder="Share your thoughts on this coin…"
                 rows="3"
               />
-              <div class="form-actions">
-                <div class="comment-rating-picker">
-                  <span class="info-label">Rating (optional)</span>
-                  <div class="stars-interactive small">
+              <div class="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div class="flex flex-col gap-1">
+                  <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Rating (optional)</span>
+                  <div class="flex gap-px">
                     <Star
                       v-for="i in 5"
                       :key="'new-' + i"
                       :size="18"
-                      class="star-btn"
+                      class="cursor-pointer transition-transform duration-150 hover:scale-110"
                       :fill="i <= (hoverRating || newCommentRating) ? '#c9a84c' : 'none'"
                       :stroke="i <= (hoverRating || newCommentRating) ? '#c9a84c' : 'var(--text-muted)'"
                       @mouseenter="hoverRating = i"
@@ -319,7 +338,7 @@ onMounted(loadCoin)
                   </div>
                 </div>
                 <button
-                  class="btn-submit"
+                  class="btn btn-primary btn-sm w-full justify-center whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
                   :disabled="!newComment.trim() || submitting"
                   @click="handleAddComment"
                 >
@@ -334,468 +353,3 @@ onMounted(loadCoin)
     </template>
   </div>
 </template>
-
-<style scoped>
-.follower-coin-detail {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem;
-}
-
-/* Loading / Error */
-.loading-state,
-.error-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 40vh;
-  color: var(--text-secondary);
-  gap: 1rem;
-}
-
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--border-subtle);
-  border-top-color: var(--accent-gold);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Header */
-.detail-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.btn-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 0.85rem;
-  transition: var(--transition-fast);
-}
-
-.btn-back:hover {
-  color: var(--accent-gold);
-  border-color: var(--accent-gold);
-}
-
-.coin-title {
-  font-size: 1.5rem;
-  color: var(--text-heading);
-  font-weight: 600;
-  margin: 0;
-}
-
-/* Layout */
-.detail-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-  align-items: start;
-}
-
-/* Image Gallery */
-.image-gallery {
-  position: sticky;
-  top: 1.5rem;
-}
-
-.gallery-container {
-  position: relative;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  cursor: pointer;
-}
-
-.gallery-image {
-  width: 100%;
-  max-height: 500px;
-  object-fit: contain;
-  display: block;
-}
-
-.gallery-controls {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
-}
-
-.gallery-btn {
-  background: rgba(0, 0, 0, 0.5);
-  border: none;
-  color: #fff;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: var(--transition-fast);
-}
-
-.gallery-btn:hover {
-  background: var(--accent-gold);
-  color: var(--bg-primary);
-}
-
-.image-counter {
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.8rem;
-}
-
-.no-images {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 4rem 2rem;
-  text-align: center;
-  color: var(--text-muted);
-}
-
-/* Info Card */
-.info-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 1.25rem;
-  margin-bottom: 1rem;
-}
-
-.section-title {
-  font-size: 1rem;
-  color: var(--text-heading);
-  margin: 0 0 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* Info Grid */
-.info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
-.info-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.info-label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.info-value {
-  color: var(--text-primary);
-  font-size: 0.9rem;
-}
-
-.category-badge {
-  display: inline-block;
-  padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-sm);
-  color: #fff;
-  font-size: 0.8rem;
-  font-weight: 500;
-  width: fit-content;
-}
-
-.material-tag {
-  font-weight: 500;
-}
-
-.mat-gold { color: var(--mat-gold); }
-.mat-silver { color: var(--mat-silver); }
-.mat-bronze { color: var(--mat-bronze); }
-.mat-copper { color: var(--mat-copper); }
-.mat-electrum { color: var(--mat-electrum); }
-
-/* Rating */
-.rating-display {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.aggregate-rating {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.stars-display {
-  display: flex;
-  gap: 2px;
-}
-
-.rating-text {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-
-.user-rating {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.stars-interactive {
-  display: flex;
-  gap: 2px;
-}
-
-.star-btn {
-  cursor: pointer;
-  transition: transform 0.15s ease;
-}
-
-.star-btn:hover {
-  transform: scale(1.15);
-}
-
-/* Comments */
-.comment-count {
-  background: var(--accent-gold-dim);
-  color: var(--accent-gold);
-  font-size: 0.75rem;
-  padding: 0.1rem 0.5rem;
-  border-radius: var(--radius-full);
-  font-weight: 600;
-}
-
-.no-comments {
-  color: var(--text-muted);
-  text-align: center;
-  padding: 1.5rem 0;
-  font-size: 0.9rem;
-}
-
-.comments-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-
-.comment-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 0.75rem;
-}
-
-.comment-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.4rem;
-}
-
-.comment-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.placeholder-avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent-gold-dim);
-  color: var(--accent-gold);
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.comment-meta {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-}
-
-.comment-username {
-  color: var(--text-primary);
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-.comment-time {
-  color: var(--text-muted);
-  font-size: 0.7rem;
-}
-
-.comment-stars {
-  display: flex;
-  gap: 1px;
-  margin-left: auto;
-}
-
-.comment-text {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  margin: 0;
-  line-height: 1.5;
-  word-break: break-word;
-}
-
-.btn-delete-comment {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  transition: var(--transition-fast);
-  flex-shrink: 0;
-}
-
-.btn-delete-comment:hover {
-  color: #e74c3c;
-  background: rgba(231, 76, 60, 0.1);
-}
-
-/* Add Comment Form */
-.add-comment-form {
-  border-top: 1px solid var(--border-subtle);
-  padding-top: 1rem;
-  margin-top: 0.5rem;
-}
-
-.form-title {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  margin: 0 0 0.75rem;
-  font-weight: 500;
-}
-
-.comment-input {
-  width: 100%;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  padding: 0.6rem 0.75rem;
-  font-size: 0.85rem;
-  resize: vertical;
-  font-family: inherit;
-  box-sizing: border-box;
-  transition: border-color var(--transition-fast);
-}
-
-.comment-input::placeholder {
-  color: var(--text-muted);
-}
-
-.comment-input:focus {
-  outline: none;
-  border-color: var(--accent-gold);
-}
-
-.form-actions {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin-top: 0.75rem;
-  gap: 1rem;
-}
-
-.comment-rating-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.stars-interactive.small {
-  gap: 1px;
-}
-
-.btn-submit {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: var(--accent-gold);
-  color: var(--bg-primary);
-  border: none;
-  padding: 0.55rem 1.2rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: var(--transition-fast);
-  white-space: nowrap;
-}
-
-.btn-submit:hover:not(:disabled) {
-  filter: brightness(1.1);
-  box-shadow: 0 0 12px var(--accent-gold-dim);
-}
-
-.btn-submit:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .detail-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .image-gallery {
-    position: static;
-  }
-
-  .info-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .detail-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-
-  .form-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .btn-submit {
-    justify-content: center;
-  }
-}
-</style>
