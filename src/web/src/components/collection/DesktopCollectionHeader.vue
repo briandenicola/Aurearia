@@ -98,6 +98,14 @@ defineEmits<{
   gap: 0.75rem;
 }
 
+/*
+ * :deep() audit — child-component slot piercing
+ * Targets .search-bar, .search-input, and .era-filter-select rendered inside
+ * child components (CoinSearch, EraFilterSelect). The header owns the layout
+ * constraints (flex sizing, height), while the child owns its internal CSS
+ * classes. These cannot be done inside the child because the sizes are driven
+ * by the header's grid context, not the child's own concerns.
+ */
 .search-row :deep(.search-bar) {
   flex: 1;
   max-width: none;

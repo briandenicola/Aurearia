@@ -456,6 +456,12 @@ onBeforeUnmount(clearRunPollTimer)
 .candidate-list { display: grid; gap: 1rem; }
 .empty-inline { border: 1px dashed var(--border-subtle); border-radius: var(--radius-sm); padding: 1rem; color: var(--text-muted); text-align: center; }
 .criteria-adjustment summary { color: var(--accent-gold); cursor: pointer; }
+/*
+ * :deep() audit — child-component class override
+ * .alert-form is rendered inside WishlistAlertForm. The criteria-adjustment
+ * detail/summary controls when the form is shown inline (vs. in the drawer);
+ * the margin-top is positional context from this page, not the child's concern.
+ */
 .criteria-adjustment :deep(.alert-form) { margin-top: 0.75rem; }
 .editor-panel { margin-top: 1rem; }
 .page-error { color: var(--accent-bronze); }

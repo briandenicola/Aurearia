@@ -266,6 +266,13 @@ watch(() => props.featuredCoinId, load)
   line-height: 1.55;
 }
 
+/*
+ * :deep() audit — markdown-rendered content
+ * Target: HTML elements emitted by markdown-it inside .featured-summary.
+ * The coin-of-day summary is prose returned by the AI and rendered via
+ * markdown-it; elements are generated at runtime — not authored in templates —
+ * so scoped styles and Tailwind utilities cannot reach them.
+ */
 .featured-summary :deep(h1),
 .featured-summary :deep(h2),
 .featured-summary :deep(h3),

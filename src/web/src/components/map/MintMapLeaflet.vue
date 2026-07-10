@@ -119,6 +119,35 @@ onBeforeUnmount(() => {
   background: var(--bg-card);
 }
 
+/*
+ * Phase 4 — Tailwind preflight isolation for Leaflet
+ *
+ * Tailwind's @layer tailwind-base preflight sets `img { max-width: 100% }`
+ * for responsive images. Leaflet tile images are positioned absolutely and
+ * sized via JS; constraining their max-width breaks the tile grid.
+ *
+ * Because leaflet.css is imported as an unlayered side-effect (the `import
+ * 'leaflet/dist/leaflet.css'` in <script setup>), it has higher CSS cascade
+ * priority than @layer tailwind-base — BUT Leaflet does not explicitly reset
+ * max-width on its tile <img> elements, so Tailwind's layered default would
+ * still apply to those elements.
+ *
+ * Fix: explicitly restore max-width on all Leaflet-container images so tile
+ * dimensions are never constrained by Tailwind's responsive-image reset.
+ */
+:deep(.leaflet-container img) {
+  /* Override Tailwind preflight `img { max-width: 100% }` inside the map. */
+  max-width: none;
+}
+
+/*
+ * The :deep() selectors below are intentional. They target classes that
+ * Leaflet injects into the DOM at runtime (outside Vue's component scope),
+ * so scoped selectors alone cannot reach them. Tailwind utilities are not a
+ * replacement here because the elements and their class names are controlled
+ * by Leaflet, not by our templates.
+ */
+
 :deep(.leaflet-container) {
   background: var(--bg-card);
   color: var(--text-primary);

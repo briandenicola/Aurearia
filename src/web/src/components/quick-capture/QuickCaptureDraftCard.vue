@@ -97,6 +97,13 @@ const relativeTime = computed(() => {
   overflow: hidden;
 }
 
+/*
+ * :deep() audit — markdown-rendered content
+ * Target: HTML elements emitted by markdown-it inside .markdown-rendered.
+ * Draft body text is rendered by the markdown parser at runtime; the
+ * elements carry no Vue-scope hash and are unreachable by scoped selectors
+ * or Tailwind utilities.
+ */
 .markdown-rendered :deep(p),
 .markdown-rendered :deep(ul),
 .markdown-rendered :deep(ol) {

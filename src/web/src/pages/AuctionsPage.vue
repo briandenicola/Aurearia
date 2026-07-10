@@ -350,6 +350,13 @@ fetchAlertState()
   min-width: 0;
 }
 
+/*
+ * :deep() audit — child-component class override
+ * .status-filter-menu is rendered inside a child component (CoinStatusFilter).
+ * The auction toolbar controls its position in the filter row (margin-left auto
+ * to right-align); the child owns the class name but the layout context is the
+ * parent's responsibility.
+ */
 .auction-filter-toolbar :deep(.status-filter-menu) {
   flex: 0 0 auto;
   margin-left: auto;

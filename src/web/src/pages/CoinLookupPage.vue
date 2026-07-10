@@ -745,6 +745,13 @@ onBeforeUnmount(() => {
   line-height: 1.5;
 }
 
+/*
+ * :deep() audit — markdown-rendered content
+ * Target: HTML elements emitted by markdown-it inside .markdown-rendered.
+ * Lookup results and AI observations are rendered from Markdown at runtime;
+ * the generated HTML carries no Vue-scope hash and cannot be reached by
+ * scoped selectors or Tailwind utilities.
+ */
 .markdown-rendered :deep(p),
 .markdown-rendered :deep(ul),
 .markdown-rendered :deep(ol) {
