@@ -943,7 +943,7 @@ export const getAvailabilityRuns = (page = 1, limit = 20) =>
 export const getAvailabilityRunDetail = (runId: number) =>
   api.get<AvailabilityRun>(`/admin/availability-runs/${runId}`)
 export const triggerAvailabilityCheck = () =>
-  api.post<{ message: string }>('/admin/availability/run')
+  api.post<{ runId: number; status: string; message: string }>('/admin/availability/run')
 
 // Valuation Runs
 export const getValuationRuns = (page = 1, limit = 20) =>
