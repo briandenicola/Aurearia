@@ -61,13 +61,42 @@ func (h *AuctionEndingAdminHandler) ListRuns(c *gin.Context) {
 	})
 }
 
-// TriggerRun manually triggers an auction ending check.
+// GetRun returns a single auction ending run by ID.
 //
-//	@Summary		Trigger manual auction ending check
-//	@Description	Manually triggers an auction ending check for all users. Runs synchronously and returns the run details.
+//	@Summary		Get auction ending run
+//	@Description	Returns a single auction ending run by ID.
 //	@Tags			Admin
 //	@Produce		json
-//	@Success		200	{object}	map[string]interface{}
+//	@Param			id	path		int	true	"Run ID"
+//	@Success		200	{object}	models.AuctionEndingRun
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		403	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/admin/auction-ending-runs/{id} [get]
+func (h *AuctionEndingAdminHandler) GetRun(c *gin.Context) {
+	runID, ok := parseID(c, "id")
+	if !ok {
+		return
+	}
+
+	run, err := h.auctionEndingRepo.GetRunByID(runID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Run not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, run)
+}
+
+// TriggerRun manually enqueues an auction ending check and returns immediately.
+//
+//	@Summary		Trigger manual auction ending check
+//	@Description	Enqueues an auction ending check for all users and returns 202 Accepted with the queued run ID. Poll /admin/auction-ending-runs/{id} until status is terminal (success or error).
+//	@Tags			Admin
+//	@Produce		json
+//	@Success		202	{object}	map[string]interface{}
 //	@Failure		401	{object}	ErrorResponse
 //	@Failure		403	{object}	ErrorResponse
 //	@Failure		500	{object}	ErrorResponse
@@ -78,15 +107,12 @@ func (h *AuctionEndingAdminHandler) TriggerRun(c *gin.Context) {
 
 	run, err := h.scheduler.RunNowWithTrigger(&triggerUserID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to run auction ending check"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to enqueue auction ending check"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"runId":       run.ID,
-		"lotsChecked": run.LotsChecked,
-		"alertsSent":  run.AlertsSent,
-		"status":      run.Status,
-		"durationMs":  run.DurationMs,
+	c.JSON(http.StatusAccepted, gin.H{
+		"runId":  run.ID,
+		"status": run.Status,
 	})
 }

@@ -958,8 +958,10 @@ export const cancelValuationRun = (runId: number) =>
 // Auction Ending Runs
 export const getAuctionEndingRuns = (page = 1, limit = 20) =>
   api.get<{ runs: AuctionEndingRun[]; total: number; page: number; limit: number }>('/admin/auction-ending-runs', { params: { page, limit } })
+export const getAuctionEndingRun = (id: number) =>
+  api.get<AuctionEndingRun>(`/admin/auction-ending-runs/${id}`)
 export const triggerAuctionEndingCheck = () =>
-  api.post<{ runId: number; lotsChecked: number; alertsSent: number; status: string; durationMs: number }>('/admin/auction-ending/run')
+  api.post<{ runId: number; status: string }>('/admin/auction-ending/run')
 
 // Auction Alert and Reminder Runs
 export const getAuctionAlertReminderRuns = (page = 1, limit = 20) =>

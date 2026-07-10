@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/briandenicola/ancient-coins-api/models"
 	"gorm.io/gorm"
 )
@@ -34,6 +36,58 @@ func (r *AuctionEndingRepository) CompleteRun(run *models.AuctionEndingRun) erro
 		r.PruneOldRuns(100)
 	}
 	return err
+}
+
+// MarkRunning transitions a queued run to running status using an atomic CAS update.
+// Returns (run, true, nil) when the claim succeeds, or (nil, false, nil) when the run
+// was already claimed by another goroutine (RowsAffected == 0).
+func (r *AuctionEndingRepository) MarkRunning(runID uint) (*models.AuctionEndingRun, bool, error) {
+	result := r.db.Model(&models.AuctionEndingRun{}).
+		Where("id = ? AND status = ?", runID, models.AuctionEndingRunStatusQueued).
+		Update("status", models.AuctionEndingRunStatusRunning)
+	if result.Error != nil {
+		return nil, false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, false, nil
+	}
+	var run models.AuctionEndingRun
+	if err := r.db.First(&run, runID).Error; err != nil {
+		return nil, false, err
+	}
+	return &run, true, nil
+}
+
+// FindActiveRun returns the most recent queued or running auction ending run, or nil if none.
+func (r *AuctionEndingRepository) FindActiveRun() *models.AuctionEndingRun {
+	var run models.AuctionEndingRun
+	err := r.db.Where("status IN ?", []string{
+		models.AuctionEndingRunStatusQueued,
+		models.AuctionEndingRunStatusRunning,
+	}).Order("started_at DESC").Limit(1).First(&run).Error
+	if err != nil {
+		return nil
+	}
+	return &run
+}
+
+// RecoverStaleRuns marks any queued or running runs older than the given timeout as
+// error so they do not block future manual triggers after a process restart.
+// Returns the number of runs recovered.
+func (r *AuctionEndingRepository) RecoverStaleRuns(timeout time.Duration) int64 {
+	cutoff := time.Now().Add(-timeout)
+	now := time.Now()
+	result := r.db.Model(&models.AuctionEndingRun{}).
+		Where("status IN ? AND started_at < ?", []string{
+			models.AuctionEndingRunStatusQueued,
+			models.AuctionEndingRunStatusRunning,
+		}, cutoff).
+		Updates(map[string]interface{}{
+			"status":        models.AuctionEndingRunStatusError,
+			"error_message": "recovered: process restarted while run was in-flight",
+			"completed_at":  now,
+		})
+	return result.RowsAffected
 }
 
 // ListRuns returns paginated auction ending runs, newest first.

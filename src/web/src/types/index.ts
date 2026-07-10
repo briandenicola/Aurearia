@@ -1493,7 +1493,7 @@ export interface AuctionEndingRun {
   id: number
   triggerType: 'scheduled' | 'manual'
   triggerUserId: number | null
-  status: 'running' | 'success' | 'error'
+  status: 'queued' | 'running' | 'success' | 'error'
   lotsChecked: number
   alertsSent: number
   durationMs: number
