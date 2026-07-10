@@ -1460,6 +1460,8 @@ export interface AvailabilityRun {
   userName?: string
   triggerType: string
   triggerUserId: number | null
+  status: string
+  failMessage?: string
   coinsChecked: number
   available: number
   unavailable: number

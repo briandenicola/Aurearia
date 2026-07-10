@@ -2,6 +2,13 @@ package models
 
 import "time"
 
+const (
+	AvailabilityRunStatusQueued    = "queued"
+	AvailabilityRunStatusRunning   = "running"
+	AvailabilityRunStatusCompleted = "completed"
+	AvailabilityRunStatusFailed    = "failed"
+)
+
 // AvailabilityRun records a single execution of the wishlist availability checker.
 type AvailabilityRun struct {
 	ID            uint                 `gorm:"primaryKey" json:"id"`
@@ -10,6 +17,8 @@ type AvailabilityRun struct {
 	UserName      string               `gorm:"-" json:"userName"`
 	TriggerType   string               `gorm:"type:varchar(20);not null" json:"triggerType"`
 	TriggerUserID *uint                `json:"triggerUserId"`
+	Status        string               `gorm:"type:varchar(20);not null;default:completed" json:"status"`
+	FailMessage   string               `gorm:"type:text" json:"failMessage,omitempty"`
 	CoinsChecked  int                  `json:"coinsChecked"`
 	Available     int                  `json:"available"`
 	Unavailable   int                  `json:"unavailable"`
