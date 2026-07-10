@@ -107,6 +107,13 @@ defineEmits<{
   padding: 0.5rem 0;
 }
 
+/*
+ * :deep() audit — child-component slot piercing
+ * Targets .search-bar and .era-filter-select rendered inside child components.
+ * The PWA header controls responsive layout constraints (flex sizing, full
+ * width); the child components own their CSS class names. These overrides must
+ * live in the parent because sizing depends on the PWA header's layout context.
+ */
 .pwa-header :deep(.search-bar) {
   flex: 1;
   max-width: none;

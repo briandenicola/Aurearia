@@ -423,6 +423,13 @@ function formatDate(value: string): string {
   line-height: 1.7;
 }
 
+/*
+ * :deep() audit — markdown-rendered content
+ * Target: HTML elements emitted by markdown-it inside .markdown-rendered.
+ * Notes are stored as Markdown and rendered at runtime; the resulting HTML
+ * elements carry no Vue-scope hash and cannot be reached by scoped selectors
+ * or Tailwind utilities.
+ */
 .markdown-rendered :deep(h1),
 .markdown-rendered :deep(h2),
 .markdown-rendered :deep(h3) {

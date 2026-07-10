@@ -1,5 +1,66 @@
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
 @import './variables.css';
+@import "tailwindcss";
+
+/* --------------------------------------------------------------------------
+ * Tailwind v4 theme — map Tailwind color/font utilities to our CSS variables.
+ *
+ * Using @theme inline so generated utilities emit var() references rather
+ * than hardcoded values; the [data-theme="light"] toggle in
+ * SettingsAppearanceSection.vue keeps working without any JS changes.
+ *
+ * Convention during migration: use Tailwind utilities for new components and
+ * any component being actively refactored. Legacy .btn/.chip/etc. classes in
+ * this file remain until phases 1-3 component migration is complete.
+ * -------------------------------------------------------------------------- */
+@theme inline {
+  /* Backgrounds */
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-card: var(--bg-card);
+  --color-bg-card-hover: var(--bg-card-hover);
+  --color-bg-input: var(--bg-input);
+
+  /* Accent */
+  --color-accent-gold: var(--accent-gold);
+  --color-accent-bronze: var(--accent-bronze);
+  --color-accent-gold-dim: var(--accent-gold-dim);
+  --color-accent-gold-glow: var(--accent-gold-glow);
+
+  /* Text */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-heading: var(--text-heading);
+
+  /* Borders */
+  --color-border-subtle: var(--border-subtle);
+  --color-border-accent: var(--border-accent);
+
+  /* Category */
+  --color-cat-roman: var(--cat-roman);
+  --color-cat-greek: var(--cat-greek);
+  --color-cat-byzantine: var(--cat-byzantine);
+  --color-cat-modern: var(--cat-modern);
+  --color-cat-other: var(--cat-other);
+
+  /* Material */
+  --color-mat-gold: var(--mat-gold);
+  --color-mat-silver: var(--mat-silver);
+  --color-mat-bronze: var(--mat-bronze);
+  --color-mat-copper: var(--mat-copper);
+  --color-mat-electrum: var(--mat-electrum);
+
+  /* Font families */
+  --font-serif: 'Cinzel', serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* All rules below are intentionally unlayered. CSS cascade rules give
+ * unlayered styles higher priority than any @layer declaration (including
+ * Tailwind's @layer tailwind-base preflight), so the existing design tokens
+ * and component classes defined below are never overridden by Tailwind's
+ * default resets. */
 
 *,
 *::before,
@@ -49,6 +110,24 @@ a:hover {
 }
 
 /* Buttons */
+/*
+ * Phase 5 audit (2026-07) — classes below are ACTIVE.
+ * .btn and its variants have 300+ template references; .chip-sm 39;
+ * .form-group 185; .card 124. Migration to Tailwind utilities will happen
+ * in phases 1-3 component-by-component. Remove each class block from this
+ * file only after the last template reference has been replaced.
+ *
+ * .material-gold/silver/bronze/copper/electrum: used via dynamic binding
+ *   e.g. :class="`material-${material.toLowerCase()}`" in CoinInfoGrid.vue
+ *   and CollectionDistributionPage.vue. CoinCard.vue has its own scoped
+ *   duplicates; those will be consolidated when CoinCard is migrated.
+ *
+ * .badge-roman/greek/byzantine/modern/other: used via dynamic binding
+ *   e.g. :class="`badge-${coin.category.toLowerCase()}`" in CoinCard.vue,
+ *   CoinDetailPage.vue, StatsPage.vue, CollectionDistributionPage.vue.
+ *
+ * Empty scoped <style> blocks: 0 found — no cleanup needed.
+ */
 .btn {
   display: inline-flex;
   align-items: center;

@@ -3,6 +3,7 @@ import { execSync } from 'node:child_process'
 import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig } from 'vite'
+import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 
@@ -43,6 +44,7 @@ export default defineConfig({
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
   },
   plugins: [
+    tailwindcss(),
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
