@@ -391,3 +391,100 @@ func (s *AvailabilityService) notifyRunComplete(userID uint, run *models.Availab
 		}
 	}()
 }
+
+// RunManualCycle checks all users' wishlist coins into an existing run record.
+// Used by the async admin-trigger worker so the run is claimed before processing begins.
+func (s *AvailabilityService) RunManualCycle(run *models.AvailabilityRun) error {
+	coins, err := s.coinRepo.GetAllWishlistWithURLs()
+	if err != nil {
+		return fmt.Errorf("fetch all wishlist coins: %w", err)
+	}
+
+	startedAt := run.StartedAt
+
+	var available, unavailable, unknown, errCount int
+	var allResults []coinResult
+	var ambiguousItems []AvailabilityCheckProxyItem
+	seenAmbiguousURLs := make(map[string]struct{})
+
+	s.logger.Info("availability", "Manual cycle: checking %d coins across all users", len(coins))
+
+	for i, coin := range coins {
+		result, _ := s.CheckURL(coin.ReferenceURL)
+
+		avResult := &models.AvailabilityResult{
+			RunID:      run.ID,
+			CoinID:     coin.ID,
+			CoinName:   coin.Name,
+			URL:        coin.ReferenceURL,
+			Status:     result.Status,
+			Reason:     result.Reason,
+			HttpStatus: result.HttpStatus,
+			AgentUsed:  false,
+			CheckedAt:  time.Now(),
+		}
+		if err := s.availRepo.CreateResult(avResult); err != nil {
+			s.logger.Error("availability", "Failed to save result for coin %d: %s", coin.ID, err)
+			errCount++
+		}
+
+		allResults = append(allResults, coinResult{coin: coin, result: result, dbResult: avResult})
+
+		if result.Status == "unknown" && result.HttpStatus != nil && *result.HttpStatus == 200 {
+			if _, exists := seenAmbiguousURLs[coin.ReferenceURL]; !exists {
+				ambiguousItems = append(ambiguousItems, AvailabilityCheckProxyItem{
+					URL:      coin.ReferenceURL,
+					CoinName: coin.Name,
+				})
+				seenAmbiguousURLs[coin.ReferenceURL] = struct{}{}
+			}
+		}
+
+		s.logger.Debug("availability", "Coin %d (%s): %s — %s", coin.ID, coin.Name, result.Status, result.Reason)
+
+		if i < len(coins)-1 {
+			time.Sleep(availabilityRateDelay)
+		}
+	}
+
+	if len(ambiguousItems) > 0 && s.agentProxy != nil {
+		s.logger.Info("availability", "Escalating %d ambiguous URLs to agent", len(ambiguousItems))
+		s.escalateToAgent(run.ID, allResults, ambiguousItems)
+	}
+
+	for _, cr := range allResults {
+		switch cr.dbResult.Status {
+		case "available":
+			available++
+		case "unavailable":
+			unavailable++
+		default:
+			unknown++
+		}
+
+		if err := s.coinRepo.UpdateListingStatus(cr.coin.ID, cr.dbResult.Status, cr.dbResult.Reason, time.Now()); err != nil {
+			s.logger.Error("availability", "Failed to update listing status for coin %d: %s", cr.coin.ID, err)
+		}
+
+		if cr.dbResult.Status == "unavailable" && cr.coin.ListingStatus != "unavailable" && s.notifSvc != nil {
+			s.notifSvc.NotifyWishlistUnavailable(cr.coin.UserID, cr.coin, cr.dbResult.Reason)
+		}
+	}
+
+	completedAt := time.Now()
+	run.CoinsChecked = len(coins)
+	run.Available = available
+	run.Unavailable = unavailable
+	run.Unknown = unknown
+	run.Errors = errCount
+	run.DurationMs = completedAt.Sub(startedAt).Milliseconds()
+	run.CompletedAt = &completedAt
+
+	if err := s.availRepo.CompleteRun(run); err != nil {
+		return fmt.Errorf("complete run: %w", err)
+	}
+
+	s.logger.Info("availability", "Manual cycle run %d complete: %d checked, %d available, %d unavailable, %d unknown (%dms)",
+		run.ID, len(coins), available, unavailable, unknown, run.DurationMs)
+	return nil
+}

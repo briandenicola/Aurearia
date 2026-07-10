@@ -41,9 +41,15 @@
         <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
           {{ settingsSaving ? 'Saving...' : 'Save Schedule Settings' }}
         </button>
+<<<<<<< HEAD
         <span v-if="availSettingsMsg" class="text-body text-gold md:mr-auto" :class="availSettingsError ? 'text-[var(--color-negative)]' : ''">{{ availSettingsMsg }}</span>
         <button class="btn btn-secondary btn-sm md:ml-auto" :disabled="availTriggerLoading" @click="triggerManualAvailabilityCheck()">
           {{ availTriggerLoading ? 'Running...' : 'Run Now' }}
+=======
+        <span v-if="availSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': availSettingsError }">{{ availSettingsMsg }}</span>
+        <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="availTriggerLoading" @click="triggerManualAvailabilityCheck()">
+          {{ availTriggerLoading ? 'Queuing...' : 'Run Now' }}
+>>>>>>> origin/main
         </button>
       </div>
     </div>
@@ -58,8 +64,14 @@
         <thead>
           <tr>
             <th>Date</th>
+<<<<<<< HEAD
             <th class="hidden md:table-cell">Trigger</th>
             <th class="hidden md:table-cell">User</th>
+=======
+            <th class="hide-mobile">Trigger</th>
+            <th class="hide-mobile">User</th>
+            <th class="hide-mobile">Status</th>
+>>>>>>> origin/main
             <th>Checked</th>
             <th class="hidden md:table-cell">Avail</th>
             <th>Unavail</th>
@@ -70,10 +82,21 @@
         </thead>
         <tbody>
           <template v-for="run in availRuns" :key="run.id">
+<<<<<<< HEAD
             <tr class="cursor-pointer transition-colors hover:bg-surface" :class="{ 'bg-surface': expandedRunId === run.id }" @click="toggleRunDetail(run.id)">
               <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
               <td class="hidden md:table-cell">{{ run.triggerType }}</td>
               <td class="hidden md:table-cell">{{ run.userName || '—' }}</td>
+=======
+            <tr class="avail-row" :class="{ 'avail-row-expanded': expandedRunId === run.id }" @click="toggleRunDetail(run.id)">
+              <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
+              <td class="hide-mobile">{{ run.triggerType }}</td>
+              <td class="hide-mobile">{{ run.userName || '—' }}</td>
+              <td class="hide-mobile">
+                <span v-if="run.status && run.status !== 'completed'" class="avail-status-badge" :class="'avail-status-' + run.status">{{ run.status }}</span>
+                <span v-else class="avail-status-badge avail-status-completed">done</span>
+              </td>
+>>>>>>> origin/main
               <td>{{ run.coinsChecked }}</td>
               <td class="hidden font-semibold text-[var(--color-positive)] md:table-cell">{{ run.available }}</td>
               <td class="font-semibold text-[var(--color-negative)]">{{ run.unavailable }}</td>
@@ -633,25 +656,60 @@
         </button>
       </div>
     </div>
+
+    <hr class="section-divider" />
+    <h3 class="subsection-title">Coin of the Day Run History</h3>
+    <div v-if="cotdLoading" class="loading-overlay"><div class="spinner"></div></div>
+    <div v-else-if="cotdRuns.length === 0" class="logs-empty">No Coin of the Day runs recorded yet.</div>
+    <template v-else>
+      <table class="users-table avail-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Picked</th>
+            <th>Skipped</th>
+            <th>Errors</th>
+            <th class="hide-mobile">Trigger</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="run in cotdRuns" :key="run.id">
+            <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
+            <td>{{ run.status }}</td>
+            <td>{{ run.picked }}</td>
+            <td>{{ run.skipped }}</td>
+            <td>{{ run.errors }}</td>
+            <td class="hide-mobile">{{ run.triggerType }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="avail-pagination">
+        <button class="btn btn-secondary btn-sm" :disabled="cotdPage <= 1" @click="prevCoinOfDayPage()">Prev</button>
+        <span class="avail-page-info">Page {{ cotdPage }}</span>
+        <button class="btn btn-secondary btn-sm" :disabled="cotdRuns.length < 5" @click="nextCoinOfDayPage()">Next</button>
+      </div>
+    </template>
   </section>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import {
   getAvailabilityRuns, getAvailabilityRunDetail,
   triggerAvailabilityCheck,
   getValuationRuns, getValuationRunDetail, triggerValuation, cancelValuationRun,
-  getAuctionEndingRuns, triggerAuctionEndingCheck,
+  getAuctionEndingRuns, getAuctionEndingRun, triggerAuctionEndingCheck,
   getAuctionAlertReminderRuns, triggerAuctionAlertReminderCheck,
   getAuctionWatchBidDigestRuns, triggerAuctionWatchBidDigest,
   triggerCollectionHealthSnapshots,
-  triggerCoinOfDayRun,
+  triggerCoinOfDayRun, getCoinOfDayRuns, getCoinOfDayRunDetail,
 } from '@/api/client'
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
-import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun, AuctionAlertReminderRun, AuctionWatchBidDigestRun } from '@/types'
+import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun, AuctionAlertReminderRun, AuctionWatchBidDigestRun, CoinOfDayRun } from '@/types'
 
 // Props are type-checked but not referenced directly in script
 const _props = defineProps<{
@@ -689,7 +747,7 @@ const emit = defineEmits<{
 
 // Availability
 const isMobile = ref(window.innerWidth <= 600)
-const availColspan = computed(() => isMobile.value ? 4 : 9)
+const availColspan = computed(() => isMobile.value ? 4 : 10)
 const valColspan = computed(() => isMobile.value ? 4 : 8)
 
 function safeRunUrl(url: string | null | undefined): string | null {
@@ -734,17 +792,35 @@ async function toggleRunDetail(runId: number) {
   }
 }
 
+async function loadAvailRunsWithPoll() {
+  try {
+    await loadAvailRuns()
+    const hasActive = availRuns.value.some(r => r.status === 'queued' || r.status === 'running')
+    if (hasActive && !availPollTimer) {
+      availPollTimer = setInterval(() => { loadAvailRunsWithPoll() }, 4000)
+    } else if (!hasActive && availPollTimer) {
+      clearInterval(availPollTimer)
+      availPollTimer = null
+    }
+  } catch { /* ignore */ }
+}
+
 async function triggerManualAvailabilityCheck() {
   availTriggerLoading.value = true
   emit('update:availSettingsMsg', '')
   emit('update:availSettingsError', false)
   try {
     const res = await triggerAvailabilityCheck()
-    emit('update:availSettingsMsg', res.data.message ?? 'Availability check run completed')
-    timers.push(setTimeout(() => { emit('update:availSettingsMsg', '') }, 10000))
-    timers.push(setTimeout(() => { loadAvailRuns() }, 2000))
-  } catch {
-    emit('update:availSettingsMsg', 'Failed to run availability check')
+    emit('update:availSettingsMsg', `Run #${res.data.runId} queued — history updates below`)
+    timers.push(setTimeout(() => { emit('update:availSettingsMsg', '') }, 12000))
+    timers.push(setTimeout(() => { loadAvailRunsWithPoll() }, 1000))
+  } catch (err: unknown) {
+    const status = (err as { response?: { status?: number } })?.response?.status
+    if (status === 409) {
+      emit('update:availSettingsMsg', 'A manual availability run is already in progress')
+    } else {
+      emit('update:availSettingsMsg', 'Failed to queue availability check')
+    }
     emit('update:availSettingsError', true)
   } finally {
     availTriggerLoading.value = false
@@ -757,7 +833,7 @@ const {
   total: _auctionTotal,
   page: auctionPage,
   loading: auctionLoading,
-  loadRuns: loadAuctionRuns,
+  loadRuns: loadAuctionRunsBase,
   prevPage: prevAuctionPage,
   nextPage: nextAuctionPage,
 } = useRunHistoryPagination<AuctionEndingRun>(async (page, limit) => {
@@ -765,6 +841,20 @@ const {
   return res.data ?? {}
 })
 const auctionTriggerLoading = ref(false)
+let auctionPollTimer: ReturnType<typeof setInterval> | null = null
+
+async function loadAuctionRuns() {
+  try {
+    await loadAuctionRunsBase()
+    const hasActive = auctionRuns.value.some(r => r.status === 'queued' || r.status === 'running')
+    if (hasActive && !auctionPollTimer) {
+      auctionPollTimer = setInterval(() => { loadAuctionRuns() }, 3000)
+    } else if (!hasActive && auctionPollTimer) {
+      clearInterval(auctionPollTimer)
+      auctionPollTimer = null
+    }
+  } catch { /* ignore */ }
+}
 
 async function triggerManualAuctionCheck() {
   auctionTriggerLoading.value = true
@@ -772,16 +862,38 @@ async function triggerManualAuctionCheck() {
   emit('update:auctionSettingsError', false)
   try {
     const res = await triggerAuctionEndingCheck()
-    const { runId, lotsChecked, alertsSent, status, durationMs } = res.data
-    if (status === 'error') {
+    const { runId, status } = res.data
+    if (status === 'queued' || status === 'running') {
+      emit('update:auctionSettingsMsg', `Run #${runId} queued — checking for results…`)
+      // Poll until run reaches a terminal state
+      const pollCompleted = async () => {
+        try {
+          const runRes = await getAuctionEndingRun(runId)
+          const run = runRes.data
+          if (run.status === 'success') {
+            const durationSec = run.durationMs != null ? ` in ${(run.durationMs / 1000).toFixed(1)}s` : ''
+            emit('update:auctionSettingsMsg', `Run #${runId} completed — ${run.lotsChecked} lots checked, ${run.alertsSent} alerts sent${durationSec}`)
+            timers.push(setTimeout(() => { emit('update:auctionSettingsMsg', '') }, 10000))
+            loadAuctionRuns()
+          } else if (run.status === 'error') {
+            emit('update:auctionSettingsMsg', `Run #${runId} failed`)
+            emit('update:auctionSettingsError', true)
+            loadAuctionRuns()
+          } else {
+            timers.push(setTimeout(pollCompleted, 2000))
+          }
+        } catch {
+          loadAuctionRuns()
+        }
+      }
+      timers.push(setTimeout(pollCompleted, 1500))
+    } else if (status === 'error') {
       emit('update:auctionSettingsMsg', `Run #${runId} failed`)
       emit('update:auctionSettingsError', true)
+      timers.push(setTimeout(() => { loadAuctionRuns() }, 1000))
     } else {
-      const durationSec = (durationMs / 1000).toFixed(1)
-      emit('update:auctionSettingsMsg', `Run #${runId} completed — ${lotsChecked} lots checked, ${alertsSent} alerts sent in ${durationSec}s`)
-      timers.push(setTimeout(() => { emit('update:auctionSettingsMsg', '') }, 10000))
+      timers.push(setTimeout(() => { loadAuctionRuns() }, 2000))
     }
-    timers.push(setTimeout(() => { loadAuctionRuns() }, 2000))
   } catch {
     emit('update:auctionSettingsMsg', 'Failed to trigger auction ending alerts')
     emit('update:auctionSettingsError', true)
@@ -883,6 +995,7 @@ const valExpandedRunId = ref<number | null>(null)
 const valExpandedResults = ref<ValuationRun['results']>(undefined)
 const valExpandedLoading = ref(false)
 let valPollTimer: ReturnType<typeof setInterval> | null = null
+let availPollTimer: ReturnType<typeof setInterval> | null = null
 const timers: ReturnType<typeof setTimeout>[] = []
 
 async function loadValRuns() {
@@ -981,6 +1094,37 @@ async function triggerManualHealthSnapshots() {
 const cotdTriggerLoading = ref(false)
 const cotdSettingsMsg = ref('')
 const cotdSettingsError = ref(false)
+const {
+  runs: cotdRuns,
+  total: _cotdTotal,
+  page: cotdPage,
+  loading: cotdLoading,
+  loadRuns: loadCoinOfDayRuns,
+  prevPage: prevCoinOfDayPage,
+  nextPage: nextCoinOfDayPage,
+} = useRunHistoryPagination<CoinOfDayRun>(async (page, limit) => {
+  const res = await getCoinOfDayRuns(page, limit)
+  return res.data ?? {}
+})
+let cotdPollTimer: ReturnType<typeof setInterval> | null = null
+
+function coinOfDayRunIsTerminal(status: string) {
+  return status === 'completed' || status === 'failed'
+}
+
+function refreshCoinOfDayPolling() {
+  const hasActive = cotdRuns.value.some((run) => !coinOfDayRunIsTerminal(run.status))
+  if (hasActive && !cotdPollTimer) {
+    cotdPollTimer = setInterval(() => { loadCoinOfDayRuns() }, 5000)
+  } else if (!hasActive && cotdPollTimer) {
+    clearInterval(cotdPollTimer)
+    cotdPollTimer = null
+  }
+
+  watch(cotdRuns, () => {
+    refreshCoinOfDayPolling()
+  })
+}
 
 async function triggerManualCoinOfDay() {
   cotdTriggerLoading.value = true
@@ -988,8 +1132,18 @@ async function triggerManualCoinOfDay() {
   cotdSettingsError.value = false
   try {
     const res = await triggerCoinOfDayRun()
-    const { picked, skipped, errors } = res.data
-    cotdSettingsMsg.value = `Picked ${picked}, skipped ${skipped}${errors ? `, errors ${errors}` : ''}`
+    const runId = Number(res.data.runId ?? 0)
+    cotdSettingsMsg.value = runId ? `Coin of the Day run #${runId} queued` : 'Coin of the Day run queued'
+    if (runId) {
+      const detail = await getCoinOfDayRunDetail(runId)
+      const run = detail.data
+      if (coinOfDayRunIsTerminal(run.status)) {
+        cotdSettingsMsg.value = `Picked ${run.picked}, skipped ${run.skipped}${run.errors ? `, errors ${run.errors}` : ''}`
+        cotdSettingsError.value = run.status === 'failed'
+      }
+    }
+    await loadCoinOfDayRuns()
+    refreshCoinOfDayPolling()
     timers.push(setTimeout(() => { cotdSettingsMsg.value = '' }, 10000))
   } catch {
     cotdSettingsMsg.value = 'Failed to run Coin of the Day'
@@ -1021,16 +1175,467 @@ function truncateUrl(url: string) {
 
 onMounted(() => {
   window.addEventListener('resize', onResize)
-  loadAvailRuns()
+  loadAvailRunsWithPoll()
   loadAuctionRuns()
   loadAlertReminderRuns()
   loadWatchBidDigestRuns()
   loadValRuns()
+  loadCoinOfDayRuns()
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', onResize)
   if (valPollTimer) clearInterval(valPollTimer)
+  if (auctionPollTimer) clearInterval(auctionPollTimer)
+  if (availPollTimer) clearInterval(availPollTimer)
+  if (cotdPollTimer) clearInterval(cotdPollTimer)
   timers.forEach(clearTimeout)
 })
 </script>
+<<<<<<< HEAD
+=======
+
+<style scoped>
+.admin-section h2 {
+  font-size: 1.1rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.subsection-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--border-subtle, #333);
+  margin: 1.5rem 0;
+}
+
+.form-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+.logs-empty {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+}
+
+.avail-settings {
+  margin-bottom: 1rem;
+}
+
+.avail-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.avail-save-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  width: 100%;
+}
+
+.avail-save-msg {
+  font-size: 0.85rem;
+  color: var(--accent-gold);
+  margin-right: auto;
+}
+
+.schedule-run-now {
+  margin-left: auto;
+}
+
+.avail-save-error {
+  color: var(--color-negative);
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 22px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 22px;
+  transition: background 0.2s;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  left: 2px;
+  bottom: 2px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--accent-gold-dim);
+  border-color: var(--accent-gold);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(20px);
+  background: var(--accent-gold);
+}
+
+.avail-interval-input {
+  max-width: 120px;
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.users-table th,
+.users-table td {
+  text-align: left;
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.users-table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.date-cell {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.avail-table {
+  font-size: 0.82rem;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.avail-row {
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.avail-row:hover {
+  background: var(--bg-primary);
+}
+
+.avail-row-expanded {
+  background: var(--bg-primary);
+}
+
+.avail-count-available { color: var(--color-positive); font-weight: 600; }
+.avail-count-unavailable { color: var(--color-negative); font-weight: 600; }
+.avail-count-unknown { color: var(--text-warning); font-weight: 600; }
+
+.avail-detail-row td {
+  padding: 0.5rem;
+  background: var(--bg-body);
+  overflow: hidden;
+}
+
+.avail-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  table-layout: fixed;
+}
+
+.avail-detail-table th,
+.avail-detail-table td {
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Column widths for detail table */
+.avail-detail-table th:nth-child(1),
+.avail-detail-table td:nth-child(1) { width: 22%; }
+.avail-detail-table th:nth-child(2),
+.avail-detail-table td:nth-child(2) { width: 22%; }
+.avail-detail-table th:nth-child(3),
+.avail-detail-table td:nth-child(3) { width: 10%; }
+.avail-detail-table th:nth-child(4),
+.avail-detail-table td:nth-child(4) { width: 28%; }
+.avail-detail-table th:nth-child(5),
+.avail-detail-table td:nth-child(5) { width: 8%; }
+.avail-detail-table th:nth-child(6),
+.avail-detail-table td:nth-child(6) { width: 10%; }
+
+.avail-detail-table th {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.avail-link {
+  color: var(--accent-gold);
+  text-decoration: none;
+  font-size: 0.75rem;
+}
+
+.avail-link:hover {
+  text-decoration: underline;
+}
+
+.avail-reason {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.val-change-explanation {
+  margin-bottom: 0.35rem;
+  color: var(--accent-gold);
+  font-weight: 500;
+}
+
+.listing-status-badge {
+  display: inline-block;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.avail-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.avail-page-info {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.listing-available {
+  background: rgba(46, 204, 113, 0.15);
+  color: var(--color-positive);
+}
+
+.listing-unavailable {
+  background: rgba(231, 76, 60, 0.15);
+  color: var(--color-negative);
+}
+
+.listing-unknown {
+  background: rgba(241, 196, 15, 0.15);
+  color: var(--text-warning);
+}
+
+/* Valuation */
+.val-status-badge {
+  display: inline-block;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.val-status-running {
+  background: rgba(52, 152, 219, 0.15);
+  color: #3498db;
+}
+
+.val-progress {
+  margin-left: 0.35rem;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.val-status-completed {
+  background: rgba(46, 204, 113, 0.15);
+  color: var(--color-positive);
+}
+
+.val-status-failed {
+  background: rgba(231, 76, 60, 0.15);
+  color: var(--color-negative);
+}
+
+.val-status-cancelled {
+  background: rgba(243, 156, 18, 0.15);
+  color: #f39c12;
+}
+
+.btn-cancel-run {
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.65rem;
+  border: 1px solid rgba(231, 76, 60, 0.4);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-negative);
+  cursor: pointer;
+  vertical-align: middle;
+}
+.btn-cancel-run:hover {
+  background: rgba(231, 76, 60, 0.15);
+}
+
+.val-value {
+  font-weight: 600;
+  color: var(--accent-gold);
+}
+
+.val-confidence {
+  display: inline-block;
+  padding: 0.1rem 0.3rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.val-conf-high {
+  background: rgba(46, 204, 113, 0.15);
+  color: var(--confidence-high);
+}
+
+.val-conf-medium {
+  background: rgba(241, 196, 15, 0.15);
+  color: var(--confidence-medium);
+}
+
+.val-conf-low {
+  background: rgba(231, 76, 60, 0.15);
+  color: var(--confidence-low);
+}
+
+.val-result-success {
+  background: rgba(46, 204, 113, 0.15);
+  color: var(--color-positive);
+}
+
+.val-result-skipped {
+  background: rgba(149, 165, 166, 0.15);
+  color: #95a5a6;
+}
+
+.val-result-error {
+  background: rgba(231, 76, 60, 0.15);
+  color: var(--color-negative);
+}
+
+.val-detail-table th:nth-child(1),
+.val-detail-table td:nth-child(1) { width: 22%; }
+.val-detail-table th:nth-child(2),
+.val-detail-table td:nth-child(2) { width: 12%; }
+.val-detail-table th:nth-child(3),
+.val-detail-table td:nth-child(3) { width: 12%; }
+.val-detail-table th:nth-child(4),
+.val-detail-table td:nth-child(4) { width: 10%; }
+.val-detail-table th:nth-child(5),
+.val-detail-table td:nth-child(5) { width: 10%; }
+.val-detail-table th:nth-child(6),
+.val-detail-table td:nth-child(6) { width: 34%; }
+
+.auction-detail-table th:nth-child(1),
+.auction-detail-table td:nth-child(1) { width: 12%; }
+.auction-detail-table th:nth-child(2),
+.auction-detail-table td:nth-child(2) { width: 26%; }
+.auction-detail-table th:nth-child(3),
+.auction-detail-table td:nth-child(3) { width: 18%; }
+.auction-detail-table th:nth-child(4),
+.auction-detail-table td:nth-child(4) { width: 12%; }
+.auction-detail-table th:nth-child(5),
+.auction-detail-table td:nth-child(5) { width: 10%; }
+.auction-detail-table th:nth-child(6),
+.auction-detail-table td:nth-child(6) { width: 22%; }
+
+/* Mobile responsive: hide non-essential columns */
+@media (max-width: 600px) {
+  .hide-mobile {
+    display: none !important;
+  }
+
+  .avail-table {
+    table-layout: auto;
+    font-size: 0.8rem;
+  }
+
+  .users-table th,
+  .users-table td {
+    padding: 0.5rem 0.35rem;
+  }
+
+  .date-cell {
+    font-size: 0.8rem;
+  }
+}
+
+.avail-status-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.avail-status-queued {
+  background: rgba(201, 168, 76, 0.15);
+  color: var(--accent-gold);
+}
+
+.avail-status-running {
+  background: rgba(52, 152, 219, 0.15);
+  color: #5dade2;
+}
+
+.avail-status-completed {
+  background: rgba(46, 204, 113, 0.12);
+  color: #58d68d;
+}
+
+.avail-status-failed {
+  background: rgba(231, 76, 60, 0.15);
+  color: #e74c3c;
+}
+</style>
+>>>>>>> origin/main
