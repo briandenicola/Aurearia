@@ -107,3 +107,81 @@
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.08);
   --shadow-glow: 0 0 12px rgba(154, 123, 46, 0.08);
 }
+
+/* British Museum — sandstone/limestone neutrals, deep bronze-green accents */
+[data-theme="british-museum"] {
+  --bg-primary: #1e1c18;
+  --bg-secondary: #27241e;
+  --bg-card: #2e2b23;
+  --bg-card-hover: #353129;
+  --bg-input: #3a362c;
+
+  --accent-gold: #6b8c6e;
+  --accent-bronze: #4a6b52;
+  --accent-gold-dim: rgba(107, 140, 110, 0.25);
+  --accent-gold-glow: rgba(107, 140, 110, 0.12);
+
+  --text-primary: #e0d8c8;
+  --text-secondary: #a89e8a;
+  --text-muted: #7a7060;
+  --text-heading: #c8b98a;
+
+  --border-subtle: rgba(107, 140, 110, 0.18);
+  --border-accent: rgba(107, 140, 110, 0.45);
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 20px rgba(107, 140, 110, 0.1);
+  --shadow-gold-soft: 0 4px 12px rgba(107, 140, 110, 0.25);
+  --shadow-gold-hover: 0 6px 16px rgba(107, 140, 110, 0.35);
+}
+
+/* Louvre — glass-and-gold, warm cream stone, Napoleon III red accents */
+[data-theme="louvre"] {
+  --bg-primary: #1a1510;
+  --bg-secondary: #231c14;
+  --bg-card: #2a2218;
+  --bg-card-hover: #32291e;
+  --bg-input: #3a2f22;
+
+  --accent-gold: #c9941c;
+  --accent-bronze: #a5441e;
+  --accent-gold-dim: rgba(201, 148, 28, 0.25);
+  --accent-gold-glow: rgba(201, 148, 28, 0.12);
+
+  --text-primary: #f0e8d8;
+  --text-secondary: #b0a080;
+  --text-muted: #806848;
+  --text-heading: #e8c870;
+
+  --border-subtle: rgba(201, 148, 28, 0.18);
+  --border-accent: rgba(201, 148, 28, 0.5);
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px rgba(201, 148, 28, 0.1);
+  --shadow-gold-soft: 0 4px 12px rgba(201, 148, 28, 0.3);
+  --shadow-gold-hover: 0 6px 16px rgba(201, 148, 28, 0.4);
+}
+
+/* Capitoline — terracotta/travertine warmth, aged copper-bronze, Roman ochre */
+[data-theme="capitoline"] {
+  --bg-primary: #1c1410;
+  --bg-secondary: #261a14;
+  --bg-card: #2e2018;
+  --bg-card-hover: #38261e;
+  --bg-input: #402c22;
+
+  --accent-gold: #b87030;
+  --accent-bronze: #8c5428;
+  --accent-gold-dim: rgba(184, 112, 48, 0.25);
+  --accent-gold-glow: rgba(184, 112, 48, 0.12);
+
+  --text-primary: #ede0cc;
+  --text-secondary: #b09070;
+  --text-muted: #806050;
+  --text-heading: #d4985a;
+
+  --border-subtle: rgba(184, 112, 48, 0.18);
+  --border-accent: rgba(184, 112, 48, 0.45);
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 20px rgba(184, 112, 48, 0.1);
+  --shadow-gold-soft: 0 4px 12px rgba(184, 112, 48, 0.3);
+  --shadow-gold-hover: 0 6px 16px rgba(184, 112, 48, 0.4);
+}

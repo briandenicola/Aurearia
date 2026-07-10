@@ -1176,7 +1176,7 @@ export interface PortfolioSummary {
   missingFields?: Record<string, number>
 }
 
-export type Theme = 'dark' | 'light'
+export type Theme = 'dark' | 'light' | 'british-museum' | 'louvre' | 'capitoline'
 
 export const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error'] as const
 
