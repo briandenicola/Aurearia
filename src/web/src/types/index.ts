@@ -1549,6 +1549,21 @@ export interface CollectionHealthSnapshotRunResult {
   durationMs?: number
 }
 
+export interface CoinOfDayRun {
+  id: number
+  triggerType: 'manual' | 'scheduled'
+  triggerUserId: number | null
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  startedAt: string
+  completedAt: string | null
+  picked: number
+  skipped: number
+  errors: number
+  errorMessage: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Notification {
   id: number
   userId: number

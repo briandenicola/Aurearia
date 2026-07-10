@@ -219,7 +219,9 @@ func main() {
 	auctionAlertScheduler := services.NewAuctionAlertScheduler(auctionAlertEvaluator, auctionAlertRunRepo, auctionWatchlistSyncSvc, settingsSvc, logger)
 	healthScheduler := services.NewCollectionHealthScheduler(healthSvc, settingsSvc, logger)
 	featuredCoinRepo := repository.NewFeaturedCoinRepository(database.DB)
-	coinOfDayScheduler := services.NewCoinOfDayScheduler(featuredCoinRepo, userRepoForVal, coinRepo, notifSvc, settingsSvc, logger)
+	coinOfDayRunRepo := repository.NewCoinOfDayRunRepository(database.DB)
+	coinOfDayScheduler := services.NewCoinOfDayScheduler(featuredCoinRepo, coinOfDayRunRepo, userRepoForVal, coinRepo, notifSvc, settingsSvc, logger)
+	coinOfDayScheduler.StartWorkers(1)
 	schedulerRegistry := &SchedulerRegistry{}
 	schedulerRegistry.Register(availScheduler)
 	schedulerRegistry.Register(valScheduler)
@@ -616,6 +618,8 @@ func main() {
 		// Coin of the Day manual trigger
 		coinOfDayAdminHandler := handlers.NewCoinOfDayAdminHandler(coinOfDayScheduler, logger)
 		admin.POST("/coin-of-day/run", coinOfDayAdminHandler.TriggerRun)
+		admin.GET("/coin-of-day-runs", coinOfDayAdminHandler.ListRuns)
+		admin.GET("/coin-of-day-runs/:id", coinOfDayAdminHandler.GetRun)
 
 		// Aggregate health metrics
 		adminHealthHandler := handlers.NewAdminHealthHandler(healthSvc, healthScheduler, logger)
