@@ -3289,13 +3289,13 @@ paths:
       - Admin
   /admin/availability/run:
     post:
-      description: Manually triggers a wishlist availability check for all users.
-        Runs synchronously and records the triggering admin user.
+      description: Enqueues a wishlist availability check for all users and returns
+        immediately. Duplicate requests while a run is queued or running are rejected.
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "202":
+          description: Accepted
           schema:
             additionalProperties: true
             type: object
@@ -3305,6 +3305,10 @@ paths:
             $ref: '#/definitions/handlers.ErrorResponse'
         "403":
           description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
         "500":

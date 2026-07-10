@@ -43,7 +43,7 @@
         </button>
         <span v-if="availSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': availSettingsError }">{{ availSettingsMsg }}</span>
         <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="availTriggerLoading" @click="triggerManualAvailabilityCheck()">
-          {{ availTriggerLoading ? 'Running...' : 'Run Now' }}
+          {{ availTriggerLoading ? 'Queuing...' : 'Run Now' }}
         </button>
       </div>
     </div>
@@ -60,6 +60,7 @@
             <th>Date</th>
             <th class="hide-mobile">Trigger</th>
             <th class="hide-mobile">User</th>
+            <th class="hide-mobile">Status</th>
             <th>Checked</th>
             <th class="hide-mobile">Avail</th>
             <th>Unavail</th>
@@ -74,6 +75,10 @@
               <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
               <td class="hide-mobile">{{ run.triggerType }}</td>
               <td class="hide-mobile">{{ run.userName || '—' }}</td>
+              <td class="hide-mobile">
+                <span v-if="run.status && run.status !== 'completed'" class="avail-status-badge" :class="'avail-status-' + run.status">{{ run.status }}</span>
+                <span v-else class="avail-status-badge avail-status-completed">done</span>
+              </td>
               <td>{{ run.coinsChecked }}</td>
               <td class="hide-mobile avail-count-available">{{ run.available }}</td>
               <td class="avail-count-unavailable">{{ run.unavailable }}</td>
@@ -724,7 +729,7 @@ const emit = defineEmits<{
 
 // Availability
 const isMobile = ref(window.innerWidth <= 600)
-const availColspan = computed(() => isMobile.value ? 4 : 9)
+const availColspan = computed(() => isMobile.value ? 4 : 10)
 const valColspan = computed(() => isMobile.value ? 4 : 8)
 
 function safeRunUrl(url: string | null | undefined): string | null {
@@ -769,17 +774,35 @@ async function toggleRunDetail(runId: number) {
   }
 }
 
+async function loadAvailRunsWithPoll() {
+  try {
+    await loadAvailRuns()
+    const hasActive = availRuns.value.some(r => r.status === 'queued' || r.status === 'running')
+    if (hasActive && !availPollTimer) {
+      availPollTimer = setInterval(() => { loadAvailRunsWithPoll() }, 4000)
+    } else if (!hasActive && availPollTimer) {
+      clearInterval(availPollTimer)
+      availPollTimer = null
+    }
+  } catch { /* ignore */ }
+}
+
 async function triggerManualAvailabilityCheck() {
   availTriggerLoading.value = true
   emit('update:availSettingsMsg', '')
   emit('update:availSettingsError', false)
   try {
     const res = await triggerAvailabilityCheck()
-    emit('update:availSettingsMsg', res.data.message ?? 'Availability check run completed')
-    timers.push(setTimeout(() => { emit('update:availSettingsMsg', '') }, 10000))
-    timers.push(setTimeout(() => { loadAvailRuns() }, 2000))
-  } catch {
-    emit('update:availSettingsMsg', 'Failed to run availability check')
+    emit('update:availSettingsMsg', `Run #${res.data.runId} queued — history updates below`)
+    timers.push(setTimeout(() => { emit('update:availSettingsMsg', '') }, 12000))
+    timers.push(setTimeout(() => { loadAvailRunsWithPoll() }, 1000))
+  } catch (err: unknown) {
+    const status = (err as { response?: { status?: number } })?.response?.status
+    if (status === 409) {
+      emit('update:availSettingsMsg', 'A manual availability run is already in progress')
+    } else {
+      emit('update:availSettingsMsg', 'Failed to queue availability check')
+    }
     emit('update:availSettingsError', true)
   } finally {
     availTriggerLoading.value = false
@@ -918,6 +941,7 @@ const valExpandedRunId = ref<number | null>(null)
 const valExpandedResults = ref<ValuationRun['results']>(undefined)
 const valExpandedLoading = ref(false)
 let valPollTimer: ReturnType<typeof setInterval> | null = null
+let availPollTimer: ReturnType<typeof setInterval> | null = null
 const timers: ReturnType<typeof setTimeout>[] = []
 
 async function loadValRuns() {
@@ -1097,7 +1121,7 @@ function truncateUrl(url: string) {
 
 onMounted(() => {
   window.addEventListener('resize', onResize)
-  loadAvailRuns()
+  loadAvailRunsWithPoll()
   loadAuctionRuns()
   loadAlertReminderRuns()
   loadWatchBidDigestRuns()
@@ -1108,6 +1132,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', onResize)
   if (valPollTimer) clearInterval(valPollTimer)
+  if (availPollTimer) clearInterval(availPollTimer)
   if (cotdPollTimer) clearInterval(cotdPollTimer)
   timers.forEach(clearTimeout)
 })
@@ -1524,5 +1549,35 @@ onUnmounted(() => {
   .date-cell {
     font-size: 0.8rem;
   }
+}
+
+.avail-status-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.avail-status-queued {
+  background: rgba(201, 168, 76, 0.15);
+  color: var(--accent-gold);
+}
+
+.avail-status-running {
+  background: rgba(52, 152, 219, 0.15);
+  color: #5dade2;
+}
+
+.avail-status-completed {
+  background: rgba(46, 204, 113, 0.12);
+  color: #58d68d;
+}
+
+.avail-status-failed {
+  background: rgba(231, 76, 60, 0.15);
+  color: #e74c3c;
 }
 </style>

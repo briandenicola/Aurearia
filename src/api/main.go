@@ -208,6 +208,7 @@ func main() {
 
 	// Create schedulers before routes so they can be passed to admin handlers
 	availScheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, availRepo, settingsSvc, logger)
+	availScheduler.StartWorkers(1)
 	valScheduler := services.NewValuationScheduler(valSvc, coinRepo, valRepo, settingsSvc, logger)
 	nbWatchSyncSvc := services.NewNumisBidsService(logger)
 	cngWatchSyncSvc := services.NewCNGAuctionService(logger)

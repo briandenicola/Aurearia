@@ -609,7 +609,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Manually triggers a wishlist availability check for all users. Runs synchronously and records the triggering admin user.",
+                "description": "Enqueues a wishlist availability check for all users and returns immediately. Duplicate requests while a run is queued or running are rejected.",
                 "produces": [
                     "application/json"
                 ],
@@ -618,8 +618,8 @@ const docTemplate = `{
                 ],
                 "summary": "Trigger manual wishlist availability check",
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "202": {
+                        "description": "Accepted",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -633,6 +633,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
