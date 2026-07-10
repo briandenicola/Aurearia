@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -59,27 +60,37 @@ func (h *AvailabilityHandler) CheckAvailability(c *gin.Context) {
 	})
 }
 
-// TriggerRun manually triggers a wishlist availability check for all users.
+// TriggerRun enqueues an asynchronous wishlist availability check for all users.
 //
 //	@Summary		Trigger manual wishlist availability check
-//	@Description	Manually triggers a wishlist availability check for all users. Runs synchronously and records the triggering admin user.
+//	@Description	Enqueues a wishlist availability check for all users and returns immediately. Duplicate requests while a run is queued or running are rejected.
 //	@Tags			Admin
 //	@Produce		json
-//	@Success		200	{object}	map[string]interface{}
+//	@Success		202	{object}	map[string]interface{}
 //	@Failure		401	{object}	ErrorResponse
 //	@Failure		403	{object}	ErrorResponse
+//	@Failure		409	{object}	ErrorResponse
 //	@Failure		500	{object}	ErrorResponse
 //	@Security		BearerAuth
 //	@Router			/admin/availability/run [post]
 func (h *AvailabilityHandler) TriggerRun(c *gin.Context) {
 	triggerUserID := c.GetUint("userId")
 
-	if err := h.scheduler.RunNowWithTrigger(&triggerUserID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to run availability check"})
+	run, err := h.scheduler.RunNowWithTrigger(&triggerUserID)
+	if err != nil {
+		if errors.Is(err, services.ErrAvailabilityRunInProgress) {
+			c.JSON(http.StatusConflict, gin.H{"error": "A manual availability run is already queued or running"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to enqueue availability check"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Availability check run completed"})
+	c.JSON(http.StatusAccepted, gin.H{
+		"runId":   run.ID,
+		"status":  run.Status,
+		"message": "Availability check queued",
+	})
 }
 
 // UpdateListingStatus allows a user to dismiss or reset a coin's listing status.

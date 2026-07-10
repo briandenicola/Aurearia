@@ -33,7 +33,7 @@ func setupAvailabilityHandlerTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func setupAvailabilityAdminRouter(t *testing.T, listingURL string) (*gin.Engine, *gorm.DB, uint, uint) {
+func setupAvailabilityAdminRouter(t *testing.T, listingURL string) (*gin.Engine, *gorm.DB, *services.AvailabilityScheduler, uint, uint) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
@@ -77,7 +77,7 @@ func setupAvailabilityAdminRouter(t *testing.T, listingURL string) (*gin.Engine,
 	admin.Use(AdminRequired())
 	admin.POST("/availability/run", handler.TriggerRun)
 
-	return router, db, adminUser.ID, regularUser.ID
+	return router, db, scheduler, adminUser.ID, regularUser.ID
 }
 
 func TestAvailabilityHandler_TriggerRun_AsAdmin(t *testing.T) {
@@ -87,7 +87,7 @@ func TestAvailabilityHandler_TriggerRun_AsAdmin(t *testing.T) {
 	}))
 	defer listing.Close()
 
-	router, db, adminID, regularID := setupAvailabilityAdminRouter(t, listing.URL)
+	router, db, scheduler, adminID, _ := setupAvailabilityAdminRouter(t, listing.URL)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/admin/availability/run", nil)
 	req.Header.Set("Authorization", "Bearer admin-token")
@@ -95,38 +95,82 @@ func TestAvailabilityHandler_TriggerRun_AsAdmin(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var resp map[string]string
+	var resp map[string]interface{}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to parse response: %v", err)
 	}
-	if resp["message"] != "Availability check run completed" {
-		t.Fatalf("unexpected response message: %q", resp["message"])
+	runIDFloat, ok := resp["runId"].(float64)
+	if !ok || runIDFloat <= 0 {
+		t.Fatalf("expected runId in response, got %+v", resp)
+	}
+	if resp["status"] != models.AvailabilityRunStatusQueued {
+		t.Fatalf("expected status=queued, got %q", resp["status"])
 	}
 
-	var run models.AvailabilityRun
-	if err := db.First(&run).Error; err != nil {
+	runID := uint(runIDFloat)
+
+	// Verify run is in DB as queued before worker processes it
+	var queuedRun models.AvailabilityRun
+	if err := db.First(&queuedRun, runID).Error; err != nil {
 		t.Fatalf("expected availability run to be created: %v", err)
 	}
-	if run.UserID != regularID {
-		t.Fatalf("expected run for wishlist owner %d, got %d", regularID, run.UserID)
+	if queuedRun.TriggerType != "manual" {
+		t.Fatalf("expected manual trigger, got %q", queuedRun.TriggerType)
 	}
-	if run.TriggerType != "manual" {
-		t.Fatalf("expected manual trigger, got %q", run.TriggerType)
+	if queuedRun.TriggerUserID == nil || *queuedRun.TriggerUserID != adminID {
+		t.Fatalf("expected trigger user ID %d, got %v", adminID, queuedRun.TriggerUserID)
 	}
-	if run.TriggerUserID == nil || *run.TriggerUserID != adminID {
-		t.Fatalf("expected trigger user ID %d, got %v", adminID, run.TriggerUserID)
+	if queuedRun.Status != models.AvailabilityRunStatusQueued {
+		t.Fatalf("expected queued status before processing, got %q", queuedRun.Status)
 	}
-	if run.Unavailable != 1 || run.Unknown != 0 {
-		t.Fatalf("expected sold listing to count unavailable=1 unknown=0, got unavailable=%d unknown=%d", run.Unavailable, run.Unknown)
+
+	// Process the run synchronously (simulates what the worker does)
+	if err := scheduler.ProcessRun(runID); err != nil {
+		t.Fatalf("process run: %v", err)
+	}
+
+	// Verify run is completed with correct counts
+	var completedRun models.AvailabilityRun
+	if err := db.First(&completedRun, runID).Error; err != nil {
+		t.Fatalf("expected run to persist: %v", err)
+	}
+	if completedRun.Status != models.AvailabilityRunStatusCompleted {
+		t.Fatalf("expected status=completed, got %q", completedRun.Status)
+	}
+	if completedRun.Unavailable != 1 || completedRun.Unknown != 0 {
+		t.Fatalf("expected sold listing to count unavailable=1 unknown=0, got unavailable=%d unknown=%d",
+			completedRun.Unavailable, completedRun.Unknown)
+	}
+}
+
+func TestAvailabilityHandler_TriggerRun_DuplicateBlocked(t *testing.T) {
+	router, _, _, _, _ := setupAvailabilityAdminRouter(t, "https://example.test/coin")
+
+	// First request should be accepted
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/availability/run", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("first request: expected 202, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Second request while first is still queued should be rejected
+	req2 := httptest.NewRequest(http.MethodPost, "/api/admin/availability/run", nil)
+	req2.Header.Set("Authorization", "Bearer admin-token")
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusConflict {
+		t.Fatalf("duplicate request: expected 409, got %d: %s", w2.Code, w2.Body.String())
 	}
 }
 
 func TestAvailabilityHandler_TriggerRun_AsRegularUser(t *testing.T) {
-	router, _, _, _ := setupAvailabilityAdminRouter(t, "https://example.test/coin")
+	router, _, _, _, _ := setupAvailabilityAdminRouter(t, "https://example.test/coin")
 
 	req := httptest.NewRequest(http.MethodPost, "/api/admin/availability/run", nil)
 	req.Header.Set("Authorization", "Bearer user-token")
@@ -140,7 +184,7 @@ func TestAvailabilityHandler_TriggerRun_AsRegularUser(t *testing.T) {
 }
 
 func TestAvailabilityHandler_TriggerRun_NoAuth(t *testing.T) {
-	router, _, _, _ := setupAvailabilityAdminRouter(t, "https://example.test/coin")
+	router, _, _, _, _ := setupAvailabilityAdminRouter(t, "https://example.test/coin")
 
 	req := httptest.NewRequest(http.MethodPost, "/api/admin/availability/run", nil)
 	w := httptest.NewRecorder()
