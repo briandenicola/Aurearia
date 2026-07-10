@@ -6,7 +6,7 @@
         <span class="setting-label">Theme</span>
         <span class="setting-desc">Choose your preferred color scheme</span>
       </div>
-      <div class="theme-toggle">
+      <div class="theme-toggle theme-toggle-grid">
         <button
           class="theme-btn"
           :class="{ active: theme === 'dark' }"
@@ -20,6 +20,27 @@
           @click="$emit('set-theme', 'light')"
         >
           Light
+        </button>
+        <button
+          class="theme-btn"
+          :class="{ active: theme === 'british-museum' }"
+          @click="$emit('set-theme', 'british-museum')"
+        >
+          British Museum
+        </button>
+        <button
+          class="theme-btn"
+          :class="{ active: theme === 'louvre' }"
+          @click="$emit('set-theme', 'louvre')"
+        >
+          Louvre
+        </button>
+        <button
+          class="theme-btn"
+          :class="{ active: theme === 'capitoline' }"
+          @click="$emit('set-theme', 'capitoline')"
+        >
+          Capitoline
         </button>
       </div>
     </div>
@@ -141,6 +162,11 @@ defineEmits<{
   background: var(--bg-primary);
   border-radius: var(--radius-full);
   padding: 0.2rem;
+}
+
+.theme-toggle-grid {
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
 }
 
 .theme-btn {
