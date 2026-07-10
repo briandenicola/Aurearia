@@ -1,13 +1,17 @@
 <template>
   <PullToRefresh :on-refresh="handleRefresh">
-    <div class="container investment-breakdown-page">
-      <header class="page-header investment-breakdown-header">
+    <div class="container flex flex-col gap-6">
+      <header class="page-header flex flex-nowrap items-center justify-between gap-4">
         <div>
           <p class="section-label">Collection Insights</p>
           <h1>Investment Breakdown</h1>
-          <p class="page-intro">See valuation movement, acquisition-year performance, and material allocation.</p>
+          <p class="mt-[0.35rem] text-base text-text-secondary">See valuation movement, acquisition-year performance, and material allocation.</p>
         </div>
-        <router-link class="back-button" to="/stats" aria-label="Back to Stats">
+        <router-link
+          class="inline-flex shrink-0 items-center justify-center rounded-sm border border-border-subtle bg-transparent p-[0.4rem] text-text-secondary transition hover:border-border-accent hover:bg-gold-glow hover:text-gold"
+          to="/stats"
+          aria-label="Back to Stats"
+        >
           <ArrowLeft :size="20" />
         </router-link>
       </header>
@@ -16,63 +20,63 @@
         <div class="spinner"></div>
       </div>
 
-      <div v-else-if="errorMessage" class="error-card card" role="alert">
-        <p>{{ errorMessage }}</p>
+      <div v-else-if="errorMessage" class="card flex flex-col gap-4 text-text-secondary min-[641px]:flex-row min-[641px]:items-center min-[641px]:justify-between" role="alert">
+        <p class="m-0">{{ errorMessage }}</p>
         <button class="btn btn-sm btn-secondary" type="button" @click="handleRefresh">Try Again</button>
       </div>
 
       <template v-else>
-        <section class="investment-highlights-grid" aria-label="Investment valuation highlights">
-          <article class="stats-section card investment-highlight-card">
-            <div class="highlight-header">
+        <section class="grid gap-4 min-[641px]:grid-cols-3" aria-label="Investment valuation highlights">
+          <article class="card flex flex-col gap-3 p-4">
+            <div>
               <p class="section-label">Top Increases</p>
-              <h2>Biggest Value Gains</h2>
+              <h2 class="mt-1">Biggest Value Gains</h2>
             </div>
-            <ol v-if="topIncreases.length" class="highlight-list">
-              <li v-for="coin in topIncreases" :key="coin.coinId" class="highlight-row">
-                <router-link class="coin-link" :to="`/coin/${coin.coinId}`">{{ coin.name }}</router-link>
-                <div class="valuation-pair">
+            <ol v-if="topIncreases.length" class="m-0 flex list-none flex-col gap-3 p-0">
+              <li v-for="coin in topIncreases" :key="coin.coinId" class="flex flex-col gap-[0.35rem] rounded-sm border border-border-subtle bg-input p-3">
+                <router-link class="font-semibold text-gold hover:underline" :to="`/coin/${coin.coinId}`">{{ coin.name }}</router-link>
+                <div class="flex flex-wrap items-center gap-[0.35rem] text-body text-text-secondary">
                   <span>{{ formatCurrency(coin.initialValue) }}</span>
-                  <span class="arrow">to</span>
-                  <span class="gold">{{ formatCurrency(coin.currentValue) }}</span>
+                  <span class="text-text-muted">to</span>
+                  <span class="text-gold">{{ formatCurrency(coin.currentValue) }}</span>
                 </div>
-                <p v-if="coin.changeExplanation" class="change-explanation">{{ coin.changeExplanation }}</p>
+                <p v-if="coin.changeExplanation" class="m-0 text-chip leading-[1.4] text-text-secondary">{{ coin.changeExplanation }}</p>
               </li>
             </ol>
-            <p v-else class="empty-copy">No valuation increases are available yet.</p>
+            <p v-else class="m-0 text-body text-text-muted">No valuation increases are available yet.</p>
           </article>
 
-          <article class="stats-section card investment-highlight-card">
-            <div class="highlight-header">
+          <article class="card flex flex-col gap-3 p-4">
+            <div>
               <p class="section-label">Top Drops</p>
-              <h2>Biggest Value Declines</h2>
+              <h2 class="mt-1">Biggest Value Declines</h2>
             </div>
-            <ol v-if="topDrops.length" class="highlight-list">
-              <li v-for="coin in topDrops" :key="coin.coinId" class="highlight-row">
-                <router-link class="coin-link" :to="`/coin/${coin.coinId}`">{{ coin.name }}</router-link>
-                <div class="valuation-pair">
+            <ol v-if="topDrops.length" class="m-0 flex list-none flex-col gap-3 p-0">
+              <li v-for="coin in topDrops" :key="coin.coinId" class="flex flex-col gap-[0.35rem] rounded-sm border border-border-subtle bg-input p-3">
+                <router-link class="font-semibold text-gold hover:underline" :to="`/coin/${coin.coinId}`">{{ coin.name }}</router-link>
+                <div class="flex flex-wrap items-center gap-[0.35rem] text-body text-text-secondary">
                   <span>{{ formatCurrency(coin.initialValue) }}</span>
-                  <span class="arrow">to</span>
-                  <span class="loss">{{ formatCurrency(coin.currentValue) }}</span>
+                  <span class="text-text-muted">to</span>
+                  <span class="text-byzantine">{{ formatCurrency(coin.currentValue) }}</span>
                 </div>
-                <p v-if="coin.changeExplanation" class="change-explanation">{{ coin.changeExplanation }}</p>
+                <p v-if="coin.changeExplanation" class="m-0 text-chip leading-[1.4] text-text-secondary">{{ coin.changeExplanation }}</p>
               </li>
             </ol>
-            <p v-else class="empty-copy">No valuation declines are available yet.</p>
+            <p v-else class="m-0 text-body text-text-muted">No valuation declines are available yet.</p>
           </article>
 
-          <article class="stats-section card investment-highlight-card stale-card">
-            <div class="highlight-header">
+          <article class="card flex flex-col gap-3 p-4">
+            <div>
               <p class="section-label">Stale Valuations</p>
-              <h2>Needs Refresh</h2>
+              <h2 class="mt-1">Needs Refresh</h2>
             </div>
-            <ol v-if="staleValuations.length" class="highlight-list">
-              <li v-for="coin in staleValuations" :key="coin.coinId" class="highlight-row stale-row">
-                <router-link class="coin-link" :to="`/coin/${coin.coinId}/actions`">{{ coin.name }}</router-link>
-                <span class="last-run">{{ formatLastValuation(coin.lastValuationAt) }}</span>
+            <ol v-if="staleValuations.length" class="m-0 flex list-none flex-col gap-3 p-0">
+              <li v-for="coin in staleValuations" :key="coin.coinId" class="flex flex-col gap-[0.35rem] rounded-sm border border-border-subtle bg-input p-3 text-body text-text-secondary">
+                <router-link class="font-semibold text-gold hover:underline" :to="`/coin/${coin.coinId}/actions`">{{ coin.name }}</router-link>
+                <span class="text-text-muted">{{ formatLastValuation(coin.lastValuationAt) }}</span>
               </li>
             </ol>
-            <p v-else class="empty-copy">No stale valuations are available.</p>
+            <p v-else class="m-0 text-body text-text-muted">No stale valuations are available.</p>
           </article>
         </section>
 
@@ -167,165 +171,3 @@ async function handleRefresh() {
 
 onMounted(loadBreakdowns)
 </script>
-
-<style scoped>
-.investment-breakdown-page {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.investment-breakdown-header {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: nowrap;
-}
-
-.page-intro {
-  margin: 0.35rem 0 0;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-
-.back-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.4rem;
-  color: var(--text-secondary);
-  background: transparent;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  text-decoration: none;
-  transition: var(--transition-fast);
-  flex-shrink: 0;
-}
-
-.back-button:hover {
-  color: var(--accent-gold);
-  border-color: var(--border-accent);
-  background: var(--accent-gold-glow);
-}
-
-.error-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  color: var(--text-secondary);
-}
-
-.error-card p {
-  margin: 0;
-}
-
-.investment-highlights-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.investment-highlight-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: 1rem;
-}
-
-.highlight-header h2 {
-  margin: 0.25rem 0 0;
-  font-size: 1.2rem;
-}
-
-.highlight-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: 0;
-  margin: 0;
-  list-style: none;
-}
-
-.highlight-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  padding: 0.75rem;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-}
-
-.coin-link {
-  color: var(--accent-gold);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.coin-link:hover {
-  text-decoration: underline;
-}
-
-.valuation-pair,
-.stale-row {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-
-.valuation-pair {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
-
-.change-explanation {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  line-height: 1.4;
-}
-
-.arrow,
-.last-run,
-.empty-copy {
-  color: var(--text-muted);
-}
-
-.gold {
-  color: var(--accent-gold);
-}
-
-.loss {
-  color: var(--cat-byzantine);
-}
-
-.empty-copy {
-  margin: 0;
-  font-size: 0.85rem;
-}
-
-@media (max-width: 640px) {
-  .investment-highlights-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .error-card {
-    flex-direction: column;
-    align-items: stretch;
-  }
-}
-
-@media (min-width: 641px) and (max-width: 1024px) {
-  .investment-highlights-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .stale-card {
-    grid-column: 1 / -1;
-  }
-}
-</style>

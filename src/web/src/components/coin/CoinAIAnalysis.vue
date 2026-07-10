@@ -1,9 +1,9 @@
 <template>
-  <div class="ai-analysis-section">
-    <div class="ai-analysis-content">
-      <div class="ai-buttons">
+  <div class="mb-6">
+    <div class="section-content-card">
+      <div class="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-2">
         <button
-          class="btn btn-primary btn-sm ai-action-btn"
+          class="btn btn-primary btn-sm min-h-11 min-w-0 justify-center whitespace-nowrap leading-5"
           :disabled="busy || !hasObverse || !aiAvailable"
           aria-label="Analyze obverse"
           :title="!aiAvailable ? aiMessage : !hasObverse ? 'No obverse image' : ''"
@@ -12,7 +12,7 @@
           {{ analyzingSide === 'obverse' ? 'Analyzing...' : 'Obverse' }}
         </button>
         <button
-          class="btn btn-primary btn-sm ai-action-btn"
+          class="btn btn-primary btn-sm min-h-11 min-w-0 justify-center whitespace-nowrap leading-5"
           :disabled="busy || !hasReverse || !aiAvailable"
           aria-label="Analyze reverse"
           :title="!aiAvailable ? aiMessage : !hasReverse ? 'No reverse image' : ''"
@@ -21,7 +21,7 @@
           {{ analyzingSide === 'reverse' ? 'Analyzing...' : 'Reverse' }}
         </button>
         <button
-          class="btn btn-primary btn-sm ai-action-btn"
+          class="btn btn-primary btn-sm min-h-11 min-w-0 justify-center whitespace-nowrap leading-5"
           :disabled="busy || !canGradeCoin || !aiAvailable"
           aria-label="Grade coin"
           :title="gradingDisabledTitle"
@@ -30,45 +30,57 @@
           {{ grading ? 'Grading...' : 'Grade' }}
         </button>
       </div>
-      <p v-if="!aiAvailable" class="ai-unavailable">{{ aiMessage || 'AI unavailable — configure a provider in Admin → AI Configuration' }}</p>
-      <p v-if="jobStatusMessage" class="ai-job-status">{{ jobStatusMessage }}</p>
-      <div class="grading-panel">
-        <div class="grading-copy">
-          <p class="grading-limit">
+      <p v-if="!aiAvailable" class="mt-2 text-body italic text-bronze">{{ aiMessage || 'AI unavailable — configure a provider in Admin → AI Configuration' }}</p>
+      <p v-if="jobStatusMessage" class="mt-2 text-body text-gold">{{ jobStatusMessage }}</p>
+      <div class="mb-4">
+        <div class="grid gap-[0.35rem]">
+          <p class="text-body leading-6 text-text-secondary">
             AI grading is an assisted estimate, not professional certification. Image quality and missing sides can reduce confidence. The saved coin grade is not changed automatically.
           </p>
-          <p v-if="!canGradeCoin" class="grading-hint">
+          <p v-if="!canGradeCoin" class="text-body leading-6 text-text-muted">
             Add coin photos before requesting a grading estimate.
           </p>
-          <p v-if="gradingError" class="grading-error">{{ gradingError }}</p>
+          <p v-if="gradingError" class="text-body leading-6 text-bronze">{{ gradingError }}</p>
         </div>
-        <div v-if="gradingReport" class="ai-result-section grading-result">
-          <h5 class="ai-result-heading">Grading Report</h5>
-          <div class="ai-content" v-html="renderedGradingReport"></div>
+        <div v-if="gradingReport" class="mt-3 border-b border-border-subtle pb-4">
+          <h5 class="mb-2 text-label font-semibold uppercase tracking-[0.08em] text-gold">Grading Report</h5>
+          <div
+            class="text-body leading-[1.7] text-text-secondary [&_h1]:mb-2 [&_h1]:mt-4 [&_h1]:text-gold [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-gold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-gold [&_ol]:pl-5 [&_strong]:text-text-primary [&_ul]:pl-5"
+            v-html="renderedGradingReport"
+          ></div>
         </div>
       </div>
 
-      <div v-if="obverseAnalysis" class="ai-result-section">
-        <div class="ai-result-header">
-          <h5 class="ai-result-heading">Obverse Analysis</h5>
+      <div v-if="obverseAnalysis" class="mb-5 border-b border-border-subtle pb-4">
+        <div class="flex items-center justify-between gap-3">
+          <h5 class="mb-0 text-label font-semibold uppercase tracking-[0.08em] text-gold">Obverse Analysis</h5>
           <button class="btn btn-ghost btn-xs" @click="handleDeleteAnalysis('obverse')">Remove</button>
         </div>
-        <div class="ai-content" v-html="renderedObverse"></div>
+        <div
+          class="text-body leading-[1.7] text-text-secondary [&_h1]:mb-2 [&_h1]:mt-4 [&_h1]:text-gold [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-gold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-gold [&_ol]:pl-5 [&_strong]:text-text-primary [&_ul]:pl-5"
+          v-html="renderedObverse"
+        ></div>
       </div>
 
-      <div v-if="reverseAnalysis" class="ai-result-section">
-        <div class="ai-result-header">
-          <h5 class="ai-result-heading">Reverse Analysis</h5>
+      <div v-if="reverseAnalysis" class="mb-5 border-b border-border-subtle pb-4">
+        <div class="flex items-center justify-between gap-3">
+          <h5 class="mb-0 text-label font-semibold uppercase tracking-[0.08em] text-gold">Reverse Analysis</h5>
           <button class="btn btn-ghost btn-xs" @click="handleDeleteAnalysis('reverse')">Remove</button>
         </div>
-        <div class="ai-content" v-html="renderedReverse"></div>
+        <div
+          class="text-body leading-[1.7] text-text-secondary [&_h1]:mb-2 [&_h1]:mt-4 [&_h1]:text-gold [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-gold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-gold [&_ol]:pl-5 [&_strong]:text-text-primary [&_ul]:pl-5"
+          v-html="renderedReverse"
+        ></div>
       </div>
 
-      <div v-if="aiAnalysis && !obverseAnalysis && !reverseAnalysis" class="ai-result-section">
-        <div class="ai-content" v-html="renderedLegacy"></div>
+      <div v-if="aiAnalysis && !obverseAnalysis && !reverseAnalysis" class="border-b border-border-subtle pb-4">
+        <div
+          class="text-body leading-[1.7] text-text-secondary [&_h1]:mb-2 [&_h1]:mt-4 [&_h1]:text-gold [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-gold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-gold [&_ol]:pl-5 [&_strong]:text-text-primary [&_ul]:pl-5"
+          v-html="renderedLegacy"
+        ></div>
       </div>
 
-      <p v-if="!obverseAnalysis && !reverseAnalysis && !aiAnalysis && aiAvailable" class="ai-empty">
+      <p v-if="!obverseAnalysis && !reverseAnalysis && !aiAnalysis && aiAvailable" class="text-body italic text-text-muted">
         Upload images and click an analyze button to get an expert assessment.
       </p>
     </div>
@@ -487,136 +499,3 @@ function capitalize(value: string) {
   return `${value.charAt(0).toUpperCase()}${value.slice(1)}`
 }
 </script>
-
-<style scoped>
-.ai-analysis-section {
-  margin-bottom: 1.5rem;
-}
-
-.ai-analysis-content {
-  padding: 0.75rem 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-}
-
-.ai-buttons {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.ai-action-btn {
-  min-width: 0;
-  min-height: 2.75rem;
-  justify-content: center;
-  white-space: nowrap;
-  line-height: 1.25;
-}
-
-.ai-result-section {
-  margin-bottom: 1.25rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.ai-result-section:last-of-type {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-.ai-result-heading {
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--accent-gold);
-  margin-bottom: 0.5rem;
-}
-
-.ai-result-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.ai-result-header .ai-result-heading {
-  margin-bottom: 0;
-}
-
-.ai-content {
-  font-size: 0.85rem;
-  line-height: 1.7;
-  color: var(--text-secondary);
-}
-
-.ai-content :deep(h1),
-.ai-content :deep(h2),
-.ai-content :deep(h3) {
-  color: var(--accent-gold);
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-}
-
-.ai-content :deep(strong) {
-  color: var(--text-primary);
-}
-
-.ai-content :deep(ul),
-.ai-content :deep(ol) {
-  padding-left: 1.25rem;
-}
-
-.ai-empty {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.ai-unavailable {
-  font-size: 0.85rem;
-  color: var(--accent-bronze);
-  font-style: italic;
-  margin-bottom: 0.5rem;
-}
-
-.ai-job-status {
-  font-size: 0.85rem;
-  color: var(--accent-gold);
-  margin-bottom: 0.5rem;
-}
-
-.grading-panel {
-  margin-bottom: 1rem;
-}
-
-.grading-copy {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.grading-limit,
-.grading-hint,
-.grading-error {
-  font-size: 0.85rem;
-  line-height: 1.5;
-}
-
-.grading-limit {
-  color: var(--text-secondary);
-}
-
-.grading-hint {
-  color: var(--text-muted);
-}
-
-.grading-error {
-  color: var(--accent-bronze);
-}
-
-.grading-result {
-  margin-top: 0.75rem;
-}
-</style>

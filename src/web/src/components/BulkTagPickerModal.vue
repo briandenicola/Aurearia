@@ -1,21 +1,21 @@
 <template>
   <Teleport to="body">
-    <div v-if="open" class="modal-backdrop" @click="$emit('close')">
-      <div class="modal-content tag-picker-modal" @click.stop>
-        <h3>Apply Set</h3>
-        <div v-if="tags.length" class="tag-picker-list">
+    <div v-if="open" class="fixed inset-0 z-[300] flex items-center justify-center bg-[rgba(0,0,0,0.6)] px-4" @click="$emit('close')">
+      <div class="w-full max-w-[320px] rounded-md border border-border-subtle bg-card p-6 shadow-[0_12px_40px_rgba(0,0,0,0.5)]" @click.stop>
+        <h3 class="mb-3 text-base text-heading">Apply Set</h3>
+        <div v-if="tags.length" class="flex max-h-[300px] flex-col gap-1.5 overflow-y-auto">
           <button
             v-for="tag in tags"
             :key="tag.id"
-            class="tag-picker-item"
+            class="flex items-center gap-2 rounded-sm border border-border-subtle bg-surface px-3 py-2 text-left text-body text-text-primary transition-colors hover:border-gold hover:text-gold"
             @click="$emit('select', tag.filterValue)"
           >
-            <span class="tag-swatch" :style="{ background: tag.color }"></span>
+            <span class="h-3 w-3 shrink-0 rounded-full" :style="{ background: tag.color }"></span>
             {{ tag.name }}
           </button>
         </div>
-        <p v-else class="empty-tags">No sets available. Create sets first.</p>
-        <button class="btn btn-secondary btn-sm" style="margin-top: 0.75rem;" @click="$emit('close')">Cancel</button>
+        <p v-else class="text-body text-text-muted">No sets available. Create sets first.</p>
+        <button class="btn btn-secondary btn-sm mt-3" @click="$emit('close')">Cancel</button>
       </div>
     </div>
   </Teleport>
@@ -34,69 +34,3 @@ defineEmits<{
   close: []
 }>()
 </script>
-
-<style scoped>
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 300;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-content {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius:var(--radius-md);
-  padding: 1.5rem;
-  max-width: 320px;
-  width: 90%;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-}
-
-.tag-picker-modal h3 {
-  margin-bottom: 0.75rem;
-  font-size: 1rem;
-}
-
-.tag-picker-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.tag-picker-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border-subtle);
-  border-radius:var(--radius-sm);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: 0.85rem;
-  transition: all var(--transition-fast);
-}
-
-.tag-picker-item:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-}
-
-.tag-swatch {
-  width: 12px;
-  height: 12px;
-  border-radius:50%;
-  flex-shrink: 0;
-}
-
-.empty-tags {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-</style>

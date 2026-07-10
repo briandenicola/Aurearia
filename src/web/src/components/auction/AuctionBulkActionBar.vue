@@ -1,15 +1,25 @@
 <template>
-  <Transition name="bar-slide">
-    <div v-if="selectedCount > 0" class="bulk-action-bar">
-      <span class="bulk-count">{{ selectedCount }} lot{{ selectedCount === 1 ? '' : 's' }} selected</span>
-      <div class="bulk-actions">
-        <select v-model="localEventId" class="form-input bulk-event-select">
+  <Transition
+    enter-active-class="transition duration-[250ms] ease-out"
+    enter-from-class="translate-y-5 opacity-0"
+    enter-to-class="translate-y-0 opacity-100"
+    leave-active-class="transition duration-[250ms] ease-in"
+    leave-from-class="translate-y-0 opacity-100"
+    leave-to-class="translate-y-5 opacity-0"
+  >
+    <div
+      v-if="selectedCount > 0"
+      class="fixed bottom-6 left-1/2 z-[200] flex w-[calc(100%-1.5rem)] max-w-max -translate-x-1/2 flex-col gap-3 rounded-md border border-gold-dim bg-card px-5 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.5)] md:w-auto md:flex-row md:items-center md:gap-4"
+    >
+      <span class="text-body font-medium text-text-secondary">{{ selectedCount }} lot{{ selectedCount === 1 ? '' : 's' }} selected</span>
+      <div class="flex flex-col gap-2 md:flex-row md:items-center">
+        <select v-model="localEventId" class="form-input text-[0.82rem] md:min-w-40">
           <option value="">Unlink Event</option>
           <option v-for="evt in calendarEvents" :key="evt.id" :value="evt.id">
             {{ evt.title }}
           </option>
         </select>
-        <button class="bulk-btn bulk-btn-link" @click="$emit('link-event', localEventId)">
+        <button class="inline-flex items-center justify-center gap-[0.35rem] rounded-sm border border-border-subtle bg-surface px-3 py-1.5 text-chip text-text-primary transition hover:border-gold hover:text-gold" @click="$emit('link-event', localEventId)">
           <CalendarDays :size="16" /> {{ localEventId === '' ? 'Unlink' : 'Link' }}
         </button>
       </div>
@@ -33,69 +43,3 @@ defineEmits<{
 const localEventId = ref<number | string>('')
 </script>
 
-<style scoped>
-.bulk-action-bar {
-  position: fixed;
-  bottom: 1.5rem;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--accent-gold-dim);
-  border-radius: var(--radius-md);
-  padding: 0.75rem 1.25rem;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-  z-index: 200;
-  white-space: nowrap;
-}
-
-.bulk-count {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.bulk-actions {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.bulk-event-select {
-  min-width: 160px;
-  font-size: 0.82rem;
-}
-
-.bulk-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.4rem 0.75rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.bulk-btn:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-}
-
-/* Bar slide transition */
-.bar-slide-enter-active,
-.bar-slide-leave-active {
-  transition: transform 0.25s ease, opacity 0.25s ease;
-}
-
-.bar-slide-enter-from,
-.bar-slide-leave-to {
-  transform: translateX(-50%) translateY(20px);
-  opacity: 0;
-}
-</style>

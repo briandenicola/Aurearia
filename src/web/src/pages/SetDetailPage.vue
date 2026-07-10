@@ -1,16 +1,16 @@
 <template>
-  <div class="container set-detail-page">
-    <div v-if="loading" class="loading-state">
+  <div class="container pb-4 md:pb-6">
+    <div v-if="loading" class="py-12 text-center text-text-secondary">
       Loading set details...
     </div>
 
-    <div v-else-if="set" class="set-detail-container">
-      <div class="page-header set-page-header">
-        <div class="set-title-area">
-          <span class="set-title-accent" :style="{ backgroundColor: set.color }" aria-hidden="true"></span>
-          <div>
+    <div v-else-if="set" class="space-y-6">
+      <div class="page-header items-start">
+        <div class="flex min-w-0 flex-1 items-start gap-3 md:items-center">
+          <span class="h-11 w-1 shrink-0 rounded-full shadow-[0_0_16px_var(--accent-gold-glow)]" :style="{ backgroundColor: set.color }" aria-hidden="true"></span>
+          <div class="min-w-0">
             <h1>{{ set.name }}</h1>
-            <p v-if="set.description" class="set-description">{{ set.description }}</p>
+            <p v-if="set.description" class="mt-0.5 truncate text-base text-text-secondary">{{ set.description }}</p>
           </div>
         </div>
         <div v-if="isPwa" class="pwa-actions">
@@ -23,7 +23,7 @@
           <button class="pwa-icon-btn" @click="showEditModal = true" title="Edit Set">
             <Pencil :size="22" />
           </button>
-          <button class="pwa-icon-btn danger" @click="deleteSet" title="Delete Set">
+          <button class="pwa-icon-btn text-[var(--error-bg)]" @click="deleteSet" title="Delete Set">
             <Trash2 :size="22" />
           </button>
         </div>
@@ -48,16 +48,16 @@
         :completion="completion"
       />
 
-      <section v-if="analytics" class="analytics-card">
-        <h2>Analytics</h2>
-        <div class="analytics-grid">
-          <div>
-            <span class="summary-label">ROI</span>
-            <strong>{{ analytics.roiPercent == null ? 'N/A' : `${analytics.roiPercent.toFixed(1)}%` }}</strong>
+      <section v-if="analytics" class="card p-6">
+        <h2 class="mt-0">Analytics</h2>
+        <div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
+          <div class="flex flex-col gap-1.5">
+            <span class="text-body text-text-secondary">ROI</span>
+            <strong class="text-lg text-gold">{{ analytics.roiPercent == null ? 'N/A' : `${analytics.roiPercent.toFixed(1)}%` }}</strong>
           </div>
-          <div>
-            <span class="summary-label">Acquisition Rate</span>
-            <strong>{{ analytics.acquisitionRatePerMonth == null ? 'N/A' : `${analytics.acquisitionRatePerMonth.toFixed(1)}/mo` }}</strong>
+          <div class="flex flex-col gap-1.5">
+            <span class="text-body text-text-secondary">Acquisition Rate</span>
+            <strong class="text-lg text-gold">{{ analytics.acquisitionRatePerMonth == null ? 'N/A' : `${analytics.acquisitionRatePerMonth.toFixed(1)}/mo` }}</strong>
           </div>
         </div>
       </section>
@@ -68,7 +68,7 @@
         @update:range="changeTrendRange"
       />
 
-      <div class="trend-actions">
+      <div class="-mt-4 mb-6">
         <button class="btn btn-secondary" @click="captureSnapshot">Capture Snapshot</button>
       </div>
 
@@ -80,29 +80,29 @@
         @compare="compareSelectedSets"
       />
 
-      <div class="coins-section">
-        <div class="coins-heading">
+      <div class="space-y-4">
+        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <p class="section-label">{{ canReorderCoins ? 'Manual sequence' : 'Set members' }}</p>
-            <h2>Coins in Set</h2>
+            <h2 class="m-0">Coins in Set</h2>
           </div>
-          <p v-if="canReorderCoins && coins.length > 1" class="order-status" :class="{ error: orderError }" aria-live="polite">
+          <p v-if="canReorderCoins && coins.length > 1" class="m-0 max-w-none text-left text-body text-text-secondary md:max-w-[24rem] md:text-right" :class="{ 'text-[var(--confidence-low)]': orderError }" aria-live="polite">
             <span v-if="savingOrder">Saving order...</span>
             <span v-else-if="orderError">{{ orderError }}</span>
             <span v-else>Drag rows or use the arrows to arrange this set.</span>
           </p>
         </div>
-        <div v-if="coins.length === 0" class="empty-coins">
-          <p>No coins in this set yet</p>
+        <div v-if="coins.length === 0" class="card space-y-4 py-8 text-center">
+          <p class="m-0 text-base text-text-secondary">No coins in this set yet</p>
           <button v-if="canManageMembership" class="btn btn-primary" @click="openAddCoinModal">Add Coins</button>
         </div>
         <div
           v-else
-          class="set-tray-shell"
-          :class="{ 'is-saving-order': savingOrder }"
+          class="space-y-4"
+          :class="{ 'opacity-80': savingOrder }"
           aria-label="Coins in this set"
         >
-          <div class="set-tray-display">
+          <div class="flex flex-col gap-4">
             <MuseumTray
               :coins="currentDrawerCoins"
               :felt-theme="feltColor"
@@ -119,15 +119,18 @@
           </div>
           <div
             v-if="canManageMembership"
-            class="set-coin-management"
-            :class="{ 'is-reorderable': canReorderCoins }"
+            class="mt-4 flex flex-col gap-2"
             aria-label="Manage set coin order and membership"
           >
             <div
               v-for="(coin, index) in coins"
               :key="coin.id"
-              class="set-coin-row"
-              :class="{ dragging: draggingCoinId === coin.id, 'drag-over': dragOverCoinId === coin.id }"
+              class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-sm border border-border-subtle bg-card px-3 py-2.5 transition-all hover:border-border-accent md:grid-cols-[auto_minmax(0,1fr)_auto_auto]"
+              :class="{
+                'cursor-grab': canReorderCoins && !savingOrder,
+                'opacity-[0.55] border-border-accent': draggingCoinId === coin.id,
+                'border-border-accent shadow-[var(--shadow-glow)]': dragOverCoinId === coin.id,
+              }"
               :draggable="canReorderCoins && !savingOrder"
               @dragstart="startDragging(coin.id, $event)"
               @dragover.prevent="trackDragOver(coin.id)"
@@ -135,16 +138,16 @@
               @drop.prevent="dropCoin(coin.id)"
               @dragend="resetDragState"
             >
-              <span class="order-rank" :aria-label="`Position ${index + 1}`">{{ index + 1 }}</span>
-              <button type="button" class="set-coin-title" @click="goToCoin(coin.id)">
+              <span class="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-border-accent text-sm font-semibold text-gold" :aria-label="`Position ${index + 1}`">{{ index + 1 }}</span>
+              <button type="button" class="min-w-0 truncate bg-transparent p-0 text-left text-base font-semibold text-text-primary transition-colors hover:text-gold" @click="goToCoin(coin.id)">
                 {{ coin.name }}
               </button>
-              <span class="set-coin-value">${{ coin.currentValue ?? 0 }}</span>
-              <div class="order-buttons" aria-label="Set coin actions">
+              <span class="hidden whitespace-nowrap text-chip font-semibold text-gold md:inline">${{ coin.currentValue ?? 0 }}</span>
+              <div class="flex flex-nowrap justify-end gap-1.5" aria-label="Set coin actions">
                 <button
                   v-if="canReorderCoins"
                   type="button"
-                  class="set-coin-action-btn"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border-subtle bg-input text-text-secondary transition-all hover:border-border-accent hover:bg-[var(--accent-gold-glow)] hover:text-gold disabled:cursor-not-allowed disabled:opacity-30"
                   :disabled="index === 0 || savingOrder"
                   @click="moveCoinByButton(index, -1)"
                   title="Move earlier"
@@ -155,7 +158,7 @@
                 <button
                   v-if="canReorderCoins"
                   type="button"
-                  class="set-coin-action-btn"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border-subtle bg-input text-text-secondary transition-all hover:border-border-accent hover:bg-[var(--accent-gold-glow)] hover:text-gold disabled:cursor-not-allowed disabled:opacity-30"
                   :disabled="index === coins.length - 1 || savingOrder"
                   @click="moveCoinByButton(index, 1)"
                   title="Move later"
@@ -166,7 +169,7 @@
                 <button
                   v-if="canManageMembership"
                   type="button"
-                  class="set-coin-action-btn"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border-subtle bg-input text-text-secondary transition-all hover:border-border-accent hover:bg-[var(--accent-gold-glow)] hover:text-gold"
                   @click.stop="removeCoin(coin.id)"
                   title="Remove from set"
                   :aria-label="`Remove ${coin.name} from set`"
@@ -180,22 +183,23 @@
       </div>
     </div>
 
-    <div v-if="showAddCoinModal" class="modal-overlay" @click.self="showAddCoinModal = false">
-      <div class="modal-content">
-        <h2>Add Coin to Set</h2>
+    <div v-if="showAddCoinModal" class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4" @click.self="showAddCoinModal = false">
+      <div class="card w-[90%] max-w-[500px] p-8">
+        <h2 class="mt-0">Add Coin to Set</h2>
         <form @submit.prevent="addCoin">
           <div class="form-group">
-            <label for="coinSearch">Search coins</label>
+            <label for="coinSearch" class="form-label">Search coins</label>
             <input
               id="coinSearch"
               v-model="coinSearch"
               type="search"
+              class="form-input"
               placeholder="Search by name, ruler, denomination, or mint"
             />
           </div>
           <div class="form-group">
-            <label for="coinToAdd">Coin</label>
-            <select id="coinToAdd" v-model.number="coinIdToAdd" required>
+            <label for="coinToAdd" class="form-label">Coin</label>
+            <select id="coinToAdd" v-model.number="coinIdToAdd" class="form-select" required>
               <option :value="null" disabled>Select a coin...</option>
               <option
                 v-for="coin in filteredAvailableCoins"
@@ -205,10 +209,10 @@
                 {{ coin.name }}<template v-if="coin.ruler"> - {{ coin.ruler }}</template>
               </option>
             </select>
-            <p v-if="availableCoins.length === 0" class="form-hint">All loaded coins are already in this set.</p>
-            <p v-else-if="filteredAvailableCoins.length === 0" class="form-hint">No matching coins found.</p>
+            <p v-if="availableCoins.length === 0" class="mt-1.5 text-chip text-text-secondary">All loaded coins are already in this set.</p>
+            <p v-else-if="filteredAvailableCoins.length === 0" class="mt-1.5 text-chip text-text-secondary">No matching coins found.</p>
           </div>
-          <div class="form-actions">
+          <div class="mt-6 flex justify-end gap-2">
             <button type="button" class="btn btn-secondary" @click="showAddCoinModal = false">Cancel</button>
             <button type="submit" class="btn btn-primary" :disabled="!coinIdToAdd">Add Coin</button>
           </div>
@@ -216,24 +220,23 @@
       </div>
     </div>
 
-    <!-- Edit Modal -->
-    <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
-      <div class="modal-content">
-        <h2>Edit Set</h2>
+    <div v-if="showEditModal" class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4" @click.self="showEditModal = false">
+      <div class="card w-[90%] max-w-[500px] p-8">
+        <h2 class="mt-0">Edit Set</h2>
         <form @submit.prevent="updateSet">
           <div class="form-group">
-            <label for="editName">Name</label>
-            <input id="editName" v-model="editForm.name" type="text" required maxlength="80" />
+            <label for="editName" class="form-label">Name</label>
+            <input id="editName" v-model="editForm.name" type="text" class="form-input" required maxlength="80" />
           </div>
           <div class="form-group">
-            <label for="editDescription">Description</label>
-            <textarea id="editDescription" v-model="editForm.description" rows="3" maxlength="2000" />
+            <label for="editDescription" class="form-label">Description</label>
+            <textarea id="editDescription" v-model="editForm.description" rows="3" class="form-input" maxlength="2000" />
           </div>
           <div class="form-group">
-            <label for="editColor">Color</label>
-            <input id="editColor" v-model="editForm.color" type="color" />
+            <label for="editColor" class="form-label">Color</label>
+            <input id="editColor" v-model="editForm.color" type="color" class="form-input h-11 cursor-pointer p-1" />
           </div>
-          <div class="form-actions">
+          <div class="mt-6 flex justify-end gap-2">
             <button type="button" class="btn btn-secondary" @click="showEditModal = false">Cancel</button>
             <button type="submit" class="btn btn-primary">Update</button>
           </div>
@@ -588,326 +591,3 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback
 }
 </script>
-
-<style scoped>
-.set-detail-page {
-  padding-bottom: 1.5rem;
-}
-
-.loading-state {
-  text-align: center;
-  padding: 3rem 1rem;
-}
-
-.set-page-header {
-  align-items: flex-start;
-}
-
-.set-title-area {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  min-width: 0;
-  flex: 1;
-}
-
-.set-title-accent {
-  width: 0.25rem;
-  height: 2.8rem;
-  border-radius: var(--radius-full);
-  flex-shrink: 0;
-  box-shadow: 0 0 16px var(--accent-gold-glow);
-}
-
-.set-description {
-  color: var(--text-secondary);
-  margin: 0.15rem 0 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.summary-label {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-
-.pwa-icon-btn.danger {
-  color: var(--error-bg);
-}
-
-.coins-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.coins-heading h2 {
-  margin: 0;
-}
-
-.order-status {
-  max-width: 24rem;
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  text-align: right;
-}
-
-.order-status.error {
-  color: var(--confidence-low);
-}
-
-.analytics-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.analytics-card h2 {
-  margin-top: 0;
-}
-
-.analytics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1rem;
-}
-
-.analytics-grid div {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.analytics-grid strong {
-  color: var(--accent-gold);
-  font-size: 1.2rem;
-}
-
-.trend-actions {
-  margin-top: -1rem;
-  margin-bottom: 1.5rem;
-}
-
-.empty-coins {
-  text-align: center;
-  padding: 2rem;
-}
-
-.set-tray-shell.is-saving-order {
-  opacity: 0.8;
-}
-
-.set-tray-display {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.set-coin-management {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.set-coin-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 0.75rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 0.6rem 0.75rem;
-  transition: all var(--transition-fast);
-}
-
-.set-coin-row:hover {
-  border-color: var(--accent-gold);
-}
-
-.set-coin-row[draggable="true"] {
-  cursor: grab;
-}
-
-.set-coin-row.dragging {
-  opacity: 0.55;
-  border-color: var(--accent-gold);
-}
-
-.set-coin-row.drag-over {
-  border-color: var(--accent-gold);
-  box-shadow: var(--shadow-glow);
-}
-
-.order-rank {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.75rem;
-  height: 1.75rem;
-  border: 1px solid var(--border-accent);
-  border-radius: var(--radius-full);
-  color: var(--accent-gold);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.set-coin-title {
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.set-coin-title:hover {
-  color: var(--accent-gold);
-}
-
-.set-coin-value {
-  color: var(--accent-gold);
-  font-size: 0.8rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.order-buttons {
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: nowrap;
-  justify-content: flex-end;
-}
-
-.set-coin-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-  background: var(--bg-input);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.set-coin-action-btn:hover:not(:disabled) {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-  background: var(--accent-gold-glow);
-}
-
-.set-coin-action-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--modal-backdrop, rgba(0, 0, 0, 0.6));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  padding: 2rem;
-  border-radius: var(--radius-md);
-  max-width: 500px;
-  width: 90%;
-  box-shadow: var(--shadow-card);
-}
-
-.modal-content h2 {
-  margin-top: 0;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-}
-
-.form-group input,
-.form-group select,
-.form-group textarea {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-input);
-  color: var(--text-primary);
-  font-family: inherit;
-}
-
-.form-hint {
-  margin: 0.35rem 0 0;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-}
-
-.form-actions {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-  margin-top: 1.5rem;
-}
-
-@media (max-width: 768px) {
-  .set-detail-page {
-    padding-bottom: 1rem;
-  }
-
-  .set-page-header {
-    align-items: flex-start;
-  }
-
-  .set-title-area {
-    align-items: flex-start;
-  }
-
-  .coins-heading {
-    flex-direction: column;
-  }
-
-  .order-status {
-    max-width: none;
-    text-align: left;
-  }
-
-  .set-coin-row {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-
-  .set-coin-value {
-    display: none;
-  }
-}
-</style>

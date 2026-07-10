@@ -11,6 +11,7 @@
         <div v-else class="header-actions">
           <button class="btn btn-primary" @click="showSearchModal = true">
             <UserPlus :size="16" /> Add
+          </button>
         </div>
       </div>
 
@@ -97,6 +98,7 @@
                   @click="handleUnfollow(user)"
                 >
                   Unfollow
+                </button>
               </div>
             </div>
           </div>
@@ -154,6 +156,8 @@
             </div>
           </div>
       </div>
+    </div>
+
     </div>
 
     <!-- Search Modal -->
@@ -232,17 +236,17 @@
                   </button>
                 </div>
               </div>
-              <div v-else-if="searchQuery.length >= 2 && !searchLoading" class="empty-state !px-4 !py-6">
-                <p>No users found for "{{ searchQuery }}"</p>
-              </div>
-              <div v-else class="empty-state !px-4 !py-6">
-                <p>Type at least 2 characters to search</p>
-              </div>
+            </div>
+            <div v-else-if="searchQuery.length >= 2 && !searchLoading" class="empty-state !px-4 !py-6">
+              <p>No users found for "{{ searchQuery }}"</p>
+            </div>
+            <div v-else class="empty-state !px-4 !py-6">
+              <p>Type at least 2 characters to search</p>
             </div>
           </div>
         </div>
-      </Teleport>
-    </div>
+      </div>
+    </Teleport>
   </PullToRefresh>
 </template>
 

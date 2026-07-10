@@ -14,31 +14,34 @@
       </div>
     </div>
 
-    <div v-if="loading" class="loading-state">Loading showcases...</div>
+    <div v-if="loading" class="loading-overlay">
+      <div class="spinner"></div>
+      <p>Loading showcases...</p>
+    </div>
 
     <div v-else-if="!showcases.length" class="empty-state">
       <Presentation :size="48" />
       <h3>No showcases yet</h3>
       <p>Create a showcase to share a curated selection of your coins with the world.</p>
-      <button class="btn btn-primary empty-action" @click="showCreate = true">
+      <button class="btn btn-primary mt-4" @click="showCreate = true">
         <Plus :size="16" /> Create Your First Showcase
       </button>
     </div>
 
-    <div v-else class="showcases-grid">
-      <div v-for="sc in showcases" :key="sc.id" class="card showcase-card">
-        <div class="showcase-header">
-          <h3 class="showcase-title">{{ sc.title }}</h3>
-          <span class="badge" :class="sc.isActive ? 'badge-active' : 'badge-inactive'">
+    <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div v-for="sc in showcases" :key="sc.id" class="card flex flex-col gap-3 p-5">
+        <div class="flex items-start justify-between gap-2">
+          <h3 class="m-0 text-[1.1rem] text-text-primary">{{ sc.title }}</h3>
+          <span class="badge whitespace-nowrap" :class="sc.isActive ? 'bg-[var(--accent-gold-glow)] text-gold' : 'bg-[var(--accent-gold-glow)] text-text-muted'">
             {{ sc.isActive ? 'Active' : 'Inactive' }}
           </span>
         </div>
-        <p v-if="sc.description" class="showcase-desc">{{ sc.description }}</p>
-        <div class="showcase-meta">
-          <span class="coin-count"><Coins :size="14" /> {{ sc.coinCount ?? 0 }} coins</span>
-          <span class="showcase-slug">/s/{{ sc.slug }}</span>
+        <p v-if="sc.description" class="m-0 text-body leading-[1.4] text-text-secondary">{{ sc.description }}</p>
+        <div class="flex flex-col gap-2 text-chip text-text-secondary md:flex-row md:items-center md:justify-between">
+          <span class="inline-flex items-center gap-1"><Coins :size="14" /> {{ sc.coinCount ?? 0 }} coins</span>
+          <span class="font-mono opacity-70">/s/{{ sc.slug }}</span>
         </div>
-        <div class="showcase-actions">
+        <div class="mt-auto flex flex-wrap gap-2">
           <router-link :to="`/showcases/${sc.id}/edit`" class="btn btn-secondary btn-sm">
             <Pencil :size="14" /> Edit
           </router-link>
@@ -61,25 +64,26 @@
       </div>
     </div>
 
-    <div v-if="copied" class="toast">Link copied to clipboard</div>
+    <div v-if="copied" class="fixed bottom-8 left-1/2 z-[1000] -translate-x-1/2 rounded-sm bg-[var(--accent-gold)] px-5 py-2 text-body font-medium text-[var(--bg-primary)]">
+      Link copied to clipboard
+    </div>
 
-    <!-- Create Modal -->
-    <div v-if="showCreate" class="modal-overlay" @click.self="showCreate = false">
-      <div class="modal card">
-        <div class="modal-header">
-          <h2>New Showcase</h2>
-          <button class="btn-close" @click="showCreate = false"><X :size="18" /></button>
+    <div v-if="showCreate" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 py-6" @click.self="showCreate = false">
+      <div class="card w-full max-w-[480px] p-6">
+        <div class="mb-4 flex items-center justify-between gap-4">
+          <h2 class="m-0 text-lg text-text-primary">New Showcase</h2>
+          <button class="inline-flex rounded-sm p-1 text-text-secondary transition-colors hover:text-text-primary" @click="showCreate = false"><X :size="18" /></button>
         </div>
         <form @submit.prevent="handleCreate">
           <div class="form-group">
-            <label for="sc-title">Title</label>
-            <input id="sc-title" v-model="newTitle" type="text" required placeholder="e.g. Roman Imperial Highlights" />
+            <label for="sc-title" class="form-label">Title</label>
+            <input id="sc-title" v-model="newTitle" type="text" class="form-input" required placeholder="e.g. Roman Imperial Highlights" />
           </div>
           <div class="form-group">
-            <label for="sc-desc">Description (optional)</label>
-            <textarea id="sc-desc" v-model="newDesc" rows="3" placeholder="A brief description of this showcase"></textarea>
+            <label for="sc-desc" class="form-label">Description (optional)</label>
+            <textarea id="sc-desc" v-model="newDesc" rows="3" class="form-input" placeholder="A brief description of this showcase"></textarea>
           </div>
-          <div class="modal-actions">
+          <div class="mt-5 flex justify-end gap-2">
             <button type="button" class="btn btn-secondary" @click="showCreate = false">Cancel</button>
             <button type="submit" class="btn btn-primary" :disabled="creating">
               {{ creating ? 'Creating...' : 'Create' }}
@@ -89,12 +93,11 @@
       </div>
     </div>
 
-    <!-- Delete Confirmation -->
-    <div v-if="deleteTarget" class="modal-overlay" @click.self="deleteTarget = null">
-      <div class="modal card">
-        <h2>Delete Showcase</h2>
-        <p>Are you sure you want to delete "{{ deleteTarget.title }}"? This cannot be undone.</p>
-        <div class="modal-actions">
+    <div v-if="deleteTarget" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 py-6" @click.self="deleteTarget = null">
+      <div class="card w-full max-w-[480px] p-6">
+        <h2 class="mb-3 mt-0 text-lg text-text-primary">Delete Showcase</h2>
+        <p class="m-0 text-base text-text-secondary">Are you sure you want to delete "{{ deleteTarget.title }}"? This cannot be undone.</p>
+        <div class="mt-5 flex justify-end gap-2">
           <button class="btn btn-secondary" @click="deleteTarget = null">Cancel</button>
           <button class="btn btn-danger" :disabled="deleting" @click="handleDelete">
             {{ deleting ? 'Deleting...' : 'Delete' }}
@@ -193,39 +196,3 @@ function copyLink(slug: string) {
 
 onMounted(loadShowcases)
 </script>
-
-<style scoped>
-.container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
-.loading-state { text-align: center; padding: 2rem; color: var(--text-secondary); }
-.empty-state { text-align: center; padding: 3rem; color: var(--text-secondary); }
-.empty-state h3 { color: var(--text-primary); margin: 1rem 0 0.5rem; }
-.empty-action { margin-top: 1rem; }
-
-.showcases-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
-.showcase-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; }
-.showcase-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
-.showcase-title { font-size: 1.1rem; color: var(--text-primary); margin: 0; }
-.badge { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: var(--radius-full); font-weight: 600; text-transform: uppercase; white-space: nowrap; }
-.badge-active { background: var(--accent-gold-glow); color: var(--accent-gold); }
-.badge-inactive { background: var(--accent-gold-glow); color: var(--text-muted); }
-.showcase-desc { color: var(--text-secondary); font-size: 0.875rem; margin: 0; line-height: 1.4; }
-.showcase-meta { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--text-secondary); }
-.coin-count { display: inline-flex; align-items: center; gap: 0.25rem; }
-.showcase-slug { font-family: monospace; opacity: 0.7; }
-.showcase-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: auto; }
-
-.toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); background: var(--accent-gold); color: var(--bg-primary); padding: 0.5rem 1.25rem; border-radius: var(--radius-sm); font-weight: 500; font-size: 0.875rem; z-index: 1000; }
-
-.modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.modal { width: 90%; max-width: 480px; padding: 1.5rem; }
-.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-.modal-header h2 { margin: 0; color: var(--text-primary); }
-.modal h2 { color: var(--text-primary); margin: 0 0 0.75rem; }
-.modal p { color: var(--text-secondary); }
-.btn-close { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 0.25rem; }
-.form-group { margin-bottom: 1rem; }
-.form-group label { display: block; margin-bottom: 0.35rem; color: var(--text-secondary); font-size: 0.875rem; }
-.form-group input,
-.form-group textarea { width: 100%; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.5rem 0.75rem; font-size: 0.875rem; box-sizing: border-box; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; }
-</style>

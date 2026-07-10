@@ -1,48 +1,61 @@
 <template>
-  <section class="run-history">
-    <div class="section-header">
+  <section class="grid gap-3 rounded-md border border-border-subtle bg-card p-4">
+    <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
       <div>
-        <h3>Run history</h3>
-        <p class="muted">Manual discovery runs are stored separately from wishlist availability checks.</p>
+        <h3 class="m-0">Run history</h3>
+        <p class="m-0 text-body text-text-muted">Manual discovery runs are stored separately from wishlist availability checks.</p>
       </div>
-      <button class="btn btn-secondary btn-sm" type="button" :disabled="loading" @click="$emit('refresh')">Refresh</button>
+      <button class="btn btn-secondary btn-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="button" :disabled="loading" @click="$emit('refresh')">Refresh</button>
     </div>
 
-    <p v-if="error" class="message error-text">{{ error }}</p>
-    <div v-else-if="loading" class="message">Loading run history...</div>
-    <div v-else-if="!runs.length" class="message">No runs yet. Use Run Now to discover source-backed candidates.</div>
-    <div v-else class="runs-list">
+    <p v-if="error" class="m-0 text-body text-bronze">{{ error }}</p>
+    <div v-else-if="loading" class="text-body text-text-muted">Loading run history...</div>
+    <div v-else-if="!runs.length" class="text-body text-text-muted">No runs yet. Use Run Now to discover source-backed candidates.</div>
+    <div v-else class="grid gap-1.5">
       <button
         v-for="run in runs"
         :key="run.id"
-        class="run-row"
-        :class="{ selected: selectedRunId === run.id }"
+        :class="[
+          'grid w-full gap-3 rounded-sm border bg-input p-3 text-left text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)] md:grid-cols-[auto_1fr_auto] md:items-center',
+          selectedRunId === run.id ? 'border-gold shadow-glow' : 'border-border-subtle',
+        ]"
         type="button"
         @click="$emit('select', run.id)"
       >
-        <span class="status badge" :class="run.status">{{ statusLabel(run.status) }}</span>
-        <span class="run-date">{{ formatDate(run.startedAt) }}</span>
-        <span class="counts">{{ run.resultCount }} results, {{ run.newCount }} new, {{ run.duplicateCount }} duplicates</span>
+        <span
+          :class="[
+            'badge w-fit border capitalize',
+            run.status === 'failed' || run.status === 'rate_limited'
+              ? 'border-bronze text-bronze'
+              : run.status === 'partial'
+                ? 'border-gold text-gold'
+                : 'border-border-subtle text-text-secondary',
+          ]"
+        >
+          {{ statusLabel(run.status) }}
+        </span>
+        <span class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</span>
+        <span class="text-body text-text-secondary">{{ run.resultCount }} results, {{ run.newCount }} new, {{ run.duplicateCount }} duplicates</span>
       </button>
     </div>
 
-    <article v-if="selectedRun" class="run-detail">
-      <div class="detail-grid">
-        <div><span class="info-label">Status</span><strong>{{ statusLabel(selectedRun.status) }}</strong></div>
-        <div><span class="info-label">Started</span><strong>{{ formatDate(selectedRun.startedAt) }}</strong></div>
-        <div><span class="info-label">Completed</span><strong>{{ selectedRun.completedAt ? formatDate(selectedRun.completedAt) : 'Unknown' }}</strong></div>
-        <div><span class="info-label">Rate limit</span><strong>{{ selectedRun.rateLimitStatus || 'ok' }}</strong></div>
+    <article v-if="selectedRun" class="grid gap-3 border-t border-border-subtle pt-3">
+      <div class="grid gap-3 md:grid-cols-2">
+        <div class="grid gap-1 rounded-sm border border-border-subtle bg-input p-3"><span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Status</span><strong>{{ statusLabel(selectedRun.status) }}</strong></div>
+        <div class="grid gap-1 rounded-sm border border-border-subtle bg-input p-3"><span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Started</span><strong>{{ formatDate(selectedRun.startedAt) }}</strong></div>
+        <div class="grid gap-1 rounded-sm border border-border-subtle bg-input p-3"><span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Completed</span><strong>{{ selectedRun.completedAt ? formatDate(selectedRun.completedAt) : 'Unknown' }}</strong></div>
+        <div class="grid gap-1 rounded-sm border border-border-subtle bg-input p-3"><span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Rate limit</span><strong>{{ selectedRun.rateLimitStatus || 'ok' }}</strong></div>
       </div>
-      <p v-if="selectedRun.errorMessage" class="message error-text">{{ selectedRun.errorMessage }}</p>
-      <ul v-if="selectedRun.partialWarnings?.length" class="warnings">
+      <p v-if="selectedRun.errorMessage" class="m-0 text-body text-bronze">{{ selectedRun.errorMessage }}</p>
+      <ul v-if="selectedRun.partialWarnings?.length" class="m-0 grid gap-1 pl-5 text-body text-gold">
         <li v-for="warning in selectedRun.partialWarnings" :key="warning">{{ warning }}</li>
       </ul>
-      <details class="snapshot">
-        <summary>Criteria snapshot</summary>
-        <dl>
+      <details class="grid gap-2">
+        <summary class="cursor-pointer text-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]">Criteria snapshot</summary>
+        <dl class="mt-3 grid grid-cols-[minmax(120px,_auto)_1fr] gap-x-3 gap-y-1">
           <template v-for="item in snapshotItems" :key="item.label">
-            <dt>{{ item.label }}</dt>
-            <dd>{{ item.value }}</dd>
+            <dt class="text-text-muted">{{ item.label }}</dt>
+            <dd class="m-0 text-text-secondary">{{ item.value }}</dd>
           </template>
         </dl>
       </details>
@@ -80,28 +93,3 @@ const snapshotItems = computed(() => {
   }
 })
 </script>
-
-<style scoped>
-.run-history { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-card); padding: 1rem; display: grid; gap: 0.75rem; }
-.section-header { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
-h3 { margin: 0; }
-.muted, .message { color: var(--text-muted); margin: 0; }
-.error-text { color: var(--accent-bronze); }
-.runs-list { display: grid; gap: 0.35rem; }
-.run-row { width: 100%; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text-primary); padding: 0.75rem; display: grid; grid-template-columns: auto 1fr auto; gap: 0.75rem; align-items: center; text-align: left; cursor: pointer; }
-.run-row.selected { border-color: var(--accent-gold); box-shadow: var(--shadow-glow); }
-.status { text-transform: capitalize; }
-.status.failed, .status.rate_limited { border-color: var(--accent-bronze); color: var(--accent-bronze); }
-.status.partial { border-color: var(--accent-gold); color: var(--accent-gold); }
-.run-date, .counts { color: var(--text-secondary); font-size: 0.85rem; }
-.run-detail { border-top: 1px solid var(--border-subtle); padding-top: 0.75rem; display: grid; gap: 0.75rem; }
-.detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; }
-.detail-grid div { border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.75rem; background: var(--bg-input); display: grid; gap: 0.25rem; }
-.info-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
-.warnings { color: var(--accent-gold); margin: 0; padding-left: 1.25rem; }
-.snapshot summary { color: var(--accent-gold); cursor: pointer; }
-dl { display: grid; grid-template-columns: minmax(120px, auto) 1fr; gap: 0.35rem 0.75rem; margin: 0.75rem 0 0; }
-dt { color: var(--text-muted); }
-dd { margin: 0; color: var(--text-secondary); }
-@media (max-width: 640px) { .section-header, .run-row { grid-template-columns: 1fr; display: grid; } }
-</style>

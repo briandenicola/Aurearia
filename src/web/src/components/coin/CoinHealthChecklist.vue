@@ -1,41 +1,64 @@
 <template>
-  <div class="coin-health-checklist card">
-    <div class="checklist-header">
-      <div class="health-score-badge" :class="`grade-${grade.toLowerCase()}`">
-        <span class="score-label">Health Score</span>
-        <span class="score-value">{{ score }}</span>
-        <span class="score-grade">{{ grade }}</span>
+  <div class="card !p-4">
+    <div class="mb-4">
+      <div
+        class="inline-flex items-center gap-2 rounded-sm border px-4 py-2 text-body font-semibold"
+        :class="{
+          'border-gain/30 bg-gain/15 text-gain': grade.toLowerCase() === 'a',
+          'border-sky-500/30 bg-sky-500/15 text-sky-400': grade.toLowerCase() === 'b',
+          'border-warning/30 bg-warning/15 text-warning': grade.toLowerCase() === 'c',
+          'border-orange-500/30 bg-orange-500/15 text-orange-400': grade.toLowerCase() === 'd',
+          'border-loss/30 bg-loss/15 text-loss': grade.toLowerCase() === 'f',
+        }"
+      >
+        <span class="section-label !mb-0 opacity-80">Health Score</span>
+        <span class="text-lg font-bold">{{ score }}</span>
+        <span class="text-chip uppercase tracking-[0.05em]">{{ grade }}</span>
       </div>
     </div>
 
-    <div v-if="missingItems.length === 0" class="checklist-complete">
+    <div
+      v-if="missingItems.length === 0"
+      class="flex items-center gap-2 rounded-sm border border-gain/30 bg-gain/15 px-3 py-3 text-body font-medium text-gain"
+    >
       <CircleCheck :size="20" />
       <span>All quality checks passed</span>
     </div>
 
-    <div v-else class="checklist-content">
-      <div class="checklist-title">
+    <div v-else class="flex flex-col gap-3">
+      <div class="section-label !mb-0 flex items-center gap-2 text-text-secondary">
         <AlertCircle :size="16" />
         Needs Attention ({{ missingItems.length }})
       </div>
 
-      <div class="checklist-items">
+      <div class="flex flex-col gap-2">
         <div
           v-for="(item, idx) in missingItems"
           :key="idx"
-          class="checklist-item"
-          :class="`severity-${item.severity}`"
+          class="flex items-center gap-2 rounded-sm border border-border-subtle bg-input p-[0.6rem] md:gap-3 md:p-3"
+          :class="{
+            'border-l-[3px] border-l-loss': item.severity === 'high',
+            'border-l-[3px] border-l-warning': item.severity === 'medium',
+            'border-l-[3px] border-l-sky-400': item.severity === 'low',
+          }"
         >
-          <div class="item-icon">
+          <div
+            class="shrink-0 text-text-muted"
+            :class="{
+              'text-loss': item.severity === 'high',
+              'text-warning': item.severity === 'medium',
+              'text-sky-400': item.severity === 'low',
+            }"
+          >
             <component :is="getSeverityIcon(item.severity)" :size="14" />
           </div>
-          <div class="item-details">
-            <div class="item-key">{{ item.label }}</div>
-            <div class="item-dimension">{{ formatDimension(item.dimension) }}</div>
+          <div class="flex flex-1 flex-col gap-[0.15rem]">
+            <div class="text-chip font-medium text-text-primary md:text-body">{{ item.label }}</div>
+            <div class="text-sm text-text-muted">{{ formatDimension(item.dimension) }}</div>
           </div>
           <button
             v-if="item.actionHint"
-            class="btn-xs btn-ghost quick-action"
+            class="btn-xs btn-ghost shrink-0"
             @click="handleQuickAction(item.actionHint)"
           >
             {{ formatQuickAction(item.actionHint) }}
@@ -95,189 +118,3 @@ function handleQuickAction(action: HealthQuickAction) {
   emit('quickAction', action)
 }
 </script>
-
-<style scoped>
-.coin-health-checklist {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 1rem;
-  box-shadow: var(--shadow-card);
-}
-
-.checklist-header {
-  margin-bottom: 1rem;
-}
-
-.health-score-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.grade-a {
-  color: #27ae60;
-  border-color: rgba(39, 174, 96, 0.3);
-  background: rgba(39, 174, 96, 0.15);
-}
-
-.grade-b {
-  color: #3498db;
-  border-color: rgba(52, 152, 219, 0.3);
-  background: rgba(52, 152, 219, 0.15);
-}
-
-.grade-c {
-  color: #f39c12;
-  border-color: rgba(243, 156, 18, 0.3);
-  background: rgba(243, 156, 18, 0.15);
-}
-
-.grade-d {
-  color: #e67e22;
-  border-color: rgba(230, 126, 34, 0.3);
-  background: rgba(230, 126, 34, 0.15);
-}
-
-.grade-f {
-  color: #e74c3c;
-  border-color: rgba(231, 76, 60, 0.3);
-  background: rgba(231, 76, 60, 0.15);
-}
-
-.score-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  opacity: 0.8;
-}
-
-.score-value {
-  font-size: 1.1rem;
-  font-weight: 700;
-}
-
-.score-grade {
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.checklist-complete {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  background: rgba(39, 174, 96, 0.15);
-  border: 1px solid rgba(39, 174, 96, 0.3);
-  border-radius: var(--radius-sm);
-  color: #27ae60;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-.checklist-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.checklist-title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.checklist-items {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.checklist-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  background: var(--bg-input);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-}
-
-.severity-high {
-  border-left: 3px solid #e74c3c;
-}
-
-.severity-medium {
-  border-left: 3px solid #f39c12;
-}
-
-.severity-low {
-  border-left: 3px solid #3498db;
-}
-
-.item-icon {
-  flex-shrink: 0;
-  color: var(--text-muted);
-}
-
-.severity-high .item-icon {
-  color: #e74c3c;
-}
-
-.severity-medium .item-icon {
-  color: #f39c12;
-}
-
-.severity-low .item-icon {
-  color: #3498db;
-}
-
-.item-details {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.item-key {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.item-dimension {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.quick-action {
-  flex-shrink: 0;
-}
-
-@media (max-width: 768px) {
-  .checklist-item {
-    gap: 0.5rem;
-    padding: 0.6rem;
-  }
-
-  .item-key {
-    font-size: 0.8rem;
-  }
-
-  .quick-action {
-    font-size: 0.7rem;
-    padding: 0.2rem 0.5rem;
-  }
-}
-</style>

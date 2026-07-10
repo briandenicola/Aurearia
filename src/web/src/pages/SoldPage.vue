@@ -13,9 +13,9 @@
         <CoinCard v-for="coin in store.coins" :key="coin.id" :coin="coin" sold />
       </div>
 
-      <div v-if="store.total > pageSize" class="pagination">
+      <div v-if="store.total > pageSize" class="mt-6 flex items-center justify-center gap-4 py-4">
         <button class="btn btn-secondary btn-sm" :disabled="page <= 1" @click="page--">← Previous</button>
-        <span class="page-info">Page {{ page }} of {{ Math.ceil(store.total / pageSize) }}</span>
+        <span class="text-body text-text-secondary">Page {{ page }} of {{ Math.ceil(store.total / pageSize) }}</span>
         <button class="btn btn-secondary btn-sm" :disabled="page * pageSize >= store.total" @click="page++">Next →</button>
       </div>
 
@@ -49,19 +49,3 @@ async function handleRefresh() {
   await store.fetchCoins({ sold: 'true', sort: 'updated_at', order: 'desc', page: 1 })
 }
 </script>
-
-<style scoped>
-.pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 1.5rem;
-  padding: 1rem 0;
-}
-
-.page-info {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-</style>

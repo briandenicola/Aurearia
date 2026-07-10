@@ -1,20 +1,23 @@
 <template>
-  <div class="container">
-    <div v-if="loading" class="loading-state">Loading showcase...</div>
+  <div class="container overflow-x-hidden">
+    <div v-if="loading" class="loading-overlay">
+      <div class="spinner"></div>
+      <p>Loading showcase...</p>
+    </div>
 
     <template v-else-if="showcase">
-      <div class="page-header">
-        <div class="title-section">
-          <router-link to="/showcases" class="back-link"><ArrowLeft :size="16" /> Showcases</router-link>
-          <div v-if="!editingTitle" class="title-row" @click="startEditTitle">
+      <div class="page-header items-start gap-4">
+        <div class="min-w-0 flex-1">
+          <router-link to="/showcases" class="mb-2 inline-flex items-center gap-1 text-body text-text-secondary no-underline transition-colors hover:text-gold"><ArrowLeft :size="16" /> Showcases</router-link>
+          <div v-if="!editingTitle" class="group flex cursor-pointer items-center gap-2" @click="startEditTitle">
             <h1>{{ showcase.title }}</h1>
-            <Pencil :size="14" class="edit-icon" />
+            <Pencil :size="14" class="text-text-secondary opacity-40 transition-opacity group-hover:opacity-100" />
           </div>
-          <div v-else class="title-edit-row">
+          <div v-else class="flex flex-wrap items-center gap-2">
             <input
               v-model="editTitle"
               type="text"
-              class="title-input"
+              class="form-input min-w-0 flex-1 text-lg font-bold"
               @keyup.enter="saveTitle"
               @keyup.escape="editingTitle = false"
               ref="titleInput"
@@ -22,13 +25,13 @@
             <button class="btn btn-primary btn-sm" @click="saveTitle">Save</button>
             <button class="btn btn-secondary btn-sm" @click="editingTitle = false">Cancel</button>
           </div>
-          <div v-if="!editingDesc" class="desc-row" @click="startEditDesc">
-            <p class="showcase-desc">{{ showcase.description || 'No description' }}</p>
-            <Pencil :size="12" class="edit-icon" />
+          <div v-if="!editingDesc" class="group mt-1 flex cursor-pointer items-center gap-1.5" @click="startEditDesc">
+            <p class="m-0 text-body text-text-secondary">{{ showcase.description || 'No description' }}</p>
+            <Pencil :size="12" class="text-text-secondary opacity-40 transition-opacity group-hover:opacity-100" />
           </div>
-          <div v-else class="desc-edit-row">
-            <textarea v-model="editDesc" rows="2" class="desc-input" @keyup.escape="editingDesc = false"></textarea>
-            <div class="inline-actions">
+          <div v-else class="mt-1">
+            <textarea v-model="editDesc" rows="2" class="form-input" @keyup.escape="editingDesc = false"></textarea>
+            <div class="mt-1.5 flex gap-2">
               <button class="btn btn-primary btn-sm" @click="saveDesc">Save</button>
               <button class="btn btn-secondary btn-sm" @click="editingDesc = false">Cancel</button>
             </div>
@@ -39,76 +42,74 @@
         </button>
       </div>
 
-      <div v-if="savedMessage" class="toast">{{ savedMessage }}</div>
+      <div v-if="savedMessage" class="fixed bottom-8 left-1/2 z-[1000] -translate-x-1/2 rounded-sm bg-[var(--accent-gold)] px-5 py-2 text-body font-medium text-[var(--bg-primary)]">{{ savedMessage }}</div>
 
-      <div class="columns">
-        <!-- Left: Your Collection -->
-        <div class="column">
-          <div class="column-header">
-            <h2>Your Collection</h2>
-            <span class="count-label">{{ availableCoins.length }} coins</span>
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div class="card flex max-h-[70vh] flex-col overflow-hidden p-4">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <h2 class="m-0 text-[1.1rem] text-text-primary">Your Collection</h2>
+            <span class="text-chip text-text-secondary">{{ availableCoins.length }} coins</span>
           </div>
-          <div class="search-bar">
+          <div class="mb-3 flex items-center gap-2 rounded-sm border border-border-subtle bg-card px-3 py-2 text-text-secondary">
             <Search :size="16" />
-            <input v-model="search" type="text" placeholder="Search coins..." />
+            <input v-model="search" type="text" placeholder="Search coins..." class="min-w-0 flex-1 bg-transparent text-base text-text-primary outline-none" />
           </div>
-          <div class="coin-list">
+          <div class="flex flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto">
             <div
               v-for="coin in filteredCollection"
               :key="coin.id"
-              class="coin-row"
-              :class="{ selected: selectedIds.has(coin.id) }"
+              class="flex min-w-0 cursor-pointer items-center gap-2 rounded-sm px-2 py-2 transition-colors hover:bg-white/4"
+              :class="{ 'opacity-40': selectedIds.has(coin.id) }"
               @click="addCoin(coin.id)"
             >
               <AuthenticatedImage
                 v-if="getPrimaryImage(coin)"
                 :media-path="imageUrl(getPrimaryImage(coin)!)"
-                class="coin-thumb"
+                class="h-9 w-9 shrink-0 rounded-sm object-cover"
                 alt=""
               />
-              <div v-else class="coin-thumb placeholder"><Coins :size="16" /></div>
-              <div class="coin-info">
-                <span class="coin-name">{{ coin.name ?? 'Untitled' }}</span>
-                <span class="coin-meta">{{ [coin.era, coin.category].filter(Boolean).join(' / ') }}</span>
+              <div v-else class="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm bg-white/5 text-text-secondary"><Coins :size="16" /></div>
+              <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
+                <span class="truncate text-base font-medium text-text-primary">{{ coin.name ?? 'Untitled' }}</span>
+                <span class="truncate text-sm text-text-secondary">{{ [coin.era, coin.category].filter(Boolean).join(' / ') }}</span>
               </div>
-              <Plus :size="16" class="add-icon" />
+              <Plus :size="16" class="shrink-0 text-text-secondary" />
             </div>
-            <div v-if="!filteredCollection.length" class="empty-list">No matching coins</div>
+            <div v-if="!filteredCollection.length" class="py-8 text-center text-base text-text-secondary">No matching coins</div>
           </div>
         </div>
 
-        <!-- Right: Showcase Coins -->
-        <div class="column">
-          <div class="column-header">
-            <h2>Showcase Coins</h2>
-            <span class="count-label">{{ selectedCoinIds.length }} selected</span>
+        <div class="card flex max-h-[70vh] flex-col overflow-hidden p-4">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <h2 class="m-0 text-[1.1rem] text-text-primary">Showcase Coins</h2>
+            <span class="text-chip text-text-secondary">{{ selectedCoinIds.length }} selected</span>
           </div>
-          <div class="coin-list">
+          <div class="flex flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto">
             <div
               v-for="(coinId, idx) in selectedCoinIds"
               :key="coinId"
-              class="coin-row showcase-row"
+              class="flex min-w-0 items-center gap-2 rounded-sm px-2 py-2"
             >
-              <span class="order-num">{{ idx + 1 }}</span>
+              <span class="w-5 shrink-0 text-center text-sm text-text-secondary">{{ idx + 1 }}</span>
               <template v-if="coinMap.get(coinId)">
                 <AuthenticatedImage
                   v-if="getPrimaryImage(coinMap.get(coinId)!)"
                   :media-path="imageUrl(getPrimaryImage(coinMap.get(coinId)!)!)"
-                  class="coin-thumb"
+                  class="h-9 w-9 shrink-0 rounded-sm object-cover"
                   alt=""
                 />
-                <div v-else class="coin-thumb placeholder"><Coins :size="16" /></div>
-                <div class="coin-info">
-                  <span class="coin-name">{{ coinMap.get(coinId)?.name ?? 'Untitled' }}</span>
-                  <span class="coin-meta">{{ [coinMap.get(coinId)?.era, coinMap.get(coinId)?.category].filter(Boolean).join(' / ') }}</span>
+                <div v-else class="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm bg-white/5 text-text-secondary"><Coins :size="16" /></div>
+                <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
+                  <span class="truncate text-base font-medium text-text-primary">{{ coinMap.get(coinId)?.name ?? 'Untitled' }}</span>
+                  <span class="truncate text-sm text-text-secondary">{{ [coinMap.get(coinId)?.era, coinMap.get(coinId)?.category].filter(Boolean).join(' / ') }}</span>
                 </div>
               </template>
-              <span v-else class="coin-info"><span class="coin-name">Coin #{{ coinId }}</span></span>
-              <button class="btn-remove" @click="removeCoin(coinId)" title="Remove">
+              <span v-else class="min-w-0 flex-1 truncate text-base font-medium text-text-primary">Coin #{{ coinId }}</span>
+              <button class="inline-flex shrink-0 rounded-sm p-1 text-text-secondary transition-colors hover:text-[var(--error-bg)]" @click="removeCoin(coinId)" title="Remove">
                 <X :size="16" />
               </button>
             </div>
-            <div v-if="!selectedCoinIds.length" class="empty-list">
+            <div v-if="!selectedCoinIds.length" class="py-8 text-center text-base text-text-secondary">
               Click coins from your collection to add them
             </div>
           </div>
@@ -290,66 +291,3 @@ async function loadData() {
 
 onMounted(loadData)
 </script>
-
-<style scoped>
-.container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; overflow-x: hidden; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; gap: 1rem; flex-wrap: wrap; }
-.page-header h1 { font-size: 1.75rem; color: var(--text-primary); margin: 0; }
-.btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.5rem 1rem; border-radius: var(--radius-sm); border: none; cursor: pointer; font-weight: 500; font-size: 0.875rem; white-space: nowrap; }
-.btn-primary { background: var(--accent-gold); color: #1e1e1e; }
-.btn-secondary { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-subtle); }
-.btn-sm { padding: 0.35rem 0.65rem; font-size: 0.8rem; }
-.loading-state { text-align: center; padding: 2rem; color: var(--text-secondary); }
-.empty-state { text-align: center; padding: 3rem; color: var(--text-secondary); }
-.empty-state h3 { color: var(--text-primary); }
-
-.back-link { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--text-secondary); font-size: 0.85rem; text-decoration: none; margin-bottom: 0.5rem; }
-.back-link:hover { color: var(--accent-gold); }
-
-.title-section { flex: 1; min-width: 0; }
-.title-row { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
-.title-row:hover .edit-icon { opacity: 1; }
-.edit-icon { color: var(--text-secondary); opacity: 0.4; transition: opacity 0.2s; }
-.title-edit-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-.title-input { font-size: 1.25rem; font-weight: 700; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.25rem 0.5rem; flex: 1; min-width: 0; }
-.desc-row { display: flex; align-items: center; gap: 0.35rem; cursor: pointer; margin-top: 0.25rem; }
-.desc-row:hover .edit-icon { opacity: 1; }
-.showcase-desc { color: var(--text-secondary); font-size: 0.875rem; margin: 0; }
-.desc-edit-row { margin-top: 0.25rem; }
-.desc-input { width: 100%; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.5rem 0.75rem; font-size: 0.875rem; box-sizing: border-box; }
-.inline-actions { display: flex; gap: 0.5rem; margin-top: 0.35rem; }
-
-.toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); background: var(--accent-gold); color: #1e1e1e; padding: 0.5rem 1.25rem; border-radius: var(--radius-sm); font-weight: 500; font-size: 0.875rem; z-index: 1000; }
-
-.columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-@media (max-width: 768px) {
-  .columns { grid-template-columns: 1fr; }
-  .container { padding: 1rem; }
-  .page-header h1 { font-size: 1.35rem; }
-}
-
-.column { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 1rem; display: flex; flex-direction: column; max-height: 70vh; overflow: hidden; }
-.column-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
-.column-header h2 { font-size: 1.1rem; color: var(--text-primary); margin: 0; }
-.count-label { font-size: 0.8rem; color: var(--text-secondary); }
-
-.search-bar { display: flex; align-items: center; gap: 0.5rem; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.4rem 0.75rem; margin-bottom: 0.75rem; color: var(--text-secondary); }
-.search-bar input { flex: 1; background: transparent; border: none; color: var(--text-primary); outline: none; font-size: 0.875rem; min-width: 0; }
-
-.coin-list { flex: 1; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 0.25rem; }
-.coin-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; border-radius: var(--radius-sm); cursor: pointer; transition: background 0.15s; min-width: 0; }
-.coin-row:hover { background: rgba(255, 255, 255, 0.04); }
-.coin-row.selected { opacity: 0.4; }
-.showcase-row { cursor: default; }
-
-.coin-thumb { width: 36px; height: 36px; border-radius: var(--radius-sm); object-fit: cover; flex-shrink: 0; }
-.coin-thumb.placeholder { display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.05); color: var(--text-secondary); }
-.coin-info { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-.coin-name { color: var(--text-primary); font-size: 0.875rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.coin-meta { color: var(--text-secondary); font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.add-icon { color: var(--text-secondary); flex-shrink: 0; }
-.order-num { color: var(--text-secondary); font-size: 0.75rem; width: 1.25rem; text-align: center; flex-shrink: 0; }
-.btn-remove { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 0.25rem; border-radius: var(--radius-sm); flex-shrink: 0; }
-.btn-remove:hover { color: #dc3545; }
-.empty-list { text-align: center; padding: 2rem; color: var(--text-secondary); font-size: 0.875rem; }
-</style>

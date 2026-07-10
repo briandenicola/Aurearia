@@ -1,20 +1,20 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal card">
-      <h3>Move to Collection</h3>
-      <p class="purchase-coin-name">{{ coin.name }}</p>
+  <div class="fixed inset-0 z-[1000] flex items-center justify-center bg-overlay p-4" @click.self="$emit('close')">
+    <div class="card w-full max-w-[420px] !p-8">
+      <h3 class="mb-1 text-lg font-medium text-heading">Move to Collection</h3>
+      <p class="mb-5 truncate text-base text-gold">{{ coin.name }}</p>
 
       <div class="form-group">
         <label class="form-label">Purchase Price</label>
-        <div class="price-input-wrapper">
-          <span class="price-prefix">$</span>
+        <div class="relative flex items-center">
+          <span class="pointer-events-none absolute left-3 text-base text-text-secondary">$</span>
           <input
             ref="priceInput"
             v-model="priceStr"
             type="number"
             step="0.01"
             min="0"
-            class="form-input price-input"
+            class="form-input pl-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             placeholder="0.00"
           />
         </div>
@@ -39,11 +39,11 @@
         />
       </div>
 
-      <p class="optional-note">All fields are optional. You can update these later.</p>
+      <p class="mb-3 text-[0.78rem] text-text-secondary">All fields are optional. You can update these later.</p>
 
-      <div v-if="error" class="purchase-error">{{ error }}</div>
+      <div v-if="error" class="mb-3 text-[0.82rem] text-loss">{{ error }}</div>
 
-      <div class="modal-actions">
+      <div class="mt-6 flex justify-end gap-3">
         <button class="btn btn-secondary" @click="$emit('close')">Cancel</button>
         <button class="btn btn-primary" :disabled="submitting" @click="handleSubmit">
           {{ submitting ? 'Saving...' : 'Add to Collection' }}
@@ -109,93 +109,3 @@ function handleSubmit() {
   emit('confirm', data)
 }
 </script>
-
-<style scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal {
-  max-width: 420px;
-  width: 90%;
-  padding: 2rem;
-}
-
-.modal h3 {
-  margin-bottom: 0.25rem;
-  font-size: 1.1rem;
-}
-
-.purchase-coin-name {
-  color: var(--accent-gold);
-  font-size: 0.9rem;
-  margin-bottom: 1.25rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-label {
-  display: block;
-  font-size: 0.82rem;
-  font-weight: 600;
-  margin-bottom: 0.35rem;
-  color: var(--text-secondary);
-}
-
-.price-input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.price-prefix {
-  position: absolute;
-  left: 0.75rem;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  pointer-events: none;
-}
-
-.price-input {
-  padding-left: 1.5rem;
-}
-
-.price-input::-webkit-inner-spin-button,
-.price-input::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-.price-input[type='number'] {
-  -moz-appearance: textfield;
-}
-
-.optional-note {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.75rem;
-}
-
-.purchase-error {
-  color: #e74c3c;
-  font-size: 0.82rem;
-  margin-bottom: 0.75rem;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: flex-end;
-  margin-top: 1.5rem;
-}
-</style>

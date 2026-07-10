@@ -4,41 +4,86 @@
       <h1>Wishlist</h1>
       <!-- PWA: icon-only buttons inline with title -->
       <div v-if="isPwa" class="pwa-actions">
-        <button class="pwa-icon-btn" :disabled="checking" @click="handleCheckAvailability" title="Check Availability">
-          <span v-if="checking" class="spinner-sm"></span>
+        <button
+          class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+          :disabled="checking"
+          @click="handleCheckAvailability"
+          title="Check Availability"
+        >
+          <span
+            v-if="checking"
+            class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"
+          ></span>
           <ShieldCheck v-else :size="22" />
         </button>
-        <router-link v-if="store.coins.length" to="/wishlist/search-alerts" class="pwa-icon-btn" title="Add Wish List Finder Agent" aria-label="Add Wish List Finder Agent">
+        <router-link
+          v-if="store.coins.length"
+          to="/wishlist/search-alerts"
+          class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+          title="Add Wish List Finder Agent"
+          aria-label="Add Wish List Finder Agent"
+        >
           <CalendarClock :size="22" />
         </router-link>
-        <router-link to="/lookup" class="pwa-icon-btn" title="Identify Coin">
+        <router-link
+          to="/lookup"
+          class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+          title="Identify Coin"
+        >
           <CirclePlus :size="22" />
         </router-link>
       </div>
       <!-- Desktop: full text buttons -->
-      <div v-else class="header-actions">
+      <div v-else class="header-actions flex-wrap gap-3">
         <button
-          class="btn btn-secondary"
+          class="btn btn-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
           :disabled="checking"
           @click="handleCheckAvailability"
         >
-          <span v-if="checking" class="spinner-sm"></span>
+          <span
+            v-if="checking"
+            class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"
+          ></span>
           <ShieldCheck v-else :size="16" />
           {{ checking ? 'Checking...' : 'Check Availability' }}
         </button>
-        <router-link v-if="store.coins.length" to="/wishlist/search-alerts" class="btn btn-secondary" title="Search Alerts">
+        <router-link
+          v-if="store.coins.length"
+          to="/wishlist/search-alerts"
+          class="btn btn-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+          title="Search Alerts"
+        >
           <CalendarClock :size="16" /> Search Alerts
         </router-link>
-        <router-link to="/lookup" class="btn btn-secondary"><CirclePlus :size="16" /> Identify Coin</router-link>
+        <router-link
+          to="/lookup"
+          class="btn btn-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+        >
+          <CirclePlus :size="16" /> Identify Coin
+        </router-link>
       </div>
     </div>
 
-    <div v-if="checkResult" class="availability-banner">
-      <span class="banner-count banner-available">{{ checkResult.available }} available</span>
-      <span class="banner-count banner-unavailable">{{ checkResult.unavailable }} unavailable</span>
-      <span class="banner-count banner-unknown">{{ checkResult.unknown }} unknown</span>
-      <span class="banner-total">{{ checkResult.coinsChecked }} checked</span>
-      <button class="banner-dismiss" @click="checkResult = null">&times;</button>
+    <div
+      v-if="checkResult"
+      class="mb-4 flex flex-wrap items-center gap-4 rounded-md border border-border-subtle bg-card px-4 py-3 text-body"
+    >
+      <span class="inline-flex rounded-full bg-[rgba(74,222,128,0.15)] px-2.5 py-1 text-chip font-semibold text-green-400">
+        {{ checkResult.available }} available
+      </span>
+      <span class="inline-flex rounded-full bg-[rgba(248,113,113,0.15)] px-2.5 py-1 text-chip font-semibold text-red-400">
+        {{ checkResult.unavailable }} unavailable
+      </span>
+      <span class="inline-flex rounded-full bg-[rgba(241,196,15,0.15)] px-2.5 py-1 text-chip font-semibold text-warning">
+        {{ checkResult.unknown }} unknown
+      </span>
+      <span class="ml-auto text-text-muted">{{ checkResult.coinsChecked }} checked</span>
+      <button
+        class="px-1 text-xl leading-none text-text-muted transition hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+        @click="checkResult = null"
+      >
+        &times;
+      </button>
     </div>
 
     <div v-if="store.loading" class="loading-overlay">
@@ -59,20 +104,24 @@
     <div v-else class="empty-state">
       <h3>Your wishlist is empty</h3>
       <p>Add coins to your wishlist to track what you're looking for</p>
-      <div class="empty-actions">
-        <button class="btn btn-primary" @click="showChat = true">
+      <div class="mt-3 flex flex-wrap justify-center gap-3">
+        <button class="btn btn-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" @click="showChat = true">
           <Bot :size="16" /> Search for Coins with AI
         </button>
-        <router-link to="/wishlist/search-alerts" class="btn btn-secondary" title="Add Wish List Finder Agent">
+        <router-link
+          to="/wishlist/search-alerts"
+          class="btn btn-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+          title="Add Wish List Finder Agent"
+        >
           <CalendarClock :size="16" /> Add Wish List Finder Agent
         </router-link>
       </div>
     </div>
 
-    <div v-if="store.coins.length && store.total > pageSize" class="pagination">
-      <button class="btn btn-secondary btn-sm" :disabled="page <= 1" @click="page--">← Previous</button>
-      <span class="page-info">Page {{ page }} of {{ Math.ceil(store.total / pageSize) }}</span>
-      <button class="btn btn-secondary btn-sm" :disabled="page * pageSize >= store.total" @click="page++">Next →</button>
+    <div v-if="store.coins.length && store.total > pageSize" class="mt-6 flex flex-wrap items-center justify-center gap-4 py-4">
+      <button class="btn btn-secondary btn-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" :disabled="page <= 1" @click="page--">← Previous</button>
+      <span class="text-body text-text-secondary">Page {{ page }} of {{ Math.ceil(store.total / pageSize) }}</span>
+      <button class="btn btn-secondary btn-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" :disabled="page * pageSize >= store.total" @click="page++">Next →</button>
     </div>
 
     <PurchaseModal
@@ -159,102 +208,3 @@ onBeforeUnmount(() => {
   if (dismissTimer) clearTimeout(dismissTimer)
 })
 </script>
-
-<style scoped>
-.header-actions {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.empty-actions {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-top: 0.75rem;
-}
-
-.spinner-sm {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--border-subtle);
-  border-top-color: var(--accent-gold);
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.availability-banner {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  margin-bottom: 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  font-size: 0.85rem;
-  flex-wrap: wrap;
-}
-
-.banner-count {
-  font-weight: 600;
-  padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-full);
-  font-size: 0.8rem;
-}
-
-.banner-available {
-  background: rgba(46, 204, 113, 0.15);
-  color: #2ecc71;
-}
-
-.banner-unavailable {
-  background: rgba(231, 76, 60, 0.15);
-  color: #e74c3c;
-}
-
-.banner-unknown {
-  background: rgba(241, 196, 15, 0.15);
-  color: #f1c40f;
-}
-
-.banner-total {
-  color: var(--text-muted);
-  margin-left: auto;
-}
-
-.banner-dismiss {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 0 0.25rem;
-  line-height: 1;
-}
-
-.banner-dismiss:hover {
-  color: var(--text-primary);
-}
-
-.pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 1.5rem;
-  padding: 1rem 0;
-}
-
-.page-info {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-</style>

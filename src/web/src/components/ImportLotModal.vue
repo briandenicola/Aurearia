@@ -1,12 +1,12 @@
 <template>
-  <div class="modal-overlay" @click.self="emit('close')">
-    <div class="modal card">
-      <div class="modal-header">
-        <h3>Add Auction Lot</h3>
-        <button class="btn-close" @click="emit('close')"><X :size="18" /></button>
+  <div class="fixed inset-0 z-[1000] flex items-center justify-center bg-overlay p-4" @click.self="emit('close')">
+    <div class="card w-full max-w-[480px] !p-0">
+      <div class="flex items-center justify-between border-b border-border-subtle px-6 py-5">
+        <h3 class="m-0 text-lg font-medium text-heading">Add Auction Lot</h3>
+        <button class="rounded-sm p-1 text-text-secondary transition-colors hover:text-text-primary" @click="emit('close')"><X :size="18" /></button>
       </div>
 
-      <div class="modal-body">
+      <div class="p-6">
         <div class="form-group">
           <label class="form-label">Auction Lot URL</label>
           <input
@@ -16,28 +16,28 @@
             placeholder="https://www.numisbids.com/... or https://auctions.cngcoins.com/..."
             :disabled="importing"
           />
-          <p class="form-hint">Paste a lot page URL from NumisBids or CNG Auctions</p>
+          <p class="mt-1.5 text-[0.78rem] text-text-muted">Paste a lot page URL from NumisBids or CNG Auctions</p>
         </div>
 
-        <div v-if="error" class="error-msg">{{ error }}</div>
+        <div v-if="error" class="mt-2 text-body text-loss">{{ error }}</div>
 
-        <div v-if="preview" class="import-preview">
-          <div class="preview-image-container" v-if="preview.imageUrl && proxiedImageUrl">
-            <img :src="proxiedImageUrl" :alt="preview.title" class="preview-image" />
+        <div v-if="preview" class="mt-5 overflow-hidden rounded-md border border-border-subtle">
+          <div v-if="preview.imageUrl && proxiedImageUrl" class="max-h-[200px] overflow-hidden bg-surface">
+            <img :src="proxiedImageUrl" :alt="preview.title" class="h-[200px] w-full object-contain" />
           </div>
-          <div class="preview-details">
-            <h4>{{ preview.title }}</h4>
-            <p v-if="preview.auctionHouse" class="preview-meta">{{ preview.auctionHouse }}</p>
-            <p v-if="preview.estimate" class="preview-estimate">Estimate: {{ formatCurrency(preview.estimate) }}</p>
-            <p v-if="preview.currentBid" class="preview-bid">Current Bid: {{ formatCurrency(preview.currentBid) }}</p>
+          <div class="p-4">
+            <h4 class="mb-1 text-[0.95rem] leading-[1.3] font-medium text-text-primary">{{ preview.title }}</h4>
+            <p v-if="preview.auctionHouse" class="mb-1 text-[0.82rem] text-text-secondary">{{ preview.auctionHouse }}</p>
+            <p v-if="preview.estimate" class="text-body text-text-secondary">Estimate: {{ formatCurrency(preview.estimate) }}</p>
+            <p v-if="preview.currentBid" class="text-body font-semibold text-gold">Current Bid: {{ formatCurrency(preview.currentBid) }}</p>
           </div>
         </div>
       </div>
 
-      <div class="modal-actions">
+      <div class="flex justify-end gap-3 border-t border-border-subtle px-6 py-4">
         <button class="btn btn-secondary" @click="emit('close')" :disabled="importing">Cancel</button>
-        <button class="btn btn-primary" @click="handleImport" :disabled="!url || importing">
-          <Loader2 v-if="importing" :size="16" class="spin" />
+        <button class="btn btn-primary inline-flex items-center gap-2" @click="handleImport" :disabled="!url || importing">
+          <Loader2 v-if="importing" :size="16" class="animate-spin" />
           {{ importing ? 'Adding...' : 'Add Lot' }}
         </button>
       </div>
@@ -99,127 +99,3 @@ async function handleImport() {
   }
 }
 </script>
-
-<style scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal {
-  max-width: 480px;
-  width: 90%;
-  padding: 0;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: var(--radius-sm);
-  transition: color var(--transition-fast);
-}
-
-.btn-close:hover {
-  color: var(--text-primary);
-}
-
-.modal-body {
-  padding: 1.5rem;
-}
-
-.form-hint {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  margin-top: 0.4rem;
-}
-
-.error-msg {
-  color: #f87171;
-  font-size: 0.85rem;
-  margin-top: 0.5rem;
-}
-
-.import-preview {
-  margin-top: 1.25rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.preview-image-container {
-  width: 100%;
-  max-height: 200px;
-  overflow: hidden;
-  background: var(--bg-primary);
-}
-
-.preview-image {
-  width: 100%;
-  height: 200px;
-  object-fit: contain;
-}
-
-.preview-details {
-  padding: 1rem;
-}
-
-.preview-details h4 {
-  font-size: 0.95rem;
-  margin-bottom: 0.4rem;
-  line-height: 1.3;
-}
-
-.preview-meta {
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.25rem;
-}
-
-.preview-estimate {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-
-.preview-bid {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--accent-gold);
-}
-
-.modal-actions {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: flex-end;
-  padding: 1rem 1.5rem;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-</style>
