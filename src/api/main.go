@@ -605,6 +605,7 @@ func main() {
 		// Auction ending run history and manual trigger
 		auctionEndingAdminHandler := handlers.NewAuctionEndingAdminHandler(auctionEndingRepo, auctionEndingScheduler, logger)
 		admin.GET("/auction-ending-runs", auctionEndingAdminHandler.ListRuns)
+		admin.GET("/auction-ending-runs/:id", auctionEndingAdminHandler.GetRun)
 		admin.POST("/auction-ending/run", auctionEndingAdminHandler.TriggerRun)
 		auctionWatchBidDigestAdminHandler := handlers.NewAuctionWatchBidDigestAdminHandler(auctionWatchBidDigestScheduler, auctionWatchBidDigestRepo)
 		admin.GET("/auction-watch-bid-digest-runs", auctionWatchBidDigestAdminHandler.ListRuns)

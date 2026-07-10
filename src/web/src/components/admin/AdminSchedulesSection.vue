@@ -682,7 +682,7 @@ import {
   getAvailabilityRuns, getAvailabilityRunDetail,
   triggerAvailabilityCheck,
   getValuationRuns, getValuationRunDetail, triggerValuation, cancelValuationRun,
-  getAuctionEndingRuns, triggerAuctionEndingCheck,
+  getAuctionEndingRuns, getAuctionEndingRun, triggerAuctionEndingCheck,
   getAuctionAlertReminderRuns, triggerAuctionAlertReminderCheck,
   getAuctionWatchBidDigestRuns, triggerAuctionWatchBidDigest,
   triggerCollectionHealthSnapshots,
@@ -815,7 +815,7 @@ const {
   total: _auctionTotal,
   page: auctionPage,
   loading: auctionLoading,
-  loadRuns: loadAuctionRuns,
+  loadRuns: loadAuctionRunsBase,
   prevPage: prevAuctionPage,
   nextPage: nextAuctionPage,
 } = useRunHistoryPagination<AuctionEndingRun>(async (page, limit) => {
@@ -823,6 +823,20 @@ const {
   return res.data ?? {}
 })
 const auctionTriggerLoading = ref(false)
+let auctionPollTimer: ReturnType<typeof setInterval> | null = null
+
+async function loadAuctionRuns() {
+  try {
+    await loadAuctionRunsBase()
+    const hasActive = auctionRuns.value.some(r => r.status === 'queued' || r.status === 'running')
+    if (hasActive && !auctionPollTimer) {
+      auctionPollTimer = setInterval(() => { loadAuctionRuns() }, 3000)
+    } else if (!hasActive && auctionPollTimer) {
+      clearInterval(auctionPollTimer)
+      auctionPollTimer = null
+    }
+  } catch { /* ignore */ }
+}
 
 async function triggerManualAuctionCheck() {
   auctionTriggerLoading.value = true
@@ -830,16 +844,38 @@ async function triggerManualAuctionCheck() {
   emit('update:auctionSettingsError', false)
   try {
     const res = await triggerAuctionEndingCheck()
-    const { runId, lotsChecked, alertsSent, status, durationMs } = res.data
-    if (status === 'error') {
+    const { runId, status } = res.data
+    if (status === 'queued' || status === 'running') {
+      emit('update:auctionSettingsMsg', `Run #${runId} queued — checking for results…`)
+      // Poll until run reaches a terminal state
+      const pollCompleted = async () => {
+        try {
+          const runRes = await getAuctionEndingRun(runId)
+          const run = runRes.data
+          if (run.status === 'success') {
+            const durationSec = run.durationMs != null ? ` in ${(run.durationMs / 1000).toFixed(1)}s` : ''
+            emit('update:auctionSettingsMsg', `Run #${runId} completed — ${run.lotsChecked} lots checked, ${run.alertsSent} alerts sent${durationSec}`)
+            timers.push(setTimeout(() => { emit('update:auctionSettingsMsg', '') }, 10000))
+            loadAuctionRuns()
+          } else if (run.status === 'error') {
+            emit('update:auctionSettingsMsg', `Run #${runId} failed`)
+            emit('update:auctionSettingsError', true)
+            loadAuctionRuns()
+          } else {
+            timers.push(setTimeout(pollCompleted, 2000))
+          }
+        } catch {
+          loadAuctionRuns()
+        }
+      }
+      timers.push(setTimeout(pollCompleted, 1500))
+    } else if (status === 'error') {
       emit('update:auctionSettingsMsg', `Run #${runId} failed`)
       emit('update:auctionSettingsError', true)
+      timers.push(setTimeout(() => { loadAuctionRuns() }, 1000))
     } else {
-      const durationSec = (durationMs / 1000).toFixed(1)
-      emit('update:auctionSettingsMsg', `Run #${runId} completed — ${lotsChecked} lots checked, ${alertsSent} alerts sent in ${durationSec}s`)
-      timers.push(setTimeout(() => { emit('update:auctionSettingsMsg', '') }, 10000))
+      timers.push(setTimeout(() => { loadAuctionRuns() }, 2000))
     }
-    timers.push(setTimeout(() => { loadAuctionRuns() }, 2000))
   } catch {
     emit('update:auctionSettingsMsg', 'Failed to trigger auction ending alerts')
     emit('update:auctionSettingsError', true)
@@ -1132,6 +1168,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', onResize)
   if (valPollTimer) clearInterval(valPollTimer)
+  if (auctionPollTimer) clearInterval(auctionPollTimer)
   if (availPollTimer) clearInterval(availPollTimer)
   if (cotdPollTimer) clearInterval(cotdPollTimer)
   timers.forEach(clearTimeout)

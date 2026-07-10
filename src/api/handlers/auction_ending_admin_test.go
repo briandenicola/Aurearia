@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -120,6 +121,7 @@ func setupAuctionEndingAdminRouter(t *testing.T) (*gin.Engine, *gorm.DB, uint, u
 	admin.POST("/auction-ending/run", handler.TriggerRun)
 	admin.GET("/auction-ending/debug", debugHandler.DebugGetAuctionEndingInfo)
 	admin.GET("/auction-ending-runs", handler.ListRuns)
+	admin.GET("/auction-ending-runs/:id", handler.GetRun)
 
 	return r, db, adminUser.ID, regularUser.ID
 }
@@ -138,8 +140,8 @@ func TestAuctionEndingAdminHandler_TriggerRun_AsAdmin(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d: %s", w.Code, w.Body.String())
 	}
 
 	var resp map[string]interface{}
@@ -151,6 +153,10 @@ func TestAuctionEndingAdminHandler_TriggerRun_AsAdmin(t *testing.T) {
 	}
 	if resp["status"] == nil {
 		t.Error("expected 'status' in response")
+	}
+	// Async: status must be queued (not success/error yet)
+	if got := resp["status"].(string); got != "queued" && got != "running" {
+		t.Errorf("expected status queued or running, got %q", got)
 	}
 }
 
@@ -346,5 +352,121 @@ func TestAuctionEndingDebugHandler_Counts(t *testing.T) {
 		if got := lotsByStatus[status].(float64); got != expected {
 			t.Errorf("expected lots_by_status[%q]=%v, got %v", status, expected, got)
 		}
+	}
+}
+
+// TestAuctionEndingAdminHandler_TriggerRun_Returns202 verifies TriggerRun returns 202 Accepted.
+func TestAuctionEndingAdminHandler_TriggerRun_Returns202(t *testing.T) {
+	router, db, adminID, _ := setupAuctionEndingAdminRouter(t)
+	adminToken := makeAuctionEndingAdminTestJWT(adminID, "admin")
+	db.Create(&models.AppSetting{Key: services.SettingAuctionEndingCheckEnabled, Value: "true"})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/auction-ending/run", nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202 Accepted, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if resp["runId"] == nil {
+		t.Error("expected 'runId' in 202 response")
+	}
+	status, _ := resp["status"].(string)
+	if status != "queued" && status != "running" {
+		t.Errorf("expected status queued or running, got %q", status)
+	}
+}
+
+// TestAuctionEndingAdminHandler_TriggerRun_DedupActiveRun verifies a second trigger reuses the active run.
+func TestAuctionEndingAdminHandler_TriggerRun_DedupActiveRun(t *testing.T) {
+	router, db, adminID, _ := setupAuctionEndingAdminRouter(t)
+	adminToken := makeAuctionEndingAdminTestJWT(adminID, "admin")
+
+	// Seed an active queued run in the database to simulate an in-flight run.
+	repo := repository.NewAuctionEndingRepository(db)
+	active := &models.AuctionEndingRun{
+		TriggerType: "manual",
+		Status:      "queued",
+		StartedAt:   time.Now(),
+	}
+	if err := repo.CreateRun(active); err != nil {
+		t.Fatalf("failed to seed active run: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/auction-ending/run", nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	// Should return the existing active run ID, not a new one.
+	if got := uint(resp["runId"].(float64)); got != active.ID {
+		t.Errorf("expected dedup to return active run ID=%d, got %d", active.ID, got)
+	}
+
+	// Verify no new run was created.
+	_, total, _ := repo.ListRuns(1, 100)
+	if total != 1 {
+		t.Errorf("expected exactly 1 run in DB after dedup, got %d", total)
+	}
+}
+
+// TestAuctionEndingAdminHandler_GetRun_Found verifies GetRun returns a run by ID.
+func TestAuctionEndingAdminHandler_GetRun_Found(t *testing.T) {
+	router, db, adminID, _ := setupAuctionEndingAdminRouter(t)
+	adminToken := makeAuctionEndingAdminTestJWT(adminID, "admin")
+
+	repo := repository.NewAuctionEndingRepository(db)
+	now := time.Now()
+	run := &models.AuctionEndingRun{
+		TriggerType: "manual",
+		Status:      "success",
+		StartedAt:   now,
+		CompletedAt: &now,
+		LotsChecked: 7,
+		AlertsSent:  2,
+	}
+	repo.CreateRun(run)
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/admin/auction-ending-runs/%d", run.ID), nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if got := uint(resp["id"].(float64)); got != run.ID {
+		t.Errorf("expected id=%d, got %d", run.ID, got)
+	}
+	if resp["status"] != "success" {
+		t.Errorf("expected status success, got %v", resp["status"])
+	}
+}
+
+// TestAuctionEndingAdminHandler_GetRun_NotFound verifies GetRun returns 404 for missing runs.
+func TestAuctionEndingAdminHandler_GetRun_NotFound(t *testing.T) {
+	router, _, adminID, _ := setupAuctionEndingAdminRouter(t)
+	adminToken := makeAuctionEndingAdminTestJWT(adminID, "admin")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/auction-ending-runs/99999", nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
 	}
 }

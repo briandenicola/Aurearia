@@ -1657,6 +1657,31 @@ definitions:
       userId:
         type: integer
     type: object
+  models.AuctionEndingRun:
+    properties:
+      alertsSent:
+        type: integer
+      completedAt:
+        type: string
+      createdAt:
+        type: string
+      durationMs:
+        type: integer
+      errorMessage:
+        type: string
+      id:
+        type: integer
+      lotsChecked:
+        type: integer
+      startedAt:
+        type: string
+      status:
+        type: string
+      triggerType:
+        type: string
+      triggerUserId:
+        type: integer
+    type: object
   models.AuctionEvent:
     properties:
       auctionHouse:
@@ -3065,6 +3090,43 @@ paths:
       summary: List auction ending runs
       tags:
       - Admin
+  /admin/auction-ending-runs/{id}:
+    get:
+      description: Returns a single auction ending run by ID.
+      parameters:
+      - description: Run ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AuctionEndingRun'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get auction ending run
+      tags:
+      - Admin
   /admin/auction-ending/debug:
     get:
       description: 'Returns diagnostic info: current time, next 24h window, total
@@ -3097,13 +3159,14 @@ paths:
       - Admin
   /admin/auction-ending/run:
     post:
-      description: Manually triggers an auction ending check for all users. Runs synchronously
-        and returns the run details.
+      description: Enqueues an auction ending check for all users and returns 202
+        Accepted with the queued run ID. Poll /admin/auction-ending-runs/{id} until
+        status is terminal (success or error).
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "202":
+          description: Accepted
           schema:
             additionalProperties: true
             type: object
