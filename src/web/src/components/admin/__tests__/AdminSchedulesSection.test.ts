@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   triggerAuctionWatchBidDigest: vi.fn(),
   triggerCollectionHealthSnapshots: vi.fn(),
   triggerCoinOfDayRun: vi.fn(),
+  getCoinOfDayRuns: vi.fn(),
+  getCoinOfDayRunDetail: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => mocks)
@@ -33,6 +35,8 @@ describe('AdminSchedulesSection', () => {
     mocks.getValuationRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
     mocks.getAuctionEndingRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
     mocks.getAuctionWatchBidDigestRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
+    mocks.getCoinOfDayRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
+    mocks.getCoinOfDayRunDetail.mockResolvedValue({ data: { id: 1, status: 'queued', picked: 0, skipped: 0, errors: 0 } })
     mocks.getAuctionAlertReminderRuns.mockResolvedValue({
       data: {
         runs: [{

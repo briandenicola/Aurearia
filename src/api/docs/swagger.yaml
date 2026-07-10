@@ -1980,6 +1980,53 @@ definitions:
       userId:
         type: integer
     type: object
+  models.CoinOfDayRun:
+    properties:
+      completedAt:
+        type: string
+      createdAt:
+        type: string
+      errorMessage:
+        type: string
+      errors:
+        type: integer
+      id:
+        type: integer
+      picked:
+        type: integer
+      skipped:
+        type: integer
+      startedAt:
+        type: string
+      status:
+        $ref: '#/definitions/models.CoinOfDayRunStatus'
+      triggerType:
+        $ref: '#/definitions/models.CoinOfDayRunTriggerType'
+      triggerUserId:
+        type: integer
+      updatedAt:
+        type: string
+    type: object
+  models.CoinOfDayRunStatus:
+    enum:
+    - queued
+    - running
+    - completed
+    - failed
+    type: string
+    x-enum-varnames:
+    - CoinOfDayRunStatusQueued
+    - CoinOfDayRunStatusRunning
+    - CoinOfDayRunStatusCompleted
+    - CoinOfDayRunStatusFailed
+  models.CoinOfDayRunTriggerType:
+    enum:
+    - manual
+    - scheduled
+    type: string
+    x-enum-varnames:
+    - CoinOfDayRunTriggerManual
+    - CoinOfDayRunTriggerScheduled
   models.CoinReference:
     properties:
       catalog:
@@ -3398,15 +3445,90 @@ paths:
       summary: Update catalog
       tags:
       - Catalogs
-  /admin/coin-of-day/run:
-    post:
-      description: Picks one coin per opted-in user and sends notifications. Runs
-        synchronously.
+  /admin/coin-of-day-runs:
+    get:
+      description: Returns paginated history of Coin of the Day runs.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List coin-of-the-day runs
+      tags:
+      - Admin
+  /admin/coin-of-day-runs/{id}:
+    get:
+      description: Returns one Coin of the Day run with status and counters.
+      parameters:
+      - description: Run ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.CoinOfDayRun'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get coin-of-the-day run
+      tags:
+      - Admin
+  /admin/coin-of-day/run:
+    post:
+      description: Queues a run and returns immediately with a durable run id.
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
           schema:
             additionalProperties: true
             type: object

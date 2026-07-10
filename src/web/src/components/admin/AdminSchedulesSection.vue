@@ -633,11 +633,46 @@
         </button>
       </div>
     </div>
+
+    <hr class="section-divider" />
+    <h3 class="subsection-title">Coin of the Day Run History</h3>
+    <div v-if="cotdLoading" class="loading-overlay"><div class="spinner"></div></div>
+    <div v-else-if="cotdRuns.length === 0" class="logs-empty">No Coin of the Day runs recorded yet.</div>
+    <template v-else>
+      <table class="users-table avail-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Picked</th>
+            <th>Skipped</th>
+            <th>Errors</th>
+            <th class="hide-mobile">Trigger</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="run in cotdRuns" :key="run.id">
+            <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
+            <td>{{ run.status }}</td>
+            <td>{{ run.picked }}</td>
+            <td>{{ run.skipped }}</td>
+            <td>{{ run.errors }}</td>
+            <td class="hide-mobile">{{ run.triggerType }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="avail-pagination">
+        <button class="btn btn-secondary btn-sm" :disabled="cotdPage <= 1" @click="prevCoinOfDayPage()">Prev</button>
+        <span class="avail-page-info">Page {{ cotdPage }}</span>
+        <button class="btn btn-secondary btn-sm" :disabled="cotdRuns.length < 5" @click="nextCoinOfDayPage()">Next</button>
+      </div>
+    </template>
   </section>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import {
   getAvailabilityRuns, getAvailabilityRunDetail,
   triggerAvailabilityCheck,
@@ -646,12 +681,12 @@ import {
   getAuctionAlertReminderRuns, triggerAuctionAlertReminderCheck,
   getAuctionWatchBidDigestRuns, triggerAuctionWatchBidDigest,
   triggerCollectionHealthSnapshots,
-  triggerCoinOfDayRun,
+  triggerCoinOfDayRun, getCoinOfDayRuns, getCoinOfDayRunDetail,
 } from '@/api/client'
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
-import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun, AuctionAlertReminderRun, AuctionWatchBidDigestRun } from '@/types'
+import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun, AuctionAlertReminderRun, AuctionWatchBidDigestRun, CoinOfDayRun } from '@/types'
 
 // Props are type-checked but not referenced directly in script
 const _props = defineProps<{
@@ -981,6 +1016,37 @@ async function triggerManualHealthSnapshots() {
 const cotdTriggerLoading = ref(false)
 const cotdSettingsMsg = ref('')
 const cotdSettingsError = ref(false)
+const {
+  runs: cotdRuns,
+  total: _cotdTotal,
+  page: cotdPage,
+  loading: cotdLoading,
+  loadRuns: loadCoinOfDayRuns,
+  prevPage: prevCoinOfDayPage,
+  nextPage: nextCoinOfDayPage,
+} = useRunHistoryPagination<CoinOfDayRun>(async (page, limit) => {
+  const res = await getCoinOfDayRuns(page, limit)
+  return res.data ?? {}
+})
+let cotdPollTimer: ReturnType<typeof setInterval> | null = null
+
+function coinOfDayRunIsTerminal(status: string) {
+  return status === 'completed' || status === 'failed'
+}
+
+function refreshCoinOfDayPolling() {
+  const hasActive = cotdRuns.value.some((run) => !coinOfDayRunIsTerminal(run.status))
+  if (hasActive && !cotdPollTimer) {
+    cotdPollTimer = setInterval(() => { loadCoinOfDayRuns() }, 5000)
+  } else if (!hasActive && cotdPollTimer) {
+    clearInterval(cotdPollTimer)
+    cotdPollTimer = null
+  }
+
+  watch(cotdRuns, () => {
+    refreshCoinOfDayPolling()
+  })
+}
 
 async function triggerManualCoinOfDay() {
   cotdTriggerLoading.value = true
@@ -988,8 +1054,18 @@ async function triggerManualCoinOfDay() {
   cotdSettingsError.value = false
   try {
     const res = await triggerCoinOfDayRun()
-    const { picked, skipped, errors } = res.data
-    cotdSettingsMsg.value = `Picked ${picked}, skipped ${skipped}${errors ? `, errors ${errors}` : ''}`
+    const runId = Number(res.data.runId ?? 0)
+    cotdSettingsMsg.value = runId ? `Coin of the Day run #${runId} queued` : 'Coin of the Day run queued'
+    if (runId) {
+      const detail = await getCoinOfDayRunDetail(runId)
+      const run = detail.data
+      if (coinOfDayRunIsTerminal(run.status)) {
+        cotdSettingsMsg.value = `Picked ${run.picked}, skipped ${run.skipped}${run.errors ? `, errors ${run.errors}` : ''}`
+        cotdSettingsError.value = run.status === 'failed'
+      }
+    }
+    await loadCoinOfDayRuns()
+    refreshCoinOfDayPolling()
     timers.push(setTimeout(() => { cotdSettingsMsg.value = '' }, 10000))
   } catch {
     cotdSettingsMsg.value = 'Failed to run Coin of the Day'
@@ -1026,11 +1102,13 @@ onMounted(() => {
   loadAlertReminderRuns()
   loadWatchBidDigestRuns()
   loadValRuns()
+  loadCoinOfDayRuns()
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', onResize)
   if (valPollTimer) clearInterval(valPollTimer)
+  if (cotdPollTimer) clearInterval(cotdPollTimer)
   timers.forEach(clearTimeout)
 })
 </script>
