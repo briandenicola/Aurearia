@@ -382,7 +382,15 @@ func (s *AIJobService) readImagesAsBase64(images []models.CoinImage, jobID uint)
 			s.logger.Warn("ai-jobs", "Failed to read image %s for job %d: %v", p, jobID, err)
 			continue
 		}
-		base64Images = append(base64Images, base64.StdEncoding.EncodeToString(data))
+		resized, err := resizeForAnalysis(data)
+		if err != nil {
+			s.logger.Warn("ai-jobs", "Failed to resize image %s for job %d: %v", p, jobID, err)
+			continue
+		}
+		if len(resized) != len(data) {
+			s.logger.Info("ai-jobs", "Resized image %s from %d to %d bytes for job %d", p, len(data), len(resized), jobID)
+		}
+		base64Images = append(base64Images, base64.StdEncoding.EncodeToString(resized))
 	}
 	return base64Images
 }
