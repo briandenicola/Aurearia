@@ -1443,6 +1443,8 @@ export interface AvailabilityRun {
   userName?: string
   triggerType: string
   triggerUserId: number | null
+  status: string
+  failMessage?: string
   coinsChecked: number
   available: number
   unavailable: number
@@ -1545,6 +1547,21 @@ export interface CollectionHealthSnapshotRunResult {
   skipped?: number
   errors?: number
   durationMs?: number
+}
+
+export interface CoinOfDayRun {
+  id: number
+  triggerType: 'manual' | 'scheduled'
+  triggerUserId: number | null
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  startedAt: string
+  completedAt: string | null
+  picked: number
+  skipped: number
+  errors: number
+  errorMessage: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Notification {

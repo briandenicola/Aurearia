@@ -1,13 +1,23 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
 )
+
+const (
+	availabilityRunQueueSize    = 50
+	availabilityManualRunWindow = 5 * time.Minute
+	availabilityStaleRunTimeout = 15 * time.Minute
+)
+
+var ErrAvailabilityRunInProgress = errors.New("a manual availability run is already queued or running")
 
 // AvailabilityScheduler runs periodic wishlist availability checks.
 type AvailabilityScheduler struct {
@@ -20,6 +30,7 @@ type AvailabilityScheduler struct {
 	once        sync.Once
 	statusMu    sync.RWMutex
 	isRunning   bool
+	queue       chan uint
 }
 
 // NewAvailabilityScheduler creates a new scheduler.
@@ -37,7 +48,66 @@ func NewAvailabilityScheduler(
 		settingsSvc: settingsSvc,
 		logger:      logger,
 		stopCh:      make(chan struct{}),
+		queue:       make(chan uint, availabilityRunQueueSize),
 	}
+}
+
+// StartWorkers recovers any stale runs from a previous process and starts background
+// worker goroutines that process queued manual availability runs.
+func (s *AvailabilityScheduler) StartWorkers(workerCount int) {
+	if workerCount < 1 {
+		workerCount = 1
+	}
+	if ids, err := s.availRepo.RecoverStaleRuns(availabilityStaleRunTimeout); err == nil {
+		for _, id := range ids {
+			s.enqueueRunID(id)
+		}
+	}
+	for i := 0; i < workerCount; i++ {
+		go s.worker()
+	}
+}
+
+func (s *AvailabilityScheduler) enqueueRunID(runID uint) {
+	select {
+	case s.queue <- runID:
+	default:
+		go func() { s.queue <- runID }()
+	}
+}
+
+func (s *AvailabilityScheduler) worker() {
+	for runID := range s.queue {
+		_ = s.processRun(runID)
+	}
+}
+
+// processRun claims a queued run and executes the manual availability cycle.
+func (s *AvailabilityScheduler) processRun(runID uint) error {
+	return s.ProcessRun(runID)
+}
+
+// ProcessRun claims a queued run and executes the manual availability cycle.
+// Exported for use in tests.
+func (s *AvailabilityScheduler) ProcessRun(runID uint) error {
+	run, claimed, err := s.availRepo.ClaimQueuedRun(runID)
+	if err != nil {
+		s.logger.Error("scheduler", "Failed to claim availability run %d: %v", runID, err)
+		return err
+	}
+	if !claimed {
+		return nil
+	}
+
+	s.logger.Info("scheduler", "Processing manual availability run %d", runID)
+	if err := s.svc.RunManualCycle(run); err != nil {
+		s.logger.Error("scheduler", "Manual availability run %d failed: %v", runID, err)
+		if failErr := s.availRepo.FailRun(run, err.Error()); failErr != nil {
+			s.logger.Error("scheduler", "Failed to mark run %d as failed: %v", runID, failErr)
+		}
+		return err
+	}
+	return nil
 }
 
 // Start begins the periodic check loop. Call from a goroutine.
@@ -74,13 +144,38 @@ func (s *AvailabilityScheduler) Stop() {
 
 // RunNow executes one immediate availability cycle.
 func (s *AvailabilityScheduler) RunNow() error {
-	return s.RunNowWithTrigger(nil)
+	_, err := s.RunNowWithTrigger(nil)
+	return err
 }
 
-// RunNowWithTrigger executes one immediate availability cycle and records the triggering admin user.
-func (s *AvailabilityScheduler) RunNowWithTrigger(triggerUserID *uint) error {
-	s.runCycleWithTrigger("manual", triggerUserID)
-	return nil
+// RunNowWithTrigger enqueues an immediate availability run and returns the queued run record.
+// Returns ErrAvailabilityRunInProgress if a queued or running manual run already exists.
+func (s *AvailabilityScheduler) RunNowWithTrigger(triggerUserID *uint) (*models.AvailabilityRun, error) {
+	userID := uint(0)
+	if triggerUserID != nil {
+		userID = *triggerUserID
+	}
+
+	run := &models.AvailabilityRun{
+		UserID:        userID,
+		TriggerType:   "manual",
+		TriggerUserID: triggerUserID,
+		Status:        models.AvailabilityRunStatusQueued,
+		StartedAt:     time.Now(),
+	}
+
+	since := time.Now().Add(-availabilityManualRunWindow)
+	acquired, err := s.availRepo.EnqueueManualRun(run, since)
+	if err != nil {
+		return nil, fmt.Errorf("enqueue manual availability run: %w", err)
+	}
+	if !acquired {
+		return nil, ErrAvailabilityRunInProgress
+	}
+
+	s.enqueueRunID(run.ID)
+	s.logger.Info("scheduler", "Manual availability run %d queued", run.ID)
+	return run, nil
 }
 
 // GetStatus returns the scheduler runtime status.

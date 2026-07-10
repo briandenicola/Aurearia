@@ -107,6 +107,8 @@ Users can opt-out individually in Settings → Account. Disabling prevents notif
 GET    /api/featured-coins/latest                # Get today's featured coin
 GET    /api/featured-coins/:id                   # Get specific featured coin (preloads coin.images)
 POST   /admin/coin-of-day/run                    # Admin: trigger manual run
+GET    /admin/coin-of-day-runs                   # Admin: list run history
+GET    /admin/coin-of-day-runs/:id               # Admin: get run status/counts
 GET    /api/auth/me                              # Includes coinOfDayEnabled
 PUT    /api/user/profile                         # Update coinOfDayEnabled
 ```

@@ -667,7 +667,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Manually triggers a wishlist availability check for all users. Runs synchronously and records the triggering admin user.",
+                "description": "Enqueues a wishlist availability check for all users and returns immediately. Duplicate requests while a run is queued or running are rejected.",
                 "produces": [
                     "application/json"
                 ],
@@ -676,8 +676,8 @@ const docTemplate = `{
                 ],
                 "summary": "Trigger manual wishlist availability check",
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "202": {
+                        "description": "Accepted",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -691,6 +691,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -905,6 +911,124 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/coin-of-day-runs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns paginated history of Coin of the Day runs.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "List coin-of-the-day runs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/coin-of-day-runs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one Coin of the Day run with status and counters.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get coin-of-the-day run",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Run ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.CoinOfDayRun"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/coin-of-day/run": {
             "post": {
                 "security": [
@@ -912,7 +1036,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Picks one coin per opted-in user and sends notifications. Runs synchronously.",
+                "description": "Queues a run and returns immediately with a durable run id.",
                 "produces": [
                     "application/json"
                 ],
@@ -921,8 +1045,8 @@ const docTemplate = `{
                 ],
                 "summary": "Trigger manual coin-of-the-day pick",
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "202": {
+                        "description": "Accepted",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -16936,6 +17060,73 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "models.CoinOfDayRun": {
+            "type": "object",
+            "properties": {
+                "completedAt": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "errorMessage": {
+                    "type": "string"
+                },
+                "errors": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "picked": {
+                    "type": "integer"
+                },
+                "skipped": {
+                    "type": "integer"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.CoinOfDayRunStatus"
+                },
+                "triggerType": {
+                    "$ref": "#/definitions/models.CoinOfDayRunTriggerType"
+                },
+                "triggerUserId": {
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.CoinOfDayRunStatus": {
+            "type": "string",
+            "enum": [
+                "queued",
+                "running",
+                "completed",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "CoinOfDayRunStatusQueued",
+                "CoinOfDayRunStatusRunning",
+                "CoinOfDayRunStatusCompleted",
+                "CoinOfDayRunStatusFailed"
+            ]
+        },
+        "models.CoinOfDayRunTriggerType": {
+            "type": "string",
+            "enum": [
+                "manual",
+                "scheduled"
+            ],
+            "x-enum-varnames": [
+                "CoinOfDayRunTriggerManual",
+                "CoinOfDayRunTriggerScheduled"
+            ]
         },
         "models.CoinReference": {
             "type": "object",

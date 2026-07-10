@@ -1,6 +1,8 @@
 package services
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -164,5 +166,205 @@ func TestTimeUntilNextRun_IgnoresManualRuns(t *testing.T) {
 	// scheduled run exists).
 	if wait < 1*time.Hour+55*time.Minute || wait > 2*time.Hour+5*time.Minute {
 		t.Errorf("expected ~2h wait (ignoring manual run), got %v", wait)
+	}
+}
+
+// setupAvailSchedulerWithService creates a full scheduler with a real AvailabilityService
+// backed by an in-memory DB, suitable for async processing tests.
+func setupAvailSchedulerWithService(t *testing.T, listingURL string) (*AvailabilityScheduler, *repository.AvailabilityRepository, *gorm.DB) {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to open test db: %v", err)
+	}
+	if err := db.AutoMigrate(
+		&models.User{},
+		&models.Coin{},
+		&models.CoinImage{},
+		&models.AvailabilityRun{},
+		&models.AvailabilityResult{},
+		&models.AppSetting{},
+	); err != nil {
+		t.Fatalf("failed to migrate: %v", err)
+	}
+
+	owner := models.User{Username: "owner", Email: "owner@test.com"}
+	db.Create(&owner)
+	db.Create(&models.Coin{
+		UserID:       owner.ID,
+		Name:         "Test Coin",
+		ReferenceURL: listingURL,
+		IsWishlist:   true,
+	})
+
+	coinRepo := repository.NewCoinRepository(db)
+	availRepo := repository.NewAvailabilityRepository(db)
+	settingsRepo := repository.NewSettingsRepository(db)
+	settingsSvc := NewSettingsService(settingsRepo)
+	logger := NewLogger(100)
+	availSvc := NewAvailabilityService(coinRepo, availRepo, nil, nil, nil, nil, settingsSvc, logger)
+	scheduler := NewAvailabilityScheduler(availSvc, coinRepo, availRepo, settingsSvc, logger)
+	return scheduler, availRepo, db
+}
+
+// TestAvailabilityScheduler_RunNowEnqueuesWithoutBlocking verifies that RunNowWithTrigger
+// returns immediately with a queued run and does NOT process coins synchronously.
+func TestAvailabilityScheduler_RunNowEnqueuesWithoutBlocking(t *testing.T) {
+	agentCalled := false
+	listing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		agentCalled = true
+		t.Fatal("listing server should not be called until worker processes the queued run")
+	}))
+	defer listing.Close()
+
+	// Use a fresh DB (no listing server hit expected during enqueue)
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.AppSetting{})
+	owner := models.User{Username: "owner", Email: "owner@test.com"}
+	db.Create(&owner)
+	db.Create(&models.Coin{UserID: owner.ID, Name: "Coin", ReferenceURL: listing.URL, IsWishlist: true})
+
+	coinRepo := repository.NewCoinRepository(db)
+	availRepo := repository.NewAvailabilityRepository(db)
+	settingsSvc := NewSettingsService(repository.NewSettingsRepository(db))
+	logger := NewLogger(100)
+	svc := NewAvailabilityService(coinRepo, availRepo, nil, nil, nil, nil, settingsSvc, logger)
+	scheduler := NewAvailabilityScheduler(svc, coinRepo, availRepo, settingsSvc, logger)
+
+	triggerID := owner.ID
+	run, err := scheduler.RunNowWithTrigger(&triggerID)
+	if err != nil {
+		t.Fatalf("RunNowWithTrigger: %v", err)
+	}
+	if run.Status != models.AvailabilityRunStatusQueued {
+		t.Fatalf("expected queued status, got %q", run.Status)
+	}
+	if agentCalled {
+		t.Fatal("listing server was called synchronously during RunNowWithTrigger")
+	}
+}
+
+// TestAvailabilityScheduler_DuplicateRunBlocked verifies that a second RunNowWithTrigger
+// call is rejected while a queued or running manual run exists.
+func TestAvailabilityScheduler_DuplicateRunBlocked(t *testing.T) {
+	scheduler, _, _ := setupAvailSchedulerWithService(t, "https://example.test/coin")
+
+	id := uint(1)
+	if _, err := scheduler.RunNowWithTrigger(&id); err != nil {
+		t.Fatalf("first enqueue: %v", err)
+	}
+	_, err := scheduler.RunNowWithTrigger(&id)
+	if err == nil {
+		t.Fatal("expected error for duplicate run, got nil")
+	}
+	if err != ErrAvailabilityRunInProgress {
+		t.Fatalf("expected ErrAvailabilityRunInProgress, got %v", err)
+	}
+}
+
+// TestAvailabilityScheduler_ProcessRun_Completed verifies that ProcessRun claims a queued
+// run, checks all user coins, and marks the run completed.
+func TestAvailabilityScheduler_ProcessRun_Completed(t *testing.T) {
+	listing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`<html><body><p>Add to Cart</p></body></html>`))
+	}))
+	defer listing.Close()
+
+	scheduler, availRepo, db := setupAvailSchedulerWithService(t, listing.URL)
+
+	triggerID := uint(1)
+	run, err := scheduler.RunNowWithTrigger(&triggerID)
+	if err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+
+	if err := scheduler.ProcessRun(run.ID); err != nil {
+		t.Fatalf("ProcessRun: %v", err)
+	}
+
+	var completed models.AvailabilityRun
+	if err := db.First(&completed, run.ID).Error; err != nil {
+		t.Fatalf("load run: %v", err)
+	}
+	if completed.Status != models.AvailabilityRunStatusCompleted {
+		t.Fatalf("expected completed, got %q", completed.Status)
+	}
+	if completed.CoinsChecked != 1 {
+		t.Fatalf("expected 1 coin checked, got %d", completed.CoinsChecked)
+	}
+	if completed.Available != 1 {
+		t.Fatalf("expected 1 available, got %d", completed.Available)
+	}
+
+	// Verify result record was created
+	var results []models.AvailabilityResult
+	db.Where("run_id = ?", run.ID).Find(&results)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	_ = availRepo
+}
+
+// TestAvailabilityScheduler_StaleRunRecovery verifies that StartWorkers re-queues
+// any runs that were stuck in running state (e.g. from a crashed process).
+func TestAvailabilityScheduler_StaleRunRecovery(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.AppSetting{})
+
+	owner := models.User{Username: "u"}
+	db.Create(&owner)
+
+	// Seed a run that was in "running" state and started more than the stale timeout ago
+	staleStart := time.Now().Add(-(availabilityStaleRunTimeout + time.Minute))
+	staleRun := &models.AvailabilityRun{
+		UserID:      owner.ID,
+		TriggerType: "manual",
+		Status:      models.AvailabilityRunStatusRunning,
+		StartedAt:   staleStart,
+	}
+	db.Create(staleRun)
+
+	availRepo := repository.NewAvailabilityRepository(db)
+	ids, err := availRepo.RecoverStaleRuns(availabilityStaleRunTimeout)
+	if err != nil {
+		t.Fatalf("RecoverStaleRuns: %v", err)
+	}
+	if len(ids) != 1 || ids[0] != staleRun.ID {
+		t.Fatalf("expected stale run %d to be recovered, got %v", staleRun.ID, ids)
+	}
+
+	// Verify the run was reset to queued in the DB
+	var recovered models.AvailabilityRun
+	db.First(&recovered, staleRun.ID)
+	if recovered.Status != models.AvailabilityRunStatusQueued {
+		t.Fatalf("expected queued after recovery, got %q", recovered.Status)
+	}
+}
+
+// TestAvailabilityScheduler_ProcessRun_IdempotentWhenAlreadyClaimed verifies that
+// ProcessRun silently no-ops when the run has already been claimed by another worker.
+func TestAvailabilityScheduler_ProcessRun_IdempotentWhenAlreadyClaimed(t *testing.T) {
+	scheduler, _, db := setupAvailSchedulerWithService(t, "https://example.test/coin")
+
+	triggerID := uint(1)
+	run, err := scheduler.RunNowWithTrigger(&triggerID)
+	if err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+
+	// Manually set to running to simulate another worker claiming it
+	db.Model(run).Update("status", models.AvailabilityRunStatusRunning)
+
+	// ProcessRun should return nil (no-op)
+	if err := scheduler.ProcessRun(run.ID); err != nil {
+		t.Fatalf("ProcessRun on already-running run should return nil, got: %v", err)
 	}
 }

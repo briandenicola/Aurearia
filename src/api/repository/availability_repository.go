@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/briandenicola/ancient-coins-api/models"
 	"gorm.io/gorm"
 )
@@ -20,9 +22,10 @@ func (r *AvailabilityRepository) CreateRun(run *models.AvailabilityRun) error {
 	return r.db.Create(run).Error
 }
 
-// CompleteRun updates a run's stats and completion timestamp.
+// CompleteRun updates a run's stats, sets status to completed, and records the completion timestamp.
 func (r *AvailabilityRepository) CompleteRun(run *models.AvailabilityRun) error {
 	err := r.db.Model(run).Updates(map[string]interface{}{
+		"status":        models.AvailabilityRunStatusCompleted,
 		"coins_checked": run.CoinsChecked,
 		"available":     run.Available,
 		"unavailable":   run.Unavailable,
@@ -49,6 +52,87 @@ func (r *AvailabilityRepository) UpdateResult(result *models.AvailabilityResult)
 		"reason":     result.Reason,
 		"agent_used": result.AgentUsed,
 	}).Error
+}
+
+// EnqueueManualRun creates a queued manual run if no queued or running manual run exists
+// within the given since window (duplicate-run protection).
+func (r *AvailabilityRepository) EnqueueManualRun(run *models.AvailabilityRun, since time.Time) (bool, error) {
+	acquired := false
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if err := tx.Model(&models.AvailabilityRun{}).
+			Where("trigger_type = ? AND status IN ? AND started_at >= ?",
+				"manual",
+				[]string{models.AvailabilityRunStatusQueued, models.AvailabilityRunStatusRunning},
+				since,
+			).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return nil
+		}
+		if err := tx.Create(run).Error; err != nil {
+			return err
+		}
+		acquired = true
+		return nil
+	})
+	return acquired, err
+}
+
+// ClaimQueuedRun atomically transitions a queued run to running status.
+// Returns (run, true, nil) when claimed, (nil, false, nil) if already claimed.
+func (r *AvailabilityRepository) ClaimQueuedRun(runID uint) (*models.AvailabilityRun, bool, error) {
+	now := time.Now()
+	var run models.AvailabilityRun
+	claimed := false
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&models.AvailabilityRun{}).
+			Where("id = ? AND status = ?", runID, models.AvailabilityRunStatusQueued).
+			Updates(map[string]interface{}{
+				"status":     models.AvailabilityRunStatusRunning,
+				"started_at": now,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+		claimed = true
+		return tx.First(&run, runID).Error
+	})
+	return &run, claimed, err
+}
+
+// FailRun marks a run as failed with an error message.
+func (r *AvailabilityRepository) FailRun(run *models.AvailabilityRun, message string) error {
+	now := time.Now()
+	return r.db.Model(run).Updates(map[string]interface{}{
+		"status":       models.AvailabilityRunStatusFailed,
+		"fail_message": message,
+		"completed_at": &now,
+		"duration_ms":  now.Sub(run.StartedAt).Milliseconds(),
+	}).Error
+}
+
+// RecoverStaleRuns resets stuck running runs (started before the timeout cutoff) back to queued
+// and returns the IDs of all currently queued runs.
+func (r *AvailabilityRepository) RecoverStaleRuns(timeout time.Duration) ([]uint, error) {
+	cutoff := time.Now().Add(-timeout)
+	if err := r.db.Model(&models.AvailabilityRun{}).
+		Where("status = ? AND started_at < ?", models.AvailabilityRunStatusRunning, cutoff).
+		Updates(map[string]interface{}{
+			"status": models.AvailabilityRunStatusQueued,
+		}).Error; err != nil {
+		return nil, err
+	}
+	var ids []uint
+	err := r.db.Model(&models.AvailabilityRun{}).
+		Where("status = ?", models.AvailabilityRunStatusQueued).
+		Order("started_at ASC").
+		Pluck("id", &ids).Error
+	return ids, err
 }
 
 // GetLastScheduledRun returns the most recent completed "scheduled" availability run, or nil if none.
