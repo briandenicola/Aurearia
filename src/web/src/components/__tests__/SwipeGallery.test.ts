@@ -81,5 +81,7 @@ describe('SwipeGallery', () => {
     expect(source).toContain('flex-wrap: nowrap')
     expect(source).toContain('white-space: nowrap')
     expect(source).toContain('flex-shrink: 0')
+    expect(source).toContain('min-width: 7.5rem')
+    expect(source).toContain('flex-direction: row')
   })
 })

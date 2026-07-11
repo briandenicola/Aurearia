@@ -466,6 +466,7 @@ onUnmounted(() => {
 
 .nav-btn {
   padding: 0.5rem 1.25rem;
+  min-width: 7.5rem;
   border: 1px solid var(--border-accent);
   border-radius: var(--radius-full);
   background: var(--bg-card);
@@ -474,6 +475,7 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all var(--transition-fast);
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
