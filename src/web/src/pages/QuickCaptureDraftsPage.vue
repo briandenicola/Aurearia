@@ -1,6 +1,6 @@
 <template>
   <div class="container">
-    <div class="form-wrapper">
+    <div class="form-wrapper grid gap-4">
       <div class="page-header">
         <h1>Quick Capture</h1>
         <div v-if="isPwa" class="pwa-actions">
@@ -14,10 +14,10 @@
           </RouterLink>
         </div>
       </div>
-      <p v-if="loading">Loading drafts...</p>
-      <p v-else-if="error" class="status-text status-warning">{{ error }}</p>
-      <p v-else-if="drafts.length === 0">No active drafts yet.</p>
-      <div v-else class="draft-list">
+      <p v-if="loading" class="m-0 text-base text-text-secondary">Loading drafts...</p>
+      <p v-else-if="error" class="m-0 text-chip text-warning">{{ error }}</p>
+      <p v-else-if="drafts.length === 0" class="m-0 text-base text-text-secondary">No active drafts yet.</p>
+      <div v-else class="grid gap-4">
         <QuickCaptureDraftCard v-for="draft in drafts" :key="draft.id" :draft="draft" />
       </div>
     </div>
@@ -49,10 +49,3 @@ onMounted(async () => {
   }
 })
 </script>
-
-<style scoped>
-.draft-list {
-  display: grid;
-  gap: 1rem;
-}
-</style>

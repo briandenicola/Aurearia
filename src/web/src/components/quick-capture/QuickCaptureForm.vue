@@ -1,41 +1,41 @@
 <template>
-  <form class="quick-capture-form card" @submit.prevent="saveDraft">
+  <form class="card grid gap-4" @submit.prevent="saveDraft">
     <QuickCaptureImageSlots
       v-model:obverse-image="obverseImage"
       v-model:reverse-image="reverseImage"
       v-model:detail-images="detailImages"
     />
 
-    <div class="field-grid">
-      <label class="form-group">
+    <div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))] max-[600px]:grid-cols-1">
+      <label class="form-group flex flex-col gap-1.5">
         <span class="section-label">Working title</span>
         <input v-model="workingTitle" class="form-input" type="text" maxlength="200" placeholder="Unattributed denarius">
       </label>
-      <label class="form-group">
+      <label class="form-group flex flex-col gap-1.5">
         <span class="section-label">Date range</span>
         <input v-model="dateRange" class="form-input" type="text" placeholder="c. 330-335">
       </label>
-      <label class="form-group">
+      <label class="form-group flex flex-col gap-1.5">
         <span class="section-label">Era</span>
         <input v-model="era" class="form-input" type="text" placeholder="ancient">
       </label>
-      <label class="form-group">
+      <label class="form-group flex flex-col gap-1.5">
         <span class="section-label">Acquisition source</span>
         <input v-model="acquisitionSource" class="form-input" type="text" placeholder="Show table">
       </label>
-      <label class="form-group">
+      <label class="form-group flex flex-col gap-1.5">
         <span class="section-label">Purchase price</span>
         <input v-model.number="purchasePrice" class="form-input" type="number" min="0" step="0.01">
       </label>
-      <label class="form-group full-width">
+      <label class="form-group col-span-full flex flex-col gap-1.5">
         <span class="section-label">Notes</span>
-        <textarea v-model="notes" class="form-textarea" rows="4" placeholder="Quick notes for later attribution"></textarea>
+        <textarea v-model="notes" class="form-input min-h-28 resize-y leading-[1.5]" rows="4" placeholder="Quick notes for later attribution"></textarea>
       </label>
     </div>
 
-    <p class="helper-text">Save with a title, note, or at least one image. Drafts stay out of your collection until promoted later.</p>
-    <p v-if="error" class="status-text status-warning">{{ error }}</p>
-    <p v-if="savedMessage" class="status-text">{{ savedMessage }}</p>
+    <p class="m-0 text-body text-text-secondary">Save with a title, note, or at least one image. Drafts stay out of your collection until promoted later.</p>
+    <p v-if="error" class="text-base text-warning">{{ error }}</p>
+    <p v-if="savedMessage" class="text-base text-text-secondary">{{ savedMessage }}</p>
     <button type="submit" class="btn btn-primary" :disabled="saving || !canSave">
       {{ saving ? 'Saving...' : 'Save Quick Capture Draft' }}
     </button>
@@ -97,62 +97,3 @@ async function saveDraft() {
   }
 }
 </script>
-
-<style scoped>
-.quick-capture-form {
-  display: grid;
-  gap: 1rem;
-}
-
-.field-grid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.full-width {
-  grid-column: 1 / -1;
-}
-
-.form-input,
-.form-textarea {
-  width: 100%;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-input);
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 0.9rem;
-  padding: 0.6rem 0.75rem;
-}
-
-.form-input:focus,
-.form-textarea:focus {
-  outline: none;
-  border-color: var(--accent-gold);
-  box-shadow: 0 0 0 2px var(--accent-gold-glow);
-}
-
-.form-textarea {
-  min-height: 7rem;
-  resize: vertical;
-  line-height: 1.5;
-}
-
-.helper-text {
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-@media (max-width: 600px) {
-  .field-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

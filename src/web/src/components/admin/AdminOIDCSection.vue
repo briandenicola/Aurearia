@@ -1,85 +1,104 @@
 <template>
-  <section class="admin-section card">
-    <div class="section-heading">
+  <section class="card p-6">
+    <div class="mb-3 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
       <div>
         <p class="section-label">Sign-in Providers</p>
-        <h2>OIDC Login</h2>
+        <h2 class="m-0 text-xl font-medium text-heading">OIDC Login</h2>
       </div>
-      <div class="section-actions">
-        <button type="button" class="btn btn-secondary btn-sm" @click="openSetupGuide">
+      <div class="flex flex-col gap-2 md:flex-row md:flex-wrap md:justify-end">
+        <button type="button" class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="openSetupGuide">
           Setup Guide
         </button>
-        <button type="button" class="btn btn-primary btn-sm" @click="openCreateForm">
+        <button type="button" class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="openCreateForm">
           Add Provider
         </button>
       </div>
     </div>
-    <p class="section-description">
+    <p class="mb-6 text-body leading-6 text-text-secondary">
       Configure Microsoft Entra ID, Pocket ID, or another OpenID Connect provider. Client secrets are write-only and are never shown after saving.
     </p>
 
-    <div v-if="loading" class="loading-overlay">
+    <div v-if="loading" class="flex items-center justify-center p-12">
       <div class="spinner"></div>
     </div>
 
-    <div v-else-if="loadError" class="status-message error" role="alert">
+    <div
+      v-else-if="loadError"
+      class="flex items-start gap-2 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-4 text-body text-[var(--color-negative)]"
+      role="alert"
+    >
       <AlertCircle :size="18" />
       <span>{{ loadError }}</span>
     </div>
 
     <template v-else>
-      <div v-if="providers.length === 0" class="empty-state-copy">
+      <div v-if="providers.length === 0" class="py-8 text-center text-body text-text-muted">
         No OIDC providers configured yet.
       </div>
 
-      <div v-else class="provider-list">
-        <article v-for="provider in providers" :key="provider.id" class="provider-card">
-          <div class="provider-summary">
-            <div class="provider-title">
-              <h3>{{ provider.displayName }}</h3>
+      <div v-else class="flex flex-col gap-3">
+        <article v-for="provider in providers" :key="provider.id" class="grid gap-3 rounded-md border border-border-subtle bg-input p-4">
+          <div class="min-w-0">
+            <div class="mb-[0.35rem] flex flex-wrap items-center gap-[0.35rem]">
+              <h3 class="m-0 text-lg font-medium text-heading">{{ provider.displayName }}</h3>
               <span class="chip-sm">{{ providerTypeLabel(provider.providerType) }}</span>
-              <span class="chip-sm" :class="provider.enabled ? 'enabled-chip' : 'disabled-chip'">
+              <span class="chip-sm" :class="provider.enabled ? 'border-gold bg-[var(--accent-gold-dim)] text-gold' : 'text-text-muted'">
                 {{ provider.enabled ? 'Enabled' : 'Disabled' }}
               </span>
             </div>
-            <p class="provider-meta">{{ provider.name }} · {{ provider.issuerUrl }}</p>
-            <div class="provider-details">
+            <p class="mb-2 text-body text-text-secondary [overflow-wrap:anywhere]">{{ provider.name }} · {{ provider.issuerUrl }}</p>
+            <div class="flex flex-wrap gap-x-4 gap-y-2 text-sm text-text-muted">
               <span>Client ID: {{ provider.clientId }}</span>
               <span>Secret: {{ provider.clientSecretConfigured ? 'Configured' : 'Not configured' }}</span>
               <span>Scopes: {{ provider.scopes?.join(' ') ?? 'openid profile email' }}</span>
             </div>
           </div>
 
-          <div class="provider-status" :class="statusClass(provider)">
-            <span class="status-label">{{ statusLabel(provider) }}</span>
-            <span class="status-message-text">{{ statusMessage(provider) }}</span>
+          <div
+            class="flex flex-col gap-[0.2rem] rounded-sm border bg-card p-[0.8rem] text-body"
+            :class="{
+              'border-[var(--color-positive)] bg-[color-mix(in_srgb,var(--color-positive)_14%,transparent)]': provider.lastTestStatus === 'ok',
+              'border-[var(--color-negative)] bg-[color-mix(in_srgb,var(--color-negative)_14%,transparent)]': provider.lastTestStatus === 'failed',
+              'border-border-subtle': provider.lastTestStatus === 'unknown',
+            }"
+          >
+            <span class="font-semibold text-text-primary">{{ statusLabel(provider) }}</span>
+            <span class="text-text-secondary">{{ statusMessage(provider) }}</span>
           </div>
 
-          <div v-if="testResults[provider.id]" class="test-result" :class="{ success: testResults[provider.id]?.available, error: !testResults[provider.id]?.available }">
+          <div
+            v-if="testResults[provider.id]"
+            class="flex items-start gap-2 rounded-sm border p-[0.8rem] text-body"
+            :class="testResults[provider.id]?.available
+              ? 'border-[var(--color-positive)] bg-[color-mix(in_srgb,var(--color-positive)_14%,transparent)] text-[var(--color-positive)]'
+              : 'border-[var(--color-negative)] bg-[color-mix(in_srgb,var(--color-negative)_14%,transparent)] text-[var(--color-negative)]'"
+          >
             <CheckCircle v-if="testResults[provider.id]?.available" :size="16" />
             <AlertCircle v-else :size="16" />
             <div>
-              <strong>{{ testResults[provider.id]?.available ? 'Discovery succeeded' : 'Discovery failed' }}</strong>
-              <p>{{ testResults[provider.id]?.message }}</p>
+              <strong :class="testResults[provider.id]?.available ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'">
+                {{ testResults[provider.id]?.available ? 'Discovery succeeded' : 'Discovery failed' }}
+              </strong>
+              <p class="mt-[0.15rem] text-text-secondary">{{ testResults[provider.id]?.message }}</p>
             </div>
           </div>
 
-          <div class="provider-actions">
-            <button type="button" class="btn btn-secondary btn-xs" :disabled="testingProviderId === provider.id" @click="testProvider(provider.id)">
+          <div class="flex flex-col gap-[0.35rem] md:flex-row md:flex-wrap md:justify-end">
+            <button type="button" class="btn btn-secondary btn-xs focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" :disabled="testingProviderId === provider.id" @click="testProvider(provider.id)">
               {{ testingProviderId === provider.id ? 'Testing discovery...' : 'Test Discovery' }}
             </button>
-            <button type="button" class="btn btn-ghost btn-xs" :disabled="savingProviderId === provider.id" @click="toggleProvider(provider)">
+            <button type="button" class="btn btn-ghost btn-xs focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" :disabled="savingProviderId === provider.id" @click="toggleProvider(provider)">
               {{ provider.enabled ? 'Disable' : 'Enable' }}
             </button>
-            <button type="button" class="btn btn-ghost btn-xs" @click="openEditForm(provider)">
+            <button type="button" class="btn btn-ghost btn-xs focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="openEditForm(provider)">
               Edit
             </button>
-            <button type="button" class="btn btn-danger btn-xs" :disabled="deletingProviderId === provider.id" @click="deleteProvider(provider)">
+            <button type="button" class="btn btn-danger btn-xs focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" :disabled="deletingProviderId === provider.id" @click="deleteProvider(provider)">
               {{ deletingProviderId === provider.id ? 'Deleting...' : 'Delete' }}
             </button>
           </div>
 
-          <div class="status-message info oidc-test-note">
+          <div class="flex items-start gap-2 rounded-sm border border-border-accent bg-[var(--accent-gold-glow)] p-[0.8rem] text-sm text-text-secondary">
             <AlertCircle :size="16" />
             <span>Discovery tests do not validate the client secret. Entra verifies the secret only when a user completes sign-in or account linking.</span>
           </div>
@@ -87,17 +106,22 @@
       </div>
     </template>
 
-    <div v-if="showForm" class="modal-overlay" @click.self="closeForm">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>{{ editingProvider ? 'Edit OIDC Provider' : 'Add OIDC Provider' }}</h3>
-          <button type="button" class="modal-close" aria-label="Close" @click="closeForm">
+    <div v-if="showForm" class="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(0,0,0,0.6)] p-4" @click.self="closeForm">
+      <div class="max-h-[90vh] w-full max-w-[760px] overflow-auto rounded-md border border-border-subtle bg-card shadow-[var(--shadow-card)]">
+        <div class="flex items-center justify-between gap-4 border-b border-border-subtle px-6 py-4">
+          <h3 class="m-0 text-lg font-medium text-heading">{{ editingProvider ? 'Edit OIDC Provider' : 'Add OIDC Provider' }}</h3>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center rounded-sm p-1 text-text-muted transition-colors hover:text-text-primary focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+            aria-label="Close"
+            @click="closeForm"
+          >
             <X :size="20" />
           </button>
         </div>
 
-        <form class="modal-body" @submit.prevent="saveProvider">
-          <div class="form-grid">
+        <form class="p-6" @submit.prevent="saveProvider">
+          <div class="grid gap-4 md:grid-cols-2">
             <div class="form-group">
               <label class="form-label" for="oidc-name">Provider Key</label>
               <input
@@ -108,7 +132,7 @@
                 placeholder="entra-work"
                 autocomplete="off"
               />
-              <span class="form-hint">Stable admin key used by the API. Use lowercase letters, numbers, and hyphens.</span>
+              <span class="mt-1 block text-sm text-text-muted">Stable admin key used by the API. Use lowercase letters, numbers, and hyphens.</span>
             </div>
 
             <div class="form-group">
@@ -132,14 +156,14 @@
               </select>
             </div>
 
-            <div class="form-group toggle-row">
+            <div class="form-group flex items-center justify-between gap-4">
               <div>
                 <label class="form-label" for="oidc-enabled">Enabled</label>
-                <span class="form-hint">Only enabled providers appear on the login page.</span>
+                <span class="mt-1 block text-sm text-text-muted">Only enabled providers appear on the login page.</span>
               </div>
-              <label class="toggle">
-                <input id="oidc-enabled" v-model="form.enabled" type="checkbox" />
-                <span class="toggle-slider"></span>
+              <label class="relative inline-block h-7 w-[50px] shrink-0 rounded-full focus-within:outline-2 focus-within:outline-gold focus-within:outline-offset-2">
+                <input id="oidc-enabled" v-model="form.enabled" type="checkbox" class="peer sr-only" />
+                <span class="absolute inset-0 rounded-full border border-border-subtle bg-input transition-colors peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] after:absolute after:bottom-[2px] after:left-[2px] after:h-[22px] after:w-[22px] after:rounded-full after:bg-text-secondary after:content-[''] after:transition-transform peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"></span>
               </label>
             </div>
           </div>
@@ -154,9 +178,9 @@
               placeholder="00000000-0000-0000-0000-000000000000"
               autocomplete="off"
             />
-            <span class="form-hint">
+            <span class="mt-1 block text-sm text-text-muted">
               Derived issuer URL:
-              <code v-if="derivedEntraIssuerUrl">{{ derivedEntraIssuerUrl }}</code>
+              <code v-if="derivedEntraIssuerUrl" class="font-mono text-sm text-text-primary [overflow-wrap:anywhere]">{{ derivedEntraIssuerUrl }}</code>
               <span v-else>enter a tenant ID to generate the Microsoft issuer URL.</span>
             </span>
           </div>
@@ -173,7 +197,7 @@
             />
           </div>
 
-          <div class="form-grid">
+          <div class="grid gap-4 md:grid-cols-2">
             <div class="form-group">
               <label class="form-label" for="oidc-client-id">Client ID</label>
               <input
@@ -195,16 +219,16 @@
                 :placeholder="secretPlaceholder"
                 autocomplete="new-password"
               />
-              <span class="form-hint">{{ secretHint }}</span>
+              <span class="mt-1 block text-sm text-text-muted">{{ secretHint }}</span>
             </div>
           </div>
 
-          <div class="status-message info oidc-test-note">
+          <div class="mb-4 flex items-start gap-2 rounded-sm border border-border-accent bg-[var(--accent-gold-glow)] p-[0.8rem] text-sm text-text-secondary">
             <AlertCircle :size="16" />
             <span>Discovery tests do not validate the client secret. Entra verifies the secret only when a user completes sign-in or account linking.</span>
           </div>
 
-          <div class="form-grid">
+          <div class="grid gap-4 md:grid-cols-2">
             <div class="form-group">
               <label class="form-label" for="oidc-scopes">Scopes</label>
               <input
@@ -214,7 +238,7 @@
                 required
                 placeholder="openid profile email"
               />
-              <span class="form-hint">Space or comma separated. Must include openid.</span>
+              <span class="mt-1 block text-sm text-text-muted">Space or comma separated. Must include openid.</span>
             </div>
 
             <div class="form-group">
@@ -226,29 +250,35 @@
                 placeholder="/auth/oidc/callback/1"
                 autocomplete="off"
               />
-              <span class="form-hint">Login and linking use branded frontend callbacks. Leave blank unless you need a fallback override.</span>
+              <span class="mt-1 block text-sm text-text-muted">Login and linking use branded frontend callbacks. Leave blank unless you need a fallback override.</span>
             </div>
           </div>
 
-          <div class="form-group toggle-row">
+          <div class="form-group flex items-center justify-between gap-4">
             <div>
               <label class="form-label" for="oidc-verified-email">Require Verified Email</label>
-              <span class="form-hint">Recommended for matching account emails safely.</span>
+              <span class="mt-1 block text-sm text-text-muted">Recommended for matching account emails safely.</span>
             </div>
-            <label class="toggle">
-              <input id="oidc-verified-email" v-model="form.requireVerifiedEmail" type="checkbox" />
-              <span class="toggle-slider"></span>
+            <label class="relative inline-block h-7 w-[50px] shrink-0 rounded-full focus-within:outline-2 focus-within:outline-gold focus-within:outline-offset-2">
+              <input id="oidc-verified-email" v-model="form.requireVerifiedEmail" type="checkbox" class="peer sr-only" />
+              <span class="absolute inset-0 rounded-full border border-border-subtle bg-input transition-colors peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] after:absolute after:bottom-[2px] after:left-[2px] after:h-[22px] after:w-[22px] after:rounded-full after:bg-text-secondary after:content-[''] after:transition-transform peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"></span>
             </label>
           </div>
 
-          <div v-if="formError" class="status-message error form-error" role="alert">
-            <AlertCircle :size="16" />
-            <span>{{ formError }}</span>
+          <div
+            v-if="formError"
+            class="mb-4 rounded-sm border border-[color-mix(in_srgb,var(--color-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-negative)_10%,transparent)] p-3 text-body text-[var(--color-negative)]"
+            role="alert"
+          >
+            <div class="flex items-center gap-2">
+              <AlertCircle :size="16" />
+              <span>{{ formError }}</span>
+            </div>
           </div>
 
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary btn-sm" @click="closeForm">Cancel</button>
-            <button type="submit" class="btn btn-primary btn-sm" :disabled="formSaving">
+          <div class="mt-6 flex flex-col gap-2 md:flex-row md:justify-end">
+            <button type="button" class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="closeForm">Cancel</button>
+            <button type="submit" class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" :disabled="formSaving">
               {{ formSaving ? 'Saving...' : 'Save Provider' }}
             </button>
           </div>
@@ -592,346 +622,3 @@ onMounted(() => {
   void loadProviders()
 })
 </script>
-
-<style scoped>
-.admin-section {
-  padding: 1.5rem;
-}
-
-.section-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-}
-
-.section-heading h2 {
-  margin: 0;
-}
-
-.section-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
-
-.section-description {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  line-height: 1.5;
-  margin: 0 0 1.5rem;
-}
-
-.loading-overlay {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 3rem;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid var(--border-subtle);
-  border-top-color: var(--accent-gold);
-  border-radius: var(--radius-full);
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.empty-state-copy {
-  text-align: center;
-  padding: 2rem;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
-.provider-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.provider-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
-  padding: 1rem;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-}
-
-.provider-summary {
-  min-width: 0;
-}
-
-.provider-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
-  margin-bottom: 0.35rem;
-}
-
-.provider-title h3 {
-  margin: 0;
-  font-size: 1.2rem;
-  color: var(--text-heading);
-}
-
-.enabled-chip {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-  background: var(--accent-gold-dim);
-}
-
-.disabled-chip {
-  color: var(--text-muted);
-}
-
-.provider-meta {
-  margin: 0 0 0.5rem;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  overflow-wrap: anywhere;
-}
-
-.provider-details {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-}
-
-.provider-status,
-.test-result,
-.status-message {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0.6rem 0.8rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  font-size: 0.85rem;
-}
-
-.provider-status {
-  flex-direction: column;
-  gap: 0.2rem;
-  background: var(--bg-card);
-}
-
-.status-label {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.status-message-text {
-  color: var(--text-secondary);
-}
-
-.provider-status.success,
-.test-result.success {
-  border-color: var(--color-positive);
-  background: color-mix(in srgb, var(--color-positive) 14%, transparent);
-}
-
-.provider-status.error,
-.test-result.error,
-.status-message.error {
-  border-color: var(--color-negative);
-  background: color-mix(in srgb, var(--color-negative) 14%, transparent);
-}
-
-.status-message.info {
-  border-color: var(--border-accent);
-  background: var(--accent-gold-glow);
-  color: var(--text-secondary);
-}
-
-.provider-status.unknown {
-  border-color: var(--border-subtle);
-}
-
-.test-result.success,
-.test-result.success strong {
-  color: var(--color-positive);
-}
-
-.test-result.error,
-.test-result.error strong,
-.status-message.error {
-  color: var(--color-negative);
-}
-
-.test-result p {
-  margin: 0.15rem 0 0;
-  color: var(--text-secondary);
-}
-
-.provider-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  justify-content: flex-end;
-}
-
-.oidc-test-note {
-  font-size: 0.8rem;
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay-dark);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-}
-
-.modal-content {
-  width: min(760px, 100%);
-  max-height: 90vh;
-  overflow: auto;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.2rem;
-  color: var(--text-heading);
-}
-
-.modal-close {
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.25rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: color var(--transition-fast);
-}
-
-.modal-close:hover {
-  color: var(--text-primary);
-}
-
-.modal-body {
-  padding: 1.5rem;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.form-hint {
-  display: block;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  margin-top: 0.25rem;
-}
-
-.toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.toggle {
-  position: relative;
-  display: inline-block;
-  width: 50px;
-  height: 28px;
-  flex-shrink: 0;
-}
-
-.toggle input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  cursor: pointer;
-  inset: 0;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-  transition: background var(--transition-fast);
-}
-
-.toggle-slider::before {
-  content: '';
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  left: 2px;
-  bottom: 2px;
-  background: var(--text-secondary);
-  border-radius: var(--radius-full);
-  transition: transform var(--transition-fast);
-}
-
-.toggle input:checked + .toggle-slider {
-  background: var(--accent-gold-dim);
-  border-color: var(--accent-gold);
-}
-
-.toggle input:checked + .toggle-slider::before {
-  transform: translateX(22px);
-  background: var(--accent-gold);
-}
-
-.form-error {
-  margin-bottom: 1rem;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1.5rem;
-}
-
-@media (max-width: 768px) {
-  .section-heading,
-  .section-actions,
-  .provider-actions,
-  .modal-footer {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .form-grid {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-}
-</style>

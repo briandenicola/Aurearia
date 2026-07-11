@@ -1,37 +1,42 @@
 <template>
-  <Transition name="install-slide">
-    <div v-if="visible" class="install-prompt">
-      <div class="install-content">
-        <div class="install-icon">
+  <Transition
+    enter-active-class="transition-all duration-300 ease-out"
+    enter-from-class="translate-y-full opacity-0"
+    leave-active-class="transition-all duration-300 ease-in"
+    leave-to-class="translate-y-full opacity-0"
+  >
+    <div v-if="visible" class="fixed inset-x-0 bottom-0 z-[150] border-t border-border-subtle bg-card px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(0,0,0,0.4)]">
+      <div class="mx-auto flex max-w-[480px] items-start gap-[0.85rem]">
+        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-gold-glow text-gold">
           <Download :size="24" />
         </div>
-        <div class="install-text">
-          <h4>Aurearia - Coin Collection</h4>
-          <p v-if="platform === 'ios-safari'">
+        <div class="min-w-0 flex-1">
+          <h4 class="mb-[0.3rem] text-base text-gold">Aurearia - Coin Collection</h4>
+          <p v-if="platform === 'ios-safari'" class="m-0 text-[0.82rem] leading-6 text-text-secondary">
             Tap the <strong>Share</strong> button
-            <Share :size="14" class="inline-icon" />
+            <Share :size="14" class="mx-[0.1rem] inline-block align-middle text-gold" />
             then <strong>"Add to Home Screen"</strong>
           </p>
-          <p v-else-if="platform === 'ios-edge'">
+          <p v-else-if="platform === 'ios-edge'" class="m-0 text-[0.82rem] leading-6 text-text-secondary">
             Tap the <strong>menu</strong> button
-            <MoreHorizontal :size="14" class="inline-icon" />
+            <MoreHorizontal :size="14" class="mx-[0.1rem] inline-block align-middle text-gold" />
             then <strong>"Add to Phone"</strong>
           </p>
-          <p v-else-if="platform === 'ios-other'">
+          <p v-else-if="platform === 'ios-other'" class="m-0 text-[0.82rem] leading-6 text-text-secondary">
             For the best experience, open in <strong>Safari</strong>, tap
-            <Share :size="14" class="inline-icon" />
+            <Share :size="14" class="mx-[0.1rem] inline-block align-middle text-gold" />
             then <strong>"Add to Home Screen"</strong>
           </p>
-          <p v-else-if="platform === 'android'">
+          <p v-else-if="platform === 'android'" class="m-0 text-[0.82rem] leading-6 text-text-secondary">
             Tap the <strong>menu</strong>
-            <MoreVertical :size="14" class="inline-icon" />
+            <MoreVertical :size="14" class="mx-[0.1rem] inline-block align-middle text-gold" />
             then <strong>"Add to Home Screen"</strong> or <strong>"Install App"</strong>
           </p>
-          <p v-else>
+          <p v-else class="m-0 text-[0.82rem] leading-6 text-text-secondary">
             Use your browser menu to <strong>"Install"</strong> or <strong>"Add to Home Screen"</strong>
           </p>
         </div>
-        <button class="install-dismiss" @click="dismiss" aria-label="Dismiss">
+        <button class="shrink-0 rounded-sm p-1 text-text-secondary transition-colors hover:bg-gold-glow hover:text-text-primary" @click="dismiss" aria-label="Dismiss">
           <X :size="18" />
         </button>
       </div>
@@ -86,92 +91,3 @@ onMounted(() => {
   visible.value = true
 })
 </script>
-
-<style scoped>
-.install-prompt {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 150;
-  background: var(--bg-card);
-  border-top: 1px solid var(--border-subtle);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
-  padding: 1rem 1.25rem;
-  padding-bottom: max(1rem, env(safe-area-inset-bottom));
-}
-
-.install-content {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.85rem;
-  max-width: 480px;
-  margin: 0 auto;
-}
-
-.install-icon {
-  flex-shrink: 0;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: var(--accent-gold-glow);
-  color: var(--accent-gold);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.install-text {
-  flex: 1;
-  min-width: 0;
-}
-
-.install-text h4 {
-  font-family: 'Cinzel', serif;
-  font-size: 0.95rem;
-  color: var(--accent-gold);
-  margin: 0 0 0.3rem;
-}
-
-.install-text p {
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-  margin: 0;
-  line-height: 1.5;
-}
-
-.inline-icon {
-  display: inline-block;
-  vertical-align: middle;
-  margin: 0 0.1rem;
-  color: var(--accent-gold);
-}
-
-.install-dismiss {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: var(--radius-sm);
-  transition: color var(--transition-fast), background var(--transition-fast);
-}
-
-.install-dismiss:hover {
-  color: var(--text-primary);
-  background: var(--accent-gold-glow);
-}
-
-/* Slide-up transition */
-.install-slide-enter-active,
-.install-slide-leave-active {
-  transition: transform 0.3s ease, opacity 0.3s ease;
-}
-
-.install-slide-enter-from,
-.install-slide-leave-to {
-  transform: translateY(100%);
-  opacity: 0;
-}
-</style>

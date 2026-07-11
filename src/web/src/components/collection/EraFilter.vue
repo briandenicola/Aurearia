@@ -1,5 +1,5 @@
 <template>
-  <select :value="modelValue" @change="$emit('update:modelValue', ($event.target as HTMLSelectElement).value)" class="era-filter-select">
+  <select :value="modelValue" @change="$emit('update:modelValue', ($event.target as HTMLSelectElement).value)" class="form-select h-[38px] min-w-0 flex-1 bg-card px-[0.6rem] py-[0.45rem] text-body transition-colors hover:border-border-accent">
     <option value="">All Eras</option>
     <option v-for="era in eras" :key="era" :value="era">{{ formatEra(era) }}</option>
   </select>
@@ -13,15 +13,3 @@ function formatEra(era: string): string {
   return era.charAt(0).toUpperCase() + era.slice(1)
 }
 </script>
-
-<style scoped>
-.era-filter-select {
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-card);
-  color: var(--text-primary);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-</style>

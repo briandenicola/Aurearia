@@ -343,3 +343,164 @@ func TestAuctionEndingRepository_GetLastScheduledRun(t *testing.T) {
 		t.Fatalf("expected latest completed scheduled run near %v, got %v", scheduledLatestCompleted, *lastRun.CompletedAt)
 	}
 }
+
+// TestAuctionEndingRepository_MarkRunning_Success verifies CAS transition queued → running.
+func TestAuctionEndingRepository_MarkRunning_Success(t *testing.T) {
+	db := setupAuctionEndingRepoTestDB(t)
+	repo := NewAuctionEndingRepository(db)
+
+	run := &models.AuctionEndingRun{
+		TriggerType: "manual",
+		Status:      "queued",
+		StartedAt:   time.Now(),
+	}
+	repo.CreateRun(run)
+
+	claimed, ok, err := repo.MarkRunning(run.ID)
+	if err != nil {
+		t.Fatalf("MarkRunning error: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected MarkRunning to succeed")
+	}
+	if claimed.Status != "running" {
+		t.Errorf("expected status running, got %q", claimed.Status)
+	}
+}
+
+// TestAuctionEndingRepository_MarkRunning_AlreadyClaimed verifies CAS returns false when not queued.
+func TestAuctionEndingRepository_MarkRunning_AlreadyClaimed(t *testing.T) {
+	db := setupAuctionEndingRepoTestDB(t)
+	repo := NewAuctionEndingRepository(db)
+
+	run := &models.AuctionEndingRun{
+		TriggerType: "manual",
+		Status:      "running", // already claimed
+		StartedAt:   time.Now(),
+	}
+	repo.CreateRun(run)
+
+	_, ok, err := repo.MarkRunning(run.ID)
+	if err != nil {
+		t.Fatalf("MarkRunning error: %v", err)
+	}
+	if ok {
+		t.Error("expected MarkRunning to return false for already-running run")
+	}
+}
+
+// TestAuctionEndingRepository_FindActiveRun_ReturnsQueued verifies FindActiveRun returns queued run.
+func TestAuctionEndingRepository_FindActiveRun_ReturnsQueued(t *testing.T) {
+	db := setupAuctionEndingRepoTestDB(t)
+	repo := NewAuctionEndingRepository(db)
+
+	run := &models.AuctionEndingRun{
+		TriggerType: "manual",
+		Status:      "queued",
+		StartedAt:   time.Now(),
+	}
+	repo.CreateRun(run)
+
+	active := repo.FindActiveRun()
+	if active == nil {
+		t.Fatal("expected FindActiveRun to return queued run")
+	}
+	if active.ID != run.ID {
+		t.Errorf("expected run ID=%d, got %d", run.ID, active.ID)
+	}
+}
+
+// TestAuctionEndingRepository_FindActiveRun_ReturnsRunning verifies FindActiveRun returns running run.
+func TestAuctionEndingRepository_FindActiveRun_ReturnsRunning(t *testing.T) {
+	db := setupAuctionEndingRepoTestDB(t)
+	repo := NewAuctionEndingRepository(db)
+
+	run := &models.AuctionEndingRun{
+		TriggerType: "manual",
+		Status:      "running",
+		StartedAt:   time.Now(),
+	}
+	repo.CreateRun(run)
+
+	active := repo.FindActiveRun()
+	if active == nil {
+		t.Fatal("expected FindActiveRun to return running run")
+	}
+	if active.ID != run.ID {
+		t.Errorf("expected run ID=%d, got %d", run.ID, active.ID)
+	}
+}
+
+// TestAuctionEndingRepository_FindActiveRun_NilWhenTerminal verifies FindActiveRun returns nil for terminal runs.
+func TestAuctionEndingRepository_FindActiveRun_NilWhenTerminal(t *testing.T) {
+	db := setupAuctionEndingRepoTestDB(t)
+	repo := NewAuctionEndingRepository(db)
+
+	now := time.Now()
+	run := &models.AuctionEndingRun{
+		TriggerType: "manual",
+		Status:      "success",
+		StartedAt:   now,
+		CompletedAt: &now,
+	}
+	repo.CreateRun(run)
+
+	active := repo.FindActiveRun()
+	if active != nil {
+		t.Errorf("expected nil for terminal run, got ID=%d status=%s", active.ID, active.Status)
+	}
+}
+
+// TestAuctionEndingRepository_RecoverStaleRuns verifies stale queued/running runs are marked error.
+func TestAuctionEndingRepository_RecoverStaleRuns(t *testing.T) {
+	db := setupAuctionEndingRepoTestDB(t)
+	repo := NewAuctionEndingRepository(db)
+
+	timeout := 30 * time.Minute
+	staleTime := time.Now().Add(-2 * time.Hour)
+
+	// Stale queued run
+	r1 := &models.AuctionEndingRun{TriggerType: "manual", Status: "queued", StartedAt: staleTime}
+	repo.CreateRun(r1)
+
+	// Stale running run
+	r2 := &models.AuctionEndingRun{TriggerType: "manual", Status: "running", StartedAt: staleTime}
+	repo.CreateRun(r2)
+
+	// Fresh queued run (should be left alone)
+	r3 := &models.AuctionEndingRun{TriggerType: "manual", Status: "queued", StartedAt: time.Now()}
+	repo.CreateRun(r3)
+
+	// Completed run (should be left alone)
+	now := time.Now()
+	r4 := &models.AuctionEndingRun{TriggerType: "scheduled", Status: "success", StartedAt: staleTime, CompletedAt: &now}
+	repo.CreateRun(r4)
+
+	recovered := repo.RecoverStaleRuns(timeout)
+	if recovered != 2 {
+		t.Errorf("expected 2 stale runs recovered, got %d", recovered)
+	}
+
+	var runs []models.AuctionEndingRun
+	db.Order("id ASC").Find(&runs)
+
+	for _, r := range runs {
+		switch r.ID {
+		case r1.ID, r2.ID:
+			if r.Status != "error" {
+				t.Errorf("stale run #%d expected error, got %q", r.ID, r.Status)
+			}
+			if r.CompletedAt == nil {
+				t.Errorf("stale run #%d expected CompletedAt set", r.ID)
+			}
+		case r3.ID:
+			if r.Status != "queued" {
+				t.Errorf("fresh run #%d expected queued, got %q", r.ID, r.Status)
+			}
+		case r4.ID:
+			if r.Status != "success" {
+				t.Errorf("completed run #%d expected success, got %q", r.ID, r.Status)
+			}
+		}
+	}
+}

@@ -1,20 +1,18 @@
 <template>
   <CoinDetailSectionPageShell section-title="Value Trend">
     <template #default="{ coin: coinData }">
-      <div v-if="coinData.isWishlist || coinData.isSold" class="valuation-empty card">
-        <p>
-          Value tracking is only available for active coins in your collection.
-        </p>
+      <div v-if="coinData.isWishlist || coinData.isSold" class="card p-6 text-center text-text-secondary text-base">
+        <p>Value tracking is only available for active coins in your collection.</p>
       </div>
       <div v-else>
-        <div v-if="coinChartData.length >= 2" class="line-chart-container">
-          <div class="line-chart-y-axis">
+        <div v-if="coinChartData.length >= 2" class="flex gap-2">
+          <div class="flex flex-col justify-between text-label text-text-muted text-right min-w-[60px] py-1">
             <span>{{ formatCurrency(coinChartMax) }}</span>
             <span>{{ formatCurrency(coinChartMax / 2) }}</span>
             <span>$0</span>
           </div>
-          <div class="line-chart">
-            <svg viewBox="0 0 1000 300" preserveAspectRatio="none" class="line-chart-svg">
+          <div class="flex-1 h-[200px] bg-surface rounded-sm p-2">
+            <svg viewBox="0 0 1000 300" preserveAspectRatio="none" class="w-full h-full">
               <polyline
                 :points="coinChartPoints"
                 fill="none"
@@ -30,11 +28,11 @@
             </svg>
           </div>
         </div>
-        <div v-if="coinChartData.length >= 2" class="line-chart-dates">
+        <div v-if="coinChartData.length >= 2" class="flex justify-between text-label text-text-muted mt-1 px-2 pl-[68px]">
           <span>{{ formatShortDate(coinChartData[0]?.date ?? '') }}</span>
           <span>{{ formatShortDate(coinChartData[coinChartData.length - 1]?.date ?? '') }}</span>
         </div>
-        <div v-else class="valuation-empty card">
+        <div v-else class="card p-6 text-center text-text-secondary text-base">
           <p>Not enough data points to chart. Run an AI estimate to start tracking.</p>
         </div>
       </div>
@@ -108,50 +106,3 @@ function formatShortDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })
 }
 </script>
-
-<style scoped>
-.valuation-empty {
-  padding: 1.5rem;
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-
-.line-chart-container {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.line-chart-y-axis {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  text-align: right;
-  min-width: 60px;
-  padding: 0.25rem 0;
-}
-
-.line-chart {
-  flex: 1;
-  height: 200px;
-  background: var(--bg-primary);
-  border-radius: var(--radius-sm);
-  padding: 0.5rem;
-}
-
-.line-chart-svg {
-  width: 100%;
-  height: 100%;
-}
-
-.line-chart-dates {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  margin-top: 0.25rem;
-  padding: 0 0.5rem 0 68px;
-}
-</style>

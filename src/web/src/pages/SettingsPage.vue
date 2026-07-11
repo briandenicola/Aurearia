@@ -1,21 +1,26 @@
 <template>
   <PullToRefresh :on-refresh="handleRefresh">
     <div class="container">
-      <div class="page-header">
+      <div class="page-header !flex-nowrap !items-center">
         <h1>Settings</h1>
-        <div v-if="isPwa" class="settings-menu-wrapper">
-          <button class="btn btn-secondary btn-sm settings-menu-btn" @click="settingsMenuOpen = !settingsMenuOpen">
+        <div v-if="isPwa" class="relative">
+          <button class="btn btn-secondary btn-sm gap-1.5 text-body" @click="settingsMenuOpen = !settingsMenuOpen">
             <component :is="tabIcons[activeTab]" :size="16" />
             {{ tabs.find(t => t.id === activeTab)?.label }}
             <Menu :size="16" />
           </button>
-          <Transition name="fade">
-            <div v-if="settingsMenuOpen" class="settings-dropdown">
+          <Transition
+            enter-active-class="transition-opacity duration-150 ease-out"
+            enter-from-class="opacity-0"
+            leave-active-class="transition-opacity duration-150 ease-in"
+            leave-to-class="opacity-0"
+          >
+            <div v-if="settingsMenuOpen" class="absolute right-0 top-full z-50 mt-2 flex min-w-[180px] flex-col gap-0.5 rounded-md border border-border-subtle bg-card p-[0.3rem] shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
               <button
                 v-for="tab in tabs"
                 :key="tab.id"
-                class="settings-dropdown-item"
-                :class="{ active: activeTab === tab.id }"
+                class="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-body font-medium text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
+                :class="{ 'bg-[var(--accent-gold-dim)] text-gold hover:bg-[var(--accent-gold-dim)] hover:text-gold': activeTab === tab.id }"
                 @click="selectTab(tab.id); settingsMenuOpen = false"
               >
                 <component :is="tabIcons[tab.id]" :size="16" />
@@ -26,24 +31,21 @@
         </div>
       </div>
 
-      <div class="settings-layout">
-        <!-- Tab Nav (desktop only) -->
-        <div v-if="!isPwa" class="tab-nav">
+      <div class="mx-auto flex max-w-[800px] flex-col gap-6">
+        <div v-if="!isPwa" class="flex flex-wrap gap-1 rounded-md border border-border-subtle bg-card p-[0.3rem]">
           <button
             v-for="tab in tabs"
             :key="tab.id"
-            class="tab-btn"
-            :class="{ active: activeTab === tab.id }"
+            class="flex flex-1 items-center justify-center gap-1.5 rounded-sm px-2.5 py-2 text-[0.78rem] font-medium text-text-secondary transition-colors hover:text-text-primary md:px-4 md:py-2.5 md:text-body"
+            :class="{ 'bg-[var(--accent-gold-dim)] text-gold hover:text-gold': activeTab === tab.id }"
             @click="selectTab(tab.id)"
           >
             <component :is="tabIcons[tab.id]" :size="16" /> {{ tab.label }}
           </button>
         </div>
 
-        <!-- Account Tab -->
         <SettingsAccountSection v-if="activeTab === 'account'" ref="accountSection" />
 
-        <!-- Appearance Tab -->
         <SettingsAppearanceSection
           v-if="activeTab === 'appearance'"
           :theme="theme"
@@ -59,16 +61,12 @@
           @set-tray-felt-color="(color) => { feltColor = color }"
         />
 
-        <!-- Data Tab -->
         <SettingsDataSection v-if="activeTab === 'data'" ref="dataSection" />
 
-        <!-- Backups Tab -->
         <SettingsBackupsSection v-if="activeTab === 'backups'" ref="backupsSection" />
 
-        <!-- API Keys Tab -->
         <SettingsApiKeysSection v-if="activeTab === 'apikeys'" ref="apiKeysSection" />
 
-        <!-- Tools Tab -->
         <SettingsToolsSection
           v-if="activeTab === 'tools'"
           :blocked-users="blockedUsers"
@@ -77,7 +75,6 @@
           @unblock="handleUnblock"
         />
 
-        <!-- Conversations Tab -->
         <SavedConversationsSection
           v-if="activeTab === 'conversations'"
           :conversations="conversations"
@@ -86,7 +83,6 @@
           @delete="handleDeleteConversation"
         />
 
-        <!-- Help Tab -->
         <HelpSection v-if="activeTab === 'help'" />
 
         <CoinSearchChat
@@ -327,133 +323,3 @@ onMounted(() => {
   loadBlockedUsers()
 })
 </script>
-
-<style scoped>
-.settings-layout {
-  max-width: 800px;
-  margin-left: auto;
-  margin-right: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.tab-nav {
-  display: flex;
-  gap: 0.25rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 0.3rem;
-}
-
-.tab-btn {
-  flex: 1;
-  padding: 0.6rem 1rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-}
-
-.tab-btn.active {
-  background: var(--accent-gold-dim);
-  color: var(--accent-gold);
-}
-
-.tab-btn:hover:not(.active) {
-  color: var(--text-primary);
-}
-
-/* Settings hamburger menu (PWA) */
-.page-header {
-  display: flex;
-  flex-direction: row !important;
-  justify-content: space-between;
-  align-items: center !important;
-  margin-bottom: 1.5rem;
-  flex-wrap: nowrap;
-}
-
-.settings-menu-wrapper {
-  position: relative;
-}
-
-.settings-menu-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.85rem;
-}
-
-.settings-dropdown {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  right: 0;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-  z-index: 50;
-  min-width: 180px;
-  padding: 0.3rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.settings-dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 0.75rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  text-align: left;
-  width: 100%;
-}
-
-.settings-dropdown-item.active {
-  background: var(--accent-gold-dim);
-  color: var(--accent-gold);
-}
-
-.settings-dropdown-item:hover:not(.active) {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.15s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-@media (max-width: 640px) {
-  .tab-nav {
-    flex-wrap: wrap;
-  }
-
-  .tab-btn {
-    font-size: 0.78rem;
-    padding: 0.5rem 0.6rem;
-  }
-}
-</style>

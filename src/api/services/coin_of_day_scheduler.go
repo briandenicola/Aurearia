@@ -14,6 +14,7 @@ import (
 // and sends them a "Coin of the Day" notification + Pushover alert.
 type CoinOfDayScheduler struct {
 	featuredRepo *repository.FeaturedCoinRepository
+	runRepo      *repository.CoinOfDayRunRepository
 	userRepo     *repository.UserRepository
 	coinRepo     *repository.CoinRepository
 	notifSvc     *NotificationService
@@ -21,13 +22,21 @@ type CoinOfDayScheduler struct {
 	logger       *Logger
 	stopCh       chan struct{}
 	once         sync.Once
+	workersOnce  sync.Once
+	queue        chan uint
 	lastPicked   map[uint]string // userID -> "YYYY-MM-DD" idempotency cache
 	mu           sync.RWMutex
 }
 
+const (
+	coinOfDayRunQueueSize = 100
+	coinOfDayRunTimeout   = 30 * time.Minute
+)
+
 // NewCoinOfDayScheduler creates a new scheduler.
 func NewCoinOfDayScheduler(
 	featuredRepo *repository.FeaturedCoinRepository,
+	runRepo *repository.CoinOfDayRunRepository,
 	userRepo *repository.UserRepository,
 	coinRepo *repository.CoinRepository,
 	notifSvc *NotificationService,
@@ -36,14 +45,32 @@ func NewCoinOfDayScheduler(
 ) *CoinOfDayScheduler {
 	return &CoinOfDayScheduler{
 		featuredRepo: featuredRepo,
+		runRepo:      runRepo,
 		userRepo:     userRepo,
 		coinRepo:     coinRepo,
 		notifSvc:     notifSvc,
 		settingsSvc:  settingsSvc,
 		logger:       logger,
 		stopCh:       make(chan struct{}),
+		queue:        make(chan uint, coinOfDayRunQueueSize),
 		lastPicked:   make(map[uint]string),
 	}
+}
+
+func (s *CoinOfDayScheduler) StartWorkers(workerCount int) {
+	if workerCount < 1 {
+		workerCount = 1
+	}
+	s.workersOnce.Do(func() {
+		if ids, err := s.runRepo.RecoverStaleRuns(coinOfDayRunTimeout); err == nil {
+			for _, id := range ids {
+				s.enqueueRunID(id)
+			}
+		}
+		for i := 0; i < workerCount; i++ {
+			go s.worker()
+		}
+	})
 }
 
 // Start begins the daily loop. Call from a goroutine.
@@ -107,13 +134,88 @@ func (s *CoinOfDayScheduler) runCycle() {
 		s.logger.Debug("scheduler", "Coin of the Day disabled, skipping cycle")
 		return
 	}
-	_, _, _, _ = s.runCycleWithTrigger("scheduled")
+	if _, err := s.enqueueRun(models.CoinOfDayRunTriggerScheduled, nil); err != nil {
+		s.logger.Error("scheduler", "Failed to queue scheduled coin-of-the-day run: %v", err)
+	}
 }
 
-// RunNow executes an immediate coin-of-the-day pick for all opted-in users.
-// Returns counts for admin manual-trigger response.
-func (s *CoinOfDayScheduler) RunNow() (picked int, skipped int, errs int, err error) {
-	return s.runCycleWithTrigger("manual")
+// RunNowWithTrigger queues an immediate coin-of-the-day run and records the triggering admin.
+func (s *CoinOfDayScheduler) RunNowWithTrigger(triggerUserID *uint) (*models.CoinOfDayRun, error) {
+	return s.enqueueRun(models.CoinOfDayRunTriggerManual, triggerUserID)
+}
+
+func (s *CoinOfDayScheduler) ListRuns(page, limit int) ([]models.CoinOfDayRun, int64, error) {
+	return s.runRepo.ListRuns(page, limit)
+}
+
+func (s *CoinOfDayScheduler) GetRun(runID uint) (*models.CoinOfDayRun, error) {
+	return s.runRepo.GetRun(runID)
+}
+
+func (s *CoinOfDayScheduler) enqueueRun(triggerType models.CoinOfDayRunTriggerType, triggerUserID *uint) (*models.CoinOfDayRun, error) {
+	run := &models.CoinOfDayRun{
+		TriggerType:   triggerType,
+		TriggerUserID: triggerUserID,
+		Status:        models.CoinOfDayRunStatusQueued,
+		StartedAt:     time.Now(),
+	}
+	existing, acquired, err := s.runRepo.CreateRunIfNoActive(run, time.Now().Add(-coinOfDayRunTimeout))
+	if err != nil {
+		return nil, err
+	}
+	if acquired {
+		s.enqueueRunID(run.ID)
+		return run, nil
+	}
+	return existing, nil
+}
+
+func (s *CoinOfDayScheduler) enqueueRunID(runID uint) {
+	select {
+	case s.queue <- runID:
+	default:
+		go func() { s.queue <- runID }()
+	}
+}
+
+func (s *CoinOfDayScheduler) worker() {
+	for runID := range s.queue {
+		_ = s.ProcessRun(runID)
+	}
+}
+
+func (s *CoinOfDayScheduler) ProcessRun(runID uint) error {
+	run, claimed, err := s.runRepo.ClaimQueuedRun(runID)
+	if err != nil {
+		return err
+	}
+	if !claimed {
+		return nil
+	}
+	picked, skipped, errs, runErr := s.runCycleWithTrigger(string(run.TriggerType))
+	now := time.Now()
+	run.CompletedAt = &now
+	run.Picked = picked
+	run.Skipped = skipped
+	run.Errors = errs
+	if runErr != nil {
+		run.Status = models.CoinOfDayRunStatusFailed
+		run.ErrorMessage = sanitizeRunError(runErr.Error())
+	} else {
+		run.Status = models.CoinOfDayRunStatusCompleted
+		run.ErrorMessage = ""
+	}
+	return s.runRepo.UpdateRun(run)
+}
+
+func sanitizeRunError(message string) string {
+	message = strings.TrimSpace(message)
+	message = strings.ReplaceAll(message, "\n", " ")
+	message = strings.ReplaceAll(message, "\r", " ")
+	if len(message) > 500 {
+		return message[:500]
+	}
+	return message
 }
 
 // runCycleWithTrigger iterates opted-in users and picks/notifies each.

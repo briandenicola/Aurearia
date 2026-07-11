@@ -1,6 +1,5 @@
 <template>
-  <div class="image-processor">
-    <!-- Step 1: Image Input -->
+  <div class="mx-auto max-w-[700px]">
     <ImageInputPanel
       v-if="!sourceImage"
       :source-image="sourceImage"
@@ -11,90 +10,86 @@
       @drop="loadImageFromFile"
     />
 
-    <!-- Step 2: Processing & Preview -->
-    <div v-if="sourceImage" class="processing-section">
-      <div class="step-header">
+    <div v-if="sourceImage">
+      <div class="mb-5 flex items-center justify-between gap-3 max-sm:flex-col max-sm:items-stretch">
         <button class="btn btn-secondary btn-sm" @click="reset">← Start Over</button>
-        <div class="step-indicators">
-          <span class="step" :class="{ active: step === 'preview', done: step !== 'preview' }">1. Original</span>
-          <span class="step" :class="{ active: step === 'removing', done: step === 'crop' || step === 'done' }">2.
-            Remove BG</span>
-          <span class="step" :class="{ active: step === 'crop', done: step === 'done' }">3. Crop</span>
+        <div class="flex gap-2 max-sm:justify-center">
+          <span class="rounded-full border px-[0.6rem] py-[0.3rem] text-sm" :class="step === 'preview' ? 'border-gold bg-gold-glow text-gold' : 'border-border-subtle bg-card text-text-muted'">1. Original</span>
+          <span class="rounded-full border px-[0.6rem] py-[0.3rem] text-sm" :class="step === 'removing' ? 'border-gold bg-gold-glow text-gold' : step === 'crop' || step === 'done' ? 'border-gold-dim bg-card text-text-secondary' : 'border-border-subtle bg-card text-text-muted'">2. Remove BG</span>
+          <span class="rounded-full border px-[0.6rem] py-[0.3rem] text-sm" :class="step === 'crop' ? 'border-gold bg-gold-glow text-gold' : step === 'done' ? 'border-gold-dim bg-card text-text-secondary' : 'border-border-subtle bg-card text-text-muted'">3. Crop</span>
         </div>
       </div>
 
-      <!-- Original preview + remove BG button -->
-      <div v-if="step === 'preview'" class="preview-panel">
-        <div class="image-preview">
-          <img :src="sourceImage" alt="Original" />
+      <div v-if="step === 'preview'" class="flex flex-col items-center gap-4">
+        <div class="relative w-full max-w-[500px] overflow-hidden rounded-md border border-border-subtle">
+          <img :src="sourceImage" alt="Original" class="block w-full" />
         </div>
         <button class="btn btn-primary" @click="removeBackground">Remove Background</button>
       </div>
 
-      <!-- Processing spinner -->
-      <div v-if="step === 'removing'" class="preview-panel">
-        <div class="image-preview processing">
-          <img :src="sourceImage" alt="Processing" class="processing-img" />
-          <div class="processing-overlay">
+      <div v-if="step === 'removing'" class="flex flex-col items-center gap-4">
+        <div class="relative w-full max-w-[500px] overflow-hidden rounded-md border border-border-subtle">
+          <img :src="sourceImage" alt="Processing" class="block w-full opacity-30 blur-[2px]" />
+          <div class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-gold">
             <div class="spinner"></div>
-            <p>Removing background...</p>
-            <p class="processing-hint">First run downloads the ML model (~40MB)</p>
+            <p class="text-base">Removing background...</p>
+            <p class="text-sm text-text-muted">First run downloads the ML model (~40MB)</p>
           </div>
         </div>
       </div>
 
-      <!-- Crop step -->
-      <div v-if="step === 'crop' || step === 'done'" class="crop-panel">
-        <div class="crop-workspace">
+      <div v-if="step === 'crop' || step === 'done'" class="flex flex-col gap-4">
+        <div class="flex justify-center">
           <canvas
-            ref="cropCanvas" class="crop-canvas" @pointerdown="startCropDrag" @pointermove="onCropDrag"
+            ref="cropCanvas"
+            class="max-w-full cursor-crosshair touch-none rounded-md border border-border-subtle"
+            @pointerdown="startCropDrag"
+            @pointermove="onCropDrag"
             @pointerup="endCropDrag"
           />
         </div>
-        <div class="crop-controls">
+        <div class="flex flex-wrap items-center gap-3">
           <button class="btn btn-secondary btn-sm" @click="autoCrop">Auto Crop</button>
           <button class="btn btn-secondary btn-sm" @click="resetCrop">Reset Crop</button>
-          <label class="padding-control">
+          <label class="ml-auto flex items-center gap-2 text-chip text-text-secondary">
             <span>Padding</span>
-            <input v-model.number="cropPadding" type="range" min="0" max="50" />
-            <span class="padding-value">{{ cropPadding }}px</span>
+            <input v-model.number="cropPadding" type="range" min="0" max="50" class="w-[100px] accent-gold" />
+            <span class="min-w-8 text-right">{{ cropPadding }}px</span>
           </label>
         </div>
 
-        <!-- Result preview -->
-        <div class="result-row">
-          <div class="result-preview">
-            <h4>Result</h4>
-            <canvas ref="resultCanvas" class="result-canvas" />
+        <div class="flex gap-6 rounded-md border border-border-subtle bg-card p-4 max-sm:flex-col">
+          <div class="flex flex-col items-center gap-2">
+            <h4 class="text-body text-text-secondary">Result</h4>
+            <canvas ref="resultCanvas" class="rounded-sm border border-border-subtle" />
           </div>
-          <div class="save-controls">
-            <div class="save-tabs">
-              <button class="save-tab" :class="{ active: saveTab === 'existing' }" @click="saveTab = 'existing'">Existing Coin</button>
-              <button class="save-tab" :class="{ active: saveTab === 'new' }" @click="saveTab = 'new'">New Coin</button>
-              <button class="save-tab" :class="{ active: saveTab === 'download' }" @click="saveTab = 'download'">Download</button>
+          <div class="flex min-w-0 flex-1 flex-col gap-3">
+            <div class="flex gap-[2px] rounded-sm bg-surface p-[2px]">
+              <button class="flex-1 whitespace-nowrap rounded-sm px-2 py-1.5 text-sm transition-colors" :class="saveTab === 'existing' ? 'bg-card text-gold' : 'text-text-muted hover:text-text-secondary'" @click="saveTab = 'existing'">Existing Coin</button>
+              <button class="flex-1 whitespace-nowrap rounded-sm px-2 py-1.5 text-sm transition-colors" :class="saveTab === 'new' ? 'bg-card text-gold' : 'text-text-muted hover:text-text-secondary'" @click="saveTab = 'new'">New Coin</button>
+              <button class="flex-1 whitespace-nowrap rounded-sm px-2 py-1.5 text-sm transition-colors" :class="saveTab === 'download' ? 'bg-card text-gold' : 'text-text-muted hover:text-text-secondary'" @click="saveTab = 'download'">Download</button>
             </div>
 
-            <!-- Assign to existing coin -->
-            <div v-if="saveTab === 'existing'" class="save-panel">
-              <div class="coin-search">
-                <input v-model="coinSearch" type="text" class="form-input" placeholder="Search coins..." @input="searchCoins" />
+            <div v-if="saveTab === 'existing'" class="flex flex-col gap-2">
+              <div>
+                <input v-model="coinSearch" type="text" class="form-input w-full text-body" placeholder="Search coins..." @input="searchCoins" />
               </div>
-              <div v-if="coinOptions.length" class="coin-list">
-                <button v-for="c in coinOptions" :key="c.id" class="coin-option" :class="{ selected: selectedCoinId === c.id }" @click="selectedCoinId = c.id">
-                  <span class="coin-option-name">{{ c.name }}</span>
-                  <span class="coin-option-meta">{{ [c.ruler, c.era].filter(Boolean).join(' · ') }}</span>
+              <div v-if="coinOptions.length" class="flex max-h-[140px] flex-col gap-[2px] overflow-y-auto rounded-sm border border-border-subtle p-[2px]">
+                <button v-for="c in coinOptions" :key="c.id" class="flex flex-col items-start gap-[0.1rem] rounded-sm px-2.5 py-1.5 text-left transition-colors hover:bg-gold-glow" :class="selectedCoinId === c.id ? 'bg-gold-glow outline outline-1 outline-gold-dim' : ''" @click="selectedCoinId = c.id">
+                  <span class="text-chip text-text-primary">{{ c.name }}</span>
+                  <span class="text-label text-text-muted">{{ [c.ruler, c.era].filter(Boolean).join(' · ') }}</span>
                 </button>
               </div>
-              <p v-else-if="coinSearch && !coinsLoading" class="hint">No coins found</p>
-              <p v-else-if="coinsLoading" class="hint">Searching...</p>
-              <p v-else class="hint">Type to search your collection</p>
-              <div v-if="selectedCoinId" class="type-row">
-                <label class="radio-label">
-                  <input v-model="saveImageType" type="radio" value="obverse" name="imgType" />
+              <p v-else-if="coinSearch && !coinsLoading" class="text-sm text-text-muted">No coins found</p>
+              <p v-else-if="coinsLoading" class="text-sm text-text-muted">Searching...</p>
+              <p v-else class="text-sm text-text-muted">Type to search your collection</p>
+              <div v-if="selectedCoinId" class="flex gap-4">
+                <label class="flex cursor-pointer items-center gap-1 text-body text-text-secondary">
+                  <input v-model="saveImageType" type="radio" value="obverse" name="imgType" class="accent-gold" />
                   <span>Obverse</span>
                 </label>
-                <label class="radio-label">
-                  <input v-model="saveImageType" type="radio" value="reverse" name="imgType" />
+                <label class="flex cursor-pointer items-center gap-1 text-body text-text-secondary">
+                  <input v-model="saveImageType" type="radio" value="reverse" name="imgType" class="accent-gold" />
                   <span>Reverse</span>
                 </label>
               </div>
@@ -103,22 +98,20 @@
               </button>
             </div>
 
-            <!-- Create new coin -->
-            <div v-if="saveTab === 'new'" class="save-panel">
-              <label class="field-label">Coin Name</label>
+            <div v-if="saveTab === 'new'" class="flex flex-col gap-2">
+              <label class="text-chip text-text-muted">Coin Name</label>
               <input v-model="newCoinName" type="text" class="form-input" placeholder="e.g. Augustus Denarius" />
               <button class="btn btn-primary" :disabled="!newCoinName.trim() || saving" @click="saveToNewCoin">
                 {{ saving ? 'Creating...' : 'Create Coin & Upload' }}
               </button>
-              <p class="hint">Image will be saved as the obverse</p>
+              <p class="text-sm text-text-muted">Image will be saved as the obverse</p>
             </div>
 
-            <!-- Download -->
-            <div v-if="saveTab === 'download'" class="save-panel">
-              <button class="btn btn-secondary" @click="downloadResult">💾 Download PNG</button>
+            <div v-if="saveTab === 'download'" class="flex flex-col gap-2">
+              <button class="btn btn-secondary" @click="downloadResult">Download PNG</button>
             </div>
 
-            <p v-if="saveMsg" class="msg" :class="{ error: saveError }">{{ saveMsg }}</p>
+            <p v-if="saveMsg" class="text-body" :class="saveError ? 'text-red-400' : 'text-gold'">{{ saveMsg }}</p>
           </div>
         </div>
       </div>
@@ -167,315 +160,3 @@ async function saveToNewCoin() {
   if (coinId != null) emit('saved', coinId)
 }
 </script>
-
-<style scoped>
-.image-processor {
-  max-width: 700px;
-  margin: 0 auto;
-}
-
-/* Steps */
-.step-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.25rem;
-}
-
-.step-indicators {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.step {
-  font-size: 0.75rem;
-  padding: 0.3rem 0.6rem;
-  border-radius: var(--radius-full);
-  color: var(--text-muted);
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-}
-
-.step.active {
-  color: var(--accent-gold);
-  border-color: var(--accent-gold);
-  background: var(--accent-gold-glow);
-}
-
-.step.done {
-  color: var(--text-secondary);
-  border-color: var(--accent-gold-dim);
-}
-
-/* Preview */
-.preview-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-.image-preview {
-  position: relative;
-  max-width: 500px;
-  width: 100%;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  border: 1px solid var(--border-subtle);
-}
-
-.image-preview img {
-  width: 100%;
-  display: block;
-}
-
-.image-preview.processing {
-  position: relative;
-}
-
-.processing-img {
-  opacity: 0.3;
-  filter: blur(2px);
-}
-
-.processing-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  color: var(--accent-gold);
-}
-
-.processing-overlay p {
-  font-size: 0.9rem;
-}
-
-.processing-hint {
-  font-size: 0.75rem !important;
-  color: var(--text-muted) !important;
-}
-
-/* Crop */
-.crop-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.crop-workspace {
-  display: flex;
-  justify-content: center;
-}
-
-.crop-canvas {
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-subtle);
-  cursor: crosshair;
-  max-width: 100%;
-  touch-action: none;
-}
-
-.crop-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.padding-control {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  margin-left: auto;
-}
-
-.padding-control input[type="range"] {
-  width: 100px;
-  accent-color: var(--accent-gold);
-}
-
-.padding-value {
-  min-width: 32px;
-  text-align: right;
-}
-
-/* Result */
-.result-row {
-  display: flex;
-  gap: 1.5rem;
-  padding: 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-}
-
-.result-preview {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.result-preview h4,
-.save-controls h4 {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.25rem;
-}
-
-.result-canvas {
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-}
-
-.save-controls {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  min-width: 0;
-}
-
-.save-tabs {
-  display: flex;
-  gap: 2px;
-  background: var(--bg-primary);
-  border-radius: var(--radius-sm);
-  padding: 2px;
-}
-
-.save-tab {
-  flex: 1;
-  padding: 0.4rem 0.5rem;
-  font-size: 0.75rem;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  white-space: nowrap;
-}
-
-.save-tab:hover {
-  color: var(--text-secondary);
-}
-
-.save-tab.active {
-  background: var(--bg-card);
-  color: var(--accent-gold);
-}
-
-.save-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.coin-search .form-input {
-  width: 100%;
-  font-size: 0.85rem;
-}
-
-.coin-list {
-  max-height: 140px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 2px;
-}
-
-.coin-option {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
-  padding: 0.4rem 0.6rem;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  text-align: left;
-  transition: all var(--transition-fast);
-}
-
-.coin-option:hover {
-  background: var(--accent-gold-glow);
-}
-
-.coin-option.selected {
-  background: var(--accent-gold-glow);
-  outline: 1px solid var(--accent-gold-dim);
-}
-
-.coin-option-name {
-  font-size: 0.8rem;
-  color: var(--text-primary);
-}
-
-.coin-option-meta {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-}
-
-.type-row {
-  display: flex;
-  gap: 1rem;
-}
-
-.radio-label {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.radio-label input[type="radio"] {
-  accent-color: var(--accent-gold);
-}
-
-.field-label {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.hint {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.msg {
-  font-size: 0.85rem;
-  color: var(--accent-gold);
-}
-
-.msg.error {
-  color: #e74c3c;
-}
-
-@media (max-width: 640px) {
-  .result-row {
-    flex-direction: column;
-  }
-
-  .step-header {
-    flex-direction: column;
-    gap: 0.75rem;
-    align-items: stretch;
-  }
-
-  .step-indicators {
-    justify-content: center;
-  }
-}
-</style>

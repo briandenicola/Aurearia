@@ -1,21 +1,63 @@
 <template>
-  <form class="alert-form" @submit.prevent="submit">
-    <p class="helper">Search Alerts discover acquisition ideas. They do not check saved wishlist item availability. Cadence is metadata only in v1; use Run Now for manual, in-app review.</p>
-    <label>Name <input v-model.trim="draft.name" required maxlength="200" /></label>
-    <div class="grid">
-      <label>Ruler or issuer <input v-model.trim="draft.criteria.rulerOrIssuer" maxlength="200" /></label>
-      <label>Coin type <input v-model.trim="draft.criteria.coinType" maxlength="200" /></label>
-      <label>Mint <input v-model.trim="draft.criteria.mint" maxlength="200" /></label>
-      <label>Material <input v-model.trim="draft.criteria.material" maxlength="100" /></label>
-      <label>Grade or condition <input v-model.trim="draft.criteria.gradeOrCondition" maxlength="200" /></label>
-      <label>Keywords <input v-model.trim="draft.criteria.keywords" maxlength="500" /></label>
-      <label>Date from <input v-model.number="draft.criteria.dateFrom" type="number" /></label>
-      <label>Date to <input v-model.number="draft.criteria.dateTo" type="number" /></label>
-      <label>Price min <input v-model.number="draft.criteria.priceMin" type="number" min="0" step="0.01" /></label>
-      <label>Price max <input v-model.number="draft.criteria.priceMax" type="number" min="0" step="0.01" /></label>
-      <label>Currency <input v-model.trim="draft.criteria.currency" maxlength="3" /></label>
-      <label>Cadence
-        <select v-model="draft.cadence">
+  <form class="grid gap-3" @submit.prevent="submit">
+    <p class="m-0 text-body text-text-muted">Search Alerts discover acquisition ideas. They do not check saved wishlist item availability. Cadence is metadata only in v1; use Run Now for manual, in-app review.</p>
+    <label class="grid gap-1 text-base text-text-secondary">
+      Name
+      <input
+        v-model.trim="draft.name"
+        class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+        required
+        maxlength="200"
+      />
+    </label>
+    <div class="grid gap-3 md:grid-cols-2">
+      <label class="grid gap-1 text-base text-text-secondary">
+        Ruler or issuer
+        <input v-model.trim="draft.criteria.rulerOrIssuer" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" maxlength="200" />
+      </label>
+      <label class="grid gap-1 text-base text-text-secondary">
+        Coin type
+        <input v-model.trim="draft.criteria.coinType" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" maxlength="200" />
+      </label>
+      <label class="grid gap-1 text-base text-text-secondary">
+        Mint
+        <input v-model.trim="draft.criteria.mint" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" maxlength="200" />
+      </label>
+      <label class="grid gap-1 text-base text-text-secondary">
+        Material
+        <input v-model.trim="draft.criteria.material" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" maxlength="100" />
+      </label>
+      <label class="grid gap-1 text-base text-text-secondary">
+        Grade or condition
+        <input v-model.trim="draft.criteria.gradeOrCondition" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" maxlength="200" />
+      </label>
+      <label class="grid gap-1 text-base text-text-secondary">
+        Keywords
+        <input v-model.trim="draft.criteria.keywords" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" maxlength="500" />
+      </label>
+      <label class="grid gap-1 text-base text-text-secondary">
+        Date from
+        <input v-model.number="draft.criteria.dateFrom" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="number" />
+      </label>
+      <label class="grid gap-1 text-base text-text-secondary">
+        Date to
+        <input v-model.number="draft.criteria.dateTo" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="number" />
+      </label>
+      <label class="grid gap-1 text-base text-text-secondary">
+        Price min
+        <input v-model.number="draft.criteria.priceMin" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="number" min="0" step="0.01" />
+      </label>
+      <label class="grid gap-1 text-base text-text-secondary">
+        Price max
+        <input v-model.number="draft.criteria.priceMax" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="number" min="0" step="0.01" />
+      </label>
+      <label class="grid gap-1 text-base text-text-secondary">
+        Currency
+        <input v-model.trim="draft.criteria.currency" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" maxlength="3" />
+      </label>
+      <label class="grid gap-1 text-base text-text-secondary">
+        Cadence
+        <select v-model="draft.cadence" class="form-select focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]">
           <option value="manual">Manual</option>
           <option value="daily">Daily metadata only</option>
           <option value="weekly">Weekly metadata only</option>
@@ -23,15 +65,39 @@
         </select>
       </label>
     </div>
-    <p class="helper">Daily, weekly, and monthly values are saved for future scheduling; this screen does not enable push, email, or digest delivery.</p>
-    <label>Source domains <input v-model.trim="sourceFiltersText" placeholder="vcoins.com, ma-shops.com" /></label>
-    <label>Dealer preference <input v-model.trim="draft.criteria.dealerPreference" maxlength="500" /></label>
-    <label>Notes <textarea v-model.trim="draft.criteria.notes" maxlength="5000" /></label>
-    <label class="checkbox"><input v-model="draft.isActive" type="checkbox" /> Active</label>
-    <p v-if="error" class="form-error">{{ error }}</p>
-    <div class="actions">
-      <button class="btn btn-primary" type="submit" :disabled="!!error || saving">{{ saving ? 'Saving...' : 'Save Search Alert' }}</button>
-      <button class="btn btn-secondary" type="button" @click="$emit('cancel')">Cancel</button>
+    <p class="m-0 text-body text-text-muted">Daily, weekly, and monthly values are saved for future scheduling; this screen does not enable push, email, or digest delivery.</p>
+    <label class="grid gap-1 text-base text-text-secondary">
+      Source domains
+      <input
+        v-model.trim="sourceFiltersText"
+        class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+        placeholder="vcoins.com, ma-shops.com"
+      />
+    </label>
+    <label class="grid gap-1 text-base text-text-secondary">
+      Dealer preference
+      <input v-model.trim="draft.criteria.dealerPreference" class="form-input focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" maxlength="500" />
+    </label>
+    <label class="grid gap-1 text-base text-text-secondary">
+      Notes
+      <textarea
+        v-model.trim="draft.criteria.notes"
+        class="form-input min-h-20 resize-y focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+        maxlength="5000"
+      />
+    </label>
+    <label class="flex items-center gap-2 text-base text-text-secondary">
+      <input
+        v-model="draft.isActive"
+        class="h-4 w-4 rounded-sm border border-border-subtle bg-input accent-[var(--accent-gold)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+        type="checkbox"
+      />
+      Active
+    </label>
+    <p v-if="error" class="m-0 text-body text-bronze">{{ error }}</p>
+    <div class="flex flex-wrap gap-2">
+      <button class="btn btn-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="submit" :disabled="!!error || saving">{{ saving ? 'Saving...' : 'Save Search Alert' }}</button>
+      <button class="btn btn-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="button" @click="$emit('cancel')">Cancel</button>
     </div>
   </form>
 </template>
@@ -78,16 +144,3 @@ function submit() {
   emit('save', JSON.parse(JSON.stringify(draft)))
 }
 </script>
-
-<style scoped>
-.alert-form { display: grid; gap: .8rem; }
-.helper { color: var(--text-muted); margin: 0; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; }
-label { display: grid; gap: .25rem; color: var(--text-secondary); font-size: 0.9rem; }
-input, select, textarea { width: 100%; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: .5rem; background: var(--bg-input); color: var(--text-primary); }
-textarea { min-height: 80px; }
-.checkbox { display: flex; align-items: center; gap: .5rem; }
-.checkbox input { width: auto; }
-.form-error { color: var(--danger); margin: 0; }
-.actions { display: flex; gap: .5rem; }
-</style>

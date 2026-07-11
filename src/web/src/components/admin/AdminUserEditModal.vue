@@ -1,26 +1,26 @@
 <template>
-  <div v-if="user" class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal card">
-      <h3>Edit {{ user.username }}</h3>
+  <div v-if="user" class="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(0,0,0,0.6)] p-4" @click.self="$emit('close')">
+    <div class="card w-full max-w-[520px] p-6">
+      <h3 class="mb-4 text-lg font-medium text-heading">Edit {{ user.username }}</h3>
 
-      <div class="form-group">
+      <div class="mb-4">
         <label class="form-label">Role</label>
-        <div class="inline-actions">
+        <div class="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
           <select v-model="selectedRole" class="form-input" :disabled="savingRole || isCurrentUser">
             <option value="user">user</option>
             <option value="admin">admin</option>
           </select>
-          <button class="btn btn-secondary btn-sm" :disabled="savingRole || isCurrentUser" @click="updateRole">
+          <button class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" :disabled="savingRole || isCurrentUser" @click="updateRole">
             {{ savingRole ? 'Saving...' : 'Update Role' }}
           </button>
         </div>
-        <p v-if="isCurrentUser" class="text-muted">You cannot change your own role.</p>
-        <p v-if="roleMsg" class="msg" :class="{ error: roleError }">{{ roleMsg }}</p>
+        <p v-if="isCurrentUser" class="mt-2 text-body text-text-muted">You cannot change your own role.</p>
+        <p v-if="roleMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--cat-byzantine)]': roleError }">{{ roleMsg }}</p>
       </div>
 
-      <div class="form-group">
+      <div class="mb-4">
         <label class="form-label">Reset Password</label>
-        <div class="inline-actions">
+        <div class="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
           <input
             v-model="password"
             type="password"
@@ -28,24 +28,24 @@
             placeholder="New password"
             minlength="6"
           />
-          <button class="btn btn-secondary btn-sm" :disabled="resettingPassword" @click="resetPassword">
+          <button class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" :disabled="resettingPassword" @click="resetPassword">
             {{ resettingPassword ? 'Resetting...' : 'Reset Password' }}
           </button>
         </div>
-        <p v-if="passwordMsg" class="msg" :class="{ error: passwordError }">{{ passwordMsg }}</p>
+        <p v-if="passwordMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--cat-byzantine)]': passwordError }">{{ passwordMsg }}</p>
       </div>
 
-      <div class="form-group">
+      <div class="mb-4">
         <label class="form-label">Delete User</label>
-        <button class="btn btn-danger btn-sm" :disabled="deletingUser || isCurrentUser" @click="deleteTargetUser">
+        <button class="btn btn-danger btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" :disabled="deletingUser || isCurrentUser" @click="deleteTargetUser">
           {{ deletingUser ? 'Deleting...' : 'Delete User' }}
         </button>
-        <p v-if="isCurrentUser" class="text-muted">You cannot delete your own account.</p>
-        <p v-if="deleteMsg" class="msg" :class="{ error: deleteError }">{{ deleteMsg }}</p>
+        <p v-if="isCurrentUser" class="mt-2 text-body text-text-muted">You cannot delete your own account.</p>
+        <p v-if="deleteMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--cat-byzantine)]': deleteError }">{{ deleteMsg }}</p>
       </div>
 
-      <div class="modal-actions">
-        <button type="button" class="btn btn-primary btn-sm" @click="$emit('close')">Done</button>
+      <div class="flex justify-end">
+        <button type="button" class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2" @click="$emit('close')">Done</button>
       </div>
     </div>
   </div>
@@ -158,61 +158,3 @@ async function deleteTargetUser() {
   }
 }
 </script>
-
-<style scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-  padding: 1rem;
-}
-
-.modal {
-  width: 100%;
-  max-width: 520px;
-}
-
-.modal h3 {
-  margin: 0 0 1rem 0;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.inline-actions {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.msg {
-  margin: 0.5rem 0 0 0;
-  color: var(--accent-gold);
-}
-
-.msg.error {
-  color: var(--cat-byzantine);
-}
-
-.text-muted {
-  margin: 0.5rem 0 0 0;
-  color: var(--text-muted);
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-@media (max-width: 640px) {
-  .inline-actions {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

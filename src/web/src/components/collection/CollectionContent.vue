@@ -5,10 +5,10 @@
   </div>
 
   <template v-else-if="coins.length">
-    <div v-if="selectMode" class="select-controls">
+    <div v-if="selectMode" class="mb-3 flex items-center gap-2">
       <button class="btn btn-sm btn-secondary" @click="$emit('select-all')">Select All</button>
       <button class="btn btn-sm btn-secondary" @click="$emit('deselect-all')">Deselect All</button>
-      <span class="select-count">{{ selectedCount }} selected</span>
+      <span class="ml-2 text-body text-text-secondary">{{ selectedCount }} selected</span>
     </div>
     <SwipeGallery v-if="isPwa && viewMode === 'swipe' && !selectMode" :coins="coins" :total="total" :page="page" :per-page="perPage" @page-change="$emit('page-change', $event)" />
     <div v-else class="coins-grid">
@@ -27,7 +27,7 @@
   <div v-else class="empty-state">
     <h3>{{ hasFilters ? 'No coins match your search' : 'Your collection is empty' }}</h3>
     <p>{{ hasFilters ? 'Try different filters' : 'Add your first coin to get started' }}</p>
-    <router-link v-if="!hasFilters" to="/add" class="btn btn-primary" style="margin-top: 1rem">
+    <router-link v-if="!hasFilters" to="/add" class="btn btn-primary mt-4">
       Add Your First Coin
     </router-link>
   </div>
@@ -60,18 +60,3 @@ defineEmits<{
   'page-change': [page: number]
 }>()
 </script>
-
-<style scoped>
-.select-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.select-count {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  margin-left: 0.5rem;
-}
-</style>

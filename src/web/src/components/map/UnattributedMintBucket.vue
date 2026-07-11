@@ -1,7 +1,7 @@
 <template>
-  <section class="unattributed card" aria-labelledby="unattributed-title">
+  <section class="card p-4" aria-labelledby="unattributed-title">
     <button
-      class="unattributed-toggle"
+      class="flex w-full cursor-pointer items-center justify-between gap-3 border-0 bg-transparent p-0 text-left text-text-primary"
       type="button"
       :aria-expanded="expanded"
       aria-controls="unattributed-content"
@@ -9,25 +9,25 @@
     >
       <span>
         <span id="unattributed-title" class="section-label">Unattributed Mints</span>
-        <strong>{{ totalCount }} {{ totalCount === 1 ? 'coin needs' : 'coins need' }} mint review</strong>
+        <strong class="mt-1 block text-base text-text-primary">{{ totalCount }} {{ totalCount === 1 ? 'coin needs' : 'coins need' }} mint review</strong>
       </span>
-      <ChevronDown class="toggle-icon" :class="{ expanded }" :size="18" />
+      <ChevronDown :size="18" class="shrink-0 text-gold transition-transform duration-200" :class="expanded ? 'rotate-180' : ''" />
     </button>
 
-    <div v-if="expanded" id="unattributed-content" class="unattributed-content">
-      <div v-if="unknown.length" class="bucket-section">
-        <h3>Unknown mint</h3>
-        <ul class="coin-list">
+    <div v-if="expanded" id="unattributed-content" class="mt-4 flex flex-col gap-4">
+      <div v-if="unknown.length" class="border-t border-border-subtle pt-3">
+        <h3 class="mb-1">Unknown mint</h3>
+        <ul class="m-0 flex flex-col gap-1.5 pl-4">
           <li v-for="coin in unknown" :key="coin.id">
             <router-link :to="`/coin/${coin.id}`">{{ coin.name }}</router-link>
           </li>
         </ul>
       </div>
 
-      <div v-for="group in unmatched" :key="group.normalizedName" class="bucket-section">
-        <h3>{{ group.originalNames.join(', ') }}</h3>
-        <p class="bucket-hint">No static mint coordinate matched this name.</p>
-        <ul class="coin-list">
+      <div v-for="group in unmatched" :key="group.normalizedName" class="border-t border-border-subtle pt-3">
+        <h3 class="mb-1">{{ group.originalNames.join(', ') }}</h3>
+        <p class="mb-2 text-body text-text-secondary">No static mint coordinate matched this name.</p>
+        <ul class="m-0 flex flex-col gap-1.5 pl-4">
           <li v-for="coin in group.coins" :key="coin.id">
             <router-link :to="`/coin/${coin.id}`">{{ coin.name }}</router-link>
           </li>
@@ -57,73 +57,3 @@ const totalCount = computed(() =>
   props.unknown.length + props.unmatched.reduce((total, group) => total + group.coins.length, 0),
 )
 </script>
-
-<style scoped>
-.unattributed {
-  padding: 1rem;
-}
-
-.unattributed-toggle {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  border: 0;
-  background: transparent;
-  color: var(--text-primary);
-  text-align: left;
-  cursor: pointer;
-}
-
-.unattributed-toggle strong {
-  display: block;
-  margin-top: 0.25rem;
-  color: var(--text-primary);
-  font-size: 0.9rem;
-}
-
-.toggle-icon {
-  flex-shrink: 0;
-  color: var(--accent-gold);
-  transition: transform var(--transition-fast);
-}
-
-.toggle-icon.expanded {
-  transform: rotate(180deg);
-}
-
-.unattributed-content {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.bucket-section {
-  border-top: 1px solid var(--border-subtle);
-  padding-top: 0.75rem;
-}
-
-.bucket-section h3 {
-  margin: 0 0 0.25rem;
-}
-
-.bucket-hint {
-  margin: 0 0 0.5rem;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-
-.coin-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin: 0;
-  padding-left: 1rem;
-}
-
-.coin-list a {
-  color: var(--accent-gold);
-}
-</style>
