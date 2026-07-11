@@ -292,7 +292,7 @@ function onFieldChange(rule: EditableRule) {
   // Reset op to first valid one for the new field
   const ops = opsForField(rule.field)
   if (!ops.find(o => o.value === rule.op)) {
-    rule.op = ops[0].value
+    rule.op = ops[0]?.value ?? rule.op
   }
   // Reset value for bool fields
   if (BOOL_FIELDS.has(rule.field)) {
