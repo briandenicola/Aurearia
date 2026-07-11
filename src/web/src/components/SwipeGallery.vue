@@ -10,7 +10,11 @@
       <!-- Next card (underneath) -->
       <div v-if="nextCoin" class="swipe-card next-card">
         <div class="swipe-card-image">
-          <AuthenticatedImage v-if="getImage(nextCoin)" :media-path="getImage(nextCoin)!" :alt="nextCoin.name" />
+          <AuthenticatedImage v-if="getImage(nextCoin)" :media-path="getImage(nextCoin)!" :alt="nextCoin.name">
+            <template #fallback>
+              <div class="swipe-card-placeholder"><Coins :size="64" :stroke-width="1" /></div>
+            </template>
+          </AuthenticatedImage>
           <div v-else class="swipe-card-placeholder"><Coins :size="64" :stroke-width="1" /></div>
         </div>
         <div class="swipe-card-name">{{ nextCoin.name }}</div>
@@ -26,7 +30,11 @@
         @click="onCardTap"
       >
         <div class="swipe-card-image" :class="{ 'coin-flipping': isFlipping }">
-          <AuthenticatedImage v-if="getImage(currentCoin)" :media-path="getImage(currentCoin)!" :alt="currentCoin.name" />
+          <AuthenticatedImage v-if="getImage(currentCoin)" :media-path="getImage(currentCoin)!" :alt="currentCoin.name">
+            <template #fallback>
+              <div class="swipe-card-placeholder"><Coins :size="64" :stroke-width="1" /></div>
+            </template>
+          </AuthenticatedImage>
           <div v-else class="swipe-card-placeholder"><Coins :size="64" :stroke-width="1" /></div>
           <button
             class="flip-btn"
