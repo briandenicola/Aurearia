@@ -3,6 +3,7 @@ import { isPrivateUploadPath, privateMediaObjectUrl } from '@/utils/media'
 
 export function useAuthenticatedMedia(mediaPath: Ref<string | null | undefined>) {
   const objectUrl = ref('')
+  const loadFailed = ref(false)
   let activeObjectUrl: string | null = null
   let loadId = 0
 
@@ -17,6 +18,7 @@ export function useAuthenticatedMedia(mediaPath: Ref<string | null | undefined>)
     const currentLoad = ++loadId
     revokeActiveObjectUrl()
     objectUrl.value = ''
+    loadFailed.value = false
 
     if (!path) return
 
@@ -34,7 +36,10 @@ export function useAuthenticatedMedia(mediaPath: Ref<string | null | undefined>)
       activeObjectUrl = nextUrl.startsWith('blob:') ? nextUrl : null
       objectUrl.value = nextUrl
     } catch {
-      objectUrl.value = ''
+      if (currentLoad === loadId) {
+        objectUrl.value = ''
+        loadFailed.value = true
+      }
     }
   }, { immediate: true })
 
@@ -43,5 +48,5 @@ export function useAuthenticatedMedia(mediaPath: Ref<string | null | undefined>)
     revokeActiveObjectUrl()
   })
 
-  return { objectUrl }
+  return { objectUrl, loadFailed }
 }

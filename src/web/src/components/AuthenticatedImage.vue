@@ -1,5 +1,6 @@
 <template>
   <img v-if="objectUrl" :src="objectUrl" :alt="alt" v-bind="$attrs" />
+  <slot v-else-if="loadFailed" name="fallback" />
 </template>
 
 <script setup lang="ts">
@@ -25,5 +26,5 @@ const effectivePath = computed(() => {
   return `${p}${sep}size=${imageSize.value}`
 })
 
-const { objectUrl } = useAuthenticatedMedia(effectivePath)
+const { objectUrl, loadFailed } = useAuthenticatedMedia(effectivePath)
 </script>

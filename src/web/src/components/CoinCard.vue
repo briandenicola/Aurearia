@@ -5,7 +5,11 @@
     @click="handleClick"
   >
     <div class="relative flex aspect-square w-full items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_at_center,var(--bg-secondary)_0%,var(--bg-primary)_100%)] [@media(display-mode:standalone)]:aspect-[5/6]">
-      <AuthenticatedImage v-if="primaryImage" :media-path="primaryImage" :alt="coin.name" class="h-full w-full object-contain transition duration-300 group-hover:scale-[1.02] group-hover:brightness-110" loading="lazy" />
+      <AuthenticatedImage v-if="primaryImage" :media-path="primaryImage" :alt="coin.name" class="h-full w-full object-contain transition duration-300 group-hover:scale-[1.02] group-hover:brightness-110" loading="lazy">
+        <template #fallback>
+          <div class="text-text-primary/30"><Coins :size="48" :stroke-width="1" /></div>
+        </template>
+      </AuthenticatedImage>
       <div v-else class="text-text-primary/30"><Coins :size="48" :stroke-width="1" /></div>
       <div v-if="wishlist && coin.listingStatus === 'unavailable'" class="pointer-events-none absolute inset-0 z-[2] bg-black/50"></div>
       <span v-if="wishlist && coin.listingStatus === 'unavailable'" class="absolute top-2 right-2 z-[3] rounded-full bg-red-600/85 px-2 py-[0.2rem] text-label font-semibold uppercase tracking-[0.08em] text-white">Unavailable</span>
