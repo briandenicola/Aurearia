@@ -52,10 +52,12 @@
     <!-- Arrow navigation -->
     <div v-if="total > 1" class="swipe-nav">
       <button class="nav-btn" @click="goPrev">
-        <ChevronLeft :size="16" /> Prev
+        <ChevronLeft :size="16" />
+        <span>Prev</span>
       </button>
       <button class="nav-btn" @click="goNext">
-        Next <ChevronRight :size="16" />
+        <span>Next</span>
+        <ChevronRight :size="16" />
       </button>
     </div>
   </div>
@@ -459,6 +461,7 @@ onUnmounted(() => {
 .swipe-nav {
   display: flex;
   gap: 1rem;
+  flex-wrap: nowrap;
 }
 
 .nav-btn {
@@ -470,6 +473,13 @@ onUnmounted(() => {
   font-size: 0.85rem;
   cursor: pointer;
   transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
 }
 
 .nav-btn:hover:not(:disabled) {
