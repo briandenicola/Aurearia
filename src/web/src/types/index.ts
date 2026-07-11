@@ -1193,7 +1193,7 @@ export interface PortfolioSummary {
   missingFields?: Record<string, number>
 }
 
-export type Theme = 'dark' | 'light' | 'british-museum' | 'louvre' | 'capitoline'
+export type Theme = 'dark' | 'light' | 'british-museum' | 'louvre' | 'capitoline' | 'byzantine' | 'modern-greek'
 
 export const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error'] as const
 

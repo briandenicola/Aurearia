@@ -34,6 +34,16 @@
           :class="theme === 'capitoline' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
           @click="$emit('set-theme', 'capitoline')"
         >Capitoline</button>
+        <button
+          class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+          :class="theme === 'byzantine' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
+          @click="$emit('set-theme', 'byzantine')"
+        >Byzantine</button>
+        <button
+          class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+          :class="theme === 'modern-greek' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
+          @click="$emit('set-theme', 'modern-greek')"
+        >Modern Greek</button>
       </div>
     </div>
 

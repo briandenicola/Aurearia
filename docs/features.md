@@ -210,7 +210,7 @@ For the full social API reference, see the [API Reference](api-reference.md#soci
 All authenticated users can access **Settings**, organized in a tabbed layout:
 
 - **Account** — Change password (requires current password), register WebAuthn/FIDO2 passkeys for passwordless login, manage avatar and profile settings.
-- **Appearance** — Choose from five color themes: Dark (default), Light, British Museum (sandstone neutrals with bronze-green accents), Louvre (warm cream stone with Napoleon III gold), or Capitoline (terracotta warmth with aged copper-bronze). Set time zone, choose default gallery view (swipe or grid), and default sort order. Preferences persist across sessions.
+- **Appearance** — Choose from seven color themes: Dark (default), Light, British Museum (sandstone neutrals with bronze-green accents), Louvre (warm cream stone with Napoleon III gold), Capitoline (terracotta warmth with aged copper-bronze), Byzantine (imperial crimson grounds with Byzantine gold), or Modern Greek (deep navy grounds with white Hellenic accents). Set time zone, choose default gallery view (swipe or grid), and default sort order. Preferences persist across sessions.
 - **Data** — Export your entire collection as JSON, import coins from a JSON file, download an insurance/provenance PDF catalog of your collection (with photos, grades, provenance, valuations, and structured references), and manage API keys for programmatic access. See the [Getting Started Guide](getting-started.md#import--export) for the full import file format.
 - **Conversations** — View, reopen, or delete saved AI search agent conversations.
 - **Tags** — Create, rename, and delete custom tags with color selection. Tags created here can be attached to any coin in your collection.

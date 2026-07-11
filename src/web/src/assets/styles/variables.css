@@ -185,3 +185,55 @@
   --shadow-gold-soft: 0 4px 12px rgba(240, 188, 66, 0.3);
   --shadow-gold-hover: 0 6px 16px rgba(240, 188, 66, 0.4);
 }
+
+/* Byzantine — imperial Byzantine palette: Byzantine gold on deep crimson grounds */
+[data-theme="byzantine"] {
+  --bg-primary: #100a08;
+  --bg-secondary: #180e0c;
+  --bg-card: #1e1210;
+  --bg-card-hover: #261816;
+  --bg-input: #2a1b19;
+
+  --accent-gold: #ffbf00;
+  --accent-bronze: #ba0e09;
+  --accent-gold-dim: rgba(255, 191, 0, 0.25);
+  --accent-gold-glow: rgba(255, 191, 0, 0.12);
+
+  --text-primary: #f5e8d0;
+  --text-secondary: #c8a870;
+  --text-muted: #8a6848;
+  --text-heading: #ffbf00;
+
+  --border-subtle: rgba(255, 191, 0, 0.18);
+  --border-accent: rgba(255, 191, 0, 0.45);
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 0 20px rgba(255, 191, 0, 0.1);
+  --shadow-gold-soft: 0 4px 12px rgba(255, 191, 0, 0.3);
+  --shadow-gold-hover: 0 6px 16px rgba(255, 191, 0, 0.4);
+}
+
+/* Modern Greek — Hellenic flag palette: white accents on deep navy grounds */
+[data-theme="modern-greek"] {
+  --bg-primary: #060d18;
+  --bg-secondary: #0a1424;
+  --bg-card: #0e1c30;
+  --bg-card-hover: #12243a;
+  --bg-input: #162c44;
+
+  --accent-gold: #ffffff;
+  --accent-bronze: #0d5eaf;
+  --accent-gold-dim: rgba(255, 255, 255, 0.15);
+  --accent-gold-glow: rgba(255, 255, 255, 0.08);
+
+  --text-primary: #e8f0ff;
+  --text-secondary: #8099c8;
+  --text-muted: #4a6090;
+  --text-heading: #ffffff;
+
+  --border-subtle: rgba(13, 94, 175, 0.35);
+  --border-accent: rgba(13, 94, 175, 0.65);
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 0 20px rgba(255, 255, 255, 0.06);
+  --shadow-gold-soft: 0 4px 12px rgba(255, 255, 255, 0.12);
+  --shadow-gold-hover: 0 6px 16px rgba(255, 255, 255, 0.2);
+}
