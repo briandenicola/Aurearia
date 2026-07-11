@@ -134,7 +134,7 @@
   --shadow-gold-hover: 0 6px 16px rgba(216, 212, 204, 0.25);
 }
 
-/* Louvre — glass-and-gold, warm cream stone, Napoleon III red accents */
+/* Louvre — official Sycamore/Cinnamon/White brand palette */
 [data-theme="louvre"] {
   --bg-primary: #1a1510;
   --bg-secondary: #231c14;
@@ -142,22 +142,22 @@
   --bg-card-hover: #32291e;
   --bg-input: #3a2f22;
 
-  --accent-gold: #c9941c;
-  --accent-bronze: #a5441e;
-  --accent-gold-dim: rgba(201, 148, 28, 0.25);
-  --accent-gold-glow: rgba(201, 148, 28, 0.12);
+  --accent-gold: #977b3c;
+  --accent-bronze: #843c00;
+  --accent-gold-dim: rgba(151, 123, 60, 0.25);
+  --accent-gold-glow: rgba(151, 123, 60, 0.12);
 
-  --text-primary: #f0e8d8;
+  --text-primary: #ffffff;
   --text-secondary: #b0a080;
   --text-muted: #806848;
-  --text-heading: #e8c870;
+  --text-heading: #977b3c;
 
-  --border-subtle: rgba(201, 148, 28, 0.18);
-  --border-accent: rgba(201, 148, 28, 0.5);
+  --border-subtle: rgba(151, 123, 60, 0.18);
+  --border-accent: rgba(151, 123, 60, 0.5);
   --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 20px rgba(201, 148, 28, 0.1);
-  --shadow-gold-soft: 0 4px 12px rgba(201, 148, 28, 0.3);
-  --shadow-gold-hover: 0 6px 16px rgba(201, 148, 28, 0.4);
+  --shadow-glow: 0 0 20px rgba(151, 123, 60, 0.1);
+  --shadow-gold-soft: 0 4px 12px rgba(151, 123, 60, 0.3);
+  --shadow-gold-hover: 0 6px 16px rgba(151, 123, 60, 0.4);
 }
 
 /* Capitoline — AS Roma palette: Giallo Roma gold, Rosso Roma crimson, near-black grounds */

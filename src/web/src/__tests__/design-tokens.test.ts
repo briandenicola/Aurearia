@@ -156,6 +156,16 @@ describe('Design Token Enforcement (Constitution Principle V)', () => {
   })
 
   describe('variables.css and main.css define required tokens', () => {
+    it('Louvre theme uses official brand colors', () => {
+      const vars = readFileSync(join(STYLES_DIR, 'variables.css'), 'utf-8')
+      const louvreTheme = vars.match(/\[data-theme="louvre"\]\s*\{[\s\S]*?\n\}/)?.[0]
+
+      expect(louvreTheme).toBeTruthy()
+      expect(louvreTheme).toContain('--accent-gold: #977b3c;')
+      expect(louvreTheme).toContain('--accent-bronze: #843c00;')
+      expect(louvreTheme).toContain('--text-primary: #ffffff;')
+    })
+
     it('variables.css defines core radius tokens', () => {
       const vars = readFileSync(join(STYLES_DIR, 'variables.css'), 'utf-8')
       expect(vars).toContain('--radius-sm')
