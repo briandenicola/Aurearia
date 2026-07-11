@@ -555,6 +555,40 @@ func (s *SetService) MapTagToSet(tag *models.Tag) map[string]interface{} {
 	}
 }
 
+// SaveCriteriaTemplate validates and persists a new user-scoped smart criteria template.
+func (s *SetService) SaveCriteriaTemplate(userID uint, name, description string, criteria map[string]interface{}) (*models.SmartCriteriaTemplate, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("template name is required")
+	}
+	if len(name) > maxSetNameLength {
+		return nil, fmt.Errorf("template name must be %d characters or less", maxSetNameLength)
+	}
+	if err := ValidateSmartCriteria(criteria); err != nil {
+		return nil, err
+	}
+	tmpl := &models.SmartCriteriaTemplate{
+		UserID:      userID,
+		Name:        name,
+		Description: strings.TrimSpace(description),
+		Criteria:    models.JSONObject(criteria),
+	}
+	if err := s.repo.CreateCriteriaTemplate(tmpl); err != nil {
+		return nil, err
+	}
+	return tmpl, nil
+}
+
+// ListCriteriaTemplates returns all saved criteria templates for the user.
+func (s *SetService) ListCriteriaTemplates(userID uint) ([]models.SmartCriteriaTemplate, error) {
+	return s.repo.ListCriteriaTemplates(userID)
+}
+
+// DeleteCriteriaTemplate removes a criteria template owned by the user.
+func (s *SetService) DeleteCriteriaTemplate(id, userID uint) error {
+	return s.repo.DeleteCriteriaTemplate(id, userID)
+}
+
 // Helper functions
 func getStringValue(input map[string]interface{}, key string) string {
 	if val, ok := input[key].(string); ok {

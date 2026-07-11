@@ -25,6 +25,7 @@ export default [
         FormData: 'readonly',
         HTMLElement: 'readonly',
         HTMLInputElement: 'readonly',
+        HTMLSelectElement: 'readonly',
         HTMLTextAreaElement: 'readonly',
         HTMLCanvasElement: 'readonly',
         HTMLImageElement: 'readonly',

@@ -652,6 +652,23 @@ export interface SmartSetPreview {
   totalValue: number
 }
 
+export interface SmartCriteriaTemplate {
+  id: number
+  userId: number
+  name: string
+  description: string
+  criteria: SmartCriteriaGroup
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SuggestedSmartCriteria {
+  id: string
+  name: string
+  description: string
+  criteria: SmartCriteriaGroup
+}
+
 export type Category = string
 export type Material = 'Gold' | 'Silver' | 'Bronze' | 'Copper' | 'Electrum' | 'Other'
 export type ImageType = 'obverse' | 'reverse' | 'detail' | 'other'

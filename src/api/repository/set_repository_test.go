@@ -132,3 +132,98 @@ func coinNames(coins []models.Coin) []string {
 	}
 	return names
 }
+
+func TestSetRepository_CriteriaTemplate_CRUD(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewSetRepository(db)
+
+	criteria := models.JSONObject{
+		"operator": "and",
+		"rules": []interface{}{
+			map[string]interface{}{"field": "material", "op": "eq", "value": "Silver"},
+		},
+	}
+
+	tmpl := &models.SmartCriteriaTemplate{
+		UserID:      1,
+		Name:        "My Silver Rules",
+		Description: "Silver coins filter",
+		Criteria:    criteria,
+	}
+
+	// Create
+	if err := repo.CreateCriteriaTemplate(tmpl); err != nil {
+		t.Fatalf("CreateCriteriaTemplate failed: %v", err)
+	}
+	if tmpl.ID == 0 {
+		t.Fatal("expected template ID to be set")
+	}
+
+	// List
+	list, err := repo.ListCriteriaTemplates(1)
+	if err != nil {
+		t.Fatalf("ListCriteriaTemplates failed: %v", err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("expected 1 template, got %d", len(list))
+	}
+	if list[0].Name != "My Silver Rules" {
+		t.Fatalf("expected name %q, got %q", "My Silver Rules", list[0].Name)
+	}
+
+	// GetCriteriaTemplate
+	got, err := repo.GetCriteriaTemplate(tmpl.ID, 1)
+	if err != nil {
+		t.Fatalf("GetCriteriaTemplate failed: %v", err)
+	}
+	if got.Name != tmpl.Name {
+		t.Fatalf("expected name %q, got %q", tmpl.Name, got.Name)
+	}
+
+	// Delete
+	if err := repo.DeleteCriteriaTemplate(tmpl.ID, 1); err != nil {
+		t.Fatalf("DeleteCriteriaTemplate failed: %v", err)
+	}
+
+	// Confirm gone
+	list, err = repo.ListCriteriaTemplates(1)
+	if err != nil {
+		t.Fatalf("ListCriteriaTemplates after delete failed: %v", err)
+	}
+	if len(list) != 0 {
+		t.Fatalf("expected 0 templates after delete, got %d", len(list))
+	}
+}
+
+func TestSetRepository_CriteriaTemplate_UserScoped(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewSetRepository(db)
+
+	criteria := models.JSONObject{"operator": "and", "rules": []interface{}{
+		map[string]interface{}{"field": "material", "op": "eq", "value": "Gold"},
+	}}
+
+	user1Tmpl := &models.SmartCriteriaTemplate{UserID: 1, Name: "User1 Template", Criteria: criteria}
+	user2Tmpl := &models.SmartCriteriaTemplate{UserID: 2, Name: "User2 Template", Criteria: criteria}
+
+	if err := repo.CreateCriteriaTemplate(user1Tmpl); err != nil {
+		t.Fatalf("create user1 template: %v", err)
+	}
+	if err := repo.CreateCriteriaTemplate(user2Tmpl); err != nil {
+		t.Fatalf("create user2 template: %v", err)
+	}
+
+	// User 1 should only see their own template
+	list, err := repo.ListCriteriaTemplates(1)
+	if err != nil {
+		t.Fatalf("list templates for user1: %v", err)
+	}
+	if len(list) != 1 || list[0].UserID != 1 {
+		t.Fatalf("user1 should see exactly 1 template, got %d", len(list))
+	}
+
+	// User 2 cannot delete user 1's template
+	if err := repo.DeleteCriteriaTemplate(user1Tmpl.ID, 2); err == nil {
+		t.Fatal("expected error when deleting another user's template, got nil")
+	}
+}

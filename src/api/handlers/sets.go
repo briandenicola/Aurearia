@@ -597,3 +597,100 @@ func (h *SetHandler) PreviewSmartSet(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, preview)
 }
+
+// GetSuggestedCriteria returns built-in suggested smart set starters.
+//
+//	@Summary		Get suggested smart criteria
+//	@Description	Get a list of built-in suggested smart set criteria starters
+//	@Tags			sets
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	object{suggestions=[]object}
+//	@Failure		401	{object}	object{error=string}
+//	@Router			/sets/suggested-criteria [get]
+func (h *SetHandler) GetSuggestedCriteria(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"suggestions": services.GetSuggestedCriteria()})
+}
+
+// ListCriteriaTemplates returns all saved criteria templates for the authenticated user.
+//
+//	@Summary		List saved criteria templates
+//	@Description	Get all user-saved smart criteria templates
+//	@Tags			sets
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	object{templates=[]object}
+//	@Failure		401	{object}	object{error=string}
+//	@Failure		500	{object}	object{error=string}
+//	@Router			/sets/criteria-templates [get]
+func (h *SetHandler) ListCriteriaTemplates(c *gin.Context) {
+	userID := c.GetUint("userId")
+	templates, err := h.service.ListCriteriaTemplates(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list criteria templates"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"templates": templates})
+}
+
+// SaveCriteriaTemplate saves a new smart criteria template for the authenticated user.
+//
+//	@Summary		Save criteria template
+//	@Description	Persist a named smart criteria group for reuse
+//	@Tags			sets
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			body	body		object{name=string,description=string,criteria=object}	true	"Template data"
+//	@Success		201		{object}	object
+//	@Failure		400		{object}	object{error=string}
+//	@Failure		401		{object}	object{error=string}
+//	@Router			/sets/criteria-templates [post]
+func (h *SetHandler) SaveCriteriaTemplate(c *gin.Context) {
+	userID := c.GetUint("userId")
+	var body struct {
+		Name        string                 `json:"name"`
+		Description string                 `json:"description"`
+		Criteria    map[string]interface{} `json:"criteria"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+	tmpl, err := h.service.SaveCriteriaTemplate(userID, body.Name, body.Description, body.Criteria)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, tmpl)
+}
+
+// DeleteCriteriaTemplate removes a saved criteria template owned by the user.
+//
+//	@Summary		Delete criteria template
+//	@Description	Remove a user-saved smart criteria template
+//	@Tags			sets
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		int	true	"Template ID"
+//	@Success		200	{object}	object{message=string}
+//	@Failure		401	{object}	object{error=string}
+//	@Failure		404	{object}	object{error=string}
+//	@Router			/sets/criteria-templates/{id} [delete]
+func (h *SetHandler) DeleteCriteriaTemplate(c *gin.Context) {
+	userID := c.GetUint("userId")
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid template ID"})
+		return
+	}
+	if err := h.service.DeleteCriteriaTemplate(uint(id), userID); err != nil {
+		if repository.IsRecordNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Template not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete template"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Template deleted"})
+}

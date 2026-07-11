@@ -700,3 +700,37 @@ func matchCoinToTarget(coin models.Coin, target models.CoinSetTarget) bool {
 
 	return true
 }
+
+// CreateCriteriaTemplate persists a new user-scoped smart criteria template.
+func (r *SetRepository) CreateCriteriaTemplate(tmpl *models.SmartCriteriaTemplate) error {
+	return r.db.Create(tmpl).Error
+}
+
+// ListCriteriaTemplates returns all criteria templates owned by the user.
+func (r *SetRepository) ListCriteriaTemplates(userID uint) ([]models.SmartCriteriaTemplate, error) {
+	var templates []models.SmartCriteriaTemplate
+	err := r.db.Where("user_id = ?", userID).Order("created_at DESC").Find(&templates).Error
+	return templates, err
+}
+
+// GetCriteriaTemplate returns a single criteria template owned by the user.
+func (r *SetRepository) GetCriteriaTemplate(id, userID uint) (*models.SmartCriteriaTemplate, error) {
+	var tmpl models.SmartCriteriaTemplate
+	err := r.db.Where("id = ? AND user_id = ?", id, userID).First(&tmpl).Error
+	if err != nil {
+		return nil, err
+	}
+	return &tmpl, nil
+}
+
+// DeleteCriteriaTemplate removes a criteria template owned by the user.
+func (r *SetRepository) DeleteCriteriaTemplate(id, userID uint) error {
+	result := r.db.Where("id = ? AND user_id = ?", id, userID).Delete(&models.SmartCriteriaTemplate{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
