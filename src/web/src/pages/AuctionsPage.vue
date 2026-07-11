@@ -6,7 +6,7 @@
         <!-- PWA: icon-only buttons inline with title -->
         <div v-if="isPwa" class="pwa-actions">
           <button class="pwa-icon-btn" :disabled="syncing" @click="syncWatchlist" title="Sync Watchlist">
-            <RefreshCw :size="22" :class="{ spinning: syncing }" />
+            <RefreshCw :size="22" :class="syncing ? 'animate-spin' : ''" />
           </button>
           <button class="pwa-icon-btn" :class="{ active: selectMode }" @click="toggleSelectMode" title="Select">
             <CheckSquare :size="22" />
@@ -16,9 +16,9 @@
           </button>
         </div>
         <!-- Desktop: full text buttons -->
-        <div v-else class="header-actions">
+        <div v-else class="header-actions gap-3">
           <button class="btn btn-secondary" :disabled="syncing" @click="syncWatchlist">
-            <RefreshCw :size="16" :class="{ spinning: syncing }" />
+            <RefreshCw :size="16" :class="syncing ? 'animate-spin' : ''" />
             {{ syncing ? 'Syncing...' : 'Sync Watchlists' }}
           </button>
           <button class="btn" :class="selectMode ? 'btn-primary' : 'btn-secondary'" @click="toggleSelectMode">
@@ -28,10 +28,15 @@
         </div>
       </div>
 
-      <div v-if="syncMessage" class="sync-toast">{{ syncMessage }}</div>
+      <div
+        v-if="syncMessage"
+        class="mb-4 animate-fade-in rounded-sm border border-border-subtle bg-card px-4 py-[0.6rem] text-center text-body text-text-primary"
+      >
+        {{ syncMessage }}
+      </div>
 
-      <div class="auction-filter-toolbar">
-        <div class="source-filter" aria-label="Auction source filter">
+      <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div class="flex min-w-0 flex-1 flex-wrap gap-[0.35rem]" aria-label="Auction source filter">
           <button
             v-for="source in sourceOptions"
             :key="source.value"
@@ -45,17 +50,17 @@
         <AuctionStatusFilter v-model="activeStatus" :counts="statusCounts" />
       </div>
 
-      <div v-if="selectMode" class="select-controls">
+      <div v-if="selectMode" class="mb-4 flex flex-wrap items-center gap-[0.6rem]">
         <button class="btn btn-sm btn-secondary" @click="selectAllLots">Select All</button>
         <button class="btn btn-sm btn-secondary" @click="deselectAllLots">Deselect All</button>
-        <span class="select-count">{{ selectedLotIds.size }} selected</span>
+        <span class="text-body font-medium text-text-secondary">{{ selectedLotIds.size }} selected</span>
       </div>
 
       <div v-if="loading" class="loading-overlay">
         <div class="spinner"></div>
       </div>
 
-      <div v-else-if="lots.length" class="lots-grid">
+      <div v-else-if="lots.length" class="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-5">
         <AuctionLotCard
           v-for="lot in lots"
           :key="lot.id"
@@ -72,13 +77,13 @@
       <div v-else class="empty-state">
         <h3>No auction lots{{ emptyStateSuffix }}</h3>
         <p>Import lots from NumisBids or CNG Auctions to start tracking auctions</p>
-        <button class="btn btn-primary import-first-btn" @click="showImport = true">
+        <button class="btn btn-primary mt-3" @click="showImport = true">
           <Plus :size="16" /> Import Your First Lot
         </button>
-        <SafeExternalLink href="https://www.numisbids.com/" class="btn btn-secondary auction-house-link">
+        <SafeExternalLink href="https://www.numisbids.com/" class="btn btn-secondary mt-3 inline-flex items-center gap-1.5 no-underline">
           <ExternalLink :size="16" /> Visit NumisBids
         </SafeExternalLink>
-        <SafeExternalLink href="https://auctions.cngcoins.com/" class="btn btn-secondary auction-house-link">
+        <SafeExternalLink href="https://auctions.cngcoins.com/" class="btn btn-secondary mt-3 inline-flex items-center gap-1.5 no-underline">
           <ExternalLink :size="16" /> Visit CNG Auctions
         </SafeExternalLink>
       </div>
@@ -307,97 +312,3 @@ fetchLots()
 fetchAllCounts()
 fetchAlertState()
 </script>
-
-<style scoped>
-.header-actions {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-}
-
-.lots-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 1.25rem;
-}
-
-.sync-toast {
-  padding: 0.6rem 1rem;
-  margin-bottom: 1rem;
-  border-radius: var(--radius-sm);
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-primary);
-  font-size: 0.85rem;
-  text-align: center;
-  animation: fadeIn 0.2s ease;
-}
-
-.auction-filter-toolbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: nowrap;
-  margin-bottom: 1rem;
-}
-
-.source-filter {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-/*
- * :deep() audit — child-component class override
- * .status-filter-menu is rendered inside a child component (CoinStatusFilter).
- * The auction toolbar controls its position in the filter row (margin-left auto
- * to right-align); the child owns the class name but the layout context is the
- * parent's responsibility.
- */
-.auction-filter-toolbar :deep(.status-filter-menu) {
-  flex: 0 0 auto;
-  margin-left: auto;
-}
-
-.import-first-btn {
-  margin-top: 0.75rem;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.spinning {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.select-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 1rem;
-}
-
-.select-count {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.auction-house-link {
-  margin-top: 0.75rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  text-decoration: none;
-}
-</style>

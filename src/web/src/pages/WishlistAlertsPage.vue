@@ -3,53 +3,91 @@
     <div class="page-header">
       <div>
         <h1>Wishlist Search Alerts</h1>
-        <p class="subtitle">Discovery alerts find acquisition ideas. Availability checking for saved wishlist URLs remains separate.</p>
+        <p class="mt-1 text-body text-text-muted">Discovery alerts find acquisition ideas. Availability checking for saved wishlist URLs remains separate.</p>
       </div>
       <div v-if="isPwa" class="pwa-actions">
-        <button class="pwa-icon-btn" type="button" title="New Search Alert" @click="startCreate">
+        <button
+          class="pwa-icon-btn focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+          type="button"
+          title="New Search Alert"
+          @click="startCreate"
+        >
           <Search :size="22" />
         </button>
       </div>
-      <button v-else class="btn btn-primary" type="button" @click="startCreate"><Search :size="16" /> New Search Alert</button>
+      <button
+        v-else
+        class="btn btn-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+        type="button"
+        @click="startCreate"
+      >
+        <Search :size="16" /> New Search Alert
+      </button>
     </div>
 
-    <p v-if="error" class="page-error">{{ error }}</p>
+    <p v-if="error" class="mb-4 text-body text-bronze">{{ error }}</p>
     <div v-if="loading" class="loading-overlay"><div class="spinner"></div></div>
     <div v-else-if="!alerts.length" class="empty-state">
       <h3>No search alerts yet</h3>
       <p>Create a discovery alert with criteria such as ruler, type, price range, and source domains.</p>
-      <button class="btn btn-primary" type="button" @click="startCreate"><Search :size="16" /> Create Search Alert</button>
+      <button
+        class="btn btn-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+        type="button"
+        @click="startCreate"
+      >
+        <Search :size="16" /> Create Search Alert
+      </button>
     </div>
 
-    <div v-else class="alerts-layout" :class="{ 'has-selection': selectedAlert }">
-      <aside class="alerts-list" aria-label="Search alerts">
-        <article v-for="alert in alerts" :key="alert.id" class="alert-card" :class="{ selected: selectedAlert?.id === alert.id }">
-          <button class="select-alert" type="button" @click="selectAlert(alert)">
+    <div
+      v-else
+      class="grid items-start gap-4"
+      :class="{ 'md:grid-cols-[minmax(260px,_0.9fr)_minmax(0,_1.6fr)]': selectedAlert }"
+    >
+      <aside class="grid gap-4" aria-label="Search alerts">
+        <article
+          v-for="alert in alerts"
+          :key="alert.id"
+          :class="[
+            'rounded-md border bg-card p-4',
+            selectedAlert?.id === alert.id ? 'border-gold shadow-glow' : 'border-border-subtle',
+          ]"
+        >
+          <button
+            class="w-full rounded-sm bg-transparent p-0 text-left text-inherit focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+            type="button"
+            @click="selectAlert(alert)"
+          >
             <h2>{{ alert.name }}</h2>
             <AlertCriteriaSummary :alert="alert" />
-            <p class="manual-copy">Cadence metadata only. Run Now starts manual in-app review.</p>
+            <p class="mt-1 text-body text-text-muted">Cadence metadata only. Run Now starts manual in-app review.</p>
           </button>
-          <div class="card-actions">
-            <button class="btn btn-secondary btn-sm" type="button" @click="edit(alert)"><Pencil :size="14" /> Edit</button>
-            <button class="btn btn-secondary btn-sm" type="button" @click="toggle(alert)">{{ alert.isActive ? 'Disable' : 'Enable' }}</button>
-            <button class="btn btn-danger btn-sm" type="button" @click="remove(alert)"><Trash2 :size="14" /> Delete</button>
+          <div class="mt-4 flex flex-wrap items-start justify-between gap-3">
+            <button class="btn btn-secondary btn-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="button" @click="edit(alert)"><Pencil :size="14" /> Edit</button>
+            <button class="btn btn-secondary btn-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="button" @click="toggle(alert)">{{ alert.isActive ? 'Disable' : 'Enable' }}</button>
+            <button class="btn btn-danger btn-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="button" @click="remove(alert)"><Trash2 :size="14" /> Delete</button>
           </div>
         </article>
       </aside>
 
-      <main v-if="selectedAlert" class="review-panel">
-        <section class="selected-summary">
+      <main v-if="selectedAlert" class="grid gap-4 border-t border-border-accent pt-4 md:border-t-0 md:border-l md:pl-4 md:pt-0">
+        <section class="flex flex-wrap items-start justify-between gap-3 rounded-md border border-border-subtle bg-card p-4">
           <div>
             <p class="section-label">Selected alert</p>
             <h2>{{ selectedAlert.name }}</h2>
-            <p class="subtitle">Candidates stay in this review queue until you dismiss, restore, or explicitly save them as wishlist items.</p>
+            <p class="mt-1 text-body text-text-muted">Candidates stay in this review queue until you dismiss, restore, or explicitly save them as wishlist items.</p>
           </div>
-          <button class="btn btn-primary" type="button" :disabled="running || !selectedAlert.isActive" @click="runNow">
+          <button
+            class="btn btn-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+            type="button"
+            :disabled="running || !selectedAlert.isActive"
+            @click="runNow"
+          >
             <Play :size="16" /> {{ running ? 'Running...' : 'Run Now' }}
           </button>
         </section>
-        <p v-if="!selectedAlert.isActive" class="message">Enable this search alert before running discovery.</p>
-        <p v-if="runMessage" class="message">{{ runMessage }}</p>
+        <p v-if="!selectedAlert.isActive" class="m-0 text-body text-text-muted">Enable this search alert before running discovery.</p>
+        <p v-if="runMessage" class="m-0 text-body text-text-muted">{{ runMessage }}</p>
 
         <AlertRunHistory
           :runs="runs"
@@ -61,14 +99,18 @@
           @refresh="loadRuns"
         />
 
-        <section class="candidate-section">
-          <div class="section-header">
+        <section class="grid gap-4 rounded-md border border-border-subtle bg-card p-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3>Candidate review</h3>
-              <p class="subtitle">Source-backed acquisition candidates, not saved wishlist URL availability results.</p>
+              <p class="mt-1 text-body text-text-muted">Source-backed acquisition candidates, not saved wishlist URL availability results.</p>
             </div>
-            <div class="filters">
-              <select v-model="candidateState" @change="loadCandidates">
+            <div class="flex flex-wrap gap-3">
+              <select
+                v-model="candidateState"
+                class="form-select min-w-[12rem] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+                @change="loadCandidates"
+              >
                 <option value="">Active and needs review</option>
                 <option value="active">Active</option>
                 <option value="needs_review">Needs review</option>
@@ -76,7 +118,11 @@
                 <option value="converted">Converted</option>
                 <option value="suppressed">Suppressed</option>
               </select>
-              <select v-model="provenanceStatus" @change="loadCandidates">
+              <select
+                v-model="provenanceStatus"
+                class="form-select min-w-[12rem] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]"
+                @change="loadCandidates"
+              >
                 <option value="">Any provenance</option>
                 <option value="verified">Verified</option>
                 <option value="partial">Partial</option>
@@ -85,10 +131,10 @@
             </div>
           </div>
 
-          <p v-if="candidatesError" class="page-error">{{ candidatesError }}</p>
-          <div v-if="candidatesLoading" class="message">Loading candidates...</div>
-          <div v-else-if="!candidates.length" class="empty-inline">No candidates match this review filter.</div>
-          <div v-else class="candidate-list">
+          <p v-if="candidatesError" class="text-body text-bronze">{{ candidatesError }}</p>
+          <div v-if="candidatesLoading" class="text-body text-text-muted">Loading candidates...</div>
+          <div v-else-if="!candidates.length" class="rounded-sm border border-dashed border-border-subtle p-4 text-center text-body text-text-muted">No candidates match this review filter.</div>
+          <div v-else class="grid gap-4">
             <CandidateReviewCard
               v-for="candidate in candidates"
               :key="candidate.id"
@@ -101,16 +147,16 @@
             />
           </div>
 
-          <details class="criteria-adjustment">
-            <summary>Adjust criteria from this review context</summary>
-            <p class="subtitle">Applies to future search alert runs only. Converted wishlist items are not changed.</p>
-            <AlertForm :alert="selectedAlert" :saving="adjusting" @save="adjustCriteria" @cancel="noop" />
+          <details class="rounded-md border border-border-subtle bg-card p-4">
+            <summary class="cursor-pointer text-gold focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]">Adjust criteria from this review context</summary>
+            <p class="mt-2 text-body text-text-muted">Applies to future search alert runs only. Converted wishlist items are not changed.</p>
+            <AlertForm class="mt-3" :alert="selectedAlert" :saving="adjusting" @save="adjustCriteria" @cancel="noop" />
           </details>
         </section>
       </main>
     </div>
 
-    <section v-if="creating || editing" class="editor-panel">
+    <section v-if="creating || editing" class="mt-4 rounded-md border border-border-subtle bg-card p-4">
       <h2>{{ editing ? 'Edit Search Alert' : 'Create Search Alert' }}</h2>
       <AlertForm :alert="editing" :saving="saving" @save="save" @cancel="closeEditor" />
     </section>
@@ -441,33 +487,3 @@ function clearRunPollTimer() {
 onMounted(load)
 onBeforeUnmount(clearRunPollTimer)
 </script>
-
-<style scoped>
-.subtitle, .manual-copy, .message { color: var(--text-muted); margin: 0.25rem 0 0; }
-.alerts-layout { display: grid; gap: 1rem; align-items: start; }
-.alerts-list, .review-panel, .candidate-section { display: grid; gap: 1rem; }
-.review-panel { border-top: 1px solid var(--border-accent); padding-top: 1rem; }
-.alert-card, .editor-panel, .selected-summary, .candidate-section, .criteria-adjustment { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-card); padding: 1rem; }
-.alert-card.selected { border-color: var(--accent-gold); box-shadow: var(--shadow-glow); }
-.select-alert { width: 100%; border: 0; background: transparent; color: inherit; padding: 0; text-align: left; cursor: pointer; }
-.alert-card h2, .selected-summary h2 { margin: 0 0 0.5rem; font-size: 1.2rem; }
-.card-actions, .section-header, .filters, .selected-summary { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; }
-.filters select { border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.5rem; background: var(--bg-input); color: var(--text-primary); }
-.candidate-list { display: grid; gap: 1rem; }
-.empty-inline { border: 1px dashed var(--border-subtle); border-radius: var(--radius-sm); padding: 1rem; color: var(--text-muted); text-align: center; }
-.criteria-adjustment summary { color: var(--accent-gold); cursor: pointer; }
-/*
- * :deep() audit — child-component class override
- * .alert-form is rendered inside WishlistAlertForm. The criteria-adjustment
- * detail/summary controls when the form is shown inline (vs. in the drawer);
- * the margin-top is positional context from this page, not the child's concern.
- */
-.criteria-adjustment :deep(.alert-form) { margin-top: 0.75rem; }
-.editor-panel { margin-top: 1rem; }
-.page-error { color: var(--accent-bronze); }
-.section-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: 0; }
-@media (min-width: 901px) {
-  .alerts-layout.has-selection { grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.6fr); }
-  .review-panel { border-top: 0; border-left: 1px solid var(--border-accent); padding-top: 0; padding-left: 1rem; }
-}
-</style>

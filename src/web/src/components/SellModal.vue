@@ -1,20 +1,20 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal card">
-      <h3>Sell Coin</h3>
-      <p class="sell-coin-name">{{ coin.name }}</p>
+  <div class="fixed inset-0 z-[1000] flex items-center justify-center bg-overlay p-4" @click.self="$emit('close')">
+    <div class="card w-full max-w-[420px] !p-8">
+      <h3 class="mb-1 text-lg font-medium text-heading">Sell Coin</h3>
+      <p class="mb-5 truncate text-base text-gold">{{ coin.name }}</p>
 
       <div class="form-group">
         <label class="form-label">Sale Price</label>
-        <div class="price-input-wrapper">
-          <span class="price-prefix">$</span>
+        <div class="relative flex items-center">
+          <span class="pointer-events-none absolute left-3 text-base text-text-secondary">$</span>
           <input
             ref="priceInput"
             v-model="priceStr"
             type="number"
             step="0.01"
             min="0"
-            class="form-input price-input"
+            class="form-input pl-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             placeholder="0.00"
           />
         </div>
@@ -30,14 +30,14 @@
         />
       </div>
 
-      <div v-if="coin.purchasePrice" class="cost-basis-note">
-        <span class="label">Cost basis:</span>
-        <span class="value">{{ formatCurrency(coin.purchasePrice) }}</span>
+      <div v-if="coin.purchasePrice" class="mb-4 flex justify-between rounded-sm bg-surface-secondary px-3 py-2 text-chip">
+        <span class="text-text-secondary">Cost basis:</span>
+        <span class="font-semibold text-gold">{{ formatCurrency(coin.purchasePrice) }}</span>
       </div>
 
-      <div v-if="error" class="sell-error">{{ error }}</div>
+      <div v-if="error" class="mb-3 text-[0.82rem] text-loss">{{ error }}</div>
 
-      <div class="modal-actions">
+      <div class="mt-6 flex justify-end gap-3">
         <button class="btn btn-secondary" @click="$emit('close')">Cancel</button>
         <button class="btn btn-primary" :disabled="submitting" @click="handleSubmit">
           {{ submitting ? 'Saving...' : 'Mark as Sold' }}
@@ -90,107 +90,3 @@ function handleSubmit() {
   emit('confirm', soldPrice, soldTo.value.trim())
 }
 </script>
-
-<style scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal {
-  max-width: 420px;
-  width: 90%;
-  padding: 2rem;
-}
-
-.modal h3 {
-  margin-bottom: 0.25rem;
-  font-size: 1.1rem;
-}
-
-.sell-coin-name {
-  color: var(--accent-gold);
-  font-size: 0.9rem;
-  margin-bottom: 1.25rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-label {
-  display: block;
-  font-size: 0.82rem;
-  font-weight: 600;
-  margin-bottom: 0.35rem;
-  color: var(--text-secondary);
-}
-
-.price-input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.price-prefix {
-  position: absolute;
-  left: 0.75rem;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  pointer-events: none;
-}
-
-.price-input {
-  padding-left: 1.5rem;
-}
-
-/* Hide number input spinners */
-.price-input::-webkit-inner-spin-button,
-.price-input::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-.price-input[type='number'] {
-  -moz-appearance: textfield;
-}
-
-.cost-basis-note {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.8rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--bg-elevated);
-  border-radius: var(--radius-sm);
-  margin-bottom: 1rem;
-}
-
-.cost-basis-note .label {
-  color: var(--text-secondary);
-}
-
-.cost-basis-note .value {
-  color: var(--accent-gold);
-  font-weight: 600;
-}
-
-.sell-error {
-  color: #e74c3c;
-  font-size: 0.82rem;
-  margin-bottom: 0.75rem;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: flex-end;
-  margin-top: 1.5rem;
-}
-</style>

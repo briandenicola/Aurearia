@@ -1,6 +1,9 @@
 <template>
-  <div class="container">
-    <div v-if="loading" class="loading-state">Loading showcase...</div>
+  <div class="container py-4 pb-20 md:py-8 md:pb-20">
+    <div v-if="loading" class="loading-overlay">
+      <div class="spinner"></div>
+      <p>Loading showcase...</p>
+    </div>
 
     <div v-else-if="notFound" class="empty-state">
       <h3>Showcase not found</h3>
@@ -8,13 +11,13 @@
     </div>
 
     <template v-else-if="showcase">
-      <div class="showcase-header">
-        <h1>{{ showcase.title }}</h1>
-        <p v-if="showcase.ownerName" class="owner">Curated by {{ showcase.ownerName }}</p>
-        <p v-if="showcase.description" class="description">{{ showcase.description }}</p>
+      <div class="mb-8 text-center">
+        <h1 class="mb-2 mt-0 text-2xl text-text-primary">{{ showcase.title }}</h1>
+        <p v-if="showcase.ownerName" class="mb-2 mt-0 text-base text-gold">Curated by {{ showcase.ownerName }}</p>
+        <p v-if="showcase.description" class="mx-auto m-0 max-w-[600px] text-base leading-6 text-text-secondary">{{ showcase.description }}</p>
       </div>
 
-      <div v-if="trayCoins.length" class="public-tray-section">
+      <div v-if="trayCoins.length" class="flex flex-col gap-4 pb-20">
         <MuseumTray
           :coins="currentDrawerCoins"
           :felt-theme="feltColor"
@@ -127,20 +130,3 @@ async function loadShowcase() {
 
 onMounted(loadShowcase)
 </script>
-
-<style scoped>
-.container { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
-.public-tray-section { display: flex; flex-direction: column; gap: 1rem; padding-bottom: 5rem; }
-.loading-state { text-align: center; padding: 2rem; color: var(--text-secondary); }
-.empty-state { text-align: center; padding: 3rem; color: var(--text-secondary); }
-.empty-state h3 { color: var(--text-primary); margin-bottom: 0.5rem; }
-
-.showcase-header { text-align: center; margin-bottom: 2rem; }
-.showcase-header h1 { font-size: 2rem; color: var(--text-primary); margin: 0 0 0.5rem; }
-.owner { color: var(--accent-gold); font-size: 0.9rem; margin: 0 0 0.5rem; }
-.description { color: var(--text-secondary); font-size: 1rem; max-width: 600px; margin: 0 auto; line-height: 1.5; }
-
-@media (max-width: 575px) {
-  .container { padding: 1rem 0.75rem; }
-}
-</style>

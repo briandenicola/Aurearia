@@ -1,27 +1,27 @@
 <template>
-  <section class="admin-section card">
-    <h2>Schedules</h2>
+  <section class="admin-section card flex flex-col">
+    <h2 class="mb-5 border-b border-border-subtle pb-3 text-xl font-medium">Schedules</h2>
 
     <!-- Wishlist Availability Check -->
-    <h3 class="subsection-title">Wishlist Availability Check</h3>
-    <p class="subsection-desc">Monitors dealer sites for coins on your wishlist and sends alerts when availability changes.</p>
-    <div class="avail-settings">
-      <div class="form-group avail-toggle-row">
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Wishlist Availability Check</h3>
+    <p class="mb-4 text-base text-text-secondary">Monitors dealer sites for coins on your wishlist and sends alerts when availability changes.</p>
+    <div class="mb-4">
+      <div class="form-group flex items-center justify-between gap-3">
         <label class="form-label">Enable Automatic Checks</label>
-        <label class="toggle-switch">
+        <label class="relative inline-block h-[22px] w-[42px]">
           <input
-            type="checkbox"
+            class="peer sr-only" type="checkbox"
             :checked="settings.WishlistCheckEnabled === 'true'"
             @change="settings.WishlistCheckEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
           />
-          <span class="toggle-slider"></span>
+          <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
         </label>
       </div>
       <div class="form-group">
         <label class="form-label">Start Time (daily anchor)</label>
         <input
           v-model="settings.WishlistCheckStartTime"
-          class="form-input avail-interval-input"
+          class="form-input w-full max-w-[120px]"
           type="time"
         />
         <span class="form-hint">The first check runs at this time each day. Subsequent checks repeat at the interval below.</span>
@@ -30,66 +30,65 @@
         <label class="form-label">Repeat Interval (minutes)</label>
         <input
           v-model="settings.WishlistCheckInterval"
-          class="form-input avail-interval-input"
+          class="form-input w-full max-w-[120px]"
           type="number"
           min="5"
           step="5"
         />
         <span class="form-hint">How often to repeat after the start time (e.g. 120 = every 2 hours).</span>
       </div>
-      <div class="avail-save-row">
+      <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
         <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
           {{ settingsSaving ? 'Saving...' : 'Save Schedule Settings' }}
         </button>
-        <span v-if="availSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': availSettingsError }">{{ availSettingsMsg }}</span>
-        <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="availTriggerLoading" @click="triggerManualAvailabilityCheck()">
+        <span v-if="availSettingsMsg" class="text-body text-gold md:mr-auto" :class="availSettingsError ? 'text-[var(--color-negative)]' : ''">{{ availSettingsMsg }}</span>
+        <button class="btn btn-secondary btn-sm md:ml-auto" :disabled="availTriggerLoading" @click="triggerManualAvailabilityCheck()">
           {{ availTriggerLoading ? 'Queuing...' : 'Run Now' }}
         </button>
       </div>
     </div>
 
-    <hr class="section-divider" />
-    <h3 class="subsection-title">Availability Run History</h3>
+    <hr class="my-6 border-0 border-t border-border-subtle" />
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Availability Run History</h3>
 
-    <div v-if="availLoading" class="loading-overlay"><div class="spinner"></div></div>
-    <div v-else-if="availRuns.length === 0" class="logs-empty">No availability runs recorded yet.</div>
+    <div v-if="availLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
+    <div v-else-if="availRuns.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No availability runs recorded yet.</div>
     <template v-else>
-      <table class="users-table avail-table">
+      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
         <thead>
           <tr>
             <th>Date</th>
-            <th class="hide-mobile">Trigger</th>
-            <th class="hide-mobile">User</th>
-            <th class="hide-mobile">Status</th>
+            <th class="hidden md:table-cell">Trigger</th>
+            <th class="hidden md:table-cell">User</th>
+            <th class="hidden md:table-cell">Status</th>
             <th>Checked</th>
-            <th class="hide-mobile">Avail</th>
+            <th class="hidden md:table-cell">Avail</th>
             <th>Unavail</th>
-            <th class="hide-mobile">Unknown</th>
-            <th class="hide-mobile">Errors</th>
+            <th class="hidden md:table-cell">Unknown</th>
+            <th class="hidden md:table-cell">Errors</th>
             <th>Duration</th>
           </tr>
         </thead>
         <tbody>
           <template v-for="run in availRuns" :key="run.id">
-            <tr class="avail-row" :class="{ 'avail-row-expanded': expandedRunId === run.id }" @click="toggleRunDetail(run.id)">
-              <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
-              <td class="hide-mobile">{{ run.triggerType }}</td>
-              <td class="hide-mobile">{{ run.userName || '—' }}</td>
-              <td class="hide-mobile">
-                <span v-if="run.status && run.status !== 'completed'" class="avail-status-badge" :class="'avail-status-' + run.status">{{ run.status }}</span>
-                <span v-else class="avail-status-badge avail-status-completed">done</span>
+            <tr class="cursor-pointer transition-colors hover:bg-surface" :class="{ 'bg-surface': expandedRunId === run.id }" @click="toggleRunDetail(run.id)">
+              <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
+              <td class="hidden md:table-cell">{{ run.triggerType }}</td>
+              <td class="hidden md:table-cell">{{ run.userName || '—' }}</td>
+              <td class="hidden md:table-cell">
+                <span class="inline-block rounded-full px-2 py-[0.15rem] text-[0.72rem] font-medium uppercase tracking-[0.04em]" :class="run.status === 'queued' ? 'bg-[rgba(201,168,76,0.15)] text-gold' : run.status === 'running' ? 'bg-[rgba(52,152,219,0.15)] text-[#5dade2]' : run.status === 'failed' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : 'bg-[rgba(46,204,113,0.12)] text-[#58d68d]'">{{ run.status === 'completed' ? 'done' : run.status }}</span>
               </td>
               <td>{{ run.coinsChecked }}</td>
-              <td class="hide-mobile avail-count-available">{{ run.available }}</td>
-              <td class="avail-count-unavailable">{{ run.unavailable }}</td>
-              <td class="hide-mobile avail-count-unknown">{{ run.unknown }}</td>
-              <td class="hide-mobile">{{ run.errors }}</td>
+              <td class="hidden font-semibold text-[var(--color-positive)] md:table-cell">{{ run.available }}</td>
+              <td class="font-semibold text-[var(--color-negative)]">{{ run.unavailable }}</td>
+              <td class="hidden font-semibold text-warning md:table-cell">{{ run.unknown }}</td>
+              <td class="hidden md:table-cell">{{ run.errors }}</td>
               <td>{{ formatDuration(run.durationMs) }}</td>
             </tr>
-            <tr v-if="expandedRunId === run.id && expandedResults" class="avail-detail-row">
+            <tr v-if="expandedRunId === run.id && expandedResults" class="bg-surface-secondary">
               <td :colspan="availColspan">
-                <div v-if="expandedLoading" class="loading-overlay"><div class="spinner"></div></div>
-                <table v-else-if="expandedResults.length" class="avail-detail-table">
+                <div v-if="expandedLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
+                <table v-else-if="expandedResults.length" class="w-full border-collapse text-[0.78rem] md:table-fixed [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-[0.4rem] [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
                   <thead>
                     <tr>
                       <th>Coin</th>
@@ -109,58 +108,58 @@
                           :href="r.url"
                           target="_blank"
                           rel="noopener"
-                          class="avail-link"
+                          class="text-gold no-underline hover:underline focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
                           @click.stop
                         >
                           {{ truncateUrl(r.url) }}
                         </SafeExternalLink>
-                        <span v-else class="text-muted">--</span>
+                        <span v-else class="text-text-muted">--</span>
                       </td>
                       <td>
-                        <span class="listing-status-badge" :class="'listing-' + r.status">{{ r.status }}</span>
+                        <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="r.status === 'available' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : r.status === 'unavailable' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : 'bg-[rgba(241,196,15,0.15)] text-warning'">{{ r.status }}</span>
                       </td>
-                      <td class="avail-reason">{{ r.reason || '--' }}</td>
+                      <td class="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">{{ r.reason || '--' }}</td>
                       <td>{{ r.httpStatus ?? '--' }}</td>
                       <td>{{ r.agentUsed ? 'Yes' : 'No' }}</td>
                     </tr>
                   </tbody>
                 </table>
-                <p v-else class="logs-empty">No results for this run.</p>
+                <p v-else class="px-8 py-8 text-center font-sans text-text-muted">No results for this run.</p>
               </td>
             </tr>
           </template>
         </tbody>
       </table>
 
-      <div class="avail-pagination">
+      <div class="mt-4 flex items-center justify-center gap-3">
         <button class="btn btn-secondary btn-sm" :disabled="availPage <= 1" @click="prevAvailPage()">Prev</button>
-        <span class="avail-page-info">Page {{ availPage }}</span>
+        <span class="text-[0.82rem] text-text-secondary">Page {{ availPage }}</span>
         <button class="btn btn-secondary btn-sm" :disabled="availRuns.length < 5" @click="nextAvailPage()">Next</button>
       </div>
     </template>
 
-    <hr class="section-divider" />
+    <hr class="my-6 border-0 border-t border-border-subtle" />
 
     <!-- Auction Ending Alerts -->
-    <h3 class="subsection-title">Auction Ending Alerts</h3>
-    <p class="subsection-desc">Checks watched auction lots that are ending soon and sends Pushover reminders before bidding closes.</p>
-    <div class="avail-settings">
-      <div class="form-group avail-toggle-row">
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Auction Ending Alerts</h3>
+    <p class="mb-4 text-base text-text-secondary">Checks watched auction lots that are ending soon and sends Pushover reminders before bidding closes.</p>
+    <div class="mb-4">
+      <div class="form-group flex items-center justify-between gap-3">
         <label class="form-label">Enable Automatic Alerts</label>
-        <label class="toggle-switch">
+        <label class="relative inline-block h-[22px] w-[42px]">
           <input
-            type="checkbox"
+            class="peer sr-only" type="checkbox"
             :checked="settings.AuctionEndingCheckEnabled === 'true'"
             @change="settings.AuctionEndingCheckEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
           />
-          <span class="toggle-slider"></span>
+          <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
         </label>
       </div>
       <div class="form-group">
         <label class="form-label">Start Time (daily anchor)</label>
         <input
           v-model="settings.AuctionEndingCheckStartTime"
-          class="form-input avail-interval-input"
+          class="form-input w-full max-w-[120px]"
           type="time"
         />
         <span class="form-hint">The first ending-alert check runs at this time each day.</span>
@@ -169,54 +168,54 @@
         <label class="form-label">Repeat Interval (minutes)</label>
         <input
           v-model="settings.AuctionEndingCheckInterval"
-          class="form-input avail-interval-input"
+          class="form-input w-full max-w-[120px]"
           type="number"
           min="60"
           step="60"
         />
         <span class="form-hint">How often to check for lots ending soon after the start time. Default 1440 (daily).</span>
       </div>
-      <div class="avail-save-row">
+      <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
         <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
           {{ settingsSaving ? 'Saving...' : 'Save Alert Settings' }}
         </button>
-        <span v-if="auctionSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': auctionSettingsError }">{{ auctionSettingsMsg }}</span>
-        <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="auctionTriggerLoading" @click="triggerManualAuctionCheck()">
+        <span v-if="auctionSettingsMsg" class="text-body text-gold md:mr-auto" :class="auctionSettingsError ? 'text-[var(--color-negative)]' : ''">{{ auctionSettingsMsg }}</span>
+        <button class="btn btn-secondary btn-sm md:ml-auto" :disabled="auctionTriggerLoading" @click="triggerManualAuctionCheck()">
           {{ auctionTriggerLoading ? 'Starting...' : 'Run Now' }}
         </button>
       </div>
     </div>
 
-    <hr class="section-divider" />
-    <h3 class="subsection-title">Auction Ending Alert Run History</h3>
+    <hr class="my-6 border-0 border-t border-border-subtle" />
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Auction Ending Alert Run History</h3>
 
-    <div v-if="auctionLoading" class="loading-overlay"><div class="spinner"></div></div>
-    <div v-else-if="auctionRuns.length === 0" class="logs-empty">No auction ending alert runs recorded yet.</div>
+    <div v-if="auctionLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
+    <div v-else-if="auctionRuns.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No auction ending alert runs recorded yet.</div>
     <template v-else>
-      <table class="users-table avail-table">
+      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
         <thead>
           <tr>
             <th>Date</th>
-            <th class="hide-mobile">Trigger</th>
+            <th class="hidden md:table-cell">Trigger</th>
             <th>Lots</th>
             <th>Alerts</th>
-            <th class="hide-mobile">Status</th>
+            <th class="hidden md:table-cell">Status</th>
             <th>Duration</th>
           </tr>
         </thead>
         <tbody>
           <template v-for="run in auctionRuns" :key="run.id">
             <tr>
-              <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
-              <td class="hide-mobile">
-                <span class="listing-status-badge" :class="run.triggerType === 'manual' ? 'listing-unavailable' : 'listing-unknown'">
+              <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
+              <td class="hidden md:table-cell">
+                <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.triggerType === 'manual' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : 'bg-[rgba(241,196,15,0.15)] text-warning'">
                   {{ run.triggerType }}
                 </span>
               </td>
               <td>{{ run.lotsChecked }}</td>
-              <td class="avail-count-available">{{ run.alertsSent }}</td>
-              <td class="hide-mobile">
-                <span class="listing-status-badge" :class="run.status === 'error' ? 'listing-unavailable' : (run.status === 'success' ? 'listing-available' : 'listing-unknown')">
+              <td class="font-semibold text-[var(--color-positive)]">{{ run.alertsSent }}</td>
+              <td class="hidden md:table-cell">
+                <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.status === 'error' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : (run.status === 'success' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : 'bg-[rgba(241,196,15,0.15)] text-warning')">
                   {{ run.status }}
                 </span>
               </td>
@@ -226,35 +225,35 @@
         </tbody>
       </table>
 
-      <div class="avail-pagination">
+      <div class="mt-4 flex items-center justify-center gap-3">
         <button class="btn btn-secondary btn-sm" :disabled="auctionPage <= 1" @click="prevAuctionPage()">Prev</button>
-        <span class="avail-page-info">Page {{ auctionPage }}</span>
+        <span class="text-[0.82rem] text-text-secondary">Page {{ auctionPage }}</span>
         <button class="btn btn-secondary btn-sm" :disabled="auctionRuns.length < 5" @click="nextAuctionPage()">Next</button>
       </div>
     </template>
 
-    <hr class="section-divider" />
+    <hr class="my-6 border-0 border-t border-border-subtle" />
 
     <!-- Auction Price Alerts and Bid Reminders -->
-    <h3 class="subsection-title">Auction Price Alerts and Bid Reminders</h3>
-    <p class="subsection-desc">Checks watched auction lots for price thresholds and close-time bid reminders.</p>
-    <div class="avail-settings">
-      <div class="form-group avail-toggle-row">
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Auction Price Alerts and Bid Reminders</h3>
+    <p class="mb-4 text-base text-text-secondary">Checks watched auction lots for price thresholds and close-time bid reminders.</p>
+    <div class="mb-4">
+      <div class="form-group flex items-center justify-between gap-3">
         <label class="form-label">Enable Automatic Checks</label>
-        <label class="toggle-switch">
+        <label class="relative inline-block h-[22px] w-[42px]">
           <input
-            type="checkbox"
+            class="peer sr-only" type="checkbox"
             :checked="settings.AuctionAlertsCheckEnabled === 'true'"
             @change="settings.AuctionAlertsCheckEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
           />
-          <span class="toggle-slider"></span>
+          <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
         </label>
       </div>
       <div class="form-group">
         <label class="form-label">Start Time (daily anchor)</label>
         <input
           v-model="settings.AuctionAlertsCheckStartTime"
-          class="form-input avail-interval-input"
+          class="form-input w-full max-w-[120px]"
           type="time"
         />
         <span class="form-hint">The first price-alert and reminder check runs at this time each day.</span>
@@ -263,56 +262,56 @@
         <label class="form-label">Repeat Interval (minutes)</label>
         <input
           v-model="settings.AuctionAlertsCheckInterval"
-          class="form-input avail-interval-input"
+          class="form-input w-full max-w-[120px]"
           type="number"
           min="15"
           step="15"
         />
         <span class="form-hint">How often to re-check price thresholds and bid reminder windows. Default 60 (hourly).</span>
       </div>
-      <div class="avail-save-row">
+      <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
         <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
           {{ settingsSaving ? 'Saving...' : 'Save Alert and Reminder Settings' }}
         </button>
-        <span v-if="alertReminderSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': alertReminderSettingsError }">{{ alertReminderSettingsMsg }}</span>
-        <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="alertReminderTriggerLoading" @click="triggerManualAlertReminderCheck()">
+        <span v-if="alertReminderSettingsMsg" class="text-body text-gold md:mr-auto" :class="alertReminderSettingsError ? 'text-[var(--color-negative)]' : ''">{{ alertReminderSettingsMsg }}</span>
+        <button class="btn btn-secondary btn-sm md:ml-auto" :disabled="alertReminderTriggerLoading" @click="triggerManualAlertReminderCheck()">
           {{ alertReminderTriggerLoading ? 'Starting...' : 'Run Now' }}
         </button>
       </div>
     </div>
 
-    <hr class="section-divider" />
-    <h3 class="subsection-title">Auction Price Alert and Reminder Run History</h3>
+    <hr class="my-6 border-0 border-t border-border-subtle" />
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Auction Price Alert and Reminder Run History</h3>
 
-    <div v-if="alertReminderLoading" class="loading-overlay"><div class="spinner"></div></div>
-    <div v-else-if="alertReminderRuns.length === 0" class="logs-empty">No auction price alert or reminder runs recorded yet.</div>
+    <div v-if="alertReminderLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
+    <div v-else-if="alertReminderRuns.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No auction price alert or reminder runs recorded yet.</div>
     <template v-else>
-      <table class="users-table avail-table">
+      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
         <thead>
           <tr>
             <th>Date</th>
-            <th class="hide-mobile">Trigger</th>
+            <th class="hidden md:table-cell">Trigger</th>
             <th>Lots</th>
             <th>Alerts</th>
             <th>Reminders</th>
-            <th class="hide-mobile">Status</th>
+            <th class="hidden md:table-cell">Status</th>
             <th>Duration</th>
           </tr>
         </thead>
         <tbody>
           <template v-for="run in alertReminderRuns" :key="run.id">
             <tr>
-              <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
-              <td class="hide-mobile">
-                <span class="listing-status-badge" :class="run.triggerType === 'manual' ? 'listing-unavailable' : 'listing-unknown'">
+              <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
+              <td class="hidden md:table-cell">
+                <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.triggerType === 'manual' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : 'bg-[rgba(241,196,15,0.15)] text-warning'">
                   {{ run.triggerType }}
                 </span>
               </td>
               <td>{{ run.lotsChecked ?? run.alertsChecked ?? 0 }}</td>
-              <td class="avail-count-available">{{ run.priceAlertsTriggered ?? run.alertsSent ?? run.alertsTriggered ?? 0 }}</td>
-              <td class="avail-count-available">{{ run.bidRemindersSent ?? run.remindersSent ?? run.remindersNotified ?? 0 }}</td>
-              <td class="hide-mobile">
-                <span class="listing-status-badge" :class="run.status === 'error' ? 'listing-unavailable' : (run.status === 'success' ? 'listing-available' : 'listing-unknown')">
+              <td class="font-semibold text-[var(--color-positive)]">{{ run.priceAlertsTriggered ?? run.alertsSent ?? run.alertsTriggered ?? 0 }}</td>
+              <td class="font-semibold text-[var(--color-positive)]">{{ run.bidRemindersSent ?? run.remindersSent ?? run.remindersNotified ?? 0 }}</td>
+              <td class="hidden md:table-cell">
+                <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.status === 'error' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : (run.status === 'success' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : 'bg-[rgba(241,196,15,0.15)] text-warning')">
                   {{ run.status }}
                 </span>
               </td>
@@ -322,35 +321,35 @@
         </tbody>
       </table>
 
-      <div class="avail-pagination">
+      <div class="mt-4 flex items-center justify-center gap-3">
         <button class="btn btn-secondary btn-sm" :disabled="alertReminderPage <= 1" @click="prevAlertReminderPage()">Prev</button>
-        <span class="avail-page-info">Page {{ alertReminderPage }}</span>
+        <span class="text-[0.82rem] text-text-secondary">Page {{ alertReminderPage }}</span>
         <button class="btn btn-secondary btn-sm" :disabled="alertReminderRuns.length < 5" @click="nextAlertReminderPage()">Next</button>
       </div>
     </template>
 
-    <hr class="section-divider" />
+    <hr class="my-6 border-0 border-t border-border-subtle" />
 
     <!-- Auction Watch Bid Digest -->
-    <h3 class="subsection-title">Auction Watch Bid Digest</h3>
-    <p class="subsection-desc">Refreshes NumisBids and CNG watched lots, updates current high bids in Auctions, and sends one Pushover digest while lots are active.</p>
-    <div class="avail-settings">
-      <div class="form-group avail-toggle-row">
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Auction Watch Bid Digest</h3>
+    <p class="mb-4 text-base text-text-secondary">Refreshes NumisBids and CNG watched lots, updates current high bids in Auctions, and sends one Pushover digest while lots are active.</p>
+    <div class="mb-4">
+      <div class="form-group flex items-center justify-between gap-3">
         <label class="form-label">Enable Automatic Digests</label>
-        <label class="toggle-switch">
+        <label class="relative inline-block h-[22px] w-[42px]">
           <input
-            type="checkbox"
+            class="peer sr-only" type="checkbox"
             :checked="settings.AuctionWatchBidDigestEnabled === 'true'"
             @change="settings.AuctionWatchBidDigestEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
           />
-          <span class="toggle-slider"></span>
+          <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
         </label>
       </div>
       <div class="form-group">
         <label class="form-label">Start Time (daily anchor)</label>
         <input
           v-model="settings.AuctionWatchBidDigestStartTime"
-          class="form-input avail-interval-input"
+          class="form-input w-full max-w-[120px]"
           type="time"
         />
         <span class="form-hint">The first digest run starts at this time each day.</span>
@@ -359,54 +358,54 @@
         <label class="form-label">Repeat Interval (minutes)</label>
         <input
           v-model="settings.AuctionWatchBidDigestInterval"
-          class="form-input avail-interval-input"
+          class="form-input w-full max-w-[120px]"
           type="number"
           min="60"
           step="60"
         />
         <span class="form-hint">How often to refresh watched lots and send the digest after the start time. Default 1440 (daily).</span>
       </div>
-      <div class="avail-save-row">
+      <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
         <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
           {{ settingsSaving ? 'Saving...' : 'Save Digest Settings' }}
         </button>
-        <span v-if="watchBidDigestSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': watchBidDigestSettingsError }">{{ watchBidDigestSettingsMsg }}</span>
-        <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="watchBidDigestTriggerLoading" @click="triggerManualWatchBidDigest()">
+        <span v-if="watchBidDigestSettingsMsg" class="text-body text-gold md:mr-auto" :class="watchBidDigestSettingsError ? 'text-[var(--color-negative)]' : ''">{{ watchBidDigestSettingsMsg }}</span>
+        <button class="btn btn-secondary btn-sm md:ml-auto" :disabled="watchBidDigestTriggerLoading" @click="triggerManualWatchBidDigest()">
           {{ watchBidDigestTriggerLoading ? 'Starting...' : 'Run Now' }}
         </button>
       </div>
     </div>
 
-    <hr class="section-divider" />
-    <h3 class="subsection-title">Auction Watch Bid Digest Run History</h3>
+    <hr class="my-6 border-0 border-t border-border-subtle" />
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Auction Watch Bid Digest Run History</h3>
 
-    <div v-if="watchBidDigestLoading" class="loading-overlay"><div class="spinner"></div></div>
-    <div v-else-if="watchBidDigestRuns.length === 0" class="logs-empty">No auction watch bid digest runs recorded yet.</div>
+    <div v-if="watchBidDigestLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
+    <div v-else-if="watchBidDigestRuns.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No auction watch bid digest runs recorded yet.</div>
     <template v-else>
-      <table class="users-table avail-table">
+      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
         <thead>
           <tr>
             <th>Date</th>
-            <th class="hide-mobile">Trigger</th>
+            <th class="hidden md:table-cell">Trigger</th>
             <th>Lots</th>
             <th>Digests</th>
-            <th class="hide-mobile">Status</th>
+            <th class="hidden md:table-cell">Status</th>
             <th>Duration</th>
           </tr>
         </thead>
         <tbody>
           <template v-for="run in watchBidDigestRuns" :key="run.id">
             <tr>
-              <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
-              <td class="hide-mobile">
-                <span class="listing-status-badge" :class="run.triggerType === 'manual' ? 'listing-unavailable' : 'listing-unknown'">
+              <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
+              <td class="hidden md:table-cell">
+                <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.triggerType === 'manual' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : 'bg-[rgba(241,196,15,0.15)] text-warning'">
                   {{ run.triggerType }}
                 </span>
               </td>
               <td>{{ run.lotsChecked }}</td>
-              <td class="avail-count-available">{{ run.digestsSent }}</td>
-              <td class="hide-mobile">
-                <span class="listing-status-badge" :class="run.status === 'error' ? 'listing-unavailable' : (run.status === 'success' ? 'listing-available' : 'listing-unknown')">
+              <td class="font-semibold text-[var(--color-positive)]">{{ run.digestsSent }}</td>
+              <td class="hidden md:table-cell">
+                <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.status === 'error' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : (run.status === 'success' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : 'bg-[rgba(241,196,15,0.15)] text-warning')">
                   {{ run.status }}
                 </span>
               </td>
@@ -416,34 +415,34 @@
         </tbody>
       </table>
 
-      <div class="avail-pagination">
+      <div class="mt-4 flex items-center justify-center gap-3">
         <button class="btn btn-secondary btn-sm" :disabled="watchBidDigestPage <= 1" @click="prevWatchBidDigestPage()">Prev</button>
-        <span class="avail-page-info">Page {{ watchBidDigestPage }}</span>
+        <span class="text-[0.82rem] text-text-secondary">Page {{ watchBidDigestPage }}</span>
         <button class="btn btn-secondary btn-sm" :disabled="watchBidDigestRuns.length < 5" @click="nextWatchBidDigestPage()">Next</button>
       </div>
     </template>
 
-    <hr class="section-divider" />
+    <hr class="my-6 border-0 border-t border-border-subtle" />
 
     <!-- Collection Valuation -->
-    <h3 class="subsection-title">Collection Valuation</h3>
-    <div class="avail-settings">
-      <div class="form-group avail-toggle-row">
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Collection Valuation</h3>
+    <div class="mb-4">
+      <div class="form-group flex items-center justify-between gap-3">
         <label class="form-label">Enable Scheduled Valuation</label>
-        <label class="toggle-switch">
+        <label class="relative inline-block h-[22px] w-[42px]">
           <input
-            type="checkbox"
+            class="peer sr-only" type="checkbox"
             :checked="settings.ValuationCheckEnabled === 'true'"
             @change="settings.ValuationCheckEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
           />
-          <span class="toggle-slider"></span>
+          <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
         </label>
       </div>
       <div class="form-group">
         <label class="form-label">Start Time (daily anchor)</label>
         <input
           v-model="settings.ValuationCheckStartTime"
-          class="form-input avail-interval-input"
+          class="form-input w-full max-w-[120px]"
           type="time"
         />
         <span class="form-hint">The valuation cycle starts at this time on scheduled days.</span>
@@ -452,7 +451,7 @@
         <label class="form-label">Repeat Interval (days)</label>
         <input
           v-model="settings.ValuationCheckIntervalDays"
-          class="form-input avail-interval-input"
+          class="form-input w-full max-w-[120px]"
           type="number"
           min="1"
           step="1"
@@ -463,65 +462,65 @@
         <label class="form-label">Max Coins Per Run</label>
         <input
           v-model="settings.ValuationMaxCoins"
-          class="form-input avail-interval-input"
+          class="form-input w-full max-w-[120px]"
           type="number"
           min="1"
           step="10"
         />
         <span class="form-hint">Limit how many coins are valuated per run to control AI costs.</span>
       </div>
-      <div class="avail-save-row">
+      <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
         <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
           {{ settingsSaving ? 'Saving...' : 'Save Valuation Settings' }}
         </button>
-        <span v-if="valSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': valSettingsError }">{{ valSettingsMsg }}</span>
-        <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="valTriggerLoading" @click="triggerManualValuation()">
+        <span v-if="valSettingsMsg" class="text-body text-gold md:mr-auto" :class="valSettingsError ? 'text-[var(--color-negative)]' : ''">{{ valSettingsMsg }}</span>
+        <button class="btn btn-secondary btn-sm md:ml-auto" :disabled="valTriggerLoading" @click="triggerManualValuation()">
           {{ valTriggerLoading ? 'Starting...' : 'Run Now' }}
         </button>
       </div>
     </div>
 
-    <hr class="section-divider" />
-    <h3 class="subsection-title">Valuation Run History</h3>
+    <hr class="my-6 border-0 border-t border-border-subtle" />
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Valuation Run History</h3>
 
-    <div v-if="valLoading" class="loading-overlay"><div class="spinner"></div></div>
-    <div v-else-if="valRuns.length === 0" class="logs-empty">No valuation runs recorded yet.</div>
+    <div v-if="valLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
+    <div v-else-if="valRuns.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No valuation runs recorded yet.</div>
     <template v-else>
-      <table class="users-table avail-table">
+      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
         <thead>
           <tr>
             <th>Date</th>
-            <th class="hide-mobile">Trigger</th>
+            <th class="hidden md:table-cell">Trigger</th>
             <th>Status</th>
             <th>Checked</th>
-            <th class="hide-mobile">Updated</th>
-            <th class="hide-mobile">Skipped</th>
-            <th class="hide-mobile">Errors</th>
+            <th class="hidden md:table-cell">Updated</th>
+            <th class="hidden md:table-cell">Skipped</th>
+            <th class="hidden md:table-cell">Errors</th>
             <th>Duration</th>
           </tr>
         </thead>
         <tbody>
           <template v-for="run in valRuns" :key="run.id">
-            <tr class="avail-row" :class="{ 'avail-row-expanded': valExpandedRunId === run.id }" @click="toggleValRunDetail(run.id)">
-              <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
-              <td class="hide-mobile">{{ run.triggerType }}</td>
+            <tr class="cursor-pointer transition-colors hover:bg-surface" :class="{ 'bg-surface': valExpandedRunId === run.id }" @click="toggleValRunDetail(run.id)">
+              <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
+              <td class="hidden md:table-cell">{{ run.triggerType }}</td>
               <td>
-                <span class="val-status-badge" :class="'val-status-' + run.status">{{ run.status }}</span>
-                <span v-if="run.status === 'running' && run.totalCoins > 0" class="val-progress">
+                <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.status === 'running' ? 'bg-[rgba(52,152,219,0.15)] text-[#3498db]' : run.status === 'completed' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : run.status === 'failed' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : 'bg-[rgba(243,156,18,0.15)] text-[#f39c12]'">{{ run.status }}</span>
+                <span v-if="run.status === 'running' && run.totalCoins > 0" class="ml-[0.35rem] text-label font-medium text-text-secondary">
                   {{ run.coinsChecked + run.coinsSkipped + run.errors }} / {{ run.totalCoins }}
                 </span>
-                <button v-if="run.status === 'running'" class="btn-cancel-run" @click.stop="cancelRun(run.id)">Cancel</button>
+                <button v-if="run.status === 'running'" class="ml-[0.4rem] rounded-full border border-[rgba(231,76,60,0.4)] bg-transparent px-[0.4rem] py-[0.1rem] text-[0.65rem] text-[var(--color-negative)] transition-colors hover:bg-[rgba(231,76,60,0.15)]" @click.stop="cancelRun(run.id)">Cancel</button>
               </td>
               <td>{{ run.coinsChecked }}</td>
-              <td class="hide-mobile avail-count-available">{{ run.coinsUpdated }}</td>
-              <td class="hide-mobile avail-count-unknown">{{ run.coinsSkipped }}</td>
-              <td class="hide-mobile avail-count-unavailable">{{ run.errors }}</td>
+              <td class="hidden font-semibold text-[var(--color-positive)] md:table-cell">{{ run.coinsUpdated }}</td>
+              <td class="hidden font-semibold text-warning md:table-cell">{{ run.coinsSkipped }}</td>
+              <td class="hidden font-semibold text-[var(--color-negative)] md:table-cell">{{ run.errors }}</td>
               <td>{{ formatDuration(run.durationMs) }}</td>
             </tr>
-            <tr v-if="valExpandedRunId === run.id && valExpandedResults" class="avail-detail-row">
+            <tr v-if="valExpandedRunId === run.id && valExpandedResults" class="bg-surface-secondary">
               <td :colspan="valColspan">
-                <div v-if="valExpandedLoading" class="loading-overlay"><div class="spinner"></div></div>
-                <table v-else-if="valExpandedResults.length" class="avail-detail-table val-detail-table">
+                <div v-if="valExpandedLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
+                <table v-else-if="valExpandedResults.length" class="w-full border-collapse text-[0.78rem] md:table-fixed [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-2 [&_th]:py-[0.4rem] [&_th]:text-left [&_th]:text-label [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-2 [&_td]:py-[0.4rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td]:whitespace-nowrap">
                   <thead>
                     <tr>
                       <th>Coin</th>
@@ -536,115 +535,115 @@
                     <tr v-for="r in valExpandedResults" :key="r.id">
                       <td>{{ r.coinName }}</td>
                       <td>{{ r.previousValue != null ? `$${r.previousValue.toFixed(2)}` : '--' }}</td>
-                      <td class="val-value">{{ r.estimatedValue > 0 ? `$${r.estimatedValue.toFixed(2)}` : '--' }}</td>
+                      <td class="font-semibold text-gold">{{ r.estimatedValue > 0 ? `$${r.estimatedValue.toFixed(2)}` : '--' }}</td>
                       <td>
-                        <span v-if="r.confidence" class="val-confidence" :class="'val-conf-' + r.confidence">{{ r.confidence }}</span>
+                        <span v-if="r.confidence" class="inline-block rounded-sm px-[0.3rem] py-[0.1rem] text-label font-semibold" :class="r.confidence === 'high' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--confidence-high)]' : r.confidence === 'medium' ? 'bg-[rgba(241,196,15,0.15)] text-[var(--confidence-medium)]' : 'bg-[rgba(231,76,60,0.15)] text-[var(--confidence-low)]'">{{ r.confidence }}</span>
                         <span v-else>--</span>
                       </td>
                       <td>
-                        <span class="listing-status-badge" :class="'val-result-' + r.status">{{ r.status }}</span>
+                        <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="r.status === 'success' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : r.status === 'skipped' ? 'bg-[rgba(149,165,166,0.15)] text-[#95a5a6]' : 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]'">{{ r.status }}</span>
                       </td>
-                      <td class="avail-reason">
-                        <div v-if="r.changeExplanation" class="val-change-explanation">{{ r.changeExplanation }}</div>
+                      <td class="max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">
+                        <div v-if="r.changeExplanation" class="mb-[0.35rem] font-medium text-gold">{{ r.changeExplanation }}</div>
                         <div>{{ r.reasoning || r.errorMessage || '--' }}</div>
                       </td>
                     </tr>
                   </tbody>
                 </table>
-                <p v-else class="logs-empty">No results for this run.</p>
+                <p v-else class="px-8 py-8 text-center font-sans text-text-muted">No results for this run.</p>
               </td>
             </tr>
           </template>
         </tbody>
       </table>
 
-      <div class="avail-pagination">
+      <div class="mt-4 flex items-center justify-center gap-3">
         <button class="btn btn-secondary btn-sm" :disabled="valPage <= 1" @click="prevValPage()">Prev</button>
-        <span class="avail-page-info">Page {{ valPage }}</span>
+        <span class="text-[0.82rem] text-text-secondary">Page {{ valPage }}</span>
         <button class="btn btn-secondary btn-sm" :disabled="valRuns.length < 5" @click="nextValPage()">Next</button>
       </div>
     </template>
 
-    <hr class="section-divider" />
+    <hr class="my-6 border-0 border-t border-border-subtle" />
 
     <!-- Collection Health Snapshots -->
-    <h3 class="subsection-title">Collection Health Snapshots</h3>
-    <p class="subsection-desc">Captures daily health baselines used by the 30-day collection health trend.</p>
-    <div class="avail-settings">
-      <div class="form-group avail-toggle-row">
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Collection Health Snapshots</h3>
+    <p class="mb-4 text-base text-text-secondary">Captures daily health baselines used by the 30-day collection health trend.</p>
+    <div class="mb-4">
+      <div class="form-group flex items-center justify-between gap-3">
         <label class="form-label">Enable Daily Snapshots</label>
-        <label class="toggle-switch">
+        <label class="relative inline-block h-[22px] w-[42px]">
           <input
-            type="checkbox"
+            class="peer sr-only" type="checkbox"
             :checked="settings.CollectionHealthSnapshotsEnabled === 'true'"
             @change="settings.CollectionHealthSnapshotsEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
           />
-          <span class="toggle-slider"></span>
+          <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
         </label>
       </div>
       <div class="form-group">
         <label class="form-label">Start Time (daily)</label>
         <input
           v-model="settings.CollectionHealthSnapshotsStartTime"
-          class="form-input avail-interval-input"
+          class="form-input w-full max-w-[120px]"
           type="time"
         />
         <span class="form-hint">Time of day when collection health baselines are captured for trend calculations.</span>
       </div>
-      <div class="avail-save-row">
+      <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
         <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
           {{ settingsSaving ? 'Saving...' : 'Save Snapshot Settings' }}
         </button>
-        <span v-if="healthSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': healthSettingsError }">{{ healthSettingsMsg }}</span>
-        <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="healthTriggerLoading" @click="triggerManualHealthSnapshots()">
+        <span v-if="healthSettingsMsg" class="text-body text-gold md:mr-auto" :class="healthSettingsError ? 'text-[var(--color-negative)]' : ''">{{ healthSettingsMsg }}</span>
+        <button class="btn btn-secondary btn-sm md:ml-auto" :disabled="healthTriggerLoading" @click="triggerManualHealthSnapshots()">
           {{ healthTriggerLoading ? 'Running...' : 'Run Now' }}
         </button>
       </div>
     </div>
 
-    <hr class="section-divider" />
+    <hr class="my-6 border-0 border-t border-border-subtle" />
 
     <!-- Coin of the Day -->
-    <h3 class="subsection-title">Coin of the Day</h3>
-    <p class="subsection-desc">Picks one coin per day from each user's collection and sends an in-app and Pushover notification. Each coin in a user's collection appears once before any coin repeats.</p>
-    <div class="avail-settings">
-      <div class="form-group avail-toggle-row">
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Coin of the Day</h3>
+    <p class="mb-4 text-base text-text-secondary">Picks one coin per day from each user's collection and sends an in-app and Pushover notification. Each coin in a user's collection appears once before any coin repeats.</p>
+    <div class="mb-4">
+      <div class="form-group flex items-center justify-between gap-3">
         <label class="form-label">Enable Daily Feature</label>
-        <label class="toggle-switch">
+        <label class="relative inline-block h-[22px] w-[42px]">
           <input
-            type="checkbox"
+            class="peer sr-only" type="checkbox"
             :checked="settings.CoinOfDayEnabled === 'true'"
             @change="settings.CoinOfDayEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
           />
-          <span class="toggle-slider"></span>
+          <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
         </label>
       </div>
       <div class="form-group">
         <label class="form-label">Start Time (daily)</label>
         <input
           v-model="settings.CoinOfDayStartTime"
-          class="form-input avail-interval-input"
+          class="form-input w-full max-w-[120px]"
           type="time"
         />
         <span class="form-hint">Time of day when the daily featured coin is picked for each enrolled user.</span>
       </div>
-      <div class="avail-save-row">
+      <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
         <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
           {{ settingsSaving ? 'Saving...' : 'Save Coin of the Day Settings' }}
         </button>
-        <span v-if="cotdSettingsMsg" class="avail-save-msg" :class="{ 'avail-save-error': cotdSettingsError }">{{ cotdSettingsMsg }}</span>
-        <button class="btn btn-secondary btn-sm schedule-run-now" :disabled="cotdTriggerLoading" @click="triggerManualCoinOfDay()">
+        <span v-if="cotdSettingsMsg" class="text-body text-gold md:mr-auto" :class="cotdSettingsError ? 'text-[var(--color-negative)]' : ''">{{ cotdSettingsMsg }}</span>
+        <button class="btn btn-secondary btn-sm md:ml-auto" :disabled="cotdTriggerLoading" @click="triggerManualCoinOfDay()">
           {{ cotdTriggerLoading ? 'Running...' : 'Run Now' }}
         </button>
       </div>
     </div>
 
-    <hr class="section-divider" />
-    <h3 class="subsection-title">Coin of the Day Run History</h3>
-    <div v-if="cotdLoading" class="loading-overlay"><div class="spinner"></div></div>
-    <div v-else-if="cotdRuns.length === 0" class="logs-empty">No Coin of the Day runs recorded yet.</div>
+    <hr class="my-6 border-0 border-t border-border-subtle" />
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Coin of the Day Run History</h3>
+    <div v-if="cotdLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
+    <div v-else-if="cotdRuns.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No Coin of the Day runs recorded yet.</div>
     <template v-else>
-      <table class="users-table avail-table">
+      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
         <thead>
           <tr>
             <th>Date</th>
@@ -652,24 +651,24 @@
             <th>Picked</th>
             <th>Skipped</th>
             <th>Errors</th>
-            <th class="hide-mobile">Trigger</th>
+            <th class="hidden md:table-cell">Trigger</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="run in cotdRuns" :key="run.id">
-            <td class="date-cell">{{ formatDate(run.startedAt) }}</td>
+            <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
             <td>{{ run.status }}</td>
             <td>{{ run.picked }}</td>
             <td>{{ run.skipped }}</td>
             <td>{{ run.errors }}</td>
-            <td class="hide-mobile">{{ run.triggerType }}</td>
+            <td class="hidden md:table-cell">{{ run.triggerType }}</td>
           </tr>
         </tbody>
       </table>
 
-      <div class="avail-pagination">
+      <div class="mt-4 flex items-center justify-center gap-3">
         <button class="btn btn-secondary btn-sm" :disabled="cotdPage <= 1" @click="prevCoinOfDayPage()">Prev</button>
-        <span class="avail-page-info">Page {{ cotdPage }}</span>
+        <span class="text-[0.82rem] text-text-secondary">Page {{ cotdPage }}</span>
         <button class="btn btn-secondary btn-sm" :disabled="cotdRuns.length < 5" @click="nextCoinOfDayPage()">Next</button>
       </div>
     </template>
@@ -1174,447 +1173,3 @@ onUnmounted(() => {
   timers.forEach(clearTimeout)
 })
 </script>
-
-<style scoped>
-.admin-section h2 {
-  font-size: 1.1rem;
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.subsection-title {
-  font-size: 1rem;
-  font-weight: 600;
-  margin-bottom: 1rem;
-  color: var(--text-primary, #e0e0e0);
-}
-
-.section-divider {
-  border: none;
-  border-top: 1px solid var(--border-subtle, #333);
-  margin: 1.5rem 0;
-}
-
-.form-hint {
-  display: block;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-top: 0.25rem;
-}
-
-.logs-empty {
-  text-align: center;
-  padding: 2rem;
-  color: var(--text-muted);
-  font-family: 'Inter', sans-serif;
-}
-
-.avail-settings {
-  margin-bottom: 1rem;
-}
-
-.avail-toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.avail-save-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-top: 1rem;
-  width: 100%;
-}
-
-.avail-save-msg {
-  font-size: 0.85rem;
-  color: var(--accent-gold);
-  margin-right: auto;
-}
-
-.schedule-run-now {
-  margin-left: auto;
-}
-
-.avail-save-error {
-  color: var(--color-negative);
-}
-
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 42px;
-  height: 22px;
-}
-
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  cursor: pointer;
-  inset: 0;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: 22px;
-  transition: background 0.2s;
-}
-
-.toggle-slider::before {
-  content: '';
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  left: 2px;
-  bottom: 2px;
-  background: var(--text-secondary);
-  border-radius: 50%;
-  transition: transform 0.2s;
-}
-
-.toggle-switch input:checked + .toggle-slider {
-  background: var(--accent-gold-dim);
-  border-color: var(--accent-gold);
-}
-
-.toggle-switch input:checked + .toggle-slider::before {
-  transform: translateX(20px);
-  background: var(--accent-gold);
-}
-
-.avail-interval-input {
-  max-width: 120px;
-}
-
-.users-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.users-table th,
-.users-table td {
-  text-align: left;
-  padding: 0.75rem 0.5rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.users-table th {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
-.date-cell {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-
-.text-muted {
-  color: var(--text-muted);
-}
-
-.avail-table {
-  font-size: 0.82rem;
-  table-layout: fixed;
-  width: 100%;
-}
-
-.avail-row {
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.avail-row:hover {
-  background: var(--bg-primary);
-}
-
-.avail-row-expanded {
-  background: var(--bg-primary);
-}
-
-.avail-count-available { color: var(--color-positive); font-weight: 600; }
-.avail-count-unavailable { color: var(--color-negative); font-weight: 600; }
-.avail-count-unknown { color: var(--text-warning); font-weight: 600; }
-
-.avail-detail-row td {
-  padding: 0.5rem;
-  background: var(--bg-body);
-  overflow: hidden;
-}
-
-.avail-detail-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.78rem;
-  table-layout: fixed;
-}
-
-.avail-detail-table th,
-.avail-detail-table td {
-  padding: 0.4rem 0.5rem;
-  text-align: left;
-  border-bottom: 1px solid var(--border-subtle);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Column widths for detail table */
-.avail-detail-table th:nth-child(1),
-.avail-detail-table td:nth-child(1) { width: 22%; }
-.avail-detail-table th:nth-child(2),
-.avail-detail-table td:nth-child(2) { width: 22%; }
-.avail-detail-table th:nth-child(3),
-.avail-detail-table td:nth-child(3) { width: 10%; }
-.avail-detail-table th:nth-child(4),
-.avail-detail-table td:nth-child(4) { width: 28%; }
-.avail-detail-table th:nth-child(5),
-.avail-detail-table td:nth-child(5) { width: 8%; }
-.avail-detail-table th:nth-child(6),
-.avail-detail-table td:nth-child(6) { width: 10%; }
-
-.avail-detail-table th {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
-.avail-link {
-  color: var(--accent-gold);
-  text-decoration: none;
-  font-size: 0.75rem;
-}
-
-.avail-link:hover {
-  text-decoration: underline;
-}
-
-.avail-reason {
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.val-change-explanation {
-  margin-bottom: 0.35rem;
-  color: var(--accent-gold);
-  font-weight: 500;
-}
-
-.listing-status-badge {
-  display: inline-block;
-  padding: 0.15rem 0.4rem;
-  border-radius: var(--radius-full);
-  font-size: 0.7rem;
-  font-weight: 600;
-}
-
-.avail-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
-
-.avail-page-info {
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-}
-
-.listing-available {
-  background: rgba(46, 204, 113, 0.15);
-  color: var(--color-positive);
-}
-
-.listing-unavailable {
-  background: rgba(231, 76, 60, 0.15);
-  color: var(--color-negative);
-}
-
-.listing-unknown {
-  background: rgba(241, 196, 15, 0.15);
-  color: var(--text-warning);
-}
-
-/* Valuation */
-.val-status-badge {
-  display: inline-block;
-  padding: 0.15rem 0.4rem;
-  border-radius: var(--radius-full);
-  font-size: 0.7rem;
-  font-weight: 600;
-}
-
-.val-status-running {
-  background: rgba(52, 152, 219, 0.15);
-  color: #3498db;
-}
-
-.val-progress {
-  margin-left: 0.35rem;
-  font-size: 0.7rem;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.val-status-completed {
-  background: rgba(46, 204, 113, 0.15);
-  color: var(--color-positive);
-}
-
-.val-status-failed {
-  background: rgba(231, 76, 60, 0.15);
-  color: var(--color-negative);
-}
-
-.val-status-cancelled {
-  background: rgba(243, 156, 18, 0.15);
-  color: #f39c12;
-}
-
-.btn-cancel-run {
-  margin-left: 0.4rem;
-  padding: 0.1rem 0.4rem;
-  font-size: 0.65rem;
-  border: 1px solid rgba(231, 76, 60, 0.4);
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--color-negative);
-  cursor: pointer;
-  vertical-align: middle;
-}
-.btn-cancel-run:hover {
-  background: rgba(231, 76, 60, 0.15);
-}
-
-.val-value {
-  font-weight: 600;
-  color: var(--accent-gold);
-}
-
-.val-confidence {
-  display: inline-block;
-  padding: 0.1rem 0.3rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.7rem;
-  font-weight: 600;
-}
-
-.val-conf-high {
-  background: rgba(46, 204, 113, 0.15);
-  color: var(--confidence-high);
-}
-
-.val-conf-medium {
-  background: rgba(241, 196, 15, 0.15);
-  color: var(--confidence-medium);
-}
-
-.val-conf-low {
-  background: rgba(231, 76, 60, 0.15);
-  color: var(--confidence-low);
-}
-
-.val-result-success {
-  background: rgba(46, 204, 113, 0.15);
-  color: var(--color-positive);
-}
-
-.val-result-skipped {
-  background: rgba(149, 165, 166, 0.15);
-  color: #95a5a6;
-}
-
-.val-result-error {
-  background: rgba(231, 76, 60, 0.15);
-  color: var(--color-negative);
-}
-
-.val-detail-table th:nth-child(1),
-.val-detail-table td:nth-child(1) { width: 22%; }
-.val-detail-table th:nth-child(2),
-.val-detail-table td:nth-child(2) { width: 12%; }
-.val-detail-table th:nth-child(3),
-.val-detail-table td:nth-child(3) { width: 12%; }
-.val-detail-table th:nth-child(4),
-.val-detail-table td:nth-child(4) { width: 10%; }
-.val-detail-table th:nth-child(5),
-.val-detail-table td:nth-child(5) { width: 10%; }
-.val-detail-table th:nth-child(6),
-.val-detail-table td:nth-child(6) { width: 34%; }
-
-.auction-detail-table th:nth-child(1),
-.auction-detail-table td:nth-child(1) { width: 12%; }
-.auction-detail-table th:nth-child(2),
-.auction-detail-table td:nth-child(2) { width: 26%; }
-.auction-detail-table th:nth-child(3),
-.auction-detail-table td:nth-child(3) { width: 18%; }
-.auction-detail-table th:nth-child(4),
-.auction-detail-table td:nth-child(4) { width: 12%; }
-.auction-detail-table th:nth-child(5),
-.auction-detail-table td:nth-child(5) { width: 10%; }
-.auction-detail-table th:nth-child(6),
-.auction-detail-table td:nth-child(6) { width: 22%; }
-
-/* Mobile responsive: hide non-essential columns */
-@media (max-width: 600px) {
-  .hide-mobile {
-    display: none !important;
-  }
-
-  .avail-table {
-    table-layout: auto;
-    font-size: 0.8rem;
-  }
-
-  .users-table th,
-  .users-table td {
-    padding: 0.5rem 0.35rem;
-  }
-
-  .date-cell {
-    font-size: 0.8rem;
-  }
-}
-
-.avail-status-badge {
-  display: inline-block;
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-full);
-  font-size: 0.72rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.avail-status-queued {
-  background: rgba(201, 168, 76, 0.15);
-  color: var(--accent-gold);
-}
-
-.avail-status-running {
-  background: rgba(52, 152, 219, 0.15);
-  color: #5dade2;
-}
-
-.avail-status-completed {
-  background: rgba(46, 204, 113, 0.12);
-  color: #58d68d;
-}
-
-.avail-status-failed {
-  background: rgba(231, 76, 60, 0.15);
-  color: #e74c3c;
-}
-</style>

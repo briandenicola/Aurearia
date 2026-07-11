@@ -1,10 +1,10 @@
 <template>
-  <div class="auth-page">
-    <div class="auth-card">
-      <img src="/coin-logo.jpg" alt="Aurearia - Coin Collection" class="auth-logo" />
-      <h1>Create Account</h1>
-      <p class="auth-subtitle">Start tracking your collection</p>
-      <form @submit.prevent="handleRegister" class="auth-form">
+  <div class="flex min-h-screen items-center justify-center bg-[radial-gradient(ellipse_at_top,var(--bg-secondary)_0%,var(--bg-primary)_70%)] p-8">
+    <div class="card w-full max-w-[400px] text-center">
+      <img src="/coin-logo.jpg" alt="Aurearia - Coin Collection" class="mx-auto mb-6 h-20 w-20 rounded-full border-[3px] border-[var(--accent-gold-dim)] object-cover shadow-[0_0_30px_var(--accent-gold-glow)]" />
+      <h1 class="mb-1">Create Account</h1>
+      <p class="mb-8 text-base text-text-secondary">Start tracking your collection</p>
+      <form @submit.prevent="handleRegister" class="text-left">
         <div class="form-group">
           <label class="form-label">Username</label>
           <input v-model="username" class="form-input" required minlength="3" autocomplete="username" />
@@ -21,13 +21,13 @@
           <label class="form-label">Confirm Password</label>
           <input v-model="confirmPassword" type="password" class="form-input" required autocomplete="new-password" />
         </div>
-        <p v-if="error" class="auth-error">{{ error }}</p>
-        <button type="submit" class="btn btn-primary auth-btn" :disabled="loading">
+        <p v-if="error" class="mb-2 text-body text-warning">{{ error }}</p>
+        <button type="submit" class="btn btn-primary mt-2 w-full justify-center py-3" :disabled="loading">
           {{ loading ? 'Creating...' : 'Create Account' }}
         </button>
       </form>
-      <p class="auth-footer">
-        Already have an account? <router-link to="/login">Sign in</router-link>
+      <p class="mt-6 text-body text-text-secondary">
+        Already have an account? <router-link to="/login" class="text-gold transition-colors hover:text-heading">Sign in</router-link>
       </p>
     </div>
   </div>
@@ -66,63 +66,3 @@ async function handleRegister() {
   }
 }
 </script>
-
-<style scoped>
-.auth-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  background: radial-gradient(ellipse at top, var(--bg-secondary) 0%, var(--bg-primary) 70%);
-}
-
-.auth-card {
-  width: 100%;
-  max-width: 400px;
-  text-align: center;
-}
-
-.auth-logo {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 3px solid var(--accent-gold-dim);
-  margin-bottom: 1.5rem;
-  box-shadow: 0 0 30px var(--accent-gold-glow);
-}
-
-.auth-card h1 {
-  margin-bottom: 0.25rem;
-}
-
-.auth-subtitle {
-  color: var(--text-secondary);
-  margin-bottom: 2rem;
-  font-size: 0.9rem;
-}
-
-.auth-form {
-  text-align: left;
-}
-
-.auth-error {
-  color: #e74c3c;
-  font-size: 0.85rem;
-  margin-bottom: 0.5rem;
-}
-
-.auth-btn {
-  width: 100%;
-  justify-content: center;
-  padding: 0.75rem;
-  margin-top: 0.5rem;
-}
-
-.auth-footer {
-  margin-top: 1.5rem;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-</style>

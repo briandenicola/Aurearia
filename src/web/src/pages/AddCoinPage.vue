@@ -5,33 +5,33 @@
         <h1>Add Coin</h1>
       </div>
 
-      <div v-if="!isPwa" class="entry-mode-toggle">
+      <div v-if="!isPwa" class="mb-4 flex gap-[0.35rem]">
         <button
           type="button"
-          class="chip"
-          :class="{ active: entryMode === 'manual' }"
+          class="chip border border-border-subtle"
+          :class="{ 'border-gold': entryMode === 'manual' }"
           @click="entryMode = 'manual'"
         >
           Manual Mode
         </button>
         <button
           type="button"
-          class="chip"
-          :class="{ active: entryMode === 'agentic' }"
+          class="chip border border-border-subtle"
+          :class="{ 'border-gold': entryMode === 'agentic' }"
           @click="entryMode = 'agentic'"
         >
           AI Assist Mode
         </button>
       </div>
 
-      <section v-if="entryMode === 'agentic'" class="agentic-layout">
+      <section v-if="entryMode === 'agentic'" class="relative grid gap-4">
         <!-- Loading overlay for AI analysis -->
-        <div v-if="intakeLoading" class="intake-loading-overlay">
-          <div class="loading-card">
-            <div class="spinner-container">
-              <div class="spinner"></div>
+        <div v-if="intakeLoading" class="fixed inset-0 z-[1000] flex items-center justify-center bg-overlay-full backdrop-blur-[4px]">
+          <div class="mx-4 flex max-w-[20rem] flex-col items-center gap-4 rounded-md border border-border-subtle bg-card p-8">
+            <div class="flex h-12 w-12 items-center justify-center">
+              <div class="h-10 w-10 animate-spin rounded-full border-[3px] border-border-subtle border-t-gold"></div>
             </div>
-            <p class="loading-text">Analyzing your coin…</p>
+            <p class="m-0 text-center text-base text-text-primary">Analyzing your coin…</p>
           </div>
         </div>
 
@@ -43,45 +43,63 @@
           @upload="triggerFileInput(nextCaptureTarget)"
         >
           <template #before-actions>
-            <div class="capture-slots">
-              <div class="capture-tile" :class="{ filled: obverseFile, active: nextCaptureTarget === 'obverse' }">
-                <div v-if="obverseFile" class="tile-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(obverseFile)})` }">
-                  <button type="button" class="tile-clear-btn" @click="clearCapturedImage('obverse')" aria-label="Clear obverse">×</button>
+            <div class="grid grid-cols-3 gap-2">
+              <div
+                class="relative min-h-20 overflow-hidden rounded-md border border-border-subtle bg-card transition-colors"
+                :class="{
+                  'min-h-24': obverseFile,
+                  'border-gold bg-gold-glow': nextCaptureTarget === 'obverse',
+                }"
+              >
+                <div v-if="obverseFile" class="relative min-h-24 h-full w-full bg-cover bg-center" :style="{ backgroundImage: `url(${getFileUrl(obverseFile)})` }">
+                  <button type="button" class="absolute top-[0.35rem] right-[0.35rem] z-[2] flex h-6 w-6 items-center justify-center rounded-full bg-overlay text-[1.2rem] leading-none text-white transition-colors hover:bg-error-bg" @click="clearCapturedImage('obverse')" aria-label="Clear obverse">×</button>
                 </div>
-                <div v-else class="tile-empty">
-                  <span class="tile-dot"></span>
-                  <span class="tile-label">Obverse</span>
-                </div>
-              </div>
-
-              <div class="capture-tile" :class="{ filled: reverseFile, active: nextCaptureTarget === 'reverse' }">
-                <div v-if="reverseFile" class="tile-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(reverseFile)})` }">
-                  <button type="button" class="tile-clear-btn" @click="clearCapturedImage('reverse')" aria-label="Clear reverse">×</button>
-                </div>
-                <div v-else class="tile-empty">
-                  <span class="tile-dot"></span>
-                  <span class="tile-label">Reverse</span>
+                <div v-else class="flex min-h-20 h-full w-full flex-col items-center justify-center gap-[0.35rem]">
+                  <span class="block h-2 w-2 rounded-full transition-colors" :class="nextCaptureTarget === 'obverse' ? 'bg-gold' : 'bg-text-muted'"></span>
+                  <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Obverse</span>
                 </div>
               </div>
 
-              <div class="capture-tile" :class="{ filled: cardFile, active: nextCaptureTarget === 'card' }">
-                <span class="tile-opt-badge">Opt</span>
-                <div v-if="cardFile" class="tile-thumbnail" :style="{ backgroundImage: `url(${getFileUrl(cardFile)})` }">
-                  <button type="button" class="tile-clear-btn" @click="clearCapturedImage('card')" aria-label="Clear card">×</button>
+              <div
+                class="relative min-h-20 overflow-hidden rounded-md border border-border-subtle bg-card transition-colors"
+                :class="{
+                  'min-h-24': reverseFile,
+                  'border-gold bg-gold-glow': nextCaptureTarget === 'reverse',
+                }"
+              >
+                <div v-if="reverseFile" class="relative min-h-24 h-full w-full bg-cover bg-center" :style="{ backgroundImage: `url(${getFileUrl(reverseFile)})` }">
+                  <button type="button" class="absolute top-[0.35rem] right-[0.35rem] z-[2] flex h-6 w-6 items-center justify-center rounded-full bg-overlay text-[1.2rem] leading-none text-white transition-colors hover:bg-error-bg" @click="clearCapturedImage('reverse')" aria-label="Clear reverse">×</button>
                 </div>
-                <div v-else class="tile-empty">
-                  <span class="tile-dot"></span>
-                  <span class="tile-label">Card</span>
+                <div v-else class="flex min-h-20 h-full w-full flex-col items-center justify-center gap-[0.35rem]">
+                  <span class="block h-2 w-2 rounded-full transition-colors" :class="nextCaptureTarget === 'reverse' ? 'bg-gold' : 'bg-text-muted'"></span>
+                  <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Reverse</span>
+                </div>
+              </div>
+
+              <div
+                class="relative min-h-20 overflow-hidden rounded-md border border-border-subtle bg-card transition-colors"
+                :class="{
+                  'min-h-24': cardFile,
+                  'border-gold bg-gold-glow': nextCaptureTarget === 'card',
+                }"
+              >
+                <span class="absolute top-1 right-1 z-[2] rounded-sm bg-input px-[0.4rem] py-[0.15rem] text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Opt</span>
+                <div v-if="cardFile" class="relative min-h-24 h-full w-full bg-cover bg-center" :style="{ backgroundImage: `url(${getFileUrl(cardFile)})` }">
+                  <button type="button" class="absolute top-[0.35rem] right-[0.35rem] z-[2] flex h-6 w-6 items-center justify-center rounded-full bg-overlay text-[1.2rem] leading-none text-white transition-colors hover:bg-error-bg" @click="clearCapturedImage('card')" aria-label="Clear card">×</button>
+                </div>
+                <div v-else class="flex min-h-20 h-full w-full flex-col items-center justify-center gap-[0.35rem]">
+                  <span class="block h-2 w-2 rounded-full transition-colors" :class="nextCaptureTarget === 'card' ? 'bg-gold' : 'bg-text-muted'"></span>
+                  <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Card</span>
                 </div>
               </div>
             </div>
           </template>
 
           <template #footer>
-            <div class="camera-footer">
+            <div class="flex flex-col items-center gap-2">
               <button
                 type="button"
-                class="btn btn-primary"
+                class="btn btn-primary w-full"
                 :disabled="intakeLoading || observationImages.length === 0"
                 @click="generateDraft"
               >
@@ -89,39 +107,39 @@
               </button>
               <button
                 type="button"
-                class="manual-mode-link"
+                class="cursor-pointer border-0 bg-transparent px-0 py-1 text-chip text-text-muted transition-colors hover:text-text-secondary"
                 @click="switchToManualMode"
               >
                 Use manual mode instead
               </button>
             </div>
           </template>
-          <p v-if="intakeError" class="status-text status-warning">{{ intakeError }}</p>
+          <p v-if="intakeError" class="mt-[0.6rem] text-chip text-warning">{{ intakeError }}</p>
         </InlineCameraCapturePanel>
 
-        <div v-else class="intake-card">
-          <h2 class="form-section-title">Upload Photos</h2>
-          <p class="intake-copy">
+        <div v-else class="rounded-md border border-border-subtle bg-card p-4">
+          <h2 class="font-display text-xl font-medium text-heading">Upload Photos</h2>
+          <p class="mb-3 text-body text-text-secondary">
             Add obverse and reverse photos to generate an intake draft you can review before saving.
           </p>
-          <div class="upload-grid">
-            <label class="upload-field">
+          <div class="grid gap-3 md:grid-cols-2">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Obverse Image</span>
-              <input type="file" accept="image/*" @change="onObservationFile('obverse', $event)">
-              <span class="file-name">{{ obverseFile?.name ?? 'Not selected' }}</span>
+              <input class="w-full rounded-sm border border-border-subtle bg-input text-base text-text-primary file:mr-3 file:border-0 file:bg-gold-glow file:px-3 file:py-[0.55rem] file:text-base file:font-medium file:text-text-primary" type="file" accept="image/*" @change="onObservationFile('obverse', $event)">
+              <span class="text-sm text-text-secondary">{{ obverseFile?.name ?? 'Not selected' }}</span>
             </label>
-            <label class="upload-field">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Reverse Image</span>
-              <input type="file" accept="image/*" @change="onObservationFile('reverse', $event)">
-              <span class="file-name">{{ reverseFile?.name ?? 'Not selected' }}</span>
+              <input class="w-full rounded-sm border border-border-subtle bg-input text-base text-text-primary file:mr-3 file:border-0 file:bg-gold-glow file:px-3 file:py-[0.55rem] file:text-base file:font-medium file:text-text-primary" type="file" accept="image/*" @change="onObservationFile('reverse', $event)">
+              <span class="text-sm text-text-secondary">{{ reverseFile?.name ?? 'Not selected' }}</span>
             </label>
-            <label class="upload-field full-width">
+            <label class="grid gap-[0.35rem] md:col-span-2">
               <span class="section-label">Coin Card (Optional)</span>
-              <input type="file" accept="image/*,.pdf" @change="onCardFile($event)">
-              <span class="file-name">{{ cardFile?.name ?? 'Not selected' }}</span>
+              <input class="w-full rounded-sm border border-border-subtle bg-input text-base text-text-primary file:mr-3 file:border-0 file:bg-gold-glow file:px-3 file:py-[0.55rem] file:text-base file:font-medium file:text-text-primary" type="file" accept="image/*,.pdf" @change="onCardFile($event)">
+              <span class="text-sm text-text-secondary">{{ cardFile?.name ?? 'Not selected' }}</span>
             </label>
           </div>
-          <div class="draft-actions">
+          <div class="mt-3">
             <button
               type="button"
               class="btn btn-primary"
@@ -131,100 +149,103 @@
               {{ intakeLoading ? 'Generating Draft...' : 'Generate Intake Draft' }}
             </button>
           </div>
-          <p v-if="intakeError" class="status-text status-warning">{{ intakeError }}</p>
+          <p v-if="intakeError" class="mt-[0.6rem] text-chip text-warning">{{ intakeError }}</p>
         </div>
 
-        <form v-if="draft" class="intake-card review-card" @submit.prevent="confirmDraft">
-          <div class="review-header">
-            <h2 class="form-section-title">Review Draft</h2>
-            <span class="chip-sm confidence-chip" :class="confidenceClass">
+        <form v-if="draft" class="rounded-md border border-border-subtle bg-card p-4 pb-5" @submit.prevent="confirmDraft">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <h2 class="font-display text-xl font-medium text-heading">Review Draft</h2>
+            <span
+              class="chip-sm border border-border-subtle capitalize"
+              :class="confidenceClass === 'confidence-high' ? 'border-confidence-high text-confidence-high' : confidenceClass === 'confidence-medium' ? 'border-confidence-medium text-confidence-medium' : 'border-confidence-low text-confidence-low'"
+            >
               {{ draft.confidenceSummary.overall }} confidence
             </span>
           </div>
 
-          <div class="review-grid">
-            <label class="form-group">
+          <div class="grid gap-3 md:grid-cols-2">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Name</span>
-              <input v-model="reviewForm.name" class="input" type="text">
+              <input v-model="reviewForm.name" class="form-input" type="text">
             </label>
-            <label class="form-group">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Category</span>
-              <select v-model="reviewForm.category" class="input">
+              <select v-model="reviewForm.category" class="form-select">
                 <option v-for="category in categoryOptions" :key="category" :value="category">{{ category }}</option>
               </select>
             </label>
-            <label class="form-group">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Material</span>
-              <select v-model="reviewForm.material" class="input">
+              <select v-model="reviewForm.material" class="form-select">
                 <option v-for="material in materialOptions" :key="material" :value="material">{{ material }}</option>
               </select>
             </label>
-            <label class="form-group">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Era</span>
-              <select v-model="reviewForm.era" class="input">
+              <select v-model="reviewForm.era" class="form-select">
                 <option value="">Unknown</option>
                 <option v-for="era in eraOptions" :key="era" :value="era">{{ era }}</option>
               </select>
             </label>
-            <label class="form-group">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Denomination</span>
-              <input v-model="reviewForm.denomination" class="input" type="text">
+              <input v-model="reviewForm.denomination" class="form-input" type="text">
             </label>
-            <label class="form-group">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Ruler</span>
-              <input v-model="reviewForm.ruler" class="input" type="text">
+              <input v-model="reviewForm.ruler" class="form-input" type="text">
             </label>
-            <label class="form-group">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Mint</span>
-              <input v-model="reviewForm.mint" class="input" type="text">
+              <input v-model="reviewForm.mint" class="form-input" type="text">
             </label>
-            <label class="form-group">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Grade</span>
-              <input v-model="reviewForm.grade" class="input" type="text">
+              <input v-model="reviewForm.grade" class="form-input" type="text">
             </label>
-            <label class="form-group">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Weight (g)</span>
-              <input v-model.number="reviewForm.weightGrams" class="input" type="number" step="0.01" min="0">
+              <input v-model.number="reviewForm.weightGrams" class="form-input" type="number" step="0.01" min="0">
             </label>
-            <label class="form-group">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Diameter (mm)</span>
-              <input v-model.number="reviewForm.diameterMm" class="input" type="number" step="0.1" min="0">
+              <input v-model.number="reviewForm.diameterMm" class="form-input" type="number" step="0.1" min="0">
             </label>
-            <label class="form-group">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Purchase Price</span>
-              <input v-model.number="reviewForm.purchasePrice" class="input" type="number" step="0.01" min="0">
+              <input v-model.number="reviewForm.purchasePrice" class="form-input" type="number" step="0.01" min="0">
             </label>
-            <label class="form-group">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Current Value</span>
-              <input v-model.number="reviewForm.currentValue" class="input" type="number" step="0.01" min="0">
+              <input v-model.number="reviewForm.currentValue" class="form-input" type="number" step="0.01" min="0">
             </label>
-            <label class="form-group">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Purchase Date</span>
-              <input v-model="reviewForm.purchaseDate" class="input" type="date">
+              <input v-model="reviewForm.purchaseDate" class="form-input" type="date">
             </label>
-            <label class="form-group">
+            <label class="grid gap-[0.35rem]">
               <span class="section-label">Purchase Location</span>
-              <input v-model="reviewForm.purchaseLocation" class="input" type="text">
+              <input v-model="reviewForm.purchaseLocation" class="form-input" type="text">
             </label>
-            <label class="form-group full-width">
+            <label class="grid gap-[0.35rem] md:col-span-2">
               <span class="section-label">Obverse Description</span>
-              <textarea v-model="reviewForm.obverseDescription" class="input textarea" rows="2"></textarea>
+              <textarea v-model="reviewForm.obverseDescription" class="form-input min-h-20 resize-y" rows="2"></textarea>
             </label>
-            <label class="form-group full-width">
+            <label class="grid gap-[0.35rem] md:col-span-2">
               <span class="section-label">Reverse Description</span>
-              <textarea v-model="reviewForm.reverseDescription" class="input textarea" rows="2"></textarea>
+              <textarea v-model="reviewForm.reverseDescription" class="form-input min-h-20 resize-y" rows="2"></textarea>
             </label>
-            <label class="form-group full-width">
+            <label class="grid gap-[0.35rem] md:col-span-2">
               <span class="section-label">Notes</span>
-              <textarea v-model="reviewForm.notes" class="input textarea" rows="3"></textarea>
+              <textarea v-model="reviewForm.notes" class="form-input min-h-20 resize-y" rows="3"></textarea>
             </label>
           </div>
 
-          <p v-if="draft.unresolvedFields.length > 0" class="status-text">
+          <p v-if="draft.unresolvedFields.length > 0" class="mt-[0.6rem] text-chip text-text-secondary">
             Needs review: {{ draft.unresolvedFields.join(', ') }}
           </p>
 
-          <div class="form-actions">
+          <div class="mt-4 flex flex-col-reverse gap-3 md:flex-row md:justify-end">
             <button type="button" class="btn btn-secondary" @click="switchToManualMode">
               Use Manual Mode
             </button>
@@ -646,338 +667,3 @@ onBeforeUnmount(() => {
   cameraPanel.value?.stopCamera()
 })
 </script>
-
-<style scoped>
-.entry-mode-toggle {
-  display: flex;
-  gap: 0.35rem;
-  margin-bottom: 1rem;
-}
-
-.entry-mode-toggle .chip {
-  border: 1px solid var(--border-subtle);
-}
-
-.entry-mode-toggle .chip.active {
-  border-color: var(--accent-gold);
-}
-
-.agentic-layout {
-  display: grid;
-  gap: 1rem;
-  position: relative;
-}
-
-.intake-loading-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--overlay-full);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
-}
-
-.loading-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 2rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  max-width: 20rem;
-}
-
-.spinner-container {
-  width: 3rem;
-  height: 3rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.spinner {
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 3px solid var(--border-subtle);
-  border-top-color: var(--accent-gold);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.loading-text {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 0.9rem;
-  text-align: center;
-}
-
-.capture-slots {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-}
-
-.capture-tile {
-  position: relative;
-  min-height: 5rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-subtle);
-  overflow: hidden;
-  background: var(--bg-card);
-  transition: all var(--transition-fast);
-}
-
-.capture-tile.active {
-  background: var(--accent-gold-glow);
-  border-color: var(--accent-gold);
-}
-
-.capture-tile.filled {
-  min-height: 6rem;
-}
-
-.tile-opt-badge {
-  position: absolute;
-  top: 0.25rem;
-  right: 0.25rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  background: var(--bg-input);
-  padding: 0.15rem 0.4rem;
-  border-radius: var(--radius-sm);
-  z-index: 2;
-}
-
-.tile-thumbnail {
-  width: 100%;
-  height: 100%;
-  min-height: 6rem;
-  background-size: cover;
-  background-position: center;
-  position: relative;
-}
-
-.tile-clear-btn {
-  position: absolute;
-  top: 0.35rem;
-  right: 0.35rem;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 50%;
-  background: var(--overlay-dark);
-  color: #fff;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  line-height: 1;
-  transition: background var(--transition-fast);
-  z-index: 2;
-}
-
-.tile-clear-btn:hover {
-  background: var(--error-bg);
-}
-
-.tile-empty {
-  width: 100%;
-  height: 100%;
-  min-height: 5rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-}
-
-.tile-dot {
-  display: block;
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  background: var(--text-muted);
-  transition: background var(--transition-fast);
-}
-
-.capture-tile.active .tile-dot {
-  background: var(--accent-gold);
-}
-
-.tile-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-}
-
-.camera-footer {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.camera-footer .btn-primary {
-  width: 100%;
-}
-
-.manual-mode-link {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  font-family: 'Inter', sans-serif;
-  cursor: pointer;
-  padding: 0.25rem 0;
-  transition: color var(--transition-fast);
-}
-
-.manual-mode-link:hover {
-  color: var(--text-secondary);
-}
-
-.intake-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 1rem;
-}
-
-.intake-copy {
-  margin: 0 0 0.75rem;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-
-.upload-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
-.upload-field {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.upload-field.full-width {
-  grid-column: 1 / -1;
-}
-
-.file-name {
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-}
-
-.draft-actions {
-  margin-top: 0.75rem;
-}
-
-.review-card {
-  padding-bottom: 1.25rem;
-}
-
-.review-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-
-.review-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
-.form-group {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.form-group.full-width {
-  grid-column: 1 / -1;
-}
-
-.section-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-}
-
-.input {
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  padding: 0.55rem 0.65rem;
-  font-size: 0.85rem;
-}
-
-.textarea {
-  resize: vertical;
-}
-
-.status-text {
-  margin: 0.6rem 0 0;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-}
-
-.status-warning {
-  color: var(--text-warning);
-}
-
-.confidence-chip {
-  border: 1px solid var(--border-subtle);
-  text-transform: capitalize;
-}
-
-.confidence-high {
-  border-color: var(--confidence-high);
-  color: var(--confidence-high);
-}
-
-.confidence-medium {
-  border-color: var(--confidence-medium);
-  color: var(--confidence-medium);
-}
-
-.confidence-low {
-  border-color: var(--confidence-low);
-  color: var(--confidence-low);
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
-
-@media (max-width: 768px) {
-  .review-grid,
-  .upload-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

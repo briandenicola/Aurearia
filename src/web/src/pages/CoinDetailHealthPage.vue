@@ -8,7 +8,7 @@
         :missing-items="coinHealth.missingItems"
         @quick-action="handleHealthQuickAction(coin.id, $event)"
       />
-      <div v-else class="health-empty card">
+      <div v-else class="card p-6 text-center text-text-secondary text-base">
         <p v-if="coin.isWishlist || coin.isSold">
           Metadata health scoring is only available for active coins in your collection.
         </p>
@@ -67,12 +67,3 @@ function handleHealthQuickAction(coinId: number, action: HealthQuickAction) {
   }
 }
 </script>
-
-<style scoped>
-.health-empty {
-  padding: 1.5rem;
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-</style>

@@ -11,27 +11,36 @@
       </button>
     </div>
 
-    <div v-if="loading && notifications.length === 0" class="loading-state">
+    <div
+      v-if="loading && notifications.length === 0"
+      class="py-12 text-center text-text-secondary"
+    >
       Loading notifications...
     </div>
 
-    <div v-else-if="notifications.length === 0" class="empty-state card">
-      <BellOff :size="48" class="empty-icon" />
+    <div
+      v-else-if="notifications.length === 0"
+      class="empty-state card !px-6 !py-12 text-text-secondary"
+    >
+      <BellOff :size="48" class="mb-4 text-text-muted" />
       <p>No notifications yet</p>
-      <p class="empty-desc">
+      <p class="mx-auto mt-2 max-w-[360px] text-body text-text-muted">
         You will be notified about follower requests, wishlist changes, and new coins from users you follow.
       </p>
     </div>
 
-    <div v-else class="notification-list">
+    <div v-else class="flex flex-col gap-2">
       <div
         v-for="n in notifications"
         :key="n.id"
-        class="notification-item card"
-        :class="{ unread: !n.isRead }"
+        class="card !p-0 flex cursor-pointer items-start gap-3 border-l-[3px] border-l-transparent !px-4 !py-[0.85rem] transition-colors hover:bg-card-hover"
+        :class="!n.isRead ? 'border-l-gold bg-[rgba(201,168,76,0.04)]' : ''"
         @click="handleClick(n)"
       >
-        <div class="notification-icon">
+        <div
+          class="mt-[2px] shrink-0"
+          :class="!n.isRead ? 'text-gold' : 'text-text-muted'"
+        >
           <AlertTriangle v-if="n.type === 'wishlist_unavailable'" :size="20" />
           <UserPlus v-else-if="n.type === 'friend_new_coin' || n.type === 'follow_request'" :size="20" />
           <Sparkles v-else-if="n.type === 'coin_of_day'" :size="20" />
@@ -39,13 +48,13 @@
           <FolderOpen v-else-if="n.type === 'set_milestone'" :size="20" />
           <Bell v-else :size="20" />
         </div>
-        <div class="notification-body">
-          <div class="notification-title">{{ n.title }}</div>
-          <div class="notification-message">{{ n.message }}</div>
-          <div class="notification-time">{{ formatTime(n.createdAt) }}</div>
+        <div class="min-w-0 flex-1">
+          <div class="mb-[0.2rem] text-base font-semibold text-text-primary">{{ n.title }}</div>
+          <div class="text-body leading-[1.4] text-text-secondary">{{ n.message }}</div>
+          <div class="mt-[0.35rem] text-sm text-text-muted">{{ formatTime(n.createdAt) }}</div>
         </div>
         <button
-          class="notification-dismiss"
+          class="shrink-0 rounded-sm p-1 text-text-muted transition-colors hover:bg-[rgba(248,113,113,0.1)] hover:text-[rgb(248,113,113)]"
           title="Delete"
           @click.stop="handleDelete(n.id)"
         >
@@ -53,7 +62,7 @@
         </button>
       </div>
 
-      <div v-if="hasMore" class="load-more">
+      <div v-if="hasMore" class="py-4 text-center">
         <button class="btn btn-secondary btn-sm" @click="loadMore" :disabled="loading">
           {{ loading ? 'Loading...' : 'Load more' }}
         </button>
@@ -171,122 +180,3 @@ function formatTime(iso: string): string {
 
 onMounted(() => fetchNotifications(1))
 </script>
-
-<style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.page-header h1 {
-  font-family: 'Cinzel', serif;
-  font-size: 1.4rem;
-  color: var(--accent-gold);
-}
-
-.loading-state {
-  text-align: center;
-  color: var(--text-secondary);
-  padding: 3rem 1rem;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem 1.5rem;
-  color: var(--text-secondary);
-}
-
-.empty-icon {
-  color: var(--text-muted);
-  margin-bottom: 1rem;
-}
-
-.empty-desc {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  max-width: 360px;
-  margin: 0.5rem auto 0;
-}
-
-.notification-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.notification-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.85rem 1rem;
-  cursor: pointer;
-  transition: background var(--transition-fast);
-  border-left: 3px solid transparent;
-}
-
-.notification-item:hover {
-  background: var(--bg-card-hover, rgba(255, 255, 255, 0.03));
-}
-
-.notification-item.unread {
-  border-left-color: var(--accent-gold);
-  background: rgba(212, 175, 55, 0.04);
-}
-
-.notification-icon {
-  flex-shrink: 0;
-  color: var(--text-muted);
-  margin-top: 2px;
-}
-
-.notification-item.unread .notification-icon {
-  color: var(--accent-gold);
-}
-
-.notification-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.notification-title {
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--text-primary);
-  margin-bottom: 0.2rem;
-}
-
-.notification-message {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  line-height: 1.4;
-}
-
-.notification-time {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-top: 0.35rem;
-}
-
-.notification-dismiss {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: var(--radius-sm);
-  transition: color var(--transition-fast), background var(--transition-fast);
-}
-
-.notification-dismiss:hover {
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.1);
-}
-
-.load-more {
-  text-align: center;
-  padding: 1rem;
-}
-</style>

@@ -1,43 +1,47 @@
 <template>
   <Teleport to="body">
-    <div class="modal-overlay" @click.self="close">
-      <div class="modal-content card featured-modal">
-        <div class="modal-header">
-          <h2 class="featured-title">
-            <Sparkles :size="20" class="featured-icon" />
+    <div class="fixed inset-0 z-[1000] flex items-center justify-center bg-overlay p-4" @click.self="close">
+      <div class="flex max-h-[90vh] w-full max-w-[640px] flex-col overflow-hidden rounded-md border border-border-accent bg-card shadow-glow">
+        <div class="flex items-center justify-between border-b border-border-subtle px-5 py-4">
+          <h2 class="flex items-center gap-2 font-display text-lg text-gold">
+            <Sparkles :size="20" class="text-gold" />
             <span>Coin of the Day</span>
           </h2>
-          <button class="modal-close" @click="close" title="Close">
+          <button class="rounded-sm p-1 text-text-muted transition-colors hover:bg-white/5 hover:text-text-primary" @click="close" title="Close">
             <X :size="18" />
           </button>
         </div>
 
-        <div v-if="loading" class="featured-body featured-loading">
+        <div v-if="loading" class="overflow-y-auto px-5 py-8 text-center text-text-secondary">
           Loading featured coin...
         </div>
 
-        <div v-else-if="error || !featured" class="featured-body featured-error">
+        <div v-else-if="error || !featured" class="overflow-y-auto px-5 py-8 text-center text-text-secondary">
           {{ error || 'Unable to load featured coin' }}
         </div>
 
-        <div v-else class="featured-body">
-          <h3 class="featured-coin-name">{{ featured.coin?.name }}</h3>
-          <div v-if="featured.coin?.ruler || featured.coin?.era" class="featured-subtitle">
+        <div v-else class="overflow-y-auto p-5">
+          <h3 class="mb-1 font-display text-lg text-heading">{{ featured.coin?.name }}</h3>
+          <div v-if="featured.coin?.ruler || featured.coin?.era" class="mb-4 text-body text-text-secondary">
             <span v-if="featured.coin?.ruler">{{ featured.coin?.ruler }}</span>
             <span v-if="featured.coin?.ruler && featured.coin?.era"> &middot; </span>
             <span v-if="featured.coin?.era">{{ featured.coin?.era }}</span>
           </div>
 
-          <div v-if="images.length > 0" class="featured-images">
-            <div v-for="img in images" :key="img.id" class="featured-image-wrap">
-              <AuthenticatedImage :media-path="img.filePath" :alt="img.imageType" class="featured-image" />
-              <span class="featured-image-label">{{ formatImageLabel(img.imageType) }}</span>
+          <div v-if="images.length > 0" class="mb-5 flex flex-wrap justify-center gap-3">
+            <div v-for="img in images" :key="img.id" class="flex flex-col items-center gap-[0.35rem]">
+              <AuthenticatedImage :media-path="img.filePath" :alt="img.imageType" class="h-40 w-40 rounded-sm border border-border-subtle bg-input object-cover" />
+              <span class="section-label !mb-0">{{ formatImageLabel(img.imageType) }}</span>
             </div>
           </div>
 
-          <div v-if="featured.summary" class="featured-summary" v-html="renderedSummary"></div>
+          <div
+            v-if="featured.summary"
+            class="featured-summary text-base leading-[1.55] text-text-primary [&_blockquote]:my-3 [&_blockquote]:border-l-[3px] [&_blockquote]:border-l-gold [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-text-secondary [&_code]:rounded-[3px] [&_code]:bg-input [&_code]:px-[0.3rem] [&_code]:py-[0.1rem] [&_code]:font-mono [&_code]:text-[0.85em] [&_em]:italic [&_h1]:mb-2 [&_h1]:mt-4 [&_h1]:text-gold [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-gold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:text-gold [&_h4]:mb-2 [&_h4]:mt-4 [&_h4]:text-gold [&_hr]:my-4 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-border-subtle [&_li]:mb-1 [&_ol]:my-2 [&_ol]:pl-5 [&_p]:mb-3 [&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-sm [&_pre]:bg-input [&_pre]:p-3 [&_strong]:font-semibold [&_strong]:text-text-primary [&_ul]:my-2 [&_ul]:pl-5"
+            v-html="renderedSummary"
+          ></div>
 
-          <div class="featured-actions">
+          <div class="mt-5 flex flex-wrap justify-end gap-2 border-t border-border-subtle pt-4">
             <router-link
               v-if="featured.coin?.id"
               :to="`/coin/${featured.coin.id}`"
@@ -48,7 +52,7 @@
             </router-link>
             <button
               v-if="featured.coin"
-              class="btn btn-secondary btn-sm featured-share-button"
+              class="btn btn-secondary btn-sm inline-flex items-center gap-[0.35rem]"
               :disabled="sharing"
               @click="handleShare"
             >
@@ -142,135 +146,11 @@ watch(() => props.featuredCoinId, load)
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-}
-
-.featured-modal {
-  width: 100%;
-  max-width: 640px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-card);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-accent);
-  box-shadow: var(--shadow-glow);
-  overflow: hidden;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.featured-title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0;
-  font-family: 'Cinzel', serif;
-  font-size: 1.2rem;
-  color: var(--accent-gold);
-}
-
-.featured-icon {
-  color: var(--accent-gold);
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: var(--radius-sm);
-  transition: color var(--transition-fast), background var(--transition-fast);
-}
-
-.modal-close:hover {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.featured-body {
-  padding: 1.25rem;
-  overflow-y: auto;
-}
-
-.featured-loading,
-.featured-error {
-  text-align: center;
-  color: var(--text-secondary);
-  padding: 2rem 1rem;
-}
-
-.featured-coin-name {
-  font-family: 'Cinzel', serif;
-  font-size: 1.2rem;
-  color: var(--text-heading);
-  margin: 0 0 0.25rem;
-}
-
-.featured-subtitle {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  margin-bottom: 1rem;
-}
-
-.featured-images {
-  display: flex;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.featured-image-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.featured-image {
-  width: 160px;
-  height: 160px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-input);
-}
-
-.featured-image-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-}
-
-.featured-summary {
-  color: var(--text-primary);
-  font-size: 0.9rem;
-  line-height: 1.55;
-}
-
 /*
  * :deep() audit — markdown-rendered content
  * Target: HTML elements emitted by markdown-it inside .featured-summary.
  * The coin-of-day summary is prose returned by the AI and rendered via
- * markdown-it; elements are generated at runtime — not authored in templates —
+ * sanitized runtime HTML, so the descendants do not carry Vue scope classes
  * so scoped styles and Tailwind utilities cannot reach them.
  */
 .featured-summary :deep(h1),
@@ -320,7 +200,6 @@ watch(() => props.featuredCoinId, load)
   background: var(--bg-input);
   padding: 0.1rem 0.3rem;
   border-radius: 3px;
-  font-family: monospace;
   font-size: 0.85em;
 }
 
@@ -336,29 +215,13 @@ watch(() => props.featuredCoinId, load)
   border-left: 3px solid var(--accent-gold);
   padding-left: 1rem;
   margin: 0.75rem 0;
-  color: var(--text-secondary);
   font-style: italic;
+  color: var(--text-secondary);
 }
 
 .featured-summary :deep(hr) {
   border: none;
   border-top: 1px solid var(--border-subtle);
   margin: 1rem 0;
-}
-
-.featured-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1.25rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-subtle);
-  flex-wrap: wrap;
-}
-
-.featured-share-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
 }
 </style>

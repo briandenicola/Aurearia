@@ -1,26 +1,26 @@
 <template>
-  <section class="tags-section">
-    <h3>Tags & Sets</h3>
-    <div class="detail-tags">
+  <section class="mb-6">
+    <h3 class="mb-3 text-base font-medium text-text-primary">Tags & Sets</h3>
+    <div class="flex flex-wrap items-center gap-2">
       <span
         v-for="tag in tags"
         :key="`tag-${tag.id}`"
-        class="detail-tag-chip"
+        class="chip inline-flex items-center gap-[0.35rem]"
         :style="{ backgroundColor: tag.color + '22', color: tag.color, borderColor: tag.color + '44' }"
       >
         {{ tag.name }}
-        <button class="tag-remove" type="button" :aria-label="`Remove ${tag.name} tag`" @click="handleRemoveTag(tag.id)">x</button>
+        <button class="bg-transparent p-0 text-sm leading-none opacity-60 transition-opacity hover:opacity-100" type="button" :aria-label="`Remove ${tag.name} tag`" @click="handleRemoveTag(tag.id)">x</button>
       </span>
       <span
         v-for="set in sets"
         :key="`set-${set.id}`"
-        class="detail-tag-chip set-chip"
-        :style="{ backgroundColor: set.color + '22', color: set.color, borderColor: set.color + '44' }"
+        class="chip inline-flex items-center gap-[0.35rem]"
+        :style="{ backgroundColor: set.color + '22', color: set.color, borderColor: set.color + '44', borderStyle: 'dashed' }"
       >
         {{ set.name }}
         <button
           v-if="set.setType !== 'smart'"
-          class="tag-remove"
+          class="bg-transparent p-0 text-sm leading-none opacity-60 transition-opacity hover:opacity-100"
           type="button"
           :aria-label="`Remove ${set.name} set`"
           @click="handleRemoveSet(set.id)"
@@ -28,10 +28,15 @@
           x
         </button>
       </span>
-      <button v-if="!showTagPicker" class="btn-tag-add" type="button" @click="showTagPicker = true">+ Tag or Set</button>
+      <button
+        v-if="!showTagPicker"
+        class="rounded-full border border-dashed border-border-subtle px-[0.85rem] py-[0.35rem] text-chip text-text-secondary transition-colors hover:border-text-primary hover:text-text-primary"
+        type="button"
+        @click="showTagPicker = true"
+      >+ Tag or Set</button>
     </div>
-    <div v-if="showTagPicker" class="tag-picker">
-      <select v-model="itemToAdd" class="tag-picker-select" @change="handleAddItem">
+    <div v-if="showTagPicker" class="mt-3 flex items-center gap-2 max-sm:flex-col max-sm:items-stretch">
+      <select v-model="itemToAdd" class="form-select min-w-0 flex-1" @change="handleAddItem">
         <option value="" disabled>Select a tag or set...</option>
         <optgroup v-if="availableTags.length" label="Tags">
           <option
@@ -59,7 +64,7 @@
           No tags or sets available
         </option>
       </select>
-      <button class="btn-tag-cancel" type="button" @click="showTagPicker = false">Cancel</button>
+      <button class="btn btn-ghost btn-xs" type="button" @click="showTagPicker = false">Cancel</button>
     </div>
   </section>
 </template>
@@ -133,89 +138,3 @@ async function handleRemoveSet(setId: number) {
   } catch { /* ignore */ }
 }
 </script>
-
-<style scoped>
-.tags-section {
-  margin-bottom: 1.5rem;
-}
-
-.tags-section h3 {
-  margin-bottom: 0.75rem;
-  font-size: 1rem;
-}
-
-.detail-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.detail-tag-chip {
-  font-size: 0.8rem;
-  padding: 0.35rem 0.85rem;
-  border-radius: var(--radius-full);
-  border: 1px solid;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.set-chip {
-  border-style: dashed;
-}
-
-.tag-remove {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  font-size: 0.75rem;
-  padding: 0;
-  opacity: 0.6;
-  line-height: 1;
-}
-
-.tag-remove:hover {
-  opacity: 1;
-}
-
-.btn-tag-add {
-  background: none;
-  border: 1px dashed var(--border-subtle);
-  border-radius: var(--radius-full);
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  padding: 0.35rem 0.85rem;
-  cursor: pointer;
-}
-
-.btn-tag-add:hover {
-  color: var(--text-primary);
-  border-color: var(--text-primary);
-}
-
-.tag-picker {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  margin-top: 0.75rem;
-}
-
-.tag-picker-select {
-  padding: 0.35rem 0.6rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-card);
-  color: var(--text-primary);
-  font-size: 0.8rem;
-}
-
-.btn-tag-cancel {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-</style>

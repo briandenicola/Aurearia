@@ -23,12 +23,12 @@
       <Layers3 :size="48" />
       <h3>No sets yet</h3>
       <p>Create a set to organize your collection by theme, era, or completion goals</p>
-      <button class="btn btn-primary empty-action" @click="showCreateModal = true">
+      <button class="btn btn-primary mt-4" @click="showCreateModal = true">
         <Plus :size="16" /> Create Your First Set
       </button>
     </div>
 
-    <div v-else class="sets-grid">
+    <div v-else class="flex flex-col gap-4">
       <SetDashboardCard
         v-for="set in sets"
         :key="set.id"
@@ -37,13 +37,12 @@
       />
     </div>
 
-    <!-- Create Set Modal -->
     <Teleport to="body">
-      <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
-        <div class="modal-content card">
-          <div class="modal-header">
-            <h2>Create New Set</h2>
-            <button class="modal-close" @click="showCreateModal = false">
+      <div v-if="showCreateModal" class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 px-4 py-8" @click.self="showCreateModal = false">
+        <div class="card max-h-[85vh] w-full max-w-[520px] overflow-y-auto">
+          <div class="mb-6 flex items-center justify-between gap-4">
+            <h2 class="m-0 text-lg text-text-primary">Create New Set</h2>
+            <button class="inline-flex rounded-sm p-1 text-text-secondary transition-colors hover:text-text-primary" @click="showCreateModal = false">
               <X :size="20" />
             </button>
           </div>
@@ -122,106 +121,3 @@ function goToSet(id: number) {
   router.push({ name: 'set-detail', params: { id } })
 }
 </script>
-
-<style scoped>
-.loading-overlay {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 3rem 1rem;
-  color: var(--text-secondary);
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border-subtle);
-  border-top-color: var(--accent-gold);
-  border-radius: var(--radius-full);
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 4rem 1rem;
-  color: var(--text-secondary);
-  text-align: center;
-}
-
-.empty-state h3 {
-  margin: 0.75rem 0 0;
-  font-size: 1.1rem;
-  color: var(--text-primary);
-}
-
-.empty-state p {
-  margin: 0;
-  max-width: 32rem;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-
-.empty-action {
-  margin-top: 1rem;
-}
-
-.sets-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 2rem 1rem;
-}
-
-.modal-content {
-  max-width: 520px;
-  width: 100%;
-  max-height: 85vh;
-  overflow-y: auto;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 1.2rem;
-  color: var(--text-primary);
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: var(--radius-sm);
-  transition: color var(--transition-fast);
-  display: flex;
-}
-
-.modal-close:hover {
-  color: var(--text-primary);
-}
-</style>

@@ -1,68 +1,73 @@
 <template>
-  <div class="set-creation-wizard">
+  <div class="w-full">
     <form @submit.prevent="submit">
-      <div class="form-group">
-        <label for="setType">Set type</label>
-        <select id="setType" v-model="form.setType" class="form-input">
+      <div class="form-group mb-4">
+        <label for="setType" class="form-label mb-2 block">Set type</label>
+        <select id="setType" v-model="form.setType" class="form-input w-full">
           <option value="open">Open</option>
           <option value="defined">Defined</option>
           <option value="goal">Goal</option>
           <option value="smart">Smart</option>
         </select>
       </div>
-      <div v-if="form.setType === 'defined' || form.setType === 'goal'" class="form-group">
-        <label for="templateId">Template</label>
-        <select id="templateId" v-model="form.templateId" class="form-input">
+      <div v-if="form.setType === 'defined' || form.setType === 'goal'" class="form-group mb-4">
+        <label for="templateId" class="form-label mb-2 block">Template</label>
+        <select id="templateId" v-model="form.templateId" class="form-input w-full">
           <option value="">No template</option>
           <option v-for="template in templates" :key="template.id" :value="template.id">
             {{ template.name }}
           </option>
         </select>
       </div>
-      <div v-if="form.setType === 'defined' || form.setType === 'goal'" class="form-group">
-        <label for="csvTargets">Custom CSV targets</label>
+      <div v-if="form.setType === 'defined' || form.setType === 'goal'" class="form-group mb-4">
+        <label for="csvTargets" class="form-label mb-2 block">Custom CSV targets</label>
         <textarea
           id="csvTargets"
           v-model="csvTargets"
           rows="4"
-          class="form-input"
+          class="form-input w-full"
           placeholder="Label,Year,MintMark,Denomination,Country,Material"
         />
       </div>
-      <div v-if="form.setType === 'goal'" class="form-group">
-        <label for="targetCompletionDate">Target completion date</label>
-        <input id="targetCompletionDate" v-model="form.targetCompletionDate" type="date" class="form-input" />
+      <div v-if="form.setType === 'goal'" class="form-group mb-4">
+        <label for="targetCompletionDate" class="form-label mb-2 block">Target completion date</label>
+        <input id="targetCompletionDate" v-model="form.targetCompletionDate" type="date" class="form-input w-full" />
       </div>
       <SetSmartRuleBuilder
         v-if="form.setType === 'smart'"
         @update="form.smartCriteria = $event"
       />
-      <div class="form-group">
-        <label for="setName">Name</label>
+      <div class="form-group mb-4">
+        <label for="setName" class="form-label mb-2 block">Name</label>
         <input
           id="setName"
           v-model="form.name"
           type="text"
           required
           maxlength="80"
-          class="form-input"
+          class="form-input w-full"
         />
       </div>
-      <div class="form-group">
-        <label for="setDescription">Description</label>
+      <div class="form-group mb-4">
+        <label for="setDescription" class="form-label mb-2 block">Description</label>
         <textarea
           id="setDescription"
           v-model="form.description"
           rows="3"
           maxlength="2000"
-          class="form-input"
+          class="form-input w-full"
         />
       </div>
-      <div class="form-group">
-        <label for="setColor">Color</label>
-        <input id="setColor" v-model="form.color" type="color" class="color-input" />
+      <div class="form-group mb-4">
+        <label for="setColor" class="form-label mb-2 block">Color</label>
+        <input
+          id="setColor"
+          v-model="form.color"
+          type="color"
+          class="h-10 w-full rounded-sm border border-border-subtle bg-input p-1 text-text-primary"
+        />
       </div>
-      <div class="form-actions">
+      <div class="mt-6 flex justify-end gap-2">
         <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Cancel</button>
         <button type="submit" class="btn btn-primary" :disabled="!form.name.trim()">
           {{ submitLabel }}
@@ -135,41 +140,3 @@ function submit() {
   }, csvTargets.value.trim() || undefined)
 }
 </script>
-
-<style scoped>
-.set-creation-wizard {
-  width: 100%;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-}
-
-.form-input,
-.color-input {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid var(--border-subtle);
-  border-radius:var(--radius-sm);
-  background: var(--bg-input);
-  color: var(--text-primary);
-  font-family: inherit;
-}
-
-.color-input {
-  min-height: 2.5rem;
-}
-
-.form-actions {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-  margin-top: 1.5rem;
-}
-</style>

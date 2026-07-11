@@ -1,146 +1,218 @@
 <template>
-  <section class="settings-section card">
-    <h2>Data Management</h2>
-    <div class="lookup-manager-grid">
-      <section class="lookup-manager" aria-labelledby="tags-heading">
-        <h3 id="tags-heading">Tags and Open Sets</h3>
-        <p class="setting-desc">Legacy tags remain supported. New open sets can be managed from the Sets page.</p>
-        <router-link to="/sets" class="btn btn-secondary btn-sm sets-link">Open Sets</router-link>
+  <section class="card">
+    <h2 class="mb-5 border-b border-border-subtle pb-3 text-lg">Data Management</h2>
+    <div class="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
+      <section class="min-w-0" aria-labelledby="tags-heading">
+        <h3 id="tags-heading" class="mb-3 text-base font-medium text-text-secondary">Tags and Open Sets</h3>
+        <p class="text-sm text-text-muted">Legacy tags remain supported. New open sets can be managed from the Sets page.</p>
+        <router-link
+          to="/sets"
+          class="btn btn-secondary btn-sm mt-3 inline-flex focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+        >
+          Open Sets
+        </router-link>
 
-        <div class="tag-create-form">
+        <div class="my-4 flex flex-wrap items-center gap-2">
           <input
             v-model="newTagName"
             type="text"
-            class="form-input"
+            class="form-input min-w-[150px] flex-1 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
             placeholder="New tag name..."
             maxlength="50"
             @keydown.enter="handleCreateTag"
           />
-          <div class="tag-color-picker">
+          <div class="flex items-center gap-[0.3rem]">
             <button
               v-for="c in TAG_COLORS"
               :key="c"
-              class="color-swatch"
-              :class="{ active: newTagColor === c }"
+              class="h-[22px] w-[22px] cursor-pointer rounded-full border-2 border-transparent p-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+              :class="newTagColor === c ? 'border-text-primary ring-2 ring-[var(--bg-card)]' : ''"
               :style="{ backgroundColor: c }"
               @click="newTagColor = c"
             ></button>
           </div>
-          <button class="btn btn-primary btn-sm" @click="handleCreateTag" :disabled="!newTagName.trim()">Create Tag</button>
+          <button
+            class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+            @click="handleCreateTag"
+            :disabled="!newTagName.trim()"
+          >
+            Create Tag
+          </button>
         </div>
-        <p v-if="tagError" class="tag-error">{{ tagError }}</p>
+        <p v-if="tagError" class="mt-1 text-body text-[var(--cat-byzantine)]">{{ tagError }}</p>
 
-        <div v-if="tagList.length" class="tag-list">
-          <div v-for="tag in tagList" :key="tag.id" class="tag-list-item">
+        <div v-if="tagList.length" class="mt-4 flex flex-col gap-2">
+          <div v-for="tag in tagList" :key="tag.id" class="flex flex-wrap items-center gap-2 rounded-sm border border-border-subtle p-2">
             <template v-if="editingTag?.id === tag.id">
-              <input v-model="editTagName" class="form-input tag-edit-input" maxlength="50" @keydown.enter="handleSaveTag" />
-              <div class="tag-color-picker">
+              <input
+                v-model="editTagName"
+                class="form-input min-w-[120px] flex-1 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+                maxlength="50"
+                @keydown.enter="handleSaveTag"
+              />
+              <div class="flex items-center gap-[0.3rem]">
                 <button
                   v-for="c in TAG_COLORS"
                   :key="c"
-                  class="color-swatch sm"
-                  :class="{ active: editTagColor === c }"
+                  class="h-[18px] w-[18px] cursor-pointer rounded-full border-2 border-transparent p-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+                  :class="editTagColor === c ? 'border-text-primary ring-2 ring-[var(--bg-card)]' : ''"
                   :style="{ backgroundColor: c }"
                   @click="editTagColor = c"
                 ></button>
               </div>
-              <button class="btn btn-primary btn-sm" @click="handleSaveTag">Save</button>
-              <button class="btn btn-secondary btn-sm" @click="editingTag = null">Cancel</button>
+              <button
+                class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+                @click="handleSaveTag"
+              >
+                Save
+              </button>
+              <button
+                class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+                @click="editingTag = null"
+              >
+                Cancel
+              </button>
             </template>
             <template v-else>
-              <span class="tag-preview" :style="{ backgroundColor: tag.color + '22', color: tag.color, borderColor: tag.color + '44' }">{{ tag.name }}</span>
-              <div class="tag-actions">
-                <button class="btn btn-secondary btn-sm" @click="startEditTag(tag)">Edit</button>
-                <button class="btn btn-danger btn-sm" @click="handleDeleteTag(tag)">Delete</button>
+              <span
+                class="shrink-0 rounded-full border px-[0.6rem] py-[0.2rem] text-chip"
+                :style="{ backgroundColor: tag.color + '22', color: tag.color, borderColor: tag.color + '44' }"
+              >
+                {{ tag.name }}
+              </span>
+              <div class="ml-auto flex gap-1">
+                <button
+                  class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+                  @click="startEditTag(tag)"
+                >
+                  Edit
+                </button>
+                <button
+                  class="btn btn-danger btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+                  @click="handleDeleteTag(tag)"
+                >
+                  Delete
+                </button>
               </div>
             </template>
           </div>
         </div>
-        <p v-else class="empty-tags">No tags created yet. Create your first tag above.</p>
+        <p v-else class="mt-4 text-body text-text-secondary">No tags created yet. Create your first tag above.</p>
       </section>
 
-      <section class="lookup-manager" aria-labelledby="storage-locations-heading">
-        <h3 id="storage-locations-heading">Storage Locations</h3>
-        <p class="setting-desc">Create shelf, tray, safe, or box locations for the coin form dropdown.</p>
+      <section class="min-w-0" aria-labelledby="storage-locations-heading">
+        <h3 id="storage-locations-heading" class="mb-3 text-base font-medium text-text-secondary">Storage Locations</h3>
+        <p class="text-sm text-text-muted">Create shelf, tray, safe, or box locations for the coin form dropdown.</p>
 
-        <div class="tag-create-form">
+        <div class="my-4 flex flex-wrap items-center gap-2">
           <input
             v-model="newStorageLocationName"
             type="text"
-            class="form-input"
+            class="form-input min-w-[150px] flex-1 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
             placeholder="New storage location..."
             maxlength="100"
             :disabled="storageLocationSaving"
             @keydown.enter="handleCreateStorageLocation"
           />
-          <button class="btn btn-primary btn-sm" @click="handleCreateStorageLocation" :disabled="!newStorageLocationName.trim() || storageLocationSaving">
+          <button
+            class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+            @click="handleCreateStorageLocation"
+            :disabled="!newStorageLocationName.trim() || storageLocationSaving"
+          >
             {{ storageLocationSaving ? 'Saving...' : 'Create Location' }}
           </button>
         </div>
-        <p v-if="storageLocationError" class="tag-error">{{ storageLocationError }}</p>
-        <p v-if="storageLocationsLoading" class="empty-tags">Loading storage locations...</p>
+        <p v-if="storageLocationError" class="mt-1 text-body text-[var(--cat-byzantine)]">{{ storageLocationError }}</p>
+        <p v-if="storageLocationsLoading" class="mt-4 text-body text-text-secondary">Loading storage locations...</p>
 
-        <div v-else-if="storageLocationList.length" class="tag-list">
-          <div v-for="location in storageLocationList" :key="location.id" class="tag-list-item">
+        <div v-else-if="storageLocationList.length" class="mt-4 flex flex-col gap-2">
+          <div v-for="location in storageLocationList" :key="location.id" class="flex flex-wrap items-center gap-2 rounded-sm border border-border-subtle p-2">
             <template v-if="editingStorageLocation?.id === location.id">
-              <input v-model="editStorageLocationName" class="form-input tag-edit-input" maxlength="100" @keydown.enter="handleSaveStorageLocation" />
-              <button class="btn btn-primary btn-sm" @click="handleSaveStorageLocation" :disabled="storageLocationSaving">Save</button>
-              <button class="btn btn-secondary btn-sm" @click="editingStorageLocation = null" :disabled="storageLocationSaving">Cancel</button>
+              <input
+                v-model="editStorageLocationName"
+                class="form-input min-w-[120px] flex-1 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+                maxlength="100"
+                @keydown.enter="handleSaveStorageLocation"
+              />
+              <button
+                class="btn btn-primary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+                @click="handleSaveStorageLocation"
+                :disabled="storageLocationSaving"
+              >
+                Save
+              </button>
+              <button
+                class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+                @click="editingStorageLocation = null"
+                :disabled="storageLocationSaving"
+              >
+                Cancel
+              </button>
             </template>
             <template v-else>
-              <span class="chip-sm storage-location-preview">{{ location.name }}</span>
-              <div class="tag-actions">
-                <button class="btn btn-secondary btn-sm" @click="startEditStorageLocation(location)">Edit</button>
-                <button class="btn btn-danger btn-sm" :disabled="deletingStorageLocationId === location.id" @click="handleDeleteStorageLocation(location)">
+              <span class="chip-sm shrink-0 bg-input text-text-primary">{{ location.name }}</span>
+              <div class="ml-auto flex gap-1">
+                <button
+                  class="btn btn-secondary btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+                  @click="startEditStorageLocation(location)"
+                >
+                  Edit
+                </button>
+                <button
+                  class="btn btn-danger btn-sm focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+                  :disabled="deletingStorageLocationId === location.id"
+                  @click="handleDeleteStorageLocation(location)"
+                >
                   {{ deletingStorageLocationId === location.id ? 'Deleting...' : 'Delete' }}
                 </button>
               </div>
             </template>
           </div>
         </div>
-        <p v-else class="empty-tags">No storage locations created yet. Create your first location above.</p>
+        <p v-else class="mt-4 text-body text-text-secondary">No storage locations created yet. Create your first location above.</p>
       </section>
     </div>
 
-    <!-- Migration Section -->
-    <section class="migration-section" aria-labelledby="migration-heading">
-      <div class="migration-header">
+    <section class="mt-8 border-t border-border-subtle pt-8" aria-labelledby="migration-heading">
+      <div class="mb-2 flex items-center gap-2">
         <Database :size="20" />
-        <h3 id="migration-heading">Catalog Reference Migration</h3>
+        <h3 id="migration-heading" class="m-0 text-base font-medium text-text-secondary">Catalog Reference Migration</h3>
       </div>
-      <p class="setting-desc">
+      <p class="text-sm text-text-muted">
         Convert legacy free-text Rarity/RIC values into structured Catalog References.
         This is non-destructive (originals are kept) and records outcomes in each coin's journal.
       </p>
       
       <button
-        class="btn btn-primary"
+        class="btn btn-primary mt-4 inline-flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
         :disabled="migrationRunning"
         @click="handleMigrate"
       >
-        <RefreshCw :size="16" :class="{ spinning: migrationRunning }" />
+        <RefreshCw :size="16" :class="migrationRunning ? 'animate-spin' : ''" />
         {{ migrationRunning ? 'Migrating...' : 'Run Migration' }}
       </button>
 
-      <div v-if="migrationResult" class="migration-result">
-        <div class="result-grid">
-          <div class="result-item">
-            <span class="result-label">SUCCEEDED</span>
-            <span class="result-value success">{{ migrationResult.succeeded }}</span>
+      <div v-if="migrationResult" class="mt-6 rounded-sm border border-border-subtle bg-input p-4">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
+          <div class="flex flex-col gap-[0.35rem] text-center">
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">SUCCEEDED</span>
+            <span class="text-xl font-semibold text-gold">{{ migrationResult.succeeded }}</span>
           </div>
-          <div class="result-item">
-            <span class="result-label">SKIPPED</span>
-            <span class="result-value">{{ migrationResult.skipped }}</span>
+          <div class="flex flex-col gap-[0.35rem] text-center">
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">SKIPPED</span>
+            <span class="text-xl font-semibold text-text-secondary">{{ migrationResult.skipped }}</span>
           </div>
-          <div class="result-item">
-            <span class="result-label">FAILED</span>
-            <span class="result-value warn">{{ migrationResult.failed }}</span>
+          <div class="flex flex-col gap-[0.35rem] text-center">
+            <span class="text-label font-semibold uppercase tracking-[0.08em] text-text-muted">FAILED</span>
+            <span class="text-xl font-semibold text-warning">{{ migrationResult.failed }}</span>
           </div>
         </div>
-        <p v-if="migrationResult.message" class="result-message">{{ migrationResult.message }}</p>
+        <p v-if="migrationResult.message" class="mt-3 border-t border-border-subtle pt-3 text-center text-body text-text-secondary">
+          {{ migrationResult.message }}
+        </p>
       </div>
 
-      <p v-if="migrationError" class="tag-error">{{ migrationError }}</p>
+      <p v-if="migrationError" class="mt-1 text-body text-[var(--cat-byzantine)]">{{ migrationError }}</p>
     </section>
   </section>
 </template>
@@ -343,237 +415,3 @@ onMounted(() => {
 
 defineExpose({ loadTags, loadStorageLocations })
 </script>
-
-<style scoped>
-.settings-section h2 {
-  font-size: 1.1rem;
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.settings-section h3 {
-  font-size: 0.95rem;
-  margin-top: 1.25rem;
-  margin-bottom: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.setting-desc {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.sets-link {
-  display: inline-flex;
-  margin-top: 0.75rem;
-}
-
-/* Lookup Managers */
-.lookup-manager-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-  margin-top: 2rem;
-}
-
-.lookup-manager {
-  min-width: 0;
-}
-
-.lookup-manager h3 {
-  margin-top: 0;
-}
-
-.tag-create-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-  margin: 1rem 0;
-}
-
-.tag-create-form .form-input {
-  flex: 1;
-  min-width: 150px;
-}
-
-.tag-color-picker {
-  display: flex;
-  gap: 0.3rem;
-  align-items: center;
-}
-
-.color-swatch {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  padding: 0;
-}
-
-.color-swatch.active {
-  border-color: var(--text-primary);
-  box-shadow: 0 0 0 2px var(--bg-card);
-}
-
-.color-swatch.sm {
-  width: 18px;
-  height: 18px;
-}
-
-.tag-error {
-  color: #ef4444;
-  font-size: 0.85rem;
-  margin-top: 0.25rem;
-}
-
-.tag-list {
-  margin-top: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.tag-list-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  flex-wrap: wrap;
-}
-
-.tag-preview {
-  font-size: 0.8rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-full);
-  border: 1px solid;
-  flex-shrink: 0;
-}
-
-.storage-location-preview {
-  color: var(--text-primary);
-  background: var(--bg-input);
-  flex-shrink: 0;
-}
-
-.tag-edit-input {
-  flex: 1;
-  min-width: 120px;
-}
-
-.tag-actions {
-  margin-left: auto;
-  display: flex;
-  gap: 0.25rem;
-}
-
-.empty-tags {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  margin-top: 1rem;
-}
-
-@media (max-width: 768px) {
-  .lookup-manager-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Migration Section */
-.migration-section {
-  margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.migration-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.migration-header h3 {
-  margin: 0;
-}
-
-.migration-section .btn {
-  margin-top: 1rem;
-}
-
-.migration-result {
-  margin-top: 1.5rem;
-  padding: 1rem;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-}
-
-.result-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-}
-
-.result-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  text-align: center;
-}
-
-.result-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-}
-
-.result-value {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.result-value.success {
-  color: var(--accent-gold);
-}
-
-.result-value.warn {
-  color: #f59e0b;
-}
-
-.result-message {
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border-subtle);
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  text-align: center;
-}
-
-.spinning {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (max-width: 768px) {
-  .result-grid {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-  }
-}
-</style>
