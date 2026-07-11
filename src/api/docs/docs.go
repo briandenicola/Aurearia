@@ -12545,7 +12545,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Serves an uploaded coin image or avatar only when the authenticated user is authorized to view it.",
+                "description": "Serves an uploaded coin image or avatar only when the authenticated user is authorized to view it. Use the optional size query parameter to request a pre-generated variant (thumb = max 300 px, medium = max 800 px, full = original). If the requested variant does not exist the original is served.",
                 "produces": [
                     "image/*"
                 ],
@@ -12560,6 +12560,18 @@ const docTemplate = `{
                         "name": "filepath",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "enum": [
+                            "thumb",
+                            "medium",
+                            "full"
+                        ],
+                        "type": "string",
+                        "default": "full",
+                        "description": "Image size variant",
+                        "name": "size",
+                        "in": "query"
                     }
                 ],
                 "responses": {

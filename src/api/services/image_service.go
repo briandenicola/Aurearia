@@ -15,6 +15,19 @@ import (
 	"github.com/briandenicola/ancient-coins-api/repository"
 )
 
+// variantSuffix returns the filename suffix for a size variant, e.g. "_thumb.jpg".
+// Only the two known variant sizes are accepted; all other values return "".
+func variantSuffix(size string) string {
+	switch VariantSize(size) {
+	case VariantSizeThumb:
+		return "_thumb.jpg"
+	case VariantSizeMedium:
+		return "_medium.jpg"
+	default:
+		return ""
+	}
+}
+
 var (
 	ErrCoinNotFound      = errors.New("coin not found")
 	ErrImageNotFound     = errors.New("image not found")
@@ -70,6 +83,14 @@ func (s *ImageService) UploadImage(coinID, userID uint, fileData []byte, ext str
 
 	if err := os.WriteFile(filePath, fileData, 0644); err != nil {
 		return nil, ErrFileSave
+	}
+
+	// Generate thumbnail and medium variants (best-effort; failures do not abort the upload).
+	if thumbData, mediumData, vErr := generateImageVariants(fileData); vErr == nil {
+		ext := filepath.Ext(filePath)
+		baseNoExt := strings.TrimSuffix(filePath, ext)
+		_ = os.WriteFile(baseNoExt+"_thumb.jpg", thumbData, 0644)
+		_ = os.WriteFile(baseNoExt+"_medium.jpg", mediumData, 0644)
 	}
 
 	image := models.CoinImage{
@@ -175,6 +196,12 @@ func (s *ImageService) DeleteImage(coinID, imageID, userID uint) (string, error)
 	fullPath := filepath.Join(s.uploadDir, image.FilePath)
 	os.Remove(fullPath)
 
+	// Remove variant files (best-effort; ignore errors for non-existent variants).
+	ext := filepath.Ext(fullPath)
+	baseNoExt := strings.TrimSuffix(fullPath, ext)
+	os.Remove(baseNoExt + "_thumb.jpg")
+	os.Remove(baseNoExt + "_medium.jpg")
+
 	s.repo.DeleteImage(image)
 	return image.FilePath, nil
 }
@@ -275,4 +302,21 @@ func (s *ImageService) safeExistingUploadPath(relPath string) (string, error) {
 		return "", ErrMediaNotFound
 	}
 	return fullPath, nil
+}
+
+// ResolveVariantPath returns the on-disk path for a named size variant of origFullPath.
+// It returns "" if the size is "full"/empty or if the variant file does not exist on disk.
+func (s *ImageService) ResolveVariantPath(origFullPath, size string) string {
+	suffix := variantSuffix(size)
+	if suffix == "" {
+		return ""
+	}
+	ext := filepath.Ext(origFullPath)
+	baseNoExt := strings.TrimSuffix(origFullPath, ext)
+	variantPath := baseNoExt + suffix
+	info, err := os.Stat(variantPath)
+	if err != nil || info.IsDir() {
+		return ""
+	}
+	return variantPath
 }
