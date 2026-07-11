@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import SwipeGallery from '../SwipeGallery.vue'
 import { useCoinsStore } from '@/stores/coins'
 import { buildRomanDenariusCore } from '@/test/fixtures/coins'
@@ -69,5 +71,15 @@ describe('SwipeGallery', () => {
 
     expect(store.galleryIndex).toBe(0)
     expect(wrapper.emitted('page-change')).toEqual([[1]])
+  })
+
+  it('keeps swipe navigation buttons on a single line', () => {
+    const source = readFileSync(join(process.cwd(), 'src', 'components', 'SwipeGallery.vue'), 'utf-8')
+
+    expect(source).toContain('<span>Prev</span>')
+    expect(source).toContain('<span>Next</span>')
+    expect(source).toContain('flex-wrap: nowrap')
+    expect(source).toContain('white-space: nowrap')
+    expect(source).toContain('flex-shrink: 0')
   })
 })
