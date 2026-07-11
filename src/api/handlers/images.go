@@ -30,10 +30,11 @@ func NewImageHandler(uploadDir string, repo *repository.ImageRepository, svc *se
 // ServeUpload serves an uploaded coin image or avatar after authenticating and authorizing the requester.
 //
 //	@Summary		Serve authorized uploaded media
-//	@Description	Serves an uploaded coin image or avatar only when the authenticated user is authorized to view it.
+//	@Description	Serves an uploaded coin image or avatar only when the authenticated user is authorized to view it. Use the optional size query parameter to request a pre-generated variant (thumb = max 300 px, medium = max 800 px, full = original). If the requested variant does not exist the original is served.
 //	@Tags			Images
 //	@Produce		image/*
 //	@Param			filepath	path	string	true	"Upload-relative file path"
+//	@Param			size		query	string	false	"Image size variant"	Enums(thumb, medium, full)	default(full)
 //	@Success		200		"Image binary data"
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
@@ -45,6 +46,11 @@ func (h *ImageHandler) ServeUpload(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Media not found"})
 		return
+	}
+	if size := c.Query("size"); size == string(services.VariantSizeThumb) || size == string(services.VariantSizeMedium) {
+		if variant := h.svc.ResolveVariantPath(fullPath, size); variant != "" {
+			fullPath = variant
+		}
 	}
 	c.File(fullPath)
 }

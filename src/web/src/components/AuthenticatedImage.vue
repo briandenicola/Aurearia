@@ -5,6 +5,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useAuthenticatedMedia } from '@/composables/useAuthenticatedMedia'
+import { useNetworkQuality } from '@/composables/useNetworkQuality'
 
 defineOptions({ inheritAttrs: false })
 
@@ -15,6 +16,14 @@ const props = withDefaults(defineProps<{
   alt: '',
 })
 
-const mediaPathRef = computed(() => props.mediaPath)
-const { objectUrl } = useAuthenticatedMedia(mediaPathRef)
+const { imageSize } = useNetworkQuality()
+
+const effectivePath = computed(() => {
+  const p = props.mediaPath
+  if (!p || imageSize.value === 'full') return p
+  const sep = p.includes('?') ? '&' : '?'
+  return `${p}${sep}size=${imageSize.value}`
+})
+
+const { objectUrl } = useAuthenticatedMedia(effectivePath)
 </script>
