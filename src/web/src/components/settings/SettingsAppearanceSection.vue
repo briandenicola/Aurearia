@@ -8,7 +8,7 @@
         <span class="text-base font-medium">Theme</span>
         <span class="text-sm text-text-muted">Choose your preferred color scheme</span>
       </div>
-      <div class="flex gap-1 bg-surface rounded-full p-[0.2rem]">
+      <div class="flex flex-wrap gap-1 bg-surface rounded-[var(--radius-md)] p-[0.2rem]">
         <button
           class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           :class="theme === 'dark' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
@@ -19,6 +19,21 @@
           :class="theme === 'light' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
           @click="$emit('set-theme', 'light')"
         >Light</button>
+        <button
+          class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+          :class="theme === 'british-museum' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
+          @click="$emit('set-theme', 'british-museum')"
+        >British Museum</button>
+        <button
+          class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+          :class="theme === 'louvre' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
+          @click="$emit('set-theme', 'louvre')"
+        >Louvre</button>
+        <button
+          class="px-3 py-[0.35rem] rounded-full text-chip cursor-pointer transition-all duration-200 border-0 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
+          :class="theme === 'capitoline' ? 'bg-gold-dim text-gold' : 'bg-transparent text-text-secondary'"
+          @click="$emit('set-theme', 'capitoline')"
+        >Capitoline</button>
       </div>
     </div>
 
