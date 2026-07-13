@@ -71,7 +71,26 @@ describe('AuctionLotDetailModal', () => {
     expect(updateButton?.attributes('disabled')).toBeUndefined()
     await updateButton!.trigger('click')
 
-    expect(mocks.updateAuctionLotStatus).toHaveBeenCalledWith(7, 'bidding', 150)
+    expect(mocks.updateAuctionLotStatus).toHaveBeenCalledWith(7, 'bidding', 150, undefined)
+  })
+
+  it('persists a winning bid when the status changes to won', async () => {
+    const wrapper = mount(AuctionLotDetailModal, {
+      props: { lot: buildAuctionLot({ status: 'bidding', maxBid: 100, winningBid: null }) },
+      global: {
+        stubs: {
+          SafeExternalLink: safeExternalLinkStub,
+        },
+      },
+    })
+
+    const statusSelect = wrapper.findAll('select').find(select => select.text().includes('Won'))
+    expect(statusSelect).toBeTruthy()
+    await statusSelect!.setValue('won')
+    await wrapper.get('input.winning-bid-input').setValue('175.5')
+    await wrapper.findAll('button').find(button => button.text().includes('Update Status'))!.trigger('click')
+
+    expect(mocks.updateAuctionLotStatus).toHaveBeenCalledWith(7, 'won', undefined, 175.5)
   })
 
   it('creates and deletes price alerts for the selected lot', async () => {
@@ -153,8 +172,10 @@ function buildAuctionLot(overrides: Partial<AuctionLot> = {}): AuctionLot {
     notes: '',
     category: 'Roman',
     estimate: null,
+    initialBid: null,
     currentBid: null,
     maxBid: 100,
+    winningBid: null,
     currency: 'USD',
     status: 'bidding',
     imageUrl: '',

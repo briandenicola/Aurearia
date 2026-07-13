@@ -66,3 +66,54 @@ func TestAuctionLotHandlerUpdateStatusPersistsChangedMaxBidWithoutStatusChange(t
 		t.Fatalf("max bid = %v, want 150", updated.MaxBid)
 	}
 }
+
+func TestAuctionLotHandlerUpdateStatusPersistsWinningBidWhenWon(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := db.AutoMigrate(&models.AuctionLot{}); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	lot := models.AuctionLot{
+		Title:        "CNG test lot",
+		NumisBidsURL: "https://auctions.cngcoins.com/lots/view/4-LOT/test",
+		Source:       models.AuctionSourceCNG,
+		SourceURL:    "https://auctions.cngcoins.com/lots/view/4-LOT/test",
+		Status:       models.AuctionStatusBidding,
+		UserID:       42,
+	}
+	if err := db.Create(&lot).Error; err != nil {
+		t.Fatalf("create lot: %v", err)
+	}
+
+	auctionRepo := repository.NewAuctionLotRepository(db)
+	handler := NewAuctionLotHandler(auctionRepo, services.NewAuctionLotService(auctionRepo, nil), nil, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodPut, "/auctions/1/status", bytes.NewBufferString(`{"status":"won","winningBid":275.5}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+	c.Params = gin.Params{{Key: "id", Value: "1"}}
+	c.Set("userId", uint(42))
+
+	handler.UpdateStatus(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("UpdateStatus status = %d body=%s", w.Code, w.Body.String())
+	}
+
+	var updated models.AuctionLot
+	if err := db.First(&updated, lot.ID).Error; err != nil {
+		t.Fatalf("reload lot: %v", err)
+	}
+	if updated.Status != models.AuctionStatusWon {
+		t.Fatalf("status = %q, want won", updated.Status)
+	}
+	if updated.WinningBid == nil || *updated.WinningBid != 275.5 {
+		t.Fatalf("winning bid = %v, want 275.5", updated.WinningBid)
+	}
+}

@@ -226,7 +226,8 @@
           <input
             v-model.number="maxBidInput"
             type="number"
-            class="form-input max-w-[140px] flex-1"
+            class="form-input bid-input max-w-[140px] flex-1"
+            aria-label="Max bid"
             :placeholder="lot.currency || 'USD'"
             min="0"
             step="1"
@@ -237,7 +238,8 @@
           <input
             v-model.number="winningBidInput"
             type="number"
-            class="form-input max-w-[140px] flex-1"
+            class="form-input winning-bid-input max-w-[140px] flex-1"
+            aria-label="Winning bid"
             :placeholder="lot.currency || 'USD'"
             min="0"
             step="0.01"
