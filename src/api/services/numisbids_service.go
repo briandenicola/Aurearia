@@ -48,6 +48,7 @@ type WatchlistLot struct {
 	ImageURL     string   `json:"imageUrl"`
 	Estimate     *float64 `json:"estimate"`
 	CurrentBid   *float64 `json:"currentBid"`
+	MaxBid       *float64 `json:"maxBid"`
 	Currency     string   `json:"currency"`
 	AuctionHouse string   `json:"auctionHouse"`
 	SaleName     string   `json:"saleName"`

@@ -33,8 +33,12 @@ func TestCNGAuctionService_ParseLotPage(t *testing.T) {
 	if lot.Estimate == nil || *lot.Estimate != 100 {
 		t.Fatalf("Estimate = %v, want 100", lot.Estimate)
 	}
+	// No bid_amount in fixture — should fall back to starting_price (60)
 	if lot.CurrentBid == nil || *lot.CurrentBid != 60 {
-		t.Fatalf("CurrentBid = %v, want 60", lot.CurrentBid)
+		t.Fatalf("CurrentBid = %v, want 60 (starting_price fallback)", lot.CurrentBid)
+	}
+	if lot.MaxBid != nil {
+		t.Fatalf("MaxBid = %v, want nil (no autobid in fixture)", lot.MaxBid)
 	}
 	if lot.Currency != "USD" {
 		t.Fatalf("Currency = %q, want USD", lot.Currency)
@@ -44,6 +48,24 @@ func TestCNGAuctionService_ParseLotPage(t *testing.T) {
 	}
 	if lot.Description == "" || strings.Contains(lot.Description, "<b>") {
 		t.Fatalf("Description was not cleaned: %q", lot.Description)
+	}
+}
+
+// TestCNGAuctionService_ParseLotPage_BidAmount verifies that bid_amount takes precedence
+// over starting_price for CurrentBid, and that autobid is mapped to MaxBid.
+func TestCNGAuctionService_ParseLotPage_BidAmount(t *testing.T) {
+	svc := NewCNGAuctionService(nil)
+	lot, err := svc.parseLotPage(cngLotWithBidsFixture())
+	if err != nil {
+		t.Fatalf("parseLotPage returned error: %v", err)
+	}
+	// bid_amount (700) must take precedence over starting_price (300)
+	if lot.CurrentBid == nil || *lot.CurrentBid != 700 {
+		t.Fatalf("CurrentBid = %v, want 700 (bid_amount)", lot.CurrentBid)
+	}
+	// autobid should be mapped to MaxBid
+	if lot.MaxBid == nil || *lot.MaxBid != 1000 {
+		t.Fatalf("MaxBid = %v, want 1000 (autobid)", lot.MaxBid)
 	}
 }
 
@@ -266,6 +288,39 @@ viewVars = {
       "currency_code":"USD",
       "time_start":"2026-06-17T20:00:00Z",
       "effective_end_time":"2026-07-01T21:15:00Z"
+    }
+  }
+};
+</script></html>`
+}
+
+func cngLotWithBidsFixture() string {
+	return `<!doctype html><html><script>
+viewVars = {
+  "currentRouteName":"lot-detail-slug",
+  "lot":{
+    "row_id":"4-LOTID",
+    "lot_number":14,
+    "lot_number_extension":"",
+    "title":"ISLANDS off THRACE, Thasos. AR Drachm.",
+    "description":"<b>ISLANDS off THRACE.</b> Thasos. Circa 412-404 BC. Good VF.",
+    "estimate_low":"500.00",
+    "estimate_high":"750.00",
+    "currency_code":"USD",
+    "starting_price":"300.00",
+    "bid_amount":"700.00",
+    "autobid":"1000.00",
+    "sold_price":null,
+    "status":"active",
+    "_detail_url":"/lots/view/4-LOTID/thasos-drachm",
+    "cover_thumbnail":"https://images.example/14_1.jpg",
+    "images":[],
+    "auction":{
+      "row_id":"4-SALEID",
+      "title":"Keystone 17 - The W. Toliver Besson Collection",
+      "currency_code":"USD",
+      "time_start":"2026-07-01T12:00:00Z",
+      "effective_end_time":"2026-07-22T08:04:00Z"
     }
   }
 };

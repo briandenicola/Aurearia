@@ -875,6 +875,7 @@ func auctionLotFromWatchlist(source models.AuctionSource, userID uint, wl servic
 		ImageURL:       wl.ImageURL,
 		Estimate:       wl.Estimate,
 		CurrentBid:     wl.CurrentBid,
+		MaxBid:         wl.MaxBid,
 		Currency:       firstNonEmpty(wl.Currency, "USD"),
 		AuctionHouse:   wl.AuctionHouse,
 		SaleName:       wl.SaleName,

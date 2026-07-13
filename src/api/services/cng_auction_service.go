@@ -317,6 +317,8 @@ type cngLot struct {
 	EstimateHigh         string     `json:"estimate_high"`
 	CurrencyCode         string     `json:"currency_code"`
 	StartingPrice        string     `json:"starting_price"`
+	BidAmount            string     `json:"bid_amount"`
+	Autobid              string     `json:"autobid"`
 	SoldPrice            string     `json:"sold_price"`
 	Status               string     `json:"status"`
 	DetailURL            string     `json:"_detail_url"`
@@ -344,7 +346,10 @@ func cngLotToWatchlistLot(lot cngLot) WatchlistLot {
 	if imageURL == "" && len(lot.Images) > 0 {
 		imageURL = firstNonEmpty(lot.Images[0].DetailURL, lot.Images[0].ThumbnailURL)
 	}
-	currentBid, _ := parseCNGDecimal(lot.StartingPrice)
+	// bid_amount reflects the current winning bid for active auctions;
+	// fall back to starting_price when bid_amount is absent (no bids yet).
+	currentBid, _ := parseCNGDecimal(firstNonEmpty(lot.BidAmount, lot.StartingPrice))
+	maxBid, _ := parseCNGDecimal(lot.Autobid)
 	estimate, _ := parseCNGDecimal(firstNonEmpty(lot.EstimateLow, lot.EstimateHigh))
 	saleDate := firstNonEmpty(lot.Auction.EffectiveEndTime, lot.Auction.TimeStart)
 	description := cleanHTML(firstNonEmpty(lot.Description, lot.TruncatedDescription))
@@ -362,6 +367,7 @@ func cngLotToWatchlistLot(lot cngLot) WatchlistLot {
 		ImageURL:     imageURL,
 		Estimate:     estimate,
 		CurrentBid:   currentBid,
+		MaxBid:       maxBid,
 		Currency:     strings.ToUpper(currency),
 		AuctionHouse: "Classical Numismatic Group",
 		SaleName:     strings.TrimSpace(lot.Auction.Title),
