@@ -914,12 +914,18 @@ definitions:
         type: string
       currency:
         type: string
+      currentBid:
+        type: number
       description:
         type: string
       estimate:
         type: number
+      initialBid:
+        type: number
       lotNumber:
         type: integer
+      maxBid:
+        type: number
       notes:
         type: string
       numisBidsUrl:
@@ -930,6 +936,8 @@ definitions:
         type: string
       title:
         type: string
+      winningBid:
+        type: number
     type: object
   handlers.UpdateStatusRequest:
     properties:
@@ -937,6 +945,8 @@ definitions:
         type: number
       status:
         type: string
+      winningBid:
+        type: number
     required:
     - status
     type: object
@@ -1735,6 +1745,8 @@ definitions:
         type: integer
       imageUrl:
         type: string
+      initialBid:
+        type: number
       lotNumber:
         type: integer
       maxBid:
@@ -1765,6 +1777,8 @@ definitions:
         type: string
       userId:
         type: integer
+      winningBid:
+        type: number
     type: object
   models.AuctionLotStatus:
     enum:

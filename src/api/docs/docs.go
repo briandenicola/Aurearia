@@ -15705,14 +15705,23 @@ const docTemplate = `{
                 "currency": {
                     "type": "string"
                 },
+                "currentBid": {
+                    "type": "number"
+                },
                 "description": {
                     "type": "string"
                 },
                 "estimate": {
                     "type": "number"
                 },
+                "initialBid": {
+                    "type": "number"
+                },
                 "lotNumber": {
                     "type": "integer"
+                },
+                "maxBid": {
+                    "type": "number"
                 },
                 "notes": {
                     "type": "string"
@@ -15728,6 +15737,9 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                },
+                "winningBid": {
+                    "type": "number"
                 }
             }
         },
@@ -15742,6 +15754,9 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                },
+                "winningBid": {
+                    "type": "number"
                 }
             }
         },
@@ -16911,6 +16926,9 @@ const docTemplate = `{
                 "imageUrl": {
                     "type": "string"
                 },
+                "initialBid": {
+                    "type": "number"
+                },
                 "lotNumber": {
                     "type": "integer"
                 },
@@ -16955,6 +16973,9 @@ const docTemplate = `{
                 },
                 "userId": {
                     "type": "integer"
+                },
+                "winningBid": {
+                    "type": "number"
                 }
             }
         },
