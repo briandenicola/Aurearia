@@ -484,6 +484,18 @@ onMounted(async () => {
       const data = res.data
       onboardingPromptKey.value = `onboardingPromptSeen:${data.id}`
 
+      // Sync auth store with fresh server-side user data so fields like
+      // numisBidsConfigured and cngConfigured are always up-to-date.
+      if (auth.user) {
+        auth.user.numisBidsUsername = data.numisBidsUsername
+        auth.user.numisBidsConfigured = data.numisBidsConfigured
+        auth.user.cngUsername = data.cngUsername
+        auth.user.cngConfigured = data.cngConfigured
+        auth.user.pushoverEnabled = data.pushoverEnabled
+        auth.user.coinOfDayEnabled = data.coinOfDayEnabled
+        localStorage.setItem('user', JSON.stringify(auth.user))
+      }
+
       if (data.emailMissing) {
         const dismissed = localStorage.getItem('emailPromptDismissed')
         if (!dismissed || Date.now() - Number.parseInt(dismissed, 10) > 7 * 24 * 60 * 60 * 1000) {
