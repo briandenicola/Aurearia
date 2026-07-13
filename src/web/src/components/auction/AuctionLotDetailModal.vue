@@ -40,6 +40,10 @@
           <span class="text-[0.82rem] text-text-secondary">Estimate</span>
           <span class="min-w-0 text-right [overflow-wrap:anywhere]">{{ formatCurrency(lot.estimate, lot.currency) }}</span>
         </div>
+        <div v-if="lot.initialBid" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
+          <span class="text-[0.82rem] text-text-secondary">Initial Bid</span>
+          <span class="min-w-0 text-right [overflow-wrap:anywhere]">{{ formatCurrency(lot.initialBid, lot.currency) }}</span>
+        </div>
         <div v-if="lot.currentBid" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
           <span class="text-[0.82rem] text-text-secondary">Current Bid</span>
           <span class="min-w-0 text-right font-semibold text-gold [overflow-wrap:anywhere]">{{ formatCurrency(lot.currentBid, lot.currency) }}</span>
@@ -47,6 +51,10 @@
         <div v-if="lot.maxBid" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
           <span class="text-[0.82rem] text-text-secondary">Max Bid</span>
           <span class="min-w-0 text-right font-semibold text-gold/80 [overflow-wrap:anywhere]">{{ formatCurrency(lot.maxBid, lot.currency) }}</span>
+        </div>
+        <div v-if="lot.winningBid" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
+          <span class="text-[0.82rem] text-text-secondary">Winning Bid</span>
+          <span class="min-w-0 text-right font-semibold text-[#4ade80] [overflow-wrap:anywhere]">{{ formatCurrency(lot.winningBid, lot.currency) }}</span>
         </div>
         <div v-if="biddingIndicator" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
           <span class="text-[0.82rem] text-text-secondary">Bid Status</span>
@@ -224,6 +232,17 @@
             step="1"
           />
         </div>
+        <div v-if="newStatus === 'won'" class="flex flex-wrap items-center gap-[0.6rem]">
+          <label class="text-[0.82rem] text-text-secondary">Winning Bid</label>
+          <input
+            v-model.number="winningBidInput"
+            type="number"
+            class="form-input max-w-[140px] flex-1"
+            :placeholder="lot.currency || 'USD'"
+            min="0"
+            step="0.01"
+          />
+        </div>
         <div class="flex flex-col gap-1.5">
           <label class="inline-flex items-center gap-[0.35rem] text-[0.82rem] text-text-secondary"><CalendarDays :size="14" /> Calendar Event</label>
           <div class="flex flex-wrap items-center gap-2">
@@ -284,6 +303,7 @@ const router = useRouter()
 
 const newStatus = ref<AuctionLotStatus>(props.lot.status)
 const maxBidInput = ref<number | null>(props.lot.maxBid ?? null)
+const winningBidInput = ref<number | null>(props.lot.winningBid ?? null)
 const calendarEvents = ref<Array<{ id: number; title: string; auctionHouse: string; startDate: string | null }>>([])
 const selectedEventId = ref<number | string>(props.lot.eventId ?? '')
 
@@ -292,8 +312,10 @@ const { proxiedImageUrl } = useProxiedImage(lotImageSource)
 const providerLabel = computed(() => props.lot.source === 'cng' ? 'CNG' : 'NumisBids')
 const externalUrl = computed(() => props.lot.sourceUrl || props.lot.numisBidsUrl)
 const normalizedMaxBidInput = computed(() => typeof maxBidInput.value === 'number' && !Number.isNaN(maxBidInput.value) ? maxBidInput.value : null)
+const normalizedWinningBidInput = computed(() => typeof winningBidInput.value === 'number' && !Number.isNaN(winningBidInput.value) ? winningBidInput.value : null)
 const maxBidChanged = computed(() => newStatus.value === 'bidding' && normalizedMaxBidInput.value !== null && normalizedMaxBidInput.value !== (props.lot.maxBid ?? null))
-const hasPendingStatusUpdate = computed(() => newStatus.value !== props.lot.status || maxBidChanged.value)
+const winningBidChanged = computed(() => newStatus.value === 'won' && normalizedWinningBidInput.value !== null && normalizedWinningBidInput.value !== (props.lot.winningBid ?? null))
+const hasPendingStatusUpdate = computed(() => newStatus.value !== props.lot.status || maxBidChanged.value || winningBidChanged.value)
 const priceAlerts = computed(() => props.priceAlerts ?? [])
 const bidReminders = computed(() => props.bidReminders ?? [])
 const canManageAlerts = computed(() => props.lot.status === 'watching' || props.lot.status === 'bidding')
@@ -538,7 +560,8 @@ async function removeReminder(id: number) {
 async function changeStatus() {
   try {
     const bid = maxBidChanged.value ? normalizedMaxBidInput.value : undefined
-    await updateAuctionLotStatus(props.lot.id, newStatus.value, bid)
+    const winBid = winningBidChanged.value ? normalizedWinningBidInput.value : undefined
+    await updateAuctionLotStatus(props.lot.id, newStatus.value, bid, winBid)
 
     if (newStatus.value === 'won') {
       try {

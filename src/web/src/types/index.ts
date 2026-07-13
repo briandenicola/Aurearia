@@ -1379,8 +1379,10 @@ export interface AuctionLot {
   notes: string
   category: Category
   estimate: number | null
+  initialBid: number | null
   currentBid: number | null
   maxBid: number | null
+  winningBid: number | null
   currency: string
   status: AuctionLotStatus
   imageUrl: string
