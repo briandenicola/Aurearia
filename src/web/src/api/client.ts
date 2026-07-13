@@ -908,7 +908,7 @@ export const getAuctionLots = (params?: { status?: string; search?: string; sour
   api.get<AuctionLotListResponse>('/auctions', { params })
 export const getAuctionLotCounts = (params?: { source?: string }) =>
   api.get<{ counts: Record<string, number> }>('/auctions/counts', { params })
-export const updateAuctionLotStatus = (id: number, status: string, maxBid?: number | null) => api.put<AuctionLot>(`/auctions/${id}/status`, { status, ...(maxBid != null ? { maxBid } : {}) })
+export const updateAuctionLotStatus = (id: number, status: string, maxBid?: number | null, winningBid?: number | null) => api.put<AuctionLot>(`/auctions/${id}/status`, { status, ...(maxBid != null ? { maxBid } : {}), ...(winningBid != null ? { winningBid } : {}) })
 export const updateAuctionLot = (id: number, data: {
   title?: string
   numisBidsUrl?: string
@@ -921,6 +921,10 @@ export const updateAuctionLot = (id: number, data: {
   notes?: string
   category?: string
   estimate?: number | null
+  initialBid?: number | null
+  currentBid?: number | null
+  maxBid?: number | null
+  winningBid?: number | null
   currency?: string
 }) => api.put<AuctionLot>(`/auctions/${id}`, data)
 export const convertAuctionLotToCoin = (id: number) => api.post<Coin>(`/auctions/${id}/convert`)

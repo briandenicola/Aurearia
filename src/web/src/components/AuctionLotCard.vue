@@ -55,8 +55,10 @@
       </div>
       <div class="mt-auto flex flex-wrap gap-3 text-[0.82rem]">
         <div v-if="lot.estimate" class="text-text-secondary">Est: {{ formatCurrency(lot.estimate, lot.currency) }}</div>
+        <div v-if="lot.initialBid && !lot.winningBid" class="text-text-muted">Start: {{ formatCurrency(lot.initialBid, lot.currency) }}</div>
         <div v-if="lot.currentBid" class="font-semibold text-gold">Bid: {{ formatCurrency(lot.currentBid, lot.currency) }}</div>
-        <div v-if="lot.maxBid" class="italic text-text-muted">Max: {{ formatCurrency(lot.maxBid, lot.currency) }}</div>
+        <div v-if="lot.maxBid && lot.status !== 'won'" class="italic text-text-muted">Max: {{ formatCurrency(lot.maxBid, lot.currency) }}</div>
+        <div v-if="lot.winningBid" class="font-semibold text-[#4ade80]">Won: {{ formatCurrency(lot.winningBid, lot.currency) }}</div>
         <div v-if="biddingIndicator" :class="biddingIndicator.cls" class="text-[0.78rem] font-semibold">{{ biddingIndicator.label }}</div>
       </div>
       <div v-if="priceAlerts.length || bidReminders.length" class="flex flex-wrap gap-[0.35rem]" aria-label="Auction alerts">
