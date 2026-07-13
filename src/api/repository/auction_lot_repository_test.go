@@ -496,6 +496,88 @@ func TestAuctionLotRepository_UpsertRefreshesCurrentBid(t *testing.T) {
 	}
 }
 
+// TestAuctionLotRepository_UpsertPromotesWatchingToBidding verifies that when a CNG sync
+// detects an autobid (MaxBid != nil) on a lot that is currently in "watching" status, the
+// upsert transitions the status to "bidding" so the UI can show the correct bidding state.
+func TestAuctionLotRepository_UpsertPromotesWatchingToBidding(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+
+	lot := &models.AuctionLot{
+		NumisBidsURL: "https://auctions.cngcoins.com/lots/view/4-LOT/test",
+		Source:       models.AuctionSourceCNG,
+		SourceURL:    "https://auctions.cngcoins.com/lots/view/4-LOT/test",
+		Title:        "CNG Bidding Lot",
+		Status:       models.AuctionStatusWatching,
+		LotNumber:    14,
+		UserID:       5,
+	}
+	if _, err := repo.Upsert(lot); err != nil {
+		t.Fatalf("initial upsert: %v", err)
+	}
+
+	// Sync detects autobid — status should advance to bidding.
+	currentBid := 700.0
+	maxBid := 1000.0
+	lot.CurrentBid = &currentBid
+	lot.MaxBid = &maxBid
+	lot.Status = models.AuctionStatusBidding
+	if _, err := repo.Upsert(lot); err != nil {
+		t.Fatalf("bidding upsert: %v", err)
+	}
+
+	found, err := repo.GetBySourceURL(models.AuctionSourceCNG, lot.SourceURL, 5)
+	if err != nil {
+		t.Fatalf("GetBySourceURL: %v", err)
+	}
+	if found.Status != models.AuctionStatusBidding {
+		t.Fatalf("Status = %q, want bidding", found.Status)
+	}
+	if found.CurrentBid == nil || *found.CurrentBid != 700 {
+		t.Fatalf("CurrentBid = %v, want 700", found.CurrentBid)
+	}
+	if found.MaxBid == nil || *found.MaxBid != 1000 {
+		t.Fatalf("MaxBid = %v, want 1000", found.MaxBid)
+	}
+}
+
+// TestAuctionLotRepository_UpsertDoesNotOverwriteWonOrLostWithBidding verifies that a
+// sync-detected autobid does not overwrite a user-set "won" or "lost" status.
+func TestAuctionLotRepository_UpsertDoesNotOverwriteWonOrLostWithBidding(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+
+	for _, existingStatus := range []models.AuctionLotStatus{models.AuctionStatusWon, models.AuctionStatusLost} {
+		lot := &models.AuctionLot{
+			NumisBidsURL: "https://auctions.cngcoins.com/lots/view/4-WON/" + string(existingStatus),
+			Source:       models.AuctionSourceCNG,
+			SourceURL:    "https://auctions.cngcoins.com/lots/view/4-WON/" + string(existingStatus),
+			Title:        "Finalized Lot",
+			Status:       existingStatus,
+			LotNumber:    99,
+			UserID:       6,
+		}
+		if _, err := repo.Upsert(lot); err != nil {
+			t.Fatalf("initial upsert (%s): %v", existingStatus, err)
+		}
+
+		maxBid := 1000.0
+		lot.MaxBid = &maxBid
+		lot.Status = models.AuctionStatusBidding
+		if _, err := repo.Upsert(lot); err != nil {
+			t.Fatalf("bidding upsert (%s): %v", existingStatus, err)
+		}
+
+		found, err := repo.GetBySourceURL(models.AuctionSourceCNG, lot.SourceURL, 6)
+		if err != nil {
+			t.Fatalf("GetBySourceURL (%s): %v", existingStatus, err)
+		}
+		if found.Status != existingStatus {
+			t.Fatalf("Status = %q after sync, want %q (must not be overwritten)", found.Status, existingStatus)
+		}
+	}
+}
+
 func TestAuctionLotRepository_UpsertWithCalendarEventCreatesOnlyForNewWatchableLots(t *testing.T) {
 	db := setupAuctionTestDB(t)
 	repo := NewAuctionLotRepository(db)

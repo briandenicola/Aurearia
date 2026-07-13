@@ -259,9 +259,12 @@ func (r *AuctionLotRepository) upsert(lot *models.AuctionLot, autoCreateEvent bo
 		if lot.MaxBid != nil {
 			updates["max_bid"] = lot.MaxBid
 		}
-		// Only update status if the lot is being marked as passed (don't overwrite bidding/won/lost)
+		// Only update status based on provider signals; never overwrite user-set statuses (won/lost).
+		// Allow: watching → passed (auction ended), watching → bidding (autobid detected).
 		if lot.Status == models.AuctionStatusPassed && existing.Status == models.AuctionStatusWatching {
 			updates["status"] = string(models.AuctionStatusPassed)
+		} else if lot.Status == models.AuctionStatusBidding && existing.Status == models.AuctionStatusWatching {
+			updates["status"] = string(models.AuctionStatusBidding)
 		}
 		return txRepo.UpdateFields(existing, updates)
 	})
