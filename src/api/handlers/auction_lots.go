@@ -200,6 +200,10 @@ type UpdateLotRequest struct {
 	Notes          *string    `json:"notes"`
 	Category       *string    `json:"category"`
 	Estimate       *float64   `json:"estimate"`
+	InitialBid     *float64   `json:"initialBid"`
+	CurrentBid     *float64   `json:"currentBid"`
+	MaxBid         *float64   `json:"maxBid"`
+	WinningBid     *float64   `json:"winningBid"`
 	Currency       *string    `json:"currency"`
 }
 
@@ -294,6 +298,18 @@ func (h *AuctionLotHandler) Update(c *gin.Context) {
 	if req.Estimate != nil {
 		fields["estimate"] = *req.Estimate
 	}
+	if req.InitialBid != nil {
+		fields["initial_bid"] = *req.InitialBid
+	}
+	if req.CurrentBid != nil {
+		fields["current_bid"] = *req.CurrentBid
+	}
+	if req.MaxBid != nil {
+		fields["max_bid"] = *req.MaxBid
+	}
+	if req.WinningBid != nil {
+		fields["winning_bid"] = *req.WinningBid
+	}
 	if req.Currency != nil {
 		fields["currency"] = strings.TrimSpace(*req.Currency)
 	}
@@ -314,8 +330,9 @@ func (h *AuctionLotHandler) Update(c *gin.Context) {
 
 // UpdateStatusRequest holds the new status for an auction lot.
 type UpdateStatusRequest struct {
-	Status string   `json:"status" binding:"required"`
-	MaxBid *float64 `json:"maxBid,omitempty"`
+	Status     string   `json:"status" binding:"required"`
+	MaxBid     *float64 `json:"maxBid,omitempty"`
+	WinningBid *float64 `json:"winningBid,omitempty"`
 }
 
 // UpdateStatus transitions an auction lot to a new status.
@@ -379,6 +396,18 @@ func (h *AuctionLotHandler) UpdateStatus(c *gin.Context) {
 		}
 		if err := h.repo.UpdateFields(lot, map[string]interface{}{"max_bid": *req.MaxBid}); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update max bid"})
+			return
+		}
+	}
+
+	if req.WinningBid != nil && newStatus == models.AuctionStatusWon {
+		lot, err = h.repo.GetByID(uint(id), userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
+			return
+		}
+		if err := h.repo.UpdateFields(lot, map[string]interface{}{"winning_bid": *req.WinningBid}); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update winning bid"})
 			return
 		}
 	}

@@ -15698,14 +15698,23 @@
                 "currency": {
                     "type": "string"
                 },
+                "currentBid": {
+                    "type": "number"
+                },
                 "description": {
                     "type": "string"
                 },
                 "estimate": {
                     "type": "number"
                 },
+                "initialBid": {
+                    "type": "number"
+                },
                 "lotNumber": {
                     "type": "integer"
+                },
+                "maxBid": {
+                    "type": "number"
                 },
                 "notes": {
                     "type": "string"
@@ -15721,6 +15730,9 @@
                 },
                 "title": {
                     "type": "string"
+                },
+                "winningBid": {
+                    "type": "number"
                 }
             }
         },
@@ -15735,6 +15747,9 @@
                 },
                 "status": {
                     "type": "string"
+                },
+                "winningBid": {
+                    "type": "number"
                 }
             }
         },
@@ -16904,6 +16919,9 @@
                 "imageUrl": {
                     "type": "string"
                 },
+                "initialBid": {
+                    "type": "number"
+                },
                 "lotNumber": {
                     "type": "integer"
                 },
@@ -16948,6 +16966,9 @@
                 },
                 "userId": {
                     "type": "integer"
+                },
+                "winningBid": {
+                    "type": "number"
                 }
             }
         },

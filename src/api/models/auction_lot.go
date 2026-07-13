@@ -36,8 +36,10 @@ type AuctionLot struct {
 	Notes          string           `gorm:"type:text" json:"notes"`
 	Category       Category         `gorm:"type:varchar(20);default:'Other'" json:"category"`
 	Estimate       *float64         `json:"estimate"`
+	InitialBid     *float64         `json:"initialBid"`
 	CurrentBid     *float64         `json:"currentBid"`
 	MaxBid         *float64         `json:"maxBid"`
+	WinningBid     *float64         `json:"winningBid"`
 	Currency       string           `gorm:"default:'USD'" json:"currency"`
 	Status         AuctionLotStatus `gorm:"type:varchar(20);default:'watching'" json:"status"`
 	ImageURL       string           `json:"imageUrl"`

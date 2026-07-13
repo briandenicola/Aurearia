@@ -217,6 +217,12 @@ func (r *AuctionLotRepository) upsert(lot *models.AuctionLot, autoCreateEvent bo
 			if !IsRecordNotFound(err) {
 				return err
 			}
+			// Set InitialBid from CurrentBid on first creation so the opening
+			// bid is preserved even as CurrentBid advances during the auction.
+			if lot.InitialBid == nil && lot.CurrentBid != nil {
+				initialBid := *lot.CurrentBid
+				lot.InitialBid = &initialBid
+			}
 			if err := tx.Create(lot).Error; err != nil {
 				return err
 			}
