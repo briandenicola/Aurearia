@@ -198,6 +198,7 @@ func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (int, error) {
 			ImageURL:       wl.ImageURL,
 			Estimate:       wl.Estimate,
 			CurrentBid:     wl.CurrentBid,
+			MaxBid:         wl.MaxBid,
 			Currency:       firstNonBlank(wl.Currency, "USD"),
 			AuctionHouse:   wl.AuctionHouse,
 			SaleName:       wl.SaleName,

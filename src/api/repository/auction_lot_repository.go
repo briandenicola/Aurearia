@@ -254,6 +254,11 @@ func (r *AuctionLotRepository) upsert(lot *models.AuctionLot, autoCreateEvent bo
 			"source_sale_id":   lot.SourceSaleID,
 			"numis_bids_url":   lot.NumisBidsURL,
 		}
+		// Only sync max_bid from the provider when the provider supplies a value;
+		// this preserves a user-entered max bid when the provider does not return one.
+		if lot.MaxBid != nil {
+			updates["max_bid"] = lot.MaxBid
+		}
 		// Only update status if the lot is being marked as passed (don't overwrite bidding/won/lost)
 		if lot.Status == models.AuctionStatusPassed && existing.Status == models.AuctionStatusWatching {
 			updates["status"] = string(models.AuctionStatusPassed)
