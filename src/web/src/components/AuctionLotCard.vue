@@ -57,6 +57,7 @@
         <div v-if="lot.estimate" class="text-text-secondary">Est: {{ formatCurrency(lot.estimate, lot.currency) }}</div>
         <div v-if="lot.currentBid" class="font-semibold text-gold">Bid: {{ formatCurrency(lot.currentBid, lot.currency) }}</div>
         <div v-if="lot.maxBid" class="italic text-text-muted">Max: {{ formatCurrency(lot.maxBid, lot.currency) }}</div>
+        <div v-if="biddingIndicator" :class="biddingIndicator.cls" class="text-[0.78rem] font-semibold">{{ biddingIndicator.label }}</div>
       </div>
       <div v-if="priceAlerts.length || bidReminders.length" class="flex flex-wrap gap-[0.35rem]" aria-label="Auction alerts">
         <span v-if="priceAlerts.length" class="chip-sm">{{ priceAlerts.length }} price {{ priceAlerts.length === 1 ? 'alert' : 'alerts' }}</span>
@@ -136,6 +137,14 @@ const saleCountdown = computed(() => {
   if (days > 0) return `${days}d away`
   const hours = Math.floor(diff / (1000 * 60 * 60))
   return `${hours}h away`
+})
+
+const biddingIndicator = computed(() => {
+  if (props.lot.status !== 'bidding' || !props.lot.currentBid || !props.lot.maxBid) return null
+  if (props.lot.maxBid >= props.lot.currentBid) {
+    return { label: 'Winning', cls: 'text-[#4ade80]' }
+  }
+  return { label: 'Outbid', cls: 'text-[#f87171]' }
 })
 
 

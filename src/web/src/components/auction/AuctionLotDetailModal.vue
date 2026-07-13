@@ -48,6 +48,10 @@
           <span class="text-[0.82rem] text-text-secondary">Max Bid</span>
           <span class="min-w-0 text-right font-semibold text-gold/80 [overflow-wrap:anywhere]">{{ formatCurrency(lot.maxBid, lot.currency) }}</span>
         </div>
+        <div v-if="biddingIndicator" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
+          <span class="text-[0.82rem] text-text-secondary">Bid Status</span>
+          <span class="min-w-0 text-right font-semibold [overflow-wrap:anywhere]" :class="biddingIndicator.cls">{{ biddingIndicator.label }}</span>
+        </div>
         <div class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.88rem]">
           <span class="text-[0.82rem] text-text-secondary">Status</span>
           <span
@@ -293,6 +297,13 @@ const hasPendingStatusUpdate = computed(() => newStatus.value !== props.lot.stat
 const priceAlerts = computed(() => props.priceAlerts ?? [])
 const bidReminders = computed(() => props.bidReminders ?? [])
 const canManageAlerts = computed(() => props.lot.status === 'watching' || props.lot.status === 'bidding')
+const biddingIndicator = computed(() => {
+  if (props.lot.status !== 'bidding' || !props.lot.currentBid || !props.lot.maxBid) return null
+  if (props.lot.maxBid >= props.lot.currentBid) {
+    return { label: 'Winning', cls: 'text-[#4ade80]' }
+  }
+  return { label: 'Outbid', cls: 'text-[#f87171]' }
+})
 const alertBusy = ref(false)
 const reminderBusy = ref(false)
 const alertMessage = ref('')

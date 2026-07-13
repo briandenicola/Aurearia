@@ -166,6 +166,41 @@ func TestCNGAuctionService_LoginAndFetchWatchlist(t *testing.T) {
 	}
 }
 
+// TestCNGAuctionService_ScrapeLotWithClientUsesBidAmount verifies that ScrapeLotWithClient uses the
+// provided authenticated HTTP client and returns bid_amount as the current bid.
+// This covers the core fix for the auction sync bug: the watched-lots list page does not include
+// bid_amount, so we must scrape each individual lot page to obtain the real current bid.
+func TestCNGAuctionService_ScrapeLotWithClientUsesBidAmount(t *testing.T) {
+	var lotPageRequests []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lotPageRequests = append(lotPageRequests, r.URL.Path)
+		w.Write([]byte(cngLotWithBidsFixture()))
+	}))
+	defer server.Close()
+
+	restore := overrideCNGURLs(server.URL)
+	defer restore()
+
+	svc := NewCNGAuctionService(nil)
+	client := server.Client()
+
+	lot, err := svc.ScrapeLotWithClient(client, "https://auctions.cngcoins.com/lots/view/4-LOTID/thasos-drachm")
+	if err != nil {
+		t.Fatalf("ScrapeLotWithClient returned error: %v", err)
+	}
+	// bid_amount (700) from the lot page must be returned as CurrentBid.
+	if lot.CurrentBid == nil || *lot.CurrentBid != 700 {
+		t.Fatalf("CurrentBid = %v, want 700 (bid_amount from lot page)", lot.CurrentBid)
+	}
+	// autobid (1000) must be returned as MaxBid.
+	if lot.MaxBid == nil || *lot.MaxBid != 1000 {
+		t.Fatalf("MaxBid = %v, want 1000 (autobid from lot page)", lot.MaxBid)
+	}
+	if len(lotPageRequests) == 0 {
+		t.Fatal("no request was made to the test server — ScrapeLotWithClient did not fetch the page")
+	}
+}
+
 func TestCNGAuctionService_LoginInvalidCredentials(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -250,13 +285,16 @@ func TestCanonicalCNGLotPath(t *testing.T) {
 }
 
 func overrideCNGURLs(base string) func() {
+	oldBase := cngBase
 	oldLoginURL := cngLoginURL
 	oldWatchlistURL := cngWatchlistURL
 	oldRefreshMeURL := cngRefreshMeURL
+	cngBase = base
 	cngLoginURL = base + "/login"
 	cngWatchlistURL = base + "/watched-lots"
 	cngRefreshMeURL = base + "/ajax/refresh-me"
 	return func() {
+		cngBase = oldBase
 		cngLoginURL = oldLoginURL
 		cngWatchlistURL = oldWatchlistURL
 		cngRefreshMeURL = oldRefreshMeURL

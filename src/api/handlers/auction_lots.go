@@ -836,7 +836,22 @@ func (h *AuctionLotHandler) syncCNGWatchlist(c *gin.Context, userID uint, user *
 	var synced []models.AuctionLot
 	now := time.Now()
 	for _, wl := range parsed {
+		// Scrape the individual lot page with the authenticated client to obtain bid_amount
+		// (the current winning bid). The watched-lots list page does not include bid_amount,
+		// only starting_price, so without this step currentBid always shows the opening price.
+		if details, err := h.cngSvc.ScrapeLotWithClient(client, wl.URL); err == nil {
+			if details.CurrentBid != nil {
+				wl.CurrentBid = details.CurrentBid
+			}
+		} else {
+			h.warn("Could not refresh CNG lot page for user %d url=%s: %v", userID, wl.URL, err)
+		}
+
+		// Presence of an autobid means the user has placed a bid on this lot.
 		status := models.AuctionStatusWatching
+		if wl.MaxBid != nil {
+			status = models.AuctionStatusBidding
+		}
 		auctionEndTime := services.ParseCNGDate(wl.SaleDate)
 		if auctionEndTime != nil && auctionEndTime.Before(now) {
 			status = models.AuctionStatusPassed

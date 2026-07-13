@@ -15,7 +15,6 @@ import (
 var ErrCNGAuthenticationRequired = errors.New("cng authentication required")
 
 const (
-	cngBase      = "https://auctions.cngcoins.com"
 	cngHost      = "auctions.cngcoins.com"
 	cngUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
 		"AppleWebKit/537.36 (KHTML, like Gecko) " +
@@ -23,10 +22,11 @@ const (
 )
 
 var (
-	cngLoginURL      = cngBase + "/login"
-	cngWatchlistURL  = cngBase + "/watched-lots"
-	cngRefreshMeURL  = cngBase + "/ajax/refresh-me"
-	cngLotPathRe     = regexp.MustCompile(`^/lots/view/([^/]+)(?:/|$)`)
+	cngBase         = "https://auctions.cngcoins.com"
+	cngLoginURL     = cngBase + "/login"
+	cngWatchlistURL = cngBase + "/watched-lots"
+	cngRefreshMeURL = cngBase + "/ajax/refresh-me"
+	cngLotPathRe    = regexp.MustCompile(`^/lots/view/([^/]+)(?:/|$)`)
 	cngLotSafePathRe = regexp.MustCompile(`^/lots/view/[A-Za-z0-9._~-]+(?:/[A-Za-z0-9._~%-]+)?/?$`)
 )
 
@@ -166,8 +166,16 @@ func (s *CNGAuctionService) ScrapeLotPage(lotURL string) (*LotPageDetails, error
 	return cngWatchlistLotToDetails(lot), nil
 }
 
-// ScrapeLot fetches a CNG lot page and extracts a source-aware lot summary.
+// ScrapeLot fetches a CNG lot page using the default (unauthenticated) HTTP client.
 func (s *CNGAuctionService) ScrapeLot(lotURL string) (WatchlistLot, error) {
+	return s.ScrapeLotWithClient(http.DefaultClient, lotURL)
+}
+
+// ScrapeLotWithClient fetches a CNG lot page using the provided HTTP client and extracts a
+// source-aware lot summary. Pass the authenticated client from Login during watchlist sync
+// to obtain user-specific data (current bid_amount and autobid) that are only returned on
+// the individual lot page, not the watched-lots list.
+func (s *CNGAuctionService) ScrapeLotWithClient(client *http.Client, lotURL string) (WatchlistLot, error) {
 	lotPath, err := canonicalCNGLotPath(lotURL)
 	if err != nil {
 		return WatchlistLot{}, err
@@ -178,7 +186,7 @@ func (s *CNGAuctionService) ScrapeLot(lotURL string) (WatchlistLot, error) {
 	}
 	req.URL.Path = lotPath
 
-	body, err := doScraperRequest(http.DefaultClient, req, "lot page")
+	body, err := doScraperRequest(client, req, "lot page")
 	if err != nil {
 		return WatchlistLot{}, err
 	}
