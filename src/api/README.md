@@ -106,10 +106,13 @@ The API runs three background schedulers that start automatically on server star
 
 4. **Wishlist Search Alert Scheduler** — Daily sweep that queues an automatic discovery run for each active `WishlistSearchAlert` whose configured cadence (`daily`/`weekly`/`monthly`) has elapsed since its last run. Configured via `WishlistSearchAlertsCheckEnabled` (default `"false"`) and `WishlistSearchAlertsCheckStartTime` (HH:MM, default `03:00`). Alerts with `cadence: manual` are never auto-run — only "Run Now" processes them. Queued runs are logged in `alert_runs` the same as manual runs, with `triggerType: scheduled`.
 
+5. **Collection Health Scheduler** — Captures a daily per-user collection health snapshot (score, grade distribution, eligible coin count) used by the 30-day health trend indicator. Configured via `CollectionHealthSnapshotsEnabled` (default `"false"`) and `CollectionHealthSnapshotsStartTime` (HH:MM, default `04:30`). Each run is logged in the `collection_health_snapshot_runs` table with eligible/snapshotted/failed user counts. Runs can be manually triggered via `/admin/collection-health-snapshots/run`.
+
 All schedulers honor the enabled flag — set to `"false"` to disable. Run history is available via admin endpoints:
 - `GET /admin/availability-runs` — Paginated list of availability check runs
 - `GET /admin/valuation-runs` — Paginated list of valuation runs
 - `GET /admin/auction-ending-runs` — Paginated list of auction ending runs
+- `GET /admin/collection-health-snapshot-runs` — Paginated list of collection health snapshot runs
 
 ## Pagination
 

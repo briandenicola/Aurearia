@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/briandenicola/ancient-coins-api/models"
+	"github.com/briandenicola/ancient-coins-api/repository"
 )
 
 // CollectionHealthScheduler persists daily collection health snapshots.
 type CollectionHealthScheduler struct {
 	svc         *HealthService
+	runRepo     *repository.CollectionHealthSnapshotRunRepository
 	settingsSvc *SettingsService
 	logger      *Logger
 	stopCh      chan struct{}
@@ -18,13 +22,19 @@ type CollectionHealthScheduler struct {
 }
 
 // NewCollectionHealthScheduler creates a new collection health snapshot scheduler.
-func NewCollectionHealthScheduler(svc *HealthService, settingsSvc *SettingsService, logger *Logger) *CollectionHealthScheduler {
+func NewCollectionHealthScheduler(svc *HealthService, runRepo *repository.CollectionHealthSnapshotRunRepository, settingsSvc *SettingsService, logger *Logger) *CollectionHealthScheduler {
 	return &CollectionHealthScheduler{
 		svc:         svc,
+		runRepo:     runRepo,
 		settingsSvc: settingsSvc,
 		logger:      logger,
 		stopCh:      make(chan struct{}),
 	}
+}
+
+// ListRuns returns paginated collection health snapshot run history.
+func (s *CollectionHealthScheduler) ListRuns(page, limit int) ([]models.CollectionHealthSnapshotRun, int64, error) {
+	return s.runRepo.ListRuns(page, limit)
 }
 
 // Start begins the periodic daily loop.
@@ -116,20 +126,54 @@ func (s *CollectionHealthScheduler) runCycleWithTrigger(triggerType string) {
 	}()
 
 	started := time.Now()
+	run := &models.CollectionHealthSnapshotRun{
+		TriggerType: triggerType,
+		Status:      "running",
+		StartedAt:   started,
+	}
+	if err := s.runRepo.CreateRun(run); err != nil {
+		s.logger.Error("health-scheduler", "Failed to create collection health snapshot run: %v", err)
+		return
+	}
+
 	userIDs, err := s.svc.repo.ListUsersWithEligibleCoins()
 	if err != nil {
 		s.logger.Error("health-scheduler", "Failed to fetch eligible users: %v", err)
+		completedAt := time.Now()
+		run.Status = "error"
+		run.ErrorMessage = err.Error()
+		run.CompletedAt = &completedAt
+		run.DurationMs = completedAt.Sub(started).Milliseconds()
+		if completeErr := s.runRepo.CompleteRun(run); completeErr != nil {
+			s.logger.Error("health-scheduler", "Failed to complete collection health snapshot run: %v", completeErr)
+		}
 		return
 	}
 
 	snapshotDate := time.Date(started.Year(), started.Month(), started.Day(), 0, 0, 0, 0, started.Location())
 	successes := 0
+	failures := 0
 	for _, userID := range userIDs {
 		if err := s.svc.SnapshotUserHealth(userID, snapshotDate); err != nil {
 			s.logger.Error("health-scheduler", "Failed to snapshot user %d (%s): %v", userID, triggerType, err)
+			failures++
 			continue
 		}
 		successes++
+	}
+
+	completedAt := time.Now()
+	run.UsersEligible = len(userIDs)
+	run.UsersSnapshotted = successes
+	run.UsersFailed = failures
+	run.Status = "success"
+	if failures > 0 && successes == 0 && len(userIDs) > 0 {
+		run.Status = "error"
+	}
+	run.CompletedAt = &completedAt
+	run.DurationMs = completedAt.Sub(started).Milliseconds()
+	if err := s.runRepo.CompleteRun(run); err != nil {
+		s.logger.Error("health-scheduler", "Failed to complete collection health snapshot run: %v", err)
 	}
 
 	s.logger.Info("health-scheduler", "%s cycle complete in %s (%d/%d users snapped)", triggerType, time.Since(started), successes, len(userIDs))

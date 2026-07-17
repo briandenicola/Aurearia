@@ -569,6 +569,10 @@
     <!-- Collection Health Snapshots -->
     <h3 class="mb-4 text-base font-semibold text-text-primary">Collection Health Snapshots</h3>
     <p class="mb-4 text-base text-text-secondary">Captures daily health baselines used by the 30-day collection health trend.</p>
+    <p v-if="healthStatusLoading" class="mb-4 text-body text-text-muted">Checking server status…</p>
+    <p v-else-if="healthStatus" class="mb-4 text-body" :class="healthStatus.enabled ? 'text-[var(--color-positive)]' : 'text-text-muted'">
+      Server status: <strong>{{ healthStatus.enabled ? 'Enabled' : 'Disabled' }}</strong>{{ healthStatus.enabled ? ` — next run in ${formatNextRunIn(healthStatus.nextRunIn)}` : '' }}
+    </p>
     <div class="mb-4">
       <div class="form-group flex items-center justify-between gap-3">
         <label class="form-label">Enable Daily Snapshots</label>
@@ -600,6 +604,45 @@
         </button>
       </div>
     </div>
+
+    <hr class="my-6 border-0 border-t border-border-subtle" />
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Collection Health Snapshot Run History</h3>
+    <div v-if="healthRunsLoading" class="flex justify-center py-8"><div class="spinner"></div></div>
+    <div v-else-if="healthRuns.length === 0" class="px-8 py-8 text-center font-sans text-text-muted">No collection health snapshot runs recorded yet.</div>
+    <template v-else>
+      <table class="w-full border-collapse text-[0.8rem] md:table-fixed md:text-[0.82rem] [&_th]:border-b [&_th]:border-border-subtle [&_th]:px-[0.35rem] [&_th]:py-2 [&_th]:text-left [&_th]:text-sm [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.05em] [&_th]:text-text-muted md:[&_th]:px-2 md:[&_th]:py-3 [&_td]:border-b [&_td]:border-border-subtle [&_td]:px-[0.35rem] [&_td]:py-2 [&_td]:text-left md:[&_td]:px-2 md:[&_td]:py-3">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th class="hidden md:table-cell">Trigger</th>
+            <th>Status</th>
+            <th>Eligible</th>
+            <th>Snapshotted</th>
+            <th class="hidden md:table-cell">Failed</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="run in healthRuns" :key="run.id">
+            <td class="text-body text-text-secondary">{{ formatDate(run.startedAt) }}</td>
+            <td class="hidden md:table-cell">{{ run.triggerType }}</td>
+            <td>
+              <span class="inline-block rounded-full px-2 py-[0.15rem] text-label font-semibold" :class="run.status === 'error' ? 'bg-[rgba(231,76,60,0.15)] text-[var(--color-negative)]' : run.status === 'success' ? 'bg-[rgba(46,204,113,0.15)] text-[var(--color-positive)]' : 'bg-[rgba(241,196,15,0.15)] text-warning'">{{ run.status }}</span>
+            </td>
+            <td>{{ run.usersEligible }}</td>
+            <td class="font-semibold text-[var(--color-positive)]">{{ run.usersSnapshotted }}</td>
+            <td class="hidden font-semibold text-[var(--color-negative)] md:table-cell">{{ run.usersFailed }}</td>
+            <td>{{ formatDuration(run.durationMs) }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="mt-4 flex items-center justify-center gap-3">
+        <button class="btn btn-secondary btn-sm" :disabled="healthRunsPage <= 1" @click="prevHealthRunsPage()">Prev</button>
+        <span class="text-[0.82rem] text-text-secondary">Page {{ healthRunsPage }}</span>
+        <button class="btn btn-secondary btn-sm" :disabled="healthRuns.length < 5" @click="nextHealthRunsPage()">Next</button>
+      </div>
+    </template>
 
     <hr class="my-6 border-0 border-t border-border-subtle" />
 
@@ -684,13 +727,13 @@ import {
   getAuctionEndingRuns, getAuctionEndingRun, triggerAuctionEndingCheck,
   getAuctionAlertReminderRuns, triggerAuctionAlertReminderCheck,
   getAuctionWatchBidDigestRuns, triggerAuctionWatchBidDigest,
-  triggerCollectionHealthSnapshots,
+  triggerCollectionHealthSnapshots, getCollectionHealthSnapshotRuns, getCollectionHealthSnapshotStatus,
   triggerCoinOfDayRun, getCoinOfDayRuns, getCoinOfDayRunDetail,
 } from '@/api/client'
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
-import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun, AuctionAlertReminderRun, AuctionWatchBidDigestRun, CoinOfDayRun } from '@/types'
+import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun, AuctionAlertReminderRun, AuctionWatchBidDigestRun, CollectionHealthSnapshotRun, SchedulerStatus, CoinOfDayRun } from '@/types'
 
 // Props are type-checked but not referenced directly in script
 const _props = defineProps<{
@@ -1043,6 +1086,46 @@ async function cancelRun(runId: number) {
 
 // Collection Health Snapshots
 const healthTriggerLoading = ref(false)
+const healthStatus = ref<SchedulerStatus | null>(null)
+const healthStatusLoading = ref(false)
+const {
+  runs: healthRuns,
+  total: _healthRunsTotal,
+  page: healthRunsPage,
+  loading: healthRunsLoading,
+  loadRuns: loadHealthRuns,
+  prevPage: prevHealthRunsPage,
+  nextPage: nextHealthRunsPage,
+} = useRunHistoryPagination<CollectionHealthSnapshotRun>(async (page, limit) => {
+  const res = await getCollectionHealthSnapshotRuns(page, limit)
+  return res.data ?? {}
+})
+
+watch(() => _props.settingsSaving, (saving, wasSaving) => {
+  if (wasSaving && !saving) {
+    loadHealthStatus()
+  }
+})
+
+async function loadHealthStatus() {
+  healthStatusLoading.value = true
+  try {
+    const res = await getCollectionHealthSnapshotStatus()
+    healthStatus.value = res.data
+  } catch {
+    healthStatus.value = null
+  } finally {
+    healthStatusLoading.value = false
+  }
+}
+
+function formatNextRunIn(nanoseconds: number) {
+  const totalMinutes = Math.max(0, Math.round(nanoseconds / 1e9 / 60))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours === 0) return `${minutes}m`
+  return `${hours}h ${minutes}m`
+}
 
 async function triggerManualHealthSnapshots() {
   healthTriggerLoading.value = true
@@ -1063,6 +1146,8 @@ async function triggerManualHealthSnapshots() {
       emit('update:healthSettingsError', true)
     }
     timers.push(setTimeout(() => { emit('update:healthSettingsMsg', '') }, 10000))
+    timers.push(setTimeout(() => { loadHealthRuns() }, 1000))
+    timers.push(setTimeout(() => { loadHealthStatus() }, 1000))
   } catch {
     emit('update:healthSettingsMsg', 'Failed to run collection health snapshots')
     emit('update:healthSettingsError', true)
@@ -1162,6 +1247,8 @@ onMounted(() => {
   loadWatchBidDigestRuns()
   loadValRuns()
   loadCoinOfDayRuns()
+  loadHealthRuns()
+  loadHealthStatus()
 })
 
 onUnmounted(() => {

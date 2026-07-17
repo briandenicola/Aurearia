@@ -3630,6 +3630,45 @@ paths:
       summary: Trigger manual coin-of-the-day pick
       tags:
       - Admin
+  /admin/collection-health-snapshot-runs:
+    get:
+      description: Returns paginated history of collection health snapshot runs.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List collection health snapshot runs
+      tags:
+      - Admin
   /admin/collection-health-snapshots/run:
     post:
       description: Manually persists collection health snapshots for all users with
@@ -3657,6 +3696,30 @@ paths:
       security:
       - BearerAuth: []
       summary: Trigger manual collection health snapshots
+      tags:
+      - Admin
+  /admin/collection-health/status:
+    get:
+      description: Returns runtime status (enabled, running, next run) for the collection
+        health snapshot scheduler.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.SchedulerStatus'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get collection health scheduler status
       tags:
       - Admin
   /admin/health/summary:

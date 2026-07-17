@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
@@ -59,4 +60,49 @@ func (h *AdminHealthHandler) TriggerSnapshotRun(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Collection health snapshots run completed"})
+}
+
+// GetSnapshotStatus returns collection health scheduler runtime status.
+//
+//	@Summary		Get collection health scheduler status
+//	@Description	Returns runtime status (enabled, running, next run) for the collection health snapshot scheduler.
+//	@Tags			Admin
+//	@Produce		json
+//	@Success		200	{object}	services.SchedulerStatus
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		403	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/admin/collection-health/status [get]
+func (h *AdminHealthHandler) GetSnapshotStatus(c *gin.Context) {
+	c.JSON(http.StatusOK, h.healthScheduler.GetStatus())
+}
+
+// ListSnapshotRuns returns paginated collection health snapshot run history.
+//
+//	@Summary		List collection health snapshot runs
+//	@Description	Returns paginated history of collection health snapshot runs.
+//	@Tags			Admin
+//	@Produce		json
+//	@Param			page	query		int	false	"Page number"	default(1)
+//	@Param			limit	query		int	false	"Items per page"	default(20)
+//	@Success		200		{object}	map[string]interface{}
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/admin/collection-health-snapshot-runs [get]
+func (h *AdminHealthHandler) ListSnapshotRuns(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	runs, total, err := h.healthScheduler.ListRuns(page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list collection health snapshot runs"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"runs":  runs,
+		"total": total,
+		"page":  page,
+		"limit": limit,
+	})
 }
