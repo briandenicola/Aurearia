@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   getAuctionWatchBidDigestRuns: vi.fn(),
   triggerAuctionWatchBidDigest: vi.fn(),
   triggerCollectionHealthSnapshots: vi.fn(),
+  getCollectionHealthSnapshotRuns: vi.fn(),
   triggerCoinOfDayRun: vi.fn(),
   getCoinOfDayRuns: vi.fn(),
   getCoinOfDayRunDetail: vi.fn(),
@@ -36,6 +37,7 @@ describe('AdminSchedulesSection', () => {
     mocks.getAuctionEndingRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
     mocks.getAuctionWatchBidDigestRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
     mocks.getCoinOfDayRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
+    mocks.getCollectionHealthSnapshotRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
     mocks.getCoinOfDayRunDetail.mockResolvedValue({ data: { id: 1, status: 'queued', picked: 0, skipped: 0, errors: 0 } })
     mocks.getAuctionAlertReminderRuns.mockResolvedValue({
       data: {
@@ -81,6 +83,50 @@ describe('AdminSchedulesSection', () => {
 
     expect(mocks.triggerAuctionAlertReminderCheck).toHaveBeenCalledTimes(1)
     expect(wrapper.emitted('update:alertReminderSettingsMsg')?.at(-1)?.[0]).toContain('3 alerts, 2 reminders')
+  })
+
+  it('shows collection health snapshot run history and triggers a manual run', async () => {
+    mocks.getCollectionHealthSnapshotRuns.mockResolvedValue({
+      data: {
+        runs: [{
+          id: 5,
+          triggerType: 'scheduled',
+          status: 'success',
+          usersEligible: 3,
+          usersSnapshotted: 3,
+          usersFailed: 0,
+          durationMs: 800,
+          startedAt: '2026-07-16T04:30:00Z',
+          completedAt: '2026-07-16T04:30:01Z',
+          createdAt: '2026-07-16T04:30:00Z',
+        }],
+        total: 1,
+      },
+    })
+    mocks.triggerCollectionHealthSnapshots.mockResolvedValue({
+      data: { message: 'Snapshot run complete', users: 3, snapshotsCreated: 3, skipped: 0, errors: 0, durationMs: 900 },
+    })
+
+    const wrapper = mount(AdminSchedulesSection, {
+      props: buildProps(),
+      global: {
+        stubs: {
+          SafeExternalLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Collection Health Snapshot Run History')
+    expect(mocks.getCollectionHealthSnapshotRuns).toHaveBeenCalled()
+
+    // Run Now buttons in template order: Availability(0), AuctionEnding(1),
+    // AlertReminder(2), WatchBidDigest(3), Valuation(4), Health(5), CoinOfDay(6).
+    const runButtons = wrapper.findAll('button').filter(button => button.text() === 'Run Now')
+    await runButtons[5]?.trigger('click')
+    await flushPromises()
+
+    expect(mocks.triggerCollectionHealthSnapshots).toHaveBeenCalledTimes(1)
   })
 
   it('binds price alert scheduler controls to backend AuctionAlerts setting keys', async () => {

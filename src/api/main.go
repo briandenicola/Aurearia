@@ -218,7 +218,8 @@ func main() {
 	auctionWatchBidDigestScheduler := services.NewAuctionWatchBidDigestScheduler(auctionLotRepo, auctionWatchBidDigestRepo, userRepoForVal, pushoverSvc, auctionWatchlistSyncSvc, settingsSvc, logger)
 	auctionAlertEvaluator := services.NewAuctionAlertEvaluator(priceAlertRepo, bidReminderRepo, userRepoForVal, pushoverSvc, logger)
 	auctionAlertScheduler := services.NewAuctionAlertScheduler(auctionAlertEvaluator, auctionAlertRunRepo, auctionWatchlistSyncSvc, settingsSvc, logger)
-	healthScheduler := services.NewCollectionHealthScheduler(healthSvc, settingsSvc, logger)
+	collectionHealthSnapshotRunRepo := repository.NewCollectionHealthSnapshotRunRepository(database.DB)
+	healthScheduler := services.NewCollectionHealthScheduler(healthSvc, collectionHealthSnapshotRunRepo, settingsSvc, logger)
 	featuredCoinRepo := repository.NewFeaturedCoinRepository(database.DB)
 	coinOfDayRunRepo := repository.NewCoinOfDayRunRepository(database.DB)
 	coinOfDayScheduler := services.NewCoinOfDayScheduler(featuredCoinRepo, coinOfDayRunRepo, userRepoForVal, coinRepo, notifSvc, settingsSvc, logger)
@@ -632,6 +633,7 @@ func main() {
 		adminHealthHandler := handlers.NewAdminHealthHandler(healthSvc, healthScheduler, logger)
 		admin.GET("/health/summary", adminHealthHandler.Summary)
 		admin.POST("/collection-health-snapshots/run", adminHealthHandler.TriggerSnapshotRun)
+		admin.GET("/collection-health-snapshot-runs", adminHealthHandler.ListSnapshotRuns)
 
 		// API key rotation notification trigger
 		apiKeyAdminHandler := handlers.NewApiKeyAdminHandler(apiKeyRepo, notifSvc, logger)

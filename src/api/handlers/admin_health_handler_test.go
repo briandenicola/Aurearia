@@ -25,6 +25,7 @@ func setupAdminHealthHandlerTestDB(t *testing.T) *gorm.DB {
 		&models.Coin{},
 		&models.CoinImage{},
 		&models.CollectionHealthSnapshot{},
+		&models.CollectionHealthSnapshotRun{},
 		&models.AppSetting{},
 	)
 	if err != nil {
@@ -51,7 +52,8 @@ func setupAdminHealthHandlerRouter(t *testing.T, isAdmin bool) (*gin.Engine, *go
 	settingsSvc := services.NewSettingsService(settingsRepo)
 	logger := services.NewLogger(100)
 	healthSvc := services.NewHealthService(healthRepo, logger)
-	healthScheduler := services.NewCollectionHealthScheduler(healthSvc, settingsSvc, logger)
+	collectionHealthSnapshotRunRepo := repository.NewCollectionHealthSnapshotRunRepository(db)
+	healthScheduler := services.NewCollectionHealthScheduler(healthSvc, collectionHealthSnapshotRunRepo, settingsSvc, logger)
 	handler := NewAdminHealthHandler(healthSvc, healthScheduler, logger)
 
 	r := gin.New()
@@ -74,6 +76,7 @@ func setupAdminHealthHandlerRouter(t *testing.T, isAdmin bool) (*gin.Engine, *go
 	})
 	adminGroup.GET("/health/summary", handler.Summary)
 	adminGroup.POST("/collection-health-snapshots/run", handler.TriggerSnapshotRun)
+	adminGroup.GET("/collection-health-snapshot-runs", handler.ListSnapshotRuns)
 
 	return r, db, user.ID
 }
@@ -88,7 +91,8 @@ func setupAdminHealthTriggerAuthRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	settingsSvc := services.NewSettingsService(settingsRepo)
 	logger := services.NewLogger(100)
 	healthSvc := services.NewHealthService(healthRepo, logger)
-	healthScheduler := services.NewCollectionHealthScheduler(healthSvc, settingsSvc, logger)
+	collectionHealthSnapshotRunRepo := repository.NewCollectionHealthSnapshotRunRepository(db)
+	healthScheduler := services.NewCollectionHealthScheduler(healthSvc, collectionHealthSnapshotRunRepo, settingsSvc, logger)
 	handler := NewAdminHealthHandler(healthSvc, healthScheduler, logger)
 
 	r := gin.New()
@@ -183,6 +187,59 @@ func TestAdminHealthHandler_TriggerSnapshotRun_Success(t *testing.T) {
 	db.Model(&models.CollectionHealthSnapshot{}).Where("user_id = ?", user.ID).Count(&count)
 	if count != 1 {
 		t.Fatalf("expected 1 collection health snapshot, got %d", count)
+	}
+}
+
+func TestAdminHealthHandler_ListSnapshotRuns_ReturnsRunHistory(t *testing.T) {
+	router, db, userID := setupAdminHealthHandlerRouter(t, true)
+	db.Create(&models.Coin{Name: "Snapshot Coin", Category: models.CategoryRoman, UserID: userID})
+
+	triggerReq := httptest.NewRequest(http.MethodPost, "/api/admin/collection-health-snapshots/run", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, triggerReq)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected trigger 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/collection-health-snapshot-runs", nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Runs []struct {
+			TriggerType      string `json:"triggerType"`
+			Status           string `json:"status"`
+			UsersEligible    int    `json:"usersEligible"`
+			UsersSnapshotted int    `json:"usersSnapshotted"`
+		} `json:"runs"`
+		Total int64 `json:"total"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if resp.Total != 1 || len(resp.Runs) != 1 {
+		t.Fatalf("expected 1 run, got total=%d len=%d", resp.Total, len(resp.Runs))
+	}
+	if resp.Runs[0].TriggerType != "manual" || resp.Runs[0].Status != "success" {
+		t.Fatalf("unexpected run: %+v", resp.Runs[0])
+	}
+	if resp.Runs[0].UsersEligible != 1 || resp.Runs[0].UsersSnapshotted != 1 {
+		t.Fatalf("unexpected counters: %+v", resp.Runs[0])
+	}
+}
+
+func TestAdminHealthHandler_ListSnapshotRuns_ForbiddenForNonAdmin(t *testing.T) {
+	router, _, _ := setupAdminHealthHandlerRouter(t, false)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/collection-health-snapshot-runs", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
