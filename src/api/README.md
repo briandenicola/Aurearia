@@ -104,6 +104,8 @@ The API runs three background schedulers that start automatically on server star
 
 3. **Auction Ending Scheduler** — Checks for auction lots ending today and sends consolidated Pushover notifications per user. Configured via `AuctionEndingCheckEnabled`, `AuctionEndingCheckStartTime` (HH:MM), and `AuctionEndingCheckInterval` (minutes). Default: every 24 hours at 08:00. Each run is logged in the `auction_ending_runs` table. Runs can be manually triggered via `/admin/auction-ending/run`.
 
+4. **Wishlist Search Alert Scheduler** — Daily sweep that queues an automatic discovery run for each active `WishlistSearchAlert` whose configured cadence (`daily`/`weekly`/`monthly`) has elapsed since its last run. Configured via `WishlistSearchAlertsCheckEnabled` (default `"false"`) and `WishlistSearchAlertsCheckStartTime` (HH:MM, default `03:00`). Alerts with `cadence: manual` are never auto-run — only "Run Now" processes them. Queued runs are logged in `alert_runs` the same as manual runs, with `triggerType: scheduled`.
+
 All schedulers honor the enabled flag — set to `"false"` to disable. Run history is available via admin endpoints:
 - `GET /admin/availability-runs` — Paginated list of availability check runs
 - `GET /admin/valuation-runs` — Paginated list of valuation runs

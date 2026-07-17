@@ -195,6 +195,7 @@ func main() {
 	availSvc := services.NewAvailabilityService(coinRepo, availRepo, agentProxy, notifSvc, pushoverSvc, userRepoForVal, settingsSvc, logger)
 	wishlistSearchAlertSvc := services.NewWishlistSearchAlertService(wishlistSearchAlertRepo).WithDiscovery(agentProxy, settingsSvc)
 	wishlistSearchAlertSvc.StartWorkers(1)
+	wishlistSearchAlertScheduler := services.NewWishlistSearchAlertScheduler(wishlistSearchAlertSvc, wishlistSearchAlertRepo, settingsSvc, logger)
 	valSvc := services.NewValuationService(coinRepo, valRepo, agentProxy, userRepoForVal, pushoverSvc, notifSvc, settingsSvc, logger)
 	aiJobRepo := repository.NewAIJobRepository(database.DB)
 	aiJobSvc := services.NewAIJobService(aiJobRepo, agentProxy, userRepoForVal, settingsSvc, notifSvc, logger)
@@ -229,6 +230,7 @@ func main() {
 	schedulerRegistry.Register(auctionWatchBidDigestScheduler)
 	schedulerRegistry.Register(auctionAlertScheduler)
 	schedulerRegistry.Register(healthScheduler)
+	schedulerRegistry.Register(wishlistSearchAlertScheduler)
 
 	// Create shared repositories for cross-group access
 	journalRepo := repository.NewJournalRepository(database.DB)

@@ -60,7 +60,7 @@
           >
             <h2>{{ alert.name }}</h2>
             <AlertCriteriaSummary :alert="alert" />
-            <p class="mt-1 text-body text-text-muted">Cadence metadata only. Run Now starts manual in-app review.</p>
+            <p class="mt-1 text-body text-text-muted">{{ alert.cadence === 'manual' ? 'Manual cadence. Run Now starts an in-app review.' : `Runs automatically (${alert.cadence}) when scheduled checks are enabled, or any time via Run Now.` }}</p>
           </button>
           <div class="mt-4 flex flex-wrap items-start justify-between gap-3">
             <button class="btn btn-secondary btn-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]" type="button" @click="edit(alert)"><Pencil :size="14" /> Edit</button>

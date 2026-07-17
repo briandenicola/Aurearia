@@ -1,6 +1,6 @@
 <template>
   <form class="grid gap-3" @submit.prevent="submit">
-    <p class="m-0 text-body text-text-muted">Search Alerts discover acquisition ideas. They do not check saved wishlist item availability. Cadence is metadata only in v1; use Run Now for manual, in-app review.</p>
+    <p class="m-0 text-body text-text-muted">Search Alerts discover acquisition ideas. They do not check saved wishlist item availability. Use Run Now for an immediate, in-app review, or set a cadence below for automatic runs (if enabled by your admin).</p>
     <label class="grid gap-1 text-base text-text-secondary">
       Name
       <input
@@ -59,13 +59,13 @@
         Cadence
         <select v-model="draft.cadence" class="form-select focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-gold)]">
           <option value="manual">Manual</option>
-          <option value="daily">Daily metadata only</option>
-          <option value="weekly">Weekly metadata only</option>
-          <option value="monthly">Monthly metadata only</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
         </select>
       </label>
     </div>
-    <p class="m-0 text-body text-text-muted">Daily, weekly, and monthly values are saved for future scheduling; this screen does not enable push, email, or digest delivery.</p>
+    <p class="m-0 text-body text-text-muted">Daily, weekly, and monthly alerts run automatically once due, if your admin has enabled scheduled search alert checks. This does not enable push, email, or digest delivery — new candidates only appear in this in-app review queue.</p>
     <label class="grid gap-1 text-base text-text-secondary">
       Source domains
       <input
