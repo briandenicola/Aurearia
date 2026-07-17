@@ -77,6 +77,7 @@ func setupAdminHealthHandlerRouter(t *testing.T, isAdmin bool) (*gin.Engine, *go
 	adminGroup.GET("/health/summary", handler.Summary)
 	adminGroup.POST("/collection-health-snapshots/run", handler.TriggerSnapshotRun)
 	adminGroup.GET("/collection-health-snapshot-runs", handler.ListSnapshotRuns)
+	adminGroup.GET("/collection-health/status", handler.GetSnapshotStatus)
 
 	return r, db, user.ID
 }
@@ -235,6 +236,55 @@ func TestAdminHealthHandler_ListSnapshotRuns_ForbiddenForNonAdmin(t *testing.T) 
 	router, _, _ := setupAdminHealthHandlerRouter(t, false)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/admin/collection-health-snapshot-runs", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAdminHealthHandler_GetSnapshotStatus_ReflectsSettings(t *testing.T) {
+	router, db, _ := setupAdminHealthHandlerRouter(t, true)
+
+	settingsRepo := repository.NewSettingsRepository(db)
+	settingsSvc := services.NewSettingsService(settingsRepo)
+	if err := settingsSvc.SetSetting(services.SettingCollectionHealthSnapshotsEnabled, "true"); err != nil {
+		t.Fatalf("failed to set enabled: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/collection-health/status", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Name      string `json:"name"`
+		Enabled   bool   `json:"enabled"`
+		IsRunning bool   `json:"isRunning"`
+		NextRunIn int64  `json:"nextRunIn"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if resp.Name != "collection-health" {
+		t.Errorf("name = %q, want collection-health", resp.Name)
+	}
+	if !resp.Enabled {
+		t.Error("expected enabled=true after setting flag")
+	}
+	if resp.NextRunIn <= 0 {
+		t.Errorf("expected positive nextRunIn, got %d", resp.NextRunIn)
+	}
+}
+
+func TestAdminHealthHandler_GetSnapshotStatus_ForbiddenForNonAdmin(t *testing.T) {
+	router, _, _ := setupAdminHealthHandlerRouter(t, false)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/collection-health/status", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

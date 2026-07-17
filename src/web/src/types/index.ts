@@ -1582,6 +1582,13 @@ export interface CollectionHealthSnapshotRun {
   createdAt: string
 }
 
+export interface SchedulerStatus {
+  name: string
+  enabled: boolean
+  isRunning: boolean
+  nextRunIn: number
+}
+
 export interface CoinOfDayRun {
   id: number
   triggerType: 'manual' | 'scheduled'

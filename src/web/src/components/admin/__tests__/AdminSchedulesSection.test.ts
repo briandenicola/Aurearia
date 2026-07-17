@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   triggerAuctionWatchBidDigest: vi.fn(),
   triggerCollectionHealthSnapshots: vi.fn(),
   getCollectionHealthSnapshotRuns: vi.fn(),
+  getCollectionHealthSnapshotStatus: vi.fn(),
   triggerCoinOfDayRun: vi.fn(),
   getCoinOfDayRuns: vi.fn(),
   getCoinOfDayRunDetail: vi.fn(),
@@ -38,6 +39,9 @@ describe('AdminSchedulesSection', () => {
     mocks.getAuctionWatchBidDigestRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
     mocks.getCoinOfDayRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
     mocks.getCollectionHealthSnapshotRuns.mockResolvedValue({ data: { runs: [], total: 0 } })
+    mocks.getCollectionHealthSnapshotStatus.mockResolvedValue({
+      data: { name: 'collection-health', enabled: true, isRunning: false, nextRunIn: 49320000000000 },
+    })
     mocks.getCoinOfDayRunDetail.mockResolvedValue({ data: { id: 1, status: 'queued', picked: 0, skipped: 0, errors: 0 } })
     mocks.getAuctionAlertReminderRuns.mockResolvedValue({
       data: {
@@ -119,6 +123,10 @@ describe('AdminSchedulesSection', () => {
 
     expect(wrapper.text()).toContain('Collection Health Snapshot Run History')
     expect(mocks.getCollectionHealthSnapshotRuns).toHaveBeenCalled()
+    expect(mocks.getCollectionHealthSnapshotStatus).toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Server status:')
+    expect(wrapper.text()).toContain('Enabled')
+    expect(wrapper.text()).toContain('13h 42m')
 
     // Run Now buttons in template order: Availability(0), AuctionEnding(1),
     // AlertReminder(2), WatchBidDigest(3), Valuation(4), Health(5), CoinOfDay(6).

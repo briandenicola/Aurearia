@@ -634,6 +634,7 @@ func main() {
 		admin.GET("/health/summary", adminHealthHandler.Summary)
 		admin.POST("/collection-health-snapshots/run", adminHealthHandler.TriggerSnapshotRun)
 		admin.GET("/collection-health-snapshot-runs", adminHealthHandler.ListSnapshotRuns)
+		admin.GET("/collection-health/status", adminHealthHandler.GetSnapshotStatus)
 
 		// API key rotation notification trigger
 		apiKeyAdminHandler := handlers.NewApiKeyAdminHandler(apiKeyRepo, notifSvc, logger)

@@ -569,6 +569,10 @@
     <!-- Collection Health Snapshots -->
     <h3 class="mb-4 text-base font-semibold text-text-primary">Collection Health Snapshots</h3>
     <p class="mb-4 text-base text-text-secondary">Captures daily health baselines used by the 30-day collection health trend.</p>
+    <p v-if="healthStatusLoading" class="mb-4 text-body text-text-muted">Checking server status…</p>
+    <p v-else-if="healthStatus" class="mb-4 text-body" :class="healthStatus.enabled ? 'text-[var(--color-positive)]' : 'text-text-muted'">
+      Server status: <strong>{{ healthStatus.enabled ? 'Enabled' : 'Disabled' }}</strong>{{ healthStatus.enabled ? ` — next run in ${formatNextRunIn(healthStatus.nextRunIn)}` : '' }}
+    </p>
     <div class="mb-4">
       <div class="form-group flex items-center justify-between gap-3">
         <label class="form-label">Enable Daily Snapshots</label>
@@ -723,13 +727,13 @@ import {
   getAuctionEndingRuns, getAuctionEndingRun, triggerAuctionEndingCheck,
   getAuctionAlertReminderRuns, triggerAuctionAlertReminderCheck,
   getAuctionWatchBidDigestRuns, triggerAuctionWatchBidDigest,
-  triggerCollectionHealthSnapshots, getCollectionHealthSnapshotRuns,
+  triggerCollectionHealthSnapshots, getCollectionHealthSnapshotRuns, getCollectionHealthSnapshotStatus,
   triggerCoinOfDayRun, getCoinOfDayRuns, getCoinOfDayRunDetail,
 } from '@/api/client'
 import { useRunHistoryPagination } from '@/composables/useRunHistoryPagination'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
-import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun, AuctionAlertReminderRun, AuctionWatchBidDigestRun, CollectionHealthSnapshotRun, CoinOfDayRun } from '@/types'
+import type { AppSettings, AvailabilityRun, ValuationRun, AuctionEndingRun, AuctionAlertReminderRun, AuctionWatchBidDigestRun, CollectionHealthSnapshotRun, SchedulerStatus, CoinOfDayRun } from '@/types'
 
 // Props are type-checked but not referenced directly in script
 const _props = defineProps<{
@@ -1082,6 +1086,8 @@ async function cancelRun(runId: number) {
 
 // Collection Health Snapshots
 const healthTriggerLoading = ref(false)
+const healthStatus = ref<SchedulerStatus | null>(null)
+const healthStatusLoading = ref(false)
 const {
   runs: healthRuns,
   total: _healthRunsTotal,
@@ -1094,6 +1100,32 @@ const {
   const res = await getCollectionHealthSnapshotRuns(page, limit)
   return res.data ?? {}
 })
+
+watch(() => _props.settingsSaving, (saving, wasSaving) => {
+  if (wasSaving && !saving) {
+    loadHealthStatus()
+  }
+})
+
+async function loadHealthStatus() {
+  healthStatusLoading.value = true
+  try {
+    const res = await getCollectionHealthSnapshotStatus()
+    healthStatus.value = res.data
+  } catch {
+    healthStatus.value = null
+  } finally {
+    healthStatusLoading.value = false
+  }
+}
+
+function formatNextRunIn(nanoseconds: number) {
+  const totalMinutes = Math.max(0, Math.round(nanoseconds / 1e9 / 60))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours === 0) return `${minutes}m`
+  return `${hours}h ${minutes}m`
+}
 
 async function triggerManualHealthSnapshots() {
   healthTriggerLoading.value = true
@@ -1115,6 +1147,7 @@ async function triggerManualHealthSnapshots() {
     }
     timers.push(setTimeout(() => { emit('update:healthSettingsMsg', '') }, 10000))
     timers.push(setTimeout(() => { loadHealthRuns() }, 1000))
+    timers.push(setTimeout(() => { loadHealthStatus() }, 1000))
   } catch {
     emit('update:healthSettingsMsg', 'Failed to run collection health snapshots')
     emit('update:healthSettingsError', true)
@@ -1215,6 +1248,7 @@ onMounted(() => {
   loadValRuns()
   loadCoinOfDayRuns()
   loadHealthRuns()
+  loadHealthStatus()
 })
 
 onUnmounted(() => {

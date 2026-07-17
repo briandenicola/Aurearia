@@ -62,6 +62,21 @@ func (h *AdminHealthHandler) TriggerSnapshotRun(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Collection health snapshots run completed"})
 }
 
+// GetSnapshotStatus returns collection health scheduler runtime status.
+//
+//	@Summary		Get collection health scheduler status
+//	@Description	Returns runtime status (enabled, running, next run) for the collection health snapshot scheduler.
+//	@Tags			Admin
+//	@Produce		json
+//	@Success		200	{object}	services.SchedulerStatus
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		403	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/admin/collection-health/status [get]
+func (h *AdminHealthHandler) GetSnapshotStatus(c *gin.Context) {
+	c.JSON(http.StatusOK, h.healthScheduler.GetStatus())
+}
+
 // ListSnapshotRuns returns paginated collection health snapshot run history.
 //
 //	@Summary		List collection health snapshot runs

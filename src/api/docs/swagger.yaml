@@ -3698,6 +3698,30 @@ paths:
       summary: Trigger manual collection health snapshots
       tags:
       - Admin
+  /admin/collection-health/status:
+    get:
+      description: Returns runtime status (enabled, running, next run) for the collection
+        health snapshot scheduler.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.SchedulerStatus'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get collection health scheduler status
+      tags:
+      - Admin
   /admin/health/summary:
     get:
       description: Returns aggregate collection health metrics across all users. Admin
