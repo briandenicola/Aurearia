@@ -27,6 +27,8 @@ const (
 	SettingWishlistCheckEnabled               = "WishlistCheckEnabled"
 	SettingWishlistCheckInterval              = "WishlistCheckInterval"
 	SettingWishlistCheckStartTime             = "WishlistCheckStartTime"
+	SettingWishlistSearchAlertsCheckEnabled   = "WishlistSearchAlertsCheckEnabled"
+	SettingWishlistSearchAlertsCheckStartTime = "WishlistSearchAlertsCheckStartTime"
 	SettingValuationCheckEnabled              = "ValuationCheckEnabled"
 	SettingValuationCheckInterval             = "ValuationCheckIntervalDays"
 	SettingValuationCheckStartTime            = "ValuationCheckStartTime"
@@ -96,6 +98,8 @@ var settingDefaults = map[string]string{
 	SettingWishlistCheckEnabled:               "false",
 	SettingWishlistCheckInterval:              "120",
 	SettingWishlistCheckStartTime:             "02:00",
+	SettingWishlistSearchAlertsCheckEnabled:   "false",
+	SettingWishlistSearchAlertsCheckStartTime: "03:00",
 	SettingValuationCheckEnabled:              "false",
 	SettingValuationCheckInterval:             "7",
 	SettingValuationCheckStartTime:            "03:00",

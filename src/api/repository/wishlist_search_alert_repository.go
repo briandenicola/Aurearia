@@ -98,6 +98,44 @@ func (r *WishlistSearchAlertRepository) CreateRun(run *models.AlertRun) error {
 	return r.db.Create(run).Error
 }
 
+// cadenceDuration maps a cadence value to the interval that must elapse
+// between scheduled runs. Returns 0 for cadences that are not auto-scheduled.
+func cadenceDuration(cadence models.WishlistAlertCadence) time.Duration {
+	switch cadence {
+	case models.WishlistAlertCadenceDaily:
+		return 24 * time.Hour
+	case models.WishlistAlertCadenceWeekly:
+		return 7 * 24 * time.Hour
+	case models.WishlistAlertCadenceMonthly:
+		return 30 * 24 * time.Hour
+	default:
+		return 0
+	}
+}
+
+// GetDueAlerts returns active alerts with an automatic cadence (daily/weekly/monthly)
+// whose cadence interval has elapsed since LastRunAt (or that have never run).
+func (r *WishlistSearchAlertRepository) GetDueAlerts(now time.Time) ([]models.WishlistSearchAlert, error) {
+	var alerts []models.WishlistSearchAlert
+	err := r.db.Where("deleted_at IS NULL AND is_active = ? AND cadence != ?", true, models.WishlistAlertCadenceManual).
+		Find(&alerts).Error
+	if err != nil {
+		return nil, err
+	}
+
+	due := make([]models.WishlistSearchAlert, 0, len(alerts))
+	for _, alert := range alerts {
+		interval := cadenceDuration(alert.Cadence)
+		if interval == 0 {
+			continue
+		}
+		if alert.LastRunAt == nil || !alert.LastRunAt.Add(interval).After(now) {
+			due = append(due, alert)
+		}
+	}
+	return due, nil
+}
+
 func (r *WishlistSearchAlertRepository) CreateManualRunIfAvailable(run *models.AlertRun, runningSince time.Time) (bool, error) {
 	acquired := false
 	err := r.db.Transaction(func(tx *gorm.DB) error {

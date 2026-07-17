@@ -248,6 +248,37 @@ func (s *WishlistSearchAlertService) RunNow(alertID, userID uint, input RunAlert
 	return runResult(run, nil), nil
 }
 
+// QueueScheduledRun enqueues an automatic run for an alert that is due per its
+// configured cadence, as determined by the scheduler. Unlike RunNow, this is
+// triggered by the scheduler rather than a direct user request.
+func (s *WishlistSearchAlertService) QueueScheduledRun(alert models.WishlistSearchAlert) (*AlertRunResult, error) {
+	if !alert.IsActive {
+		return nil, ErrWishlistSearchAlertDisabled
+	}
+	snapshot, err := s.CriteriaSnapshot(&alert, AlertResultCapDefault)
+	if err != nil {
+		return nil, fmt.Errorf("build criteria snapshot: %w", err)
+	}
+	run := &models.AlertRun{
+		AlertID:          alert.ID,
+		UserID:           alert.UserID,
+		TriggerType:      models.AlertRunTriggerScheduled,
+		Status:           models.AlertRunStatusQueued,
+		StartedAt:        time.Now(),
+		CriteriaSnapshot: snapshot,
+		RateLimitStatus:  "ok",
+	}
+	acquired, err := s.repo.CreateManualRunIfAvailable(run, time.Now().Add(-wishlistAlertRunningLockWindow))
+	if err != nil {
+		return nil, err
+	}
+	if !acquired {
+		return nil, ErrWishlistSearchAlertRunLimited
+	}
+	s.enqueueRunID(run.ID)
+	return runResult(run, nil), nil
+}
+
 func (s *WishlistSearchAlertService) enqueueRunID(runID uint) {
 	select {
 	case s.queue <- runID:
