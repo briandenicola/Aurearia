@@ -10,6 +10,7 @@ export default mergeConfig(
       include: ['src/**/*.{test,spec}.{ts,tsx}'],
       globals: true,
       root: fileURLToPath(new URL('./', import.meta.url)),
+      setupFiles: ['./src/test/setup.ts'],
     },
   }),
 )
