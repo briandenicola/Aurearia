@@ -116,9 +116,11 @@ describe('WishlistAlertsPage', () => {
     })
     await flushPromises()
 
-    await wrapper.find('.select-alert').trigger('click')
+    await wrapper.find('aside button').trigger('click')
     await flushPromises()
-    await wrapper.find('.selected-summary .btn-primary').trigger('click')
+    const runButton = wrapper.findAll('button').find((button) => button.text().trim() === 'Run Now')
+    if (!runButton) throw new Error('Run Now button not found')
+    await runButton.trigger('click')
     await flushPromises()
 
     expect(mocks.runWishlistSearchAlert).toHaveBeenCalledWith(1, 20)

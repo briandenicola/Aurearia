@@ -54,7 +54,7 @@ describe('PublicShowcasePage', () => {
 
     expect(getPublicShowcase).toHaveBeenCalledWith('featured-set')
     expect(wrapper.text()).toContain('Featured Set')
-    expect(wrapper.find('.public-tray-section').exists()).toBe(true)
+    expect(wrapper.find('.flex.flex-col.gap-4.pb-20').exists()).toBe(true)
     expect(wrapper.find('.museum-tray').exists()).toBe(true)
     expect(wrapper.findAll('.tray-well')).toHaveLength(1)
     expect(wrapper.find('.coins-grid').exists()).toBe(false)

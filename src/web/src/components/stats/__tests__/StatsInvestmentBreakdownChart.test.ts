@@ -37,8 +37,8 @@ describe('StatsInvestmentBreakdownChart', () => {
     expect(wrapper.text()).toContain('Current Value')
     expect(wrapper.text()).toContain('ROI')
     expect(wrapper.text()).toContain('5 coins')
-    expect(wrapper.findAll('.investment-row')).toHaveLength(2)
-    expect(wrapper.findAll('.bar-fill.current')).toHaveLength(2)
+    expect(wrapper.findAll('article')).toHaveLength(2)
+    expect(wrapper.findAll('.bg-gold')).toHaveLength(2)
   })
 
   it('formats purchase year labels', () => {
@@ -66,7 +66,7 @@ describe('StatsInvestmentBreakdownChart', () => {
       },
     })
 
-    expect(wrapper.find('.confidence-callout').exists()).toBe(true)
+    expect(wrapper.find('[role="note"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('1 missing purchase price')
     expect(wrapper.text()).toContain('2 missing current value')
   })
@@ -81,7 +81,7 @@ describe('StatsInvestmentBreakdownChart', () => {
     })
 
     expect(wrapper.find('.empty-state').exists()).toBe(true)
-    expect(wrapper.find('.investment-row').exists()).toBe(false)
+    expect(wrapper.find('article').exists()).toBe(false)
   })
 
   it('renders aggregate summary with correct values', () => {
@@ -96,7 +96,7 @@ describe('StatsInvestmentBreakdownChart', () => {
       },
     })
 
-    const summary = wrapper.find('.summary-grid')
+    const summary = wrapper.find('[aria-label="Investment summary"]')
     expect(summary.exists()).toBe(true)
     expect(summary.text()).toContain('$500.00')
     expect(summary.text()).toContain('$540.00')
@@ -115,8 +115,8 @@ describe('StatsInvestmentBreakdownChart', () => {
       },
     })
 
-    expect(wrapper.find('.investment-row-list').exists()).toBe(true)
-    expect(wrapper.findAll('.investment-row')).toHaveLength(1)
+    expect(wrapper.find('[aria-label="Investment performance rows"]').exists()).toBe(true)
+    expect(wrapper.findAll('article')).toHaveLength(1)
   })
 
   it('displays negative values correctly in aggregate summary', () => {
@@ -130,11 +130,11 @@ describe('StatsInvestmentBreakdownChart', () => {
       },
     })
 
-    const summary = wrapper.find('.summary-grid')
+    const summary = wrapper.find('[aria-label="Investment summary"]')
     expect(summary.text()).toContain('$500.00')
     expect(summary.text()).toContain('$400.00')
     expect(summary.text()).toContain('-$100.00')
     expect(summary.text()).toContain('-20.0%')
-    expect(summary.find('.negative').exists()).toBe(true)
+    expect(summary.find('.text-byzantine').exists()).toBe(true)
   })
 })

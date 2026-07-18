@@ -69,7 +69,10 @@ describe('CoinDetailPage', () => {
       },
     })
 
-    expect(wrapper.find('.hero-media-grid').exists()).toBe(true)
+    // Two-column obverse/reverse hero grid — was `.hero-media-grid`, now a plain
+    // Tailwind `grid grid-cols-2` container (only the hero media uses grid-cols-2
+    // without a responsive prefix; the metadata section below uses `md:grid-cols-2`).
+    expect(wrapper.find('.grid-cols-2').exists()).toBe(true)
     expect(wrapper.find('button[aria-label="Share"]').exists()).toBe(true)
     expect(fetchCoin).toHaveBeenCalledWith(coin.id)
   })

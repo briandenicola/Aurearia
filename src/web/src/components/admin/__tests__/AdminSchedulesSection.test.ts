@@ -1,4 +1,4 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminSchedulesSection from '../AdminSchedulesSection.vue'
 
@@ -149,10 +149,16 @@ describe('AdminSchedulesSection', () => {
     })
     await flushPromises()
 
-    const alertReminderSection = wrapper.findAll('.avail-settings')[2]
-    const enabled = alertReminderSection?.find('input[type="checkbox"]')
-    const time = alertReminderSection?.find('input[type="time"]')
-    const interval = alertReminderSection?.find('input[type="number"]')
+    // The Auction Price Alerts/Reminders interval input is the only one with min="15";
+    // use it to locate the enclosing settings block for that section.
+    const intervalMarker = wrapper.find('input[type="number"][min="15"]')
+    expect(intervalMarker.exists()).toBe(true)
+    const sectionEl = intervalMarker.element.closest('.mb-4')
+    expect(sectionEl).toBeTruthy()
+    const alertReminderSection = new DOMWrapper(sectionEl as Element)
+    const enabled = alertReminderSection.find('input[type="checkbox"]')
+    const time = alertReminderSection.find('input[type="time"]')
+    const interval = alertReminderSection.find('input[type="number"]')
 
     await enabled?.setValue(false)
     await time?.setValue('09:30')

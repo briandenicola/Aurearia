@@ -51,14 +51,19 @@ describe('CandidateReviewCard', () => {
       },
     })
 
-    expect(wrapper.find('.convert-source input').exists()).toBe(false)
+    const urlInputs = wrapper.findAll('input').filter(
+      (input) => (input.element as HTMLInputElement).value === 'https://www.vcoins.com/en/stores/example/123'
+    )
+    expect(urlInputs).toHaveLength(0)
 
-    const sourceLink = wrapper.find('.convert-source a')
-    expect(sourceLink.exists()).toBe(true)
-    expect(sourceLink.attributes('href')).toBe('https://www.vcoins.com/en/stores/example/123')
-    expect(sourceLink.attributes('target')).toBe('_blank')
+    const sourceLink = wrapper.findAll('a').find((a) => a.text() === 'https://www.vcoins.com/en/stores/example/123')
+    expect(sourceLink?.exists()).toBe(true)
+    expect(sourceLink?.attributes('href')).toBe('https://www.vcoins.com/en/stores/example/123')
+    expect(sourceLink?.attributes('target')).toBe('_blank')
 
-    await wrapper.find('.actions-row .btn-primary').trigger('click')
+    const saveButton = wrapper.findAll('button').find((button) => button.text().includes('Save as Wishlist Item'))
+    if (!saveButton) throw new Error('Save as Wishlist Item button not found')
+    await saveButton.trigger('click')
     const emitted = wrapper.emitted('convert')?.[0]
     expect(emitted?.[1]).toMatchObject({ referenceUrl: 'https://www.vcoins.com/en/stores/example/123' })
   })

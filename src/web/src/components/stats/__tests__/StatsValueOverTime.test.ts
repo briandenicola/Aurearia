@@ -27,12 +27,12 @@ describe('StatsValueOverTime', () => {
 
   it('renders nothing when fewer than 2 history snapshots are provided', () => {
     const wrapper = mount(StatsValueOverTime, { props: { history: [jan2024] } })
-    expect(wrapper.find('.value-chart-card').exists()).toBe(false)
+    expect(wrapper.find('.stats-section').exists()).toBe(false)
   })
 
   it('renders nothing with an empty history array', () => {
     const wrapper = mount(StatsValueOverTime, { props: { history: [] } })
-    expect(wrapper.find('.value-chart-card').exists()).toBe(false)
+    expect(wrapper.find('.stats-section').exists()).toBe(false)
   })
 
   // ── Chart anatomy ───────────────────────────────────────────────────────
@@ -40,9 +40,9 @@ describe('StatsValueOverTime', () => {
   it('renders full chart anatomy when 2 or more snapshots are provided', () => {
     const wrapper = mount(StatsValueOverTime, { props: { history: [jan2024, feb2024] } })
 
-    expect(wrapper.find('.value-chart-card').exists()).toBe(true)
-    expect(wrapper.find('.chart-summary-strip').exists()).toBe(true)
-    expect(wrapper.findAll('.summary-pill')).toHaveLength(3)
+    expect(wrapper.find('.stats-section').exists()).toBe(true)
+    expect(wrapper.find('.grow').exists()).toBe(true)
+    expect(wrapper.findAll('.border-border-subtle.bg-input.px-3')).toHaveLength(3)
     expect(wrapper.find('.chart-area-fill').exists()).toBe(true)
     expect(wrapper.find('.chart-line-value').exists()).toBe(true)
     expect(wrapper.find('.chart-line-invested').exists()).toBe(true)
@@ -69,14 +69,14 @@ describe('StatsValueOverTime', () => {
 
   it('summary strip first pill shows latest total value', () => {
     const wrapper = mount(StatsValueOverTime, { props: { history: [jan2024, feb2024] } })
-    const pills = wrapper.findAll('.summary-pill')
+    const pills = wrapper.findAll('.border-border-subtle.bg-input.px-3')
     expect(pills[0]?.text()).toContain('Latest Snapshot')
     expect(pills[0]?.text()).toContain('$1,350')
   })
 
   it('summary strip second pill shows latest invested amount', () => {
     const wrapper = mount(StatsValueOverTime, { props: { history: [jan2024, feb2024] } })
-    const pills = wrapper.findAll('.summary-pill')
+    const pills = wrapper.findAll('.border-border-subtle.bg-input.px-3')
     // Second pill: "Invested" with feb2024.totalInvested = 950
     expect(pills[1]?.text()).toContain('$950')
   })
@@ -86,8 +86,9 @@ describe('StatsValueOverTime', () => {
   it('applies positive class to ROI panel when latest value exceeds first', () => {
     // jan2024 (1000) → feb2024 (1350): +350
     const wrapper = mount(StatsValueOverTime, { props: { history: [jan2024, feb2024] } })
-    expect(wrapper.find('.panel-roi-number.positive').exists()).toBe(true)
-    expect(wrapper.find('.panel-roi-number.negative').exists()).toBe(false)
+    const roi = wrapper.find('.font-display')
+    expect(roi.classes()).toContain('text-[var(--color-positive)]')
+    expect(roi.classes()).not.toContain('text-[var(--color-negative)]')
   })
 
   it('applies negative class to ROI panel when latest value is below first', () => {
@@ -97,8 +98,9 @@ describe('StatsValueOverTime', () => {
       { ...jan2024, id: 21, totalValue: 800, recordedAt: '2024-02-01T00:00:00Z' },
     ]
     const wrapper = mount(StatsValueOverTime, { props: { history: downHistory } })
-    expect(wrapper.find('.panel-roi-number.negative').exists()).toBe(true)
-    expect(wrapper.find('.panel-roi-number.positive').exists()).toBe(false)
+    const roi = wrapper.find('.font-display')
+    expect(roi.classes()).toContain('text-[var(--color-negative)]')
+    expect(roi.classes()).not.toContain('text-[var(--color-positive)]')
   })
 
   // ── Change percent display ───────────────────────────────────────────────
@@ -106,14 +108,14 @@ describe('StatsValueOverTime', () => {
   it('displays percentage change in the ROI panel when starting value is non-zero', () => {
     // jan2024 (1000) → feb2024 (1350): +35.0%
     const wrapper = mount(StatsValueOverTime, { props: { history: [jan2024, feb2024] } })
-    expect(wrapper.find('.panel-roi-number').text()).toContain('%')
+    expect(wrapper.find('.font-display').text()).toContain('%')
   })
 
   it('shows the side panel ROI number and summary strip with 3 pills', () => {
     const wrapper = mount(StatsValueOverTime, { props: { history: [jan2024, feb2024] } })
-    expect(wrapper.find('.chart-side-panel').exists()).toBe(true)
-    expect(wrapper.find('.panel-roi-number').exists()).toBe(true)
-    expect(wrapper.findAll('.summary-pill')).toHaveLength(3)
+    expect(wrapper.find('.w-full.flex-wrap').exists()).toBe(true)
+    expect(wrapper.find('.font-display').exists()).toBe(true)
+    expect(wrapper.findAll('.border-border-subtle.bg-input.px-3')).toHaveLength(3)
     expect(wrapper.text()).toContain('Period Change')
   })
 })

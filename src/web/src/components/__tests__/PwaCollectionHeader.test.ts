@@ -12,7 +12,7 @@ describe('PwaCollectionHeader', () => {
     const source = fs.readFileSync(headerPath, 'utf8')
 
     expect(source).not.toContain('class="pwa-icon-btn"')
-    expect(source).toContain('<span class="pwa-menu-label">Selection</span>')
+    expect(source).toContain('<span class="section-label mb-0">Selection</span>')
     expect(source).toContain("{{ selectMode ? 'Exit Selection Mode' : 'Enable Selection Mode' }}")
   })
 

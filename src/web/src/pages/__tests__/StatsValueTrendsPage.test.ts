@@ -104,9 +104,9 @@ describe('StatsValueTrendsPage', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     // Chart card and infographic elements from StatsValueOverTime
-    expect(wrapper.find('.value-chart-card').exists()).toBe(true)
-    expect(wrapper.find('.chart-summary-strip').exists()).toBe(true)
-    expect(wrapper.findAll('.summary-pill')).toHaveLength(3)
+    expect(wrapper.find('.stats-section').exists()).toBe(true)
+    expect(wrapper.find('.stats-section').text()).toContain('Period Value Change')
+    expect(wrapper.findAll('.rounded-sm.bg-input')).toHaveLength(3)
     expect(wrapper.findAll('.chart-grid-line').length).toBeGreaterThan(0)
     expect(wrapper.find('.chart-area-fill').exists()).toBe(true)
     expect(wrapper.find('.chart-line-value').exists()).toBe(true)
@@ -170,10 +170,8 @@ describe('StatsValueTrendsPage', () => {
     await wrapper.vm.$nextTick()
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(wrapper.find('.timeframe-row').exists()).toBe(true)
-    expect(wrapper.find('.timeframe-chips').exists()).toBe(true)
-
-    const chips = wrapper.findAll('.timeframe-chips .chip')
+    const chips = wrapper.findAll('.chip')
+    expect(chips.length).toBeGreaterThan(0)
     const labels = chips.map((c) => c.text())
     expect(labels).toContain('All')
     expect(labels).toContain('1Y')
@@ -194,12 +192,12 @@ describe('StatsValueTrendsPage', () => {
     await wrapper.vm.$nextTick()
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    const chips = wrapper.findAll('.timeframe-chips .chip')
+    const chips = wrapper.findAll('.chip')
     const allChip = chips.find((c) => c.text() === 'All')
-    expect(allChip?.classes()).toContain('active')
+    expect(allChip?.classes()).toContain('border-gold')
 
     // No other chip should be active initially
-    const otherActive = chips.filter((c) => c.text() !== 'All' && c.classes().includes('active'))
+    const otherActive = chips.filter((c) => c.text() !== 'All' && c.classes().includes('border-gold'))
     expect(otherActive).toHaveLength(0)
   })
 
@@ -229,7 +227,7 @@ describe('StatsValueTrendsPage', () => {
     expect(chart.props('history')).toHaveLength(4)
 
     // Click "1Y" — only items within the last 365 days (cutoff ~2023-03-02)
-    const chips = wrapper.findAll('.timeframe-chips .chip')
+    const chips = wrapper.findAll('.chip')
     const oneYearChip = chips.find((c) => c.text() === '1Y')
     await oneYearChip!.trigger('click')
     await wrapper.vm.$nextTick()
@@ -264,14 +262,14 @@ describe('StatsValueTrendsPage', () => {
     await wrapper.vm.$nextTick()
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    const chips = wrapper.findAll('.timeframe-chips .chip')
+    const chips = wrapper.findAll('.chip')
     const oneYearChip = chips.find((c) => c.text() === '1Y')
     const allChip = chips.find((c) => c.text() === 'All')
 
     await oneYearChip!.trigger('click')
     await wrapper.vm.$nextTick()
 
-    expect(oneYearChip!.classes()).toContain('active')
-    expect(allChip!.classes()).not.toContain('active')
+    expect(oneYearChip!.classes()).toContain('border-gold')
+    expect(allChip!.classes()).not.toContain('border-gold')
   })
 })

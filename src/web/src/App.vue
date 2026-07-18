@@ -126,7 +126,7 @@
       <!-- PWA floating agent button -->
       <button
         v-if="isPwa && auth.isAuthenticated && !showChat && !bulkSelectActive"
-        class="fixed z-[1100] flex h-[52px] w-[52px] items-center justify-center rounded-full border border-border-accent bg-card text-gold shadow-card"
+        class="fixed z-[1100] flex h-[52px] w-[52px] touch-none items-center justify-center rounded-full border border-border-accent bg-card text-gold shadow-card bottom-[calc(24px+env(safe-area-inset-bottom))] right-[calc(24px+env(safe-area-inset-right))]"
         :style="fabPositionStyle"
         @click="handleAgentFabClick"
         @pointerdown="startAgentFabDrag"

@@ -90,7 +90,7 @@ describe('AdminOIDCSection', () => {
     expect(wrapper.find('#oidc-client-secret').attributes('placeholder')).toContain('leave blank to preserve')
 
     await wrapper.find('#oidc-display-name').setValue('Microsoft Entra')
-    await wrapper.find('form.modal-body').trigger('submit.prevent')
+    await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
     expect(mockUpdateAdminOIDCProvider).toHaveBeenCalledWith(7, expect.not.objectContaining({
@@ -99,7 +99,7 @@ describe('AdminOIDCSection', () => {
 
     await buttonByText(wrapper, 'Edit').trigger('click')
     await wrapper.find('#oidc-client-secret').setValue('Configured')
-    await wrapper.find('form.modal-body').trigger('submit.prevent')
+    await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
     expect(mockUpdateAdminOIDCProvider).toHaveBeenLastCalledWith(7, expect.not.objectContaining({
@@ -108,7 +108,7 @@ describe('AdminOIDCSection', () => {
 
     await buttonByText(wrapper, 'Edit').trigger('click')
     await wrapper.find('#oidc-client-secret').setValue('new-secret')
-    await wrapper.find('form.modal-body').trigger('submit.prevent')
+    await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
     expect(mockUpdateAdminOIDCProvider).toHaveBeenLastCalledWith(7, expect.objectContaining({
@@ -130,7 +130,7 @@ describe('AdminOIDCSection', () => {
 
     expect(wrapper.text()).toContain('https://login.microsoftonline.com/new-tenant/v2.0')
 
-    await wrapper.find('form.modal-body').trigger('submit.prevent')
+    await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
     expect(mockCreateAdminOIDCProvider).toHaveBeenCalledWith(expect.objectContaining({
@@ -151,7 +151,7 @@ describe('AdminOIDCSection', () => {
     expect(wrapper.text()).toContain('https://login.microsoftonline.com/tenant/v2.0')
 
     await tenantInput.setValue('rotated-tenant')
-    await wrapper.find('form.modal-body').trigger('submit.prevent')
+    await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
     expect(mockUpdateAdminOIDCProvider).toHaveBeenCalledWith(7, expect.objectContaining({
@@ -175,7 +175,7 @@ describe('AdminOIDCSection', () => {
     const secretInput = wrapper.find<HTMLInputElement>('#oidc-client-secret')
     expect(secretInput.element.value).toBe('')
 
-    await wrapper.find('form.modal-body').trigger('submit.prevent')
+    await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
     expect(mockUpdateAdminOIDCProvider).toHaveBeenCalledWith(7, expect.not.objectContaining({
@@ -232,7 +232,7 @@ describe('AdminOIDCSection', () => {
     await wrapper.find('#oidc-issuer-url').setValue('https://id.example.com')
     await wrapper.find('#oidc-client-id').setValue('client-id')
     await wrapper.find('#oidc-client-secret').setValue('client-secret')
-    await wrapper.find('form.modal-body').trigger('submit.prevent')
+    await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
     expect(mockCreateAdminOIDCProvider).toHaveBeenCalledWith(expect.objectContaining({

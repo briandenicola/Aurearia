@@ -10,20 +10,25 @@ const coinFormPath = path.resolve(__dirname, '../CoinForm.vue')
 describe('CoinForm', () => {
   it('renders section titles inside the form sections with larger heading styles', () => {
     const source = fs.readFileSync(coinFormPath, 'utf8')
+    const mainCssPath = path.resolve(__dirname, '../../assets/styles/main.css')
+    const mainCss = fs.readFileSync(mainCssPath, 'utf8')
 
-    expect(source).toContain('<h2 class="form-section-title">Basic Information</h2>')
+    // Section titles are <h2>s (not <legend>s) styled with the Tailwind
+    // `text-lg` utility instead of a dedicated `.form-section-title` class.
+    expect(source).toContain('<h2 class="mb-4 font-display text-lg font-medium text-gold">Basic Information</h2>')
     expect(source).not.toContain('<legend>Basic Information</legend>')
-    expect(source).toContain('.form-section-title {')
-    expect(source).toContain('font-size: 1.2rem;')
-    expect(source).toContain('margin: 0 0 1rem;')
+    // `text-lg` resolves to the same 1.2rem the old CSS block hard-coded, and
+    // `mb-4` is the Tailwind 1rem spacing step used for the old bottom margin.
+    expect(mainCss).toMatch(/--text-lg:\s*1\.2rem/)
   })
 
   it('allows purchase form fields to shrink within grid columns', () => {
     const source = fs.readFileSync(coinFormPath, 'utf8')
 
     expect(source).toContain('<input v-model="form.purchaseDate" class="form-input" type="date" />')
-    expect(source).toContain('.form-group {')
-    expect(source).toContain('min-width: 0;')
+    // `.form-group { min-width: 0 }` is now the `min-w-0` utility applied
+    // directly alongside `form-group` on each field wrapper.
+    expect(source).toContain('class="form-group min-w-0"')
   })
 
   it('keeps a current custom era selectable in the edit form', () => {

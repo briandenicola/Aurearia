@@ -22,6 +22,23 @@ vi.mock('@/api/client', () => ({
   createQuickCaptureDraft: vi.fn(),
 }))
 
+// The "Create Quick AI Draft" button that kicks off analysis no longer carries a
+// stable class (it was refactored from `.btn-submit` to plain Tailwind utility
+// classes shared with other buttons), so locate it by its visible label instead.
+function findSubmitButton(wrapper: ReturnType<typeof mount>) {
+  return wrapper.findAll('button').find((button) => button.text().includes('Create Quick AI Draft'))
+}
+
+// The results-state action row (Retake Photo / Cancel / Save as Draft) no longer
+// carries a `.result-actions` wrapper class after the Tailwind refactor — match by
+// the buttons' visible labels instead, preserving DOM order (Retake, Cancel, Save).
+const ACTION_BUTTON_LABELS = ['Retake Photo', 'Cancel', 'Save as Draft', 'Saving...']
+function findActionButtons(wrapper: ReturnType<typeof mount>) {
+  return wrapper
+    .findAll('button')
+    .filter((button) => ACTION_BUTTON_LABELS.some((label) => button.text().includes(label)))
+}
+
 describe('CoinLookupPage', () => {
   beforeEach(() => {
     vi.mocked(lookupCoin).mockReset()
@@ -154,7 +171,7 @@ describe('CoinLookupPage', () => {
 
     await input.trigger('change')
 
-    await wrapper.find('.btn-submit').trigger('click')
+    await findSubmitButton(wrapper)!.trigger('click')
     await flushPromises()
 
     // No NGC cert, so should show editable review form
@@ -170,7 +187,7 @@ describe('CoinLookupPage', () => {
     const nameInput = wrapper.find('input[type="text"]')
     expect((nameInput.element as HTMLInputElement).value).toBe('Trajan Denarius')
 
-    const actionButtons = wrapper.findAll('.result-actions button')
+    const actionButtons = findActionButtons(wrapper)
     expect(actionButtons).toHaveLength(3)
     await actionButtons[2]!.trigger('click')
     await flushPromises()
@@ -257,7 +274,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await wrapper.find('.btn-submit').trigger('click')
+    await findSubmitButton(wrapper)!.trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('AI Observations')
@@ -276,7 +293,7 @@ describe('CoinLookupPage', () => {
     expect((inputs[3]!.element as HTMLInputElement).value).toBe('Roman')
     expect((inputs[4]!.element as HTMLInputElement).value).toBe('VF')
 
-    const actionButtons = wrapper.findAll('.result-actions button')
+    const actionButtons = findActionButtons(wrapper)
     await actionButtons[2]!.trigger('click')
     await flushPromises()
 
@@ -339,14 +356,14 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await wrapper.find('.btn-submit').trigger('click')
+    await findSubmitButton(wrapper)!.trigger('click')
     await flushPromises()
 
     const nameInput = wrapper.find('input[type="text"]')
     expect((nameInput.element as HTMLInputElement).value).toBe('Julia Domna Denarius')
     expect(wrapper.text()).toContain('Review Coin Details')
 
-    const actionButtons = wrapper.findAll('.result-actions button')
+    const actionButtons = findActionButtons(wrapper)
     await actionButtons[2]!.trigger('click')
     await flushPromises()
 
@@ -404,13 +421,13 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await wrapper.find('.btn-submit').trigger('click')
+    await findSubmitButton(wrapper)!.trigger('click')
     await flushPromises()
 
     const nameInput = wrapper.find('input[type="text"]')
     expect((nameInput.element as HTMLInputElement).value).toBe('Julia Domna Denarius')
 
-    const actionButtons = wrapper.findAll('.result-actions button')
+    const actionButtons = findActionButtons(wrapper)
     await actionButtons[2]!.trigger('click')
     await flushPromises()
 
@@ -459,7 +476,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await wrapper.find('.btn-submit').trigger('click')
+    await findSubmitButton(wrapper)!.trigger('click')
     await flushPromises()
 
     const cancel = wrapper.findAll('button').find(button => button.text().includes('Cancel'))
@@ -524,7 +541,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await wrapper.find('.btn-submit').trigger('click')
+    await findSubmitButton(wrapper)!.trigger('click')
     await flushPromises()
 
     // NGC path should keep the review form editable while preserving certification details.
@@ -548,7 +565,7 @@ describe('CoinLookupPage', () => {
     await textInputs[3]!.setValue('Roman Imperial')
     await textInputs[4]!.setValue('Choice VF')
 
-    const actionButtons = wrapper.findAll('.result-actions button')
+    const actionButtons = findActionButtons(wrapper)
     await actionButtons[2]!.trigger('click')
     await flushPromises()
 
@@ -622,7 +639,7 @@ describe('CoinLookupPage', () => {
       })
       await input.trigger('change')
 
-      await wrapper.find('.btn-submit').trigger('click')
+      await findSubmitButton(wrapper)!.trigger('click')
       await flushPromises()
 
       const textInputs = wrapper.findAll('input[type="text"]')
@@ -634,7 +651,7 @@ describe('CoinLookupPage', () => {
 
       expect(wrapper.text()).not.toContain('ROMAN EMPIRE / Constantine I')
 
-      const actionButtons = wrapper.findAll('.result-actions button')
+      const actionButtons = findActionButtons(wrapper)
       await actionButtons[2]!.trigger('click')
       await flushPromises()
 
@@ -695,10 +712,10 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await wrapper.find('.btn-submit').trigger('click')
+    await findSubmitButton(wrapper)!.trigger('click')
     await flushPromises()
 
-    const links = wrapper.findAll('a.numista-link')
+    const links = wrapper.findAll('a').filter((link) => link.text().includes('View on Numista'))
     expect(links.map(link => link.attributes('href'))).toEqual([
       'http://example.com/pieces1.html',
       'https://example.com/pieces2.html',

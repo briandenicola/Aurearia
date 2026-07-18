@@ -123,7 +123,7 @@ describe('LoginPage', () => {
     expect(wrapper.text()).toContain('Sign in with Microsoft')
     expect(wrapper.text()).toContain('Sign in with Pocket ID')
 
-    await wrapper.findAll('.oidc-btn')[0]?.trigger('click')
+    await wrapper.find('section[aria-label="Alternate sign in"]').findAll('button')[0]?.trigger('click')
     await flushPromises()
 
     expect(mockStartOIDCLogin).toHaveBeenCalledWith(1, {
@@ -164,7 +164,7 @@ describe('LoginPage', () => {
     const wrapper = mountLogin()
     await flushPromises()
 
-    await wrapper.find('.oidc-btn').trigger('click')
+    await wrapper.find('section[aria-label="Alternate sign in"] button').trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('The sign-in provider is not configured correctly.')

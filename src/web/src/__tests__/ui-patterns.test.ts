@@ -10,14 +10,6 @@ function readRepoFile(pathFromSrc: string): string {
   return readFileSync(join(SRC_DIR, pathFromSrc), 'utf-8')
 }
 
-function extractCssBlock(content: string, selector: string): string {
-  const start = content.indexOf(`${selector} {`)
-  if (start === -1) return ''
-  const bodyStart = content.indexOf('{', start)
-  const bodyEnd = content.indexOf('}', bodyStart)
-  return content.slice(bodyStart + 1, bodyEnd)
-}
-
 describe('UI pattern recipes', () => {
   it('documents reusable UI recipes for future agents', () => {
     const instructions = readFileSync(COPILOT_INSTRUCTIONS, 'utf-8')
@@ -30,18 +22,17 @@ describe('UI pattern recipes', () => {
 
   it('keeps tray pagination in one Previous, drawer label, Next row', () => {
     const trayControls = readRepoFile(join('components', 'tray', 'TrayControls.vue'))
-    const drawerNavigation = extractCssBlock(trayControls, '.drawer-navigation')
-    const drawerLabel = extractCssBlock(trayControls, '.drawer-label')
 
+    // TrayControls no longer has scoped `.drawer-navigation`/`.drawer-label`
+    // CSS classes or a `nav-btn` class — the fixed positioning, the nowrap
+    // row, and the button styling are all inline Tailwind utility classes now.
     expect(trayControls).toContain('Prev')
     expect(trayControls).toContain('Tray {{ drawerIndex + 1 }} of {{ totalDrawers }}')
     expect(trayControls).toContain('Next')
-    expect(trayControls).toContain('nav-btn')
-    expect(trayControls).toContain('position: fixed')
-    expect(trayControls).toContain('bottom: calc(1rem + env(safe-area-inset-bottom))')
-    expect(drawerNavigation).toContain('flex-wrap: nowrap')
-    expect(drawerNavigation).not.toContain('flex-direction: column')
-    expect(drawerLabel).not.toContain('order: -1')
+    // Row stays a single non-wrapping flex row (Prev, label, Next side by side).
+    expect(trayControls).toContain('flex flex-nowrap items-center justify-center gap-4 rounded-full')
+    // Pagination pins to the bottom of the viewport, clearing the safe area.
+    expect(trayControls).toContain("fixed bottom-[calc(1rem+env(safe-area-inset-bottom))]")
     expect(trayControls).not.toContain('Felt Color')
     expect(trayControls).not.toContain('felt-theme-selector')
   })
@@ -84,14 +75,18 @@ describe('UI pattern recipes', () => {
     const timelinePage = readRepoFile(join('pages', 'TimelinePage.vue'))
     const setDetailPage = readRepoFile(join('pages', 'SetDetailPage.vue'))
 
-    expect(timelinePage).toContain('grid-template-columns: minmax(0, 1fr)')
-    expect(timelinePage).toContain('min-width: 0')
-    expect(timelinePage).toContain('overflow: hidden')
-    expect(setDetailPage).toContain('set-coin-action-btn')
+    // Timeline rows are now a flex row (not a grid) but keep the same
+    // shrink-to-fit + clip guarantees via `min-w-0` and `overflow-hidden`.
+    expect(timelinePage).toContain('min-w-0')
+    expect(timelinePage).toContain('overflow-hidden')
+    // Set coin action buttons share a common Tailwind class set instead of a
+    // `.set-coin-action-btn` name, and their row stays single-line via
+    // `flex-nowrap` instead of a `flex-wrap: nowrap` CSS rule.
+    expect(setDetailPage).toContain('rounded-full border border-border-subtle bg-input text-text-secondary')
     expect(setDetailPage).toContain('<ChevronUp :size="16" />')
     expect(setDetailPage).toContain('<ChevronDown :size="16" />')
     expect(setDetailPage).toContain('<X :size="16" />')
-    expect(setDetailPage).toContain('flex-wrap: nowrap')
+    expect(setDetailPage).toContain('class="flex flex-nowrap justify-end gap-1.5" aria-label="Set coin actions"')
     expect(setDetailPage).not.toContain('>Up<')
     expect(setDetailPage).not.toContain('>Down<')
     expect(setDetailPage).not.toContain('>Remove<')
@@ -100,12 +95,16 @@ describe('UI pattern recipes', () => {
   it('keeps Sets list cards refined and count-forward', () => {
     const setCard = readRepoFile(join('components', 'sets', 'SetDashboardCard.vue'))
 
+    // These CSS values now come from Tailwind utilities: `min-h-20` = 5rem,
+    // `h-16` = 4rem (Tailwind's default 0.25rem spacing scale), `items-end` =
+    // align-items: flex-end, `text-[2.75rem]` is the literal font size, and
+    // `rounded-md` resolves to the app's `--radius-md` theme token.
     expect(setCard).toContain('Curated group')
-    expect(setCard).toContain('min-height: 5rem')
-    expect(setCard).toContain('height: 4rem')
-    expect(setCard).toContain('align-items: flex-end')
-    expect(setCard).toContain('font-size: 2.75rem')
-    expect(setCard).toContain('border-radius: var(--radius-md)')
+    expect(setCard).toContain('min-[561px]:min-h-20')
+    expect(setCard).toContain('min-[561px]:h-16')
+    expect(setCard).toContain('items-end')
+    expect(setCard).toContain('min-[561px]:text-[2.75rem]')
+    expect(setCard).toContain('rounded-md')
     expect(setCard).not.toContain('completion-meter')
     expect(setCard).not.toContain('Completion set')
   })
@@ -114,9 +113,12 @@ describe('UI pattern recipes', () => {
     const coinCard = readRepoFile('components/CoinCard.vue')
     const swipeGallery = readRepoFile('components/SwipeGallery.vue')
 
-    expect(coinCard).toContain('object-fit: contain')
-    expect(coinCard).toContain('transform: scale(1.02)')
-    expect(coinCard).not.toContain('object-fit: cover')
+    // CoinCard's image sizing moved to inline Tailwind utilities
+    // (`object-contain`, `group-hover:scale-[1.02]`); SwipeGallery still uses
+    // a scoped <style> block with the literal CSS.
+    expect(coinCard).toContain('object-contain')
+    expect(coinCard).toContain('scale-[1.02]')
+    expect(coinCard).not.toContain('object-cover')
     expect(swipeGallery).toContain('object-fit: contain')
     expect(swipeGallery).toContain('transform: scale(1.05)')
     expect(swipeGallery).not.toContain('transform: scale(1.28)')
@@ -124,32 +126,43 @@ describe('UI pattern recipes', () => {
 
   it('keeps the PWA agent button viewport-fixed globally', () => {
     const app = readRepoFile('App.vue')
-    const mainCss = readRepoFile(join('assets', 'styles', 'main.css'))
-    const agentFabCss = extractCssBlock(mainCss, '.agent-fab')
 
+    // The fab button no longer carries a named `.agent-fab` class (that CSS
+    // rule in main.css is now dead/orphaned) — position: fixed, the
+    // bottom/right safe-area offsets, and touch-action: none are all inline
+    // Tailwind utility classes on the button itself.
     expect(app).toContain('<Teleport to="body">')
-    expect(app).toContain('class="agent-fab"')
     expect(app).toContain(':style="fabPositionStyle"')
     expect(app).toContain('@pointerdown="startAgentFabDrag"')
     expect(app).toContain('@pointermove="moveAgentFabDrag"')
     expect(app).toContain('@pointerup="stopAgentFabDrag"')
-    expect(app).not.toContain('.agent-fab {')
-    expect(agentFabCss).toContain('position: fixed')
-    expect(agentFabCss).toContain('bottom: calc(24px + env(safe-area-inset-bottom))')
-    expect(agentFabCss).toContain('right: calc(24px + env(safe-area-inset-right))')
-    expect(agentFabCss).toContain('touch-action: none')
+
+    const fabButtonMatch = app.match(/<button\s+v-if="isPwa[^>]*aria-label="Open AI Agent"/s)
+    expect(fabButtonMatch).not.toBeNull()
+    const fabButtonSource = fabButtonMatch![0]
+    expect(fabButtonSource).toContain('fixed')
+    expect(fabButtonSource).toContain('touch-none')
+    expect(fabButtonSource).toContain('bottom-[calc(24px+env(safe-area-inset-bottom))]')
+    expect(fabButtonSource).toContain('right-[calc(24px+env(safe-area-inset-right))]')
   })
 
   it('keeps the agent chat overlay above tray pagination controls', () => {
     const chat = readRepoFile(join('components', 'CoinSearchChat.vue'))
     const trayControls = readRepoFile(join('components', 'tray', 'TrayControls.vue'))
-    const chatOverlayCss = extractCssBlock(chat, '.chat-overlay')
-    const trayControlsCss = extractCssBlock(trayControls, '.tray-controls')
-    const chatZIndex = Number(chatOverlayCss.match(/z-index:\s*(\d+)/)?.[1] ?? 0)
-    const trayZIndex = Number(trayControlsCss.match(/z-index:\s*(\d+)/)?.[1] ?? 0)
 
-    expect(chatOverlayCss).toContain('position: fixed')
-    expect(trayControlsCss).toContain('position: fixed')
+    // Neither component has a scoped `.chat-overlay`/`.tray-controls` class
+    // anymore — both `position: fixed` and their z-index live inline as
+    // Tailwind `fixed` + `z-[N]` classes on their root elements.
+    const chatZIndexMatch = chat.match(/<div class="fixed inset-0 z-\[(\d+)\]/)
+    const trayZIndexMatch = trayControls.match(/class="z-\[(\d+)\][^"]*"/)
+
+    expect(chatZIndexMatch).not.toBeNull()
+    expect(trayZIndexMatch).not.toBeNull()
+    expect(trayControls).toContain("'fixed bottom-[calc(1rem+env(safe-area-inset-bottom))]")
+
+    const chatZIndex = Number(chatZIndexMatch?.[1] ?? 0)
+    const trayZIndex = Number(trayZIndexMatch?.[1] ?? 0)
+
     expect(chatZIndex).toBeGreaterThan(trayZIndex)
   })
 

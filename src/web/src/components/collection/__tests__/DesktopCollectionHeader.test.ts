@@ -23,6 +23,11 @@ describe('DesktopCollectionHeader', () => {
     expect(source).not.toContain('toggle-select-mode')
     expect(source).not.toContain('CirclePlus')
     expect(source).not.toContain('CheckSquare')
-    expect(source).toContain('face-toggle')
+    // The desktop bar still hosts the obverse/reverse face toggle (formerly a
+    // dedicated `.face-toggle` class), now rendered as an inline Tailwind
+    // toggle group wired to the gridSide prop instead.
+    expect(source).toContain('Obverse')
+    expect(source).toContain('Reverse')
+    expect(source).toContain("$emit('update:gridSide'")
   })
 })
