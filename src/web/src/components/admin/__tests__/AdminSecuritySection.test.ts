@@ -175,7 +175,7 @@ describe('AdminSecuritySection', () => {
     await wrapper.find('input[placeholder="User"]').setValue('brian')
     await wrapper.find('input[placeholder="IP"]').setValue('203.0.113.5')
     await wrapper.find('input[type="date"]').setValue('2026-06-19')
-    await wrapper.find('form.filters-grid').trigger('submit.prevent')
+    await wrapper.findAll('form')[0].trigger('submit.prevent')
     await flushPromises()
 
     expect(mockGetSecurityEvents).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -191,9 +191,13 @@ describe('AdminSecuritySection', () => {
     const wrapper = mountSection()
     await flushPromises()
 
-    expect(wrapper.find('input[type="date"]').classes()).toContain('date-filter-input')
-    expect(wrapper.find('.table-wrap').exists()).toBe(true)
-    expect(wrapper.find('.date-cell').text()).toBeTruthy()
+    const dateInput = wrapper.find('input[type="date"]')
+    expect(dateInput.classes()).toContain('appearance-none')
+    expect(dateInput.classes()).toContain('overflow-hidden')
+
+    const eventsTable = wrapper.findAll('table')[0]
+    expect(eventsTable.exists()).toBe(true)
+    expect(eventsTable.find('tbody td').text()).toBeTruthy()
   })
 
   it('adds and deletes IP bans through the API client', async () => {
@@ -203,7 +207,7 @@ describe('AdminSecuritySection', () => {
     await wrapper.find('input[placeholder^="CIDR"]').setValue('198.51.100.9')
     await wrapper.find('input[placeholder^="Duration"]').setValue('24h')
     await wrapper.find('input[placeholder="Reason"]').setValue('credential stuffing')
-    await wrapper.find('form.ban-form').trigger('submit.prevent')
+    await wrapper.findAll('form')[1].trigger('submit.prevent')
     await flushPromises()
 
     expect(mockCreateSecurityIpRule).toHaveBeenCalledWith({
