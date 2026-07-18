@@ -11,7 +11,9 @@ describe('TrayControls', () => {
       },
     })
 
-    const navigation = wrapper.find('.drawer-navigation')
+    // The nav row no longer has a dedicated `.drawer-navigation` class; it's the
+    // flex-nowrap pill container that directly wraps Prev, the label, and Next.
+    const navigation = wrapper.find('.flex-nowrap')
     const items = navigation.element.children
 
     expect(items).toHaveLength(3)

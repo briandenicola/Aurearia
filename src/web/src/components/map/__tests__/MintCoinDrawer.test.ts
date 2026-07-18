@@ -37,13 +37,15 @@ describe('MintCoinDrawer', () => {
       global: { stubs: { RouterLink: routerLinkStub } },
     })
 
-    const drawer = wrapper.find('.mint-drawer')
+    // The drawer no longer has a dedicated `.mint-drawer` class; it's the
+    // dialog <aside> with the z-index baked into a Tailwind arbitrary class.
+    const drawer = wrapper.find('[role="dialog"]')
     expect(drawer.exists()).toBe(true)
+    expect(drawer.classes()).toContain('z-[1100]')
 
     // Source-level assertion: verify component contains the critical z-index fix
     const componentPath = resolve(__dirname, '..', 'MintCoinDrawer.vue')
     const componentSource = readFileSync(componentPath, 'utf-8')
-    expect(componentSource).toContain('.mint-drawer')
-    expect(componentSource).toMatch(/\.mint-drawer\s*{[^}]*z-index:\s*1100/s)
+    expect(componentSource).toContain('z-[1100]')
   })
 })
