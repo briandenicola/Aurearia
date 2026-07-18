@@ -77,7 +77,7 @@ describe('StatsCoinFlowChart', () => {
   it('shows a loading spinner while fetching coins', () => {
     mockGetCoins.mockReturnValue(new Promise(() => {}))
     const wrapper = shallowMount(StatsCoinFlowChart)
-    expect(wrapper.find('.flow-loading').exists()).toBe(true)
+    expect(wrapper.find('.spinner').exists()).toBe(true)
   })
 
   // ── Fetch parameters ───────────────────────────────────────────────────────
@@ -121,8 +121,8 @@ describe('StatsCoinFlowChart', () => {
     mockGetCoins.mockResolvedValue({ data: { coins: noDates, total: noDates.length, page: 1, limit: 100 } })
     const wrapper = shallowMount(StatsCoinFlowChart)
     await flushPromises()
-    expect(wrapper.find('.flow-empty').exists()).toBe(true)
-    expect(wrapper.find('.flow-chart-svg').exists()).toBe(false)
+    expect(wrapper.find('.py-8').exists()).toBe(true)
+    expect(wrapper.find('svg').exists()).toBe(false)
   })
 
   // ── Chart anatomy ──────────────────────────────────────────────────────────
@@ -130,7 +130,7 @@ describe('StatsCoinFlowChart', () => {
   it('renders the flow chart card with correct heading after coins load', async () => {
     const wrapper = shallowMount(StatsCoinFlowChart)
     await flushPromises()
-    expect(wrapper.find('.flow-chart-card').exists()).toBe(true)
+    expect(wrapper.find('.stats-section').exists()).toBe(true)
     expect(wrapper.text()).toContain('Acquisition Flow')
     expect(wrapper.text()).toContain('Coins Bought by Period, Ruler, Era')
   })
@@ -138,7 +138,7 @@ describe('StatsCoinFlowChart', () => {
   it('renders four column header labels: Purchase Period, Ruler, Era, Type', async () => {
     const wrapper = mount(StatsCoinFlowChart)
     await flushPromises()
-    const labels = wrapper.findAll('.flow-col-label').map((el) => el.text())
+    const labels = wrapper.findAll('.text-label').map((el) => el.text())
     expect(labels).toContain('Purchase Period')
     expect(labels).toContain('Ruler')
     expect(labels).toContain('Era')
@@ -148,7 +148,7 @@ describe('StatsCoinFlowChart', () => {
   it('renders a Sankey/alluvial SVG chart when acquisition data is available', async () => {
     const wrapper = mount(StatsCoinFlowChart)
     await flushPromises()
-    expect(wrapper.find('.flow-chart-svg').exists()).toBe(true)
+    expect(wrapper.find('svg').exists()).toBe(true)
     expect(wrapper.findAll('.sankey-node').length).toBeGreaterThan(0)
     expect(wrapper.findAll('.sankey-flow').length).toBeGreaterThan(0)
   })
@@ -212,8 +212,8 @@ describe('StatsCoinFlowChart', () => {
     })
     const wrapper = shallowMount(StatsCoinFlowChart)
     await flushPromises()
-    expect(wrapper.find('.flow-empty').exists()).toBe(true)
-    expect(wrapper.find('.flow-chart-svg').exists()).toBe(false)
+    expect(wrapper.find('.py-8').exists()).toBe(true)
+    expect(wrapper.find('svg').exists()).toBe(false)
   })
 
   it('empty state message mentions purchase date', async () => {
@@ -222,7 +222,7 @@ describe('StatsCoinFlowChart', () => {
     })
     const wrapper = shallowMount(StatsCoinFlowChart)
     await flushPromises()
-    expect(wrapper.find('.flow-empty').text()).toContain('purchase date')
+    expect(wrapper.find('.py-8').text()).toContain('purchase date')
   })
 
   // ── Top-N grouping ─────────────────────────────────────────────────────────
