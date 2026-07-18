@@ -130,7 +130,7 @@ describe('StatsInvestmentBreakdownPage', () => {
     })
     await flushPromises()
 
-    const confidenceCallouts = wrapper.findAll('.confidence-callout')
+    const confidenceCallouts = wrapper.findAll('[role="note"]')
     expect(confidenceCallouts).toHaveLength(1)
     expect(confidenceCallouts[0]?.text()).toContain('1 missing purchase price')
     expect(confidenceCallouts[0]?.text()).toContain('2 missing current value')
@@ -152,7 +152,7 @@ describe('StatsInvestmentBreakdownPage', () => {
     })
     await flushPromises()
 
-    expect(wrapper.find('.error-card').exists()).toBe(true)
+    expect(wrapper.find('[role="alert"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Investment breakdown data could not be loaded.')
   })
 })
