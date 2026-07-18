@@ -39,11 +39,15 @@ describe('ImageLightbox', () => {
 
     await wrapper.vm.$nextTick()
 
-    const container = wrapper.find('.lightbox-image-container')
+    const container = wrapper.find('.relative.flex.max-h-full.max-w-full.items-center.justify-center')
     expect(container.exists()).toBe(true)
-    expect(container.classes()).toContain('processing')
 
-    const overlay = wrapper.find('.lightbox-processing-overlay')
+    const image = container.find('authenticated-image-stub')
+    expect(image.exists()).toBe(true)
+    expect(image.classes()).toContain('opacity-30')
+    expect(image.classes()).toContain('blur-[2px]')
+
+    const overlay = container.find('.pointer-events-none.absolute.inset-0')
     expect(overlay.exists()).toBe(true)
 
     expect(mocks.fetchPrivateMediaBlob).toHaveBeenCalledWith('/media/test.jpg')
@@ -51,26 +55,29 @@ describe('ImageLightbox', () => {
 
     const containerChildren = container.element.children
     const overlayIsChild = Array.from(containerChildren).some(
-      (child) => child.classList.contains('lightbox-processing-overlay')
+      (child) => child === overlay.element
     )
     expect(overlayIsChild).toBe(true)
 
-    expect(overlay.classes()).toContain('lightbox-processing-overlay')
     expect(overlay.text()).toContain('Removing background')
-    expect(overlay.find('.spinner').exists()).toBe(true)
+    expect(overlay.find('.animate-spin').exists()).toBe(true)
   })
 
   it('removes processing class when processing completes', async () => {
     const wrapper = mountLightbox()
+    const imageSelector = '.relative.flex.max-h-full.max-w-full.items-center.justify-center authenticated-image-stub'
+    const overlaySelector = '.pointer-events-none.absolute.inset-0'
 
     wrapper.vm.processing = true
     await wrapper.vm.$nextTick()
-    expect(wrapper.find('.lightbox-image-container').classes()).toContain('processing')
+    expect(wrapper.find(imageSelector).classes()).toContain('opacity-30')
+    expect(wrapper.find(imageSelector).classes()).toContain('blur-[2px]')
+    expect(wrapper.find(overlaySelector).exists()).toBe(true)
 
     wrapper.vm.processing = false
     await wrapper.vm.$nextTick()
-    expect(wrapper.find('.lightbox-image-container').classes()).not.toContain('processing')
-    expect(wrapper.find('.lightbox-processing-overlay').exists()).toBe(false)
+    expect(wrapper.find(imageSelector).classes()).not.toContain('opacity-30')
+    expect(wrapper.find(overlaySelector).exists()).toBe(false)
   })
 })
 
