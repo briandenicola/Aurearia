@@ -217,10 +217,11 @@
             <option value="lost">Lost</option>
             <option value="passed">Passed</option>
           </select>
-          <button class="btn btn-secondary" @click="changeStatus" :disabled="!hasPendingStatusUpdate">
-            Update Status
+          <button class="btn btn-secondary" @click="changeStatus" :disabled="statusBusy || !hasPendingStatusUpdate">
+            {{ statusBusy ? 'Updating...' : 'Update Status' }}
           </button>
         </div>
+        <p v-if="statusMessage" class="m-0 text-chip" :class="statusError ? 'text-[var(--color-negative)]' : 'text-gold'">{{ statusMessage }}</p>
         <div v-if="newStatus === 'bidding'" class="flex flex-wrap items-center gap-[0.6rem]">
           <label class="text-[0.82rem] text-text-secondary">Max Bid</label>
           <input
@@ -267,10 +268,10 @@
           <SafeExternalLink v-if="externalUrl" :href="externalUrl" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
             <ExternalLink :size="14" /> View on {{ providerLabel }}
           </SafeExternalLink>
-          <button v-if="lot.status === 'won'" class="btn btn-primary" @click="convertToCoin">
+          <button v-if="lot.status === 'won'" class="btn btn-primary" :disabled="statusBusy" @click="convertToCoin">
             <ArrowRightCircle :size="14" /> Add to Collection
           </button>
-          <button class="btn btn-danger !border-[rgba(248,113,113,0.4)] !bg-transparent px-[0.9rem] py-2 text-[0.82rem] !text-[#f87171] hover:!border-[rgba(248,113,113,0.6)] hover:!bg-[rgba(248,113,113,0.1)]" @click="removeLot">
+          <button class="btn btn-danger !border-[rgba(248,113,113,0.4)] !bg-transparent px-[0.9rem] py-2 text-[0.82rem] !text-[#f87171] hover:!border-[rgba(248,113,113,0.6)] hover:!bg-[rgba(248,113,113,0.1)]" :disabled="statusBusy" @click="removeLot">
             <Trash2 :size="14" /> Remove
           </button>
         </div>
@@ -332,6 +333,9 @@ const alertBusy = ref(false)
 const reminderBusy = ref(false)
 const alertMessage = ref('')
 const alertError = ref(false)
+const statusBusy = ref(false)
+const statusMessage = ref('')
+const statusError = ref(false)
 const alertForm = reactive<{ targetPrice: number | null; direction: PriceAlertDirection }>({
   targetPrice: props.lot.currentBid ?? props.lot.maxBid ?? props.lot.estimate ?? null,
   direction: 'above',
@@ -364,6 +368,16 @@ function formatOptionalDate(dateStr: string | null) {
 function setAlertMessage(message: string, isError = false) {
   alertMessage.value = message
   alertError.value = isError
+}
+
+function setStatusMessage(message: string, isError = false) {
+  statusMessage.value = message
+  statusError.value = isError
+}
+
+function errorMessageFrom(err: unknown, fallback: string): string {
+  const maybeAxiosError = err as { response?: { data?: { error?: string } } }
+  return maybeAxiosError?.response?.data?.error || fallback
 }
 
 // Edit mode
@@ -488,10 +502,13 @@ async function fetchCalendarEvents() {
 
 async function linkEvent() {
   const eventId = selectedEventId.value === '' ? null : Number(selectedEventId.value)
+  setStatusMessage('')
   try {
     await linkAuctionLotEvent(props.lot.id, eventId)
     emit('updated')
-  } catch { /* ignore */ }
+  } catch (err) {
+    setStatusMessage(errorMessageFrom(err, 'Failed to update calendar event'), true)
+  }
 }
 
 async function saveAlert() {
@@ -560,6 +577,8 @@ async function removeReminder(id: number) {
 }
 
 async function changeStatus() {
+  statusBusy.value = true
+  setStatusMessage('')
   try {
     const bid = maxBidChanged.value ? normalizedMaxBidInput.value : undefined
     const winBid = winningBidChanged.value ? normalizedWinningBidInput.value : undefined
@@ -571,27 +590,47 @@ async function changeStatus() {
         emit('close')
         router.push(`/edit/${coinRes.data.id}`)
         return
-      } catch { /* fall through */ }
+      } catch (err) {
+        setStatusMessage(errorMessageFrom(err, 'Status updated to Won, but adding it to your collection failed — use "Add to Collection" to retry.'), true)
+        emit('updated')
+        return
+      }
     }
 
     emit('updated')
-  } catch { /* ignore */ }
+  } catch (err) {
+    setStatusMessage(errorMessageFrom(err, 'Failed to update status'), true)
+  } finally {
+    statusBusy.value = false
+  }
 }
 
 async function convertToCoin() {
+  statusBusy.value = true
+  setStatusMessage('')
   try {
     const coinRes = await convertAuctionLotToCoin(props.lot.id)
     emit('close')
     router.push(`/edit/${coinRes.data.id}`)
-  } catch { /* ignore */ }
+  } catch (err) {
+    setStatusMessage(errorMessageFrom(err, 'Failed to add to collection'), true)
+  } finally {
+    statusBusy.value = false
+  }
 }
 
 async function removeLot() {
+  statusBusy.value = true
+  setStatusMessage('')
   try {
     await deleteAuctionLot(props.lot.id)
     emit('close')
     emit('updated')
-  } catch { /* ignore */ }
+  } catch (err) {
+    setStatusMessage(errorMessageFrom(err, 'Failed to remove lot'), true)
+  } finally {
+    statusBusy.value = false
+  }
 }
 
 onMounted(fetchCalendarEvents)

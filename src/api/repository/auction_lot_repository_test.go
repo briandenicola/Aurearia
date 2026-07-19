@@ -541,6 +541,73 @@ func TestAuctionLotRepository_UpsertPromotesWatchingToBidding(t *testing.T) {
 	}
 }
 
+func TestAuctionLotRepository_UpsertAutoTransitionsBiddingToWonWithWinningBid(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+
+	lot := &models.AuctionLot{
+		NumisBidsURL: "https://auctions.cngcoins.com/lots/view/4-WONLOT/test",
+		Source:       models.AuctionSourceCNG,
+		SourceURL:    "https://auctions.cngcoins.com/lots/view/4-WONLOT/test",
+		Title:        "CNG Won Lot",
+		Status:       models.AuctionStatusBidding,
+		UserID:       11,
+	}
+	if _, err := repo.Upsert(lot); err != nil {
+		t.Fatalf("initial upsert: %v", err)
+	}
+
+	winningBid := 1500.0
+	lot.Status = models.AuctionStatusWon
+	lot.WinningBid = &winningBid
+	if _, err := repo.Upsert(lot); err != nil {
+		t.Fatalf("won upsert: %v", err)
+	}
+
+	found, err := repo.GetBySourceURL(models.AuctionSourceCNG, lot.SourceURL, 11)
+	if err != nil {
+		t.Fatalf("GetBySourceURL: %v", err)
+	}
+	if found.Status != models.AuctionStatusWon {
+		t.Fatalf("Status = %q, want won", found.Status)
+	}
+	if found.WinningBid == nil || *found.WinningBid != 1500 {
+		t.Fatalf("WinningBid = %v, want 1500", found.WinningBid)
+	}
+}
+
+func TestAuctionLotRepository_UpsertAutoTransitionsWatchingDirectlyToLost(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+
+	// A lot can go straight from watching to lost if the provider reports it closed before
+	// any sync ever observed it locally as "bidding" (e.g. a missed sync cycle).
+	lot := &models.AuctionLot{
+		NumisBidsURL: "https://auctions.cngcoins.com/lots/view/4-LOSTLOT/test",
+		Source:       models.AuctionSourceCNG,
+		SourceURL:    "https://auctions.cngcoins.com/lots/view/4-LOSTLOT/test",
+		Title:        "CNG Lost Lot",
+		Status:       models.AuctionStatusWatching,
+		UserID:       12,
+	}
+	if _, err := repo.Upsert(lot); err != nil {
+		t.Fatalf("initial upsert: %v", err)
+	}
+
+	lot.Status = models.AuctionStatusLost
+	if _, err := repo.Upsert(lot); err != nil {
+		t.Fatalf("lost upsert: %v", err)
+	}
+
+	found, err := repo.GetBySourceURL(models.AuctionSourceCNG, lot.SourceURL, 12)
+	if err != nil {
+		t.Fatalf("GetBySourceURL: %v", err)
+	}
+	if found.Status != models.AuctionStatusLost {
+		t.Fatalf("Status = %q, want lost", found.Status)
+	}
+}
+
 // TestAuctionLotRepository_UpsertDoesNotOverwriteWonOrLostWithBidding verifies that a
 // sync-detected autobid does not overwrite a user-set "won" or "lost" status.
 func TestAuctionLotRepository_UpsertDoesNotOverwriteWonOrLostWithBidding(t *testing.T) {

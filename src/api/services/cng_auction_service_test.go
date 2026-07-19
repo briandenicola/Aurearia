@@ -51,21 +51,33 @@ func TestCNGAuctionService_ParseLotPage(t *testing.T) {
 	}
 }
 
-// TestCNGAuctionService_ParseLotPage_BidAmount verifies that bid_amount takes precedence
-// over starting_price for CurrentBid, and that autobid is mapped to MaxBid.
-func TestCNGAuctionService_ParseLotPage_BidAmount(t *testing.T) {
+// TestCNGAuctionService_ParseLotPage_UsesRealBidFields verifies that timed_auction_bid.amount
+// takes precedence over starting_price for CurrentBid, that absentee_bid.max_bid is mapped to
+// MaxBid, and that the lot's own extended_end_time is used for the sale date rather than the
+// whole auction's effective_end_time. CNG has no "bid_amount"/"autobid" fields; earlier
+// versions of this test asserted against those dead keys and never caught that they'd stopped
+// existing in CNG's real API response (see F021 / the CNG provider audit for issue #482).
+func TestCNGAuctionService_ParseLotPage_UsesRealBidFields(t *testing.T) {
 	svc := NewCNGAuctionService(nil)
 	lot, err := svc.parseLotPage(cngLotWithBidsFixture())
 	if err != nil {
 		t.Fatalf("parseLotPage returned error: %v", err)
 	}
-	// bid_amount (700) must take precedence over starting_price (300)
-	if lot.CurrentBid == nil || *lot.CurrentBid != 700 {
-		t.Fatalf("CurrentBid = %v, want 700 (bid_amount)", lot.CurrentBid)
+	// timed_auction_bid.amount (1500) must take precedence over starting_price (300)
+	if lot.CurrentBid == nil || *lot.CurrentBid != 1500 {
+		t.Fatalf("CurrentBid = %v, want 1500 (timed_auction_bid.amount)", lot.CurrentBid)
 	}
-	// autobid should be mapped to MaxBid
-	if lot.MaxBid == nil || *lot.MaxBid != 1000 {
-		t.Fatalf("MaxBid = %v, want 1000 (autobid)", lot.MaxBid)
+	// absentee_bid.max_bid should be mapped to MaxBid
+	if lot.MaxBid == nil || *lot.MaxBid != 1800 {
+		t.Fatalf("MaxBid = %v, want 1800 (absentee_bid.max_bid)", lot.MaxBid)
+	}
+	// The lot's own extended_end_time (14:04) must win over the auction-wide
+	// effective_end_time (16:04) for a multi-lot staggered timed auction.
+	if lot.SaleDate != "2026-07-22T14:04:20Z" {
+		t.Fatalf("SaleDate = %q, want lot.extended_end_time, not auction.effective_end_time", lot.SaleDate)
+	}
+	if lot.WinningCustomerRowID != "4-KQ7PSC" {
+		t.Fatalf("WinningCustomerRowID = %q, want the timed_auction_bid.registration.customer.row_id", lot.WinningCustomerRowID)
 	}
 }
 
@@ -166,11 +178,13 @@ func TestCNGAuctionService_LoginAndFetchWatchlist(t *testing.T) {
 	}
 }
 
-// TestCNGAuctionService_ScrapeLotWithClientUsesBidAmount verifies that ScrapeLotWithClient uses the
-// provided authenticated HTTP client and returns bid_amount as the current bid.
-// This covers the core fix for the auction sync bug: the watched-lots list page does not include
-// bid_amount, so we must scrape each individual lot page to obtain the real current bid.
-func TestCNGAuctionService_ScrapeLotWithClientUsesBidAmount(t *testing.T) {
+// TestCNGAuctionService_ScrapeLotWithClientUsesRealBidFields verifies that ScrapeLotWithClient
+// uses the provided HTTP client and returns real current-bid/max-bid values. This path backs
+// the manual "paste a lot URL" import (ImportFromURL), which fetches a single lot page directly
+// rather than going through the watched-lots list. Note: timed_auction_bid.amount is public
+// data present even without authentication — only absentee_bid.max_bid requires a logged-in
+// client, since it's the specific user's own bid ceiling.
+func TestCNGAuctionService_ScrapeLotWithClientUsesRealBidFields(t *testing.T) {
 	var lotPageRequests []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lotPageRequests = append(lotPageRequests, r.URL.Path)
@@ -188,13 +202,13 @@ func TestCNGAuctionService_ScrapeLotWithClientUsesBidAmount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ScrapeLotWithClient returned error: %v", err)
 	}
-	// bid_amount (700) from the lot page must be returned as CurrentBid.
-	if lot.CurrentBid == nil || *lot.CurrentBid != 700 {
-		t.Fatalf("CurrentBid = %v, want 700 (bid_amount from lot page)", lot.CurrentBid)
+	// timed_auction_bid.amount (1500) from the lot page must be returned as CurrentBid.
+	if lot.CurrentBid == nil || *lot.CurrentBid != 1500 {
+		t.Fatalf("CurrentBid = %v, want 1500 (timed_auction_bid.amount from lot page)", lot.CurrentBid)
 	}
-	// autobid (1000) must be returned as MaxBid.
-	if lot.MaxBid == nil || *lot.MaxBid != 1000 {
-		t.Fatalf("MaxBid = %v, want 1000 (autobid from lot page)", lot.MaxBid)
+	// absentee_bid.max_bid (1800) must be returned as MaxBid.
+	if lot.MaxBid == nil || *lot.MaxBid != 1800 {
+		t.Fatalf("MaxBid = %v, want 1800 (absentee_bid.max_bid from lot page)", lot.MaxBid)
 	}
 	if len(lotPageRequests) == 0 {
 		t.Fatal("no request was made to the test server — ScrapeLotWithClient did not fetch the page")
@@ -332,6 +346,13 @@ viewVars = {
 </script></html>`
 }
 
+// cngLotWithBidsFixture mirrors the real viewVars.lot shape captured from a live,
+// authenticated CNG lot page with active bidding (see F021 / the CNG provider audit for
+// issue #482). CNG has no "bid_amount"/"autobid" fields — the current bid lives at
+// timed_auction_bid.amount (public) and the user's own ceiling at absentee_bid.max_bid
+// (auth-only). extended_end_time is this lot's own close time and is deliberately
+// different here from auction.effective_end_time (the whole sale's close time) to catch
+// any regression back to reading the wrong one.
 func cngLotWithBidsFixture() string {
 	return `<!doctype html><html><script>
 viewVars = {
@@ -346,10 +367,14 @@ viewVars = {
     "estimate_high":"750.00",
     "currency_code":"USD",
     "starting_price":"300.00",
-    "bid_amount":"700.00",
-    "autobid":"1000.00",
     "sold_price":null,
     "status":"active",
+    "extended_end_time":"2026-07-22T14:04:20Z",
+    "timed_auction_bid":{
+      "amount":"1500.00",
+      "registration":{"customer":{"row_id":"4-KQ7PSC"}}
+    },
+    "absentee_bid":{"max_bid":"1800.00"},
     "_detail_url":"/lots/view/4-LOTID/thasos-drachm",
     "cover_thumbnail":"https://images.example/14_1.jpg",
     "images":[],
@@ -358,7 +383,7 @@ viewVars = {
       "title":"Keystone 17 - The W. Toliver Besson Collection",
       "currency_code":"USD",
       "time_start":"2026-07-01T12:00:00Z",
-      "effective_end_time":"2026-07-22T08:04:00Z"
+      "effective_end_time":"2026-07-22T16:04:20Z"
     }
   }
 };

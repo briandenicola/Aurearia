@@ -265,12 +265,23 @@ func (r *AuctionLotRepository) upsert(lot *models.AuctionLot, autoCreateEvent bo
 		if lot.MaxBid != nil {
 			updates["max_bid"] = lot.MaxBid
 		}
-		// Only update status based on provider signals; never overwrite user-set statuses (won/lost).
-		// Allow: watching → passed (auction ended), watching → bidding (autobid detected).
-		if lot.Status == models.AuctionStatusPassed && existing.Status == models.AuctionStatusWatching {
+		// Only update status based on provider signals; never overwrite a lot that is already
+		// terminal (won/lost) — once set, only a manual override can change it.
+		// Allow: watching → passed (auction ended), watching → bidding (autobid detected),
+		// (watching or bidding) → won/lost (provider reports the lot closed with a known
+		// outcome — this can jump straight from watching if a sync is missed while the lot
+		// was actively being bid on and it closes before the next sync observes "bidding").
+		isTerminal := existing.Status == models.AuctionStatusWon || existing.Status == models.AuctionStatusLost
+		switch {
+		case lot.Status == models.AuctionStatusPassed && existing.Status == models.AuctionStatusWatching:
 			updates["status"] = string(models.AuctionStatusPassed)
-		} else if lot.Status == models.AuctionStatusBidding && existing.Status == models.AuctionStatusWatching {
+		case lot.Status == models.AuctionStatusBidding && existing.Status == models.AuctionStatusWatching:
 			updates["status"] = string(models.AuctionStatusBidding)
+		case (lot.Status == models.AuctionStatusWon || lot.Status == models.AuctionStatusLost) && !isTerminal:
+			updates["status"] = string(lot.Status)
+			if lot.Status == models.AuctionStatusWon && lot.WinningBid != nil {
+				updates["winning_bid"] = lot.WinningBid
+			}
 		}
 		return txRepo.UpdateFields(existing, updates)
 	})

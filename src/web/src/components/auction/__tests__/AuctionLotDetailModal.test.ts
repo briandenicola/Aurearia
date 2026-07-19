@@ -93,6 +93,23 @@ describe('AuctionLotDetailModal', () => {
     expect(mocks.updateAuctionLotStatus).toHaveBeenCalledWith(7, 'won', undefined, 175.5)
   })
 
+  it('surfaces an error instead of failing silently when a status update is rejected', async () => {
+    mocks.updateAuctionLotStatus.mockRejectedValueOnce({ response: { data: { error: 'Invalid status transition' } } })
+
+    const wrapper = mount(AuctionLotDetailModal, {
+      props: { lot: buildAuctionLot({ status: 'watching', maxBid: null }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+
+    const statusSelect = wrapper.findAll('select').find(select => select.text().includes('Won'))
+    await statusSelect!.setValue('won')
+    await wrapper.findAll('button').find(button => button.text().includes('Update Status'))!.trigger('click')
+    await flushPromises()
+
+    expect(mocks.updateAuctionLotStatus).toHaveBeenCalledWith(7, 'won', undefined, undefined)
+    expect(wrapper.text()).toContain('Invalid status transition')
+  })
+
   it('creates and deletes price alerts for the selected lot', async () => {
     const wrapper = mount(AuctionLotDetailModal, {
       props: {

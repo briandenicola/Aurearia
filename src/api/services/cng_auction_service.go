@@ -81,19 +81,45 @@ func (s *CNGAuctionService) Login(username, password string) (*http.Client, erro
 }
 
 func (s *CNGAuctionService) verifyAuthentication(client *http.Client) error {
+	_, err := s.fetchCustomerProfile(client)
+	return err
+}
+
+// CurrentCustomerRowID returns the authenticated user's own CNG customer row_id. This is
+// compared against a closed lot's winning bidder to auto-detect won vs. lost during sync.
+func (s *CNGAuctionService) CurrentCustomerRowID(client *http.Client) (string, error) {
+	profile, err := s.fetchCustomerProfile(client)
+	if err != nil {
+		return "", err
+	}
+	if profile.RowID == "" {
+		return "", fmt.Errorf("cng refresh-me response missing row_id")
+	}
+	return profile.RowID, nil
+}
+
+type cngCustomerProfile struct {
+	RowID string `json:"row_id"`
+}
+
+func (s *CNGAuctionService) fetchCustomerProfile(client *http.Client) (cngCustomerProfile, error) {
 	req, err := newScraperRequest(http.MethodGet, cngRefreshMeURL, nil, cngRefreshHeaders())
 	if err != nil {
-		return fmt.Errorf("failed to create refresh-me request: %w", err)
+		return cngCustomerProfile{}, fmt.Errorf("failed to create refresh-me request: %w", err)
 	}
 
 	body, err := doScraperRequest(client, req, "refresh-me")
 	if err != nil {
-		return err
+		return cngCustomerProfile{}, err
 	}
 	if strings.TrimSpace(string(body)) == "null" {
-		return ErrCNGAuthenticationRequired
+		return cngCustomerProfile{}, ErrCNGAuthenticationRequired
 	}
-	return nil
+	var profile cngCustomerProfile
+	if err := json.Unmarshal(body, &profile); err != nil {
+		return cngCustomerProfile{}, fmt.Errorf("failed to parse refresh-me response: %w", err)
+	}
+	return profile, nil
 }
 
 // FetchWatchlist retrieves the authenticated user's watched lots HTML.
@@ -315,24 +341,44 @@ func (q cngQueryInfo) totalPages() int {
 }
 
 type cngLot struct {
-	RowID                string     `json:"row_id"`
-	LotNumber            int        `json:"lot_number"`
-	LotNumberExtension   string     `json:"lot_number_extension"`
-	Title                string     `json:"title"`
-	Description          string     `json:"description"`
-	TruncatedDescription string     `json:"truncated_description"`
-	EstimateLow          string     `json:"estimate_low"`
-	EstimateHigh         string     `json:"estimate_high"`
-	CurrencyCode         string     `json:"currency_code"`
-	StartingPrice        string     `json:"starting_price"`
-	BidAmount            string     `json:"bid_amount"`
-	Autobid              string     `json:"autobid"`
-	SoldPrice            string     `json:"sold_price"`
-	Status               string     `json:"status"`
-	DetailURL            string     `json:"_detail_url"`
-	CoverThumbnail       string     `json:"cover_thumbnail"`
-	Images               []cngImage `json:"images"`
-	Auction              cngAuction `json:"auction"`
+	RowID                string              `json:"row_id"`
+	LotNumber            int                 `json:"lot_number"`
+	LotNumberExtension   string              `json:"lot_number_extension"`
+	Title                string              `json:"title"`
+	Description          string              `json:"description"`
+	TruncatedDescription string              `json:"truncated_description"`
+	EstimateLow          string              `json:"estimate_low"`
+	EstimateHigh         string              `json:"estimate_high"`
+	CurrencyCode         string              `json:"currency_code"`
+	StartingPrice        string              `json:"starting_price"`
+	SoldPrice            string              `json:"sold_price"`
+	Status               string              `json:"status"`
+	DetailURL            string              `json:"_detail_url"`
+	CoverThumbnail       string              `json:"cover_thumbnail"`
+	Images               []cngImage          `json:"images"`
+	Auction              cngAuction          `json:"auction"`
+	ExtendedEndTime      string              `json:"extended_end_time"`
+	TimedAuctionBid      *cngTimedAuctionBid `json:"timed_auction_bid"`
+	AbsenteeBid          *cngAbsenteeBid     `json:"absentee_bid"`
+}
+
+// cngTimedAuctionBid is the current (or, once the lot closes, final) bid on a timed-auction
+// lot. It is public data: present even for an unauthenticated request. The nested
+// registration/customer identifies whose bid it is, which is how a closed lot's winner is
+// determined — compare against the logged-in user's own customer row_id.
+type cngTimedAuctionBid struct {
+	Amount       string `json:"amount"`
+	Registration struct {
+		Customer struct {
+			RowID string `json:"row_id"`
+		} `json:"customer"`
+	} `json:"registration"`
+}
+
+// cngAbsenteeBid is the authenticated user's own bid ceiling on a lot. Only populated when
+// fetched with a logged-in client for a lot the user has actually placed a bid on.
+type cngAbsenteeBid struct {
+	MaxBid string `json:"max_bid"`
 }
 
 type cngImage struct {
@@ -354,33 +400,56 @@ func cngLotToWatchlistLot(lot cngLot) WatchlistLot {
 	if imageURL == "" && len(lot.Images) > 0 {
 		imageURL = firstNonEmpty(lot.Images[0].DetailURL, lot.Images[0].ThumbnailURL)
 	}
-	// bid_amount reflects the current winning bid for active auctions;
-	// fall back to starting_price when bid_amount is absent (no bids yet).
-	currentBid, _ := parseCNGDecimal(firstNonEmpty(lot.BidAmount, lot.StartingPrice))
-	maxBid, _ := parseCNGDecimal(lot.Autobid)
+
+	// timed_auction_bid.amount is the current (or, once the lot closes, final) bid and is
+	// public data; fall back to starting_price only when no bid has been placed yet.
+	currentBidStr := lot.StartingPrice
+	winningCustomerRowID := ""
+	if lot.TimedAuctionBid != nil {
+		if lot.TimedAuctionBid.Amount != "" {
+			currentBidStr = lot.TimedAuctionBid.Amount
+		}
+		winningCustomerRowID = lot.TimedAuctionBid.Registration.Customer.RowID
+	}
+	currentBid, _ := parseCNGDecimal(currentBidStr)
+
+	// absentee_bid.max_bid is the authenticated user's own bid ceiling; nil unless fetched
+	// with a logged-in client for a lot the user has actually bid on.
+	var maxBid *float64
+	if lot.AbsenteeBid != nil {
+		maxBid, _ = parseCNGDecimal(lot.AbsenteeBid.MaxBid)
+	}
+
+	soldPrice, _ := parseCNGDecimal(lot.SoldPrice)
 	estimate, _ := parseCNGDecimal(firstNonEmpty(lot.EstimateLow, lot.EstimateHigh))
-	saleDate := firstNonEmpty(lot.Auction.EffectiveEndTime, lot.Auction.TimeStart)
+	// extended_end_time is this specific lot's own close time. auction.effective_end_time is
+	// when the entire (often multi-hundred-lot) sale ends, which can be hours later for any
+	// individual lot in a staggered timed auction.
+	saleDate := firstNonEmpty(lot.ExtendedEndTime, lot.Auction.EffectiveEndTime, lot.Auction.TimeStart)
 	description := cleanHTML(firstNonEmpty(lot.Description, lot.TruncatedDescription))
 	if len(description) > 2000 {
 		description = description[:2000]
 	}
 
 	return WatchlistLot{
-		URL:          normalizeCNGURL(lot.DetailURL),
-		SourceLotID:  lot.RowID,
-		SourceSaleID: lot.Auction.RowID,
-		SaleID:       lot.Auction.RowID,
-		LotNumber:    lot.LotNumber,
-		Title:        strings.TrimSpace(lot.Title),
-		ImageURL:     imageURL,
-		Estimate:     estimate,
-		CurrentBid:   currentBid,
-		MaxBid:       maxBid,
-		Currency:     strings.ToUpper(currency),
-		AuctionHouse: "Classical Numismatic Group",
-		SaleName:     strings.TrimSpace(lot.Auction.Title),
-		SaleDate:     saleDate,
-		Description:  description,
+		URL:                  normalizeCNGURL(lot.DetailURL),
+		SourceLotID:          lot.RowID,
+		SourceSaleID:         lot.Auction.RowID,
+		SaleID:               lot.Auction.RowID,
+		LotNumber:            lot.LotNumber,
+		Title:                strings.TrimSpace(lot.Title),
+		ImageURL:             imageURL,
+		Estimate:             estimate,
+		CurrentBid:           currentBid,
+		MaxBid:               maxBid,
+		Currency:             strings.ToUpper(currency),
+		AuctionHouse:         "Classical Numismatic Group",
+		SaleName:             strings.TrimSpace(lot.Auction.Title),
+		SaleDate:             saleDate,
+		Description:          description,
+		ProviderStatus:       strings.ToLower(strings.TrimSpace(lot.Status)),
+		SoldPrice:            soldPrice,
+		WinningCustomerRowID: winningCustomerRowID,
 	}
 }
 

@@ -24,31 +24,26 @@ func NewAuctionLotService(repo *repository.AuctionLotRepository, coinRepo *repos
 	return &AuctionLotService{repo: repo, coinRepo: coinRepo}
 }
 
-// validTransitions defines which status transitions are allowed.
-var validTransitions = map[models.AuctionLotStatus][]models.AuctionLotStatus{
-	models.AuctionStatusWatching: {models.AuctionStatusBidding, models.AuctionStatusPassed},
-	models.AuctionStatusBidding:  {models.AuctionStatusWon, models.AuctionStatusLost, models.AuctionStatusWatching},
-	models.AuctionStatusWon:      {},
-	models.AuctionStatusLost:     {models.AuctionStatusWatching},
-	models.AuctionStatusPassed:   {models.AuctionStatusWatching},
+// validAuctionStatuses is the set of recognized lot statuses.
+var validAuctionStatuses = map[models.AuctionLotStatus]bool{
+	models.AuctionStatusWatching: true,
+	models.AuctionStatusBidding:  true,
+	models.AuctionStatusWon:      true,
+	models.AuctionStatusLost:     true,
+	models.AuctionStatusPassed:   true,
 }
 
-// UpdateStatus transitions an auction lot to a new status.
+// UpdateStatus applies a manual status override. Any known status may move to any other
+// known status: this is an explicit user override rather than a workflow the app enforces,
+// since only the user (or a synced provider signal, applied separately by the watchlist
+// sync path) actually knows a lot's real-world outcome.
 func (s *AuctionLotService) UpdateStatus(id, userID uint, newStatus models.AuctionLotStatus) error {
 	lot, err := s.repo.GetByID(id, userID)
 	if err != nil {
 		return ErrAuctionLotNotFound
 	}
 
-	allowed := validTransitions[lot.Status]
-	valid := false
-	for _, s := range allowed {
-		if s == newStatus {
-			valid = true
-			break
-		}
-	}
-	if !valid {
+	if !validAuctionStatuses[newStatus] {
 		return ErrInvalidStatus
 	}
 
@@ -86,7 +81,7 @@ func (s *AuctionLotService) ConvertToCoin(lotID, userID uint) (*models.Coin, err
 			}
 			return lot.AuctionHouse
 		}(),
-		PurchasePrice: lot.CurrentBid,
+		PurchasePrice: firstNonNilFloat(lot.WinningBid, lot.CurrentBid),
 		PurchaseDate:  lot.SaleDate,
 		UserID:        userID,
 	}
@@ -114,4 +109,13 @@ func firstNonEmptyAuctionURL(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func firstNonNilFloat(values ...*float64) *float64 {
+	for _, value := range values {
+		if value != nil {
+			return value
+		}
+	}
+	return nil
 }
