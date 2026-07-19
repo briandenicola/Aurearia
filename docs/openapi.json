@@ -4136,6 +4136,52 @@
                 }
             }
         },
+        "/auctions/{id}/market-signal": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Searches live auction results for coins comparable to this lot and returns a structured trend signal (rising/stable/declining, price range, rationale). Best-effort: degrades to status \"unavailable\" rather than erroring if the AI provider isn't configured or the search fails.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auctions"
+                ],
+                "summary": "Get current market trend signal for a lot",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Auction lot ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.MarketSignal"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auctions/{id}/status": {
             "put": {
                 "security": [
@@ -18561,6 +18607,49 @@
                     "type": "integer"
                 }
             }
+        },
+        "services.MarketSignal": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string"
+                },
+                "priceHigh": {
+                    "type": "number"
+                },
+                "priceLow": {
+                    "type": "number"
+                },
+                "rationale": {
+                    "type": "string"
+                },
+                "sampleSize": {
+                    "type": "integer"
+                },
+                "sources": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "$ref": "#/definitions/services.MarketSignalStatus"
+                },
+                "trendDirection": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.MarketSignalStatus": {
+            "type": "string",
+            "enum": [
+                "unavailable",
+                "ok"
+            ],
+            "x-enum-varnames": [
+                "MarketSignalUnavailable",
+                "MarketSignalOK"
+            ]
         },
         "services.MissingChecklistItem": {
             "type": "object",
