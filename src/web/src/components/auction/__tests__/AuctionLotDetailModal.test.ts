@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   createReminder: vi.fn(),
   deleteReminder: vi.fn(),
   getAuctionLotBidRecommendation: vi.fn(),
+  getAuctionLotMarketSignal: vi.fn(),
+  getAgentStatus: vi.fn(),
   push: vi.fn(),
 }))
 
@@ -30,6 +32,8 @@ vi.mock('@/api/client', () => ({
   createReminder: mocks.createReminder,
   deleteReminder: mocks.deleteReminder,
   getAuctionLotBidRecommendation: mocks.getAuctionLotBidRecommendation,
+  getAuctionLotMarketSignal: mocks.getAuctionLotMarketSignal,
+  getAgentStatus: mocks.getAgentStatus,
 }))
 
 vi.mock('vue-router', () => ({
@@ -56,6 +60,10 @@ describe('AuctionLotDetailModal', () => {
     mocks.deleteReminder.mockResolvedValue({ data: { message: 'Reminder deleted' } })
     mocks.getAuctionLotBidRecommendation.mockResolvedValue({
       data: { suggestedMaxBid: null, confidence: 'insufficient_data', sampleSize: 0, rationale: 'Not enough history yet.' },
+    })
+    mocks.getAgentStatus.mockResolvedValue({ data: { provider: 'anthropic', configured: true } })
+    mocks.getAuctionLotMarketSignal.mockResolvedValue({
+      data: { status: 'unavailable', rationale: 'Market data lookup is not available on this server.' },
     })
   })
 
@@ -204,6 +212,110 @@ describe('AuctionLotDetailModal', () => {
     await flushPromises()
 
     expect(mocks.deleteReminder).toHaveBeenCalledWith(22)
+  })
+
+  it('does not fetch the market signal automatically on open', async () => {
+    mount(AuctionLotDetailModal, {
+      props: { lot: buildAuctionLot({ status: 'bidding' }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+    await flushPromises()
+
+    expect(mocks.getAuctionLotMarketSignal).not.toHaveBeenCalled()
+  })
+
+  it('fetches and shows the market signal when the user requests it', async () => {
+    mocks.getAuctionLotMarketSignal.mockResolvedValue({
+      data: {
+        status: 'ok',
+        trendDirection: 'rising',
+        priceLow: 100,
+        priceHigh: 250,
+        currency: 'USD',
+        sampleSize: 6,
+        rationale: 'Recent sales trending upward.',
+      },
+    })
+
+    const wrapper = mount(AuctionLotDetailModal, {
+      props: { lot: buildAuctionLot({ status: 'bidding' }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+    await flushPromises()
+
+    await wrapper.findAll('button').find(button => button.text() === 'Check current market')!.trigger('click')
+    await flushPromises()
+
+    expect(mocks.getAuctionLotMarketSignal).toHaveBeenCalledWith(7)
+    expect(wrapper.text()).toContain('Market trend: rising')
+    expect(wrapper.text()).toContain('$100.00')
+    expect(wrapper.text()).toContain('$250.00')
+  })
+
+  it('shows a loading state while the market signal request is in flight', async () => {
+    let resolveFetch: (value: { data: unknown }) => void = () => {}
+    mocks.getAuctionLotMarketSignal.mockReturnValue(new Promise(resolve => { resolveFetch = resolve }))
+
+    const wrapper = mount(AuctionLotDetailModal, {
+      props: { lot: buildAuctionLot({ status: 'bidding' }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+    await flushPromises()
+
+    await wrapper.findAll('button').find(button => button.text() === 'Check current market')!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Checking current auction market')
+
+    resolveFetch({ data: { status: 'unavailable', rationale: 'No usable market data found for this coin.' } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('No usable market data found for this coin.')
+  })
+
+  it('shows the rationale without erroring when the market signal is unavailable', async () => {
+    mocks.getAuctionLotMarketSignal.mockResolvedValue({
+      data: { status: 'unavailable', rationale: 'AI provider is not configured — set one up in Admin Settings to see current market data for this lot.' },
+    })
+
+    const wrapper = mount(AuctionLotDetailModal, {
+      props: { lot: buildAuctionLot({ status: 'bidding' }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+    await flushPromises()
+
+    await wrapper.findAll('button').find(button => button.text() === 'Check current market')!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('AI provider is not configured')
+  })
+
+  it('shows a generic error message if the market signal request fails', async () => {
+    mocks.getAuctionLotMarketSignal.mockRejectedValue(new Error('network error'))
+
+    const wrapper = mount(AuctionLotDetailModal, {
+      props: { lot: buildAuctionLot({ status: 'bidding' }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+    await flushPromises()
+
+    await wrapper.findAll('button').find(button => button.text() === 'Check current market')!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain("Couldn't check the market right now.")
+    expect(wrapper.findAll('button').some(button => button.text() === 'Try again')).toBe(true)
+  })
+
+  it('shows a nudge to Admin Settings instead of the button when no AI provider is configured', async () => {
+    mocks.getAgentStatus.mockResolvedValue({ data: { provider: '', configured: false } })
+
+    const wrapper = mount(AuctionLotDetailModal, {
+      props: { lot: buildAuctionLot({ status: 'bidding' }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('AI provider not configured')
+    expect(wrapper.findAll('button').some(button => button.text() === 'Check current market')).toBe(false)
   })
 })
 

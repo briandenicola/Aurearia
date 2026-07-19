@@ -256,6 +256,35 @@
           <span v-else-if="bidRecommendation" class="text-text-muted">{{ bidRecommendation.rationale }}</span>
           <span v-else-if="bidRecommendationError" class="text-text-muted">Couldn't load a bid suggestion.</span>
         </div>
+        <div v-if="newStatus === 'bidding'" class="text-[0.78rem] text-text-secondary">
+          <span v-if="!providerConfigured" class="text-[#f59e0b]">
+            AI provider not configured. <a href="/admin" class="font-semibold text-gold underline" @click="$emit('close')">Go to Admin Settings</a> to check current market data for this lot.
+          </span>
+          <template v-else-if="marketSignalLoading">
+            <span class="text-text-muted">Checking current auction market…</span>
+          </template>
+          <template v-else-if="marketSignal">
+            <template v-if="marketSignal.status === 'ok'">
+              <span class="font-medium text-text-primary">Market trend: {{ marketSignal.trendDirection }}</span>
+              <span v-if="marketSignal.priceLow != null && marketSignal.priceHigh != null" class="text-text-muted">
+                ({{ formatCurrency(marketSignal.priceLow, marketSignal.currency || lot.currency) }}–{{ formatCurrency(marketSignal.priceHigh, marketSignal.currency || lot.currency) }},
+                based on {{ marketSignal.sampleSize }} recent result(s))
+              </span>
+              <span :title="marketSignal.rationale" class="ml-1 cursor-help text-text-muted underline decoration-dotted underline-offset-2">why?</span>
+            </template>
+            <span v-else class="text-text-muted">{{ marketSignal.rationale }}</span>
+          </template>
+          <template v-else>
+            <button
+              type="button"
+              class="text-gold underline decoration-dotted underline-offset-2"
+              @click="fetchMarketSignal"
+            >
+              {{ marketSignalError ? 'Try again' : 'Check current market' }}
+            </button>
+            <span v-if="marketSignalError" class="ml-1 text-text-muted">Couldn't check the market right now.</span>
+          </template>
+        </div>
         <div v-if="newStatus === 'won'" class="flex flex-wrap items-center gap-[0.6rem]">
           <label class="text-[0.82rem] text-text-secondary">Winning Bid</label>
           <input
@@ -305,9 +334,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { updateAuctionLotStatus, updateAuctionLot, convertAuctionLotToCoin, deleteAuctionLot, listCalendarEvents, linkAuctionLotEvent, createAlert, deleteAlert, createReminder, deleteReminder, getAuctionLotBidRecommendation } from '@/api/client'
+import { updateAuctionLotStatus, updateAuctionLot, convertAuctionLotToCoin, deleteAuctionLot, listCalendarEvents, linkAuctionLotEvent, createAlert, deleteAlert, createReminder, deleteReminder, getAuctionLotBidRecommendation, getAuctionLotMarketSignal, getAgentStatus } from '@/api/client'
 import { useProxiedImage } from '@/composables/useProxiedImage'
-import type { AuctionLot, AuctionLotStatus, BidReminder, BidRecommendation, PriceAlert, PriceAlertDirection } from '@/types'
+import type { AuctionLot, AuctionLotStatus, BidReminder, BidRecommendation, MarketSignal, PriceAlert, PriceAlertDirection } from '@/types'
 import { X, ExternalLink, ArrowRightCircle, Trash2, CalendarDays, Pencil, AlertTriangle } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
 import { auctionLotNeedsAttention, auctionLotStatusSourceLabel } from '@/utils/auctionLot'
@@ -334,6 +363,10 @@ const calendarEvents = ref<Array<{ id: number; title: string; auctionHouse: stri
 const selectedEventId = ref<number | string>(props.lot.eventId ?? '')
 const bidRecommendation = ref<BidRecommendation | null>(null)
 const bidRecommendationError = ref(false)
+const marketSignal = ref<MarketSignal | null>(null)
+const marketSignalLoading = ref(false)
+const marketSignalError = ref(false)
+const providerConfigured = ref(true)
 
 const lotImageSource = computed(() => props.lot.imageUrl ?? '')
 const { proxiedImageUrl } = useProxiedImage(lotImageSource)
@@ -540,8 +573,24 @@ async function fetchBidRecommendation() {
   }
 }
 
+async function fetchMarketSignal() {
+  marketSignalLoading.value = true
+  marketSignalError.value = false
+  try {
+    const res = await getAuctionLotMarketSignal(props.lot.id)
+    marketSignal.value = res.data
+  } catch {
+    marketSignalError.value = true
+  } finally {
+    marketSignalLoading.value = false
+  }
+}
+
 watch(newStatus, status => {
-  if (status === 'bidding') fetchBidRecommendation()
+  if (status === 'bidding') {
+    fetchBidRecommendation()
+    getAgentStatus().then(res => { providerConfigured.value = res.data.configured }).catch(() => { providerConfigured.value = true })
+  }
 }, { immediate: true })
 
 async function linkEvent() {

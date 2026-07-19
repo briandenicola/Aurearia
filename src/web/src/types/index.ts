@@ -1433,6 +1433,20 @@ export interface BidRecommendation {
   rationale: string
 }
 
+export type MarketSignalStatus = 'unavailable' | 'ok'
+export type MarketTrendDirection = 'rising' | 'stable' | 'declining' | 'unknown'
+
+export interface MarketSignal {
+  status: MarketSignalStatus
+  trendDirection?: MarketTrendDirection
+  priceLow?: number
+  priceHigh?: number
+  currency?: string
+  sampleSize?: number
+  rationale: string
+  sources?: string[]
+}
+
 export interface CalendarEventDetail {
   id: number
   title: string
