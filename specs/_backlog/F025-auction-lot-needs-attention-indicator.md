@@ -25,17 +25,14 @@ browsing.
 
 ## Acceptance criteria
 
-- [ ] A lot is flagged "needs attention" when its close time
+- [x] A lot is flagged "needs attention" when its close time
       (`auctionEndTime`, falling back to `saleDate`) is in the past AND its
-      status is still `watching` or `bidding`.
-- [ ] Flag is visible on `AuctionLotCard.vue` (so it's visible in list views,
-      not just when a lot happens to be opened) and in
-      `AuctionLotDetailModal.vue`.
-- [ ] `AuctionsPage.vue` can filter/sort by this flag, so a user can find every
-      lot needing attention in one place rather than scanning the whole list.
-- [ ] Computed client-side from data already returned by the API — no backend
-      change should be required for the base case (it's a pure function of
-      `auctionEndTime`/`saleDate`/`status` against "now").
+      status is still `watching` or `bidding`. Implemented as a pure function,
+      `auctionLotNeedsAttention()` in `src/web/src/utils/auctionLot.ts`.
+- [x] Flag is visible on `AuctionLotCard.vue` and `AuctionLotDetailModal.vue`.
+- [x] `AuctionsPage.vue` has a "Needs Attention" toggle chip (with a live count)
+      that filters the currently-loaded list down to flagged lots.
+- [x] Computed entirely client-side — no backend change, no migration.
 
 ## Constitution alignment
 
@@ -57,3 +54,10 @@ browsing.
 
 - 2026-07-19: created (status: backlog) — split out from open UI gaps noted at
   the end of the CNG rebuild work on issue #482.
+- 2026-07-19: implemented. Open questions (grace period; filter vs. banner UX)
+  resolved pragmatically for V1: no grace period (flags immediately once close
+  time passes — simpler, and a false-negative window is worse than a
+  false-positive one here), and a filter chip approach since it composes
+  with the existing status/source filters rather than adding a separate UI
+  surface. Left at `backlog` rather than self-advancing to
+  `triaged`/`promoted`, per this repo's Lead-driven workflow.

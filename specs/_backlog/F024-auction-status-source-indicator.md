@@ -24,18 +24,21 @@ lots never "just resolve themselves" the way CNG ones do.
 
 ## Acceptance criteria
 
-- [ ] `AuctionLot` records whether its current status was set by sync
+- [x] `AuctionLot` records whether its current status was set by sync
       (`"sync"`) or by an explicit user action (`"manual"`).
-- [ ] Repository `upsert()`'s auto-transitions (watching→bidding,
-      watching→passed, →won/lost) tag the write as `"sync"`.
-- [ ] `AuctionLotService.UpdateStatus` (the manual override) tags the write as
+- [x] Repository `upsert()`'s auto-transitions (watching→bidding,
+      watching→passed, →won/lost) tag the write as `"sync"`. Also fixed
+      `MarkPastAuctionsAsPassed` (a separate bulk-update path) to tag `"sync"`
+      too, for consistency — not user-visible today since the source label
+      only renders for won/lost, but keeps the data honest if `passed` is ever
+      surfaced (see open questions).
+- [x] `AuctionLotService.UpdateStatus` (the manual override) tags the write as
       `"manual"`.
-- [ ] `AuctionLotCard.vue` and `AuctionLotDetailModal.vue` show a small
-      indicator (e.g. an icon + tooltip) next to the status badge, but only for
-      `won`/`lost` — the source of `watching`/`bidding`/`passed` isn't
-      interesting to the user.
-- [ ] New field is additive (nullable/defaulted), no backfill required for
-      existing rows.
+- [x] `AuctionLotCard.vue` and `AuctionLotDetailModal.vue` show a small
+      indicator next to the status badge/row, only for `won`/`lost`. Copy: "Auto-detected" / "Manually set", with a tooltip.
+- [x] New field is additive (`gorm:"...;default:'manual'"`); verified the
+      migration applies cleanly to an existing populated SQLite DB with
+      correctly backfilled defaults on all pre-existing rows.
 
 ## Constitution alignment
 
@@ -58,3 +61,5 @@ lots never "just resolve themselves" the way CNG ones do.
 
 - 2026-07-19: created (status: backlog) — split out from open UI gaps noted at
   the end of the CNG rebuild work on issue #482.
+- 2026-07-19: implemented in full. Left at `backlog` rather than self-advancing
+  to `triaged`/`promoted`, per this repo's Lead-driven workflow.
