@@ -12,6 +12,7 @@ from app.models.requests import LLMConfig
 from app.models.responses import IntakeDraftResponse
 from app.safety import with_safety
 from app.teams.coin_analysis import _build_image_contents
+from app.teams.json_extraction import extract_json_payload
 
 logger = logging.getLogger(__name__)
 
@@ -72,17 +73,6 @@ COIN CARD HANDLING (when card is present):
   and confidence typically medium or high (card is expert-written)""")
 
 
-def _extract_json_payload(raw: str) -> str:
-    start = raw.find("```json")
-    if start != -1:
-        start += len("```json")
-        end = raw.find("```", start)
-        if end != -1:
-            return raw[start:end].strip()
-        return raw[start:].strip()
-    return raw.strip()
-
-
 async def generate_intake_draft(
     llm_config: LLMConfig,
     images: list[str],
@@ -125,7 +115,7 @@ async def generate_intake_draft(
     try:
         response = await ainvoke_with_retry(model, messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
-        payload = _extract_json_payload(content)
+        payload = extract_json_payload(content)
         parsed = json.loads(payload)
         return IntakeDraftResponse.model_validate(parsed)
     except (json.JSONDecodeError, ValidationError):
