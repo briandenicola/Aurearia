@@ -63,6 +63,7 @@
         <div v-if="lot.maxBid && lot.status !== 'won'" class="italic text-text-muted">Max: {{ formatCurrency(lot.maxBid, lot.currency) }}</div>
         <div v-if="lot.winningBid" class="font-semibold text-[#4ade80]">Won: {{ formatCurrency(lot.winningBid, lot.currency) }}</div>
         <div v-if="biddingIndicator" :class="biddingIndicator.cls" class="text-[0.78rem] font-semibold">{{ biddingIndicator.label }}</div>
+        <div v-if="statusSourceLabel" class="text-[0.78rem] text-text-muted" :title="statusSourceLabel.title">{{ statusSourceLabel.text }}</div>
       </div>
       <div v-if="priceAlerts.length || bidReminders.length" class="flex flex-wrap gap-[0.35rem]" aria-label="Auction alerts">
         <span v-if="priceAlerts.length" class="chip-sm">{{ priceAlerts.length }} price {{ priceAlerts.length === 1 ? 'alert' : 'alerts' }}</span>
@@ -88,7 +89,7 @@ import type { AuctionLot, BidReminder, PriceAlert } from '@/types'
 import { computed } from 'vue'
 import { Gavel, Check, AlertTriangle } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
-import { auctionLotNeedsAttention } from '@/utils/auctionLot'
+import { auctionLotNeedsAttention, auctionLotStatusSourceLabel } from '@/utils/auctionLot'
 import { useProxiedImage } from '@/composables/useProxiedImage'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
@@ -154,6 +155,7 @@ const biddingIndicator = computed(() => {
 })
 
 const needsAttention = computed(() => auctionLotNeedsAttention(props.lot))
+const statusSourceLabel = computed(() => auctionLotStatusSourceLabel(props.lot))
 
 
 </script>

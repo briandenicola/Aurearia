@@ -13,3 +13,23 @@ export function auctionLotNeedsAttention(lot: Pick<AuctionLot, 'status' | 'aucti
   if (!closeTime) return false
   return new Date(closeTime).getTime() < Date.now()
 }
+
+export interface AuctionLotStatusSourceLabel {
+  text: string
+  title: string
+}
+
+/**
+ * Label describing whether a lot's Won/Lost outcome was auto-detected by sync (currently
+ * CNG only) or set by an explicit manual override (the only path NumisBids lots have today
+ * — see specs/_backlog/F021/F022). Only meaningful for won/lost; returns null otherwise.
+ */
+export function auctionLotStatusSourceLabel(
+  lot: Pick<AuctionLot, 'status' | 'statusSource'>,
+): AuctionLotStatusSourceLabel | null {
+  if (lot.status !== 'won' && lot.status !== 'lost') return null
+  if (lot.statusSource === 'sync') {
+    return { text: 'Auto-detected', title: 'This outcome was detected automatically from the provider — no action needed.' }
+  }
+  return { text: 'Manually set', title: 'This outcome was set by a manual status override.' }
+}

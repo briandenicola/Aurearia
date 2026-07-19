@@ -17108,6 +17108,14 @@ const docTemplate = `{
                 "status": {
                     "$ref": "#/definitions/models.AuctionLotStatus"
                 },
+                "statusSource": {
+                    "description": "StatusSource records whether the current Status was set by watchlist sync\nauto-detecting a provider-reported outcome, or by an explicit manual override.\nOnly meaningful once Status is won/lost; see specs/_backlog/F024.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.AuctionLotStatusSource"
+                        }
+                    ]
+                },
                 "title": {
                     "type": "string"
                 },
@@ -17137,6 +17145,17 @@ const docTemplate = `{
                 "AuctionStatusWon",
                 "AuctionStatusLost",
                 "AuctionStatusPassed"
+            ]
+        },
+        "models.AuctionLotStatusSource": {
+            "type": "string",
+            "enum": [
+                "sync",
+                "manual"
+            ],
+            "x-enum-varnames": [
+                "AuctionLotStatusSourceSync",
+                "AuctionLotStatusSourceManual"
             ]
         },
         "models.AuctionSource": {

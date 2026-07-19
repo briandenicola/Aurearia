@@ -275,10 +275,13 @@ func (r *AuctionLotRepository) upsert(lot *models.AuctionLot, autoCreateEvent bo
 		switch {
 		case lot.Status == models.AuctionStatusPassed && existing.Status == models.AuctionStatusWatching:
 			updates["status"] = string(models.AuctionStatusPassed)
+			updates["status_source"] = string(models.AuctionLotStatusSourceSync)
 		case lot.Status == models.AuctionStatusBidding && existing.Status == models.AuctionStatusWatching:
 			updates["status"] = string(models.AuctionStatusBidding)
+			updates["status_source"] = string(models.AuctionLotStatusSourceSync)
 		case (lot.Status == models.AuctionStatusWon || lot.Status == models.AuctionStatusLost) && !isTerminal:
 			updates["status"] = string(lot.Status)
+			updates["status_source"] = string(models.AuctionLotStatusSourceSync)
 			if lot.Status == models.AuctionStatusWon && lot.WinningBid != nil {
 				updates["winning_bid"] = lot.WinningBid
 			}
@@ -421,7 +424,10 @@ func (r *AuctionLotRepository) MarkPastAuctionsAsPassed(userID uint, now time.Ti
 	r.db.Model(&models.AuctionLot{}).
 		Where("user_id = ? AND status = ? AND sale_date IS NOT NULL AND sale_date < ?",
 			userID, models.AuctionStatusWatching, now).
-		Update("status", string(models.AuctionStatusPassed))
+		Updates(map[string]interface{}{
+			"status":        string(models.AuctionStatusPassed),
+			"status_source": string(models.AuctionLotStatusSourceSync),
+		})
 }
 
 // ListByEventID returns all auction lots linked to a specific calendar event.

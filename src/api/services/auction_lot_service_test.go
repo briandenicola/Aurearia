@@ -130,3 +130,33 @@ func TestAuctionLotService_RecommendExcludesTargetLotFromItsOwnHistory(t *testin
 		t.Fatalf("Confidence = %q, want insufficient_data (the lot must not count itself)", rec.Confidence)
 	}
 }
+
+func TestAuctionLotService_UpdateStatusTagsManualOverrideSource(t *testing.T) {
+	db := setupAuctionLotServiceDB(t)
+	auctionRepo := repository.NewAuctionLotRepository(db)
+	svc := NewAuctionLotService(auctionRepo, repository.NewCoinRepository(db))
+
+	lot := &models.AuctionLot{
+		Source: models.AuctionSourceNumisBids, SourceURL: "https://www.numisbids.com/sale/1/lot/1",
+		Title: "Manual override target", Status: models.AuctionStatusWatching,
+		StatusSource: models.AuctionLotStatusSourceSync, UserID: 1,
+	}
+	if err := auctionRepo.Create(lot); err != nil {
+		t.Fatalf("failed to create lot: %v", err)
+	}
+
+	if err := svc.UpdateStatus(lot.ID, 1, models.AuctionStatusWon); err != nil {
+		t.Fatalf("UpdateStatus returned error: %v", err)
+	}
+
+	found, err := auctionRepo.GetByID(lot.ID, 1)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if found.Status != models.AuctionStatusWon {
+		t.Fatalf("Status = %q, want won", found.Status)
+	}
+	if found.StatusSource != models.AuctionLotStatusSourceManual {
+		t.Fatalf("StatusSource = %q, want manual (an explicit override must not read as sync-detected)", found.StatusSource)
+	}
+}

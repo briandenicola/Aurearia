@@ -69,4 +69,29 @@ describe('AuctionLotCard', () => {
     })
     expect(wrapper.text()).not.toContain('Needs attention')
   })
+
+  it('shows an auto-detected label for a sync-resolved won lot', () => {
+    const wrapper = mount(AuctionLotCard, {
+      props: { lot: buildAuctionLot({ status: 'won', statusSource: 'sync' }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+    expect(wrapper.text()).toContain('Auto-detected')
+  })
+
+  it('shows a manually-set label for a manually-resolved lost lot', () => {
+    const wrapper = mount(AuctionLotCard, {
+      props: { lot: buildAuctionLot({ status: 'lost', statusSource: 'manual' }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+    expect(wrapper.text()).toContain('Manually set')
+  })
+
+  it('does not show a status-source label for non-terminal statuses', () => {
+    const wrapper = mount(AuctionLotCard, {
+      props: { lot: buildAuctionLot({ status: 'bidding', statusSource: 'sync' }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+    expect(wrapper.text()).not.toContain('Auto-detected')
+    expect(wrapper.text()).not.toContain('Manually set')
+  })
 })

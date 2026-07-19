@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { auctionLotNeedsAttention } from '../auctionLot'
+import { auctionLotNeedsAttention, auctionLotStatusSourceLabel } from '../auctionLot'
 
 describe('auctionLotNeedsAttention', () => {
   it('flags a watching lot whose auctionEndTime has already passed', () => {
@@ -36,5 +36,25 @@ describe('auctionLotNeedsAttention', () => {
         status, auctionEndTime: '2020-01-01T00:00:00Z', saleDate: null,
       })).toBe(false)
     }
+  })
+})
+
+describe('auctionLotStatusSourceLabel', () => {
+  it('returns null for non-terminal statuses', () => {
+    for (const status of ['watching', 'bidding', 'passed'] as const) {
+      expect(auctionLotStatusSourceLabel({ status, statusSource: 'sync' })).toBeNull()
+    }
+  })
+
+  it('labels a won lot with statusSource sync as auto-detected', () => {
+    expect(auctionLotStatusSourceLabel({ status: 'won', statusSource: 'sync' })?.text).toBe('Auto-detected')
+  })
+
+  it('labels a lost lot with statusSource manual as manually set', () => {
+    expect(auctionLotStatusSourceLabel({ status: 'lost', statusSource: 'manual' })?.text).toBe('Manually set')
+  })
+
+  it('defaults to manually set when statusSource is missing (legacy rows)', () => {
+    expect(auctionLotStatusSourceLabel({ status: 'won', statusSource: undefined })?.text).toBe('Manually set')
   })
 })

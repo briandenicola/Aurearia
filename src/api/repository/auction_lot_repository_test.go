@@ -574,6 +574,9 @@ func TestAuctionLotRepository_UpsertAutoTransitionsBiddingToWonWithWinningBid(t 
 	if found.WinningBid == nil || *found.WinningBid != 1500 {
 		t.Fatalf("WinningBid = %v, want 1500", found.WinningBid)
 	}
+	if found.StatusSource != models.AuctionLotStatusSourceSync {
+		t.Fatalf("StatusSource = %q, want sync (auto-detected by watchlist sync)", found.StatusSource)
+	}
 }
 
 func TestAuctionLotRepository_UpsertAutoTransitionsWatchingDirectlyToLost(t *testing.T) {

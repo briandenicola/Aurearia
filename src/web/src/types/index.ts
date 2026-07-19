@@ -1360,6 +1360,7 @@ export interface LimitedCoin {
 
 export type AuctionLotStatus = 'watching' | 'bidding' | 'won' | 'lost' | 'passed'
 export type AuctionSource = 'numisbids' | 'cng'
+export type AuctionLotStatusSource = 'sync' | 'manual'
 
 export interface AuctionLot {
   id: number
@@ -1385,6 +1386,7 @@ export interface AuctionLot {
   winningBid: number | null
   currency: string
   status: AuctionLotStatus
+  statusSource?: AuctionLotStatusSource
   imageUrl: string
   coinId: number | null
   coin?: Coin

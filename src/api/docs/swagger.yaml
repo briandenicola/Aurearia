@@ -1771,6 +1771,13 @@ definitions:
         type: string
       status:
         $ref: '#/definitions/models.AuctionLotStatus'
+      statusSource:
+        allOf:
+        - $ref: '#/definitions/models.AuctionLotStatusSource'
+        description: |-
+          StatusSource records whether the current Status was set by watchlist sync
+          auto-detecting a provider-reported outcome, or by an explicit manual override.
+          Only meaningful once Status is won/lost; see specs/_backlog/F024.
       title:
         type: string
       updatedAt:
@@ -1794,6 +1801,14 @@ definitions:
     - AuctionStatusWon
     - AuctionStatusLost
     - AuctionStatusPassed
+  models.AuctionLotStatusSource:
+    enum:
+    - sync
+    - manual
+    type: string
+    x-enum-varnames:
+    - AuctionLotStatusSourceSync
+    - AuctionLotStatusSourceManual
   models.AuctionSource:
     enum:
     - numisbids

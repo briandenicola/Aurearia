@@ -75,6 +75,10 @@
             {{ lot.status }}
           </span>
         </div>
+        <div v-if="statusSourceLabel" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.82rem] text-text-muted" :title="statusSourceLabel.title">
+          <span class="text-[0.82rem] text-text-secondary">Confirmed by</span>
+          <span>{{ statusSourceLabel.text }}</span>
+        </div>
         <div v-if="needsAttention" class="mt-2 flex items-center gap-1.5 rounded-sm bg-[rgba(245,158,11,0.12)] px-2.5 py-1.5 text-[0.82rem] font-semibold text-[#f59e0b]">
           <AlertTriangle :size="14" /> This lot's auction has closed but its status hasn't been confirmed yet
         </div>
@@ -306,7 +310,7 @@ import { useProxiedImage } from '@/composables/useProxiedImage'
 import type { AuctionLot, AuctionLotStatus, BidReminder, BidRecommendation, PriceAlert, PriceAlertDirection } from '@/types'
 import { X, ExternalLink, ArrowRightCircle, Trash2, CalendarDays, Pencil, AlertTriangle } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
-import { auctionLotNeedsAttention } from '@/utils/auctionLot'
+import { auctionLotNeedsAttention, auctionLotStatusSourceLabel } from '@/utils/auctionLot'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 const props = defineProps<{
@@ -351,6 +355,7 @@ const biddingIndicator = computed(() => {
   return { label: 'Outbid', cls: 'text-[#f87171]' }
 })
 const needsAttention = computed(() => auctionLotNeedsAttention(props.lot))
+const statusSourceLabel = computed(() => auctionLotStatusSourceLabel(props.lot))
 const alertBusy = ref(false)
 const reminderBusy = ref(false)
 const alertMessage = ref('')

@@ -48,7 +48,10 @@ func (s *AuctionLotService) UpdateStatus(id, userID uint, newStatus models.Aucti
 		return ErrInvalidStatus
 	}
 
-	return s.repo.UpdateFields(lot, map[string]interface{}{"status": newStatus})
+	return s.repo.UpdateFields(lot, map[string]interface{}{
+		"status":        newStatus,
+		"status_source": string(models.AuctionLotStatusSourceManual),
+	})
 }
 
 // ConvertToCoin creates an owned Coin from a won auction lot.
