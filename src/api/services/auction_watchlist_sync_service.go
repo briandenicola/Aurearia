@@ -150,8 +150,15 @@ func (s *AuctionWatchlistSyncService) syncNumisBids(user *models.User) (int, err
 			AuctionHouse: wl.AuctionHouse,
 			SaleName:     wl.SaleName,
 			SaleDate:     saleDate,
-			Status:       status,
-			UserID:       user.ID,
+			// AuctionEndTime must be set even though NumisBids only gives us a coarse
+			// sale-wide date (not a precise per-lot close time, unlike CNG's
+			// extended_end_time — see F021/F022): bid reminders (bidReminderDue in
+			// auction_alert_service.go) hard-require AuctionEndTime and silently never
+			// fire without it. A coarse deadline is strictly better than a reminder that
+			// can never fire at all.
+			AuctionEndTime: saleDate,
+			Status:         status,
+			UserID:         user.ID,
 		}
 		if _, err := s.auctionRepo.UpsertWithCalendarEvent(&lot); err != nil {
 			return synced, err

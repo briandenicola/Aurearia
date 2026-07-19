@@ -100,8 +100,42 @@ Do not assume NumisBids has the same three problems — it's a different site wi
 a different (HTML/regex, not JSON) scraping approach — but do assume nothing
 about it is verified until re-checked the same way.
 
+**Update — static review findings (no live access needed, confirmed by reading
+`syncNumisBids` directly):**
+
+1. `WatchlistLot.MaxBid` is **never populated anywhere** in `numisbids_service.go`
+   — not in `ParseWatchlist`, not in `ScrapeLotPage`/`LotPageDetails` (which has
+   no `MaxBid` field at all). This means NumisBids lots can never auto-promote to
+   `bidding` the way CNG lots now do (CNG's equivalent gate is
+   `if wl.MaxBid != nil`), and — by extension — could never feed a won/lost
+   auto-detection even if one were built, since that logic gates on the same
+   "did the user actually bid" signal. NumisBids status management is, and has
+   always been, 100% manual by construction, not by choice.
+2. `AuctionEndTime` was **never assigned** in `syncNumisBids` — only the coarser
+   `SaleDate` was. Since `bidReminderDue()` in `auction_alert_service.go`
+   hard-requires `AuctionLot.AuctionEndTime`, bid reminders could **never fire
+   for any NumisBids lot, unconditionally** — not a live-data question, a pure
+   wiring bug. **This has been fixed** (commit on
+   `claude/auction-functionality-review-17b5cj`): `AuctionEndTime` is now set
+   from the same parsed `saleDate`. This is a best-effort deadline, not a
+   verified-precise one — `ParseSaleDate` only extracts a bare calendar date
+   (typically midnight) from a sale-wide range string like "20-21 Apr 2026",
+   with no per-lot time component the way CNG's `extended_end_time` has. Whether
+   NumisBids exposes a more precise per-lot time at all is still an open
+   question for this card's live-verification pass.
+
+These two are now folded into F021/F022 scope explicitly: (1) remains open and
+needs live data to know if/how NumisBids exposes an equivalent concept before
+any auto-bidding-detection or auto won/lost work can start; (2)'s plumbing gap is
+fixed, but its precision is still unverified.
+
 ## History
 
 - 2026-07-19: created (status: backlog) — split out from the CNG-focused
   first-principles audit of issue #482 so CNG fixes aren't blocked on NumisBids
   account access.
+- 2026-07-19: added two findings from a static code review (no live access
+  needed): `MaxBid` is never populated for NumisBids (auto-bidding-detection
+  gap), and `AuctionEndTime` was never wired from the parsed sale date (bid
+  reminders could never fire) — the second one fixed and covered by a
+  regression test; the first remains blocked on live verification.

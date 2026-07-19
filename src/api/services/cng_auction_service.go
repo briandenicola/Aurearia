@@ -22,11 +22,11 @@ const (
 )
 
 var (
-	cngBase         = "https://auctions.cngcoins.com"
-	cngLoginURL     = cngBase + "/login"
-	cngWatchlistURL = cngBase + "/watched-lots"
-	cngRefreshMeURL = cngBase + "/ajax/refresh-me"
-	cngLotPathRe    = regexp.MustCompile(`^/lots/view/([^/]+)(?:/|$)`)
+	cngBase          = "https://auctions.cngcoins.com"
+	cngLoginURL      = cngBase + "/login"
+	cngWatchlistURL  = cngBase + "/watched-lots"
+	cngRefreshMeURL  = cngBase + "/ajax/refresh-me"
+	cngLotPathRe     = regexp.MustCompile(`^/lots/view/([^/]+)(?:/|$)`)
 	cngLotSafePathRe = regexp.MustCompile(`^/lots/view/[A-Za-z0-9._~-]+(?:/[A-Za-z0-9._~%-]+)?/?$`)
 )
 

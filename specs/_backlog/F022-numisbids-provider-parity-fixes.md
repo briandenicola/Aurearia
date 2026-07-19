@@ -34,9 +34,15 @@ wrong — it should not start until F021 has real fixture data to work from.
 - [ ] `CurrentBid` reflects the real live/final bid; `MaxBid` reflects the user's
       real bid ceiling if NumisBids exposes one (confirm in F021 first — it may
       not have an equivalent concept to CNG's `absentee_bid`).
-- [ ] Sale/lot end-time parsing is confirmed correct for multi-lot sales (confirm
-      in F021 whether NumisBids has CNG's per-lot vs. sale-wide end-time
-      distinction at all).
+- [x] `AuctionEndTime` is populated at all for NumisBids lots — fixed without
+      needing live data (was a pure wiring gap: `syncNumisBids` parsed a sale
+      date and never assigned it to the field `bidReminderDue()` requires, so
+      bid reminders could never fire for any NumisBids lot). See History.
+- [ ] Sale/lot end-time *precision* is confirmed correct for multi-lot sales
+      (confirm in F021 whether NumisBids has CNG's per-lot vs. sale-wide
+      end-time distinction at all — the current fix uses whatever coarse date
+      `ParseSaleDate` extracts, which is a bare calendar date with no per-lot
+      time component).
 - [ ] If NumisBids exposes any closed-lot outcome signal (winner identity, final
       price, lifecycle status), wire it into `syncNumisBids` for the same
       auto won/lost detection CNG now has, using
@@ -82,3 +88,11 @@ a closed lot's winning bidder ID against the logged-in user's own customer ID.
 
 - 2026-07-19: created (status: backlog) — split out as the fix-work counterpart
   to F021 so the two don't get conflated into one unbounded card.
+- 2026-07-19: fixed the `AuctionEndTime` wiring gap (see acceptance criteria) —
+  this was safe to do without live data since it was a plumbing omission, not a
+  markup-verification question. `numisbidsBase` was also changed from a `const`
+  to a `var` (mirroring `numisbidsLoginURL`/`numisbidsWatchlistURL`) purely to
+  make this testable against a local server. Covered by
+  `TestAuctionWatchlistSyncService_SyncNumisBidsSetsAuctionEndTime`. Everything
+  else on this card (the `MaxBid`/auto-bidding-detection gap, end-time
+  precision, and any won/lost signal) remains blocked on F021.

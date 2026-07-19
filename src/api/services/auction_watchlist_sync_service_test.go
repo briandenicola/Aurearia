@@ -150,3 +150,69 @@ func TestAuctionWatchlistSyncService_SyncCNGAutoDetectsWonLostAndPassed(t *testi
 	assertStatus("4-LOST", models.AuctionStatusLost, nil)
 	assertStatus("4-WATCHEDONLY", models.AuctionStatusPassed, nil)
 }
+
+// TestAuctionWatchlistSyncService_SyncNumisBidsSetsAuctionEndTime guards against a
+// regression of a bug found during the auction provider audit for issue #482:
+// syncNumisBids parsed a sale date but never assigned it to AuctionLot.AuctionEndTime,
+// which auction_alert_service.go's bidReminderDue() hard-requires — so bid reminders
+// could never fire for any NumisBids lot, unconditionally. NumisBids only exposes a
+// coarse sale-wide date (not a precise per-lot close time the way CNG's
+// extended_end_time does), so this is a best-effort deadline, not a verified-precise
+// one — see specs/_backlog/F021 for the still-open live-verification work.
+func TestAuctionWatchlistSyncService_SyncNumisBidsSetsAuctionEndTime(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/registration/login.php":
+			http.SetCookie(w, &http.Cookie{Name: "PHPSESSID", Value: "test"})
+			w.Write([]byte(`{"status":"success"}`))
+		case "/watchlist":
+			w.Write([]byte(`<div class="heading"><b>My Watch List</b></div><a href="/sale/10749/lot/10003">Lot 10003</a>`))
+		case "/sale/10749/lot/10003":
+			w.Write([]byte(`<span class="name">Test House</span><br><b>Test Sale</b>&nbsp;&nbsp;20-21 Apr 2026<div class="left">Lot 10003<br></div>`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	originalBase := numisbidsBase
+	originalLoginURL := numisbidsLoginURL
+	originalWatchlistURL := numisbidsWatchlistURL
+	numisbidsBase = server.URL
+	numisbidsLoginURL = server.URL + "/registration/login.php"
+	numisbidsWatchlistURL = server.URL + "/watchlist"
+	defer func() {
+		numisbidsBase = originalBase
+		numisbidsLoginURL = originalLoginURL
+		numisbidsWatchlistURL = originalWatchlistURL
+	}()
+
+	db := setupAuctionWatchlistSyncDB(t)
+	auctionRepo := repository.NewAuctionLotRepository(db)
+	userRepo := repository.NewUserRepository(db)
+	nbSvc := NewNumisBidsService(nil)
+	syncSvc := NewAuctionWatchlistSyncService(auctionRepo, userRepo, nbSvc, nil, nil, nil)
+
+	user := &models.User{Username: "tester", Email: "tester@example.com", NumisBidsUsername: "user@example.com", NumisBidsPassword: "secret"}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	if _, err := syncSvc.SyncUser(user); err != nil {
+		t.Fatalf("SyncUser returned error: %v", err)
+	}
+
+	var lot models.AuctionLot
+	if err := db.Where("source = ?", models.AuctionSourceNumisBids).First(&lot).Error; err != nil {
+		t.Fatalf("lot not found: %v", err)
+	}
+	if lot.SaleDate == nil {
+		t.Fatal("SaleDate was not set")
+	}
+	if lot.AuctionEndTime == nil {
+		t.Fatal("AuctionEndTime was not set — bid reminders can never fire for this lot")
+	}
+	if !lot.AuctionEndTime.Equal(*lot.SaleDate) {
+		t.Fatalf("AuctionEndTime = %v, want it to match SaleDate %v", lot.AuctionEndTime, lot.SaleDate)
+	}
+}

@@ -16,14 +16,15 @@ import (
 
 var ErrNumisBidsAuthenticationRequired = errors.New("numisbids authentication required")
 
-const (
-	numisbidsBase      = "https://www.numisbids.com"
-	numisbidsUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-		"AppleWebKit/537.36 (KHTML, like Gecko) " +
-		"Chrome/131.0.0.0 Safari/537.36"
-)
+const numisbidsUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+	"AppleWebKit/537.36 (KHTML, like Gecko) " +
+	"Chrome/131.0.0.0 Safari/537.36"
 
+// numisbidsBase, like numisbidsLoginURL/numisbidsWatchlistURL below, is a var rather than
+// a const so tests can point lot-link resolution at a local test server instead of the
+// real site.
 var (
+	numisbidsBase         = "https://www.numisbids.com"
 	numisbidsLoginURL     = numisbidsBase + "/registration/login.php"
 	numisbidsWatchlistURL = numisbidsBase + "/watchlist"
 )
