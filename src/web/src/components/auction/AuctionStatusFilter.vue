@@ -1,5 +1,5 @@
 <template>
-  <div class="relative flex justify-end md:ml-auto md:shrink-0" @keydown.esc="menuOpen = false">
+  <div class="relative flex shrink-0 justify-end" @keydown.esc="menuOpen = false">
     <button
       type="button"
       class="btn btn-sm btn-ghost justify-center px-3"

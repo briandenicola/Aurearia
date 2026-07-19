@@ -35,7 +35,7 @@
         {{ syncMessage }}
       </div>
 
-      <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div class="mb-4 flex flex-wrap items-center gap-3">
         <div class="flex min-w-0 flex-1 flex-wrap gap-[0.35rem]" aria-label="Auction source filter">
           <button
             v-for="source in sourceOptions"
