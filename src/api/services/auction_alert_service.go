@@ -129,26 +129,23 @@ type AuctionAlertEvaluationResult struct {
 }
 
 type AuctionAlertEvaluator struct {
-	alertRepo    *repository.PriceAlertRepository
-	reminderRepo *repository.BidReminderRepository
-	userRepo     *repository.UserRepository
-	pushoverSvc  *PushoverService
-	logger       *Logger
+	alertRepo       *repository.PriceAlertRepository
+	reminderRepo    *repository.BidReminderRepository
+	notificationSvc *NotificationService
+	logger          *Logger
 }
 
 func NewAuctionAlertEvaluator(
 	alertRepo *repository.PriceAlertRepository,
 	reminderRepo *repository.BidReminderRepository,
-	userRepo *repository.UserRepository,
-	pushoverSvc *PushoverService,
+	notificationSvc *NotificationService,
 	logger *Logger,
 ) *AuctionAlertEvaluator {
 	return &AuctionAlertEvaluator{
-		alertRepo:    alertRepo,
-		reminderRepo: reminderRepo,
-		userRepo:     userRepo,
-		pushoverSvc:  pushoverSvc,
-		logger:       logger,
+		alertRepo:       alertRepo,
+		reminderRepo:    reminderRepo,
+		notificationSvc: notificationSvc,
+		logger:          logger,
 	}
 }
 
@@ -223,12 +220,11 @@ func bidReminderDue(reminder models.BidReminder, now time.Time) bool {
 	return (now.Equal(start) || now.After(start)) && now.Before(*reminder.AuctionLot.AuctionEndTime)
 }
 
+// notifyPriceAlert claims the alert (so it fires once) and notifies the user. The in-app
+// notification (via notificationSvc) always fires once claimed; Pushover delivery inside it
+// is best-effort and its failure does not un-claim the alert — unlike the old Pushover-only
+// design, a delivery hiccup on one channel should not suppress the other (specs/_backlog/F027).
 func (e *AuctionAlertEvaluator) notifyPriceAlert(alert models.PriceAlert, now time.Time) (bool, error) {
-	user, err := e.notificationUser(alert.UserID)
-	if err != nil {
-		e.logger.Error("scheduler", "Cannot send price alert %d to user %d: %s", alert.ID, alert.UserID, err)
-		return false, fmt.Errorf("price alert %d: %w", alert.ID, err)
-	}
 	claimed, err := e.alertRepo.MarkTriggeredIfPending(alert.ID, now)
 	if err != nil {
 		e.logger.Error("scheduler", "Failed to mark price alert %d triggered: %s", alert.ID, err)
@@ -237,31 +233,15 @@ func (e *AuctionAlertEvaluator) notifyPriceAlert(alert models.PriceAlert, now ti
 	if !claimed {
 		return false, nil
 	}
-
-	title := "Auction Price Alert"
-	message := fmt.Sprintf("%s crossed your %.2f %s target. Current bid: %s.",
-		auctionLotLabel(alert.AuctionLot),
-		alert.TargetPrice,
-		auctionCurrency(alert.AuctionLot.Currency),
-		formatAuctionBid(alert.AuctionLot.CurrentBid, alert.AuctionLot.Currency),
-	)
-	if err := e.pushoverSvc.SendNotification(user.PushoverUserKey, title, message, auctionLotURL(alert.AuctionLot)); err != nil {
-		e.logger.Error("scheduler", "Failed to send price alert %d to user %d: %s", alert.ID, alert.UserID, err)
-		if resetErr := e.alertRepo.ResetTriggered(alert.ID); resetErr != nil {
-			e.logger.Error("scheduler", "Failed to reset price alert %d after notification failure: %s", alert.ID, resetErr)
-			return false, fmt.Errorf("price alert %d send failed: %v; reset failed: %w", alert.ID, err, resetErr)
-		}
-		return false, fmt.Errorf("price alert %d send failed: %w", alert.ID, err)
+	if e.notificationSvc != nil {
+		e.notificationSvc.NotifyAuctionPriceAlert(alert.UserID, alert.AuctionLot, alert.TargetPrice)
 	}
 	return true, nil
 }
 
+// notifyBidReminder claims the reminder and notifies the user. See notifyPriceAlert for why
+// Pushover delivery failure no longer un-claims the reminder.
 func (e *AuctionAlertEvaluator) notifyBidReminder(reminder models.BidReminder, now time.Time) (bool, error) {
-	user, err := e.notificationUser(reminder.UserID)
-	if err != nil {
-		e.logger.Error("scheduler", "Cannot send bid reminder %d to user %d: %s", reminder.ID, reminder.UserID, err)
-		return false, fmt.Errorf("bid reminder %d: %w", reminder.ID, err)
-	}
 	claimed, err := e.reminderRepo.MarkNotifiedIfPending(reminder.ID, now)
 	if err != nil {
 		e.logger.Error("scheduler", "Failed to mark bid reminder %d notified: %s", reminder.ID, err)
@@ -270,35 +250,10 @@ func (e *AuctionAlertEvaluator) notifyBidReminder(reminder models.BidReminder, n
 	if !claimed {
 		return false, nil
 	}
-
-	title := "Auction Bid Reminder"
-	message := fmt.Sprintf("%s ends soon. Reminder window: %d minutes before close.",
-		auctionLotLabel(reminder.AuctionLot),
-		reminder.MinutesBefore,
-	)
-	if err := e.pushoverSvc.SendNotification(user.PushoverUserKey, title, message, auctionLotURL(reminder.AuctionLot)); err != nil {
-		e.logger.Error("scheduler", "Failed to send bid reminder %d to user %d: %s", reminder.ID, reminder.UserID, err)
-		if resetErr := e.reminderRepo.ResetNotified(reminder.ID); resetErr != nil {
-			e.logger.Error("scheduler", "Failed to reset bid reminder %d after notification failure: %s", reminder.ID, resetErr)
-			return false, fmt.Errorf("bid reminder %d send failed: %v; reset failed: %w", reminder.ID, err, resetErr)
-		}
-		return false, fmt.Errorf("bid reminder %d send failed: %w", reminder.ID, err)
+	if e.notificationSvc != nil {
+		e.notificationSvc.NotifyAuctionBidReminder(reminder.UserID, reminder.AuctionLot, reminder.MinutesBefore)
 	}
 	return true, nil
-}
-
-func (e *AuctionAlertEvaluator) notificationUser(userID uint) (*models.User, error) {
-	if e.userRepo == nil || e.pushoverSvc == nil {
-		return nil, ErrPushoverNotConfigured
-	}
-	user, err := e.userRepo.FindByID(userID)
-	if err != nil {
-		return nil, err
-	}
-	if user == nil || !user.PushoverEnabled || user.PushoverUserKey == "" {
-		return nil, ErrPushoverNotConfigured
-	}
-	return user, nil
 }
 
 func auctionLotLabel(lot models.AuctionLot) string {

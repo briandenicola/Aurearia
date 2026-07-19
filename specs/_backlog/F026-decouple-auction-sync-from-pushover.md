@@ -32,14 +32,14 @@ configured, assert both get synced).
 
 ## Acceptance criteria
 
-- [ ] Background watchlist sync runs for any user with NumisBids and/or CNG
+- [x] Background watchlist sync runs for any user with NumisBids and/or CNG
       credentials configured, regardless of Pushover configuration.
-- [ ] Pushover configuration continues to gate only whether a *notification* is
+- [x] Pushover configuration continues to gate only whether a *notification* is
       sent (price alerts, bid reminders, ending-soon, digest) — not whether
       the underlying sync happens.
-- [ ] Existing behavior for users who do have Pushover configured is
+- [x] Existing behavior for users who do have Pushover configured is
       unchanged.
-- [ ] Regression test asserts a non-Pushover user's lots still get resynced by
+- [x] Regression test asserts a non-Pushover user's lots still get resynced by
       the scheduled path.
 
 ## Constitution alignment
@@ -55,13 +55,31 @@ configured, assert both get synced).
 
 ## Open questions
 
-- [ ] Should the query be renamed away from `ListAuctionWatchDigestEligible`
+- [x] Should the query be renamed away from `ListAuctionWatchDigestEligible`
       once it's no longer specifically about digest/Pushover eligibility (e.g.
       `ListUsersWithAuctionCredentials`)? Renaming touches call sites in both
-      schedulers.
+      schedulers. — Yes, renamed to `ListUsersWithAuctionCredentials`.
+
+## Notes
+
+Implemented by dropping the `pushover_enabled`/`pushover_user_key` WHERE
+clause from the repository query (renamed
+`ListAuctionWatchDigestEligible` → `ListUsersWithAuctionCredentials`) so it
+selects any user with NumisBids and/or CNG credentials configured. Both
+`auction_alert_scheduler.go` and `auction_watch_bid_digest_scheduler.go` call
+sites were updated to the sync service's renamed
+`SyncAllConfiguredUsers()` (was `SyncDigestEligibleUsers()`), which makes the
+new, broader semantics explicit at the call site. Pushover configuration is
+untouched as a gate on notification delivery — see F027 for the
+still-outstanding "no Pushover configured means no notification at all"
+gap, now fixed there as well.
 
 ## History
 
 - 2026-07-19: created (status: backlog) — one of two Pushover-coupling issues
   found during the issue #482 audit; split from F027 (in-app notifications)
   since they're independently fixable and independently valuable.
+- 2026-07-19: implemented and unit-tested (repository, both scheduler call
+  sites); all acceptance criteria met. Status left at `backlog` pending Lead
+  triage per `_backlog/README.md` — implementation does not self-advance
+  status.

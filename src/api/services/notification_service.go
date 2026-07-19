@@ -22,6 +22,12 @@ type NotificationService struct {
 
 const NotificationTypeFollowRequest = "follow_request"
 
+const (
+	NotificationTypeAuctionPriceAlert  = "auction_price_alert"
+	NotificationTypeAuctionBidReminder = "auction_bid_reminder"
+	NotificationTypeAuctionEndingSoon  = "auction_ending_soon"
+)
+
 // NewNotificationService creates a new NotificationService.
 func NewNotificationService(
 	notifRepo *repository.NotificationRepository,
@@ -141,6 +147,76 @@ func (s *NotificationService) NotifyFollowRequest(followerID, targetID uint) {
 	}
 
 	go s.sendPushover(targetID, title, message, "/followers")
+}
+
+// NotifyAuctionPriceAlert creates an in-app notification when a tracked lot's price alert
+// crosses its target, and best-effort attempts a Pushover push if the user has one
+// configured. Pushover delivery failing (or not being configured) never prevents the in-app
+// notification — this fixes a gap where users without Pushover configured got no
+// notification for auction events at all (specs/_backlog/F027).
+func (s *NotificationService) NotifyAuctionPriceAlert(userID uint, lot models.AuctionLot, targetPrice float64) {
+	title := "Auction Price Alert"
+	message := fmt.Sprintf("%s crossed your %.2f %s target. Current bid: %s.",
+		auctionLotLabel(lot), targetPrice, auctionCurrency(lot.Currency), formatAuctionBid(lot.CurrentBid, lot.Currency))
+	refURL := auctionLotURL(lot)
+
+	n := &models.Notification{
+		UserID: userID, Type: NotificationTypeAuctionPriceAlert, Title: title, Message: message,
+		ReferenceID: lot.ID, ReferenceURL: refURL,
+	}
+	if err := s.notifRepo.Create(n); err != nil {
+		s.logger.Error("notifications", "Failed to create price alert notification for user %d, lot %d: %v", userID, lot.ID, err)
+	}
+	go s.sendPushover(userID, title, message, refURL)
+}
+
+// NotifyAuctionBidReminder creates an in-app notification for a bid reminder that has come
+// due, and best-effort attempts a Pushover push. See NotifyAuctionPriceAlert for why Pushover
+// is best-effort here.
+func (s *NotificationService) NotifyAuctionBidReminder(userID uint, lot models.AuctionLot, minutesBefore int) {
+	title := "Auction Bid Reminder"
+	message := fmt.Sprintf("%s ends soon. Reminder window: %d minutes before close.", auctionLotLabel(lot), minutesBefore)
+	refURL := auctionLotURL(lot)
+
+	n := &models.Notification{
+		UserID: userID, Type: NotificationTypeAuctionBidReminder, Title: title, Message: message,
+		ReferenceID: lot.ID, ReferenceURL: refURL,
+	}
+	if err := s.notifRepo.Create(n); err != nil {
+		s.logger.Error("notifications", "Failed to create bid reminder notification for user %d, lot %d: %v", userID, lot.ID, err)
+	}
+	go s.sendPushover(userID, title, message, refURL)
+}
+
+// NotifyAuctionEndingSoon creates a single in-app notification consolidating every lot a user
+// is bidding on that closes within the ending-soon window. Pushover delivery for this event
+// is handled separately by AuctionEndingScheduler (which manages its own per-day dedup state);
+// this method only handles the in-app side.
+func (s *NotificationService) NotifyAuctionEndingSoon(userID uint, lots []models.AuctionLot) {
+	if len(lots) == 0 {
+		return
+	}
+	message := fmt.Sprintf("%d auction(s) you are bidding on end within 24 hours:\n\n", len(lots))
+	for _, lot := range lots {
+		auctionHouse := lot.AuctionHouse
+		if auctionHouse == "" {
+			auctionHouse = "Unknown House"
+		}
+		saleName := lot.SaleName
+		if saleName == "" {
+			saleName = "Sale"
+		}
+		message += fmt.Sprintf("- %s - %s (Lot %d)\n", auctionHouse, saleName, lot.LotNumber)
+	}
+	n := &models.Notification{
+		UserID:  userID,
+		Type:    NotificationTypeAuctionEndingSoon,
+		Title:   "Auctions Ending Soon",
+		Message: message,
+	}
+	if err := s.notifRepo.Create(n); err != nil {
+		s.logger.Error("notifications", "Failed to create ending-soon notification for user %d: %v", userID, err)
+	}
 }
 
 // NotifyCoinOfDay creates an in-app notification and Pushover alert for the

@@ -30,7 +30,7 @@ func newTestAuctionEndingScheduler(t *testing.T, db *gorm.DB) *AuctionEndingSche
 	settingsSvc := NewSettingsService(settingsRepo)
 	auctionEndingRepo := repository.NewAuctionEndingRepository(db)
 	auctionLotRepo := repository.NewAuctionLotRepository(db)
-	return NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, nil, nil, settingsSvc, NewLogger(100))
+	return NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, nil, nil, nil, settingsSvc, NewLogger(100))
 }
 
 func TestAuctionEndingTimeUntilNextRun_UsesLastCompletedRun(t *testing.T) {
@@ -139,6 +139,7 @@ func TestAuctionEndingNotifyUserSendsEndingSoonAlert(t *testing.T) {
 		repository.NewAuctionEndingRepository(db),
 		repository.NewUserRepository(db),
 		pushoverSvc,
+		nil,
 		settingsSvc,
 		NewLogger(100),
 	)

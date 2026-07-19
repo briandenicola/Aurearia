@@ -20,6 +20,7 @@ type AuctionEndingScheduler struct {
 	auctionEndingRepo *repository.AuctionEndingRepository
 	userRepo          *repository.UserRepository
 	pushoverSvc       *PushoverService
+	notificationSvc   *NotificationService
 	settingsSvc       *SettingsService
 	logger            *Logger
 	stopCh            chan struct{}
@@ -36,6 +37,7 @@ func NewAuctionEndingScheduler(
 	auctionEndingRepo *repository.AuctionEndingRepository,
 	userRepo *repository.UserRepository,
 	pushoverSvc *PushoverService,
+	notificationSvc *NotificationService,
 	settingsSvc *SettingsService,
 	logger *Logger,
 ) *AuctionEndingScheduler {
@@ -44,6 +46,7 @@ func NewAuctionEndingScheduler(
 		auctionEndingRepo: auctionEndingRepo,
 		userRepo:          userRepo,
 		pushoverSvc:       pushoverSvc,
+		notificationSvc:   notificationSvc,
 		settingsSvc:       settingsSvc,
 		logger:            logger,
 		stopCh:            make(chan struct{}),
@@ -337,6 +340,11 @@ func (s *AuctionEndingScheduler) recoverStaleRuns() {
 
 // notifyUser sends a consolidated Pushover notification to one user for their ending auctions.
 // Returns true if a notification was sent, false otherwise.
+// notifyUser notifies a user of their ending-soon lots via the in-app inbox (always, when
+// notificationSvc is configured) and Pushover (best-effort, only if the user has it
+// configured). Returns true if the user was notified through at least one channel — used by
+// the caller to set the once-per-day dedup marker, so a user isn't spammed with a duplicate
+// in-app notification every scheduler cycle within the same day.
 func (s *AuctionEndingScheduler) notifyUser(userID uint, lots []models.AuctionLot) bool {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil || user == nil {
@@ -344,9 +352,15 @@ func (s *AuctionEndingScheduler) notifyUser(userID uint, lots []models.AuctionLo
 		return false
 	}
 
+	notified := false
+	if s.notificationSvc != nil {
+		s.notificationSvc.NotifyAuctionEndingSoon(userID, lots)
+		notified = true
+	}
+
 	if !user.PushoverEnabled || user.PushoverUserKey == "" {
 		s.logger.Debug("scheduler", "User %d does not have Pushover enabled", userID)
-		return false
+		return notified
 	}
 
 	title := "Auctions Ending Soon"
@@ -364,13 +378,11 @@ func (s *AuctionEndingScheduler) notifyUser(userID uint, lots []models.AuctionLo
 		message += fmt.Sprintf("- %s - %s (Lot %d)\n", auctionHouse, saleName, lot.LotNumber)
 	}
 
-	// Send notification
-	sent := false
 	if err := s.pushoverSvc.SendNotification(user.PushoverUserKey, title, message, ""); err != nil {
 		s.logger.Error("pushover", "Failed to send auction ending notification to user %d: %v", userID, err)
 	} else {
 		s.logger.Info("scheduler", "Notified user %d of %d ending auctions", userID, len(lots))
-		sent = true
+		notified = true
 	}
-	return sent
+	return notified
 }
