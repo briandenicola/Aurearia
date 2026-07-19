@@ -539,6 +539,40 @@ func (h *AuctionLotHandler) ConvertToCoin(c *gin.Context) {
 	c.JSON(http.StatusCreated, coin)
 }
 
+// GetBidRecommendation suggests a maximum bid for a lot based on the user's own resolved
+// (won/lost) auction history in the same category.
+//
+//	@Summary		Suggest a maximum bid
+//	@Description	Suggests a maximum bid for a lot based on the user's own won/lost auction history in the same category. This is an aid only — the app does not place bids.
+//	@Tags			Auctions
+//	@Produce		json
+//	@Param			id	path		int	true	"Auction lot ID"
+//	@Success		200	{object}	services.BidRecommendation
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/auctions/{id}/bid-recommendation [get]
+func (h *AuctionLotHandler) GetBidRecommendation(c *gin.Context) {
+	userID := c.GetUint("userId")
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	recommendation, err := h.svc.Recommend(uint(id), userID)
+	if err != nil {
+		if errors.Is(err, services.ErrAuctionLotNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Auction lot not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to compute bid recommendation"})
+		return
+	}
+
+	c.JSON(http.StatusOK, recommendation)
+}
+
 // Delete removes an auction lot.
 //
 //	@Summary		Delete auction lot

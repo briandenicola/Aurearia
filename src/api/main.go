@@ -402,6 +402,7 @@ func main() {
 		protected.PUT("/auctions/:id/status", auctionLotHandler.UpdateStatus)
 		protected.PUT("/auctions/:id/event", auctionLotHandler.LinkEvent)
 		protected.POST("/auctions/:id/convert", auctionLotHandler.ConvertToCoin)
+		protected.GET("/auctions/:id/bid-recommendation", auctionLotHandler.GetBidRecommendation)
 		protected.DELETE("/auctions/:id", auctionLotHandler.Delete)
 		protected.POST("/auctions/import", writeRateLimit, auctionLotHandler.ImportFromURL)
 		protected.POST("/auctions/sync", writeRateLimit, auctionLotHandler.SyncWatchlist)

@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   deleteAlert: vi.fn(),
   createReminder: vi.fn(),
   deleteReminder: vi.fn(),
+  getAuctionLotBidRecommendation: vi.fn(),
   push: vi.fn(),
 }))
 
@@ -28,6 +29,7 @@ vi.mock('@/api/client', () => ({
   deleteAlert: mocks.deleteAlert,
   createReminder: mocks.createReminder,
   deleteReminder: mocks.deleteReminder,
+  getAuctionLotBidRecommendation: mocks.getAuctionLotBidRecommendation,
 }))
 
 vi.mock('vue-router', () => ({
@@ -52,6 +54,9 @@ describe('AuctionLotDetailModal', () => {
     mocks.deleteAlert.mockResolvedValue({ data: { message: 'Alert deleted' } })
     mocks.createReminder.mockResolvedValue({ data: { id: 92 } })
     mocks.deleteReminder.mockResolvedValue({ data: { message: 'Reminder deleted' } })
+    mocks.getAuctionLotBidRecommendation.mockResolvedValue({
+      data: { suggestedMaxBid: null, confidence: 'insufficient_data', sampleSize: 0, rationale: 'Not enough history yet.' },
+    })
   })
 
   it('persists a max bid change when the status stays bidding', async () => {
@@ -108,6 +113,36 @@ describe('AuctionLotDetailModal', () => {
 
     expect(mocks.updateAuctionLotStatus).toHaveBeenCalledWith(7, 'won', undefined, undefined)
     expect(wrapper.text()).toContain('Invalid status transition')
+  })
+
+  it('shows a suggested max bid and lets the user apply it', async () => {
+    mocks.getAuctionLotBidRecommendation.mockResolvedValue({
+      data: { suggestedMaxBid: 833.33, confidence: 'low', sampleSize: 3, rationale: 'Based on 3 of your own resolved lots.' },
+    })
+
+    const wrapper = mount(AuctionLotDetailModal, {
+      props: { lot: buildAuctionLot({ status: 'bidding', maxBid: 100 }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+    await flushPromises()
+
+    expect(mocks.getAuctionLotBidRecommendation).toHaveBeenCalledWith(7)
+    expect(wrapper.text()).toContain('Suggested max bid: $833.33')
+    expect(wrapper.text()).toContain('low confidence')
+
+    await wrapper.find('button.text-gold').trigger('click')
+    expect((wrapper.find('input.bid-input').element as HTMLInputElement).value).toBe('833.33')
+  })
+
+  it('shows an honest message instead of a number when there is not enough history', async () => {
+    const wrapper = mount(AuctionLotDetailModal, {
+      props: { lot: buildAuctionLot({ status: 'bidding', maxBid: 100 }) },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Not enough history yet.')
+    expect(wrapper.text()).not.toContain('Suggested max bid')
   })
 
   it('creates and deletes price alerts for the selected lot', async () => {

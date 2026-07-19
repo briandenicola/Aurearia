@@ -234,6 +234,21 @@
             step="1"
           />
         </div>
+        <div v-if="newStatus === 'bidding'" class="text-[0.78rem] text-text-secondary">
+          <template v-if="bidRecommendation?.suggestedMaxBid">
+            <button
+              type="button"
+              class="text-gold underline decoration-dotted underline-offset-2"
+              :title="bidRecommendation.rationale"
+              @click="maxBidInput = bidRecommendation.suggestedMaxBid"
+            >
+              Suggested max bid: {{ formatCurrency(bidRecommendation.suggestedMaxBid, lot.currency) }}
+            </button>
+            <span class="text-text-muted"> ({{ bidRecommendation.confidence }} confidence, based on {{ bidRecommendation.sampleSize }} of your own resolved lots — click to use)</span>
+          </template>
+          <span v-else-if="bidRecommendation" class="text-text-muted">{{ bidRecommendation.rationale }}</span>
+          <span v-else-if="bidRecommendationError" class="text-text-muted">Couldn't load a bid suggestion.</span>
+        </div>
         <div v-if="newStatus === 'won'" class="flex flex-wrap items-center gap-[0.6rem]">
           <label class="text-[0.82rem] text-text-secondary">Winning Bid</label>
           <input
@@ -281,11 +296,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive } from 'vue'
+import { ref, computed, onMounted, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { updateAuctionLotStatus, updateAuctionLot, convertAuctionLotToCoin, deleteAuctionLot, listCalendarEvents, linkAuctionLotEvent, createAlert, deleteAlert, createReminder, deleteReminder } from '@/api/client'
+import { updateAuctionLotStatus, updateAuctionLot, convertAuctionLotToCoin, deleteAuctionLot, listCalendarEvents, linkAuctionLotEvent, createAlert, deleteAlert, createReminder, deleteReminder, getAuctionLotBidRecommendation } from '@/api/client'
 import { useProxiedImage } from '@/composables/useProxiedImage'
-import type { AuctionLot, AuctionLotStatus, BidReminder, PriceAlert, PriceAlertDirection } from '@/types'
+import type { AuctionLot, AuctionLotStatus, BidReminder, BidRecommendation, PriceAlert, PriceAlertDirection } from '@/types'
 import { X, ExternalLink, ArrowRightCircle, Trash2, CalendarDays, Pencil } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
@@ -309,6 +324,8 @@ const maxBidInput = ref<number | null>(props.lot.maxBid ?? null)
 const winningBidInput = ref<number | null>(props.lot.winningBid ?? null)
 const calendarEvents = ref<Array<{ id: number; title: string; auctionHouse: string; startDate: string | null }>>([])
 const selectedEventId = ref<number | string>(props.lot.eventId ?? '')
+const bidRecommendation = ref<BidRecommendation | null>(null)
+const bidRecommendationError = ref(false)
 
 const lotImageSource = computed(() => props.lot.imageUrl ?? '')
 const { proxiedImageUrl } = useProxiedImage(lotImageSource)
@@ -499,6 +516,23 @@ async function fetchCalendarEvents() {
     calendarEvents.value = res.data?.events ?? []
   } catch { /* ignore */ }
 }
+
+let bidRecommendationFetched = false
+async function fetchBidRecommendation() {
+  if (bidRecommendationFetched) return
+  bidRecommendationFetched = true
+  bidRecommendationError.value = false
+  try {
+    const res = await getAuctionLotBidRecommendation(props.lot.id)
+    bidRecommendation.value = res.data
+  } catch {
+    bidRecommendationError.value = true
+  }
+}
+
+watch(newStatus, status => {
+  if (status === 'bidding') fetchBidRecommendation()
+}, { immediate: true })
 
 async function linkEvent() {
   const eventId = selectedEventId.value === '' ? null : Number(selectedEventId.value)

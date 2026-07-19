@@ -994,3 +994,34 @@ func TestAuctionLotRepository_CountByStatusForSource(t *testing.T) {
 		t.Fatalf("CNG bidding count = %d, want 1", counts[string(models.AuctionStatusBidding)])
 	}
 }
+
+func TestAuctionLotRepository_ListResolvedByUserAndCategory(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+
+	lots := []*models.AuctionLot{
+		{NumisBidsURL: "https://example.com/won-roman", Source: models.AuctionSourceCNG, SourceURL: "https://example.com/won-roman", Title: "Won Roman", Category: models.CategoryRoman, Status: models.AuctionStatusWon, UserID: 13},
+		{NumisBidsURL: "https://example.com/lost-roman", Source: models.AuctionSourceCNG, SourceURL: "https://example.com/lost-roman", Title: "Lost Roman", Category: models.CategoryRoman, Status: models.AuctionStatusLost, UserID: 13},
+		{NumisBidsURL: "https://example.com/watching-roman", Source: models.AuctionSourceCNG, SourceURL: "https://example.com/watching-roman", Title: "Watching Roman", Category: models.CategoryRoman, Status: models.AuctionStatusWatching, UserID: 13},
+		{NumisBidsURL: "https://example.com/won-greek", Source: models.AuctionSourceCNG, SourceURL: "https://example.com/won-greek", Title: "Won Greek", Category: models.CategoryGreek, Status: models.AuctionStatusWon, UserID: 13},
+		{NumisBidsURL: "https://example.com/won-roman-other-user", Source: models.AuctionSourceCNG, SourceURL: "https://example.com/won-roman-other-user", Title: "Won Roman Other User", Category: models.CategoryRoman, Status: models.AuctionStatusWon, UserID: 14},
+	}
+	for _, lot := range lots {
+		if err := repo.Create(lot); err != nil {
+			t.Fatalf("create lot %q: %v", lot.Title, err)
+		}
+	}
+
+	found, err := repo.ListResolvedByUserAndCategory(13, models.CategoryRoman)
+	if err != nil {
+		t.Fatalf("ListResolvedByUserAndCategory failed: %v", err)
+	}
+	if len(found) != 2 {
+		t.Fatalf("found %d lots, want 2 (won + lost Roman, excluding watching and other user/category)", len(found))
+	}
+	for _, lot := range found {
+		if lot.Status != models.AuctionStatusWon && lot.Status != models.AuctionStatusLost {
+			t.Fatalf("unexpected status %q in resolved results", lot.Status)
+		}
+	}
+}

@@ -404,6 +404,18 @@ func normalizeAuctionSourceURL(source models.AuctionSource, sourceURL string) (m
 	return source, sourceURL
 }
 
+// ListResolvedByUserAndCategory returns a user's own won/lost auction lots in the given
+// category. Used to ground bid recommendations in the user's real bidding history rather
+// than a generic model.
+func (r *AuctionLotRepository) ListResolvedByUserAndCategory(userID uint, category models.Category) ([]models.AuctionLot, error) {
+	var lots []models.AuctionLot
+	err := r.db.
+		Where("user_id = ? AND category = ? AND status IN ?", userID, category,
+			[]string{string(models.AuctionStatusWon), string(models.AuctionStatusLost)}).
+		Find(&lots).Error
+	return lots, err
+}
+
 // MarkPastAuctionsAsPassed updates all "watching" lots for a user where sale_date is before now.
 func (r *AuctionLotRepository) MarkPastAuctionsAsPassed(userID uint, now time.Time) {
 	r.db.Model(&models.AuctionLot{}).

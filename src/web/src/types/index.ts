@@ -1422,6 +1422,15 @@ export interface BidReminder {
   createdAt: string
 }
 
+export type BidRecommendationConfidence = 'insufficient_data' | 'low' | 'medium' | 'high'
+
+export interface BidRecommendation {
+  suggestedMaxBid: number | null
+  confidence: BidRecommendationConfidence
+  sampleSize: number
+  rationale: string
+}
+
 export interface CalendarEventDetail {
   id: number
   title: string

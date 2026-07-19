@@ -3998,6 +3998,52 @@
                 }
             }
         },
+        "/auctions/{id}/bid-recommendation": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Suggests a maximum bid for a lot based on the user's own won/lost auction history in the same category. This is an aid only — the app does not place bids.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auctions"
+                ],
+                "summary": "Suggest a maximum bid",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Auction lot ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BidRecommendation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auctions/{id}/convert": {
             "post": {
                 "security": [
@@ -18208,6 +18254,38 @@
                     }
                 }
             }
+        },
+        "services.BidRecommendation": {
+            "type": "object",
+            "properties": {
+                "confidence": {
+                    "$ref": "#/definitions/services.BidRecommendationConfidence"
+                },
+                "rationale": {
+                    "type": "string"
+                },
+                "sampleSize": {
+                    "type": "integer"
+                },
+                "suggestedMaxBid": {
+                    "type": "number"
+                }
+            }
+        },
+        "services.BidRecommendationConfidence": {
+            "type": "string",
+            "enum": [
+                "insufficient_data",
+                "low",
+                "medium",
+                "high"
+            ],
+            "x-enum-varnames": [
+                "ConfidenceInsufficientData",
+                "ConfidenceLow",
+                "ConfidenceMedium",
+                "ConfidenceHigh"
+            ]
         },
         "services.BidReminderCreateRequest": {
             "type": "object",

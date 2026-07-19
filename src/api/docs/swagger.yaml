@@ -2567,6 +2567,29 @@ definitions:
           $ref: '#/definitions/services.MissingFieldStat'
         type: array
     type: object
+  services.BidRecommendation:
+    properties:
+      confidence:
+        $ref: '#/definitions/services.BidRecommendationConfidence'
+      rationale:
+        type: string
+      sampleSize:
+        type: integer
+      suggestedMaxBid:
+        type: number
+    type: object
+  services.BidRecommendationConfidence:
+    enum:
+    - insufficient_data
+    - low
+    - medium
+    - high
+    type: string
+    x-enum-varnames:
+    - ConfidenceInsufficientData
+    - ConfidenceLow
+    - ConfidenceMedium
+    - ConfidenceHigh
   services.BidReminderCreateRequest:
     properties:
       auctionLotId:
@@ -5359,6 +5382,37 @@ paths:
       security:
       - BearerAuth: []
       summary: Update auction lot
+      tags:
+      - Auctions
+  /auctions/{id}/bid-recommendation:
+    get:
+      description: Suggests a maximum bid for a lot based on the user's own won/lost
+        auction history in the same category. This is an aid only — the app does not
+        place bids.
+      parameters:
+      - description: Auction lot ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.BidRecommendation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Suggest a maximum bid
       tags:
       - Auctions
   /auctions/{id}/convert:
