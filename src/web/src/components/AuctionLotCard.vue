@@ -30,6 +30,9 @@
       </div>
     </div>
     <div class="flex flex-1 flex-col gap-[0.35rem] p-4">
+      <div v-if="needsAttention" class="flex items-center gap-1 text-[0.75rem] font-semibold text-[#f59e0b]" title="This lot's auction has closed but its status hasn't been confirmed yet">
+        <AlertTriangle :size="13" /> Needs attention
+      </div>
       <h3 class="overflow-hidden text-[0.95rem] leading-[1.3] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">{{ lot.title }}</h3>
       <div class="flex flex-wrap gap-2">
         <span v-if="lot.auctionHouse" class="text-[0.78rem] text-text-secondary">{{ lot.auctionHouse }}</span>
@@ -83,8 +86,9 @@
 <script setup lang="ts">
 import type { AuctionLot, BidReminder, PriceAlert } from '@/types'
 import { computed } from 'vue'
-import { Gavel, Check } from 'lucide-vue-next'
+import { Gavel, Check, AlertTriangle } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
+import { auctionLotNeedsAttention } from '@/utils/auctionLot'
 import { useProxiedImage } from '@/composables/useProxiedImage'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
@@ -148,6 +152,8 @@ const biddingIndicator = computed(() => {
   }
   return { label: 'Outbid', cls: 'text-[#f87171]' }
 })
+
+const needsAttention = computed(() => auctionLotNeedsAttention(props.lot))
 
 
 </script>

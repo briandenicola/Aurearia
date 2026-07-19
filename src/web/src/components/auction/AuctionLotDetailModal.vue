@@ -75,6 +75,9 @@
             {{ lot.status }}
           </span>
         </div>
+        <div v-if="needsAttention" class="mt-2 flex items-center gap-1.5 rounded-sm bg-[rgba(245,158,11,0.12)] px-2.5 py-1.5 text-[0.82rem] font-semibold text-[#f59e0b]">
+          <AlertTriangle :size="14" /> This lot's auction has closed but its status hasn't been confirmed yet
+        </div>
         <div v-if="lot.description" class="mt-3">
           <span class="text-[0.82rem] text-text-secondary">Description</span>
           <p class="mt-1.5 text-body leading-6 text-text-secondary [overflow-wrap:anywhere]">{{ lot.description }}</p>
@@ -301,8 +304,9 @@ import { useRouter } from 'vue-router'
 import { updateAuctionLotStatus, updateAuctionLot, convertAuctionLotToCoin, deleteAuctionLot, listCalendarEvents, linkAuctionLotEvent, createAlert, deleteAlert, createReminder, deleteReminder, getAuctionLotBidRecommendation } from '@/api/client'
 import { useProxiedImage } from '@/composables/useProxiedImage'
 import type { AuctionLot, AuctionLotStatus, BidReminder, BidRecommendation, PriceAlert, PriceAlertDirection } from '@/types'
-import { X, ExternalLink, ArrowRightCircle, Trash2, CalendarDays, Pencil } from 'lucide-vue-next'
+import { X, ExternalLink, ArrowRightCircle, Trash2, CalendarDays, Pencil, AlertTriangle } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
+import { auctionLotNeedsAttention } from '@/utils/auctionLot'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 const props = defineProps<{
@@ -346,6 +350,7 @@ const biddingIndicator = computed(() => {
   }
   return { label: 'Outbid', cls: 'text-[#f87171]' }
 })
+const needsAttention = computed(() => auctionLotNeedsAttention(props.lot))
 const alertBusy = ref(false)
 const reminderBusy = ref(false)
 const alertMessage = ref('')

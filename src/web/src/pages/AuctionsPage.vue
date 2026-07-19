@@ -50,6 +50,17 @@
         <AuctionStatusFilter v-model="activeStatus" :counts="statusCounts" />
       </div>
 
+      <div class="mb-4 flex flex-wrap gap-[0.35rem]">
+        <button
+          class="chip flex items-center gap-1"
+          :class="{ active: attentionOnly }"
+          :title="'Lots whose auction has closed but status hasn\'t been confirmed'"
+          @click="attentionOnly = !attentionOnly"
+        >
+          <AlertTriangle :size="13" /> Needs Attention{{ attentionCount ? ` (${attentionCount})` : '' }}
+        </button>
+      </div>
+
       <div v-if="selectMode" class="mb-4 flex flex-wrap items-center gap-[0.6rem]">
         <button class="btn btn-sm btn-secondary" @click="selectAllLots">Select All</button>
         <button class="btn btn-sm btn-secondary" @click="deselectAllLots">Deselect All</button>
@@ -60,9 +71,9 @@
         <div class="spinner"></div>
       </div>
 
-      <div v-else-if="lots.length" class="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-5">
+      <div v-else-if="visibleLots.length" class="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-5">
         <AuctionLotCard
-          v-for="lot in lots"
+          v-for="lot in visibleLots"
           :key="lot.id"
           :lot="lot"
           :selectable="selectMode"
@@ -122,10 +133,11 @@ import PullToRefresh from '@/components/PullToRefresh.vue'
 import AuctionStatusFilter from '@/components/auction/AuctionStatusFilter.vue'
 import AuctionLotDetailModal from '@/components/auction/AuctionLotDetailModal.vue'
 import AuctionBulkActionBar from '@/components/auction/AuctionBulkActionBar.vue'
-import { Plus, CirclePlus, RefreshCw, CheckSquare, ExternalLink } from 'lucide-vue-next'
+import { Plus, CirclePlus, RefreshCw, CheckSquare, ExternalLink, AlertTriangle } from 'lucide-vue-next'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { usePwa } from '@/composables/usePwa'
 import { useAuthStore } from '@/stores/auth'
+import { auctionLotNeedsAttention } from '@/utils/auctionLot'
 
 const { isPwa } = usePwa()
 const auth = useAuthStore()
@@ -178,7 +190,7 @@ function toggleLotSelect(lotId: number) {
 }
 
 function selectAllLots() {
-  selectedLotIds.value = new Set(lots.value.map(l => l.id))
+  selectedLotIds.value = new Set(visibleLots.value.map(l => l.id))
 }
 
 function deselectAllLots() {
@@ -305,8 +317,13 @@ const emptyStateSuffix = computed(() => {
   const parts: string[] = []
   if (activeStatus.value) parts.push(`status "${activeStatus.value}"`)
   if (activeSource.value) parts.push(providerName(activeSource.value))
+  if (attentionOnly.value) parts.push('needing attention')
   return parts.length ? ` matching ${parts.join(' and ')}` : ''
 })
+
+const attentionOnly = ref(false)
+const visibleLots = computed(() => attentionOnly.value ? lots.value.filter(auctionLotNeedsAttention) : lots.value)
+const attentionCount = computed(() => lots.value.filter(auctionLotNeedsAttention).length)
 
 fetchLots()
 fetchAllCounts()
