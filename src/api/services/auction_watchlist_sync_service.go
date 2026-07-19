@@ -45,11 +45,14 @@ func NewAuctionWatchlistSyncService(
 	}
 }
 
-func (s *AuctionWatchlistSyncService) SyncDigestEligibleUsers() AuctionWatchlistSyncStats {
+// SyncAllConfiguredUsers refreshes watchlists for every user with auction credentials
+// configured, regardless of notification preferences (F026) — this keeps CurrentBid/status
+// fresh in the background even for users who haven't set up Pushover.
+func (s *AuctionWatchlistSyncService) SyncAllConfiguredUsers() AuctionWatchlistSyncStats {
 	stats := AuctionWatchlistSyncStats{}
-	users, err := s.userRepo.ListAuctionWatchDigestEligible()
+	users, err := s.userRepo.ListUsersWithAuctionCredentials()
 	if err != nil {
-		s.warn("Failed to list auction digest users: %v", err)
+		s.warn("Failed to list users with auction credentials: %v", err)
 		stats.Errors++
 		return stats
 	}

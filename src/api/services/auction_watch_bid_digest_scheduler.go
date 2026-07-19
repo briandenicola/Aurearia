@@ -166,7 +166,7 @@ func (s *AuctionWatchBidDigestScheduler) runDigest(triggerType string, triggerUs
 	}
 
 	if s.syncSvc != nil {
-		stats := s.syncSvc.SyncDigestEligibleUsers()
+		stats := s.syncSvc.SyncAllConfiguredUsers()
 		s.logger.Info("scheduler", "Auction watchlist sync complete — %d users checked, %d lots synced, %d errors", stats.UsersChecked, stats.LotsSynced, stats.Errors)
 	}
 
