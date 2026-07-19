@@ -27,22 +27,36 @@ confidently wrong.
 
 ## Acceptance criteria
 
-- [ ] Given a tracked auction lot (watching or bidding), the app can suggest a
+- [x] Given a tracked auction lot (watching or bidding), the app can suggest a
       maximum bid with some stated confidence/rationale, not just a bare number.
-- [ ] The suggestion is grounded in the user's own prior `AuctionLot` history
-      (won lots' `winningBid` vs. `estimate`, lost lots' losing `maxBid` vs. the
-      winning amount) for comparable coins (same category/denomination/era, or
-      closest available match).
-- [ ] Optionally incorporates external market data — the existing Team 9 (price
-      trends, `src/agent/app/teams/price_trends.py`) already searches auction
-      results and analyzes price direction for a described coin type; this
-      should reuse that pipeline rather than duplicating web-search logic.
-- [ ] Recommendation is surfaced in the auction lot UI (detail modal or card) as
-      an optional aid, not an autofilled/auto-submitted bid — the user places
-      bids on the provider's own site, this app only tracks and suggests.
-- [ ] Works with too little history (new user, no won/lost lots yet) by falling
-      back to estimate/market-data-only reasoning, and says so rather than
-      presenting a number with false confidence.
+      **Done (V1)**: `AuctionLotService.Recommend` + `GET /auctions/:id/bid-recommendation`.
+- [x] The suggestion is grounded in the user's own prior `AuctionLot` history
+      (won lots' `winningBid` vs. `estimate`, lost lots' — **done as `currentBid`
+      vs. `estimate`**, not "losing maxBid vs. the winning amount" as originally
+      worded here: `currentBid` on an already-closed, lost lot already *is* the
+      final/winning amount as of last sync, so no separate field was needed).
+      Matching is by `Category` only for V1 (Roman/Greek/Byzantine/Modern/Other)
+      — not denomination/era, which the model doesn't finely track yet.
+- [ ] Optionally incorporates external market data — **not done in V1**. The
+      existing Team 9 (price trends, `src/agent/app/teams/price_trends.py`)
+      already searches auction results and analyzes price direction for a
+      described coin type; reuse that pipeline rather than duplicating
+      web-search logic. Remains open.
+- [x] Recommendation is surfaced in the auction lot UI (`AuctionLotDetailModal.vue`,
+      next to the Max Bid field) as a click-to-apply suggestion, not an
+      autofilled/auto-submitted bid.
+- [x] Works with too little history (new user, no won/lost lots yet, or fewer
+      than 2 comparable resolved lots) by returning `confidence:
+      "insufficient_data"` with an explanatory rationale instead of a number.
+
+## V1 scope note
+
+V1 (implemented) is deliberately **historical-data-only** — no LLM reasoning, no
+web search, no Python agent involvement. That's a smaller, more honest slice
+than the full request: it can only ever be as good as the user's own resolved
+lot count, and says so explicitly rather than presenting false confidence. The
+"search the wider market" half of the original request (Team 9 reuse) is still
+open and is the natural next increment.
 
 ## Constitution alignment
 
@@ -84,3 +98,11 @@ scoping it CNG-only until NumisBids reaches the same verified state.
 - 2026-07-19: created (status: backlog) — split out from issue #482's comment
   thread; kept separate from the bug-fix work since it's a net-new feature, not
   a fix to reported functionality.
+- 2026-07-19: V1 implemented (historical-data-only; no market-data/agent
+  integration) — `AuctionLotService.Recommend`, `GET
+  /auctions/:id/bid-recommendation`, surfaced in `AuctionLotDetailModal.vue`.
+  Covered by service, repository, handler, and component tests, and verified
+  against real synced CNG data. Status intentionally left at `backlog` rather
+  than advanced to `triaged`/`promoted` — that's this repo's Lead-driven
+  workflow step (see `_backlog/README.md`), not something to self-assign.
+  Remaining scope (market-data/agent-team integration) is unchanged and open.
