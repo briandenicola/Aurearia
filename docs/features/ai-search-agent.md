@@ -64,12 +64,12 @@ The agent uses specialized teams for different tasks:
 - Provides reasoning and confidence scores
 - Uses Sheldon scale (VF, EF, AU, MS, etc.)
 
-### Team 8: Price Trends
+### Team 9: Price Trends
 - Analyzes historical auction data for coin types
 - Identifies market trends (up, down, stable)
 - Returns: price history, trend direction
 
-### Team 9: Gap Analysis
+### Team 7: Gap Analysis
 - Comprehensive portfolio gap analysis
 - Suggests specific coins to fill collection gaps
 - Estimates market prices
