@@ -37,11 +37,16 @@ confidently wrong.
       final/winning amount as of last sync, so no separate field was needed).
       Matching is by `Category` only for V1 (Roman/Greek/Byzantine/Modern/Other)
       — not denomination/era, which the model doesn't finely track yet.
-- [ ] Optionally incorporates external market data — **not done in V1**. The
-      existing Team 9 (price trends, `src/agent/app/teams/price_trends.py`)
-      already searches auction results and analyzes price direction for a
-      described coin type; reuse that pipeline rather than duplicating
-      web-search logic. Remains open.
+- [x] Optionally incorporates external market data — **done (V2)**. Reuses
+      Team 9's search step (`price_trends.py`'s `search_auction_results`,
+      extracted for this purpose) in a new `bid_market_signal.py` team that
+      returns a small structured JSON signal instead of markdown, exposed as
+      `POST /api/bid-market-signal` on the Python side and
+      `POST /auctions/:id/market-signal` on the Go side
+      (`AuctionLotService.MarketSignal`, additive and independent of
+      `Recommend()`). Surfaced as an explicit "Check current market" button
+      in `AuctionLotDetailModal.vue` — not auto-fetched, since it triggers a
+      live web search.
 - [x] Recommendation is surfaced in the auction lot UI (`AuctionLotDetailModal.vue`,
       next to the Max Bid field) as a click-to-apply suggestion, not an
       autofilled/auto-submitted bid.
@@ -49,14 +54,18 @@ confidently wrong.
       than 2 comparable resolved lots) by returning `confidence:
       "insufficient_data"` with an explanatory rationale instead of a number.
 
-## V1 scope note
+## V1 / V2 scope note
 
 V1 (implemented) is deliberately **historical-data-only** — no LLM reasoning, no
 web search, no Python agent involvement. That's a smaller, more honest slice
 than the full request: it can only ever be as good as the user's own resolved
-lot count, and says so explicitly rather than presenting false confidence. The
-"search the wider market" half of the original request (Team 9 reuse) is still
-open and is the natural next increment.
+lot count, and says so explicitly rather than presenting false confidence.
+
+V2 (implemented) adds the "search the wider market" half as a fully separate,
+additive, user-triggered call (`AuctionLotService.MarketSignal`) rather than
+folding it into `Recommend()` — the two signals are shown side by side in the
+UI, not merged into one number, since a live market range and the user's own
+historical bid ratio are different kinds of evidence.
 
 ## Constitution alignment
 
@@ -74,15 +83,21 @@ open and is the natural next increment.
 
 ## Open questions
 
-- [ ] Is this a new agent team, or an extension of Team 9 (price trends) /
-      Team 5 (auction search)? Leans toward extending existing teams given
-      overlap in "search auction results for similar coins."
+- [x] Is this a new agent team, or an extension of Team 9 (price trends) /
+      Team 5 (auction search)? — Resolved: a new sibling team
+      (`bid_market_signal.py`) that reuses Team 9's search step via a shared
+      `search_auction_results()` function, rather than mutating Team 9's own
+      chat-oriented graph/output shape.
 - [ ] How much prior history is "enough" to base a recommendation on, versus
-      falling back to market-data-only?
+      falling back to market-data-only? — Still open; V2 shows both signals
+      independently rather than deciding when to prefer one over the other.
 - [ ] Should the recommendation consider the user's own stated budget/collecting
       priorities anywhere, or purely historical + market signal?
-- [ ] Does this need a new endpoint, or can it ride on the existing agent chat
-      surface (ask the agent about a specific tracked lot)?
+- [x] Does this need a new endpoint, or can it ride on the existing agent chat
+      surface (ask the agent about a specific tracked lot)? — Resolved: a new
+      dedicated endpoint (`POST /api/bid-market-signal` →
+      `POST /auctions/:id/market-signal`), not the chat surface, since this
+      needs a structured answer for a specific lot, not a conversational one.
 
 ## Notes
 
@@ -106,3 +121,11 @@ scoping it CNG-only until NumisBids reaches the same verified state.
   than advanced to `triaged`/`promoted` — that's this repo's Lead-driven
   workflow step (see `_backlog/README.md`), not something to self-assign.
   Remaining scope (market-data/agent-team integration) is unchanged and open.
+- 2026-07-19: V2 implemented (market-data integration) — new Python team
+  `bid_market_signal.py` (`POST /api/bid-market-signal`), Go
+  `AuctionLotService.MarketSignal` (`POST /auctions/:id/market-signal`), and
+  a "Check current market" button in `AuctionLotDetailModal.vue`. Fully
+  additive: `Recommend()` and its existing tests are untouched. Covered by
+  Python team/route tests, Go service/handler tests, and frontend component
+  tests. All acceptance criteria now checked off. Status intentionally left
+  at `backlog` pending Lead triage, per the same rationale as V1.
