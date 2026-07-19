@@ -56,7 +56,7 @@
         </span>
         <span v-if="lot.currency && lot.currency !== 'USD'" class="rounded-full bg-surface px-[0.45rem] py-[0.12rem] text-[0.72rem] text-text-secondary">{{ lot.currency }}</span>
       </div>
-      <div class="mt-auto flex flex-wrap gap-3 text-[0.82rem]">
+      <div class="mt-auto flex flex-wrap gap-2 text-[0.82rem]">
         <div v-if="lot.estimate" class="text-text-secondary">Est: {{ formatCurrency(lot.estimate, lot.currency) }}</div>
         <div v-if="lot.initialBid && !lot.winningBid" class="text-text-muted">Start: {{ formatCurrency(lot.initialBid, lot.currency) }}</div>
         <div v-if="lot.currentBid" class="font-semibold text-gold">Bid: {{ formatCurrency(lot.currentBid, lot.currency) }}</div>

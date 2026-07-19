@@ -71,7 +71,7 @@
         <div class="spinner"></div>
       </div>
 
-      <div v-else-if="visibleLots.length" class="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-5">
+      <div v-else-if="visibleLots.length" class="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-5">
         <AuctionLotCard
           v-for="lot in visibleLots"
           :key="lot.id"
