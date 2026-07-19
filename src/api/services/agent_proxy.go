@@ -231,6 +231,24 @@ type AvailabilityCheckProxyResponse struct {
 	Results []AvailabilityVerdictProxy `json:"results"`
 }
 
+// BidMarketSignalProxyRequest is sent to the Python agent's /api/bid-market-signal.
+type BidMarketSignalProxyRequest struct {
+	LLM  LLMConfig     `json:"llm"`
+	Coin CoinDataProxy `json:"coin"`
+}
+
+// BidMarketSignalProxyResponse mirrors MarketSignalResponse from the Python agent.
+type BidMarketSignalProxyResponse struct {
+	TrendDirection string   `json:"trend_direction"`
+	PriceLow       *float64 `json:"price_low,omitempty"`
+	PriceHigh      *float64 `json:"price_high,omitempty"`
+	Currency       string   `json:"currency"`
+	SampleSize     int      `json:"sample_size"`
+	Rationale      string   `json:"rationale"`
+	Sources        []string `json:"sources,omitempty"`
+	Degraded       bool     `json:"degraded"`
+}
+
 type AlertDiscoveryCriteriaSnapshotProxy struct {
 	Name             string   `json:"name"`
 	RulerOrIssuer    string   `json:"ruler_or_issuer,omitempty"`
@@ -459,6 +477,49 @@ func (p *AgentProxy) CheckAvailability(ctx context.Context, req AvailabilityChec
 		return nil, fmt.Errorf("parse availability check response: %w", err)
 	}
 	return &result, nil
+}
+
+// GetBidMarketSignal POSTs to /api/bid-market-signal and returns a structured
+// market-trend signal for a described auction lot. The Python agent always
+// returns HTTP 200 (with Degraded=true on any internal failure), so a non-nil
+// error here means a genuine transport/agent-service failure, not "no data."
+func (p *AgentProxy) GetBidMarketSignal(ctx context.Context, req BidMarketSignalProxyRequest) (BidMarketSignalProxyResponse, error) {
+	logger := p.logger
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return BidMarketSignalProxyResponse{}, fmt.Errorf("marshal bid market signal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", p.baseURL+"/api/bid-market-signal", bytes.NewReader(body))
+	if err != nil {
+		return BidMarketSignalProxyResponse{}, fmt.Errorf("create bid market signal request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	p.attachInternalCredential(httpReq)
+
+	resp, err := p.requestClient.Do(httpReq)
+	if err != nil {
+		logger.Error("agent-proxy", "Bid market signal request failed: %v", err)
+		return BidMarketSignalProxyResponse{}, fmt.Errorf("agent service unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		errMsg := string(respBody)
+		if len(errMsg) > 200 {
+			errMsg = errMsg[:200] + "... (truncated)"
+		}
+		logger.Error("agent-proxy", "Bid market signal returned %d: %s", resp.StatusCode, errMsg)
+		return BidMarketSignalProxyResponse{}, agentServiceHTTPError(resp.StatusCode, respBody)
+	}
+
+	var result BidMarketSignalProxyResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return BidMarketSignalProxyResponse{}, fmt.Errorf("parse bid market signal response: %w", err)
+	}
+	return result, nil
 }
 
 // DiscoverAlertCandidates POSTs to the Python agent's stateless /api/search/alerts endpoint.

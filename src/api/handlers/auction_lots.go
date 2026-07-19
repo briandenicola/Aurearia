@@ -573,6 +573,42 @@ func (h *AuctionLotHandler) GetBidRecommendation(c *gin.Context) {
 	c.JSON(http.StatusOK, recommendation)
 }
 
+// GetMarketSignal searches current auction market data for a lot and returns a
+// structured trend signal, additive to (and independent from) GetBidRecommendation.
+// This call can take several seconds (it performs a live web search) — the frontend
+// triggers it explicitly, not automatically on lot detail open.
+//
+//	@Summary		Get current market trend signal for a lot
+//	@Description	Searches live auction results for coins comparable to this lot and returns a structured trend signal (rising/stable/declining, price range, rationale). Best-effort: degrades to status "unavailable" rather than erroring if the AI provider isn't configured or the search fails.
+//	@Tags			Auctions
+//	@Produce		json
+//	@Param			id	path		int	true	"Auction lot ID"
+//	@Success		200	{object}	services.MarketSignal
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/auctions/{id}/market-signal [post]
+func (h *AuctionLotHandler) GetMarketSignal(c *gin.Context) {
+	userID := c.GetUint("userId")
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	signal, err := h.svc.MarketSignal(uint(id), userID)
+	if err != nil {
+		if errors.Is(err, services.ErrAuctionLotNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Auction lot not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to compute market signal"})
+		return
+	}
+
+	c.JSON(http.StatusOK, signal)
+}
+
 // Delete removes an auction lot.
 //
 //	@Summary		Delete auction lot

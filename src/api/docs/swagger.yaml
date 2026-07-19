@@ -2780,6 +2780,35 @@ definitions:
       valuationFreshness:
         type: integer
     type: object
+  services.MarketSignal:
+    properties:
+      currency:
+        type: string
+      priceHigh:
+        type: number
+      priceLow:
+        type: number
+      rationale:
+        type: string
+      sampleSize:
+        type: integer
+      sources:
+        items:
+          type: string
+        type: array
+      status:
+        $ref: '#/definitions/services.MarketSignalStatus'
+      trendDirection:
+        type: string
+    type: object
+  services.MarketSignalStatus:
+    enum:
+    - unavailable
+    - ok
+    type: string
+    x-enum-varnames:
+    - MarketSignalUnavailable
+    - MarketSignalOK
   services.MissingChecklistItem:
     properties:
       actionHint:
@@ -5486,6 +5515,38 @@ paths:
       security:
       - BearerAuth: []
       summary: Link lot to calendar event
+      tags:
+      - Auctions
+  /auctions/{id}/market-signal:
+    post:
+      description: 'Searches live auction results for coins comparable to this lot
+        and returns a structured trend signal (rising/stable/declining, price range,
+        rationale). Best-effort: degrades to status "unavailable" rather than erroring
+        if the AI provider isn''t configured or the search fails.'
+      parameters:
+      - description: Auction lot ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.MarketSignal'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current market trend signal for a lot
       tags:
       - Auctions
   /auctions/{id}/status:

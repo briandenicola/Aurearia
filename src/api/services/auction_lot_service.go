@@ -1,8 +1,10 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
@@ -14,15 +16,31 @@ var (
 	ErrInvalidStatus      = errors.New("invalid auction lot status transition")
 )
 
+// MarketSignalAgent is the subset of AgentProxy the market-signal lookup depends on.
+type MarketSignalAgent interface {
+	GetBidMarketSignal(ctx context.Context, req BidMarketSignalProxyRequest) (BidMarketSignalProxyResponse, error)
+}
+
 // AuctionLotService handles auction lot business logic.
 type AuctionLotService struct {
-	repo     *repository.AuctionLotRepository
-	coinRepo *repository.CoinRepository
+	repo                 *repository.AuctionLotRepository
+	coinRepo             *repository.CoinRepository
+	marketSignalAgent    MarketSignalAgent
+	marketSignalSettings *SettingsService
 }
 
 // NewAuctionLotService creates a new AuctionLotService.
 func NewAuctionLotService(repo *repository.AuctionLotRepository, coinRepo *repository.CoinRepository) *AuctionLotService {
 	return &AuctionLotService{repo: repo, coinRepo: coinRepo}
+}
+
+// WithMarketSignal enables MarketSignal() by wiring in the Python agent proxy and the
+// settings service used to resolve the configured AI provider. Optional — without it,
+// MarketSignal() always reports MarketSignalUnavailable rather than erroring.
+func (s *AuctionLotService) WithMarketSignal(agent MarketSignalAgent, settingsSvc *SettingsService) *AuctionLotService {
+	s.marketSignalAgent = agent
+	s.marketSignalSettings = settingsSvc
+	return s
 }
 
 // validAuctionStatuses is the set of recognized lot statuses.
@@ -209,6 +227,108 @@ func (s *AuctionLotService) Recommend(lotID, userID uint) (BidRecommendation, er
 		SampleSize:      len(ratios),
 		Rationale:       rationale,
 	}, nil
+}
+
+// marketSignalTimeout bounds the live web-search round trip triggered by MarketSignal().
+// Placeholder value — tune once real Team 9 search+extract latency is observed in practice.
+const marketSignalTimeout = 45 * time.Second
+
+// MarketSignalStatus distinguishes a real market-data signal from "couldn't get one right
+// now," so callers never have to special-case network/configuration errors separately.
+type MarketSignalStatus string
+
+const (
+	MarketSignalUnavailable MarketSignalStatus = "unavailable"
+	MarketSignalOK          MarketSignalStatus = "ok"
+)
+
+// MarketSignal is a best-effort, additive market-data supplement to BidRecommendation,
+// derived from a live auction-results web search via the Python agent. It is always
+// populated — a failure of any kind (agent not wired up, AI provider not configured,
+// network failure, timeout, or an unparseable agent response) degrades to
+// MarketSignalUnavailable with an explanatory Rationale, never a hard error.
+type MarketSignal struct {
+	Status         MarketSignalStatus `json:"status"`
+	TrendDirection string             `json:"trendDirection,omitempty"`
+	PriceLow       *float64           `json:"priceLow,omitempty"`
+	PriceHigh      *float64           `json:"priceHigh,omitempty"`
+	Currency       string             `json:"currency,omitempty"`
+	SampleSize     int                `json:"sampleSize,omitempty"`
+	Rationale      string             `json:"rationale"`
+	Sources        []string           `json:"sources,omitempty"`
+}
+
+// MarketSignal searches current auction market data for the lot via the Python agent
+// (Team 9's search step + a structured extraction step), independent of Recommend()'s
+// historical-ratio calculation. This is additive and on-demand, and never a hard error:
+// any failure degrades to Status: MarketSignalUnavailable with an explanatory Rationale.
+func (s *AuctionLotService) MarketSignal(lotID, userID uint) (MarketSignal, error) {
+	lot, err := s.repo.GetByID(lotID, userID)
+	if err != nil {
+		return MarketSignal{}, ErrAuctionLotNotFound
+	}
+
+	if s.marketSignalAgent == nil || s.marketSignalSettings == nil {
+		return MarketSignal{
+			Status:    MarketSignalUnavailable,
+			Rationale: "Market data lookup is not available on this server.",
+		}, nil
+	}
+
+	llmCfg, err := s.marketSignalSettings.ResolveLLMConfig()
+	if err != nil {
+		return MarketSignal{
+			Status:    MarketSignalUnavailable,
+			Rationale: "AI provider is not configured — set one up in Admin Settings to see current market data for this lot.",
+		}, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), marketSignalTimeout)
+	defer cancel()
+
+	resp, err := s.marketSignalAgent.GetBidMarketSignal(ctx, BidMarketSignalProxyRequest{
+		LLM:  llmCfg,
+		Coin: buildCoinDataProxyFromLot(lot),
+	})
+	if err != nil {
+		return MarketSignal{
+			Status:    MarketSignalUnavailable,
+			Rationale: "Couldn't reach the market data search right now. Try again in a moment.",
+		}, nil
+	}
+	if resp.Degraded {
+		return MarketSignal{Status: MarketSignalUnavailable, Rationale: resp.Rationale}, nil
+	}
+
+	return MarketSignal{
+		Status:         MarketSignalOK,
+		TrendDirection: resp.TrendDirection,
+		PriceLow:       resp.PriceLow,
+		PriceHigh:      resp.PriceHigh,
+		Currency:       resp.Currency,
+		SampleSize:     resp.SampleSize,
+		Rationale:      resp.Rationale,
+		Sources:        resp.Sources,
+	}, nil
+}
+
+const maxMarketSignalDescriptionChars = 2000
+
+// buildCoinDataProxyFromLot describes the lot for the agent's search step. AuctionLot
+// doesn't carry the ruler/era/denomination/material fields Coin does, so Title/Category/
+// Description are all that's available — matches the agent's own "only include what's
+// non-empty" description-building behavior.
+func buildCoinDataProxyFromLot(lot *models.AuctionLot) CoinDataProxy {
+	notes := lot.Description
+	if len(notes) > maxMarketSignalDescriptionChars {
+		notes = notes[:maxMarketSignalDescriptionChars]
+	}
+	return CoinDataProxy{
+		ID:       int(lot.ID),
+		Name:     lot.Title,
+		Category: string(lot.Category),
+		Notes:    notes,
+	}
 }
 
 func averageFloat(values []float64) float64 {

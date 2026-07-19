@@ -162,3 +162,73 @@ func TestAuctionLotHandlerGetBidRecommendationReturnsInsufficientDataWithoutHist
 		t.Fatalf("expected insufficient_data confidence, got body=%s", w.Body.String())
 	}
 }
+
+func TestAuctionLotHandlerGetMarketSignalReturnsUnavailableWithoutAgentConfigured(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := db.AutoMigrate(&models.AuctionLot{}); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	lot := models.AuctionLot{
+		Title:        "CNG target lot",
+		NumisBidsURL: "https://auctions.cngcoins.com/lots/view/4-TARGET/test",
+		Source:       models.AuctionSourceCNG,
+		SourceURL:    "https://auctions.cngcoins.com/lots/view/4-TARGET/test",
+		Category:     models.CategoryRoman,
+		Status:       models.AuctionStatusBidding,
+		UserID:       42,
+	}
+	if err := db.Create(&lot).Error; err != nil {
+		t.Fatalf("create lot: %v", err)
+	}
+
+	auctionRepo := repository.NewAuctionLotRepository(db)
+	handler := NewAuctionLotHandler(auctionRepo, services.NewAuctionLotService(auctionRepo, nil), nil, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodPost, "/auctions/1/market-signal", nil)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+	c.Params = gin.Params{{Key: "id", Value: "1"}}
+	c.Set("userId", uint(42))
+
+	handler.GetMarketSignal(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GetMarketSignal status = %d body=%s", w.Code, w.Body.String())
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte(`"unavailable"`)) {
+		t.Fatalf("expected unavailable status, got body=%s", w.Body.String())
+	}
+}
+
+func TestAuctionLotHandlerGetMarketSignalReturnsNotFoundForMissingLot(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := db.AutoMigrate(&models.AuctionLot{}); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+
+	auctionRepo := repository.NewAuctionLotRepository(db)
+	handler := NewAuctionLotHandler(auctionRepo, services.NewAuctionLotService(auctionRepo, nil), nil, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodPost, "/auctions/999/market-signal", nil)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+	c.Params = gin.Params{{Key: "id", Value: "999"}}
+	c.Set("userId", uint(42))
+
+	handler.GetMarketSignal(c)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("GetMarketSignal status = %d, want 404, body=%s", w.Code, w.Body.String())
+	}
+}
