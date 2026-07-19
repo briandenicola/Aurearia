@@ -171,6 +171,7 @@
     <AppDialog />
     <AppToasts />
     <PwaInstallPrompt />
+    <PwaUpdateBanner />
   </div>
 </template>
 
@@ -187,6 +188,7 @@ import CoinSearchChat from '@/components/CoinSearchChat.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppToasts from '@/components/AppToasts.vue'
 import PwaInstallPrompt from '@/components/PwaInstallPrompt.vue'
+import PwaUpdateBanner from '@/components/PwaUpdateBanner.vue'
 import Sortable from 'sortablejs'
 
 interface NavItem {
