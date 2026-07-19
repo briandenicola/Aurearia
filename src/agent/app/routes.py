@@ -10,6 +10,7 @@ from app.models.requests import (
     AlertDiscoveryRequest,
     AnalyzeRequest,
     AvailabilityCheckRequest,
+    BidMarketSignalRequest,
     CoinSearchRequest,
     CoinShowSearchRequest,
     GradeRequest,
@@ -23,6 +24,7 @@ from app.models.responses import (
     AvailabilityVerdict,
     GradeResponse,
     IntakeDraftResponse,
+    MarketSignalResponse,
 )
 from app.streaming import stream_graph_events
 from app.supervisor import create_supervisor
@@ -30,6 +32,11 @@ from app.teams.availability_check import (
     AvailabilityVerdictParseError,
     create_availability_check_team,
     parse_verdicts,
+)
+from app.teams.bid_market_signal import (
+    MarketSignalParseError,
+    create_bid_market_signal_team,
+    parse_market_signal,
 )
 from app.teams.coin_analysis import create_coin_analysis_team
 from app.teams.coin_grading import create_coin_grading_team
@@ -300,3 +307,30 @@ async def check_availability(request: AvailabilityCheckRequest):
         ]
 
     return AvailabilityCheckResponse(results=verdicts)
+
+
+@router.post("/bid-market-signal", response_model=MarketSignalResponse)
+async def bid_market_signal(request: BidMarketSignalRequest):
+    """Search current auction market data for a described lot and return a
+    structured trend signal. Stateless; always returns 200 (degraded=True on
+    any failure) so the Go caller can treat this as an additive, best-effort
+    supplement to the user's own historical bid recommendation.
+    """
+    logger.info(
+        "POST /bid-market-signal — provider=%s, model=%s, coin_id=%s",
+        request.llm.provider, request.llm.model, request.coin.id,
+    )
+
+    graph = create_bid_market_signal_team(request.llm, coin=request.coin)
+    try:
+        result = await graph.ainvoke({"coin_desc": "", "search_results": "", "signal_raw": ""})
+    except Exception:
+        logger.exception("Bid market signal graph execution failed")
+        return MarketSignalResponse(degraded=True, rationale="Unable to complete the market search right now.")
+
+    raw = result.get("signal_raw", "")
+    try:
+        return parse_market_signal(raw)
+    except MarketSignalParseError:
+        logger.error("Bid market signal parse failure. Raw snippet=%r", raw[:300])
+        return MarketSignalResponse(degraded=True, rationale="Market search returned data in an unexpected format.")

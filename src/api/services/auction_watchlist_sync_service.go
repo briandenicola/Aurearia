@@ -45,11 +45,14 @@ func NewAuctionWatchlistSyncService(
 	}
 }
 
-func (s *AuctionWatchlistSyncService) SyncDigestEligibleUsers() AuctionWatchlistSyncStats {
+// SyncAllConfiguredUsers refreshes watchlists for every user with auction credentials
+// configured, regardless of notification preferences (F026) — this keeps CurrentBid/status
+// fresh in the background even for users who haven't set up Pushover.
+func (s *AuctionWatchlistSyncService) SyncAllConfiguredUsers() AuctionWatchlistSyncStats {
 	stats := AuctionWatchlistSyncStats{}
-	users, err := s.userRepo.ListAuctionWatchDigestEligible()
+	users, err := s.userRepo.ListUsersWithAuctionCredentials()
 	if err != nil {
-		s.warn("Failed to list auction digest users: %v", err)
+		s.warn("Failed to list users with auction credentials: %v", err)
 		stats.Errors++
 		return stats
 	}
@@ -150,8 +153,15 @@ func (s *AuctionWatchlistSyncService) syncNumisBids(user *models.User) (int, err
 			AuctionHouse: wl.AuctionHouse,
 			SaleName:     wl.SaleName,
 			SaleDate:     saleDate,
-			Status:       status,
-			UserID:       user.ID,
+			// AuctionEndTime must be set even though NumisBids only gives us a coarse
+			// sale-wide date (not a precise per-lot close time, unlike CNG's
+			// extended_end_time — see F021/F022): bid reminders (bidReminderDue in
+			// auction_alert_service.go) hard-require AuctionEndTime and silently never
+			// fire without it. A coarse deadline is strictly better than a reminder that
+			// can never fire at all.
+			AuctionEndTime: saleDate,
+			Status:         status,
+			UserID:         user.ID,
 		}
 		if _, err := s.auctionRepo.UpsertWithCalendarEvent(&lot); err != nil {
 			return synced, err
@@ -172,6 +182,18 @@ func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	// Used to detect whether a closed lot was won: compared against each lot's winning
+	// bidder. Absence (e.g. a transient refresh-me failure) degrades gracefully — sync
+	// still proceeds, it just can't auto-resolve won/lost for any newly-closed lots this run.
+	customerRowID, err := s.cngSvc.CurrentCustomerRowID(client)
+	if err != nil {
+		s.warn("Could not determine CNG customer ID for user %d; won/lost auto-detection skipped this sync: %v", user.ID, err)
+	}
+
+	// The watched-lots list page already carries full bid detail (current bid, the user's own
+	// max bid, and — once closed — the winning bidder) for every lot; no per-lot follow-up
+	// request is needed.
 	lots, err := s.cngSvc.FetchWatchlistLots(client)
 	if err != nil {
 		return 0, err
@@ -180,26 +202,34 @@ func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (int, error) {
 	now := time.Now()
 	synced := 0
 	for _, wl := range lots {
-		// Scrape the individual lot page with the authenticated client to obtain bid_amount
-		// (the current winning bid). The watched-lots list page does not include bid_amount,
-		// only starting_price, so without this step currentBid always shows the opening price.
-		if details, err := s.cngSvc.ScrapeLotWithClient(client, wl.URL); err == nil {
-			if details.CurrentBid != nil {
-				wl.CurrentBid = details.CurrentBid
-			}
-		} else {
-			s.warn("Could not refresh CNG lot page for scheduled sync user %d url=%s: %v", user.ID, wl.URL, err)
-		}
+		auctionEndTime := ParseCNGDate(wl.SaleDate)
 
-		// Presence of an autobid means the user has placed a bid on this lot.
+		// Presence of an absentee (max) bid means the user has placed a bid on this lot.
 		status := models.AuctionStatusWatching
 		if wl.MaxBid != nil {
 			status = models.AuctionStatusBidding
 		}
-		auctionEndTime := ParseCNGDate(wl.SaleDate)
-		if auctionEndTime != nil && auctionEndTime.Before(now) {
+
+		var winningBid *float64
+		switch {
+		case wl.ProviderStatus != "" && wl.ProviderStatus != "active":
+			// CNG reports the lot as closed. Resolve the real outcome instead of guessing
+			// from end-time: a lot we were only watching (never bid on) is simply passed;
+			// one we bid on is won or lost depending on who the final bid belongs to.
+			switch {
+			case wl.MaxBid == nil:
+				status = models.AuctionStatusPassed
+			case customerRowID != "" && wl.WinningCustomerRowID == customerRowID:
+				status = models.AuctionStatusWon
+				winningBid = firstNonNilFloat(wl.SoldPrice, wl.CurrentBid)
+			default:
+				status = models.AuctionStatusLost
+			}
+		case auctionEndTime != nil && auctionEndTime.Before(now):
+			// Fallback for the rare case the provider status field itself is unavailable.
 			status = models.AuctionStatusPassed
 		}
+
 		lot := models.AuctionLot{
 			NumisBidsURL:   strings.TrimSpace(wl.URL),
 			Source:         models.AuctionSourceCNG,
@@ -214,6 +244,7 @@ func (s *AuctionWatchlistSyncService) syncCNG(user *models.User) (int, error) {
 			Estimate:       wl.Estimate,
 			CurrentBid:     wl.CurrentBid,
 			MaxBid:         wl.MaxBid,
+			WinningBid:     winningBid,
 			Currency:       firstNonBlank(wl.Currency, "USD"),
 			AuctionHouse:   wl.AuctionHouse,
 			SaleName:       wl.SaleName,

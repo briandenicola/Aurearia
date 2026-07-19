@@ -1,0 +1,131 @@
+---
+id: F023
+title: "Suggest a maximum bid based on prior wins/losses and market data"
+status: backlog
+priority: P2
+effort: L
+value: 3
+risk: 3
+owner: unassigned
+created: 2026-07-19
+updated: 2026-07-19
+---
+
+# F023 — Suggest a maximum bid based on prior wins/losses and market data
+
+## Summary
+
+From issue #482 (comment, 2026-07-17): "Add a recommendation engine to suggest a
+maximum bid amount with a good chance of winning based on prior wins/losses and
+maybe online search of similar coins." This is a feature request layered on top
+of — not part of — the auction bug-fix work tracked directly on #482; it depends
+on auction status data (won/lost/winningBid) actually being trustworthy, which is
+the subject of the CNG rebuild (see commit `0943a56` on
+`claude/auction-functionality-review-17b5cj`) and the NumisBids parity work
+(F022). A recommendation trained on wrong won/lost/winningBid data would just be
+confidently wrong.
+
+## Acceptance criteria
+
+- [x] Given a tracked auction lot (watching or bidding), the app can suggest a
+      maximum bid with some stated confidence/rationale, not just a bare number.
+      **Done (V1)**: `AuctionLotService.Recommend` + `GET /auctions/:id/bid-recommendation`.
+- [x] The suggestion is grounded in the user's own prior `AuctionLot` history
+      (won lots' `winningBid` vs. `estimate`, lost lots' — **done as `currentBid`
+      vs. `estimate`**, not "losing maxBid vs. the winning amount" as originally
+      worded here: `currentBid` on an already-closed, lost lot already *is* the
+      final/winning amount as of last sync, so no separate field was needed).
+      Matching is by `Category` only for V1 (Roman/Greek/Byzantine/Modern/Other)
+      — not denomination/era, which the model doesn't finely track yet.
+- [x] Optionally incorporates external market data — **done (V2)**. Reuses
+      Team 9's search step (`price_trends.py`'s `search_auction_results`,
+      extracted for this purpose) in a new `bid_market_signal.py` team that
+      returns a small structured JSON signal instead of markdown, exposed as
+      `POST /api/bid-market-signal` on the Python side and
+      `POST /auctions/:id/market-signal` on the Go side
+      (`AuctionLotService.MarketSignal`, additive and independent of
+      `Recommend()`). Surfaced as an explicit "Check current market" button
+      in `AuctionLotDetailModal.vue` — not auto-fetched, since it triggers a
+      live web search.
+- [x] Recommendation is surfaced in the auction lot UI (`AuctionLotDetailModal.vue`,
+      next to the Max Bid field) as a click-to-apply suggestion, not an
+      autofilled/auto-submitted bid.
+- [x] Works with too little history (new user, no won/lost lots yet, or fewer
+      than 2 comparable resolved lots) by returning `confidence:
+      "insufficient_data"` with an explanatory rationale instead of a number.
+
+## V1 / V2 scope note
+
+V1 (implemented) is deliberately **historical-data-only** — no LLM reasoning, no
+web search, no Python agent involvement. That's a smaller, more honest slice
+than the full request: it can only ever be as good as the user's own resolved
+lot count, and says so explicitly rather than presenting false confidence.
+
+V2 (implemented) adds the "search the wider market" half as a fully separate,
+additive, user-triggered call (`AuctionLotService.MarketSignal`) rather than
+folding it into `Recommend()` — the two signals are shown side by side in the
+UI, not merged into one number, since a live market range and the user's own
+historical bid ratio are different kinds of evidence.
+
+## Constitution alignment
+
+- Principle II (Service Boundary Separation) — recommendation logic that uses
+  LLM reasoning or web search belongs in the Python agent service (likely a new
+  team, or an extension of Team 9), not the Go API; the Go API only supplies the
+  user's own auction/collection history data per-request, since the agent is
+  stateless and has no direct DB access.
+- Principle III (Strict Types and Explicit Contracts) — new agent request/response
+  schemas must use Pydantic models (`app/models/`); any new Go endpoint needs
+  Swagger annotations.
+- Principle VI (Consistent User Experience) — must read as a suggestion/aid
+  consistent with how the rest of the app presents AI-assisted analysis (e.g.
+  coin analysis, portfolio review), not a new interaction pattern.
+
+## Open questions
+
+- [x] Is this a new agent team, or an extension of Team 9 (price trends) /
+      Team 5 (auction search)? — Resolved: a new sibling team
+      (`bid_market_signal.py`) that reuses Team 9's search step via a shared
+      `search_auction_results()` function, rather than mutating Team 9's own
+      chat-oriented graph/output shape.
+- [ ] How much prior history is "enough" to base a recommendation on, versus
+      falling back to market-data-only? — Still open; V2 shows both signals
+      independently rather than deciding when to prefer one over the other.
+- [ ] Should the recommendation consider the user's own stated budget/collecting
+      priorities anywhere, or purely historical + market signal?
+- [x] Does this need a new endpoint, or can it ride on the existing agent chat
+      surface (ask the agent about a specific tracked lot)? — Resolved: a new
+      dedicated endpoint (`POST /api/bid-market-signal` →
+      `POST /auctions/:id/market-signal`), not the chat surface, since this
+      needs a structured answer for a specific lot, not a conversational one.
+
+## Notes
+
+Blocked in practice (not formally) on won/lost/winningBid data being correct —
+training or reasoning over data produced by the pre-fix CNG scraper (which
+silently showed the wrong current bid and never auto-resolved won/lost) would
+have produced a recommendation engine confidently wrong in ways impossible to
+notice from the UI. Recommend sequencing this after F022 lands, or at minimum
+scoping it CNG-only until NumisBids reaches the same verified state.
+
+## History
+
+- 2026-07-19: created (status: backlog) — split out from issue #482's comment
+  thread; kept separate from the bug-fix work since it's a net-new feature, not
+  a fix to reported functionality.
+- 2026-07-19: V1 implemented (historical-data-only; no market-data/agent
+  integration) — `AuctionLotService.Recommend`, `GET
+  /auctions/:id/bid-recommendation`, surfaced in `AuctionLotDetailModal.vue`.
+  Covered by service, repository, handler, and component tests, and verified
+  against real synced CNG data. Status intentionally left at `backlog` rather
+  than advanced to `triaged`/`promoted` — that's this repo's Lead-driven
+  workflow step (see `_backlog/README.md`), not something to self-assign.
+  Remaining scope (market-data/agent-team integration) is unchanged and open.
+- 2026-07-19: V2 implemented (market-data integration) — new Python team
+  `bid_market_signal.py` (`POST /api/bid-market-signal`), Go
+  `AuctionLotService.MarketSignal` (`POST /auctions/:id/market-signal`), and
+  a "Check current market" button in `AuctionLotDetailModal.vue`. Fully
+  additive: `Recommend()` and its existing tests are untouched. Covered by
+  Python team/route tests, Go service/handler tests, and frontend component
+  tests. All acceptance criteria now checked off. Status intentionally left
+  at `backlog` pending Lead triage, per the same rationale as V1.

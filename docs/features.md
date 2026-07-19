@@ -287,7 +287,7 @@ Ask the AI agent about price trends for a specific coin type. The agent searches
 
 - **Historical Auction Data** — Searches for past auction results of similar coins to build a price history.
 - **Market Direction** — Identifies whether prices are trending up, down, or stable for a given coin type.
-- **Agent Team 8** — Powered by the `price_trends.py` agent team in the Python agent service.
+- **Agent Team 9** — Powered by the `price_trends.py` agent team in the Python agent service.
 
 ## Collection Gap Analysis
 
@@ -295,7 +295,7 @@ The AI agent reviews your collection and suggests what is missing for completene
 
 - **Portfolio-Aware** — Uses the portfolio summary from the Go API to understand your current holdings.
 - **Targeted Suggestions** — Recommends specific coins with estimated market prices to fill identified gaps.
-- **Agent Team 9** — Powered by the `gap_analysis.py` agent team in the Python agent service.
+- **Agent Team 7** — Powered by the `gap_analysis.py` agent team in the Python agent service.
 
 ## Coin Photography Guide
 

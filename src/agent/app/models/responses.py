@@ -94,6 +94,22 @@ class AvailabilityCheckResponse(BaseModel):
     results: list[AvailabilityVerdict] = []
 
 
+class MarketSignalResponse(StrictResponseModel):
+    """Structured price-trend signal for a specific tracked auction lot, derived
+    from a live auction-results web search. Always HTTP 200 — `degraded` signals
+    the caller should fall back to historical-only data, never an exception.
+    """
+
+    trend_direction: Literal["rising", "stable", "declining", "unknown"] = "unknown"
+    price_low: float | None = Field(default=None, ge=0)
+    price_high: float | None = Field(default=None, ge=0)
+    currency: Annotated[str, StringConstraints(max_length=3)] = "USD"
+    sample_size: int = Field(default=0, ge=0)
+    rationale: Annotated[str, StringConstraints(max_length=1000)] = ""
+    sources: list[Annotated[str, StringConstraints(max_length=2048)]] = Field(default_factory=list, max_length=5)
+    degraded: bool = False
+
+
 # Wishlist search alert discovery DTOs.
 # Contract anchor: specs/337-wishlist-search-alerts/contracts/agent-discovery-contract.md
 class AlertDiscoveryProvenance(StrictResponseModel):

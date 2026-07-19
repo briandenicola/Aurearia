@@ -265,12 +265,26 @@ func (r *AuctionLotRepository) upsert(lot *models.AuctionLot, autoCreateEvent bo
 		if lot.MaxBid != nil {
 			updates["max_bid"] = lot.MaxBid
 		}
-		// Only update status based on provider signals; never overwrite user-set statuses (won/lost).
-		// Allow: watching → passed (auction ended), watching → bidding (autobid detected).
-		if lot.Status == models.AuctionStatusPassed && existing.Status == models.AuctionStatusWatching {
+		// Only update status based on provider signals; never overwrite a lot that is already
+		// terminal (won/lost) — once set, only a manual override can change it.
+		// Allow: watching → passed (auction ended), watching → bidding (autobid detected),
+		// (watching or bidding) → won/lost (provider reports the lot closed with a known
+		// outcome — this can jump straight from watching if a sync is missed while the lot
+		// was actively being bid on and it closes before the next sync observes "bidding").
+		isTerminal := existing.Status == models.AuctionStatusWon || existing.Status == models.AuctionStatusLost
+		switch {
+		case lot.Status == models.AuctionStatusPassed && existing.Status == models.AuctionStatusWatching:
 			updates["status"] = string(models.AuctionStatusPassed)
-		} else if lot.Status == models.AuctionStatusBidding && existing.Status == models.AuctionStatusWatching {
+			updates["status_source"] = string(models.AuctionLotStatusSourceSync)
+		case lot.Status == models.AuctionStatusBidding && existing.Status == models.AuctionStatusWatching:
 			updates["status"] = string(models.AuctionStatusBidding)
+			updates["status_source"] = string(models.AuctionLotStatusSourceSync)
+		case (lot.Status == models.AuctionStatusWon || lot.Status == models.AuctionStatusLost) && !isTerminal:
+			updates["status"] = string(lot.Status)
+			updates["status_source"] = string(models.AuctionLotStatusSourceSync)
+			if lot.Status == models.AuctionStatusWon && lot.WinningBid != nil {
+				updates["winning_bid"] = lot.WinningBid
+			}
 		}
 		return txRepo.UpdateFields(existing, updates)
 	})
@@ -393,12 +407,27 @@ func normalizeAuctionSourceURL(source models.AuctionSource, sourceURL string) (m
 	return source, sourceURL
 }
 
+// ListResolvedByUserAndCategory returns a user's own won/lost auction lots in the given
+// category. Used to ground bid recommendations in the user's real bidding history rather
+// than a generic model.
+func (r *AuctionLotRepository) ListResolvedByUserAndCategory(userID uint, category models.Category) ([]models.AuctionLot, error) {
+	var lots []models.AuctionLot
+	err := r.db.
+		Where("user_id = ? AND category = ? AND status IN ?", userID, category,
+			[]string{string(models.AuctionStatusWon), string(models.AuctionStatusLost)}).
+		Find(&lots).Error
+	return lots, err
+}
+
 // MarkPastAuctionsAsPassed updates all "watching" lots for a user where sale_date is before now.
 func (r *AuctionLotRepository) MarkPastAuctionsAsPassed(userID uint, now time.Time) {
 	r.db.Model(&models.AuctionLot{}).
 		Where("user_id = ? AND status = ? AND sale_date IS NOT NULL AND sale_date < ?",
 			userID, models.AuctionStatusWatching, now).
-		Update("status", string(models.AuctionStatusPassed))
+		Updates(map[string]interface{}{
+			"status":        string(models.AuctionStatusPassed),
+			"status_source": string(models.AuctionLotStatusSourceSync),
+		})
 }
 
 // ListByEventID returns all auction lots linked to a specific calendar event.

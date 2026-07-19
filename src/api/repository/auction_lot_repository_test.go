@@ -541,6 +541,76 @@ func TestAuctionLotRepository_UpsertPromotesWatchingToBidding(t *testing.T) {
 	}
 }
 
+func TestAuctionLotRepository_UpsertAutoTransitionsBiddingToWonWithWinningBid(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+
+	lot := &models.AuctionLot{
+		NumisBidsURL: "https://auctions.cngcoins.com/lots/view/4-WONLOT/test",
+		Source:       models.AuctionSourceCNG,
+		SourceURL:    "https://auctions.cngcoins.com/lots/view/4-WONLOT/test",
+		Title:        "CNG Won Lot",
+		Status:       models.AuctionStatusBidding,
+		UserID:       11,
+	}
+	if _, err := repo.Upsert(lot); err != nil {
+		t.Fatalf("initial upsert: %v", err)
+	}
+
+	winningBid := 1500.0
+	lot.Status = models.AuctionStatusWon
+	lot.WinningBid = &winningBid
+	if _, err := repo.Upsert(lot); err != nil {
+		t.Fatalf("won upsert: %v", err)
+	}
+
+	found, err := repo.GetBySourceURL(models.AuctionSourceCNG, lot.SourceURL, 11)
+	if err != nil {
+		t.Fatalf("GetBySourceURL: %v", err)
+	}
+	if found.Status != models.AuctionStatusWon {
+		t.Fatalf("Status = %q, want won", found.Status)
+	}
+	if found.WinningBid == nil || *found.WinningBid != 1500 {
+		t.Fatalf("WinningBid = %v, want 1500", found.WinningBid)
+	}
+	if found.StatusSource != models.AuctionLotStatusSourceSync {
+		t.Fatalf("StatusSource = %q, want sync (auto-detected by watchlist sync)", found.StatusSource)
+	}
+}
+
+func TestAuctionLotRepository_UpsertAutoTransitionsWatchingDirectlyToLost(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+
+	// A lot can go straight from watching to lost if the provider reports it closed before
+	// any sync ever observed it locally as "bidding" (e.g. a missed sync cycle).
+	lot := &models.AuctionLot{
+		NumisBidsURL: "https://auctions.cngcoins.com/lots/view/4-LOSTLOT/test",
+		Source:       models.AuctionSourceCNG,
+		SourceURL:    "https://auctions.cngcoins.com/lots/view/4-LOSTLOT/test",
+		Title:        "CNG Lost Lot",
+		Status:       models.AuctionStatusWatching,
+		UserID:       12,
+	}
+	if _, err := repo.Upsert(lot); err != nil {
+		t.Fatalf("initial upsert: %v", err)
+	}
+
+	lot.Status = models.AuctionStatusLost
+	if _, err := repo.Upsert(lot); err != nil {
+		t.Fatalf("lost upsert: %v", err)
+	}
+
+	found, err := repo.GetBySourceURL(models.AuctionSourceCNG, lot.SourceURL, 12)
+	if err != nil {
+		t.Fatalf("GetBySourceURL: %v", err)
+	}
+	if found.Status != models.AuctionStatusLost {
+		t.Fatalf("Status = %q, want lost", found.Status)
+	}
+}
+
 // TestAuctionLotRepository_UpsertDoesNotOverwriteWonOrLostWithBidding verifies that a
 // sync-detected autobid does not overwrite a user-set "won" or "lost" status.
 func TestAuctionLotRepository_UpsertDoesNotOverwriteWonOrLostWithBidding(t *testing.T) {
@@ -925,5 +995,36 @@ func TestAuctionLotRepository_CountByStatusForSource(t *testing.T) {
 	}
 	if counts[string(models.AuctionStatusBidding)] != 1 {
 		t.Fatalf("CNG bidding count = %d, want 1", counts[string(models.AuctionStatusBidding)])
+	}
+}
+
+func TestAuctionLotRepository_ListResolvedByUserAndCategory(t *testing.T) {
+	db := setupAuctionTestDB(t)
+	repo := NewAuctionLotRepository(db)
+
+	lots := []*models.AuctionLot{
+		{NumisBidsURL: "https://example.com/won-roman", Source: models.AuctionSourceCNG, SourceURL: "https://example.com/won-roman", Title: "Won Roman", Category: models.CategoryRoman, Status: models.AuctionStatusWon, UserID: 13},
+		{NumisBidsURL: "https://example.com/lost-roman", Source: models.AuctionSourceCNG, SourceURL: "https://example.com/lost-roman", Title: "Lost Roman", Category: models.CategoryRoman, Status: models.AuctionStatusLost, UserID: 13},
+		{NumisBidsURL: "https://example.com/watching-roman", Source: models.AuctionSourceCNG, SourceURL: "https://example.com/watching-roman", Title: "Watching Roman", Category: models.CategoryRoman, Status: models.AuctionStatusWatching, UserID: 13},
+		{NumisBidsURL: "https://example.com/won-greek", Source: models.AuctionSourceCNG, SourceURL: "https://example.com/won-greek", Title: "Won Greek", Category: models.CategoryGreek, Status: models.AuctionStatusWon, UserID: 13},
+		{NumisBidsURL: "https://example.com/won-roman-other-user", Source: models.AuctionSourceCNG, SourceURL: "https://example.com/won-roman-other-user", Title: "Won Roman Other User", Category: models.CategoryRoman, Status: models.AuctionStatusWon, UserID: 14},
+	}
+	for _, lot := range lots {
+		if err := repo.Create(lot); err != nil {
+			t.Fatalf("create lot %q: %v", lot.Title, err)
+		}
+	}
+
+	found, err := repo.ListResolvedByUserAndCategory(13, models.CategoryRoman)
+	if err != nil {
+		t.Fatalf("ListResolvedByUserAndCategory failed: %v", err)
+	}
+	if len(found) != 2 {
+		t.Fatalf("found %d lots, want 2 (won + lost Roman, excluding watching and other user/category)", len(found))
+	}
+	for _, lot := range found {
+		if lot.Status != models.AuctionStatusWon && lot.Status != models.AuctionStatusLost {
+			t.Fatalf("unexpected status %q in resolved results", lot.Status)
+		}
 	}
 }

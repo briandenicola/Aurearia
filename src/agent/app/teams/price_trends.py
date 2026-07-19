@@ -59,6 +59,22 @@ class PriceTrendState(TypedDict):
     user_message: str
 
 
+async def search_auction_results(llm_config: LLMConfig, query: str) -> str:
+    """Web-search for recent auction results for the given coin description.
+
+    Shared by Team 9's chat node (below) and the bid market-signal team
+    (app/teams/bid_market_signal.py), which reuses this search step rather than
+    duplicating web-search logic.
+    """
+    search_model = get_search_model(llm_config)
+    messages = [
+        SystemMessage(content=SEARCH_PROMPT),
+        HumanMessage(content=f"Find recent auction results for: {query}"),
+    ]
+    response = await ainvoke_with_retry(search_model, messages)
+    return response.content if isinstance(response.content, str) else str(response.content)
+
+
 def create_price_trend_team(
     llm_config: LLMConfig,
     user_message: str = "",
@@ -67,13 +83,7 @@ def create_price_trend_team(
     chat_model = get_chat_model(llm_config)
 
     async def search_node(state: PriceTrendState) -> dict:
-        search_model = get_search_model(llm_config)
-        messages = [
-            SystemMessage(content=SEARCH_PROMPT),
-            HumanMessage(content=f"Find recent auction results for: {user_message}"),
-        ]
-        response = await ainvoke_with_retry(search_model, messages)
-        content = response.content if isinstance(response.content, str) else str(response.content)
+        content = await search_auction_results(llm_config, user_message)
         return {"search_results": content, "messages": []}
 
     async def analysis_node(state: PriceTrendState) -> dict:

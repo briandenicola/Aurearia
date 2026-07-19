@@ -1360,6 +1360,7 @@ export interface LimitedCoin {
 
 export type AuctionLotStatus = 'watching' | 'bidding' | 'won' | 'lost' | 'passed'
 export type AuctionSource = 'numisbids' | 'cng'
+export type AuctionLotStatusSource = 'sync' | 'manual'
 
 export interface AuctionLot {
   id: number
@@ -1385,6 +1386,7 @@ export interface AuctionLot {
   winningBid: number | null
   currency: string
   status: AuctionLotStatus
+  statusSource?: AuctionLotStatusSource
   imageUrl: string
   coinId: number | null
   coin?: Coin
@@ -1420,6 +1422,29 @@ export interface BidReminder {
   isNotified: boolean
   notifiedAt: string | null
   createdAt: string
+}
+
+export type BidRecommendationConfidence = 'insufficient_data' | 'low' | 'medium' | 'high'
+
+export interface BidRecommendation {
+  suggestedMaxBid: number | null
+  confidence: BidRecommendationConfidence
+  sampleSize: number
+  rationale: string
+}
+
+export type MarketSignalStatus = 'unavailable' | 'ok'
+export type MarketTrendDirection = 'rising' | 'stable' | 'declining' | 'unknown'
+
+export interface MarketSignal {
+  status: MarketSignalStatus
+  trendDirection?: MarketTrendDirection
+  priceLow?: number
+  priceHigh?: number
+  currency?: string
+  sampleSize?: number
+  rationale: string
+  sources?: string[]
 }
 
 export interface CalendarEventDetail {

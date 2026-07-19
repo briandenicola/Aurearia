@@ -210,6 +210,13 @@ class GradeRequest(StrictRequestModel):
         return images
 
 
+class BidMarketSignalRequest(StrictRequestModel):
+    """Request for a structured market-trend signal for a described auction lot."""
+
+    llm: LLMConfig
+    coin: CoinData
+
+
 class IntakeDraftRequest(StrictRequestModel):
     """Request to generate an intake draft from observation images."""
 

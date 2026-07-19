@@ -22,7 +22,14 @@ func setupAuctionAlertsHandlerDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.AuctionLot{}, &models.PriceAlert{}, &models.BidReminder{}, &models.AuctionAlertRun{}, &models.AppSetting{}); err != nil {
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("failed to get sql db: %v", err)
+	}
+	// NotificationService fires Pushover delivery on a background goroutine; pin the pool to
+	// one connection so it can't land on a second, unmigrated ":memory:" instance.
+	sqlDB.SetMaxOpenConns(1)
+	if err := db.AutoMigrate(&models.User{}, &models.AuctionLot{}, &models.PriceAlert{}, &models.BidReminder{}, &models.AuctionAlertRun{}, &models.AppSetting{}, &models.Notification{}); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
 	return db
@@ -78,11 +85,17 @@ func TestAuctionAlertAdminHandlerRunNowAndListRuns(t *testing.T) {
 
 	settingsSvc := services.NewSettingsService(repository.NewSettingsRepository(db))
 	logger := services.NewLogger(100)
+	notificationSvc := services.NewNotificationService(
+		repository.NewNotificationRepository(db),
+		nil,
+		repository.NewUserRepository(db),
+		services.NewPushoverService(settingsSvc, logger),
+		logger,
+	)
 	evaluator := services.NewAuctionAlertEvaluator(
 		repository.NewPriceAlertRepository(db),
 		repository.NewBidReminderRepository(db),
-		repository.NewUserRepository(db),
-		services.NewPushoverService(settingsSvc, logger),
+		notificationSvc,
 		logger,
 	)
 	runRepo := repository.NewAuctionAlertRunRepository(db)

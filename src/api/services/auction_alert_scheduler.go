@@ -122,7 +122,7 @@ func (s *AuctionAlertScheduler) runCycleWithTrigger(triggerType string, triggerU
 	}
 
 	if s.syncSvc != nil {
-		stats := s.syncSvc.SyncDigestEligibleUsers()
+		stats := s.syncSvc.SyncAllConfiguredUsers()
 		s.logger.Info("scheduler", "Auction watchlist refresh before alerts complete — %d users checked, %d lots synced, %d errors", stats.UsersChecked, stats.LotsSynced, stats.Errors)
 	}
 

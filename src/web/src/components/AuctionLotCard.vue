@@ -30,6 +30,9 @@
       </div>
     </div>
     <div class="flex flex-1 flex-col gap-[0.35rem] p-4">
+      <div v-if="needsAttention" class="flex items-center gap-1 text-[0.75rem] font-semibold text-[#f59e0b]" title="This lot's auction has closed but its status hasn't been confirmed yet">
+        <AlertTriangle :size="13" /> Needs attention
+      </div>
       <h3 class="overflow-hidden text-[0.95rem] leading-[1.3] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">{{ lot.title }}</h3>
       <div class="flex flex-wrap gap-2">
         <span v-if="lot.auctionHouse" class="text-[0.78rem] text-text-secondary">{{ lot.auctionHouse }}</span>
@@ -53,13 +56,14 @@
         </span>
         <span v-if="lot.currency && lot.currency !== 'USD'" class="rounded-full bg-surface px-[0.45rem] py-[0.12rem] text-[0.72rem] text-text-secondary">{{ lot.currency }}</span>
       </div>
-      <div class="mt-auto flex flex-wrap gap-3 text-[0.82rem]">
+      <div class="mt-auto flex flex-wrap gap-2 text-[0.82rem]">
         <div v-if="lot.estimate" class="text-text-secondary">Est: {{ formatCurrency(lot.estimate, lot.currency) }}</div>
         <div v-if="lot.initialBid && !lot.winningBid" class="text-text-muted">Start: {{ formatCurrency(lot.initialBid, lot.currency) }}</div>
         <div v-if="lot.currentBid" class="font-semibold text-gold">Bid: {{ formatCurrency(lot.currentBid, lot.currency) }}</div>
         <div v-if="lot.maxBid && lot.status !== 'won'" class="italic text-text-muted">Max: {{ formatCurrency(lot.maxBid, lot.currency) }}</div>
         <div v-if="lot.winningBid" class="font-semibold text-[#4ade80]">Won: {{ formatCurrency(lot.winningBid, lot.currency) }}</div>
         <div v-if="biddingIndicator" :class="biddingIndicator.cls" class="text-[0.78rem] font-semibold">{{ biddingIndicator.label }}</div>
+        <div v-if="statusSourceLabel" class="text-[0.78rem] text-text-muted" :title="statusSourceLabel.title">{{ statusSourceLabel.text }}</div>
       </div>
       <div v-if="priceAlerts.length || bidReminders.length" class="flex flex-wrap gap-[0.35rem]" aria-label="Auction alerts">
         <span v-if="priceAlerts.length" class="chip-sm">{{ priceAlerts.length }} price {{ priceAlerts.length === 1 ? 'alert' : 'alerts' }}</span>
@@ -83,8 +87,9 @@
 <script setup lang="ts">
 import type { AuctionLot, BidReminder, PriceAlert } from '@/types'
 import { computed } from 'vue'
-import { Gavel, Check } from 'lucide-vue-next'
+import { Gavel, Check, AlertTriangle } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
+import { auctionLotNeedsAttention, auctionLotStatusSourceLabel } from '@/utils/auctionLot'
 import { useProxiedImage } from '@/composables/useProxiedImage'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
@@ -148,6 +153,9 @@ const biddingIndicator = computed(() => {
   }
   return { label: 'Outbid', cls: 'text-[#f87171]' }
 })
+
+const needsAttention = computed(() => auctionLotNeedsAttention(props.lot))
+const statusSourceLabel = computed(() => auctionLotStatusSourceLabel(props.lot))
 
 
 </script>

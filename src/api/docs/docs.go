@@ -4005,6 +4005,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/auctions/{id}/bid-recommendation": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Suggests a maximum bid for a lot based on the user's own won/lost auction history in the same category. This is an aid only — the app does not place bids.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auctions"
+                ],
+                "summary": "Suggest a maximum bid",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Auction lot ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.BidRecommendation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auctions/{id}/convert": {
             "post": {
                 "security": [
@@ -4090,6 +4136,52 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auctions/{id}/market-signal": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Searches live auction results for coins comparable to this lot and returns a structured trend signal (rising/stable/declining, price range, rationale). Best-effort: degrades to status \"unavailable\" rather than erroring if the AI provider isn't configured or the search fails.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auctions"
+                ],
+                "summary": "Get current market trend signal for a lot",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Auction lot ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.MarketSignal"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -17062,6 +17154,14 @@ const docTemplate = `{
                 "status": {
                     "$ref": "#/definitions/models.AuctionLotStatus"
                 },
+                "statusSource": {
+                    "description": "StatusSource records whether the current Status was set by watchlist sync\nauto-detecting a provider-reported outcome, or by an explicit manual override.\nOnly meaningful once Status is won/lost; see specs/_backlog/F024.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.AuctionLotStatusSource"
+                        }
+                    ]
+                },
                 "title": {
                     "type": "string"
                 },
@@ -17091,6 +17191,17 @@ const docTemplate = `{
                 "AuctionStatusWon",
                 "AuctionStatusLost",
                 "AuctionStatusPassed"
+            ]
+        },
+        "models.AuctionLotStatusSource": {
+            "type": "string",
+            "enum": [
+                "sync",
+                "manual"
+            ],
+            "x-enum-varnames": [
+                "AuctionLotStatusSourceSync",
+                "AuctionLotStatusSourceManual"
             ]
         },
         "models.AuctionSource": {
@@ -18216,6 +18327,38 @@ const docTemplate = `{
                 }
             }
         },
+        "services.BidRecommendation": {
+            "type": "object",
+            "properties": {
+                "confidence": {
+                    "$ref": "#/definitions/services.BidRecommendationConfidence"
+                },
+                "rationale": {
+                    "type": "string"
+                },
+                "sampleSize": {
+                    "type": "integer"
+                },
+                "suggestedMaxBid": {
+                    "type": "number"
+                }
+            }
+        },
+        "services.BidRecommendationConfidence": {
+            "type": "string",
+            "enum": [
+                "insufficient_data",
+                "low",
+                "medium",
+                "high"
+            ],
+            "x-enum-varnames": [
+                "ConfidenceInsufficientData",
+                "ConfidenceLow",
+                "ConfidenceMedium",
+                "ConfidenceHigh"
+            ]
+        },
         "services.BidReminderCreateRequest": {
             "type": "object",
             "required": [
@@ -18471,6 +18614,49 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "services.MarketSignal": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string"
+                },
+                "priceHigh": {
+                    "type": "number"
+                },
+                "priceLow": {
+                    "type": "number"
+                },
+                "rationale": {
+                    "type": "string"
+                },
+                "sampleSize": {
+                    "type": "integer"
+                },
+                "sources": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "$ref": "#/definitions/services.MarketSignalStatus"
+                },
+                "trendDirection": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.MarketSignalStatus": {
+            "type": "string",
+            "enum": [
+                "unavailable",
+                "ok"
+            ],
+            "x-enum-varnames": [
+                "MarketSignalUnavailable",
+                "MarketSignalOK"
+            ]
         },
         "services.MissingChecklistItem": {
             "type": "object",

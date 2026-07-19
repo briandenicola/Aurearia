@@ -1771,6 +1771,13 @@ definitions:
         type: string
       status:
         $ref: '#/definitions/models.AuctionLotStatus'
+      statusSource:
+        allOf:
+        - $ref: '#/definitions/models.AuctionLotStatusSource'
+        description: |-
+          StatusSource records whether the current Status was set by watchlist sync
+          auto-detecting a provider-reported outcome, or by an explicit manual override.
+          Only meaningful once Status is won/lost; see specs/_backlog/F024.
       title:
         type: string
       updatedAt:
@@ -1794,6 +1801,14 @@ definitions:
     - AuctionStatusWon
     - AuctionStatusLost
     - AuctionStatusPassed
+  models.AuctionLotStatusSource:
+    enum:
+    - sync
+    - manual
+    type: string
+    x-enum-varnames:
+    - AuctionLotStatusSourceSync
+    - AuctionLotStatusSourceManual
   models.AuctionSource:
     enum:
     - numisbids
@@ -2567,6 +2582,29 @@ definitions:
           $ref: '#/definitions/services.MissingFieldStat'
         type: array
     type: object
+  services.BidRecommendation:
+    properties:
+      confidence:
+        $ref: '#/definitions/services.BidRecommendationConfidence'
+      rationale:
+        type: string
+      sampleSize:
+        type: integer
+      suggestedMaxBid:
+        type: number
+    type: object
+  services.BidRecommendationConfidence:
+    enum:
+    - insufficient_data
+    - low
+    - medium
+    - high
+    type: string
+    x-enum-varnames:
+    - ConfidenceInsufficientData
+    - ConfidenceLow
+    - ConfidenceMedium
+    - ConfidenceHigh
   services.BidReminderCreateRequest:
     properties:
       auctionLotId:
@@ -2742,6 +2780,35 @@ definitions:
       valuationFreshness:
         type: integer
     type: object
+  services.MarketSignal:
+    properties:
+      currency:
+        type: string
+      priceHigh:
+        type: number
+      priceLow:
+        type: number
+      rationale:
+        type: string
+      sampleSize:
+        type: integer
+      sources:
+        items:
+          type: string
+        type: array
+      status:
+        $ref: '#/definitions/services.MarketSignalStatus'
+      trendDirection:
+        type: string
+    type: object
+  services.MarketSignalStatus:
+    enum:
+    - unavailable
+    - ok
+    type: string
+    x-enum-varnames:
+    - MarketSignalUnavailable
+    - MarketSignalOK
   services.MissingChecklistItem:
     properties:
       actionHint:
@@ -5361,6 +5428,37 @@ paths:
       summary: Update auction lot
       tags:
       - Auctions
+  /auctions/{id}/bid-recommendation:
+    get:
+      description: Suggests a maximum bid for a lot based on the user's own won/lost
+        auction history in the same category. This is an aid only — the app does not
+        place bids.
+      parameters:
+      - description: Auction lot ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.BidRecommendation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Suggest a maximum bid
+      tags:
+      - Auctions
   /auctions/{id}/convert:
     post:
       description: Creates an owned Coin from a won auction lot.
@@ -5417,6 +5515,38 @@ paths:
       security:
       - BearerAuth: []
       summary: Link lot to calendar event
+      tags:
+      - Auctions
+  /auctions/{id}/market-signal:
+    post:
+      description: 'Searches live auction results for coins comparable to this lot
+        and returns a structured trend signal (rising/stable/declining, price range,
+        rationale). Best-effort: degrades to status "unavailable" rather than erroring
+        if the AI provider isn''t configured or the search fails.'
+      parameters:
+      - description: Auction lot ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.MarketSignal'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current market trend signal for a lot
       tags:
       - Auctions
   /auctions/{id}/status:

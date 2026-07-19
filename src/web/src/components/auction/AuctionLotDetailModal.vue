@@ -75,6 +75,13 @@
             {{ lot.status }}
           </span>
         </div>
+        <div v-if="statusSourceLabel" class="flex min-w-0 items-center justify-between gap-3 border-b border-border-subtle py-2 text-[0.82rem] text-text-muted" :title="statusSourceLabel.title">
+          <span class="text-[0.82rem] text-text-secondary">Confirmed by</span>
+          <span>{{ statusSourceLabel.text }}</span>
+        </div>
+        <div v-if="needsAttention" class="mt-2 flex items-center gap-1.5 rounded-sm bg-[rgba(245,158,11,0.12)] px-2.5 py-1.5 text-[0.82rem] font-semibold text-[#f59e0b]">
+          <AlertTriangle :size="14" /> This lot's auction has closed but its status hasn't been confirmed yet
+        </div>
         <div v-if="lot.description" class="mt-3">
           <span class="text-[0.82rem] text-text-secondary">Description</span>
           <p class="mt-1.5 text-body leading-6 text-text-secondary [overflow-wrap:anywhere]">{{ lot.description }}</p>
@@ -217,10 +224,11 @@
             <option value="lost">Lost</option>
             <option value="passed">Passed</option>
           </select>
-          <button class="btn btn-secondary" @click="changeStatus" :disabled="!hasPendingStatusUpdate">
-            Update Status
+          <button class="btn btn-secondary" @click="changeStatus" :disabled="statusBusy || !hasPendingStatusUpdate">
+            {{ statusBusy ? 'Updating...' : 'Update Status' }}
           </button>
         </div>
+        <p v-if="statusMessage" class="m-0 text-chip" :class="statusError ? 'text-[var(--color-negative)]' : 'text-gold'">{{ statusMessage }}</p>
         <div v-if="newStatus === 'bidding'" class="flex flex-wrap items-center gap-[0.6rem]">
           <label class="text-[0.82rem] text-text-secondary">Max Bid</label>
           <input
@@ -232,6 +240,50 @@
             min="0"
             step="1"
           />
+        </div>
+        <div v-if="newStatus === 'bidding'" class="text-[0.78rem] text-text-secondary">
+          <template v-if="bidRecommendation?.suggestedMaxBid">
+            <button
+              type="button"
+              class="text-gold underline decoration-dotted underline-offset-2"
+              :title="bidRecommendation.rationale"
+              @click="maxBidInput = bidRecommendation.suggestedMaxBid"
+            >
+              Suggested max bid: {{ formatCurrency(bidRecommendation.suggestedMaxBid, lot.currency) }}
+            </button>
+            <span class="text-text-muted"> ({{ bidRecommendation.confidence }} confidence, based on {{ bidRecommendation.sampleSize }} of your own resolved lots — click to use)</span>
+          </template>
+          <span v-else-if="bidRecommendation" class="text-text-muted">{{ bidRecommendation.rationale }}</span>
+          <span v-else-if="bidRecommendationError" class="text-text-muted">Couldn't load a bid suggestion.</span>
+        </div>
+        <div v-if="newStatus === 'bidding'" class="text-[0.78rem] text-text-secondary">
+          <span v-if="!providerConfigured" class="text-[#f59e0b]">
+            AI provider not configured. <a href="/admin" class="font-semibold text-gold underline" @click="$emit('close')">Go to Admin Settings</a> to check current market data for this lot.
+          </span>
+          <template v-else-if="marketSignalLoading">
+            <span class="text-text-muted">Checking current auction market…</span>
+          </template>
+          <template v-else-if="marketSignal">
+            <template v-if="marketSignal.status === 'ok'">
+              <span class="font-medium text-text-primary">Market trend: {{ marketSignal.trendDirection }}</span>
+              <span v-if="marketSignal.priceLow != null && marketSignal.priceHigh != null" class="text-text-muted">
+                ({{ formatCurrency(marketSignal.priceLow, marketSignal.currency || lot.currency) }}–{{ formatCurrency(marketSignal.priceHigh, marketSignal.currency || lot.currency) }},
+                based on {{ marketSignal.sampleSize }} recent result(s))
+              </span>
+              <span :title="marketSignal.rationale" class="ml-1 cursor-help text-text-muted underline decoration-dotted underline-offset-2">why?</span>
+            </template>
+            <span v-else class="text-text-muted">{{ marketSignal.rationale }}</span>
+          </template>
+          <template v-else>
+            <button
+              type="button"
+              class="text-gold underline decoration-dotted underline-offset-2"
+              @click="fetchMarketSignal"
+            >
+              {{ marketSignalError ? 'Try again' : 'Check current market' }}
+            </button>
+            <span v-if="marketSignalError" class="ml-1 text-text-muted">Couldn't check the market right now.</span>
+          </template>
         </div>
         <div v-if="newStatus === 'won'" class="flex flex-wrap items-center gap-[0.6rem]">
           <label class="text-[0.82rem] text-text-secondary">Winning Bid</label>
@@ -267,10 +319,10 @@
           <SafeExternalLink v-if="externalUrl" :href="externalUrl" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
             <ExternalLink :size="14" /> View on {{ providerLabel }}
           </SafeExternalLink>
-          <button v-if="lot.status === 'won'" class="btn btn-primary" @click="convertToCoin">
+          <button v-if="lot.status === 'won'" class="btn btn-primary" :disabled="statusBusy" @click="convertToCoin">
             <ArrowRightCircle :size="14" /> Add to Collection
           </button>
-          <button class="btn btn-danger !border-[rgba(248,113,113,0.4)] !bg-transparent px-[0.9rem] py-2 text-[0.82rem] !text-[#f87171] hover:!border-[rgba(248,113,113,0.6)] hover:!bg-[rgba(248,113,113,0.1)]" @click="removeLot">
+          <button class="btn btn-danger !border-[rgba(248,113,113,0.4)] !bg-transparent px-[0.9rem] py-2 text-[0.82rem] !text-[#f87171] hover:!border-[rgba(248,113,113,0.6)] hover:!bg-[rgba(248,113,113,0.1)]" :disabled="statusBusy" @click="removeLot">
             <Trash2 :size="14" /> Remove
           </button>
         </div>
@@ -280,13 +332,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive } from 'vue'
+import { ref, computed, onMounted, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { updateAuctionLotStatus, updateAuctionLot, convertAuctionLotToCoin, deleteAuctionLot, listCalendarEvents, linkAuctionLotEvent, createAlert, deleteAlert, createReminder, deleteReminder } from '@/api/client'
+import { updateAuctionLotStatus, updateAuctionLot, convertAuctionLotToCoin, deleteAuctionLot, listCalendarEvents, linkAuctionLotEvent, createAlert, deleteAlert, createReminder, deleteReminder, getAuctionLotBidRecommendation, getAuctionLotMarketSignal, getAgentStatus } from '@/api/client'
 import { useProxiedImage } from '@/composables/useProxiedImage'
-import type { AuctionLot, AuctionLotStatus, BidReminder, PriceAlert, PriceAlertDirection } from '@/types'
-import { X, ExternalLink, ArrowRightCircle, Trash2, CalendarDays, Pencil } from 'lucide-vue-next'
+import type { AuctionLot, AuctionLotStatus, BidReminder, BidRecommendation, MarketSignal, PriceAlert, PriceAlertDirection } from '@/types'
+import { X, ExternalLink, ArrowRightCircle, Trash2, CalendarDays, Pencil, AlertTriangle } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
+import { auctionLotNeedsAttention, auctionLotStatusSourceLabel } from '@/utils/auctionLot'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 const props = defineProps<{
@@ -308,6 +361,12 @@ const maxBidInput = ref<number | null>(props.lot.maxBid ?? null)
 const winningBidInput = ref<number | null>(props.lot.winningBid ?? null)
 const calendarEvents = ref<Array<{ id: number; title: string; auctionHouse: string; startDate: string | null }>>([])
 const selectedEventId = ref<number | string>(props.lot.eventId ?? '')
+const bidRecommendation = ref<BidRecommendation | null>(null)
+const bidRecommendationError = ref(false)
+const marketSignal = ref<MarketSignal | null>(null)
+const marketSignalLoading = ref(false)
+const marketSignalError = ref(false)
+const providerConfigured = ref(true)
 
 const lotImageSource = computed(() => props.lot.imageUrl ?? '')
 const { proxiedImageUrl } = useProxiedImage(lotImageSource)
@@ -328,10 +387,15 @@ const biddingIndicator = computed(() => {
   }
   return { label: 'Outbid', cls: 'text-[#f87171]' }
 })
+const needsAttention = computed(() => auctionLotNeedsAttention(props.lot))
+const statusSourceLabel = computed(() => auctionLotStatusSourceLabel(props.lot))
 const alertBusy = ref(false)
 const reminderBusy = ref(false)
 const alertMessage = ref('')
 const alertError = ref(false)
+const statusBusy = ref(false)
+const statusMessage = ref('')
+const statusError = ref(false)
 const alertForm = reactive<{ targetPrice: number | null; direction: PriceAlertDirection }>({
   targetPrice: props.lot.currentBid ?? props.lot.maxBid ?? props.lot.estimate ?? null,
   direction: 'above',
@@ -364,6 +428,16 @@ function formatOptionalDate(dateStr: string | null) {
 function setAlertMessage(message: string, isError = false) {
   alertMessage.value = message
   alertError.value = isError
+}
+
+function setStatusMessage(message: string, isError = false) {
+  statusMessage.value = message
+  statusError.value = isError
+}
+
+function errorMessageFrom(err: unknown, fallback: string): string {
+  const maybeAxiosError = err as { response?: { data?: { error?: string } } }
+  return maybeAxiosError?.response?.data?.error || fallback
 }
 
 // Edit mode
@@ -486,12 +560,48 @@ async function fetchCalendarEvents() {
   } catch { /* ignore */ }
 }
 
+let bidRecommendationFetched = false
+async function fetchBidRecommendation() {
+  if (bidRecommendationFetched) return
+  bidRecommendationFetched = true
+  bidRecommendationError.value = false
+  try {
+    const res = await getAuctionLotBidRecommendation(props.lot.id)
+    bidRecommendation.value = res.data
+  } catch {
+    bidRecommendationError.value = true
+  }
+}
+
+async function fetchMarketSignal() {
+  marketSignalLoading.value = true
+  marketSignalError.value = false
+  try {
+    const res = await getAuctionLotMarketSignal(props.lot.id)
+    marketSignal.value = res.data
+  } catch {
+    marketSignalError.value = true
+  } finally {
+    marketSignalLoading.value = false
+  }
+}
+
+watch(newStatus, status => {
+  if (status === 'bidding') {
+    fetchBidRecommendation()
+    getAgentStatus().then(res => { providerConfigured.value = res.data.configured }).catch(() => { providerConfigured.value = true })
+  }
+}, { immediate: true })
+
 async function linkEvent() {
   const eventId = selectedEventId.value === '' ? null : Number(selectedEventId.value)
+  setStatusMessage('')
   try {
     await linkAuctionLotEvent(props.lot.id, eventId)
     emit('updated')
-  } catch { /* ignore */ }
+  } catch (err) {
+    setStatusMessage(errorMessageFrom(err, 'Failed to update calendar event'), true)
+  }
 }
 
 async function saveAlert() {
@@ -560,6 +670,8 @@ async function removeReminder(id: number) {
 }
 
 async function changeStatus() {
+  statusBusy.value = true
+  setStatusMessage('')
   try {
     const bid = maxBidChanged.value ? normalizedMaxBidInput.value : undefined
     const winBid = winningBidChanged.value ? normalizedWinningBidInput.value : undefined
@@ -571,27 +683,47 @@ async function changeStatus() {
         emit('close')
         router.push(`/edit/${coinRes.data.id}`)
         return
-      } catch { /* fall through */ }
+      } catch (err) {
+        setStatusMessage(errorMessageFrom(err, 'Status updated to Won, but adding it to your collection failed — use "Add to Collection" to retry.'), true)
+        emit('updated')
+        return
+      }
     }
 
     emit('updated')
-  } catch { /* ignore */ }
+  } catch (err) {
+    setStatusMessage(errorMessageFrom(err, 'Failed to update status'), true)
+  } finally {
+    statusBusy.value = false
+  }
 }
 
 async function convertToCoin() {
+  statusBusy.value = true
+  setStatusMessage('')
   try {
     const coinRes = await convertAuctionLotToCoin(props.lot.id)
     emit('close')
     router.push(`/edit/${coinRes.data.id}`)
-  } catch { /* ignore */ }
+  } catch (err) {
+    setStatusMessage(errorMessageFrom(err, 'Failed to add to collection'), true)
+  } finally {
+    statusBusy.value = false
+  }
 }
 
 async function removeLot() {
+  statusBusy.value = true
+  setStatusMessage('')
   try {
     await deleteAuctionLot(props.lot.id)
     emit('close')
     emit('updated')
-  } catch { /* ignore */ }
+  } catch (err) {
+    setStatusMessage(errorMessageFrom(err, 'Failed to remove lot'), true)
+  } finally {
+    statusBusy.value = false
+  }
 }
 
 onMounted(fetchCalendarEvents)

@@ -110,7 +110,7 @@ func setupAuctionEndingAdminRouter(t *testing.T) (*gin.Engine, *gorm.DB, uint, u
 	settingsSvc := services.NewSettingsService(settingsRepo)
 	logger := services.NewLogger(100)
 	pushoverSvc := services.NewPushoverService(settingsSvc, logger)
-	scheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepo, pushoverSvc, settingsSvc, logger)
+	scheduler := services.NewAuctionEndingScheduler(auctionLotRepo, auctionEndingRepo, userRepo, pushoverSvc, nil, settingsSvc, logger)
 	handler := NewAuctionEndingAdminHandler(auctionEndingRepo, scheduler, logger)
 	debugHandler := NewAuctionEndingDebugHandler(auctionLotRepo)
 

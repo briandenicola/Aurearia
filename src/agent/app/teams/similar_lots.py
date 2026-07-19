@@ -16,6 +16,7 @@ from app.llm.provider import get_chat_model, get_search_model
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import CoinData, LLMConfig
 from app.safety import with_safety
+from app.teams.coin_description import build_coin_description
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ def create_similar_lot_team(
     """Create the similar lot finder team graph."""
     chat_model = get_chat_model(llm_config)
 
-    coin_desc = _build_coin_description(coin) if coin else user_message
+    coin_desc = build_coin_description(coin) if coin else user_message
 
     async def search_node(state: SimilarLotState) -> dict:
         search_model = get_search_model(llm_config)
@@ -105,22 +106,3 @@ def create_similar_lot_team(
     graph.add_edge("score", END)
 
     return graph.compile()
-
-
-def _build_coin_description(coin: CoinData) -> str:
-    parts = []
-    if coin.name:
-        parts.append(f"Name: {coin.name}")
-    if coin.category:
-        parts.append(f"Category: {coin.category}")
-    if coin.denomination:
-        parts.append(f"Denomination: {coin.denomination}")
-    if coin.ruler:
-        parts.append(f"Ruler: {coin.ruler}")
-    if coin.era:
-        parts.append(f"Era: {coin.era}")
-    if coin.material:
-        parts.append(f"Material: {coin.material}")
-    if coin.grade:
-        parts.append(f"Grade: {coin.grade}")
-    return "\n".join(parts) if parts else "Unknown coin"

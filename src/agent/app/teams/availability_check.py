@@ -18,6 +18,7 @@ from app.llm.retry import ainvoke_with_retry
 from app.models.requests import LLMConfig
 from app.models.responses import AvailabilityVerdict
 from app.safety import with_safety
+from app.teams.json_extraction import extract_json_payload
 from app.tools.search import verify_url
 
 logger = logging.getLogger(__name__)
@@ -164,25 +165,12 @@ def create_availability_check_team(llm_config: LLMConfig):
     return graph.compile()
 
 
-def _extract_json_payload(raw_response: str) -> str:
-    """Extract the JSON section from fenced or raw LLM output."""
-    start = raw_response.find("```json")
-    if start != -1:
-        start += len("```json")
-        end = raw_response.find("```", start)
-        if end != -1:
-            return raw_response[start:end].strip()
-        return raw_response[start:].strip()
-
-    return raw_response.strip()
-
-
 def parse_verdicts(
     raw_response: str,
     expected_items: Sequence[dict[str, str]] | None = None,
 ) -> list[AvailabilityVerdict]:
     """Extract AvailabilityVerdict objects from the LLM's JSON response."""
-    json_str = _extract_json_payload(raw_response)
+    json_str = extract_json_payload(raw_response)
 
     try:
         data = json.loads(json_str)
