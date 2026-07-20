@@ -4,12 +4,14 @@
 
 ## Overview
 
-Ask the agent what's missing from your collection.
+Ask the agent to compare your collection against a collecting goal, theme, ruler list, or series and suggest missing targets.
 
 ## Key Features
 
-- See the main [features.md](../features.md) for full documentation
-- All details are available in the main features overview
+- **Goal-driven prompts** — Ask about missing emperors, denominations, mints, eras, or set goals.
+- **Collection-aware suggestions** — Agent prompts can use your collection context where available.
+- **Acquisition handoff** — Suggested targets can lead into AI coin search, wishlist entries, or search alerts.
+- **Emperor Tracker pairing** — The Emperor Tracker highlights missing or suggested Roman figures and can kick off agent searches.
 
 ## Related Features
 
@@ -17,5 +19,4 @@ Ask the agent what's missing from your collection.
 - [Wish List](wish-list.md)
 - [Coin Details](coin-details.md)
 
-See also: [features.md](../features.md)
-
+See also: [Collection Statistics](statistics.md), [AI Coin Search Agent](ai-search-agent.md), [Wish List](wish-list.md)

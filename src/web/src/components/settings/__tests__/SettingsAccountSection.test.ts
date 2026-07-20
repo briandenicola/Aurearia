@@ -225,6 +225,23 @@ describe('SettingsAccountSection emperor tracker toggles', () => {
     })
   })
 
+  describe('SettingsAccountSection auction provider copy', () => {
+    beforeEach(() => {
+      vi.clearAllMocks()
+      mockGetOIDCIdentities.mockResolvedValue({ data: { identities: [] } })
+      mockGetOIDCPublicProviders.mockResolvedValue({ data: { providers: [] } })
+    })
+
+    it('distinguishes NumisBids tracking from CNG outcome sync', async () => {
+      const wrapper = mountSection()
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('NumisBids account for watchlist/import tracking')
+      expect(wrapper.text()).toContain('updated manually')
+      expect(wrapper.text()).toContain('CNG Auctions account to sync watched lots and auto-detect hosted-auction outcomes')
+    })
+  })
+
   function checkboxForRowContaining(wrapper: ReturnType<typeof mount>, text: string) {
     const checkbox = wrapper.findAll('input[type="checkbox"]').find((input) => {
       const row = input.element.closest('div')

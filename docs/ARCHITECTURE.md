@@ -557,6 +557,14 @@ SQLite via GORM. All tables are auto-migrated from Go model structs in `database
 | `PriceAlert` | `price_alerts` | AuctionLotID, UserID, TargetPrice |
 | `BidReminder` | `bid_reminders` | AuctionLotID, UserID, RemindAt |
 
+Auction provider services intentionally have asymmetric capabilities:
+
+| Service | Provider | Capability boundary |
+|---|---|---|
+| `CNGAuctionService` | CNG Auctions | Authenticated watched-lot sync with richer hosted-auction fields where CNG exposes them, including current bid, absentee/max bid, close time, and closed-lot outcome signals used by `AuctionWatchlistSyncService` to auto-detect won/lost status. |
+| `NumisBidsService` | NumisBids | Watchlist/import tracking from available NumisBids HTML. It does not currently expose or parse a reliable max-bid or final won/lost outcome signal, so NumisBids terminal status and winning bid data are manual unless future verified site data adds those fields. |
+| `AuctionWatchlistSyncService` | Provider orchestration | Keeps provider-specific scraping/parsing in the provider services, then applies source-aware upserts and status transitions. Sync writes set `statusSource = sync`; user overrides set `statusSource = manual`. |
+
 ### AI and Agent Models
 
 | Model | Table | Key Fields |

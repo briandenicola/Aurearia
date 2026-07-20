@@ -15,6 +15,20 @@ Quick-view metrics at the top:
 - **Average Value** — Mean value per coin
 - **Unique Rulers** — Count of distinct rulers/authorities in collection
 
+## Stats Subviews
+
+The Stats sidebar expands into focused pages:
+
+| View | Route | Purpose |
+|---|---|---|
+| Summary | `/stats` | Portfolio summary cards, distributions, rankings, and overview charts |
+| Timeline | `/stats/timeline` | Chronological collection timeline and lifecycle history |
+| Map | `/stats/mint-map` | Mint geography for coins with mapped mint data |
+| Health | `/stats/health` | Collection health score, missing metadata/images/AI analysis, stale valuations, and cleanup suggestions |
+| Value Details | `/stats/value-trends` | Portfolio value snapshots and detailed value-over-time analysis |
+| Investment Breakdown | `/stats/investment-breakdown` | Allocation, acquisition-year performance, top increases/drops, and stale valuation rows |
+| Emperors | `/stats/emperors` | Roman emperor/figure collection progress when enabled in Settings → Account |
+
 ## Category Breakdown
 
 Pie chart showing distribution across:
@@ -127,6 +141,8 @@ Overall collection metrics:
 | **Reference Coverage** | 72% | Coins with catalog references |
 | **Metadata Completeness** | 88% | Avg % of fields filled per coin |
 
+The Health subview also lists per-coin health details, missing images, missing AI analysis, missing catalog references, and stale valuation coverage so cleanup can be prioritized.
+
 Status indicators:
 - 🟢 Green: >80%
 - 🟡 Yellow: 50-80%
@@ -202,9 +218,9 @@ Collection-level export is available from **Settings -> Data** as JSON backup an
 
 ## Admin Configuration
 
-No admin configuration needed; stats auto-calculate from your collection data.
+Most stats auto-calculate from collection data and require no admin configuration. Emperor Tracker visibility is controlled per user from **Settings -> Account**.
 
-No separate chart toggles are currently required.
+No separate chart toggles are currently required for the summary, health, value, map, or investment views.
 
 ## API Endpoints
 
@@ -214,6 +230,9 @@ GET    /api/stats/distribution      # Era/region heat map
 GET    /api/stats/health            # Collection health summary
 GET    /api/coins/health            # Paginated per-coin health list
 GET    /api/coins/:id/health        # Single coin health score
+GET    /api/stats/value-trends      # Value trend details
+GET    /api/stats/investment-breakdown # Investment allocation and movement analysis
+GET    /api/stats/emperors          # Emperor tracker progress
 ```
 
 ## Performance

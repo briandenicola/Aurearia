@@ -55,6 +55,8 @@ Configure NumisBids and/or CNG Auctions credentials in **Settings → Account** 
 
 Stored provider passwords are encrypted at rest with `AUCTION_CREDENTIAL_ENCRYPTION_KEY`. Legacy plaintext values migrate automatically on next save or sync.
 
+CNG Auctions and NumisBids do not expose equivalent account data. CNG supports richer hosted-auction sync and can auto-detect won/lost outcomes where CNG reports the necessary signals. NumisBids currently supports watchlist/import tracking only, so won/lost/final outcome and max-bid values should be checked on NumisBids and updated manually in Aurearia.
+
 ### 4. Start Adding Coins
 
 Click **Add Coin** from the collection page. Fill in as many fields as you like — only **Name** is required. Toggle **"Add to wishlist"** at the bottom if you don't own the coin yet.

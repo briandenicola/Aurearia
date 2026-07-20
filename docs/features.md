@@ -14,9 +14,11 @@
 - [**Coin of the Day**](features/coin-of-the-day.md) — Daily featured coin scheduler
 
 ### 🎯 Discovery & Acquisition
+- [**Quick Capture**](quick-capture.md) — Mobile-first intake drafts for show-floor photos and notes
 - [**Coin Lookup**](features/coin-lookup.md) — Photo-based lookup for NGC Ancients slabs and Numista matches
 - [**Wish List**](features/wish-list.md) — Track coins with AI search and availability checking
-- [**Auction Tracking**](features/auction-tracking.md) — Monitor NumisBids and CNG Auctions lots through bidding lifecycle
+- [**Wishlist Search Alerts**](features/wish-list.md#wishlist-search-alerts) — Saved search criteria with manual or scheduled candidate discovery
+- [**Auction Tracking**](features/auction-tracking.md) — Monitor NumisBids and CNG Auctions lots with provider-aware sync and status tracking
 - [**Sold Coins**](features/sold-coins.md) — Track sales with profit/loss analysis
 
 ### 🤖 AI Features
@@ -30,8 +32,10 @@
 
 ### 📊 Organization & Analytics
 - [**Coin Sets**](features/coin-sets.md) — Themed collections with trend tracking
+- [**Tray View**](features/coin-sets.md#tray-view) — Cabinet-style visual browsing for collection and set pages
 - [**Custom Tags**](features/custom-tags.md) — Flexible categorization
 - [**Collection Statistics**](features/statistics.md) — Portfolio analytics & charts
+- [**Stats Subviews**](features/statistics.md#stats-subviews) — Timeline, map, health, value details, investment breakdown, and emperor tracker views
 - [**Collection Showcase**](features/collection-showcase.md) — Share curated public subsets
 
 ### 🤝 Social & Community
@@ -39,7 +43,7 @@
 - [**User Profiles**](features/user-profiles.md) — Avatars, bio, privacy controls
 
 ### 🔐 Admin & Configuration
-- [**Admin Settings**](features/admin-settings.md) — User management, AI config, scheduling, configurable coin properties
+- [**Admin Settings**](features/admin-settings.md) — User management, AI config, OIDC, security, scheduling, catalogs, and configurable coin properties
 - [**Authentication**](authentication.md) — JWT, WebAuthn, API keys
 - [**External Tool Server**](external-tool-server.md) — OpenAPI for external clients
 
@@ -48,7 +52,7 @@
 - [**Camera Capture**](features/camera-capture.md) — Direct device camera integration
 
 ### 🔧 Advanced
-- [**Image Operations**](features/image-operations.md) — Background removal, OCR, clipping
+- [**Image Operations**](features/image-operations.md) — Background removal, OCR, clipping, authenticated image serving, and responsive image variants
 - [**PDF Export**](features/pdf-export.md) — Insurance/provenance catalogs
 - [**Bulk Operations**](features/bulk-operations.md) — Multi-select batch actions
 - [**Notifications**](features/notifications.md) — In-app alerts
@@ -84,6 +88,16 @@ Track coins you'd like to acquire with an AI-powered search agent:
 - **Availability Check** — Click "Check Availability" on the Wish List page to verify whether listed coins are still for sale. The system visits each coin's reference URL and uses HTTP status codes plus keyword heuristics (sold indicators, buy-now buttons) to determine listing status. Ambiguous results are escalated to the AI agent (Team 6) for deeper analysis. Results show as a summary banner (available / unavailable / unknown counts) and per-card status indicators (green dot, red "Unavailable" overlay, amber dot). Unavailable coins can be dismissed to clear the status.
 - **Scheduled Checks** — Admins can enable automatic availability checks with a configurable start time and repeat interval (e.g., starting at 2:00 AM, repeating every 120 minutes). Run history with per-coin drill-down is available in the Admin Availability tab.
 
+### Wishlist Search Alerts
+
+Save recurring acquisition searches separate from one-off agent chat:
+
+- **Alert Criteria** — Name, query, optional category, material, price range, source URLs, and cadence.
+- **Manual or Scheduled Runs** — Alerts can run on demand or by daily/weekly/monthly cadence. Manual-only alerts never run automatically.
+- **Candidate Review** — Results are stored as reviewable candidates with source URL, price, image, and reason. Unavailable/sold and price-mismatched candidates are filtered before persistence.
+- **Run History** — Each run records status, trigger type, counts, duration, and per-candidate details.
+- **Wishlist Promotion** — Accepted candidates can be converted into wishlist coins while preserving source metadata and structured catalog references when complete.
+
 ### Sold Coins
 
 Track coins you've sold with profit/loss visibility:
@@ -95,13 +109,14 @@ Track coins you've sold with profit/loss visibility:
 
 ## Auction Tracking
 
-Track auction lots from NumisBids and CNG Auctions through a complete bidding lifecycle:
+Track auction lots from NumisBids and CNG Auctions through a provider-aware bidding lifecycle:
 
 - **Add Lots** — Manually add lots by pasting a NumisBids or CNG Auctions URL. The app detects the provider and scrapes the lot page for title, image, estimate, auction house, and sale name.
 - **Watchlist Sync** — Connect your NumisBids and/or CNG account in Settings → Account and sync configured watchlists with one click. Stored provider passwords are encrypted at rest and legacy plaintext values migrate on next use.
-- **Status Workflow** — Lots progress through statuses: Watching → Bidding → Won / Lost / Passed. Status transitions are validated (e.g., only Bidding lots can be marked Won).
+- **Provider Capabilities** — CNG Auctions supports richer hosted-auction sync and can auto-detect won/lost outcomes where provider data is available. NumisBids supports watchlist/import tracking only today; final outcome and max-bid data require manual updates unless future site data exposes those signals.
+- **Status Workflow** — Lots progress through statuses: Watching → Bidding → Won / Lost / Passed. Status transitions are validated (e.g., only Bidding lots can be marked Won), and terminal statuses show whether they were auto-detected or manually set.
 - **Filtered Views** — Filter the auctions page by status and source. Counts for each status appear as badges on filter buttons.
-- **Won → Collection** — When a lot is marked as Won, it is automatically converted into a coin in your collection (mapping title, category, auction house, sale date, bid price) and the edit page opens so you can add details. A manual "Add to Collection" button is also available.
+- **Won → Collection** — When a lot is marked as Won, use **Add to Collection** to create a collection coin from mapped auction data such as title, category, auction house, sale date, and bid price.
 - **AI Auction Search** — Ask the AI agent to search supported auction sources such as NumisBids and CNG Auctions for coins matching a description. The agent (Team 5) searches, fetches lot details, and formats results.
 - **Credential Validation** — NumisBids and CNG credentials are validated against the live provider before being saved. The Settings page shows connected/error/validating status indicators.
 

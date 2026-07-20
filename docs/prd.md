@@ -37,7 +37,7 @@ Aurearia is a **personal-scale, self-hosted Progressive Web App** for managing a
 3. **Surface coins via discovery** — List, search (by inscription, ruler, denomination), filter (by category, material, status), sort (by date added, value, random with deterministic seed), and paginate efficiently.
 4. **Deliver five AI-assisted experiences** — Coin search (dealer discovery), coin shows (upcoming auctions), coin analysis (vision-model inspection of uploaded photos), portfolio review (collection valuation and gap analysis), and availability checking (monitor wishlist URL status).
 5. **Surface one coin daily** — Coin of the Day scheduler picks an un-shown coin each morning, caches a summary, and dispatches in-app + Pushover notifications. Idempotent across restarts.
-6. **Track wishlist & auctions** — Add wishlist coins with AI search; check availability; track NumisBids and CNG Auctions lots through bidding lifecycle; convert won lots to collection coins.
+6. **Track wishlist & auctions** — Add wishlist coins with AI search; check availability; track NumisBids and CNG Auctions lots with provider-aware sync/status behavior; convert won lots to collection coins.
 7. **Enable social engagement** — Follow other collectors, accept/block followers, leave comments and star ratings on their coins, upload avatars, control privacy (public/private profiles and per-coin privacy).
 8. **Install as PWA** — Installable on iOS, Android, and desktop. Service-worker-cached offline read-only view of collection. Swipe carousel on mobile, grid on desktop.
 9. **Admin-controlled AI provider selection** — Anthropic (Claude + web search) or Ollama (self-hosted models). Admins choose, configure keys, and customize analysis prompts.
@@ -80,7 +80,7 @@ Aurearia is a **personal-scale, self-hosted Progressive Web App** for managing a
 **Out of scope:** Offline agent execution; multi-provider concurrent calls.
 
 ### 5.4 Wishlist & Auction Tracking
-**Capability:** Mark coins as wishlist; AI-search for listings; track NumisBids and CNG Auctions lots through Watching → Bidding → Won/Lost workflow; verify availability of URLs on demand or via scheduled checks; auto-convert won lots to collection coins.  
+**Capability:** Mark coins as wishlist; AI-search for listings; track NumisBids and CNG Auctions lots through Watching → Bidding → Won/Lost workflow; verify availability of URLs on demand or via scheduled checks; convert won lots to collection coins. CNG Auctions supports richer hosted-auction sync and won/lost outcome detection where provider data exists; NumisBids supports watchlist/import tracking only today, so final outcome and max-bid values are manual unless future verified site data exposes those signals.
 **Cross-linked specs:** F002 (Wishlist & Availability).  
 **Status:** Shipped (v1.0 NumisBids; v2.0 CNG Auctions).  
 **Out of scope:** Live price scraping during auctions; additional auction houses beyond NumisBids and CNG Auctions.

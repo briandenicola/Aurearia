@@ -50,12 +50,17 @@ found, the same way the CNG scraper is being fixed.
 - [ ] Confirm whether NumisBids exposes a "your max bid" / "you are winning"
       concept analogous to CNG's `absentee_bid.max_bid` /
       `highest_live_bid.registration_id`, and whether it's currently captured.
+- [ ] Confirm whether NumisBids exposes any won/lost/final outcome signal. Until
+      real data proves such a signal exists, NumisBids remains watchlist/import
+      tracking only and final outcomes are manual.
 - [ ] Confirm whether NumisBids lots in a multi-lot sale have per-lot close times
       distinct from the sale-wide close time (the CNG equivalent of this —
       `lot.extended_end_time` vs `auction.effective_end_time` — was found silently
       wrong by ~2 hours in this audit).
 - [ ] Any drift found is fixed with a regression test built from the real fixture,
       not a hand-authored one that could encode the same wrong assumption again.
+- [ ] Any HAR/browser capture used during the audit is kept out of git; only
+      sanitized fixtures under `src/api/services/testdata/` may be committed.
 
 ## Constitution alignment
 

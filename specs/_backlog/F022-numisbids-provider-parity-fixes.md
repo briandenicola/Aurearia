@@ -1,6 +1,6 @@
 ---
 id: F022
-title: "Bring NumisBids scraper to parity with the fixed CNG provider"
+title: "Verify and remediate NumisBids provider gaps"
 status: backlog
 priority: P1
 effort: M
@@ -11,11 +11,12 @@ created: 2026-07-19
 updated: 2026-07-19
 ---
 
-# F022 — Bring NumisBids scraper to parity with the fixed CNG provider
+# F022 — Verify and remediate NumisBids provider gaps
 
 ## Summary
 
-This is the remediation counterpart to F021 (ground-truth audit). The CNG side of
+This is the remediation counterpart to F021 (ground-truth audit), not a promise
+that NumisBids can reach the same automation level as CNG. The CNG side of
 issue #482 was rebuilt after a live-account audit found the scraper reading dead
 JSON field names, a redundant per-lot HTTP request, a wrong end-time field, and no
 way to auto-detect a lot's outcome once it closed — all fixed and verified against
@@ -24,7 +25,10 @@ NumisBids uses a different scraping approach entirely (HTML/regex against
 `numisbids_service.go`, not a JSON API), so none of the CNG code changes apply
 directly, but the same category of drift is unverified there. This card is the
 actual fix work once F021's ground-truth pass identifies what, if anything, is
-wrong — it should not start until F021 has real fixture data to work from.
+available or wrong — it should not start until F021 has real fixture data to work
+from. If NumisBids does not expose max-bid or final outcome signals, the correct
+resolution is documentation and UI clarity that NumisBids remains manual for
+those fields.
 
 ## Acceptance criteria
 
