@@ -60,8 +60,14 @@ the existing `coinOfDayEnabled`-style opt-in pattern.
       an emperor herself) must never be counted as an Augustus coin. The
       picker never forces a choice: leaving it blank is always valid, and
       the existing free-text `Ruler` field is unaffected/unchanged.
-- [ ] Western and Eastern Roman emperors are both covered, both capped at
-      476 AD; nothing after that date is included in v1.
+- [ ] The imperial-figure picker supports filtering the list by `role`
+      (Emperor / Empress / Caesar / Usurper / Other) — the curated dataset
+      runs to ~165 entries (see Notes), so browsing or searching it without
+      a way to narrow by role is impractical.
+- [ ] Western and Eastern Roman emperors are both covered, capped at 476 AD
+      by *reign start* (an emperor already reigning by 476 is included in
+      full even if their reign continued past it, e.g. Zeno; no emperor
+      whose reign began after 476, e.g. Anastasius I, is included in v1).
 - [ ] Disabling the setting hides the Stats sub-page entirely; no background
       job or scheduled work runs for users who haven't opted in.
 
@@ -116,7 +122,11 @@ imperial figure (empresses, heirs/Caesars, usurpers), each carrying a
 `role`. Selecting a non-emperor figure (e.g. Livia, Faustina, a Caesar who
 never acceded) is completely valid and simply doesn't count toward the
 emperor-completion stat — the field is honestly "who's depicted on this
-coin," not artificially forced into "which emperor does this map to."
+coin," not artificially forced into "which emperor does this map to." The
+lookup/search endpoint behind the picker accepts an optional `role` filter
+so the frontend can offer role tabs/chips (Emperor / Empress / Caesar /
+Usurper / Other) instead of forcing users to search the full ~165-entry
+list by name alone.
 
 The picker is optional and additive: it never replaces or requires the
 free-text `Ruler` field, and a coin can be left unmatched. Given the app's
@@ -165,9 +175,10 @@ version of this feature — that repeats the exact overreach F023 V1
 deliberately avoided (a recommendation that's only as good as data/matching
 no one has stress-tested yet).
 
-### Dynasty/era scope (illustrative, not final — the actual list is a
-content-curation deliverable of this card, not something to hard-code from
-this summary alone)
+### Dynasty/era scope
+
+The actual curated dataset is `specs/_backlog/F028-imperial-figures.md` — a
+first pass exists (reviewed 2026-07-20) covering:
 
 **Western Roman (27 BC – 476 AD)**, roughly: Julio-Claudian → Flavian →
 Nerva–Antonine → Severan → Crisis of the Third Century (Maximinus Thrax
@@ -175,22 +186,32 @@ through Carinus/Numerian) → Tetrarchic/Diocletianic → Constantinian →
 Valentinianic → Theodosian (West) → the fragmented last Western emperors
 (Petronius Maximus through Romulus Augustulus, 455–476).
 
-**Eastern Roman, capped at 476**: Theodosian (East: Arcadius, Theodosius II,
-Marcian) → Leonid (Leo I, Leo II, Zeno's first reign, the usurper
-Basiliscus). Zeno's restored reign continues past 476 and is out of scope —
-document the exact cutoff rule (by emperor, not just by date) since several
-reigns straddle 476.
+**Eastern Roman**: Theodosian (East: Arcadius, Theodosius II, Marcian) →
+Leonid (Leo I, Leo II, Zeno, the usurper Basiliscus). The 476 cutoff rule
+was resolved during curation: an emperor is in scope if their reign **began**
+on or before 476 AD, even if it continued after. **Zeno is explicitly
+included** in full (474–491) on that basis, since his first reign began in
+474 — his restored reign is not truncated. Anastasius I (r. 491–518) is
+excluded since his reign began after the cutoff.
 
-Expect on the order of ~90 individual rulers once usurpers and joint
-emperors are included — the card doesn't fix an exact count; that's decided
-during data curation.
+~96 entries carry `role: emperor` (the ones that drive the completion
+stat); the full dataset with usurpers, Caesars, empresses, and Julius Caesar
+(included as a non-emperor `role: other` precursor entry, per explicit
+request) runs to ~165 rows. See the curated file for the complete list,
+per-entry rationale, and remaining open follow-ups (co-emperor counting
+still needs final sign-off; rarity tiers are an unsourced first guess).
 
 ### UI
 
 - Coin form: a new optional type-ahead field, "Imperial figure," shown only
   when Category is Roman, sitting alongside the existing free-text `Ruler`
   input (not replacing it). Backed by the curated `RomanImperialFigure`
-  list; supports leaving it unset.
+  list; supports leaving it unset. Includes a `role` filter (tabs or chips —
+  Emperor / Empress / Caesar / Usurper / Other) so the ~165-entry list is
+  actually browsable, not just searchable by typing a name. The backing
+  lookup/search endpoint (see Matching strategy) accepts a `role` query
+  param so this is a server-side filter, not a client-side scan of the
+  full list.
 - Settings toggle: `SettingsAccountSection.vue`, same visual pattern as the
   existing `coinOfDayEnabled` checkbox.
 - New page under Stats (existing sibling pages: `/stats/mint-map`,
@@ -225,11 +246,13 @@ during data curation.
 
 ## Open questions
 
-- [ ] Who curates the canonical `RomanImperialFigure` dataset (names,
-      aliases, dynasty/region, and now also `role` for each figure), and
-      where does it live (seed data checked into the repo, e.g.
-      `database/seed/`, versus a migration)? This is real historical
-      research/content work, not just code.
+- [x] Who curates the canonical `RomanImperialFigure` dataset, and where
+      does it live? A first pass (~165 figures, ~96 of them `role: emperor`)
+      has been curated and checked in at
+      `specs/_backlog/F028-imperial-figures.md`. Still open: task #30 needs
+      to decide how it's represented in Go (hardcoded seed function, matching
+      the existing `seedMintLocations` pattern in `database/database.go`, is
+      the presumed default absent a reason to do otherwise).
 - [ ] Do sold coins count toward "collected" (you owned it at some point) or
       only currently-owned, non-wishlist coins? Leaning toward
       currently-owned only, matching how the rest of the app treats
@@ -237,11 +260,16 @@ during data curation.
 - [ ] Should an empty (unmatched) emperor well be non-interactive, or should
       clicking it deep-link to "Add Coin" with that emperor pre-selected in
       the new "Imperial figure" picker? Nice-to-have, not required for v1.
-- [ ] Exact 476 AD cutoff handling for Eastern emperors whose reigns straddle
-      that date (notably Zeno) — include or exclude the straddling reign?
+- [x] Exact 476 AD cutoff handling for Eastern emperors whose reigns straddle
+      that date (notably Zeno) — **resolved**: in scope if the reign began
+      on or before 476, even if it continued after. Zeno is included in
+      full (474–491); Anastasius I (began 491) is not.
 - [ ] Should co-emperors / usurpers (e.g. Lucius Verus, Basiliscus) count as
       separate tracked entries, or be folded into the primary emperor's
-      entry? Affects both the total count and user expectations.
+      entry? The curated dataset's first pass leans toward separate entries
+      (they minted coinage under their own name/portrait), but this is not
+      yet a final sign-off — still affects the total count and user
+      expectations if reversed.
 - [ ] Who curates the per-emperor `rarityTier` used to sort V1 suggestions,
       and against what standard (auction frequency? price? both?) — same
       content-ownership question as the core dataset, called out separately
@@ -274,6 +302,9 @@ Prior art investigated during planning:
 Tracking issue: [#501](https://github.com/briandenicola/Aurearia/issues/501)
 (request + research; implementation not yet started).
 
+Curated dataset: `specs/_backlog/F028-imperial-figures.md` (first pass,
+~165 imperial figures, ~96 `role: emperor`).
+
 ## History
 
 - 2026-07-20: created (status: backlog) — feature request to track
@@ -296,3 +327,11 @@ Tracking issue: [#501](https://github.com/briandenicola/Aurearia/issues/501)
   coins is in scope — the app's user base is small enough that users will
   pick the figure themselves when they next edit a coin.
 - 2026-07-20: linked GitHub tracking issue #501.
+- 2026-07-20: committed the first curated `RomanImperialFigure` dataset pass
+  (`F028-imperial-figures.md`, ~165 figures, ~96 `role: emperor`). Resolved
+  the 476-cutoff open question (in scope if reign began on or before 476 —
+  Zeno included in full through 491; Anastasius I excluded) and added
+  Julius Caesar as a non-emperor `role: other` precursor entry, both per
+  explicit request. Added a new requirement: the imperial-figure picker
+  (and its backing search endpoint) must support filtering by `role`, since
+  the curated list is too large to browse by name search alone.
