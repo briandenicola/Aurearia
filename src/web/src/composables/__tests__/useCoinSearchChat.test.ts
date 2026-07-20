@@ -35,7 +35,10 @@ describe('useCoinSearchChat wishlist payload', () => {
       estPrice: 'Estimate $1,250.50',
       candidateReferences: [
         { catalog: ' RIC ', number: ' 123 ', volume: ' II ', uri: ' https://example.com/ric ' },
+        { catalog: 'RIC', number: '456' },
         { catalog: 'RPC', number: '   ' },
+        { catalog: 'SNG', number: '789', volume: '' },
+        { catalog: 'SEAR', number: '101' },
       ],
     }))
 
@@ -53,7 +56,31 @@ describe('useCoinSearchChat wishlist payload', () => {
           volume: 'II',
           uri: 'https://example.com/ric',
         },
+        {
+          catalog: 'SEAR',
+          number: '101',
+          volume: '',
+          uri: '',
+        },
       ],
     })
+  })
+
+  it('truncates agent text fields to backend create-coin limits', () => {
+    const payload = buildWishlistCoinPayload(makeSuggestion({
+      name: 'A'.repeat(250),
+      description: 'B'.repeat(6000),
+      denomination: 'C'.repeat(250),
+      ruler: 'D'.repeat(250),
+      sourceUrl: `https://example.com/${'e'.repeat(2100)}`,
+      sourceName: 'F'.repeat(2100),
+    }))
+
+    expect(payload.name).toHaveLength(200)
+    expect(payload.notes).toHaveLength(5000)
+    expect(payload.denomination).toHaveLength(200)
+    expect(payload.ruler).toHaveLength(200)
+    expect(payload.referenceUrl).toHaveLength(2000)
+    expect(payload.referenceText).toHaveLength(2000)
   })
 })
