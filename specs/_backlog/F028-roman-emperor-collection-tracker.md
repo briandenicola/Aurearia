@@ -271,6 +271,9 @@ Prior art investigated during planning:
   stored/cached table, applicable here since per-user emperor-match
   computation is cheap at realistic collection sizes.
 
+Tracking issue: [#501](https://github.com/briandenicola/Aurearia/issues/501)
+(request + research; implementation not yet started).
+
 ## History
 
 - 2026-07-20: created (status: backlog) — feature request to track
@@ -292,3 +295,4 @@ Prior art investigated during planning:
   alias/substring-matching code is needed. No bulk migration of existing
   coins is in scope — the app's user base is small enough that users will
   pick the figure themselves when they next edit a coin.
+- 2026-07-20: linked GitHub tracking issue #501.
