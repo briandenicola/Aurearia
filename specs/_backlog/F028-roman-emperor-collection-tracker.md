@@ -31,24 +31,24 @@ the existing `coinOfDayEnabled`-style opt-in pattern.
 
 ## Acceptance criteria
 
-- [ ] A per-user setting (`User.EmperorTrackerEnabled`, default off) can be
+- [x] A per-user setting (`User.EmperorTrackerEnabled`, default off) can be
       turned on/off from Settings → Account, next to the existing
       `coinOfDayEnabled` toggle.
-- [ ] When enabled, a new Stats sub-page (e.g. `/stats/emperors`) becomes
+- [x] When enabled, a new Stats sub-page (e.g. `/stats/emperors`) becomes
       available, showing overall completion (X of Y emperors owned, as both
       a count and a percentage) plus a per-dynasty/per-era completion
       breakdown (e.g. "Julio-Claudian — 3 of 5 (60%)", "Severan — 1 of 8
       (13%)") — this is a first-class stats display, not just an implied
       byproduct of the tray view: the completion numbers must be visible
       even before scrolling to a given dynasty's wells.
-- [ ] The default (and primary) goal is the **commonly accepted Augustuses**
+- [x] The default (and primary) goal is the **commonly accepted Augustuses**
       only — i.e. every `role: emperor` figure, exactly as already scoped
       above. Usurpers were, by definition, never accepted as legitimate
       emperors, so they (and empresses, and Caesar/other figures) are
       excluded from this goal by default — this keeps the core "collect all
       the emperors" goal realistic and unambiguous for every user out of
       the box.
-- [ ] Users can optionally expand what they track via three independent
+- [x] Users can optionally expand what they track via three independent
       Settings toggles (default off): **show usurpers**, **show empresses**,
       **show other figures** (Caesars who never acceded + Julius Caesar).
       Enabling one adds its own separate, independently-tracked section to
@@ -57,17 +57,17 @@ the existing `coinOfDayEnabled`-style opt-in pattern.
       core emperor completion number. This lets a user who wants a bigger
       or more textured challenge opt into tracking more, without changing
       what "100%" means for anyone who leaves the defaults alone.
-- [ ] Each dynasty/era section renders its emperors using the existing tray
+- [x] Each dynasty/era section renders its emperors using the existing tray
       visual (`MuseumTray`/`MuseumTrayWell`) — an owned emperor's well shows
       the user's real coin (image, click-through to coin detail, exactly like
       `/tray` today); an **unowned emperor's well is a visible placeholder**
       (the tray's existing "no image" state), labeled with the emperor's
       name, so a user can see at a glance exactly which emperors they're
       missing, not just a number.
-- [ ] The page surfaces a "what to pursue next" list of missing emperors to
+- [x] The page surfaces a "what to pursue next" list of missing emperors to
       help the user prioritize acquisitions — see the Suggestions section
       below for scope/phasing.
-- [ ] Matching a coin to an emperor is structured, not fuzzy-text: when a
+- [x] Matching a coin to an emperor is structured, not fuzzy-text: when a
       coin's Category is Roman, the coin form offers an **optional**
       type-ahead picker over a curated list of Roman imperial figures
       (emperors, empresses, heirs/Caesars, usurpers), each tagged with a
@@ -76,15 +76,15 @@ the existing `coinOfDayEnabled`-style opt-in pattern.
       an emperor herself) must never be counted as an Augustus coin. The
       picker never forces a choice: leaving it blank is always valid, and
       the existing free-text `Ruler` field is unaffected/unchanged.
-- [ ] The imperial-figure picker supports filtering the list by `role`
+- [x] The imperial-figure picker supports filtering the list by `role`
       (Emperor / Empress / Caesar / Usurper / Other) — the curated dataset
-      runs to ~165 entries (see Notes), so browsing or searching it without
+      runs to 153 entries (see Notes), so browsing or searching it without
       a way to narrow by role is impractical.
-- [ ] Western and Eastern Roman emperors are both covered, capped at 476 AD
+- [x] Western and Eastern Roman emperors are both covered, capped at 476 AD
       by *reign start* (an emperor already reigning by 476 is included in
       full even if their reign continued past it, e.g. Zeno; no emperor
       whose reign began after 476, e.g. Anastasius I, is included in v1).
-- [ ] Disabling the setting hides the Stats sub-page entirely; no background
+- [x] Disabling the setting hides the Stats sub-page entirely; no background
       job or scheduled work runs for users who haven't opted in.
 
 ## Proposed approach
@@ -141,7 +141,7 @@ emperor-completion stat — the field is honestly "who's depicted on this
 coin," not artificially forced into "which emperor does this map to." The
 lookup/search endpoint behind the picker accepts an optional `role` filter
 so the frontend can offer role tabs/chips (Emperor / Empress / Caesar /
-Usurper / Other) instead of forcing users to search the full ~165-entry
+Usurper / Other) instead of forcing users to search the full 153-entry
 list by name alone.
 
 The picker is optional and additive: it never replaces or requires the
@@ -210,12 +210,12 @@ included** in full (474–491) on that basis, since his first reign began in
 474 — his restored reign is not truncated. Anastasius I (r. 491–518) is
 excluded since his reign began after the cutoff.
 
-~96 entries carry `role: emperor` (the ones that drive the completion
+87 entries carry `role: emperor` (the ones that drive the completion
 stat); the full dataset with usurpers, Caesars, empresses, and Julius Caesar
 (included as a non-emperor `role: other` precursor entry, per explicit
-request) runs to ~165 rows. See the curated file for the complete list,
-per-entry rationale, and remaining open follow-ups (co-emperor counting
-still needs final sign-off; rarity tiers are an unsourced first guess).
+request) runs to 153 rows. See the curated file for the complete list,
+per-entry rationale, and remaining open follow-ups (rarity tiers are an
+unsourced first guess).
 
 ### UI
 
@@ -223,7 +223,7 @@ still needs final sign-off; rarity tiers are an unsourced first guess).
   when Category is Roman, sitting alongside the existing free-text `Ruler`
   input (not replacing it). Backed by the curated `RomanImperialFigure`
   list; supports leaving it unset. Includes a `role` filter (tabs or chips —
-  Emperor / Empress / Caesar / Usurper / Other) so the ~165-entry list is
+  Emperor / Empress / Caesar / Usurper / Other) so the 153-entry list is
   actually browsable, not just searchable by typing a name. The backing
   lookup/search endpoint (see Matching strategy) accepts a `role` query
   param so this is a server-side filter, not a client-side scan of the
@@ -270,16 +270,14 @@ still needs final sign-off; rarity tiers are an unsourced first guess).
 ## Open questions
 
 - [x] Who curates the canonical `RomanImperialFigure` dataset, and where
-      does it live? A first pass (~165 figures, ~96 of them `role: emperor`)
-      has been curated and checked in at
-      `specs/_backlog/F028-imperial-figures.md`. Still open: task #30 needs
-      to decide how it's represented in Go (hardcoded seed function, matching
-      the existing `seedMintLocations` pattern in `database/database.go`, is
-      the presumed default absent a reason to do otherwise).
-- [ ] Do sold coins count toward "collected" (you owned it at some point) or
-      only currently-owned, non-wishlist coins? Leaning toward
-      currently-owned only, matching how the rest of the app treats
-      "collection" vs "sold" vs "wishlist," but worth confirming.
+      does it live? A first pass (153 figures, 87 of them `role: emperor`)
+      has been curated at `specs/_backlog/F028-imperial-figures.md` and
+      implemented as seed data (`models.RomanImperialFigure`,
+      `database/roman_imperial_figure_seed.go`, following the existing
+      `seedMintLocations` idempotent-seed pattern).
+- [x] Do sold coins count toward "collected"? **Resolved**: currently-owned,
+      non-wishlist, non-sold coins only — matches how the rest of the app
+      already treats "collection" vs "sold" vs "wishlist."
 - [ ] Should an empty (unmatched) emperor well be non-interactive, or should
       clicking it deep-link to "Add Coin" with that emperor pre-selected in
       the new "Imperial figure" picker? Nice-to-have, not required for v1.
@@ -287,16 +285,10 @@ still needs final sign-off; rarity tiers are an unsourced first guess).
       that date (notably Zeno) — **resolved**: in scope if the reign began
       on or before 476, even if it continued after. Zeno is included in
       full (474–491); Anastasius I (began 491) is not.
-- [ ] Should co-emperors (e.g. Lucius Verus, Geta — both `role: emperor`,
-      both in the default goal) count as separate tracked entries, or be
-      folded into the primary emperor's entry? The curated dataset's first
-      pass leans toward separate entries (they minted coinage under their
-      own name/portrait), but this is not yet a final sign-off — still
-      affects the default goal's total count and user expectations if
-      reversed. (Note: this question is now scoped to co-emperors only —
-      usurpers are a separate, opt-in, always-independently-tracked
-      category per the new visibility toggles, so there's no
-      folding/merging ambiguity for them.)
+- [x] Should co-emperors (e.g. Lucius Verus, Geta) count as separate tracked
+      entries? **Resolved**: yes, separate entries — matches the curated
+      dataset's first pass (87 `role: emperor` entries) as-is, no rework
+      needed.
 - [ ] Who curates the per-emperor `rarityTier` used to sort V1 suggestions,
       and against what standard (auction frequency? price? both?) — same
       content-ownership question as the core dataset, called out separately
@@ -336,7 +328,7 @@ Tracking issue: [#501](https://github.com/briandenicola/Aurearia/issues/501)
 (request + research; implementation not yet started).
 
 Curated dataset: `specs/_backlog/F028-imperial-figures.md` (first pass,
-~165 imperial figures, ~96 `role: emperor`).
+153 imperial figures, 87 `role: emperor`).
 
 ## History
 
@@ -361,7 +353,7 @@ Curated dataset: `specs/_backlog/F028-imperial-figures.md` (first pass,
   pick the figure themselves when they next edit a coin.
 - 2026-07-20: linked GitHub tracking issue #501.
 - 2026-07-20: committed the first curated `RomanImperialFigure` dataset pass
-  (`F028-imperial-figures.md`, ~165 figures, ~96 `role: emperor`). Resolved
+  (`F028-imperial-figures.md`, 153 figures, 87 `role: emperor`). Resolved
   the 476-cutoff open question (in scope if reign began on or before 476 —
   Zeno included in full through 491; Anastasius I excluded) and added
   Julius Caesar as a non-emperor `role: other` precursor entry, both per
@@ -376,3 +368,29 @@ Curated dataset: `specs/_backlog/F028-imperial-figures.md` (first pass,
   tracked section to `/stats/emperors` when enabled, so users can opt into
   a bigger or more textured goal without changing what "100%" means for
   everyone else.
+- 2026-07-20: closed the two remaining implementation-blocking open
+  questions ahead of starting work: sold coins do **not** count toward
+  completion (currently-owned, non-wishlist only), and co-emperors **do**
+  count as separate tracked entries (dataset needs no rework). Status
+  remains `backlog`; implementation starting on tasks #30+.
+- 2026-07-20: task #30 done — implemented `models.RomanImperialFigure`,
+  `database/roman_imperial_figure_seed.go` (idempotent seed, mirroring
+  `seedMintLocations`), and tests. Corrected the dataset's totals from
+  earlier rough estimates to the exact seeded counts: 153 figures total,
+  87 `role: emperor`. Work is on branch `feature/f028-emperor-tracker-v1`,
+  not yet merged (holding for the full V1 slice per instruction).
+- 2026-07-20: V1 complete and merged. Implemented the full backend
+  (`RomanImperialFigure` model/repository/search endpoint,
+  `EmperorTrackerService` progress + V1 suggestions computation,
+  `User` opt-in settings, `GET /stats/emperors`) and frontend
+  (`ImperialFigurePicker.vue` on the coin form, `EmperorTrackerPage.vue`
+  at `/stats/emperors` with `ImperialFigureWellGrid.vue` reusing
+  `MuseumTrayWell.vue` unmodified, Settings toggles). All acceptance
+  criteria above are satisfied. Verified with a live smoke test
+  (registered a user, enabled the tracker, added a matched coin,
+  confirmed the completion stat/dynasty breakdown/suggestions update
+  correctly, screenshotted the coin-form picker and stats page) which
+  also caught and fixed a real bug: the shared register/login/refresh
+  response was missing the four new user fields. Full Go (`-race`) and
+  frontend (vitest + vue-tsc) suites pass. V2 (agent-assisted
+  suggestions) remains explicitly not started, per its own gating.

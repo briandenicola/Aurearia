@@ -337,6 +337,18 @@ func (r *CoinRepository) FindByID(id uint, userID uint) (*models.Coin, error) {
 	return &coin, nil
 }
 
+// ListMatchedImperialFigures returns the user's active-collection coins
+// (non-wishlist, non-sold) that have been matched to a RomanImperialFigure,
+// with images preloaded, for F028's emperor tracker.
+func (r *CoinRepository) ListMatchedImperialFigures(userID uint) ([]models.Coin, error) {
+	var coins []models.Coin
+	err := r.db.Scopes(ActiveCollection(userID)).
+		Where("roman_imperial_figure_id IS NOT NULL").
+		Preload("Images").
+		Find(&coins).Error
+	return coins, err
+}
+
 // FindOwnedByNameCandidates returns up to limit owned coins with name matches.
 func (r *CoinRepository) FindOwnedByNameCandidates(userID uint, name string, limit int) ([]models.Coin, error) {
 	if limit < 1 {

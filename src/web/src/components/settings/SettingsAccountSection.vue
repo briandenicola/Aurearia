@@ -170,6 +170,56 @@
         ></span>
       </label>
     </div>
+    <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 last:border-0">
+      <div class="flex flex-col gap-[0.15rem]">
+        <span class="text-base font-medium">Emperor Tracker</span>
+        <span class="text-sm text-text-muted">Track your collection's progress toward every Roman Emperor, under Stats</span>
+      </div>
+      <label class="relative inline-block h-7 w-[50px] shrink-0">
+        <input v-model="emperorTrackerEnabled" type="checkbox" class="peer sr-only" />
+        <span
+          class="absolute inset-0 cursor-pointer rounded-full border border-border-subtle bg-[var(--bg-primary)] transition-colors peer-checked:border-gold peer-checked:bg-gold-dim peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2 after:absolute after:bottom-[3px] after:left-[3px] after:h-5 after:w-5 after:rounded-full after:bg-text-secondary after:transition-transform after:content-[''] peer-checked:after:translate-x-[22px] peer-checked:after:bg-gold"
+        ></span>
+      </label>
+    </div>
+    <template v-if="emperorTrackerEnabled">
+      <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 pl-4 last:border-0">
+        <div class="flex flex-col gap-[0.15rem]">
+          <span class="text-sm font-medium">Also track usurpers</span>
+          <span class="text-xs text-text-muted">Track completion of coins from usurpers/pretenders, as a separate goal</span>
+        </div>
+        <label class="relative inline-block h-6 w-[44px] shrink-0">
+          <input v-model="emperorTrackerShowUsurpers" type="checkbox" class="peer sr-only" />
+          <span
+            class="absolute inset-0 cursor-pointer rounded-full border border-border-subtle bg-[var(--bg-primary)] transition-colors peer-checked:border-gold peer-checked:bg-gold-dim peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2 after:absolute after:bottom-[3px] after:left-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-secondary after:transition-transform after:content-[''] peer-checked:after:translate-x-[19px] peer-checked:after:bg-gold"
+          ></span>
+        </label>
+      </div>
+      <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 pl-4 last:border-0">
+        <div class="flex flex-col gap-[0.15rem]">
+          <span class="text-sm font-medium">Also track empresses</span>
+          <span class="text-xs text-text-muted">Track completion of coins from empresses, as a separate goal</span>
+        </div>
+        <label class="relative inline-block h-6 w-[44px] shrink-0">
+          <input v-model="emperorTrackerShowEmpresses" type="checkbox" class="peer sr-only" />
+          <span
+            class="absolute inset-0 cursor-pointer rounded-full border border-border-subtle bg-[var(--bg-primary)] transition-colors peer-checked:border-gold peer-checked:bg-gold-dim peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2 after:absolute after:bottom-[3px] after:left-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-secondary after:transition-transform after:content-[''] peer-checked:after:translate-x-[19px] peer-checked:after:bg-gold"
+          ></span>
+        </label>
+      </div>
+      <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 pl-4 last:border-0">
+        <div class="flex flex-col gap-[0.15rem]">
+          <span class="text-sm font-medium">Also track other figures</span>
+          <span class="text-xs text-text-muted">Track completion of Caesars who never acceded and other precursor figures, as a separate goal</span>
+        </div>
+        <label class="relative inline-block h-6 w-[44px] shrink-0">
+          <input v-model="emperorTrackerShowOtherFigures" type="checkbox" class="peer sr-only" />
+          <span
+            class="absolute inset-0 cursor-pointer rounded-full border border-border-subtle bg-[var(--bg-primary)] transition-colors peer-checked:border-gold peer-checked:bg-gold-dim peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2 after:absolute after:bottom-[3px] after:left-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-secondary after:transition-transform after:content-[''] peer-checked:after:translate-x-[19px] peer-checked:after:bg-gold"
+          ></span>
+        </label>
+      </div>
+    </template>
     <button
       class="btn btn-primary btn-sm mt-2 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
       @click="handleSaveProfile"
@@ -355,6 +405,7 @@ const {
   handleTestPushover, profilePublic, profileMsg, profileError, profileSaving,
   showPrivacyWarning, onPublicToggle, confirmGoPrivate, cancelGoPrivate,
   nbValidating, nbValidationError, cngValidating, cngValidationError, handleSaveProfile, coinOfDayEnabled,
+  emperorTrackerEnabled, emperorTrackerShowUsurpers, emperorTrackerShowEmpresses, emperorTrackerShowOtherFigures,
   currentPassword, newPassword, confirmPassword,
   passwordMsg, passwordError, passwordLoading, handleChangePassword,
 } = useSettingsProfile()

@@ -46,6 +46,7 @@ type Coin struct {
 	Category               Category         `gorm:"type:varchar(20);not null;default:'Other'" json:"category"`
 	Denomination           string           `json:"denomination" binding:"max=200"`
 	Ruler                  string           `json:"ruler" binding:"max=200"`
+	RomanImperialFigureID  *uint            `gorm:"index" json:"romanImperialFigureId"`
 	Era                    Era              `gorm:"type:varchar(64)" json:"era" binding:"omitempty,max=64"`
 	Mint                   string           `json:"mint" binding:"max=200"`
 	Material               Material         `gorm:"type:varchar(20);default:'Other'" json:"material"`

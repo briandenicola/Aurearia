@@ -38,4 +38,13 @@ describe('CoinForm', () => {
     expect(source).toContain('const displayedEraOptions = computed(() => {')
     expect(source).toContain('return [currentEra, ...eraOptions.value]')
   })
+
+  it('shows the Imperial figure picker only for Roman coins, alongside the free-text Ruler field', () => {
+    const source = fs.readFileSync(coinFormPath, 'utf8')
+
+    expect(source).toContain('v-if="form.category === \'Roman\'"')
+    expect(source).toContain('<ImperialFigurePicker v-model="form.romanImperialFigureId!" />')
+    expect(source).toContain('<AutocompleteInput v-model="form.ruler!" field="ruler" placeholder="e.g. Augustus" />')
+    expect(source).toContain("import ImperialFigurePicker from '@/components/ImperialFigurePicker.vue'")
+  })
 })

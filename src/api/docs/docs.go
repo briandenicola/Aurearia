@@ -9514,6 +9514,121 @@ const docTemplate = `{
                 }
             }
         },
+        "/roman-imperial-figures": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns curated Roman imperial figures (emperors, empresses, Caesars, usurpers, other) filtered by an optional name/alias query and/or role, for the coin-form \"Imperial figure\" type-ahead picker.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Roman Imperial Figures"
+                ],
+                "summary": "Search Roman imperial figures",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Name/alias search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by role: emperor, empress, caesar, usurper, other",
+                        "name": "role",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max results (default 50, capped at 200)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.romanImperialFigureListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/roman-imperial-figures/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a single curated Roman imperial figure by ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Roman Imperial Figures"
+                ],
+                "summary": "Get a Roman imperial figure",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Roman imperial figure ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.RomanImperialFigure"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/scrape-image": {
             "get": {
                 "security": [
@@ -12131,6 +12246,55 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stats/emperors": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the authenticated user's Roman-emperor collection completion progress. Requires emperorTrackerEnabled to be set on the user's profile.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Emperor Tracker"
+                ],
+                "summary": "Get emperor tracker progress",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.EmperorTrackerResult"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -14880,6 +15044,9 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 1000
                 },
+                "romanImperialFigureId": {
+                    "type": "integer"
+                },
                 "ruler": {
                     "type": "string",
                     "maxLength": 200
@@ -15187,6 +15354,9 @@ const docTemplate = `{
                 "reverseInscription": {
                     "type": "string",
                     "maxLength": 1000
+                },
+                "romanImperialFigureId": {
+                    "type": "integer"
                 },
                 "ruler": {
                     "type": "string",
@@ -16640,6 +16810,17 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.romanImperialFigureListResponse": {
+            "type": "object",
+            "properties": {
+                "figures": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.RomanImperialFigure"
+                    }
+                }
+            }
+        },
         "handlers.storageLocationCreateRequest": {
             "type": "object",
             "required": [
@@ -17444,6 +17625,9 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 1000
                 },
+                "romanImperialFigureId": {
+                    "type": "integer"
+                },
                 "ruler": {
                     "type": "string",
                     "maxLength": 200
@@ -17779,6 +17963,34 @@ const docTemplate = `{
                 "ImageTypeOther"
             ]
         },
+        "models.ImperialFigureRegion": {
+            "type": "string",
+            "enum": [
+                "west",
+                "east"
+            ],
+            "x-enum-varnames": [
+                "ImperialFigureRegionWest",
+                "ImperialFigureRegionEast"
+            ]
+        },
+        "models.ImperialFigureRole": {
+            "type": "string",
+            "enum": [
+                "emperor",
+                "empress",
+                "caesar",
+                "usurper",
+                "other"
+            ],
+            "x-enum-varnames": [
+                "ImperialFigureRoleEmperor",
+                "ImperialFigureRoleEmpress",
+                "ImperialFigureRoleCaesar",
+                "ImperialFigureRoleUsurper",
+                "ImperialFigureRoleOther"
+            ]
+        },
         "models.JSONObject": {
             "type": "object",
             "additionalProperties": true
@@ -18005,6 +18217,68 @@ const docTemplate = `{
                 "QuickCaptureDraftStatusPromoted",
                 "QuickCaptureDraftStatusDiscarded"
             ]
+        },
+        "models.RarityTier": {
+            "type": "string",
+            "enum": [
+                "common",
+                "scarce",
+                "rare",
+                "very_rare"
+            ],
+            "x-enum-varnames": [
+                "RarityTierCommon",
+                "RarityTierScarce",
+                "RarityTierRare",
+                "RarityTierVeryRare"
+            ]
+        },
+        "models.RomanImperialFigure": {
+            "type": "object",
+            "properties": {
+                "aliases": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "dynasty": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "rarityTier": {
+                    "$ref": "#/definitions/models.RarityTier"
+                },
+                "region": {
+                    "$ref": "#/definitions/models.ImperialFigureRegion"
+                },
+                "reignEnd": {
+                    "type": "integer"
+                },
+                "reignStart": {
+                    "type": "integer"
+                },
+                "role": {
+                    "$ref": "#/definitions/models.ImperialFigureRole"
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
         },
         "models.StorageLocation": {
             "type": "object",
@@ -18387,6 +18661,32 @@ const docTemplate = `{
                 }
             }
         },
+        "services.CategoryProgress": {
+            "type": "object",
+            "properties": {
+                "dynasties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.DynastyProgress"
+                    }
+                },
+                "owned": {
+                    "type": "integer"
+                },
+                "percentage": {
+                    "type": "number"
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ImperialFigureRole"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "services.ChecklistDimension": {
             "type": "string",
             "enum": [
@@ -18521,6 +18821,49 @@ const docTemplate = `{
                 }
             }
         },
+        "services.DynastyProgress": {
+            "type": "object",
+            "properties": {
+                "dynasty": {
+                    "type": "string"
+                },
+                "figures": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.ImperialFigureSlot"
+                    }
+                },
+                "owned": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.EmperorTrackerResult": {
+            "type": "object",
+            "properties": {
+                "emperor": {
+                    "$ref": "#/definitions/services.CategoryProgress"
+                },
+                "empresses": {
+                    "$ref": "#/definitions/services.CategoryProgress"
+                },
+                "other": {
+                    "$ref": "#/definitions/services.CategoryProgress"
+                },
+                "suggestions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.RomanImperialFigure"
+                    }
+                },
+                "usurpers": {
+                    "$ref": "#/definitions/services.CategoryProgress"
+                }
+            }
+        },
         "services.HealthActionHint": {
             "type": "string",
             "enum": [
@@ -18612,6 +18955,17 @@ const docTemplate = `{
                 },
                 "valuationFreshness": {
                     "type": "integer"
+                }
+            }
+        },
+        "services.ImperialFigureSlot": {
+            "type": "object",
+            "properties": {
+                "coin": {
+                    "$ref": "#/definitions/models.Coin"
+                },
+                "figure": {
+                    "$ref": "#/definitions/models.RomanImperialFigure"
                 }
             }
         },

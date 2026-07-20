@@ -170,6 +170,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/stats/emperors',
+      name: 'stats-emperors',
+      component: () => import('@/pages/EmperorTrackerPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/mint-map',
       name: 'mint-map',
       redirect: '/stats/mint-map',

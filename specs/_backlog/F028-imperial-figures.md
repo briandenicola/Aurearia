@@ -3,11 +3,12 @@
 Companion content-curation deliverable for
 `specs/_backlog/F028-roman-emperor-collection-tracker.md` (first pass,
 reviewed 2026-07-20 — still expected to evolve; see Open follow-ups at the
-bottom). This is the source list task #30 (Go model + migration + seeding)
-will convert into actual seed data. Columns match the proposed
-`models.RomanImperialFigure` fields: **Role** (emperor | empress | caesar |
-usurper | other), **Region** (west | east), **Dynasty**, **Reign**, a
-best-guess **Rarity** tier (common | scarce | rare | very_rare — flagged
+bottom). This list has been implemented as seed data in
+`src/api/models/roman_imperial_figure.go` and
+`src/api/database/roman_imperial_figure_seed.go` (task #30). Columns match
+the `models.RomanImperialFigure` fields: **Role** (emperor | empress |
+caesar | usurper | other), **Region** (west | east), **Dynasty**, **Reign**,
+a best-guess **Rarity** tier (common | scarce | rare | very_rare — flagged
 as draft, see Decisions below), and **Notes**.
 
 ## Decisions made in this pass (please confirm/override)
@@ -36,10 +37,9 @@ as draft, see Decisions below), and **Notes**.
    "Western Roman" bucket already runs Julio-Claudian all the way through
    "Theodosian (West)" as one continuous list.
 4. **Co-emperors count as separate entries** (Lucius Verus, Geta, Caracalla,
-   etc. each get their own row) — leaning into this now since they minted
-   coinage under their own name/portrait, so from a *collect the coin* point
-   of view they're the right unit. This is still one of the card's open
-   questions, not fully closed — flagging again here for your sign-off.
+   etc. each get their own row) — confirmed. They minted coinage under their
+   own name/portrait, so from a *collect the coin* point of view they're the
+   right unit. No rework needed.
 5. **Caesar-rank figures who never acceded to Augustus** get `role: caesar`
    and their own entry (Crispus, Licinius II, Tetricus II, Delmatius, Gallus).
    Figures who *started* as Caesar but later became Augustus (Constantine II,
@@ -57,10 +57,11 @@ as draft, see Decisions below), and **Notes**.
    100% complete is lower-priority than getting the emperor list right; flag
    anyone you want added or cut.
 
-Rough totals in this draft: **~96 emperor entries** (sole + co-emperors),
-**~24 usurpers**, **~10 caesar-only entries**, **~34 empresses**, **1**
-precursor (Julius Caesar) = **~165 rows** total, of which **~96 count toward
-the emperor-completion stat**.
+Exact totals as seeded: **87 emperor entries** (sole + co-emperors),
+**24 usurpers**, **7 caesar-only entries**, **33 empresses** (32 plus
+Zenobia, listed under Breakaway regimes), **1** precursor (Julius Caesar) =
+**153 rows** total, of which **87 count toward the emperor-completion
+stat**.
 
 ---
 
@@ -303,9 +304,6 @@ the emperor-completion stat**.
 
 ## Open follow-ups from this pass
 
-- Confirm Decision 4 (co-emperors as separate entries) — this is the biggest
-  scope lever; folding co-emperors into their senior partner would cut the
-  emperor count by roughly 15–20 entries.
 - Rarity tiers above are my best-guess draft, not sourced against real
   auction-frequency data — matches the card's existing open question about
   who curates `rarityTier` and against what standard.

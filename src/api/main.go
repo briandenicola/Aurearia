@@ -305,6 +305,17 @@ func main() {
 		mintLocationHandler := handlers.NewMintLocationHandler(mintLocationSvc)
 		protected.GET("/mint-locations", mintLocationHandler.List)
 
+		romanImperialFigureRepo := repository.NewRomanImperialFigureRepository(database.DB)
+		romanImperialFigureSvc := services.NewRomanImperialFigureService(romanImperialFigureRepo)
+		romanImperialFigureHandler := handlers.NewRomanImperialFigureHandler(romanImperialFigureSvc)
+		protected.GET("/roman-imperial-figures", romanImperialFigureHandler.Search)
+		protected.GET("/roman-imperial-figures/:id", romanImperialFigureHandler.Get)
+
+		emperorTrackerUserRepo := repository.NewUserRepository(database.DB)
+		emperorTrackerSvc := services.NewEmperorTrackerService(romanImperialFigureRepo, coinRepo)
+		emperorTrackerHandler := handlers.NewEmperorTrackerHandler(emperorTrackerSvc, emperorTrackerUserRepo)
+		protected.GET("/stats/emperors", emperorTrackerHandler.GetProgress)
+
 		tagRepo := repository.NewTagRepository(database.DB)
 		tagHandler := handlers.NewTagHandler(tagRepo)
 		setRepo := repository.NewSetRepository(database.DB)

@@ -15,104 +15,107 @@ type CoinReferenceRequest struct {
 }
 
 type CoinCreateRequest struct {
-	Name               string                 `json:"name" binding:"max=200"`
-	Category           models.Category        `json:"category"`
-	Denomination       string                 `json:"denomination" binding:"max=200"`
-	Ruler              string                 `json:"ruler" binding:"max=200"`
-	Era                models.Era             `json:"era" binding:"omitempty,max=64"`
-	Mint               string                 `json:"mint" binding:"max=200"`
-	Material           models.Material        `json:"material"`
-	WeightGrams        *float64               `json:"weightGrams"`
-	DiameterMm         *float64               `json:"diameterMm"`
-	Grade              string                 `json:"grade" binding:"max=100"`
-	ObverseInscription string                 `json:"obverseInscription" binding:"max=1000"`
-	ReverseInscription string                 `json:"reverseInscription" binding:"max=1000"`
-	ObverseDescription string                 `json:"obverseDescription" binding:"max=2000"`
-	ReverseDescription string                 `json:"reverseDescription" binding:"max=2000"`
-	RarityRating       string                 `json:"rarityRating" binding:"max=100"`
-	PurchasePrice      *float64               `json:"purchasePrice"`
-	CurrentValue       *float64               `json:"currentValue"`
-	PurchaseDate       *time.Time             `json:"purchaseDate"`
-	PurchaseLocation   string                 `json:"purchaseLocation" binding:"max=500"`
-	Notes              string                 `json:"notes" binding:"max=5000"`
-	ReferenceURL       string                 `json:"referenceUrl" binding:"max=2000"`
-	ReferenceText      string                 `json:"referenceText" binding:"max=2000"`
-	IsWishlist         bool                   `json:"isWishlist"`
-	IsSold             bool                   `json:"isSold"`
-	SoldPrice          *float64               `json:"soldPrice"`
-	SoldDate           *time.Time             `json:"soldDate"`
-	SoldTo             string                 `json:"soldTo"`
-	StorageLocationID  *uint                  `json:"storageLocationId"`
-	IsPrivate          bool                   `json:"isPrivate"`
-	References         []CoinReferenceRequest `json:"references"`
+	Name                  string                 `json:"name" binding:"max=200"`
+	Category              models.Category        `json:"category"`
+	Denomination          string                 `json:"denomination" binding:"max=200"`
+	Ruler                 string                 `json:"ruler" binding:"max=200"`
+	RomanImperialFigureID *uint                  `json:"romanImperialFigureId"`
+	Era                   models.Era             `json:"era" binding:"omitempty,max=64"`
+	Mint                  string                 `json:"mint" binding:"max=200"`
+	Material              models.Material        `json:"material"`
+	WeightGrams           *float64               `json:"weightGrams"`
+	DiameterMm            *float64               `json:"diameterMm"`
+	Grade                 string                 `json:"grade" binding:"max=100"`
+	ObverseInscription    string                 `json:"obverseInscription" binding:"max=1000"`
+	ReverseInscription    string                 `json:"reverseInscription" binding:"max=1000"`
+	ObverseDescription    string                 `json:"obverseDescription" binding:"max=2000"`
+	ReverseDescription    string                 `json:"reverseDescription" binding:"max=2000"`
+	RarityRating          string                 `json:"rarityRating" binding:"max=100"`
+	PurchasePrice         *float64               `json:"purchasePrice"`
+	CurrentValue          *float64               `json:"currentValue"`
+	PurchaseDate          *time.Time             `json:"purchaseDate"`
+	PurchaseLocation      string                 `json:"purchaseLocation" binding:"max=500"`
+	Notes                 string                 `json:"notes" binding:"max=5000"`
+	ReferenceURL          string                 `json:"referenceUrl" binding:"max=2000"`
+	ReferenceText         string                 `json:"referenceText" binding:"max=2000"`
+	IsWishlist            bool                   `json:"isWishlist"`
+	IsSold                bool                   `json:"isSold"`
+	SoldPrice             *float64               `json:"soldPrice"`
+	SoldDate              *time.Time             `json:"soldDate"`
+	SoldTo                string                 `json:"soldTo"`
+	StorageLocationID     *uint                  `json:"storageLocationId"`
+	IsPrivate             bool                   `json:"isPrivate"`
+	References            []CoinReferenceRequest `json:"references"`
 }
 
 type CoinUpdateRequest struct {
-	Name               *string                `json:"name" binding:"omitempty,max=200"`
-	Category           *models.Category       `json:"category"`
-	Denomination       *string                `json:"denomination" binding:"omitempty,max=200"`
-	Ruler              *string                `json:"ruler" binding:"omitempty,max=200"`
-	Era                *models.Era            `json:"era" binding:"omitempty,max=64"`
-	Mint               *string                `json:"mint" binding:"omitempty,max=200"`
-	Material           *models.Material       `json:"material"`
-	WeightGrams        *float64               `json:"weightGrams"`
-	DiameterMm         *float64               `json:"diameterMm"`
-	Grade              *string                `json:"grade" binding:"omitempty,max=100"`
-	ObverseInscription *string                `json:"obverseInscription" binding:"omitempty,max=1000"`
-	ReverseInscription *string                `json:"reverseInscription" binding:"omitempty,max=1000"`
-	ObverseDescription *string                `json:"obverseDescription" binding:"omitempty,max=2000"`
-	ReverseDescription *string                `json:"reverseDescription" binding:"omitempty,max=2000"`
-	RarityRating       *string                `json:"rarityRating" binding:"omitempty,max=100"`
-	PurchasePrice      *float64               `json:"purchasePrice"`
-	CurrentValue       *float64               `json:"currentValue"`
-	PurchaseDate       *time.Time             `json:"purchaseDate"`
-	PurchaseLocation   *string                `json:"purchaseLocation" binding:"omitempty,max=500"`
-	Notes              *string                `json:"notes" binding:"omitempty,max=5000"`
-	ReferenceURL       *string                `json:"referenceUrl" binding:"omitempty,max=2000"`
-	ReferenceText      *string                `json:"referenceText" binding:"omitempty,max=2000"`
-	IsWishlist         *bool                  `json:"isWishlist"`
-	IsSold             *bool                  `json:"isSold"`
-	SoldPrice          *float64               `json:"soldPrice"`
-	SoldDate           *time.Time             `json:"soldDate"`
-	SoldTo             *string                `json:"soldTo"`
-	StorageLocationID  *uint                  `json:"storageLocationId"`
-	IsPrivate          *bool                  `json:"isPrivate"`
-	References         []CoinReferenceRequest `json:"references"`
+	Name                  *string                `json:"name" binding:"omitempty,max=200"`
+	Category              *models.Category       `json:"category"`
+	Denomination          *string                `json:"denomination" binding:"omitempty,max=200"`
+	Ruler                 *string                `json:"ruler" binding:"omitempty,max=200"`
+	RomanImperialFigureID *uint                  `json:"romanImperialFigureId"`
+	Era                   *models.Era            `json:"era" binding:"omitempty,max=64"`
+	Mint                  *string                `json:"mint" binding:"omitempty,max=200"`
+	Material              *models.Material       `json:"material"`
+	WeightGrams           *float64               `json:"weightGrams"`
+	DiameterMm            *float64               `json:"diameterMm"`
+	Grade                 *string                `json:"grade" binding:"omitempty,max=100"`
+	ObverseInscription    *string                `json:"obverseInscription" binding:"omitempty,max=1000"`
+	ReverseInscription    *string                `json:"reverseInscription" binding:"omitempty,max=1000"`
+	ObverseDescription    *string                `json:"obverseDescription" binding:"omitempty,max=2000"`
+	ReverseDescription    *string                `json:"reverseDescription" binding:"omitempty,max=2000"`
+	RarityRating          *string                `json:"rarityRating" binding:"omitempty,max=100"`
+	PurchasePrice         *float64               `json:"purchasePrice"`
+	CurrentValue          *float64               `json:"currentValue"`
+	PurchaseDate          *time.Time             `json:"purchaseDate"`
+	PurchaseLocation      *string                `json:"purchaseLocation" binding:"omitempty,max=500"`
+	Notes                 *string                `json:"notes" binding:"omitempty,max=5000"`
+	ReferenceURL          *string                `json:"referenceUrl" binding:"omitempty,max=2000"`
+	ReferenceText         *string                `json:"referenceText" binding:"omitempty,max=2000"`
+	IsWishlist            *bool                  `json:"isWishlist"`
+	IsSold                *bool                  `json:"isSold"`
+	SoldPrice             *float64               `json:"soldPrice"`
+	SoldDate              *time.Time             `json:"soldDate"`
+	SoldTo                *string                `json:"soldTo"`
+	StorageLocationID     *uint                  `json:"storageLocationId"`
+	IsPrivate             *bool                  `json:"isPrivate"`
+	References            []CoinReferenceRequest `json:"references"`
 }
 
 func (r CoinCreateRequest) toCoin(userID uint) models.Coin {
 	return models.Coin{
-		Name:               r.Name,
-		Category:           r.Category,
-		Denomination:       r.Denomination,
-		Ruler:              r.Ruler,
-		Era:                r.Era,
-		Mint:               r.Mint,
-		Material:           r.Material,
-		WeightGrams:        r.WeightGrams,
-		DiameterMm:         r.DiameterMm,
-		Grade:              r.Grade,
-		ObverseInscription: r.ObverseInscription,
-		ReverseInscription: r.ReverseInscription,
-		ObverseDescription: r.ObverseDescription,
-		ReverseDescription: r.ReverseDescription,
-		RarityRating:       r.RarityRating,
-		PurchasePrice:      r.PurchasePrice,
-		CurrentValue:       r.CurrentValue,
-		PurchaseDate:       r.PurchaseDate,
-		PurchaseLocation:   r.PurchaseLocation,
-		Notes:              r.Notes,
-		ReferenceURL:       r.ReferenceURL,
-		ReferenceText:      r.ReferenceText,
-		IsWishlist:         r.IsWishlist,
-		IsSold:             r.IsSold,
-		SoldPrice:          r.SoldPrice,
-		SoldDate:           r.SoldDate,
-		SoldTo:             r.SoldTo,
-		StorageLocationID:  r.StorageLocationID,
-		IsPrivate:          r.IsPrivate,
-		UserID:             userID,
-		References:         mapCoinReferenceRequests(r.References),
+		Name:                  r.Name,
+		Category:              r.Category,
+		Denomination:          r.Denomination,
+		Ruler:                 r.Ruler,
+		RomanImperialFigureID: r.RomanImperialFigureID,
+		Era:                   r.Era,
+		Mint:                  r.Mint,
+		Material:              r.Material,
+		WeightGrams:           r.WeightGrams,
+		DiameterMm:            r.DiameterMm,
+		Grade:                 r.Grade,
+		ObverseInscription:    r.ObverseInscription,
+		ReverseInscription:    r.ReverseInscription,
+		ObverseDescription:    r.ObverseDescription,
+		ReverseDescription:    r.ReverseDescription,
+		RarityRating:          r.RarityRating,
+		PurchasePrice:         r.PurchasePrice,
+		CurrentValue:          r.CurrentValue,
+		PurchaseDate:          r.PurchaseDate,
+		PurchaseLocation:      r.PurchaseLocation,
+		Notes:                 r.Notes,
+		ReferenceURL:          r.ReferenceURL,
+		ReferenceText:         r.ReferenceText,
+		IsWishlist:            r.IsWishlist,
+		IsSold:                r.IsSold,
+		SoldPrice:             r.SoldPrice,
+		SoldDate:              r.SoldDate,
+		SoldTo:                r.SoldTo,
+		StorageLocationID:     r.StorageLocationID,
+		IsPrivate:             r.IsPrivate,
+		UserID:                userID,
+		References:            mapCoinReferenceRequests(r.References),
 	}
 }
 
@@ -134,6 +137,10 @@ func (r CoinUpdateRequest) toCoin(existing *models.Coin, storageLocationProvided
 	if r.Ruler != nil {
 		updates.Ruler = *r.Ruler
 		updateFields = append(updateFields, "Ruler")
+	}
+	if r.RomanImperialFigureID != nil || nullableScalarProvided["RomanImperialFigureID"] {
+		updates.RomanImperialFigureID = r.RomanImperialFigureID
+		updateFields = append(updateFields, "RomanImperialFigureID")
 	}
 	if r.Era != nil {
 		updates.Era = *r.Era

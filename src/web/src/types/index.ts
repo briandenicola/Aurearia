@@ -4,6 +4,7 @@ export interface Coin {
   category: Category
   denomination: string
   ruler: string
+  romanImperialFigureId: number | null
   era: string
   mint: string
   material: Material
@@ -687,6 +688,53 @@ export const CATEGORY_COLORS: Record<string, string> = {
   Other: '#888888',
 }
 
+// F028: Roman Emperor collection tracker
+export type ImperialFigureRole = 'emperor' | 'empress' | 'caesar' | 'usurper' | 'other'
+export type ImperialFigureRegion = 'west' | 'east'
+export type RarityTier = 'common' | 'scarce' | 'rare' | 'very_rare'
+
+export interface RomanImperialFigure {
+  id: number
+  name: string
+  aliases: string[]
+  role: ImperialFigureRole
+  region: ImperialFigureRegion
+  dynasty: string
+  reignStart: number
+  reignEnd: number
+  sortOrder: number
+  rarityTier: RarityTier
+  notes?: string
+}
+
+export interface ImperialFigureSlot {
+  figure: RomanImperialFigure
+  coin: Coin | null
+}
+
+export interface DynastyProgress {
+  dynasty: string
+  owned: number
+  total: number
+  figures: ImperialFigureSlot[]
+}
+
+export interface CategoryProgress {
+  roles: ImperialFigureRole[]
+  owned: number
+  total: number
+  percentage: number
+  dynasties: DynastyProgress[]
+}
+
+export interface EmperorTrackerResult {
+  emperor: CategoryProgress
+  suggestions: RomanImperialFigure[]
+  usurpers?: CategoryProgress
+  empresses?: CategoryProgress
+  other?: CategoryProgress
+}
+
 export interface User {
   id: number
   username: string
@@ -702,6 +750,10 @@ export interface User {
   cngConfigured?: boolean
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean
+  emperorTrackerEnabled?: boolean
+  emperorTrackerShowUsurpers?: boolean
+  emperorTrackerShowEmpresses?: boolean
+  emperorTrackerShowOtherFigures?: boolean
 }
 
 export interface AuthResponse {
@@ -1002,6 +1054,10 @@ export interface UserInfo {
   cngConfigured?: boolean
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean
+  emperorTrackerEnabled?: boolean
+  emperorTrackerShowUsurpers?: boolean
+  emperorTrackerShowEmpresses?: boolean
+  emperorTrackerShowOtherFigures?: boolean
   lockedUntil?: string | null
   failedLoginAttempts?: number
   createdAt: string

@@ -29,7 +29,7 @@ func Connect(dbPath string) {
 		log.Fatalf("Failed to migrate coin_references column: %v", err)
 	}
 
-	err = DB.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.MintLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{}, &models.ApiKey{}, &models.RefreshToken{}, &models.WebAuthnCredential{}, &models.SecurityEvent{}, &models.IPRule{}, &models.OIDCProvider{}, &models.ExternalIdentity{}, &models.OIDCAuthState{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.Note{}, &models.CoinIntakeDraft{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}, &models.AgentConversation{}, &models.CollectionUpdateProposal{}, &models.Follow{}, &models.CoinComment{}, &models.CoinValueHistory{}, &models.AuctionLot{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.WishlistSearchAlert{}, &models.AlertRun{}, &models.AlertCandidate{}, &models.CandidateProvenance{}, &models.CandidateReviewAction{}, &models.Notification{}, &models.AIJob{}, &models.Tag{}, &models.CoinTag{}, &models.CoinSet{}, &models.CoinSetMembership{}, &models.CoinSetTarget{}, &models.CoinSetValuationSnapshot{}, &models.CoinSetMilestoneAlert{}, &models.SmartCriteriaTemplate{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.AuctionEvent{}, &models.PriceAlert{}, &models.BidReminder{}, &models.AuctionAlertRun{}, &models.ValuationRun{}, &models.ValuationResult{}, &models.AuctionEndingRun{}, &models.AuctionWatchBidDigestRun{}, &models.FeaturedCoin{}, &models.CoinOfDayRun{}, &models.CollectionHealthSnapshot{}, &models.CollectionHealthSnapshotRun{})
+	err = DB.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.MintLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{}, &models.ApiKey{}, &models.RefreshToken{}, &models.WebAuthnCredential{}, &models.SecurityEvent{}, &models.IPRule{}, &models.OIDCProvider{}, &models.ExternalIdentity{}, &models.OIDCAuthState{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.Note{}, &models.CoinIntakeDraft{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}, &models.AgentConversation{}, &models.CollectionUpdateProposal{}, &models.Follow{}, &models.CoinComment{}, &models.CoinValueHistory{}, &models.AuctionLot{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.WishlistSearchAlert{}, &models.AlertRun{}, &models.AlertCandidate{}, &models.CandidateProvenance{}, &models.CandidateReviewAction{}, &models.Notification{}, &models.AIJob{}, &models.Tag{}, &models.CoinTag{}, &models.CoinSet{}, &models.CoinSetMembership{}, &models.CoinSetTarget{}, &models.CoinSetValuationSnapshot{}, &models.CoinSetMilestoneAlert{}, &models.SmartCriteriaTemplate{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.AuctionEvent{}, &models.PriceAlert{}, &models.BidReminder{}, &models.AuctionAlertRun{}, &models.ValuationRun{}, &models.ValuationResult{}, &models.AuctionEndingRun{}, &models.AuctionWatchBidDigestRun{}, &models.FeaturedCoin{}, &models.CoinOfDayRun{}, &models.CollectionHealthSnapshot{}, &models.CollectionHealthSnapshotRun{}, &models.RomanImperialFigure{})
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
@@ -53,6 +53,9 @@ func Connect(dbPath string) {
 	}
 	if err := seedMintLocations(DB); err != nil {
 		log.Fatalf("Failed to seed mint locations: %v", err)
+	}
+	if err := seedRomanImperialFigures(DB); err != nil {
+		log.Fatalf("Failed to seed Roman imperial figures: %v", err)
 	}
 
 	log.Println("Database connected and migrated")

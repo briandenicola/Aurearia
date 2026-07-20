@@ -110,22 +110,26 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":                  user.ID,
-		"username":            user.Username,
-		"role":                user.Role,
-		"email":               user.Email,
-		"avatarPath":          user.AvatarPath,
-		"isPublic":            user.IsPublic,
-		"bio":                 user.Bio,
-		"zipCode":             user.ZipCode,
-		"emailMissing":        user.Email == "",
-		"createdAt":           user.CreatedAt,
-		"numisBidsUsername":   user.NumisBidsUsername,
-		"numisBidsConfigured": user.NumisBidsUsername != "" && user.NumisBidsPassword != "",
-		"cngUsername":         user.CNGUsername,
-		"cngConfigured":       user.CNGUsername != "" && user.CNGPassword != "",
-		"pushoverEnabled":     user.PushoverEnabled,
-		"coinOfDayEnabled":    user.CoinOfDayEnabled,
+		"id":                             user.ID,
+		"username":                       user.Username,
+		"role":                           user.Role,
+		"email":                          user.Email,
+		"avatarPath":                     user.AvatarPath,
+		"isPublic":                       user.IsPublic,
+		"bio":                            user.Bio,
+		"zipCode":                        user.ZipCode,
+		"emailMissing":                   user.Email == "",
+		"createdAt":                      user.CreatedAt,
+		"numisBidsUsername":              user.NumisBidsUsername,
+		"numisBidsConfigured":            user.NumisBidsUsername != "" && user.NumisBidsPassword != "",
+		"cngUsername":                    user.CNGUsername,
+		"cngConfigured":                  user.CNGUsername != "" && user.CNGPassword != "",
+		"pushoverEnabled":                user.PushoverEnabled,
+		"coinOfDayEnabled":               user.CoinOfDayEnabled,
+		"emperorTrackerEnabled":          user.EmperorTrackerEnabled,
+		"emperorTrackerShowUsurpers":     user.EmperorTrackerShowUsurpers,
+		"emperorTrackerShowEmpresses":    user.EmperorTrackerShowEmpresses,
+		"emperorTrackerShowOtherFigures": user.EmperorTrackerShowOtherFigures,
 	})
 }
 
@@ -243,16 +247,20 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	userID := c.GetUint("userId")
 
 	var req struct {
-		Email             *string `json:"email"`
-		Bio               *string `json:"bio"`
-		IsPublic          *bool   `json:"isPublic"`
-		ZipCode           *string `json:"zipCode"`
-		NumisBidsUsername *string `json:"numisBidsUsername"`
-		NumisBidsPassword *string `json:"numisBidsPassword"`
-		CNGUsername       *string `json:"cngUsername"`
-		CNGPassword       *string `json:"cngPassword"`
-		PushoverUserKey   *string `json:"pushoverUserKey"`
-		CoinOfDayEnabled  *bool   `json:"coinOfDayEnabled"`
+		Email                          *string `json:"email"`
+		Bio                            *string `json:"bio"`
+		IsPublic                       *bool   `json:"isPublic"`
+		ZipCode                        *string `json:"zipCode"`
+		NumisBidsUsername              *string `json:"numisBidsUsername"`
+		NumisBidsPassword              *string `json:"numisBidsPassword"`
+		CNGUsername                    *string `json:"cngUsername"`
+		CNGPassword                    *string `json:"cngPassword"`
+		PushoverUserKey                *string `json:"pushoverUserKey"`
+		CoinOfDayEnabled               *bool   `json:"coinOfDayEnabled"`
+		EmperorTrackerEnabled          *bool   `json:"emperorTrackerEnabled"`
+		EmperorTrackerShowUsurpers     *bool   `json:"emperorTrackerShowUsurpers"`
+		EmperorTrackerShowEmpresses    *bool   `json:"emperorTrackerShowEmpresses"`
+		EmperorTrackerShowOtherFigures *bool   `json:"emperorTrackerShowOtherFigures"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondError(c, http.StatusBadRequest, "Invalid request payload", err)
@@ -319,6 +327,18 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	if req.CoinOfDayEnabled != nil {
 		updates["coin_of_day_enabled"] = *req.CoinOfDayEnabled
 	}
+	if req.EmperorTrackerEnabled != nil {
+		updates["emperor_tracker_enabled"] = *req.EmperorTrackerEnabled
+	}
+	if req.EmperorTrackerShowUsurpers != nil {
+		updates["emperor_tracker_show_usurpers"] = *req.EmperorTrackerShowUsurpers
+	}
+	if req.EmperorTrackerShowEmpresses != nil {
+		updates["emperor_tracker_show_empresses"] = *req.EmperorTrackerShowEmpresses
+	}
+	if req.EmperorTrackerShowOtherFigures != nil {
+		updates["emperor_tracker_show_other_figures"] = *req.EmperorTrackerShowOtherFigures
+	}
 	if req.IsPublic != nil {
 		updates["is_public"] = *req.IsPublic
 		goingPrivate := !*req.IsPublic && user.IsPublic
@@ -346,20 +366,24 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"id":                  user.ID,
-		"username":            user.Username,
-		"role":                user.Role,
-		"email":               user.Email,
-		"avatarPath":          user.AvatarPath,
-		"isPublic":            user.IsPublic,
-		"bio":                 user.Bio,
-		"zipCode":             user.ZipCode,
-		"numisBidsUsername":   user.NumisBidsUsername,
-		"numisBidsConfigured": user.NumisBidsUsername != "" && user.NumisBidsPassword != "",
-		"cngUsername":         user.CNGUsername,
-		"cngConfigured":       user.CNGUsername != "" && user.CNGPassword != "",
-		"pushoverEnabled":     user.PushoverEnabled,
-		"coinOfDayEnabled":    user.CoinOfDayEnabled,
+		"id":                             user.ID,
+		"username":                       user.Username,
+		"role":                           user.Role,
+		"email":                          user.Email,
+		"avatarPath":                     user.AvatarPath,
+		"isPublic":                       user.IsPublic,
+		"bio":                            user.Bio,
+		"zipCode":                        user.ZipCode,
+		"numisBidsUsername":              user.NumisBidsUsername,
+		"numisBidsConfigured":            user.NumisBidsUsername != "" && user.NumisBidsPassword != "",
+		"cngUsername":                    user.CNGUsername,
+		"cngConfigured":                  user.CNGUsername != "" && user.CNGPassword != "",
+		"pushoverEnabled":                user.PushoverEnabled,
+		"coinOfDayEnabled":               user.CoinOfDayEnabled,
+		"emperorTrackerEnabled":          user.EmperorTrackerEnabled,
+		"emperorTrackerShowUsurpers":     user.EmperorTrackerShowUsurpers,
+		"emperorTrackerShowEmpresses":    user.EmperorTrackerShowEmpresses,
+		"emperorTrackerShowOtherFigures": user.EmperorTrackerShowOtherFigures,
 	})
 }
 

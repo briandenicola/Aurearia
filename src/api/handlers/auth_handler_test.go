@@ -716,3 +716,28 @@ func TestAuthResponseIncludesAuctionCredentialFields(t *testing.T) {
 		t.Error("refresh response missing cngConfigured field")
 	}
 }
+
+func TestAuthResponseIncludesEmperorTrackerFields(t *testing.T) {
+	router, _ := setupAuthHandlerRouter(t)
+
+	registerResp := registerTestUser(t, router, "emperortracker", "emperortracker@example.com", "password123")
+	userMap, ok := registerResp["user"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected user object in register response")
+	}
+	for _, field := range []string{
+		"emperorTrackerEnabled",
+		"emperorTrackerShowUsurpers",
+		"emperorTrackerShowEmpresses",
+		"emperorTrackerShowOtherFigures",
+	} {
+		value, exists := userMap[field]
+		if !exists {
+			t.Errorf("register response missing %s field", field)
+			continue
+		}
+		if value != false {
+			t.Errorf("%s = %v, want false for a new user", field, value)
+		}
+	}
+}
