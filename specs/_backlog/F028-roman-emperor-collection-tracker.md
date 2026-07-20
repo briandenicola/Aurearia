@@ -51,10 +51,15 @@ the existing `coinOfDayEnabled`-style opt-in pattern.
 - [ ] The page surfaces a "what to pursue next" list of missing emperors to
       help the user prioritize acquisitions — see the Suggestions section
       below for scope/phasing.
-- [ ] Matching a coin to an emperor is based on the coin's free-text `Ruler`
-      field against a canonical emperor reference dataset (see Notes) —
-      the matching approach and its known failure modes are documented
-      before this is promoted (see Open Questions).
+- [ ] Matching a coin to an emperor is structured, not fuzzy-text: when a
+      coin's Category is Roman, the coin form offers an **optional**
+      type-ahead picker over a curated list of Roman imperial figures
+      (emperors, empresses, heirs/Caesars, usurpers), each tagged with a
+      `role`. Only figures tagged `role: emperor` count toward this
+      feature's completion stat — picking "Livia" (Augustus's wife, never
+      an emperor herself) must never be counted as an Augustus coin. The
+      picker never forces a choice: leaving it blank is always valid, and
+      the existing free-text `Ruler` field is unaffected/unchanged.
 - [ ] Western and Eastern Roman emperors are both covered, both capped at
       476 AD; nothing after that date is included in v1.
 - [ ] Disabling the setting hides the Stats sub-page entirely; no background
@@ -80,27 +85,48 @@ already models a named target with a completion percentage
    for modern (US mint-mark style) coin sets, not ruler identity.
 
 Recommendation: a new, purpose-built static reference table (seeded, not
-user-editable) — e.g. `models.RomanEmperor{ID, Name, Aliases
-[]string-ish, Region (west|east), Dynasty, ReignStart, ReignEnd, SortOrder}`
-— with per-user progress computed on request against the user's full active
-(non-wishlist, non-sold — confirm in Open Questions) collection, the same way
-`AuctionLotService.Recommend`/`MarketSignal` compute their results live
-rather than maintaining a stored/cached table. Collections are small enough
-(hundreds, not millions of coins) that this doesn't need a background job.
+user-editable) — `models.RomanImperialFigure{ID, Name, Aliases []string-ish,
+Role (emperor|empress|caesar|usurper|other), Region (west|east), Dynasty,
+ReignStart, ReignEnd, SortOrder, RarityTier}` — scoped to *imperial figures*
+broadly, not just emperors, since real coins commonly depict empresses,
+heirs/Caesars, and usurpers who were never emperor themselves (see Matching
+strategy below for why this matters). Per-user progress is computed on
+request against the user's full active (non-wishlist, non-sold — confirm in
+Open Questions) collection, the same way `AuctionLotService.Recommend`/
+`MarketSignal` compute their results live rather than maintaining a
+stored/cached table. Collections are small enough (hundreds, not millions of
+coins) that this doesn't need a background job.
 
-### Matching strategy (the real risk in this feature)
+### Matching strategy: structured selection, not fuzzy text
 
-`Coin.Ruler` is free text (`binding:"max=200"`, no enum, no existing
-canonical list anywhere in the codebase). Real collections will have
-"Augustus", "Octavian", "Divus Augustus", "Constantine I", "Constantine the
-Great", spelling variants, etc. A naive exact-match will under-count badly.
-Proposed v1: normalize (trim/lowercase) both sides and match against each
-emperor's canonical name **and** a curated alias list, allowing substring
-matches. This will still miss things. Whether v1 needs a manual
-match/override affordance (e.g. "this coin is actually Nerva, not matched
-automatically") or whether that's a v2 addition once real usage shows how bad
-the miss rate is, is an open question below — don't over-build this before
-seeing it fail on real collections.
+`Coin.Ruler` is free text today (`binding:"max=200"`, no enum, no existing
+canonical list anywhere in the codebase), and real collections have
+"Augustus", "Octavian", "Divus Augustus", spelling variants, etc. — a naive
+exact- or fuzzy-match against that field would under-count badly and is the
+wrong foundation to build on.
+
+Instead: add a new, optional `Coin.RomanImperialFigureID *uint` (nullable
+FK into `RomanImperialFigure`), surfaced in the coin form as a type-ahead
+picker **gated on `Category == Roman`**. This directly solves the fuzzy
+alias-matching risk by replacing it with an explicit, unambiguous selection
+made once at coin-entry time — no normalization/substring-matching code
+needed at all for coins entered this way. Critically, the picker's list is
+not limited to the ~90 emperors: it includes every commonly-depicted
+imperial figure (empresses, heirs/Caesars, usurpers), each carrying a
+`role`. Selecting a non-emperor figure (e.g. Livia, Faustina, a Caesar who
+never acceded) is completely valid and simply doesn't count toward the
+emperor-completion stat — the field is honestly "who's depicted on this
+coin," not artificially forced into "which emperor does this map to."
+
+The picker is optional and additive: it never replaces or requires the
+free-text `Ruler` field, and a coin can be left unmatched. Given the app's
+current user base has at most a few hundred coins entered, not thousands,
+there is **no bulk fuzzy-matching migration for existing coins** in scope —
+existing coins simply show as unmatched until a user opens them and picks
+the figure themselves (a one-time, per-coin, user-driven action, not a
+background job or automated best-effort guess). This meaningfully shrinks
+the feature's original biggest risk: there's no fuzzy-matcher to get wrong,
+tune, or need an override affordance for.
 
 ### Suggestions: which missing emperor(s) to pursue next
 
@@ -108,10 +134,10 @@ Phase this the same way F023 (bid recommendation) was phased into a
 historical-data-only V1 and a market-data-assisted V2 — don't build the
 expensive version before the cheap one proves useful.
 
-**V1 — static, no agent/network call.** The curated emperor reference
-dataset (see Data section) gets one extra per-emperor field, something like
-`rarityTier` (`common | scarce | rare | very_rare`, hand-curated alongside
-the name/dynasty/alias data — e.g. an Augustus or Constantine I denarius is
+**V1 — static, no agent/network call.** The curated `RomanImperialFigure`
+dataset (see Data section) already carries a `RarityTier` field
+(`common | scarce | rare | very_rare`, hand-curated alongside the
+name/dynasty/alias/role data — e.g. an Augustus or Constantine I denarius is
 routinely available and inexpensive; a Romulus Augustulus or a legitimate
 Otho coin is a genuine numismatic rarity most collectors never own). The
 suggestions list is simply the user's missing emperors sorted with the most
@@ -161,6 +187,10 @@ during data curation.
 
 ### UI
 
+- Coin form: a new optional type-ahead field, "Imperial figure," shown only
+  when Category is Roman, sitting alongside the existing free-text `Ruler`
+  input (not replacing it). Backed by the curated `RomanImperialFigure`
+  list; supports leaving it unset.
 - Settings toggle: `SettingsAccountSection.vue`, same visual pattern as the
   existing `coinOfDayEnabled` checkbox.
 - New page under Stats (existing sibling pages: `/stats/mint-map`,
@@ -182,9 +212,9 @@ during data curation.
   trio for the emperor reference data + per-user progress computation;
   reuses existing tray components at the presentation layer rather than
   forking them.
-- Principle III (Strict Types and Explicit Contracts) — canonical emperor
-  dataset and match-result shape need explicit Go structs / TS types, not ad
-  hoc maps.
+- Principle III (Strict Types and Explicit Contracts) — the
+  `RomanImperialFigure` dataset and match-result shape need explicit Go
+  structs / TS types, not ad hoc maps.
 - Principle IV (Simple Complete Changes) — do not extend
   `CoinSetTarget`/`matchCoinToTarget` for this; that system's assumptions
   (set-scoped membership, US-coin-oriented match fields) don't fit and
@@ -195,21 +225,18 @@ during data curation.
 
 ## Open questions
 
-- [ ] Who curates the canonical emperor + alias dataset, and where does it
-      live (seed data checked into the repo, e.g. `database/seed/`, versus a
-      migration)? This is real historical research/content work, not just
-      code.
-- [ ] Does the match need a manual override/confirm step in v1, or is
-      auto-match-only acceptable to ship first and iterate once real
-      collections are tested against it? (Leaning toward v1 auto-match-only
-      per Principle IV, with this flagged as the most likely v2 addition.)
+- [ ] Who curates the canonical `RomanImperialFigure` dataset (names,
+      aliases, dynasty/region, and now also `role` for each figure), and
+      where does it live (seed data checked into the repo, e.g.
+      `database/seed/`, versus a migration)? This is real historical
+      research/content work, not just code.
 - [ ] Do sold coins count toward "collected" (you owned it at some point) or
       only currently-owned, non-wishlist coins? Leaning toward
       currently-owned only, matching how the rest of the app treats
       "collection" vs "sold" vs "wishlist," but worth confirming.
 - [ ] Should an empty (unmatched) emperor well be non-interactive, or should
-      clicking it deep-link to "Add Coin" pre-filled with that emperor's name
-      in the Ruler field? Nice-to-have, not required for v1.
+      clicking it deep-link to "Add Coin" with that emperor pre-selected in
+      the new "Imperial figure" picker? Nice-to-have, not required for v1.
 - [ ] Exact 476 AD cutoff handling for Eastern emperors whose reigns straddle
       that date (notably Zeno) — include or exclude the straddling reign?
 - [ ] Should co-emperors / usurpers (e.g. Lucius Verus, Basiliscus) count as
@@ -257,3 +284,11 @@ Prior art investigated during planning:
   call) / V2 (agent-assisted live market search, mirroring F023's
   `bid_market_signal.py` pattern — explicitly not to be started before V1
   ships and is validated).
+- 2026-07-20: refined — replaced the free-text-fuzzy-match matching
+  strategy with a structured, optional coin-form picker over a widened
+  `RomanImperialFigure` dataset (emperors, empresses, heirs/Caesars,
+  usurpers, each tagged with a `role`), so non-emperor figures like Livia
+  are never miscounted toward an emperor's completion and no
+  alias/substring-matching code is needed. No bulk migration of existing
+  coins is in scope — the app's user base is small enough that users will
+  pick the figure themselves when they next edit a coin.
