@@ -276,10 +276,9 @@ still needs final sign-off; rarity tiers are an unsourced first guess).
       to decide how it's represented in Go (hardcoded seed function, matching
       the existing `seedMintLocations` pattern in `database/database.go`, is
       the presumed default absent a reason to do otherwise).
-- [ ] Do sold coins count toward "collected" (you owned it at some point) or
-      only currently-owned, non-wishlist coins? Leaning toward
-      currently-owned only, matching how the rest of the app treats
-      "collection" vs "sold" vs "wishlist," but worth confirming.
+- [x] Do sold coins count toward "collected"? **Resolved**: currently-owned,
+      non-wishlist, non-sold coins only — matches how the rest of the app
+      already treats "collection" vs "sold" vs "wishlist."
 - [ ] Should an empty (unmatched) emperor well be non-interactive, or should
       clicking it deep-link to "Add Coin" with that emperor pre-selected in
       the new "Imperial figure" picker? Nice-to-have, not required for v1.
@@ -287,16 +286,10 @@ still needs final sign-off; rarity tiers are an unsourced first guess).
       that date (notably Zeno) — **resolved**: in scope if the reign began
       on or before 476, even if it continued after. Zeno is included in
       full (474–491); Anastasius I (began 491) is not.
-- [ ] Should co-emperors (e.g. Lucius Verus, Geta — both `role: emperor`,
-      both in the default goal) count as separate tracked entries, or be
-      folded into the primary emperor's entry? The curated dataset's first
-      pass leans toward separate entries (they minted coinage under their
-      own name/portrait), but this is not yet a final sign-off — still
-      affects the default goal's total count and user expectations if
-      reversed. (Note: this question is now scoped to co-emperors only —
-      usurpers are a separate, opt-in, always-independently-tracked
-      category per the new visibility toggles, so there's no
-      folding/merging ambiguity for them.)
+- [x] Should co-emperors (e.g. Lucius Verus, Geta) count as separate tracked
+      entries? **Resolved**: yes, separate entries — matches the curated
+      dataset's first pass (~96 `role: emperor` entries) as-is, no rework
+      needed.
 - [ ] Who curates the per-emperor `rarityTier` used to sort V1 suggestions,
       and against what standard (auction frequency? price? both?) — same
       content-ownership question as the core dataset, called out separately
@@ -376,3 +369,8 @@ Curated dataset: `specs/_backlog/F028-imperial-figures.md` (first pass,
   tracked section to `/stats/emperors` when enabled, so users can opt into
   a bigger or more textured goal without changing what "100%" means for
   everyone else.
+- 2026-07-20: closed the two remaining implementation-blocking open
+  questions ahead of starting work: sold coins do **not** count toward
+  completion (currently-owned, non-wishlist only), and co-emperors **do**
+  count as separate tracked entries (dataset needs no rework). Status
+  remains `backlog`; implementation starting on tasks #30+.
