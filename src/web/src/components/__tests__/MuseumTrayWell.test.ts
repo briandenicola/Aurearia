@@ -79,9 +79,11 @@ describe('MuseumTrayWell', () => {
       },
     })
     await flushPromises()
+    await vi.waitFor(() => {
+      expect(wrapper.find('img').exists()).toBe(true)
+    })
 
     const img = wrapper.find('img')
-    expect(img.exists()).toBe(true)
     expect(img.attributes('src')).toBe('blob:tray-image')
     expect(img.attributes('alt')).toBe('Test Coin')
     expect(img.attributes('loading')).toBe('eager')

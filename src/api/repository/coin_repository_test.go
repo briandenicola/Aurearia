@@ -220,6 +220,7 @@ func TestCoinRepository_ListMatchedImperialFigures(t *testing.T) {
 	}
 	db.Create(&models.CoinImage{CoinID: matched.ID, FilePath: "/uploads/matched.jpg"})
 	db.Create(&models.Coin{Name: "Unmatched", Category: models.CategoryRoman, UserID: 1})
+	db.Create(&models.Coin{Name: "Greek Matched", Category: models.CategoryGreek, UserID: 1, RomanImperialFigureID: &figureID})
 	db.Create(&models.Coin{Name: "Matched Wishlist", Category: models.CategoryRoman, UserID: 1, RomanImperialFigureID: &otherFigureID, IsWishlist: true})
 	db.Create(&models.Coin{Name: "Matched Sold", Category: models.CategoryRoman, UserID: 1, RomanImperialFigureID: &otherFigureID, IsSold: true})
 	db.Create(&models.Coin{Name: "Other User Matched", Category: models.CategoryRoman, UserID: 2, RomanImperialFigureID: &figureID})

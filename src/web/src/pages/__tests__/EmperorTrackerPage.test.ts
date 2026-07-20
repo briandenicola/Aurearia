@@ -18,6 +18,7 @@ vi.mock('vue-router', () => ({
 
 vi.mock('@/api/client', () => ({
   getEmperorTrackerProgress: () => mockGetProgress(),
+  updateEmperorTrackerHighlight: vi.fn(),
   getApiErrorMessage: (error: unknown) => {
     const maybeError = error as { message?: string }
     return maybeError.message ?? ''
@@ -47,10 +48,14 @@ const fullResult: EmperorTrackerResult = {
           {
             figure: { id: 1, name: 'Augustus', aliases: [], role: 'emperor', region: 'west', dynasty: 'Julio-Claudian', reignStart: -27, reignEnd: 14, sortOrder: 1, rarityTier: 'common' },
             coin: { id: 42, name: 'My Augustus', diameterMm: 18, images: [] } as never,
+            coins: [{ id: 42, name: 'My Augustus', diameterMm: 18, images: [] } as never],
+            highlightedCoinId: 42,
           },
           {
             figure: { id: 2, name: 'Tiberius', aliases: [], role: 'emperor', region: 'west', dynasty: 'Julio-Claudian', reignStart: 14, reignEnd: 37, sortOrder: 2, rarityTier: 'common' },
             coin: null,
+            coins: [],
+            highlightedCoinId: null,
           },
         ],
       },
@@ -127,6 +132,8 @@ describe('EmperorTrackerPage', () => {
                 {
                   figure: { id: 3, name: 'Livia', aliases: [], role: 'empress', region: 'west', dynasty: 'Julio-Claudian', reignStart: -27, reignEnd: 14, sortOrder: 3, rarityTier: 'common' },
                   coin: null,
+                  coins: [],
+                  highlightedCoinId: null,
                 },
               ],
             },

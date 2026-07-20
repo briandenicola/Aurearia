@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -20,7 +22,8 @@ func setupEmperorTrackerHandlerDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.RomanImperialFigure{}); err != nil {
+
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.RomanImperialFigure{}, &models.RomanImperialFigureHighlight{}); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
 	figures := []models.RomanImperialFigure{
@@ -35,8 +38,57 @@ func setupEmperorTrackerHandlerDB(t *testing.T) *gorm.DB {
 }
 
 func emperorTrackerHandlerFor(db *gorm.DB) *EmperorTrackerHandler {
-	svc := services.NewEmperorTrackerService(repository.NewRomanImperialFigureRepository(db), repository.NewCoinRepository(db))
+	svc := services.NewEmperorTrackerService(
+		repository.NewRomanImperialFigureRepository(db),
+		repository.NewCoinRepository(db),
+		repository.NewRomanImperialFigureHighlightRepository(db),
+	)
 	return NewEmperorTrackerHandler(svc, repository.NewUserRepository(db))
+}
+
+func TestEmperorTrackerHandler_SetHighlightRequiresEnabledMatchedRomanCoin(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupEmperorTrackerHandlerDB(t)
+	user := models.User{Username: "u1", PasswordHash: "hash", EmperorTrackerEnabled: true}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	var augustus models.RomanImperialFigure
+	if err := db.Where("normalized_name = ?", "augustus").First(&augustus).Error; err != nil {
+		t.Fatalf("find Augustus: %v", err)
+	}
+	romanCoin := models.Coin{Name: "Augustus Denarius", Category: models.CategoryRoman, UserID: user.ID, RomanImperialFigureID: &augustus.ID}
+	greekCoin := models.Coin{Name: "Greek Augustus", Category: models.CategoryGreek, UserID: user.ID, RomanImperialFigureID: &augustus.ID}
+	if err := db.Create(&romanCoin).Error; err != nil {
+		t.Fatalf("create Roman coin: %v", err)
+	}
+	if err := db.Create(&greekCoin).Error; err != nil {
+		t.Fatalf("create Greek coin: %v", err)
+	}
+	handler := emperorTrackerHandlerFor(db)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("userId", user.ID)
+		c.Next()
+	})
+	router.PUT("/stats/emperors/highlights/:figureId", handler.SetHighlight)
+
+	body, _ := json.Marshal(map[string]uint{"coinId": greekCoin.ID})
+	figureParam := strconv.FormatUint(uint64(augustus.ID), 10)
+	req := httptest.NewRequest(http.MethodPut, "/stats/emperors/highlights/"+figureParam, bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for non-Roman highlight, got %d: %s", w.Code, w.Body.String())
+	}
+
+	body, _ = json.Marshal(map[string]uint{"coinId": romanCoin.ID})
+	req = httptest.NewRequest(http.MethodPut, "/stats/emperors/highlights/"+figureParam, bytes.NewReader(body))
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204 for Roman highlight, got %d: %s", w.Code, w.Body.String())
+	}
 }
 
 func TestEmperorTrackerHandler_GetProgressRejectsWhenNotEnabled(t *testing.T) {

@@ -173,7 +173,7 @@ const router = createRouter({
       path: '/stats/emperors',
       name: 'stats-emperors',
       component: () => import('@/pages/EmperorTrackerPage.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, requiresEmperorTracker: true },
     },
     {
       path: '/mint-map',
@@ -295,6 +295,9 @@ router.beforeEach((to) => {
   }
   if (to.meta.requiresAdmin && !auth.isAdmin) {
     return { name: 'collection' }
+  }
+  if (to.meta.requiresEmperorTracker && !auth.user?.emperorTrackerEnabled) {
+    return { name: 'stats' }
   }
 })
 

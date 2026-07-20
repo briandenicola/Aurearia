@@ -312,7 +312,15 @@ function applyOrder(order: string[]): NavItem[] {
 const navOrder = ref<string[]>(loadSavedOrder())
 const orderedNavItems = computed(() => {
   const items = navOrder.value.length ? applyOrder(navOrder.value) : defaultNavItems
-  return items.filter(item => item.visible)
+  return items
+    .filter(item => item.visible)
+    .map(item => {
+      if (item.id !== 'stats' || !item.children) return item
+      return {
+        ...item,
+        children: item.children.filter(child => child.id !== 'stats-emperors' || auth.user?.emperorTrackerEnabled),
+      }
+    })
 })
 
 const fabPositionStyle = computed<Record<string, string> | undefined>(() => {

@@ -468,6 +468,7 @@ function buildCoinPayload(source: Partial<Coin>): CoinMutationPayload {
     purchaseDate: source.purchaseDate || undefined,
     purchaseLocation: source.purchaseLocation?.trim() || undefined,
     storageLocationId: source.storageLocationId ?? null,
+    romanImperialFigureId: source.category === 'Roman' ? (source.romanImperialFigureId ?? null) : null,
     notes: source.notes?.trim() || undefined,
     referenceUrl: source.referenceUrl?.trim() || undefined,
     referenceText: source.referenceText?.trim() || undefined,

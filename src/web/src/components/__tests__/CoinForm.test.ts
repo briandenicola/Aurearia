@@ -46,5 +46,7 @@ describe('CoinForm', () => {
     expect(source).toContain('<ImperialFigurePicker v-model="form.romanImperialFigureId!" />')
     expect(source).toContain('<AutocompleteInput v-model="form.ruler!" field="ruler" placeholder="e.g. Augustus" />')
     expect(source).toContain("import ImperialFigurePicker from '@/components/ImperialFigurePicker.vue'")
+    expect(source).toContain("if (category !== 'Roman')")
+    expect(source).toContain('props.form.romanImperialFigureId = null')
   })
 })

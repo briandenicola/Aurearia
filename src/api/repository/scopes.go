@@ -23,6 +23,13 @@ func ActiveCollection(userID uint) func(db *gorm.DB) *gorm.DB {
 	}
 }
 
+// ActiveRomanCollection scopes to Roman coins that are currently in the user's collection.
+func ActiveRomanCollection(userID uint) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Where("user_id = ? AND category = ? AND is_wishlist = ? AND is_sold = ?", userID, "Roman", false, false)
+	}
+}
+
 // PublicCoins scopes to coins that are visible to other users.
 func PublicCoins(userID uint) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {

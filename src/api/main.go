@@ -312,9 +312,11 @@ func main() {
 		protected.GET("/roman-imperial-figures/:id", romanImperialFigureHandler.Get)
 
 		emperorTrackerUserRepo := repository.NewUserRepository(database.DB)
-		emperorTrackerSvc := services.NewEmperorTrackerService(romanImperialFigureRepo, coinRepo)
+		emperorTrackerHighlightRepo := repository.NewRomanImperialFigureHighlightRepository(database.DB)
+		emperorTrackerSvc := services.NewEmperorTrackerService(romanImperialFigureRepo, coinRepo, emperorTrackerHighlightRepo)
 		emperorTrackerHandler := handlers.NewEmperorTrackerHandler(emperorTrackerSvc, emperorTrackerUserRepo)
 		protected.GET("/stats/emperors", emperorTrackerHandler.GetProgress)
+		protected.PUT("/stats/emperors/highlights/:figureId", emperorTrackerHandler.SetHighlight)
 
 		tagRepo := repository.NewTagRepository(database.DB)
 		tagHandler := handlers.NewTagHandler(tagRepo)
