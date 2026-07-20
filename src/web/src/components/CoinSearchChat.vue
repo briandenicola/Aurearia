@@ -123,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import type { CoinSuggestion, CoinShow } from '@/types'
 import { AlertTriangle } from 'lucide-vue-next'
 import { useCoinSearchChat } from '@/composables/useCoinSearchChat'
@@ -135,6 +135,7 @@ import CoinSuggestionGrid from '@/components/chat/CoinSuggestionGrid.vue'
 
 const props = defineProps<{
   loadConversation?: { id: number; title: string; messages: string } | null
+  initialPrompt?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -144,6 +145,7 @@ const emit = defineEmits<{
 
 const messagesEl = ref<HTMLElement>()
 const inputBarEl = ref<InstanceType<typeof ChatInputBar>>()
+const sentInitialPrompts = new Set<string>()
 
 const {
   messages,
@@ -173,6 +175,21 @@ const {
   messagesEl,
   inputBarEl,
   onAdded: () => emit('added'),
+})
+
+function sendInitialPrompt(prompt?: string | null) {
+  const text = prompt?.trim()
+  if (!text || sentInitialPrompts.has(text)) return
+  sentInitialPrompts.add(text)
+  sendExample(text)
+}
+
+onMounted(() => {
+  sendInitialPrompt(props.initialPrompt)
+})
+
+watch(() => props.initialPrompt, (prompt) => {
+  sendInitialPrompt(prompt)
 })
 
 function formatProposalChange(collection: { proposal?: { changes: Record<string, unknown> } }, field: string): string {
