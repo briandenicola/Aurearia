@@ -1425,6 +1425,13 @@ definitions:
     - password
     - username
     type: object
+  handlers.romanImperialFigureListResponse:
+    properties:
+      figures:
+        items:
+          $ref: '#/definitions/models.RomanImperialFigure'
+        type: array
+    type: object
   handlers.storageLocationCreateRequest:
     properties:
       name:
@@ -2213,6 +2220,28 @@ definitions:
     - ImageTypeReverse
     - ImageTypeDetail
     - ImageTypeOther
+  models.ImperialFigureRegion:
+    enum:
+    - west
+    - east
+    type: string
+    x-enum-varnames:
+    - ImperialFigureRegionWest
+    - ImperialFigureRegionEast
+  models.ImperialFigureRole:
+    enum:
+    - emperor
+    - empress
+    - caesar
+    - usurper
+    - other
+    type: string
+    x-enum-varnames:
+    - ImperialFigureRoleEmperor
+    - ImperialFigureRoleEmpress
+    - ImperialFigureRoleCaesar
+    - ImperialFigureRoleUsurper
+    - ImperialFigureRoleOther
   models.JSONObject:
     additionalProperties: true
     type: object
@@ -2375,6 +2404,49 @@ definitions:
     - QuickCaptureDraftStatusPromoting
     - QuickCaptureDraftStatusPromoted
     - QuickCaptureDraftStatusDiscarded
+  models.RarityTier:
+    enum:
+    - common
+    - scarce
+    - rare
+    - very_rare
+    type: string
+    x-enum-varnames:
+    - RarityTierCommon
+    - RarityTierScarce
+    - RarityTierRare
+    - RarityTierVeryRare
+  models.RomanImperialFigure:
+    properties:
+      aliases:
+        items:
+          type: string
+        type: array
+      createdAt:
+        type: string
+      dynasty:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      notes:
+        type: string
+      rarityTier:
+        $ref: '#/definitions/models.RarityTier'
+      region:
+        $ref: '#/definitions/models.ImperialFigureRegion'
+      reignEnd:
+        type: integer
+      reignStart:
+        type: integer
+      role:
+        $ref: '#/definitions/models.ImperialFigureRole'
+      sortOrder:
+        type: integer
+      updatedAt:
+        type: string
+    type: object
   models.StorageLocation:
     properties:
       createdAt:
@@ -9211,6 +9283,81 @@ paths:
       summary: Delete bid reminder
       tags:
       - Alerts
+  /roman-imperial-figures:
+    get:
+      description: Returns curated Roman imperial figures (emperors, empresses, Caesars,
+        usurpers, other) filtered by an optional name/alias query and/or role, for
+        the coin-form "Imperial figure" type-ahead picker.
+      parameters:
+      - description: Name/alias search query
+        in: query
+        name: q
+        type: string
+      - description: 'Filter by role: emperor, empress, caesar, usurper, other'
+        in: query
+        name: role
+        type: string
+      - description: Max results (default 50, capped at 200)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.romanImperialFigureListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Search Roman imperial figures
+      tags:
+      - Roman Imperial Figures
+  /roman-imperial-figures/{id}:
+    get:
+      description: Returns a single curated Roman imperial figure by ID.
+      parameters:
+      - description: Roman imperial figure ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.RomanImperialFigure'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a Roman imperial figure
+      tags:
+      - Roman Imperial Figures
   /scrape-image:
     get:
       description: Fetches a web page and extracts image URL from og:image, twitter:image,
