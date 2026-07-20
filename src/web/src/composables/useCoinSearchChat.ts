@@ -1,6 +1,6 @@
 import { ref, nextTick, onMounted, onBeforeUnmount, type Ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { agentChatStream, cancelCollectionProposal, commitCollectionProposal, createCoin, proxyImage, scrapeImage, uploadImage, saveConversation, getPortfolioSummary, getAgentStatus, createCalendarEvent } from '@/api/client'
+import { agentChatStream, cancelCollectionProposal, commitCollectionProposal, createCoin, getApiErrorMessage, proxyImage, scrapeImage, uploadImage, saveConversation, getPortfolioSummary, getAgentStatus, createCalendarEvent } from '@/api/client'
 import type { CoinMutationPayload, CoinSuggestion, CoinShow, AgentChatAppContext, AgentChatMessage, Category, CollectionChatResponse, Material } from '@/types'
 import { useDialog } from '@/composables/useDialog'
 import DOMPurify from 'dompurify'
@@ -27,6 +27,19 @@ interface UseCoinSearchChatOptions {
 const VALID_CATEGORIES = ['Roman', 'Greek', 'Byzantine', 'Modern', 'Other']
 const VALID_MATERIALS = ['Gold', 'Silver', 'Bronze', 'Copper', 'Electrum', 'Other']
 const VALID_ERAS = ['ancient', 'medieval', 'modern'] as const
+const FIELD_LIMITS = {
+  name: 200,
+  denomination: 200,
+  ruler: 200,
+  notes: 5000,
+  referenceUrl: 2000,
+  referenceText: 2000,
+  referenceCatalog: 32,
+  referenceVolume: 64,
+  referenceNumber: 128,
+  referenceUri: 2000,
+} as const
+const VOLUME_REQUIRED_REFERENCE_CATALOGS = new Set(['RIC', 'RPC', 'SNG'])
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 
@@ -51,31 +64,42 @@ export function parseSuggestionPrice(price: string): number | null {
   if (!price) return null
   const match = price.match(/[\d,]+(?:\.\d+)?/)
   if (!match) return null
-  return parseFloat(match[0].replace(/,/g, ''))
+  const parsed = parseFloat(match[0].replace(/,/g, ''))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function limitText(value: string | undefined, max: number): string {
+  return (value ?? '').trim().slice(0, max)
+}
+
+function shouldKeepCandidateReference(ref: { catalog?: string; number?: string; volume?: string }): boolean {
+  const catalog = limitText(ref.catalog, FIELD_LIMITS.referenceCatalog).toUpperCase()
+  if (!catalog || !ref.number?.trim()) return false
+  return !VOLUME_REQUIRED_REFERENCE_CATALOGS.has(catalog) || !!ref.volume?.trim()
 }
 
 export function buildWishlistCoinPayload(coin: CoinSuggestion): CoinMutationPayload {
   const category = VALID_CATEGORIES.includes(coin.category) ? coin.category as Category : 'Other'
   const material = VALID_MATERIALS.includes(coin.material) ? coin.material as Material : 'Other'
   const candidateReferences = (coin.candidateReferences ?? [])
-    .filter((ref) => !!ref.catalog?.trim() && !!ref.number?.trim())
+    .filter(shouldKeepCandidateReference)
     .map((ref) => ({
-      catalog: ref.catalog.trim(),
-      volume: ref.volume?.trim() || '',
-      number: ref.number.trim(),
-      uri: ref.uri?.trim() || '',
+      catalog: limitText(ref.catalog, FIELD_LIMITS.referenceCatalog),
+      volume: limitText(ref.volume, FIELD_LIMITS.referenceVolume),
+      number: limitText(ref.number, FIELD_LIMITS.referenceNumber),
+      uri: limitText(ref.uri, FIELD_LIMITS.referenceUri),
     }))
 
   return {
-    name: coin.name,
+    name: limitText(coin.name, FIELD_LIMITS.name) || 'Agent coin suggestion',
     category,
     material,
-    denomination: coin.denomination || '',
-    ruler: coin.ruler || '',
+    denomination: limitText(coin.denomination, FIELD_LIMITS.denomination),
+    ruler: limitText(coin.ruler, FIELD_LIMITS.ruler),
     era: normalizeSuggestionEra(coin.era || ''),
-    notes: coin.description || '',
-    referenceUrl: coin.sourceUrl || '',
-    referenceText: coin.sourceName || '',
+    notes: limitText(coin.description, FIELD_LIMITS.notes),
+    referenceUrl: limitText(coin.sourceUrl, FIELD_LIMITS.referenceUrl),
+    referenceText: limitText(coin.sourceName, FIELD_LIMITS.referenceText),
     isWishlist: true,
     currentValue: parseSuggestionPrice(coin.estPrice),
     references: candidateReferences,
@@ -291,8 +315,9 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
 
       addedSet.value.add(idx)
       options.onAdded()
-    } catch {
-      await showAlert('Failed to add coin to wishlist', { title: 'Error' })
+    } catch (err) {
+      const detail = getApiErrorMessage(err)
+      await showAlert(detail ? `Failed to add coin to wishlist: ${detail}` : 'Failed to add coin to wishlist', { title: 'Error' })
     } finally {
       addingIdx.value = null
     }
