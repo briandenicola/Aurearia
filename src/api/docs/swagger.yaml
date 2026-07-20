@@ -2701,6 +2701,23 @@ definitions:
       status:
         type: string
     type: object
+  services.CategoryProgress:
+    properties:
+      dynasties:
+        items:
+          $ref: '#/definitions/services.DynastyProgress'
+        type: array
+      owned:
+        type: integer
+      percentage:
+        type: number
+      roles:
+        items:
+          $ref: '#/definitions/models.ImperialFigureRole'
+        type: array
+      total:
+        type: integer
+    type: object
   services.ChecklistDimension:
     enum:
     - metadata
@@ -2792,6 +2809,34 @@ definitions:
       status:
         type: string
     type: object
+  services.DynastyProgress:
+    properties:
+      dynasty:
+        type: string
+      figures:
+        items:
+          $ref: '#/definitions/services.ImperialFigureSlot'
+        type: array
+      owned:
+        type: integer
+      total:
+        type: integer
+    type: object
+  services.EmperorTrackerResult:
+    properties:
+      emperor:
+        $ref: '#/definitions/services.CategoryProgress'
+      empresses:
+        $ref: '#/definitions/services.CategoryProgress'
+      other:
+        $ref: '#/definitions/services.CategoryProgress'
+      suggestions:
+        items:
+          $ref: '#/definitions/models.RomanImperialFigure'
+        type: array
+      usurpers:
+        $ref: '#/definitions/services.CategoryProgress'
+    type: object
   services.HealthActionHint:
     enum:
     - edit_metadata
@@ -2857,6 +2902,13 @@ definitions:
         type: integer
       valuationFreshness:
         type: integer
+    type: object
+  services.ImperialFigureSlot:
+    properties:
+      coin:
+        $ref: '#/definitions/models.Coin'
+      figure:
+        $ref: '#/definitions/models.RomanImperialFigure'
     type: object
   services.MarketSignal:
     properties:
@@ -11023,6 +11075,38 @@ paths:
       summary: Get collection distribution
       tags:
       - Coins
+  /stats/emperors:
+    get:
+      description: Returns the authenticated user's Roman-emperor collection completion
+        progress. Requires emperorTrackerEnabled to be set on the user's profile.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/services.EmperorTrackerResult'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get emperor tracker progress
+      tags:
+      - Emperor Tracker
   /stats/health:
     get:
       description: Returns collection-level metadata health score, dimensions, and

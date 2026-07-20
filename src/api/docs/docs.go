@@ -12253,6 +12253,55 @@ const docTemplate = `{
                 }
             }
         },
+        "/stats/emperors": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the authenticated user's Roman-emperor collection completion progress. Requires emperorTrackerEnabled to be set on the user's profile.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Emperor Tracker"
+                ],
+                "summary": "Get emperor tracker progress",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/services.EmperorTrackerResult"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/stats/health": {
             "get": {
                 "security": [
@@ -18612,6 +18661,32 @@ const docTemplate = `{
                 }
             }
         },
+        "services.CategoryProgress": {
+            "type": "object",
+            "properties": {
+                "dynasties": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.DynastyProgress"
+                    }
+                },
+                "owned": {
+                    "type": "integer"
+                },
+                "percentage": {
+                    "type": "number"
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ImperialFigureRole"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "services.ChecklistDimension": {
             "type": "string",
             "enum": [
@@ -18746,6 +18821,49 @@ const docTemplate = `{
                 }
             }
         },
+        "services.DynastyProgress": {
+            "type": "object",
+            "properties": {
+                "dynasty": {
+                    "type": "string"
+                },
+                "figures": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.ImperialFigureSlot"
+                    }
+                },
+                "owned": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.EmperorTrackerResult": {
+            "type": "object",
+            "properties": {
+                "emperor": {
+                    "$ref": "#/definitions/services.CategoryProgress"
+                },
+                "empresses": {
+                    "$ref": "#/definitions/services.CategoryProgress"
+                },
+                "other": {
+                    "$ref": "#/definitions/services.CategoryProgress"
+                },
+                "suggestions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.RomanImperialFigure"
+                    }
+                },
+                "usurpers": {
+                    "$ref": "#/definitions/services.CategoryProgress"
+                }
+            }
+        },
         "services.HealthActionHint": {
             "type": "string",
             "enum": [
@@ -18837,6 +18955,17 @@ const docTemplate = `{
                 },
                 "valuationFreshness": {
                     "type": "integer"
+                }
+            }
+        },
+        "services.ImperialFigureSlot": {
+            "type": "object",
+            "properties": {
+                "coin": {
+                    "$ref": "#/definitions/models.Coin"
+                },
+                "figure": {
+                    "$ref": "#/definitions/models.RomanImperialFigure"
                 }
             }
         },
