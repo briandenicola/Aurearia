@@ -54,6 +54,10 @@ export function useSettingsProfile() {
   const pushoverTestError = ref(false)
   const profilePublic = ref(auth.user?.isPublic || false)
   const coinOfDayEnabled = ref(auth.user?.coinOfDayEnabled ?? true)
+  const emperorTrackerEnabled = ref(auth.user?.emperorTrackerEnabled ?? false)
+  const emperorTrackerShowUsurpers = ref(auth.user?.emperorTrackerShowUsurpers ?? false)
+  const emperorTrackerShowEmpresses = ref(auth.user?.emperorTrackerShowEmpresses ?? false)
+  const emperorTrackerShowOtherFigures = ref(auth.user?.emperorTrackerShowOtherFigures ?? false)
   const profileMsg = ref('')
   const profileError = ref(false)
   const profileSaving = ref(false)
@@ -138,6 +142,10 @@ export function useSettingsProfile() {
         numisBidsUsername: nbUsername.value,
         cngUsername: cngUsername.value,
         coinOfDayEnabled: coinOfDayEnabled.value,
+        emperorTrackerEnabled: emperorTrackerEnabled.value,
+        emperorTrackerShowUsurpers: emperorTrackerShowUsurpers.value,
+        emperorTrackerShowEmpresses: emperorTrackerShowEmpresses.value,
+        emperorTrackerShowOtherFigures: emperorTrackerShowOtherFigures.value,
       }
       if (nbPassword.value) {
         data.numisBidsPassword = nbPassword.value
@@ -160,6 +168,10 @@ export function useSettingsProfile() {
         auth.user.cngConfigured = res.data.cngConfigured
         auth.user.pushoverEnabled = res.data.pushoverEnabled
         auth.user.coinOfDayEnabled = res.data.coinOfDayEnabled
+        auth.user.emperorTrackerEnabled = res.data.emperorTrackerEnabled
+        auth.user.emperorTrackerShowUsurpers = res.data.emperorTrackerShowUsurpers
+        auth.user.emperorTrackerShowEmpresses = res.data.emperorTrackerShowEmpresses
+        auth.user.emperorTrackerShowOtherFigures = res.data.emperorTrackerShowOtherFigures
         localStorage.setItem('user', JSON.stringify(auth.user))
       }
       nbPassword.value = ''
@@ -255,6 +267,10 @@ export function useSettingsProfile() {
     cngValidationError,
     handleSaveProfile,
     coinOfDayEnabled,
+    emperorTrackerEnabled,
+    emperorTrackerShowUsurpers,
+    emperorTrackerShowEmpresses,
+    emperorTrackerShowOtherFigures,
     // Password
     currentPassword,
     newPassword,

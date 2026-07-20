@@ -702,6 +702,10 @@ export interface User {
   cngConfigured?: boolean
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean
+  emperorTrackerEnabled?: boolean
+  emperorTrackerShowUsurpers?: boolean
+  emperorTrackerShowEmpresses?: boolean
+  emperorTrackerShowOtherFigures?: boolean
 }
 
 export interface AuthResponse {
@@ -1002,6 +1006,10 @@ export interface UserInfo {
   cngConfigured?: boolean
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean
+  emperorTrackerEnabled?: boolean
+  emperorTrackerShowUsurpers?: boolean
+  emperorTrackerShowEmpresses?: boolean
+  emperorTrackerShowOtherFigures?: boolean
   lockedUntil?: string | null
   failedLoginAttempts?: number
   createdAt: string
