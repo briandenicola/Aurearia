@@ -78,7 +78,7 @@ the existing `coinOfDayEnabled`-style opt-in pattern.
       the existing free-text `Ruler` field is unaffected/unchanged.
 - [ ] The imperial-figure picker supports filtering the list by `role`
       (Emperor / Empress / Caesar / Usurper / Other) — the curated dataset
-      runs to ~165 entries (see Notes), so browsing or searching it without
+      runs to 153 entries (see Notes), so browsing or searching it without
       a way to narrow by role is impractical.
 - [ ] Western and Eastern Roman emperors are both covered, capped at 476 AD
       by *reign start* (an emperor already reigning by 476 is included in
@@ -141,7 +141,7 @@ emperor-completion stat — the field is honestly "who's depicted on this
 coin," not artificially forced into "which emperor does this map to." The
 lookup/search endpoint behind the picker accepts an optional `role` filter
 so the frontend can offer role tabs/chips (Emperor / Empress / Caesar /
-Usurper / Other) instead of forcing users to search the full ~165-entry
+Usurper / Other) instead of forcing users to search the full 153-entry
 list by name alone.
 
 The picker is optional and additive: it never replaces or requires the
@@ -210,12 +210,12 @@ included** in full (474–491) on that basis, since his first reign began in
 474 — his restored reign is not truncated. Anastasius I (r. 491–518) is
 excluded since his reign began after the cutoff.
 
-~96 entries carry `role: emperor` (the ones that drive the completion
+87 entries carry `role: emperor` (the ones that drive the completion
 stat); the full dataset with usurpers, Caesars, empresses, and Julius Caesar
 (included as a non-emperor `role: other` precursor entry, per explicit
-request) runs to ~165 rows. See the curated file for the complete list,
-per-entry rationale, and remaining open follow-ups (co-emperor counting
-still needs final sign-off; rarity tiers are an unsourced first guess).
+request) runs to 153 rows. See the curated file for the complete list,
+per-entry rationale, and remaining open follow-ups (rarity tiers are an
+unsourced first guess).
 
 ### UI
 
@@ -223,7 +223,7 @@ still needs final sign-off; rarity tiers are an unsourced first guess).
   when Category is Roman, sitting alongside the existing free-text `Ruler`
   input (not replacing it). Backed by the curated `RomanImperialFigure`
   list; supports leaving it unset. Includes a `role` filter (tabs or chips —
-  Emperor / Empress / Caesar / Usurper / Other) so the ~165-entry list is
+  Emperor / Empress / Caesar / Usurper / Other) so the 153-entry list is
   actually browsable, not just searchable by typing a name. The backing
   lookup/search endpoint (see Matching strategy) accepts a `role` query
   param so this is a server-side filter, not a client-side scan of the
@@ -270,12 +270,11 @@ still needs final sign-off; rarity tiers are an unsourced first guess).
 ## Open questions
 
 - [x] Who curates the canonical `RomanImperialFigure` dataset, and where
-      does it live? A first pass (~165 figures, ~96 of them `role: emperor`)
-      has been curated and checked in at
-      `specs/_backlog/F028-imperial-figures.md`. Still open: task #30 needs
-      to decide how it's represented in Go (hardcoded seed function, matching
-      the existing `seedMintLocations` pattern in `database/database.go`, is
-      the presumed default absent a reason to do otherwise).
+      does it live? A first pass (153 figures, 87 of them `role: emperor`)
+      has been curated at `specs/_backlog/F028-imperial-figures.md` and
+      implemented as seed data (`models.RomanImperialFigure`,
+      `database/roman_imperial_figure_seed.go`, following the existing
+      `seedMintLocations` idempotent-seed pattern).
 - [x] Do sold coins count toward "collected"? **Resolved**: currently-owned,
       non-wishlist, non-sold coins only — matches how the rest of the app
       already treats "collection" vs "sold" vs "wishlist."
@@ -288,7 +287,7 @@ still needs final sign-off; rarity tiers are an unsourced first guess).
       full (474–491); Anastasius I (began 491) is not.
 - [x] Should co-emperors (e.g. Lucius Verus, Geta) count as separate tracked
       entries? **Resolved**: yes, separate entries — matches the curated
-      dataset's first pass (~96 `role: emperor` entries) as-is, no rework
+      dataset's first pass (87 `role: emperor` entries) as-is, no rework
       needed.
 - [ ] Who curates the per-emperor `rarityTier` used to sort V1 suggestions,
       and against what standard (auction frequency? price? both?) — same
@@ -329,7 +328,7 @@ Tracking issue: [#501](https://github.com/briandenicola/Aurearia/issues/501)
 (request + research; implementation not yet started).
 
 Curated dataset: `specs/_backlog/F028-imperial-figures.md` (first pass,
-~165 imperial figures, ~96 `role: emperor`).
+153 imperial figures, 87 `role: emperor`).
 
 ## History
 
@@ -354,7 +353,7 @@ Curated dataset: `specs/_backlog/F028-imperial-figures.md` (first pass,
   pick the figure themselves when they next edit a coin.
 - 2026-07-20: linked GitHub tracking issue #501.
 - 2026-07-20: committed the first curated `RomanImperialFigure` dataset pass
-  (`F028-imperial-figures.md`, ~165 figures, ~96 `role: emperor`). Resolved
+  (`F028-imperial-figures.md`, 153 figures, 87 `role: emperor`). Resolved
   the 476-cutoff open question (in scope if reign began on or before 476 —
   Zeno included in full through 491; Anastasius I excluded) and added
   Julius Caesar as a non-emperor `role: other` precursor entry, both per
@@ -374,3 +373,9 @@ Curated dataset: `specs/_backlog/F028-imperial-figures.md` (first pass,
   completion (currently-owned, non-wishlist only), and co-emperors **do**
   count as separate tracked entries (dataset needs no rework). Status
   remains `backlog`; implementation starting on tasks #30+.
+- 2026-07-20: task #30 done — implemented `models.RomanImperialFigure`,
+  `database/roman_imperial_figure_seed.go` (idempotent seed, mirroring
+  `seedMintLocations`), and tests. Corrected the dataset's totals from
+  earlier rough estimates to the exact seeded counts: 153 figures total,
+  87 `role: emperor`. Work is on branch `feature/f028-emperor-tracker-v1`,
+  not yet merged (holding for the full V1 slice per instruction).
