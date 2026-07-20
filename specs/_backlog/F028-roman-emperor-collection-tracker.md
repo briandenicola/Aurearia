@@ -4,7 +4,7 @@ title: "Track collection progress toward every Roman Emperor (West + East, to 47
 status: backlog
 priority: P2
 effort: L
-value: 4
+value: 5
 risk: 2
 owner: unassigned
 created: 2026-07-20
@@ -35,14 +35,22 @@ the existing `coinOfDayEnabled`-style opt-in pattern.
       turned on/off from Settings → Account, next to the existing
       `coinOfDayEnabled` toggle.
 - [ ] When enabled, a new Stats sub-page (e.g. `/stats/emperors`) becomes
-      available, showing overall completion (X of Y emperors owned) plus a
-      per-dynasty/per-era breakdown (e.g. "Julio-Claudian — 3 of 5",
-      "Severan — 1 of 8").
+      available, showing overall completion (X of Y emperors owned, as both
+      a count and a percentage) plus a per-dynasty/per-era completion
+      breakdown (e.g. "Julio-Claudian — 3 of 5 (60%)", "Severan — 1 of 8
+      (13%)") — this is a first-class stats display, not just an implied
+      byproduct of the tray view: the completion numbers must be visible
+      even before scrolling to a given dynasty's wells.
 - [ ] Each dynasty/era section renders its emperors using the existing tray
       visual (`MuseumTray`/`MuseumTrayWell`) — an owned emperor's well shows
       the user's real coin (image, click-through to coin detail, exactly like
-      `/tray` today); an unowned emperor's well shows the tray's existing
-      "no image" placeholder state, labeled with the emperor's name.
+      `/tray` today); an **unowned emperor's well is a visible placeholder**
+      (the tray's existing "no image" state), labeled with the emperor's
+      name, so a user can see at a glance exactly which emperors they're
+      missing, not just a number.
+- [ ] The page surfaces a "what to pursue next" list of missing emperors to
+      help the user prioritize acquisitions — see the Suggestions section
+      below for scope/phasing.
 - [ ] Matching a coin to an emperor is based on the coin's free-text `Ruler`
       field against a canonical emperor reference dataset (see Notes) —
       the matching approach and its known failure modes are documented
@@ -93,6 +101,43 @@ match/override affordance (e.g. "this coin is actually Nerva, not matched
 automatically") or whether that's a v2 addition once real usage shows how bad
 the miss rate is, is an open question below — don't over-build this before
 seeing it fail on real collections.
+
+### Suggestions: which missing emperor(s) to pursue next
+
+Phase this the same way F023 (bid recommendation) was phased into a
+historical-data-only V1 and a market-data-assisted V2 — don't build the
+expensive version before the cheap one proves useful.
+
+**V1 — static, no agent/network call.** The curated emperor reference
+dataset (see Data section) gets one extra per-emperor field, something like
+`rarityTier` (`common | scarce | rare | very_rare`, hand-curated alongside
+the name/dynasty/alias data — e.g. an Augustus or Constantine I denarius is
+routinely available and inexpensive; a Romulus Augustulus or a legitimate
+Otho coin is a genuine numismatic rarity most collectors never own). The
+suggestions list is simply the user's missing emperors sorted with the most
+*attainable* ones first (common/scarce before rare/very_rare), optionally
+tie-broken by dynasty proximity to eras the user already collects in. This
+requires no new backend service, no agent call, and no live pricing — it's a
+sort over already-loaded data, computable entirely in
+`AuctionLotService`-adjacent Go code or even client-side.
+
+**V2 — market-data assisted (stretch, mirrors F023's `bid_market_signal.py`
+pattern).** Once V1 ships and the rarity-tier heuristic has been used for a
+while, consider reusing the same Python-agent market-search approach F023 V2
+built: for a specific missing emperor the user picks, search live auction
+results for coins of that ruler and surface a rough price range / recent
+availability, the same way `bid_market_signal.py` does today for a specific
+tracked lot. This is meaningfully more effort (new agent request shape keyed
+by emperor name/dynasty instead of a tracked lot, a new Go proxy method, new
+UI) and depends on the Ruler-matching problem already being solved well
+enough that "search for coins of Emperor X" produces relevant results — do
+not start V2 before V1's rarity-tier sort has been validated against real
+usage.
+
+Do not build a live web-search-backed suggestion engine as the *first*
+version of this feature — that repeats the exact overreach F023 V1
+deliberately avoided (a recommendation that's only as good as data/matching
+no one has stress-tested yet).
 
 ### Dynasty/era scope (illustrative, not final — the actual list is a
 content-curation deliverable of this card, not something to hard-code from
@@ -170,6 +215,13 @@ during data curation.
 - [ ] Should co-emperors / usurpers (e.g. Lucius Verus, Basiliscus) count as
       separate tracked entries, or be folded into the primary emperor's
       entry? Affects both the total count and user expectations.
+- [ ] Who curates the per-emperor `rarityTier` used to sort V1 suggestions,
+      and against what standard (auction frequency? price? both?) — same
+      content-ownership question as the core dataset, called out separately
+      here since it's easy to under-scope as "just add a column."
+- [ ] Is a V2 (agent-assisted, live market search) suggestion engine even
+      wanted, or is the V1 static rarity sort sufficient long-term? Don't
+      pre-approve V2 scope now — revisit after V1 ships and is used.
 
 ## Notes
 
@@ -198,3 +250,10 @@ Prior art investigated during planning:
   Western + Eastern Roman Emperor collection completeness (to 476 AD),
   grouped by dynasty/era, displayed via the existing tray UI, opt-in per
   user. Byzantine (post-476) emperors explicitly deferred to a future card.
+- 2026-07-20: refined — made completion stats (overall + per-dynasty
+  percentage) an explicit, first-class acceptance criterion rather than an
+  implied byproduct of the tray view, and added a "what to pursue next"
+  suggestions requirement, phased V1 (static rarity-tier sort, no agent
+  call) / V2 (agent-assisted live market search, mirroring F023's
+  `bid_market_signal.py` pattern — explicitly not to be started before V1
+  ships and is validated).
