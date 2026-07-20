@@ -208,6 +208,37 @@ func TestCoinRepository_Scopes_ActiveCollection(t *testing.T) {
 	}
 }
 
+func TestCoinRepository_ListMatchedImperialFigures(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewCoinRepository(db)
+
+	figureID := uint(42)
+	otherFigureID := uint(7)
+	matched := models.Coin{Name: "Matched", Category: models.CategoryRoman, UserID: 1, RomanImperialFigureID: &figureID}
+	if err := db.Create(&matched).Error; err != nil {
+		t.Fatalf("seed matched coin: %v", err)
+	}
+	db.Create(&models.CoinImage{CoinID: matched.ID, FilePath: "/uploads/matched.jpg"})
+	db.Create(&models.Coin{Name: "Unmatched", Category: models.CategoryRoman, UserID: 1})
+	db.Create(&models.Coin{Name: "Matched Wishlist", Category: models.CategoryRoman, UserID: 1, RomanImperialFigureID: &otherFigureID, IsWishlist: true})
+	db.Create(&models.Coin{Name: "Matched Sold", Category: models.CategoryRoman, UserID: 1, RomanImperialFigureID: &otherFigureID, IsSold: true})
+	db.Create(&models.Coin{Name: "Other User Matched", Category: models.CategoryRoman, UserID: 2, RomanImperialFigureID: &figureID})
+
+	coins, err := repo.ListMatchedImperialFigures(1)
+	if err != nil {
+		t.Fatalf("ListMatchedImperialFigures failed: %v", err)
+	}
+	if len(coins) != 1 {
+		t.Fatalf("expected 1 matched active coin, got %d: %+v", len(coins), coins)
+	}
+	if coins[0].Name != "Matched" {
+		t.Errorf("expected 'Matched', got %q", coins[0].Name)
+	}
+	if len(coins[0].Images) != 1 || coins[0].Images[0].FilePath != "/uploads/matched.jpg" {
+		t.Errorf("expected preloaded image, got %+v", coins[0].Images)
+	}
+}
+
 func TestCoinRepository_QuickCaptureDraftsExcludedAndPromotedCoinAppearsOnce(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewCoinRepository(db)

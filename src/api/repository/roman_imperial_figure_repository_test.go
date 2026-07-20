@@ -69,6 +69,20 @@ func TestRomanImperialFigureRepositoryListByRole(t *testing.T) {
 	}
 }
 
+func TestRomanImperialFigureRepositoryListByRolesCombinesMultipleRoles(t *testing.T) {
+	db := setupRomanImperialFigureTestDB(t)
+	seedTestImperialFigures(t, db)
+	repo := NewRomanImperialFigureRepository(db)
+
+	figures, err := repo.ListByRoles(models.ImperialFigureRoleEmpress, models.ImperialFigureRoleUsurper)
+	if err != nil {
+		t.Fatalf("ListByRoles failed: %v", err)
+	}
+	if len(figures) != 2 {
+		t.Fatalf("expected 2 figures (Livia + Basiliscus), got %d", len(figures))
+	}
+}
+
 func TestRomanImperialFigureRepositoryFindByID(t *testing.T) {
 	db := setupRomanImperialFigureTestDB(t)
 	seedTestImperialFigures(t, db)

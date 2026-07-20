@@ -27,8 +27,15 @@ func (r *RomanImperialFigureRepository) List() ([]models.RomanImperialFigure, er
 
 // ListByRole returns every seeded figure with the given role, ordered chronologically.
 func (r *RomanImperialFigureRepository) ListByRole(role models.ImperialFigureRole) ([]models.RomanImperialFigure, error) {
+	return r.ListByRoles(role)
+}
+
+// ListByRoles returns every seeded figure whose role is one of the given
+// roles, ordered chronologically. Used to combine roles into one displayed
+// category (e.g. F028's "other figures" toggle covers both caesar and other).
+func (r *RomanImperialFigureRepository) ListByRoles(roles ...models.ImperialFigureRole) ([]models.RomanImperialFigure, error) {
 	var figures []models.RomanImperialFigure
-	err := r.db.Where("role = ?", role).Order("sort_order ASC").Find(&figures).Error
+	err := r.db.Where("role IN ?", roles).Order("sort_order ASC").Find(&figures).Error
 	return figures, err
 }
 
