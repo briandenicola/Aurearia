@@ -9,6 +9,7 @@ const mockStartOIDCLink = vi.fn()
 const mockDeleteOIDCIdentity = vi.fn()
 const mockShowConfirm = vi.fn()
 const mockLocationAssign = vi.fn()
+const mockUpdateProfile = vi.fn()
 
 const authUser: User = {
   id: 1,
@@ -19,6 +20,10 @@ const authUser: User = {
   isPublic: false,
   bio: '',
   zipCode: '',
+  emperorTrackerEnabled: false,
+  emperorTrackerShowUsurpers: false,
+  emperorTrackerShowEmpresses: false,
+  emperorTrackerShowOtherFigures: false,
 }
 
 vi.mock('@/stores/auth', () => ({
@@ -39,7 +44,7 @@ vi.mock('@/api/client', () => ({
   changePassword: vi.fn(),
   uploadAvatar: vi.fn(),
   deleteAvatar: vi.fn(),
-  updateProfile: vi.fn(),
+  updateProfile: (...args: unknown[]) => mockUpdateProfile(...args),
   validateNumisBidsCredentials: vi.fn(),
   testPushover: vi.fn(),
   webauthnRegisterBegin: vi.fn(),
@@ -194,5 +199,72 @@ describe('SettingsAccountSection OIDC identities', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('not found for your account')
+  })
+})
+
+describe('SettingsAccountSection emperor tracker toggles', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authUser.emperorTrackerEnabled = false
+    authUser.emperorTrackerShowUsurpers = false
+    authUser.emperorTrackerShowEmpresses = false
+    authUser.emperorTrackerShowOtherFigures = false
+    mockGetOIDCIdentities.mockResolvedValue({ data: { identities: [] } })
+    mockGetOIDCPublicProviders.mockResolvedValue({ data: { providers: [] } })
+    mockUpdateProfile.mockResolvedValue({
+      data: {
+        id: 1, username: 'collector', role: 'user', email: 'collector@example.com',
+        avatarPath: '', isPublic: false, bio: '', zipCode: '',
+        numisBidsUsername: '', numisBidsConfigured: false, cngUsername: '', cngConfigured: false,
+        pushoverEnabled: false, coinOfDayEnabled: true,
+        emperorTrackerEnabled: true,
+        emperorTrackerShowUsurpers: true,
+        emperorTrackerShowEmpresses: false,
+        emperorTrackerShowOtherFigures: false,
+      },
+    })
+  })
+
+  function checkboxForRowContaining(wrapper: ReturnType<typeof mount>, text: string) {
+    const checkbox = wrapper.findAll('input[type="checkbox"]').find((input) => {
+      const row = input.element.closest('div')
+      return row?.textContent?.includes(text) ?? false
+    })
+    expect(checkbox, `expected to find a checkbox in a row containing "${text}"`).toBeTruthy()
+    return checkbox!
+  }
+
+  it('hides the sub-toggles until the main toggle is enabled', async () => {
+    const wrapper = mountSection()
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Also track usurpers')
+
+    await checkboxForRowContaining(wrapper, 'Emperor Tracker').setValue(true)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Also track usurpers')
+    expect(wrapper.text()).toContain('Also track empresses')
+    expect(wrapper.text()).toContain('Also track other figures')
+  })
+
+  it('sends the toggled values to updateProfile and updates the auth store', async () => {
+    authUser.emperorTrackerEnabled = true
+    const wrapper = mountSection()
+    await flushPromises()
+
+    await checkboxForRowContaining(wrapper, 'Also track usurpers').setValue(true)
+
+    await buttonByText(wrapper, 'Save Profile').trigger('click')
+    await flushPromises()
+
+    expect(mockUpdateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emperorTrackerEnabled: true,
+        emperorTrackerShowUsurpers: true,
+      }),
+    )
+    expect(authUser.emperorTrackerEnabled).toBe(true)
+    expect(authUser.emperorTrackerShowUsurpers).toBe(true)
   })
 })
