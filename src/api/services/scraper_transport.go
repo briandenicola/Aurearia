@@ -1,6 +1,7 @@
 package services
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
@@ -61,6 +62,31 @@ func readScraperResponseBody(resp *http.Response, operation string, okStatuses .
 	if !scraperStatusOK(resp.StatusCode, okStatuses...) {
 		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil, fmt.Errorf("%s returned HTTP %d", op, resp.StatusCode)
+	}
+
+	// Handle Content-Encoding explicitly. Go transparently decompresses gzip only
+	// when it set Accept-Encoding itself — not when the caller set it. NumisBids
+	// requests set Accept-Encoding: gzip, deflate explicitly to prevent Cloudflare
+	// from sending Brotli (verified: real /watchlist response returns
+	// content-encoding: br when a Chrome user-agent is used). Go has no built-in
+	// Brotli support, so we must control the negotiation and decompress gzip manually
+	// for requests where we own the Accept-Encoding header.
+	switch strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Encoding"))) {
+	case "gzip":
+		gr, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			_, _ = io.Copy(io.Discard, resp.Body)
+			return nil, fmt.Errorf("failed to create gzip reader for %s response: %w", op, err)
+		}
+		body, err := io.ReadAll(gr)
+		_ = gr.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress gzip %s response: %w", op, err)
+		}
+		return body, nil
+	case "br":
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return nil, fmt.Errorf("%s returned brotli-compressed response; ensure Accept-Encoding excludes br", op)
 	}
 
 	body, err := io.ReadAll(resp.Body)

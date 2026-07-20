@@ -166,10 +166,16 @@ func TestAuctionWatchlistSyncService_SyncNumisBidsSetsAuctionEndTime(t *testing.
 			http.SetCookie(w, &http.Cookie{Name: "PHPSESSID", Value: "test"})
 			w.Write([]byte(`{"status":"success"}`))
 		case "/watchlist":
-			w.Write([]byte(`<div class="heading"><b>My Watch List</b></div><a href="/sale/10749/lot/10003">Lot 10003</a>`))
-		case "/sale/10749/lot/10003":
-			w.Write([]byte(`<span class="name">Test House</span><br><b>Test Sale</b>&nbsp;&nbsp;20-21 Apr 2026<div class="left">Lot 10003<br></div>`))
+			// Use real browse-div markup so ParseWatchlist extracts the sale date
+			// from the togglewatch header without a per-lot scrape.
+			w.Write([]byte(`<div class="heading"><b>My Watch List</b></div>
+<div class="togglewatch" id="10749">Test House Sale (20 Apr 2026)</div>
+<div class="browse 10749 watch9900001" style="height: 360px;">
+  <span class="lot"><a href="/sale/10749/lot/10003">Lot 10003</a></span>
+  <span class="summary"><a href="/sale/10749/lot/10003">GREEK Coin</a></span>
+</div>`))
 		default:
+			// Any unexpected request (e.g. a per-lot scrape) fails the test.
 			http.NotFound(w, r)
 		}
 	}))
@@ -214,5 +220,84 @@ func TestAuctionWatchlistSyncService_SyncNumisBidsSetsAuctionEndTime(t *testing.
 	}
 	if !lot.AuctionEndTime.Equal(*lot.SaleDate) {
 		t.Fatalf("AuctionEndTime = %v, want it to match SaleDate %v", lot.AuctionEndTime, lot.SaleDate)
+	}
+}
+
+// TestAuctionWatchlistSyncService_SyncNumiBidsNoPerLotScrape verifies that syncNumisBids
+// does not perform per-lot HTTP requests. The watchlist page carries everything needed
+// (image, title, sale name/date, starting price, watchlist ID) without extra round-trips.
+// A lot-page request would produce a 404 here, causing the test to fail.
+func TestAuctionWatchlistSyncService_SyncNumiBidsNoPerLotScrape(t *testing.T) {
+	var lotPageRequests int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/registration/login.php":
+			http.SetCookie(w, &http.Cookie{Name: "PHPSESSID", Value: "test"})
+			w.Write([]byte(`{"status":"success"}`))
+		case "/watchlist":
+			w.Write([]byte(`<div class="heading"><b>My Watch List</b></div>
+<div class="togglewatch" id="10918">VIA GmbH E-Auction 28 (3 Aug 2026)</div>
+<div class="browse 10918 watch12163211" style="height: 360px;">
+  <img src="//media.numisbids.com/sales/hosted/via/e28/thumb00001.jpg">
+  <span class="lot"><a href="/sale/10918/lot/1">Lot 1</a></span>
+  <span class="estimate">Starting price: <span class="rateclick">40 EUR</span></span>
+  <span class="summary"><a href="/sale/10918/lot/1">KELTEN, GALLIA Aedui, Quinar</a></span>
+</div>`))
+		default:
+			lotPageRequests++
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	originalBase := numisbidsBase
+	originalLoginURL := numisbidsLoginURL
+	originalWatchlistURL := numisbidsWatchlistURL
+	numisbidsBase = server.URL
+	numisbidsLoginURL = server.URL + "/registration/login.php"
+	numisbidsWatchlistURL = server.URL + "/watchlist"
+	defer func() {
+		numisbidsBase = originalBase
+		numisbidsLoginURL = originalLoginURL
+		numisbidsWatchlistURL = originalWatchlistURL
+	}()
+
+	db := setupAuctionWatchlistSyncDB(t)
+	auctionRepo := repository.NewAuctionLotRepository(db)
+	userRepo := repository.NewUserRepository(db)
+	nbSvc := NewNumisBidsService(nil)
+	syncSvc := NewAuctionWatchlistSyncService(auctionRepo, userRepo, nbSvc, nil, nil, nil)
+
+	user := &models.User{Username: "tester", Email: "tester@example.com", NumisBidsUsername: "user@example.com", NumisBidsPassword: "secret"}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	synced, err := syncSvc.SyncUser(user)
+	if err != nil {
+		t.Fatalf("SyncUser returned error: %v", err)
+	}
+	if synced != 1 {
+		t.Fatalf("synced = %d, want 1", synced)
+	}
+	if lotPageRequests > 0 {
+		t.Fatalf("syncNumisBids made %d per-lot scrape request(s); want 0 — watchlist provides all needed data", lotPageRequests)
+	}
+
+	var lot models.AuctionLot
+	if err := db.Where("source = ?", models.AuctionSourceNumisBids).First(&lot).Error; err != nil {
+		t.Fatalf("lot not found: %v", err)
+	}
+	if lot.SourceLotID != "12163211" {
+		t.Errorf("SourceLotID = %q, want 12163211", lot.SourceLotID)
+	}
+	if lot.SaleName != "VIA GmbH E-Auction 28" {
+		t.Errorf("SaleName = %q, want VIA GmbH E-Auction 28", lot.SaleName)
+	}
+	if lot.Estimate == nil || *lot.Estimate != 40 {
+		t.Errorf("Estimate = %v, want 40", lot.Estimate)
+	}
+	if lot.Currency != "EUR" {
+		t.Errorf("Currency = %q, want EUR", lot.Currency)
 	}
 }

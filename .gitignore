@@ -34,6 +34,7 @@ src/web/playwright-report/
 .env
 .env*
 *.local
+*.har
 
 # IDE
 .idea/

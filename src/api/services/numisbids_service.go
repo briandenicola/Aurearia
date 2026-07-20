@@ -30,11 +30,41 @@ var (
 )
 
 var (
-	lotLinkRe     = regexp.MustCompile(`^/sale/(\d+)/lot/(\d+)`)
-	lotHrefRe     = regexp.MustCompile(`(?i)href\s*=\s*["']([^"']+)["']`)
-	imgSrcRe      = regexp.MustCompile(`<img[^>]*src="([^"]*)"`)
-	ogImageRe     = regexp.MustCompile(`<meta\s+property="og:image"\s+content="([^"]+)"`)
-	estimateRe    = regexp.MustCompile(`Estimate:\s*([\d,]+(?:\.\d+)?\s*\w+)`)
+	// lot URL path pattern: /sale/{saleID}/lot/{lotNumber}
+	lotLinkRe = regexp.MustCompile(`^/sale/(\d+)/lot/(\d+)`)
+
+	// watchlist page structural regexes (derived from verified real markup, 2026-07)
+	//
+	// Browse div: <div class="browse {saleID} watch{watchlistID}" ...>
+	// One browse div per watched lot; the class encodes both the sale and the watchlist entry ID.
+	browseDivRe = regexp.MustCompile(`<div\s+class="browse\s+(\d+)\s+watch(\d+)"`)
+
+	// Sale group header: <div class="togglewatch" id="{saleID}">...<b>{name}</b>...({date})...</div>
+	togglewatchRe = regexp.MustCompile(`(?is)<div\s+class="togglewatch"\s+id="(\d+)">(.*?)</div>`)
+
+	// Sale name inside a togglewatch header.
+	watchlistHeaderNameRe = regexp.MustCompile(`(?is)<b>(.*?)</b>`)
+
+	// Date in parentheses inside a togglewatch header, e.g. "(3 Aug 2026)" or "(20-21 Apr 2026)".
+	saleDateParenRe = regexp.MustCompile(`\((\d{1,2}(?:-\d{1,2})?\s+\w+\s+\d{4})\)`)
+
+	// Summary span href — extracts the lot link from <span class="summary"><a href="...">.
+	summaryHrefRe = regexp.MustCompile(`(?i)<span\s+class="summary">\s*<a\s+href="([^"]+)"`)
+
+	// Summary span anchor text — lot title (plain text, no nested tags expected).
+	summaryTextRe = regexp.MustCompile(`(?i)<span\s+class="summary">\s*<a\s+[^>]*>([^<]+)</a>`)
+
+	// Price field: matches both legacy "Estimate: 100 AUD" and current
+	// "Starting price: <span class="rateclick" ...>40 EUR</span>" layouts.
+	priceFieldRe = regexp.MustCompile(`(?i)(?:Estimate|Starting\s+price):\s*(?:<[^>]+>)?\s*([\d,]+(?:\.\d+)?)\s*(USD|EUR|GBP|CHF|AUD|CAD)`)
+
+	// Image src attribute (used in watchlist cards and lot-page scraping).
+	imgSrcRe = regexp.MustCompile(`<img[^>]*src="([^"]*)"`)
+
+	// og:image meta tag (lot-page detail scraping).
+	ogImageRe = regexp.MustCompile(`<meta\s+property="og:image"\s+content="([^"]+)"`)
+
+	// Numeric value + currency code (used by parseCurrencyValue).
 	currencyValRe = regexp.MustCompile(`([\d,]+(?:\.\d+)?)\s*(USD|EUR|GBP|CHF|AUD|CAD)`)
 )
 
@@ -165,6 +195,17 @@ func (s *NumisBidsService) verifyAuthentication(client *http.Client) error {
 }
 
 // FetchWatchlist retrieves the authenticated user's watchlist HTML.
+//
+// Transport note: the NumisBids server sends content-encoding: br (Brotli) to
+// browser clients (verified from HAR, 2026-07). The Go scraper uses the default
+// http.Transport, which advertises only Accept-Encoding: gzip — Cloudflare
+// responds with gzip for this client, which Go decompresses transparently.
+// If the scraper transport is ever changed to advertise br, a Brotli decompressor
+// must be added: doScraperRequest would return undecoded bytes, ParseWatchlist
+// would silently produce 0 lots, and no error would be raised.
+//
+// Cache note: the server sends cache-control: no-store, no-cache, must-revalidate,
+// so every call hits the origin; do not assume cached responses.
 func (s *NumisBidsService) FetchWatchlist(client *http.Client) (string, error) {
 	req, err := newScraperRequest(http.MethodGet, numisbidsWatchlistURL, nil, numisbidsDefaultHeaders())
 	if err != nil {
@@ -282,35 +323,74 @@ func (s *NumisBidsService) ScrapeLotPage(lotURL string) (*LotPageDetails, error)
 	return details, nil
 }
 
-// ParseWatchlist extracts lot data from NumisBids watchlist HTML.
-// Mirrors the Python scrape_numisbids_watchlist logic.
+// ParseWatchlist extracts lot data from NumisBids watchlist HTML using the
+// verified real-page structure (browse divs + togglewatch headers, 2026-07).
 func (s *NumisBidsService) ParseWatchlist(rawHTML string) []WatchlistLot {
 	s.debug("Parsing watchlist HTML (%d bytes)", len(rawHTML))
 
-	// Find all lot link positions, then extract the block between each pair.
-	// Go's regexp engine (RE2) doesn't support lookaheads, so we split manually.
-	matches := findWatchlistLotLinks(rawHTML)
+	// Pass 1: build a saleID → {name, date} map from togglewatch section headers.
+	saleGroups := extractWatchlistSaleGroups(rawHTML)
 
-	s.debug("Found %d lot links in watchlist HTML", len(matches))
+	// Pass 2: each <div class="browse {saleID} watch{watchlistID}"> is one watched lot.
+	browseDivMatches := browseDivRe.FindAllStringSubmatchIndex(rawHTML, -1)
+	s.debug("Found %d lot cards in watchlist HTML", len(browseDivMatches))
 
 	var lots []WatchlistLot
-	for i, match := range matches {
-		start := match.start
+	for i, match := range browseDivMatches {
+		saleID := rawHTML[match[2]:match[3]]
+		watchID := rawHTML[match[4]:match[5]]
+
+		// Block for this lot: from its browse div start to the next browse div start.
+		start := match[0]
 		end := len(rawHTML)
-		if i+1 < len(matches) {
-			end = matches[i+1].start
+		if i+1 < len(browseDivMatches) {
+			end = browseDivMatches[i+1][0]
 		}
 		block := rawHTML[start:end]
 
 		lot := WatchlistLot{
-			URL:          match.url,
-			SourceSaleID: match.saleID,
-			SaleID:       match.saleID,
-			LotNumber:    match.lotNumber,
+			SourceSaleID: saleID,
+			SaleID:       saleID,
+			SourceLotID:  watchID,
 			Currency:     "USD",
 		}
 
-		// Image URL
+		// Sale name and date from the preceding togglewatch group header.
+		if sg, ok := saleGroups[saleID]; ok {
+			lot.SaleName = sg.Name
+			lot.SaleDate = sg.Date
+		}
+
+		// Canonical lot URL and lot number from the summary span href.
+		// The lot span (<span class="lot">) carries only the lot number label; the
+		// summary span carries the full coin title and is the canonical link.
+		if hrefMatch := summaryHrefRe.FindStringSubmatch(block); hrefMatch != nil {
+			href := hrefMatch[1]
+			urlVal, lotSaleID, lotNumber, ok := parseNumisBidsLotHref(href)
+			if ok {
+				lot.URL = urlVal
+				if lotSaleID != "" {
+					lot.SaleID = lotSaleID
+					lot.SourceSaleID = lotSaleID
+				}
+				lot.LotNumber = lotNumber
+			}
+		}
+		if lot.URL == "" {
+			s.trace("Skipping browse lot watchID=%s: could not resolve a valid lot URL", watchID)
+			continue
+		}
+
+		// Title from the summary anchor text.
+		if textMatch := summaryTextRe.FindStringSubmatch(block); textMatch != nil {
+			title := strings.TrimSpace(textMatch[1])
+			if len(title) > 200 {
+				title = title[:200]
+			}
+			lot.Title = title
+		}
+
+		// Image URL — protocol-normalize "//" URLs.
 		if imgMatch := imgSrcRe.FindStringSubmatch(block); imgMatch != nil {
 			imgURL := imgMatch[1]
 			if strings.HasPrefix(imgURL, "//") {
@@ -319,22 +399,18 @@ func (s *NumisBidsService) ParseWatchlist(rawHTML string) []WatchlistLot {
 			lot.ImageURL = imgURL
 		}
 
-		// Title: extract only the text inside the lot anchor tag
-		lot.Title = extractLotTitle(block, match.href)
-		if len(lot.Title) > 200 {
-			lot.Title = lot.Title[:200]
-		}
-
-		// Estimate
-		if estMatch := estimateRe.FindStringSubmatch(block); estMatch != nil {
-			val, cur := parseCurrencyValue(estMatch[1])
-			lot.Estimate = val
-			if cur != "" {
-				lot.Currency = cur
+		// Price: handles both "Estimate: 100 AUD" and "Starting price: <span...>40 EUR</span>".
+		if priceMatch := priceFieldRe.FindStringSubmatch(block); priceMatch != nil {
+			numStr := strings.ReplaceAll(priceMatch[1], ",", "")
+			if val, err := strconv.ParseFloat(numStr, 64); err == nil {
+				lot.Estimate = &val
+			}
+			if priceMatch[2] != "" {
+				lot.Currency = priceMatch[2]
 			}
 		}
 
-		s.trace("Parsed lot %d: saleID=%s lotNumber=%d", i+1, lot.SaleID, lot.LotNumber)
+		s.trace("Parsed lot %d: saleID=%s watchID=%s lotNumber=%d", i+1, lot.SaleID, watchID, lot.LotNumber)
 		lots = append(lots, lot)
 	}
 
@@ -375,7 +451,7 @@ func (s *NumisBidsService) error(format string, args ...interface{}) {
 func (s *NumisBidsService) WatchlistDiagnostics(rawHTML string) WatchlistDiagnostics {
 	return WatchlistDiagnostics{
 		HTMLBytes:          len(rawHTML),
-		CandidateLinkCount: len(findWatchlistLotLinks(rawHTML)),
+		CandidateLinkCount: len(browseDivRe.FindAllStringIndex(rawHTML, -1)),
 		HasLoginPrompt:     isNumisBidsLoginPrompt(rawHTML),
 		HasWatchlistText:   strings.Contains(strings.ToLower(rawHTML), "watch list"),
 	}
@@ -384,6 +460,12 @@ func (s *NumisBidsService) WatchlistDiagnostics(rawHTML string) WatchlistDiagnos
 func numisbidsDefaultHeaders() map[string]string {
 	return map[string]string{
 		"User-Agent": numisbidsUserAgent,
+		// Explicitly exclude br (Brotli): Cloudflare infers br support from the
+		// Chrome user-agent and sends content-encoding: br regardless of the
+		// client's actual capabilities. Go has no native Brotli decompressor, so
+		// we restrict to gzip/deflate and handle decompression in the scraper
+		// transport layer (readScraperResponseBody).
+		"Accept-Encoding": "gzip, deflate",
 	}
 }
 
@@ -407,39 +489,43 @@ func isNumisBidsLoginPrompt(rawHTML string) bool {
 		strings.Contains(normalized, "loginreload")
 }
 
-type watchlistLotLink struct {
-	start     int
-	href      string
-	url       string
-	saleID    string
-	lotNumber int
+type watchlistSaleGroup struct {
+	Name string
+	Date string // raw date text, e.g. "3 Aug 2026" or "20-21 Apr 2026"
 }
 
-func findWatchlistLotLinks(rawHTML string) []watchlistLotLink {
-	hrefMatches := lotHrefRe.FindAllStringSubmatchIndex(rawHTML, -1)
-	links := make([]watchlistLotLink, 0, len(hrefMatches))
-	for _, hrefMatch := range hrefMatches {
-		if len(hrefMatch) < 4 {
-			continue
+// extractWatchlistSaleGroups builds a saleID → sale name/date map from togglewatch
+// section headers found in the watchlist HTML. Used by ParseWatchlist to annotate lots
+// with their auction's human-readable name and date without a per-lot HTTP scrape.
+func extractWatchlistSaleGroups(rawHTML string) map[string]watchlistSaleGroup {
+	groups := make(map[string]watchlistSaleGroup)
+	matches := togglewatchRe.FindAllStringSubmatch(rawHTML, -1)
+	for _, m := range matches {
+		saleID := m[1]
+		rawContent := m[2]
+		plainContent := cleanHTML(rawContent)
+		sg := watchlistSaleGroup{}
+		if nameMatch := watchlistHeaderNameRe.FindStringSubmatch(rawContent); nameMatch != nil {
+			sg.Name = cleanHTML(nameMatch[1])
 		}
-		href := rawHTML[hrefMatch[2]:hrefMatch[3]]
-		urlValue, saleID, lotNumber, ok := parseNumisBidsLotHref(href)
-		if !ok {
-			continue
+		if dateMatch := saleDateParenRe.FindStringSubmatch(plainContent); dateMatch != nil {
+			sg.Date = dateMatch[1]
+			if sg.Name == "" {
+				// Sale name is everything before the date parenthetical.
+				parenIdx := strings.LastIndex(plainContent, "("+sg.Date+")")
+				if parenIdx > 0 {
+					sg.Name = strings.TrimSpace(plainContent[:parenIdx])
+				} else {
+					sg.Name = plainContent
+				}
+			}
 		}
-		start := hrefMatch[0]
-		if anchorStart := strings.LastIndex(strings.ToLower(rawHTML[:hrefMatch[0]]), "<a"); anchorStart >= 0 {
-			start = anchorStart
+		if sg.Name == "" {
+			sg.Name = plainContent
 		}
-		links = append(links, watchlistLotLink{
-			start:     start,
-			href:      href,
-			url:       urlValue,
-			saleID:    saleID,
-			lotNumber: lotNumber,
-		})
+		groups[saleID] = sg
 	}
-	return links
+	return groups
 }
 
 func parseNumisBidsLotHref(href string) (string, string, int, bool) {
@@ -504,47 +590,6 @@ func parseCurrencyValue(text string) (*float64, string) {
 		return nil, match[2]
 	}
 	return &val, match[2]
-}
-
-// extractLotTitle extracts the text content of the anchor tag that links to the lot.
-// It walks the HTML tokens looking for <a href="...lotPath...">, then collects
-// text until the closing </a> tag.
-func extractLotTitle(block, lotPath string) string {
-	tokenizer := html.NewTokenizer(strings.NewReader(block))
-	inLotLink := false
-	var result strings.Builder
-
-	for {
-		tt := tokenizer.Next()
-		if tt == html.ErrorToken {
-			break
-		}
-
-		switch tt {
-		case html.StartTagToken:
-			t := tokenizer.Token()
-			if t.Data == "a" && !inLotLink {
-				for _, attr := range t.Attr {
-					if attr.Key == "href" && attr.Val == lotPath {
-						inLotLink = true
-						break
-					}
-				}
-			}
-		case html.EndTagToken:
-			if inLotLink && tokenizer.Token().Data == "a" {
-				goto done
-			}
-		case html.TextToken:
-			if inLotLink {
-				result.WriteString(tokenizer.Token().Data)
-			}
-		}
-	}
-
-done:
-	text := strings.Join(strings.Fields(result.String()), " ")
-	return strings.TrimSpace(text)
 }
 
 // cleanHTML strips HTML tags and normalizes whitespace.
