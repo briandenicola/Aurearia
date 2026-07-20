@@ -62,6 +62,12 @@ A dedicated dashboard shows:
 - **Collection filters** — Use tag-like set chips to filter collection views by set membership
 - **Coin detail chips** — Coin Detail shows both legacy tags and collection set memberships in the same Tags & Sets area
 
+## Tray View
+
+The Collection menu includes **Gallery** and **Tray** subviews. Tray view renders the collection with the shared museum-tray presentation and the user-selected felt color from **Settings → Appearance**.
+
+Set detail pages use the same tray presentation for member coins. Embedded tray controls preserve row and spacing adjustments, and compact row controls keep reorder/remove actions available while viewing a set.
+
 ## Set Detail View
 
 ### Overview Tab

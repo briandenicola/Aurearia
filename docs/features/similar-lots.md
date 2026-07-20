@@ -4,12 +4,14 @@
 
 ## Overview
 
-Ask the agent to find similar auction lots.
+Use the AI agent to find active or recent auction lots similar to a coin in your collection or wish list.
 
 ## Key Features
 
-- See the main [features.md](../features.md) for full documentation
-- All details are available in the main features overview
+- **Comparable discovery** — Search by ruler, denomination, material, catalog reference, and description.
+- **Auction-provider awareness** — Results can include supported sources such as NumisBids and CNG Auctions.
+- **Acquisition handoff** — Promising lots can be tracked in Auction Tracking or used to create wishlist targets.
+- **Valuation context** — Similar lots provide supporting context for price trends and value reviews.
 
 ## Related Features
 
@@ -17,5 +19,4 @@ Ask the agent to find similar auction lots.
 - [Wish List](wish-list.md)
 - [Coin Details](coin-details.md)
 
-See also: [features.md](../features.md)
-
+See also: [Auction Tracking](auction-tracking.md), [Wish List](wish-list.md), [Price Trend Analysis](price-trends.md)

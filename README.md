@@ -48,12 +48,12 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 
 **Coin Lookup** — Take or upload photos at a show to identify a coin or NGC Ancients slab. The app extracts NGC certification numbers, links to official NGC verification, enriches non-NGC lookups with Numista matches, and can save results to your wish list or collection. **[Learn more →](docs/features/coin-lookup.md)**
 
-**Wish List** — Track coins you want with automatic availability checking, AI search, price tracking, and one-click purchase-to-collection conversion.
+**Wish List** — Track coins you want with automatic availability checking, saved search alerts, AI search, price tracking, and one-click purchase-to-collection conversion. **[Learn more →](docs/features/wish-list.md)**
 
-**Auction Tracking** — Monitor NumisBids and CNG Auctions lots through bidding lifecycle with status workflow, source filters, price alerts, bid reminders, and auto-conversion to collection when won. **[Learn more →](docs/features/auction-tracking.md)**
+**Auction Tracking** — Monitor NumisBids and CNG Auctions lots with provider-aware tracking: CNG supports richer hosted-auction sync and outcome detection where available, while NumisBids supports watchlist/import tracking with manual won/lost and max-bid updates. **[Learn more →](docs/features/auction-tracking.md)**
 
 ### 📊 Portfolio Intelligence
-**Collection Statistics** — Dashboard with portfolio value trends, category/material/grade distributions, top coins by value, era/region heat maps, ROI tracking, and health scorecards.
+**Collection Statistics** — Dashboard and subviews for portfolio value trends, category/material/grade distributions, top coins by value, mint maps, timeline, investment breakdown, Emperor Tracker, and health scorecards. **[Learn more →](docs/features/statistics.md)**
 
 **Coin Sets** — Organize coins into open (flexible), defined (series with completion %), goal (milestones), or smart (rule-based automatic) sets with trend tracking, snapshots, and comparison tools. **[Learn more →](docs/features/coin-sets.md)**
 
@@ -72,7 +72,7 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 **Mobile Gestures** — Swipe gallery, pull-to-refresh, camera capture, touch-optimized controls. **[Learn more →](docs/features/pwa-features.md)**
 
 ### 🔐 Security & Control
-**Multiple Auth Methods** — JWT + refresh tokens, WebAuthn passkeys (FIDO2), API keys for programmatic access.
+**Multiple Auth Methods** — JWT + refresh tokens, WebAuthn passkeys (FIDO2), OIDC login/account linking, and API keys for programmatic access.
 
 **External Tool Server** — Expose read-only collection to external AI clients (OpenWebUI, LibreChat) via OpenAPI with scoped API keys and two-phase commit for writes.
 
@@ -95,9 +95,11 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 | Feature | Collection | Wish List | Auctions | Social | Analytics | Admin | Mobile |
 |---------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 | Create/Edit Coins | ✅ | ✅ | ✅ | — | — | ✅ | ✅ |
+| Quick Capture | ✅ | ✅ | — | — | — | — | ✅ |
 | Coin Lookup | ✅ | ✅ | — | — | — | ✅ | ✅ |
 | AI Analysis | ✅ | ✅ | ✅ | — | — | — | ✅ |
 | Search & Filter | ✅ | ✅ | ✅ | — | — | — | ✅ |
+| Saved Search Alerts | — | ✅ | — | — | — | ✅ | ✅ |
 | Tags & Sets | ✅ | ✅ | ❌ | — | ✅ | — | ✅ |
 | Valuations | ✅ | ✅ | ✅ | — | ✅ | ✅ | ✅ |
 | Offer/Sold | ✅ | ✅ | ✅ | — | ✅ | — | ✅ |
@@ -114,7 +116,7 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 - **Quick Capture** — Mobile-first draft intake for show-floor photos/notes, resumable drafts, owner-scoped media, and idempotent promotion into normal collection coins.
 - **Coin Lookup** — Photo-based show workflow for NGC Ancients cert extraction, official NGC verification links, Numista fallback matches, and saving lookups to wish list or collection.
 - **Configurable Coin Properties** — Admin-managed Era and Category options used by coin forms and lookup saves.
-- **CNG Auctions Support** — Import CNG lots, sync CNG watched lots, and filter auction tracking by provider alongside NumisBids.
+- **CNG Auctions Support** — Import CNG lots, sync CNG watched lots, and filter auction tracking by provider alongside NumisBids. CNG can auto-detect hosted auction outcomes where provider data is available; NumisBids remains watchlist/import tracking only and needs manual won/lost and max-bid updates.
 - **Encrypted Auction Credentials** — Stored NumisBids and CNG provider passwords are encrypted at rest with lazy migration for existing plaintext values.
 - **Coin Sets** — Organize coins into themed collections with trend tracking and completion analysis. Open, defined, goal, and smart (rule-based) set types. Snapshot history and value milestones.
 - **Health Scorecard** — Track AI coverage, image coverage, and metadata completeness.
@@ -195,16 +197,22 @@ Run `task --list` to see all targets.
 |------|------|
 | **Features (per-area detail)** | [`docs/features/INDEX.md`](docs/features/INDEX.md) — Browse by feature area |
 | Feature: Collection Management | [`docs/features/collection-management.md`](docs/features/collection-management.md) |
+| Feature: Quick Capture | [`docs/quick-capture.md`](docs/quick-capture.md) |
 | Feature: Coin Lookup | [`docs/features/coin-lookup.md`](docs/features/coin-lookup.md) |
 | Feature: Coin Sets | [`docs/features/coin-sets.md`](docs/features/coin-sets.md) |
 | Feature: Wish List | [`docs/features/wish-list.md`](docs/features/wish-list.md) |
+| Feature: Auction Tracking | [`docs/features/auction-tracking.md`](docs/features/auction-tracking.md) |
 | Feature: AI Analysis | [`docs/features/ai-analysis.md`](docs/features/ai-analysis.md) |
 | Feature: AI Search Agent | [`docs/features/ai-search-agent.md`](docs/features/ai-search-agent.md) |
 | Feature: Statistics | [`docs/features/statistics.md`](docs/features/statistics.md) |
+| Feature: Notifications | [`docs/features/notifications.md`](docs/features/notifications.md) |
+| Feature: Image Operations | [`docs/features/image-operations.md`](docs/features/image-operations.md) |
+| Feature: Admin Settings | [`docs/features/admin-settings.md`](docs/features/admin-settings.md) |
 | **Product & Vision** | [`docs/prd.md`](docs/prd.md) — vision, personas, goals |
 | **Architecture** | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system design |
 | **API Reference** | [`docs/api-reference.md`](docs/api-reference.md) — all endpoints |
 | **Authentication** | [`docs/authentication.md`](docs/authentication.md) — JWT, WebAuthn, API keys |
+| **OIDC Setup** | [`docs/oidc-setup.md`](docs/oidc-setup.md) — Entra ID, Pocket ID, and account linking |
 | **Deployment** | [`docs/deployment.md`](docs/deployment.md) — local dev & production |
 | **Getting Started** | [`docs/getting-started.md`](docs/getting-started.md) — step-by-step guide |
 | **PWA Guide** | [`docs/pwa-guide.md`](docs/pwa-guide.md) — installation & offline access |

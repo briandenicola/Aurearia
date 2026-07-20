@@ -1825,6 +1825,8 @@ Errors return an appropriate HTTP status code with a JSON body:
 
 All auction lot endpoints require authentication. Lots are scoped to the authenticated user.
 
+Auction provider behavior is source-specific. CNG Auctions supports richer hosted-auction sync and can auto-detect won/lost outcomes where CNG exposes closed-lot winner data. NumisBids supports watchlist/import tracking only today; won/lost/final outcome and max-bid data require manual updates unless future NumisBids site data exposes those signals.
+
 ### GET /api/auctions
 
 List auction lots with optional filtering.
@@ -1855,7 +1857,7 @@ Update an auction lot's fields.
 
 ### PUT /api/auctions/:id/status
 
-Update a lot's status. Validates allowed transitions (e.g., only Bidding can become Won).
+Update a lot's status. Validates allowed transitions (e.g., only Bidding can become Won). Manual updates set the lot's status source to `manual`, which is expected for NumisBids final outcomes.
 
 **Body:** `{ "status": "won" }`
 
@@ -1876,6 +1878,8 @@ Import a lot from a NumisBids or CNG Auctions URL. Accepts scraped data from the
 ### POST /api/auctions/sync
 
 Sync the user's NumisBids or CNG watchlist. Requires provider credentials configured in user settings. Logs into the selected provider, fetches the watchlist, parses lots, and upserts them. Defaults to NumisBids when `source` is omitted.
+
+CNG sync may populate hosted bid metadata and terminal won/lost outcomes when CNG returns those signals. NumisBids sync imports and refreshes watchlist lot details only; max-bid values and final outcomes remain manual.
 
 **Query Parameters:** `source=numisbids|cng`
 

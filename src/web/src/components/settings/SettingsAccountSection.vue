@@ -55,7 +55,7 @@
 
     <h3 class="mb-3 mt-5 text-base text-text-secondary">NumisBids Integration</h3>
     <p class="mb-3 text-sm text-text-muted">
-      Connect your NumisBids account to sync your watchlist and track auction lots.
+      Connect your NumisBids account for watchlist/import tracking. Won/lost outcomes, winning bids, and max bids should be checked on NumisBids and updated manually.
     </p>
     <div class="form-group">
       <label class="form-label">NumisBids Username</label>
@@ -64,7 +64,7 @@
     <div class="form-group">
       <label class="form-label">NumisBids Password</label>
       <input v-model="nbPassword" type="password" class="form-input" placeholder="Your NumisBids password" autocomplete="new-password" />
-      <span class="mt-1 block text-chip text-text-muted">Encrypted at rest on the server. Used only for watchlist sync; legacy stored passwords migrate on next save or sync.</span>
+      <span class="mt-1 block text-chip text-text-muted">Encrypted at rest on the server. Used only for NumisBids watchlist/import tracking; legacy stored passwords migrate on next save or sync.</span>
     </div>
     <div
       v-if="nbValidating"
@@ -87,7 +87,7 @@
 
     <h3 class="mb-3 mt-5 text-base text-text-secondary">CNG Auctions Integration</h3>
     <p class="mb-3 text-sm text-text-muted">
-      Connect your CNG Auctions account to sync your watched lots.
+      Connect your CNG Auctions account to sync watched lots and auto-detect hosted-auction outcomes where CNG provides the data.
     </p>
     <div class="form-group">
       <label class="form-label">CNG Username</label>
@@ -96,7 +96,7 @@
     <div class="form-group">
       <label class="form-label">CNG Password</label>
       <input v-model="cngPassword" type="password" class="form-input" placeholder="Your CNG password" autocomplete="new-password" />
-      <span class="mt-1 block text-chip text-text-muted">Encrypted at rest on the server. Used only for watched-lot sync; legacy stored passwords migrate on next save or sync.</span>
+      <span class="mt-1 block text-chip text-text-muted">Encrypted at rest on the server. Used for CNG watched-lot sync and available hosted bid/outcome data; legacy stored passwords migrate on next save or sync.</span>
     </div>
     <div
       v-if="cngValidating"

@@ -64,14 +64,36 @@ src/
 | `/register` | RegisterPage | No |
 | `/` | CollectionPage | Yes |
 | `/coin/:id` | CoinDetailPage | Yes |
+| `/coin/:id/journal` | CoinDetailJournalPage | Yes |
+| `/coin/:id/health` | CoinDetailHealthPage | Yes |
+| `/coin/:id/notes` | CoinDetailNotesPage | Yes |
+| `/coin/:id/actions` | CoinDetailActionsPage | Yes |
+| `/coin/:id/analysis` | CoinDetailAnalysisPage | Yes |
+| `/coin/:id/valuation` | CoinDetailValuationPage | Yes |
 | `/add` | AddCoinPage | Yes |
+| `/quick-capture` | QuickCapturePage | Yes |
+| `/quick-capture/drafts` | QuickCaptureDraftsPage | Yes |
+| `/quick-capture/drafts/:id` | QuickCaptureDraftPage | Yes |
+| `/lookup` | CoinLookupPage | Yes |
 | `/edit/:id` | EditCoinPage | Yes |
 | `/wishlist` | WishlistPage | Yes |
+| `/wishlist/search-alerts` | WishlistAlertsPage | Yes |
 | `/sold` | SoldPage | Yes |
 | `/auctions` | AuctionsPage | Yes |
 | `/stats` | StatsPage | Yes |
-| `/timeline` | TimelinePage | Yes |
+| `/stats/timeline` | TimelinePage | Yes |
+| `/stats/mint-map` | MintMapPage | Yes |
+| `/stats/health` | StatsHealthPage | Yes |
+| `/stats/value-trends` | StatsValueTrendsPage | Yes |
+| `/stats/investment-breakdown` | StatsInvestmentBreakdownPage | Yes |
+| `/stats/distribution` | CollectionDistributionPage | Yes |
+| `/stats/emperors` | EmperorTrackerPage | Yes + Emperor Tracker |
+| `/mint-map` | Redirects to `/stats/mint-map` | Yes |
+| `/timeline` | Redirects to `/stats/timeline` | Yes |
+| `/notes` | NotesPage | Yes |
 | `/settings` | SettingsPage | Yes |
+| `/settings/oidc/link/callback/:providerId` | OIDCLinkCallbackPage | Yes |
+| `/auth/oidc/callback/:providerId` | OIDCLoginCallbackPage | No |
 | `/admin` | AdminPage | Yes + Admin |
 | `/followers` | FollowersPage | Yes |
 | `/followers/:username/gallery` | FollowerGalleryPage | Yes |
@@ -81,9 +103,12 @@ src/
 | `/showcases/:id/edit` | ShowcaseEditPage | Yes |
 | `/s/:slug` | PublicShowcasePage | No |
 | `/calendar` | CalendarPage | Yes |
+| `/tray` | TrayViewPage | Yes |
+| `/sets` | SetsPage | Yes |
+| `/sets/:id` | SetDetailPage | Yes |
 | `/process-image` | Redirects to `/settings?tab=process` | — |
 
-A global navigation guard redirects unauthenticated users to `/login` and non-admin users away from `/admin`.
+A global navigation guard redirects unauthenticated users to `/login`, non-admin users away from `/admin`, and users without Emperor Tracker enabled away from `/stats/emperors`.
 
 ## PWA
 

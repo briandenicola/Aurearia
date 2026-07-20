@@ -4,12 +4,14 @@
 
 ## Overview
 
-Enter select mode on collection view.
+Use select mode in collection-oriented views to apply the same action to multiple coins without opening each detail page.
 
 ## Key Features
 
-- See the main [features.md](../features.md) for full documentation
-- All details are available in the main features overview
+- **Select mode** — Enter selection from the collection toolbar and choose one or more coins.
+- **Batch organization** — Apply tags or add coins to collection sets in one action.
+- **Status workflows** — Use batch actions for supported status updates where the UI exposes them.
+- **PWA-friendly controls** — Mobile/PWA layouts keep select actions reachable from compact controls.
 
 ## Related Features
 
@@ -17,5 +19,4 @@ Enter select mode on collection view.
 - [Wish List](wish-list.md)
 - [Coin Details](coin-details.md)
 
-See also: [features.md](../features.md)
-
+See also: [Collection Management](collection-management.md), [Coin Sets](coin-sets.md)
