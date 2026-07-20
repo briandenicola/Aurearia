@@ -81,7 +81,7 @@ All dependencies are wired via constructor injection in `main.go`. No global sta
 - `/api/coins/:id/images` — Image upload (multipart + base64), delete
 - `/api/coins/:id/analyze` — AI analysis via agent proxy
 - `/api/stats`, `/api/suggestions` — Collection statistics
-- `/api/auctions` — Auction lot CRUD, import, sync, convert to coin
+- `/api/auctions` — Auction lot CRUD, import, provider-aware sync, convert to coin
 - `/api/agent/chat` — SSE streaming AI chat (proxied to Python agent)
 - `/api/agent/conversations` — Conversation history CRUD
 - `/api/auth/api-keys` — API key management
@@ -93,6 +93,8 @@ All dependencies are wired via constructor injection in `main.go`. No global sta
 - `/api/calendar`, `/api/calendar/events` — Auction calendar
 - `/api/alerts`, `/api/reminders` — Price alerts and bid reminders
 - `/api/wishlist/check-availability` — Wishlist availability checking
+
+Auction provider sync is intentionally source-aware. `CNGAuctionService` can use CNG hosted-auction fields to sync richer bid metadata and auto-detect won/lost outcomes where CNG exposes them. `NumisBidsService` supports watchlist/import tracking only today; NumisBids max-bid, final outcome, and winning-bid values require manual updates unless future verified NumisBids data exposes those signals.
 
 ## Background Schedulers
 

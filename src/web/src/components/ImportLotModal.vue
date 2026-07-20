@@ -16,7 +16,7 @@
             placeholder="https://www.numisbids.com/... or https://auctions.cngcoins.com/..."
             :disabled="importing"
           />
-          <p class="mt-1.5 text-[0.78rem] text-text-muted">Paste a lot page URL from NumisBids or CNG Auctions</p>
+          <p class="mt-1.5 text-[0.78rem] text-text-muted">Paste a lot page URL from NumisBids or CNG Auctions. CNG can sync hosted outcomes where available; NumisBids final outcomes are manual.</p>
         </div>
 
         <div v-if="error" class="mt-2 text-body text-loss">{{ error }}</div>

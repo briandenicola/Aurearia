@@ -79,7 +79,7 @@ describe('AuctionsPage', () => {
 
     expect(syncNumisBidsWatchlist).toHaveBeenCalledTimes(1)
     expect(syncNumisBidsWatchlist).toHaveBeenCalledWith('cng')
-    expect(wrapper.text()).toContain('Synced 3 lots from CNG Auctions')
+    expect(wrapper.text()).toContain('Synced 3 lots from CNG Auctions with hosted outcome detection where available')
   })
 
   it('does not sync any provider when no auction credentials are configured', async () => {
@@ -104,6 +104,27 @@ describe('AuctionsPage', () => {
     await flushPromises()
 
     expect(syncNumisBidsWatchlist).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('Configure auction provider credentials in Settings before syncing')
+    expect(wrapper.text()).toContain('Configure auction provider credentials in Settings before syncing watchlists')
+  })
+
+  it('explains manual NumisBids outcomes in the empty state', async () => {
+    const auth = useAuthStore()
+    auth.user = {
+      id: 1,
+      username: 'collector',
+      role: 'user',
+      email: 'collector@example.com',
+      avatarPath: '',
+      isPublic: false,
+      bio: '',
+      zipCode: '',
+      numisBidsConfigured: true,
+      cngConfigured: false,
+    }
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('NumisBids outcomes are updated manually')
   })
 })

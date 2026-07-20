@@ -60,6 +60,7 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
         <ul>
           <li><strong>Manual import</strong> — Paste a NumisBids or CNG Auctions lot URL from the Auctions page.</li>
           <li><strong>Watchlist sync</strong> — Add NumisBids and/or CNG credentials in <strong>Settings → Account</strong>, then use <strong>Sync Watchlists</strong> on the Auctions page.</li>
+          <li><strong>Provider capabilities</strong> — CNG Auctions supports richer hosted-auction sync and can auto-detect won/lost outcomes where CNG provides the data. NumisBids supports watchlist/import tracking only today; check NumisBids after the sale and manually update won/lost, winning bid, and max-bid details.</li>
           <li><strong>Source filters</strong> — Filter auction lots by All, NumisBids, or CNG in addition to status.</li>
           <li><strong>Security</strong> — Stored auction-provider passwords are encrypted on the server. Existing plaintext values are migrated automatically the next time they are saved or used for sync.</li>
         </ul>
@@ -73,6 +74,29 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           <li><strong>Mint Map</strong> — Use Stats → Map to see mint locations and geographic distribution for coins with mapped mint data.</li>
           <li><strong>Coin of the Day</strong> — Enable daily featured coin notifications in Settings → Account to rediscover coins from your own collection.</li>
           <li><strong>Connected sign-in providers</strong> — After signing in locally, open Settings → Account → Connected Sign-in Providers to link Microsoft Entra ID, Pocket ID, or another configured OIDC provider.</li>
+        </ul>
+
+        <h4>Stats Views</h4>
+        <ul>
+          <li><strong>Summary</strong> — Collection totals, rankings, distribution charts, and portfolio overview.</li>
+          <li><strong>Timeline and Map</strong> — Chronological collection history plus mint geography for mapped coins.</li>
+          <li><strong>Health</strong> — Scorecards for missing images, metadata gaps, AI analysis gaps, stale valuations, and cleanup suggestions.</li>
+          <li><strong>Value Details and Investment Breakdown</strong> — Value snapshots, allocation, acquisition-year performance, top increases/drops, and stale valuation rows.</li>
+          <li><strong>Emperor Tracker</strong> — Optional Roman emperor/figure progress with agent search actions for missing or suggested targets.</li>
+        </ul>
+
+        <h4>Capture, Images, and Offline Use</h4>
+        <ul>
+          <li><strong>Camera capture</strong> — Quick Capture, Coin Lookup, and image upload flows start the camera only after you tap a camera action.</li>
+          <li><strong>Image tools</strong> — Attach uploaded or pasted image URLs, use responsive image variants, remove backgrounds, clip coins, and extract text from store cards or certificates.</li>
+          <li><strong>PWA/offline</strong> — Install Aurearia as a PWA for mobile-style navigation, offline read access, cached collection browsing, and a draggable agent launcher in PWA mode.</li>
+        </ul>
+
+        <h4>Notifications and Alerts</h4>
+        <ul>
+          <li><strong>In-app notifications</strong> — The notification badge tracks unread social, auction, wishlist, set milestone, and Coin of the Day activity.</li>
+          <li><strong>Pushover</strong> — Add a user key in Settings → Account after the admin configures the Pushover app token and public app URL.</li>
+          <li><strong>Alert review</strong> — Wishlist search alerts create candidate runs for review; auction alerts and digests help track watched and bidding lots.</li>
         </ul>
       </div>
     </details>

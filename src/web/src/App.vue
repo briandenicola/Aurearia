@@ -160,7 +160,7 @@
     <div v-if="showOnboardingPrompt" class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70" @click.self="dismissOnboardingPrompt">
       <div class="card w-[90%] max-w-[360px] p-8">
         <h3 class="mb-2">Aurearia - Coin Collection</h3>
-        <p class="mb-0 text-base text-text-secondary">Start with the Getting Started guide to download the CSV template, build your file, and import your first collection.</p>
+        <p class="mb-0 text-base text-text-secondary">Start with the Getting Started guide to import a CSV, try Quick Capture or Coin Lookup, and review settings that unlock alerts, images, and AI tools.</p>
         <div class="mt-6 flex justify-end gap-3">
           <button class="btn btn-secondary" @click="dismissOnboardingPrompt">Not now</button>
           <button class="btn btn-primary" @click="openOnboardingGuide">Open Guide</button>

@@ -87,7 +87,7 @@
 
       <div v-else class="empty-state">
         <h3>No auction lots{{ emptyStateSuffix }}</h3>
-        <p>Import lots from NumisBids or CNG Auctions to start tracking auctions</p>
+        <p>Import lots from NumisBids or CNG Auctions to start tracking auctions. CNG can sync hosted outcomes where available; NumisBids outcomes are updated manually.</p>
         <button class="btn btn-primary mt-3" @click="showImport = true">
           <Plus :size="16" /> Import Your First Lot
         </button>
@@ -279,7 +279,7 @@ async function syncWatchlist() {
   try {
     const providers = configuredAuctionProviders()
     if (!providers.length) {
-      syncMessage.value = 'Configure auction provider credentials in Settings before syncing'
+      syncMessage.value = 'Configure auction provider credentials in Settings before syncing watchlists'
       setTimeout(() => { syncMessage.value = '' }, 5000)
       return
     }
@@ -289,7 +289,7 @@ async function syncWatchlist() {
     const providerLabel = providers.length > 1 ? 'watchlists' : providerName(providers[0] ?? 'numisbids')
     syncMessage.value = failed.length
       ? `Synced ${synced} lot${synced !== 1 ? 's' : ''}; ${failed.length} provider${failed.length !== 1 ? 's' : ''} failed`
-      : `Synced ${synced} lot${synced !== 1 ? 's' : ''} from ${providerLabel}`
+      : `Synced ${synced} lot${synced !== 1 ? 's' : ''} from ${providerLabel}${providerCapabilityNote(providers)}`
     fetchLots()
     fetchAllCounts()
     setTimeout(() => { syncMessage.value = '' }, 4000)
@@ -311,6 +311,13 @@ function configuredAuctionProviders(): string[] {
 
 function providerName(source: string): string {
   return source === 'cng' ? 'CNG Auctions' : 'NumisBids'
+}
+
+function providerCapabilityNote(providers: string[]): string {
+  if (providers.length !== 1) return ''
+  return providers[0] === 'cng'
+    ? ' with hosted outcome detection where available'
+    : '; final outcomes remain manual'
 }
 
 const emptyStateSuffix = computed(() => {

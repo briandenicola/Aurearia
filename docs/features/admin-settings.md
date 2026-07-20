@@ -4,7 +4,7 @@
 
 ## Overview
 
-Admin Settings are accessed by the first registered user (admin) and provide configuration for AI providers, user management, logging, and scheduled tasks.
+Admin Settings are accessed by admins and provide configuration for AI providers, user management, logging, OIDC, catalogs, security, and scheduled tasks. The first registered user is assigned admin automatically.
 
 ## Users Tab
 
@@ -39,6 +39,9 @@ Admin Settings are accessed by the first registered user (admin) and provide con
 **Application Settings:**
 - **Log Level** — trace, debug, info, warn, error
 - **Numista API Key** — For coin catalog lookups
+- **Pushover App Token** — Enables push notifications for configured users
+- **Public App URL** — Used in outbound links and notifications
+- **Version Info** — Displays app version/build date
 
 ## Coin Properties Tab
 
@@ -48,6 +51,31 @@ Admin Settings are accessed by the first registered user (admin) and provide con
 - **Lookup Compatibility** — Coin Lookup normalizes extracted era values to backend-supported save values while user-facing forms use the configured lists
 - **Defaults** — Roman, Greek, Byzantine, Modern, Other categories and ancient, medieval, modern eras are available by default
 
+## Catalogs Tab
+
+Manage normalized numismatic catalog definitions used by structured references:
+
+- Configure catalog labels and metadata
+- Mark catalogs that require volume values, such as RIC/RPC/SNG
+- Keep catalog rules consistent with create/edit validation
+
+## OIDC Login Tab
+
+Configure OpenID Connect providers for login and account linking:
+
+- Microsoft Entra ID and generic OIDC/Pocket ID-style providers
+- Write-only client secrets
+- Separate login and account-link callback URLs
+- Provider tests before enabling
+
+## Security Tab
+
+Monitor account security controls:
+
+- Registration mode
+- User lockout/unlock actions
+- Local recovery-admin visibility
+
 ## Logs Tab
 
 **Real-Time Logging:**
@@ -56,17 +84,17 @@ Admin Settings are accessed by the first registered user (admin) and provide con
 - Auto-refresh toggle
 - Export logs to file
 
-## Availability Checks Tab
+## Schedules Tab
 
-**Automatic Wishlist Availability Checking:**
-- Enable/disable checks
-- Set daily start time (e.g., 2:00 AM)
-- Set repeat interval (e.g., every 120 minutes)
-- View run history with per-coin drill-down:
-  - URL checked
-  - Status (Available/Unavailable/Unknown)
-  - HTTP code and reason
-  - Whether AI agent was used
+Centralized schedule configuration for background jobs:
+
+- **Wishlist Availability** — Automatic URL availability checks and run history
+- **Wishlist Search Alerts** — Scheduled alert discovery for non-manual alerts
+- **Auction Ending** — Reminders for watched/bidding auction lots ending soon
+- **Auction Watch Bid Digest** — Digest notifications for watched auction bidding activity
+- **Coin of the Day** — Daily featured coin notifications and manual run
+- **Collection Health** — Daily health snapshots
+- **Collection Valuation** — Scheduled valuation runs, manual trigger, and cancellation
 
 ## Valuation Runs Tab
 
@@ -82,6 +110,10 @@ Admin Settings are accessed by the first registered user (admin) and provide con
   - Agent usage stats
 - Manual trigger button
 - Cancel in-progress runs
+
+## Health Tab
+
+Operational health views for scheduler/job runs and collection health snapshots.
 
 ## API Endpoints
 
@@ -106,12 +138,15 @@ GET    /admin/valuation-runs         # View valuation run history
 GET    /admin/valuation-runs/:id     # View one valuation run
 POST   /admin/valuation-runs/trigger # Trigger valuation run
 POST   /admin/valuation-runs/:id/cancel # Cancel run
+GET    /admin/coin-of-day-runs       # View coin-of-day run history
+POST   /admin/coin-of-day/run        # Trigger coin-of-day asynchronously
 ```
 
 ## Security Notes
 
-- Only first registered user can access Admin
-- No multi-admin support currently
-- All settings are per-instance (not per-user)
+- The first registered user becomes an admin automatically
+- Admin users can promote/demote other users through role management
+- Sensitive settings such as provider secrets are write-only after saving
+- Most settings are per-instance; user-specific preferences remain in user/account settings
 
 See also: [AI Coin Analysis](ai-analysis.md), [Auction Tracking](auction-tracking.md), [Coin Lookup](coin-lookup.md), [Authentication](../authentication.md)

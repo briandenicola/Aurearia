@@ -5,7 +5,7 @@
 **Problem:** Scrape authenticated external auction sites (NumisBids, CNG) without committing credentials or creating test fragility from live HTTP calls.
 
 **Solution:** Two-phase testing strategy:
-1. **Spike Phase (Unit Tests):** Fixture-based (committed HTML snapshots), httptest stubs, no live calls, no credentials
+1. **Spike Phase (Unit Tests):** Fixture-based (committed sanitized HTML snapshots), httptest stubs, no live calls, no credentials
 2. **Implementation Phase (Integration Tests):** Environment-variable credentials, live testing deferred to CI/CD with temporary accounts
 
 **Applies to:** NumisBids (existing), CNG Auctions (spike), and any future auction/marketplace integration.
@@ -62,7 +62,7 @@
 1. Manually fetch one real lot page from external site (e.g., `curl https://auctions.cngcoins.com/...`)
 2. Save to VCS:
    ```
-   src/api/testutil/fixtures/
+   src/api/services/testdata/
    ├── cng_public_lot.html          # Unauthenticated lot page
    ├── cng_authenticated_watchlist.html  # Logged-in watchlist (if different)
    ├── cng_sold_lot.html            # Edge case: sold/unavailable
@@ -177,7 +177,7 @@ func TestCNGParser_MissingFields(t *testing.T) {
 
 ### Spike Acceptance Checklist
 
-- [ ] `src/api/testutil/fixtures/cng_*.html` committed with real-world HTML samples
+- [ ] `src/api/services/testdata/cng_*.html` committed with real-world HTML samples
 - [ ] `TestParseCNG*` functions pass 100% (parser handles all fixtures)
 - [ ] Auth stub tests pass (login, session, error scenarios)
 - [ ] Regression: NumisBids parser tests still passing (`go test -v ./services -run TestNumisBids`)
@@ -256,7 +256,7 @@ go test -v ./...
 
 ### VCS Safety
 
-**Goal:** Prevent credentials from leaking into repository.
+**Goal:** Prevent credentials or live-session artifacts from leaking into repository.
 
 **Implementation:**
 
@@ -267,7 +267,10 @@ go test -v ./...
 .env.*.local
 secrets/
 **/testdata/*_credentials.json
+*.har
 ```
+
+Browser HAR exports from NumisBids, CNG, or future providers are sensitive and must stay outside version control. If a live capture is needed to understand provider markup, extract the minimum HTML/JSON needed, remove cookies, account identifiers, bid tokens, and personal data, then commit only the sanitized fixture under `src/api/services/testdata/`.
 
 **Pre-commit hook:**
 ```bash
@@ -424,7 +427,7 @@ func CheckKeywords(body string) string {
 ## Lessons Learned
 
 1. **Never commit production credentials.** Use environment variables or vault injection.
-2. **Fixture snapshots are immutable test references.** Treat as golden data; update only via PR with changelog.
+2. **Fixture snapshots are immutable test references.** Treat as golden data; update only via PR with changelog. Commit sanitized HTML/JSON fixtures, never raw HAR captures.
 3. **Regex parsers are fragile.** Unit-test each field extraction independently; log intermediate parsing steps for debugging.
 4. **Separate unit (fixtures/stubs) from integration (live) tests.** CI runs unit tests fast (milliseconds); integration tests run on-demand or nightly.
 5. **Sentinel errors enable graceful degradation.** Caller can distinguish "auth failed" from "network timeout" and respond appropriately.

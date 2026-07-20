@@ -75,6 +75,17 @@ The Wish List helps collectors systematically track and acquire coins. It integr
 - Click **Dismiss** on unavailable coins to clear the status indicator
 - Dismissed coins remain in wishlist but status is hidden
 
+## Wishlist Search Alerts
+
+Wishlist Search Alerts are saved acquisition searches for recurring discovery:
+
+1. Open **Wish List → Search Alerts**.
+2. Create an alert with a query, optional category/material filters, optional price range, optional source URLs, and a cadence.
+3. Choose **manual** for alerts that should only run when you click **Run Now**, or choose daily/weekly/monthly for scheduled discovery.
+4. Review each run's candidates, dismiss poor matches, and convert accepted candidates into wishlist coins.
+
+Alert runs are persisted with status, trigger type, candidate counts, and run details. Run Now returns immediately and processes in the background, so the page polls run status instead of blocking while the agent searches. Candidate review filters out sold/unavailable listings and price-range mismatches before candidates are saved.
+
 ## Purchase Workflow
 
 ### Move to Collection
@@ -181,6 +192,12 @@ POST   /api/wishlist/check-availability # Trigger availability check
 PUT    /api/coins/:id/listing-status    # Update/dismiss listing status
 GET    /admin/availability-runs         # Admin: view check history
 GET    /admin/availability-runs/:id     # Admin: view details of one run
+
+GET    /api/wishlist/search-alerts      # List saved search alerts
+POST   /api/wishlist/search-alerts      # Create a saved search alert
+PUT    /api/wishlist/search-alerts/:id  # Update a saved search alert
+POST   /api/wishlist/search-alerts/:id/run # Queue a manual alert run
+GET    /api/wishlist/search-alerts/:id/runs # List alert run history
 ```
 
 ## Related Features

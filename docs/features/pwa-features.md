@@ -41,11 +41,12 @@ Ancient Coins is a fully-featured Progressive Web App installable on iOS, Androi
 - **Pull-to-Refresh** — Refresh collection with downward swipe
 - **Hamburger Menu** — Compact navigation in mobile header
 - **Responsive Layout** — Adjusts for phones, tablets, desktops
+- **Floating Agent Button** — PWA mode shows a draggable in-memory agent launcher. Position resets on reload.
 
 ### Camera Capture
 - **Take Photos** — Use device rear camera to photograph coins
-- **Available On** — Coin detail page, add coin form, image upload sections
-- **Direct Integration** — Camera button appears in PWA mode
+- **Available On** — Coin detail page, add coin form, Quick Capture, Coin Lookup, and image upload sections
+- **Direct Integration** — Camera starts only after a user-tapped camera action
 - **Auto-Save** — Photos attach directly to coin
 
 ### Touch Gestures
@@ -90,6 +91,7 @@ Go to **Settings → Appearance**:
 - **Default Gallery View** — Choose swipe (PWA) or grid (desktop)
 - **Default Sort Order** — Affects both online and offline views
 - **Time Zone** — Affects timestamps offline
+- **Tray Felt Color** — Customizes tray presentation for collection and set tray views
 
 ## Related Features
 

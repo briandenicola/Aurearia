@@ -14,9 +14,10 @@ The repository currently includes app icons in `src/web/public/` but does not in
 
 ## Discovery & Acquisition
 
+- **[Quick Capture](../quick-capture.md)** — Mobile-first intake drafts for show-floor photos and notes before promoting to collection or wishlist
 - **[Coin Lookup](coin-lookup.md)** — Photograph a coin or slab at a show, extract NGC Ancients certs, verify with NGC, and save to wish list or collection
-- **[Wish List](wish-list.md)** — Track coins you'd like to acquire with AI-powered search and availability checking
-- **[Auction Tracking](auction-tracking.md)** — Monitor NumisBids and CNG Auctions lots through bidding lifecycle with price alerts and reminders
+- **[Wish List](wish-list.md)** — Track coins you'd like to acquire with AI-powered search, availability checking, and saved search alerts
+- **[Auction Tracking](auction-tracking.md)** — Monitor NumisBids and CNG Auctions lots with provider-aware sync, price alerts, and reminders
 - **[Sold Coins](sold-coins.md)** — Track coins you've sold with profit/loss analysis
 
 ## AI Features
@@ -31,9 +32,9 @@ The repository currently includes app icons in `src/web/public/` but does not in
 
 ## Organization & Analytics
 
-- **[Coin Sets](coin-sets.md)** — Organize coins into open, defined, goal, and smart sets with trend tracking
+- **[Coin Sets](coin-sets.md)** — Organize coins into open, defined, goal, and smart sets with trend tracking and tray presentation
 - **[Custom Tags](custom-tags.md)** — Create flexible custom categories for organizing your collection
-- **[Collection Statistics](statistics.md)** — View analytics including portfolio value, distributions, trends, and rankings
+- **[Collection Statistics](statistics.md)** — View analytics including portfolio value, distributions, trends, health, maps, investment breakdown, and emperor tracking
 - **[Collection Showcase](collection-showcase.md)** — Create and share curated public coin subsets with shareable URLs
 
 ## Social & Community
@@ -44,7 +45,8 @@ The repository currently includes app icons in `src/web/public/` but does not in
 ## Administration & Configuration
 
 - **[Authentication](../authentication.md)** — JWT tokens, WebAuthn passkeys, and API keys
-- **[Admin Settings](admin-settings.md)** — User management, AI provider configuration, logging, and scheduled tasks
+- **[OIDC Setup](../oidc-setup.md)** — Configure Entra ID, Pocket ID, or generic OIDC login and account linking
+- **[Admin Settings](admin-settings.md)** — User management, AI provider configuration, OIDC, security, catalogs, logging, and scheduled tasks
 - **[External Tool Server](../external-tool-server.md)** — Expose your collection to external AI clients via OpenAPI
 - **[Numista Catalog Lookup](numista-integration.md)** — Direct integration with Numista coin catalog
 
@@ -55,7 +57,7 @@ The repository currently includes app icons in `src/web/public/` but does not in
 
 ## Advanced Features
 
-- **[Image Operations](image-operations.md)** — Background removal, text extraction (OCR), and circle clipping
+- **[Image Operations](image-operations.md)** — Background removal, text extraction, authenticated image serving, and responsive image variants
 - **[PDF Export](pdf-export.md)** — Generate insurance/provenance catalogs with photos and structured data
 - **[Bulk Operations](bulk-operations.md)** — Multi-select coins for batch actions
 - **[Notifications](notifications.md)** — In-app notifications for social interactions, alerts, and reminders
@@ -74,11 +76,14 @@ The repository currently includes app icons in `src/web/public/` but does not in
 | Collection CRUD | Shipped | v1.0 |
 | AI Analysis (Ollama/Anthropic) | Shipped | v1.0 |
 | Wish List with AI Search | Shipped | v1.0 |
+| Quick Capture | Shipped | v2.0 |
+| Wishlist Search Alerts | Shipped | v2.0 |
 | Coin Lookup | Shipped | v2.0 |
 | Auction Tracking | Shipped | v1.0 |
 | Social Features | Shipped | v1.0 |
 | External Tool Server | Shipped | v1.0 |
 | Coin Sets with Trend Tracking | Shipped | v2.0 |
+| Stats Health, Investment, Value, Map, and Emperor subviews | Shipped | v2.0 |
 | PWA & Mobile Capture | Shipped | v1.0 |
 
 For quick feature lookup by use case, see the [README Features Matrix](../../README.md#-feature-matrix).

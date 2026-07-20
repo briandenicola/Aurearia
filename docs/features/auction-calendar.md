@@ -4,12 +4,14 @@
 
 ## Overview
 
-Click Calendar icon in navigation.
+Open **Calendar** from navigation to review auction dates and collector events in one place.
 
 ## Key Features
 
-- See the main [features.md](../features.md) for full documentation
-- All details are available in the main features overview
+- **Auction dates** — Track lots with sale dates from auction tracking.
+- **Custom events** — Add collecting events such as shows, reminders, and research tasks.
+- **Calendar navigation** — Browse upcoming and historical dates from a visual calendar view.
+- **Acquisition planning** — Use the calendar alongside wish list alerts and auction reminders to plan bids and show activity.
 
 ## Related Features
 
@@ -17,5 +19,4 @@ Click Calendar icon in navigation.
 - [Wish List](wish-list.md)
 - [Coin Details](coin-details.md)
 
-See also: [features.md](../features.md)
-
+See also: [Auction Tracking](auction-tracking.md), [Notifications](notifications.md)

@@ -39,6 +39,7 @@ Notes:
 
 - We do **not** test SQLite, GORM, Gin, Vitest, FastAPI, or LangGraph themselves; we test our usage of them.
 - We do **not** hit third-party services in automated tests. Anthropic, Ollama, SearXNG, NumisBids, CNG Auctions, and Pushover should be mocked or stubbed at the service boundary.
+- Auction scraper tests must use sanitized fixtures under `src/api/services/testdata/` or `httptest` stubs. HAR captures and browser exports from real provider sessions are sensitive because they can include cookies, headers, account identifiers, and bid data; `*.har` is ignored by `.gitignore` and must not be committed.
 - Browser workflow tests are deterministic smoke checks with mocked APIs; they do **not** require a live backend or production data.
 - We do **not** attempt deterministic end-to-end assertions for LLM quality. For agent work we test input validation, parsing, retry behavior, routing helpers, and schema-shaped outputs.
 - We do **not** add tests for trivial getters or thin pass-through code just to raise coverage numbers.
