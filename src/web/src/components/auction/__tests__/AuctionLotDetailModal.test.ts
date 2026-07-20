@@ -67,6 +67,15 @@ describe('AuctionLotDetailModal', () => {
     })
   })
 
+  it('centers the detail card in the desktop overlay', () => {
+    const wrapper = mount(AuctionLotDetailModal, {
+      props: { lot: buildAuctionLot() },
+      global: { stubs: { SafeExternalLink: safeExternalLinkStub } },
+    })
+
+    expect(wrapper.get('.card').classes()).toContain('mx-auto')
+  })
+
   it('persists a max bid change when the status stays bidding', async () => {
     const wrapper = mount(AuctionLotDetailModal, {
       props: { lot: buildAuctionLot({ status: 'bidding', maxBid: 100 }) },

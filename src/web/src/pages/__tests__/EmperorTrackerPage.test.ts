@@ -102,6 +102,24 @@ describe('EmperorTrackerPage', () => {
 
     expect(wrapper.text()).toContain('What to Pursue Next')
     expect(wrapper.text()).toContain('Tiberius')
+    expect(wrapper.text()).toContain('Search Agent')
+  })
+
+  it('opens the agent with a search prompt for a suggested emperor', async () => {
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
+    mockGetProgress.mockResolvedValue({ data: fullResult })
+    const wrapper = mountPage()
+    await flushPromises()
+
+    await wrapper.find('button[aria-label="Ask the agent to search for Tiberius coins"]').trigger('click')
+
+    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'open-agent-chat',
+      detail: expect.objectContaining({
+        prompt: expect.stringContaining('Look for available Tiberius coins'),
+      }),
+    }))
+    dispatchSpy.mockRestore()
   })
 
   it('does not render optional category sections when absent from the response', async () => {
