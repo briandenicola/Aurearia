@@ -220,6 +220,8 @@ definitions:
       reverseInscription:
         maxLength: 1000
         type: string
+      romanImperialFigureId:
+        type: integer
       ruler:
         maxLength: 200
         type: string
@@ -434,6 +436,8 @@ definitions:
       reverseInscription:
         maxLength: 1000
         type: string
+      romanImperialFigureId:
+        type: integer
       ruler:
         maxLength: 200
         type: string
@@ -1976,6 +1980,8 @@ definitions:
       reverseInscription:
         maxLength: 1000
         type: string
+      romanImperialFigureId:
+        type: integer
       ruler:
         maxLength: 200
         type: string

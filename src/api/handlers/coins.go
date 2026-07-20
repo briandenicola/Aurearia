@@ -29,13 +29,14 @@ var allowedListSortFields = map[string]bool{
 }
 
 var nullableCoinUpdateScalarFields = map[string]string{
-	"purchasePrice": "PurchasePrice",
-	"currentValue":  "CurrentValue",
-	"purchaseDate":  "PurchaseDate",
-	"soldPrice":     "SoldPrice",
-	"soldDate":      "SoldDate",
-	"weightGrams":   "WeightGrams",
-	"diameterMm":    "DiameterMm",
+	"purchasePrice":         "PurchasePrice",
+	"currentValue":          "CurrentValue",
+	"purchaseDate":          "PurchaseDate",
+	"soldPrice":             "SoldPrice",
+	"soldDate":              "SoldDate",
+	"weightGrams":           "WeightGrams",
+	"diameterMm":            "DiameterMm",
+	"romanImperialFigureId": "RomanImperialFigureID",
 }
 
 func nullableScalarFieldPresence(raw map[string]json.RawMessage) map[string]bool {

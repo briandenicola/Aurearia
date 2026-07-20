@@ -1215,6 +1215,97 @@ func TestCoinHandler_Update_ClearsNullableScalarsWhenExplicitNullAndPreservesWhe
 	}
 }
 
+func TestCoinHandler_Create_PersistsRomanImperialFigureID(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "creator")
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"name":                  "Augustus Denarius",
+		"category":              "Roman",
+		"romanImperialFigureId": 42,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/coins", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var created models.Coin
+	if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if created.RomanImperialFigureID == nil || *created.RomanImperialFigureID != 42 {
+		t.Fatalf("expected romanImperialFigureId 42, got %v", created.RomanImperialFigureID)
+	}
+}
+
+func TestCoinHandler_Update_ClearsRomanImperialFigureWhenExplicitNullAndPreservesWhenOmitted(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "updater")
+
+	figureID := uint(7)
+	coin := models.Coin{
+		Name:                  "Matched Coin",
+		Category:              models.CategoryRoman,
+		UserID:                1,
+		RomanImperialFigureID: &figureID,
+	}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+
+	clearBody, _ := json.Marshal(map[string]interface{}{"romanImperialFigureId": nil})
+	clearReq := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(clearBody))
+	clearReq.Header.Set("Content-Type", "application/json")
+	clearReq.Header.Set("Authorization", authHeader(1))
+	clearRecorder := httptest.NewRecorder()
+
+	router.ServeHTTP(clearRecorder, clearReq)
+
+	if clearRecorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", clearRecorder.Code, clearRecorder.Body.String())
+	}
+	var cleared models.Coin
+	if err := db.First(&cleared, coin.ID).Error; err != nil {
+		t.Fatalf("updated coin not found: %v", err)
+	}
+	if cleared.RomanImperialFigureID != nil {
+		t.Fatalf("expected explicit null to clear RomanImperialFigureID, got %v", cleared.RomanImperialFigureID)
+	}
+
+	preserved := models.Coin{
+		Name:                  "Preserved Matched Coin",
+		Category:              models.CategoryRoman,
+		UserID:                1,
+		RomanImperialFigureID: &figureID,
+	}
+	if err := db.Create(&preserved).Error; err != nil {
+		t.Fatalf("failed to seed preserved coin: %v", err)
+	}
+	nameOnlyBody, _ := json.Marshal(map[string]interface{}{"name": "Renamed Preserved Matched Coin"})
+	nameOnlyReq := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", preserved.ID), bytes.NewReader(nameOnlyBody))
+	nameOnlyReq.Header.Set("Content-Type", "application/json")
+	nameOnlyReq.Header.Set("Authorization", authHeader(1))
+	nameOnlyRecorder := httptest.NewRecorder()
+
+	router.ServeHTTP(nameOnlyRecorder, nameOnlyReq)
+
+	if nameOnlyRecorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 for name-only update, got %d: %s", nameOnlyRecorder.Code, nameOnlyRecorder.Body.String())
+	}
+	var preservedFound models.Coin
+	if err := db.First(&preservedFound, preserved.ID).Error; err != nil {
+		t.Fatalf("preserved coin not found: %v", err)
+	}
+	if preservedFound.RomanImperialFigureID == nil || *preservedFound.RomanImperialFigureID != figureID {
+		t.Fatalf("expected omitted RomanImperialFigureID to be preserved, got %v", preservedFound.RomanImperialFigureID)
+	}
+}
+
 func TestCoinHandler_Update_ReplacesStructuredReferences(t *testing.T) {
 	router, db := setupCoinHandlerRouter(t)
 	createTestUser(t, db, 1, "updater")

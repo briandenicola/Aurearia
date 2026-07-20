@@ -14873,6 +14873,9 @@
                     "type": "string",
                     "maxLength": 1000
                 },
+                "romanImperialFigureId": {
+                    "type": "integer"
+                },
                 "ruler": {
                     "type": "string",
                     "maxLength": 200
@@ -15180,6 +15183,9 @@
                 "reverseInscription": {
                     "type": "string",
                     "maxLength": 1000
+                },
+                "romanImperialFigureId": {
+                    "type": "integer"
                 },
                 "ruler": {
                     "type": "string",
@@ -17436,6 +17442,9 @@
                 "reverseInscription": {
                     "type": "string",
                     "maxLength": 1000
+                },
+                "romanImperialFigureId": {
+                    "type": "integer"
                 },
                 "ruler": {
                     "type": "string",

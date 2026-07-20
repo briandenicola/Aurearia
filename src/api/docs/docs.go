@@ -14880,6 +14880,9 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 1000
                 },
+                "romanImperialFigureId": {
+                    "type": "integer"
+                },
                 "ruler": {
                     "type": "string",
                     "maxLength": 200
@@ -15187,6 +15190,9 @@ const docTemplate = `{
                 "reverseInscription": {
                     "type": "string",
                     "maxLength": 1000
+                },
+                "romanImperialFigureId": {
+                    "type": "integer"
                 },
                 "ruler": {
                     "type": "string",
@@ -17443,6 +17449,9 @@ const docTemplate = `{
                 "reverseInscription": {
                     "type": "string",
                     "maxLength": 1000
+                },
+                "romanImperialFigureId": {
+                    "type": "integer"
                 },
                 "ruler": {
                     "type": "string",
