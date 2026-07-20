@@ -4,6 +4,7 @@ export interface Coin {
   category: Category
   denomination: string
   ruler: string
+  romanImperialFigureId: number | null
   era: string
   mint: string
   material: Material
@@ -685,6 +686,53 @@ export const CATEGORY_COLORS: Record<string, string> = {
   Byzantine: '#8b1a1a',
   Modern: '#4682b4',
   Other: '#888888',
+}
+
+// F028: Roman Emperor collection tracker
+export type ImperialFigureRole = 'emperor' | 'empress' | 'caesar' | 'usurper' | 'other'
+export type ImperialFigureRegion = 'west' | 'east'
+export type RarityTier = 'common' | 'scarce' | 'rare' | 'very_rare'
+
+export interface RomanImperialFigure {
+  id: number
+  name: string
+  aliases: string[]
+  role: ImperialFigureRole
+  region: ImperialFigureRegion
+  dynasty: string
+  reignStart: number
+  reignEnd: number
+  sortOrder: number
+  rarityTier: RarityTier
+  notes?: string
+}
+
+export interface ImperialFigureSlot {
+  figure: RomanImperialFigure
+  coin: Coin | null
+}
+
+export interface DynastyProgress {
+  dynasty: string
+  owned: number
+  total: number
+  figures: ImperialFigureSlot[]
+}
+
+export interface CategoryProgress {
+  roles: ImperialFigureRole[]
+  owned: number
+  total: number
+  percentage: number
+  dynasties: DynastyProgress[]
+}
+
+export interface EmperorTrackerResult {
+  emperor: CategoryProgress
+  suggestions: RomanImperialFigure[]
+  usurpers?: CategoryProgress
+  empresses?: CategoryProgress
+  other?: CategoryProgress
 }
 
 export interface User {

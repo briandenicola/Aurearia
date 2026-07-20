@@ -45,6 +45,15 @@
             </select>
           </div>
         </div>
+        <div v-if="form.category === 'Roman'" class="form-group min-w-0">
+          <label class="form-label">Imperial figure (optional)</label>
+          <ImperialFigurePicker v-model="form.romanImperialFigureId!" />
+          <p class="mt-1 text-sm text-text-muted">
+            Matches this coin to a curated Roman emperor, empress, Caesar, or usurper for the
+            <router-link to="/stats/emperors" class="underline">Emperor Tracker</router-link>. Leave blank if unsure — the
+            free-text Ruler field above is unaffected.
+          </p>
+        </div>
         <div class="form-group min-w-0">
           <label class="form-label">Storage Location</label>
           <select v-model="storageLocationIdModel" class="form-select" :disabled="storageLocationsLoading">
@@ -213,6 +222,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { getStorageLocations } from '@/api/client'
 import type { Coin, StorageLocation } from '@/types'
 import AutocompleteInput from '@/components/AutocompleteInput.vue'
+import ImperialFigurePicker from '@/components/ImperialFigurePicker.vue'
 import { X, Camera } from 'lucide-vue-next'
 import { usePwa } from '@/composables/usePwa'
 import { useCoinOptions } from '@/composables/useCoinOptions'
