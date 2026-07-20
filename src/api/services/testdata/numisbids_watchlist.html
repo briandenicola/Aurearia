@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<!--
+  Sanitized fixture derived from a real NumisBids watchlist response (2026-07).
+  Account identifiers, session cookies, and personal data have been removed.
+  Used by numisbids_service_test.go to guard against markup-drift regressions.
+  Do NOT commit real HAR files — see F021/F022 notes.
+
+  FIXTURE SOURCE NOTE: the /watchlist HTTP response is delivered as
+  content-encoding: br (Brotli) from Cloudflare to browser clients. Chrome
+  DevTools HAR export omits the decoded body for Brotli responses, so the
+  HAR body is always empty for this URL. Do NOT attempt to recover the HTML
+  from a HAR capture of /watchlist — it will not be there.
+
+  The Go scraper (newScraperClient) uses the default http.Transport, which
+  advertises only Accept-Encoding: gzip. Cloudflare responds with gzip for
+  non-Brotli clients, which Go decompresses transparently. The Brotli
+  encoding in the HAR is browser-specific and does not affect the scraper.
+
+  This fixture was reconstructed from: (1) the lot-page HTML for sale 10918
+  lot 1 (captured and decoded from the same HAR), (2) the /bidhistory page
+  (decoded, same HAR), which share the same togglewatch/browse-div markup
+  patterns, and (3) the task description confirming one current watched lot
+  with sale group 10918, lot URL /sale/10918/lot/1, Starting price 40 EUR,
+  and a media.numisbids.com thumbnail image.
+-->
+<html>
+<head><title>NumisBids: Watch List</title></head>
+<body>
+<div id="header">
+  <a href="/bidhistory">Bid History</a>
+  <a href="/watchlist">Watch List</a>
+  <a href="/logout">Logout</a>
+</div>
+<h2>Watched Lots in Current Auctions</h2>
+
+<!-- Sale group: one togglewatch header per auction -->
+<a class="anchor" name="10918"></a>
+<div class="togglewatch" id="10918">
+  &nbsp;<span class="arrow 10918">▼</span>
+  &nbsp;<b>VIA GmbH E-Auction 28</b>
+  &nbsp;&nbsp;(3 Aug 2026)<br>
+  <div class="sharewatchlist">
+    <span class="sendwatchlist" data-saleid="10918">
+      <a class="button gray watchlist">Share this Watch List</a>
+    </span>
+  </div>
+  <div class="followfirm">
+    <span class="watchfirm" data-firmid="232">
+      <a class="button gray watchlist">Notify me of new auctions</a>
+    </span>
+  </div>
+  <div class="spacer"></div>
+</div>
+
+<!-- Lot card 1 -->
+<div class="browse 10918 watch12163211" style="height: 360px;">
+  <img src="//media.numisbids.com/sales/hosted/via/e28/thumb00001.jpg">
+  <span class="lot"><a href="/sale/10918/lot/1">Lot 1</a></span>
+  <span class="estimate">Starting price: <span class="rateclick" data-eur="40" data-usd="43">40 EUR</span></span>
+  <span class="summary"><a href="/sale/10918/lot/1">KELTEN, GALLIA Aedui, Quinar</a></span>
+  <a href="/sales/hosted/watchlist_ajax.php?lid=12163211&amp;remove=1">Remove</a>
+</div>
+
+<!-- Lot card 2 (different lot, same sale) -->
+<div class="browse 10918 watch12163299" style="height: 360px;">
+  <img src="//media.numisbids.com/sales/hosted/via/e28/thumb00002.jpg">
+  <span class="lot"><a href="/sale/10918/lot/2">Lot 2</a></span>
+  <span class="estimate">Starting price: <span class="rateclick" data-eur="75" data-usd="81">75 EUR</span></span>
+  <span class="summary"><a href="/sale/10918/lot/2">ROME, Julius Caesar, Denarius</a></span>
+  <a href="/sales/hosted/watchlist_ajax.php?lid=12163299&amp;remove=1">Remove</a>
+</div>
+</body>
+</html>

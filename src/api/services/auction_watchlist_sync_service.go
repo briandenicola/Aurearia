@@ -110,28 +110,15 @@ func (s *AuctionWatchlistSyncService) syncNumisBids(user *models.User) (int, err
 		return 0, err
 	}
 
+	// NumisBids is a reduced-functionality provider: the watchlist page carries
+	// everything we need (image, title, sale name/date, starting price, watchlist ID)
+	// without any per-lot HTTP requests. The site exposes no max-bid, winning-bidder,
+	// or won/lost outcome signal, so CNG-style auto-detection is not applicable — lots
+	// remain in Watching until the sale date passes, then flip to Passed. Manual status
+	// override is required to record a Won or Lost result. See F022.
 	now := time.Now()
 	synced := 0
 	for _, wl := range s.nbSvc.ParseWatchlist(raw) {
-		if details, err := s.nbSvc.ScrapeLotPage(wl.URL); err == nil {
-			if details.ImageURL != "" {
-				wl.ImageURL = details.ImageURL
-			}
-			wl.AuctionHouse = details.AuctionHouse
-			wl.SaleName = details.SaleName
-			wl.SaleDate = details.SaleDate
-			wl.Description = details.Description
-			wl.CurrentBid = details.CurrentBid
-			if details.Currency != "" {
-				wl.Currency = details.Currency
-			}
-			if details.LotNumber > 0 {
-				wl.LotNumber = details.LotNumber
-			}
-		} else {
-			s.warn("Could not refresh NumisBids lot page for scheduled sync user %d url=%s: %v", user.ID, wl.URL, err)
-		}
-
 		status := models.AuctionStatusWatching
 		saleDate := ParseSaleDate(wl.SaleDate)
 		if saleDate != nil && saleDate.Before(now) {
@@ -141,16 +128,14 @@ func (s *AuctionWatchlistSyncService) syncNumisBids(user *models.User) (int, err
 			NumisBidsURL: wl.URL,
 			Source:       models.AuctionSourceNumisBids,
 			SourceURL:    wl.URL,
+			SourceLotID:  wl.SourceLotID,
 			SourceSaleID: wl.SourceSaleID,
 			SaleID:       wl.SaleID,
 			LotNumber:    wl.LotNumber,
 			Title:        wl.Title,
-			Description:  wl.Description,
 			ImageURL:     wl.ImageURL,
 			Estimate:     wl.Estimate,
-			CurrentBid:   wl.CurrentBid,
 			Currency:     firstNonBlank(wl.Currency, "USD"),
-			AuctionHouse: wl.AuctionHouse,
 			SaleName:     wl.SaleName,
 			SaleDate:     saleDate,
 			// AuctionEndTime must be set even though NumisBids only gives us a coarse

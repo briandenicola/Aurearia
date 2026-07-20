@@ -823,54 +823,35 @@ func (h *AuctionLotHandler) SyncWatchlist(c *gin.Context) {
 
 	for _, wl := range parsed {
 		h.debug("NumisBids sync processing lot for user %d: saleID=%s lot=%d url=%s", userID, wl.SaleID, wl.LotNumber, wl.URL)
-		// Scrape the lot page for image, auction house, sale name, current bid, lot number, description, sale date
-		if details, err := h.nbSvc.ScrapeLotPage(wl.URL); err == nil {
-			if details.ImageURL != "" {
-				wl.ImageURL = details.ImageURL
-			}
-			wl.AuctionHouse = details.AuctionHouse
-			wl.SaleName = details.SaleName
-			wl.SaleDate = details.SaleDate
-			wl.Description = details.Description
-			wl.CurrentBid = details.CurrentBid
-			if details.Currency != "" {
-				wl.Currency = details.Currency
-			}
-			if details.LotNumber > 0 {
-				wl.LotNumber = details.LotNumber
-			}
-		} else {
-			h.warn("Could not scrape NumisBids lot page for user %d url=%s: %v", userID, wl.URL, err)
-		}
+		// NumisBids is a reduced-functionality provider: the watchlist page carries
+		// image, title, sale name/date, starting price, and watchlist ID without
+		// any per-lot HTTP requests. No per-lot scrape is performed here.
+		// See services/auction_watchlist_sync_service.go syncNumisBids for rationale.
 
 		// Determine status: mark as passed if sale date is in the past
 		status := models.AuctionStatusWatching
-		var saleDate *time.Time
-		if wl.SaleDate != "" {
-			saleDate = services.ParseSaleDate(wl.SaleDate)
-			if saleDate != nil && saleDate.Before(now) {
-				status = models.AuctionStatusPassed
-			}
+		saleDate := services.ParseSaleDate(wl.SaleDate)
+		if saleDate != nil && saleDate.Before(now) {
+			status = models.AuctionStatusPassed
 		}
 
 		lot := models.AuctionLot{
-			NumisBidsURL: wl.URL,
-			Source:       models.AuctionSourceNumisBids,
-			SourceURL:    wl.URL,
-			SourceSaleID: wl.SourceSaleID,
-			SaleID:       wl.SaleID,
-			LotNumber:    wl.LotNumber,
-			Title:        wl.Title,
-			Description:  wl.Description,
-			ImageURL:     wl.ImageURL,
-			Estimate:     wl.Estimate,
-			CurrentBid:   wl.CurrentBid,
-			Currency:     wl.Currency,
-			AuctionHouse: wl.AuctionHouse,
-			SaleName:     wl.SaleName,
-			SaleDate:     saleDate,
-			Status:       status,
-			UserID:       userID,
+			NumisBidsURL:   wl.URL,
+			Source:         models.AuctionSourceNumisBids,
+			SourceURL:      wl.URL,
+			SourceLotID:    wl.SourceLotID,
+			SourceSaleID:   wl.SourceSaleID,
+			SaleID:         wl.SaleID,
+			LotNumber:      wl.LotNumber,
+			Title:          wl.Title,
+			ImageURL:       wl.ImageURL,
+			Estimate:       wl.Estimate,
+			Currency:       wl.Currency,
+			SaleName:       wl.SaleName,
+			SaleDate:       saleDate,
+			AuctionEndTime: saleDate,
+			Status:         status,
+			UserID:         userID,
 		}
 		if lot.Currency == "" {
 			lot.Currency = "USD"

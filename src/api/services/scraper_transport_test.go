@@ -1,9 +1,12 @@
 package services
 
 import (
+	"bytes"
+	"compress/gzip"
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -136,6 +139,53 @@ func TestDoScraperRequestWrapsRequestFailure(t *testing.T) {
 	}
 }
 
+// TestReadScraperResponseBodyHandlesGzipEncoding verifies that gzip-compressed
+// responses are transparently decompressed. This path fires when the caller has
+// explicitly set Accept-Encoding (as numisbidsDefaultHeaders does to prevent
+// Cloudflare from sending Brotli), because Go only auto-decompresses gzip when
+// it set the Accept-Encoding header itself.
+func TestReadScraperResponseBodyHandlesGzipEncoding(t *testing.T) {
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	_, _ = gw.Write([]byte("watchlist html"))
+	_ = gw.Close()
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Encoding": {"gzip"}},
+		Body:       io.NopCloser(&buf),
+	}
+
+	body, err := readScraperResponseBody(resp, "watchlist")
+	if err != nil {
+		t.Fatalf("readScraperResponseBody returned error for gzip response: %v", err)
+	}
+	if string(body) != "watchlist html" {
+		t.Fatalf("body = %q, want decompressed plain text", string(body))
+	}
+}
+
+// TestReadScraperResponseBodyRejectsBrotliEncoding verifies that a Brotli-encoded
+// response produces a clear error. Brotli (content-encoding: br) is sent by
+// Cloudflare when it sees a Chrome user-agent, even if the client only requested
+// gzip. Go has no native Brotli decompressor, so the scraper must detect this
+// condition and surface it explicitly rather than silently returning garbled HTML.
+func TestReadScraperResponseBodyRejectsBrotliEncoding(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Encoding": {"br"}},
+		Body:       io.NopCloser(strings.NewReader("fake brotli bytes")),
+	}
+
+	_, err := readScraperResponseBody(resp, "watchlist")
+	if err == nil {
+		t.Fatal("readScraperResponseBody returned nil error for brotli-encoded response")
+	}
+	if !strings.Contains(err.Error(), "brotli") {
+		t.Fatalf("error = %v, want mention of brotli encoding", err)
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -150,4 +200,38 @@ type trackingReadCloser struct {
 func (r *trackingReadCloser) Close() error {
 	r.closed = true
 	return nil
+}
+
+// TestNewScraperClientDoesNotAdvertiseBrotli verifies that newScraperClient's
+// transport does not send Accept-Encoding: br to the server. The NumisBids
+// /watchlist endpoint returns content-encoding: br (Brotli) to browser clients
+// (verified from HAR, 2026-07). Go's default http.Transport only advertises
+// gzip; the server responds with gzip which Go decompresses transparently.
+// If br were ever added, doScraperRequest would receive undecoded Brotli bytes
+// and ParseWatchlist would silently return 0 lots with no visible error.
+func TestNewScraperClientDoesNotAdvertiseBrotli(t *testing.T) {
+	var capturedEncoding string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedEncoding = r.Header.Get("Accept-Encoding")
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	client, err := newScraperClient()
+	if err != nil {
+		t.Fatalf("newScraperClient: %v", err)
+	}
+	req, err := newScraperRequest(http.MethodGet, server.URL, nil, nil)
+	if err != nil {
+		t.Fatalf("newScraperRequest: %v", err)
+	}
+	if _, err := doScraperRequest(client, req, "test"); err != nil {
+		t.Fatalf("doScraperRequest: %v", err)
+	}
+
+	if strings.Contains(strings.ToLower(capturedEncoding), "br") {
+		t.Fatalf("Accept-Encoding = %q includes 'br'; scraper transport would receive "+
+			"undecoded Brotli bytes from NumisBids and ParseWatchlist would silently return 0 lots",
+			capturedEncoding)
+	}
 }

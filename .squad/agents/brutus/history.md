@@ -13,6 +13,17 @@
 
 ## Recent Updates
 
+- **2026-07-20:** NumisBids #490 Regression Coverage — Reduced Watchlist Scope
+  - Cassius delivered a complete rewrite of `numisbids_service.go` (browseDivRe/togglewatchRe/summaryHrefRe/summaryTextRe/priceFieldRe) matching the real NumisBids watchlist markup structure confirmed by HAR inspection.
+  - Cassius also produced `testdata/numisbids_watchlist.html` (sanitized fixture from real account) and 10 updated parser/diagnostics tests in `numisbids_service_test.go`.
+  - Brutus added `TestParseWatchlist_NoProviderOutcomeFieldsForOpenLot` — the one gap not covered by Cassius: proves `MaxBid`, `ProviderStatus`, `SoldPrice`, and `WinningCustomerRowID` are never set from watchlist HTML, enforcing that NumisBids lots always require manual status overrides rather than auto-resolution. This distinction guards against accidentally porting CNG's auto-detection logic into the NumisBids path.
+  - Brutus added `TestNewScraperClientDoesNotAdvertiseBrotli` in `scraper_transport_test.go`: verifies Go's transport sends only `Accept-Encoding: gzip` (not `br`) — a guard against silently breaking ParseWatchlist if Brotli support were ever added to the scraper without a decompressor.
+  - Updated `FetchWatchlist` doc comment with Brotli and cache-control notes.
+  - Updated `testdata/numisbids_watchlist.html` header to explain why HAR body for /watchlist is always empty (Brotli response, DevTools doesn't decode) and how the fixture was reconstructed.
+  - Full services suite passes: `go test ./services/` ✅, `go vet ./services/` ✅
+  - Confirmed `priceFieldRe` already handles both legacy `Estimate: 100 AUD` and current `Starting price: <span class="rateclick">40 EUR</span>` layouts.
+  - HAR structural findings: watchlist uses `<div class="togglewatch" id="{saleID}">` headers + `<div class="browse {saleID} watch{watchlistID}">` lot cards; watchlist body was Brotli-compressed and not decoded by browser devtools (0 bytes text), but lot page and bidhistory page confirmed real HTML patterns.
+
 - **2026-06-30:** Find Coin Review Cycle — NGC Label Fallback Block + Strict Lockout Clearance
   - Initial review identified BLOCK: NGC slash-label fallback in frontend normalization could save full label (e.g., `NGC:1234567/Green Label`) when user intends only numeric reference
   - Block raised for data integrity risk (Principle IV violation — unintended side effect of fallback chain)
