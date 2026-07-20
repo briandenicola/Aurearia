@@ -41,6 +41,22 @@ the existing `coinOfDayEnabled`-style opt-in pattern.
       (13%)") — this is a first-class stats display, not just an implied
       byproduct of the tray view: the completion numbers must be visible
       even before scrolling to a given dynasty's wells.
+- [ ] The default (and primary) goal is the **commonly accepted Augustuses**
+      only — i.e. every `role: emperor` figure, exactly as already scoped
+      above. Usurpers were, by definition, never accepted as legitimate
+      emperors, so they (and empresses, and Caesar/other figures) are
+      excluded from this goal by default — this keeps the core "collect all
+      the emperors" goal realistic and unambiguous for every user out of
+      the box.
+- [ ] Users can optionally expand what they track via three independent
+      Settings toggles (default off): **show usurpers**, **show empresses**,
+      **show other figures** (Caesars who never acceded + Julius Caesar).
+      Enabling one adds its own separate, independently-tracked section to
+      `/stats/emperors` (own completion count/percentage, own dynasty/era
+      grouping, own tray rendering) — it does **not** get merged into the
+      core emperor completion number. This lets a user who wants a bigger
+      or more textured challenge opt into tracking more, without changing
+      what "100%" means for anyone who leaves the defaults alone.
 - [ ] Each dynasty/era section renders its emperors using the existing tray
       visual (`MuseumTray`/`MuseumTrayWell`) — an owned emperor's well shows
       the user's real coin (image, click-through to coin detail, exactly like
@@ -213,12 +229,19 @@ still needs final sign-off; rarity tiers are an unsourced first guess).
   param so this is a server-side filter, not a client-side scan of the
   full list.
 - Settings toggle: `SettingsAccountSection.vue`, same visual pattern as the
-  existing `coinOfDayEnabled` checkbox.
+  existing `coinOfDayEnabled` checkbox — plus three more checkboxes, shown
+  only once the main toggle is on: "Also track usurpers," "Also track
+  empresses," "Also track other figures (Caesars & precursors)," each
+  independently off by default.
 - New page under Stats (existing sibling pages: `/stats/mint-map`,
   `/stats/timeline`, `/stats/health`, `/stats/value-trends`,
   `/stats/investment-breakdown`, `/stats/distribution` — add
   `/stats/emperors` alongside them), gated on
-  `auth.user.emperorTrackerEnabled`.
+  `auth.user.emperorTrackerEnabled`. The page always shows the primary
+  Emperor section first; any of the three optional categories the user has
+  enabled render as additional sections below it, each with its own
+  dynasty/era grouping and its own completion count/percentage — never
+  merged into the primary emperor stat.
 - Reuses `MuseumTray.vue`/`MuseumTrayWell.vue` as-is where possible: an
   unmatched emperor is just a `TrayCoin`-shaped entry with no `images`, which
   already renders `MuseumTrayWell`'s built-in placeholder (a dim coin icon)
@@ -264,12 +287,16 @@ still needs final sign-off; rarity tiers are an unsourced first guess).
       that date (notably Zeno) — **resolved**: in scope if the reign began
       on or before 476, even if it continued after. Zeno is included in
       full (474–491); Anastasius I (began 491) is not.
-- [ ] Should co-emperors / usurpers (e.g. Lucius Verus, Basiliscus) count as
-      separate tracked entries, or be folded into the primary emperor's
-      entry? The curated dataset's first pass leans toward separate entries
-      (they minted coinage under their own name/portrait), but this is not
-      yet a final sign-off — still affects the total count and user
-      expectations if reversed.
+- [ ] Should co-emperors (e.g. Lucius Verus, Geta — both `role: emperor`,
+      both in the default goal) count as separate tracked entries, or be
+      folded into the primary emperor's entry? The curated dataset's first
+      pass leans toward separate entries (they minted coinage under their
+      own name/portrait), but this is not yet a final sign-off — still
+      affects the default goal's total count and user expectations if
+      reversed. (Note: this question is now scoped to co-emperors only —
+      usurpers are a separate, opt-in, always-independently-tracked
+      category per the new visibility toggles, so there's no
+      folding/merging ambiguity for them.)
 - [ ] Who curates the per-emperor `rarityTier` used to sort V1 suggestions,
       and against what standard (auction frequency? price? both?) — same
       content-ownership question as the core dataset, called out separately
@@ -277,6 +304,12 @@ still needs final sign-off; rarity tiers are an unsourced first guess).
 - [ ] Is a V2 (agent-assisted, live market search) suggestion engine even
       wanted, or is the V1 static rarity sort sufficient long-term? Don't
       pre-approve V2 scope now — revisit after V1 ships and is used.
+- [ ] Should the three optional categories (usurpers, empresses, other) each
+      also get their own V1 "what to pursue next" suggestions list once
+      enabled, or is that list a core-emperor-only feature for v1? Leaning
+      toward core-emperor-only for v1 to keep scope bounded, with the
+      optional categories being pure display/tracking (no suggestions) until
+      there's a reason to add it.
 
 ## Notes
 
@@ -335,3 +368,11 @@ Curated dataset: `specs/_backlog/F028-imperial-figures.md` (first pass,
   explicit request. Added a new requirement: the imperial-figure picker
   (and its backing search endpoint) must support filtering by `role`, since
   the curated list is too large to browse by name search alone.
+- 2026-07-20: refined — confirmed the default/primary goal is explicitly
+  the "commonly accepted Augustuses" (`role: emperor` only; usurpers were
+  by definition never accepted as legitimate emperors). Added three
+  independent, default-off Settings toggles (show usurpers / show
+  empresses / show other figures) that each add their own separately
+  tracked section to `/stats/emperors` when enabled, so users can opt into
+  a bigger or more textured goal without changing what "100%" means for
+  everyone else.
