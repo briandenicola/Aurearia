@@ -1,6 +1,6 @@
 <template>
   <div class="fixed inset-0 z-[1000] flex overflow-x-hidden overflow-y-auto bg-overlay-full p-4 [-webkit-overflow-scrolling:touch]" @click.self="$emit('close')">
-    <div class="card my-auto w-full min-w-0 max-w-[560px] p-0">
+    <div class="card mx-auto my-auto w-full min-w-0 max-w-[560px] p-0">
       <div class="flex items-start justify-between gap-4 border-b border-border-subtle px-6 py-5">
         <h2 class="min-w-0 text-[1.1rem] leading-[1.35] [overflow-wrap:anywhere]">{{ lot.title }}</h2>
         <div class="header-actions shrink-0 gap-1">

@@ -51,8 +51,21 @@
             :key="figure.id"
             class="flex items-center justify-between gap-3 border-b border-border-subtle pb-2 text-body last:border-0 last:pb-0"
           >
-            <span>{{ figure.name }} <span class="text-text-muted">— {{ figure.dynasty }}</span></span>
-            <span class="rounded-full border border-border-subtle px-2 py-0.5 text-xs text-text-muted">{{ rarityLabel(figure.rarityTier) }}</span>
+            <span class="min-w-0">
+              <span class="font-medium text-text-primary">{{ figure.name }}</span>
+              <span class="text-text-muted"> — {{ figure.dynasty }}</span>
+            </span>
+            <span class="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                class="btn btn-xs btn-ghost whitespace-nowrap"
+                :aria-label="`Ask the agent to search for ${figure.name} coins`"
+                @click="searchForFigure(figure.name)"
+              >
+                Search Agent
+              </button>
+              <span class="rounded-full border border-border-subtle px-2 py-0.5 text-xs text-text-muted">{{ rarityLabel(figure.rarityTier) }}</span>
+            </span>
           </li>
         </ul>
       </section>
@@ -142,6 +155,14 @@ function rarityLabel(tier: RarityTier): string {
 
 function formatPct(value: number): string {
   return Math.round(value).toString()
+}
+
+function searchForFigure(name: string) {
+  window.dispatchEvent(new window.CustomEvent('open-agent-chat', {
+    detail: {
+      prompt: `Look for available ${name} coins for my collection. Focus on reputable dealer and auction listings, include prices and links, and only show coins that appear available.`,
+    },
+  }))
 }
 
 async function load() {

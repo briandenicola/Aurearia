@@ -140,7 +140,7 @@
     </Teleport>
 
     <!-- AI Agent Chat -->
-    <CoinSearchChat v-if="showChat" @close="showChat = false" />
+    <CoinSearchChat v-if="showChat" :initial-prompt="agentInitialPrompt" @close="closeAgentChat" />
 
     <!-- Email prompt modal for legacy users -->
     <div v-if="showEmailPrompt" class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70" @click.self="dismissEmailPrompt">
@@ -214,6 +214,7 @@ const route = useRoute()
 const { isPwa } = usePwa()
 
 const showChat = ref(false)
+const agentInitialPrompt = ref<string | null>(null)
 const sidebarOpen = ref(false)
 const showEmailPrompt = ref(false)
 const showOnboardingPrompt = ref(false)
@@ -235,6 +236,12 @@ const agentFabDragStart = ref({ x: 0, y: 0 })
 
 const AGENT_FAB_SIZE = 52
 const AGENT_FAB_VIEWPORT_MARGIN = 8
+
+interface OpenAgentChatEvent extends Event {
+  detail?: {
+    prompt?: string
+  }
+}
 
 const isCollectionPage = computed(() => route.name === 'collection')
 const showCollectionActions = computed(() => isCollectionPage.value && !isPwa)
@@ -427,6 +434,21 @@ function handleAgentFabClick(event: MouseEvent) {
   showChat.value = true
 }
 
+function openAgentChat(prompt?: string) {
+  agentInitialPrompt.value = prompt?.trim() || null
+  showChat.value = true
+}
+
+function closeAgentChat() {
+  showChat.value = false
+  agentInitialPrompt.value = null
+}
+
+function handleOpenAgentChat(event: Event) {
+  const prompt = (event as OpenAgentChatEvent).detail?.prompt
+  openAgentChat(prompt)
+}
+
 function handleAgentFabViewportResize() {
   if (!agentFabPosition.value) return
   agentFabPosition.value = clampAgentFabPosition(agentFabPosition.value.x, agentFabPosition.value.y)
@@ -488,6 +510,7 @@ watch(sidebarOpen, (open) => {
 
 onMounted(async () => {
   window.addEventListener('resize', handleAgentFabViewportResize)
+  window.addEventListener('open-agent-chat', handleOpenAgentChat)
   if (auth.isAuthenticated) {
     startPolling()
     try {
@@ -566,6 +589,7 @@ function handleLogout() {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleAgentFabViewportResize)
+  window.removeEventListener('open-agent-chat', handleOpenAgentChat)
   destroySortable()
   stopPolling()
 })
