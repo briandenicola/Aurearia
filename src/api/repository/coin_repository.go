@@ -342,9 +342,10 @@ func (r *CoinRepository) FindByID(id uint, userID uint) (*models.Coin, error) {
 // with images preloaded, for F028's emperor tracker.
 func (r *CoinRepository) ListMatchedImperialFigures(userID uint) ([]models.Coin, error) {
 	var coins []models.Coin
-	err := r.db.Scopes(ActiveCollection(userID)).
+	err := r.db.Scopes(ActiveRomanCollection(userID)).
 		Where("roman_imperial_figure_id IS NOT NULL").
 		Preload("Images").
+		Order("id ASC").
 		Find(&coins).Error
 	return coins, err
 }

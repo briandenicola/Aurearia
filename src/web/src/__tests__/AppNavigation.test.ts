@@ -16,6 +16,7 @@ describe('App sidebar navigation', () => {
     expect(source).toContain("label: 'Map', to: '/stats/mint-map'")
     expect(source).toContain("label: 'Health', to: '/stats/health'")
     expect(source).toContain("label: 'Value Details', to: '/stats/value-trends'")
+    expect(source).toContain("child.id !== 'stats-emperors' || auth.user?.emperorTrackerEnabled")
     expect(source).not.toContain("id: 'timeline'")
     expect(source).not.toContain("label: 'Collection Distribution'")
     expect(source).not.toContain('#collection-health')

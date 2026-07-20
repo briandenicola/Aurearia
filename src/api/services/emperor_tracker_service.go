@@ -10,8 +10,10 @@ import (
 // ImperialFigureSlot pairs a curated RomanImperialFigure with the user's
 // matching coin, if any. A nil Coin means the figure is unowned.
 type ImperialFigureSlot struct {
-	Figure models.RomanImperialFigure `json:"figure"`
-	Coin   *models.Coin               `json:"coin"`
+	Figure            models.RomanImperialFigure `json:"figure"`
+	Coin              *models.Coin               `json:"coin"`
+	Coins             []models.Coin              `json:"coins"`
+	HighlightedCoinID *uint                      `json:"highlightedCoinId"`
 }
 
 // DynastyProgress groups a category's figures by dynasty/era with completion counts.
@@ -57,13 +59,14 @@ var rarityTierOrder = map[models.RarityTier]int{
 // computed live per-request, the same way AuctionLotService.Recommend/
 // MarketSignal compute their results, rather than maintaining a stored table.
 type EmperorTrackerService struct {
-	figureRepo *repository.RomanImperialFigureRepository
-	coinRepo   *repository.CoinRepository
+	figureRepo    *repository.RomanImperialFigureRepository
+	coinRepo      *repository.CoinRepository
+	highlightRepo *repository.RomanImperialFigureHighlightRepository
 }
 
 // NewEmperorTrackerService creates a new EmperorTrackerService.
-func NewEmperorTrackerService(figureRepo *repository.RomanImperialFigureRepository, coinRepo *repository.CoinRepository) *EmperorTrackerService {
-	return &EmperorTrackerService{figureRepo: figureRepo, coinRepo: coinRepo}
+func NewEmperorTrackerService(figureRepo *repository.RomanImperialFigureRepository, coinRepo *repository.CoinRepository, highlightRepo *repository.RomanImperialFigureHighlightRepository) *EmperorTrackerService {
+	return &EmperorTrackerService{figureRepo: figureRepo, coinRepo: coinRepo, highlightRepo: highlightRepo}
 }
 
 // Progress computes completion for the given role(s), combining them into a
@@ -77,7 +80,11 @@ func (s *EmperorTrackerService) Progress(userID uint, roles ...models.ImperialFi
 	if err != nil {
 		return CategoryProgress{}, err
 	}
-	progress := buildCategoryProgress(figures, owned)
+	highlights, err := s.highlightCoinIDsByFigureID(userID)
+	if err != nil {
+		return CategoryProgress{}, err
+	}
+	progress := buildCategoryProgress(figures, owned, highlights)
 	progress.Roles = roles
 	return progress, nil
 }
@@ -150,34 +157,80 @@ func (s *EmperorTrackerService) FullProgress(userID uint, includeUsurpers, inclu
 	return result, nil
 }
 
-func (s *EmperorTrackerService) ownedCoinsByFigureID(userID uint) (map[uint]*models.Coin, error) {
+// SetHighlight stores a user's chosen tray display coin for a matched figure.
+func (s *EmperorTrackerService) SetHighlight(userID, figureID, coinID uint) error {
+	coins, err := s.coinRepo.ListMatchedImperialFigures(userID)
+	if err != nil {
+		return err
+	}
+	for _, coin := range coins {
+		if coin.ID == coinID && coin.RomanImperialFigureID != nil && *coin.RomanImperialFigureID == figureID {
+			return s.highlightRepo.Upsert(&models.RomanImperialFigureHighlight{
+				UserID:                userID,
+				RomanImperialFigureID: figureID,
+				CoinID:                coinID,
+			})
+		}
+	}
+	return repository.ErrRecordNotFound
+}
+
+// ClearHighlight removes the user's chosen display coin for a figure.
+func (s *EmperorTrackerService) ClearHighlight(userID, figureID uint) error {
+	return s.highlightRepo.Delete(userID, figureID)
+}
+
+func (s *EmperorTrackerService) ownedCoinsByFigureID(userID uint) (map[uint][]models.Coin, error) {
 	coins, err := s.coinRepo.ListMatchedImperialFigures(userID)
 	if err != nil {
 		return nil, err
 	}
-	byFigureID := make(map[uint]*models.Coin, len(coins))
+	byFigureID := make(map[uint][]models.Coin, len(coins))
 	for i := range coins {
 		coin := coins[i]
 		if coin.RomanImperialFigureID == nil {
 			continue
 		}
-		// If a user somehow matched more than one coin to the same figure,
-		// the first one found represents the match — which specific coin
-		// doesn't matter for completion tracking, only that one exists.
-		if _, exists := byFigureID[*coin.RomanImperialFigureID]; !exists {
-			byFigureID[*coin.RomanImperialFigureID] = &coin
-		}
+		byFigureID[*coin.RomanImperialFigureID] = append(byFigureID[*coin.RomanImperialFigureID], coin)
 	}
 	return byFigureID, nil
 }
 
-func buildCategoryProgress(figures []models.RomanImperialFigure, owned map[uint]*models.Coin) CategoryProgress {
+func (s *EmperorTrackerService) highlightCoinIDsByFigureID(userID uint) (map[uint]uint, error) {
+	highlights, err := s.highlightRepo.ListForUser(userID)
+	if err != nil {
+		return nil, err
+	}
+	byFigureID := make(map[uint]uint, len(highlights))
+	for _, highlight := range highlights {
+		byFigureID[highlight.RomanImperialFigureID] = highlight.CoinID
+	}
+	return byFigureID, nil
+}
+
+func highlightedCoin(coins []models.Coin, selectedCoinID uint) (*models.Coin, *uint) {
+	if len(coins) == 0 {
+		return nil, nil
+	}
+	for i := range coins {
+		if selectedCoinID != 0 && coins[i].ID == selectedCoinID {
+			return &coins[i], &coins[i].ID
+		}
+	}
+	return &coins[0], &coins[0].ID
+}
+
+func buildCategoryProgress(figures []models.RomanImperialFigure, owned map[uint][]models.Coin, highlights map[uint]uint) CategoryProgress {
 	dynastyIndex := make(map[string]int)
 	dynasties := make([]DynastyProgress, 0)
 	totalOwned := 0
 
 	for _, figure := range figures {
-		coin := owned[figure.ID]
+		coins := owned[figure.ID]
+		if coins == nil {
+			coins = []models.Coin{}
+		}
+		coin, highlightedCoinID := highlightedCoin(coins, highlights[figure.ID])
 		idx, ok := dynastyIndex[figure.Dynasty]
 		if !ok {
 			idx = len(dynasties)
@@ -185,7 +238,12 @@ func buildCategoryProgress(figures []models.RomanImperialFigure, owned map[uint]
 			dynasties = append(dynasties, DynastyProgress{Dynasty: figure.Dynasty})
 		}
 		dynasties[idx].Total++
-		dynasties[idx].Figures = append(dynasties[idx].Figures, ImperialFigureSlot{Figure: figure, Coin: coin})
+		dynasties[idx].Figures = append(dynasties[idx].Figures, ImperialFigureSlot{
+			Figure:            figure,
+			Coin:              coin,
+			Coins:             coins,
+			HighlightedCoinID: highlightedCoinID,
+		})
 		if coin != nil {
 			dynasties[idx].Owned++
 			totalOwned++

@@ -12302,6 +12302,79 @@ const docTemplate = `{
                 }
             }
         },
+        "/stats/emperors/highlights/{figureId}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sets the user-selected highlighted coin for one Roman imperial figure. The coin must be an active Roman collection coin matched to that figure. Send coinId:null to clear the explicit choice.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Emperor Tracker"
+                ],
+                "summary": "Set highlighted emperor tracker coin",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Roman imperial figure ID",
+                        "name": "figureId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Highlight selection",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.emperorTrackerHighlightRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/stats/health": {
             "get": {
                 "security": [
@@ -16586,6 +16659,14 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.emperorTrackerHighlightRequest": {
+            "type": "object",
+            "properties": {
+                "coinId": {
+                    "type": "integer"
+                }
+            }
+        },
         "handlers.generateApiKeyRequest": {
             "type": "object",
             "required": [
@@ -18964,8 +19045,17 @@ const docTemplate = `{
                 "coin": {
                     "$ref": "#/definitions/models.Coin"
                 },
+                "coins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Coin"
+                    }
+                },
                 "figure": {
                     "$ref": "#/definitions/models.RomanImperialFigure"
+                },
+                "highlightedCoinId": {
+                    "type": "integer"
                 }
             }
         },

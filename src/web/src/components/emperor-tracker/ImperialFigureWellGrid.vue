@@ -10,6 +10,16 @@
       <span class="max-w-[84px] truncate text-xs text-text-secondary" :title="slot.figure.name">
         {{ slot.figure.name }}
       </span>
+      <label v-if="slot.coins.length > 1" class="flex w-full max-w-[120px] flex-col gap-1">
+        <span class="sr-only">Highlighted {{ slot.figure.name }} coin</span>
+        <select
+          class="form-select px-2 py-1 text-xs"
+          :value="slot.highlightedCoinId ?? slot.coin?.id ?? ''"
+          @change="onHighlightChanged(slot, $event)"
+        >
+          <option v-for="coin in slot.coins" :key="coin.id" :value="coin.id">{{ coin.name }}</option>
+        </select>
+      </label>
     </div>
   </div>
 </template>
@@ -17,12 +27,15 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import MuseumTrayWell from '@/components/tray/MuseumTrayWell.vue'
+import { updateEmperorTrackerHighlight } from '@/api/client'
 import type { ImperialFigureSlot } from '@/types'
 import type { TrayCoin } from '@/utils/trayLayout'
 
 defineProps<{
   slots: ImperialFigureSlot[]
 }>()
+
+const emit = defineEmits<{ 'highlight-updated': [] }>()
 
 const router = useRouter()
 
@@ -53,5 +66,12 @@ function toTrayCoin(slot: ImperialFigureSlot): TrayCoin {
 function onWellClicked(coinId: number) {
   if (coinId <= 0) return
   router.push({ name: 'coin-detail', params: { id: coinId } })
+}
+
+async function onHighlightChanged(slot: ImperialFigureSlot, event: Event) {
+  const value = Number((event.target as HTMLSelectElement).value)
+  if (!Number.isFinite(value) || value <= 0) return
+  await updateEmperorTrackerHighlight(slot.figure.id, value)
+  emit('highlight-updated')
 }
 </script>

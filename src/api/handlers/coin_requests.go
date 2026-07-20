@@ -83,12 +83,16 @@ type CoinUpdateRequest struct {
 }
 
 func (r CoinCreateRequest) toCoin(userID uint) models.Coin {
+	romanImperialFigureID := r.RomanImperialFigureID
+	if r.Category != models.CategoryRoman {
+		romanImperialFigureID = nil
+	}
 	return models.Coin{
 		Name:                  r.Name,
 		Category:              r.Category,
 		Denomination:          r.Denomination,
 		Ruler:                 r.Ruler,
-		RomanImperialFigureID: r.RomanImperialFigureID,
+		RomanImperialFigureID: romanImperialFigureID,
 		Era:                   r.Era,
 		Mint:                  r.Mint,
 		Material:              r.Material,
@@ -119,15 +123,26 @@ func (r CoinCreateRequest) toCoin(userID uint) models.Coin {
 	}
 }
 
+func appendUpdateField(fields []string, field string) []string {
+	for _, existing := range fields {
+		if existing == field {
+			return fields
+		}
+	}
+	return append(fields, field)
+}
+
 func (r CoinUpdateRequest) toCoin(existing *models.Coin, storageLocationProvided bool, nullableScalarProvided map[string]bool) (models.Coin, []string) {
 	updates := models.Coin{ID: existing.ID, UserID: existing.UserID}
 	updateFields := make([]string, 0, 32)
+	targetCategory := existing.Category
 	if r.Name != nil {
 		updates.Name = *r.Name
 		updateFields = append(updateFields, "Name")
 	}
 	if r.Category != nil {
 		updates.Category = *r.Category
+		targetCategory = *r.Category
 		updateFields = append(updateFields, "Category")
 	}
 	if r.Denomination != nil {
@@ -140,7 +155,7 @@ func (r CoinUpdateRequest) toCoin(existing *models.Coin, storageLocationProvided
 	}
 	if r.RomanImperialFigureID != nil || nullableScalarProvided["RomanImperialFigureID"] {
 		updates.RomanImperialFigureID = r.RomanImperialFigureID
-		updateFields = append(updateFields, "RomanImperialFigureID")
+		updateFields = appendUpdateField(updateFields, "RomanImperialFigureID")
 	}
 	if r.Era != nil {
 		updates.Era = *r.Era
@@ -243,6 +258,10 @@ func (r CoinUpdateRequest) toCoin(existing *models.Coin, storageLocationProvided
 	}
 	if r.References != nil {
 		updates.References = mapCoinReferenceRequests(r.References)
+	}
+	if targetCategory != models.CategoryRoman {
+		updates.RomanImperialFigureID = nil
+		updateFields = appendUpdateField(updateFields, "RomanImperialFigureID")
 	}
 	return updates, updateFields
 }

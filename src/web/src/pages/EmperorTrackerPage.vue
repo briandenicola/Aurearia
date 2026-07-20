@@ -66,7 +66,7 @@
           {{ dynasty.dynasty }} — {{ dynasty.owned }} of {{ dynasty.total }}
           ({{ formatPct(dynasty.total ? (dynasty.owned / dynasty.total) * 100 : 0) }}%)
         </h3>
-        <ImperialFigureWellGrid :slots="dynasty.figures" />
+        <ImperialFigureWellGrid :slots="dynasty.figures" @highlight-updated="load" />
       </section>
 
       <section v-if="result.usurpers" class="flex flex-col gap-3">
@@ -79,7 +79,7 @@
           class="card flex flex-col gap-3 p-5"
         >
           <h3 class="m-0 text-base text-heading">{{ dynasty.dynasty }} — {{ dynasty.owned }} of {{ dynasty.total }}</h3>
-          <ImperialFigureWellGrid :slots="dynasty.figures" />
+          <ImperialFigureWellGrid :slots="dynasty.figures" @highlight-updated="load" />
         </section>
       </section>
 
@@ -93,7 +93,7 @@
           class="card flex flex-col gap-3 p-5"
         >
           <h3 class="m-0 text-base text-heading">{{ dynasty.dynasty }} — {{ dynasty.owned }} of {{ dynasty.total }}</h3>
-          <ImperialFigureWellGrid :slots="dynasty.figures" />
+          <ImperialFigureWellGrid :slots="dynasty.figures" @highlight-updated="load" />
         </section>
       </section>
 
@@ -107,7 +107,7 @@
           class="card flex flex-col gap-3 p-5"
         >
           <h3 class="m-0 text-base text-heading">{{ dynasty.dynasty }} — {{ dynasty.owned }} of {{ dynasty.total }}</h3>
-          <ImperialFigureWellGrid :slots="dynasty.figures" />
+          <ImperialFigureWellGrid :slots="dynasty.figures" @highlight-updated="load" />
         </section>
       </section>
     </template>

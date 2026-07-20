@@ -15,10 +15,18 @@ func setupEmperorTrackerServiceDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.RomanImperialFigure{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.RomanImperialFigure{}, &models.RomanImperialFigureHighlight{}); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
 	return db
+}
+
+func emperorTrackerServiceFor(db *gorm.DB) *EmperorTrackerService {
+	return NewEmperorTrackerService(
+		repository.NewRomanImperialFigureRepository(db),
+		repository.NewCoinRepository(db),
+		repository.NewRomanImperialFigureHighlightRepository(db),
+	)
 }
 
 func seedEmperorTrackerFigures(t *testing.T, db *gorm.DB) map[string]uint {
@@ -54,7 +62,7 @@ func TestEmperorTrackerService_ProgressComputesOverallAndPerDynasty(t *testing.T
 		t.Fatalf("seed coin: %v", err)
 	}
 
-	svc := NewEmperorTrackerService(repository.NewRomanImperialFigureRepository(db), repository.NewCoinRepository(db))
+	svc := emperorTrackerServiceFor(db)
 	progress, err := svc.Progress(1, models.ImperialFigureRoleEmperor)
 	if err != nil {
 		t.Fatalf("Progress failed: %v", err)
@@ -93,6 +101,7 @@ func TestEmperorTrackerService_ProgressExcludesWishlistAndSoldCoins(t *testing.T
 	if err := db.Create(&models.User{ID: 1, Username: "u1"}).Error; err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
+
 	augustusID := ids["Augustus"]
 	tiberiusID := ids["Tiberius"]
 	if err := db.Create(&models.Coin{Name: "Wishlist Augustus", Category: models.CategoryRoman, UserID: 1, RomanImperialFigureID: &augustusID, IsWishlist: true}).Error; err != nil {
@@ -102,13 +111,34 @@ func TestEmperorTrackerService_ProgressExcludesWishlistAndSoldCoins(t *testing.T
 		t.Fatalf("seed sold coin: %v", err)
 	}
 
-	svc := NewEmperorTrackerService(repository.NewRomanImperialFigureRepository(db), repository.NewCoinRepository(db))
+	svc := emperorTrackerServiceFor(db)
 	progress, err := svc.Progress(1, models.ImperialFigureRoleEmperor)
 	if err != nil {
 		t.Fatalf("Progress failed: %v", err)
 	}
 	if progress.Owned != 0 {
 		t.Fatalf("expected 0 owned (wishlist/sold coins don't count), got %d", progress.Owned)
+	}
+}
+
+func TestEmperorTrackerService_ProgressExcludesNonRomanMatchedCoins(t *testing.T) {
+	db := setupEmperorTrackerServiceDB(t)
+	ids := seedEmperorTrackerFigures(t, db)
+	if err := db.Create(&models.User{ID: 1, Username: "u1"}).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	augustusID := ids["Augustus"]
+	if err := db.Create(&models.Coin{Name: "Greek Augustus", Category: models.CategoryGreek, UserID: 1, RomanImperialFigureID: &augustusID}).Error; err != nil {
+		t.Fatalf("seed non-Roman coin: %v", err)
+	}
+
+	svc := emperorTrackerServiceFor(db)
+	progress, err := svc.Progress(1, models.ImperialFigureRoleEmperor)
+	if err != nil {
+		t.Fatalf("Progress failed: %v", err)
+	}
+	if progress.Owned != 0 {
+		t.Fatalf("expected 0 owned because non-Roman matched coins do not count, got %d", progress.Owned)
 	}
 }
 
@@ -119,7 +149,7 @@ func TestEmperorTrackerService_ProgressCombinesMultipleRoles(t *testing.T) {
 		t.Fatalf("seed user: %v", err)
 	}
 
-	svc := NewEmperorTrackerService(repository.NewRomanImperialFigureRepository(db), repository.NewCoinRepository(db))
+	svc := emperorTrackerServiceFor(db)
 	progress, err := svc.Progress(1, models.ImperialFigureRoleCaesar, models.ImperialFigureRoleOther)
 	if err != nil {
 		t.Fatalf("Progress failed: %v", err)
@@ -136,7 +166,7 @@ func TestEmperorTrackerService_SuggestionsSortsByRarityTierThenChronology(t *tes
 		t.Fatalf("seed user: %v", err)
 	}
 
-	svc := NewEmperorTrackerService(repository.NewRomanImperialFigureRepository(db), repository.NewCoinRepository(db))
+	svc := emperorTrackerServiceFor(db)
 	suggestions, err := svc.Suggestions(1, 10)
 	if err != nil {
 		t.Fatalf("Suggestions failed: %v", err)
@@ -162,7 +192,7 @@ func TestEmperorTrackerService_SuggestionsRespectsLimit(t *testing.T) {
 		t.Fatalf("seed user: %v", err)
 	}
 
-	svc := NewEmperorTrackerService(repository.NewRomanImperialFigureRepository(db), repository.NewCoinRepository(db))
+	svc := emperorTrackerServiceFor(db)
 	suggestions, err := svc.Suggestions(1, 2)
 	if err != nil {
 		t.Fatalf("Suggestions failed: %v", err)
@@ -179,7 +209,7 @@ func TestEmperorTrackerService_FullProgressOnlyIncludesEnabledCategories(t *test
 		t.Fatalf("seed user: %v", err)
 	}
 
-	svc := NewEmperorTrackerService(repository.NewRomanImperialFigureRepository(db), repository.NewCoinRepository(db))
+	svc := emperorTrackerServiceFor(db)
 
 	result, err := svc.FullProgress(1, false, false, false, 10)
 	if err != nil {
@@ -226,7 +256,7 @@ func TestEmperorTrackerService_ProgressReturnsCoinDataForOwnedFigures(t *testing
 		t.Fatalf("seed coin image: %v", err)
 	}
 
-	svc := NewEmperorTrackerService(repository.NewRomanImperialFigureRepository(db), repository.NewCoinRepository(db))
+	svc := emperorTrackerServiceFor(db)
 	progress, err := svc.Progress(1, models.ImperialFigureRoleEmperor)
 	if err != nil {
 		t.Fatalf("Progress failed: %v", err)
@@ -249,6 +279,55 @@ func TestEmperorTrackerService_ProgressReturnsCoinDataForOwnedFigures(t *testing
 	if len(augustusSlot.Coin.Images) != 1 || augustusSlot.Coin.Images[0].FilePath != "/uploads/augustus.jpg" {
 		t.Errorf("expected 1 preloaded image, got %+v", augustusSlot.Coin.Images)
 	}
+	if len(augustusSlot.Coins) != 1 || augustusSlot.HighlightedCoinID == nil || *augustusSlot.HighlightedCoinID != coin.ID {
+		t.Errorf("expected one candidate with highlighted coin %d, got coins=%+v highlighted=%v", coin.ID, augustusSlot.Coins, augustusSlot.HighlightedCoinID)
+	}
+}
+
+func TestEmperorTrackerService_ProgressUsesUserSelectedHighlightWithoutInflatingOwnedCount(t *testing.T) {
+	db := setupEmperorTrackerServiceDB(t)
+	ids := seedEmperorTrackerFigures(t, db)
+	if err := db.Create(&models.User{ID: 1, Username: "u1"}).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	augustusID := ids["Augustus"]
+	first := models.Coin{Name: "First Augustus", Category: models.CategoryRoman, UserID: 1, RomanImperialFigureID: &augustusID}
+	second := models.Coin{Name: "Preferred Augustus", Category: models.CategoryRoman, UserID: 1, RomanImperialFigureID: &augustusID}
+	if err := db.Create(&first).Error; err != nil {
+		t.Fatalf("seed first coin: %v", err)
+	}
+	if err := db.Create(&second).Error; err != nil {
+		t.Fatalf("seed second coin: %v", err)
+	}
+
+	svc := emperorTrackerServiceFor(db)
+	if err := svc.SetHighlight(1, augustusID, second.ID); err != nil {
+		t.Fatalf("SetHighlight failed: %v", err)
+	}
+	progress, err := svc.Progress(1, models.ImperialFigureRoleEmperor)
+	if err != nil {
+		t.Fatalf("Progress failed: %v", err)
+	}
+	if progress.Owned != 1 {
+		t.Fatalf("expected duplicate coins to count as one owned figure, got %d", progress.Owned)
+	}
+	var slot *ImperialFigureSlot
+	for _, dynasty := range progress.Dynasties {
+		for i := range dynasty.Figures {
+			if dynasty.Figures[i].Figure.ID == augustusID {
+				slot = &dynasty.Figures[i]
+			}
+		}
+	}
+	if slot == nil || slot.Coin == nil {
+		t.Fatal("expected Augustus slot")
+	}
+	if slot.Coin.ID != second.ID {
+		t.Fatalf("expected highlighted coin %d, got %+v", second.ID, slot.Coin)
+	}
+	if len(slot.Coins) != 2 {
+		t.Fatalf("expected both candidate coins, got %d", len(slot.Coins))
+	}
 }
 
 func TestEmperorTrackerService_ProgressHandlesZeroFiguresWithoutDivideByZero(t *testing.T) {
@@ -259,7 +338,7 @@ func TestEmperorTrackerService_ProgressHandlesZeroFiguresWithoutDivideByZero(t *
 		t.Fatalf("seed user: %v", err)
 	}
 
-	svc := NewEmperorTrackerService(repository.NewRomanImperialFigureRepository(db), repository.NewCoinRepository(db))
+	svc := emperorTrackerServiceFor(db)
 	progress, err := svc.Progress(1, models.ImperialFigureRoleEmperor)
 	if err != nil {
 		t.Fatalf("Progress failed: %v", err)

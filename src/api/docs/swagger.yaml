@@ -1275,6 +1275,11 @@ definitions:
     - displayName
     - era
     type: object
+  handlers.emperorTrackerHighlightRequest:
+    properties:
+      coinId:
+        type: integer
+    type: object
   handlers.generateApiKeyRequest:
     properties:
       name:
@@ -2907,8 +2912,14 @@ definitions:
     properties:
       coin:
         $ref: '#/definitions/models.Coin'
+      coins:
+        items:
+          $ref: '#/definitions/models.Coin'
+        type: array
       figure:
         $ref: '#/definitions/models.RomanImperialFigure'
+      highlightedCoinId:
+        type: integer
     type: object
   services.MarketSignal:
     properties:
@@ -11105,6 +11116,55 @@ paths:
       security:
       - BearerAuth: []
       summary: Get emperor tracker progress
+      tags:
+      - Emperor Tracker
+  /stats/emperors/highlights/{figureId}:
+    put:
+      consumes:
+      - application/json
+      description: Sets the user-selected highlighted coin for one Roman imperial
+        figure. The coin must be an active Roman collection coin matched to that figure.
+        Send coinId:null to clear the explicit choice.
+      parameters:
+      - description: Roman imperial figure ID
+        in: path
+        name: figureId
+        required: true
+        type: integer
+      - description: Highlight selection
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.emperorTrackerHighlightRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Set highlighted emperor tracker coin
       tags:
       - Emperor Tracker
   /stats/health:

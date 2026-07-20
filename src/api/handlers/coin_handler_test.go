@@ -1234,12 +1234,41 @@ func TestCoinHandler_Create_PersistsRomanImperialFigureID(t *testing.T) {
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
+
 	var created models.Coin
 	if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil {
 		t.Fatalf("failed to parse response: %v", err)
 	}
 	if created.RomanImperialFigureID == nil || *created.RomanImperialFigureID != 42 {
 		t.Fatalf("expected romanImperialFigureId 42, got %v", created.RomanImperialFigureID)
+	}
+}
+
+func TestCoinHandler_CreateClearsRomanImperialFigureIDForNonRomanCoin(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "creator")
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"name":                  "Greek Coin",
+		"category":              "Greek",
+		"romanImperialFigureId": 42,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/coins", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var created models.Coin
+	if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if created.RomanImperialFigureID != nil {
+		t.Fatalf("expected non-Roman coin to clear romanImperialFigureId, got %v", created.RomanImperialFigureID)
 	}
 }
 
@@ -1254,6 +1283,7 @@ func TestCoinHandler_Update_ClearsRomanImperialFigureWhenExplicitNullAndPreserve
 		UserID:                1,
 		RomanImperialFigureID: &figureID,
 	}
+
 	if err := db.Create(&coin).Error; err != nil {
 		t.Fatalf("failed to seed coin: %v", err)
 	}
@@ -1303,6 +1333,47 @@ func TestCoinHandler_Update_ClearsRomanImperialFigureWhenExplicitNullAndPreserve
 	}
 	if preservedFound.RomanImperialFigureID == nil || *preservedFound.RomanImperialFigureID != figureID {
 		t.Fatalf("expected omitted RomanImperialFigureID to be preserved, got %v", preservedFound.RomanImperialFigureID)
+	}
+}
+
+func TestCoinHandler_UpdateClearsRomanImperialFigureWhenCategoryChangesFromRoman(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "updater")
+
+	figureID := uint(7)
+	coin := models.Coin{
+		Name:                  "Matched Coin",
+		Category:              models.CategoryRoman,
+		UserID:                1,
+		RomanImperialFigureID: &figureID,
+	}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("failed to seed coin: %v", err)
+	}
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"category":              "Greek",
+		"romanImperialFigureId": figureID,
+	})
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/coins/%d", coin.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var updated models.Coin
+	if err := db.First(&updated, coin.ID).Error; err != nil {
+		t.Fatalf("updated coin not found: %v", err)
+	}
+	if updated.Category != models.CategoryGreek {
+		t.Fatalf("expected category Greek, got %s", updated.Category)
+	}
+	if updated.RomanImperialFigureID != nil {
+		t.Fatalf("expected category change away from Roman to clear RomanImperialFigureID, got %v", updated.RomanImperialFigureID)
 	}
 }
 

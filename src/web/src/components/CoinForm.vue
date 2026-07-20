@@ -218,7 +218,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { getStorageLocations } from '@/api/client'
 import type { Coin, StorageLocation } from '@/types'
 import AutocompleteInput from '@/components/AutocompleteInput.vue'
@@ -268,6 +268,12 @@ const displayedEraOptions = computed(() => {
     return [currentEra, ...eraOptions.value]
   }
   return eraOptions.value
+})
+
+watch(() => props.form.category, (category) => {
+  if (category !== 'Roman') {
+    props.form.romanImperialFigureId = null
+  }
 })
 
 onMounted(async () => {

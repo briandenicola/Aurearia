@@ -197,7 +197,7 @@ export const convertWishlistSearchAlertCandidate = (alertId: number, candidateId
 export const adjustWishlistSearchAlertCriteria = (alertId: number, input: AdjustWishlistSearchAlertCriteriaInput) =>
   api.post<WishlistSearchAlert>(`/wishlist/search-alerts/${alertId}/criteria-adjustments`, input)
 
-const NULLABLE_FIELDS: (keyof Coin)[] = ['weightGrams', 'diameterMm', 'purchasePrice', 'currentValue', 'purchaseDate', 'storageLocationId']
+const NULLABLE_FIELDS: (keyof Coin)[] = ['weightGrams', 'diameterMm', 'purchasePrice', 'currentValue', 'purchaseDate', 'storageLocationId', 'romanImperialFigureId']
 
 function sanitizeCoin(coin: CoinMutationPayload): CoinMutationPayload {
   const clean: Record<string, unknown> = { ...coin }
@@ -365,6 +365,8 @@ export const getRomanImperialFigure = (id: number) =>
   api.get<RomanImperialFigure>(`/roman-imperial-figures/${id}`)
 export const getEmperorTrackerProgress = () =>
   api.get<EmperorTrackerResult>('/stats/emperors')
+export const updateEmperorTrackerHighlight = (figureId: number, coinId: number | null) =>
+  api.put<void>(`/stats/emperors/highlights/${figureId}`, { coinId })
 
 // Catalog Registry
 export const listCatalogs = async () => {

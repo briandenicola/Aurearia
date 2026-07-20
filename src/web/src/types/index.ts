@@ -710,6 +710,8 @@ export interface RomanImperialFigure {
 export interface ImperialFigureSlot {
   figure: RomanImperialFigure
   coin: Coin | null
+  coins: Coin[]
+  highlightedCoinId: number | null
 }
 
 export interface DynastyProgress {
