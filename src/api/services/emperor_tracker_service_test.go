@@ -250,3 +250,24 @@ func TestEmperorTrackerService_ProgressReturnsCoinDataForOwnedFigures(t *testing
 		t.Errorf("expected 1 preloaded image, got %+v", augustusSlot.Coin.Images)
 	}
 }
+
+func TestEmperorTrackerService_ProgressHandlesZeroFiguresWithoutDivideByZero(t *testing.T) {
+	db := setupEmperorTrackerServiceDB(t)
+	// No figures seeded at all for this test — an empty dataset/role combo
+	// must not panic or produce NaN/Inf.
+	if err := db.Create(&models.User{ID: 1, Username: "u1"}).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+
+	svc := NewEmperorTrackerService(repository.NewRomanImperialFigureRepository(db), repository.NewCoinRepository(db))
+	progress, err := svc.Progress(1, models.ImperialFigureRoleEmperor)
+	if err != nil {
+		t.Fatalf("Progress failed: %v", err)
+	}
+	if progress.Total != 0 || progress.Owned != 0 || progress.Percentage != 0 {
+		t.Fatalf("expected all-zero progress for an empty dataset, got %+v", progress)
+	}
+	if len(progress.Dynasties) != 0 {
+		t.Fatalf("expected no dynasties, got %+v", progress.Dynasties)
+	}
+}

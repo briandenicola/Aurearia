@@ -173,3 +173,21 @@ func TestRomanImperialFigureGetReturns404ForMissingID(t *testing.T) {
 		t.Fatalf("status = %d, want 404", w.Code)
 	}
 }
+
+func TestRomanImperialFigureSearchReturnsEmptyArrayForNoMatches(t *testing.T) {
+	db := setupRomanImperialFigureHandlerDB(t)
+	svc := services.NewRomanImperialFigureService(repository.NewRomanImperialFigureRepository(db))
+	handler := NewRomanImperialFigureHandler(svc)
+
+	code, body := romanImperialFigureRequest(t, handler, "?q=zzznomatch")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	figures, ok := body["figures"].([]interface{})
+	if !ok {
+		t.Fatalf("expected figures array (even if empty), got %v", body["figures"])
+	}
+	if len(figures) != 0 {
+		t.Fatalf("expected 0 figures, got %d", len(figures))
+	}
+}
