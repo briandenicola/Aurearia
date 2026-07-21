@@ -16,11 +16,21 @@ describe('App sidebar navigation', () => {
     expect(source).toContain("label: 'Map', to: '/stats/mint-map'")
     expect(source).toContain("label: 'Health', to: '/stats/health'")
     expect(source).toContain("label: 'Value Details', to: '/stats/value-trends'")
-    expect(source).toContain("child.id !== 'stats-emperors' || auth.user?.emperorTrackerEnabled")
+    expect(source).not.toContain("id: 'stats-emperors'")
+    expect(source).not.toContain("to: '/stats/emperors'")
     expect(source).not.toContain("id: 'timeline'")
     expect(source).not.toContain("label: 'Collection Distribution'")
     expect(source).not.toContain('#collection-health')
     expect(source).not.toContain('#value-over-time')
+  })
+
+  it('renders Sets as a collapsible parent with Emperors gated under it', () => {
+    const source = fs.readFileSync(appPath, 'utf8')
+
+    expect(source).toContain("label: 'Sets'")
+    expect(source).toContain("label: 'My Sets', to: '/sets'")
+    expect(source).toContain("label: 'Emperors', to: '/sets/emperors'")
+    expect(source).toContain("child.id !== 'sets-emperors' || auth.user?.emperorTrackerEnabled")
   })
 
   it('uses Identify Coin as the single merged quick capture entry point', () => {

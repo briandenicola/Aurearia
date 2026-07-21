@@ -62,6 +62,10 @@ A dedicated dashboard shows:
 - **Collection filters** — Use tag-like set chips to filter collection views by set membership
 - **Coin detail chips** — Coin Detail shows both legacy tags and collection set memberships in the same Tags & Sets area
 
+## Emperor Tracker
+
+The Sets menu includes **Emperors** at `/sets/emperors` when Emperor Tracker is enabled in **Settings → Account**. This view tracks Roman emperor and figure coverage as a specialized completion set while continuing to use the existing `/api/stats/emperors` backend progress endpoint.
+
 ## Tray View
 
 The Collection menu includes **Gallery** and **Tray** subviews. Tray view renders the collection with the shared museum-tray presentation and the user-selected felt color from **Settings → Appearance**.

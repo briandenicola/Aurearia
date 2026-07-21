@@ -2,7 +2,7 @@
   <div class="container flex flex-col gap-6">
     <header class="page-header flex flex-nowrap items-center justify-between gap-4">
       <div>
-        <p class="section-label">Collection Insights</p>
+        <p class="section-label">Sets</p>
         <h1>Emperors</h1>
         <p class="mt-[0.35rem] text-base text-text-secondary">
           Your collection's progress toward every Western and Eastern Roman Emperor.
@@ -10,8 +10,8 @@
       </div>
       <router-link
         class="inline-flex shrink-0 items-center justify-center rounded-sm border border-border-subtle bg-transparent p-[0.4rem] text-text-secondary transition hover:border-border-accent hover:bg-gold-glow hover:text-gold"
-        to="/stats"
-        aria-label="Back to Stats"
+        to="/sets"
+        aria-label="Back to Sets"
       >
         <ArrowLeft :size="20" />
       </router-link>

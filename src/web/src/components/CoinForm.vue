@@ -50,7 +50,7 @@
           <ImperialFigurePicker v-model="form.romanImperialFigureId!" />
           <p class="mt-1 text-sm text-text-muted">
             Matches this coin to a curated Roman emperor, empress, Caesar, or usurper for the
-            <router-link to="/stats/emperors" class="underline">Emperor Tracker</router-link>. Leave blank if unsure — the
+            <router-link to="/sets/emperors" class="underline">Emperor Tracker</router-link>. Leave blank if unsure — the
             free-text Ruler field above is unaffected.
           </p>
         </div>
