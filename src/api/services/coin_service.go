@@ -127,6 +127,11 @@ func (s *CoinService) createPreparedCoinInTx(tx *gorm.DB, coin *models.Coin) err
 		txRepo := s.repo.WithTx(tx)
 		pendingReferences := coin.References
 		coin.References = nil
+		// Wishlist coins must never carry catalog references — enforce the invariant
+		// here regardless of what the caller set upstream (belt-and-suspenders).
+		if coin.IsWishlist {
+			pendingReferences = nil
+		}
 		if err := txRepo.Create(coin); err != nil {
 			return err
 		}

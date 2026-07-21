@@ -481,6 +481,73 @@ func TestCreateCoin_DropsReferencesForWishlist(t *testing.T) {
 	}
 }
 
+// TestCreateCoin_WishlistInvariant_AgentStylePayload proves the wishlist
+// invariant on the realistic agent path: when CreateCoin receives a wishlist
+// coin payload whose References slice carries non-zero IDs (as the agent sends
+// from source/database data), the resulting DB row must have zero references.
+// This test bypasses ConvertCandidate and calls CreateCoin directly to isolate
+// the service-layer guard in createPreparedCoinInTx.
+func TestCreateCoin_WishlistInvariant_AgentStylePayload(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinServiceWithReferences(db)
+	if err := db.Create(&models.CatalogRegistry{
+		Catalog:     "RIC",
+		DisplayName: "Roman Imperial Coinage",
+		Era:         models.EraAncient,
+	}).Error; err != nil {
+		t.Fatalf("seed catalog: %v", err)
+	}
+
+	// Seed a real reference row — its ID represents an occupied primary key
+	// that the agent might have looked up from an existing collection coin.
+	sourceCoin := &models.Coin{Name: "Source", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1}
+	if err := svc.CreateCoin(sourceCoin); err != nil {
+		t.Fatalf("seed source coin: %v", err)
+	}
+	sourceRef := models.CoinReference{CoinID: sourceCoin.ID, Catalog: "RIC", Number: "1"}
+	if err := db.Create(&sourceRef).Error; err != nil {
+		t.Fatalf("seed source ref: %v", err)
+	}
+
+	// Agent-style wishlist payload: IsWishlist=true, References carries a
+	// non-zero ID copied from the source coin's reference.
+	wishlist := &models.Coin{
+		Name:       "Domitian RIC 1",
+		Category:   models.CategoryRoman,
+		Era:        models.EraAncient,
+		Material:   models.MaterialSilver,
+		UserID:     1,
+		IsWishlist: true,
+		References: []models.CoinReference{
+			{ID: sourceRef.ID, Catalog: "RIC", Number: "1"},
+		},
+	}
+	if err := svc.CreateCoin(wishlist); err != nil {
+		t.Fatalf("CreateCoin with agent-style wishlist payload: %v", err)
+	}
+	if !wishlist.IsWishlist {
+		t.Error("result coin must be a wishlist coin")
+	}
+
+	// The invariant: no references may be persisted for a wishlist coin.
+	var refCount int64
+	if err := db.Model(&models.CoinReference{}).Where("coin_id = ?", wishlist.ID).Count(&refCount).Error; err != nil {
+		t.Fatalf("count wishlist refs: %v", err)
+	}
+	if refCount != 0 {
+		t.Errorf("wishlist invariant violated: expected 0 persisted references, got %d", refCount)
+	}
+
+	// The source reference must remain untouched.
+	var unchanged models.CoinReference
+	if err := db.First(&unchanged, sourceRef.ID).Error; err != nil {
+		t.Fatalf("source reference missing after wishlist create: %v", err)
+	}
+	if unchanged.CoinID != sourceCoin.ID {
+		t.Errorf("source reference CoinID mutated to %d, want %d", unchanged.CoinID, sourceCoin.ID)
+	}
+}
+
 func TestUpdateCoin_EstimateSkipsHistory(t *testing.T) {
 	db := setupTestDB(t)
 	svc := newTestCoinService(db)
