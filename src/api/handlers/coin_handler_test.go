@@ -1881,3 +1881,66 @@ func TestCoinHandler_ActiveCollectionCountInvariant(t *testing.T) {
 		t.Errorf("collection_summary: expected totalSold=1, got %d", summary.TotalSold)
 	}
 }
+
+// TestCoinHandler_Create_WishlistWithReferencesStoresZeroReferences is the
+// primary regression test for the wishlist catalog-reference invariant:
+//
+//	POST /api/coins with isWishlist:true and a non-empty references array
+//	must return HTTP 201 but persist ZERO coin_reference rows for the new
+//	coin. This covers both the agent-style create path (agent sends
+//	candidateReferences as part of the payload) and any other caller that
+//	supplies references on a wishlist coin.
+func TestCoinHandler_Create_WishlistWithReferencesStoresZeroReferences(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "wishlist-ref-test")
+
+	// Seed the catalog so the reference is not rejected as unknown.
+	if err := db.Create(&models.CatalogRegistry{
+		Catalog:        "RIC",
+		DisplayName:    "Roman Imperial Coinage",
+		Era:            models.EraAncient,
+		VolumeRequired: true,
+	}).Error; err != nil {
+		t.Fatalf("seed catalog: %v", err)
+	}
+
+	// This is the agent-style payload: a wishlist coin carrying a valid
+	// catalog reference (the kind an agent would populate from candidateReferences).
+	body := map[string]any{
+		"name":       "Domitian Denarius (agent suggestion)",
+		"category":   "Roman",
+		"material":   "Silver",
+		"isWishlist": true,
+		"references": []map[string]any{
+			{"catalog": "RIC", "volume": "II", "number": "162"},
+		},
+	}
+	bodyBytes, _ := json.Marshal(body)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/coins", bytes.NewReader(bodyBytes))
+	req.Header.Set("Authorization", authHeader(1))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var created models.Coin
+	if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !created.IsWishlist {
+		t.Error("created coin should be a wishlist coin")
+	}
+
+	// The invariant: no catalog reference rows must exist for the wishlist coin.
+	var refCount int64
+	if err := db.Model(&models.CoinReference{}).Where("coin_id = ?", created.ID).Count(&refCount).Error; err != nil {
+		t.Fatalf("count references: %v", err)
+	}
+	if refCount != 0 {
+		t.Errorf("invariant violated: wishlist coin has %d persisted reference(s), want 0", refCount)
+	}
+}
