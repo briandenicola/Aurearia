@@ -112,6 +112,9 @@ func (s *CoinService) prepareCoinForCreate(coin *models.Coin) error {
 	if err := s.validateStorageLocation(coin.StorageLocationID, coin.UserID); err != nil {
 		return err
 	}
+	if coin.IsWishlist {
+		coin.References = nil
+	}
 	coin.Era = models.Era(strings.TrimSpace(string(coin.Era)))
 	if err := s.validateCoinEra(coin.Era); err != nil {
 		return err

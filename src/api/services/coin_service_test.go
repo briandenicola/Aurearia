@@ -435,6 +435,52 @@ func TestUpdateCoin_NormalizesAndReplacesReferences(t *testing.T) {
 	}
 }
 
+func TestCreateCoin_DropsReferencesForWishlist(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinServiceWithReferences(db)
+	if err := db.Create(&models.CatalogRegistry{
+		Catalog:     "RSC",
+		DisplayName: "Roman Silver Coins",
+		Era:         models.EraAncient,
+	}).Error; err != nil {
+		t.Fatalf("failed to seed catalog registry: %v", err)
+	}
+
+	existing := models.Coin{Name: "Existing", Category: models.CategoryRoman, Material: models.MaterialSilver, UserID: 1}
+	if err := svc.CreateCoin(&existing); err != nil {
+		t.Fatalf("seed existing coin: %v", err)
+	}
+	existingRef := models.CoinReference{CoinID: existing.ID, Catalog: "RSC", Number: "234"}
+	if err := db.Create(&existingRef).Error; err != nil {
+		t.Fatalf("seed existing reference: %v", err)
+	}
+
+	wishlist := &models.Coin{
+		Name:       "Gordian III Denarius",
+		Category:   models.CategoryRoman,
+		Material:   models.MaterialSilver,
+		UserID:     1,
+		IsWishlist: true,
+		References: []models.CoinReference{
+			{ID: existingRef.ID, Catalog: "RSC", Number: "234"},
+		},
+	}
+	if err := svc.CreateCoin(wishlist); err != nil {
+		t.Fatalf("CreateCoin wishlist with references failed: %v", err)
+	}
+
+	if len(wishlist.References) != 0 {
+		t.Fatalf("expected wishlist response to omit references, got %#v", wishlist.References)
+	}
+	var refCount int64
+	if err := db.Model(&models.CoinReference{}).Where("coin_id = ?", wishlist.ID).Count(&refCount).Error; err != nil {
+		t.Fatalf("failed to count wishlist references: %v", err)
+	}
+	if refCount != 0 {
+		t.Fatalf("expected wishlist coin to persist zero references, got %d", refCount)
+	}
+}
+
 func TestUpdateCoin_EstimateSkipsHistory(t *testing.T) {
 	db := setupTestDB(t)
 	svc := newTestCoinService(db)

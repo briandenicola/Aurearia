@@ -515,3 +515,94 @@ func TestWishlistSearchAlertService_ValidationAndNoAvailabilitySideEffects(t *te
 		t.Fatalf("listing status mutated: %q", coin.ListingStatus)
 	}
 }
+
+// TestConvertCandidate_CoinWithNonZeroReferenceIDsDoesNotConflict proves the
+// wishlist invariant on the exact agent conversion path:
+//   - ConvertCandidateInput.Coin carries References with non-zero IDs from
+//     existing rows (as the agent might send from source/database data).
+//   - Conversion must succeed with HTTP 201.
+//   - The converted wishlist coin must have ZERO persisted reference rows.
+//   - The original reference row must remain untouched.
+func TestConvertCandidate_CoinWithNonZeroReferenceIDsDoesNotConflict(t *testing.T) {
+	svc, db := setupWishlistSearchAlertService(t)
+
+	// Seed an existing reference row so we have a real occupied primary key.
+	existingCoin := models.Coin{UserID: 1, Name: "Existing Coin", IsWishlist: false}
+	if err := db.Create(&existingCoin).Error; err != nil {
+		t.Fatalf("seed existing coin: %v", err)
+	}
+	existingRef := models.CoinReference{CoinID: existingCoin.ID, Catalog: "RIC", Number: "1"}
+	if err := db.Create(&existingRef).Error; err != nil {
+		t.Fatalf("seed existing ref: %v", err)
+	}
+	if existingRef.ID == 0 {
+		t.Fatal("seed produced ID=0; pre-condition broken")
+	}
+
+	alert, err := svc.CreateAlert(1, validAlertInput())
+	if err != nil {
+		t.Fatalf("create alert: %v", err)
+	}
+	run := &models.AlertRun{
+		AlertID: alert.ID, UserID: 1,
+		TriggerType: models.AlertRunTriggerManual, Status: models.AlertRunStatusCompleted,
+		StartedAt: alert.CreatedAt, CriteriaSnapshot: "{}",
+	}
+	if err := db.Create(run).Error; err != nil {
+		t.Fatalf("seed run: %v", err)
+	}
+	candidate := &models.AlertCandidate{
+		UserID: 1, AlertID: alert.ID, RunID: run.ID,
+		SourceURL:          "https://dealer.example/ref-id-regression",
+		CanonicalSourceURL: "https://dealer.example/ref-id-regression",
+		Title:              "Domitian Denarius RIC 1", NormalizedTitle: "domitian denarius ric 1",
+		ReasonForMatch: "regression test", LastSeenAt: alert.CreatedAt, FirstSeenAt: alert.CreatedAt,
+		ProvenanceStatus: models.CandidateProvenanceVerified, LifecycleState: models.AlertCandidateStateActive,
+		DuplicateKey: DuplicateKey(alert.ID, "https://dealer.example/ref-id-regression", "domitian denarius ric 1", nil, "USD"),
+	}
+	if err := db.Create(candidate).Error; err != nil {
+		t.Fatalf("seed candidate: %v", err)
+	}
+
+	// Build the input the way the agent/frontend would: coin includes References
+	// with IDs that came from the source/database (e.g. looked up from a prior
+	// similar coin). This is the exact payload that caused the regression.
+	input := ConvertCandidateInput{
+		Coin: models.Coin{
+			Name:     "Domitian Denarius RIC 1",
+			Category: models.CategoryRoman,
+			Era:      models.EraAncient,
+			References: []models.CoinReference{
+				{ID: existingRef.ID, Catalog: "RIC", Number: "1"},
+			},
+		},
+	}
+
+	result, err := svc.ConvertCandidate(alert.ID, candidate.ID, 1, input)
+	if err != nil {
+		t.Fatalf("ConvertCandidate with non-zero reference ID failed: %v", err)
+	}
+	if !result.Coin.IsWishlist {
+		t.Error("converted coin should be a wishlist coin")
+	}
+
+	// Wishlist coins discard references — no coin_references rows should exist
+	// for the newly created coin.
+	var refCount int64
+	if err := db.Model(&models.CoinReference{}).Where("coin_id = ?", result.Coin.ID).Count(&refCount).Error; err != nil {
+		t.Fatalf("count converted coin references: %v", err)
+	}
+	if refCount != 0 {
+		t.Errorf("expected 0 references on wishlist coin, got %d", refCount)
+	}
+
+	// The existing reference row must remain untouched and still owned by the
+	// original coin — it must not have been reassigned or deleted.
+	var unchanged models.CoinReference
+	if err := db.First(&unchanged, existingRef.ID).Error; err != nil {
+		t.Fatalf("existing reference missing after conversion: %v", err)
+	}
+	if unchanged.CoinID != existingCoin.ID {
+		t.Errorf("existing reference CoinID mutated to %d, want %d", unchanged.CoinID, existingCoin.ID)
+	}
+}
