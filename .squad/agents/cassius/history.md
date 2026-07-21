@@ -30,6 +30,22 @@
 
 ## Recent Updates
 
+- **2026-07-21 — Agent Wishlist Reference ID Fix (fix/agent-wishlist-reference-ids):**
+  - User reported "Failed to add coin to wishlist: duplicate references are not allowed" from agent.
+  - Root cause: ConvertCandidateInput.Coin uses models.Coin (not CoinCreateRequest), so agent-supplied references carry non-zero IDs from source data. GORM batch db.Create(&refs) with non-zero IDs generates INSERT ... (id) VALUES (115) — UNIQUE constraint violation on coin_references.id.
+  - **Three defensive fix layers committed:**
+    1. NormalizeAndValidate (coin_reference_service.go) zeros 
+.ID and 
+.CoinID before returning — single-point defense for all create/replace paths.
+    2. createPreparedCoinInTx (coin_service.go) detaches pendingReferences := coin.References; coin.References = nil before 	xRepo.Create(coin) — prevents any GORM auto-cascade.
+    3. CoinRepository.Create (coin_repository.go) uses Omit("References") — belt-and-suspenders at the persistence layer.
+    4. prepareCoinForCreate (coin_service.go, committed 4bb4636) drops References entirely for wishlist coins — covers the specific agent/ConvertCandidate path.
+  - **GORM batch behavior:** db.Create(&slice) with non-zero IDs includes id in the INSERT; db.Create(&singleRecord) with non-zero ID uses AUTOINCREMENT (omits id). This asymmetry is why the bug only surfaced on batch paths.
+  - Regression tests in coin_reference_regression_test.go: NormalizeAndValidate ID zeroing, cross-coin update, two collection coins with same incoming ID.
+  - All tests pass: go test ./... ✅
+  - Files: src/api/services/coin_reference_service.go, src/api/services/coin_service.go, src/api/repository/coin_repository.go, src/api/services/coin_reference_regression_test.go
+  - Commits: 4bb4636 (wishlist drop), feb2306 (defensive layers + regression tests)
+
 - **2026-06-23:** Wishlist Availability Tracker — Sold VCoins Detection Fix
   - User reported sold items classified as "unknown" in wishlist availability reports
   - Root cause: keyword pattern `>sold<` too strict for VCoins HTML with whitespace
