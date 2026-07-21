@@ -1,13 +1,13 @@
 <template>
-  <div class="grid grid-cols-[repeat(auto-fill,minmax(84px,1fr))] gap-4">
+  <div class="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-4">
     <div v-for="slot in slots" :key="wellKey(slot)" class="flex flex-col items-center gap-1 text-center">
       <MuseumTrayWell
         :coin="toTrayCoin(slot)"
-        :render-size-px="72"
+        :render-size-px="88"
         :interactive="!!slot.coin"
         @coin-clicked="onWellClicked"
       />
-      <span class="max-w-[84px] truncate text-xs text-text-secondary" :title="slot.figure.name">
+      <span class="max-w-[100px] truncate text-xs text-text-secondary" :title="slot.figure.name">
         {{ slot.figure.name }}
       </span>
       <label v-if="slot.coins.length > 1" class="flex w-full max-w-[120px] flex-col gap-1">
