@@ -13,6 +13,11 @@
 
 ## Recent Updates
 
+- **2026-07-21:** Wishlist Reference Regression Coverage — `fix/agent-wishlist-reference-ids`
+  - **Primary invariant (Brian's spec):** Wishlist coins must have ZERO persisted catalog references after creation, regardless of what the caller supplies, including agent-created wishlist items.
+  - The implementation was narrowed to wishlist creation only: `prepareCoinForCreate` clears `coin.References` when `coin.IsWishlist` is true.
+  - Regression coverage focuses on wishlist paths: service-level creation with supplied references, handler-level `POST /api/coins` with `isWishlist:true`, and wishlist search alert candidate conversion carrying references.
+
 - **2026-07-20:** NumisBids #490 Regression Coverage — Reduced Watchlist Scope
   - Cassius delivered a complete rewrite of `numisbids_service.go` (browseDivRe/togglewatchRe/summaryHrefRe/summaryTextRe/priceFieldRe) matching the real NumisBids watchlist markup structure confirmed by HAR inspection.
   - Cassius also produced `testdata/numisbids_watchlist.html` (sanitized fixture from real account) and 10 updated parser/diagnostics tests in `numisbids_service_test.go`.
