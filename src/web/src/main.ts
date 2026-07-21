@@ -8,8 +8,8 @@ import './assets/styles/main.css'
 const savedTheme = localStorage.getItem('theme') || 'dark'
 document.documentElement.setAttribute('data-theme', savedTheme)
 
-// Register service worker with auto-update; usePwaUpdate() (used by PwaUpdateBanner.vue)
-// surfaces onNeedRefresh so the user can actually apply the update.
+// Register service worker in prompt mode; PwaUpdateBanner surfaces onNeedRefresh
+// so users can choose when to apply a newly deployed version.
 import '@/composables/usePwaUpdate'
 
 const app = createApp(App)

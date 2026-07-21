@@ -47,7 +47,7 @@ export default defineConfig({
     tailwindcss(),
     vue(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['coin-logo.jpg'],
       manifest: {
         name: 'Aurearia - Coin Collection',
@@ -82,8 +82,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,woff2}'],
         navigateFallbackDenylist: [/^\/api/, /^\/uploads/, /^\/sw\.js/],
         cleanupOutdatedCaches: true,
-        skipWaiting: true,
-        clientsClaim: true,
+        skipWaiting: false,
+        clientsClaim: false,
         runtimeCaching: [
           {
             urlPattern: /^https?:\/\/.*\/api\//,
