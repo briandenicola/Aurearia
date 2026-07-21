@@ -113,7 +113,7 @@ A global navigation guard redirects unauthenticated users to `/login`, non-admin
 
 ## PWA
 
-The app uses `vite-plugin-pwa` with `registerType: 'autoUpdate'`:
+The app uses `vite-plugin-pwa` with `registerType: 'prompt'`:
 
 - **Manifest**: `standalone` display mode, dark theme (`#1a1a2e` / `#0f0f1a`)
 - **Precaching**: All JS, CSS, HTML, images, and fonts via Workbox glob patterns
@@ -122,6 +122,7 @@ The app uses `vite-plugin-pwa` with `registerType: 'autoUpdate'`:
   - `PUT/POST/DELETE /api/*` — NetworkOnly
   - `/uploads/*` — not runtime cached; legacy `coin-images` caches are cleared on logout/user switch
 - **Navigation fallback**: Denies `/api`, `/uploads`, and `/sw.js`
+- **Update notification**: New service workers wait until the user accepts the in-app update banner; update checks run on registration, hourly, and when the app returns to the foreground
 
 ## Design System
 

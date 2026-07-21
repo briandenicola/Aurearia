@@ -15,3 +15,14 @@ describe('PWA private media cache policy', () => {
     expect(config).not.toMatch(/api\\\/uploads/)
   })
 })
+
+describe('PWA update notification policy', () => {
+  it('uses prompt-based service worker updates so the update banner can appear', () => {
+    const config = readFileSync(VITE_CONFIG, 'utf-8')
+
+    expect(config).toContain("registerType: 'prompt'")
+    expect(config).toContain('skipWaiting: false')
+    expect(config).toContain('clientsClaim: false')
+    expect(config).not.toContain("registerType: 'autoUpdate'")
+  })
+})

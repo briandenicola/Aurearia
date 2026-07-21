@@ -49,16 +49,40 @@ describe('usePwaUpdate', () => {
     expect(mockApplyUpdate).toHaveBeenCalledWith(true)
   })
 
-  it('polls the registration for updates every hour', () => {
-    const registration = { update: vi.fn() } as unknown as ServiceWorkerRegistration
+  it('checks for updates on registration and every hour', () => {
+    const registration = { update: vi.fn().mockResolvedValue(undefined) } as unknown as ServiceWorkerRegistration
     capturedOptions.onRegisteredSW?.('sw.js', registration)
 
-    expect(registration.update).not.toHaveBeenCalled()
-
-    vi.advanceTimersByTime(60 * 60 * 1000)
     expect(registration.update).toHaveBeenCalledTimes(1)
 
     vi.advanceTimersByTime(60 * 60 * 1000)
     expect(registration.update).toHaveBeenCalledTimes(2)
+
+    vi.advanceTimersByTime(60 * 60 * 1000)
+    expect(registration.update).toHaveBeenCalledTimes(3)
+  })
+
+  it('checks for updates when the app returns to the foreground', () => {
+    const registration = { update: vi.fn().mockResolvedValue(undefined) } as unknown as ServiceWorkerRegistration
+    const focusSpy = vi.spyOn(window, 'addEventListener')
+    const visibilityListenerSpy = vi.spyOn(document, 'addEventListener')
+    const visibilitySpy = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+    capturedOptions.onRegisteredSW?.('sw.js', registration)
+
+    expect(registration.update).toHaveBeenCalledTimes(1)
+    const focusHandler = focusSpy.mock.calls.find(([event]) => event === 'focus')?.[1] as (() => void) | undefined
+    const visibilityHandler = visibilityListenerSpy.mock.calls.find(([event]) => event === 'visibilitychange')?.[1] as (() => void) | undefined
+
+    vi.advanceTimersByTime(5 * 60 * 1000 + 1)
+    focusHandler?.()
+    expect(registration.update).toHaveBeenCalledTimes(2)
+
+    vi.advanceTimersByTime(5 * 60 * 1000 + 1)
+    visibilityHandler?.()
+    expect(registration.update).toHaveBeenCalledTimes(3)
+
+    focusSpy.mockRestore()
+    visibilityListenerSpy.mockRestore()
+    visibilitySpy.mockRestore()
   })
 })
