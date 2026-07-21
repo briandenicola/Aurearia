@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import ImperialFigureWellGrid from '@/components/emperor-tracker/ImperialFigureWellGrid.vue'
+import MuseumTrayWell from '@/components/tray/MuseumTrayWell.vue'
 import type { ImperialFigureSlot } from '@/types'
 
 const mockPush = vi.fn()
@@ -33,6 +34,12 @@ describe('ImperialFigureWellGrid', () => {
     const wrapper = mount(ImperialFigureWellGrid, { props: { slots: [ownedSlot, unownedSlot] } })
     expect(wrapper.text()).toContain('Augustus')
     expect(wrapper.text()).toContain('Tiberius')
+  })
+
+  it('renders emperor wells at the larger set display size', () => {
+    const wrapper = mount(ImperialFigureWellGrid, { props: { slots: [ownedSlot] } })
+
+    expect(wrapper.findComponent(MuseumTrayWell).props('renderSizePx')).toBe(88)
   })
 
   it('renders an owned figure as interactive and navigates to the coin on click', async () => {
