@@ -171,9 +171,8 @@ const router = createRouter({
     },
     {
       path: '/stats/emperors',
-      name: 'stats-emperors',
-      component: () => import('@/pages/EmperorTrackerPage.vue'),
-      meta: { requiresAuth: true, requiresEmperorTracker: true },
+      name: 'stats-emperors-redirect',
+      redirect: '/sets/emperors',
     },
     {
       path: '/mint-map',
@@ -280,6 +279,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/sets/emperors',
+      name: 'sets-emperors',
+      component: () => import('@/pages/EmperorTrackerPage.vue'),
+      meta: { requiresAuth: true, requiresEmperorTracker: true },
+    },
+    {
       path: '/sets/:id',
       name: 'set-detail',
       component: () => import('@/pages/SetDetailPage.vue'),
@@ -297,7 +302,7 @@ router.beforeEach((to) => {
     return { name: 'collection' }
   }
   if (to.meta.requiresEmperorTracker && !auth.user?.emperorTrackerEnabled) {
-    return { name: 'stats' }
+    return { name: 'sets' }
   }
 })
 
