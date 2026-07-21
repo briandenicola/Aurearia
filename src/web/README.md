@@ -87,7 +87,7 @@ src/
 | `/stats/value-trends` | StatsValueTrendsPage | Yes |
 | `/stats/investment-breakdown` | StatsInvestmentBreakdownPage | Yes |
 | `/stats/distribution` | CollectionDistributionPage | Yes |
-| `/stats/emperors` | EmperorTrackerPage | Yes + Emperor Tracker |
+| `/stats/emperors` | Redirects to `/sets/emperors` | Yes + Emperor Tracker |
 | `/mint-map` | Redirects to `/stats/mint-map` | Yes |
 | `/timeline` | Redirects to `/stats/timeline` | Yes |
 | `/notes` | NotesPage | Yes |
@@ -105,10 +105,11 @@ src/
 | `/calendar` | CalendarPage | Yes |
 | `/tray` | TrayViewPage | Yes |
 | `/sets` | SetsPage | Yes |
+| `/sets/emperors` | EmperorTrackerPage | Yes + Emperor Tracker |
 | `/sets/:id` | SetDetailPage | Yes |
 | `/process-image` | Redirects to `/settings?tab=process` | — |
 
-A global navigation guard redirects unauthenticated users to `/login`, non-admin users away from `/admin`, and users without Emperor Tracker enabled away from `/stats/emperors`.
+A global navigation guard redirects unauthenticated users to `/login`, non-admin users away from `/admin`, and users without Emperor Tracker enabled away from `/sets/emperors`.
 
 ## PWA
 

@@ -66,6 +66,22 @@ describe('useCoinSearchChat wishlist payload', () => {
     })
   })
 
+  it('does not require or send catalog references for wishlist suggestions', () => {
+    const payload = buildWishlistCoinPayload(makeSuggestion({
+      candidateReferences: [
+        { catalog: '', number: '123' },
+        { catalog: ' RIC ', number: '456', volume: '' },
+        { catalog: 'SEAR', number: '' },
+      ],
+    }))
+
+    expect(payload).toMatchObject({
+      name: 'Trajan Denarius',
+      isWishlist: true,
+    })
+    expect(payload.references).toBeUndefined()
+  })
+
   it('truncates agent text fields to backend create-coin limits', () => {
     const payload = buildWishlistCoinPayload(makeSuggestion({
       name: 'A'.repeat(250),

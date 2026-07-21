@@ -74,12 +74,12 @@
                 :size="16"
                 class="ml-auto shrink-0 text-text-muted transition-transform"
                 :class="{
-                  'rotate-180': (item.id === 'stats' && statsExpanded) || (item.id === 'collection' && collectionExpanded)
+                  'rotate-180': (item.id === 'stats' && statsExpanded) || (item.id === 'collection' && collectionExpanded) || (item.id === 'sets' && setsExpanded)
                 }"
               />
             </component>
             <div
-              v-if="item.children?.length && !editMode && ((item.id === 'stats' && statsExpanded) || (item.id === 'collection' && collectionExpanded))"
+              v-if="item.children?.length && !editMode && ((item.id === 'stats' && statsExpanded) || (item.id === 'collection' && collectionExpanded) || (item.id === 'sets' && setsExpanded))"
               class="flex flex-col pt-[0.15rem] pb-[0.35rem]"
               :aria-label="`${item.label} views`"
             >
@@ -227,6 +227,7 @@ const { unreadCount, startPolling, stopPolling } = useNotifications()
 const { bulkSelectActive } = useBulkSelect()
 const statsExpanded = ref(false)
 const collectionExpanded = ref(false)
+const setsExpanded = ref(false)
 const agentFabPosition = ref<{ x: number; y: number } | null>(null)
 const isDraggingAgentFab = ref(false)
 const agentFabSuppressClick = ref(false)
@@ -277,10 +278,19 @@ const defaultNavItems: NavItem[] = [
       { id: 'stats-health', label: 'Health', to: '/stats/health' },
       { id: 'stats-value-trends', label: 'Value Details', to: '/stats/value-trends' },
       { id: 'stats-investment-breakdown', label: 'Investment Breakdown', to: '/stats/investment-breakdown' },
-      { id: 'stats-emperors', label: 'Emperors', to: '/stats/emperors' },
     ],
   },
-  { id: 'sets', label: 'Sets', icon: markRaw(Layers3), to: '/sets', visible: true },
+  {
+    id: 'sets',
+    label: 'Sets',
+    icon: markRaw(Layers3),
+    to: '/sets',
+    visible: true,
+    children: [
+      { id: 'sets-list', label: 'My Sets', to: '/sets' },
+      { id: 'sets-emperors', label: 'Emperors', to: '/sets/emperors' },
+    ],
+  },
   { id: 'notes', label: 'Notes', icon: markRaw(NotebookPen), to: '/notes', visible: true },
   { id: 'calendar', label: 'Calendar', icon: markRaw(CalendarDays), to: '/calendar', visible: true },
   { id: 'showcases', label: 'Showcases', icon: markRaw(Share2), to: '/showcases', visible: true },
@@ -322,10 +332,10 @@ const orderedNavItems = computed(() => {
   return items
     .filter(item => item.visible)
     .map(item => {
-      if (item.id !== 'stats' || !item.children) return item
+      if (item.id !== 'sets' || !item.children) return item
       return {
         ...item,
-        children: item.children.filter(child => child.id !== 'stats-emperors' || auth.user?.emperorTrackerEnabled),
+        children: item.children.filter(child => child.id !== 'sets-emperors' || auth.user?.emperorTrackerEnabled),
       }
     })
 })
@@ -356,6 +366,12 @@ function handleNavClick(item: NavItem) {
   } else if (item.id === 'stats' && item.children?.length) {
     statsExpanded.value = !statsExpanded.value
     if (!statsExpanded.value && item.to) {
+      router.push(item.to)
+      sidebarOpen.value = false
+    }
+  } else if (item.id === 'sets' && item.children?.length) {
+    setsExpanded.value = !setsExpanded.value
+    if (!setsExpanded.value && item.to) {
       router.push(item.to)
       sidebarOpen.value = false
     }

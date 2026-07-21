@@ -28,7 +28,7 @@ vi.mock('@/api/client', () => ({
 function mountPage() {
   return mount(EmperorTrackerPage, {
     global: {
-      stubs: { RouterLink: { template: '<a><slot /></a>' } },
+      stubs: { RouterLink: { props: ['to'], template: '<a :to="to"><slot /></a>' } },
     },
   })
 }
@@ -93,6 +93,16 @@ describe('EmperorTrackerPage', () => {
     expect(wrapper.text()).toContain('Julio-Claudian')
     expect(wrapper.text()).toContain('Augustus')
     expect(wrapper.text()).toContain('Tiberius')
+  })
+
+  it('links back to Sets from the page header', async () => {
+    mockGetProgress.mockResolvedValue({ data: fullResult })
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const backLink = wrapper.find('a[aria-label="Back to Sets"]')
+    expect(backLink.exists()).toBe(true)
+    expect(backLink.attributes('to')).toBe('/sets')
   })
 
   it('shows the what-to-pursue-next suggestions list', async () => {

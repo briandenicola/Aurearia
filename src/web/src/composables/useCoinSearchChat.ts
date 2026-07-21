@@ -68,8 +68,9 @@ export function parseSuggestionPrice(price: string): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function limitText(value: string | undefined, max: number): string {
-  return (value ?? '').trim().slice(0, max)
+function limitText(value: unknown, max: number): string {
+  const text = typeof value === 'string' ? value : value == null ? '' : String(value)
+  return text.trim().slice(0, max)
 }
 
 function shouldKeepCandidateReference(ref: { catalog?: string; number?: string; volume?: string }): boolean {
@@ -90,7 +91,7 @@ export function buildWishlistCoinPayload(coin: CoinSuggestion): CoinMutationPayl
       uri: limitText(ref.uri, FIELD_LIMITS.referenceUri),
     }))
 
-  return {
+  const payload: CoinMutationPayload = {
     name: limitText(coin.name, FIELD_LIMITS.name) || 'Agent coin suggestion',
     category,
     material,
@@ -102,8 +103,11 @@ export function buildWishlistCoinPayload(coin: CoinSuggestion): CoinMutationPayl
     referenceText: limitText(coin.sourceName, FIELD_LIMITS.referenceText),
     isWishlist: true,
     currentValue: parseSuggestionPrice(coin.estPrice),
-    references: candidateReferences,
   }
+  if (candidateReferences.length > 0) {
+    payload.references = candidateReferences
+  }
+  return payload
 }
 
 export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
