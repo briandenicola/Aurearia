@@ -125,12 +125,14 @@ func (s *CoinService) prepareCoinForCreate(coin *models.Coin) error {
 func (s *CoinService) createPreparedCoinInTx(tx *gorm.DB, coin *models.Coin) error {
 	create := func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)
+		pendingReferences := coin.References
+		coin.References = nil
 		if err := txRepo.Create(coin); err != nil {
 			return err
 		}
 
-		if s.refRepo != nil && s.refSvc != nil && coin.References != nil {
-			normalized, err := s.refSvc.NormalizeAndValidate(coin.References)
+		if s.refRepo != nil && s.refSvc != nil && pendingReferences != nil {
+			normalized, err := s.refSvc.NormalizeAndValidate(pendingReferences)
 			if err != nil {
 				return err
 			}

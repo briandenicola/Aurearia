@@ -55,6 +55,9 @@ func (s *CoinReferenceService) NormalizeAndValidate(
 			)
 		}
 		seen[key] = struct{}{}
+		// Strip any client-supplied primary key so CreateBatch always generates a fresh row.
+		n.ID = 0
+		n.CoinID = 0
 		normalized = append(normalized, n)
 	}
 
