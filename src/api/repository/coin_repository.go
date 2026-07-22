@@ -409,7 +409,7 @@ func (r *CoinRepository) TopOwnedByCurrentValue(userID uint, limit int) ([]model
 
 // Create inserts a new coin and returns it with images preloaded.
 func (r *CoinRepository) Create(coin *models.Coin) error {
-	if err := r.db.Create(coin).Error; err != nil {
+	if err := r.db.Omit("References").Create(coin).Error; err != nil {
 		return err
 	}
 	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(coin, coin.ID).Error
