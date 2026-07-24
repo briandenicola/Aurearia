@@ -39,7 +39,7 @@ describe('ImageLightbox', () => {
 
     await wrapper.vm.$nextTick()
 
-    const container = wrapper.find('.relative.flex.max-h-full.max-w-full.items-center.justify-center')
+    const container = wrapper.find('.relative.flex.h-full.w-full.items-center.justify-center')
     expect(container.exists()).toBe(true)
 
     const image = container.find('authenticated-image-stub')
@@ -65,7 +65,7 @@ describe('ImageLightbox', () => {
 
   it('removes processing class when processing completes', async () => {
     const wrapper = mountLightbox()
-    const imageSelector = '.relative.flex.max-h-full.max-w-full.items-center.justify-center authenticated-image-stub'
+    const imageSelector = '.relative.flex.h-full.w-full.items-center.justify-center authenticated-image-stub'
     const overlaySelector = '.pointer-events-none.absolute.inset-0'
 
     wrapper.vm.processing = true

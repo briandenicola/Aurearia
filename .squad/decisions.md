@@ -1964,6 +1964,345 @@ Auction Ending scheduler needed manual-run capability and run logging to achieve
 
 **GET /api/admin/auction-ending-runs?page=1&limit=20** (admin only, paginated)
 - Response: {runs: [...], total, page, limit}
+
+---
+
+### Decision: ImageLightbox — flex height chain for image scaling
+
+**Date:** 2026-07-24
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+Very large obverse/reverse images were overflowing/cropping inside the lightbox modal body instead of scaling down to fit.
+
+## Root Cause
+
+The modal body used `flex flex-1 overflow-auto`. In CSS, `max-height: 100%` on a flex child only resolves when the **parent has a definite height**. Because `overflow-auto` lets content expand the scroll height freely, `max-h-full` on the inner container became effectively unbounded.
+
+## Decision
+
+Two surgical changes to `ImageLightbox.vue`:
+
+1. **Body div:** add `min-h-0` to the `flex flex-1` element. This removes the default `min-height: auto` so the flex item can shrink and gains a definite computed height bounded by the modal's `max-h-[90vh]`.
+2. **Inner image container:** changed from `max-h-full max-w-full` to `h-full w-full` so the image's own `max-h-full max-w-full object-contain` resolves correctly against the now-definite space.
+
+## Alignment
+
+- Principle IV: no hardcoded values; purely Tailwind utility classes that map to design tokens.
+- Principle XIII: `min-h-0` and `h-full` are dimension-agnostic and work correctly on both desktop and mobile (max-md variants untouched).
+- Tests updated to the new container selector (`.relative.flex.h-full.w-full.items-center.justify-center`); both pass.
+
+---
+
+### Decision: Aurelia — Price Alerts and Bid Reminders UI
+
+**Date:** 2026-07-24
+
+Frontend admin schedule UI is aligned to Cassius's completed auction alert scheduler endpoints:
+
+- `GET /admin/auction-alert-runs`
+- `POST /admin/auction-alerts/run`
+
+The admin panel label is **Auction Price Alerts and Bid Reminders** because the scheduler evaluates both user price thresholds and close-time reminders in one run.
+
+## Rationale
+
+Issue #371 chose completion over removal, and the backend implementation provides one scheduler/run-log contract for both alert domains. Keeping one admin panel follows the existing Admin Schedules run-now/history pattern and avoids duplicating controls for a shared scheduler.
+
+## Frontend notes
+
+- User CRUD remains on `/alerts` and `/reminders`.
+- Run history accepts `priceAlertsTriggered` and `bidRemindersSent`, with tolerant fallbacks for earlier expected field names.
+- Schedule settings use `PriceAlertCheckEnabled`, `PriceAlertCheckStartTime`, and `PriceAlertCheckInterval`.
+
+---
+
+### NumisBids #490 — Watchlist Regression Coverage Decisions
+
+**Date:** 2026-07-20  
+**Author:** Brutus (Tester)  
+**Scope:** `src/api/services/numisbids_service.go`, `src/api/services/numisbids_service_test.go`, `src/api/services/testdata/numisbids_watchlist.html`
+
+## What Cassius Already Delivered (pre-existing uncommitted work)
+
+Cassius rewrote `numisbids_service.go` and `numisbids_service_test.go` to match real NumisBids watchlist markup. Key decisions in that work:
+
+1. **New parser uses `browse`-div anchor, not `<a href>` scanning.** Each watched lot is wrapped in `<div class="browse {saleID} watch{watchlistID}">`. Using this div as the lot boundary eliminates the double-entry bug from the old parser (each lot had two `<a>` anchors with the same href — thumbnail + title — which caused duplicate entries).
+
+2. **Sale name and date from `togglewatch` header.** `<div class="togglewatch" id="{saleID}">{SaleName} ({date})</div>` — all lots under a sale share this header. No per-lot scrape is needed for these fields.
+
+3. **`SourceLotID` is now the watchlist entry ID** (`watch{ID}` from browse class), not a lot number. This is the stable NumisBids identifier for a watchlist entry.
+
+4. **`priceFieldRe` handles both label variants:** `Estimate: 100 AUD` (legacy plain text) and `Starting price: <span class="rateclick" data-eur="40">40 EUR</span>` (current e-auction format with nested span). The nested `<span>` was a markup detail only confirmable from a real HAR.
+
+5. **`testdata/numisbids_watchlist.html`** is a sanitized fixture derived from a live account (HAR capture 2026-07). No personal data, session cookies, or account identifiers committed. This file is the regression anchor for markup drift.
+
+## What Brutus Added
+
+**Decision: Add `TestParseWatchlist_NoProviderOutcomeFieldsForOpenLot`**
+
+This test, anchored to the real fixture file, explicitly asserts that `MaxBid`, `ProviderStatus`, `SoldPrice`, and `WinningCustomerRowID` are all zero/nil/empty after parsing a current NumisBids watchlist.
+
+**Rationale:**  
+- CNG's `syncCNG` auto-resolves lots by reading `status`, `sold_price`, and `WinningCustomerRowID` from JSON. This test is a permanent guard against accidentally applying similar logic to NumisBids, which has no such outcome signals on its watchlist page.
+- F022 AC explicitly states: "If NumisBids has no such signal, document that explicitly rather than leaving it silently unhandled." This test is that documentation as executable code.
+- Without this test, a future engineer could add auto-resolution logic to `syncNumisBids` without noticing there is no data to drive it.
+
+## Open Questions for F022 Tracking
+
+- F022's ACs for `MaxBid` / autobid detection remain **open** — the HAR shows no autobid concept on the NumisBids watchlist. Recommend closing AC with a decision note: "NumisBids has no per-lot max-bid field on the watchlist page. The scraper cannot populate `MaxBid`. Manual lot management required."
+- End-time precision: current `AuctionEndTime` = sale-wide coarse date. Per F022, per-lot end time is unverified. Flagging but not blocking F022 on this item since it predates #490.
+
+---
+
+### Decision: Wishlist Reference ID Regression Coverage Complete
+
+**Branch:** `fix/agent-wishlist-reference-ids`  
+**Date:** 2026-07-21  
+**Author:** Brutus
+
+## Decision
+
+Regression test coverage for the wishlist catalog-reference invariant is complete and passing. Implementation by Cassius is approved at the test level.
+
+## Primary Invariant (Brian's spec, 2026-07-21)
+
+**Wishlist coins must have ZERO persisted catalog references after creation**, regardless of what the caller supplies in the payload — including agent-created wishlist items carrying `candidateReferences`.
+
+## Secondary Invariant (defense-in-depth)
+
+Non-wishlist coins that receive references with non-zero IDs (stale IDs from agent/source data) must INSERT fresh rows, never reuse the incoming ID.
+
+## Fix Layers (Cassius, all four required)
+
+1. `NormalizeAndValidate` in `coin_reference_service.go` now zeroes `n.ID = 0; n.CoinID = 0`.
+2. `createPreparedCoinInTx` in `coin_service.go` stashes `pendingReferences`, clears `coin.References = nil` before `txRepo.Create(coin)`, preventing GORM auto-cascade.
+3. `prepareCoinForCreate` in `coin_service.go` drops `References` for wishlist coins (`if coin.IsWishlist { coin.References = nil }`). Design decision: wishlist coins are placeholders; catalog references on them are discarded rather than persisted.
+4. `coin_repository.go` `Create` uses `.Omit("References")` as belt-and-suspenders.
+
+## Tests Added by Brutus (post-correction from Brian)
+
+### `handlers/coin_handler_test.go` — primary invariant proof at the HTTP layer
+- `TestCoinHandler_Create_WishlistWithReferencesStoresZeroReferences` — **the top-level regression test**: `POST /api/coins` with `isWishlist:true` and a non-empty references array → HTTP 201 + 0 coin_reference rows persisted. This is the agent-style create path.
+- `TestCoinHandler_Create_NonWishlistWithReferencesStoresReferences` — guard: confirms references ARE saved for collection coins (non-wishlist behavior is unaffected).
+- `TestNormalizeAndValidate_ZeroesIncomingReferenceIDs` — pure unit test proving the service defensive layer zeroes IDs independently of the coin service.
+- `TestUpdateCoin_CrossCoinReferenceIDNotReusedOnUpdate` — proves updating coin B with a reference whose ID belongs to coin A doesn't fail and doesn't mutate coin A's row.
+- `TestCreateCoin_CollectionCoinSecondReferenceWithSameIDDoesNotConflict` — proves two concurrent coin creates each carrying the same stale incoming ID both succeed with distinct new primary keys.
+
+### `services/wishlist_search_alert_service_test.go` (append)
+- `TestConvertCandidate_CoinWithNonZeroReferenceIDsDoesNotConflict` — the exact failing path: agent conversion with `ConvertCandidateInput.Coin.References` carrying a real existing `id`. Proves the call succeeds, the converted coin is a wishlist coin with zero reference rows, and the original reference row is untouched.
+
+## Design Note for Team
+
+Wishlist coins now discard all nested `References` at create time. This is intentional per Cassius's implementation and confirmed by `TestCreateCoin_DropsReferencesForWishlist`. If a future spec requires wishlist coins to store catalog references, the guard in `prepareCoinForCreate` must be revisited alongside `TestCreateCoin_DropsReferencesForWishlist`.
+
+## Status
+
+All tests pass. `go test ./services/ ./repository/ ./handlers/` ✅, `go vet ./...` ✅. No regressions.
+
+---
+
+### Decision: NumisBids is a Reduced-Scope Provider (import/watchlist tracker only)
+
+**Date:** 2026-07-20
+**Author:** Cassius (Backend Dev)
+**Issue:** #490 / F022
+**Status:** accepted
+
+## Context
+
+A real authenticated NumisBids watchlist session (HAR, 2026-07) was inspected to verify
+what data the site actually exposes. The findings were compared against the code's prior
+assumptions and against CNG's richer data model.
+
+## Verified markup shape (current, 2026-07)
+
+- Authenticated page: title `NumisBids: Watch List`, navigation links `/bidhistory`, `/watchlist`, `/logout`.
+- Sale group header: `<div class="togglewatch" id="{saleID}">{SaleName} ({date})</div>` — plain text, no nested HTML.
+- Lot card: `<div class="browse {saleID} watch{watchlistID}" style="height: 360px;">`.
+  - Lot number label: `<span class="lot"><a href="/sale/{saleID}/lot/{N}">Lot N</a></span>`.
+  - Price: `<span class="estimate">Starting price: <span class="rateclick" ...>40 EUR</span></span>`.
+  - Image: `<img src="//media.numisbids.com/...thumb...jpg">` (protocol-relative).
+  - Title/URL: `<span class="summary"><a href="/sale/{saleID}/lot/{N}">COIN DESCRIPTION</a></span>`.
+  - Remove link: `/sales/hosted/watchlist_ajax.php?lid={watchlistID}&remove=1`.
+- **No max-bid, no winning-bidder, no won/lost lifecycle signal appears** in any verified page
+   (watchlist, lot detail, bid history).
+
+## Decision
+
+**NumisBids is treated as a watchlist/import tracker only — not a full bidding-outcome provider.**
+
+Specific consequences:
+
+1. `ParseWatchlist` extracts all fields needed for import (URL, title, image, starting price,
+   sale name, sale date, watchlist entry ID) directly from the watchlist HTML; no per-lot
+   `ScrapeLotPage` HTTP request is made in the sync or manual-import path.
+
+2. `SourceLotID` is populated from the `watch{id}` class on each browse div. This is the
+   watchlist entry identifier (matching `lid` in the remove URL) and is suitable as an
+   idempotent upsert key.
+
+3. `syncNumisBids` applies only two status transitions:
+   - `Watching` → `Passed` (automatic, when sale date is in the past).
+   - `Watching`/`Passed` → `Won`/`Lost` (manual override only; the site provides no signal).
+
+4. The UI must not imply NumisBids lots will auto-resolve to Won/Lost. Any UI language
+   implying automatic outcome detection applies to CNG only (see `syncCNG` for the reference
+   implementation using `WinningCustomerRowID` comparison).
+
+5. `MaxBid` and `CurrentBid` are not populated for NumisBids lots by the sync. The starting
+   price is stored in `Estimate`. If a per-lot current-bid value is ever needed, a targeted
+   `ScrapeLotPage` call remains available in `NumisBidsService` but is intentionally excluded
+   from the hot sync path to avoid N×HTTP overhead.
+
+## Remaining open questions (from F022)
+
+- End-time precision: NumisBids provides a coarse sale-wide calendar date (no per-lot close
+  time). `AuctionEndTime` is set to this coarse date. The UI should not treat NumisBids bid
+  reminders as having minute-level precision.
+- Legacy `/n.php?p=lot&sid=...` URLs: still supported in `parseNumisBidsLotHref` for old
+  bookmarks but have not been observed in the current watchlist.
+
+## Files changed
+
+- `src/api/services/numisbids_service.go` — rewritten `ParseWatchlist` (browse-div anchor,
+  togglewatch sale group extraction, `priceFieldRe` covering both price labels,
+  `extractWatchlistSaleGroups`). Removed link-based parser, `findWatchlistLotLinks`,
+  `watchlistLotLink`, `extractLotTitle`.
+- `src/api/services/auction_watchlist_sync_service.go` — removed per-lot `ScrapeLotPage`
+  from `syncNumisBids`; added `SourceLotID`; added reduced-scope comment.
+- `src/api/handlers/auction_lots.go` — removed per-lot `ScrapeLotPage` from manual import
+  handler; added `SourceLotID`, `AuctionEndTime`.
+- `src/api/services/testdata/numisbids_watchlist.html` — new sanitized fixture.
+- `src/api/services/numisbids_service_test.go` — replaced 3 stale tests; added 9 new tests
+  covering: browse-div extraction, title from summary span, SourceLotID, starting price,
+  sale name/date, duplicate-lot prevention, absolute/legacy URLs, non-numisbids rejection,
+  real fixture.
+- `src/api/services/auction_watchlist_sync_service_test.go` — updated AuctionEndTime test to
+  use new markup; added `TestAuctionWatchlistSyncService_SyncNumiBidsNoPerLotScrape`.
+
+---
+
+### Decision: Complete Price Alerts and Bid Reminders via Auction Alerts Scheduler
+
+Date: 2026-07-02
+Owner: Cassius
+Issue: #371
+Constitution: Principle I, Principle III, Principle V, §17
+
+## Decision
+
+Complete the existing `PriceAlert` and `BidReminder` scaffolds with a shared backend scheduler named Auction Alerts instead of adding separate schedulers or a second auction scraper.
+
+## Contract
+
+Settings keys:
+- `AuctionAlertsCheckEnabled` (`"false"` default)
+- `AuctionAlertsCheckStartTime` (`"08:00"` default)
+- `AuctionAlertsCheckInterval` (`"60"` minutes default)
+
+Admin endpoints:
+- `GET /api/admin/auction-alert-runs?page=1&limit=20` returns `{ runs, total, page, limit }`
+- `GET /api/admin/auction-alerts/status` returns `SchedulerStatus`
+- `POST /api/admin/auction-alerts/run` returns `{ runId, lotsChecked, priceAlertsTriggered, bidRemindersSent, status, durationMs }`
+
+Collector endpoints keep stable list/create/delete envelopes:
+- `GET /api/alerts` returns `{ alerts: [...] }`
+- `POST /api/alerts` returns the created alert object
+- `GET /api/reminders` returns `{ reminders: [...] }`
+- `POST /api/reminders` returns the created reminder object
+
+## Rationale
+
+This reuses the existing `AuctionWatchlistSyncService` refresh path before evaluating alert/reminder records, avoiding a duplicate scraper and preserving source-aware NumisBids/CNG behavior. Ownership is enforced by requiring the target lot to be owned by the current user and in `watching` or `bidding` status before alert/reminder creation.
+
+---
+
+### Decision: Zero client-supplied CoinReference IDs on all coin create paths
+
+**Date:** 2026-07-21
+**Author:** Cassius
+
+## Context
+
+When the agent creates a wishlist coin via `ConvertCandidate`, the input is `models.Coin` (not the safe `CoinCreateRequest` DTO), so `coin.References` can carry non-zero primary key IDs from source or database data. GORM batch insert (`db.Create(&slice)`) with non-zero IDs generates `INSERT INTO coin_references (..., id) VALUES (..., 115)`, which violates the PRIMARY KEY UNIQUE constraint and surfaces to the user as "duplicate references are not allowed".
+
+## Decision
+
+All three layers of coin reference creation now strip client-supplied IDs:
+
+1. **`NormalizeAndValidate` zeros `n.ID` and `n.CoinID`** — single-point defense; every create and replace path runs through this function.
+2. **`createPreparedCoinInTx` detaches `coin.References` before `txRepo.Create`** — prevents GORM from auto-cascading associations with stale IDs even if `FullSaveAssociations` were enabled.
+3. **`CoinRepository.Create` uses `Omit("References")`** — belt-and-suspenders at the persistence layer so the GORM cascade path is explicitly blocked.
+
+The wishlist-specific guard (`prepareCoinForCreate` drops References for `IsWishlist=true` coins, committed in 4bb4636) remains in place as the first line of defense for the reported bug path.
+
+## GORM Batch vs Single Create
+
+`db.Create(&singleRecord)` with non-zero ID uses AUTOINCREMENT (omits `id` from INSERT).
+`db.Create(&slice)` with non-zero IDs INCLUDES `id` in the INSERT → PRIMARY KEY violation.
+This asymmetry is why the bug only surfaced on the batch create path.
+
+## Consequences
+
+- Any caller may pass `models.Coin` or `[]models.CoinReference` with pre-populated IDs; the pipeline will silently discard them and generate fresh primary keys.
+- Update paths (`ReplaceForCoin`) are safe because they delete and re-insert; ID zeroing prevents the re-insert from conflicting.
+- No API contract change — `CoinReferenceRequest` never had an `id` field.
+
+---
+
+### 2026-07-20T09:58:39-05:00: User directive
+
+**By:** Brian DeNicola (via Copilot)
+**What:** For #490, NumisBids may be treated as a watchlist tracker with reduced functionality compared to CNG Auctions because most bidding is linked out and not hosted directly on NumisBids.
+**Why:** User request — captured for team memory
+
+---
+
+### 2026-07-21T19:02:07Z: User directive
+
+**By:** Brian DeNicola (via Copilot)
+**What:** Wishlist items must not have catalog references added during creation, including agent-created wishlist items.
+**Why:** User request — captured for team memory after repeated regressions in the wishlist add-from-agent workflow.
+
+---
+
+### Decision: Post-Major-Work QC Audit Skill
+
+**Date:** 2026-07-20  
+**Agent:** Maximus  
+**Status:** IMPLEMENTED  
+
+## Context
+
+The team has a Quality Gate (§17) and a per-PR DoD checklist, but no structured process for cross-cutting quality review after large feature batches land. Individual PR reviews catch local defects; systemic gaps — spec drift, deployment blind spots, missing regression coverage, emergent security surface — require a holistic post-merge audit pass.
+
+## Decision
+
+Created a reusable skill at `.squad/skills/post-major-work-qc-audit/SKILL.md` that any Squad agent or Copilot CLI session can invoke to run a deep QC audit after major work. The skill is:
+
+- **Portable:** Repo-agnostic by default; `[REPO-HOOK]` markers isolate AncientCoins-specific constitution/Quality Gate steps.
+- **Evidence-grounded:** Requires a mandatory 3-phase Investigation Protocol (changeset bounding → diff reading → reference reading) before any domain checklist is run, to prevent fact-invention.
+- **Structured output:** All findings land in a Blockers table or a Follow-Ups table with file path, line reference, and required remediation — no prose paragraphs of unactionable observations.
+- **8 Audit Domains:** (1) Engineering best practices, (2) Security/threat model, (3) Docs alignment, (4) Architecture/contract alignment, (5) Test coverage/regression quality, (6) Supply chain/config/deployment, (7) UX/accessibility/localization, (8) Operational observability/backward compatibility.
+
+## Alignment
+
+- Principle IV (Simple, Complete, Proportional): The skill enforces proportional scope — only the changeset and directly referenced dependencies, not the entire codebase.
+- Principle V (Security by Default): Security domain is mandatory and checked before other domains.
+- §17 Quality Gate and §21 DoD: Any finding that would fail the Quality Gate or violate a constitution Principle is automatically a Blocker under the skill's severity rules.
+
+## Confidence
+
+Low — newly authored. To be uprated after first live audit validates the format and completeness.
+
+## Next Steps
+
+- Invoke on the next major feature branch (e.g., OIDC Phase 6–7 or CNG Auctions Phase 2) to validate the format.
+- Adjust domain coverage or report format based on what the live run reveals.
+- Consider wiring the skill invocation as a recommended step in the PR template when the `[major-feature]` label is applied. {runs: [...], total, page, limit}
 - Each run: {id, triggerType, triggerUserId, status, lotsChecked, alertsSent, durationMs, startedAt, completedAt, errorMessage, createdAt}
 
 #### Architecture Compliance
