@@ -9,8 +9,8 @@
           </button>
         </div>
 
-        <div class="flex flex-1 items-center justify-center overflow-auto bg-input p-6 max-md:p-4">
-          <div class="relative flex max-h-full max-w-full items-center justify-center">
+        <div class="flex flex-1 min-h-0 items-center justify-center overflow-auto bg-input p-6 max-md:p-4">
+          <div class="relative flex h-full w-full items-center justify-center">
             <img
               v-if="processedImageUrl"
               :src="processedImageUrl"

@@ -39,7 +39,7 @@
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^26.1.1",
     "@types/sortablejs": "^1.15.9",
-    "@vitejs/plugin-vue": "^6.0.7",
+    "@vitejs/plugin-vue": "^6.0.8",
     "@vue/test-utils": "^2.4.10",
     "@vue/tsconfig": "^0.8.1",
     "eslint": "^10.7.0",
