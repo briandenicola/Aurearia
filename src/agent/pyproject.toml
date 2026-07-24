@@ -18,7 +18,7 @@ dependencies = [
     "httpx>=0.28.0,<1.0",
     "pydantic>=2.10.0,<3.0",
     "pydantic-settings>=2.7.0,<3.0",
-    "sse-starlette>=3.4.5,<4.0",
+    "sse-starlette>=3.4.6,<4.0",
     "tenacity>=9.0.0,<10.0",
 ]
 
