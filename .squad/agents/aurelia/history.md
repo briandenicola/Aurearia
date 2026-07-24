@@ -40,6 +40,8 @@
 - **2026-06-19 (SVG text):** SVG `<text>` elements placed inside a `preserveAspectRatio="none"` SVG will have their x/y POSITION distorted proportionally to the viewBox scaling, but CSS `font-size` is applied in actual screen pixels. This means text labels at data point coordinates work well on desktop (horizontal scale ≈ 1:1) but may appear horizontally compressed on narrow mobile screens. Acceptable tradeoff for sparse inline chart labels.
  The legacy `coin-images` CacheStorage bucket is now a cleanup-only compatibility concern cleared from `src/web/src/stores/auth.ts` on logout and user switch; uploaded media URLs remain unchanged until backend authenticated media routes land.
 
+- **2026-07-24 (Lightbox image scaling — flex height chain):** `max-h-full` on a flex child only works if the parent has a *definite* height. When a flex body uses `overflow-auto`, CSS resolves percentage heights against an unbounded scroll height, making `max-h-full` a no-op. Fix: add `min-h-0` to the `flex-1` body element (removes the default `min-height: auto` so the item can shrink and gain a definite height), then use `h-full w-full` on the inner image container so the image's own `max-h-full max-w-full object-contain` resolves correctly against the bounded space. Tests must use the updated container selector after this class change.
+
 - **2026-06-30 (CNG Auctions Spike — Frontend/UX Assessment)**
   - Analyzed current NumisBids integration: `AuctionsPage.vue` → lot list/filter → import via URL → sync watchlist
   - Feature parity matrix created (all core features needed for CNG)
