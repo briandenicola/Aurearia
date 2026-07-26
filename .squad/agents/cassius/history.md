@@ -30,6 +30,17 @@
 
 ## Recent Updates
 
+- **2026-07-26 — Sets Refinement: Backend Semantics & Goal Completion (sets-refinement merged to beta):**
+  - Implemented set type normalization: `defined`→`goal`, `open`→`standard` via database migration
+  - Added `creation_mode` field to `coin_sets` (`manual` default, `dynamic` only for tracker sets)
+  - Updated Goal completion formula to: `collection_items / (collection_items + wishlist_items)` using set memberships + `coins.is_wishlist`
+  - Ensured tag-to-set migration remains idempotent so newly tagged coins join existing migrated sets
+  - Added/updated repository, service, and database tests for new behavior
+  - Validated: `go test ./repository -run "TestSetRepository_"`, `go test ./services -run "TestSetService_CreateSet"`, `go test ./database -run "TestMigrateCoinSetTypes_NormalizesLegacyValues"`, full suite passed ✅
+  - Coordinated with Aurelia (frontend contract fix) and Maximus (payload alignment) to resolve strict payload contract BLOCK
+  - Revalidated by Brutus (integration QA approved)
+  - Orchestration log: `.squad/orchestration-log/2026-07-26T17-36-22Z-cassius-sets-refinement.md`
+
 - **2026-07-21 — Agent Wishlist Reference ID Fix (fix/agent-wishlist-reference-ids):**
   - User reported "Failed to add coin to wishlist: duplicate references are not allowed" from agent.
   - Root cause: ConvertCandidateInput.Coin uses models.Coin (not CoinCreateRequest), so agent-supplied references carry non-zero IDs from source data. GORM batch db.Create(&refs) with non-zero IDs generates INSERT ... (id) VALUES (115) — UNIQUE constraint violation on coin_references.id.
@@ -468,9 +479,30 @@ Added admin-only backend manual trigger `POST /api/admin/collection-health-snaps
 
 **Learning:** Collection health snapshots follow the same admin scheduler trigger pattern as auction ending and coin-of-day: keep the handler thin, call the existing scheduler synchronously, and let admin route middleware enforce access.
 
-## 2026-06-18 — WebAuthn Login Challenge Contract
+## Historical Notes (Pre-2026-06-19)
 
-- Investigated issue #299 iPhone PWA biometric login failure: registered credentials were present, but `POST /auth/webauthn/login/begin` returned the go-webauthn assertion wrapper under `options`, so the browser challenge lived at `options.publicKey.challenge` while the Vue login store expected `options.challenge`.
+**Summary of durable patterns established in early June:**
+- AI coverage scoring: obverse + reverse only (both=100, one=50, none=0); legacy combined field not counted
+- Health metadata scoring: computed on-read from coin fields, not stored; CurrentValueUpdatedAt tracks valuation freshness
+- GORM best practices: Use Omit() for many2many auto-sync prevention; Join tables with custom NOT NULL columns require explicit repository methods
+- Typed DTOs for mutation safety: CoinCreateRequest/CoinUpdateRequest with presence-aware PATCH semantics; allowlisted nullable scalars clear on JSON null
+- Durable migration approach: RIC/Structured Reference migration user-triggered (POST /references/migrate-legacy) with per-coin journaling, idempotency via marker, non-destructive
+- Settings system: key-value AppSetting model with defaults in services/settings_service.go; automatic admin settings exposure
+- SQLite FK convention: nullable lookup FKs use constraint:- to avoid destructive rebuilds; enforce validity in service/repository
+- Scheduler/run-log pattern: configurable settings, manual trigger endpoint, run history table, production diagnostics
+
+**Key early-June deliverables:**
+- AI Coverage Health Scoring Fix (2026-06-02)
+- Documentation Feature Showcase (2026-06-06) — reorganized docs/features into hierarchical 30+ entry structure
+- User-Defined Coin Category/Era Options (2026-06-07)
+- External Tool Server Stack (2026-06-01)
+- Mint Locations Global Admin Management (2026-06-18)
+- Collection Health Snapshot Admin Trigger (2026-06-18)
+- WebAuthn Login Challenge Contract Fix (2026-06-18)
+- Coin Sets Foundation — tag-to-set migration semantics, join table custom AddedAt handling, repository Set operations (2026-06-09)
+- F013 Backend Typed DTO Batch — handlers, repository Select paths, zero-value/nullable semantics, fixture builders (2026-06-09)
+
+**Architecture compliance:** All early June work follows Principle I (Layered Architecture), Principle VII (Schema-Driven Contracts), Principle XI (Security Hardening), Principle XII (Auth & Token Policy)
 - Backend session persistence/TTL was correct: `BeginLogin` stores a 5-minute in-memory session keyed by `login_{userID}`, and finish paths distinguish missing vs expired sessions before origin validation.
 - Fixed the backend contract to return `options` as the direct `PublicKeyCredentialRequestOptions` object for `navigator.credentials.get({ publicKey: options })`; regression test asserts `options.challenge` is non-empty and matches the stored session challenge.
 - Origin/RP handling remains strict: configured `WEBAUTHN_RP_ID` supplies `rpId`; finish validates request origin against configured `WEBAUTHN_ORIGIN` values. iPhone PWA/Safari clients must use an HTTPS origin matching that allowlist and an RP ID matching the site host/domain.
@@ -641,3 +673,5 @@ Created src/api/services/availability_service_test.go with comprehensive test co
 - **2026-07-02 — #374 Coin Grading Completion (Validated):** Coin grading workflow completed and validated. Verified all backend dependencies met: agent endpoint working, job submission passing, grading service correctly handling image bytes and report response, no mutations to `Coin.Grade` field. All Go tests passing; integrated with existing AI job state machine and result persistence. Feature release-ready. Session log: .squad/log/2026-07-02T10-55-14-coin-grading-workflow.md.
 
 - **2026-07-02 — Price Alerts and Bid Reminders Completion (#371):** Completed backend scheduler path for auction price alerts and bid reminders using existing watched-lot refresh (AuctionWatchlistSyncService) before evaluation. Added AuctionAlertsCheckEnabled, AuctionAlertsCheckInterval, and AuctionAlertsCheckStartTime settings, AuctionAlertRun history, admin endpoints /api/admin/auction-alert-runs, /api/admin/auction-alerts/status, and /api/admin/auction-alerts/run, plus owner/watchable-lot validation in the service layer. Alerts/reminders are one-shot via conditional repository updates (is_triggered / is_notified) and Pushover notification delivery.
+
+- **2026-07-26 — Set Type Normalization + Goal Completion Semantics:** Coin set type migrations can be handled safely as idempotent SQL updates during `database.Connect()` immediately after `AutoMigrate` (`open -> standard`, `defined -> goal`, optional legacy `dynamic -> tracker` + `creation_mode=dynamic`). For Goal sets, completion is now membership-state-based (`collection / (collection + wishlist)`) and should not depend on target-matching tables, which are reserved for tracker/targeted workflows.

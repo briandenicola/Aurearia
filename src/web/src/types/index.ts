@@ -7,6 +7,8 @@ export interface Coin {
   romanImperialFigureId: number | null
   era: string
   mint: string
+  mintLocationId: number | null
+  mintLocation: Pick<MintLocation, 'id' | 'displayName' | 'lat' | 'lng'> | null
   material: Material
   weightGrams: number | null
   diameterMm: number | null
@@ -273,7 +275,7 @@ export interface NoteListResponse {
   notes: UserNote[]
 }
 
-export type CoinMutationPayload = Partial<Omit<Coin, 'references' | 'storageLocation'>> & {
+export type CoinMutationPayload = Partial<Omit<Coin, 'references' | 'storageLocation' | 'mintLocation'>> & {
   references?: CoinReferenceInput[]
 }
 
@@ -479,6 +481,7 @@ export interface StorageLocation {
 
 export interface MintLocation {
   id: number
+  userId?: number | null
   displayName: string
   lat: number
   lng: number
@@ -486,6 +489,12 @@ export interface MintLocation {
   aliases: string[]
   createdAt: string
   updatedAt: string
+}
+
+export interface GeocodeCandidate {
+  displayName: string
+  lat: number
+  lng: number
 }
 
 export interface CollectionSetOption {
@@ -496,7 +505,16 @@ export interface CollectionSetOption {
   source: 'tag' | 'set'
 }
 
-export type CoinSetType = 'open' | 'defined' | 'smart' | 'goal'
+export type CoinSetType = 'standard' | 'goal' | 'smart' | 'agentic'
+export type LegacyCoinSetType = 'open' | 'defined' | 'tracker' | 'dynamic'
+export type CoinSetTypeResponse = CoinSetType | LegacyCoinSetType
+
+export function normalizeCoinSetType(setType: CoinSetTypeResponse): CoinSetType {
+  if (setType === 'open') return 'standard'
+  if (setType === 'defined') return 'goal'
+  if (setType === 'tracker' || setType === 'dynamic') return 'agentic'
+  return setType
+}
 
 export interface CoinSet {
   id: number
@@ -505,7 +523,7 @@ export interface CoinSet {
   description?: string
   color: string
   icon?: string
-  setType: CoinSetType
+  setType: CoinSetTypeResponse
   parentSetId?: number | null
   targetCompletionDate?: string | null
   createdAt: string
@@ -517,11 +535,12 @@ export interface CoinSetSummary {
   name: string
   color: string
   icon?: string
-  setType: CoinSetType
+  setType: CoinSetTypeResponse
   coinCount: number
   totalValue: number
   completionPercentage?: number | null
   valueChangePercent?: number | null
+  agenticStatus?: string | null
 }
 
 export interface CoinSetDetail extends CoinSetSummary {
@@ -531,6 +550,8 @@ export interface CoinSetDetail extends CoinSetSummary {
   totalInvested: number
   avgValuePerCoin?: number | null
   highestValueCoinId?: number | null
+  agenticPrompt?: string | null
+  agenticStatus?: string | null
 }
 
 export interface CreateCoinSetRequest {
@@ -543,10 +564,109 @@ export interface CreateCoinSetRequest {
   targetCompletionDate?: string | null
   smartCriteria?: Record<string, unknown> | null
   templateId?: string | null
+  agenticPrompt?: string | null
 }
 
 export interface CreateCoinSetFromCsvRequest extends CreateCoinSetRequest {
   csv: string
+}
+
+export interface SetBuilderRun {
+  id: number
+  userId: number
+  prompt: string
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  provider?: string
+  model?: string
+  transcriptSummary?: string
+  errorMessage?: string
+  terminationReason?: string
+  usedTurns?: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateSetBuilderRunRequest {
+  prompt: string
+}
+
+export interface SetProposalSlot {
+  id: number
+  proposalId: number
+  label: string
+  criteria?: Record<string, unknown> | null
+  group?: string
+  sortOrder: number
+  verificationStatus: 'verified' | 'unverified'
+  sourceNote?: string
+  validationNote?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface UpdateSetProposalSlotRequest {
+  label: string
+  criteria?: Record<string, unknown> | null
+  group?: string
+  sortOrder: number
+  verificationStatus: 'verified' | 'unverified'
+  sourceNote?: string
+  validationNote?: string
+}
+
+export interface UpdateSetProposalRequest {
+  proposedName: string
+  description?: string
+  color?: string
+  selectedScope?: string
+  slots: UpdateSetProposalSlotRequest[]
+}
+
+export interface RegenerateSetProposalRequest {
+  feedback: string
+}
+
+export interface SetProposalPrematchSummary {
+  estimatedFilled?: number
+  estimatedTotal?: number
+  notes?: string
+}
+
+export interface SetProposal {
+  id: number
+  userId: number
+  builderRunId: number
+  run?: SetBuilderRun
+  originalPrompt: string
+  status: 'pending' | 'approved' | 'rejected' | 'expired' | 'creation_failed'
+  proposedName: string
+  proposedSlug?: string
+  description?: string
+  color: string
+  selectedScope?: string
+  scopeOptions?: {
+    scopeSummary?: string
+    groupBy?: string
+    options?: Array<{
+      label: string
+      description?: string
+      estimated_slot_count?: number
+      recommended?: boolean
+    }>
+  } | null
+  rosterPayload?: {
+    transcriptSummary?: string
+    turnsUsed?: number
+  } | null
+  preMatchSummary?: SetProposalPrematchSummary | null
+  expiresAt: string
+  rejectedAt?: string | null
+  rejectionReason?: string
+  approvalSetId?: number | null
+  errorMessage?: string
+  slots?: SetProposalSlot[]
+  createdAt: string
+  updatedAt: string
 }
 
 export type UpdateCoinSetRequest = Partial<CreateCoinSetRequest>
@@ -580,6 +700,13 @@ export interface CoinSetCompletion {
   completedTargets: number
   completionPercentage: number
   missingTargets: CoinSetTarget[]
+  targets?: CoinSetTarget[]
+  targetMatches?: Array<{
+    target: CoinSetTarget
+    coin?: Coin | null
+  }>
+  collectionItems?: number
+  wishlistItems?: number
 }
 
 export interface CoinSetTemplate {

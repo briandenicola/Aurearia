@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/briandenicola/ancient-coins-api/repository"
 )
@@ -158,6 +159,21 @@ func (s *SettingsService) GetSetting(key string) string {
 // SetSetting creates or updates a setting value.
 func (s *SettingsService) SetSetting(key, value string) error {
 	return s.repo.Upsert(key, value)
+}
+
+// SplitSettingList parses a newline-delimited AppSetting value (the shape
+// used by CoinCategories/CoinEras and similar admin-defined lists) into a
+// trimmed, non-empty slice, mirroring how the frontend's parseOptionList
+// treats the same setting shape.
+func SplitSettingList(value string) []string {
+	var out []string
+	for _, line := range strings.Split(value, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }
 
 // GetAllSettings returns all settings merged with defaults.

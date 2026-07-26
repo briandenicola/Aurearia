@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, ValuationRun, AuctionEndingRun, AuctionWatchBidDigestRun, CollectionHealthSnapshotRunResult, CollectionHealthSnapshotRun, SchedulerStatus, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, SmartCriteriaTemplate, SuggestedSmartCriteria, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse, AIJob, AIJobStartResponse, PriceAlert, BidReminder, PriceAlertDirection, AuctionAlertReminderRun, CoinOfDayRun, BidRecommendation, MarketSignal, RomanImperialFigure, ImperialFigureRole, EmperorTrackerResult } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, GeocodeCandidate, ValuationRun, AuctionEndingRun, AuctionWatchBidDigestRun, CollectionHealthSnapshotRunResult, CollectionHealthSnapshotRun, SchedulerStatus, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, CreateSetBuilderRunRequest, SetBuilderRun, SetProposal, UpdateSetProposalRequest, RegenerateSetProposalRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, SmartCriteriaTemplate, SuggestedSmartCriteria, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse, AIJob, AIJobStartResponse, PriceAlert, BidReminder, PriceAlertDirection, AuctionAlertReminderRun, CoinOfDayRun, BidRecommendation, MarketSignal, RomanImperialFigure, ImperialFigureRole, EmperorTrackerResult } from '@/types'
 import type { QuickCaptureDraft, QuickCaptureDraftInput, QuickCaptureDraftUpdateInput, QuickCaptureDraftListResponse, QuickCaptureDraftStatus, QuickCapturePromoteRequest, QuickCapturePromotionResponse } from '@/types'
 import type { WishlistSearchAlert, WishlistSearchAlertInput, WishlistSearchAlertListResponse, AlertRun, AlertRunListResponse, AlertRunResult, AlertCandidate, AlertCandidateListResponse, AlertCandidateState, CandidateProvenanceStatus, DismissWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateResponse, AdjustWishlistSearchAlertCriteriaInput } from '@/types'
 
@@ -197,7 +197,7 @@ export const convertWishlistSearchAlertCandidate = (alertId: number, candidateId
 export const adjustWishlistSearchAlertCriteria = (alertId: number, input: AdjustWishlistSearchAlertCriteriaInput) =>
   api.post<WishlistSearchAlert>(`/wishlist/search-alerts/${alertId}/criteria-adjustments`, input)
 
-const NULLABLE_FIELDS: (keyof Coin)[] = ['weightGrams', 'diameterMm', 'purchasePrice', 'currentValue', 'purchaseDate', 'storageLocationId', 'romanImperialFigureId']
+const NULLABLE_FIELDS: (keyof Coin)[] = ['weightGrams', 'diameterMm', 'purchasePrice', 'currentValue', 'purchaseDate', 'storageLocationId', 'romanImperialFigureId', 'mintLocationId']
 
 function sanitizeCoin(coin: CoinMutationPayload): CoinMutationPayload {
   const clean: Record<string, unknown> = { ...coin }
@@ -207,6 +207,7 @@ function sanitizeCoin(coin: CoinMutationPayload): CoinMutationPayload {
     }
   }
   delete clean.storageLocation
+  delete clean.mintLocation
   // Default currentValue to purchasePrice if not set (preserve 0 as valid)
   if (clean.currentValue == null && clean.purchasePrice != null) {
     clean.currentValue = clean.purchasePrice
@@ -220,6 +221,12 @@ function sanitizeCoin(coin: CoinMutationPayload): CoinMutationPayload {
 
 export const getCoin = (id: number) => api.get<Coin>(`/coins/${id}`)
 export const createCoin = (coin: CoinMutationPayload) => api.post<Coin>('/coins', sanitizeCoin(coin))
+export interface MatchCategoryEraResponse {
+  match: string
+  matched: boolean
+}
+export const matchCategoryEra = (type: 'category' | 'era', value: string) =>
+  api.post<MatchCategoryEraResponse>('/coins/match-category-era', { type, value })
 export async function createIntakeDraft(images: File[], coinCardImage?: File) {
   const formData = new FormData()
   for (const image of images) {
@@ -357,6 +364,13 @@ export const adminCreateMintLocation = (data: MintLocationInput) =>
 export const adminUpdateMintLocation = (id: number, data: MintLocationInput) =>
   api.put<MintLocation>(`/admin/mint-locations/${id}`, data)
 export const adminDeleteMintLocation = (id: number) => api.delete(`/admin/mint-locations/${id}`)
+export const createMintLocation = (data: MintLocationInput) =>
+  api.post<MintLocation>('/mint-locations', data)
+export const updateMintLocation = (id: number, data: MintLocationInput) =>
+  api.put<MintLocation>(`/mint-locations/${id}`, data)
+export const deleteMintLocation = (id: number) => api.delete(`/mint-locations/${id}`)
+export const geocodeMintName = (query: string) =>
+  api.get<{ candidates: GeocodeCandidate[] }>('/mint-locations/geocode', { params: { query } })
 
 // Roman Imperial Figures (F028)
 export const searchRomanImperialFigures = (params: { q?: string; role?: ImperialFigureRole; limit?: number }) =>
@@ -383,6 +397,13 @@ export const adminDeleteCatalog = (id: number) => api.delete(`/admin/catalogs/${
 export const getSets = () => api.get<{ sets: CoinSetSummary[] }>('/sets')
 export const getSet = (id: number) => api.get<CoinSetDetail>(`/sets/${id}`)
 export const createSet = (data: CreateCoinSetRequest) => api.post<CoinSetDetail>('/sets', data)
+export const createSetBuilderRun = (data: CreateSetBuilderRunRequest) => api.post<{ run: SetBuilderRun }>('/set-builder/runs', data)
+export const listSetProposals = () => api.get<{ proposals: SetProposal[] }>('/set-builder/proposals')
+export const getSetProposal = (id: number) => api.get<SetProposal>(`/set-builder/proposals/${id}`)
+export const updateSetProposal = (id: number, data: UpdateSetProposalRequest) => api.put<SetProposal>(`/set-builder/proposals/${id}`, data)
+export const approveSetProposal = (id: number) => api.post<{ set: CoinSetDetail }>(`/set-builder/proposals/${id}/approve`)
+export const rejectSetProposal = (id: number, reason = '') => api.post<{ status: string }>(`/set-builder/proposals/${id}/reject`, { reason })
+export const regenerateSetProposal = (id: number, data: RegenerateSetProposalRequest) => api.post<{ run: SetBuilderRun }>(`/set-builder/proposals/${id}/regenerate`, data)
 export const updateSet = (id: number, data: UpdateCoinSetRequest) => api.put<CoinSetDetail>(`/sets/${id}`, data)
 export const deleteSet = (id: number) => api.delete(`/sets/${id}`)
 export const getCoinsInSet = (id: number) => api.get<{ coins: Coin[] }>(`/sets/${id}/coins`)

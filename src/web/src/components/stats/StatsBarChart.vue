@@ -17,26 +17,10 @@
           <div class="h-6 overflow-hidden rounded-sm bg-surface">
             <div
               class="h-full min-w-1 rounded-sm transition-[width] duration-300"
-              :class="fillClass(item.label) === 'fill-roman'
-                ? 'bg-[linear-gradient(90deg,var(--cat-roman),var(--accent-gold))]'
-                : fillClass(item.label) === 'fill-greek'
-                  ? 'bg-[linear-gradient(90deg,var(--cat-greek),var(--accent-gold))]'
-                  : fillClass(item.label) === 'fill-byzantine'
-                    ? 'bg-[linear-gradient(90deg,var(--cat-byzantine),var(--accent-gold))]'
-                    : fillClass(item.label) === 'fill-modern'
-                      ? 'bg-[linear-gradient(90deg,var(--cat-modern),var(--accent-gold))]'
-                      : fillClass(item.label) === 'fill-other'
-                        ? 'bg-[linear-gradient(90deg,var(--cat-other),var(--text-secondary))]'
-                        : fillClass(item.label) === 'fill-material'
-                          ? 'bg-[linear-gradient(90deg,var(--accent-bronze),var(--accent-gold))]'
-                          : fillClass(item.label) === 'fill-grade'
-                            ? 'bg-[linear-gradient(90deg,var(--cat-modern),var(--accent-gold))]'
-                            : fillClass(item.label) === 'fill-era'
-                              ? 'bg-[linear-gradient(90deg,var(--accent-bronze),var(--accent-gold))]'
-                              : fillClass(item.label) === 'fill-ruler'
-                                ? 'bg-[linear-gradient(90deg,var(--text-muted),var(--accent-gold))]'
-                                : 'bg-[linear-gradient(90deg,var(--color-positive),var(--accent-gold))]'"
-              :style="{ width: `${(item.count / maxCount) * 100}%` }"
+              :style="{
+                width: `${(item.count / maxCount) * 100}%`,
+                background: `linear-gradient(90deg, ${startColorFor(fillClass(item.label))}, var(--accent-gold))`,
+              }"
             ></div>
           </div>
           <span class="text-right text-body font-semibold text-text-secondary">{{ item.count }}</span>
@@ -49,6 +33,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import ZoomableSurface from '@/components/ZoomableSurface.vue'
+import { colorForLabel } from '@/utils/categoryColor'
 
 export interface BarItem {
   label: string
@@ -58,9 +43,28 @@ export interface BarItem {
 const props = defineProps<{
   title: string
   items: BarItem[]
+  /**
+   * Returns either one of the fixed sentinel keys below (for a chart whose
+   * bars all share one static color, e.g. material/grade/era/ruler/price)
+   * or, for a per-item-colored chart (categories), the raw label itself -
+   * which startColorFor then resolves via the shared color utility so
+   * custom categories get their own stable color instead of a fallback.
+   */
   fillClass: (label: string) => string
   wide?: boolean
 }>()
+
+const STATIC_CHART_COLORS: Record<string, string> = {
+  'fill-material': 'var(--accent-bronze)',
+  'fill-era': 'var(--accent-bronze)',
+  'fill-grade': 'var(--cat-modern)',
+  'fill-ruler': 'var(--text-muted)',
+  'fill-price': 'var(--color-positive)',
+}
+
+function startColorFor(key: string): string {
+  return STATIC_CHART_COLORS[key] ?? colorForLabel(key)
+}
 
 const maxCount = computed(() =>
   Math.max(...props.items.map((i) => i.count), 1),

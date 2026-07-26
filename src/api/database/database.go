@@ -29,7 +29,7 @@ func Connect(dbPath string) {
 		log.Fatalf("Failed to migrate coin_references column: %v", err)
 	}
 
-	err = DB.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.MintLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{}, &models.ApiKey{}, &models.RefreshToken{}, &models.WebAuthnCredential{}, &models.SecurityEvent{}, &models.IPRule{}, &models.OIDCProvider{}, &models.ExternalIdentity{}, &models.OIDCAuthState{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.Note{}, &models.CoinIntakeDraft{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}, &models.AgentConversation{}, &models.CollectionUpdateProposal{}, &models.Follow{}, &models.CoinComment{}, &models.CoinValueHistory{}, &models.AuctionLot{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.WishlistSearchAlert{}, &models.AlertRun{}, &models.AlertCandidate{}, &models.CandidateProvenance{}, &models.CandidateReviewAction{}, &models.Notification{}, &models.AIJob{}, &models.Tag{}, &models.CoinTag{}, &models.CoinSet{}, &models.CoinSetMembership{}, &models.CoinSetTarget{}, &models.CoinSetValuationSnapshot{}, &models.CoinSetMilestoneAlert{}, &models.SmartCriteriaTemplate{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.AuctionEvent{}, &models.PriceAlert{}, &models.BidReminder{}, &models.AuctionAlertRun{}, &models.ValuationRun{}, &models.ValuationResult{}, &models.AuctionEndingRun{}, &models.AuctionWatchBidDigestRun{}, &models.FeaturedCoin{}, &models.CoinOfDayRun{}, &models.CollectionHealthSnapshot{}, &models.CollectionHealthSnapshotRun{}, &models.RomanImperialFigure{}, &models.RomanImperialFigureHighlight{})
+	err = DB.AutoMigrate(&models.User{}, &models.StorageLocation{}, &models.MintLocation{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.AppSetting{}, &models.ApiKey{}, &models.RefreshToken{}, &models.WebAuthnCredential{}, &models.SecurityEvent{}, &models.IPRule{}, &models.OIDCProvider{}, &models.ExternalIdentity{}, &models.OIDCAuthState{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.Note{}, &models.CoinIntakeDraft{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}, &models.AgentConversation{}, &models.CollectionUpdateProposal{}, &models.SetBuilderRun{}, &models.SetProposal{}, &models.ProposalSlot{}, &models.Follow{}, &models.CoinComment{}, &models.CoinValueHistory{}, &models.AuctionLot{}, &models.AvailabilityRun{}, &models.AvailabilityResult{}, &models.WishlistSearchAlert{}, &models.AlertRun{}, &models.AlertCandidate{}, &models.CandidateProvenance{}, &models.CandidateReviewAction{}, &models.Notification{}, &models.AIJob{}, &models.Tag{}, &models.CoinTag{}, &models.CoinSet{}, &models.CoinSetMembership{}, &models.CoinSetTarget{}, &models.CoinSetValuationSnapshot{}, &models.CoinSetMilestoneAlert{}, &models.SmartCriteriaTemplate{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.AuctionEvent{}, &models.PriceAlert{}, &models.BidReminder{}, &models.AuctionAlertRun{}, &models.ValuationRun{}, &models.ValuationResult{}, &models.AuctionEndingRun{}, &models.AuctionWatchBidDigestRun{}, &models.FeaturedCoin{}, &models.CoinOfDayRun{}, &models.CollectionHealthSnapshot{}, &models.CollectionHealthSnapshotRun{}, &models.RomanImperialFigure{}, &models.RomanImperialFigureHighlight{})
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
@@ -38,6 +38,9 @@ func Connect(dbPath string) {
 	}
 	if err := DB.Migrator().AlterColumn(&models.User{}, "CNGPassword"); err != nil {
 		log.Fatalf("Failed to widen CNG password column: %v", err)
+	}
+	if err := migrateCoinSetTypes(DB); err != nil {
+		log.Fatalf("Failed to migrate coin set types: %v", err)
 	}
 
 	// Note: CurrentValueUpdatedAt is a new nullable time.Time column.
@@ -53,6 +56,9 @@ func Connect(dbPath string) {
 	}
 	if err := seedMintLocations(DB); err != nil {
 		log.Fatalf("Failed to seed mint locations: %v", err)
+	}
+	if err := backfillCoinMintLocations(DB); err != nil {
+		log.Fatalf("Failed to backfill coin mint locations: %v", err)
 	}
 	if err := seedRomanImperialFigures(DB); err != nil {
 		log.Fatalf("Failed to seed Roman imperial figures: %v", err)
@@ -120,6 +126,106 @@ func seedMintLocations(db *gorm.DB) error {
 			}
 		}
 		return tx.Save(&models.AppSetting{Key: mintLocationSeedVersionKey, Value: currentMintLocationSeedVersion}).Error
+	})
+}
+
+const coinMintLocationBackfillVersionKey = "CoinMintLocationBackfillVersion"
+const currentCoinMintLocationBackfillVersion = "1"
+
+// backfillCoinMintLocations links existing coins' free-text Mint values to
+// a MintLocation (global or the coin owner's own private one) whenever the
+// normalized text exactly matches a display name or alias. Coins with no
+// match are left untouched (never auto-creates a mint location) - the user
+// gets a chance to link or create one via the unlinked-mint nudge instead.
+// Idempotent and versioned, run once per version bump like seedMintLocations.
+func backfillCoinMintLocations(db *gorm.DB) error {
+	var existingSetting models.AppSetting
+	err := db.First(&existingSetting, "key = ?", coinMintLocationBackfillVersionKey).Error
+	if err == nil && existingSetting.Value == currentCoinMintLocationBackfillVersion {
+		return nil
+	}
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return err
+	}
+
+	var locations []models.MintLocation
+	if err := db.Find(&locations).Error; err != nil {
+		return err
+	}
+
+	type lookupKey struct {
+		ownerUserID uint // 0 means global (visible to everyone)
+		normalized  string
+	}
+	lookup := make(map[lookupKey]uint)
+	for _, loc := range locations {
+		var owner uint
+		if loc.UserID != nil {
+			owner = *loc.UserID
+		}
+		for key := range mintLocationBackfillKeys(loc) {
+			lookup[lookupKey{ownerUserID: owner, normalized: key}] = loc.ID
+		}
+	}
+
+	var coins []models.Coin
+	if err := db.Where("mint_location_id IS NULL AND mint <> ''").Find(&coins).Error; err != nil {
+		return err
+	}
+
+	return db.Transaction(func(tx *gorm.DB) error {
+		for _, coin := range coins {
+			normalized := models.NormalizeMintLocationName(coin.Mint)
+			if normalized == "" {
+				continue
+			}
+			matchID, ok := lookup[lookupKey{ownerUserID: 0, normalized: normalized}]
+			if !ok {
+				matchID, ok = lookup[lookupKey{ownerUserID: coin.UserID, normalized: normalized}]
+			}
+			if !ok {
+				continue
+			}
+			if err := tx.Model(&models.Coin{}).Where("id = ?", coin.ID).Update("mint_location_id", matchID).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Save(&models.AppSetting{Key: coinMintLocationBackfillVersionKey, Value: currentCoinMintLocationBackfillVersion}).Error
+	})
+}
+
+func mintLocationBackfillKeys(loc models.MintLocation) map[string]bool {
+	keys := make(map[string]bool, len(loc.Aliases)+1)
+	name := loc.NormalizedName
+	if name == "" {
+		name = models.NormalizeMintLocationName(loc.DisplayName)
+	}
+	if name != "" {
+		keys[name] = true
+	}
+	for _, alias := range loc.Aliases {
+		if n := models.NormalizeMintLocationName(alias); n != "" {
+			keys[n] = true
+		}
+	}
+	return keys
+}
+
+func migrateCoinSetTypes(db *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("UPDATE coin_sets SET set_type='goal' WHERE LOWER(set_type)='defined'").Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("UPDATE coin_sets SET set_type='standard' WHERE LOWER(set_type)='open'").Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("UPDATE coin_sets SET set_type='agentic', creation_mode='dynamic' WHERE LOWER(set_type) IN ('dynamic', 'tracker')").Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("UPDATE coin_sets SET creation_mode='manual' WHERE creation_mode IS NULL OR creation_mode=''").Error; err != nil {
+			return err
+		}
+		return nil
 	})
 }
 

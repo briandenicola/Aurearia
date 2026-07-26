@@ -1,35 +1,43 @@
 <template>
-  <div
-    class="tray-well"
-    :class="{ 'is-interactive': interactive }"
-    :style="{ width: `${renderSizePx}px`, height: `${renderSizePx}px` }"
-    :aria-label="coin.name"
-    :tabindex="interactive ? 0 : undefined"
-    :role="interactive ? 'button' : undefined"
-    @click="handleClick"
-    @keydown.enter="handleClick"
-  >
-    <div class="well-container">
-      <img
-        v-if="resolvedImageSrc"
-        :src="resolvedImageSrc"
-        :alt="coin.name"
-        class="well-coin"
-        loading="eager"
-        decoding="async"
-      />
-      <AuthenticatedImage
-        v-else-if="primaryImage"
-        :media-path="primaryImage"
-        :alt="coin.name"
-        class="well-coin"
-        loading="eager"
-        decoding="async"
-      />
-      <div v-else class="well-placeholder">
-        <Coins :size="Math.floor(renderSizePx * 0.4)" :stroke-width="1" />
+  <div class="tray-item">
+    <div
+      class="tray-well"
+      :class="{
+        'is-interactive': interactive && !coin.placeholder,
+        'is-placeholder': coin.placeholder,
+        'is-wishlist-placeholder': coin.wishlistPlaceholder,
+      }"
+      :style="{ width: `${renderSizePx}px`, height: `${renderSizePx}px` }"
+      :aria-label="coin.name"
+      :tabindex="interactive && !coin.placeholder ? 0 : undefined"
+      :role="interactive && !coin.placeholder ? 'button' : undefined"
+      @click="handleClick"
+      @keydown.enter="handleClick"
+    >
+      <div class="well-container">
+        <img
+          v-if="resolvedImageSrc"
+          :src="resolvedImageSrc"
+          :alt="coin.name"
+          class="well-coin"
+          loading="eager"
+          decoding="async"
+        />
+        <AuthenticatedImage
+          v-else-if="primaryImage"
+          :media-path="primaryImage"
+          :alt="coin.name"
+          class="well-coin"
+          loading="eager"
+          decoding="async"
+        />
+        <div v-else class="well-placeholder">
+          <span v-if="coin.placeholderLabel" class="placeholder-label">{{ coin.placeholderLabel }}</span>
+          <Coins v-else :size="Math.floor(renderSizePx * 0.4)" :stroke-width="1" />
+        </div>
       </div>
     </div>
+    <span v-if="displayDate" class="tray-date">{{ displayDate }}</span>
   </div>
 </template>
 
@@ -72,13 +80,26 @@ const resolvedImageSrc = computed(() => {
   return props.imageSrcResolver(path)
 })
 
+const displayDate = computed(() => {
+  if (props.coin.placeholder) return null
+  if (props.coin.wishlistPlaceholder) return 'TBD'
+  return props.coin.purchaseDate?.slice(0, 10) || 'TBD'
+})
+
 function handleClick() {
-  if (!props.interactive) return
+  if (!props.interactive || props.coin.placeholder) return
   emit('coin-clicked', props.coin.id)
 }
 </script>
 
 <style scoped>
+.tray-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .tray-well {
   position: relative;
   transition: var(--transition-fast);
@@ -102,6 +123,25 @@ function handleClick() {
 .tray-well.is-interactive:hover {
   transform: translateY(-2px);
   filter: brightness(1.1);
+}
+
+.tray-well.is-placeholder {
+  border: 1px dashed var(--border-accent);
+  background: radial-gradient(
+    circle at center,
+    var(--accent-gold-glow) 0%,
+    rgba(0, 0, 0, 0.15) 48%,
+    transparent 72%
+  );
+}
+
+.tray-well.is-wishlist-placeholder {
+  opacity: 0.24;
+}
+
+.tray-well.is-wishlist-placeholder .well-container {
+  border: 1px dashed var(--border-accent);
+  filter: grayscale(0.35) saturate(0.75);
 }
 
 .tray-well:focus-visible {
@@ -136,6 +176,25 @@ function handleClick() {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.is-placeholder .well-placeholder {
+  color: var(--accent-gold);
+  opacity: 1;
+}
+
+.placeholder-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.tray-date {
+  min-height: 1rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-secondary);
 }
 
 @media (prefers-reduced-motion: reduce) {

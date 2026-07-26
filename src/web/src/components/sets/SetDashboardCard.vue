@@ -24,6 +24,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { normalizeCoinSetType } from '@/types'
 import type { CoinSetSummary } from '@/types'
 
 const props = defineProps<{
@@ -35,6 +36,10 @@ defineEmits<{
 }>()
 
 const setDescription = computed(() => {
-  return props.set.coinCount > 0 ? 'Curated group' : 'Ready for coins'
+  const normalizedType = normalizeCoinSetType(props.set.setType)
+  if (normalizedType === 'goal') return 'Goal set'
+  if (normalizedType === 'smart') return 'Smart set'
+  if (normalizedType === 'agentic') return props.set.agenticStatus === 'generating' ? 'Agentic set generating' : 'Agentic set'
+  return props.set.coinCount > 0 ? 'Standard set' : 'Ready for coins'
 })
 </script>

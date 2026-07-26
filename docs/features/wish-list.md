@@ -36,6 +36,7 @@ The Wish List helps collectors systematically track and acquire coins. It integr
 - **Status Indicators** — Show if coin is actively listed, unavailable, or unknown
 - **Price Tracking** — Note current asking prices and compare over time
 - **Lookup Saves** — Coins saved from Coin Lookup include captured photos and generated NGC or Numista references
+- **Tray Placeholders** — Wishlist items shown in tray-based set views are deliberately more transparent and display `TBD` where owned coins show purchase dates
 
 ## Availability Checking
 

@@ -92,8 +92,8 @@
             <span v-else>Drag rows or use the arrows to arrange this set.</span>
           </p>
         </div>
-        <div v-if="coins.length === 0" class="card space-y-4 py-8 text-center">
-          <p class="m-0 text-base text-text-secondary">No coins in this set yet</p>
+        <div v-if="displayTrayCoins.length === 0" class="card space-y-4 py-8 text-center">
+          <p class="m-0 text-base text-text-secondary">{{ emptySetMessage }}</p>
           <button v-if="canManageMembership" class="btn btn-primary" @click="openAddCoinModal">Add Coins</button>
         </div>
         <div
@@ -266,6 +266,7 @@ import {
   removeCoinFromSet,
   updateSet as updateSetApi,
 } from '@/api/client'
+import { normalizeCoinSetType } from '@/types'
 import type { CoinSetAnalytics, CoinSetComparison, CoinSetCompletion, CoinSetDetail, CoinSetSnapshot, CoinSetSummary, Coin } from '@/types'
 import SetCompletionChecklist from '@/components/sets/SetCompletionChecklist.vue'
 import SetTrendChart from '@/components/sets/SetTrendChart.vue'
@@ -310,18 +311,67 @@ const editForm = ref({
 
 const setId = Number(route.params.id)
 
-const canManageMembership = computed(() => set.value?.setType !== 'smart')
+const canManageMembership = computed(() => {
+  if (!set.value) return false
+  const normalizedType = normalizeCoinSetType(set.value.setType)
+  return normalizedType !== 'smart' && normalizedType !== 'agentic'
+})
 const canReorderCoins = computed(() => canManageMembership.value && coins.value.length > 1)
+const normalizedSetType = computed(() => set.value ? normalizeCoinSetType(set.value.setType) : null)
 const trayCoins = computed((): TrayCoin[] =>
   coins.value.map((coin) => ({
     id: coin.id,
     name: coin.name,
     diameterMm: coin.diameterMm,
     images: coin.images ?? [],
+    purchaseDate: coin.purchaseDate,
+    wishlistPlaceholder: normalizedSetType.value === 'goal' && coin.isWishlist,
   })),
 )
-const currentDrawerCoins = computed(() => getDrawerCoins(trayCoins.value, drawerIndex.value, coinsPerDrawer))
-const totalDrawers = computed(() => getTotalDrawers(trayCoins.value.length, coinsPerDrawer))
+const agenticTrayCoins = computed((): TrayCoin[] => {
+  if (normalizedSetType.value !== 'agentic') return []
+  const targetMatches = completion.value?.targetMatches
+  if (targetMatches && targetMatches.length > 0) {
+    return targetMatches.map(({ target, coin }) => {
+      if (coin) {
+        return {
+          id: coin.id,
+          name: coin.name,
+          diameterMm: coin.diameterMm,
+          images: coin.images ?? [],
+          purchaseDate: coin.purchaseDate,
+        }
+      }
+      return {
+        id: target.id,
+        name: target.label,
+        diameterMm: null,
+        images: [],
+        placeholder: true,
+        placeholderLabel: target.year != null ? String(target.year) : target.label,
+      }
+    })
+  }
+  const targets = completion.value?.targets ?? completion.value?.missingTargets ?? []
+  return targets.map((target) => ({
+    id: target.id,
+    name: target.label,
+    diameterMm: null,
+    images: [],
+    placeholder: true,
+    placeholderLabel: target.year != null ? String(target.year) : target.label,
+  }))
+})
+const displayTrayCoins = computed(() => normalizedSetType.value === 'agentic' ? agenticTrayCoins.value : trayCoins.value)
+const currentDrawerCoins = computed(() => getDrawerCoins(displayTrayCoins.value, drawerIndex.value, coinsPerDrawer))
+const totalDrawers = computed(() => getTotalDrawers(displayTrayCoins.value.length, coinsPerDrawer))
+const emptySetMessage = computed(() => {
+  if (normalizedSetType.value === 'agentic' && set.value?.agenticStatus === 'generating') {
+    return 'Aurearia is generating this agentic roster. You will receive a notification when the tray slots are ready.'
+  }
+  if (normalizedSetType.value === 'agentic') return 'No agentic tray slots have been generated yet.'
+  return 'No coins in this set yet'
+})
 
 const availableCoins = computed(() => {
   const existingIds = new Set(coins.value.map((coin) => coin.id))
@@ -369,7 +419,8 @@ async function loadSetDetails() {
     snapshots.value = trendsRes.data.snapshots
     analytics.value = analyticsRes.data
     allSets.value = setsRes.data.sets.filter((candidate) => candidate.id !== setId)
-    if (set.value.setType === 'defined' || set.value.setType === 'goal') {
+    const normalizedSetType = normalizeCoinSetType(set.value.setType)
+    if (normalizedSetType === 'goal' || normalizedSetType === 'agentic') {
       const completionRes = await getSetCompletion(setId)
       completion.value = completionRes.data
     } else {

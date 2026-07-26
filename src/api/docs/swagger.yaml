@@ -156,7 +156,9 @@ definitions:
   handlers.CoinCreateRequest:
     properties:
       category:
-        $ref: '#/definitions/models.Category'
+        allOf:
+        - $ref: '#/definitions/models.Category'
+        maxLength: 64
       currentValue:
         type: number
       denomination:
@@ -182,6 +184,8 @@ definitions:
       mint:
         maxLength: 200
         type: string
+      mintLocationId:
+        type: integer
       name:
         maxLength: 200
         type: string
@@ -372,7 +376,9 @@ definitions:
   handlers.CoinUpdateRequest:
     properties:
       category:
-        $ref: '#/definitions/models.Category'
+        allOf:
+        - $ref: '#/definitions/models.Category'
+        maxLength: 64
       currentValue:
         type: number
       denomination:
@@ -398,6 +404,8 @@ definitions:
       mint:
         maxLength: 200
         type: string
+      mintLocationId:
+        type: integer
       name:
         maxLength: 200
         type: string
@@ -715,6 +723,27 @@ definitions:
       rawAnalysis:
         example: Vision analysis text...
         type: string
+    type: object
+  handlers.MatchCategoryEraRequest:
+    properties:
+      type:
+        enum:
+        - category
+        - era
+        type: string
+      value:
+        maxLength: 200
+        type: string
+    required:
+    - type
+    - value
+    type: object
+  handlers.MatchCategoryEraResponse:
+    properties:
+      match:
+        type: string
+      matched:
+        type: boolean
     type: object
   handlers.MaterialCount:
     properties:
@@ -1275,6 +1304,11 @@ definitions:
     - displayName
     - era
     type: object
+  handlers.createSetBuilderRunRequest:
+    properties:
+      prompt:
+        type: string
+    type: object
   handlers.emperorTrackerHighlightRequest:
     properties:
       coinId:
@@ -1299,6 +1333,13 @@ definitions:
       key:
         example: ak_a1b2c3d4e5f6...
         type: string
+    type: object
+  handlers.geocodeMintResponse:
+    properties:
+      candidates:
+        items:
+          $ref: '#/definitions/services.GeocodeCandidate'
+        type: array
     type: object
   handlers.loginRequest:
     properties:
@@ -1412,6 +1453,11 @@ definitions:
     required:
     - refreshToken
     type: object
+  handlers.regenerateSetProposalRequest:
+    properties:
+      feedback:
+        type: string
+    type: object
   handlers.registerRequest:
     properties:
       email:
@@ -1429,6 +1475,11 @@ definitions:
     - email
     - password
     - username
+    type: object
+  handlers.rejectSetProposalRequest:
+    properties:
+      reason:
+        type: string
     type: object
   handlers.romanImperialFigureListResponse:
     properties:
@@ -1459,6 +1510,39 @@ definitions:
         type: string
       sortOrder:
         type: integer
+    type: object
+  handlers.updateSetProposalRequest:
+    properties:
+      color:
+        type: string
+      description:
+        type: string
+      proposedName:
+        type: string
+      selectedScope:
+        type: string
+      slots:
+        items:
+          $ref: '#/definitions/handlers.updateSetProposalSlotRequest'
+        type: array
+    type: object
+  handlers.updateSetProposalSlotRequest:
+    properties:
+      criteria:
+        additionalProperties: true
+        type: object
+      group:
+        type: string
+      label:
+        type: string
+      sortOrder:
+        type: integer
+      sourceNote:
+        type: string
+      validationNote:
+        type: string
+      verificationStatus:
+        type: string
     type: object
   models.AIJob:
     properties:
@@ -1908,7 +1992,9 @@ definitions:
       aiAnalysis:
         type: string
       category:
-        $ref: '#/definitions/models.Category'
+        allOf:
+        - $ref: '#/definitions/models.Category'
+        maxLength: 64
       createdAt:
         type: string
       currentValue:
@@ -1950,6 +2036,10 @@ definitions:
       mint:
         maxLength: 200
         type: string
+      mintLocation:
+        $ref: '#/definitions/models.MintLocation'
+      mintLocationId:
+        type: integer
       name:
         maxLength: 200
         type: string
@@ -2130,10 +2220,16 @@ definitions:
     type: object
   models.CoinSet:
     properties:
+      agenticPrompt:
+        type: string
+      agenticStatus:
+        type: string
       color:
         type: string
       createdAt:
         type: string
+      creationMode:
+        $ref: '#/definitions/models.CoinSetCreationMode'
       description:
         type: string
       icon:
@@ -2159,18 +2255,32 @@ definitions:
       userId:
         type: integer
     type: object
-  models.CoinSetType:
+  models.CoinSetCreationMode:
     enum:
-    - open
-    - defined
-    - smart
-    - goal
+    - manual
+    - dynamic
     type: string
     x-enum-varnames:
-    - CoinSetTypeOpen
-    - CoinSetTypeDefined
+    - CoinSetCreationModeManual
+    - CoinSetCreationModeDynamic
+  models.CoinSetType:
+    enum:
+    - standard
+    - smart
+    - goal
+    - agentic
+    - standard
+    - goal
+    - agentic
+    type: string
+    x-enum-varnames:
+    - CoinSetTypeStandard
     - CoinSetTypeSmart
     - CoinSetTypeGoal
+    - CoinSetTypeAgentic
+    - CoinSetTypeOpen
+    - CoinSetTypeDefined
+    - CoinSetTypeTracker
   models.CoinValueHistory:
     properties:
       coinId:
@@ -2286,6 +2396,8 @@ definitions:
         type: string
       updatedAt:
         type: string
+      userId:
+        type: integer
     type: object
   models.Note:
     properties:
@@ -2322,6 +2434,39 @@ definitions:
     - OIDCProviderTypeEntra
     - OIDCProviderTypePocketID
     - OIDCProviderTypeGeneric
+  models.ProposalSlot:
+    properties:
+      createdAt:
+        type: string
+      criteria:
+        $ref: '#/definitions/models.JSONObject'
+      group:
+        type: string
+      id:
+        type: integer
+      label:
+        type: string
+      proposalId:
+        type: integer
+      sortOrder:
+        type: integer
+      sourceNote:
+        type: string
+      updatedAt:
+        type: string
+      validationNote:
+        type: string
+      verificationStatus:
+        $ref: '#/definitions/models.ProposalSlotVerificationStatus'
+    type: object
+  models.ProposalSlotVerificationStatus:
+    enum:
+    - verified
+    - unverified
+    type: string
+    x-enum-varnames:
+    - ProposalSlotVerificationVerified
+    - ProposalSlotVerificationUnverified
   models.QuickCaptureDraft:
     properties:
       acquisitionSource:
@@ -2452,6 +2597,124 @@ definitions:
       updatedAt:
         type: string
     type: object
+  models.SetBuilderRun:
+    properties:
+      completedAt:
+        type: string
+      createdAt:
+        type: string
+      errorMessage:
+        type: string
+      feedback:
+        type: string
+      id:
+        type: integer
+      maxTurns:
+        type: integer
+      model:
+        type: string
+      prompt:
+        type: string
+      provider:
+        type: string
+      startedAt:
+        type: string
+      status:
+        $ref: '#/definitions/models.SetBuilderRunStatus'
+      terminationReason:
+        type: string
+      tokenBudget:
+        type: integer
+      tokensUsed:
+        type: integer
+      transcriptSummary:
+        type: string
+      updatedAt:
+        type: string
+      usedTurns:
+        type: integer
+      userId:
+        type: integer
+    type: object
+  models.SetBuilderRunStatus:
+    enum:
+    - queued
+    - running
+    - completed
+    - failed
+    type: string
+    x-enum-varnames:
+    - SetBuilderRunStatusQueued
+    - SetBuilderRunStatusRunning
+    - SetBuilderRunStatusCompleted
+    - SetBuilderRunStatusFailed
+  models.SetProposal:
+    properties:
+      approvalSetId:
+        type: integer
+      approvedAt:
+        type: string
+      builderRunId:
+        type: integer
+      color:
+        type: string
+      createdAt:
+        type: string
+      description:
+        type: string
+      errorMessage:
+        type: string
+      expiresAt:
+        type: string
+      id:
+        type: integer
+      idempotencyKey:
+        type: string
+      originalPrompt:
+        type: string
+      preMatchSummary:
+        $ref: '#/definitions/models.JSONObject'
+      proposedName:
+        type: string
+      proposedSlug:
+        type: string
+      rejectedAt:
+        type: string
+      rejectionReason:
+        type: string
+      rosterPayload:
+        $ref: '#/definitions/models.JSONObject'
+      run:
+        $ref: '#/definitions/models.SetBuilderRun'
+      scopeOptions:
+        $ref: '#/definitions/models.JSONObject'
+      selectedScope:
+        type: string
+      slots:
+        items:
+          $ref: '#/definitions/models.ProposalSlot'
+        type: array
+      status:
+        $ref: '#/definitions/models.SetProposalStatus'
+      updatedAt:
+        type: string
+      userId:
+        type: integer
+    type: object
+  models.SetProposalStatus:
+    enum:
+    - pending
+    - approved
+    - rejected
+    - expired
+    - creation_failed
+    type: string
+    x-enum-varnames:
+    - SetProposalStatusPending
+    - SetProposalStatusApproved
+    - SetProposalStatusRejected
+    - SetProposalStatusExpired
+    - SetProposalStatusCreationFailed
   models.StorageLocation:
     properties:
       createdAt:
@@ -2841,6 +3104,15 @@ definitions:
         type: array
       usurpers:
         $ref: '#/definitions/services.CategoryProgress'
+    type: object
+  services.GeocodeCandidate:
+    properties:
+      displayName:
+        type: string
+      lat:
+        type: number
+      lng:
+        type: number
     type: object
   services.HealthActionHint:
     enum:
@@ -4044,8 +4316,8 @@ paths:
       - Mint Locations
   /admin/mint-locations/{id}:
     delete:
-      description: Deletes a global mint location. Coins with no remaining matching
-        mint location appear as unattributed in the map. Admin only.
+      description: Deletes a global mint location. Fails if any coin still references
+        it. Admin only.
       parameters:
       - description: Mint location ID
         in: path
@@ -4073,6 +4345,10 @@ paths:
             $ref: '#/definitions/handlers.ErrorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
         "500":
@@ -8170,6 +8446,38 @@ paths:
       summary: Coin lookup from images
       tags:
       - Coins
+  /coins/match-category-era:
+    post:
+      consumes:
+      - application/json
+      description: Resolves a free-text category or era value against built-in and
+        admin-defined lists
+      parameters:
+      - description: Candidate value to match
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.MatchCategoryEraRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MatchCategoryEraResponse'
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Match a category/era candidate against known values
+      tags:
+      - coins
   /extract-text:
     post:
       consumes:
@@ -8524,7 +8832,8 @@ paths:
       - Internal
   /mint-locations:
     get:
-      description: Returns all global mint locations for authenticated users.
+      description: Returns global mint locations plus the authenticated user's own
+        private ones.
       produces:
       - application/json
       responses:
@@ -8543,6 +8852,161 @@ paths:
       security:
       - BearerAuth: []
       summary: List mint locations
+      tags:
+      - Mint Locations
+    post:
+      consumes:
+      - application/json
+      description: Creates a mint location visible only to the authenticated user.
+      parameters:
+      - description: Mint location data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.mintLocationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.MintLocation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a private mint location
+      tags:
+      - Mint Locations
+  /mint-locations/{id}:
+    delete:
+      description: Deletes a mint location owned by the authenticated user. Fails
+        if any of their coins still reference it.
+      parameters:
+      - description: Mint location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a private mint location
+      tags:
+      - Mint Locations
+    put:
+      consumes:
+      - application/json
+      description: Updates a mint location owned by the authenticated user.
+      parameters:
+      - description: Mint location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Mint location data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.mintLocationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MintLocation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a private mint location
+      tags:
+      - Mint Locations
+  /mint-locations/geocode:
+    get:
+      description: Looks up coordinate candidates for a place name via OpenStreetMap
+        Nominatim. Only the typed name is sent - no coin, collection, or account data.
+      parameters:
+      - description: Place name to look up
+        in: query
+        name: query
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.geocodeMintResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Geocode a mint name
       tags:
       - Mint Locations
   /notes:
@@ -9457,6 +9921,384 @@ paths:
       summary: Scrape image URL from a web page
       tags:
       - Images
+  /set-builder/proposals:
+    get:
+      description: Returns human-reviewable Agentic set proposals for the current
+        user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              proposals:
+                items:
+                  $ref: '#/definitions/models.SetProposal'
+                type: array
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Agentic set proposals
+      tags:
+      - sets
+  /set-builder/proposals/{id}:
+    get:
+      description: Returns one human-reviewable Agentic set proposal with slots and
+        run summary.
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SetProposal'
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Agentic set proposal
+      tags:
+      - sets
+    put:
+      consumes:
+      - application/json
+      description: Edits proposal metadata and roster slots while the proposal is
+        pending.
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Proposal edits
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.updateSetProposalRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SetProposal'
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update Agentic set proposal
+      tags:
+      - sets
+  /set-builder/proposals/{id}/approve:
+    post:
+      description: Approves a pending Agentic set proposal and transactionally creates
+        the Agentic set with target slots.
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              set:
+                type: object
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Approve Agentic set proposal
+      tags:
+      - sets
+  /set-builder/proposals/{id}/regenerate:
+    post:
+      consumes:
+      - application/json
+      description: Rejects the current pending proposal as superseded and queues a
+        new Python workflow with review feedback.
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Regeneration feedback
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.regenerateSetProposalRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            properties:
+              run:
+                $ref: '#/definitions/models.SetBuilderRun'
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Regenerate Agentic set proposal
+      tags:
+      - sets
+  /set-builder/proposals/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Rejects a pending Agentic set proposal. No set is created.
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Rejection reason
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/handlers.rejectSetProposalRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              status:
+                type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Reject Agentic set proposal
+      tags:
+      - sets
+  /set-builder/runs:
+    post:
+      consumes:
+      - application/json
+      description: Submits a natural-language Agentic set prompt for asynchronous
+        proposal generation. No set is created by this endpoint.
+      parameters:
+      - description: Agentic set prompt
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.createSetBuilderRunRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            properties:
+              run:
+                type: object
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Queue Agentic set proposal
+      tags:
+      - sets
   /sets:
     get:
       description: Get all sets for the authenticated user with aggregate summaries
@@ -10219,7 +11061,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create a defined or goal set using custom CSV target definitions
+      description: Create a goal set using custom CSV target definitions
       parameters:
       - description: Set data and CSV content
         in: body

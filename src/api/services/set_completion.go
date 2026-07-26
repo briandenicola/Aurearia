@@ -15,7 +15,6 @@ func NewSetCompletion(repo *repository.SetRepository) *SetCompletion {
 }
 
 // GetCompletion calculates and returns completion metrics for a set.
-// Only valid for defined and goal sets.
 func (s *SetCompletion) GetCompletion(setID, userID uint) (map[string]interface{}, error) {
 	return s.repo.GetSetCompletion(setID, userID)
 }

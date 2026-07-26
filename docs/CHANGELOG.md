@@ -18,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Layer READMEs** — New README.md files for `src/api/`, `src/agent/`, replaced default Vite template in `src/web/`
 - **CNG Auctions support** — Import CNG lots, sync CNG watched lots, and filter auction tracking by provider alongside NumisBids
 - **Encrypted auction credentials** — Stored NumisBids and CNG provider passwords are encrypted at rest with lazy plaintext migration
+- **Agentic set proposals** — Agentic set creation now submits a proposal request, runs asynchronously through the Python agent service, notifies the user when ready, and requires human review before any set is created
+- **Coin Agent note saving** — Completed Coin Agent answers can be reviewed as markdown and saved into Notes from the chat surface
 
 ### Changed
 
@@ -26,6 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Mobile/PWA** — Removed sticky positioning leak; single-column layout preserved
 - **formatCurrency** — Shared utility in `@/utils/format.ts` adopted across all components (replaced 6 local copies)
 - **Documentation overhaul** — Updated ARCHITECTURE.md, SDD.md, features.md, social-feature.md, security-principles.md, threat-model.md, incident-response.md, references.md, authentication.md, deployment.md, getting-started.md, copilot-instructions.md
+- **Coin Sets terminology** — Set types are now Standard, Goal, Smart, and Agentic; legacy Open/Defined terminology is retired in user-facing docs
+- **Museum Tray display** — Tray cards now show purchase dates in `YYYY-MM-DD`; wishlist placeholders are more transparent and display `TBD`
 
 ### Fixed
 

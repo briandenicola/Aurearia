@@ -11,6 +11,9 @@ class StrictResponseModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+MAX_SET_BUILDER_SLOTS_RESPONSE = 300
+
+
 class CandidateReference(BaseModel):
     """A potential structured catalog reference extracted from listing text."""
 
@@ -178,3 +181,65 @@ class IntakeDraftResponse(BaseModel):
         validation_alias="unresolvedFields",
         serialization_alias="unresolvedFields",
     )
+
+
+# Dynamic Set Builder workflow DTOs.
+# Contract anchor: specs/011-dynamic-set-builder-correction-plan.md (Phase 2)
+class SetBuilderScopeOption(StrictResponseModel):
+    """One candidate scope interpretation offered by the Intent Analyst role."""
+
+    label: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    description: Annotated[str, StringConstraints(max_length=1000)] = ""
+    estimated_slot_count: int = Field(default=0, ge=0)
+    recommended: bool = False
+
+
+class SetBuilderSlot(StrictResponseModel):
+    """One proposed roster entry. Becomes a TrackerSlot only after Go approval."""
+
+    label: Annotated[str, StringConstraints(min_length=1, max_length=300)]
+    criteria: dict[str, str] = Field(default_factory=dict, max_length=50)
+    group: Annotated[str, StringConstraints(max_length=200)] = ""
+    sort_order: int = 0
+    verification_status: Literal["verified", "unverified"] = "unverified"
+    source_note: Annotated[str, StringConstraints(max_length=1000)] = ""
+    validation_notes: Annotated[str, StringConstraints(max_length=1000)] = ""
+
+
+class SetBuilderPrematchSummary(StrictResponseModel):
+    """Estimated filled/total preview from the Collection Matcher role."""
+
+    estimated_filled: int = Field(default=0, ge=0)
+    estimated_total: int = Field(default=0, ge=0)
+    notes: Annotated[str, StringConstraints(max_length=1000)] = ""
+
+
+class SetBuilderProposal(StrictResponseModel):
+    """Structured Set Proposal data only — never a created set. FR-003."""
+
+    name: Annotated[str, StringConstraints(min_length=1, max_length=300)]
+    slug_hint: Annotated[str, StringConstraints(max_length=300)] = ""
+    description: Annotated[str, StringConstraints(max_length=2000)] = ""
+    scope_summary: Annotated[str, StringConstraints(max_length=2000)] = ""
+    selected_scope: Annotated[str, StringConstraints(max_length=200)] = ""
+    group_by: Annotated[str, StringConstraints(max_length=200)] = ""
+    scope_options: list[SetBuilderScopeOption] = Field(default_factory=list, max_length=10)
+    slots: list[SetBuilderSlot] = Field(default_factory=list, max_length=MAX_SET_BUILDER_SLOTS_RESPONSE)
+    prematch_summary: SetBuilderPrematchSummary = Field(default_factory=SetBuilderPrematchSummary)
+
+
+class SetBuilderResponse(StrictResponseModel):
+    """Response from the set-builder workflow. Data only — no side effects.
+
+    `status` mirrors the outcomes required by spec 011 US1: a completed
+    proposal, a clarification request for ambiguous/unbounded prompts, or a
+    structured failure (including execution-limit termination) instead of a
+    fabricated roster.
+    """
+
+    status: Literal["completed", "clarification_needed", "rejected", "failed", "limit_reached"]
+    proposal: SetBuilderProposal | None = None
+    clarification_question: Annotated[str, StringConstraints(max_length=1000)] = ""
+    failure_reason: Annotated[str, StringConstraints(max_length=1000)] = ""
+    transcript_summary: Annotated[str, StringConstraints(max_length=4000)] = ""
+    turns_used: int = Field(default=0, ge=0)

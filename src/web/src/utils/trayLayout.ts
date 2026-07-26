@@ -12,6 +12,10 @@ export interface TrayCoin {
   name: string
   diameterMm: number | null
   images: readonly TrayCoinImage[]
+  purchaseDate?: string | null
+  placeholder?: boolean
+  placeholderLabel?: string
+  wishlistPlaceholder?: boolean
 }
 
 export interface TrayLayoutOptions {

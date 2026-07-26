@@ -12,8 +12,9 @@ import (
 
 // SetHandler handles set-related HTTP requests.
 type SetHandler struct {
-	repo    *repository.SetRepository
-	service *services.SetService
+	repo        *repository.SetRepository
+	service     *services.SetService
+	settingsSvc *services.SettingsService
 }
 
 // NewSetHandler creates a new SetHandler.
@@ -22,6 +23,13 @@ func NewSetHandler(repo *repository.SetRepository, service *services.SetService)
 		repo:    repo,
 		service: service,
 	}
+}
+
+// WithSettingsSupport enables suggested smart-set criteria to read the
+// admin's current CoinCategories list instead of a fixed built-in set.
+func (h *SetHandler) WithSettingsSupport(settingsSvc *services.SettingsService) *SetHandler {
+	h.settingsSvc = settingsSvc
+	return h
 }
 
 // List returns all sets for the authenticated user with summary data.
@@ -89,10 +97,10 @@ func (h *SetHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, detail)
 }
 
-// CreateFromCSV creates a defined or goal set from CSV target definitions.
+// CreateFromCSV creates a goal set from CSV target definitions.
 //
 //	@Summary		Create set from CSV
-//	@Description	Create a defined or goal set using custom CSV target definitions
+//	@Description	Create a goal set using custom CSV target definitions
 //	@Tags			sets
 //	@Accept			json
 //	@Produce		json
@@ -432,7 +440,7 @@ func (h *SetHandler) GetTemplates(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"templates": templates})
 }
 
-// GetCompletion returns completion metrics for a defined or goal set.
+// GetCompletion returns completion metrics for a set.
 //
 //	@Summary		Get set completion
 //	@Description	Get completion metrics including target count, completed count, and missing targets
@@ -609,7 +617,11 @@ func (h *SetHandler) PreviewSmartSet(c *gin.Context) {
 //	@Failure		401	{object}	object{error=string}
 //	@Router			/sets/suggested-criteria [get]
 func (h *SetHandler) GetSuggestedCriteria(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"suggestions": services.GetSuggestedCriteria()})
+	var categories []string
+	if h.settingsSvc != nil {
+		categories = services.SplitSettingList(h.settingsSvc.GetSetting(services.SettingCoinCategories))
+	}
+	c.JSON(http.StatusOK, gin.H{"suggestions": services.GetSuggestedCriteria(categories)})
 }
 
 // ListCriteriaTemplates returns all saved criteria templates for the authenticated user.

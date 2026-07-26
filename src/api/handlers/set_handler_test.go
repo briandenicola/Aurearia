@@ -54,7 +54,7 @@ func setupSetHandlerTestDB(t *testing.T) *gorm.DB {
 func TestSetHandler_ReorderCoins_SavesManualOrder(t *testing.T) {
 	router, db := setupSetHandlerRouter(t)
 	createTestUser(t, db, 1, "owner")
-	set, coins := createSetWithCoins(t, db, 1, models.CoinSetTypeOpen, []string{"Trajan", "Augustus", "Hadrian"})
+	set, coins := createSetWithCoins(t, db, 1, models.CoinSetTypeStandard, []string{"Trajan", "Augustus", "Hadrian"})
 
 	body := map[string][]uint{"coinIds": []uint{coins[1].ID, coins[2].ID, coins[0].ID}}
 	w := performSetOrderRequest(t, router, set.ID, 1, body)
@@ -75,7 +75,7 @@ func TestSetHandler_ReorderCoins_SavesManualOrder(t *testing.T) {
 func TestSetHandler_ReorderCoins_RejectsNonMemberAndPreservesOrder(t *testing.T) {
 	router, db := setupSetHandlerRouter(t)
 	createTestUser(t, db, 1, "owner")
-	set, coins := createSetWithCoins(t, db, 1, models.CoinSetTypeOpen, []string{"Augustus", "Trajan"})
+	set, coins := createSetWithCoins(t, db, 1, models.CoinSetTypeStandard, []string{"Augustus", "Trajan"})
 	nonMember := models.Coin{Name: "Nero", UserID: 1}
 	if err := db.Create(&nonMember).Error; err != nil {
 		t.Fatalf("create non-member: %v", err)

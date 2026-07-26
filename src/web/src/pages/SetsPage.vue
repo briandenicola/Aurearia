@@ -3,12 +3,12 @@
     <div class="page-header">
       <h1>Sets</h1>
       <div v-if="isPwa" class="pwa-actions">
-        <button class="pwa-icon-btn" @click="showCreateModal = true" title="Create Set">
+        <button class="pwa-icon-btn" @click="openCreateModal" title="Create Set">
           <CirclePlus :size="22" />
         </button>
       </div>
       <div v-else class="header-actions">
-        <button class="btn btn-primary" @click="showCreateModal = true">
+        <button class="btn btn-primary" @click="openCreateModal">
           <Plus :size="16" /> Create Set
         </button>
       </div>
@@ -23,7 +23,7 @@
       <Layers3 :size="48" />
       <h3>No sets yet</h3>
       <p>Create a set to organize your collection by theme, era, or completion goals</p>
-      <button class="btn btn-primary mt-4" @click="showCreateModal = true">
+      <button class="btn btn-primary mt-4" @click="openCreateModal">
         <Plus :size="16" /> Create Your First Set
       </button>
     </div>
@@ -62,22 +62,25 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { CirclePlus, Layers3, Plus, X } from 'lucide-vue-next'
-import { getSets, createSet as createSetApi, createSetFromCsv } from '@/api/client'
+import { getApiErrorMessage, getSets, createSet as createSetApi, createSetFromCsv, createSetBuilderRun } from '@/api/client'
 import type { CoinSetSummary, CreateCoinSetRequest } from '@/types'
 import SetDashboardCard from '@/components/sets/SetDashboardCard.vue'
 import SetCreationWizard from '@/components/sets/SetCreationWizard.vue'
 import { usePwa } from '@/composables/usePwa'
+import { randomSetColor } from '@/utils/setColors'
+import { useDialog } from '@/composables/useDialog'
 
 const router = useRouter()
 const { isPwa } = usePwa()
+const { showAlert } = useDialog()
 const loading = ref(true)
 const sets = ref<CoinSetSummary[]>([])
 const showCreateModal = ref(false)
 const newSet = ref({
   name: '',
   description: '',
-  color: '#6b7280',
-  setType: 'open' as const,
+  color: randomSetColor(),
+  setType: 'standard' as const,
 })
 
 onMounted(async () => {
@@ -96,24 +99,44 @@ async function loadSets() {
   }
 }
 
+function resetNewSet() {
+  newSet.value = {
+    name: '',
+    description: '',
+    color: randomSetColor(),
+    setType: 'standard',
+  }
+}
+
+function openCreateModal() {
+  resetNewSet()
+  showCreateModal.value = true
+}
+
 async function createSet(value: CreateCoinSetRequest, csv?: string) {
   try {
+    if (value.setType === 'agentic') {
+      await createSetBuilderRun({ prompt: value.agenticPrompt || value.name })
+      showCreateModal.value = false
+      resetNewSet()
+      await showAlert(
+        'Your set proposal request has been submitted. You will be notified when a proposal is ready for review.',
+        { title: 'Proposal Request Submitted' },
+      )
+      return
+    }
     if (csv) {
       await createSetFromCsv({ ...value, csv })
     } else {
       await createSetApi(value)
     }
     showCreateModal.value = false
-    newSet.value = {
-      name: '',
-      description: '',
-      color: '#6b7280',
-      setType: 'open',
-    }
+    resetNewSet()
     await loadSets()
   } catch (error) {
     console.error('Failed to create set:', error)
-    alert('Failed to create set')
+    const title = value.setType === 'agentic' ? 'Failed to Submit Proposal Request' : 'Failed to Create Set'
+    await showAlert(getApiErrorMessage(error) || 'Request failed.', { title })
   }
 }
 

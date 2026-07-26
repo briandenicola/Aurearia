@@ -33,6 +33,16 @@ type legacyCoinImage struct {
 
 func (legacyCoinImage) TableName() string { return "coin_images" }
 
+type legacyCoinSet struct {
+	ID           uint   `gorm:"primaryKey"`
+	UserID       uint   `gorm:"not null"`
+	Name         string `gorm:"not null"`
+	SetType      string `gorm:"type:varchar(20);not null;default:'open'"`
+	CreationMode string `gorm:"type:varchar(20)"`
+}
+
+func (legacyCoinSet) TableName() string { return "coin_sets" }
+
 func TestAutoMigrateAddsStorageLocationToExistingCoinTableWithReferences(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
@@ -105,5 +115,45 @@ func TestWishlistSearchAlertModelsAutoMigrate(t *testing.T) {
 	}
 	if !db.Migrator().HasColumn(&models.Coin{}, "SourceAlertCandidateID") {
 		t.Fatal("expected coins.source_alert_candidate_id to be migrated")
+	}
+}
+
+func TestMigrateCoinSetTypes_NormalizesLegacyValues(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to open test db: %v", err)
+	}
+	if err := db.AutoMigrate(&legacyCoinSet{}); err != nil {
+		t.Fatalf("failed to migrate legacy coin_sets: %v", err)
+	}
+
+	legacy := []legacyCoinSet{
+		{UserID: 1, Name: "Open Legacy", SetType: "open"},
+		{UserID: 1, Name: "Defined Legacy", SetType: "defined"},
+		{UserID: 1, Name: "Dynamic Legacy", SetType: "dynamic"},
+	}
+	if err := db.Create(&legacy).Error; err != nil {
+		t.Fatalf("failed to seed legacy sets: %v", err)
+	}
+
+	if err := migrateCoinSetTypes(db); err != nil {
+		t.Fatalf("migrateCoinSetTypes failed: %v", err)
+	}
+
+	var sets []legacyCoinSet
+	if err := db.Order("id ASC").Find(&sets).Error; err != nil {
+		t.Fatalf("failed to reload sets: %v", err)
+	}
+	if got := sets[0].SetType; got != "standard" {
+		t.Fatalf("expected first set type standard, got %q", got)
+	}
+	if got := sets[1].SetType; got != "goal" {
+		t.Fatalf("expected second set type goal, got %q", got)
+	}
+	if got := sets[2].SetType; got != "agentic" {
+		t.Fatalf("expected dynamic to migrate to agentic, got %q", got)
+	}
+	if got := sets[2].CreationMode; got != "dynamic" {
+		t.Fatalf("expected dynamic legacy set to have creation_mode dynamic, got %q", got)
 	}
 }

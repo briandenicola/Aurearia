@@ -148,6 +148,56 @@ func TestAgentProxyGradeCoinSendsInternalCredential(t *testing.T) {
 	}
 }
 
+func TestAgentProxyRunSetBuilderSendsInternalCredentialAndParsesProposal(t *testing.T) {
+	const token = "test-internal-service-token"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/set-builder/run" {
+			t.Fatalf("expected /api/set-builder/run path, got %s", r.URL.Path)
+		}
+		if got := r.Header.Get("X-Internal-Service-Token"); got != token {
+			t.Fatalf("expected internal token header %q, got %q", token, got)
+		}
+		var req SetBuilderProxyRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if req.Prompt != "All US silver quarters" || req.Collection == nil || req.Collection.TotalCoins != 2 {
+			t.Fatalf("unexpected set builder request: %#v", req)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"status":"completed",
+			"transcript_summary":"Agent roles completed the proposal.",
+			"turns_used":4,
+			"proposal":{
+				"name":"US Silver Quarters",
+				"slug_hint":"us-silver-quarters",
+				"description":"A date set.",
+				"selected_scope":"Date set",
+				"scope_options":[{"label":"1940-1964","estimated_slot_count":25,"recommended":true}],
+				"slots":[{"label":"1940 US Silver Quarter","criteria":{"year":"1940"},"group":"1940s","sort_order":1,"verification_status":"verified","source_note":"date in range"}],
+				"prematch_summary":{"estimated_filled":1,"estimated_total":25,"notes":"one match"}
+			}
+		}`))
+	}))
+	defer server.Close()
+
+	proxy := NewAgentProxy(server.URL, token, NewLogger(10))
+	result, err := proxy.RunSetBuilder(context.Background(), SetBuilderProxyRequest{
+		LLM:        LLMConfig{Provider: "ollama", Model: "llama3"},
+		User:       UserContextProxy{UserID: 1},
+		Prompt:     "All US silver quarters",
+		Collection: &PortfolioData{TotalCoins: 2},
+	})
+	if err != nil {
+		t.Fatalf("RunSetBuilder returned error: %v", err)
+	}
+	if result.Status != "completed" || result.Proposal == nil || len(result.Proposal.Slots) != 1 {
+		t.Fatalf("unexpected set builder result: %#v", result)
+	}
+}
+
 func TestLLMConfigJSONOmitsProviderIrrelevantFields(t *testing.T) {
 	body, err := json.Marshal(LLMConfig{
 		Provider:  "anthropic",

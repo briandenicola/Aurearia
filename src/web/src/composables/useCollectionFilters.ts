@@ -2,7 +2,7 @@ import { ref, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useCoinsStore } from '@/stores/coins'
 import { getAppSettings, getSets, getTags } from '@/api/client'
 import { usePwa } from '@/composables/usePwa'
-import { COIN_ERAS } from '@/types'
+import { COIN_ERAS, normalizeCoinSetType } from '@/types'
 import type { CollectionSetOption } from '@/types'
 import { parseOptionList } from '@/utils/options'
 
@@ -55,7 +55,7 @@ export function useCollectionFilters() {
       }))
       const tagNames = new Set(tagOptions.map((tag) => tag.name.trim().toLowerCase()))
       const setOptions = (setRes.data?.sets ?? [])
-        .filter((set) => set.setType === 'open' && !tagNames.has(set.name.trim().toLowerCase()))
+        .filter((set) => normalizeCoinSetType(set.setType) === 'standard' && !tagNames.has(set.name.trim().toLowerCase()))
         .map((set) => ({
           id: set.id,
           name: set.name,

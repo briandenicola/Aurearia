@@ -1,10 +1,10 @@
-# AI Coin Search Agent
+# Coin Agent
 
-> Chat with an intelligent agent to discover coins matching your description across dealer sites, with real-time search results and structured suggestions.
+> Chat with an intelligent agent to discover coins, answer collection questions, research shows, and save useful answers as markdown Notes after review.
 
 ## Overview
 
-The AI Coin Search Agent is a multi-team LangGraph orchestrator that searches dealer websites, auction sites, and catalogs for coins matching your description. It returns structured results with images, metadata, prices, source links, and candidate catalog references that can be imported directly to your wishlist.
+The Coin Agent is a multi-team LangGraph orchestrator behind one chat surface. It can search dealer websites, auction sites, and catalogs for coins matching your description, answer owner-scoped collection questions, summarize portfolio context, find upcoming shows, and format completed answers for optional note-taking. Search results include images, metadata, prices, source links, and candidate catalog references that can be imported directly to your wishlist.
 
 ## Architecture
 
@@ -50,6 +50,12 @@ The agent uses specialized teams for different tasks:
 - Identifies gaps and suggests acquisitions
 - Returns: gap analysis, targeted recommendations with estimated prices
 
+### Collection Questions
+- Answers owner-scoped collection questions using the same collection tools exposed to the Python agent service
+- Supports prompts such as "Which coins in my collection are missing an era?" and "Summarize my most valuable coins"
+- Read-only questions can search the collection, retrieve one coin, summarize totals, and rank top coins by value
+- Write-style collection updates remain confirm-gated through the existing proposal and commit flow
+
 ### Team 5: Auction Search
 - Searches supported auction sources for matching lots
 - Formats auction lot candidates with provider links and source context
@@ -90,7 +96,7 @@ The agent uses specialized teams for different tasks:
 
 1. Navigate to **Wish List** page
 2. Click **Find Coins** button
-3. Chat drawer opens (or full-screen on mobile)
+3. The **Coin Agent** drawer opens (or full-screen on mobile)
 
 ### Typing a Description
 
@@ -101,6 +107,7 @@ Enter natural language descriptions:
 - "Greek silver tetradrachms from Athens, 5th century"
 - "Byzantine gold coins from the reign of Justinian"
 - "Find upcoming coin shows in the next 30 days"
+- "Which coins in my collection are missing an era?"
 
 ### Real-Time Status
 
@@ -163,6 +170,17 @@ These are imported with the coin to your wishlist.
 3. Click to reopen and continue searching
 4. Delete chats you no longer need
 
+## Saving Answers to Notes
+
+Completed assistant answers show **Save to Notes**. Clicking it opens a review dialog with:
+
+1. A generated title from the first markdown heading or first non-empty line
+2. Editable markdown body
+3. Rendered preview
+4. Explicit **Create Note** action
+
+The agent does not automatically create notes during normal chat. A note is created only after the user reviews the draft and confirms.
+
 ## Configuration
 
 ### Admin Settings (`Admin → AI Configuration`)
@@ -207,6 +225,8 @@ POST   /api/agent/chat              # Send message to agent (SSE stream)
 GET    /api/agent/conversations     # List saved conversations
 POST   /api/agent/conversations     # Save current conversation
 DELETE /api/agent/conversations/:id # Delete conversation
+GET    /api/notes                   # List notes
+POST   /api/notes                   # Save reviewed markdown from an answer
 GET    /api/ai-status               # Check agent provider status
 ```
 
@@ -224,6 +244,7 @@ GET    /api/ai-status               # Check agent provider status
 ## Related Features
 
 - [Wish List](wish-list.md) — Add search results to wishlist
+- [Coin Details](coin-details.md) — View and edit collection records referenced by collection questions
 - [AI Coin Analysis](ai-analysis.md) — Vision-model analysis of uploaded photos
 - [Auction Tracking](auction-tracking.md) — Track NumisBids and CNG Auctions lots found by agent
 - [Price Trends](price-trends.md) — Analyze auction market trends

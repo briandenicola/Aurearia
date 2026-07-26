@@ -12,13 +12,42 @@ import (
 )
 
 var (
-	ErrCoinInvalidEra = errors.New("era is not supported")
+	ErrCoinInvalidEra      = errors.New("era is not supported")
+	ErrCoinInvalidCategory = errors.New("category is not supported")
 )
 
 var builtInCoinEras = map[models.Era]struct{}{
 	models.EraAncient:  {},
 	models.EraMedieval: {},
 	models.EraModern:   {},
+}
+
+var builtInCoinCategories = map[models.Category]struct{}{
+	models.CategoryRoman:     {},
+	models.CategoryGreek:     {},
+	models.CategoryByzantine: {},
+	models.CategoryModern:    {},
+	models.CategoryOther:     {},
+}
+
+// BuiltInCoinCategoryValues returns the built-in category baseline as a
+// plain string slice, for callers (e.g. AI collection search) that need to
+// merge it with the admin-defined CoinCategories list.
+func BuiltInCoinCategoryValues() []string {
+	values := make([]string, 0, len(builtInCoinCategories))
+	for k := range builtInCoinCategories {
+		values = append(values, string(k))
+	}
+	return values
+}
+
+// BuiltInCoinEraValues is the Era equivalent of BuiltInCoinCategoryValues.
+func BuiltInCoinEraValues() []string {
+	values := make([]string, 0, len(builtInCoinEras))
+	for k := range builtInCoinEras {
+		values = append(values, string(k))
+	}
+	return values
 }
 
 // CoinService handles coin business logic and orchestrates repository calls.
@@ -28,6 +57,7 @@ type CoinService struct {
 	refRepo             *repository.CoinReferenceRepository
 	refSvc              *CoinReferenceService
 	storageLocationRepo *repository.StorageLocationRepository
+	mintLocationRepo    *repository.MintLocationRepository
 	catalogRegistryRepo *repository.CatalogRegistryRepository
 	settingsSvc         *SettingsService
 }
@@ -62,6 +92,12 @@ func (s *CoinService) WithReferenceSupport(
 // WithStorageLocationSupport enables storage-location ownership validation during coin create/update workflows.
 func (s *CoinService) WithStorageLocationSupport(storageLocationRepo *repository.StorageLocationRepository) *CoinService {
 	s.storageLocationRepo = storageLocationRepo
+	return s
+}
+
+// WithMintLocationSupport enables mint-location visibility validation during coin create/update workflows.
+func (s *CoinService) WithMintLocationSupport(mintLocationRepo *repository.MintLocationRepository) *CoinService {
+	s.mintLocationRepo = mintLocationRepo
 	return s
 }
 
@@ -112,11 +148,18 @@ func (s *CoinService) prepareCoinForCreate(coin *models.Coin) error {
 	if err := s.validateStorageLocation(coin.StorageLocationID, coin.UserID); err != nil {
 		return err
 	}
+	if err := s.validateMintLocation(coin.MintLocationID, coin.UserID); err != nil {
+		return err
+	}
 	if coin.IsWishlist {
 		coin.References = nil
 	}
 	coin.Era = models.Era(strings.TrimSpace(string(coin.Era)))
 	if err := s.validateCoinEra(coin.Era); err != nil {
+		return err
+	}
+	coin.Category = models.Category(strings.TrimSpace(string(coin.Category)))
+	if err := s.validateCoinCategory(coin.Category); err != nil {
 		return err
 	}
 	return nil
@@ -184,6 +227,11 @@ func (s *CoinService) updateCoin(existing *models.Coin, updates *models.Coin, up
 			return err
 		}
 	}
+	if updateFields == nil || containsString(updateFields, "MintLocationID") {
+		if err := s.validateMintLocation(updates.MintLocationID, userID); err != nil {
+			return err
+		}
+	}
 	eraProvided := updateFields == nil || containsString(updateFields, "Era")
 	if eraProvided {
 		updates.Era = models.Era(strings.TrimSpace(string(updates.Era)))
@@ -191,6 +239,16 @@ func (s *CoinService) updateCoin(existing *models.Coin, updates *models.Coin, up
 	existingEra := models.Era(strings.TrimSpace(string(existing.Era)))
 	if eraProvided && updates.Era != existingEra {
 		if err := s.validateCoinEra(updates.Era); err != nil {
+			return err
+		}
+	}
+	categoryProvided := updateFields == nil || containsString(updateFields, "Category")
+	if categoryProvided {
+		updates.Category = models.Category(strings.TrimSpace(string(updates.Category)))
+	}
+	existingCategory := models.Category(strings.TrimSpace(string(existing.Category)))
+	if categoryProvided && updates.Category != existingCategory {
+		if err := s.validateCoinCategory(updates.Category); err != nil {
 			return err
 		}
 	}
@@ -354,6 +412,23 @@ func (s *CoinService) validateStorageLocation(storageLocationID *uint, userID ui
 	return nil
 }
 
+func (s *CoinService) validateMintLocation(mintLocationID *uint, userID uint) error {
+	if mintLocationID == nil || s.mintLocationRepo == nil {
+		return nil
+	}
+	if *mintLocationID == 0 {
+		return ErrMintLocationNotFound
+	}
+	exists, err := s.mintLocationRepo.ExistsVisibleTo(*mintLocationID, userID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrMintLocationNotFound
+	}
+	return nil
+}
+
 func (s *CoinService) validateCoinEra(era models.Era) error {
 	trimmed := strings.TrimSpace(string(era))
 	if trimmed == "" {
@@ -380,6 +455,30 @@ func (s *CoinService) validateCoinEra(era models.Era) error {
 		return ErrCoinInvalidEra
 	}
 	return nil
+}
+
+// validateCoinCategory mirrors validateCoinEra: built-in categories are
+// always accepted regardless of the CoinCategories admin setting (so the
+// "Roman" value Emperor Tracker depends on can never be invalidated by an
+// admin edit to that setting), custom categories are accepted if they
+// appear in the setting's admin-defined list. Unlike Era, there is no
+// Catalog Registry fallback tier for Category — no such concept exists there.
+func (s *CoinService) validateCoinCategory(category models.Category) error {
+	trimmed := strings.TrimSpace(string(category))
+	if trimmed == "" {
+		return nil
+	}
+	normalized := models.Category(trimmed)
+	if _, ok := builtInCoinCategories[normalized]; ok {
+		return nil
+	}
+	if len(trimmed) > 64 {
+		return ErrCoinInvalidCategory
+	}
+	if s.settingsSvc != nil && settingListContains(s.settingsSvc.GetSetting(SettingCoinCategories), trimmed) {
+		return nil
+	}
+	return ErrCoinInvalidCategory
 }
 
 func settingListContains(value, needle string) bool {

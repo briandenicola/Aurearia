@@ -520,9 +520,9 @@ SQLite via GORM. All tables are auto-migrated from Go model structs in `database
 | `CoinImage` | `coin_images` | CoinID, FilePath, ImageType (obverse/reverse/detail), IsPrimary | → Coin |
 | `Tag` | `tags` | UserID, Name, Color | |
 | `CoinTag` | `coin_tags` | CoinID, TagID | Join table |
-| `CoinSet` | `coin_sets` | UserID, Name, Color, SetType (`open`/`defined`/`smart`/`goal`), SmartCriteria, TargetCompletionDate | → User, → []CoinSetMembership, → []CoinSetTarget |
+| `CoinSet` | `coin_sets` | UserID, Name, Color, SetType (`standard`/`goal`/`smart`/`agentic`), SmartCriteria, TargetCompletionDate, AgenticStatus | → User, → []CoinSetMembership, → []CoinSetTarget |
 | `CoinSetMembership` | `coin_set_memberships` | SetID, CoinID, Notes | Join table for manual set membership |
-| `CoinSetTarget` | `coin_set_targets` | SetID, Label, Year, MintMark, Denomination, Country, Material, MatchRules, SortOrder | Target slots for defined/goal completion |
+| `CoinSetTarget` | `coin_set_targets` | SetID, Label, Year, MintMark, Denomination, Country, Material, MatchRules, SortOrder | Target slots for compatible completion workflows |
 | `CoinSetValuationSnapshot` | `coin_set_valuation_snapshots` | SetID, UserID, SnapshotDate, TotalValue, TotalInvested, CoinCount, CompletionPercentage | Time-series trend data |
 | `CoinSetMilestoneAlert` | `coin_set_milestone_alerts` | SetID, UserID, Metric, Threshold, Direction, LastTriggeredAt | Snapshot-triggered milestone notifications |
 | `CoinJournal` | `coin_journals` | CoinID, UserID, Entry, CreatedAt | |

@@ -43,12 +43,14 @@ const (
 type Coin struct {
 	ID                     uint             `gorm:"primaryKey" json:"id"`
 	Name                   string           `gorm:"not null" json:"name" binding:"max=200"`
-	Category               Category         `gorm:"type:varchar(20);not null;default:'Other'" json:"category"`
+	Category               Category         `gorm:"type:varchar(20);not null;default:'Other'" json:"category" binding:"omitempty,max=64"`
 	Denomination           string           `json:"denomination" binding:"max=200"`
 	Ruler                  string           `json:"ruler" binding:"max=200"`
 	RomanImperialFigureID  *uint            `gorm:"index" json:"romanImperialFigureId"`
 	Era                    Era              `gorm:"type:varchar(64)" json:"era" binding:"omitempty,max=64"`
 	Mint                   string           `json:"mint" binding:"max=200"`
+	MintLocationID         *uint            `json:"mintLocationId"`
+	MintLocation           *MintLocation    `gorm:"foreignKey:MintLocationID;constraint:-" json:"mintLocation"`
 	Material               Material         `gorm:"type:varchar(20);default:'Other'" json:"material"`
 	WeightGrams            *float64         `json:"weightGrams"`
 	DiameterMm             *float64         `json:"diameterMm"`

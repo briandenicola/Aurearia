@@ -1472,7 +1472,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Deletes a global mint location. Coins with no remaining matching mint location appear as unattributed in the map. Admin only.",
+                "description": "Deletes a global mint location. Fails if any coin still references it. Admin only.",
                 "produces": [
                     "application/json"
                 ],
@@ -1516,6 +1516,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -6085,6 +6091,56 @@ const docTemplate = `{
                 }
             }
         },
+        "/coins/match-category-era": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Resolves a free-text category or era value against built-in and admin-defined lists",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "coins"
+                ],
+                "summary": "Match a category/era candidate against known values",
+                "parameters": [
+                    {
+                        "description": "Candidate value to match",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MatchCategoryEraRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MatchCategoryEraResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/coins/{id}": {
             "get": {
                 "security": [
@@ -8245,7 +8301,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns all global mint locations for authenticated users.",
+                "description": "Returns global mint locations plus the authenticated user's own private ones.",
                 "produces": [
                     "application/json"
                 ],
@@ -8262,6 +8318,245 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a mint location visible only to the authenticated user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Mint Locations"
+                ],
+                "summary": "Create a private mint location",
+                "parameters": [
+                    {
+                        "description": "Mint location data",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.mintLocationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.MintLocation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/mint-locations/geocode": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Looks up coordinate candidates for a place name via OpenStreetMap Nominatim. Only the typed name is sent - no coin, collection, or account data.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Mint Locations"
+                ],
+                "summary": "Geocode a mint name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Place name to look up",
+                        "name": "query",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.geocodeMintResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/mint-locations/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates a mint location owned by the authenticated user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Mint Locations"
+                ],
+                "summary": "Update a private mint location",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Mint location ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Mint location data",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.mintLocationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.MintLocation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes a mint location owned by the authenticated user. Fails if any of their coins still reference it.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Mint Locations"
+                ],
+                "summary": "Delete a private mint location",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Mint location ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -9684,6 +9979,598 @@ const docTemplate = `{
                 }
             }
         },
+        "/set-builder/proposals": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns human-reviewable Agentic set proposals for the current user.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sets"
+                ],
+                "summary": "List Agentic set proposals",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "proposals": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/definitions/models.SetProposal"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/set-builder/proposals/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one human-reviewable Agentic set proposal with slots and run summary.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sets"
+                ],
+                "summary": "Get Agentic set proposal",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Proposal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SetProposal"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Edits proposal metadata and roster slots while the proposal is pending.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sets"
+                ],
+                "summary": "Update Agentic set proposal",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Proposal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Proposal edits",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.updateSetProposalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SetProposal"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/set-builder/proposals/{id}/approve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Approves a pending Agentic set proposal and transactionally creates the Agentic set with target slots.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sets"
+                ],
+                "summary": "Approve Agentic set proposal",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Proposal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "set": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/set-builder/proposals/{id}/regenerate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Rejects the current pending proposal as superseded and queues a new Python workflow with review feedback.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sets"
+                ],
+                "summary": "Regenerate Agentic set proposal",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Proposal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Regeneration feedback",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.regenerateSetProposalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "run": {
+                                    "$ref": "#/definitions/models.SetBuilderRun"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/set-builder/proposals/{id}/reject": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Rejects a pending Agentic set proposal. No set is created.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sets"
+                ],
+                "summary": "Reject Agentic set proposal",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Proposal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Rejection reason",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.rejectSetProposalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/set-builder/runs": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Submits a natural-language Agentic set prompt for asynchronous proposal generation. No set is created by this endpoint.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sets"
+                ],
+                "summary": "Queue Agentic set proposal",
+                "parameters": [
+                    {
+                        "description": "Agentic set prompt",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.createSetBuilderRunRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "run": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/sets": {
             "get": {
                 "security": [
@@ -10091,7 +10978,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create a defined or goal set using custom CSV target definitions",
+                "description": "Create a goal set using custom CSV target definitions",
                 "consumes": [
                     "application/json"
                 ],
@@ -15025,7 +15912,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "category": {
-                    "$ref": "#/definitions/models.Category"
+                    "maxLength": 64,
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Category"
+                        }
+                    ]
                 },
                 "currentValue": {
                     "type": "number"
@@ -15064,6 +15956,9 @@ const docTemplate = `{
                 "mint": {
                     "type": "string",
                     "maxLength": 200
+                },
+                "mintLocationId": {
+                    "type": "integer"
                 },
                 "name": {
                     "type": "string",
@@ -15336,7 +16231,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "category": {
-                    "$ref": "#/definitions/models.Category"
+                    "maxLength": 64,
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Category"
+                        }
+                    ]
                 },
                 "currentValue": {
                     "type": "number"
@@ -15375,6 +16275,9 @@ const docTemplate = `{
                 "mint": {
                     "type": "string",
                     "maxLength": 200
+                },
+                "mintLocationId": {
+                    "type": "integer"
                 },
                 "name": {
                     "type": "string",
@@ -15838,6 +16741,37 @@ const docTemplate = `{
                 "rawAnalysis": {
                     "type": "string",
                     "example": "Vision analysis text..."
+                }
+            }
+        },
+        "handlers.MatchCategoryEraRequest": {
+            "type": "object",
+            "required": [
+                "type",
+                "value"
+            ],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "category",
+                        "era"
+                    ]
+                },
+                "value": {
+                    "type": "string",
+                    "maxLength": 200
+                }
+            }
+        },
+        "handlers.MatchCategoryEraResponse": {
+            "type": "object",
+            "properties": {
+                "match": {
+                    "type": "string"
+                },
+                "matched": {
+                    "type": "boolean"
                 }
             }
         },
@@ -16659,6 +17593,14 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.createSetBuilderRunRequest": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.emperorTrackerHighlightRequest": {
             "type": "object",
             "properties": {
@@ -16693,6 +17635,17 @@ const docTemplate = `{
                 "key": {
                     "type": "string",
                     "example": "ak_a1b2c3d4e5f6..."
+                }
+            }
+        },
+        "handlers.geocodeMintResponse": {
+            "type": "object",
+            "properties": {
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.GeocodeCandidate"
+                    }
                 }
             }
         },
@@ -16867,6 +17820,14 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.regenerateSetProposalRequest": {
+            "type": "object",
+            "properties": {
+                "feedback": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.registerRequest": {
             "type": "object",
             "required": [
@@ -16888,6 +17849,14 @@ const docTemplate = `{
                     "type": "string",
                     "minLength": 3,
                     "example": "admin"
+                }
+            }
+        },
+        "handlers.rejectSetProposalRequest": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
                 }
             }
         },
@@ -16935,6 +17904,56 @@ const docTemplate = `{
                 },
                 "sortOrder": {
                     "type": "integer"
+                }
+            }
+        },
+        "handlers.updateSetProposalRequest": {
+            "type": "object",
+            "properties": {
+                "color": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "proposedName": {
+                    "type": "string"
+                },
+                "selectedScope": {
+                    "type": "string"
+                },
+                "slots": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.updateSetProposalSlotRequest"
+                    }
+                }
+            }
+        },
+        "handlers.updateSetProposalSlotRequest": {
+            "type": "object",
+            "properties": {
+                "criteria": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "group": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "sourceNote": {
+                    "type": "string"
+                },
+                "validationNote": {
+                    "type": "string"
+                },
+                "verificationStatus": {
+                    "type": "string"
                 }
             }
         },
@@ -17584,7 +18603,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "category": {
-                    "$ref": "#/definitions/models.Category"
+                    "maxLength": 64,
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Category"
+                        }
+                    ]
                 },
                 "createdAt": {
                     "type": "string"
@@ -17647,6 +18671,12 @@ const docTemplate = `{
                 "mint": {
                     "type": "string",
                     "maxLength": 200
+                },
+                "mintLocation": {
+                    "$ref": "#/definitions/models.MintLocation"
+                },
+                "mintLocationId": {
+                    "type": "integer"
                 },
                 "name": {
                     "type": "string",
@@ -17908,11 +18938,20 @@ const docTemplate = `{
         "models.CoinSet": {
             "type": "object",
             "properties": {
+                "agenticPrompt": {
+                    "type": "string"
+                },
+                "agenticStatus": {
+                    "type": "string"
+                },
                 "color": {
                     "type": "string"
                 },
                 "createdAt": {
                     "type": "string"
+                },
+                "creationMode": {
+                    "$ref": "#/definitions/models.CoinSetCreationMode"
                 },
                 "description": {
                     "type": "string"
@@ -17952,19 +18991,36 @@ const docTemplate = `{
                 }
             }
         },
+        "models.CoinSetCreationMode": {
+            "type": "string",
+            "enum": [
+                "manual",
+                "dynamic"
+            ],
+            "x-enum-varnames": [
+                "CoinSetCreationModeManual",
+                "CoinSetCreationModeDynamic"
+            ]
+        },
         "models.CoinSetType": {
             "type": "string",
             "enum": [
-                "open",
-                "defined",
+                "standard",
                 "smart",
-                "goal"
+                "goal",
+                "agentic",
+                "standard",
+                "goal",
+                "agentic"
             ],
             "x-enum-varnames": [
+                "CoinSetTypeStandard",
+                "CoinSetTypeSmart",
+                "CoinSetTypeGoal",
+                "CoinSetTypeAgentic",
                 "CoinSetTypeOpen",
                 "CoinSetTypeDefined",
-                "CoinSetTypeSmart",
-                "CoinSetTypeGoal"
+                "CoinSetTypeTracker"
             ]
         },
         "models.CoinValueHistory": {
@@ -18124,6 +19180,9 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "type": "string"
+                },
+                "userId": {
+                    "type": "integer"
                 }
             }
         },
@@ -18174,6 +19233,55 @@ const docTemplate = `{
                 "OIDCProviderTypeEntra",
                 "OIDCProviderTypePocketID",
                 "OIDCProviderTypeGeneric"
+            ]
+        },
+        "models.ProposalSlot": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "criteria": {
+                    "$ref": "#/definitions/models.JSONObject"
+                },
+                "group": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "proposalId": {
+                    "type": "integer"
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "sourceNote": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "validationNote": {
+                    "type": "string"
+                },
+                "verificationStatus": {
+                    "$ref": "#/definitions/models.ProposalSlotVerificationStatus"
+                }
+            }
+        },
+        "models.ProposalSlotVerificationStatus": {
+            "type": "string",
+            "enum": [
+                "verified",
+                "unverified"
+            ],
+            "x-enum-varnames": [
+                "ProposalSlotVerificationVerified",
+                "ProposalSlotVerificationUnverified"
             ]
         },
         "models.QuickCaptureDraft": {
@@ -18360,6 +19468,177 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "models.SetBuilderRun": {
+            "type": "object",
+            "properties": {
+                "completedAt": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "errorMessage": {
+                    "type": "string"
+                },
+                "feedback": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "maxTurns": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.SetBuilderRunStatus"
+                },
+                "terminationReason": {
+                    "type": "string"
+                },
+                "tokenBudget": {
+                    "type": "integer"
+                },
+                "tokensUsed": {
+                    "type": "integer"
+                },
+                "transcriptSummary": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "usedTurns": {
+                    "type": "integer"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.SetBuilderRunStatus": {
+            "type": "string",
+            "enum": [
+                "queued",
+                "running",
+                "completed",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "SetBuilderRunStatusQueued",
+                "SetBuilderRunStatusRunning",
+                "SetBuilderRunStatusCompleted",
+                "SetBuilderRunStatusFailed"
+            ]
+        },
+        "models.SetProposal": {
+            "type": "object",
+            "properties": {
+                "approvalSetId": {
+                    "type": "integer"
+                },
+                "approvedAt": {
+                    "type": "string"
+                },
+                "builderRunId": {
+                    "type": "integer"
+                },
+                "color": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "errorMessage": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "idempotencyKey": {
+                    "type": "string"
+                },
+                "originalPrompt": {
+                    "type": "string"
+                },
+                "preMatchSummary": {
+                    "$ref": "#/definitions/models.JSONObject"
+                },
+                "proposedName": {
+                    "type": "string"
+                },
+                "proposedSlug": {
+                    "type": "string"
+                },
+                "rejectedAt": {
+                    "type": "string"
+                },
+                "rejectionReason": {
+                    "type": "string"
+                },
+                "rosterPayload": {
+                    "$ref": "#/definitions/models.JSONObject"
+                },
+                "run": {
+                    "$ref": "#/definitions/models.SetBuilderRun"
+                },
+                "scopeOptions": {
+                    "$ref": "#/definitions/models.JSONObject"
+                },
+                "selectedScope": {
+                    "type": "string"
+                },
+                "slots": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ProposalSlot"
+                    }
+                },
+                "status": {
+                    "$ref": "#/definitions/models.SetProposalStatus"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.SetProposalStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "expired",
+                "creation_failed"
+            ],
+            "x-enum-varnames": [
+                "SetProposalStatusPending",
+                "SetProposalStatusApproved",
+                "SetProposalStatusRejected",
+                "SetProposalStatusExpired",
+                "SetProposalStatusCreationFailed"
+            ]
         },
         "models.StorageLocation": {
             "type": "object",
@@ -18942,6 +20221,20 @@ const docTemplate = `{
                 },
                 "usurpers": {
                     "$ref": "#/definitions/services.CategoryProgress"
+                }
+            }
+        },
+        "services.GeocodeCandidate": {
+            "type": "object",
+            "properties": {
+                "displayName": {
+                    "type": "string"
+                },
+                "lat": {
+                    "type": "number"
+                },
+                "lng": {
+                    "type": "number"
                 }
             }
         },

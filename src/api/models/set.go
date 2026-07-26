@@ -10,31 +10,46 @@ import (
 type CoinSetType string
 
 const (
-	CoinSetTypeOpen    CoinSetType = "open"
-	CoinSetTypeDefined CoinSetType = "defined"
-	CoinSetTypeSmart   CoinSetType = "smart"
-	CoinSetTypeGoal    CoinSetType = "goal"
+	CoinSetTypeStandard CoinSetType = "standard"
+	CoinSetTypeSmart    CoinSetType = "smart"
+	CoinSetTypeGoal     CoinSetType = "goal"
+	CoinSetTypeAgentic  CoinSetType = "agentic"
+
+	// Legacy aliases normalized during create/update and DB migration.
+	CoinSetTypeOpen    CoinSetType = CoinSetTypeStandard
+	CoinSetTypeDefined CoinSetType = CoinSetTypeGoal
+	CoinSetTypeTracker CoinSetType = CoinSetTypeAgentic
 )
 
-// CoinSet represents a user-owned set evolved from tags.
+type CoinSetCreationMode string
+
+const (
+	CoinSetCreationModeManual  CoinSetCreationMode = "manual"
+	CoinSetCreationModeDynamic CoinSetCreationMode = "dynamic"
+)
+
+// CoinSet represents a user-owned set.
 type CoinSet struct {
-	ID                   uint        `gorm:"primaryKey" json:"id"`
-	UserID               uint        `gorm:"not null;index;uniqueIndex:idx_user_set_name" json:"userId"`
-	Name                 string      `gorm:"not null;type:varchar(80);uniqueIndex:idx_user_set_name" json:"name"`
-	Description          string      `gorm:"type:text" json:"description"`
-	Color                string      `gorm:"type:varchar(7);default:'#6b7280'" json:"color"`
-	Icon                 string      `gorm:"type:varchar(50)" json:"icon"`
-	SetType              CoinSetType `gorm:"type:varchar(20);not null;default:'open'" json:"setType"`
-	ParentSetID          *uint       `gorm:"index" json:"parentSetId"`
-	TargetCompletionDate *time.Time  `json:"targetCompletionDate"`
-	IsPublic             bool        `gorm:"default:false" json:"isPublic"`
-	ShareToken           *string     `gorm:"type:varchar(64);uniqueIndex" json:"shareToken"`
-	SmartCriteria        *JSONObject `gorm:"type:text" json:"smartCriteria"`
-	CreatedAt            time.Time   `json:"createdAt"`
-	UpdatedAt            time.Time   `json:"updatedAt"`
+	ID                   uint                `gorm:"primaryKey" json:"id"`
+	UserID               uint                `gorm:"not null;index;uniqueIndex:idx_user_set_name" json:"userId"`
+	Name                 string              `gorm:"not null;type:varchar(80);uniqueIndex:idx_user_set_name" json:"name"`
+	Description          string              `gorm:"type:text" json:"description"`
+	Color                string              `gorm:"type:varchar(7);default:'#6b7280'" json:"color"`
+	Icon                 string              `gorm:"type:varchar(50)" json:"icon"`
+	SetType              CoinSetType         `gorm:"type:varchar(20);not null;default:'standard'" json:"setType"`
+	CreationMode         CoinSetCreationMode `gorm:"type:varchar(20);not null;default:'manual'" json:"creationMode"`
+	ParentSetID          *uint               `gorm:"index" json:"parentSetId"`
+	TargetCompletionDate *time.Time          `json:"targetCompletionDate"`
+	IsPublic             bool                `gorm:"default:false" json:"isPublic"`
+	ShareToken           *string             `gorm:"type:varchar(64);uniqueIndex" json:"shareToken"`
+	SmartCriteria        *JSONObject         `gorm:"type:text" json:"smartCriteria"`
+	AgenticPrompt        string              `gorm:"type:text" json:"agenticPrompt,omitempty"`
+	AgenticStatus        string              `gorm:"type:varchar(20);default:'ready'" json:"agenticStatus,omitempty"`
+	CreatedAt            time.Time           `json:"createdAt"`
+	UpdatedAt            time.Time           `json:"updatedAt"`
 }
 
-// CoinSetMembership represents manual membership for open, defined, and goal sets.
+// CoinSetMembership represents manual membership for standard and goal sets.
 type CoinSetMembership struct {
 	SetID     uint      `gorm:"primaryKey" json:"setId"`
 	CoinID    uint      `gorm:"primaryKey" json:"coinId"`

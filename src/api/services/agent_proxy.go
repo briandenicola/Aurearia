@@ -249,6 +249,62 @@ type BidMarketSignalProxyResponse struct {
 	Degraded       bool     `json:"degraded"`
 }
 
+// SetBuilderProxyRequest is sent to the Python agentic set-builder workflow.
+type SetBuilderProxyRequest struct {
+	LLM                  LLMConfig        `json:"llm"`
+	User                 UserContextProxy `json:"user"`
+	Prompt               string           `json:"prompt"`
+	Collection           *PortfolioData   `json:"collection,omitempty"`
+	MaxTurns             int              `json:"max_turns,omitempty"`
+	MaxSlots             int              `json:"max_slots,omitempty"`
+	EnableExternalLookup bool             `json:"enable_external_lookup"`
+	Feedback             string           `json:"feedback,omitempty"`
+}
+
+type SetBuilderScopeOptionProxy struct {
+	Label              string `json:"label"`
+	Description        string `json:"description"`
+	EstimatedSlotCount int    `json:"estimated_slot_count"`
+	Recommended        bool   `json:"recommended"`
+}
+
+type SetBuilderSlotProxy struct {
+	Label              string            `json:"label"`
+	Criteria           map[string]string `json:"criteria"`
+	Group              string            `json:"group"`
+	SortOrder          int               `json:"sort_order"`
+	VerificationStatus string            `json:"verification_status"`
+	SourceNote         string            `json:"source_note"`
+	ValidationNotes    string            `json:"validation_notes"`
+}
+
+type SetBuilderPrematchSummaryProxy struct {
+	EstimatedFilled int    `json:"estimated_filled"`
+	EstimatedTotal  int    `json:"estimated_total"`
+	Notes           string `json:"notes"`
+}
+
+type SetBuilderProposalProxy struct {
+	Name            string                         `json:"name"`
+	SlugHint        string                         `json:"slug_hint"`
+	Description     string                         `json:"description"`
+	ScopeSummary    string                         `json:"scope_summary"`
+	SelectedScope   string                         `json:"selected_scope"`
+	GroupBy         string                         `json:"group_by"`
+	ScopeOptions    []SetBuilderScopeOptionProxy   `json:"scope_options"`
+	Slots           []SetBuilderSlotProxy          `json:"slots"`
+	PrematchSummary SetBuilderPrematchSummaryProxy `json:"prematch_summary"`
+}
+
+type SetBuilderProxyResponse struct {
+	Status                string                   `json:"status"`
+	Proposal              *SetBuilderProposalProxy `json:"proposal"`
+	ClarificationQuestion string                   `json:"clarification_question"`
+	FailureReason         string                   `json:"failure_reason"`
+	TranscriptSummary     string                   `json:"transcript_summary"`
+	TurnsUsed             int                      `json:"turns_used"`
+}
+
 type AlertDiscoveryCriteriaSnapshotProxy struct {
 	Name             string   `json:"name"`
 	RulerOrIssuer    string   `json:"ruler_or_issuer,omitempty"`
@@ -520,6 +576,42 @@ func (p *AgentProxy) GetBidMarketSignal(ctx context.Context, req BidMarketSignal
 		return BidMarketSignalProxyResponse{}, fmt.Errorf("parse bid market signal response: %w", err)
 	}
 	return result, nil
+}
+
+// RunSetBuilder POSTs to the Python agent's stateless /api/set-builder/run endpoint.
+func (p *AgentProxy) RunSetBuilder(ctx context.Context, req SetBuilderProxyRequest) (*SetBuilderProxyResponse, error) {
+	logger := p.logger
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal set builder request: %w", err)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", p.baseURL+"/api/set-builder/run", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create set builder request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	p.attachInternalCredential(httpReq)
+
+	resp, err := p.requestClient.Do(httpReq)
+	if err != nil {
+		logger.Error("agent-proxy", "Set builder request failed: %v", err)
+		return nil, fmt.Errorf("agent service unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		errMsg := string(respBody)
+		if len(errMsg) > 200 {
+			errMsg = errMsg[:200] + "... (truncated)"
+		}
+		logger.Error("agent-proxy", "Set builder returned %d: %s", resp.StatusCode, errMsg)
+		return nil, agentServiceHTTPError(resp.StatusCode, respBody)
+	}
+	var result SetBuilderProxyResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse set builder response: %w", err)
+	}
+	return &result, nil
 }
 
 // DiscoverAlertCandidates POSTs to the Python agent's stateless /api/search/alerts endpoint.

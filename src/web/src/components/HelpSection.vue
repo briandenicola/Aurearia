@@ -27,10 +27,10 @@
           </thead>
           <tbody>
             <tr><td><code>name</code></td><td>text</td><td>Required</td></tr>
-            <tr><td><code>category</code></td><td>text</td><td>Roman, Greek, Byzantine, Modern, Other</td></tr>
+            <tr><td><code>category</code></td><td>text</td><td>One of your admin-configured categories (defaults: Roman, Greek, Byzantine, Modern, Other)</td></tr>
             <tr><td><code>material</code></td><td>text</td><td>Gold, Silver, Bronze, Copper, Electrum, Other</td></tr>
             <tr><td><code>denomination</code>, <code>ruler</code>, <code>mint</code>, <code>grade</code></td><td>text</td><td>Free text fields</td></tr>
-            <tr><td><code>era</code></td><td>text</td><td>Allowed values: <code>ancient</code>, <code>medieval</code>, <code>modern</code></td></tr>
+            <tr><td><code>era</code></td><td>text</td><td>One of your admin-configured eras (defaults: <code>ancient</code>, <code>medieval</code>, <code>modern</code>)</td></tr>
             <tr><td><code>weightGrams</code>, <code>diameterMm</code>, <code>purchasePrice</code>, <code>currentValue</code></td><td>number</td><td>Use decimal values</td></tr>
             <tr><td><code>purchaseDate</code>, <code>soldDate</code></td><td>date</td><td>Use <code>YYYY-MM-DD</code></td></tr>
             <tr><td><code>isWishlist</code>, <code>isSold</code>, <code>isPrivate</code></td><td>boolean</td><td>Use true/false</td></tr>
@@ -70,10 +70,25 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           <li><strong>Public showcases</strong> — Create curated public sets with shareable links. Only public-safe coin fields are exposed; private notes, prices, and AI analysis stay hidden.</li>
           <li><strong>Wishlist search alerts</strong> — Save search criteria, run alerts on a schedule or manually, review candidates, dismiss poor matches, and convert accepted candidates into wish list items.</li>
           <li><strong>Collection health</strong> — Use Stats health views to track score trends, missing images, metadata gaps, AI coverage gaps, and suggested improvements.</li>
-          <li><strong>Museum Tray</strong> — Use the Tray view to arrange coins visually with size-aware spacing for a cabinet-style browsing experience.</li>
+          <li><strong>Museum Tray</strong> — Use the Tray view to arrange coins visually with size-aware spacing for a cabinet-style browsing experience. Owned coins show purchase dates in <code>YYYY-MM-DD</code>; wishlist placeholders are more transparent and show <code>TBD</code>.</li>
           <li><strong>Mint Map</strong> — Use Stats → Map to see mint locations and geographic distribution for coins with mapped mint data.</li>
           <li><strong>Coin of the Day</strong> — Enable daily featured coin notifications in Settings → Account to rediscover coins from your own collection.</li>
           <li><strong>Connected sign-in providers</strong> — After signing in locally, open Settings → Account → Connected Sign-in Providers to link Microsoft Entra ID, Pocket ID, or another configured OIDC provider.</li>
+        </ul>
+
+        <h4>Coin Agent and Notes</h4>
+        <ul>
+          <li><strong>Coin Agent</strong> — Open the chat from Wish List → Find Coins to search listings, find shows, ask portfolio questions, or ask collection cleanup questions such as which coins are missing an era.</li>
+          <li><strong>Starter prompts</strong> — The drawer includes acquisition examples plus a collection cleanup starter for missing era metadata.</li>
+          <li><strong>Save to Notes</strong> — Completed assistant answers can be reviewed as markdown, edited, previewed, and saved to Notes only after you click Create Note.</li>
+        </ul>
+
+        <h4>Sets and Agentic Proposals</h4>
+        <ul>
+          <li><strong>Set types</strong> — Create Standard sets for manual organization, Goal sets where wishlist items represent remaining work, Smart sets from rules, and Agentic sets from a reviewed proposal workflow.</li>
+          <li><strong>Agentic proposal workflow</strong> — Creating an Agentic set submits a request instead of creating a set immediately. A notification opens the review page when the proposal is ready.</li>
+          <li><strong>Human review</strong> — Review scope, slots, and agent notes; edit, regenerate with feedback, reject, or approve. Only approval creates the Agentic set.</li>
+          <li><strong>Automatic matching</strong> — Approved Agentic sets match owned collection coins to the proposed roster automatically, similar to the Roman Emperors tracker.</li>
         </ul>
 
         <h4>Stats Views</h4>
@@ -372,12 +387,12 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           <li>The OpenAPI spec and tool endpoints become available immediately</li>
         </ol>
         <p>When disabled, all external tool requests fail with <code>503 Service Unavailable</code>. This default-off posture protects your instance until you explicitly choose to expose the API.</p>
-        <p><strong>What to Tell Users:</strong> Once enabled, users can create scoped API keys in <strong>Settings → Data → API Keys</strong>. Each key can be read-only (safe for exploration) or read+write (for trusted automation). External writes are journaled and appear in each coin's activity log.</p>
+        <p><strong>What to Tell Users:</strong> Once enabled, users can create scoped API keys in <strong>Settings → Keys</strong>. Each key can be read-only (safe for exploration) or read+write (for trusted automation). External writes are journaled and appear in each coin's activity log.</p>
 
         <h4>For Users</h4>
         <p><strong>Creating an API Key:</strong> To connect an external AI client to your collection:</p>
         <ol>
-          <li>Navigate to <strong>Settings → Data → API Keys</strong></li>
+          <li>Navigate to <strong>Settings → Keys</strong></li>
           <li>Enter a descriptive name (e.g., "OpenWebUI Read-Only")</li>
           <li>
             Choose a capability:

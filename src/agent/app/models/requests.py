@@ -25,6 +25,10 @@ MAX_PORTFOLIO_LIST_ITEMS = 200
 MAX_TOP_COINS = 100
 MAX_AVAILABILITY_ITEMS = 10
 MAX_ALERT_CANDIDATES = 50
+MAX_SET_BUILDER_PROMPT_LENGTH = 500
+MAX_SET_BUILDER_FEEDBACK_LENGTH = 1000
+MAX_SET_BUILDER_MAX_TURNS = 8
+MAX_SET_BUILDER_MAX_SLOTS = 300
 
 BoundedMessage = Annotated[str, StringConstraints(max_length=MAX_MESSAGE_LENGTH)]
 BoundedHistoryMessage = Annotated[str, StringConstraints(max_length=MAX_HISTORY_MESSAGE_LENGTH)]
@@ -34,6 +38,10 @@ BoundedNotes = Annotated[str, StringConstraints(max_length=MAX_NOTES_LENGTH)]
 BoundedOptionalURL = Annotated[str, StringConstraints(max_length=MAX_URL_LENGTH)]
 BoundedURL = Annotated[str, StringConstraints(min_length=1, max_length=MAX_URL_LENGTH)]
 BoundedImageBase64 = Annotated[str, StringConstraints(max_length=MAX_IMAGE_BASE64_LENGTH)]
+BoundedSetBuilderPrompt = Annotated[
+    str, StringConstraints(min_length=1, max_length=MAX_SET_BUILDER_PROMPT_LENGTH)
+]
+BoundedSetBuilderFeedback = Annotated[str, StringConstraints(max_length=MAX_SET_BUILDER_FEEDBACK_LENGTH)]
 
 
 class StrictRequestModel(BaseModel):
@@ -320,3 +328,26 @@ class AlertDiscoveryRequest(StrictRequestModel):
 
     llm: LLMConfig
     alert: AlertDiscoveryDetail
+
+
+# Dynamic Set Builder workflow DTOs.
+# Contract anchor: specs/011-dynamic-set-builder-correction-plan.md (Phase 2)
+class SetBuilderRequest(StrictRequestModel):
+    """Stateless set-builder workflow request.
+
+    Python never creates or modifies sets — it only proposes structured
+    roster data. Go owns persistence, approval, and set creation (Phase 3+).
+    """
+
+    llm: LLMConfig
+    user: UserContext
+    prompt: BoundedSetBuilderPrompt
+    # Optional summary of the user's existing collection, passed from Go so
+    # the Collection Matcher role can estimate filled/likely-matched slots
+    # without Python ever touching the database directly.
+    collection: PortfolioSummary | None = None
+    max_turns: int = Field(default=4, ge=1, le=MAX_SET_BUILDER_MAX_TURNS)
+    max_slots: int = Field(default=200, ge=1, le=MAX_SET_BUILDER_MAX_SLOTS)
+    enable_external_lookup: bool = True
+    # Optional feedback text for a regenerate-with-feedback request (US2 Phase 4).
+    feedback: BoundedSetBuilderFeedback = ""

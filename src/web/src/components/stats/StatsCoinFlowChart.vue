@@ -154,6 +154,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { getCoins } from '@/api/client'
 import ZoomableSurface from '@/components/ZoomableSurface.vue'
+import { colorForLabel } from '@/utils/categoryColor'
 import type { Coin } from '@/types'
 
 interface SankeyNode {
@@ -195,14 +196,8 @@ const PERIOD_PALETTE = [
   'var(--cat-modern)',
 ]
 
-const ERA_COLORS: Record<string, string> = {
-  ancient: 'var(--accent-gold)',
-  medieval: 'var(--accent-bronze)',
-  modern: 'var(--cat-modern)',
-}
-
 function getEraColor(key: string): string {
-  return ERA_COLORS[key.toLowerCase()] ?? 'var(--text-secondary)'
+  return colorForLabel(key)
 }
 
 function getRulerColor(key: string): string {

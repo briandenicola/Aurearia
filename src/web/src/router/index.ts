@@ -285,6 +285,12 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresEmperorTracker: true },
     },
     {
+      path: '/sets/proposals/:id',
+      name: 'set-proposal-review',
+      component: () => import('@/pages/SetProposalReviewPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/sets/:id',
       name: 'set-detail',
       component: () => import('@/pages/SetDetailPage.vue'),

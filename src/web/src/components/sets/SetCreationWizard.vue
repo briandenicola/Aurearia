@@ -4,39 +4,49 @@
       <div class="form-group mb-4">
         <label for="setType" class="form-label mb-2 block">Set type</label>
         <select id="setType" v-model="form.setType" class="form-input w-full">
-          <option value="open">Open</option>
-          <option value="defined">Defined</option>
+          <option value="standard">Standard</option>
           <option value="goal">Goal</option>
           <option value="smart">Smart</option>
+          <option value="agentic">Agentic</option>
         </select>
       </div>
-      <div v-if="form.setType === 'defined' || form.setType === 'goal'" class="form-group mb-4">
-        <label for="templateId" class="form-label mb-2 block">Template</label>
-        <select id="templateId" v-model="form.templateId" class="form-input w-full">
-          <option value="">No template</option>
-          <option v-for="template in templates" :key="template.id" :value="template.id">
-            {{ template.name }}
-          </option>
-        </select>
-      </div>
-      <div v-if="form.setType === 'defined' || form.setType === 'goal'" class="form-group mb-4">
-        <label for="csvTargets" class="form-label mb-2 block">Custom CSV targets</label>
-        <textarea
-          id="csvTargets"
-          v-model="csvTargets"
-          rows="4"
-          class="form-input w-full"
-          placeholder="Label,Year,MintMark,Denomination,Country,Material"
-        />
-      </div>
-      <div v-if="form.setType === 'goal'" class="form-group mb-4">
-        <label for="targetCompletionDate" class="form-label mb-2 block">Target completion date</label>
-        <input id="targetCompletionDate" v-model="form.targetCompletionDate" type="date" class="form-input w-full" />
+      <div v-if="form.setType === 'goal'" class="form-group mb-4 rounded-sm border border-border-subtle bg-card p-4">
+        <span class="section-label">How goal completion works</span>
+        <p class="mt-2 mb-0 text-body text-text-secondary">
+          Goal sets track both collection and wishlist members.
+        </p>
+        <p class="mt-2 mb-0 text-body text-text-secondary">
+          Completion is calculated as collection items divided by collection plus wishlist items.
+        </p>
+        <p class="mt-2 mb-0 text-chip text-text-muted">
+          Example: 2 collection and 5 wishlist = 2 / (2 + 5) = 28.6%.
+        </p>
       </div>
       <SetSmartRuleBuilder
         v-if="form.setType === 'smart'"
         @update="form.smartCriteria = $event"
       />
+      <div v-if="form.setType === 'agentic'" class="form-group mb-4 rounded-sm border border-border-subtle bg-card p-4">
+        <span class="section-label">How agentic sets work</span>
+        <p class="mt-2 mb-0 text-body text-text-secondary">
+          Describe the set you want and the agent will propose matching coins for you to review.
+        </p>
+        <p class="mt-2 mb-0 text-body text-text-secondary">
+          No set is created immediately. A proposal request is submitted for the agent to work through.
+        </p>
+      </div>
+      <div v-if="form.setType === 'agentic'" class="form-group mb-4">
+        <label for="agenticPrompt" class="form-label mb-2 block">Agentic prompt</label>
+        <textarea
+          id="agenticPrompt"
+          v-model="form.agenticPrompt"
+          rows="3"
+          maxlength="500"
+          class="form-input w-full"
+          placeholder="Example: All US silver quarters from 1940s to 1960s"
+          :required="form.setType === 'agentic'"
+        />
+      </div>
       <div class="form-group mb-4">
         <label for="setName" class="form-label mb-2 block">Name</label>
         <input
@@ -78,10 +88,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
-import { getSetTemplates } from '@/api/client'
-import type { CoinSetTemplate, CreateCoinSetRequest, SmartCriteriaGroup } from '@/types'
+import { reactive, watch } from 'vue'
+import { normalizeCoinSetType } from '@/types'
+import type { CreateCoinSetRequest, SmartCriteriaGroup } from '@/types'
 import SetSmartRuleBuilder from '@/components/sets/SetSmartRuleBuilder.vue'
+import { randomSetColor } from '@/utils/setColors'
 
 const props = withDefaults(defineProps<{
   initialValue?: Partial<CreateCoinSetRequest>
@@ -98,32 +109,23 @@ const emit = defineEmits<{
 const form = reactive({
   name: props.initialValue?.name ?? '',
   description: props.initialValue?.description ?? '',
-  color: props.initialValue?.color ?? '#6b7280',
-  setType: props.initialValue?.setType ?? 'open',
+  color: props.initialValue?.color ?? randomSetColor(),
+  setType: props.initialValue?.setType ? normalizeCoinSetType(props.initialValue.setType) : 'standard',
   templateId: props.initialValue?.templateId ?? '',
   targetCompletionDate: props.initialValue?.targetCompletionDate ?? '',
   smartCriteria: props.initialValue?.smartCriteria as SmartCriteriaGroup | undefined,
-})
-const templates = ref<CoinSetTemplate[]>([])
-const csvTargets = ref('')
-
-onMounted(async () => {
-  try {
-    const res = await getSetTemplates()
-    templates.value = res.data.templates
-  } catch {
-    templates.value = []
-  }
+  agenticPrompt: props.initialValue?.agenticPrompt ?? '',
 })
 
 watch(() => props.initialValue, (value) => {
   form.name = value?.name ?? ''
   form.description = value?.description ?? ''
-  form.color = value?.color ?? '#6b7280'
-  form.setType = value?.setType ?? 'open'
+  form.color = value?.color ?? randomSetColor()
+  form.setType = value?.setType ? normalizeCoinSetType(value.setType) : 'standard'
   form.templateId = value?.templateId ?? ''
   form.targetCompletionDate = value?.targetCompletionDate ?? ''
   form.smartCriteria = value?.smartCriteria as SmartCriteriaGroup | undefined
+  form.agenticPrompt = value?.agenticPrompt ?? ''
 })
 
 function submit() {
@@ -134,9 +136,10 @@ function submit() {
     description: form.description.trim(),
     color: form.color,
     setType: form.setType,
-    templateId: form.templateId || undefined,
-    targetCompletionDate: form.targetCompletionDate || undefined,
+    templateId: form.setType !== 'goal' ? (form.templateId || undefined) : undefined,
+    targetCompletionDate: form.setType !== 'goal' ? (form.targetCompletionDate || undefined) : undefined,
     smartCriteria: form.smartCriteria ?? undefined,
-  }, csvTargets.value.trim() || undefined)
+    agenticPrompt: form.setType === 'agentic' ? form.agenticPrompt.trim() || undefined : undefined,
+  }, undefined)
 }
 </script>

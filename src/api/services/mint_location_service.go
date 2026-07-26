@@ -20,6 +20,7 @@ var (
 	ErrMintLocationRegionInvalid = errors.New("region must be at most 128 characters")
 	ErrMintLocationNameTooLong   = errors.New("display name must be at most 128 characters")
 	ErrMintLocationAliasTooLong  = errors.New("aliases must be at most 128 characters")
+	ErrMintLocationInUse         = errors.New("mint location is in use")
 )
 
 // MintLocationInput contains editable mint-location fields.
@@ -31,7 +32,8 @@ type MintLocationInput struct {
 	Aliases     []string
 }
 
-// MintLocationService manages global mint-location rules.
+// MintLocationService manages global (admin-curated) and private
+// (per-user) mint-location rules.
 type MintLocationService struct {
 	repo *repository.MintLocationRepository
 }
@@ -41,19 +43,20 @@ func NewMintLocationService(repo *repository.MintLocationRepository) *MintLocati
 	return &MintLocationService{repo: repo}
 }
 
-// List returns all mint locations.
-func (s *MintLocationService) List() ([]models.MintLocation, error) {
-	return s.repo.List()
+// List returns every mint location a user may pick from: the global
+// (admin-curated) list plus that user's own private ones.
+func (s *MintLocationService) List(userID uint) ([]models.MintLocation, error) {
+	return s.repo.ListVisibleTo(userID)
 }
 
-// Create validates and creates a mint location.
-func (s *MintLocationService) Create(input MintLocationInput) (*models.MintLocation, error) {
+// CreateGlobal validates and creates a global mint location (admin only).
+func (s *MintLocationService) CreateGlobal(input MintLocationInput) (*models.MintLocation, error) {
 	_, location, err := s.validateInput(input)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.ensureLookupKeysAvailable(location, 0); err != nil {
+	if err := s.ensureLookupKeysAvailable(location, 0, nil); err != nil {
 		return nil, err
 	}
 
@@ -66,8 +69,30 @@ func (s *MintLocationService) Create(input MintLocationInput) (*models.MintLocat
 	return location, nil
 }
 
-// Update validates and updates a mint location.
-func (s *MintLocationService) Update(id uint, input MintLocationInput) (*models.MintLocation, error) {
+// CreatePrivate validates and creates a mint location private to userID.
+func (s *MintLocationService) CreatePrivate(userID uint, input MintLocationInput) (*models.MintLocation, error) {
+	_, location, err := s.validateInput(input)
+	if err != nil {
+		return nil, err
+	}
+	location.UserID = &userID
+
+	if err := s.ensureLookupKeysAvailable(location, 0, &userID); err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.Create(location); err != nil {
+		if isUniqueConstraintError(err) {
+			return nil, ErrMintLocationDuplicate
+		}
+		return nil, err
+	}
+	return location, nil
+}
+
+// UpdateGlobal validates and updates a global mint location (admin only).
+// Rejects the request if id refers to a private mint.
+func (s *MintLocationService) UpdateGlobal(id uint, input MintLocationInput) (*models.MintLocation, error) {
 	existing, err := s.repo.FindByID(id)
 	if err != nil {
 		if repository.IsRecordNotFound(err) {
@@ -75,13 +100,33 @@ func (s *MintLocationService) Update(id uint, input MintLocationInput) (*models.
 		}
 		return nil, err
 	}
+	if existing.UserID != nil {
+		return nil, ErrMintLocationNotFound
+	}
 
+	return s.update(existing, input, nil)
+}
+
+// UpdatePrivate validates and updates a private mint location owned by userID.
+func (s *MintLocationService) UpdatePrivate(id, userID uint, input MintLocationInput) (*models.MintLocation, error) {
+	existing, err := s.repo.FindOwnedByID(id, userID)
+	if err != nil {
+		if repository.IsRecordNotFound(err) {
+			return nil, ErrMintLocationNotFound
+		}
+		return nil, err
+	}
+
+	return s.update(existing, input, &userID)
+}
+
+func (s *MintLocationService) update(existing *models.MintLocation, input MintLocationInput, ownerUserID *uint) (*models.MintLocation, error) {
 	_, location, err := s.validateInput(input)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.ensureLookupKeysAvailable(location, existing.ID); err != nil {
+	if err := s.ensureLookupKeysAvailable(location, existing.ID, ownerUserID); err != nil {
 		return nil, err
 	}
 
@@ -99,11 +144,45 @@ func (s *MintLocationService) Update(id uint, input MintLocationInput) (*models.
 		}
 		return nil, err
 	}
-	return s.repo.FindByID(id)
+	return s.repo.FindByID(existing.ID)
 }
 
-// Delete removes a mint location.
-func (s *MintLocationService) Delete(id uint) error {
+// DeleteGlobal removes a global mint location (admin only). Rejects the
+// request if id refers to a private mint, or if any coin still references it.
+func (s *MintLocationService) DeleteGlobal(id uint) error {
+	existing, err := s.repo.FindByID(id)
+	if err != nil {
+		if repository.IsRecordNotFound(err) {
+			return ErrMintLocationNotFound
+		}
+		return err
+	}
+	if existing.UserID != nil {
+		return ErrMintLocationNotFound
+	}
+	return s.deleteIfUnused(id)
+}
+
+// DeletePrivate removes a private mint location owned by userID, unless
+// any coin still references it.
+func (s *MintLocationService) DeletePrivate(id, userID uint) error {
+	if _, err := s.repo.FindOwnedByID(id, userID); err != nil {
+		if repository.IsRecordNotFound(err) {
+			return ErrMintLocationNotFound
+		}
+		return err
+	}
+	return s.deleteIfUnused(id)
+}
+
+func (s *MintLocationService) deleteIfUnused(id uint) error {
+	count, err := s.repo.CountCoinsUsing(id)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return ErrMintLocationInUse
+	}
 	if err := s.repo.Delete(id); err != nil {
 		if repository.IsRecordNotFound(err) {
 			return ErrMintLocationNotFound
@@ -148,9 +227,20 @@ func (s *MintLocationService) validateInput(input MintLocationInput) (string, *m
 	return normalized, location, nil
 }
 
-func (s *MintLocationService) ensureLookupKeysAvailable(candidate *models.MintLocation, excludeID uint) error {
+// ensureLookupKeysAvailable checks the candidate's name/aliases don't
+// collide with an existing mint location. ownerUserID nil scopes the check
+// to global entries only (admin create/update); non-nil scopes it to
+// global entries plus that user's own private ones (self-service
+// create/update) - never against another user's private entries.
+func (s *MintLocationService) ensureLookupKeysAvailable(candidate *models.MintLocation, excludeID uint, ownerUserID *uint) error {
 	candidateKeys := mintLocationLookupKeys(candidate)
-	locations, err := s.repo.List()
+	var locations []models.MintLocation
+	var err error
+	if ownerUserID != nil {
+		locations, err = s.repo.ListVisibleTo(*ownerUserID)
+	} else {
+		locations, err = s.repo.ListGlobal()
+	}
 	if err != nil {
 		return err
 	}
