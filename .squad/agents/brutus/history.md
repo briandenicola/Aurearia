@@ -13,6 +13,17 @@
 
 ## Recent Updates
 
+- **2026-07-26 — Sets Refinement: Integration QA & Revalidation (sets-refinement merged to beta):**
+  - Initial pass identified Strict BLOCK: frontend emitted `trackerCreationMode` while backend read `creationMode`, causing silent tracker creation failures
+  - Issued clear blocking issue statement per Constitution §18.2 with required follow-up owner (Aurelia)
+  - After Aurelia's focused contract fix + targeted regression, performed full revalidation across all three layers:
+    - Backend: set type normalization, dynamic mode validation, Goal completion formula, tag-sync membership recalculation
+    - Frontend: strict type-check (`vue-tsc --build`), set-focused test suite with contract payload assertions
+    - Design: quick UI sanity check on touched set surfaces for design-system regression
+  - Evidence verified: all backend tests pass, frontend type-check strict mode, regression assertions on payload contract, no design-token violations
+  - Final verdict: APPROVED for merge
+  - Orchestration log: `.squad/orchestration-log/2026-07-26T17-36-22Z-brutus-sets-refinement.md`
+
 - **2026-07-21:** Wishlist Reference Regression Coverage — `fix/agent-wishlist-reference-ids`
   - **Primary invariant (Brian's spec):** Wishlist coins must have ZERO persisted catalog references after creation, regardless of what the caller supplies, including agent-created wishlist items.
   - The implementation was narrowed to wishlist creation only: `prepareCoinForCreate` clears `coin.References` when `coin.IsWishlist` is true.
@@ -238,3 +249,31 @@
   - **Validation Passed:** Python 21 tests + ruff ✅, Go all tests + vet + build ✅, Vue 420 tests + type-check + build ✅.
   - **Outcome:** APPROVED. Feature ready for merge across all layers.
   - **Orchestration log:** .squad/orchestration-log/2026-07-02T10-55-14-brutus.md.
+
+### 2026-07-26: Set semantics integration QA (Standard/Goal + Tracker mode)
+
+- Validated backend migration and set semantics regressions across database, services, epository, and handlers targeted suites; all targeted Go tests passed.
+- Validated frontend strict type-check plus targeted set-related Vitest suites; all passed.
+- Found blocking integration bug: SetCreationWizard emits 	rackerCreationMode/	rackerPrompt, but backend SetService.CreateSet reads creationMode; dynamic tracker mode is silently dropped on create requests.
+- Outcome: REJECT pending frontend-to-backend request contract fix and regression coverage for tracker dynamic mode payload mapping.
+
+### 2026-07-26: Set semantics integration QA (corrected entry)
+
+- Validated backend migration and set semantics regressions across database, services, epository, and handlers; targeted suites passed.
+- Validated frontend strict type-check and set-related Vitest suites; all passed.
+- Blocking bug confirmed: SetCreationWizard sends 	rackerCreationMode/	rackerPrompt while backend create logic reads creationMode, so Tracker + Dynamic creation silently persists as manual.
+- Verdict: REJECT until payload contract is aligned and covered by regression tests.
+
+### 2026-07-26: Set semantics integration QA (plain-text correction)
+
+- Validated backend migration and set semantics regressions across database, services, repository, and handlers; targeted suites passed.
+- Validated frontend strict type-check and set-related Vitest suites; all passed.
+- Blocking bug confirmed: SetCreationWizard sends trackerCreationMode/trackerPrompt while backend create logic reads creationMode, so Tracker + Dynamic creation silently persists as manual.
+- Verdict: REJECT until payload contract is aligned and covered by regression tests.
+
+### 2026-07-26: Set semantics revalidation after Maximus fix
+
+- Revalidated the tracker payload contract fix: `SetCreationWizard` now emits `creationMode`/`trackerPrompt`, and regression test `SetCreationWizard.test.ts` asserts no `trackerCreationMode` field is sent.
+- Revalidated backend set semantics with targeted Go tests: legacy type normalization (`open→standard`, `defined→goal`), tracker dynamic mode validation, goal completion using collection vs wishlist, and tag-sync membership recalculation all passed.
+- Revalidated frontend with strict `vue-tsc --build` and set-focused Vitest suites (`SetCreationWizard`, `SetDetailPage`, `useCollectionFilters`); all passed.
+- QA outcome: APPROVE. No obvious new design-token or design-system violation observed in touched set UI diffs.

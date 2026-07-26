@@ -19,7 +19,7 @@
       >
         {{ set.name }}
         <button
-          v-if="set.setType !== 'smart'"
+          v-if="canManageSetMembership(set.setType)"
           class="bg-transparent p-0 text-sm leading-none opacity-60 transition-opacity hover:opacity-100"
           type="button"
           :aria-label="`Remove ${set.name} set`"
@@ -72,6 +72,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { getTags, getSets, addTagToCoin, removeTagFromCoin, addCoinToSet, removeCoinFromSet } from '@/api/client'
+import { normalizeCoinSetType } from '@/types'
 import type { CoinSetSummary, Tag } from '@/types'
 
 type SetChip = Pick<CoinSetSummary, 'id' | 'name' | 'color' | 'setType'>
@@ -98,8 +99,13 @@ const availableTags = computed(() => {
 
 const availableSets = computed(() => {
   const coinSetIds = new Set(props.sets.map(s => s.id))
-  return userSets.value.filter(s => s.setType !== 'smart' && !coinSetIds.has(s.id))
+  return userSets.value.filter(s => canManageSetMembership(s.setType) && !coinSetIds.has(s.id))
 })
+
+function canManageSetMembership(setType: CoinSetSummary['setType']): boolean {
+  const normalizedType = normalizeCoinSetType(setType)
+  return normalizedType !== 'smart' && normalizedType !== 'tracker'
+}
 
 onMounted(async () => {
   try {

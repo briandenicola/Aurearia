@@ -77,7 +77,7 @@ const newSet = ref({
   name: '',
   description: '',
   color: '#6b7280',
-  setType: 'open' as const,
+  setType: 'standard' as const,
 })
 
 onMounted(async () => {
@@ -108,7 +108,7 @@ async function createSet(value: CreateCoinSetRequest, csv?: string) {
       name: '',
       description: '',
       color: '#6b7280',
-      setType: 'open',
+      setType: 'standard',
     }
     await loadSets()
   } catch (error) {

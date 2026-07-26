@@ -15,6 +15,14 @@
 
 ## Recent Updates
 
+- **2026-07-26 — Sets Refinement: Contract Enforcement & Revalidation (sets-refinement merged to beta):**
+  - Discovered strict payload contract mismatch during integration: frontend emitted `trackerCreationMode` while backend read `creationMode`, causing silent tracker creation failures
+  - Issued Strict Lockout per Constitution §18.2 with clear blocking issue statement and required follow-up owner
+  - Coordinated Aurelia's focused fix: payload contract alignment to `creationMode`, targeted `SetCreationWizard.test.ts` regression
+  - Performed full revalidation: backend set type normalization + dynamic mode validation + Goal completion formula, frontend strict type-check + set-focused tests, quick design-system UI sanity check
+  - Approved integration for merge with locked, tested contract enforcement
+  - Orchestration log: `.squad/orchestration-log/2026-07-26T17-36-22Z-maximus-sets-refinement.md`
+
 - **2026-05-31:** Feature #219 validation gates defined for dual-side media, metadata tables, dedicated section pages, PWA behavior, and design-token compliance. Brutus later approved implementation.
 - **2026-05-31:** Designed #217/#218 shared collection tool layer: 6 operations (`search_my_collection`, `get_coin`, `collection_summary`, `top_coins_by_value`, `propose_update`, `commit_update`), Go service ownership, Python ReAct tools, external adapter deferred/then implemented.
 - **2026-05-31:** Re-reviewed #216 token remediation and approved: all originally flagged hardcoded colors moved to tokens except explicitly accepted contrast-safe black/white uses.
@@ -219,3 +227,5 @@ Outcome: BLOCK. The alert architecture is mostly correctly layered and Python re
 - **2026-07-02 — #374 Coin Grading Workflow Revision & Approval (Complete):** Applied Strict Lockout remediation per Brutus QA BLOCK. Removed supervisor grading routing/advertising to eliminate dead-end chat path (chat requests no longer land on passthrough without an image-capable implementation). Added stale grading router fallback regression test to prevent regressions. Implemented persistent grading job result recovery in `CoinAIAnalysis` component so users can discover completed grading reports even after sessionStorage is cleared (browser restart, new tab, notification click). Added comprehensive regression coverage for sessionStorage-less recovery. Validated against Principles I/II/IV/VI/IX and §17 Quality Gate. All tests pass: Python 21 tests ✅, Go all tests ✅, Vue 420 tests + type-check + build ✅. Outcome: APPROVED. Feature ready for merge. Orchestration log: .squad/orchestration-log/2026-07-02T10-55-14-maximus.md.
 
 - **2026-07-20 — Post-Major-Work QC Audit Skill authored:** Created `.squad/skills/post-major-work-qc-audit/SKILL.md` — a portable, repo-agnostic deep quality-control audit skill for use after significant feature batches land. Covers 8 audit domains (engineering best practices, security/threat model, documentation alignment, architecture/contract alignment, test coverage, supply chain/deployment, UX/accessibility, operational readiness). Key design decisions: (1) mandatory 3-phase Investigation Protocol (bound changeset → diff reading → reference reading) must complete before any findings are written, to prevent fact-invention; (2) all findings must cite file path + line + observed evidence — no checklist-from-memory; (3) blockers vs. follow-ups are strictly separated in the report table; (4) REPO-HOOK markers isolate constitution/Quality Gate steps so the skill is portable to repos without governance scaffolding. Confidence set to "low" as newly authored; to be uprated after first live audit validates the format.
+
+- **2026-07-26 — Tracker set create contract:** Frontend create payload must use `creationMode` (not `trackerCreationMode`) for tracker dynamic/manual mode, or backend defaults to manual silently. Add a focused wizard submit test that asserts emitted contract keys to prevent regressions.

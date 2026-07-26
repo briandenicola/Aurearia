@@ -53,7 +53,7 @@ const defaultSet = {
   id: 7,
   name: 'Twelve Caesars',
   color: '#c9a84c',
-  setType: 'defined',
+  setType: 'goal',
   coinCount: 13,
   totalValue: 1300,
   totalInvested: 900,

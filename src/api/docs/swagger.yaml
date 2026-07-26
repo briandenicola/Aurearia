@@ -2176,6 +2176,8 @@ definitions:
         type: string
       createdAt:
         type: string
+      creationMode:
+        $ref: '#/definitions/models.CoinSetCreationMode'
       description:
         type: string
       icon:
@@ -2201,18 +2203,30 @@ definitions:
       userId:
         type: integer
     type: object
+  models.CoinSetCreationMode:
+    enum:
+    - manual
+    - dynamic
+    type: string
+    x-enum-varnames:
+    - CoinSetCreationModeManual
+    - CoinSetCreationModeDynamic
   models.CoinSetType:
     enum:
-    - open
-    - defined
+    - standard
     - smart
+    - goal
+    - tracker
+    - standard
     - goal
     type: string
     x-enum-varnames:
-    - CoinSetTypeOpen
-    - CoinSetTypeDefined
+    - CoinSetTypeStandard
     - CoinSetTypeSmart
     - CoinSetTypeGoal
+    - CoinSetTypeTracker
+    - CoinSetTypeOpen
+    - CoinSetTypeDefined
   models.CoinValueHistory:
     properties:
       coinId:
@@ -10464,7 +10478,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create a defined or goal set using custom CSV target definitions
+      description: Create a goal set using custom CSV target definitions
       parameters:
       - description: Set data and CSV content
         in: body

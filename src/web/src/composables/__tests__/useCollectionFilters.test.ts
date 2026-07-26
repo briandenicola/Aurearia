@@ -31,7 +31,7 @@ describe('useCollectionFilters', () => {
     vi.mocked(getSets).mockResolvedValue({
       data: {
         sets: [
-          { id: 2, name: 'Twelve Caesars', color: '#b08d57', setType: 'open' },
+          { id: 2, name: 'Twelve Caesars', color: '#b08d57', setType: 'standard' },
         ],
       },
     } as Awaited<ReturnType<typeof getSets>>)

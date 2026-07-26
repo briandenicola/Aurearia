@@ -39,6 +39,9 @@ func Connect(dbPath string) {
 	if err := DB.Migrator().AlterColumn(&models.User{}, "CNGPassword"); err != nil {
 		log.Fatalf("Failed to widen CNG password column: %v", err)
 	}
+	if err := migrateCoinSetTypes(DB); err != nil {
+		log.Fatalf("Failed to migrate coin set types: %v", err)
+	}
 
 	// Note: CurrentValueUpdatedAt is a new nullable time.Time column.
 	// SQLite AutoMigrate adds it as a plain NULL column without FK constraints — safe additive change.
@@ -206,6 +209,24 @@ func mintLocationBackfillKeys(loc models.MintLocation) map[string]bool {
 		}
 	}
 	return keys
+}
+
+func migrateCoinSetTypes(db *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("UPDATE coin_sets SET set_type='goal' WHERE LOWER(set_type)='defined'").Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("UPDATE coin_sets SET set_type='standard' WHERE LOWER(set_type)='open'").Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("UPDATE coin_sets SET set_type='tracker', creation_mode='dynamic' WHERE LOWER(set_type)='dynamic'").Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("UPDATE coin_sets SET creation_mode='manual' WHERE creation_mode IS NULL OR creation_mode=''").Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 // migrateCoinReferenceCertaintyColumn renames certainty → invoice_number if needed (idempotent).

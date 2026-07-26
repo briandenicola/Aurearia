@@ -266,6 +266,7 @@ import {
   removeCoinFromSet,
   updateSet as updateSetApi,
 } from '@/api/client'
+import { normalizeCoinSetType } from '@/types'
 import type { CoinSetAnalytics, CoinSetComparison, CoinSetCompletion, CoinSetDetail, CoinSetSnapshot, CoinSetSummary, Coin } from '@/types'
 import SetCompletionChecklist from '@/components/sets/SetCompletionChecklist.vue'
 import SetTrendChart from '@/components/sets/SetTrendChart.vue'
@@ -310,7 +311,11 @@ const editForm = ref({
 
 const setId = Number(route.params.id)
 
-const canManageMembership = computed(() => set.value?.setType !== 'smart')
+const canManageMembership = computed(() => {
+  if (!set.value) return false
+  const normalizedType = normalizeCoinSetType(set.value.setType)
+  return normalizedType !== 'smart' && normalizedType !== 'tracker'
+})
 const canReorderCoins = computed(() => canManageMembership.value && coins.value.length > 1)
 const trayCoins = computed((): TrayCoin[] =>
   coins.value.map((coin) => ({
@@ -369,7 +374,8 @@ async function loadSetDetails() {
     snapshots.value = trendsRes.data.snapshots
     analytics.value = analyticsRes.data
     allSets.value = setsRes.data.sets.filter((candidate) => candidate.id !== setId)
-    if (set.value.setType === 'defined' || set.value.setType === 'goal') {
+    const normalizedSetType = normalizeCoinSetType(set.value.setType)
+    if (normalizedSetType === 'goal' || normalizedSetType === 'tracker') {
       const completionRes = await getSetCompletion(setId)
       completion.value = completionRes.data
     } else {

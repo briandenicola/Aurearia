@@ -10386,7 +10386,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create a defined or goal set using custom CSV target definitions",
+                "description": "Create a goal set using custom CSV target definitions",
                 "consumes": [
                     "application/json"
                 ],
@@ -18278,6 +18278,9 @@ const docTemplate = `{
                 "createdAt": {
                     "type": "string"
                 },
+                "creationMode": {
+                    "$ref": "#/definitions/models.CoinSetCreationMode"
+                },
                 "description": {
                     "type": "string"
                 },
@@ -18316,19 +18319,34 @@ const docTemplate = `{
                 }
             }
         },
+        "models.CoinSetCreationMode": {
+            "type": "string",
+            "enum": [
+                "manual",
+                "dynamic"
+            ],
+            "x-enum-varnames": [
+                "CoinSetCreationModeManual",
+                "CoinSetCreationModeDynamic"
+            ]
+        },
         "models.CoinSetType": {
             "type": "string",
             "enum": [
-                "open",
-                "defined",
+                "standard",
                 "smart",
+                "goal",
+                "tracker",
+                "standard",
                 "goal"
             ],
             "x-enum-varnames": [
-                "CoinSetTypeOpen",
-                "CoinSetTypeDefined",
+                "CoinSetTypeStandard",
                 "CoinSetTypeSmart",
-                "CoinSetTypeGoal"
+                "CoinSetTypeGoal",
+                "CoinSetTypeTracker",
+                "CoinSetTypeOpen",
+                "CoinSetTypeDefined"
             ]
         },
         "models.CoinValueHistory": {

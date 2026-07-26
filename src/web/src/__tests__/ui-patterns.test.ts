@@ -99,7 +99,7 @@ describe('UI pattern recipes', () => {
     // `h-16` = 4rem (Tailwind's default 0.25rem spacing scale), `items-end` =
     // align-items: flex-end, `text-[2.75rem]` is the literal font size, and
     // `rounded-md` resolves to the app's `--radius-md` theme token.
-    expect(setCard).toContain('Curated group')
+    expect(setCard).toContain('Standard set')
     expect(setCard).toContain('min-[561px]:min-h-20')
     expect(setCard).toContain('min-[561px]:h-16')
     expect(setCard).toContain('items-end')
