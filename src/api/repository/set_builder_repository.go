@@ -22,6 +22,15 @@ func (r *SetBuilderRepository) CreateRun(run *models.SetBuilderRun) error {
 	return r.db.Create(run).Error
 }
 
+// GetRunForUser returns a run scoped to the owning user.
+func (r *SetBuilderRepository) GetRunForUser(runID, userID uint) (*models.SetBuilderRun, error) {
+	var run models.SetBuilderRun
+	if err := r.db.Scopes(OwnedByID(runID, userID)).First(&run).Error; err != nil {
+		return nil, err
+	}
+	return &run, nil
+}
+
 // StartRun atomically marks a queued run as running.
 func (r *SetBuilderRepository) StartRun(runID, userID uint, startedAt time.Time) error {
 	result := r.db.Model(&models.SetBuilderRun{}).
