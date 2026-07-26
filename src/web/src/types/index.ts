@@ -7,6 +7,8 @@ export interface Coin {
   romanImperialFigureId: number | null
   era: string
   mint: string
+  mintLocationId: number | null
+  mintLocation: Pick<MintLocation, 'id' | 'displayName' | 'lat' | 'lng'> | null
   material: Material
   weightGrams: number | null
   diameterMm: number | null
@@ -273,7 +275,7 @@ export interface NoteListResponse {
   notes: UserNote[]
 }
 
-export type CoinMutationPayload = Partial<Omit<Coin, 'references' | 'storageLocation'>> & {
+export type CoinMutationPayload = Partial<Omit<Coin, 'references' | 'storageLocation' | 'mintLocation'>> & {
   references?: CoinReferenceInput[]
 }
 
@@ -479,6 +481,7 @@ export interface StorageLocation {
 
 export interface MintLocation {
   id: number
+  userId?: number | null
   displayName: string
   lat: number
   lng: number
@@ -486,6 +489,12 @@ export interface MintLocation {
   aliases: string[]
   createdAt: string
   updatedAt: string
+}
+
+export interface GeocodeCandidate {
+  displayName: string
+  lat: number
+  lng: number
 }
 
 export interface CollectionSetOption {

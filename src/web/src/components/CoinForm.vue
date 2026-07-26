@@ -29,7 +29,24 @@
           </div>
           <div class="form-group min-w-0">
             <label class="form-label">Mint</label>
-            <input v-model="form.mint" class="form-input" placeholder="e.g. Rome" />
+            <select v-model="mintLocationIdModel" class="form-select" :disabled="mintLocationsLoading">
+              <option value="">Unknown</option>
+              <optgroup v-if="myMintLocations.length" label="My Mints">
+                <option v-for="location in myMintLocations" :key="location.id" :value="String(location.id)">
+                  {{ location.displayName }}
+                </option>
+              </optgroup>
+              <optgroup v-if="globalMintLocations.length" label="Mints">
+                <option v-for="location in globalMintLocations" :key="location.id" :value="String(location.id)">
+                  {{ location.displayName }}
+                </option>
+              </optgroup>
+              <option value="__create__">+ Create new mint…</option>
+            </select>
+            <p v-if="mintLocationError" class="mt-2 text-body text-text-secondary">{{ mintLocationError }}</p>
+            <p v-else-if="form.mint && !form.mintLocationId" class="mt-2 text-body text-text-secondary">
+              Unlinked legacy mint: "{{ form.mint }}" — pick a location above or create one to link it.
+            </p>
           </div>
         </div>
         <div class="grid gap-3 md:grid-cols-2">
@@ -214,19 +231,31 @@
         {{ loading ? 'Saving...' : submitLabel }}
       </button>
     </div>
+
+    <CreateMintModal
+      :open="showCreateMintModal"
+      :initial-name="pendingMintName"
+      @close="onCreateMintClosed"
+      @created="onMintCreated"
+    />
   </form>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { getStorageLocations } from '@/api/client'
-import type { Coin, StorageLocation } from '@/types'
+import { getStorageLocations, getMintLocations, type MintLocationsResponse } from '@/api/client'
+import type { Coin, StorageLocation, MintLocation } from '@/types'
 import AutocompleteInput from '@/components/AutocompleteInput.vue'
 import ImperialFigurePicker from '@/components/ImperialFigurePicker.vue'
+import CreateMintModal from '@/components/CreateMintModal.vue'
 import { X, Camera } from 'lucide-vue-next'
 import { usePwa } from '@/composables/usePwa'
 import { useCoinOptions } from '@/composables/useCoinOptions'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+
+function unwrapMintLocations(data: MintLocationsResponse): MintLocation[] {
+  return Array.isArray(data) ? data : data.mintLocations ?? []
+}
 
 const { isPwa } = usePwa()
 const { categoryOptions, eraOptions, materialOptions, loadOptions } = useCoinOptions()
@@ -262,6 +291,54 @@ const storageLocationIdModel = computed({
   },
 })
 
+const mintLocations = ref<MintLocation[]>([])
+const mintLocationsLoading = ref(false)
+const mintLocationError = ref('')
+const showCreateMintModal = ref(false)
+const pendingMintName = ref('')
+
+const myMintLocations = computed(() => mintLocations.value.filter((m) => m.userId != null))
+const globalMintLocations = computed(() => mintLocations.value.filter((m) => m.userId == null))
+
+const mintLocationIdModel = computed({
+  get: () => props.form.mintLocationId == null ? '' : String(props.form.mintLocationId),
+  set: (value: string) => {
+    if (value === '__create__') {
+      pendingMintName.value = ''
+      showCreateMintModal.value = true
+      return
+    }
+    props.form.mintLocationId = value === '' ? null : Number(value)
+    const selected = mintLocations.value.find((m) => String(m.id) === value)
+    props.form.mint = selected ? selected.displayName : ''
+  },
+})
+
+async function loadMintLocations() {
+  mintLocationsLoading.value = true
+  try {
+    const res = await getMintLocations()
+    mintLocations.value = unwrapMintLocations(res.data)
+    mintLocationError.value = ''
+  } catch {
+    mintLocations.value = []
+    mintLocationError.value = 'Mint locations are unavailable'
+  } finally {
+    mintLocationsLoading.value = false
+  }
+}
+
+function onCreateMintClosed() {
+  showCreateMintModal.value = false
+}
+
+function onMintCreated(mintLocation: MintLocation) {
+  showCreateMintModal.value = false
+  mintLocations.value.push(mintLocation)
+  props.form.mintLocationId = mintLocation.id
+  props.form.mint = mintLocation.displayName
+}
+
 const displayedEraOptions = computed(() => {
   const currentEra = typeof props.form.era === 'string' ? props.form.era.trim() : ''
   if (currentEra && !eraOptions.value.includes(currentEra)) {
@@ -291,6 +368,8 @@ onMounted(async () => {
   } finally {
     storageLocationsLoading.value = false
   }
+
+  loadMintLocations()
 })
 
 const existingObverse = computed(() => {

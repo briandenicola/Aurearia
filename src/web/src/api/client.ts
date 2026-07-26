@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, ValuationRun, AuctionEndingRun, AuctionWatchBidDigestRun, CollectionHealthSnapshotRunResult, CollectionHealthSnapshotRun, SchedulerStatus, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, SmartCriteriaTemplate, SuggestedSmartCriteria, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse, AIJob, AIJobStartResponse, PriceAlert, BidReminder, PriceAlertDirection, AuctionAlertReminderRun, CoinOfDayRun, BidRecommendation, MarketSignal, RomanImperialFigure, ImperialFigureRole, EmperorTrackerResult } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, GeocodeCandidate, ValuationRun, AuctionEndingRun, AuctionWatchBidDigestRun, CollectionHealthSnapshotRunResult, CollectionHealthSnapshotRun, SchedulerStatus, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, SmartCriteriaTemplate, SuggestedSmartCriteria, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse, AIJob, AIJobStartResponse, PriceAlert, BidReminder, PriceAlertDirection, AuctionAlertReminderRun, CoinOfDayRun, BidRecommendation, MarketSignal, RomanImperialFigure, ImperialFigureRole, EmperorTrackerResult } from '@/types'
 import type { QuickCaptureDraft, QuickCaptureDraftInput, QuickCaptureDraftUpdateInput, QuickCaptureDraftListResponse, QuickCaptureDraftStatus, QuickCapturePromoteRequest, QuickCapturePromotionResponse } from '@/types'
 import type { WishlistSearchAlert, WishlistSearchAlertInput, WishlistSearchAlertListResponse, AlertRun, AlertRunListResponse, AlertRunResult, AlertCandidate, AlertCandidateListResponse, AlertCandidateState, CandidateProvenanceStatus, DismissWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateResponse, AdjustWishlistSearchAlertCriteriaInput } from '@/types'
 
@@ -197,7 +197,7 @@ export const convertWishlistSearchAlertCandidate = (alertId: number, candidateId
 export const adjustWishlistSearchAlertCriteria = (alertId: number, input: AdjustWishlistSearchAlertCriteriaInput) =>
   api.post<WishlistSearchAlert>(`/wishlist/search-alerts/${alertId}/criteria-adjustments`, input)
 
-const NULLABLE_FIELDS: (keyof Coin)[] = ['weightGrams', 'diameterMm', 'purchasePrice', 'currentValue', 'purchaseDate', 'storageLocationId', 'romanImperialFigureId']
+const NULLABLE_FIELDS: (keyof Coin)[] = ['weightGrams', 'diameterMm', 'purchasePrice', 'currentValue', 'purchaseDate', 'storageLocationId', 'romanImperialFigureId', 'mintLocationId']
 
 function sanitizeCoin(coin: CoinMutationPayload): CoinMutationPayload {
   const clean: Record<string, unknown> = { ...coin }
@@ -207,6 +207,7 @@ function sanitizeCoin(coin: CoinMutationPayload): CoinMutationPayload {
     }
   }
   delete clean.storageLocation
+  delete clean.mintLocation
   // Default currentValue to purchasePrice if not set (preserve 0 as valid)
   if (clean.currentValue == null && clean.purchasePrice != null) {
     clean.currentValue = clean.purchasePrice
@@ -357,6 +358,13 @@ export const adminCreateMintLocation = (data: MintLocationInput) =>
 export const adminUpdateMintLocation = (id: number, data: MintLocationInput) =>
   api.put<MintLocation>(`/admin/mint-locations/${id}`, data)
 export const adminDeleteMintLocation = (id: number) => api.delete(`/admin/mint-locations/${id}`)
+export const createMintLocation = (data: MintLocationInput) =>
+  api.post<MintLocation>('/mint-locations', data)
+export const updateMintLocation = (id: number, data: MintLocationInput) =>
+  api.put<MintLocation>(`/mint-locations/${id}`, data)
+export const deleteMintLocation = (id: number) => api.delete(`/mint-locations/${id}`)
+export const geocodeMintName = (query: string) =>
+  api.get<{ candidates: GeocodeCandidate[] }>('/mint-locations/geocode', { params: { query } })
 
 // Roman Imperial Figures (F028)
 export const searchRomanImperialFigures = (params: { q?: string; role?: ImperialFigureRole; limit?: number }) =>
