@@ -100,10 +100,13 @@ gets its own consistent color, not all a single fallback color.
 
 ### Edge Cases
 
-- What happens if an admin tries to rename or delete the "Roman" category,
-  which the Emperor Tracker feature depends on structurally? → Backend MUST
-  reject the rename/delete of that specific reserved value with a clear
-  error, rather than allowing it and silently breaking Emperor Tracker.
+- What happens if an admin removes or renames "Roman" in the `CoinCategories`
+  setting, which the Emperor Tracker feature depends on structurally? → The
+  value remains valid for acceptance regardless of the setting's contents
+  (see FR-008) — mirroring how `ancient`/`medieval`/`modern` already remain
+  acceptable even if removed from `CoinEras` — so Emperor Tracker cannot be
+  silently broken by an admin edit. The admin edit only affects what's
+  *offered* in pickers, not what's *accepted*.
 - What happens to a coin whose category/era was set before this remediation
   and no longer matches anything in the admin list (e.g. list was edited
   since)? → Existing behavior is preserved: the value is displayed as-is
@@ -143,9 +146,12 @@ gets its own consistent color, not all a single fallback color.
   recognize any admin-defined category/era, not only the legacy defaults,
   and MUST apply an era filter for every admin-defined era (today "modern"
   era has no matching branch at all).
-- **FR-008**: Backend MUST prevent the "Roman" category value specifically
-  from being renamed or deleted via admin settings, since Emperor Tracker's
-  matching scope and coin-request validation depend on that literal value.
+- **FR-008**: Backend MUST maintain a built-in baseline allow-list for
+  `Category` (`Roman/Greek/Byzantine/Modern/Other`), exactly mirroring the
+  existing `builtInCoinEras` mechanism for `Era` — these values remain valid
+  for coin create/update regardless of the current contents of the
+  `CoinCategories` AppSetting, so Emperor Tracker's dependency on the literal
+  value "Roman" can never be broken by an admin edit to that setting.
 - **FR-009**: Every UI location that colors a category or era (badges,
   filter chips, stats charts) MUST derive its color from one shared utility
   that produces a stable, distinct color for any category/era name —
@@ -160,8 +166,10 @@ gets its own consistent color, not all a single fallback color.
 
 - **AppSetting `CoinCategories` / `CoinEras`**: existing newline-delimited
   admin-defined lists (no schema change required).
-- **Category "Roman" (reserved value)**: gains a backend-enforced protection
-  against rename/delete, tied to its use by Emperor Tracker.
+- **Built-in Category baseline** (`Roman/Greek/Byzantine/Modern/Other`): a
+  new code-level constant, structurally identical to the existing
+  `builtInCoinEras`, always accepted independent of the `CoinCategories`
+  setting.
 
 ## Success Criteria *(mandatory)*
 
@@ -177,17 +185,22 @@ gets its own consistent color, not all a single fallback color.
   default category/era list for validation or option-population purposes —
   all route through `useCoinOptions` (or its data) or the shared color
   utility.
-- **SC-004**: Attempting to rename or delete the "Roman" category via admin
-  settings is rejected with a clear error instead of succeeding and breaking
-  Emperor Tracker.
+- **SC-004**: Removing or renaming "Roman" in the `CoinCategories` setting
+  never breaks Emperor Tracker — coins can still be validated/saved with
+  category "Roman" via the built-in baseline list, exactly as removing
+  "ancient" from `CoinEras` today doesn't stop coins from being saved with
+  that era.
 
 ## Assumptions
 
 - No new AppSetting or schema change is required — this is a consistency/
   enforcement fix on top of existing `CoinCategories`/`CoinEras` settings.
-- Reserved-category protection is scoped to the single value "Roman" for
-  now (the only category with a structural code dependency today); no
-  broader "reserved values" framework is being introduced.
+- The built-in baseline list is scoped to today's five default categories
+  (matching the existing `builtInCoinEras` pattern for the three default
+  eras); no broader "reserved values" framework or settings-side
+  rename/delete blocking is introduced — the setting itself stays fully
+  editable, the built-in list is a separate, code-level acceptance
+  guarantee underneath it.
 - Color assignment for custom categories/eras is fully automatic
   (hash-derived from the name); no admin UI for picking colors is added in
   this pass.

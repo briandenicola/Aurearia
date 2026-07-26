@@ -13,8 +13,10 @@ and AI-chat paths through the same allow-list era/category validation as the
 main coin API instead of their own stricter or laxer checks, source every
 frontend picker/filter from the existing `useCoinOptions` composable instead
 of local hardcoded arrays, replace duplicated per-name color switches with
-one shared deterministic-color utility, and protect the "Roman" category
-value from rename/delete given Emperor Tracker's structural dependency on it.
+one shared deterministic-color utility, and give `Category` a built-in
+baseline allow-list mirroring the existing `builtInCoinEras` mechanism so
+the "Roman" value Emperor Tracker depends on can never be invalidated by an
+admin edit to `CoinCategories`.
 
 ## Technical Context
 
@@ -32,8 +34,9 @@ value from rename/delete given Emperor Tracker's structural dependency on it.
 - No new architectural boundary — all changes are within existing services/
   handlers (backend) and existing composables/components (frontend).
 - No schema/migration required.
-- Reserved-value protection (FR-008) is a narrowly-scoped validation rule,
-  not a new "reserved values" subsystem — kept minimal per the chosen option.
+- FR-008's built-in Category baseline is a direct structural mirror of the
+  existing `builtInCoinEras` mechanism, not a new pattern — no new
+  "reserved values" subsystem or settings-update guard is introduced.
 
 ## Audit Findings (reference)
 
@@ -45,8 +48,8 @@ value from rename/delete given Emperor Tracker's structural dependency on it.
 | B2 | `models/coin.go:46` `Category` field | No `binding` / no service-level validation at all — pure free string. | Add `validateCoinCategory` in `coin_service.go`, called from `prepareCoinForCreate` and the update path, same shape as `validateCoinEra`. |
 | B3 | `services/set_criteria.go:89-104` `GetSuggestedCriteria` | Hardcodes `Roman/Greek/Byzantine` as starter smart-set suggestions. | Read the admin's current `CoinCategories` (top N or all) to build suggestions instead of literals. |
 | B4 | `services/quick_capture_service.go:546-560` `ValidateCoinMinimumForPromotion` | Own hardcoded `switch` on era, stricter than and inconsistent with the main validator — rejects valid custom eras. | Replace with a call into the shared era-validation helper from B1. |
-| B5 | `repository/scopes.go:26-31` `ActiveRomanCollection`; `handlers/coin_requests.go:87-88,262-263` | Both literal-compare `category == "Roman"` for Emperor Tracker coupling. | Leave the comparisons as-is (per chosen option: protect, don't decouple) but add the reserved-value guard (B6) so the literal can never silently go stale. |
-| B6 | `services/settings_service.go` (`CoinCategories` update path) | No protection today against removing/renaming the "Roman" value. | Add a check when `CoinCategories` is updated: if the new list omits the literal "Roman" (renamed or removed), reject with a clear error naming the Emperor Tracker dependency. |
+| B5 | `repository/scopes.go:26-31` `ActiveRomanCollection`; `handlers/coin_requests.go:87-88,262-263` | Both literal-compare `category == "Roman"` for Emperor Tracker coupling. | Leave the comparisons as-is — B6 makes the literal permanently valid regardless of setting edits, so the dependency can no longer silently go stale. |
+| B6 | `services/coin_service.go` (new `builtInCoinCategories` constant) | No protection today against removing/renaming the "Roman" value in `CoinCategories` — Category has no built-in fallback at all (unlike Era's `builtInCoinEras`). | Add `builtInCoinCategories = []string{"Roman","Greek","Byzantine","Modern","Other"}`, structurally identical to `builtInCoinEras`, consumed by the shared allow-list validator from B1/B2. Admins remain free to edit `CoinCategories` (it only controls what's *offered* in pickers); "Roman" (and the other four defaults) stay *acceptable* no matter what, exactly mirroring how era's built-ins already behave. No settings-update guard/rejection needed — this replaces that approach entirely. |
 | B7 | `services/collection_tools_service.go:116-144` `SearchMyCollection` | Category substring-matches only `roman/greek/byzantine/modern`; era only handles `ancient/medieval` (no `modern` branch at all). | Match against the live `CoinCategories`/`CoinEras` lists (case-insensitive substring/equality against each configured value) instead of a fixed literal set; fixes the missing "modern" era branch as a side effect. |
 | B8 | `services/coin_lookup_service.go:429-443` `mergeNGCLabelFields` | Hardcoded category+era inference from NGC slab label text. | Out of scope (spec edge case) — heuristic inference, not a validation/persistence bug. No change. |
 | B9 | `docs/docs.go` generated Swagger enums for `Category`/`Era` | Static enum listing overstates enforcement (Category) / understates dynamic allow-list (Era). | Regenerate docs after B1/B2 land; update doc comments on `models.Coin` to describe both fields as "validated against admin-configurable settings" rather than a fixed enum. |
@@ -78,8 +81,10 @@ to one.
 ## Rollout Phases
 
 1. **Phase 1 — Backend validation parity** (B1, B2, B4, B6): shared
-   allow-list validator, category validation added, Quick Capture promotion
-   uses the shared validator, "Roman" category protected from rename/delete.
+   allow-list validator (built-ins ∪ AppSetting ∪ Catalog Registry, keyed by
+   field), category validation added with its own `builtInCoinCategories`
+   baseline mirroring `builtInCoinEras`, Quick Capture promotion uses the
+   shared validator instead of its own hardcoded switch.
 2. **Phase 2 — Backend consistency fixes** (B3, B7): suggested smart-set
    criteria and AI collection-search filters read live admin lists.
 3. **Phase 3 — Frontend sourcing** (F2, F3, F4, F9, F10): every picker,
