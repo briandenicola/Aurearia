@@ -2,6 +2,77 @@
 
 ## Active Decisions
 
+### Decision: Sets Type Refinement + Goal Completion Formula
+
+**Date:** 2026-07-26  
+**Agent:** Cassius  
+**Status:** IMPLEMENTED
+
+## Context
+Set semantics were refined: legacy `defined` is removed, `open` is renamed to `standard`, and Goal completion no longer uses target matching.
+
+## Decision
+- Normalize legacy set type values in DB migration logic:
+  - `defined` -> `goal`
+  - `open` -> `standard`
+  - legacy `dynamic` -> `tracker` with `creation_mode='dynamic'`
+- Add `creation_mode` on `coin_sets` (`manual` default, `dynamic` allowed only for `tracker` sets).
+- Update Goal completion to: `collection_items / (collection_items + wishlist_items)` using set memberships + `coins.is_wishlist`.
+- Keep tag-to-set migration idempotent and additive so newly tagged coins join existing migrated sets.
+
+## Validation
+- `go test ./repository -run "TestSetRepository_"`
+- `go test ./services -run "TestSetService_CreateSet"`
+- `go test ./database -run "TestMigrateCoinSetTypes_NormalizesLegacyValues"`
+- `go test ./handlers -run "TestSetHandler_ReorderCoins"`
+- `go test ./testutil`
+
+---
+
+### Decision: Frontend set-type normalization during Standard/Goal migration
+
+**Date:** 2026-07-26  
+**Agent:** Aurelia  
+**Status:** IMPLEMENTED
+
+## Context
+Set APIs are moving from legacy `open`/`defined` to `standard`/`goal`, with Tracker and Dynamic Tracker creation mode added. During rollout, frontend may receive mixed legacy/new set type values.
+
+## Decision
+Frontend now writes only `standard`, `goal`, `smart`, and `tracker`, while treating `open` and `defined` as legacy read aliases through a shared `normalizeCoinSetType()` helper in `src/web/src/types/index.ts`.
+
+Membership and workflow gates branch on normalized values:
+- Tracker and Smart sets are non-manual membership in Set Detail and Coin Tags surfaces.
+- Completion panel loads for normalized `goal` and `tracker`.
+- Collection set filter includes normalized `standard` sets.
+
+## Rationale
+This keeps UI behavior stable during mixed-contract deployments, prevents accidental legacy writes, and centralizes compatibility logic to avoid drift between components.
+
+---
+
+### Decision: Tracker set creation mode contract alignment
+
+**Date:** 2026-07-26  
+**Agent:** Maximus  
+**Status:** IMPLEMENTED
+
+## Context
+`SetCreationWizard` emitted `trackerCreationMode`, but backend set creation reads `creationMode`. Tracker sets created through the dynamic flow therefore persisted with backend default `manual` mode.
+
+## Decision
+Align frontend payload contract to backend by emitting `creationMode` in `CreateCoinSetRequest` and wizard submit payload. Keep prompt behavior unchanged, and add a focused frontend regression test asserting dynamic tracker submission emits `creationMode: "dynamic"` and not `trackerCreationMode`.
+
+## Validation
+- `npm.cmd run test -- src/components/sets/__tests__/SetCreationWizard.test.ts`
+- `npm.cmd run type-check`
+
+## Alignment
+- Principle III: explicit typed frontend/backend contract field match
+- Principle IV: smallest complete fix with targeted regression coverage
+
+---
+
 ### Decision: Coin Grading as AI Analysis Sub-Action
 
 **Date:** 2026-07-02

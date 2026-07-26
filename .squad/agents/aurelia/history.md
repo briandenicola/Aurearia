@@ -27,6 +27,17 @@
 
 ## Recent Updates
 
+- **2026-07-26 — Sets Refinement: Frontend Semantics & Tracker Creation UI (sets-refinement merged to beta):**
+  - Implemented set type normalization: new writes emit `standard|goal|smart|tracker`; legacy `open`/`defined` read as aliases via `normalizeCoinSetType()` helper
+  - Removed legacy Defined set UI; renamed Open to Standard in collection set filter
+  - Added Goal completion language reflecting collection-vs-wishlist ratio
+  - Implemented Tracker creation UI with Dynamic mode option; both reuse existing design patterns, tokens, and components
+  - Fixed strict frontend/backend contract mismatch: tracker dynamic submission now emits `creationMode: "dynamic"` (not `trackerCreationMode`); added focused `SetCreationWizard.test.ts` regression
+  - Validated: `npm.cmd run type-check` (strict), full set-focused test suite, design system spot-check on touched set surfaces ✅
+  - Resolved Maximus/Brutus integration QA BLOCK → Aurelia fix → Brutus revalidation and approval
+  - Coordinated with Cassius (backend Goal formula) and Maximus (contract enforcement)
+  - Orchestration log: `.squad/orchestration-log/2026-07-26T17-36-22Z-aurelia-sets-refinement.md`
+
 - **2026-06-01:** Tags UI final, AddCoinPage camera grid, Purchase metadata moved to Details table, Store prefix label for purchase location, free-text Rarity UI removed, Storage Location frontend integration, Settings tab reorganization (backups/API keys), bulk assign location UI
 - **2026-06-01 (Learnings):** Fixed PWA tap-blocking (pull-to-refresh touchcancel leak) and agent FAB hidden bug (module-level state leak); documented back navigation pattern and responsive table overflow handling
 - **2026-06-02:** Coin detail UI reordering (Inscription consolidation, section renames, metadata hierarchy); Settings tab split (Backups ↔ API Keys as separate tabs); Camera modal extraction; Camera permissions pre-check; Per-coin value trend subpage
@@ -421,3 +432,5 @@ Investigated production 429s on collection browsing. App mount makes expected da
 
 - **2026-07-26:** PR #531 npm audit remediation required targeted frontend dependency overrides in `src/web/package.json` to avoid breaking `npm audit fix --force` downgrades. For `@vue/test-utils` transitive `js-beautify` and `vite-plugin-pwa`/`workbox-build` transitive `jake` chain advisories, safe lockfile resolution was `overrides: { "@vue/test-utils": { "js-beautify": "2.0.3" }, "jake": "12.10.1" }` followed by `npm install`. Validation: `npm audit` returns 0 vulnerabilities and `npm run type-check` passes.
 - **2026-07-26 — PR #530 npm audit remediation:** `src/web/package.json` now pins an npm override for `brace-expansion` to `5.0.8`, and `src/web/package-lock.json` was refreshed with `npm.cmd install --package-lock-only` so vulnerable transitive copies from the `@vue/test-utils -> js-beautify -> glob -> minimatch` chain are replaced without forcing major dependency downgrades. Validation passed with `npm.cmd audit` (0 vulnerabilities) and `npm.cmd run type-check`.
+
+- **2026-07-26 (Set type migration compatibility):** Frontend set contracts now treat open and defined as legacy read values only. New writes use standard and goal, while UI logic should normalize legacy values with a shared helper before branching (filters, membership controls, completion loading) so mixed API rollouts do not break UX.
