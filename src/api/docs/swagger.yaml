@@ -184,6 +184,8 @@ definitions:
       mint:
         maxLength: 200
         type: string
+      mintLocationId:
+        type: integer
       name:
         maxLength: 200
         type: string
@@ -402,6 +404,8 @@ definitions:
       mint:
         maxLength: 200
         type: string
+      mintLocationId:
+        type: integer
       name:
         maxLength: 200
         type: string
@@ -1325,6 +1329,13 @@ definitions:
         example: ak_a1b2c3d4e5f6...
         type: string
     type: object
+  handlers.geocodeMintResponse:
+    properties:
+      candidates:
+        items:
+          $ref: '#/definitions/services.GeocodeCandidate'
+        type: array
+    type: object
   handlers.loginRequest:
     properties:
       password:
@@ -1977,6 +1988,10 @@ definitions:
       mint:
         maxLength: 200
         type: string
+      mintLocation:
+        $ref: '#/definitions/models.MintLocation'
+      mintLocationId:
+        type: integer
       name:
         maxLength: 200
         type: string
@@ -2313,6 +2328,8 @@ definitions:
         type: string
       updatedAt:
         type: string
+      userId:
+        type: integer
     type: object
   models.Note:
     properties:
@@ -2868,6 +2885,15 @@ definitions:
         type: array
       usurpers:
         $ref: '#/definitions/services.CategoryProgress'
+    type: object
+  services.GeocodeCandidate:
+    properties:
+      displayName:
+        type: string
+      lat:
+        type: number
+      lng:
+        type: number
     type: object
   services.HealthActionHint:
     enum:
@@ -4071,8 +4097,8 @@ paths:
       - Mint Locations
   /admin/mint-locations/{id}:
     delete:
-      description: Deletes a global mint location. Coins with no remaining matching
-        mint location appear as unattributed in the map. Admin only.
+      description: Deletes a global mint location. Fails if any coin still references
+        it. Admin only.
       parameters:
       - description: Mint location ID
         in: path
@@ -4100,6 +4126,10 @@ paths:
             $ref: '#/definitions/handlers.ErrorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
           schema:
             $ref: '#/definitions/handlers.ErrorResponse'
         "500":
@@ -8583,7 +8613,8 @@ paths:
       - Internal
   /mint-locations:
     get:
-      description: Returns all global mint locations for authenticated users.
+      description: Returns global mint locations plus the authenticated user's own
+        private ones.
       produces:
       - application/json
       responses:
@@ -8602,6 +8633,161 @@ paths:
       security:
       - BearerAuth: []
       summary: List mint locations
+      tags:
+      - Mint Locations
+    post:
+      consumes:
+      - application/json
+      description: Creates a mint location visible only to the authenticated user.
+      parameters:
+      - description: Mint location data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.mintLocationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.MintLocation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a private mint location
+      tags:
+      - Mint Locations
+  /mint-locations/{id}:
+    delete:
+      description: Deletes a mint location owned by the authenticated user. Fails
+        if any of their coins still reference it.
+      parameters:
+      - description: Mint location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a private mint location
+      tags:
+      - Mint Locations
+    put:
+      consumes:
+      - application/json
+      description: Updates a mint location owned by the authenticated user.
+      parameters:
+      - description: Mint location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Mint location data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.mintLocationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MintLocation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a private mint location
+      tags:
+      - Mint Locations
+  /mint-locations/geocode:
+    get:
+      description: Looks up coordinate candidates for a place name via OpenStreetMap
+        Nominatim. Only the typed name is sent - no coin, collection, or account data.
+      parameters:
+      - description: Place name to look up
+        in: query
+        name: query
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.geocodeMintResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Geocode a mint name
       tags:
       - Mint Locations
   /notes:

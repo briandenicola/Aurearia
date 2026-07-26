@@ -49,4 +49,32 @@ describe('CoinForm', () => {
     expect(source).toContain("if (category !== 'Roman')")
     expect(source).toContain('props.form.romanImperialFigureId = null')
   })
+
+  it('replaces the free-text mint input with a managed dropdown offering Unknown, My Mints, Mints, and Create new', () => {
+    const source = fs.readFileSync(coinFormPath, 'utf8')
+
+    expect(source).not.toContain('<input v-model="form.mint" class="form-input" placeholder="e.g. Rome" />')
+    expect(source).toContain('v-model="mintLocationIdModel"')
+    expect(source).toContain('<option value="">Unknown</option>')
+    expect(source).toContain('label="My Mints"')
+    expect(source).toContain('label="Mints"')
+    expect(source).toContain('<option value="__create__">+ Create new mint…</option>')
+    expect(source).toContain("import CreateMintModal from '@/components/CreateMintModal.vue'")
+  })
+
+  it('nudges the user to link a legacy free-text mint that has no matching location, without blocking the form', () => {
+    const source = fs.readFileSync(coinFormPath, 'utf8')
+
+    expect(source).toContain('form.mint && !form.mintLocationId')
+    expect(source).toContain('Unlinked legacy mint')
+  })
+
+  it('opens the create-mint modal from the dropdown and adopts the newly created mint', () => {
+    const source = fs.readFileSync(coinFormPath, 'utf8')
+
+    expect(source).toContain("value === '__create__'")
+    expect(source).toContain('showCreateMintModal.value = true')
+    expect(source).toContain('function onMintCreated(mintLocation: MintLocation)')
+    expect(source).toContain('props.form.mintLocationId = mintLocation.id')
+  })
 })

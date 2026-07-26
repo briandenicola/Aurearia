@@ -6,12 +6,14 @@ const mockPreviewSmartSet = vi.fn()
 const mockGetSuggestedCriteria = vi.fn()
 const mockListCriteriaTemplates = vi.fn()
 const mockSaveCriteriaTemplate = vi.fn()
+const mockGetMintLocations = vi.fn()
 
 vi.mock('@/api/client', () => ({
   previewSmartSet: (...args: unknown[]) => mockPreviewSmartSet(...args),
   getSuggestedCriteria: (...args: unknown[]) => mockGetSuggestedCriteria(...args),
   listCriteriaTemplates: (...args: unknown[]) => mockListCriteriaTemplates(...args),
   saveCriteriaTemplate: (...args: unknown[]) => mockSaveCriteriaTemplate(...args),
+  getMintLocations: (...args: unknown[]) => mockGetMintLocations(...args),
 }))
 
 function defaultMount() {
@@ -40,6 +42,14 @@ describe('SetSmartRuleBuilder', () => {
       },
     })
     mockListCriteriaTemplates.mockResolvedValue({ data: { templates: [] } })
+    mockGetMintLocations.mockResolvedValue({
+      data: {
+        mintLocations: [
+          { id: 1, displayName: 'Rome', lat: 41.9, lng: 12.5, region: '', aliases: [], createdAt: '', updatedAt: '' },
+          { id: 2, userId: 7, displayName: 'My Custom Mint', lat: 1, lng: 1, region: '', aliases: [], createdAt: '', updatedAt: '' },
+        ],
+      },
+    })
   })
 
   it('renders with a default rule row', async () => {
@@ -93,6 +103,40 @@ describe('SetSmartRuleBuilder', () => {
     const emitted = wrapper.emitted('update') as unknown[][]
     const lastCriteria = emitted[emitted.length - 1][0] as { operator: string }
     expect(lastCriteria.operator).toBe('or')
+  })
+
+  it('offers a managed mint dropdown for the eq operator, sourced from the mint locations list', async () => {
+    const wrapper = defaultMount()
+    await flushPromises()
+
+    const fieldSelect = wrapper.find('.rule-row select')
+    await fieldSelect.setValue('mint')
+    await wrapper.vm.$nextTick()
+    await flushPromises()
+
+    const selects = wrapper.findAll('.rule-row select')
+    const mintValueSelect = selects[2]
+    expect(mintValueSelect.exists()).toBe(true)
+    const optionTexts = mintValueSelect.findAll('option').map((o) => o.text())
+    expect(optionTexts).toContain('Rome')
+    expect(optionTexts).toContain('My Custom Mint')
+    expect(optionTexts).toContain('Unknown')
+  })
+
+  it('falls back to free text for the mint field when using a non-exact operator', async () => {
+    const wrapper = defaultMount()
+    await flushPromises()
+
+    const fieldSelect = wrapper.find('.rule-row select')
+    await fieldSelect.setValue('mint')
+    await wrapper.vm.$nextTick()
+
+    const opSelect = wrapper.findAll('.rule-row select')[1]
+    await opSelect.setValue('contains')
+    await wrapper.vm.$nextTick()
+
+    const valueInput = wrapper.find('.rule-row input.rule-input--value')
+    expect(valueInput.exists()).toBe(true)
   })
 
   it('shows suggestions after loading', async () => {

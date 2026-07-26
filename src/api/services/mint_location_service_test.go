@@ -41,7 +41,7 @@ func TestMintLocationService_CreateValidatesCoordinatesAndName(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := svc.Create(tc.input); !errors.Is(err, tc.want) {
+			if _, err := svc.CreateGlobal(tc.input); !errors.Is(err, tc.want) {
 				t.Fatalf("expected %v, got %v", tc.want, err)
 			}
 		})
@@ -51,10 +51,10 @@ func TestMintLocationService_CreateValidatesCoordinatesAndName(t *testing.T) {
 func TestMintLocationService_CreateRejectsNormalizedDuplicate(t *testing.T) {
 	svc := newTestMintLocationService(t)
 
-	if _, err := svc.Create(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5}); err != nil {
+	if _, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5}); err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
-	if _, err := svc.Create(MintLocationInput{DisplayName: " rome! ", Lat: 41.9, Lng: 12.5}); !errors.Is(err, ErrMintLocationDuplicate) {
+	if _, err := svc.CreateGlobal(MintLocationInput{DisplayName: " rome! ", Lat: 41.9, Lng: 12.5}); !errors.Is(err, ErrMintLocationDuplicate) {
 		t.Fatalf("expected duplicate error, got %v", err)
 	}
 }
@@ -62,7 +62,7 @@ func TestMintLocationService_CreateRejectsNormalizedDuplicate(t *testing.T) {
 func TestMintLocationService_CreateRejectsDisplayNameMatchingExistingAlias(t *testing.T) {
 	svc := newTestMintLocationService(t)
 
-	if _, err := svc.Create(MintLocationInput{
+	if _, err := svc.CreateGlobal(MintLocationInput{
 		DisplayName: "Rome",
 		Lat:         41.9,
 		Lng:         12.5,
@@ -71,7 +71,7 @@ func TestMintLocationService_CreateRejectsDisplayNameMatchingExistingAlias(t *te
 		t.Fatalf("create Rome failed: %v", err)
 	}
 
-	_, err := svc.Create(MintLocationInput{DisplayName: " roma! ", Lat: 44.4, Lng: 11.3})
+	_, err := svc.CreateGlobal(MintLocationInput{DisplayName: " roma! ", Lat: 44.4, Lng: 11.3})
 	if !errors.Is(err, ErrMintLocationDuplicate) {
 		t.Fatalf("expected duplicate error, got %v", err)
 	}
@@ -80,11 +80,11 @@ func TestMintLocationService_CreateRejectsDisplayNameMatchingExistingAlias(t *te
 func TestMintLocationService_CreateRejectsAliasMatchingExistingDisplayName(t *testing.T) {
 	svc := newTestMintLocationService(t)
 
-	if _, err := svc.Create(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5}); err != nil {
+	if _, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5}); err != nil {
 		t.Fatalf("create Rome failed: %v", err)
 	}
 
-	_, err := svc.Create(MintLocationInput{
+	_, err := svc.CreateGlobal(MintLocationInput{
 		DisplayName: "Athens",
 		Lat:         37.9,
 		Lng:         23.7,
@@ -98,7 +98,7 @@ func TestMintLocationService_CreateRejectsAliasMatchingExistingDisplayName(t *te
 func TestMintLocationService_NormalizesAliases(t *testing.T) {
 	svc := newTestMintLocationService(t)
 
-	created, err := svc.Create(MintLocationInput{
+	created, err := svc.CreateGlobal(MintLocationInput{
 		DisplayName: "Rome",
 		Lat:         41.9,
 		Lng:         12.5,
@@ -122,7 +122,7 @@ func TestMintLocationService_NormalizesAliases(t *testing.T) {
 func TestMintLocationService_RejectsBlankAlias(t *testing.T) {
 	svc := newTestMintLocationService(t)
 
-	_, err := svc.Create(MintLocationInput{
+	_, err := svc.CreateGlobal(MintLocationInput{
 		DisplayName: "Athens",
 		Lat:         37.9,
 		Lng:         23.7,
@@ -136,15 +136,15 @@ func TestMintLocationService_RejectsBlankAlias(t *testing.T) {
 func TestMintLocationService_UpdateDuplicateRejected(t *testing.T) {
 	svc := newTestMintLocationService(t)
 
-	if _, err := svc.Create(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5}); err != nil {
+	if _, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5}); err != nil {
 		t.Fatalf("create Rome failed: %v", err)
 	}
-	athens, err := svc.Create(MintLocationInput{DisplayName: "Athens", Lat: 37.9, Lng: 23.7})
+	athens, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Athens", Lat: 37.9, Lng: 23.7})
 	if err != nil {
 		t.Fatalf("create Athens failed: %v", err)
 	}
 
-	_, err = svc.Update(athens.ID, MintLocationInput{DisplayName: "ROME", Lat: 37.9, Lng: 23.7})
+	_, err = svc.UpdateGlobal(athens.ID, MintLocationInput{DisplayName: "ROME", Lat: 37.9, Lng: 23.7})
 	if !errors.Is(err, ErrMintLocationDuplicate) {
 		t.Fatalf("expected duplicate error, got %v", err)
 	}
@@ -154,7 +154,7 @@ func TestMintLocationService_UpdateRejectsLookupKeyCollisionWithAnotherLocation(
 	t.Run("display name matches existing alias", func(t *testing.T) {
 		svc := newTestMintLocationService(t)
 
-		if _, err := svc.Create(MintLocationInput{
+		if _, err := svc.CreateGlobal(MintLocationInput{
 			DisplayName: "Rome",
 			Lat:         41.9,
 			Lng:         12.5,
@@ -162,12 +162,12 @@ func TestMintLocationService_UpdateRejectsLookupKeyCollisionWithAnotherLocation(
 		}); err != nil {
 			t.Fatalf("create Rome failed: %v", err)
 		}
-		athens, err := svc.Create(MintLocationInput{DisplayName: "Athens", Lat: 37.9, Lng: 23.7})
+		athens, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Athens", Lat: 37.9, Lng: 23.7})
 		if err != nil {
 			t.Fatalf("create Athens failed: %v", err)
 		}
 
-		_, err = svc.Update(athens.ID, MintLocationInput{DisplayName: "Roma", Lat: 37.9, Lng: 23.7})
+		_, err = svc.UpdateGlobal(athens.ID, MintLocationInput{DisplayName: "Roma", Lat: 37.9, Lng: 23.7})
 		if !errors.Is(err, ErrMintLocationDuplicate) {
 			t.Fatalf("expected duplicate error, got %v", err)
 		}
@@ -176,15 +176,15 @@ func TestMintLocationService_UpdateRejectsLookupKeyCollisionWithAnotherLocation(
 	t.Run("alias matches existing display name", func(t *testing.T) {
 		svc := newTestMintLocationService(t)
 
-		if _, err := svc.Create(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5}); err != nil {
+		if _, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5}); err != nil {
 			t.Fatalf("create Rome failed: %v", err)
 		}
-		athens, err := svc.Create(MintLocationInput{DisplayName: "Athens", Lat: 37.9, Lng: 23.7})
+		athens, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Athens", Lat: 37.9, Lng: 23.7})
 		if err != nil {
 			t.Fatalf("create Athens failed: %v", err)
 		}
 
-		_, err = svc.Update(athens.ID, MintLocationInput{
+		_, err = svc.UpdateGlobal(athens.ID, MintLocationInput{
 			DisplayName: "Athens",
 			Lat:         37.9,
 			Lng:         23.7,
@@ -199,7 +199,7 @@ func TestMintLocationService_UpdateRejectsLookupKeyCollisionWithAnotherLocation(
 func TestMintLocationService_UpdateAllowsOwnExistingAliases(t *testing.T) {
 	svc := newTestMintLocationService(t)
 
-	created, err := svc.Create(MintLocationInput{
+	created, err := svc.CreateGlobal(MintLocationInput{
 		DisplayName: "Rome",
 		Lat:         41.9,
 		Lng:         12.5,
@@ -209,7 +209,7 @@ func TestMintLocationService_UpdateAllowsOwnExistingAliases(t *testing.T) {
 		t.Fatalf("create Rome failed: %v", err)
 	}
 
-	updated, err := svc.Update(created.ID, MintLocationInput{
+	updated, err := svc.UpdateGlobal(created.ID, MintLocationInput{
 		DisplayName: "Rome",
 		Lat:         41.91,
 		Lng:         12.49,

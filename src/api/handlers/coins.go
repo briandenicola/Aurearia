@@ -37,6 +37,7 @@ var nullableCoinUpdateScalarFields = map[string]string{
 	"weightGrams":           "WeightGrams",
 	"diameterMm":            "DiameterMm",
 	"romanImperialFigureId": "RomanImperialFigureID",
+	"mintLocationId":        "MintLocationID",
 }
 
 func nullableScalarFieldPresence(raw map[string]json.RawMessage) map[string]bool {
@@ -806,6 +807,7 @@ func handleCoinMutationError(c *gin.Context, err error) bool {
 		errors.Is(err, services.ErrReferenceUnknownCatalog),
 		errors.Is(err, services.ErrReferenceDuplicate),
 		errors.Is(err, services.ErrStorageLocationNotFound),
+		errors.Is(err, services.ErrMintLocationNotFound),
 		errors.Is(err, services.ErrCoinInvalidEra),
 		errors.Is(err, services.ErrCoinInvalidCategory):
 		respondError(c, http.StatusBadRequest, err.Error(), err)

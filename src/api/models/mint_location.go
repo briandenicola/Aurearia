@@ -111,11 +111,14 @@ func NormalizeMintLocationName(value string) string {
 	return b.String()
 }
 
-// MintLocation represents a global admin-managed mint coordinate reference.
+// MintLocation represents a mint coordinate reference. A nil UserID means
+// the entry is global and admin-curated (visible to every user); a non-nil
+// UserID means it's private, created by and visible only to that user.
 type MintLocation struct {
 	ID             uint       `gorm:"primaryKey" json:"id"`
+	UserID         *uint      `gorm:"index;uniqueIndex:idx_mint_location_owner_name" json:"userId,omitempty"`
 	DisplayName    string     `gorm:"type:varchar(128);not null" json:"displayName"`
-	NormalizedName string     `gorm:"type:varchar(128);not null;uniqueIndex" json:"-"`
+	NormalizedName string     `gorm:"type:varchar(128);not null;uniqueIndex:idx_mint_location_owner_name" json:"-"`
 	Lat            float64    `gorm:"not null" json:"lat"`
 	Lng            float64    `gorm:"not null" json:"lng"`
 	Region         string     `gorm:"type:varchar(128)" json:"region,omitempty"`

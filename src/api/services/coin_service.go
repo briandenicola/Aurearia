@@ -57,6 +57,7 @@ type CoinService struct {
 	refRepo             *repository.CoinReferenceRepository
 	refSvc              *CoinReferenceService
 	storageLocationRepo *repository.StorageLocationRepository
+	mintLocationRepo    *repository.MintLocationRepository
 	catalogRegistryRepo *repository.CatalogRegistryRepository
 	settingsSvc         *SettingsService
 }
@@ -91,6 +92,12 @@ func (s *CoinService) WithReferenceSupport(
 // WithStorageLocationSupport enables storage-location ownership validation during coin create/update workflows.
 func (s *CoinService) WithStorageLocationSupport(storageLocationRepo *repository.StorageLocationRepository) *CoinService {
 	s.storageLocationRepo = storageLocationRepo
+	return s
+}
+
+// WithMintLocationSupport enables mint-location visibility validation during coin create/update workflows.
+func (s *CoinService) WithMintLocationSupport(mintLocationRepo *repository.MintLocationRepository) *CoinService {
+	s.mintLocationRepo = mintLocationRepo
 	return s
 }
 
@@ -139,6 +146,9 @@ func (s *CoinService) CreateCoinInTx(tx *gorm.DB, coin *models.Coin) error {
 
 func (s *CoinService) prepareCoinForCreate(coin *models.Coin) error {
 	if err := s.validateStorageLocation(coin.StorageLocationID, coin.UserID); err != nil {
+		return err
+	}
+	if err := s.validateMintLocation(coin.MintLocationID, coin.UserID); err != nil {
 		return err
 	}
 	if coin.IsWishlist {
@@ -214,6 +224,11 @@ func (s *CoinService) updateCoin(existing *models.Coin, updates *models.Coin, up
 	oldValue := existing.CurrentValue
 	if updateStorageLocation {
 		if err := s.validateStorageLocation(updates.StorageLocationID, userID); err != nil {
+			return err
+		}
+	}
+	if updateFields == nil || containsString(updateFields, "MintLocationID") {
+		if err := s.validateMintLocation(updates.MintLocationID, userID); err != nil {
 			return err
 		}
 	}
@@ -393,6 +408,23 @@ func (s *CoinService) validateStorageLocation(storageLocationID *uint, userID ui
 	}
 	if !exists {
 		return ErrStorageLocationNotFound
+	}
+	return nil
+}
+
+func (s *CoinService) validateMintLocation(mintLocationID *uint, userID uint) error {
+	if mintLocationID == nil || s.mintLocationRepo == nil {
+		return nil
+	}
+	if *mintLocationID == 0 {
+		return ErrMintLocationNotFound
+	}
+	exists, err := s.mintLocationRepo.ExistsVisibleTo(*mintLocationID, userID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrMintLocationNotFound
 	}
 	return nil
 }
