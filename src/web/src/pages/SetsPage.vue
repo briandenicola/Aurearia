@@ -3,12 +3,12 @@
     <div class="page-header">
       <h1>Sets</h1>
       <div v-if="isPwa" class="pwa-actions">
-        <button class="pwa-icon-btn" @click="showCreateModal = true" title="Create Set">
+        <button class="pwa-icon-btn" @click="openCreateModal" title="Create Set">
           <CirclePlus :size="22" />
         </button>
       </div>
       <div v-else class="header-actions">
-        <button class="btn btn-primary" @click="showCreateModal = true">
+        <button class="btn btn-primary" @click="openCreateModal">
           <Plus :size="16" /> Create Set
         </button>
       </div>
@@ -23,7 +23,7 @@
       <Layers3 :size="48" />
       <h3>No sets yet</h3>
       <p>Create a set to organize your collection by theme, era, or completion goals</p>
-      <button class="btn btn-primary mt-4" @click="showCreateModal = true">
+      <button class="btn btn-primary mt-4" @click="openCreateModal">
         <Plus :size="16" /> Create Your First Set
       </button>
     </div>
@@ -67,6 +67,7 @@ import type { CoinSetSummary, CreateCoinSetRequest } from '@/types'
 import SetDashboardCard from '@/components/sets/SetDashboardCard.vue'
 import SetCreationWizard from '@/components/sets/SetCreationWizard.vue'
 import { usePwa } from '@/composables/usePwa'
+import { randomSetColor } from '@/utils/setColors'
 
 const router = useRouter()
 const { isPwa } = usePwa()
@@ -76,7 +77,7 @@ const showCreateModal = ref(false)
 const newSet = ref({
   name: '',
   description: '',
-  color: '#6b7280',
+  color: randomSetColor(),
   setType: 'standard' as const,
 })
 
@@ -96,6 +97,20 @@ async function loadSets() {
   }
 }
 
+function resetNewSet() {
+  newSet.value = {
+    name: '',
+    description: '',
+    color: randomSetColor(),
+    setType: 'standard',
+  }
+}
+
+function openCreateModal() {
+  resetNewSet()
+  showCreateModal.value = true
+}
+
 async function createSet(value: CreateCoinSetRequest, csv?: string) {
   try {
     if (csv) {
@@ -104,12 +119,7 @@ async function createSet(value: CreateCoinSetRequest, csv?: string) {
       await createSetApi(value)
     }
     showCreateModal.value = false
-    newSet.value = {
-      name: '',
-      description: '',
-      color: '#6b7280',
-      setType: 'standard',
-    }
+    resetNewSet()
     await loadSets()
   } catch (error) {
     console.error('Failed to create set:', error)

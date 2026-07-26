@@ -90,6 +90,7 @@ import { reactive, ref, watch } from 'vue'
 import { normalizeCoinSetType } from '@/types'
 import type { CreateCoinSetRequest, SmartCriteriaGroup } from '@/types'
 import SetSmartRuleBuilder from '@/components/sets/SetSmartRuleBuilder.vue'
+import { randomSetColor } from '@/utils/setColors'
 
 const props = withDefaults(defineProps<{
   initialValue?: Partial<CreateCoinSetRequest>
@@ -106,7 +107,7 @@ const emit = defineEmits<{
 const form = reactive({
   name: props.initialValue?.name ?? '',
   description: props.initialValue?.description ?? '',
-  color: props.initialValue?.color ?? '#6b7280',
+  color: props.initialValue?.color ?? randomSetColor(),
   setType: props.initialValue?.setType ? normalizeCoinSetType(props.initialValue.setType) : 'standard',
   templateId: props.initialValue?.templateId ?? '',
   targetCompletionDate: props.initialValue?.targetCompletionDate ?? '',
@@ -118,7 +119,7 @@ const csvTargets = ref('')
 watch(() => props.initialValue, (value) => {
   form.name = value?.name ?? ''
   form.description = value?.description ?? ''
-  form.color = value?.color ?? '#6b7280'
+  form.color = value?.color ?? randomSetColor()
   form.setType = value?.setType ? normalizeCoinSetType(value.setType) : 'standard'
   form.templateId = value?.templateId ?? ''
   form.targetCompletionDate = value?.targetCompletionDate ?? ''
