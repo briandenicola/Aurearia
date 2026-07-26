@@ -103,6 +103,7 @@ describe('SetDetailPage', () => {
         name: 'Augustus Denarius',
         diameterMm: 19,
         images: expect.any(Array),
+        purchaseDate: expect.anything(),
         wishlistPlaceholder: false,
       },
       {
@@ -110,6 +111,7 @@ describe('SetDetailPage', () => {
         name: 'Tiberius Denarius',
         diameterMm: null,
         images: expect.any(Array),
+        purchaseDate: expect.anything(),
         wishlistPlaceholder: false,
       },
     ])
@@ -119,7 +121,7 @@ describe('SetDetailPage', () => {
 
   it('ghosts wishlist coins in goal set tray data', async () => {
     mockSetDetailLoad([
-      buildRomanDenariusCore({ id: 1, name: 'Owned Denarius', isWishlist: false }),
+      buildRomanDenariusCore({ id: 1, name: 'Owned Denarius', isWishlist: false, purchaseDate: '2026-07-26T12:00:00Z' }),
       buildRomanDenariusCore({ id: 2, name: 'Wishlist Denarius', isWishlist: true }),
     ])
 
@@ -130,7 +132,7 @@ describe('SetDetailPage', () => {
 
     const tray = wrapper.findComponent({ name: 'MuseumTray' })
     expect(tray.props('coins')).toEqual([
-      expect.objectContaining({ id: 1, wishlistPlaceholder: false }),
+      expect.objectContaining({ id: 1, purchaseDate: '2026-07-26T12:00:00Z', wishlistPlaceholder: false }),
       expect.objectContaining({ id: 2, wishlistPlaceholder: true }),
     ])
   })

@@ -324,6 +324,7 @@ const trayCoins = computed((): TrayCoin[] =>
     name: coin.name,
     diameterMm: coin.diameterMm,
     images: coin.images ?? [],
+    purchaseDate: coin.purchaseDate,
     wishlistPlaceholder: normalizedSetType.value === 'goal' && coin.isWishlist,
   })),
 )
