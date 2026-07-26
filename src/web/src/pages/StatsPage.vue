@@ -22,10 +22,17 @@
           v-if="categoryItems.length"
           title="By Coin Type"
           :items="categoryItems"
-          :fill-class="(label: string) => `fill-${label.toLowerCase()}`"
+          :fill-class="(label: string) => label"
         >
           <template #label="{ item }">
-            <span class="badge" :class="`badge-${item.label.toLowerCase()}`">{{ item.label }}</span>
+            <span
+              class="badge"
+              :style="{
+                backgroundColor: colorForLabelBackground(item.label),
+                color: colorForLabel(item.label),
+                border: `1px solid ${colorForLabelBackground(item.label, 30)}`,
+              }"
+            >{{ item.label }}</span>
           </template>
         </StatsBarChart>
 
@@ -61,6 +68,7 @@ import StatsBarChart from '@/components/stats/StatsBarChart.vue'
 import type { BarItem } from '@/components/stats/StatsBarChart.vue'
 import StatsHeatMap from '@/components/stats/StatsHeatMap.vue'
 import StatsCoinFlowChart from '@/components/stats/StatsCoinFlowChart.vue'
+import { colorForLabel, colorForLabelBackground } from '@/utils/categoryColor'
 
 const store = useCoinsStore()
 const stats = computed(() => store.stats)
