@@ -434,3 +434,29 @@ Investigated production 429s on collection browsing. App mount makes expected da
 - **2026-07-26 — PR #530 npm audit remediation:** `src/web/package.json` now pins an npm override for `brace-expansion` to `5.0.8`, and `src/web/package-lock.json` was refreshed with `npm.cmd install --package-lock-only` so vulnerable transitive copies from the `@vue/test-utils -> js-beautify -> glob -> minimatch` chain are replaced without forcing major dependency downgrades. Validation passed with `npm.cmd audit` (0 vulnerabilities) and `npm.cmd run type-check`.
 
 - **2026-07-26 (Set type migration compatibility):** Frontend set contracts now treat open and defined as legacy read values only. New writes use standard and goal, while UI logic should normalize legacy values with a shared helper before branching (filters, membership controls, completion loading) so mixed API rollouts do not break UX.
+
+## Historical Notes (Pre-2026-06-20)
+
+**Summary of durable frontend patterns established in early June:**
+- Camera/intake: 3-column capture slots, active-tile gold glow, circular focus overlay, camera controls aligned under slots; PWA camera permissions pre-check with progressive enhancement
+- Modal structure from FeaturedCoinModal; composables expose cleanup functions; onUnmounted cleanup mandatory
+- State management: module-level refs do NOT reset on unmount — must explicitly reset in onUnmounted() or state leaks (learned from bulkSelectActive hiding agent FAB indefinitely)
+- Non-passive touchmove gotcha: touchcancel reset handler MUST be paired with preventDefault() touchmove, else OS/browser gesture hijacks leave state stuck
+- Back navigation: child form save uses router.back() to pop form; parent pages use absolute router.push('/') to avoid history pollution and incorrect back routing
+- Responsive tables: stack related data vertically when action buttons overflow; use flex-shrink: 0 and justify-content: flex-end on action containers
+- Design system: all CSS values use design tokens from variables.css; no hardcoded colors/spacing; chips reuse global classes; uppercase labels use letter-spacing: 0.08em
+
+**Key early-June deliverables:**
+- Settings tab split (Backups ↔ API Keys); Camera modal extraction; Camera permissions pre-check; Per-coin value trend subpage (2026-06-02)
+- Coin detail UI reordering (Inscription consolidation, section renames, metadata hierarchy); Settings tab reorganization (2026-06-02)
+- F013 nullable scalar update contract: DTO pointer fields + raw json.RawMessage presence detection for explicit null vs omitted distinction (2026-06-09)
+- F013 Phase 4 Browser Workflow Infrastructure: Playwright tests (auth, coin-form, storage/tags, image upload, search/filter, mobile viewport) (2026-06-09)
+- Collection pagination count summary; Coin of the Day Pushover link handling; ImageLightbox processing overlay fix (2026-06-10/2026-06-28)
+- Mint map frontend: admin-managed /mint-locations as runtime source, custom locations admin CRUD, map grouping refactor (2026-06-18)
+- Biometric login PWA fix (issue #299): unwrap nested options.publicKey, convert base64url challenge/allowCredentials, use backend-returned username (2026-06-18)
+- Admin Schedules panels: collection health snapshots trigger UI + custom locations CRUD (2026-06-18)
+- Context-aware title bar actions pattern: Collection page desktop actions moved to App.vue title bar with bulkSelectActive visibility guard (2026-06-22)
+- Alert panel state isolation pattern: separate list/detail selection refs, delete active selection clears both refs and nested state (2026-06-29)
+- Find Coin frontend normalization and NGC label handling; Quick Capture draft navigation; CNG Auctions feature parity assessment (2026-06-29/2026-06-30)
+- OIDC Phase 6-7 UI: linked identity management, unlink safety/conflict errors, admin setup guide (2026-06-24)
+- Coin Grading UI as AI analysis sub-action; Price Alerts & Bid Reminders UI; npm audit remediation (2026-07-02/2026-07-26)
