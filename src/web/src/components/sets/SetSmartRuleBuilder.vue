@@ -79,6 +79,24 @@
           <option value="Modern">Modern</option>
           <option value="Other">Other</option>
         </select>
+        <select
+          v-else-if="rule.field === 'mint' && (rule.op === 'eq' || rule.op === 'neq')"
+          v-model="rule.value"
+          class="rule-input"
+          @change="emitCriteria"
+        >
+          <option value="">Unknown</option>
+          <optgroup v-if="myMintLocations.length" label="My Mints">
+            <option v-for="location in myMintLocations" :key="location.id" :value="location.displayName">
+              {{ location.displayName }}
+            </option>
+          </optgroup>
+          <optgroup v-if="globalMintLocations.length" label="Mints">
+            <option v-for="location in globalMintLocations" :key="location.id" :value="location.displayName">
+              {{ location.displayName }}
+            </option>
+          </optgroup>
+        </select>
         <input
           v-else-if="isNumericField(rule.field)"
           v-model="rule.value"
@@ -178,12 +196,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   previewSmartSet,
   getSuggestedCriteria,
   listCriteriaTemplates,
   saveCriteriaTemplate,
+  getMintLocations,
+  type MintLocationsResponse,
 } from '@/api/client'
 import type {
   SmartCriteriaGroup,
@@ -192,7 +212,12 @@ import type {
   SmartSetPreview,
   SmartCriteriaTemplate,
   SuggestedSmartCriteria,
+  MintLocation,
 } from '@/types'
+
+function unwrapMintLocations(data: MintLocationsResponse): MintLocation[] {
+  return Array.isArray(data) ? data : data.mintLocations ?? []
+}
 
 const emit = defineEmits<{
   update: [criteria: SmartCriteriaGroup]
@@ -224,6 +249,11 @@ const showSaveForm = ref(false)
 const saveTemplateName = ref('')
 const saving = ref(false)
 
+// ---- mint location options ----
+const mintLocations = ref<MintLocation[]>([])
+const myMintLocations = computed(() => mintLocations.value.filter((m) => m.userId != null))
+const globalMintLocations = computed(() => mintLocations.value.filter((m) => m.userId == null))
+
 // ---- lifecycle ----
 onMounted(async () => {
   try {
@@ -232,6 +262,12 @@ onMounted(async () => {
     savedTemplates.value = tmplRes.data.templates
   } catch {
     // non-fatal
+  }
+  try {
+    const mintRes = await getMintLocations()
+    mintLocations.value = unwrapMintLocations(mintRes.data)
+  } catch {
+    mintLocations.value = []
   }
   emitCriteria()
 })

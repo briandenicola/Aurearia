@@ -61,12 +61,34 @@ export function findMintReference(value: string, mintLocations: readonly MintLoc
 }
 
 export function groupCoinsByMint(coins: Coin[], mintLocations: readonly MintLocation[]): MintMapAggregation {
+  const mintById = new Map<number, MintReference>(mintLocations.map((mint) => [mint.id, mint]))
+  // Fuzzy name/alias matching is a fallback for legacy coins saved before the
+  // mintLocationId foreign key existed - once a coin is linked, its FK is
+  // authoritative and this lookup is never consulted for it.
   const mintLookup = buildMintLookup(mintLocations)
   const matchedByMint = new Map<string, MintGroup>()
   const unmatchedByName = new Map<string, { originalNames: Set<string>; coins: Coin[] }>()
   const unknown: Coin[] = []
 
+  function addMatch(reference: MintReference, coin: Coin) {
+    const existing = matchedByMint.get(String(reference.id))
+    if (existing) {
+      existing.coins.push(coin)
+      existing.count = existing.coins.length
+    } else {
+      matchedByMint.set(String(reference.id), { mint: reference, coins: [coin], count: 1 })
+    }
+  }
+
   for (const coin of coins) {
+    if (coin.mintLocationId != null) {
+      const reference = mintById.get(coin.mintLocationId)
+      if (reference) {
+        addMatch(reference, coin)
+        continue
+      }
+    }
+
     const rawMint = coin.mint?.trim() ?? ''
     const normalizedName = normalizeMintName(rawMint)
     if (!normalizedName) {
@@ -76,13 +98,7 @@ export function groupCoinsByMint(coins: Coin[], mintLocations: readonly MintLoca
 
     const reference = mintLookup.get(normalizedName) ?? null
     if (reference) {
-      const existing = matchedByMint.get(String(reference.id))
-      if (existing) {
-        existing.coins.push(coin)
-        existing.count = existing.coins.length
-      } else {
-        matchedByMint.set(String(reference.id), { mint: reference, coins: [coin], count: 1 })
-      }
+      addMatch(reference, coin)
       continue
     }
 
