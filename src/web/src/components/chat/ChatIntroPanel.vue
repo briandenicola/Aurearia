@@ -3,26 +3,26 @@
     <div class="flex w-full flex-col items-center gap-3">
       <Bot :size="32" />
       <p class="max-w-[300px] leading-relaxed">
-        Search for coins, find upcoming shows, or get a portfolio analysis -- ask me anything about collecting.
+        Ask about your collection, research coins, or turn an answer into a markdown note.
       </p>
       <div class="mt-2 flex w-full flex-col gap-2">
         <button
           class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"
-          @click="$emit('send', 'Find me Roman silver denarii of Julius Caesar')"
+          @click="$emit('send', 'Which coins in my collection are missing an era?')"
         >
-          Roman denarii of Julius Caesar
+          Coins missing an era
         </button>
         <button
           class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"
-          @click="$emit('send', 'I\'m looking for Byzantine gold solidi under $1000')"
+          @click="$emit('send', 'Summarize my most valuable coins and explain why they stand out')"
         >
-          Byzantine gold solidi under $1000
+          Summarize valuable coins
         </button>
         <button
           class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"
-          @click="$emit('send', 'Show me ancient Greek tetradrachms from Athens')"
+          @click="$emit('send', 'Research Athenian owl tetradrachms and include key attribution notes')"
         >
-          Greek tetradrachms from Athens
+          Research Athenian owls
         </button>
         <button
           class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"

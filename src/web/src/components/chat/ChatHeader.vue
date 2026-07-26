@@ -2,7 +2,7 @@
   <div class="flex shrink-0 items-center justify-between border-b border-border-subtle px-4 py-3">
     <h1 class="m-0 flex items-center gap-2 text-lg text-gold">
       <Bot :size="20" />
-      Coin Search Agent
+      Agentic Agenda
     </h1>
     <div class="flex items-center gap-2">
       <button
