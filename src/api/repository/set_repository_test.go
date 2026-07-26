@@ -126,6 +126,58 @@ func TestSetRepository_ReorderCoinsInSet_RejectsInvalidMembersWithoutPartialUpda
 	}
 }
 
+func TestSetRepository_GetAgenticSetCompletionMatchesActiveCoinsOnce(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewSetRepository(db)
+
+	set := models.CoinSet{UserID: 1, Name: "US Silver Quarters", SetType: models.CoinSetTypeAgentic, CreationMode: models.CoinSetCreationModeDynamic}
+	if err := db.Create(&set).Error; err != nil {
+		t.Fatalf("create set: %v", err)
+	}
+	coins := []models.Coin{
+		{Name: "1940 Washington Quarter A", UserID: 1, Denomination: "Quarter", Material: "Silver"},
+		{Name: "1940 Washington Quarter B", UserID: 1, Denomination: "Quarter", Material: "Silver"},
+		{Name: "1941 Washington Quarter", UserID: 1, Denomination: "Quarter", Material: "Silver", IsWishlist: true},
+	}
+	if err := db.Create(&coins).Error; err != nil {
+		t.Fatalf("create coins: %v", err)
+	}
+	year1940 := 1940
+	year1941 := 1941
+	denomination := "Quarter"
+	material := "Silver"
+	targets := []models.CoinSetTarget{
+		{SetID: set.ID, Label: "1940 US Silver Quarter", Year: &year1940, Denomination: &denomination, Material: &material, SortOrder: 1},
+		{SetID: set.ID, Label: "Duplicate 1940 Slot", Year: &year1940, Denomination: &denomination, Material: &material, SortOrder: 2},
+		{SetID: set.ID, Label: "1941 US Silver Quarter", Year: &year1941, Denomination: &denomination, Material: &material, SortOrder: 3},
+	}
+	if err := db.Create(&targets).Error; err != nil {
+		t.Fatalf("create targets: %v", err)
+	}
+
+	completion, err := repo.GetSetCompletion(set.ID, 1)
+	if err != nil {
+		t.Fatalf("GetSetCompletion: %v", err)
+	}
+	if completion["completedTargets"] != 2 {
+		t.Fatalf("expected two 1940 slots filled by two distinct active coins, got %#v", completion)
+	}
+	missing, ok := completion["missingTargets"].([]models.CoinSetTarget)
+	if !ok || len(missing) != 1 || missing[0].Label != "1941 US Silver Quarter" {
+		t.Fatalf("wishlist coin should not fill the 1941 slot, missing=%#v", completion["missingTargets"])
+	}
+	matches, ok := completion["targetMatches"].([]AgenticTargetMatch)
+	if !ok || len(matches) != 3 {
+		t.Fatalf("expected target matches in completion, got %#v", completion["targetMatches"])
+	}
+	if matches[0].Coin == nil || matches[1].Coin == nil || matches[0].Coin.ID == matches[1].Coin.ID {
+		t.Fatalf("expected first two targets matched to distinct coins, got %#v", matches)
+	}
+	if matches[2].Coin != nil {
+		t.Fatalf("wishlist coin must not be auto-matched, got %#v", matches[2].Coin)
+	}
+}
+
 func coinNames(coins []models.Coin) []string {
 	names := make([]string, 0, len(coins))
 	for _, coin := range coins {

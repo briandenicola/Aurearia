@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,15 +33,18 @@ const (
 )
 
 var (
-	ErrSetBuilderPromptRequired      = errors.New("set builder prompt is required")
-	ErrSetBuilderPromptTooLong       = errors.New("set builder prompt is too long")
-	ErrSetProposalNameRequired       = errors.New("set proposal name is required")
-	ErrSetProposalNameTooLong        = errors.New("set proposal name is too long")
-	ErrSetProposalSlotsRequired      = errors.New("set proposal must include at least one slot")
-	ErrSetProposalTooManySlots       = errors.New("set proposal includes too many slots")
-	ErrSetProposalSlotLabelRequired  = errors.New("set proposal slot label is required")
-	ErrSetProposalRunNotComplete     = errors.New("set builder run must be completed before creating a proposal")
-	ErrSetProposalVerificationStatus = errors.New("set proposal slot verification status is invalid")
+	ErrSetBuilderPromptRequired       = errors.New("set builder prompt is required")
+	ErrSetBuilderPromptTooLong        = errors.New("set builder prompt is too long")
+	ErrSetProposalNameRequired        = errors.New("set proposal name is required")
+	ErrSetProposalNameTooLong         = errors.New("set proposal name is too long")
+	ErrSetProposalSlotsRequired       = errors.New("set proposal must include at least one slot")
+	ErrSetProposalTooManySlots        = errors.New("set proposal includes too many slots")
+	ErrSetProposalSlotLabelRequired   = errors.New("set proposal slot label is required")
+	ErrSetProposalRunNotComplete      = errors.New("set builder run must be completed before creating a proposal")
+	ErrSetProposalVerificationStatus  = errors.New("set proposal slot verification status is invalid")
+	ErrSetProposalApprovalUnavailable = errors.New("set proposal approval is not configured")
+	ErrSetProposalExpired             = errors.New("set proposal has expired")
+	ErrSetProposalFeedbackRequired    = errors.New("set proposal regeneration feedback is required")
 )
 
 type SetBuilderAgent interface {
@@ -54,6 +58,7 @@ type SetBuilderService struct {
 	agent       SetBuilderAgent
 	settingsSvc *SettingsService
 	agentRepo   *repository.AgentRepository
+	setRepo     *repository.SetRepository
 	logger      *Logger
 	queue       chan uint
 	now         func() time.Time
@@ -78,8 +83,15 @@ func (s *SetBuilderService) WithWorkflow(agent SetBuilderAgent, settingsSvc *Set
 	return s
 }
 
+// WithSetRepository enables approval-time Agentic set creation.
+func (s *SetBuilderService) WithSetRepository(setRepo *repository.SetRepository) *SetBuilderService {
+	s.setRepo = setRepo
+	return s
+}
+
 type SetBuilderRunRequest struct {
 	Prompt      string
+	Feedback    string
 	Provider    string
 	Model       string
 	MaxTurns    *int
@@ -110,6 +122,14 @@ type SetProposalSlotDraft struct {
 	ValidationNote     string
 }
 
+type SetProposalUpdateRequest struct {
+	ProposedName  string
+	Description   string
+	Color         string
+	SelectedScope string
+	Slots         []SetProposalSlotDraft
+}
+
 // CreateRun validates and persists a queued Agentic set builder run.
 func (s *SetBuilderService) CreateRun(userID uint, request SetBuilderRunRequest) (*models.SetBuilderRun, error) {
 	prompt, err := normalizeSetBuilderPrompt(request.Prompt)
@@ -119,6 +139,7 @@ func (s *SetBuilderService) CreateRun(userID uint, request SetBuilderRunRequest)
 	run := &models.SetBuilderRun{
 		UserID:      userID,
 		Prompt:      prompt,
+		Feedback:    strings.TrimSpace(request.Feedback),
 		Status:      models.SetBuilderRunStatusQueued,
 		Provider:    strings.TrimSpace(request.Provider),
 		Model:       strings.TrimSpace(request.Model),
@@ -213,6 +234,7 @@ func (s *SetBuilderService) processClaimedRun(run *models.SetBuilderRun) error {
 		MaxTurns:             maxTurns,
 		MaxSlots:             maxSetProposalSlots,
 		EnableExternalLookup: true,
+		Feedback:             run.Feedback,
 	})
 	if err != nil {
 		return err
@@ -328,8 +350,132 @@ func (s *SetBuilderService) GetProposal(userID, proposalID uint) (*models.SetPro
 	return s.repo.GetProposalForUser(proposalID, userID)
 }
 
+func (s *SetBuilderService) UpdateProposal(userID, proposalID uint, request SetProposalUpdateRequest) (*models.SetProposal, error) {
+	proposal, err := s.repo.GetProposalForUser(proposalID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensurePendingProposal(proposal); err != nil {
+		return nil, err
+	}
+	name := strings.TrimSpace(request.ProposedName)
+	if name == "" {
+		return nil, ErrSetProposalNameRequired
+	}
+	if len(name) > maxSetProposalNameLength {
+		return nil, ErrSetProposalNameTooLong
+	}
+	slotDrafts := request.Slots
+	if len(slotDrafts) == 0 {
+		slotDrafts = proposalSlotsToDrafts(proposal.Slots)
+	}
+	if len(slotDrafts) == 0 {
+		return nil, ErrSetProposalSlotsRequired
+	}
+	if len(slotDrafts) > maxSetProposalSlots {
+		return nil, ErrSetProposalTooManySlots
+	}
+	slots := make([]models.ProposalSlot, 0, len(slotDrafts))
+	for i, slotDraft := range slotDrafts {
+		slot, err := buildProposalSlot(slotDraft, i)
+		if err != nil {
+			return nil, err
+		}
+		slots = append(slots, slot)
+	}
+	updates := map[string]interface{}{
+		"proposed_name":  name,
+		"description":    strings.TrimSpace(request.Description),
+		"color":          strings.TrimSpace(request.Color),
+		"selected_scope": strings.TrimSpace(request.SelectedScope),
+		"updated_at":     s.now(),
+	}
+	if updates["color"] == "" {
+		updates["color"] = DefaultSetColor(userID, name, int64(len(slots)))
+	}
+	return s.repo.UpdatePendingProposalWithSlots(proposalID, userID, updates, slots)
+}
+
 func (s *SetBuilderService) RejectProposal(userID, proposalID uint, reason string) error {
 	return s.repo.MarkRejected(proposalID, userID, s.now(), strings.TrimSpace(reason))
+}
+
+func (s *SetBuilderService) RegenerateProposal(userID, proposalID uint, feedback string) (*models.SetBuilderRun, error) {
+	feedback = strings.TrimSpace(feedback)
+	if feedback == "" {
+		return nil, ErrSetProposalFeedbackRequired
+	}
+	proposal, err := s.repo.GetProposalForUser(proposalID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensurePendingProposal(proposal); err != nil {
+		return nil, err
+	}
+	run := &models.SetBuilderRun{
+		UserID:   userID,
+		Prompt:   proposal.OriginalPrompt,
+		Feedback: feedback,
+		Status:   models.SetBuilderRunStatusQueued,
+	}
+	if err := s.repo.CreateRun(run); err != nil {
+		return nil, err
+	}
+	if err := s.repo.MarkRejected(proposalID, userID, s.now(), "Superseded by regeneration request"); err != nil {
+		return nil, err
+	}
+	s.enqueueRunID(run.ID)
+	return run, nil
+}
+
+func (s *SetBuilderService) ApproveProposal(userID, proposalID uint) (*models.CoinSet, error) {
+	if s.setRepo == nil {
+		return nil, ErrSetProposalApprovalUnavailable
+	}
+	proposal, err := s.repo.GetProposalForUser(proposalID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if proposal.Status == models.SetProposalStatusApproved && proposal.ApprovalSetID != nil {
+		return s.setRepo.GetByID(*proposal.ApprovalSetID, userID)
+	}
+	if err := s.ensurePendingProposal(proposal); err != nil {
+		return nil, err
+	}
+	set := &models.CoinSet{
+		UserID:        userID,
+		Name:          strings.TrimSpace(proposal.ProposedName),
+		Description:   strings.TrimSpace(proposal.Description),
+		Color:         proposal.Color,
+		SetType:       models.CoinSetTypeAgentic,
+		CreationMode:  models.CoinSetCreationModeDynamic,
+		AgenticPrompt: proposal.OriginalPrompt,
+		AgenticStatus: "ready",
+	}
+	if set.Color == "" {
+		set.Color = DefaultSetColor(userID, set.Name, int64(len(proposal.Slots)))
+	}
+	targets := make([]models.CoinSetTarget, 0, len(proposal.Slots))
+	for _, slot := range proposal.Slots {
+		targets = append(targets, proposalSlotToTarget(slot))
+	}
+	created, err := s.repo.ApproveProposalWithSet(proposalID, userID, set, targets, s.now())
+	if err != nil {
+		return nil, err
+	}
+	s.notifySetCreated(userID, proposalID, created)
+	return created, nil
+}
+
+func (s *SetBuilderService) ensurePendingProposal(proposal *models.SetProposal) error {
+	if proposal == nil || proposal.Status != models.SetProposalStatusPending {
+		return repository.ErrRecordNotFound
+	}
+	if !proposal.ExpiresAt.IsZero() && !proposal.ExpiresAt.After(s.now()) {
+		_ = s.repo.MarkExpired(proposal.ID, proposal.UserID, s.now())
+		return ErrSetProposalExpired
+	}
+	return nil
 }
 
 func (s *SetBuilderService) buildProposal(userID, runID uint, draft SetProposalDraft) (*models.SetProposal, []models.ProposalSlot, error) {
@@ -412,6 +558,22 @@ func buildProposalSlot(draft SetProposalSlotDraft, defaultSortOrder int) (models
 	}, nil
 }
 
+func proposalSlotsToDrafts(slots []models.ProposalSlot) []SetProposalSlotDraft {
+	drafts := make([]SetProposalSlotDraft, 0, len(slots))
+	for _, slot := range slots {
+		drafts = append(drafts, SetProposalSlotDraft{
+			Label:              slot.Label,
+			Criteria:           slot.Criteria,
+			GroupName:          slot.GroupName,
+			SortOrder:          slot.SortOrder,
+			VerificationStatus: slot.VerificationStatus,
+			SourceNote:         slot.SourceNote,
+			ValidationNote:     slot.ValidationNote,
+		})
+	}
+	return drafts
+}
+
 func (s *SetBuilderService) notifyProposalReady(proposal *models.SetProposal) error {
 	if s.notifRepo == nil {
 		return nil
@@ -441,6 +603,20 @@ func (s *SetBuilderService) notifyRunFailed(run *models.SetBuilderRun, reason st
 		Message:      message,
 		ReferenceID:  run.ID,
 		ReferenceURL: "/sets",
+	})
+}
+
+func (s *SetBuilderService) notifySetCreated(userID, proposalID uint, set *models.CoinSet) {
+	if s.notifRepo == nil || set == nil {
+		return
+	}
+	_ = s.notifRepo.Create(&models.Notification{
+		UserID:       userID,
+		Type:         NotificationTypeAgenticSetCreated,
+		Title:        "Agentic set created",
+		Message:      fmt.Sprintf("%s has been added to Sets.", set.Name),
+		ReferenceID:  proposalID,
+		ReferenceURL: fmt.Sprintf("/sets/%d", set.ID),
 	})
 }
 
@@ -533,5 +709,62 @@ func portfolioDataFromSummary(s *repository.PortfolioSummary) *PortfolioData {
 		Rulers:        rulers,
 		TopCoins:      coins,
 		MissingFields: s.MissingFields,
+	}
+}
+
+func proposalSlotToTarget(slot models.ProposalSlot) models.CoinSetTarget {
+	target := models.CoinSetTarget{
+		Label:     strings.TrimSpace(slot.Label),
+		SortOrder: slot.SortOrder,
+	}
+	if slot.Criteria != nil {
+		rules := models.JSONObject{}
+		for key, value := range *slot.Criteria {
+			rules[key] = value
+			switch strings.ToLower(key) {
+			case "year", "date":
+				if year, ok := parseTargetYear(value); ok {
+					target.Year = &year
+				}
+			case "mintmark", "mint_mark", "mint":
+				if text := strings.TrimSpace(fmt.Sprint(value)); text != "" {
+					target.MintMark = &text
+				}
+			case "denomination", "coin_type", "type":
+				if text := strings.TrimSpace(fmt.Sprint(value)); text != "" {
+					target.Denomination = &text
+				}
+			case "country", "issuer":
+				if text := strings.TrimSpace(fmt.Sprint(value)); text != "" {
+					target.Country = &text
+				}
+			case "material", "metal":
+				if text := strings.TrimSpace(fmt.Sprint(value)); text != "" {
+					target.Material = &text
+				}
+			}
+		}
+		target.MatchRules = &rules
+	}
+	return target
+}
+
+func parseTargetYear(value interface{}) (int, bool) {
+	switch v := value.(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case float64:
+		return int(v), true
+	case string:
+		trimmed := strings.TrimSpace(v)
+		if len(trimmed) >= 4 {
+			trimmed = trimmed[:4]
+		}
+		year, err := strconv.Atoi(trimmed)
+		return year, err == nil
+	default:
+		return 0, false
 	}
 }

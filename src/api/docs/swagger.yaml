@@ -1453,6 +1453,11 @@ definitions:
     required:
     - refreshToken
     type: object
+  handlers.regenerateSetProposalRequest:
+    properties:
+      feedback:
+        type: string
+    type: object
   handlers.registerRequest:
     properties:
       email:
@@ -1470,6 +1475,11 @@ definitions:
     - email
     - password
     - username
+    type: object
+  handlers.rejectSetProposalRequest:
+    properties:
+      reason:
+        type: string
     type: object
   handlers.romanImperialFigureListResponse:
     properties:
@@ -1500,6 +1510,39 @@ definitions:
         type: string
       sortOrder:
         type: integer
+    type: object
+  handlers.updateSetProposalRequest:
+    properties:
+      color:
+        type: string
+      description:
+        type: string
+      proposedName:
+        type: string
+      selectedScope:
+        type: string
+      slots:
+        items:
+          $ref: '#/definitions/handlers.updateSetProposalSlotRequest'
+        type: array
+    type: object
+  handlers.updateSetProposalSlotRequest:
+    properties:
+      criteria:
+        additionalProperties: true
+        type: object
+      group:
+        type: string
+      label:
+        type: string
+      sortOrder:
+        type: integer
+      sourceNote:
+        type: string
+      validationNote:
+        type: string
+      verificationStatus:
+        type: string
     type: object
   models.AIJob:
     properties:
@@ -2391,6 +2434,39 @@ definitions:
     - OIDCProviderTypeEntra
     - OIDCProviderTypePocketID
     - OIDCProviderTypeGeneric
+  models.ProposalSlot:
+    properties:
+      createdAt:
+        type: string
+      criteria:
+        $ref: '#/definitions/models.JSONObject'
+      group:
+        type: string
+      id:
+        type: integer
+      label:
+        type: string
+      proposalId:
+        type: integer
+      sortOrder:
+        type: integer
+      sourceNote:
+        type: string
+      updatedAt:
+        type: string
+      validationNote:
+        type: string
+      verificationStatus:
+        $ref: '#/definitions/models.ProposalSlotVerificationStatus'
+    type: object
+  models.ProposalSlotVerificationStatus:
+    enum:
+    - verified
+    - unverified
+    type: string
+    x-enum-varnames:
+    - ProposalSlotVerificationVerified
+    - ProposalSlotVerificationUnverified
   models.QuickCaptureDraft:
     properties:
       acquisitionSource:
@@ -2521,6 +2597,124 @@ definitions:
       updatedAt:
         type: string
     type: object
+  models.SetBuilderRun:
+    properties:
+      completedAt:
+        type: string
+      createdAt:
+        type: string
+      errorMessage:
+        type: string
+      feedback:
+        type: string
+      id:
+        type: integer
+      maxTurns:
+        type: integer
+      model:
+        type: string
+      prompt:
+        type: string
+      provider:
+        type: string
+      startedAt:
+        type: string
+      status:
+        $ref: '#/definitions/models.SetBuilderRunStatus'
+      terminationReason:
+        type: string
+      tokenBudget:
+        type: integer
+      tokensUsed:
+        type: integer
+      transcriptSummary:
+        type: string
+      updatedAt:
+        type: string
+      usedTurns:
+        type: integer
+      userId:
+        type: integer
+    type: object
+  models.SetBuilderRunStatus:
+    enum:
+    - queued
+    - running
+    - completed
+    - failed
+    type: string
+    x-enum-varnames:
+    - SetBuilderRunStatusQueued
+    - SetBuilderRunStatusRunning
+    - SetBuilderRunStatusCompleted
+    - SetBuilderRunStatusFailed
+  models.SetProposal:
+    properties:
+      approvalSetId:
+        type: integer
+      approvedAt:
+        type: string
+      builderRunId:
+        type: integer
+      color:
+        type: string
+      createdAt:
+        type: string
+      description:
+        type: string
+      errorMessage:
+        type: string
+      expiresAt:
+        type: string
+      id:
+        type: integer
+      idempotencyKey:
+        type: string
+      originalPrompt:
+        type: string
+      preMatchSummary:
+        $ref: '#/definitions/models.JSONObject'
+      proposedName:
+        type: string
+      proposedSlug:
+        type: string
+      rejectedAt:
+        type: string
+      rejectionReason:
+        type: string
+      rosterPayload:
+        $ref: '#/definitions/models.JSONObject'
+      run:
+        $ref: '#/definitions/models.SetBuilderRun'
+      scopeOptions:
+        $ref: '#/definitions/models.JSONObject'
+      selectedScope:
+        type: string
+      slots:
+        items:
+          $ref: '#/definitions/models.ProposalSlot'
+        type: array
+      status:
+        $ref: '#/definitions/models.SetProposalStatus'
+      updatedAt:
+        type: string
+      userId:
+        type: integer
+    type: object
+  models.SetProposalStatus:
+    enum:
+    - pending
+    - approved
+    - rejected
+    - expired
+    - creation_failed
+    type: string
+    x-enum-varnames:
+    - SetProposalStatusPending
+    - SetProposalStatusApproved
+    - SetProposalStatusRejected
+    - SetProposalStatusExpired
+    - SetProposalStatusCreationFailed
   models.StorageLocation:
     properties:
       createdAt:
@@ -9727,6 +9921,335 @@ paths:
       summary: Scrape image URL from a web page
       tags:
       - Images
+  /set-builder/proposals:
+    get:
+      description: Returns human-reviewable Agentic set proposals for the current
+        user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              proposals:
+                items:
+                  $ref: '#/definitions/models.SetProposal'
+                type: array
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Agentic set proposals
+      tags:
+      - sets
+  /set-builder/proposals/{id}:
+    get:
+      description: Returns one human-reviewable Agentic set proposal with slots and
+        run summary.
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SetProposal'
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Agentic set proposal
+      tags:
+      - sets
+    put:
+      consumes:
+      - application/json
+      description: Edits proposal metadata and roster slots while the proposal is
+        pending.
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Proposal edits
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.updateSetProposalRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SetProposal'
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update Agentic set proposal
+      tags:
+      - sets
+  /set-builder/proposals/{id}/approve:
+    post:
+      description: Approves a pending Agentic set proposal and transactionally creates
+        the Agentic set with target slots.
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              set:
+                type: object
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Approve Agentic set proposal
+      tags:
+      - sets
+  /set-builder/proposals/{id}/regenerate:
+    post:
+      consumes:
+      - application/json
+      description: Rejects the current pending proposal as superseded and queues a
+        new Python workflow with review feedback.
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Regeneration feedback
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.regenerateSetProposalRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            properties:
+              run:
+                $ref: '#/definitions/models.SetBuilderRun'
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Regenerate Agentic set proposal
+      tags:
+      - sets
+  /set-builder/proposals/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Rejects a pending Agentic set proposal. No set is created.
+      parameters:
+      - description: Proposal ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Rejection reason
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/handlers.rejectSetProposalRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              status:
+                type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Reject Agentic set proposal
+      tags:
+      - sets
   /set-builder/runs:
     post:
       consumes:

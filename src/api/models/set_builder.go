@@ -37,6 +37,7 @@ type SetBuilderRun struct {
 	Status            SetBuilderRunStatus `gorm:"type:varchar(20);not null;default:'queued';index" json:"status"`
 	Provider          string              `gorm:"type:varchar(50)" json:"provider,omitempty"`
 	Model             string              `gorm:"type:varchar(100)" json:"model,omitempty"`
+	Feedback          string              `gorm:"type:text" json:"feedback,omitempty"`
 	TranscriptSummary string              `gorm:"type:text" json:"transcriptSummary,omitempty"`
 	ErrorMessage      string              `gorm:"type:text" json:"errorMessage,omitempty"`
 	TerminationReason string              `gorm:"type:text" json:"terminationReason,omitempty"`

@@ -341,7 +341,9 @@ func main() {
 		setService := services.NewSetService(setRepo, tagRepo, notifRepo)
 		setHandler := handlers.NewSetHandler(setRepo, setService).WithSettingsSupport(settingsSvc)
 		setBuilderRepo := repository.NewSetBuilderRepository(database.DB)
-		setBuilderService := services.NewSetBuilderService(setBuilderRepo, notifRepo).WithWorkflow(agentProxy, settingsSvc, repository.NewAgentRepository(database.DB), logger)
+		setBuilderService := services.NewSetBuilderService(setBuilderRepo, notifRepo).
+			WithWorkflow(agentProxy, settingsSvc, repository.NewAgentRepository(database.DB), logger).
+			WithSetRepository(setRepo)
 		setBuilderService.StartWorkers(1)
 		setBuilderHandler := handlers.NewSetBuilderHandler(setBuilderService)
 		setSnapshotScheduler := services.NewSetSnapshotScheduler(setService, settingsSvc, logger)
@@ -368,6 +370,12 @@ func main() {
 		protected.GET("/sets/:id/trends", setHandler.GetTrends)
 		protected.GET("/sets/:id/analytics", setHandler.GetAnalytics)
 		protected.POST("/set-builder/runs", setBuilderHandler.CreateRun)
+		protected.GET("/set-builder/proposals", setBuilderHandler.ListProposals)
+		protected.GET("/set-builder/proposals/:id", setBuilderHandler.GetProposal)
+		protected.PUT("/set-builder/proposals/:id", setBuilderHandler.UpdateProposal)
+		protected.POST("/set-builder/proposals/:id/approve", setBuilderHandler.ApproveProposal)
+		protected.POST("/set-builder/proposals/:id/reject", setBuilderHandler.RejectProposal)
+		protected.POST("/set-builder/proposals/:id/regenerate", setBuilderHandler.RegenerateProposal)
 
 		journalHandler := handlers.NewJournalHandler(journalRepo)
 		protected.GET("/coins/:id/journal", journalHandler.ListEntries)

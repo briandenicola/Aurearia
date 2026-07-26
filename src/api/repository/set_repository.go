@@ -19,6 +19,11 @@ type SetRepository struct {
 	db *gorm.DB
 }
 
+type AgenticTargetMatch struct {
+	Target models.CoinSetTarget `json:"target"`
+	Coin   *models.Coin         `json:"coin,omitempty"`
+}
+
 // NewSetRepository creates a new SetRepository.
 func NewSetRepository(db *gorm.DB) *SetRepository {
 	return &SetRepository{db: db}
@@ -199,6 +204,19 @@ func (r *SetRepository) GetCoinsInSet(setID, userID uint) ([]models.Coin, error)
 	if set.SetType == models.CoinSetTypeSmart && set.SmartCriteria != nil {
 		return r.GetCoinsMatchingCriteria(userID, map[string]interface{}(*set.SmartCriteria))
 	}
+	if set.SetType == models.CoinSetTypeAgentic {
+		matches, _, err := r.matchAgenticTargets(setID, userID)
+		if err != nil {
+			return nil, err
+		}
+		coins := make([]models.Coin, 0, len(matches))
+		for _, match := range matches {
+			if match.Coin != nil {
+				coins = append(coins, *match.Coin)
+			}
+		}
+		return coins, nil
+	}
 	err = r.db.
 		Joins("JOIN coin_set_memberships ON coin_set_memberships.coin_id = coins.id").
 		Joins("JOIN coin_sets ON coin_sets.id = coin_set_memberships.set_id").
@@ -271,34 +289,14 @@ func (r *SetRepository) GetSetSummary(setID, userID uint) (map[string]interface{
 		if err != nil {
 			return nil, err
 		}
-		var totalValue, totalInvested float64
-		var highestID *uint
-		var highest float64 = math.Inf(-1)
-		for _, coin := range coins {
-			if coin.CurrentValue != nil {
-				totalValue += *coin.CurrentValue
-				if *coin.CurrentValue > highest {
-					id := coin.ID
-					highestID = &id
-					highest = *coin.CurrentValue
-				}
-			}
-			if coin.PurchasePrice != nil {
-				totalInvested += *coin.PurchasePrice
-			}
+		return summarizeSetCoins(coins), nil
+	}
+	if set.SetType == models.CoinSetTypeAgentic {
+		coins, err := r.GetCoinsInSet(setID, userID)
+		if err != nil {
+			return nil, err
 		}
-		var avg *float64
-		if len(coins) > 0 {
-			v := totalValue / float64(len(coins))
-			avg = &v
-		}
-		return map[string]interface{}{
-			"coinCount":          len(coins),
-			"totalValue":         totalValue,
-			"totalInvested":      totalInvested,
-			"avgValuePerCoin":    avg,
-			"highestValueCoinId": highestID,
-		}, nil
+		return summarizeSetCoins(coins), nil
 	}
 
 	var result struct {
@@ -337,6 +335,37 @@ func (r *SetRepository) GetSetSummary(setID, userID uint) (map[string]interface{
 	}
 
 	return summary, nil
+}
+
+func summarizeSetCoins(coins []models.Coin) map[string]interface{} {
+	var totalValue, totalInvested float64
+	var highestID *uint
+	highest := math.Inf(-1)
+	for _, coin := range coins {
+		if coin.CurrentValue != nil {
+			totalValue += *coin.CurrentValue
+			if *coin.CurrentValue > highest {
+				id := coin.ID
+				highestID = &id
+				highest = *coin.CurrentValue
+			}
+		}
+		if coin.PurchasePrice != nil {
+			totalInvested += *coin.PurchasePrice
+		}
+	}
+	var avg *float64
+	if len(coins) > 0 {
+		v := totalValue / float64(len(coins))
+		avg = &v
+	}
+	return map[string]interface{}{
+		"coinCount":          len(coins),
+		"totalValue":         totalValue,
+		"totalInvested":      totalInvested,
+		"avgValuePerCoin":    avg,
+		"highestValueCoinId": highestID,
+	}
 }
 
 // CountByUser returns the total number of sets for a user.
@@ -493,9 +522,17 @@ func (r *SetRepository) GetSetCompletion(setID, userID uint) (map[string]interfa
 }
 
 func (r *SetRepository) getAgenticSetCompletion(setID, userID uint) (map[string]interface{}, error) {
-	targets, err := r.GetTargetsForSet(setID, userID)
+	matches, missingTargets, err := r.matchAgenticTargets(setID, userID)
 	if err != nil {
 		return nil, err
+	}
+	targets := make([]models.CoinSetTarget, 0, len(matches))
+	completedTargets := 0
+	for _, match := range matches {
+		targets = append(targets, match.Target)
+		if match.Coin != nil {
+			completedTargets++
+		}
 	}
 	if len(targets) == 0 {
 		return map[string]interface{}{
@@ -503,34 +540,8 @@ func (r *SetRepository) getAgenticSetCompletion(setID, userID uint) (map[string]
 			"completedTargets":     0,
 			"completionPercentage": 0.0,
 			"missingTargets":       []models.CoinSetTarget{},
+			"targetMatches":        []AgenticTargetMatch{},
 		}, nil
-	}
-
-	var coins []models.Coin
-	if err := r.db.
-		Scopes(OwnedBy(userID)).
-		Where("is_wishlist = ? AND is_sold = ?", false, false).
-		Preload("Images").
-		Preload("Tags").
-		Find(&coins).Error; err != nil {
-		return nil, err
-	}
-
-	completedTargets := 0
-	missingTargets := []models.CoinSetTarget{}
-	for _, target := range targets {
-		matched := false
-		for _, coin := range coins {
-			if matchCoinToTarget(coin, target) {
-				matched = true
-				break
-			}
-		}
-		if matched {
-			completedTargets++
-		} else {
-			missingTargets = append(missingTargets, target)
-		}
 	}
 
 	return map[string]interface{}{
@@ -539,7 +550,50 @@ func (r *SetRepository) getAgenticSetCompletion(setID, userID uint) (map[string]
 		"completionPercentage": (float64(completedTargets) / float64(len(targets))) * 100.0,
 		"targets":              targets,
 		"missingTargets":       missingTargets,
+		"targetMatches":        matches,
 	}, nil
+}
+
+func (r *SetRepository) matchAgenticTargets(setID, userID uint) ([]AgenticTargetMatch, []models.CoinSetTarget, error) {
+	targets, err := r.GetTargetsForSet(setID, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+	var coins []models.Coin
+	if err := r.db.
+		Scopes(OwnedBy(userID)).
+		Where("is_wishlist = ? AND is_sold = ?", false, false).
+		Preload("Images").
+		Preload("Tags").
+		Order("name ASC").
+		Order("id ASC").
+		Find(&coins).Error; err != nil {
+		return nil, nil, err
+	}
+
+	matches := make([]AgenticTargetMatch, 0, len(targets))
+	missingTargets := []models.CoinSetTarget{}
+	usedCoinIDs := map[uint]struct{}{}
+	for _, target := range targets {
+		var matchedCoin *models.Coin
+		for i := range coins {
+			coin := coins[i]
+			if _, used := usedCoinIDs[coin.ID]; used {
+				continue
+			}
+			if matchCoinToTarget(coin, target) {
+				matched := coin
+				matchedCoin = &matched
+				usedCoinIDs[coin.ID] = struct{}{}
+				break
+			}
+		}
+		if matchedCoin == nil {
+			missingTargets = append(missingTargets, target)
+		}
+		matches = append(matches, AgenticTargetMatch{Target: target, Coin: matchedCoin})
+	}
+	return matches, missingTargets, nil
 }
 
 func (r *SetRepository) getGoalSetCompletion(setID, userID uint) (map[string]interface{}, error) {

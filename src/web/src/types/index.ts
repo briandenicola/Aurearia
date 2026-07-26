@@ -578,12 +578,95 @@ export interface SetBuilderRun {
   status: 'queued' | 'running' | 'completed' | 'failed'
   provider?: string
   model?: string
+  transcriptSummary?: string
+  errorMessage?: string
+  terminationReason?: string
+  usedTurns?: number
   createdAt: string
   updatedAt: string
 }
 
 export interface CreateSetBuilderRunRequest {
   prompt: string
+}
+
+export interface SetProposalSlot {
+  id: number
+  proposalId: number
+  label: string
+  criteria?: Record<string, unknown> | null
+  group?: string
+  sortOrder: number
+  verificationStatus: 'verified' | 'unverified'
+  sourceNote?: string
+  validationNote?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface UpdateSetProposalSlotRequest {
+  label: string
+  criteria?: Record<string, unknown> | null
+  group?: string
+  sortOrder: number
+  verificationStatus: 'verified' | 'unverified'
+  sourceNote?: string
+  validationNote?: string
+}
+
+export interface UpdateSetProposalRequest {
+  proposedName: string
+  description?: string
+  color?: string
+  selectedScope?: string
+  slots: UpdateSetProposalSlotRequest[]
+}
+
+export interface RegenerateSetProposalRequest {
+  feedback: string
+}
+
+export interface SetProposalPrematchSummary {
+  estimatedFilled?: number
+  estimatedTotal?: number
+  notes?: string
+}
+
+export interface SetProposal {
+  id: number
+  userId: number
+  builderRunId: number
+  run?: SetBuilderRun
+  originalPrompt: string
+  status: 'pending' | 'approved' | 'rejected' | 'expired' | 'creation_failed'
+  proposedName: string
+  proposedSlug?: string
+  description?: string
+  color: string
+  selectedScope?: string
+  scopeOptions?: {
+    scopeSummary?: string
+    groupBy?: string
+    options?: Array<{
+      label: string
+      description?: string
+      estimated_slot_count?: number
+      recommended?: boolean
+    }>
+  } | null
+  rosterPayload?: {
+    transcriptSummary?: string
+    turnsUsed?: number
+  } | null
+  preMatchSummary?: SetProposalPrematchSummary | null
+  expiresAt: string
+  rejectedAt?: string | null
+  rejectionReason?: string
+  approvalSetId?: number | null
+  errorMessage?: string
+  slots?: SetProposalSlot[]
+  createdAt: string
+  updatedAt: string
 }
 
 export type UpdateCoinSetRequest = Partial<CreateCoinSetRequest>
@@ -618,6 +701,10 @@ export interface CoinSetCompletion {
   completionPercentage: number
   missingTargets: CoinSetTarget[]
   targets?: CoinSetTarget[]
+  targetMatches?: Array<{
+    target: CoinSetTarget
+    coin?: Coin | null
+  }>
   collectionItems?: number
   wishlistItems?: number
 }

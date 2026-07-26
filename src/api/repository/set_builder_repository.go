@@ -198,6 +198,40 @@ func (r *SetBuilderRepository) GetProposalForUser(proposalID, userID uint) (*mod
 	return &proposal, nil
 }
 
+// UpdatePendingProposalWithSlots replaces editable proposal fields and roster slots while pending.
+func (r *SetBuilderRepository) UpdatePendingProposalWithSlots(proposalID, userID uint, updates map[string]interface{}, slots []models.ProposalSlot) (*models.SetProposal, error) {
+	var proposal models.SetProposal
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&models.SetProposal{}).
+			Where("id = ? AND user_id = ? AND status = ?", proposalID, userID, models.SetProposalStatusPending).
+			Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		if len(slots) > 0 {
+			if err := tx.Where("proposal_id = ?", proposalID).Delete(&models.ProposalSlot{}).Error; err != nil {
+				return err
+			}
+			for i := range slots {
+				slots[i].ProposalID = proposalID
+				if err := tx.Create(&slots[i]).Error; err != nil {
+					return err
+				}
+			}
+		}
+		return tx.Preload("Run").Preload("Slots", func(db *gorm.DB) *gorm.DB {
+			return db.Order("proposal_slots.sort_order ASC")
+		}).First(&proposal, proposalID).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &proposal, nil
+}
+
 // MarkApproved atomically transitions a pending proposal to approved and records the created set ID.
 func (r *SetBuilderRepository) MarkApproved(proposalID, userID, setID uint, approvedAt time.Time) error {
 	result := r.db.Model(&models.SetProposal{}).
@@ -215,6 +249,49 @@ func (r *SetBuilderRepository) MarkApproved(proposalID, userID, setID uint, appr
 		return gorm.ErrRecordNotFound
 	}
 	return nil
+}
+
+// ApproveProposalWithSet atomically creates the approved Agentic set roster and marks the proposal approved.
+func (r *SetBuilderRepository) ApproveProposalWithSet(proposalID, userID uint, set *models.CoinSet, targets []models.CoinSetTarget, approvedAt time.Time) (*models.CoinSet, error) {
+	var approvedSet models.CoinSet
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var proposal models.SetProposal
+		if err := tx.Scopes(OwnedByID(proposalID, userID)).Preload("Slots").First(&proposal).Error; err != nil {
+			return err
+		}
+		if proposal.Status == models.SetProposalStatusApproved && proposal.ApprovalSetID != nil {
+			return tx.Scopes(OwnedByID(*proposal.ApprovalSetID, userID)).First(&approvedSet).Error
+		}
+		if proposal.Status != models.SetProposalStatusPending {
+			return gorm.ErrRecordNotFound
+		}
+		if err := tx.Create(set).Error; err != nil {
+			return err
+		}
+		for i := range targets {
+			targets[i].SetID = set.ID
+			if err := tx.Create(&targets[i]).Error; err != nil {
+				return err
+			}
+		}
+		result := tx.Model(&models.SetProposal{}).
+			Where("id = ? AND user_id = ? AND status = ?", proposalID, userID, models.SetProposalStatusPending).
+			Updates(map[string]interface{}{
+				"status":          models.SetProposalStatusApproved,
+				"approved_at":     approvedAt,
+				"approval_set_id": set.ID,
+				"updated_at":      approvedAt,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		approvedSet = *set
+		return nil
+	})
+	return &approvedSet, err
 }
 
 // MarkRejected atomically rejects a pending proposal without creating a set.

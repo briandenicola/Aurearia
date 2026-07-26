@@ -330,6 +330,28 @@ const trayCoins = computed((): TrayCoin[] =>
 )
 const agenticTrayCoins = computed((): TrayCoin[] => {
   if (normalizedSetType.value !== 'agentic') return []
+  const targetMatches = completion.value?.targetMatches
+  if (targetMatches && targetMatches.length > 0) {
+    return targetMatches.map(({ target, coin }) => {
+      if (coin) {
+        return {
+          id: coin.id,
+          name: coin.name,
+          diameterMm: coin.diameterMm,
+          images: coin.images ?? [],
+          purchaseDate: coin.purchaseDate,
+        }
+      }
+      return {
+        id: target.id,
+        name: target.label,
+        diameterMm: null,
+        images: [],
+        placeholder: true,
+        placeholderLabel: target.year != null ? String(target.year) : target.label,
+      }
+    })
+  }
   const targets = completion.value?.targets ?? completion.value?.missingTargets ?? []
   return targets.map((target) => ({
     id: target.id,

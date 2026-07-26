@@ -183,6 +183,104 @@ func TestSetBuilderServiceRejectProposalIsOwnerScoped(t *testing.T) {
 	}
 }
 
+func TestSetBuilderServiceUpdateProposalEditsPendingRoster(t *testing.T) {
+	svc, _ := setupSetBuilderServiceTest(t)
+	run := &models.SetBuilderRun{UserID: 1, Prompt: "All US state quarters", Status: models.SetBuilderRunStatusCompleted}
+	if err := svc.repo.CreateRun(run); err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	proposal, err := svc.CreateProposalFromWorkflow(1, run.ID, SetProposalDraft{
+		OriginalPrompt: "All US state quarters",
+		ProposedName:   "US State Quarters",
+		Slots:          []SetProposalSlotDraft{{Label: "Delaware Quarter"}},
+	})
+	if err != nil {
+		t.Fatalf("create proposal: %v", err)
+	}
+	criteria := models.JSONObject{"year": "1999", "denomination": "Quarter"}
+	updated, err := svc.UpdateProposal(1, proposal.ID, SetProposalUpdateRequest{
+		ProposedName:  "Edited State Quarters",
+		Description:   "Human-reviewed roster",
+		Color:         "#123456",
+		SelectedScope: "Edited scope",
+		Slots: []SetProposalSlotDraft{{
+			Label:              "1999 Delaware Quarter",
+			Criteria:           &criteria,
+			GroupName:          "1999",
+			VerificationStatus: models.ProposalSlotVerificationVerified,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("update proposal: %v", err)
+	}
+	if updated.ProposedName != "Edited State Quarters" || updated.SelectedScope != "Edited scope" || len(updated.Slots) != 1 {
+		t.Fatalf("unexpected updated proposal: %#v", updated)
+	}
+	if updated.Slots[0].Label != "1999 Delaware Quarter" || (*updated.Slots[0].Criteria)["year"] != "1999" {
+		t.Fatalf("unexpected updated slot: %#v", updated.Slots[0])
+	}
+}
+
+func TestSetBuilderServiceRegenerateProposalQueuesFeedbackRunAndSupersedesOldProposal(t *testing.T) {
+	svc, db := setupSetBuilderServiceTest(t)
+	run := &models.SetBuilderRun{UserID: 1, Prompt: "All US state quarters", Status: models.SetBuilderRunStatusCompleted}
+	if err := svc.repo.CreateRun(run); err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	proposal, err := svc.CreateProposalFromWorkflow(1, run.ID, SetProposalDraft{
+		OriginalPrompt: "All US state quarters",
+		ProposedName:   "US State Quarters",
+		Slots:          []SetProposalSlotDraft{{Label: "Delaware Quarter"}},
+	})
+	if err != nil {
+		t.Fatalf("create proposal: %v", err)
+	}
+
+	regeneratedRun, err := svc.RegenerateProposal(1, proposal.ID, "Group by mint mark instead")
+	if err != nil {
+		t.Fatalf("regenerate proposal: %v", err)
+	}
+	if regeneratedRun.Prompt != proposal.OriginalPrompt || regeneratedRun.Feedback != "Group by mint mark instead" {
+		t.Fatalf("unexpected regenerated run: %#v", regeneratedRun)
+	}
+	var superseded models.SetProposal
+	if err := db.First(&superseded, proposal.ID).Error; err != nil {
+		t.Fatalf("load superseded proposal: %v", err)
+	}
+	if superseded.Status != models.SetProposalStatusRejected || superseded.RejectionReason != "Superseded by regeneration request" {
+		t.Fatalf("old proposal should be superseded, got %#v", superseded)
+	}
+}
+
+func TestSetBuilderServiceApproveExpiredProposalFailsWithoutCreatingSet(t *testing.T) {
+	svc, db := setupSetBuilderServiceTest(t)
+	svc.WithSetRepository(repository.NewSetRepository(db))
+	run := &models.SetBuilderRun{UserID: 1, Prompt: "All US state quarters", Status: models.SetBuilderRunStatusCompleted}
+	if err := svc.repo.CreateRun(run); err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	expiredAt := svc.now().Add(-time.Hour)
+	proposal, err := svc.CreateProposalFromWorkflow(1, run.ID, SetProposalDraft{
+		OriginalPrompt: "All US state quarters",
+		ProposedName:   "US State Quarters",
+		ExpiresAt:      &expiredAt,
+		Slots:          []SetProposalSlotDraft{{Label: "Delaware Quarter"}},
+	})
+	if err != nil {
+		t.Fatalf("create proposal: %v", err)
+	}
+	if _, err := svc.ApproveProposal(1, proposal.ID); !errors.Is(err, ErrSetProposalExpired) {
+		t.Fatalf("expected expired proposal error, got %v", err)
+	}
+	var setCount int64
+	if err := db.Model(&models.CoinSet{}).Count(&setCount).Error; err != nil {
+		t.Fatalf("count sets: %v", err)
+	}
+	if setCount != 0 {
+		t.Fatalf("expired approval must not create set, got %d", setCount)
+	}
+}
+
 func TestSetBuilderServiceProcessRunCallsPythonAndPersistsProposal(t *testing.T) {
 	svc, db := setupSetBuilderServiceTest(t)
 	if err := db.Create(&models.AppSetting{Key: SettingAIProvider, Value: "ollama"}).Error; err != nil {

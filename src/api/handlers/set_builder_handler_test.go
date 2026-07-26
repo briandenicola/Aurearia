@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -30,6 +31,7 @@ func setupSetBuilderHandlerTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
+
 	err = db.AutoMigrate(
 		&models.User{},
 		&models.CoinSet{}, &models.CoinSetTarget{},
@@ -49,13 +51,17 @@ func setupSetBuilderHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	db := setupSetBuilderHandlerTestDB(t)
 	setBuilderRepo := repository.NewSetBuilderRepository(db)
 	notifRepo := repository.NewNotificationRepository(db)
-	setBuilderService := services.NewSetBuilderService(setBuilderRepo, notifRepo)
+	setBuilderService := services.NewSetBuilderService(setBuilderRepo, notifRepo).WithSetRepository(repository.NewSetRepository(db))
 	handler := NewSetBuilderHandler(setBuilderService)
 
 	r := gin.New()
 	protected := r.Group("/api")
 	protected.Use(coinTestAuthMiddleware())
 	protected.POST("/set-builder/runs", handler.CreateRun)
+	protected.GET("/set-builder/proposals", handler.ListProposals)
+	protected.GET("/set-builder/proposals/:id", handler.GetProposal)
+	protected.POST("/set-builder/proposals/:id/approve", handler.ApproveProposal)
+	protected.POST("/set-builder/proposals/:id/reject", handler.RejectProposal)
 	return r, db
 }
 
@@ -165,6 +171,7 @@ func TestSetBuilderHandlerCreateRunIsScopedPerUser(t *testing.T) {
 	if wUserOne.Code != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d: %s", wUserOne.Code, wUserOne.Body.String())
 	}
+
 	wUserTwo := performSetBuilderCreateRunRequest(t, router, makeCoinTestJWT(2), map[string]interface{}{"prompt": "All US silver dollars"})
 	if wUserTwo.Code != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d: %s", wUserTwo.Code, wUserTwo.Body.String())
@@ -179,5 +186,114 @@ func TestSetBuilderHandlerCreateRunIsScopedPerUser(t *testing.T) {
 	}
 	if runs[0].UserID != 1 || runs[1].UserID != 2 {
 		t.Fatalf("expected runs scoped to their own submitting user, got %#v", runs)
+	}
+}
+
+func seedSetBuilderProposal(t *testing.T, db *gorm.DB, userID uint, prompt string) *models.SetProposal {
+	t.Helper()
+	run := &models.SetBuilderRun{UserID: userID, Prompt: prompt, Status: models.SetBuilderRunStatusCompleted}
+	repo := repository.NewSetBuilderRepository(db)
+	if err := repo.CreateRun(run); err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	svc := services.NewSetBuilderService(repo, repository.NewNotificationRepository(db))
+	proposal, err := svc.CreateProposalFromWorkflow(userID, run.ID, services.SetProposalDraft{
+		OriginalPrompt: prompt,
+		ProposedName:   "US Silver Quarters",
+		SelectedScope:  "Date set",
+		Slots: []services.SetProposalSlotDraft{
+			{Label: "1940 US Silver Quarter", SortOrder: 1, VerificationStatus: models.ProposalSlotVerificationVerified},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create proposal: %v", err)
+	}
+	return proposal
+}
+
+func TestSetBuilderHandlerGetProposalIsOwnerScoped(t *testing.T) {
+	router, db := setupSetBuilderHandlerRouter(t)
+	proposal := seedSetBuilderProposal(t, db, 7, "All US silver quarters")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/set-builder/proposals/"+strconv.Itoa(int(proposal.ID)), nil)
+	req.Header.Set("Authorization", "Bearer "+makeCoinTestJWT(7))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var response models.SetProposal
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response.ID != proposal.ID || len(response.Slots) != 1 || response.Run.ID == 0 {
+		t.Fatalf("unexpected proposal payload: %#v", response)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/set-builder/proposals/"+strconv.Itoa(int(proposal.ID)), nil)
+	req.Header.Set("Authorization", "Bearer "+makeCoinTestJWT(8))
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected owner-scoped 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSetBuilderHandlerRejectProposalDoesNotCreateSet(t *testing.T) {
+	router, db := setupSetBuilderHandlerRouter(t)
+	proposal := seedSetBuilderProposal(t, db, 7, "All US silver quarters")
+	body := bytes.NewReader([]byte(`{"reason":"Too broad"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/set-builder/proposals/"+strconv.Itoa(int(proposal.ID))+"/reject", body)
+	req.Header.Set("Authorization", "Bearer "+makeCoinTestJWT(7))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var found models.SetProposal
+	if err := db.First(&found, proposal.ID).Error; err != nil {
+		t.Fatalf("load proposal: %v", err)
+	}
+	if found.Status != models.SetProposalStatusRejected || found.RejectionReason != "Too broad" {
+		t.Fatalf("proposal not rejected: %#v", found)
+	}
+	if got := countRows(t, db, &models.CoinSet{}); got != 0 {
+		t.Fatalf("reject must not create a set, got %d", got)
+	}
+}
+
+func TestSetBuilderHandlerApproveProposalCreatesAgenticSetTargets(t *testing.T) {
+	router, db := setupSetBuilderHandlerRouter(t)
+	proposal := seedSetBuilderProposal(t, db, 7, "All US silver quarters")
+	req := httptest.NewRequest(http.MethodPost, "/api/set-builder/proposals/"+strconv.Itoa(int(proposal.ID))+"/approve", nil)
+	req.Header.Set("Authorization", "Bearer "+makeCoinTestJWT(7))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var response struct {
+		Set models.CoinSet `json:"set"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response.Set.ID == 0 || response.Set.SetType != models.CoinSetTypeAgentic || response.Set.AgenticStatus != "ready" {
+		t.Fatalf("unexpected approved set: %#v", response.Set)
+	}
+	var targets []models.CoinSetTarget
+	if err := db.Where("set_id = ?", response.Set.ID).Find(&targets).Error; err != nil {
+		t.Fatalf("load targets: %v", err)
+	}
+	if len(targets) != 1 || targets[0].Label != "1940 US Silver Quarter" {
+		t.Fatalf("proposal slots were not copied to targets: %#v", targets)
+	}
+	var found models.SetProposal
+	if err := db.First(&found, proposal.ID).Error; err != nil {
+		t.Fatalf("load proposal: %v", err)
+	}
+	if found.Status != models.SetProposalStatusApproved || found.ApprovalSetID == nil || *found.ApprovalSetID != response.Set.ID {
+		t.Fatalf("proposal was not marked approved: %#v", found)
 	}
 }
