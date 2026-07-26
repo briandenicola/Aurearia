@@ -716,6 +716,27 @@ definitions:
         example: Vision analysis text...
         type: string
     type: object
+  handlers.MatchCategoryEraRequest:
+    properties:
+      type:
+        enum:
+        - category
+        - era
+        type: string
+      value:
+        maxLength: 200
+        type: string
+    required:
+    - type
+    - value
+    type: object
+  handlers.MatchCategoryEraResponse:
+    properties:
+      match:
+        type: string
+      matched:
+        type: boolean
+    type: object
   handlers.MaterialCount:
     properties:
       count:
@@ -1908,7 +1929,9 @@ definitions:
       aiAnalysis:
         type: string
       category:
-        $ref: '#/definitions/models.Category'
+        allOf:
+        - $ref: '#/definitions/models.Category'
+        maxLength: 64
       createdAt:
         type: string
       currentValue:
@@ -8170,6 +8193,38 @@ paths:
       summary: Coin lookup from images
       tags:
       - Coins
+  /coins/match-category-era:
+    post:
+      consumes:
+      - application/json
+      description: Resolves a free-text category or era value against built-in and
+        admin-defined lists
+      parameters:
+      - description: Candidate value to match
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.MatchCategoryEraRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MatchCategoryEraResponse'
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Match a category/era candidate against known values
+      tags:
+      - coins
   /extract-text:
     post:
       consumes:

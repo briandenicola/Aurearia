@@ -79,6 +79,7 @@ type CancelCollectionProposalResult struct {
 type CollectionToolsService struct {
 	coinRepo     *repository.CoinRepository
 	proposalRepo *repository.CollectionUpdateRepository
+	settingsSvc  *SettingsService
 }
 
 func NewCollectionToolsService(
@@ -89,6 +90,50 @@ func NewCollectionToolsService(
 		coinRepo:     coinRepo,
 		proposalRepo: proposalRepo,
 	}
+}
+
+// WithSettingsSupport lets natural-language collection search recognize any
+// admin-defined category/era, not just the legacy built-in defaults.
+func (s *CollectionToolsService) WithSettingsSupport(settingsSvc *SettingsService) *CollectionToolsService {
+	s.settingsSvc = settingsSvc
+	return s
+}
+
+// knownCategories/knownEras return the built-in defaults merged with the
+// admin's current CoinCategories/CoinEras setting (when wired), for use by
+// natural-language matching that has no user present to resolve ambiguity.
+func (s *CollectionToolsService) knownCategories() []string {
+	values := BuiltInCoinCategoryValues()
+	if s.settingsSvc != nil {
+		values = append(values, SplitSettingList(s.settingsSvc.GetSetting(SettingCoinCategories))...)
+	}
+	return values
+}
+
+func (s *CollectionToolsService) knownEras() []string {
+	values := BuiltInCoinEraValues()
+	if s.settingsSvc != nil {
+		values = append(values, SplitSettingList(s.settingsSvc.GetSetting(SettingCoinEras))...)
+	}
+	return values
+}
+
+// findMentionedValue returns the first known value that appears as a
+// case-insensitive substring of the lowercased query, or ("", false) if
+// none is mentioned. No user is present in this path to confirm ambiguity,
+// so an unmatched query term is simply not filtered on rather than guessed
+// at (mirrors the strictness the coin API applies, just as a skip instead
+// of a rejection since this is a best-effort search, not a write).
+func findMentionedValue(lowerQuery string, known []string) (string, bool) {
+	for _, k := range known {
+		if k == "" {
+			continue
+		}
+		if strings.Contains(lowerQuery, strings.ToLower(k)) {
+			return k, true
+		}
+	}
+	return "", false
 }
 
 // SearchMyCollection searches the user's active collection by filters.
@@ -113,15 +158,10 @@ func (s *CollectionToolsService) SearchMyCollection(userID uint, query string, l
 		filters.MissingFields = missingFields
 	}
 
-	// Category
-	if strings.Contains(lower, "roman") {
-		filters.Category = string(models.CategoryRoman)
-	} else if strings.Contains(lower, "greek") {
-		filters.Category = string(models.CategoryGreek)
-	} else if strings.Contains(lower, "byzantine") {
-		filters.Category = string(models.CategoryByzantine)
-	} else if strings.Contains(lower, "modern") {
-		filters.Category = string(models.CategoryModern)
+	// Category - matched against built-ins plus any admin-defined
+	// CoinCategories value, not just the legacy Roman/Greek/Byzantine/Modern set.
+	if match, ok := findMentionedValue(lower, s.knownCategories()); ok {
+		filters.Category = match
 	}
 
 	// Material
@@ -137,11 +177,10 @@ func (s *CollectionToolsService) SearchMyCollection(userID uint, query string, l
 		filters.Material = string(models.MaterialElectrum)
 	}
 
-	// Era
-	if strings.Contains(lower, "ancient") {
-		filters.Era = string(models.EraAncient)
-	} else if strings.Contains(lower, "medieval") {
-		filters.Era = string(models.EraMedieval)
+	// Era - matched against built-ins (including "modern", previously
+	// missing entirely) plus any admin-defined CoinEras value.
+	if match, ok := findMentionedValue(lower, s.knownEras()); ok {
+		filters.Era = match
 	}
 
 	// Status

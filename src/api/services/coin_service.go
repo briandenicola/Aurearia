@@ -30,6 +30,26 @@ var builtInCoinCategories = map[models.Category]struct{}{
 	models.CategoryOther:     {},
 }
 
+// BuiltInCoinCategoryValues returns the built-in category baseline as a
+// plain string slice, for callers (e.g. AI collection search) that need to
+// merge it with the admin-defined CoinCategories list.
+func BuiltInCoinCategoryValues() []string {
+	values := make([]string, 0, len(builtInCoinCategories))
+	for k := range builtInCoinCategories {
+		values = append(values, string(k))
+	}
+	return values
+}
+
+// BuiltInCoinEraValues is the Era equivalent of BuiltInCoinCategoryValues.
+func BuiltInCoinEraValues() []string {
+	values := make([]string, 0, len(builtInCoinEras))
+	for k := range builtInCoinEras {
+		values = append(values, string(k))
+	}
+	return values
+}
+
 // CoinService handles coin business logic and orchestrates repository calls.
 type CoinService struct {
 	repo                *repository.CoinRepository
