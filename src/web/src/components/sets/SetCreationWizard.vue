@@ -10,28 +10,17 @@
           <option value="tracker">Tracker</option>
         </select>
       </div>
-      <div v-if="form.setType === 'goal'" class="form-group mb-4">
-        <label for="templateId" class="form-label mb-2 block">Template</label>
-        <select id="templateId" v-model="form.templateId" class="form-input w-full">
-          <option value="">No template</option>
-          <option v-for="template in templates" :key="template.id" :value="template.id">
-            {{ template.name }}
-          </option>
-        </select>
-      </div>
-      <div v-if="form.setType === 'goal'" class="form-group mb-4">
-        <label for="csvTargets" class="form-label mb-2 block">Custom CSV targets</label>
-        <textarea
-          id="csvTargets"
-          v-model="csvTargets"
-          rows="4"
-          class="form-input w-full"
-          placeholder="Label,Year,MintMark,Denomination,Country,Material"
-        />
-      </div>
-      <div v-if="form.setType === 'goal'" class="form-group mb-4">
-        <label for="targetCompletionDate" class="form-label mb-2 block">Target completion date</label>
-        <input id="targetCompletionDate" v-model="form.targetCompletionDate" type="date" class="form-input w-full" />
+      <div v-if="form.setType === 'goal'" class="form-group mb-4 rounded-sm border border-border-subtle bg-card p-4">
+        <span class="section-label">How goal completion works</span>
+        <p class="mt-2 mb-0 text-body text-text-secondary">
+          Goal sets track both collection and wishlist members.
+        </p>
+        <p class="mt-2 mb-0 text-body text-text-secondary">
+          Completion is calculated as collection items divided by collection plus wishlist items.
+        </p>
+        <p class="mt-2 mb-0 text-chip text-text-muted">
+          Example: 2 collection and 5 wishlist = 2 / (2 + 5) = 28.6%.
+        </p>
       </div>
       <SetSmartRuleBuilder
         v-if="form.setType === 'smart'"
@@ -97,10 +86,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
-import { getSetTemplates } from '@/api/client'
+import { reactive, ref, watch } from 'vue'
 import { normalizeCoinSetType } from '@/types'
-import type { CoinSetTemplate, CreateCoinSetRequest, SmartCriteriaGroup } from '@/types'
+import type { CreateCoinSetRequest, SmartCriteriaGroup } from '@/types'
 import SetSmartRuleBuilder from '@/components/sets/SetSmartRuleBuilder.vue'
 
 const props = withDefaults(defineProps<{
@@ -126,17 +114,7 @@ const form = reactive({
   trackerCreationMode: props.initialValue?.creationMode ?? 'manual',
   trackerPrompt: props.initialValue?.trackerPrompt ?? '',
 })
-const templates = ref<CoinSetTemplate[]>([])
 const csvTargets = ref('')
-
-onMounted(async () => {
-  try {
-    const res = await getSetTemplates()
-    templates.value = res.data.templates
-  } catch {
-    templates.value = []
-  }
-})
 
 watch(() => props.initialValue, (value) => {
   form.name = value?.name ?? ''
@@ -158,13 +136,13 @@ function submit() {
     description: form.description.trim(),
     color: form.color,
     setType: form.setType,
-    templateId: form.templateId || undefined,
-    targetCompletionDate: form.targetCompletionDate || undefined,
+    templateId: form.setType !== 'goal' ? (form.templateId || undefined) : undefined,
+    targetCompletionDate: form.setType !== 'goal' ? (form.targetCompletionDate || undefined) : undefined,
     smartCriteria: form.smartCriteria ?? undefined,
     creationMode: form.setType === 'tracker' ? form.trackerCreationMode : undefined,
     trackerPrompt: form.setType === 'tracker' && form.trackerCreationMode === 'dynamic'
       ? form.trackerPrompt.trim() || undefined
       : undefined,
-  }, csvTargets.value.trim() || undefined)
+  }, form.setType !== 'goal' ? (csvTargets.value.trim() || undefined) : undefined)
 }
 </script>
