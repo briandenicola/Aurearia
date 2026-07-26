@@ -7,7 +7,7 @@ describe('SetCreationWizard', () => {
     vi.clearAllMocks()
   })
 
-  it('emits an agentic prompt without obsolete manual mode fields', async () => {
+  it('blocks direct agentic set creation while proposal workflow is pending', async () => {
     const wrapper = mount(SetCreationWizard, { attachTo: document.body })
     await flushPromises()
 
@@ -16,15 +16,10 @@ describe('SetCreationWizard', () => {
     await wrapper.find('#setName').setValue('US Silver Quarters')
     await wrapper.find('form').trigger('submit.prevent')
 
-    const submitEvents = wrapper.emitted('submit') as unknown[][]
-    expect(submitEvents).toBeTruthy()
-    const payload = submitEvents[0][0] as Record<string, unknown>
-
-    expect(payload.setType).toBe('agentic')
-    expect(payload.agenticPrompt).toBe('All US Silver Quarters from 1940s to 1960s')
-    expect(payload).not.toHaveProperty('creationMode')
-    expect(payload).not.toHaveProperty('trackerPrompt')
-    expect(payload).not.toHaveProperty('trackerCreationMode')
+    expect(wrapper.text()).toContain('Agentic builder unavailable')
+    expect(wrapper.text()).toContain('No Agentic set will be created until a proposal is generated and approved.')
+    expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.emitted('submit')).toBeUndefined()
     expect(wrapper.find('#trackerCreationMode').exists()).toBe(false)
   })
 

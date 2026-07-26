@@ -27,9 +27,12 @@
         @update="form.smartCriteria = $event"
       />
       <div v-if="form.setType === 'agentic'" class="form-group mb-4 rounded-sm border border-border-subtle bg-card p-4">
-        <span class="section-label">How agentic sets work</span>
+        <span class="section-label">Agentic builder unavailable</span>
         <p class="mt-2 mb-0 text-body text-text-secondary">
-          Describe the collection you want to build. Aurearia will generate the roster asynchronously, notify you when it is ready, and display each target as a tray slot.
+          The Agentic builder is being rebuilt to use the Python agent workflow, proposal persistence, and human review required by the spec.
+        </p>
+        <p class="mt-2 mb-0 text-body text-text-secondary">
+          No Agentic set will be created until a proposal is generated and approved.
         </p>
       </div>
       <div v-if="form.setType === 'agentic'" class="form-group mb-4">
@@ -43,7 +46,7 @@
           placeholder="Example: All US silver quarters from 1940s to 1960s"
           :required="form.setType === 'agentic'"
         />
-        <p class="mt-2 text-body text-text-secondary">Use a bounded request with a series, denomination, and date range for the best tray layout.</p>
+        <p class="mt-2 text-body text-text-secondary">This prompt will be enabled when the proposal review workflow is wired.</p>
       </div>
       <div class="form-group mb-4">
         <label for="setName" class="form-label mb-2 block">Name</label>
@@ -77,8 +80,8 @@
       </div>
       <div class="mt-6 flex justify-end gap-2">
         <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Cancel</button>
-        <button type="submit" class="btn btn-primary" :disabled="!form.name.trim()">
-          {{ submitLabel }}
+        <button type="submit" class="btn btn-primary" :disabled="!form.name.trim() || form.setType === 'agentic'">
+          {{ form.setType === 'agentic' ? 'Proposal workflow pending' : submitLabel }}
         </button>
       </div>
     </form>
@@ -86,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { reactive, watch } from 'vue'
 import { normalizeCoinSetType } from '@/types'
 import type { CreateCoinSetRequest, SmartCriteriaGroup } from '@/types'
 import SetSmartRuleBuilder from '@/components/sets/SetSmartRuleBuilder.vue'
@@ -114,7 +117,6 @@ const form = reactive({
   smartCriteria: props.initialValue?.smartCriteria as SmartCriteriaGroup | undefined,
   agenticPrompt: props.initialValue?.agenticPrompt ?? '',
 })
-const csvTargets = ref('')
 
 watch(() => props.initialValue, (value) => {
   form.name = value?.name ?? ''
@@ -130,6 +132,7 @@ watch(() => props.initialValue, (value) => {
 function submit() {
   const name = form.name.trim()
   if (!name) return
+  if (form.setType === 'agentic') return
   emit('submit', {
     name,
     description: form.description.trim(),
@@ -138,9 +141,7 @@ function submit() {
     templateId: form.setType !== 'goal' ? (form.templateId || undefined) : undefined,
     targetCompletionDate: form.setType !== 'goal' ? (form.targetCompletionDate || undefined) : undefined,
     smartCriteria: form.smartCriteria ?? undefined,
-    agenticPrompt: form.setType === 'agentic'
-      ? form.agenticPrompt.trim() || undefined
-      : undefined,
-  }, form.setType !== 'goal' ? (csvTargets.value.trim() || undefined) : undefined)
+    agenticPrompt: undefined,
+  }, undefined)
 }
 </script>
