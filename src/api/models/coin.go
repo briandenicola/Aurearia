@@ -49,6 +49,8 @@ type Coin struct {
 	RomanImperialFigureID  *uint            `gorm:"index" json:"romanImperialFigureId"`
 	Era                    Era              `gorm:"type:varchar(64)" json:"era" binding:"omitempty,max=64"`
 	Mint                   string           `json:"mint" binding:"max=200"`
+	MintLocationID         *uint            `json:"mintLocationId"`
+	MintLocation           *MintLocation    `gorm:"foreignKey:MintLocationID;constraint:-" json:"mintLocation"`
 	Material               Material         `gorm:"type:varchar(20);default:'Other'" json:"material"`
 	WeightGrams            *float64         `json:"weightGrams"`
 	DiameterMm             *float64         `json:"diameterMm"`

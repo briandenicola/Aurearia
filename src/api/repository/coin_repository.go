@@ -242,7 +242,7 @@ var searchFields = []string{
 
 // List returns a paginated, filtered list of coins for a user.
 func (r *CoinRepository) List(userID uint, filters CoinListFilters) ([]models.Coin, int64, error) {
-	query := r.db.Scopes(OwnedBy(userID)).Preload("Images").Preload("Tags").Preload("Sets").Preload("References").Preload("StorageLocation")
+	query := r.db.Scopes(OwnedBy(userID)).Preload("Images").Preload("Tags").Preload("Sets").Preload("References").Preload("StorageLocation").Preload("MintLocation")
 
 	if filters.Category != "" {
 		query = query.Where("category = ?", filters.Category)
@@ -330,7 +330,7 @@ func (r *CoinRepository) List(userID uint, filters CoinListFilters) ([]models.Co
 // FindByID returns a single coin owned by the user, with images preloaded.
 func (r *CoinRepository) FindByID(id uint, userID uint) (*models.Coin, error) {
 	var coin models.Coin
-	err := r.db.Scopes(OwnedByID(id, userID)).Preload("Images").Preload("Tags").Preload("Sets").Preload("References").Preload("StorageLocation").First(&coin).Error
+	err := r.db.Scopes(OwnedByID(id, userID)).Preload("Images").Preload("Tags").Preload("Sets").Preload("References").Preload("StorageLocation").Preload("MintLocation").First(&coin).Error
 	if err != nil {
 		return nil, err
 	}
@@ -412,7 +412,7 @@ func (r *CoinRepository) Create(coin *models.Coin) error {
 	if err := r.db.Omit("References").Create(coin).Error; err != nil {
 		return err
 	}
-	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(coin, coin.ID).Error
+	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").Preload("MintLocation").First(coin, coin.ID).Error
 }
 
 // Duplicate creates an owner-scoped copy of a coin without copying media or card state rows.
@@ -420,7 +420,7 @@ func (r *CoinRepository) Duplicate(id uint, userID uint) (*models.Coin, error) {
 	var source models.Coin
 	if err := r.db.Scopes(OwnedByID(id, userID)).
 		Preload("References").
-		Preload("StorageLocation").
+		Preload("StorageLocation").Preload("MintLocation").
 		First(&source).Error; err != nil {
 		return nil, err
 	}
@@ -527,7 +527,7 @@ func (r *CoinRepository) Duplicate(id uint, userID uint) (*models.Coin, error) {
 		}
 	}
 
-	if err := r.db.Preload("Images").Preload("References").Preload("Tags").Preload("Sets").Preload("StorageLocation").First(&duplicate, duplicate.ID).Error; err != nil {
+	if err := r.db.Preload("Images").Preload("References").Preload("Tags").Preload("Sets").Preload("StorageLocation").Preload("MintLocation").First(&duplicate, duplicate.ID).Error; err != nil {
 		return nil, err
 	}
 	return &duplicate, nil
@@ -546,7 +546,7 @@ func (r *CoinRepository) Update(existing *models.Coin, updates *models.Coin, sel
 	if err := query.Updates(updates).Error; err != nil {
 		return err
 	}
-	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(existing, existing.ID).Error
+	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").Preload("MintLocation").First(existing, existing.ID).Error
 }
 
 // UpdateField updates one explicit column without syncing loaded associations.
@@ -554,7 +554,7 @@ func (r *CoinRepository) UpdateField(coin *models.Coin, field string, value inte
 	if err := omitCoinRelationships(r.db.Model(coin)).Update(field, value).Error; err != nil {
 		return err
 	}
-	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(coin, coin.ID).Error
+	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").Preload("MintLocation").First(coin, coin.ID).Error
 }
 
 // UpdateFields updates multiple explicit columns, including zero/nil values, without syncing loaded associations.
@@ -562,7 +562,7 @@ func (r *CoinRepository) UpdateFields(coin *models.Coin, updates map[string]inte
 	if err := omitCoinRelationships(r.db.Model(coin)).Updates(updates).Error; err != nil {
 		return err
 	}
-	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(coin, coin.ID).Error
+	return r.db.Preload("Images").Preload("References").Preload("StorageLocation").Preload("MintLocation").First(coin, coin.ID).Error
 }
 
 // UpdateStorageLocationID updates only the storage-location foreign key, including clearing it.
@@ -577,7 +577,7 @@ func (r *CoinRepository) UpdateStorageLocationID(coin *models.Coin, storageLocat
 			return err
 		}
 	}
-	if err := r.db.Preload("Images").Preload("References").Preload("StorageLocation").First(coin, coin.ID).Error; err != nil {
+	if err := r.db.Preload("Images").Preload("References").Preload("StorageLocation").Preload("MintLocation").First(coin, coin.ID).Error; err != nil {
 		return err
 	}
 	if storageLocationID == nil {
@@ -684,7 +684,7 @@ func (r *CoinRepository) BulkAssignLocation(coinIDs []uint, storageLocationID *u
 func (r *CoinRepository) GetByIDs(coinIDs []uint, userID uint) ([]models.Coin, error) {
 	var coins []models.Coin
 	err := r.db.Where("id IN ? AND user_id = ?", coinIDs, userID).
-		Preload("Images").Preload("Tags").Preload("References").Preload("StorageLocation").Find(&coins).Error
+		Preload("Images").Preload("Tags").Preload("References").Preload("StorageLocation").Preload("MintLocation").Find(&coins).Error
 	return coins, err
 }
 

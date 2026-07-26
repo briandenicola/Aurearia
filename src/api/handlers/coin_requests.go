@@ -22,6 +22,7 @@ type CoinCreateRequest struct {
 	RomanImperialFigureID *uint                  `json:"romanImperialFigureId"`
 	Era                   models.Era             `json:"era" binding:"omitempty,max=64"`
 	Mint                  string                 `json:"mint" binding:"max=200"`
+	MintLocationID        *uint                  `json:"mintLocationId"`
 	Material              models.Material        `json:"material"`
 	WeightGrams           *float64               `json:"weightGrams"`
 	DiameterMm            *float64               `json:"diameterMm"`
@@ -56,6 +57,7 @@ type CoinUpdateRequest struct {
 	RomanImperialFigureID *uint                  `json:"romanImperialFigureId"`
 	Era                   *models.Era            `json:"era" binding:"omitempty,max=64"`
 	Mint                  *string                `json:"mint" binding:"omitempty,max=200"`
+	MintLocationID        *uint                  `json:"mintLocationId"`
 	Material              *models.Material       `json:"material"`
 	WeightGrams           *float64               `json:"weightGrams"`
 	DiameterMm            *float64               `json:"diameterMm"`
@@ -95,6 +97,7 @@ func (r CoinCreateRequest) toCoin(userID uint) models.Coin {
 		RomanImperialFigureID: romanImperialFigureID,
 		Era:                   r.Era,
 		Mint:                  r.Mint,
+		MintLocationID:        r.MintLocationID,
 		Material:              r.Material,
 		WeightGrams:           r.WeightGrams,
 		DiameterMm:            r.DiameterMm,
@@ -164,6 +167,10 @@ func (r CoinUpdateRequest) toCoin(existing *models.Coin, storageLocationProvided
 	if r.Mint != nil {
 		updates.Mint = *r.Mint
 		updateFields = append(updateFields, "Mint")
+	}
+	if r.MintLocationID != nil || nullableScalarProvided["MintLocationID"] {
+		updates.MintLocationID = r.MintLocationID
+		updateFields = appendUpdateField(updateFields, "MintLocationID")
 	}
 	if r.Material != nil {
 		updates.Material = *r.Material
