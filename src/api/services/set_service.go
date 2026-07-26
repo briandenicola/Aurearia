@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"regexp"
 	"strconv"
 	"strings"
@@ -212,11 +213,15 @@ func (s *SetService) CreateSet(userID uint, input map[string]interface{}) (*mode
 	}
 
 	// Create the set
+	color := getStringValue(input, "color")
+	if color == "" {
+		color = defaultSetColor(userID, name, count)
+	}
 	set := &models.CoinSet{
 		UserID:        userID,
 		Name:          name,
 		Description:   getStringValue(input, "description"),
-		Color:         getStringValueOrDefault(input, "color", "#6b7280"),
+		Color:         color,
 		Icon:          getStringValue(input, "icon"),
 		SetType:       models.CoinSetType(setType),
 		CreationMode:  creationMode,
@@ -666,6 +671,23 @@ func getStringValueOrDefault(input map[string]interface{}, key, defaultVal strin
 		return strings.TrimSpace(val)
 	}
 	return defaultVal
+}
+
+var setColorPalette = []string{
+	"#c9a84c",
+	"#b08d57",
+	"#9b59b6",
+	"#6b8e23",
+	"#c0392b",
+	"#4682b4",
+	"#10b981",
+	"#8b5cf6",
+}
+
+func defaultSetColor(userID uint, name string, existingSetCount int64) string {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(fmt.Sprintf("%d:%s:%d", userID, strings.ToLower(strings.TrimSpace(name)), existingSetCount)))
+	return setColorPalette[int(h.Sum32())%len(setColorPalette)]
 }
 
 func agenticInitialStatus(setType models.CoinSetType) string {

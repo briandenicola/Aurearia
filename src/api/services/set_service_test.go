@@ -68,6 +68,26 @@ func TestSetService_CreateSet_RejectsDynamicAsSetType(t *testing.T) {
 	}
 }
 
+func TestSetService_CreateSet_GeneratesDefaultPaletteColor(t *testing.T) {
+	service := setupSetServiceTest(t)
+
+	set, err := service.CreateSet(1, map[string]interface{}{
+		"name":    "Palette Default",
+		"setType": "standard",
+	})
+	if err != nil {
+		t.Fatalf("create set failed: %v", err)
+	}
+
+	expected := defaultSetColor(1, "Palette Default", 0)
+	if set.Color != expected {
+		t.Fatalf("expected generated color %q, got %q", expected, set.Color)
+	}
+	if set.Color == "#6b7280" {
+		t.Fatalf("expected palette color instead of legacy gray default")
+	}
+}
+
 func TestSetService_CreateSet_ValidatesAgenticDynamicMode(t *testing.T) {
 	service := setupSetServiceTest(t)
 
