@@ -42,11 +42,21 @@ The app captures mint information but does not visualize collection geography. A
 
 ### Out of scope
 
-- Editing mint coordinates in the UI.
-- Go API `mints` table or database migrations.
 - Reverse-geocoding or AI inference of mint from images.
 - Custom tile hosting, offline tile cache, Mapbox, routing, trade routes, or map animations.
 - Public/follower exposure of private collection geography.
+
+> **Superseded (see `specs/338-mint-location-integration/`)**: "Editing mint
+> coordinates in the UI" and "Go API `mints` table or database migrations"
+> were originally out of scope here, back when mint locations were meant to
+> be a frontend-only static dataset. A backend `MintLocation` model, admin
+> CRUD API, and forward-geocoded coordinate entry were added afterward
+> (superseding those two bullets), and `specs/338-mint-location-integration/`
+> extends that further: `Coin.mintLocationId` is now a real foreign key,
+> mint locations can be private per-user (not just global/admin-curated),
+> and coordinates for a new mint are looked up automatically via OSM
+> Nominatim (with manual pin placement as a fallback) rather than typed in
+> by an admin by hand.
 
 ## Design / Approach
 
