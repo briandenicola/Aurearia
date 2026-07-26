@@ -23,7 +23,7 @@ The repository currently includes app icons in `src/web/public/` but does not in
 ## AI Features
 
 - **[AI Coin Analysis](ai-analysis.md)** — Vision-model analysis of obverse/reverse photos using Anthropic Claude or Ollama
-- **[AI Coin Search Agent](ai-search-agent.md)** — Chat with an AI agent to find coins matching your description across dealer sites
+- **[Coin Agent](ai-search-agent.md)** — Chat with an AI agent to find coins, answer collection questions, research shows, and save useful answers to Notes
 - **[AI Grading Assistant](ai-grading.md)** — Estimate coin grades from photos with reasoning and confidence scores
 - **[Price Trend Analysis](price-trends.md)** — Analyze historical auction data to identify market trends
 - **[Collection Gap Analysis](gap-analysis.md)** — Get AI-powered suggestions for coins missing from your collection
@@ -32,7 +32,7 @@ The repository currently includes app icons in `src/web/public/` but does not in
 
 ## Organization & Analytics
 
-- **[Coin Sets](coin-sets.md)** — Organize coins into open, defined, goal, and smart sets with trend tracking and tray presentation
+- **[Coin Sets](coin-sets.md)** — Organize coins into standard, goal, smart, and human-reviewed Agentic sets with trend tracking and tray presentation
 - **[Custom Tags](custom-tags.md)** — Create flexible custom categories for organizing your collection
 - **[Collection Statistics](statistics.md)** — View analytics including portfolio value, distributions, trends, health, maps, investment breakdown, and emperor tracking
 - **[Collection Showcase](collection-showcase.md)** — Create and share curated public coin subsets with shareable URLs
@@ -83,6 +83,8 @@ The repository currently includes app icons in `src/web/public/` but does not in
 | Social Features | Shipped | v1.0 |
 | External Tool Server | Shipped | v1.0 |
 | Coin Sets with Trend Tracking | Shipped | v2.0 |
+| Agentic Set Proposal Review | Shipped | v2.1 |
+| Coin Agent Notes | Shipped | v2.1 |
 | Stats Health, Investment, Value, Map, and Emperor subviews | Shipped | v2.0 |
 | PWA & Mobile Capture | Shipped | v1.0 |
 

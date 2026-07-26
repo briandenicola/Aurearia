@@ -1,6 +1,6 @@
 # Coin Sets
 
-> Organize coins into open, defined, goal, and smart sets with automatic aggregation, completion tracking, and value trend monitoring.
+> Organize coins into standard, goal, smart, and human-reviewed Agentic sets with tray presentation, completion tracking, and value trend monitoring.
 
 ## Overview
 
@@ -8,24 +8,17 @@ Coin Sets provides flexible organization beyond tags, allowing collectors to cre
 
 ## Set Types
 
-### Open Sets
+### Standard Sets
 - **Purpose** — Flexible, manually-managed collections (e.g., "Favorite Denarii", "Recently Acquired", "Investment Portfolio")
 - **Membership** — Manual add/remove
 - **Aggregates** — Coin count, total value, average value, ROI
 - **Use Case** — General organization, curated collections
 
-### Defined Sets
-- **Purpose** — Track completion toward a target list (e.g., "US Morgan Dollars 1878-1921", "Roman Denarii of Augustus")
-- **Membership** — Manual + completion matching against targets
-- **Targets** — Import custom CSV or select from built-in templates
-- **Completion** — Show percentage complete and list missing items
-- **Built-in Templates** — US Morgan Dollars, US State Quarters, Roman Imperial series, Greek city-states, Byzantine gold coins
-
 ### Goal Sets
 - **Purpose** — Track progress toward a collecting goal (e.g., "Complete Type Set of Marcus Aurelius")
-- **Target Date** — Optional deadline for completion
-- **Milestones** — Value-based checkpoints that trigger notifications when crossed
-- **Aggregates** — Current count vs. target, value vs. goal
+- **Membership** — Collection and wishlist coins both participate
+- **Completion** — Collection items divided by collection plus wishlist items
+- **Use Case** — Human-curated goals where wishlist items represent gaps still to fill
 
 ### Smart Sets
 - **Purpose** — Rule-based automatic membership (e.g., "All silver coins over $1000")
@@ -40,6 +33,14 @@ Coin Sets provides flexible organization beyond tags, allowing collectors to cre
   - AND/OR logic for complex rules
 - **Automatic Updates** — Membership recalculates when coins change
 
+### Agentic Sets
+- **Purpose** — Describe an open-ended set idea and let the agent propose the roster for human review
+- **Submission** — Creating an Agentic set submits a proposal request; no set is created immediately
+- **Agent workflow** — The Go API queues the request, proxies to the Python agent service, and stores a proposal with scope interpretation, slots, verification notes, and transcript summary
+- **Human review** — The user opens the proposal from the notification, reviews scope and roster, edits slots if needed, regenerates with feedback, rejects, or approves
+- **Approval** — Only approval creates the actual Agentic set and roster
+- **Matching** — After approval, owned collection coins are automatically matched to proposal slots like the Roman Emperors tracker; users do not manually add or remove Agentic set members
+
 ## Set Dashboard
 
 A dedicated dashboard shows:
@@ -49,12 +50,12 @@ A dedicated dashboard shows:
   - Coin count
   - Total current value
   - Average value per coin
-  - Completion percentage (for defined/goal sets)
+  - Completion percentage (for goal sets)
   - ROI if cost data available
 
 - **Trending Sets** — Sets with significant value changes
 - **Recently Updated Sets** — Recently modified memberships or snapshots
-- **Create New Set** — Quick-access wizard
+- **Create New Set** — Quick-access wizard for Standard, Goal, Smart, and Agentic sets
 
 ## Collection Integration
 
@@ -78,10 +79,10 @@ Set detail pages use the same tray presentation for member coins. Embedded tray 
 - Set name, description, type, icon, color
 - Coin count, total value, average value
 - Cost basis and ROI if available
-- Completion percentage and missing items (defined sets)
+- Completion percentage and wishlist gap counts (goal sets)
 - Edit and delete options
 
-### Members Tab (Open/Defined/Goal Sets)
+### Members Tab (Standard/Goal Sets)
 - Scrollable list of member coins
 - Click to view coin details
 - Add membership with a coin picker instead of manual ID entry
@@ -103,31 +104,22 @@ Set detail pages use the same tray presentation for member coins. Embedded tray 
 ### Trends Tab
 - Interactive chart showing value over time
 - Coin count over time
-- Completion % over time (for defined/goal sets)
+- Completion % over time (for goal sets)
 - Compare with other sets
 - Export trend data
 
-### Targets Tab (Defined Sets)
-- List of target coins
-- Match owned coins to targets
-- Show owned vs. missing
-- Import custom targets from CSV
-- Download current targets
-
 ## Completion Tracking
 
-### For Defined Sets
-- Define target coins (by catalog reference, ruler, denomination, era)
-- System matches owned coins to targets
-- Display completion: "42 of 100 (42%)"
-- List missing items with suggestions
-- Visual checklist showing completed/incomplete targets
-
 ### For Goal Sets
-- Set target coin count or value
-- Track progress toward goal
-- Show coins needed to complete
-- Milestone notifications
+- Add owned coins and wishlist coins to the goal set
+- Display completion as `collection / (collection + wishlist)`
+- Wishlist coins represent targets still to acquire
+
+### For Agentic Sets
+- Review the generated proposal before creation
+- Approve to create the roster
+- Let automatic matching associate owned coins with proposal slots
+- Return to the proposal review flow to regenerate instead of accepting a weak proposal
 
 ## Trend Monitoring
 
@@ -163,7 +155,7 @@ Compare up to 3 sets:
 ## Legacy Tag Migration
 
 If upgrading from tags:
-- **Automatic** — All existing tags become open sets
+- **Automatic** — All existing tags become standard sets
 - **Preserved** — Names, colors, and coin memberships remain unchanged
 - **New Features** — Add descriptions, set types, completion tracking, and snapshots
 
@@ -193,6 +185,14 @@ GET    /api/sets/:id/completion    # Get completion details
 POST   /api/sets/:id/snapshot      # Create manual snapshot
 GET    /api/sets/:id/trends        # Get trend data
 GET    /api/sets/:id/analytics     # Get set analytics
+
+POST   /api/set-builder/runs                 # Submit Agentic set proposal request
+GET    /api/set-builder/proposals            # List human-reviewable proposals
+GET    /api/set-builder/proposals/:id        # Review one proposal
+PUT    /api/set-builder/proposals/:id        # Edit proposal metadata and slots
+POST   /api/set-builder/proposals/:id/approve # Approve and create set
+POST   /api/set-builder/proposals/:id/reject # Reject without creating a set
+POST   /api/set-builder/proposals/:id/regenerate # Regenerate from feedback
 ```
 
 ## Configuration (Admin)

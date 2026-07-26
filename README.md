@@ -41,7 +41,7 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 ### 🤖 AI-Powered Analysis
 **Obverse & Reverse Analysis** — Upload coin photos for AI inspection with condition assessment, grade estimates, historical context, and market insights. Supports Anthropic Claude or self-hosted Ollama vision models.
 
-**Multi-Team Agent System** — Specialized teams for search, shows, portfolio review, availability checks, grading, price trends, gap analysis, photography guidance, and similar-lot discovery handle different research tasks with streaming real-time status. **[Learn more →](docs/features/ai-search-agent.md)**
+**Coin Agent** — Ask one chat surface to search dealer listings, find shows, analyze portfolio questions, answer collection questions such as missing metadata, and save useful answers as markdown Notes after review. **[Learn more →](docs/features/ai-search-agent.md)**
 
 ### 🎯 Discovery & Acquisition
 **AI Coin Search** — Chat with an agent to find real dealer listings matching your description. Imports structured results with images, metadata, prices, and candidate catalog references.
@@ -55,7 +55,7 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 ### 📊 Portfolio Intelligence
 **Collection Statistics** — Dashboard and subviews for portfolio value trends, category/material/grade distributions, top coins by value, mint maps, timeline, investment breakdown, Emperor Tracker, and health scorecards. **[Learn more →](docs/features/statistics.md)**
 
-**Coin Sets** — Organize coins into open (flexible), defined (series with completion %), goal (milestones), or smart (rule-based automatic) sets with trend tracking, snapshots, and comparison tools. **[Learn more →](docs/features/coin-sets.md)**
+**Coin Sets** — Organize coins into standard, goal, smart, or human-reviewed Agentic sets with tray presentation, completion tracking, snapshots, and comparison tools. **[Learn more →](docs/features/coin-sets.md)**
 
 ### 🤝 Social & Community
 **Follow Collectors** — Send follow requests, view follower galleries, leave comments, rate coins 1-5 stars.
@@ -118,7 +118,9 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 - **Configurable Coin Properties** — Admin-managed Era and Category options used by coin forms and lookup saves.
 - **CNG Auctions Support** — Import CNG lots, sync CNG watched lots, and filter auction tracking by provider alongside NumisBids. CNG can auto-detect hosted auction outcomes where provider data is available; NumisBids remains watchlist/import tracking only and needs manual won/lost and max-bid updates.
 - **Encrypted Auction Credentials** — Stored NumisBids and CNG provider passwords are encrypted at rest with lazy migration for existing plaintext values.
-- **Coin Sets** — Organize coins into themed collections with trend tracking and completion analysis. Open, defined, goal, and smart (rule-based) set types. Snapshot history and value milestones.
+- **Coin Sets** — Organize coins into themed collections with trend tracking and completion analysis. Standard, goal, smart, and human-reviewed Agentic set types. Snapshot history and value milestones.
+- **Coin Agent Notes** — Save completed Coin Agent answers into Notes through an explicit markdown review dialog.
+- **Museum Tray Dates** — Tray cards show purchase dates in `YYYY-MM-DD`; wishlist placeholders are more transparent and display `TBD`.
 - **Health Scorecard** — Track AI coverage, image coverage, and metadata completeness.
 - Enhanced AI agent teams (grading, price trends, gap analysis, photography guide, similar lots).
 

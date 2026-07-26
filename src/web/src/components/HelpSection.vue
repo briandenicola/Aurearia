@@ -70,10 +70,25 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           <li><strong>Public showcases</strong> — Create curated public sets with shareable links. Only public-safe coin fields are exposed; private notes, prices, and AI analysis stay hidden.</li>
           <li><strong>Wishlist search alerts</strong> — Save search criteria, run alerts on a schedule or manually, review candidates, dismiss poor matches, and convert accepted candidates into wish list items.</li>
           <li><strong>Collection health</strong> — Use Stats health views to track score trends, missing images, metadata gaps, AI coverage gaps, and suggested improvements.</li>
-          <li><strong>Museum Tray</strong> — Use the Tray view to arrange coins visually with size-aware spacing for a cabinet-style browsing experience.</li>
+          <li><strong>Museum Tray</strong> — Use the Tray view to arrange coins visually with size-aware spacing for a cabinet-style browsing experience. Owned coins show purchase dates in <code>YYYY-MM-DD</code>; wishlist placeholders are more transparent and show <code>TBD</code>.</li>
           <li><strong>Mint Map</strong> — Use Stats → Map to see mint locations and geographic distribution for coins with mapped mint data.</li>
           <li><strong>Coin of the Day</strong> — Enable daily featured coin notifications in Settings → Account to rediscover coins from your own collection.</li>
           <li><strong>Connected sign-in providers</strong> — After signing in locally, open Settings → Account → Connected Sign-in Providers to link Microsoft Entra ID, Pocket ID, or another configured OIDC provider.</li>
+        </ul>
+
+        <h4>Coin Agent and Notes</h4>
+        <ul>
+          <li><strong>Coin Agent</strong> — Open the chat from Wish List → Find Coins to search listings, find shows, ask portfolio questions, or ask collection cleanup questions such as which coins are missing an era.</li>
+          <li><strong>Starter prompts</strong> — The drawer includes acquisition examples plus a collection cleanup starter for missing era metadata.</li>
+          <li><strong>Save to Notes</strong> — Completed assistant answers can be reviewed as markdown, edited, previewed, and saved to Notes only after you click Create Note.</li>
+        </ul>
+
+        <h4>Sets and Agentic Proposals</h4>
+        <ul>
+          <li><strong>Set types</strong> — Create Standard sets for manual organization, Goal sets where wishlist items represent remaining work, Smart sets from rules, and Agentic sets from a reviewed proposal workflow.</li>
+          <li><strong>Agentic proposal workflow</strong> — Creating an Agentic set submits a request instead of creating a set immediately. A notification opens the review page when the proposal is ready.</li>
+          <li><strong>Human review</strong> — Review scope, slots, and agent notes; edit, regenerate with feedback, reject, or approve. Only approval creates the Agentic set.</li>
+          <li><strong>Automatic matching</strong> — Approved Agentic sets match owned collection coins to the proposed roster automatically, similar to the Roman Emperors tracker.</li>
         </ul>
 
         <h4>Stats Views</h4>

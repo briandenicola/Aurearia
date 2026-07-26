@@ -33,6 +33,12 @@ Collection Management is the heart of Ancient Coins. It provides a responsive ga
 - Adaptive columns based on screen size
 - Same filtering and search options as swipe mode
 
+#### Museum Tray
+- Cabinet-style tray presentation for collection and set browsing
+- Purchase date appears under each owned coin in `YYYY-MM-DD` format
+- Wishlist placeholders are intentionally more transparent and show `TBD` instead of a purchase date
+- Uses the selected felt color from Settings → Appearance
+
 ### Sorting Options
 - **Date Added** — Newest or oldest first (default)
 - **Last Updated** — Recently modified coins

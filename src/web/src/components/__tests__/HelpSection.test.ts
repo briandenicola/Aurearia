@@ -24,5 +24,8 @@ describe('HelpSection', () => {
     expect(text).toContain('Quick Capture, Coin Lookup, and image upload flows start the camera only after you tap')
     expect(text).toContain('The notification badge tracks unread social, auction, wishlist, set milestone')
     expect(text).toContain('Header Name: X-API-Key')
+    expect(text).toContain('Owned coins show purchase dates in YYYY-MM-DD')
+    expect(text).toContain('Completed assistant answers can be reviewed as markdown')
+    expect(text).toContain('Only approval creates the Agentic set')
   })
 })

@@ -2035,14 +2035,14 @@ Set types:
 
 | Type | Behavior |
 | ---- | -------- |
-| `open` | Manual collection of coins. Existing tags are backfilled into compatible open sets. |
-| `defined` | Manual set with target slots and completion tracking. |
-| `goal` | Defined set with an optional target completion date. |
+| `standard` | Manual collection of coins. Existing tags are backfilled into compatible standard sets. |
+| `goal` | Manual goal set where completion is owned collection coins divided by owned plus wishlist members. |
 | `smart` | Dynamic set populated from validated criteria; manual add/remove is not allowed. |
+| `agentic` | Human-reviewed set created from an async proposal workflow; manual membership changes are not allowed. |
 
 ### GET /api/sets
 
-List set summaries for the authenticated user. The API migrates legacy tags into open sets before returning results.
+List set summaries for the authenticated user. The API migrates legacy tags into standard sets before returning results.
 
 **Response:**
 
@@ -2053,7 +2053,7 @@ List set summaries for the authenticated user. The API migrates legacy tags into
       "id": 1,
       "name": "Twelve Caesars",
       "color": "#c9a84c",
-      "setType": "defined",
+      "setType": "goal",
       "coinCount": 8,
       "totalValue": 1250.0,
       "completionPercentage": 66.7
@@ -2064,7 +2064,7 @@ List set summaries for the authenticated user. The API migrates legacy tags into
 
 ### POST /api/sets
 
-Create an open, defined, goal, or smart set.
+Create a standard, goal, or smart set directly. For Agentic sets, submit a proposal request with `POST /api/set-builder/runs`.
 
 **Request Body:**
 
@@ -2089,28 +2089,28 @@ Create an open, defined, goal, or smart set.
 | `name` | string | Yes | Set name, unique per user |
 | `description` | string | No | Set notes |
 | `color` | string | No | Hex display color |
-| `setType` | string | Yes | `open`, `defined`, `goal`, or `smart` |
-| `templateId` | string | No | Built-in template ID for defined/goal sets |
-| `targetCompletionDate` | string | No | Goal target date (`YYYY-MM-DD`) |
+| `setType` | string | Yes | `standard`, `goal`, or `smart` for direct creation |
+| `templateId` | string | No | Reserved for compatible templates |
+| `targetCompletionDate` | string | No | Reserved for goal planning (`YYYY-MM-DD`) |
 | `smartCriteria` | object | Conditional | Required for smart sets |
 
 ### POST /api/sets/import-csv
 
-Create a defined or goal set from CSV target definitions.
+Create a compatible set from CSV target definitions where enabled.
 
 **Request Body:**
 
 ```json
 {
   "name": "Lincoln Wheat Cents",
-  "setType": "defined",
+  "setType": "goal",
   "csv": "Label,Year,MintMark,Denomination,Country,Material\n1909-S VDB,1909,S,Cent,United States,Copper"
 }
 ```
 
 ### GET /api/sets/templates
 
-List built-in target templates available for defined and goal sets.
+List built-in target templates available to compatible set workflows.
 
 ### GET /api/sets/:id
 
@@ -2130,7 +2130,7 @@ List coins in a set. Smart sets return derived matches from their criteria.
 
 ### POST /api/sets/:id/coins
 
-Add a coin to an open, defined, or goal set.
+Add a coin to a standard or goal set.
 
 **Request Body:**
 
@@ -2140,11 +2140,11 @@ Add a coin to an open, defined, or goal set.
 
 ### DELETE /api/sets/:id/coins/:coinId
 
-Remove a coin from an open, defined, or goal set.
+Remove a coin from a standard or goal set.
 
 ### GET /api/sets/:id/completion
 
-Return completion metrics for defined and goal sets.
+Return completion metrics for goal sets and other compatible completion workflows.
 
 **Response:**
 
@@ -2156,6 +2156,40 @@ Return completion metrics for defined and goal sets.
   "missingTargets": []
 }
 ```
+
+### POST /api/set-builder/runs
+
+Submit an Agentic set proposal request. The request returns immediately; the server runs the Python agent workflow asynchronously and notifies the user when a proposal is ready for review.
+
+**Request Body:**
+
+```json
+{ "prompt": "Roman emperors from the Severan dynasty with one slot per ruler" }
+```
+
+### GET /api/set-builder/proposals
+
+List human-reviewable Agentic set proposals for the current user.
+
+### GET /api/set-builder/proposals/:id
+
+Fetch one proposal with scope interpretation, proposed roster slots, transcript summary, pre-match summary, and status.
+
+### PUT /api/set-builder/proposals/:id
+
+Edit proposal metadata and slots during human review.
+
+### POST /api/set-builder/proposals/:id/approve
+
+Approve a pending proposal and create the Agentic set. Approval is the only operation that creates the set roster.
+
+### POST /api/set-builder/proposals/:id/reject
+
+Reject a pending proposal without creating a set.
+
+### POST /api/set-builder/proposals/:id/regenerate
+
+Submit feedback and request a regenerated proposal.
 
 ### POST /api/sets/:id/snapshot
 

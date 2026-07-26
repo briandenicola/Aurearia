@@ -63,6 +63,6 @@ DELETE /api/coins/:id/tags/:tagId    # Remove tag from coin
 
 ## Migration Note
 
-Prior to Coin Sets feature, tags were the primary organization mechanism. Sets provide additional features (defined sets, smart sets, trend tracking) while tags remain for simple, flexible categorization.
+Prior to Coin Sets feature, tags were the primary organization mechanism. Sets provide additional features (standard sets, goal sets, smart sets, Agentic proposal workflows, and trend tracking) while tags remain for simple, flexible categorization.
 
 See also: [Coin Sets](coin-sets.md), [Collection Management](collection-management.md)
