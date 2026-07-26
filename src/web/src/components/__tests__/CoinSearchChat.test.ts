@@ -48,7 +48,7 @@ vi.mock('@/composables/useCoinSearchChat', () => ({
   }),
 }))
 
-describe('CoinSearchChat Agentic Agenda notes', () => {
+describe('CoinSearchChat note saving', () => {
   it('lets the user explicitly save an assistant answer to Notes', async () => {
     mockCreateNote.mockResolvedValue({ data: { id: 7 } })
     mockShowAlert.mockResolvedValue(true)
@@ -63,7 +63,7 @@ describe('CoinSearchChat Agentic Agenda notes', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('Agentic Agenda')
+    expect(wrapper.text()).toContain('Coin Search Agent')
 
     const saveToNotesButton = wrapper.findAll('button').find((button) => button.text() === 'Save to Notes')
     expect(saveToNotesButton).toBeTruthy()
