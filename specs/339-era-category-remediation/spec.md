@@ -46,9 +46,16 @@ Confirm all three persist the custom value unchanged.
 2. **Given** a Quick Capture draft with a custom era, **When** the user
    promotes it to a full coin, **Then** promotion succeeds instead of being
    rejected by a stricter, separate hardcoded check.
-3. **Given** an AI chat wishlist suggestion carrying a custom category or
-   era, **When** the user adds it to their wishlist, **Then** the custom
-   value is preserved instead of being coerced to "Other" or dropped blank.
+3. **Given** an AI chat wishlist suggestion carrying a category/era that
+   exactly or approximately matches an admin-defined value (e.g. "Roman
+   Republic" vs. the admin's "Roman"), **When** the user adds it to their
+   wishlist, **Then** it is mapped to the matching admin-defined value
+   instead of being coerced to "Other" or dropped blank.
+4. **Given** an AI chat wishlist suggestion carrying a category/era with no
+   confident match to any admin-defined value, **When** the user adds it to
+   their wishlist, **Then** they are shown the AI's raw suggestion and asked
+   to either map it to an existing value or keep it as a new one — it is
+   never silently coerced or silently accepted.
 
 ---
 
@@ -116,6 +123,19 @@ gets its own consistent color, not all a single fallback color.
   a slab label implying a category/era outside the default three mappings?
   → Out of scope for this pass (heuristic inference, not a validation or
   data-loss bug); noted as a follow-up.
+- What happens when a direct/programmatic API call (import script, external
+  integration — no interactive user present) submits a category/era that
+  doesn't match any admin-defined or built-in value? → Rejected outright
+  with a clear 4xx error naming the accepted values. Unlike the interactive
+  AI-chat path, there's no user available to resolve ambiguity, so silent
+  coercion or fuzzy-matching would be worse than a deterministic failure.
+- What happens when an AI chat suggestion's category/era doesn't exactly
+  match an admin-defined value but is a clear variant of one (e.g. differs
+  only by case, punctuation, or a recognizable substring)? → Normalized/
+  fuzzy matching (reusing the same normalization approach already used for
+  mint-location matching) resolves it to the existing admin-defined value
+  automatically, without asking the user, so near-miss spelling doesn't
+  create unnecessary confirmation prompts.
 
 ## Requirements *(mandatory)*
 
@@ -124,14 +144,20 @@ gets its own consistent color, not all a single fallback color.
 - **FR-001**: Backend MUST validate `Coin.Category` on create/update against
   the admin-defined `CoinCategories` list, mirroring the existing
   `validateCoinEra` mechanism (built-in defaults ∪ `CoinCategories` AppSetting
-  ∪ Catalog Registry).
+  ∪ Catalog Registry). Any non-matching value submitted through the coin
+  API (interactive or programmatic) MUST be rejected with a clear error
+  naming the accepted values — never silently coerced.
 - **FR-002**: The Quick Capture draft-promotion era check MUST use the same
   validation logic/allow-list as the main coin create/update path, rather
   than an independently hardcoded switch statement.
-- **FR-003**: The AI-chat wishlist-suggestion payload builder MUST validate
-  category/era against the live admin-defined lists rather than a static
-  five-value/three-value array, and MUST preserve a valid custom value
-  instead of coercing it to "Other" or blanking it.
+- **FR-003**: The AI-chat wishlist-suggestion payload builder MUST resolve
+  an AI-suggested category/era against the live admin-defined lists using a
+  three-tier match — (1) exact match, (2) normalized/fuzzy match against
+  admin-defined values (reusing the mint-location-style normalization
+  already in the codebase), (3) if no confident match, present the raw
+  suggestion to the user for explicit confirmation (map to an existing
+  value or keep as a new one) — rather than a static five-value/three-value
+  array that silently coerces to "Other" or blanks the field.
 - **FR-004**: The Quick Capture / coin-lookup draft era normalization MUST
   accept any admin-valid era value, not only the three legacy defaults.
 - **FR-005**: The collection category filter chips, the smart-set rule
@@ -145,7 +171,10 @@ gets its own consistent color, not all a single fallback color.
 - **FR-007**: The AI "search my collection" natural-language filter MUST
   recognize any admin-defined category/era, not only the legacy defaults,
   and MUST apply an era filter for every admin-defined era (today "modern"
-  era has no matching branch at all).
+  era has no matching branch at all). It MUST use the same normalized/fuzzy
+  match as FR-003 (not a fixed literal list) since this path has no user
+  present to confirm ambiguous matches — an unmatched term is simply not
+  filtered on, rather than guessed at.
 - **FR-008**: Backend MUST maintain a built-in baseline allow-list for
   `Category` (`Roman/Greek/Byzantine/Modern/Other`), exactly mirroring the
   existing `builtInCoinEras` mechanism for `Era` — these values remain valid
@@ -161,6 +190,12 @@ gets its own consistent color, not all a single fallback color.
   describe it as a fixed enum, since it is validated dynamically against
   admin-configurable settings (mirroring how `Coin.Era`'s documentation
   should already reflect its dynamic allow-list).
+- **FR-011**: A single shared normalized-match function (name/case/
+  punctuation-insensitive, with substring/alias tolerance) MUST back every
+  category/era matching decision that isn't a raw user pick from a
+  dropdown — used by FR-003 (AI wishlist suggestions) and FR-007 (AI
+  collection search) alike, rather than each path reimplementing its own
+  matching logic.
 
 ### Key Entities
 
@@ -190,6 +225,12 @@ gets its own consistent color, not all a single fallback color.
   category "Roman" via the built-in baseline list, exactly as removing
   "ancient" from `CoinEras` today doesn't stop coins from being saved with
   that era.
+- **SC-005**: A programmatic API call with an invalid category/era receives
+  a clear rejection naming the accepted values, with zero silent coercion.
+- **SC-006**: No AI-chat-suggested category/era is ever silently discarded,
+  silently coerced to "Other"/blank, or silently accepted as a brand-new
+  unconfirmed value — every unmatched suggestion surfaces an explicit
+  user choice.
 
 ## Assumptions
 
