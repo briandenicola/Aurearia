@@ -1,8 +1,9 @@
 import { ref, nextTick, onMounted, onBeforeUnmount, type Ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { agentChatStream, cancelCollectionProposal, commitCollectionProposal, createCoin, getApiErrorMessage, proxyImage, scrapeImage, uploadImage, saveConversation, getPortfolioSummary, getAgentStatus, createCalendarEvent } from '@/api/client'
+import { agentChatStream, cancelCollectionProposal, commitCollectionProposal, createCoin, getApiErrorMessage, matchCategoryEra, proxyImage, scrapeImage, uploadImage, saveConversation, getPortfolioSummary, getAgentStatus, createCalendarEvent } from '@/api/client'
 import type { CoinMutationPayload, CoinSuggestion, CoinShow, AgentChatAppContext, AgentChatMessage, Category, CollectionChatResponse, Material } from '@/types'
 import { useDialog } from '@/composables/useDialog'
+import { useCoinOptions } from '@/composables/useCoinOptions'
 import DOMPurify from 'dompurify'
 import MarkdownIt from 'markdown-it'
 
@@ -60,6 +61,64 @@ export function normalizeSuggestionEra(value: string): 'ancient' | 'medieval' | 
   return ''
 }
 
+/** A category/era candidate the app couldn't confidently resolve, needing a user choice. */
+export interface CategoryEraConfirmRequest {
+  fieldLabel: string
+  suggestedValue: string
+  options: string[]
+}
+
+/**
+ * Resolves a single AI-suggested category/era value against the live
+ * admin-defined list: an exact match is used as-is; failing that, the
+ * backend's normalized/fuzzy matcher is tried; failing that, the caller is
+ * asked to confirm (map to an existing value, or keep it as suggested).
+ * Returns null if the user cancels rather than choosing.
+ */
+async function resolveOneField(
+  fieldLabel: 'Category' | 'Era',
+  rawValue: string,
+  knownOptions: string[],
+  requestConfirmation: (request: CategoryEraConfirmRequest) => Promise<string | null>,
+): Promise<string | null> {
+  const trimmed = rawValue.trim()
+  if (!trimmed) return ''
+  const exact = knownOptions.find(o => o.toLowerCase() === trimmed.toLowerCase())
+  if (exact) return exact
+  try {
+    const res = await matchCategoryEra(fieldLabel.toLowerCase() as 'category' | 'era', trimmed)
+    if (res.data.matched && res.data.match) return res.data.match
+  } catch {
+    // Network failure - fall through to asking the user rather than guessing.
+  }
+  return requestConfirmation({ fieldLabel, suggestedValue: trimmed, options: knownOptions })
+}
+
+/**
+ * Resolves both category and era for an AI coin suggestion before it's
+ * saved. Era first tries the existing keyword heuristic (e.g. "Byzantine"
+ * implies the medieval era) when that guess is itself one of the known
+ * era values; otherwise both fields go through the same exact/fuzzy/confirm
+ * pipeline. Returns null if the user cancels a confirmation.
+ */
+export async function resolveCategoryAndEra(
+  coin: CoinSuggestion,
+  categoryOptions: string[],
+  eraOptions: string[],
+  requestConfirmation: (request: CategoryEraConfirmRequest) => Promise<string | null>,
+): Promise<{ category: string; era: string } | null> {
+  const category = await resolveOneField('Category', coin.category || '', categoryOptions, requestConfirmation)
+  if (category === null) return null
+
+  const heuristicEra = normalizeSuggestionEra(coin.era || '')
+  const era = heuristicEra && eraOptions.includes(heuristicEra)
+    ? heuristicEra
+    : await resolveOneField('Era', coin.era || '', eraOptions, requestConfirmation)
+  if (era === null) return null
+
+  return { category, era }
+}
+
 export function parseSuggestionPrice(price: string): number | null {
   if (!price) return null
   const match = price.match(/[\d,]+(?:\.\d+)?/)
@@ -79,8 +138,20 @@ function shouldKeepCandidateReference(ref: { catalog?: string; number?: string; 
   return !VOLUME_REQUIRED_REFERENCE_CATALOGS.has(catalog) || !!ref.volume?.trim()
 }
 
-export function buildWishlistCoinPayload(coin: CoinSuggestion): CoinMutationPayload {
-  const category = VALID_CATEGORIES.includes(coin.category) ? coin.category as Category : 'Other'
+/**
+ * Builds the create-coin payload for an AI-suggested wishlist coin.
+ * `resolved` carries category/era values already reconciled against the
+ * live admin-defined lists (see resolveCategoryAndEra); when omitted, this
+ * falls back to the legacy default-list-only behavior, which is what the
+ * unit tests below exercise directly without needing to mock the resolver.
+ */
+export function buildWishlistCoinPayload(
+  coin: CoinSuggestion,
+  resolved?: { category?: string; era?: string },
+): CoinMutationPayload {
+  const category = resolved?.category
+    ? (resolved.category as Category)
+    : VALID_CATEGORIES.includes(coin.category) ? coin.category as Category : 'Other'
   const material = VALID_MATERIALS.includes(coin.material) ? coin.material as Material : 'Other'
   const candidateReferences = (coin.candidateReferences ?? [])
     .filter(shouldKeepCandidateReference)
@@ -97,7 +168,7 @@ export function buildWishlistCoinPayload(coin: CoinSuggestion): CoinMutationPayl
     material,
     denomination: limitText(coin.denomination, FIELD_LIMITS.denomination),
     ruler: limitText(coin.ruler, FIELD_LIMITS.ruler),
-    era: normalizeSuggestionEra(coin.era || ''),
+    era: resolved?.era !== undefined ? resolved.era : normalizeSuggestionEra(coin.era || ''),
     notes: limitText(coin.description, FIELD_LIMITS.notes),
     referenceUrl: limitText(coin.sourceUrl, FIELD_LIMITS.referenceUrl),
     referenceText: limitText(coin.sourceName, FIELD_LIMITS.referenceText),
@@ -113,6 +184,7 @@ export function buildWishlistCoinPayload(coin: CoinSuggestion): CoinMutationPayl
 export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   const route = useRoute()
   const { showAlert } = useDialog()
+  const { categoryOptions, eraOptions, loadOptions: loadCoinOptions } = useCoinOptions()
 
   const messages = ref<ChatMsg[]>([])
   const input = ref('')
@@ -126,7 +198,28 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
   const scrapedImages = ref<Map<string, string>>(new Map())
   const saveLabel = ref('Save')
   const providerConfigured = ref(true)
+  const categoryEraConfirmRequest = ref<CategoryEraConfirmRequest | null>(null)
+  let pendingCategoryEraConfirm: ((value: string | null) => void) | null = null
   let saveLabelTimer: ReturnType<typeof setTimeout> | null = null
+
+  function requestCategoryEraConfirmation(request: CategoryEraConfirmRequest): Promise<string | null> {
+    return new Promise((resolve) => {
+      pendingCategoryEraConfirm = resolve
+      categoryEraConfirmRequest.value = request
+    })
+  }
+
+  function chooseCategoryEraConfirmation(value: string) {
+    categoryEraConfirmRequest.value = null
+    pendingCategoryEraConfirm?.(value)
+    pendingCategoryEraConfirm = null
+  }
+
+  function cancelCategoryEraConfirmation() {
+    categoryEraConfirmRequest.value = null
+    pendingCategoryEraConfirm?.(null)
+    pendingCategoryEraConfirm = null
+  }
 
   function scrollToBottom() {
     nextTick(() => {
@@ -268,7 +361,17 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
     if (addedSet.value.has(idx)) return
     addingIdx.value = idx
     try {
-      const created = await createCoin(buildWishlistCoinPayload(coin))
+      const resolved = await resolveCategoryAndEra(
+        coin,
+        categoryOptions.value,
+        eraOptions.value,
+        requestCategoryEraConfirmation,
+      )
+      if (resolved === null) {
+        // User cancelled the category/era confirmation - don't create the coin.
+        return
+      }
+      const created = await createCoin(buildWishlistCoinPayload(coin, resolved))
 
       let imageAttached = false
 
@@ -473,6 +576,7 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
 
   onMounted(async () => {
     options.inputBarEl.value?.focus()
+    loadCoinOptions()
     if (options.loadConversation) {
       conversationId.value = options.loadConversation.id
       try {
@@ -512,6 +616,9 @@ export function useCoinSearchChat(options: UseCoinSearchChatOptions) {
     saving,
     saveLabel,
     providerConfigured,
+    categoryEraConfirmRequest,
+    chooseCategoryEraConfirmation,
+    cancelCategoryEraConfirmation,
     sendMessage,
     sendExample,
     sendPortfolioAnalysis,

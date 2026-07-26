@@ -46,11 +46,11 @@
                   <div class="font-semibold text-gold">{{ cat.catalog }}</div>
                   <span
                     class="chip-sm capitalize"
-                    :class="cat.era === 'ancient'
-                      ? 'border-[rgba(155,89,182,0.4)] bg-[rgba(155,89,182,0.2)] text-[#bb8fce]'
-                      : cat.era === 'medieval'
-                        ? 'border-[rgba(107,142,35,0.4)] bg-[rgba(107,142,35,0.2)] text-[#9ccc65]'
-                        : 'border-[rgba(70,130,180,0.4)] bg-[rgba(70,130,180,0.2)] text-[#7eb9e0]'"
+                    :style="{
+                      borderColor: colorForLabel(cat.era),
+                      backgroundColor: colorForLabelBackground(cat.era),
+                      color: colorForLabel(cat.era),
+                    }"
                   >
                     {{ cat.era }}
                   </span>
@@ -118,9 +118,7 @@
               <label class="form-label">Era<span class="ml-[0.15rem] text-[var(--color-negative)]">*</span></label>
               <select v-model="formData.era" class="form-input" required>
                 <option value="" disabled>Select era</option>
-                <option value="ancient">Ancient</option>
-                <option value="medieval">Medieval</option>
-                <option value="modern">Modern</option>
+                <option v-for="era in eraOptions" :key="era" :value="era">{{ era }}</option>
               </select>
             </div>
             <div class="form-group flex items-center justify-between gap-4">
@@ -163,8 +161,11 @@ import { AlertCircle } from 'lucide-vue-next'
 import { listCatalogs, adminCreateCatalog, adminUpdateCatalog, adminDeleteCatalog } from '@/api/client'
 import type { CatalogRegistry } from '@/types'
 import { useDialog } from '@/composables/useDialog'
+import { useCoinOptions } from '@/composables/useCoinOptions'
+import { colorForLabel, colorForLabelBackground } from '@/utils/categoryColor'
 
 const { showAlert, showConfirm } = useDialog()
+const { eraOptions, loadOptions: loadCoinOptions } = useCoinOptions()
 
 const catalogs = ref<CatalogRegistry[]>([])
 const loading = ref(true)
@@ -288,5 +289,6 @@ async function handleDelete(id: number) {
 
 onMounted(() => {
   loadCatalogs()
+  loadCoinOptions()
 })
 </script>
