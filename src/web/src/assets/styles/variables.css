@@ -25,6 +25,17 @@
   --cat-modern: #4682b4;
   --cat-other: #888888;
 
+  /* Fallback palette for admin-defined custom categories/eras that aren't
+     one of the hand-tuned defaults above - picked deterministically by
+     utils/categoryColor.ts so every custom value gets a distinct, stable
+     color instead of a single flat "unknown" look. */
+  --cat-extra-1: #2ba9a0;
+  --cat-extra-2: #d2782e;
+  --cat-extra-3: #b0507a;
+  --cat-extra-4: #5b6bc0;
+  --cat-extra-5: #8b5e3c;
+  --cat-extra-6: #3fa7c9;
+
   /* Material colors */
   --mat-gold: #ffd700;
   --mat-silver: #c0c0c0;

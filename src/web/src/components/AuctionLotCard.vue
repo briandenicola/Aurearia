@@ -44,13 +44,7 @@
         <span
           v-if="lot.category"
           class="rounded-full bg-surface px-[0.45rem] py-[0.12rem] text-[0.72rem]"
-          :class="{
-            'text-roman': lot.category.toLowerCase() === 'roman',
-            'text-greek': lot.category.toLowerCase() === 'greek',
-            'text-byzantine': lot.category.toLowerCase() === 'byzantine',
-            'text-modern-cat': lot.category.toLowerCase() === 'modern',
-            'text-other': lot.category.toLowerCase() === 'other',
-          }"
+          :style="{ color: colorForLabel(lot.category) }"
         >
           {{ lot.category }}
         </span>
@@ -92,6 +86,7 @@ import { formatCurrency } from '@/utils/format'
 import { auctionLotNeedsAttention, auctionLotStatusSourceLabel } from '@/utils/auctionLot'
 import { useProxiedImage } from '@/composables/useProxiedImage'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
+import { colorForLabel } from '@/utils/categoryColor'
 
 const props = withDefaults(defineProps<{
   lot: AuctionLot

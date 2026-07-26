@@ -16,7 +16,7 @@ type CoinReferenceRequest struct {
 
 type CoinCreateRequest struct {
 	Name                  string                 `json:"name" binding:"max=200"`
-	Category              models.Category        `json:"category"`
+	Category              models.Category        `json:"category" binding:"omitempty,max=64"`
 	Denomination          string                 `json:"denomination" binding:"max=200"`
 	Ruler                 string                 `json:"ruler" binding:"max=200"`
 	RomanImperialFigureID *uint                  `json:"romanImperialFigureId"`
@@ -51,7 +51,7 @@ type CoinCreateRequest struct {
 
 type CoinUpdateRequest struct {
 	Name                  *string                `json:"name" binding:"omitempty,max=200"`
-	Category              *models.Category       `json:"category"`
+	Category              *models.Category       `json:"category" binding:"omitempty,max=64"`
 	Denomination          *string                `json:"denomination" binding:"omitempty,max=200"`
 	Ruler                 *string                `json:"ruler" binding:"omitempty,max=200"`
 	RomanImperialFigureID *uint                  `json:"romanImperialFigureId"`

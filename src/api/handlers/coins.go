@@ -51,13 +51,75 @@ func nullableScalarFieldPresence(raw map[string]json.RawMessage) map[string]bool
 }
 
 type CoinHandler struct {
-	repo   *repository.CoinRepository
-	svc    *services.CoinService
-	logger *services.Logger
+	repo        *repository.CoinRepository
+	svc         *services.CoinService
+	logger      *services.Logger
+	settingsSvc *services.SettingsService
 }
 
 func NewCoinHandler(repo *repository.CoinRepository, svc *services.CoinService, logger *services.Logger) *CoinHandler {
 	return &CoinHandler{repo: repo, svc: svc, logger: logger}
+}
+
+// WithSettingsSupport enables MatchCategoryEra to consult the admin-defined
+// CoinCategories/CoinEras lists in addition to the built-in defaults.
+func (h *CoinHandler) WithSettingsSupport(settingsSvc *services.SettingsService) *CoinHandler {
+	h.settingsSvc = settingsSvc
+	return h
+}
+
+// MatchCategoryEraRequest is the payload for MatchCategoryEra.
+type MatchCategoryEraRequest struct {
+	Type  string `json:"type" binding:"required,oneof=category era"`
+	Value string `json:"value" binding:"required,max=200"`
+}
+
+// MatchCategoryEraResponse reports whether a candidate category/era value
+// confidently resolves to a known (built-in or admin-defined) value.
+type MatchCategoryEraResponse struct {
+	Match   string `json:"match"`
+	Matched bool   `json:"matched"`
+}
+
+// MatchCategoryEra resolves a free-text category/era candidate (e.g. an
+// AI-chat suggestion) against the built-in defaults and the admin-defined
+// CoinCategories/CoinEras lists, using normalized/fuzzy matching. Intended
+// for interactive callers that can fall back to asking the user when no
+// confident match is found - it never guesses beyond that.
+//
+//	@Summary		Match a category/era candidate against known values
+//	@Description	Resolves a free-text category or era value against built-in and admin-defined lists
+//	@Tags			coins
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			request	body		MatchCategoryEraRequest	true	"Candidate value to match"
+//	@Success		200		{object}	MatchCategoryEraResponse
+//	@Failure		400		{object}	object{error=string}
+//	@Router			/coins/match-category-era [post]
+func (h *CoinHandler) MatchCategoryEra(c *gin.Context) {
+	var req MatchCategoryEraRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var known []string
+	switch req.Type {
+	case "category":
+		known = services.BuiltInCoinCategoryValues()
+		if h.settingsSvc != nil {
+			known = append(known, services.SplitSettingList(h.settingsSvc.GetSetting(services.SettingCoinCategories))...)
+		}
+	case "era":
+		known = services.BuiltInCoinEraValues()
+		if h.settingsSvc != nil {
+			known = append(known, services.SplitSettingList(h.settingsSvc.GetSetting(services.SettingCoinEras))...)
+		}
+	}
+
+	match, matched := services.MatchKnownValue(req.Value, known)
+	c.JSON(http.StatusOK, MatchCategoryEraResponse{Match: match, Matched: matched})
 }
 
 // PurchaseRequest holds optional details when purchasing a wishlist coin.
@@ -746,7 +808,8 @@ func handleCoinMutationError(c *gin.Context, err error) bool {
 		errors.Is(err, services.ErrReferenceDuplicate),
 		errors.Is(err, services.ErrStorageLocationNotFound),
 		errors.Is(err, services.ErrMintLocationNotFound),
-		errors.Is(err, services.ErrCoinInvalidEra):
+		errors.Is(err, services.ErrCoinInvalidEra),
+		errors.Is(err, services.ErrCoinInvalidCategory):
 		respondError(c, http.StatusBadRequest, err.Error(), err)
 		return true
 	case isUniqueConstraintError(err):

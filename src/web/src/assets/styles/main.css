@@ -184,9 +184,10 @@
  *   and CollectionDistributionPage.vue. CoinCard.vue has its own scoped
  *   duplicates; those will be consolidated when CoinCard is migrated.
  *
- * .badge-roman/greek/byzantine/modern/other: used via dynamic binding
- *   e.g. :class="`badge-${coin.category.toLowerCase()}`" in CoinCard.vue,
- *   CoinDetailPage.vue, StatsPage.vue, CollectionDistributionPage.vue.
+ * .badge-roman/greek/byzantine/modern/other: removed - CoinCard.vue,
+ *   CoinDetailPage.vue, StatsPage.vue, and CollectionDistributionPage.vue
+ *   now color category badges via utils/categoryColor.ts (colorForLabel),
+ *   which supports admin-defined custom categories too.
  *
  * Empty scoped <style> blocks: 0 found — no cleanup needed.
  */
@@ -394,12 +395,6 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
-
-.badge-roman { background: rgba(155, 89, 182, 0.2); color: #b57edc; border: 1px solid rgba(155, 89, 182, 0.3); }
-.badge-greek { background: rgba(107, 142, 35, 0.2); color: #9ab85a; border: 1px solid rgba(107, 142, 35, 0.3); }
-.badge-byzantine { background: rgba(192, 57, 43, 0.2); color: #e67e73; border: 1px solid rgba(192, 57, 43, 0.3); }
-.badge-modern { background: rgba(70, 130, 180, 0.2); color: #7ab3d4; border: 1px solid rgba(70, 130, 180, 0.3); }
-.badge-other { background: rgba(136, 136, 136, 0.2); color: #aaa; border: 1px solid rgba(136, 136, 136, 0.3); }
 
 /* Material badges */
 .material-gold { color: var(--mat-gold); }

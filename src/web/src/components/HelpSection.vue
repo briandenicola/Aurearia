@@ -27,10 +27,10 @@
           </thead>
           <tbody>
             <tr><td><code>name</code></td><td>text</td><td>Required</td></tr>
-            <tr><td><code>category</code></td><td>text</td><td>Roman, Greek, Byzantine, Modern, Other</td></tr>
+            <tr><td><code>category</code></td><td>text</td><td>One of your admin-configured categories (defaults: Roman, Greek, Byzantine, Modern, Other)</td></tr>
             <tr><td><code>material</code></td><td>text</td><td>Gold, Silver, Bronze, Copper, Electrum, Other</td></tr>
             <tr><td><code>denomination</code>, <code>ruler</code>, <code>mint</code>, <code>grade</code></td><td>text</td><td>Free text fields</td></tr>
-            <tr><td><code>era</code></td><td>text</td><td>Allowed values: <code>ancient</code>, <code>medieval</code>, <code>modern</code></td></tr>
+            <tr><td><code>era</code></td><td>text</td><td>One of your admin-configured eras (defaults: <code>ancient</code>, <code>medieval</code>, <code>modern</code>)</td></tr>
             <tr><td><code>weightGrams</code>, <code>diameterMm</code>, <code>purchasePrice</code>, <code>currentValue</code></td><td>number</td><td>Use decimal values</td></tr>
             <tr><td><code>purchaseDate</code>, <code>soldDate</code></td><td>date</td><td>Use <code>YYYY-MM-DD</code></td></tr>
             <tr><td><code>isWishlist</code>, <code>isSold</code>, <code>isPrivate</code></td><td>boolean</td><td>Use true/false</td></tr>

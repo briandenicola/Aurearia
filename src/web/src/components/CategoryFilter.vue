@@ -8,20 +8,16 @@
       All
     </button>
     <button
-      v-for="cat in CATEGORIES"
+      v-for="cat in categoryOptions"
       :key="cat"
       class="chip"
-      :class="modelValue === cat
-        ? cat === 'Roman'
-          ? 'border-roman bg-roman/20 text-roman'
-          : cat === 'Greek'
-            ? 'border-greek bg-greek/20 text-greek'
-            : cat === 'Byzantine'
-              ? 'border-byzantine bg-byzantine/20 text-byzantine'
-              : cat === 'Modern'
-                ? 'border-modern-cat bg-modern-cat/20 text-modern-cat'
-                : 'border-other bg-other/20 text-other'
-        : ''"
+      :style="modelValue === cat
+        ? {
+            borderColor: colorForLabel(cat),
+            backgroundColor: colorForLabelBackground(cat),
+            color: colorForLabel(cat),
+          }
+        : undefined"
       @click="$emit('update:modelValue', cat)"
     >
       {{ cat }}
@@ -30,8 +26,13 @@
 </template>
 
 <script setup lang="ts">
-import { CATEGORIES } from '@/types'
+import { onMounted } from 'vue'
+import { useCoinOptions } from '@/composables/useCoinOptions'
+import { colorForLabel, colorForLabelBackground } from '@/utils/categoryColor'
 
 defineProps<{ modelValue: string }>()
 defineEmits<{ 'update:modelValue': [value: string] }>()
+
+const { categoryOptions, loadOptions } = useCoinOptions()
+onMounted(loadOptions)
 </script>

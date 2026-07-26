@@ -64,7 +64,14 @@
             <h1 class="mt-2 font-display text-2xl font-semibold text-heading">{{ coin.name }}</h1>
             <p v-if="coin.ruler" class="mt-1 text-[1.1rem] text-text-secondary">{{ coin.ruler }}</p>
             <div v-if="coin.category" class="mt-3 flex flex-wrap gap-2">
-              <span class="badge" :class="`badge-${coin.category.toLowerCase()}`">{{ coin.category }}</span>
+              <span
+                class="badge"
+                :style="{
+                  backgroundColor: colorForLabelBackground(coin.category),
+                  color: colorForLabel(coin.category),
+                  border: `1px solid ${colorForLabelBackground(coin.category, 30)}`,
+                }"
+              >{{ coin.category }}</span>
               <span v-if="coin.isWishlist" class="chip-sm">Wishlist</span>
               <span v-if="coin.isSold" class="chip-sm">Sold</span>
             </div>
@@ -159,6 +166,7 @@ import CoinDetailSectionLinks from '@/components/coin/CoinDetailSectionLinks.vue
 import CoinListingStatus from '@/components/coin/CoinListingStatus.vue'
 import CoinReferencesSection from '@/components/coin/CoinReferencesSection.vue'
 import { deleteCoin, duplicateCoin, purchaseCoin, sellCoin } from '@/api/client'
+import { colorForLabel, colorForLabelBackground } from '@/utils/categoryColor'
 import { useDialog } from '@/composables/useDialog'
 import { useCoinDetailMetadataRows } from '@/composables/useCoinDetailMetadataRows'
 import { useCoinShareCard } from '@/composables/useCoinShareCard'

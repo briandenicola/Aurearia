@@ -6091,6 +6091,56 @@ const docTemplate = `{
                 }
             }
         },
+        "/coins/match-category-era": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Resolves a free-text category or era value against built-in and admin-defined lists",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "coins"
+                ],
+                "summary": "Match a category/era candidate against known values",
+                "parameters": [
+                    {
+                        "description": "Candidate value to match",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MatchCategoryEraRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MatchCategoryEraResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/coins/{id}": {
             "get": {
                 "security": [
@@ -15270,7 +15320,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "category": {
-                    "$ref": "#/definitions/models.Category"
+                    "maxLength": 64,
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Category"
+                        }
+                    ]
                 },
                 "currentValue": {
                     "type": "number"
@@ -15584,7 +15639,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "category": {
-                    "$ref": "#/definitions/models.Category"
+                    "maxLength": 64,
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Category"
+                        }
+                    ]
                 },
                 "currentValue": {
                     "type": "number"
@@ -16089,6 +16149,37 @@ const docTemplate = `{
                 "rawAnalysis": {
                     "type": "string",
                     "example": "Vision analysis text..."
+                }
+            }
+        },
+        "handlers.MatchCategoryEraRequest": {
+            "type": "object",
+            "required": [
+                "type",
+                "value"
+            ],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "category",
+                        "era"
+                    ]
+                },
+                "value": {
+                    "type": "string",
+                    "maxLength": 200
+                }
+            }
+        },
+        "handlers.MatchCategoryEraResponse": {
+            "type": "object",
+            "properties": {
+                "match": {
+                    "type": "string"
+                },
+                "matched": {
+                    "type": "boolean"
                 }
             }
         },
@@ -17846,7 +17937,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "category": {
-                    "$ref": "#/definitions/models.Category"
+                    "maxLength": 64,
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Category"
+                        }
+                    ]
                 },
                 "createdAt": {
                     "type": "string"

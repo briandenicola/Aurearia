@@ -73,11 +73,15 @@
           class="rule-input"
           @change="emitCriteria"
         >
-          <option value="Roman">Roman</option>
-          <option value="Greek">Greek</option>
-          <option value="Byzantine">Byzantine</option>
-          <option value="Modern">Modern</option>
-          <option value="Other">Other</option>
+          <option v-for="cat in categoryOptions" :key="cat" :value="cat">{{ cat }}</option>
+        </select>
+        <select
+          v-else-if="rule.field === 'era'"
+          v-model="rule.value"
+          class="rule-input"
+          @change="emitCriteria"
+        >
+          <option v-for="era in eraOptions" :key="era" :value="era">{{ era }}</option>
         </select>
         <select
           v-else-if="rule.field === 'mint' && (rule.op === 'eq' || rule.op === 'neq')"
@@ -205,6 +209,7 @@ import {
   getMintLocations,
   type MintLocationsResponse,
 } from '@/api/client'
+import { useCoinOptions } from '@/composables/useCoinOptions'
 import type {
   SmartCriteriaGroup,
   SmartCriteriaRule,
@@ -218,6 +223,7 @@ import type {
 function unwrapMintLocations(data: MintLocationsResponse): MintLocation[] {
   return Array.isArray(data) ? data : data.mintLocations ?? []
 }
+const { categoryOptions, eraOptions, loadOptions: loadCoinOptions } = useCoinOptions()
 
 const emit = defineEmits<{
   update: [criteria: SmartCriteriaGroup]
@@ -257,7 +263,11 @@ const globalMintLocations = computed(() => mintLocations.value.filter((m) => m.u
 // ---- lifecycle ----
 onMounted(async () => {
   try {
-    const [suggestRes, tmplRes] = await Promise.all([getSuggestedCriteria(), listCriteriaTemplates()])
+    const [suggestRes, tmplRes] = await Promise.all([
+      getSuggestedCriteria(),
+      listCriteriaTemplates(),
+      loadCoinOptions(),
+    ])
     suggestions.value = suggestRes.data.suggestions
     savedTemplates.value = tmplRes.data.templates
   } catch {
@@ -571,4 +581,3 @@ async function saveTemplate() {
   align-items: center;
 }
 </style>
-
