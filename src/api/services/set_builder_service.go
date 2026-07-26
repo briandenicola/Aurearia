@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -17,6 +18,9 @@ const (
 	maxSetProposalNameLength  = 80
 	maxSetProposalSlots       = 500
 	defaultProposalExpiry     = 7 * 24 * time.Hour
+	setBuilderQueueSize       = 100
+	setBuilderRunTimeout      = 10 * time.Minute
+	setBuilderStaleTimeout    = 30 * time.Minute
 )
 
 const (
@@ -39,11 +43,20 @@ var (
 	ErrSetProposalVerificationStatus = errors.New("set proposal slot verification status is invalid")
 )
 
+type SetBuilderAgent interface {
+	RunSetBuilder(ctx context.Context, req SetBuilderProxyRequest) (*SetBuilderProxyResponse, error)
+}
+
 // SetBuilderService coordinates Agentic set proposal lifecycle outside of AI inference.
 type SetBuilderService struct {
-	repo      *repository.SetBuilderRepository
-	notifRepo *repository.NotificationRepository
-	now       func() time.Time
+	repo        *repository.SetBuilderRepository
+	notifRepo   *repository.NotificationRepository
+	agent       SetBuilderAgent
+	settingsSvc *SettingsService
+	agentRepo   *repository.AgentRepository
+	logger      *Logger
+	queue       chan uint
+	now         func() time.Time
 }
 
 // NewSetBuilderService creates a SetBuilderService.
@@ -51,8 +64,18 @@ func NewSetBuilderService(repo *repository.SetBuilderRepository, notifRepo *repo
 	return &SetBuilderService{
 		repo:      repo,
 		notifRepo: notifRepo,
+		queue:     make(chan uint, setBuilderQueueSize),
 		now:       time.Now,
 	}
+}
+
+// WithWorkflow enables asynchronous Python workflow execution for queued runs.
+func (s *SetBuilderService) WithWorkflow(agent SetBuilderAgent, settingsSvc *SettingsService, agentRepo *repository.AgentRepository, logger *Logger) *SetBuilderService {
+	s.agent = agent
+	s.settingsSvc = settingsSvc
+	s.agentRepo = agentRepo
+	s.logger = logger
+	return s
 }
 
 type SetBuilderRunRequest struct {
@@ -105,7 +128,165 @@ func (s *SetBuilderService) CreateRun(userID uint, request SetBuilderRunRequest)
 	if err := s.repo.CreateRun(run); err != nil {
 		return nil, err
 	}
+	s.enqueueRunID(run.ID)
 	return run, nil
+}
+
+func (s *SetBuilderService) StartWorkers(workerCount int) {
+	if workerCount < 1 {
+		workerCount = 1
+	}
+	if ids, err := s.repo.RecoverStaleRuns(setBuilderStaleTimeout); err == nil {
+		for _, id := range ids {
+			s.enqueueRunID(id)
+		}
+	} else if s.logger != nil {
+		s.logger.Warn("set-builder", "Failed to recover stale set builder runs: %v", err)
+	}
+	for i := 0; i < workerCount; i++ {
+		go s.worker()
+	}
+}
+
+func (s *SetBuilderService) enqueueRunID(runID uint) {
+	if s.agent == nil || s.settingsSvc == nil {
+		return
+	}
+	select {
+	case s.queue <- runID:
+	default:
+		go func() { s.queue <- runID }()
+	}
+}
+
+func (s *SetBuilderService) worker() {
+	for runID := range s.queue {
+		s.processRun(runID)
+	}
+}
+
+func (s *SetBuilderService) processRun(runID uint) {
+	run, claimed, err := s.repo.ClaimQueuedRun(runID, s.now())
+	if err != nil {
+		s.logError("Failed to claim set builder run %d: %v", runID, err)
+		return
+	}
+	if !claimed {
+		return
+	}
+
+	if err := s.processClaimedRun(run); err != nil {
+		s.logError("Set builder run %d failed: %v", run.ID, err)
+		if failErr := s.repo.FailRun(run.ID, run.UserID, s.now(), err.Error(), "go_worker"); failErr != nil {
+			s.logError("Failed to persist set builder run %d failure: %v", run.ID, failErr)
+		}
+		s.notifyRunFailed(run, err.Error())
+	}
+}
+
+func (s *SetBuilderService) processClaimedRun(run *models.SetBuilderRun) error {
+	if s.agent == nil {
+		return errors.New("set builder agent workflow is not configured")
+	}
+	if s.settingsSvc == nil {
+		return errors.New("set builder settings service is not configured")
+	}
+	llmCfg, err := s.settingsSvc.ResolveLLMConfig()
+	if err != nil {
+		return err
+	}
+	collection, err := s.collectionSummary(run.UserID)
+	if err != nil {
+		return err
+	}
+	maxTurns := 4
+	if run.MaxTurns != nil && *run.MaxTurns > 0 {
+		maxTurns = *run.MaxTurns
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), setBuilderRunTimeout)
+	defer cancel()
+	result, err := s.agent.RunSetBuilder(ctx, SetBuilderProxyRequest{
+		LLM:                  llmCfg,
+		User:                 UserContextProxy{UserID: run.UserID},
+		Prompt:               run.Prompt,
+		Collection:           collection,
+		MaxTurns:             maxTurns,
+		MaxSlots:             maxSetProposalSlots,
+		EnableExternalLookup: true,
+	})
+	if err != nil {
+		return err
+	}
+	if result == nil {
+		return errors.New("set builder returned no response")
+	}
+	if result.Status != "completed" {
+		return fmt.Errorf("set builder workflow %s: %s", result.Status, setBuilderFailureMessage(result))
+	}
+	if result.Proposal == nil || len(result.Proposal.Slots) == 0 {
+		return errors.New("set builder completed without proposal slots")
+	}
+	usedTurns := result.TurnsUsed
+	if err := s.repo.CompleteRun(run.ID, run.UserID, s.now(), strings.TrimSpace(result.TranscriptSummary), &usedTurns, nil); err != nil {
+		return err
+	}
+	_, err = s.CreateProposalFromWorkflow(run.UserID, run.ID, s.workflowDraft(run.UserID, run.Prompt, result))
+	return err
+}
+
+func (s *SetBuilderService) collectionSummary(userID uint) (*PortfolioData, error) {
+	if s.agentRepo == nil {
+		return nil, nil
+	}
+	summary, err := s.agentRepo.GetPortfolioSummary(userID)
+	if err != nil {
+		return nil, err
+	}
+	return portfolioDataFromSummary(summary), nil
+}
+
+func (s *SetBuilderService) workflowDraft(userID uint, prompt string, result *SetBuilderProxyResponse) SetProposalDraft {
+	proposal := result.Proposal
+	scopeOptions := models.JSONObject{
+		"scopeSummary": proposal.ScopeSummary,
+		"groupBy":      proposal.GroupBy,
+		"options":      proposal.ScopeOptions,
+	}
+	prematch := models.JSONObject{
+		"estimatedFilled": proposal.PrematchSummary.EstimatedFilled,
+		"estimatedTotal":  proposal.PrematchSummary.EstimatedTotal,
+		"notes":           proposal.PrematchSummary.Notes,
+	}
+	roster := models.JSONObject{
+		"status":            result.Status,
+		"transcriptSummary": result.TranscriptSummary,
+		"turnsUsed":         result.TurnsUsed,
+	}
+	slots := make([]SetProposalSlotDraft, 0, len(proposal.Slots))
+	for _, slot := range proposal.Slots {
+		criteria := stringMapToJSONObject(slot.Criteria)
+		slots = append(slots, SetProposalSlotDraft{
+			Label:              slot.Label,
+			Criteria:           criteria,
+			GroupName:          slot.Group,
+			SortOrder:          slot.SortOrder,
+			VerificationStatus: models.ProposalSlotVerificationStatus(slot.VerificationStatus),
+			SourceNote:         slot.SourceNote,
+			ValidationNote:     slot.ValidationNotes,
+		})
+	}
+	return SetProposalDraft{
+		OriginalPrompt:  prompt,
+		ProposedName:    proposal.Name,
+		ProposedSlug:    proposal.SlugHint,
+		Description:     proposal.Description,
+		Color:           DefaultSetColor(userID, proposal.Name, int64(len(proposal.Slots))),
+		SelectedScope:   proposal.SelectedScope,
+		ScopeOptions:    &scopeOptions,
+		RosterPayload:   &roster,
+		PreMatchSummary: &prematch,
+		Slots:           slots,
+	}
 }
 
 // FindPendingProposalByPrompt locates an existing unexpired pending proposal for duplicate prompt submissions.
@@ -245,6 +426,30 @@ func (s *SetBuilderService) notifyProposalReady(proposal *models.SetProposal) er
 	})
 }
 
+func (s *SetBuilderService) notifyRunFailed(run *models.SetBuilderRun, reason string) {
+	if s.notifRepo == nil {
+		return
+	}
+	message := "Agentic set proposal generation failed. Please check AI provider configuration and try again."
+	if reason != "" {
+		message = "Agentic set proposal generation failed. Please review the prompt or AI provider configuration and try again."
+	}
+	_ = s.notifRepo.Create(&models.Notification{
+		UserID:       run.UserID,
+		Type:         "agentic_set_proposal_failed",
+		Title:        "Agentic set proposal failed",
+		Message:      message,
+		ReferenceID:  run.ID,
+		ReferenceURL: "/sets",
+	})
+}
+
+func (s *SetBuilderService) logError(format string, args ...interface{}) {
+	if s.logger != nil {
+		s.logger.Error("set-builder", format, args...)
+	}
+}
+
 func normalizeSetBuilderPrompt(prompt string) (string, error) {
 	normalized := strings.TrimSpace(prompt)
 	if normalized == "" {
@@ -260,4 +465,73 @@ func setBuilderPromptKey(prompt string) string {
 	normalized := strings.ToLower(strings.Join(strings.Fields(prompt), " "))
 	sum := sha256.Sum256([]byte(normalized))
 	return hex.EncodeToString(sum[:])
+}
+
+func setBuilderFailureMessage(result *SetBuilderProxyResponse) string {
+	if result.FailureReason != "" {
+		return result.FailureReason
+	}
+	if result.ClarificationQuestion != "" {
+		return result.ClarificationQuestion
+	}
+	return "no completed proposal was produced"
+}
+
+func stringMapToJSONObject(values map[string]string) *models.JSONObject {
+	if len(values) == 0 {
+		return nil
+	}
+	out := models.JSONObject{}
+	for key, value := range values {
+		out[key] = value
+	}
+	return &out
+}
+
+func portfolioDataFromSummary(s *repository.PortfolioSummary) *PortfolioData {
+	if s == nil {
+		return nil
+	}
+	cats := make(map[string]int, len(s.Categories))
+	for _, c := range s.Categories {
+		cats[c.Category] = c.Count
+	}
+	mats := make(map[string]int, len(s.Materials))
+	for _, m := range s.Materials {
+		mats[m.Material] = m.Count
+	}
+	eras := make([]map[string]any, 0, len(s.Eras))
+	for _, e := range s.Eras {
+		eras = append(eras, map[string]any{"name": e.Era, "count": e.Count})
+	}
+	rulers := make([]map[string]any, 0, len(s.Rulers))
+	for _, r := range s.Rulers {
+		rulers = append(rulers, map[string]any{"name": r.Ruler, "count": r.Count})
+	}
+	coins := make([]PortfolioCoinProxy, 0, len(s.TopCoins))
+	for _, tc := range s.TopCoins {
+		var cv float64
+		if tc.CurrentValue != nil {
+			cv = *tc.CurrentValue
+		}
+		coins = append(coins, PortfolioCoinProxy{
+			Name:         tc.Name,
+			Category:     tc.Category,
+			Era:          string(tc.Era),
+			Ruler:        tc.Ruler,
+			Grade:        tc.Grade,
+			CurrentValue: cv,
+		})
+	}
+	return &PortfolioData{
+		TotalCoins:    int(s.TotalCoins),
+		TotalValue:    s.TotalValue,
+		TotalInvested: s.TotalInvested,
+		Categories:    cats,
+		Materials:     mats,
+		Eras:          eras,
+		Rulers:        rulers,
+		TopCoins:      coins,
+		MissingFields: s.MissingFields,
+	}
 }

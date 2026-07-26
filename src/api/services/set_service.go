@@ -208,7 +208,7 @@ func (s *SetService) CreateSet(userID uint, input map[string]interface{}) (*mode
 	// Create the set
 	color := getStringValue(input, "color")
 	if color == "" {
-		color = defaultSetColor(userID, name, count)
+		color = DefaultSetColor(userID, name, count)
 	}
 	set := &models.CoinSet{
 		UserID:        userID,
@@ -665,10 +665,14 @@ var setColorPalette = []string{
 	"#8b5cf6",
 }
 
-func defaultSetColor(userID uint, name string, existingSetCount int64) string {
+func DefaultSetColor(userID uint, name string, existingSetCount int64) string {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(fmt.Sprintf("%d:%s:%d", userID, strings.ToLower(strings.TrimSpace(name)), existingSetCount)))
 	return setColorPalette[int(h.Sum32())%len(setColorPalette)]
+}
+
+func defaultSetColor(userID uint, name string, existingSetCount int64) string {
+	return DefaultSetColor(userID, name, existingSetCount)
 }
 
 func agenticInitialStatus(setType models.CoinSetType) string {

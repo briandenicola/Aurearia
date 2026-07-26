@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -17,13 +18,26 @@ func setupSetBuilderServiceTest(t *testing.T) (*SetBuilderService, *gorm.DB) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.SetBuilderRun{}, &models.SetProposal{}, &models.ProposalSlot{}, &models.Notification{}, &models.CoinSet{}, &models.CoinSetTarget{}); err != nil {
+	if err := db.AutoMigrate(&models.AppSetting{}, &models.Coin{}, &models.SetBuilderRun{}, &models.SetProposal{}, &models.ProposalSlot{}, &models.Notification{}, &models.CoinSet{}, &models.CoinSetTarget{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	svc := NewSetBuilderService(repository.NewSetBuilderRepository(db), repository.NewNotificationRepository(db))
 	fixedNow := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
 	svc.now = func() time.Time { return fixedNow }
 	return svc, db
+}
+
+type fakeSetBuilderAgent struct {
+	response *SetBuilderProxyResponse
+	err      error
+	request  SetBuilderProxyRequest
+	calls    int
+}
+
+func (f *fakeSetBuilderAgent) RunSetBuilder(ctx context.Context, req SetBuilderProxyRequest) (*SetBuilderProxyResponse, error) {
+	f.calls++
+	f.request = req
+	return f.response, f.err
 }
 
 func TestSetBuilderServiceCreateRunValidatesPrompt(t *testing.T) {
@@ -166,5 +180,119 @@ func TestSetBuilderServiceRejectProposalIsOwnerScoped(t *testing.T) {
 	}
 	if found.Status != models.SetProposalStatusRejected || found.RejectionReason != "Too broad" {
 		t.Fatalf("unexpected rejected proposal: %#v", found)
+	}
+}
+
+func TestSetBuilderServiceProcessRunCallsPythonAndPersistsProposal(t *testing.T) {
+	svc, db := setupSetBuilderServiceTest(t)
+	if err := db.Create(&models.AppSetting{Key: SettingAIProvider, Value: "ollama"}).Error; err != nil {
+		t.Fatalf("seed provider: %v", err)
+	}
+	if err := db.Create(&models.Coin{UserID: 1, Name: "1940 Washington Quarter", Category: "Modern", Denomination: "Quarter", Material: "Silver"}).Error; err != nil {
+		t.Fatalf("seed coin: %v", err)
+	}
+	agent := &fakeSetBuilderAgent{response: &SetBuilderProxyResponse{
+		Status:            "completed",
+		TranscriptSummary: "Intent Analyst, Roster Researcher, Collection Matcher, and Validator agreed on a date set.",
+		TurnsUsed:         4,
+		Proposal: &SetBuilderProposalProxy{
+			Name:          "US Silver Quarters 1940-1964",
+			SlugHint:      "us-silver-quarters-1940-1964",
+			Description:   "A date run of US silver Washington quarters.",
+			SelectedScope: "Date set",
+			ScopeOptions:  []SetBuilderScopeOptionProxy{{Label: "1940-1964", EstimatedSlotCount: 25, Recommended: true}},
+			Slots: []SetBuilderSlotProxy{
+				{
+					Label:              "1940 US Silver Quarter",
+					Criteria:           map[string]string{"year": "1940", "denomination": "Quarter"},
+					Group:              "1940s",
+					SortOrder:          1,
+					VerificationStatus: "verified",
+					SourceNote:         "Washington quarter date in requested range",
+				},
+			},
+			PrematchSummary: SetBuilderPrematchSummaryProxy{EstimatedFilled: 1, EstimatedTotal: 25, Notes: "One likely collection match."},
+		},
+	}}
+	svc.WithWorkflow(agent, NewSettingsService(repository.NewSettingsRepository(db)), repository.NewAgentRepository(db), NewLogger(100))
+	run, err := svc.CreateRun(1, SetBuilderRunRequest{Prompt: "All US silver quarters from 1940s to 1960s"})
+	if err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+
+	svc.processRun(run.ID)
+
+	if agent.calls != 1 {
+		t.Fatalf("expected one Python workflow call, got %d", agent.calls)
+	}
+	if agent.request.Prompt != run.Prompt || agent.request.Collection == nil || agent.request.Collection.TotalCoins != 1 {
+		t.Fatalf("unexpected Python request: %#v", agent.request)
+	}
+	var persistedRun models.SetBuilderRun
+	if err := db.First(&persistedRun, run.ID).Error; err != nil {
+		t.Fatalf("load run: %v", err)
+	}
+	if persistedRun.Status != models.SetBuilderRunStatusCompleted || persistedRun.UsedTurns == nil || *persistedRun.UsedTurns != 4 {
+		t.Fatalf("run was not completed with workflow metadata: %#v", persistedRun)
+	}
+	var proposal models.SetProposal
+	if err := db.Preload("Slots").Where("builder_run_id = ?", run.ID).First(&proposal).Error; err != nil {
+		t.Fatalf("proposal missing: %v", err)
+	}
+	if proposal.Status != models.SetProposalStatusPending || len(proposal.Slots) != 1 {
+		t.Fatalf("unexpected proposal: %#v", proposal)
+	}
+	if proposal.Slots[0].Criteria == nil || (*proposal.Slots[0].Criteria)["year"] != "1940" {
+		t.Fatalf("slot criteria not persisted from Python response: %#v", proposal.Slots[0])
+	}
+	var setCount int64
+	if err := db.Model(&models.CoinSet{}).Count(&setCount).Error; err != nil {
+		t.Fatalf("count sets: %v", err)
+	}
+	if setCount != 0 {
+		t.Fatalf("worker must not create a set before human approval, got %d", setCount)
+	}
+	var notification models.Notification
+	if err := db.Where("type = ?", NotificationTypeAgenticSetProposalReady).First(&notification).Error; err != nil {
+		t.Fatalf("proposal-ready notification missing: %v", err)
+	}
+}
+
+func TestSetBuilderServiceProcessRunFailsVisibleWhenPythonNeedsClarification(t *testing.T) {
+	svc, db := setupSetBuilderServiceTest(t)
+	if err := db.Create(&models.AppSetting{Key: SettingAIProvider, Value: "ollama"}).Error; err != nil {
+		t.Fatalf("seed provider: %v", err)
+	}
+	agent := &fakeSetBuilderAgent{response: &SetBuilderProxyResponse{
+		Status:                "clarification_needed",
+		ClarificationQuestion: "Which country or denomination should this cover?",
+		TranscriptSummary:     "Intent Analyst found the prompt too broad.",
+		TurnsUsed:             1,
+	}}
+	svc.WithWorkflow(agent, NewSettingsService(repository.NewSettingsRepository(db)), repository.NewAgentRepository(db), NewLogger(100))
+	run, err := svc.CreateRun(1, SetBuilderRunRequest{Prompt: "All coins"})
+	if err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+
+	svc.processRun(run.ID)
+
+	var persistedRun models.SetBuilderRun
+	if err := db.First(&persistedRun, run.ID).Error; err != nil {
+		t.Fatalf("load run: %v", err)
+	}
+	if persistedRun.Status != models.SetBuilderRunStatusFailed || persistedRun.ErrorMessage == "" {
+		t.Fatalf("run should fail visibly, got %#v", persistedRun)
+	}
+	var proposalCount int64
+	if err := db.Model(&models.SetProposal{}).Count(&proposalCount).Error; err != nil {
+		t.Fatalf("count proposals: %v", err)
+	}
+	if proposalCount != 0 {
+		t.Fatalf("clarification response must not create proposal, got %d", proposalCount)
+	}
+	var notification models.Notification
+	if err := db.Where("type = ?", "agentic_set_proposal_failed").First(&notification).Error; err != nil {
+		t.Fatalf("failure notification missing: %v", err)
 	}
 }
