@@ -16,6 +16,7 @@ from app.models.requests import (
     GradeRequest,
     IntakeDraftRequest,
     PortfolioReviewRequest,
+    SetBuilderRequest,
 )
 from app.models.responses import (
     AgentResponse,
@@ -25,6 +26,7 @@ from app.models.responses import (
     GradeResponse,
     IntakeDraftResponse,
     MarketSignalResponse,
+    SetBuilderResponse,
 )
 from app.streaming import stream_graph_events
 from app.supervisor import create_supervisor
@@ -42,6 +44,7 @@ from app.teams.coin_analysis import create_coin_analysis_team
 from app.teams.coin_grading import create_coin_grading_team
 from app.teams.coin_intake import generate_intake_draft
 from app.teams.coin_search import discover_alert_candidates
+from app.teams.set_builder import run_set_builder_workflow
 
 logger = logging.getLogger(__name__)
 
@@ -334,3 +337,24 @@ async def bid_market_signal(request: BidMarketSignalRequest):
     except MarketSignalParseError:
         logger.error("Bid market signal parse failure. Raw snippet=%r", raw[:300])
         return MarketSignalResponse(degraded=True, rationale="Market search returned data in an unexpected format.")
+
+
+# Dynamic Set Builder workflow route anchor:
+# specs/011-dynamic-set-builder-correction-plan.md (Phase 2)
+@router.post("/set-builder/run", response_model=SetBuilderResponse)
+async def set_builder_run(request: SetBuilderRequest):
+    """Run the multi-agent set-builder workflow. Stateless; returns structured
+    proposal data only — never creates or modifies a set, slot, or coin.
+    """
+    logger.info(
+        "POST /set-builder/run — provider=%s, model=%s, user_id=%s, prompt=%.80s, "
+        "max_turns=%d, max_slots=%d, external_lookup=%s",
+        request.llm.provider,
+        request.llm.model,
+        request.user.user_id,
+        request.prompt,
+        request.max_turns,
+        request.max_slots,
+        request.enable_external_lookup,
+    )
+    return await run_set_builder_workflow(request)
