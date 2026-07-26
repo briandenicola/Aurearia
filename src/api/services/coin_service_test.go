@@ -798,6 +798,71 @@ func TestUpdateCoin_RejectsUnsupportedEraWhenCatalogRegistryEnabled(t *testing.T
 	}
 }
 
+func TestUpdateCoin_AcceptsAdminConfiguredCategory(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinServiceWithSettings(db)
+	settingsRepo := repository.NewSettingsRepository(db)
+	if err := settingsRepo.Upsert(SettingCoinCategories, "Roman\nGreek\nByzantine\nModern\nOther\nCeltic"); err != nil {
+		t.Fatalf("failed to seed coin categories setting: %v", err)
+	}
+
+	coin := &models.Coin{Name: "Celtic Stater", UserID: 1, Category: models.CategoryOther}
+	if err := svc.CreateCoin(coin); err != nil {
+		t.Fatalf("setup: CreateCoin failed: %v", err)
+	}
+
+	updates := &models.Coin{Category: models.Category("Celtic")}
+	if err := svc.UpdateCoin(coin, updates, 1, "manual"); err != nil {
+		t.Fatalf("UpdateCoin should accept admin-configured category: %v", err)
+	}
+
+	var found models.Coin
+	if err := db.First(&found, coin.ID).Error; err != nil {
+		t.Fatalf("coin not found: %v", err)
+	}
+	if found.Category != models.Category("Celtic") {
+		t.Fatalf("expected category Celtic, got %q", found.Category)
+	}
+}
+
+func TestUpdateCoin_RejectsUnsupportedCategory(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinServiceWithSettings(db)
+
+	coin := &models.Coin{Name: "Test Coin", UserID: 1, Category: models.CategoryOther}
+	if err := svc.CreateCoin(coin); err != nil {
+		t.Fatalf("setup: CreateCoin failed: %v", err)
+	}
+
+	updates := &models.Coin{Category: models.Category("Not A Real Category")}
+	if err := svc.UpdateCoin(coin, updates, 1, "manual"); !errors.Is(err, ErrCoinInvalidCategory) {
+		t.Fatalf("expected ErrCoinInvalidCategory, got %v", err)
+	}
+}
+
+func TestUpdateCoin_AcceptsBuiltInCategoryEvenIfRemovedFromSetting(t *testing.T) {
+	db := setupTestDB(t)
+	svc := newTestCoinServiceWithSettings(db)
+	settingsRepo := repository.NewSettingsRepository(db)
+	// Admin has edited CoinCategories to no longer list "Roman" - Emperor
+	// Tracker's dependency on that literal value must still be honored via
+	// the built-in baseline, exactly mirroring how a built-in era remains
+	// valid even if removed from CoinEras.
+	if err := settingsRepo.Upsert(SettingCoinCategories, "Greek\nByzantine\nModern\nOther"); err != nil {
+		t.Fatalf("failed to seed coin categories setting: %v", err)
+	}
+
+	coin := &models.Coin{Name: "Denarius", UserID: 1, Category: models.CategoryOther}
+	if err := svc.CreateCoin(coin); err != nil {
+		t.Fatalf("setup: CreateCoin failed: %v", err)
+	}
+
+	updates := &models.Coin{Category: models.CategoryRoman}
+	if err := svc.UpdateCoin(coin, updates, 1, "manual"); err != nil {
+		t.Fatalf("UpdateCoin should accept built-in category Roman regardless of setting contents: %v", err)
+	}
+}
+
 func TestUpdateCoin_PreservesUnchangedLegacyEra(t *testing.T) {
 	db := setupTestDB(t)
 	svc := newTestCoinServiceWithCatalogRegistry(db)

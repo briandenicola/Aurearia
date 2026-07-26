@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { CoinSuggestion } from '@/types'
-import { buildWishlistCoinPayload, normalizeSuggestionEra } from '../useCoinSearchChat'
+import { buildWishlistCoinPayload, normalizeSuggestionEra, resolveCategoryAndEra } from '../useCoinSearchChat'
+
+const mockMatchCategoryEra = vi.fn()
+vi.mock('@/api/client', () => ({
+  matchCategoryEra: (type: 'category' | 'era', value: string) => mockMatchCategoryEra(type, value),
+}))
 
 function makeSuggestion(overrides: Partial<CoinSuggestion> = {}): CoinSuggestion {
   return {
@@ -98,5 +103,79 @@ describe('useCoinSearchChat wishlist payload', () => {
     expect(payload.ruler).toHaveLength(200)
     expect(payload.referenceUrl).toHaveLength(2000)
     expect(payload.referenceText).toHaveLength(2000)
+  })
+})
+
+describe('resolveCategoryAndEra', () => {
+  const categoryOptions = ['Roman', 'Greek', 'Byzantine', 'Modern', 'Other', 'Celtic']
+  const eraOptions = ['ancient', 'medieval', 'modern']
+
+  it('resolves an exact match without calling the backend or asking the user', async () => {
+    const requestConfirmation = vi.fn()
+    const result = await resolveCategoryAndEra(
+      makeSuggestion({ category: 'roman', era: 'ancient' }),
+      categoryOptions,
+      eraOptions,
+      requestConfirmation,
+    )
+    expect(result).toEqual({ category: 'Roman', era: 'ancient' })
+    expect(mockMatchCategoryEra).not.toHaveBeenCalled()
+    expect(requestConfirmation).not.toHaveBeenCalled()
+  })
+
+  it('short-circuits era via the existing keyword heuristic when it lands on a known era', async () => {
+    const requestConfirmation = vi.fn()
+    mockMatchCategoryEra.mockResolvedValue({ data: { matched: false, match: '' } })
+    const result = await resolveCategoryAndEra(
+      makeSuggestion({ category: 'Roman', era: 'Byzantine' }),
+      categoryOptions,
+      eraOptions,
+      requestConfirmation,
+    )
+    expect(result).toEqual({ category: 'Roman', era: 'medieval' })
+    expect(mockMatchCategoryEra).not.toHaveBeenCalledWith('era', expect.anything())
+  })
+
+  it('falls back to the backend fuzzy matcher for a near-miss category', async () => {
+    mockMatchCategoryEra.mockResolvedValue({ data: { matched: true, match: 'Roman' } })
+    const requestConfirmation = vi.fn()
+    const result = await resolveCategoryAndEra(
+      makeSuggestion({ category: 'Roman Republic', era: 'ancient' }),
+      categoryOptions,
+      eraOptions,
+      requestConfirmation,
+    )
+    expect(result).toEqual({ category: 'Roman', era: 'ancient' })
+    expect(mockMatchCategoryEra).toHaveBeenCalledWith('category', 'Roman Republic')
+    expect(requestConfirmation).not.toHaveBeenCalled()
+  })
+
+  it('asks the user to confirm when nothing matches confidently', async () => {
+    mockMatchCategoryEra.mockResolvedValue({ data: { matched: false, match: '' } })
+    const requestConfirmation = vi.fn().mockResolvedValue('Celtic')
+    const result = await resolveCategoryAndEra(
+      makeSuggestion({ category: 'Gaulish', era: 'ancient' }),
+      categoryOptions,
+      eraOptions,
+      requestConfirmation,
+    )
+    expect(result).toEqual({ category: 'Celtic', era: 'ancient' })
+    expect(requestConfirmation).toHaveBeenCalledWith({
+      fieldLabel: 'Category',
+      suggestedValue: 'Gaulish',
+      options: categoryOptions,
+    })
+  })
+
+  it('returns null (never creates the coin) if the user cancels confirmation', async () => {
+    mockMatchCategoryEra.mockResolvedValue({ data: { matched: false, match: '' } })
+    const requestConfirmation = vi.fn().mockResolvedValue(null)
+    const result = await resolveCategoryAndEra(
+      makeSuggestion({ category: 'Gaulish', era: 'ancient' }),
+      categoryOptions,
+      eraOptions,
+      requestConfirmation,
+    )
+    expect(result).toBeNull()
   })
 })

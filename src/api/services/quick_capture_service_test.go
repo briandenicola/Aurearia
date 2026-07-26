@@ -26,7 +26,7 @@ func newQuickCaptureServiceAndDBForTest(t *testing.T, uploadDir string) (*QuickC
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.ValueSnapshot{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.ValueSnapshot{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}, &models.AppSetting{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return NewQuickCaptureService(repository.NewQuickCaptureRepository(db), uploadDir), db
@@ -451,6 +451,71 @@ func validQuickCapturePNG() []byte {
 		0x00, 0x03, 0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D,
 		0xB0, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,
 		0x44, 0xAE, 0x42, 0x60, 0x82,
+	}
+}
+
+func TestQuickCaptureServicePromoteDraft_AcceptsAdminConfiguredEraAndCategoryWhenCoinValidationWired(t *testing.T) {
+	svc, db := newQuickCaptureServiceAndDBForTest(t, t.TempDir())
+
+	settingsRepo := repository.NewSettingsRepository(db)
+	if err := settingsRepo.Upsert(SettingCoinEras, "Roman Provincial Year 12"); err != nil {
+		t.Fatalf("seed coin eras setting: %v", err)
+	}
+	if err := settingsRepo.Upsert(SettingCoinCategories, "Roman\nGreek\nByzantine\nModern\nOther\nCeltic"); err != nil {
+		t.Fatalf("seed coin categories setting: %v", err)
+	}
+	coinSvc := NewCoinService(repository.NewCoinRepository(db), nil).WithSettingsSupport(NewSettingsService(settingsRepo))
+	svc = svc.WithCoinValidation(coinSvc)
+
+	stringPtr := func(value string) *string { return &value }
+	draft, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID:       1,
+		WorkingTitle: "Provincial bronze",
+		Era:          "Roman Provincial Year 12",
+	})
+	if err != nil {
+		t.Fatalf("create draft: %v", err)
+	}
+
+	result, err := svc.PromoteDraft(1, draft.ID, PromoteDraftInput{
+		Confirm:   true,
+		Overrides: PromoteOverrides{Category: stringPtr("Celtic")},
+	})
+	if err != nil {
+		t.Fatalf("expected promotion to accept admin-configured era/category, got %v", err)
+	}
+
+	var coin models.Coin
+	if err := db.First(&coin, result.CoinID).Error; err != nil {
+		t.Fatalf("load promoted coin: %v", err)
+	}
+	if coin.Era != models.Era("Roman Provincial Year 12") {
+		t.Fatalf("expected custom era to persist, got %q", coin.Era)
+	}
+	if coin.Category != models.Category("Celtic") {
+		t.Fatalf("expected custom category to persist, got %q", coin.Category)
+	}
+}
+
+func TestQuickCaptureServicePromoteDraft_RejectsCustomEraWithoutCoinValidationWired(t *testing.T) {
+	// Baseline: when no CoinService is wired (WithCoinValidation not called),
+	// promotion falls back to built-in defaults only - never laxer than
+	// today's behavior, even though it can't consult admin settings.
+	svc, _ := newQuickCaptureServiceAndDBForTest(t, t.TempDir())
+
+	draft, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID:       1,
+		WorkingTitle: "Provincial bronze",
+		Era:          "Roman Provincial Year 12",
+	})
+	if err != nil {
+		t.Fatalf("create draft: %v", err)
+	}
+
+	_, err = svc.PromoteDraft(1, draft.ID, PromoteDraftInput{Confirm: true})
+	var validationErr *QuickCapturePromotionValidationError
+	if !errors.As(err, &validationErr) || validationErr.Fields["era"] == "" {
+		t.Fatalf("expected field-level era validation without coin validation wired, got %v", err)
 	}
 }
 

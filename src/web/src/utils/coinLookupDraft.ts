@@ -259,9 +259,15 @@ export function normalizeLookupDraft(lookup: CoinLookupResponse): CoinMutationPa
   return draft
 }
 
-export function normalizedEra(value: unknown): 'ancient' | 'medieval' | 'modern' | undefined {
+/**
+ * Normalizes a free-text era value for a Quick Capture draft. Accepts any
+ * non-empty era string, not just the three legacy defaults - custom
+ * admin-defined eras are validated server-side at promotion time (see
+ * CoinService.validateCoinEra), so trimming them here would only ever
+ * discard a value the backend would otherwise have accepted.
+ */
+export function normalizedEra(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
-  const normalized = value.trim().toLowerCase()
-  if (normalized === 'ancient' || normalized === 'medieval' || normalized === 'modern') return normalized
-  return undefined
+  const trimmed = value.trim()
+  return trimmed === '' ? undefined : trimmed
 }

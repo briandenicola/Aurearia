@@ -18,7 +18,7 @@ func setupCollectionToolsServiceTest(t *testing.T) (*CollectionToolsService, uin
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.AppSetting{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 
@@ -123,4 +123,60 @@ func containsMissingField(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func TestSearchMyCollection_MatchesModernEra(t *testing.T) {
+	service, userID := setupCollectionToolsServiceTest(t)
+
+	coinRepo := service.coinRepo
+	coins := []models.Coin{
+		{Name: "Modern Follis", UserID: userID, Category: models.CategoryModern, Era: models.EraModern},
+		{Name: "Ancient Denarius", UserID: userID, Category: models.CategoryRoman, Era: models.EraAncient},
+	}
+	for i := range coins {
+		if err := coinRepo.Create(&coins[i]); err != nil {
+			t.Fatalf("failed to create coin: %v", err)
+		}
+	}
+
+	// The full query text is also matched as a substring search against the
+	// coin name (an existing, unrelated behavior of this tool), so the query
+	// is kept to a single word that both names the era and appears in the
+	// name of the coin it should match.
+	results, err := service.SearchMyCollection(userID, "modern", nil)
+	if err != nil {
+		t.Fatalf("search failed: %v", err)
+	}
+	if len(results) != 1 || results[0].Name != "Modern Follis" {
+		t.Fatalf("expected only the modern-era coin to match, got %+v", results)
+	}
+}
+
+func TestSearchMyCollection_MatchesAdminDefinedCategory(t *testing.T) {
+	service, userID := setupCollectionToolsServiceTest(t)
+	db := service.coinRepo.DB()
+	settingsRepo := repository.NewSettingsRepository(db)
+	if err := settingsRepo.Upsert(SettingCoinCategories, "Roman\nGreek\nByzantine\nModern\nOther\nCeltic"); err != nil {
+		t.Fatalf("seed coin categories setting: %v", err)
+	}
+	service = service.WithSettingsSupport(NewSettingsService(settingsRepo))
+
+	coinRepo := service.coinRepo
+	coins := []models.Coin{
+		{Name: "Celtic Stater", UserID: userID, Category: models.Category("Celtic")},
+		{Name: "Roman Denarius", UserID: userID, Category: models.CategoryRoman},
+	}
+	for i := range coins {
+		if err := coinRepo.Create(&coins[i]); err != nil {
+			t.Fatalf("failed to create coin: %v", err)
+		}
+	}
+
+	results, err := service.SearchMyCollection(userID, "celtic", nil)
+	if err != nil {
+		t.Fatalf("search failed: %v", err)
+	}
+	if len(results) != 1 || results[0].Name != "Celtic Stater" {
+		t.Fatalf("expected only the Celtic coin to match, got %+v", results)
+	}
 }

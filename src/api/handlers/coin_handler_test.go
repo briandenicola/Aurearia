@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -100,7 +101,7 @@ func setupCoinHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 		WithStorageLocationSupport(storageLocationRepo).
 		WithCatalogRegistrySupport(catalogRegistryRepo).
 		WithSettingsSupport(settingsSvc)
-	handler := NewCoinHandler(coinRepo, coinSvc, services.NewLogger(100))
+	handler := NewCoinHandler(coinRepo, coinSvc, services.NewLogger(100)).WithSettingsSupport(settingsSvc)
 
 	r := gin.New()
 	protected := r.Group("/api")
@@ -112,6 +113,7 @@ func setupCoinHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	protected.PUT("/coins/:id", handler.Update)
 	protected.POST("/coins/:id/duplicate", handler.Duplicate)
 	protected.DELETE("/coins/:id", handler.Delete)
+	protected.POST("/coins/match-category-era", handler.MatchCategoryEra)
 
 	return r, db
 }
@@ -313,6 +315,52 @@ func TestCoinHandler_Create_Success(t *testing.T) {
 	}
 }
 
+func TestCoinHandler_Create_RejectsOverlongCategory(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "creator")
+
+	coinData := map[string]interface{}{
+		"name":     "Overlong Category Coin",
+		"category": strings.Repeat("x", 65),
+		"material": "Silver",
+	}
+	body, _ := json.Marshal(coinData)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/coins", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for an over-length category, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCoinHandler_Create_RejectsUnsupportedCategory(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "creator")
+
+	coinData := map[string]interface{}{
+		"name":     "Unsupported Category Coin",
+		"category": "Not A Real Category",
+		"material": "Silver",
+	}
+	body, _ := json.Marshal(coinData)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/coins", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for an unsupported category, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestCoinHandler_Create_InvalidPayload(t *testing.T) {
 	router, db := setupCoinHandlerRouter(t)
 	createTestUser(t, db, 1, "creator")
@@ -326,6 +374,78 @@ func TestCoinHandler_Create_InvalidPayload(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for invalid JSON, got %d", w.Code)
+	}
+}
+
+// --- MatchCategoryEra ---
+
+func TestCoinHandler_MatchCategoryEra_ExactBuiltIn(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "matcher")
+
+	body, _ := json.Marshal(map[string]string{"type": "category", "value": "roman"})
+	req := httptest.NewRequest(http.MethodPost, "/api/coins/match-category-era", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp MatchCategoryEraResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !resp.Matched || resp.Match != "Roman" {
+		t.Fatalf("expected matched=true match=Roman, got %+v", resp)
+	}
+}
+
+func TestCoinHandler_MatchCategoryEra_AdminDefinedNearMiss(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "matcher")
+	settingsRepo := repository.NewSettingsRepository(db)
+	if err := settingsRepo.Upsert(services.SettingCoinCategories, "Roman\nGreek\nByzantine\nModern\nOther\nCeltic"); err != nil {
+		t.Fatalf("seed coin categories setting: %v", err)
+	}
+
+	body, _ := json.Marshal(map[string]string{"type": "category", "value": "celtic coins"})
+	req := httptest.NewRequest(http.MethodPost, "/api/coins/match-category-era", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	var resp MatchCategoryEraResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !resp.Matched || resp.Match != "Celtic" {
+		t.Fatalf("expected matched=true match=Celtic, got %+v", resp)
+	}
+}
+
+func TestCoinHandler_MatchCategoryEra_NoConfidentMatch(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "matcher")
+
+	body, _ := json.Marshal(map[string]string{"type": "era", "value": "space age"})
+	req := httptest.NewRequest(http.MethodPost, "/api/coins/match-category-era", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	var resp MatchCategoryEraResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp.Matched {
+		t.Fatalf("expected no confident match, got %+v", resp)
 	}
 }
 

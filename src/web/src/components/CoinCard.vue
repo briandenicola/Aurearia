@@ -47,7 +47,15 @@
       <template v-if="!wishlist && !sold">
         <p v-if="cardInscription" class="overflow-hidden text-chip italic text-text-secondary [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:1]">{{ cardInscription }}</p>
         <div class="flex flex-wrap gap-2">
-          <span v-if="coin.category" class="badge" :class="`badge-${coin.category.toLowerCase()}`">{{ coin.category }}</span>
+          <span
+            v-if="coin.category"
+            class="badge"
+            :style="{
+              backgroundColor: colorForLabelBackground(coin.category),
+              color: colorForLabel(coin.category),
+              border: `1px solid ${colorForLabelBackground(coin.category, 30)}`,
+            }"
+          >{{ coin.category }}</span>
           <span v-if="coin.denomination" class="rounded-full border border-border-subtle bg-surface px-[0.65rem] py-[0.2rem] text-chip text-text-secondary [@media(display-mode:standalone)]:px-3 [@media(display-mode:standalone)]:py-1 [@media(display-mode:standalone)]:text-body">{{ coin.denomination }}</span>
           <span v-if="coin.material" class="rounded-full border border-border-subtle bg-surface px-[0.65rem] py-[0.2rem] text-chip text-text-secondary [@media(display-mode:standalone)]:px-3 [@media(display-mode:standalone)]:py-1 [@media(display-mode:standalone)]:text-body">{{ coin.material }}</span>
         </div>
@@ -110,6 +118,7 @@ import { Coins, ShoppingCart, Check } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+import { colorForLabel, colorForLabelBackground } from '@/utils/categoryColor'
 
 const router = useRouter()
 

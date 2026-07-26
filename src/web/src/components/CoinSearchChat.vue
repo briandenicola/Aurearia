@@ -119,6 +119,12 @@
         @send="sendMessage"
       />
     </div>
+
+    <CategoryEraConfirmModal
+      :request="categoryEraConfirmRequest"
+      @choose="chooseCategoryEraConfirmation"
+      @cancel="cancelCategoryEraConfirmation"
+    />
   </div>
 </template>
 
@@ -132,6 +138,7 @@ import ChatIntroPanel from '@/components/chat/ChatIntroPanel.vue'
 import ChatInputBar from '@/components/chat/ChatInputBar.vue'
 import CoinShowResultsGrid from '@/components/chat/CoinShowResultsGrid.vue'
 import CoinSuggestionGrid from '@/components/chat/CoinSuggestionGrid.vue'
+import CategoryEraConfirmModal from '@/components/chat/CategoryEraConfirmModal.vue'
 
 const props = defineProps<{
   loadConversation?: { id: number; title: string; messages: string } | null
@@ -159,6 +166,9 @@ const {
   saving,
   saveLabel,
   providerConfigured,
+  categoryEraConfirmRequest,
+  chooseCategoryEraConfirmation,
+  cancelCategoryEraConfirmation,
   sendMessage,
   sendExample,
   sendPortfolioAnalysis,

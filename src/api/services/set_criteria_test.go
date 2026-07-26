@@ -119,14 +119,14 @@ func TestValidateSmartCriteria_NestedGroups(t *testing.T) {
 // ---- GetSuggestedCriteria ----
 
 func TestGetSuggestedCriteria_ReturnsTenSuggestions(t *testing.T) {
-	suggestions := GetSuggestedCriteria()
+	suggestions := GetSuggestedCriteria(nil)
 	if len(suggestions) < 5 {
 		t.Errorf("expected at least 5 suggestions, got %d", len(suggestions))
 	}
 }
 
 func TestGetSuggestedCriteria_AllHaveValidCriteria(t *testing.T) {
-	for _, s := range GetSuggestedCriteria() {
+	for _, s := range GetSuggestedCriteria(nil) {
 		if s.ID == "" {
 			t.Errorf("suggestion missing ID")
 		}
@@ -141,11 +141,34 @@ func TestGetSuggestedCriteria_AllHaveValidCriteria(t *testing.T) {
 
 func TestGetSuggestedCriteria_UniqueIDs(t *testing.T) {
 	seen := map[string]bool{}
-	for _, s := range GetSuggestedCriteria() {
+	for _, s := range GetSuggestedCriteria(nil) {
 		if seen[s.ID] {
 			t.Errorf("duplicate suggestion ID: %s", s.ID)
 		}
 		seen[s.ID] = true
+	}
+}
+
+func TestGetSuggestedCriteria_UsesAdminDefinedCategories(t *testing.T) {
+	suggestions := GetSuggestedCriteria([]string{"Celtic", "Sassanian"})
+	found := map[string]bool{}
+	for _, s := range suggestions {
+		if s.Criteria["rules"] == nil {
+			continue
+		}
+		rules, _ := s.Criteria["rules"].([]interface{})
+		for _, raw := range rules {
+			rule, _ := raw.(map[string]interface{})
+			if rule["field"] == "category" {
+				found[rule["value"].(string)] = true
+			}
+		}
+	}
+	if !found["Celtic"] || !found["Sassanian"] {
+		t.Errorf("expected suggestions for admin-defined categories Celtic and Sassanian, got %+v", suggestions)
+	}
+	if found["Roman"] {
+		t.Errorf("expected legacy Roman suggestion to be absent when a custom category list is supplied")
 	}
 }
 

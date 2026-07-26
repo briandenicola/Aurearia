@@ -220,6 +220,12 @@ function sanitizeCoin(coin: CoinMutationPayload): CoinMutationPayload {
 
 export const getCoin = (id: number) => api.get<Coin>(`/coins/${id}`)
 export const createCoin = (coin: CoinMutationPayload) => api.post<Coin>('/coins', sanitizeCoin(coin))
+export interface MatchCategoryEraResponse {
+  match: string
+  matched: boolean
+}
+export const matchCategoryEra = (type: 'category' | 'era', value: string) =>
+  api.post<MatchCategoryEraResponse>('/coins/match-category-era', { type, value })
 export async function createIntakeDraft(images: File[], coinCardImage?: File) {
   const formData = new FormData()
   for (const image of images) {

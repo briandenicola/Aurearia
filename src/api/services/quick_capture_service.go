@@ -115,10 +115,19 @@ type PromoteDraftResult struct {
 type QuickCaptureService struct {
 	repo      *repository.QuickCaptureRepository
 	uploadDir string
+	coinSvc   *CoinService
 }
 
 func NewQuickCaptureService(repo *repository.QuickCaptureRepository, uploadDir string) *QuickCaptureService {
 	return &QuickCaptureService{repo: repo, uploadDir: uploadDir}
+}
+
+// WithCoinValidation wires in CoinService's era/category allow-list so draft
+// promotion honors the same admin-defined values (and built-in defaults) as
+// direct coin create/update, instead of a separately hardcoded check.
+func (s *QuickCaptureService) WithCoinValidation(coinSvc *CoinService) *QuickCaptureService {
+	s.coinSvc = coinSvc
+	return s
 }
 
 func (s *QuickCaptureService) CreateDraft(input CreateQuickCaptureDraftInput) (*models.QuickCaptureDraft, error) {
@@ -461,7 +470,7 @@ func (s *QuickCaptureService) PromoteDraft(userID, draftID uint, input PromoteDr
 	coin.IsWishlist = target == QuickCapturePromotionTargetWishlist
 
 	// Validate minimum coin requirements
-	if fieldErrors := ValidateCoinMinimumForPromotion(coin); len(fieldErrors) > 0 {
+	if fieldErrors := s.validateCoinMinimumForPromotion(coin); len(fieldErrors) > 0 {
 		return nil, &QuickCapturePromotionValidationError{Fields: fieldErrors}
 	}
 
@@ -543,22 +552,48 @@ func stringOverride(value *string, fallback string) string {
 	return strings.TrimSpace(fallback)
 }
 
-// ValidateCoinMinimumForPromotion checks that the built coin satisfies minimum create rules.
-// Returns a map of fieldName → error message for any invalid fields.
-func ValidateCoinMinimumForPromotion(coin *models.Coin) map[string]string {
+// validateCoinMinimumForPromotion checks that the built coin satisfies minimum
+// create rules. Returns a map of fieldName → error message for any invalid
+// fields. Era/category are checked against the same allow-list as direct coin
+// create/update (via WithCoinValidation) when it's wired in; otherwise falls
+// back to the built-in defaults only, so promotion can never be laxer than
+// coin creation, only as strict as the caller allows.
+func (s *QuickCaptureService) validateCoinMinimumForPromotion(coin *models.Coin) map[string]string {
 	fieldErrors := map[string]string{}
 	if strings.TrimSpace(coin.Name) == "" {
 		fieldErrors["name"] = "Name is required"
 	}
 	if coin.Era != "" {
-		switch coin.Era {
-		case models.EraAncient, models.EraMedieval, models.EraModern:
-			// valid
-		default:
-			fieldErrors["era"] = "Era must be ancient, medieval, or modern"
+		if err := s.validateEraForPromotion(coin.Era); err != nil {
+			fieldErrors["era"] = "Era must be one of your configured eras"
+		}
+	}
+	if coin.Category != "" {
+		if err := s.validateCategoryForPromotion(coin.Category); err != nil {
+			fieldErrors["category"] = "Category must be one of your configured categories"
 		}
 	}
 	return fieldErrors
+}
+
+func (s *QuickCaptureService) validateEraForPromotion(era models.Era) error {
+	if s.coinSvc != nil {
+		return s.coinSvc.validateCoinEra(era)
+	}
+	if _, ok := builtInCoinEras[era]; ok {
+		return nil
+	}
+	return ErrCoinInvalidEra
+}
+
+func (s *QuickCaptureService) validateCategoryForPromotion(category models.Category) error {
+	if s.coinSvc != nil {
+		return s.coinSvc.validateCoinCategory(category)
+	}
+	if _, ok := builtInCoinCategories[category]; ok {
+		return nil
+	}
+	return ErrCoinInvalidCategory
 }
 
 func (s *QuickCaptureService) saveDraftImageFile(draftID uint, fileData []byte, ext string, imageType models.ImageType) (string, error) {
