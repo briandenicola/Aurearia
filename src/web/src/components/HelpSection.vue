@@ -372,12 +372,12 @@ Constantius II Follis,Roman,Bronze,Follis,Constantius II,337-361 AD,Antioch,2.90
           <li>The OpenAPI spec and tool endpoints become available immediately</li>
         </ol>
         <p>When disabled, all external tool requests fail with <code>503 Service Unavailable</code>. This default-off posture protects your instance until you explicitly choose to expose the API.</p>
-        <p><strong>What to Tell Users:</strong> Once enabled, users can create scoped API keys in <strong>Settings → Data → API Keys</strong>. Each key can be read-only (safe for exploration) or read+write (for trusted automation). External writes are journaled and appear in each coin's activity log.</p>
+        <p><strong>What to Tell Users:</strong> Once enabled, users can create scoped API keys in <strong>Settings → Keys</strong>. Each key can be read-only (safe for exploration) or read+write (for trusted automation). External writes are journaled and appear in each coin's activity log.</p>
 
         <h4>For Users</h4>
         <p><strong>Creating an API Key:</strong> To connect an external AI client to your collection:</p>
         <ol>
-          <li>Navigate to <strong>Settings → Data → API Keys</strong></li>
+          <li>Navigate to <strong>Settings → Keys</strong></li>
           <li>Enter a descriptive name (e.g., "OpenWebUI Read-Only")</li>
           <li>
             Choose a capability:
