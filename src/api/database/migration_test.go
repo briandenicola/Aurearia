@@ -150,8 +150,8 @@ func TestMigrateCoinSetTypes_NormalizesLegacyValues(t *testing.T) {
 	if got := sets[1].SetType; got != "goal" {
 		t.Fatalf("expected second set type goal, got %q", got)
 	}
-	if got := sets[2].SetType; got != "tracker" {
-		t.Fatalf("expected dynamic to migrate to tracker, got %q", got)
+	if got := sets[2].SetType; got != "agentic" {
+		t.Fatalf("expected dynamic to migrate to agentic, got %q", got)
 	}
 	if got := sets[2].CreationMode; got != "dynamic" {
 		t.Fatalf("expected dynamic legacy set to have creation_mode dynamic, got %q", got)

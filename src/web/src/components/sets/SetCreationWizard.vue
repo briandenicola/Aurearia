@@ -7,7 +7,7 @@
           <option value="standard">Standard</option>
           <option value="goal">Goal</option>
           <option value="smart">Smart</option>
-          <option value="tracker">Tracker</option>
+          <option value="agentic">Agentic</option>
         </select>
       </div>
       <div v-if="form.setType === 'goal'" class="form-group mb-4 rounded-sm border border-border-subtle bg-card p-4">
@@ -26,24 +26,24 @@
         v-if="form.setType === 'smart'"
         @update="form.smartCriteria = $event"
       />
-      <div v-if="form.setType === 'tracker'" class="form-group mb-4">
-        <label for="trackerCreationMode" class="form-label mb-2 block">Tracker creation mode</label>
-        <select id="trackerCreationMode" v-model="form.trackerCreationMode" class="form-input w-full">
-          <option value="manual">Manual</option>
-          <option value="dynamic">Dynamic (agentic)</option>
-        </select>
+      <div v-if="form.setType === 'agentic'" class="form-group mb-4 rounded-sm border border-border-subtle bg-card p-4">
+        <span class="section-label">How agentic sets work</span>
+        <p class="mt-2 mb-0 text-body text-text-secondary">
+          Describe the collection you want to build. Aurearia will generate the roster asynchronously, notify you when it is ready, and display each target as a tray slot.
+        </p>
       </div>
-      <div v-if="form.setType === 'tracker' && form.trackerCreationMode === 'dynamic'" class="form-group mb-4">
-        <label for="trackerPrompt" class="form-label mb-2 block">Dynamic builder prompt</label>
+      <div v-if="form.setType === 'agentic'" class="form-group mb-4">
+        <label for="agenticPrompt" class="form-label mb-2 block">Agentic prompt</label>
         <textarea
-          id="trackerPrompt"
-          v-model="form.trackerPrompt"
+          id="agenticPrompt"
+          v-model="form.agenticPrompt"
           rows="3"
           maxlength="500"
           class="form-input w-full"
-          placeholder="Example: all American wheat pennies by date and mint"
+          placeholder="Example: All US silver quarters from 1940s to 1960s"
+          :required="form.setType === 'agentic'"
         />
-        <p class="mt-2 text-body text-text-secondary">A proposal will be generated for review before any tracker set is created.</p>
+        <p class="mt-2 text-body text-text-secondary">Use a bounded request with a series, denomination, and date range for the best tray layout.</p>
       </div>
       <div class="form-group mb-4">
         <label for="setName" class="form-label mb-2 block">Name</label>
@@ -111,8 +111,7 @@ const form = reactive({
   templateId: props.initialValue?.templateId ?? '',
   targetCompletionDate: props.initialValue?.targetCompletionDate ?? '',
   smartCriteria: props.initialValue?.smartCriteria as SmartCriteriaGroup | undefined,
-  trackerCreationMode: props.initialValue?.creationMode ?? 'manual',
-  trackerPrompt: props.initialValue?.trackerPrompt ?? '',
+  agenticPrompt: props.initialValue?.agenticPrompt ?? '',
 })
 const csvTargets = ref('')
 
@@ -124,8 +123,7 @@ watch(() => props.initialValue, (value) => {
   form.templateId = value?.templateId ?? ''
   form.targetCompletionDate = value?.targetCompletionDate ?? ''
   form.smartCriteria = value?.smartCriteria as SmartCriteriaGroup | undefined
-  form.trackerCreationMode = value?.creationMode ?? 'manual'
-  form.trackerPrompt = value?.trackerPrompt ?? ''
+  form.agenticPrompt = value?.agenticPrompt ?? ''
 })
 
 function submit() {
@@ -139,9 +137,8 @@ function submit() {
     templateId: form.setType !== 'goal' ? (form.templateId || undefined) : undefined,
     targetCompletionDate: form.setType !== 'goal' ? (form.targetCompletionDate || undefined) : undefined,
     smartCriteria: form.smartCriteria ?? undefined,
-    creationMode: form.setType === 'tracker' ? form.trackerCreationMode : undefined,
-    trackerPrompt: form.setType === 'tracker' && form.trackerCreationMode === 'dynamic'
-      ? form.trackerPrompt.trim() || undefined
+    agenticPrompt: form.setType === 'agentic'
+      ? form.agenticPrompt.trim() || undefined
       : undefined,
   }, form.setType !== 'goal' ? (csvTargets.value.trim() || undefined) : undefined)
 }

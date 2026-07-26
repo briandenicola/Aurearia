@@ -7,23 +7,25 @@ describe('SetCreationWizard', () => {
     vi.clearAllMocks()
   })
 
-  it('emits backend contract field creationMode for dynamic tracker sets', async () => {
+  it('emits an agentic prompt without obsolete manual mode fields', async () => {
     const wrapper = mount(SetCreationWizard, { attachTo: document.body })
     await flushPromises()
 
-    await wrapper.find('#setType').setValue('tracker')
-    await wrapper.find('#trackerCreationMode').setValue('dynamic')
-    await wrapper.find('#trackerPrompt').setValue('  all American wheat pennies  ')
-    await wrapper.find('#setName').setValue('Wheat Cents')
+    await wrapper.find('#setType').setValue('agentic')
+    await wrapper.find('#agenticPrompt').setValue('  All US Silver Quarters from 1940s to 1960s  ')
+    await wrapper.find('#setName').setValue('US Silver Quarters')
     await wrapper.find('form').trigger('submit.prevent')
 
     const submitEvents = wrapper.emitted('submit') as unknown[][]
     expect(submitEvents).toBeTruthy()
     const payload = submitEvents[0][0] as Record<string, unknown>
 
-    expect(payload.creationMode).toBe('dynamic')
-    expect(payload.trackerPrompt).toBe('all American wheat pennies')
+    expect(payload.setType).toBe('agentic')
+    expect(payload.agenticPrompt).toBe('All US Silver Quarters from 1940s to 1960s')
+    expect(payload).not.toHaveProperty('creationMode')
+    expect(payload).not.toHaveProperty('trackerPrompt')
     expect(payload).not.toHaveProperty('trackerCreationMode')
+    expect(wrapper.find('#trackerCreationMode').exists()).toBe(false)
   })
 
   it('shows goal completion guidance and hides legacy goal target fields', async () => {

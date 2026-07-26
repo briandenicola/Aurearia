@@ -3,7 +3,7 @@
     <div class="tray-grid">
       <MuseumTrayWell
         v-for="coin in coins"
-        :key="coin.id"
+        :key="`${coin.placeholder ? 'slot' : 'coin'}-${coin.id}`"
         :coin="coin"
         :render-size-px="getRenderSize(coin)"
         :image-src-resolver="imageSrcResolver"

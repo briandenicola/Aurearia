@@ -1,11 +1,15 @@
 <template>
   <div
     class="tray-well"
-    :class="{ 'is-interactive': interactive }"
+    :class="{
+      'is-interactive': interactive && !coin.placeholder,
+      'is-placeholder': coin.placeholder,
+      'is-wishlist-placeholder': coin.wishlistPlaceholder,
+    }"
     :style="{ width: `${renderSizePx}px`, height: `${renderSizePx}px` }"
     :aria-label="coin.name"
-    :tabindex="interactive ? 0 : undefined"
-    :role="interactive ? 'button' : undefined"
+    :tabindex="interactive && !coin.placeholder ? 0 : undefined"
+    :role="interactive && !coin.placeholder ? 'button' : undefined"
     @click="handleClick"
     @keydown.enter="handleClick"
   >
@@ -27,7 +31,8 @@
         decoding="async"
       />
       <div v-else class="well-placeholder">
-        <Coins :size="Math.floor(renderSizePx * 0.4)" :stroke-width="1" />
+        <span v-if="coin.placeholderLabel" class="placeholder-label">{{ coin.placeholderLabel }}</span>
+        <Coins v-else :size="Math.floor(renderSizePx * 0.4)" :stroke-width="1" />
       </div>
     </div>
   </div>
@@ -73,7 +78,7 @@ const resolvedImageSrc = computed(() => {
 })
 
 function handleClick() {
-  if (!props.interactive) return
+  if (!props.interactive || props.coin.placeholder) return
   emit('coin-clicked', props.coin.id)
 }
 </script>
@@ -102,6 +107,25 @@ function handleClick() {
 .tray-well.is-interactive:hover {
   transform: translateY(-2px);
   filter: brightness(1.1);
+}
+
+.tray-well.is-placeholder {
+  border: 1px dashed var(--border-accent);
+  background: radial-gradient(
+    circle at center,
+    var(--accent-gold-glow) 0%,
+    rgba(0, 0, 0, 0.15) 48%,
+    transparent 72%
+  );
+}
+
+.tray-well.is-wishlist-placeholder {
+  opacity: 0.42;
+}
+
+.tray-well.is-wishlist-placeholder .well-container {
+  border: 1px dashed var(--border-accent);
+  filter: grayscale(0.35) saturate(0.75);
 }
 
 .tray-well:focus-visible {
@@ -136,6 +160,17 @@ function handleClick() {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.is-placeholder .well-placeholder {
+  color: var(--accent-gold);
+  opacity: 1;
+}
+
+.placeholder-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {

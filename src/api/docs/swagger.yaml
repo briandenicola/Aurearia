@@ -2172,6 +2172,10 @@ definitions:
     type: object
   models.CoinSet:
     properties:
+      agenticPrompt:
+        type: string
+      agenticStatus:
+        type: string
       color:
         type: string
       createdAt:
@@ -2216,17 +2220,19 @@ definitions:
     - standard
     - smart
     - goal
-    - tracker
+    - agentic
     - standard
     - goal
+    - agentic
     type: string
     x-enum-varnames:
     - CoinSetTypeStandard
     - CoinSetTypeSmart
     - CoinSetTypeGoal
-    - CoinSetTypeTracker
+    - CoinSetTypeAgentic
     - CoinSetTypeOpen
     - CoinSetTypeDefined
+    - CoinSetTypeTracker
   models.CoinValueHistory:
     properties:
       coinId:
