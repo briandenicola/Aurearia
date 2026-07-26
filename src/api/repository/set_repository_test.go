@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -13,7 +14,7 @@ func TestSetRepository_GetCoinsInSet_UsesManualSortOrder(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewSetRepository(db)
 
-	set := models.CoinSet{UserID: 1, Name: "Emperors", SetType: models.CoinSetTypeOpen}
+	set := models.CoinSet{UserID: 1, Name: "Emperors", SetType: models.CoinSetTypeStandard}
 	coins := []models.Coin{
 		{Name: "Trajan", UserID: 1},
 		{Name: "Augustus", UserID: 1},
@@ -51,7 +52,7 @@ func TestSetRepository_GetCoinsInSet_DefaultSortOrderFallsBackToName(t *testing.
 	db := setupTestDB(t)
 	repo := NewSetRepository(db)
 
-	set := models.CoinSet{UserID: 1, Name: "Emperors", SetType: models.CoinSetTypeOpen}
+	set := models.CoinSet{UserID: 1, Name: "Emperors", SetType: models.CoinSetTypeStandard}
 	coins := []models.Coin{
 		{Name: "Trajan", UserID: 1},
 		{Name: "Augustus", UserID: 1},
@@ -89,7 +90,7 @@ func TestSetRepository_ReorderCoinsInSet_RejectsInvalidMembersWithoutPartialUpda
 	db := setupTestDB(t)
 	repo := NewSetRepository(db)
 
-	set := models.CoinSet{UserID: 1, Name: "Emperors", SetType: models.CoinSetTypeOpen}
+	set := models.CoinSet{UserID: 1, Name: "Emperors", SetType: models.CoinSetTypeStandard}
 	memberA := models.Coin{Name: "Augustus", UserID: 1}
 	memberB := models.Coin{Name: "Trajan", UserID: 1}
 	nonMember := models.Coin{Name: "Nero", UserID: 1}
@@ -225,5 +226,106 @@ func TestSetRepository_CriteriaTemplate_UserScoped(t *testing.T) {
 	// User 2 cannot delete user 1's template
 	if err := repo.DeleteCriteriaTemplate(user1Tmpl.ID, 2); err == nil {
 		t.Fatal("expected error when deleting another user's template, got nil")
+	}
+}
+
+func TestSetRepository_GetSetCompletion_GoalUsesCollectionVsWishlistMembers(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewSetRepository(db)
+
+	set := models.CoinSet{UserID: 1, Name: "Goal Set", SetType: models.CoinSetTypeGoal}
+	if err := db.Create(&set).Error; err != nil {
+		t.Fatalf("create set: %v", err)
+	}
+
+	coins := []models.Coin{
+		{Name: "Owned 1", UserID: 1, IsWishlist: false},
+		{Name: "Owned 2", UserID: 1, IsWishlist: false},
+		{Name: "Wish 1", UserID: 1, IsWishlist: true},
+		{Name: "Wish 2", UserID: 1, IsWishlist: true},
+		{Name: "Wish 3", UserID: 1, IsWishlist: true},
+		{Name: "Wish 4", UserID: 1, IsWishlist: true},
+		{Name: "Wish 5", UserID: 1, IsWishlist: true},
+	}
+	if err := db.Create(&coins).Error; err != nil {
+		t.Fatalf("create coins: %v", err)
+	}
+	for i := range coins {
+		if err := db.Create(&models.CoinSetMembership{
+			SetID:     set.ID,
+			CoinID:    coins[i].ID,
+			AddedAt:   time.Now(),
+			SortOrder: i,
+		}).Error; err != nil {
+			t.Fatalf("create membership: %v", err)
+		}
+	}
+
+	completion, err := repo.GetSetCompletion(set.ID, 1)
+	if err != nil {
+		t.Fatalf("GetSetCompletion failed: %v", err)
+	}
+
+	if got := completion["totalTargets"].(int); got != 7 {
+		t.Fatalf("expected totalTargets=7, got %d", got)
+	}
+	if got := completion["completedTargets"].(int); got != 2 {
+		t.Fatalf("expected completedTargets=2, got %d", got)
+	}
+	if got := completion["collectionItems"].(int); got != 2 {
+		t.Fatalf("expected collectionItems=2, got %d", got)
+	}
+	if got := completion["wishlistItems"].(int); got != 5 {
+		t.Fatalf("expected wishlistItems=5, got %d", got)
+	}
+	pct := completion["completionPercentage"].(float64)
+	if math.Abs(pct-28.5714285714) > 0.001 {
+		t.Fatalf("expected completionPercentage≈28.57, got %.6f", pct)
+	}
+}
+
+func TestSetRepository_MigrateTagsToSets_SyncsNewTaggedCoinMemberships(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewSetRepository(db)
+
+	tag := models.Tag{UserID: 1, Name: "Roman", Color: "#c9a84c"}
+	if err := db.Create(&tag).Error; err != nil {
+		t.Fatalf("create tag: %v", err)
+	}
+	initialCoin := models.Coin{Name: "Initial", UserID: 1}
+	if err := db.Create(&initialCoin).Error; err != nil {
+		t.Fatalf("create coin: %v", err)
+	}
+	if err := db.Create(&models.CoinTag{CoinID: initialCoin.ID, TagID: tag.ID}).Error; err != nil {
+		t.Fatalf("create initial coin tag: %v", err)
+	}
+
+	if err := repo.MigrateTagsToSets(1); err != nil {
+		t.Fatalf("first MigrateTagsToSets failed: %v", err)
+	}
+
+	var set models.CoinSet
+	if err := db.Where("user_id = ? AND name = ?", 1, tag.Name).First(&set).Error; err != nil {
+		t.Fatalf("load migrated set: %v", err)
+	}
+
+	newTaggedWishlist := models.Coin{Name: "Wishlist Add", UserID: 1, IsWishlist: true}
+	if err := db.Create(&newTaggedWishlist).Error; err != nil {
+		t.Fatalf("create new tagged coin: %v", err)
+	}
+	if err := db.Create(&models.CoinTag{CoinID: newTaggedWishlist.ID, TagID: tag.ID}).Error; err != nil {
+		t.Fatalf("create new coin tag: %v", err)
+	}
+
+	if err := repo.MigrateTagsToSets(1); err != nil {
+		t.Fatalf("second MigrateTagsToSets failed: %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&models.CoinSetMembership{}).Where("set_id = ? AND coin_id = ?", set.ID, newTaggedWishlist.ID).Count(&count).Error; err != nil {
+		t.Fatalf("count membership: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected newly tagged coin to be added to set membership, got %d", count)
 	}
 }

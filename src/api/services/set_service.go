@@ -57,7 +57,7 @@ func (s *SetService) ListSets(userID uint) ([]map[string]interface{}, error) {
 		}
 
 		var completion interface{}
-		if set.SetType == models.CoinSetTypeDefined || set.SetType == models.CoinSetTypeGoal {
+		if set.SetType == models.CoinSetTypeGoal {
 			if c, err := s.repo.GetSetCompletion(set.ID, userID); err == nil {
 				completion = c["completionPercentage"]
 			}
@@ -108,7 +108,7 @@ func (s *SetService) GetSetDetail(setID, userID uint) (map[string]interface{}, e
 		"highestValueCoinId":   summary["highestValueCoinId"],
 		"completionPercentage": nil,
 	}
-	if set.SetType == models.CoinSetTypeDefined || set.SetType == models.CoinSetTypeGoal {
+	if set.SetType == models.CoinSetTypeGoal {
 		if c, err := s.repo.GetSetCompletion(set.ID, userID); err == nil {
 			result["completionPercentage"] = c["completionPercentage"]
 		}
@@ -150,10 +150,22 @@ func (s *SetService) CreateSet(userID uint, input map[string]interface{}) (*mode
 	// Validate set type
 	setType, ok := input["setType"].(string)
 	if !ok || setType == "" {
-		setType = string(models.CoinSetTypeOpen)
+		setType = string(models.CoinSetTypeStandard)
 	}
-	if setType != string(models.CoinSetTypeOpen) && setType != string(models.CoinSetTypeDefined) && setType != string(models.CoinSetTypeSmart) && setType != string(models.CoinSetTypeGoal) {
+	setType, err = normalizeSetType(setType)
+	if err != nil {
 		return nil, fmt.Errorf("invalid set type")
+	}
+	creationMode := models.CoinSetCreationModeManual
+	if rawMode, ok := input["creationMode"].(string); ok && strings.TrimSpace(rawMode) != "" {
+		mode, err := normalizeCreationMode(rawMode)
+		if err != nil {
+			return nil, fmt.Errorf("invalid creation mode")
+		}
+		creationMode = mode
+	}
+	if creationMode == models.CoinSetCreationModeDynamic && setType != string(models.CoinSetTypeTracker) {
+		return nil, fmt.Errorf("dynamic creation mode is only valid for tracker sets")
 	}
 
 	var smartCriteria *models.JSONObject
@@ -192,6 +204,7 @@ func (s *SetService) CreateSet(userID uint, input map[string]interface{}) (*mode
 		Color:         getStringValueOrDefault(input, "color", "#6b7280"),
 		Icon:          getStringValue(input, "icon"),
 		SetType:       models.CoinSetType(setType),
+		CreationMode:  creationMode,
 		SmartCriteria: smartCriteria,
 	}
 	if rawDate := getStringValue(input, "targetCompletionDate"); rawDate != "" {
@@ -249,6 +262,30 @@ func (s *SetService) UpdateSet(setID, userID uint, updates map[string]interface{
 		}
 		updates["name"] = name
 	}
+	if setTypeRaw, ok := updates["setType"].(string); ok {
+		normalizedType, err := normalizeSetType(setTypeRaw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid set type")
+		}
+		updates["setType"] = normalizedType
+		if normalizedType != string(models.CoinSetTypeTracker) && set.CreationMode == models.CoinSetCreationModeDynamic {
+			updates["creationMode"] = string(models.CoinSetCreationModeManual)
+		}
+	}
+	if modeRaw, ok := updates["creationMode"].(string); ok {
+		mode, err := normalizeCreationMode(modeRaw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid creation mode")
+		}
+		targetType := set.SetType
+		if updatedType, ok := updates["setType"].(string); ok {
+			targetType = models.CoinSetType(updatedType)
+		}
+		if mode == models.CoinSetCreationModeDynamic && targetType != models.CoinSetTypeTracker {
+			return nil, fmt.Errorf("dynamic creation mode is only valid for tracker sets")
+		}
+		updates["creationMode"] = string(mode)
+	}
 
 	if err := s.repo.Update(set, updates); err != nil {
 		return nil, err
@@ -286,7 +323,7 @@ func (s *SetService) CreateSnapshot(setID, userID uint) (*models.CoinSetValuatio
 	if err != nil {
 		return nil, err
 	}
-	if set.SetType == models.CoinSetTypeDefined || set.SetType == models.CoinSetTypeGoal {
+	if set.SetType == models.CoinSetTypeGoal {
 		c, err := s.repo.GetSetCompletion(setID, userID)
 		if err == nil {
 			if pct, ok := c["completionPercentage"].(float64); ok {
@@ -547,7 +584,7 @@ func (s *SetService) MapTagToSet(tag *models.Tag) map[string]interface{} {
 		"name":                 tag.Name,
 		"color":                tag.Color,
 		"icon":                 "",
-		"setType":              models.CoinSetTypeOpen,
+		"setType":              models.CoinSetTypeStandard,
 		"coinCount":            0, // Will be populated separately
 		"totalValue":           0.0,
 		"completionPercentage": nil,
@@ -604,7 +641,7 @@ func getStringValueOrDefault(input map[string]interface{}, key, defaultVal strin
 	return defaultVal
 }
 
-// CreateSetFromTemplate creates a defined or goal set from a template.
+// CreateSetFromTemplate creates a goal set from a template.
 func (s *SetService) CreateSetFromTemplate(userID uint, input map[string]interface{}) (*models.CoinSet, error) {
 	// Get template ID
 	templateID, ok := input["templateId"].(string)
@@ -618,10 +655,13 @@ func (s *SetService) CreateSetFromTemplate(userID uint, input map[string]interfa
 		return nil, fmt.Errorf("template not found")
 	}
 
-	// Determine set type (default to defined)
-	setType := string(models.CoinSetTypeDefined)
-	if st, ok := input["setType"].(string); ok && st == string(models.CoinSetTypeGoal) {
-		setType = string(models.CoinSetTypeGoal)
+	setType := string(models.CoinSetTypeGoal)
+	if st, ok := input["setType"].(string); ok && strings.TrimSpace(st) != "" {
+		normalizedType, err := normalizeSetType(st)
+		if err != nil || normalizedType != string(models.CoinSetTypeGoal) {
+			return nil, fmt.Errorf("template import only supports goal sets")
+		}
+		setType = normalizedType
 	}
 
 	// Create the set
@@ -656,7 +696,7 @@ func (s *SetService) CreateSetFromTemplate(userID uint, input map[string]interfa
 	return set, nil
 }
 
-// CreateSetFromCSV creates a defined or goal set from CSV target import.
+// CreateSetFromCSV creates a goal set from CSV target import.
 func (s *SetService) CreateSetFromCSV(userID uint, input map[string]interface{}, csvContent string) (*models.CoinSet, error) {
 	// Parse CSV
 	importer := NewSetTargetImport()
@@ -670,10 +710,13 @@ func (s *SetService) CreateSetFromCSV(userID uint, input map[string]interface{},
 		return nil, err
 	}
 
-	// Determine set type (default to defined)
-	setType := string(models.CoinSetTypeDefined)
-	if st, ok := input["setType"].(string); ok && st == string(models.CoinSetTypeGoal) {
-		setType = string(models.CoinSetTypeGoal)
+	setType := string(models.CoinSetTypeGoal)
+	if st, ok := input["setType"].(string); ok && strings.TrimSpace(st) != "" {
+		normalizedType, err := normalizeSetType(st)
+		if err != nil || normalizedType != string(models.CoinSetTypeGoal) {
+			return nil, fmt.Errorf("CSV import only supports goal sets")
+		}
+		setType = normalizedType
 	}
 
 	// Create the set
@@ -702,4 +745,32 @@ func (s *SetService) CreateSetFromCSV(userID uint, input map[string]interface{},
 	}
 
 	return set, nil
+}
+
+func normalizeSetType(raw string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "open", string(models.CoinSetTypeStandard):
+		return string(models.CoinSetTypeStandard), nil
+	case "defined", string(models.CoinSetTypeGoal):
+		return string(models.CoinSetTypeGoal), nil
+	case string(models.CoinSetTypeSmart):
+		return string(models.CoinSetTypeSmart), nil
+	case string(models.CoinSetTypeTracker):
+		return string(models.CoinSetTypeTracker), nil
+	case "dynamic":
+		return "", fmt.Errorf("dynamic is a creation mode, not a set type")
+	default:
+		return "", fmt.Errorf("invalid set type")
+	}
+}
+
+func normalizeCreationMode(raw string) (models.CoinSetCreationMode, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case string(models.CoinSetCreationModeManual):
+		return models.CoinSetCreationModeManual, nil
+	case string(models.CoinSetCreationModeDynamic):
+		return models.CoinSetCreationModeDynamic, nil
+	default:
+		return "", fmt.Errorf("invalid creation mode")
+	}
 }

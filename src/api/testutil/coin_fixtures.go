@@ -189,8 +189,8 @@ func BuildTestTags(userID uint) []models.Tag {
 func BuildTestCoinSets(userID uint) []models.CoinSet {
 	targetDate := time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
 	return []models.CoinSet{
-		{UserID: userID, Name: fixtureTwelveCaesars, Description: "Representative imperial portrait set", Color: "#c9a84c", Icon: "Crown", SetType: models.CoinSetTypeDefined, TargetCompletionDate: &targetDate, CreatedAt: fixtureTimestamp, UpdatedAt: fixtureTimestamp},
-		{UserID: userID, Name: fixtureByzantineGold, Description: "Gold issues for set-membership workflow tests", Color: "#b08d57", Icon: "CircleDot", SetType: models.CoinSetTypeOpen, CreatedAt: fixtureTimestamp, UpdatedAt: fixtureTimestamp},
+		{UserID: userID, Name: fixtureTwelveCaesars, Description: "Representative imperial portrait set", Color: "#c9a84c", Icon: "Crown", SetType: models.CoinSetTypeGoal, TargetCompletionDate: &targetDate, CreatedAt: fixtureTimestamp, UpdatedAt: fixtureTimestamp},
+		{UserID: userID, Name: fixtureByzantineGold, Description: "Gold issues for set-membership workflow tests", Color: "#b08d57", Icon: "CircleDot", SetType: models.CoinSetTypeStandard, CreatedAt: fixtureTimestamp, UpdatedAt: fixtureTimestamp},
 	}
 }
 
@@ -501,7 +501,7 @@ func fixtureSet(userID uint, name string) models.CoinSet {
 			return set
 		}
 	}
-	return models.CoinSet{UserID: userID, Name: name, SetType: models.CoinSetTypeOpen}
+	return models.CoinSet{UserID: userID, Name: name, SetType: models.CoinSetTypeStandard}
 }
 
 func cloneCoin(coin models.Coin) models.Coin {

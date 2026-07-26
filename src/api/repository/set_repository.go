@@ -28,6 +28,9 @@ func NewSetRepository(db *gorm.DB) *SetRepository {
 func (r *SetRepository) List(userID uint) ([]models.CoinSet, error) {
 	var sets []models.CoinSet
 	err := r.db.Scopes(OwnedBy(userID)).Order("name ASC").Find(&sets).Error
+	for i := range sets {
+		normalizeSetTypeModel(&sets[i])
+	}
 	return sets, err
 }
 
@@ -51,6 +54,7 @@ func (r *SetRepository) GetByID(id, userID uint) (*models.CoinSet, error) {
 	if err != nil {
 		return nil, err
 	}
+	normalizeSetTypeModel(&set)
 	return &set, nil
 }
 
@@ -351,8 +355,8 @@ func (r *SetRepository) ExistsByName(userID uint, name string) (bool, error) {
 	return count > 0, err
 }
 
-// MigrateTagsToSets creates open sets from existing tags for the given user.
-// This is a one-time migration helper.
+// MigrateTagsToSets creates standard sets from existing tags for the given user
+// and keeps memberships in sync for newly tagged coins.
 func (r *SetRepository) MigrateTagsToSets(userID uint) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		// Get all tags for the user
@@ -361,28 +365,26 @@ func (r *SetRepository) MigrateTagsToSets(userID uint) error {
 			return err
 		}
 
-		// For each tag, create a corresponding open set
+		// For each tag, create a corresponding standard set
 		for _, tag := range tags {
 			// Check if set already exists
 			var existingSet models.CoinSet
 			err := tx.Where("user_id = ? AND name = ?", userID, tag.Name).First(&existingSet).Error
-			if err == nil {
-				// Set already exists, skip
-				continue
-			}
-			if err != gorm.ErrRecordNotFound {
+			if err != nil && err != gorm.ErrRecordNotFound {
 				return err
 			}
-
-			// Create the set
-			set := models.CoinSet{
-				UserID:  userID,
-				Name:    tag.Name,
-				Color:   tag.Color,
-				SetType: models.CoinSetTypeOpen,
-			}
-			if err := tx.Create(&set).Error; err != nil {
-				return err
+			if err == gorm.ErrRecordNotFound {
+				// Create the set
+				set := models.CoinSet{
+					UserID:  userID,
+					Name:    tag.Name,
+					Color:   tag.Color,
+					SetType: models.CoinSetTypeStandard,
+				}
+				if err := tx.Create(&set).Error; err != nil {
+					return err
+				}
+				existingSet = set
 			}
 
 			// Migrate coin_tags to coin_set_memberships
@@ -393,7 +395,7 @@ func (r *SetRepository) MigrateTagsToSets(userID uint) error {
 
 			for i, ct := range coinTags {
 				membership := models.CoinSetMembership{
-					SetID:     set.ID,
+					SetID:     existingSet.ID,
 					CoinID:    ct.CoinID,
 					AddedAt:   time.Now(),
 					SortOrder: i,
@@ -432,14 +434,20 @@ func (r *SetRepository) GetTargetsForSet(setID, userID uint) ([]models.CoinSetTa
 	return targets, err
 }
 
-// GetSetCompletion calculates completion metrics for a defined or goal set.
+// GetSetCompletion calculates completion metrics for a set.
 func (r *SetRepository) GetSetCompletion(setID, userID uint) (map[string]interface{}, error) {
-	// Get all targets
+	set, err := r.GetByID(setID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if set.SetType == models.CoinSetTypeGoal {
+		return r.getGoalSetCompletion(setID, userID)
+	}
+
 	targets, err := r.GetTargetsForSet(setID, userID)
 	if err != nil {
 		return nil, err
 	}
-
 	totalTargets := len(targets)
 	if totalTargets == 0 {
 		return map[string]interface{}{
@@ -450,16 +458,13 @@ func (r *SetRepository) GetSetCompletion(setID, userID uint) (map[string]interfa
 		}, nil
 	}
 
-	// Get all coins in the set
 	coins, err := r.GetCoinsInSet(setID, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Match coins to targets
 	completedTargets := 0
 	missingTargets := []models.CoinSetTarget{}
-
 	for _, target := range targets {
 		matched := false
 		for _, coin := range coins {
@@ -476,13 +481,62 @@ func (r *SetRepository) GetSetCompletion(setID, userID uint) (map[string]interfa
 	}
 
 	completionPercentage := (float64(completedTargets) / float64(totalTargets)) * 100.0
-
 	return map[string]interface{}{
 		"totalTargets":         totalTargets,
 		"completedTargets":     completedTargets,
 		"completionPercentage": completionPercentage,
 		"missingTargets":       missingTargets,
 	}, nil
+}
+
+func (r *SetRepository) getGoalSetCompletion(setID, userID uint) (map[string]interface{}, error) {
+	type completionCounts struct {
+		CollectionItems int
+		WishlistItems   int
+	}
+	var counts completionCounts
+	err := r.db.Raw(`
+		SELECT
+			COALESCE(SUM(CASE WHEN coins.is_wishlist = 0 THEN 1 ELSE 0 END), 0) AS collection_items,
+			COALESCE(SUM(CASE WHEN coins.is_wishlist = 1 THEN 1 ELSE 0 END), 0) AS wishlist_items
+		FROM coin_set_memberships
+		JOIN coin_sets ON coin_sets.id = coin_set_memberships.set_id
+		JOIN coins ON coins.id = coin_set_memberships.coin_id
+		WHERE coin_set_memberships.set_id = ? AND coin_sets.user_id = ? AND coins.user_id = ?
+	`, setID, userID, userID).Scan(&counts).Error
+	if err != nil {
+		return nil, err
+	}
+
+	total := counts.CollectionItems + counts.WishlistItems
+	completionPercentage := 0.0
+	if total > 0 {
+		completionPercentage = (float64(counts.CollectionItems) / float64(total)) * 100.0
+	}
+
+	return map[string]interface{}{
+		"totalTargets":         total,
+		"completedTargets":     counts.CollectionItems,
+		"completionPercentage": completionPercentage,
+		"collectionItems":      counts.CollectionItems,
+		"wishlistItems":        counts.WishlistItems,
+		"missingTargets":       []models.CoinSetTarget{},
+	}, nil
+}
+
+func normalizeSetTypeModel(set *models.CoinSet) {
+	switch set.SetType {
+	case "open":
+		set.SetType = models.CoinSetTypeStandard
+	case "defined":
+		set.SetType = models.CoinSetTypeGoal
+	case "dynamic":
+		set.SetType = models.CoinSetTypeTracker
+		set.CreationMode = models.CoinSetCreationModeDynamic
+	}
+	if set.CreationMode == "" {
+		set.CreationMode = models.CoinSetCreationModeManual
+	}
 }
 
 // CreateSnapshot creates or replaces today's aggregate snapshot for a set.

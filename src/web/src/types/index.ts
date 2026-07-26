@@ -505,7 +505,16 @@ export interface CollectionSetOption {
   source: 'tag' | 'set'
 }
 
-export type CoinSetType = 'open' | 'defined' | 'smart' | 'goal'
+export type CoinSetType = 'standard' | 'goal' | 'smart' | 'tracker'
+export type LegacyCoinSetType = 'open' | 'defined'
+export type CoinSetTypeResponse = CoinSetType | LegacyCoinSetType
+export type TrackerCreationMode = 'manual' | 'dynamic'
+
+export function normalizeCoinSetType(setType: CoinSetTypeResponse): CoinSetType {
+  if (setType === 'open') return 'standard'
+  if (setType === 'defined') return 'goal'
+  return setType
+}
 
 export interface CoinSet {
   id: number
@@ -514,7 +523,7 @@ export interface CoinSet {
   description?: string
   color: string
   icon?: string
-  setType: CoinSetType
+  setType: CoinSetTypeResponse
   parentSetId?: number | null
   targetCompletionDate?: string | null
   createdAt: string
@@ -526,7 +535,7 @@ export interface CoinSetSummary {
   name: string
   color: string
   icon?: string
-  setType: CoinSetType
+  setType: CoinSetTypeResponse
   coinCount: number
   totalValue: number
   completionPercentage?: number | null
@@ -552,6 +561,8 @@ export interface CreateCoinSetRequest {
   targetCompletionDate?: string | null
   smartCriteria?: Record<string, unknown> | null
   templateId?: string | null
+  creationMode?: TrackerCreationMode
+  trackerPrompt?: string | null
 }
 
 export interface CreateCoinSetFromCsvRequest extends CreateCoinSetRequest {
@@ -589,6 +600,8 @@ export interface CoinSetCompletion {
   completedTargets: number
   completionPercentage: number
   missingTargets: CoinSetTarget[]
+  collectionItems?: number
+  wishlistItems?: number
 }
 
 export interface CoinSetTemplate {

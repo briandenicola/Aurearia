@@ -97,10 +97,10 @@ func (h *SetHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, detail)
 }
 
-// CreateFromCSV creates a defined or goal set from CSV target definitions.
+// CreateFromCSV creates a goal set from CSV target definitions.
 //
 //	@Summary		Create set from CSV
-//	@Description	Create a defined or goal set using custom CSV target definitions
+//	@Description	Create a goal set using custom CSV target definitions
 //	@Tags			sets
 //	@Accept			json
 //	@Produce		json
@@ -440,7 +440,7 @@ func (h *SetHandler) GetTemplates(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"templates": templates})
 }
 
-// GetCompletion returns completion metrics for a defined or goal set.
+// GetCompletion returns completion metrics for a set.
 //
 //	@Summary		Get set completion
 //	@Description	Get completion metrics including target count, completed count, and missing targets
