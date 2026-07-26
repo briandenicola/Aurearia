@@ -103,16 +103,36 @@ describe('SetDetailPage', () => {
         name: 'Augustus Denarius',
         diameterMm: 19,
         images: expect.any(Array),
+        wishlistPlaceholder: false,
       },
       {
         id: 2,
         name: 'Tiberius Denarius',
         diameterMm: null,
         images: expect.any(Array),
+        wishlistPlaceholder: false,
       },
     ])
     expect(wrapper.find('.coin-card').exists()).toBe(false)
     expect(wrapper.find('.coin-image').exists()).toBe(false)
+  })
+
+  it('ghosts wishlist coins in goal set tray data', async () => {
+    mockSetDetailLoad([
+      buildRomanDenariusCore({ id: 1, name: 'Owned Denarius', isWishlist: false }),
+      buildRomanDenariusCore({ id: 2, name: 'Wishlist Denarius', isWishlist: true }),
+    ])
+
+    const wrapper = shallowMount(SetDetailPage, {
+      global: { stubs: defaultStubs },
+    })
+    await flushPromises()
+
+    const tray = wrapper.findComponent({ name: 'MuseumTray' })
+    expect(tray.props('coins')).toEqual([
+      expect.objectContaining({ id: 1, wishlistPlaceholder: false }),
+      expect.objectContaining({ id: 2, wishlistPlaceholder: true }),
+    ])
   })
 
   it('embeds tray controls for multi-drawer sets', async () => {
