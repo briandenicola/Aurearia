@@ -505,14 +505,14 @@ export interface CollectionSetOption {
   source: 'tag' | 'set'
 }
 
-export type CoinSetType = 'standard' | 'goal' | 'smart' | 'tracker'
-export type LegacyCoinSetType = 'open' | 'defined'
+export type CoinSetType = 'standard' | 'goal' | 'smart' | 'agentic'
+export type LegacyCoinSetType = 'open' | 'defined' | 'tracker' | 'dynamic'
 export type CoinSetTypeResponse = CoinSetType | LegacyCoinSetType
-export type TrackerCreationMode = 'manual' | 'dynamic'
 
 export function normalizeCoinSetType(setType: CoinSetTypeResponse): CoinSetType {
   if (setType === 'open') return 'standard'
   if (setType === 'defined') return 'goal'
+  if (setType === 'tracker' || setType === 'dynamic') return 'agentic'
   return setType
 }
 
@@ -540,6 +540,7 @@ export interface CoinSetSummary {
   totalValue: number
   completionPercentage?: number | null
   valueChangePercent?: number | null
+  agenticStatus?: string | null
 }
 
 export interface CoinSetDetail extends CoinSetSummary {
@@ -549,6 +550,8 @@ export interface CoinSetDetail extends CoinSetSummary {
   totalInvested: number
   avgValuePerCoin?: number | null
   highestValueCoinId?: number | null
+  agenticPrompt?: string | null
+  agenticStatus?: string | null
 }
 
 export interface CreateCoinSetRequest {
@@ -561,8 +564,7 @@ export interface CreateCoinSetRequest {
   targetCompletionDate?: string | null
   smartCriteria?: Record<string, unknown> | null
   templateId?: string | null
-  creationMode?: TrackerCreationMode
-  trackerPrompt?: string | null
+  agenticPrompt?: string | null
 }
 
 export interface CreateCoinSetFromCsvRequest extends CreateCoinSetRequest {
@@ -600,6 +602,7 @@ export interface CoinSetCompletion {
   completedTargets: number
   completionPercentage: number
   missingTargets: CoinSetTarget[]
+  targets?: CoinSetTarget[]
   collectionItems?: number
   wishlistItems?: number
 }

@@ -104,7 +104,7 @@ const availableSets = computed(() => {
 
 function canManageSetMembership(setType: CoinSetSummary['setType']): boolean {
   const normalizedType = normalizeCoinSetType(setType)
-  return normalizedType !== 'smart' && normalizedType !== 'tracker'
+  return normalizedType !== 'smart' && normalizedType !== 'agentic'
 }
 
 onMounted(async () => {

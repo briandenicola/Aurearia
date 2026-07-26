@@ -68,7 +68,7 @@ func TestSetService_CreateSet_RejectsDynamicAsSetType(t *testing.T) {
 	}
 }
 
-func TestSetService_CreateSet_ValidatesTrackerDynamicMode(t *testing.T) {
+func TestSetService_CreateSet_ValidatesAgenticDynamicMode(t *testing.T) {
 	service := setupSetServiceTest(t)
 
 	_, err := service.CreateSet(1, map[string]interface{}{
@@ -76,22 +76,47 @@ func TestSetService_CreateSet_ValidatesTrackerDynamicMode(t *testing.T) {
 		"setType":      "goal",
 		"creationMode": "dynamic",
 	})
-	if err == nil || !strings.Contains(err.Error(), "only valid for tracker sets") {
-		t.Fatalf("expected tracker mode validation error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "only valid for agentic sets") {
+		t.Fatalf("expected agentic mode validation error, got %v", err)
 	}
 
-	tracker, err := service.CreateSet(1, map[string]interface{}{
-		"name":         "Dynamic Tracker",
-		"setType":      "tracker",
-		"creationMode": "dynamic",
+	_, err = service.CreateSet(1, map[string]interface{}{
+		"name":    "Missing Prompt",
+		"setType": "agentic",
+	})
+	if err == nil || !strings.Contains(err.Error(), "agentic prompt is required") {
+		t.Fatalf("expected agentic prompt validation error, got %v", err)
+	}
+
+	agentic, err := service.CreateSet(1, map[string]interface{}{
+		"name":          "US Silver Quarters",
+		"setType":       "agentic",
+		"agenticPrompt": "All US Silver Quarters from 1940s to 1960s",
 	})
 	if err != nil {
-		t.Fatalf("create tracker failed: %v", err)
+		t.Fatalf("create agentic failed: %v", err)
 	}
-	if tracker.SetType != models.CoinSetTypeTracker {
-		t.Fatalf("expected set type %q, got %q", models.CoinSetTypeTracker, tracker.SetType)
+	if agentic.SetType != models.CoinSetTypeAgentic {
+		t.Fatalf("expected set type %q, got %q", models.CoinSetTypeAgentic, agentic.SetType)
 	}
-	if tracker.CreationMode != models.CoinSetCreationModeDynamic {
-		t.Fatalf("expected creation mode %q, got %q", models.CoinSetCreationModeDynamic, tracker.CreationMode)
+	if agentic.CreationMode != models.CoinSetCreationModeDynamic {
+		t.Fatalf("expected creation mode %q, got %q", models.CoinSetCreationModeDynamic, agentic.CreationMode)
+	}
+}
+
+func TestBuildAgenticTargets_GeneratesBoundedSilverQuarterRoster(t *testing.T) {
+	targets := buildAgenticTargets("All US Silver Quarters from 1940s to 1960s", 7)
+	if len(targets) != 25 {
+		t.Fatalf("expected 25 targets for 1940-1964 silver quarters, got %d", len(targets))
+	}
+	if targets[0].Label != "1940 US Silver Quarter" {
+		t.Fatalf("unexpected first target label %q", targets[0].Label)
+	}
+	last := targets[len(targets)-1]
+	if last.Label != "1964 US Silver Quarter" {
+		t.Fatalf("unexpected last target label %q", last.Label)
+	}
+	if targets[0].Material == nil || *targets[0].Material != "Silver" {
+		t.Fatalf("expected silver material on first target")
 	}
 }

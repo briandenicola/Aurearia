@@ -219,7 +219,7 @@ func migrateCoinSetTypes(db *gorm.DB) error {
 		if err := tx.Exec("UPDATE coin_sets SET set_type='standard' WHERE LOWER(set_type)='open'").Error; err != nil {
 			return err
 		}
-		if err := tx.Exec("UPDATE coin_sets SET set_type='tracker', creation_mode='dynamic' WHERE LOWER(set_type)='dynamic'").Error; err != nil {
+		if err := tx.Exec("UPDATE coin_sets SET set_type='agentic', creation_mode='dynamic' WHERE LOWER(set_type) IN ('dynamic', 'tracker')").Error; err != nil {
 			return err
 		}
 		if err := tx.Exec("UPDATE coin_sets SET creation_mode='manual' WHERE creation_mode IS NULL OR creation_mode=''").Error; err != nil {

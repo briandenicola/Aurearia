@@ -7,54 +7,43 @@
           <option value="standard">Standard</option>
           <option value="goal">Goal</option>
           <option value="smart">Smart</option>
-          <option value="tracker">Tracker</option>
+          <option value="agentic">Agentic</option>
         </select>
       </div>
-      <div v-if="form.setType === 'goal'" class="form-group mb-4">
-        <label for="templateId" class="form-label mb-2 block">Template</label>
-        <select id="templateId" v-model="form.templateId" class="form-input w-full">
-          <option value="">No template</option>
-          <option v-for="template in templates" :key="template.id" :value="template.id">
-            {{ template.name }}
-          </option>
-        </select>
-      </div>
-      <div v-if="form.setType === 'goal'" class="form-group mb-4">
-        <label for="csvTargets" class="form-label mb-2 block">Custom CSV targets</label>
-        <textarea
-          id="csvTargets"
-          v-model="csvTargets"
-          rows="4"
-          class="form-input w-full"
-          placeholder="Label,Year,MintMark,Denomination,Country,Material"
-        />
-      </div>
-      <div v-if="form.setType === 'goal'" class="form-group mb-4">
-        <label for="targetCompletionDate" class="form-label mb-2 block">Target completion date</label>
-        <input id="targetCompletionDate" v-model="form.targetCompletionDate" type="date" class="form-input w-full" />
+      <div v-if="form.setType === 'goal'" class="form-group mb-4 rounded-sm border border-border-subtle bg-card p-4">
+        <span class="section-label">How goal completion works</span>
+        <p class="mt-2 mb-0 text-body text-text-secondary">
+          Goal sets track both collection and wishlist members.
+        </p>
+        <p class="mt-2 mb-0 text-body text-text-secondary">
+          Completion is calculated as collection items divided by collection plus wishlist items.
+        </p>
+        <p class="mt-2 mb-0 text-chip text-text-muted">
+          Example: 2 collection and 5 wishlist = 2 / (2 + 5) = 28.6%.
+        </p>
       </div>
       <SetSmartRuleBuilder
         v-if="form.setType === 'smart'"
         @update="form.smartCriteria = $event"
       />
-      <div v-if="form.setType === 'tracker'" class="form-group mb-4">
-        <label for="trackerCreationMode" class="form-label mb-2 block">Tracker creation mode</label>
-        <select id="trackerCreationMode" v-model="form.trackerCreationMode" class="form-input w-full">
-          <option value="manual">Manual</option>
-          <option value="dynamic">Dynamic (agentic)</option>
-        </select>
+      <div v-if="form.setType === 'agentic'" class="form-group mb-4 rounded-sm border border-border-subtle bg-card p-4">
+        <span class="section-label">How agentic sets work</span>
+        <p class="mt-2 mb-0 text-body text-text-secondary">
+          Describe the collection you want to build. Aurearia will generate the roster asynchronously, notify you when it is ready, and display each target as a tray slot.
+        </p>
       </div>
-      <div v-if="form.setType === 'tracker' && form.trackerCreationMode === 'dynamic'" class="form-group mb-4">
-        <label for="trackerPrompt" class="form-label mb-2 block">Dynamic builder prompt</label>
+      <div v-if="form.setType === 'agentic'" class="form-group mb-4">
+        <label for="agenticPrompt" class="form-label mb-2 block">Agentic prompt</label>
         <textarea
-          id="trackerPrompt"
-          v-model="form.trackerPrompt"
+          id="agenticPrompt"
+          v-model="form.agenticPrompt"
           rows="3"
           maxlength="500"
           class="form-input w-full"
-          placeholder="Example: all American wheat pennies by date and mint"
+          placeholder="Example: All US silver quarters from 1940s to 1960s"
+          :required="form.setType === 'agentic'"
         />
-        <p class="mt-2 text-body text-text-secondary">A proposal will be generated for review before any tracker set is created.</p>
+        <p class="mt-2 text-body text-text-secondary">Use a bounded request with a series, denomination, and date range for the best tray layout.</p>
       </div>
       <div class="form-group mb-4">
         <label for="setName" class="form-label mb-2 block">Name</label>
@@ -97,10 +86,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
-import { getSetTemplates } from '@/api/client'
+import { reactive, ref, watch } from 'vue'
 import { normalizeCoinSetType } from '@/types'
-import type { CoinSetTemplate, CreateCoinSetRequest, SmartCriteriaGroup } from '@/types'
+import type { CreateCoinSetRequest, SmartCriteriaGroup } from '@/types'
 import SetSmartRuleBuilder from '@/components/sets/SetSmartRuleBuilder.vue'
 
 const props = withDefaults(defineProps<{
@@ -123,20 +111,9 @@ const form = reactive({
   templateId: props.initialValue?.templateId ?? '',
   targetCompletionDate: props.initialValue?.targetCompletionDate ?? '',
   smartCriteria: props.initialValue?.smartCriteria as SmartCriteriaGroup | undefined,
-  trackerCreationMode: props.initialValue?.creationMode ?? 'manual',
-  trackerPrompt: props.initialValue?.trackerPrompt ?? '',
+  agenticPrompt: props.initialValue?.agenticPrompt ?? '',
 })
-const templates = ref<CoinSetTemplate[]>([])
 const csvTargets = ref('')
-
-onMounted(async () => {
-  try {
-    const res = await getSetTemplates()
-    templates.value = res.data.templates
-  } catch {
-    templates.value = []
-  }
-})
 
 watch(() => props.initialValue, (value) => {
   form.name = value?.name ?? ''
@@ -146,8 +123,7 @@ watch(() => props.initialValue, (value) => {
   form.templateId = value?.templateId ?? ''
   form.targetCompletionDate = value?.targetCompletionDate ?? ''
   form.smartCriteria = value?.smartCriteria as SmartCriteriaGroup | undefined
-  form.trackerCreationMode = value?.creationMode ?? 'manual'
-  form.trackerPrompt = value?.trackerPrompt ?? ''
+  form.agenticPrompt = value?.agenticPrompt ?? ''
 })
 
 function submit() {
@@ -158,13 +134,12 @@ function submit() {
     description: form.description.trim(),
     color: form.color,
     setType: form.setType,
-    templateId: form.templateId || undefined,
-    targetCompletionDate: form.targetCompletionDate || undefined,
+    templateId: form.setType !== 'goal' ? (form.templateId || undefined) : undefined,
+    targetCompletionDate: form.setType !== 'goal' ? (form.targetCompletionDate || undefined) : undefined,
     smartCriteria: form.smartCriteria ?? undefined,
-    creationMode: form.setType === 'tracker' ? form.trackerCreationMode : undefined,
-    trackerPrompt: form.setType === 'tracker' && form.trackerCreationMode === 'dynamic'
-      ? form.trackerPrompt.trim() || undefined
+    agenticPrompt: form.setType === 'agentic'
+      ? form.agenticPrompt.trim() || undefined
       : undefined,
-  }, csvTargets.value.trim() || undefined)
+  }, form.setType !== 'goal' ? (csvTargets.value.trim() || undefined) : undefined)
 }
 </script>

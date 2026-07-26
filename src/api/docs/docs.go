@@ -18272,6 +18272,12 @@ const docTemplate = `{
         "models.CoinSet": {
             "type": "object",
             "properties": {
+                "agenticPrompt": {
+                    "type": "string"
+                },
+                "agenticStatus": {
+                    "type": "string"
+                },
                 "color": {
                     "type": "string"
                 },
@@ -18336,17 +18342,19 @@ const docTemplate = `{
                 "standard",
                 "smart",
                 "goal",
-                "tracker",
+                "agentic",
                 "standard",
-                "goal"
+                "goal",
+                "agentic"
             ],
             "x-enum-varnames": [
                 "CoinSetTypeStandard",
                 "CoinSetTypeSmart",
                 "CoinSetTypeGoal",
-                "CoinSetTypeTracker",
+                "CoinSetTypeAgentic",
                 "CoinSetTypeOpen",
-                "CoinSetTypeDefined"
+                "CoinSetTypeDefined",
+                "CoinSetTypeTracker"
             ]
         },
         "models.CoinValueHistory": {

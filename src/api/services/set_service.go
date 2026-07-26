@@ -3,6 +3,8 @@ package services
 import (
 	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,7 +59,7 @@ func (s *SetService) ListSets(userID uint) ([]map[string]interface{}, error) {
 		}
 
 		var completion interface{}
-		if set.SetType == models.CoinSetTypeGoal {
+		if set.SetType == models.CoinSetTypeGoal || set.SetType == models.CoinSetTypeAgentic {
 			if c, err := s.repo.GetSetCompletion(set.ID, userID); err == nil {
 				completion = c["completionPercentage"]
 			}
@@ -73,6 +75,7 @@ func (s *SetService) ListSets(userID uint) ([]map[string]interface{}, error) {
 			"totalValue":           summary["totalValue"],
 			"completionPercentage": completion,
 			"valueChangePercent":   nil, // Will be populated in US3
+			"agenticStatus":        set.AgenticStatus,
 		}
 		result = append(result, setData)
 	}
@@ -107,8 +110,10 @@ func (s *SetService) GetSetDetail(setID, userID uint) (map[string]interface{}, e
 		"avgValuePerCoin":      summary["avgValuePerCoin"],
 		"highestValueCoinId":   summary["highestValueCoinId"],
 		"completionPercentage": nil,
+		"agenticPrompt":        set.AgenticPrompt,
+		"agenticStatus":        set.AgenticStatus,
 	}
-	if set.SetType == models.CoinSetTypeGoal {
+	if set.SetType == models.CoinSetTypeGoal || set.SetType == models.CoinSetTypeAgentic {
 		if c, err := s.repo.GetSetCompletion(set.ID, userID); err == nil {
 			result["completionPercentage"] = c["completionPercentage"]
 		}
@@ -164,8 +169,11 @@ func (s *SetService) CreateSet(userID uint, input map[string]interface{}) (*mode
 		}
 		creationMode = mode
 	}
-	if creationMode == models.CoinSetCreationModeDynamic && setType != string(models.CoinSetTypeTracker) {
-		return nil, fmt.Errorf("dynamic creation mode is only valid for tracker sets")
+	if setType == string(models.CoinSetTypeAgentic) {
+		creationMode = models.CoinSetCreationModeDynamic
+	}
+	if creationMode == models.CoinSetCreationModeDynamic && setType != string(models.CoinSetTypeAgentic) {
+		return nil, fmt.Errorf("dynamic creation mode is only valid for agentic sets")
 	}
 
 	var smartCriteria *models.JSONObject
@@ -178,6 +186,13 @@ func (s *SetService) CreateSet(userID uint, input map[string]interface{}) (*mode
 	}
 	if setType == string(models.CoinSetTypeSmart) && smartCriteria == nil {
 		return nil, fmt.Errorf("smart criteria is required for smart sets")
+	}
+	agenticPrompt := getStringValue(input, "agenticPrompt")
+	if agenticPrompt == "" {
+		agenticPrompt = getStringValue(input, "trackerPrompt")
+	}
+	if setType == string(models.CoinSetTypeAgentic) && agenticPrompt == "" {
+		return nil, fmt.Errorf("agentic prompt is required for agentic sets")
 	}
 
 	// Validate parent set ID if provided
@@ -206,6 +221,8 @@ func (s *SetService) CreateSet(userID uint, input map[string]interface{}) (*mode
 		SetType:       models.CoinSetType(setType),
 		CreationMode:  creationMode,
 		SmartCriteria: smartCriteria,
+		AgenticPrompt: agenticPrompt,
+		AgenticStatus: agenticInitialStatus(models.CoinSetType(setType)),
 	}
 	if rawDate := getStringValue(input, "targetCompletionDate"); rawDate != "" {
 		t, err := time.Parse("2006-01-02", rawDate)
@@ -222,6 +239,10 @@ func (s *SetService) CreateSet(userID uint, input map[string]interface{}) (*mode
 
 	if err := s.repo.Create(set); err != nil {
 		return nil, err
+	}
+	if set.SetType == models.CoinSetTypeAgentic {
+		go s.generateAgenticSetRoster(userID, set.ID, agenticPrompt)
+		return set, nil
 	}
 	if templateID := getStringValue(input, "templateId"); templateID != "" {
 		template := GetTemplateByID(templateID)
@@ -268,7 +289,7 @@ func (s *SetService) UpdateSet(setID, userID uint, updates map[string]interface{
 			return nil, fmt.Errorf("invalid set type")
 		}
 		updates["setType"] = normalizedType
-		if normalizedType != string(models.CoinSetTypeTracker) && set.CreationMode == models.CoinSetCreationModeDynamic {
+		if normalizedType != string(models.CoinSetTypeAgentic) && set.CreationMode == models.CoinSetCreationModeDynamic {
 			updates["creationMode"] = string(models.CoinSetCreationModeManual)
 		}
 	}
@@ -281,8 +302,8 @@ func (s *SetService) UpdateSet(setID, userID uint, updates map[string]interface{
 		if updatedType, ok := updates["setType"].(string); ok {
 			targetType = models.CoinSetType(updatedType)
 		}
-		if mode == models.CoinSetCreationModeDynamic && targetType != models.CoinSetTypeTracker {
-			return nil, fmt.Errorf("dynamic creation mode is only valid for tracker sets")
+		if mode == models.CoinSetCreationModeDynamic && targetType != models.CoinSetTypeAgentic {
+			return nil, fmt.Errorf("dynamic creation mode is only valid for agentic sets")
 		}
 		updates["creationMode"] = string(mode)
 	}
@@ -301,13 +322,16 @@ func (s *SetService) DeleteSet(setID, userID uint) error {
 
 // AddCoinToSet adds a coin to a manual set with validation.
 func (s *SetService) AddCoinToSet(coinID, setID, userID uint, notes string) error {
-	// Verify the set is not a smart set
+	// Verify the set supports manual membership
 	set, err := s.repo.GetByID(setID, userID)
 	if err != nil {
 		return err
 	}
 	if set.SetType == models.CoinSetTypeSmart {
 		return fmt.Errorf("cannot manually add coins to smart sets")
+	}
+	if set.SetType == models.CoinSetTypeAgentic {
+		return fmt.Errorf("cannot manually add coins to agentic sets")
 	}
 
 	return s.repo.AddCoinToSet(coinID, setID, userID, notes)
@@ -323,7 +347,7 @@ func (s *SetService) CreateSnapshot(setID, userID uint) (*models.CoinSetValuatio
 	if err != nil {
 		return nil, err
 	}
-	if set.SetType == models.CoinSetTypeGoal {
+	if set.SetType == models.CoinSetTypeGoal || set.SetType == models.CoinSetTypeAgentic {
 		c, err := s.repo.GetSetCompletion(setID, userID)
 		if err == nil {
 			if pct, ok := c["completionPercentage"].(float64); ok {
@@ -530,13 +554,16 @@ func acquisitionRate(snapshots []models.CoinSetValuationSnapshot) *float64 {
 
 // RemoveCoinFromSet removes a coin from a manual set with validation.
 func (s *SetService) RemoveCoinFromSet(coinID, setID, userID uint) error {
-	// Verify the set is not a smart set
+	// Verify the set supports manual membership
 	set, err := s.repo.GetByID(setID, userID)
 	if err != nil {
 		return err
 	}
 	if set.SetType == models.CoinSetTypeSmart {
 		return fmt.Errorf("cannot manually remove coins from smart sets")
+	}
+	if set.SetType == models.CoinSetTypeAgentic {
+		return fmt.Errorf("cannot manually remove coins from agentic sets")
 	}
 
 	return s.repo.RemoveCoinFromSet(coinID, setID, userID)
@@ -639,6 +666,116 @@ func getStringValueOrDefault(input map[string]interface{}, key, defaultVal strin
 		return strings.TrimSpace(val)
 	}
 	return defaultVal
+}
+
+func agenticInitialStatus(setType models.CoinSetType) string {
+	if setType == models.CoinSetTypeAgentic {
+		return "generating"
+	}
+	return "ready"
+}
+
+func (s *SetService) generateAgenticSetRoster(userID, setID uint, prompt string) {
+	targets := buildAgenticTargets(prompt, setID)
+	status := "ready"
+	message := fmt.Sprintf("Your agentic set roster is ready with %d slot(s).", len(targets))
+	if len(targets) == 0 {
+		status = "failed"
+		message = "I could not turn that prompt into a finite roster. Try a bounded request like a denomination plus date range."
+	} else if err := s.repo.CreateTargetsForSet(setID, targets); err != nil {
+		status = "failed"
+		message = "I could not save the generated roster. Please try again."
+	}
+
+	if set, err := s.repo.GetByID(setID, userID); err == nil {
+		_ = s.repo.Update(set, map[string]interface{}{"agentic_status": status})
+	}
+	if s.notifRepo != nil {
+		_ = s.notifRepo.Create(&models.Notification{
+			UserID:       userID,
+			Type:         "agentic_set_ready",
+			Title:        "Agentic set ready",
+			Message:      message,
+			ReferenceID:  setID,
+			ReferenceURL: fmt.Sprintf("/sets/%d", setID),
+		})
+	}
+}
+
+func buildAgenticTargets(prompt string, setID uint) []models.CoinSetTarget {
+	normalized := strings.ToLower(prompt)
+	startYear, endYear, ok := promptYearRange(normalized)
+	denomination := ""
+	material := ""
+	labelSuffix := ""
+
+	switch {
+	case strings.Contains(normalized, "quarter"):
+		denomination = "Quarter"
+		labelSuffix = "US Quarter"
+		if strings.Contains(normalized, "silver") {
+			material = "Silver"
+			labelSuffix = "US Silver Quarter"
+			if !ok {
+				startYear, endYear, ok = 1932, 1964, true
+			}
+			if endYear > 1964 {
+				endYear = 1964
+			}
+		}
+	case strings.Contains(normalized, "wheat") && (strings.Contains(normalized, "cent") || strings.Contains(normalized, "penn")):
+		denomination = "Cent"
+		material = "Copper"
+		labelSuffix = "Lincoln Wheat Cent"
+		if !ok {
+			startYear, endYear, ok = 1909, 1958, true
+		}
+	}
+	if !ok || startYear > endYear || labelSuffix == "" {
+		return nil
+	}
+
+	targets := make([]models.CoinSetTarget, 0, endYear-startYear+1)
+	for year := startYear; year <= endYear; year++ {
+		yearCopy := year
+		denominationCopy := denomination
+		materialCopy := material
+		group := fmt.Sprintf("%ds", (year/10)*10)
+		matchRules := models.JSONObject{"group": group, "source": "agentic_prompt"}
+		targets = append(targets, models.CoinSetTarget{
+			SetID:        setID,
+			Label:        fmt.Sprintf("%d %s", year, labelSuffix),
+			Year:         &yearCopy,
+			Denomination: &denominationCopy,
+			Material:     &materialCopy,
+			MatchRules:   &matchRules,
+			SortOrder:    len(targets),
+		})
+	}
+	return targets
+}
+
+func promptYearRange(prompt string) (int, int, bool) {
+	re := regexp.MustCompile(`(\d{4})(s)?\s*(?:-|to|through|thru)\s*(\d{4})(s)?`)
+	match := re.FindStringSubmatch(prompt)
+	if len(match) != 5 {
+		return 0, 0, false
+	}
+	start, err := strconv.Atoi(match[1])
+	if err != nil {
+		return 0, 0, false
+	}
+	end, err := strconv.Atoi(match[3])
+	if err != nil {
+		return 0, 0, false
+	}
+	if match[2] == "s" {
+		start = (start / 10) * 10
+	}
+	if match[4] == "s" {
+		end = ((end / 10) * 10) + 9
+	}
+	return start, end, true
 }
 
 // CreateSetFromTemplate creates a goal set from a template.
@@ -755,10 +892,10 @@ func normalizeSetType(raw string) (string, error) {
 		return string(models.CoinSetTypeGoal), nil
 	case string(models.CoinSetTypeSmart):
 		return string(models.CoinSetTypeSmart), nil
-	case string(models.CoinSetTypeTracker):
-		return string(models.CoinSetTypeTracker), nil
+	case "tracker", string(models.CoinSetTypeAgentic):
+		return string(models.CoinSetTypeAgentic), nil
 	case "dynamic":
-		return "", fmt.Errorf("dynamic is a creation mode, not a set type")
+		return "", fmt.Errorf("dynamic is a workflow, not a set type")
 	default:
 		return "", fmt.Errorf("invalid set type")
 	}

@@ -1,6 +1,6 @@
 <template>
   <section class="card">
-    <h2 class="text-xl font-medium mb-5 pb-3 border-b border-border-subtle">API Keys</h2>
+    <h2 class="text-xl font-medium mb-5 pb-3 border-b border-border-subtle">Keys</h2>
     <p class="text-sm text-text-muted mb-4">
       Generate API keys to access your collection from external tools and scripts. Use the <code>X-API-Key</code> header to authenticate.
     </p>

@@ -39,7 +39,7 @@ const setDescription = computed(() => {
   const normalizedType = normalizeCoinSetType(props.set.setType)
   if (normalizedType === 'goal') return 'Goal set'
   if (normalizedType === 'smart') return 'Smart set'
-  if (normalizedType === 'tracker') return 'Tracker set'
+  if (normalizedType === 'agentic') return props.set.agenticStatus === 'generating' ? 'Agentic set generating' : 'Agentic set'
   return props.set.coinCount > 0 ? 'Standard set' : 'Ready for coins'
 })
 </script>

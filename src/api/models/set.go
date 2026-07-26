@@ -13,11 +13,12 @@ const (
 	CoinSetTypeStandard CoinSetType = "standard"
 	CoinSetTypeSmart    CoinSetType = "smart"
 	CoinSetTypeGoal     CoinSetType = "goal"
-	CoinSetTypeTracker  CoinSetType = "tracker"
+	CoinSetTypeAgentic  CoinSetType = "agentic"
 
 	// Legacy aliases normalized during create/update and DB migration.
 	CoinSetTypeOpen    CoinSetType = CoinSetTypeStandard
 	CoinSetTypeDefined CoinSetType = CoinSetTypeGoal
+	CoinSetTypeTracker CoinSetType = CoinSetTypeAgentic
 )
 
 type CoinSetCreationMode string
@@ -42,11 +43,13 @@ type CoinSet struct {
 	IsPublic             bool                `gorm:"default:false" json:"isPublic"`
 	ShareToken           *string             `gorm:"type:varchar(64);uniqueIndex" json:"shareToken"`
 	SmartCriteria        *JSONObject         `gorm:"type:text" json:"smartCriteria"`
+	AgenticPrompt        string              `gorm:"type:text" json:"agenticPrompt,omitempty"`
+	AgenticStatus        string              `gorm:"type:varchar(20);default:'ready'" json:"agenticStatus,omitempty"`
 	CreatedAt            time.Time           `json:"createdAt"`
 	UpdatedAt            time.Time           `json:"updatedAt"`
 }
 
-// CoinSetMembership represents manual membership for standard, goal, and tracker sets.
+// CoinSetMembership represents manual membership for standard and goal sets.
 type CoinSetMembership struct {
 	SetID     uint      `gorm:"primaryKey" json:"setId"`
 	CoinID    uint      `gorm:"primaryKey" json:"coinId"`

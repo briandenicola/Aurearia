@@ -443,6 +443,9 @@ func (r *SetRepository) GetSetCompletion(setID, userID uint) (map[string]interfa
 	if set.SetType == models.CoinSetTypeGoal {
 		return r.getGoalSetCompletion(setID, userID)
 	}
+	if set.SetType == models.CoinSetTypeAgentic {
+		return r.getAgenticSetCompletion(setID, userID)
+	}
 
 	targets, err := r.GetTargetsForSet(setID, userID)
 	if err != nil {
@@ -489,6 +492,56 @@ func (r *SetRepository) GetSetCompletion(setID, userID uint) (map[string]interfa
 	}, nil
 }
 
+func (r *SetRepository) getAgenticSetCompletion(setID, userID uint) (map[string]interface{}, error) {
+	targets, err := r.GetTargetsForSet(setID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if len(targets) == 0 {
+		return map[string]interface{}{
+			"totalTargets":         0,
+			"completedTargets":     0,
+			"completionPercentage": 0.0,
+			"missingTargets":       []models.CoinSetTarget{},
+		}, nil
+	}
+
+	var coins []models.Coin
+	if err := r.db.
+		Scopes(OwnedBy(userID)).
+		Where("is_wishlist = ? AND is_sold = ?", false, false).
+		Preload("Images").
+		Preload("Tags").
+		Find(&coins).Error; err != nil {
+		return nil, err
+	}
+
+	completedTargets := 0
+	missingTargets := []models.CoinSetTarget{}
+	for _, target := range targets {
+		matched := false
+		for _, coin := range coins {
+			if matchCoinToTarget(coin, target) {
+				matched = true
+				break
+			}
+		}
+		if matched {
+			completedTargets++
+		} else {
+			missingTargets = append(missingTargets, target)
+		}
+	}
+
+	return map[string]interface{}{
+		"totalTargets":         len(targets),
+		"completedTargets":     completedTargets,
+		"completionPercentage": (float64(completedTargets) / float64(len(targets))) * 100.0,
+		"targets":              targets,
+		"missingTargets":       missingTargets,
+	}, nil
+}
+
 func (r *SetRepository) getGoalSetCompletion(setID, userID uint) (map[string]interface{}, error) {
 	type completionCounts struct {
 		CollectionItems int
@@ -530,8 +583,8 @@ func normalizeSetTypeModel(set *models.CoinSet) {
 		set.SetType = models.CoinSetTypeStandard
 	case "defined":
 		set.SetType = models.CoinSetTypeGoal
-	case "dynamic":
-		set.SetType = models.CoinSetTypeTracker
+	case "dynamic", "tracker":
+		set.SetType = models.CoinSetTypeAgentic
 		set.CreationMode = models.CoinSetCreationModeDynamic
 	}
 	if set.CreationMode == "" {
@@ -709,12 +762,16 @@ func nextSetSortOrder(tx *gorm.DB, setID uint) (int, error) {
 
 // matchCoinToTarget determines if a coin matches a target's criteria.
 func matchCoinToTarget(coin models.Coin, target models.CoinSetTarget) bool {
-	// Match year - extract from Era field if present
 	if target.Year != nil {
-		// For US coins, era typically contains the year
-		// This is a simplified match; real implementation may need more sophisticated parsing
 		yearStr := fmt.Sprintf("%d", *target.Year)
-		if !strings.Contains(string(coin.Era), yearStr) {
+		yearFields := strings.ToLower(strings.Join([]string{
+			coin.Name,
+			string(coin.Era),
+			coin.ObverseDescription,
+			coin.ReverseDescription,
+			coin.Notes,
+		}, " "))
+		if !strings.Contains(yearFields, yearStr) {
 			return false
 		}
 	}
@@ -735,8 +792,14 @@ func matchCoinToTarget(coin models.Coin, target models.CoinSetTarget) bool {
 	}
 
 	// Match denomination (case-insensitive)
-	if target.Denomination != nil && !strings.EqualFold(coin.Denomination, *target.Denomination) {
-		return false
+	if target.Denomination != nil {
+		coinDenomination := strings.ToLower(coin.Denomination)
+		targetDenomination := strings.ToLower(*target.Denomination)
+		if coinDenomination != targetDenomination &&
+			!strings.Contains(coinDenomination, targetDenomination) &&
+			!strings.Contains(targetDenomination, coinDenomination) {
+			return false
+		}
 	}
 
 	// Match country - check Ruler field for country information
