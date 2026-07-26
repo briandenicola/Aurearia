@@ -15075,7 +15075,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "category": {
-                    "$ref": "#/definitions/models.Category"
+                    "maxLength": 64,
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Category"
+                        }
+                    ]
                 },
                 "currentValue": {
                     "type": "number"
@@ -15386,7 +15391,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "category": {
-                    "$ref": "#/definitions/models.Category"
+                    "maxLength": 64,
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Category"
+                        }
+                    ]
                 },
                 "currentValue": {
                     "type": "number"

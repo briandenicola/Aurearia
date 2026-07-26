@@ -156,7 +156,9 @@ definitions:
   handlers.CoinCreateRequest:
     properties:
       category:
-        $ref: '#/definitions/models.Category'
+        allOf:
+        - $ref: '#/definitions/models.Category'
+        maxLength: 64
       currentValue:
         type: number
       denomination:
@@ -372,7 +374,9 @@ definitions:
   handlers.CoinUpdateRequest:
     properties:
       category:
-        $ref: '#/definitions/models.Category'
+        allOf:
+        - $ref: '#/definitions/models.Category'
+        maxLength: 64
       currentValue:
         type: number
       denomination:

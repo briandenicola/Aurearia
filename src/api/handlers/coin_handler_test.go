@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -311,6 +312,52 @@ func TestCoinHandler_Create_Success(t *testing.T) {
 	}
 	if resp["userId"] != float64(1) {
 		t.Errorf("expected userId 1, got %v", resp["userId"])
+	}
+}
+
+func TestCoinHandler_Create_RejectsOverlongCategory(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "creator")
+
+	coinData := map[string]interface{}{
+		"name":     "Overlong Category Coin",
+		"category": strings.Repeat("x", 65),
+		"material": "Silver",
+	}
+	body, _ := json.Marshal(coinData)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/coins", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for an over-length category, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestCoinHandler_Create_RejectsUnsupportedCategory(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "creator")
+
+	coinData := map[string]interface{}{
+		"name":     "Unsupported Category Coin",
+		"category": "Not A Real Category",
+		"material": "Silver",
+	}
+	body, _ := json.Marshal(coinData)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/coins", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", authHeader(1))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for an unsupported category, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
