@@ -9979,6 +9979,83 @@ const docTemplate = `{
                 }
             }
         },
+        "/set-builder/runs": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Submits a natural-language Agentic set prompt for asynchronous proposal generation. No set is created by this endpoint.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sets"
+                ],
+                "summary": "Queue Agentic set proposal",
+                "parameters": [
+                    {
+                        "description": "Agentic set prompt",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.createSetBuilderRunRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "run": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/sets": {
             "get": {
                 "security": [
@@ -16998,6 +17075,14 @@ const docTemplate = `{
                 },
                 "volumeRequired": {
                     "type": "boolean"
+                }
+            }
+        },
+        "handlers.createSetBuilderRunRequest": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string"
                 }
             }
         },

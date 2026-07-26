@@ -340,6 +340,9 @@ func main() {
 		// Sets - new endpoints for coin sets
 		setService := services.NewSetService(setRepo, tagRepo, notifRepo)
 		setHandler := handlers.NewSetHandler(setRepo, setService).WithSettingsSupport(settingsSvc)
+		setBuilderRepo := repository.NewSetBuilderRepository(database.DB)
+		setBuilderService := services.NewSetBuilderService(setBuilderRepo, notifRepo)
+		setBuilderHandler := handlers.NewSetBuilderHandler(setBuilderService)
 		setSnapshotScheduler := services.NewSetSnapshotScheduler(setService, settingsSvc, logger)
 		go setSnapshotScheduler.Start()
 		protected.GET("/sets", setHandler.List)
@@ -363,6 +366,7 @@ func main() {
 		protected.POST("/sets/:id/snapshot", setHandler.CreateSnapshot)
 		protected.GET("/sets/:id/trends", setHandler.GetTrends)
 		protected.GET("/sets/:id/analytics", setHandler.GetAnalytics)
+		protected.POST("/set-builder/runs", setBuilderHandler.CreateRun)
 
 		journalHandler := handlers.NewJournalHandler(journalRepo)
 		protected.GET("/coins/:id/journal", journalHandler.ListEntries)

@@ -1304,6 +1304,11 @@ definitions:
     - displayName
     - era
     type: object
+  handlers.createSetBuilderRunRequest:
+    properties:
+      prompt:
+        type: string
+    type: object
   handlers.emperorTrackerHighlightRequest:
     properties:
       coinId:
@@ -9722,6 +9727,55 @@ paths:
       summary: Scrape image URL from a web page
       tags:
       - Images
+  /set-builder/runs:
+    post:
+      consumes:
+      - application/json
+      description: Submits a natural-language Agentic set prompt for asynchronous
+        proposal generation. No set is created by this endpoint.
+      parameters:
+      - description: Agentic set prompt
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.createSetBuilderRunRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            properties:
+              run:
+                type: object
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Queue Agentic set proposal
+      tags:
+      - sets
   /sets:
     get:
       description: Get all sets for the authenticated user with aggregate summaries

@@ -571,6 +571,21 @@ export interface CreateCoinSetFromCsvRequest extends CreateCoinSetRequest {
   csv: string
 }
 
+export interface SetBuilderRun {
+  id: number
+  userId: number
+  prompt: string
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  provider?: string
+  model?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateSetBuilderRunRequest {
+  prompt: string
+}
+
 export type UpdateCoinSetRequest = Partial<CreateCoinSetRequest>
 
 export interface AddCoinToSetRequest {

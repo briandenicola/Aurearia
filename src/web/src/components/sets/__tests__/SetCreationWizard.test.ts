@@ -7,19 +7,28 @@ describe('SetCreationWizard', () => {
     vi.clearAllMocks()
   })
 
-  it('blocks direct agentic set creation while proposal workflow is pending', async () => {
+  it('emits an agentic submit payload with the prompt instead of creating a set locally', async () => {
     const wrapper = mount(SetCreationWizard, { attachTo: document.body })
     await flushPromises()
 
     await wrapper.find('#setType').setValue('agentic')
     await wrapper.find('#agenticPrompt').setValue('  All US Silver Quarters from 1940s to 1960s  ')
     await wrapper.find('#setName').setValue('US Silver Quarters')
+
+    expect(wrapper.text()).toContain('How agentic sets work')
+    expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('button[type="submit"]').text()).toBe('Create')
+
     await wrapper.find('form').trigger('submit.prevent')
 
-    expect(wrapper.text()).toContain('Agentic builder unavailable')
-    expect(wrapper.text()).toContain('No Agentic set will be created until a proposal is generated and approved.')
-    expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeDefined()
-    expect(wrapper.emitted('submit')).toBeUndefined()
+    const submitEvents = wrapper.emitted('submit') as unknown[][]
+    expect(submitEvents).toBeTruthy()
+    const payload = submitEvents[0][0] as Record<string, unknown>
+    const csvArg = submitEvents[0][1]
+
+    expect(payload.setType).toBe('agentic')
+    expect(payload.agenticPrompt).toBe('All US Silver Quarters from 1940s to 1960s')
+    expect(csvArg).toBeUndefined()
     expect(wrapper.find('#trackerCreationMode').exists()).toBe(false)
   })
 

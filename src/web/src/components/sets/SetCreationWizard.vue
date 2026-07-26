@@ -27,12 +27,12 @@
         @update="form.smartCriteria = $event"
       />
       <div v-if="form.setType === 'agentic'" class="form-group mb-4 rounded-sm border border-border-subtle bg-card p-4">
-        <span class="section-label">Agentic builder unavailable</span>
+        <span class="section-label">How agentic sets work</span>
         <p class="mt-2 mb-0 text-body text-text-secondary">
-          The Agentic builder is being rebuilt to use the Python agent workflow, proposal persistence, and human review required by the spec.
+          Describe the set you want and the agent will propose matching coins for you to review.
         </p>
         <p class="mt-2 mb-0 text-body text-text-secondary">
-          No Agentic set will be created until a proposal is generated and approved.
+          No set is created immediately. A proposal request is submitted for the agent to work through.
         </p>
       </div>
       <div v-if="form.setType === 'agentic'" class="form-group mb-4">
@@ -46,7 +46,6 @@
           placeholder="Example: All US silver quarters from 1940s to 1960s"
           :required="form.setType === 'agentic'"
         />
-        <p class="mt-2 text-body text-text-secondary">This prompt will be enabled when the proposal review workflow is wired.</p>
       </div>
       <div class="form-group mb-4">
         <label for="setName" class="form-label mb-2 block">Name</label>
@@ -80,8 +79,8 @@
       </div>
       <div class="mt-6 flex justify-end gap-2">
         <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Cancel</button>
-        <button type="submit" class="btn btn-primary" :disabled="!form.name.trim() || form.setType === 'agentic'">
-          {{ form.setType === 'agentic' ? 'Proposal workflow pending' : submitLabel }}
+        <button type="submit" class="btn btn-primary" :disabled="!form.name.trim()">
+          {{ submitLabel }}
         </button>
       </div>
     </form>
@@ -132,7 +131,6 @@ watch(() => props.initialValue, (value) => {
 function submit() {
   const name = form.name.trim()
   if (!name) return
-  if (form.setType === 'agentic') return
   emit('submit', {
     name,
     description: form.description.trim(),
@@ -141,7 +139,7 @@ function submit() {
     templateId: form.setType !== 'goal' ? (form.templateId || undefined) : undefined,
     targetCompletionDate: form.setType !== 'goal' ? (form.targetCompletionDate || undefined) : undefined,
     smartCriteria: form.smartCriteria ?? undefined,
-    agenticPrompt: undefined,
+    agenticPrompt: form.setType === 'agentic' ? form.agenticPrompt.trim() || undefined : undefined,
   }, undefined)
 }
 </script>
