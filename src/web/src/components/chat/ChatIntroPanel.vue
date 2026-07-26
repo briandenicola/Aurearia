@@ -20,6 +20,12 @@
         </button>
         <button
           class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"
+          @click="$emit('send', 'Which coins in my collection are missing an era?')"
+        >
+          Coins missing an era
+        </button>
+        <button
+          class="w-full rounded-sm border border-border-subtle bg-card px-3 py-2 text-left text-chip text-text-secondary transition-colors hover:border-border-accent hover:text-gold"
           @click="$emit('send', 'Show me ancient Greek tetradrachms from Athens')"
         >
           Greek tetradrachms from Athens

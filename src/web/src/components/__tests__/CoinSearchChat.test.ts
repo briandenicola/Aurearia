@@ -63,7 +63,7 @@ describe('CoinSearchChat note saving', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('Coin Search Agent')
+    expect(wrapper.text()).toContain('Coin Agent')
 
     const saveToNotesButton = wrapper.findAll('button').find((button) => button.text() === 'Save to Notes')
     expect(saveToNotesButton).toBeTruthy()
