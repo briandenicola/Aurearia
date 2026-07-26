@@ -12,13 +12,22 @@ import (
 )
 
 var (
-	ErrCoinInvalidEra = errors.New("era is not supported")
+	ErrCoinInvalidEra      = errors.New("era is not supported")
+	ErrCoinInvalidCategory = errors.New("category is not supported")
 )
 
 var builtInCoinEras = map[models.Era]struct{}{
 	models.EraAncient:  {},
 	models.EraMedieval: {},
 	models.EraModern:   {},
+}
+
+var builtInCoinCategories = map[models.Category]struct{}{
+	models.CategoryRoman:     {},
+	models.CategoryGreek:     {},
+	models.CategoryByzantine: {},
+	models.CategoryModern:    {},
+	models.CategoryOther:     {},
 }
 
 // CoinService handles coin business logic and orchestrates repository calls.
@@ -119,6 +128,10 @@ func (s *CoinService) prepareCoinForCreate(coin *models.Coin) error {
 	if err := s.validateCoinEra(coin.Era); err != nil {
 		return err
 	}
+	coin.Category = models.Category(strings.TrimSpace(string(coin.Category)))
+	if err := s.validateCoinCategory(coin.Category); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -191,6 +204,16 @@ func (s *CoinService) updateCoin(existing *models.Coin, updates *models.Coin, up
 	existingEra := models.Era(strings.TrimSpace(string(existing.Era)))
 	if eraProvided && updates.Era != existingEra {
 		if err := s.validateCoinEra(updates.Era); err != nil {
+			return err
+		}
+	}
+	categoryProvided := updateFields == nil || containsString(updateFields, "Category")
+	if categoryProvided {
+		updates.Category = models.Category(strings.TrimSpace(string(updates.Category)))
+	}
+	existingCategory := models.Category(strings.TrimSpace(string(existing.Category)))
+	if categoryProvided && updates.Category != existingCategory {
+		if err := s.validateCoinCategory(updates.Category); err != nil {
 			return err
 		}
 	}
@@ -380,6 +403,30 @@ func (s *CoinService) validateCoinEra(era models.Era) error {
 		return ErrCoinInvalidEra
 	}
 	return nil
+}
+
+// validateCoinCategory mirrors validateCoinEra: built-in categories are
+// always accepted regardless of the CoinCategories admin setting (so the
+// "Roman" value Emperor Tracker depends on can never be invalidated by an
+// admin edit to that setting), custom categories are accepted if they
+// appear in the setting's admin-defined list. Unlike Era, there is no
+// Catalog Registry fallback tier for Category — no such concept exists there.
+func (s *CoinService) validateCoinCategory(category models.Category) error {
+	trimmed := strings.TrimSpace(string(category))
+	if trimmed == "" {
+		return nil
+	}
+	normalized := models.Category(trimmed)
+	if _, ok := builtInCoinCategories[normalized]; ok {
+		return nil
+	}
+	if len(trimmed) > 64 {
+		return ErrCoinInvalidCategory
+	}
+	if s.settingsSvc != nil && settingListContains(s.settingsSvc.GetSetting(SettingCoinCategories), trimmed) {
+		return nil
+	}
+	return ErrCoinInvalidCategory
 }
 
 func settingListContains(value, needle string) bool {

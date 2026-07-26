@@ -43,7 +43,7 @@ const (
 type Coin struct {
 	ID                     uint             `gorm:"primaryKey" json:"id"`
 	Name                   string           `gorm:"not null" json:"name" binding:"max=200"`
-	Category               Category         `gorm:"type:varchar(20);not null;default:'Other'" json:"category"`
+	Category               Category         `gorm:"type:varchar(20);not null;default:'Other'" json:"category" binding:"omitempty,max=64"`
 	Denomination           string           `json:"denomination" binding:"max=200"`
 	Ruler                  string           `json:"ruler" binding:"max=200"`
 	RomanImperialFigureID  *uint            `gorm:"index" json:"romanImperialFigureId"`
