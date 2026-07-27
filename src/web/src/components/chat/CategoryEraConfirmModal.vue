@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="request" class="fixed inset-0 z-[300] flex items-center justify-center bg-[rgba(0,0,0,0.6)] px-4" @click="cancel">
+    <div v-if="request" class="fixed inset-0 z-[1600] flex items-center justify-center bg-[rgba(0,0,0,0.6)] px-4" @click="cancel">
       <div class="w-full max-w-[360px] rounded-md border border-border-subtle bg-card p-6 shadow-[0_12px_40px_rgba(0,0,0,0.5)]" @click.stop>
         <h3 class="mb-2 text-base text-heading">Confirm {{ request.fieldLabel }}</h3>
         <p class="mb-3 text-body text-text-secondary">
