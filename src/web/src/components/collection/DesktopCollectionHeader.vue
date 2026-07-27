@@ -12,14 +12,14 @@
         </div>
       </div>
 
-      <div class="flex flex-nowrap items-center gap-3 max-md:flex-col max-md:items-stretch">
-        <div class="flex shrink-0 flex-wrap gap-[0.35rem] max-md:w-full">
+      <div class="flex flex-wrap items-center gap-3 max-md:flex-col max-md:items-stretch">
+        <div class="flex min-w-0 flex-wrap gap-[0.35rem] max-md:w-full">
           <CategoryFilter :model-value="selectedCategory" @update:model-value="$emit('update:selectedCategory', $event)" />
         </div>
 
-        <div class="h-6 w-px shrink-0 bg-border-subtle max-md:hidden"></div>
+        <div class="h-6 w-px shrink-0 bg-border-subtle max-lg:hidden"></div>
 
-        <div class="flex min-w-0 flex-1 items-center gap-2 max-md:w-full">
+        <div class="flex min-w-[220px] flex-1 items-center gap-2 max-md:w-full max-sm:flex-col max-sm:items-stretch">
           <EraFilter :model-value="selectedEra" :eras="eraOptions" @update:model-value="$emit('update:selectedEra', $event)" />
           <select v-if="userTags.length" :value="selectedTag" @change="$emit('update:selectedTag', ($event.target as HTMLSelectElement).value)" class="form-select h-[38px] min-w-0 flex-1 bg-card px-[0.6rem] py-[0.45rem] text-body transition-colors hover:border-border-accent">
             <option value="">All Sets</option>
@@ -27,7 +27,7 @@
           </select>
         </div>
 
-        <div class="h-6 w-px shrink-0 bg-border-subtle max-md:hidden"></div>
+        <div class="h-6 w-px shrink-0 bg-border-subtle max-lg:hidden"></div>
 
         <div class="flex shrink-0 items-center gap-2 max-md:w-full max-md:justify-between">
           <div class="inline-flex whitespace-nowrap rounded-sm border border-border-subtle bg-input p-[2px]">
