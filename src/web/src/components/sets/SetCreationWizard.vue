@@ -34,6 +34,9 @@
         <p class="mt-2 mb-0 text-body text-text-secondary">
           No set is created immediately. A proposal request is submitted for the agent to work through.
         </p>
+        <p class="mt-2 mb-0 text-chip text-text-muted">
+          The workflow can draft up to 300 roster slots. For broad ideas, narrow by date range, mint, ruler, or series and submit another run.
+        </p>
       </div>
       <div v-if="form.setType === 'agentic'" class="form-group mb-4">
         <label for="agenticPrompt" class="form-label mb-2 block">Agentic prompt</label>

@@ -41,16 +41,19 @@
           class="mt-[2px] shrink-0"
           :class="!n.isRead ? 'text-gold' : 'text-text-muted'"
         >
-          <AlertTriangle v-if="n.type === 'wishlist_unavailable'" :size="20" />
+          <AlertTriangle v-if="n.type === 'wishlist_unavailable' || n.type === 'agentic_set_proposal_failed' || n.type === 'agentic_set_creation_failed'" :size="20" />
           <UserPlus v-else-if="n.type === 'friend_new_coin' || n.type === 'follow_request'" :size="20" />
           <Sparkles v-else-if="n.type === 'coin_of_day'" :size="20" />
           <Key v-else-if="n.type === 'api_key_rotation_required'" :size="20" />
-          <FolderOpen v-else-if="n.type === 'set_milestone'" :size="20" />
+          <FolderOpen v-else-if="n.type === 'set_milestone' || n.type === 'agentic_set_proposal_ready' || n.type === 'agentic_set_created'" :size="20" />
           <Bell v-else :size="20" />
         </div>
         <div class="min-w-0 flex-1">
           <div class="mb-[0.2rem] text-base font-semibold text-text-primary">{{ n.title }}</div>
           <div class="text-body leading-[1.4] text-text-secondary">{{ n.message }}</div>
+          <div v-if="notificationHint(n)" class="mt-[0.35rem] text-sm leading-[1.4] text-text-muted">
+            {{ notificationHint(n) }}
+          </div>
           <div class="mt-[0.35rem] text-sm text-text-muted">{{ formatTime(n.createdAt) }}</div>
         </div>
         <button
@@ -138,17 +141,33 @@ async function handleClick(n: Notification) {
     router.push('/followers')
     return
   }
+  if (n.referenceUrl && n.referenceUrl.startsWith('/')) {
+    router.push(n.referenceUrl)
+    return
+  }
   if (n.type === 'wishlist_unavailable' && n.referenceId) {
     router.push(`/coin/${n.referenceId}`)
   } else if (n.type === 'friend_new_coin' && n.referenceId) {
     router.push(`/coin/${n.referenceId}`)
   } else if (n.type === 'api_key_rotation_required') {
     router.push('/settings')
-  } else if (n.referenceUrl && n.referenceUrl.startsWith('/')) {
-    router.push(n.referenceUrl)
   } else if (n.type === 'set_milestone' && n.referenceId) {
     router.push(`/sets/${n.referenceId}`)
   }
+}
+
+function notificationHint(n: Notification): string {
+  if (n.type === 'agentic_set_proposal_failed') {
+    const runLabel = n.referenceId ? ` Run #${n.referenceId}.` : ''
+    return `Try a narrower prompt by date range, mint, ruler, or series, then submit again.${runLabel}`
+  }
+  if (n.type === 'agentic_set_proposal_ready') {
+    return 'Open review to inspect the proposed slots, scope interpretation, and collection match estimates before approving.'
+  }
+  if (n.type === 'agentic_set_creation_failed') {
+    return 'Open Sets and retry from a reviewed proposal, or regenerate with clearer instructions.'
+  }
+  return ''
 }
 
 async function handleMarkAllRead() {

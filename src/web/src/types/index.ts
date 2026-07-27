@@ -1817,7 +1817,7 @@ export interface CoinOfDayRun {
 export interface Notification {
   id: number
   userId: number
-  type: 'wishlist_unavailable' | 'friend_new_coin' | 'follow_request' | 'coin_of_day' | 'api_key_rotation_required' | 'set_milestone' | 'ai_job_completed' | 'ai_job_failed' | 'valuation_complete'
+  type: 'wishlist_unavailable' | 'friend_new_coin' | 'follow_request' | 'coin_of_day' | 'api_key_rotation_required' | 'set_milestone' | 'agentic_set_proposal_ready' | 'agentic_set_proposal_failed' | 'agentic_set_created' | 'agentic_set_creation_failed' | 'ai_job_completed' | 'ai_job_failed' | 'valuation_complete'
   title: string
   message: string
   referenceId: number

@@ -141,6 +141,7 @@ Rules:
 
 
 class SetBuilderState(TypedDict, total=False):
+    run_id: int | None
     prompt: str
     feedback: str
     collection_summary: str
@@ -227,8 +228,8 @@ def create_set_builder_team(
 
     async def intent_node(state: SetBuilderState) -> dict:
         logger.info(
-            "[set_builder] stage=intent_analyst provider=%s model=%s prompt=%.80s",
-            llm_config.provider, llm_config.model, state.get("prompt", ""),
+            "[set_builder] stage=intent_analyst run_id=%s provider=%s model=%s prompt=%.120s max_slots=%s",
+            state.get("run_id"), llm_config.provider, llm_config.model, state.get("prompt", ""), state.get("max_slots"),
         )
         turns_used = state.get("turns_used", 0) + 1
         human_text = f"User prompt: {state.get('prompt', '')}"
@@ -261,7 +262,10 @@ def create_set_builder_team(
         return update
 
     async def roster_node(state: SetBuilderState) -> dict:
-        logger.info("[set_builder] stage=roster_researcher provider=%s model=%s", llm_config.provider, llm_config.model)
+        logger.info(
+            "[set_builder] stage=roster_researcher run_id=%s provider=%s model=%s max_slots=%s",
+            state.get("run_id"), llm_config.provider, llm_config.model, state.get("max_slots"),
+        )
         turns_used = state.get("turns_used", 0) + 1
         intent = state.get("intent", {})
         human_text = (
@@ -292,8 +296,8 @@ def create_set_builder_team(
 
     async def match_node(state: SetBuilderState) -> dict:
         logger.info(
-            "[set_builder] stage=collection_matcher provider=%s model=%s",
-            llm_config.provider, llm_config.model,
+            "[set_builder] stage=collection_matcher run_id=%s provider=%s model=%s",
+            state.get("run_id"), llm_config.provider, llm_config.model,
         )
         turns_used = state.get("turns_used", 0) + 1
         roster = state.get("roster", [])
@@ -314,7 +318,10 @@ def create_set_builder_team(
         }
 
     async def validate_node(state: SetBuilderState) -> dict:
-        logger.info("[set_builder] stage=validator provider=%s model=%s", llm_config.provider, llm_config.model)
+        logger.info(
+            "[set_builder] stage=validator run_id=%s provider=%s model=%s slots=%d",
+            state.get("run_id"), llm_config.provider, llm_config.model, len(state.get("roster", [])),
+        )
         turns_used = state.get("turns_used", 0) + 1
         roster = state.get("roster", [])
         human_text = f"Roster to validate: {json.dumps(roster)}"
@@ -337,8 +344,8 @@ def create_set_builder_team(
 
     async def finalize_node(state: SetBuilderState) -> dict:
         logger.info(
-            "[set_builder] stage=orchestrator_finalize status=%s turns_used=%s",
-            state.get("status"), state.get("turns_used"),
+            "[set_builder] stage=orchestrator_finalize run_id=%s status=%s turns_used=%s max_slots=%s",
+            state.get("run_id"), state.get("status"), state.get("turns_used"), state.get("max_slots"),
         )
         status = state.get("status")
         if status:
@@ -444,6 +451,7 @@ async def run_set_builder_workflow(request: SetBuilderRequest) -> SetBuilderResp
         collection_dict = request.collection.model_dump()
 
     initial_state: SetBuilderState = {
+        "run_id": request.run_id,
         "prompt": request.prompt,
         "feedback": request.feedback,
         "collection_summary": _collection_summary_text(collection_dict),

@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 
 from app.config import settings
 from app.models.requests import (
+    MAX_SET_BUILDER_MAX_SLOTS,
     AlertDiscoveryRequest,
     AnalyzeRequest,
     AvailabilityCheckRequest,
@@ -347,14 +348,16 @@ async def set_builder_run(request: SetBuilderRequest):
     proposal data only — never creates or modifies a set, slot, or coin.
     """
     logger.info(
-        "POST /set-builder/run — provider=%s, model=%s, user_id=%s, prompt=%.80s, "
-        "max_turns=%d, max_slots=%d, external_lookup=%s",
+        "POST /set-builder/run — provider=%s, model=%s, user_id=%s, run_id=%s, prompt=%.120s, "
+        "max_turns=%d, requested_max_slots=%d, contract_max_slots=%d, external_lookup=%s",
         request.llm.provider,
         request.llm.model,
         request.user.user_id,
+        request.run_id,
         request.prompt,
         request.max_turns,
         request.max_slots,
+        MAX_SET_BUILDER_MAX_SLOTS,
         request.enable_external_lookup,
     )
     return await run_set_builder_workflow(request)

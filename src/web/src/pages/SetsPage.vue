@@ -62,7 +62,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { CirclePlus, Layers3, Plus, X } from 'lucide-vue-next'
-import { getApiErrorMessage, getSets, createSet as createSetApi, createSetFromCsv, createSetBuilderRun } from '@/api/client'
+import { formatSetBuilderError, getApiErrorMessage, getSets, createSet as createSetApi, createSetFromCsv, createSetBuilderRun } from '@/api/client'
 import type { CoinSetSummary, CreateCoinSetRequest } from '@/types'
 import SetDashboardCard from '@/components/sets/SetDashboardCard.vue'
 import SetCreationWizard from '@/components/sets/SetCreationWizard.vue'
@@ -116,11 +116,11 @@ function openCreateModal() {
 async function createSet(value: CreateCoinSetRequest, csv?: string) {
   try {
     if (value.setType === 'agentic') {
-      await createSetBuilderRun({ prompt: value.agenticPrompt || value.name })
+      const res = await createSetBuilderRun({ prompt: value.agenticPrompt || value.name })
       showCreateModal.value = false
       resetNewSet()
       await showAlert(
-        'Your set proposal request has been submitted. You will be notified when a proposal is ready for review.',
+        `Your set proposal request has been submitted as run #${res.data.run.id}. The workflow will draft roster slots, estimate matches from your collection where data exists, and notify you when review is ready.`,
         { title: 'Proposal Request Submitted' },
       )
       return
@@ -136,7 +136,8 @@ async function createSet(value: CreateCoinSetRequest, csv?: string) {
   } catch (error) {
     console.error('Failed to create set:', error)
     const title = value.setType === 'agentic' ? 'Failed to Submit Proposal Request' : 'Failed to Create Set'
-    await showAlert(getApiErrorMessage(error) || 'Request failed.', { title })
+    const message = value.setType === 'agentic' ? formatSetBuilderError(error) : (getApiErrorMessage(error) || 'Request failed.')
+    await showAlert(message, { title })
   }
 }
 

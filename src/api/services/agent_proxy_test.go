@@ -162,7 +162,7 @@ func TestAgentProxyRunSetBuilderSendsInternalCredentialAndParsesProposal(t *test
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
-		if req.Prompt != "All US silver quarters" || req.Collection == nil || req.Collection.TotalCoins != 2 {
+		if req.Prompt != "All US silver quarters" || req.RunID != 99 || req.Collection == nil || req.Collection.TotalCoins != 2 {
 			t.Fatalf("unexpected set builder request: %#v", req)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -187,6 +187,7 @@ func TestAgentProxyRunSetBuilderSendsInternalCredentialAndParsesProposal(t *test
 	result, err := proxy.RunSetBuilder(context.Background(), SetBuilderProxyRequest{
 		LLM:        LLMConfig{Provider: "ollama", Model: "llama3"},
 		User:       UserContextProxy{UserID: 1},
+		RunID:      99,
 		Prompt:     "All US silver quarters",
 		Collection: &PortfolioData{TotalCoins: 2},
 	})
@@ -195,6 +196,46 @@ func TestAgentProxyRunSetBuilderSendsInternalCredentialAndParsesProposal(t *test
 	}
 	if result.Status != "completed" || result.Proposal == nil || len(result.Proposal.Slots) != 1 {
 		t.Fatalf("unexpected set builder result: %#v", result)
+	}
+}
+
+func TestAgentProxyRunSetBuilderLogsSanitizedAgentErrorDetail(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`{
+			"detail":[
+				{"type":"less_than_equal","loc":["body","max_slots"],"msg":"Input should be less than or equal to 300","input":500},
+				{"loc":["body","llm","api_key"],"input":"secret-provider-key"}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	logger := NewLogger(10)
+	proxy := NewAgentProxy(server.URL, "internal-token", logger)
+	_, err := proxy.RunSetBuilder(context.Background(), SetBuilderProxyRequest{
+		LLM:      LLMConfig{Provider: "anthropic", APIKey: "secret-provider-key", Model: "claude-test"},
+		User:     UserContextProxy{UserID: 7},
+		RunID:    42,
+		Prompt:   "US wheat pennies across mints Denver, Philly, and San Fran from 1909 to 1930",
+		MaxSlots: 500,
+	})
+	if err == nil {
+		t.Fatal("expected set builder error")
+	}
+	logs := logger.GetLogs(10)
+	joined := ""
+	for _, entry := range logs {
+		joined += entry.Message + "\n"
+	}
+	if !strings.Contains(joined, "run_id=42") ||
+		!strings.Contains(joined, "requested_max_slots=500") ||
+		!strings.Contains(joined, "less_than_equal") {
+		t.Fatalf("expected sanitized validation detail in logs, got:\n%s", joined)
+	}
+	if strings.Contains(joined, "secret-provider-key") {
+		t.Fatalf("agent error logs leaked provider secret:\n%s", joined)
 	}
 }
 

@@ -323,8 +323,11 @@ func TestSetBuilderServiceProcessRunCallsPythonAndPersistsProposal(t *testing.T)
 	if agent.calls != 1 {
 		t.Fatalf("expected one Python workflow call, got %d", agent.calls)
 	}
-	if agent.request.Prompt != run.Prompt || agent.request.Collection == nil || agent.request.Collection.TotalCoins != 1 {
+	if agent.request.Prompt != run.Prompt || agent.request.RunID != run.ID || agent.request.Collection == nil || agent.request.Collection.TotalCoins != 1 {
 		t.Fatalf("unexpected Python request: %#v", agent.request)
+	}
+	if agent.request.MaxSlots != maxSetBuilderAgentSlots {
+		t.Fatalf("set builder max_slots must stay within Python contract, got %d want %d", agent.request.MaxSlots, maxSetBuilderAgentSlots)
 	}
 	var persistedRun models.SetBuilderRun
 	if err := db.First(&persistedRun, run.ID).Error; err != nil {

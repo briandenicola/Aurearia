@@ -427,6 +427,23 @@ describe('API Client', () => {
       expect(message).toBe('Agent service unavailable')
     })
 
+    it('formats FastAPI validation detail arrays into field-level messages', () => {
+      const message = client.getApiErrorMessage({
+        response: {
+          data: {
+            detail: [
+              {
+                loc: ['body', 'max_slots'],
+                msg: 'Input should be less than or equal to 300',
+              },
+            ],
+          },
+        },
+      })
+
+      expect(message).toBe('body.max_slots: Input should be less than or equal to 300')
+    })
+
     it('points agent-service outages at internal service configuration, not provider settings', () => {
       expect(client.formatAgentServiceError({
         response: {
@@ -445,6 +462,21 @@ describe('API Client', () => {
 
     it('treats bare HTTP 503 stream failures as agent-service configuration failures', () => {
       expect(client.formatAgentServiceError('HTTP 503')).toBe('Agent service unavailable. Check the internal agent service configuration.')
+    })
+
+    it('turns set-builder slot-limit failures into actionable user guidance', () => {
+      expect(client.formatSetBuilderError({
+        response: {
+          data: {
+            detail: [
+              {
+                loc: ['body', 'max_slots'],
+                msg: 'Input should be less than or equal to 300',
+              },
+            ],
+          },
+        },
+      })).toContain('Try a narrower prompt')
     })
   })
 
