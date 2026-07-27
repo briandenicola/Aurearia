@@ -160,4 +160,54 @@ describe('MintMapPage', () => {
     expect(wrapper.text()).toContain('Trajan Denarius Core')
     expect(wrapper.text()).not.toContain('Byzantium Alias Solidus')
   })
+
+  it('renders MintListPanel alongside the map with matched groups', async () => {
+    const wrapper = shallowMount(MintMapPage, {
+      global: {
+        stubs: {
+          RouterLink: routerLinkStub,
+          MintMapLeaflet: true,
+          MintCoinDrawer: true,
+          MintListPanel: {
+            props: ['groups', 'selectedMintId'],
+            emits: ['select-mint'],
+            template: '<ul class="stub-mint-list"><li v-for="g in groups" :key="g.mint.id" class="stub-mint-item">{{ g.mint.displayName }}</li></ul>',
+          },
+          UnattributedMintBucket: true,
+        },
+      },
+    })
+    await flushMountedPromises()
+
+    const listItems = wrapper.findAll('.stub-mint-item')
+    expect(listItems.length).toBeGreaterThanOrEqual(1)
+    expect(wrapper.text()).toContain('Rome')
+  })
+
+  it('selecting from MintListPanel opens the coin drawer', async () => {
+    const wrapper = shallowMount(MintMapPage, {
+      global: {
+        stubs: {
+          RouterLink: routerLinkStub,
+          MintMapLeaflet: true,
+          MintListPanel: {
+            props: ['groups', 'selectedMintId'],
+            emits: ['select-mint'],
+            template: '<button class="select-list-rome" @click="$emit(\'select-mint\', groups[0])">Select Rome</button>',
+          },
+          MintCoinDrawer: {
+            props: ['open', 'group'],
+            template: '<aside v-if="open" class="drawer-open">{{ group.mint.displayName }}</aside>',
+          },
+          UnattributedMintBucket: true,
+        },
+      },
+    })
+    await flushMountedPromises()
+
+    expect(wrapper.find('.drawer-open').exists()).toBe(false)
+    await wrapper.find('.select-list-rome').trigger('click')
+    expect(wrapper.find('.drawer-open').exists()).toBe(true)
+    expect(wrapper.find('.drawer-open').text()).toContain('Rome')
+  })
 })
