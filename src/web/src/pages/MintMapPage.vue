@@ -38,11 +38,19 @@
         <strong class="mapped-count">{{ mappedCoinCount }}</strong>
       </section>
 
-      <MintMapLeaflet
-        :groups="aggregation.matched"
-        :selected-mint-id="selectedMintId"
-        @select-mint="selectMint"
-      />
+      <div class="map-layout">
+        <MintListPanel
+          :groups="aggregation.matched"
+          :selected-mint-id="selectedMintId"
+          @select-mint="selectMint"
+        />
+
+        <MintMapLeaflet
+          :groups="aggregation.matched"
+          :selected-mint-id="selectedMintId"
+          @select-mint="selectMint"
+        />
+      </div>
 
       <UnattributedMintBucket
         v-if="unattributedCount > 0"
@@ -66,6 +74,7 @@ import { ArrowLeft } from 'lucide-vue-next'
 import { getCoins, getMintLocations, type MintLocationsResponse } from '@/api/client'
 import MintMapLeaflet from '@/components/map/MintMapLeaflet.vue'
 import MintCoinDrawer from '@/components/map/MintCoinDrawer.vue'
+import MintListPanel from '@/components/map/MintListPanel.vue'
 import UnattributedMintBucket from '@/components/map/UnattributedMintBucket.vue'
 import { groupCoinsByMint, type MintGroup } from '@/utils/mintMap'
 import type { Coin, MintLocation } from '@/types'
@@ -226,5 +235,18 @@ onMounted(() => {
 .state-card p {
   margin: 0;
   color: var(--text-secondary);
+}
+
+.map-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .map-layout {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
