@@ -95,6 +95,7 @@ describe('TrayViewPage', () => {
     await flushPromises()
 
     const tray = wrapper.findComponent({ name: 'MuseumTray' })
+    expect(tray.props('showCaptions')).toBe(false)
     expect(tray.props('coins')).toEqual([{
       id: measuredCoin.id,
       name: measuredCoin.name,

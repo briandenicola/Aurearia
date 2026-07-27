@@ -130,6 +130,33 @@ describe('MuseumTrayWell', () => {
     expect(wrapper.html()).toContain('well-placeholder')
   })
 
+  it('hides captions when requested by the collection tray', () => {
+    const wrapper = mount(MuseumTrayWell, {
+      props: {
+        coin: mockCoinNoImage,
+        renderSizePx: 70,
+        showCaptions: false,
+      },
+    })
+
+    expect(wrapper.find('.tray-date').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('TBD')
+  })
+
+  it('keeps default TBD captions for goal-set wishlist placeholders', () => {
+    const wrapper = mount(MuseumTrayWell, {
+      props: {
+        coin: {
+          ...mockCoinNoImage,
+          wishlistPlaceholder: true,
+        },
+        renderSizePx: 70,
+      },
+    })
+
+    expect(wrapper.find('.tray-date').text()).toBe('TBD')
+  })
+
   it('uses image resolver for public media without authenticated blob loading', () => {
     const wrapper = mount(MuseumTrayWell, {
       props: {
