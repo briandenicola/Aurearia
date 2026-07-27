@@ -38,9 +38,9 @@
         <strong class="mapped-count">{{ mappedCoinCount }}</strong>
       </section>
 
-      <div class="map-layout">
+      <div class="map-layout" data-testid="map-layout-enlarged">
         <MintListPanel
-          :groups="aggregation.matched"
+          :groups="panelGroups"
           :selected-mint-id="selectedMintId"
           @select-mint="selectMint"
         />
@@ -51,13 +51,6 @@
           @select-mint="selectMint"
         />
       </div>
-
-      <UnattributedMintBucket
-        v-if="unattributedCount > 0"
-        v-model:expanded="unattributedExpanded"
-        :unknown="aggregation.unknown"
-        :unmatched="aggregation.unmatched"
-      />
 
       <MintCoinDrawer
         :open="selectedGroup !== null"
@@ -75,14 +68,12 @@ import { getCoins, getMintLocations, type MintLocationsResponse } from '@/api/cl
 import MintMapLeaflet from '@/components/map/MintMapLeaflet.vue'
 import MintCoinDrawer from '@/components/map/MintCoinDrawer.vue'
 import MintListPanel from '@/components/map/MintListPanel.vue'
-import UnattributedMintBucket from '@/components/map/UnattributedMintBucket.vue'
-import { groupCoinsByMint, type MintGroup } from '@/utils/mintMap'
+import { UNKNOWN_MINT_ID, groupCoinsByMint, type MintGroup } from '@/utils/mintMap'
 import type { Coin, MintLocation } from '@/types'
 
 const MAP_PAGE_LIMIT = 100
 
 const selectedMintId = ref<number | null>(null)
-const unattributedExpanded = ref(false)
 const errorMessage = ref('')
 const mintLocations = ref<MintLocation[]>([])
 const collectionCoins = ref<Coin[]>([])
@@ -91,14 +82,33 @@ const coinsLoading = ref(false)
 
 const loading = computed(() => mintLocationsLoading.value || coinsLoading.value)
 const aggregation = computed(() => groupCoinsByMint(collectionCoins.value, mintLocations.value))
-const selectedGroup = computed(() =>
-  aggregation.value.matched.find((group) => group.mint.id === selectedMintId.value) ?? null,
-)
+
+const unknownGroup = computed((): MintGroup | null => {
+  const allCoins = [
+    ...aggregation.value.unknown,
+    ...aggregation.value.unmatched.flatMap((g) => g.coins),
+  ]
+  if (!allCoins.length) return null
+  return {
+    mint: { id: UNKNOWN_MINT_ID, displayName: 'Unknown Mint', lat: 0, lng: 0, aliases: [], region: '' },
+    coins: allCoins,
+    count: allCoins.length,
+  }
+})
+
+const panelGroups = computed(() => {
+  const groups = [...aggregation.value.matched]
+  if (unknownGroup.value) groups.push(unknownGroup.value)
+  return groups
+})
+
+const selectedGroup = computed((): MintGroup | null => {
+  if (selectedMintId.value === UNKNOWN_MINT_ID) return unknownGroup.value ?? null
+  return aggregation.value.matched.find((group) => group.mint.id === selectedMintId.value) ?? null
+})
+
 const mappedCoinCount = computed(() =>
   aggregation.value.matched.reduce((total, group) => total + group.count, 0),
-)
-const unattributedCount = computed(() =>
-  aggregation.value.unknown.length + aggregation.value.unmatched.reduce((total, group) => total + group.coins.length, 0),
 )
 
 function selectMint(group: MintGroup) {
@@ -242,7 +252,8 @@ onMounted(() => {
   grid-template-columns: 260px 1fr;
   gap: 1rem;
   /* default align-items: stretch — both columns fill the same row height */
-  height: min(70vh, 640px);
+  /* enlarged from min(70vh, 640px) now that the below-map bucket moved into the panel */
+  height: min(80vh, 800px);
 }
 
 @media (max-width: 768px) {
