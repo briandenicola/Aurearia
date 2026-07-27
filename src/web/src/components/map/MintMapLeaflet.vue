@@ -106,7 +106,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .mint-map-card {
-  min-height: 420px;
   padding: 0;
   overflow: hidden;
   border-radius: var(--radius-md);
@@ -114,9 +113,16 @@ onBeforeUnmount(() => {
 
 .mint-map-leaflet {
   width: 100%;
+  height: 100%;
   min-height: 420px;
-  height: min(70vh, 640px);
   background: var(--bg-card);
+}
+
+/* On mobile the grid row is auto-height, so provide an explicit height */
+@media (max-width: 768px) {
+  .mint-map-leaflet {
+    height: min(50vh, 380px);
+  }
 }
 
 /*

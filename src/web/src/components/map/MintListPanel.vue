@@ -88,11 +88,11 @@ function coinPreview(group: MintGroup): string {
   padding: 0.5rem;
   overflow-y: auto;
   flex: 1;
+  min-height: 0; /* required: allows flex child to shrink and scroll within panel */
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  /* desktop: scrollable within the panel height */
-  max-height: min(70vh, 640px);
+  /* desktop: no max-height — grid row height bounds the panel naturally */
 }
 
 .mint-list-item {

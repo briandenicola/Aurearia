@@ -241,12 +241,14 @@ onMounted(() => {
   display: grid;
   grid-template-columns: 260px 1fr;
   gap: 1rem;
-  align-items: start;
+  /* default align-items: stretch — both columns fill the same row height */
+  height: min(70vh, 640px);
 }
 
 @media (max-width: 768px) {
   .map-layout {
     grid-template-columns: 1fr;
+    height: auto;
   }
 }
 </style>

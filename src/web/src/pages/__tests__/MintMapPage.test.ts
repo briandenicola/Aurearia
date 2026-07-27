@@ -210,4 +210,24 @@ describe('MintMapPage', () => {
     expect(wrapper.find('.drawer-open').exists()).toBe(true)
     expect(wrapper.find('.drawer-open').text()).toContain('Rome')
   })
+
+  it('renders MintListPanel and MintMapLeaflet inside the map-layout container', async () => {
+    const wrapper = shallowMount(MintMapPage, {
+      global: {
+        stubs: {
+          RouterLink: routerLinkStub,
+          MintMapLeaflet: true,
+          MintListPanel: true,
+          MintCoinDrawer: true,
+          UnattributedMintBucket: true,
+        },
+      },
+    })
+    await flushMountedPromises()
+
+    const layout = wrapper.find('.map-layout')
+    expect(layout.exists()).toBe(true)
+    expect(layout.findComponent({ name: 'MintListPanel' }).exists()).toBe(true)
+    expect(layout.findComponent({ name: 'MintMapLeaflet' }).exists()).toBe(true)
+  })
 })
