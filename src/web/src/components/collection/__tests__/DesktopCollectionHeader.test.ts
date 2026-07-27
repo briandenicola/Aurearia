@@ -30,4 +30,11 @@ describe('DesktopCollectionHeader', () => {
     expect(source).toContain('Reverse')
     expect(source).toContain("$emit('update:gridSide'")
   })
+
+  it('allows filter controls to wrap inside the desktop header panel', () => {
+    const source = fs.readFileSync(headerPath, 'utf8')
+
+    expect(source).toContain('flex flex-wrap items-center gap-3')
+    expect(source).not.toContain('flex flex-nowrap items-center gap-3')
+  })
 })
