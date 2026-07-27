@@ -79,14 +79,13 @@ describe('MintMapPage', () => {
     expect(wrapper.find('.mapped-count').text()).toBe('120')
   })
 
-  it('renders summary counts and the unattributed bucket', async () => {
+  it('renders summary counts after loading', async () => {
     const wrapper = shallowMount(MintMapPage, {
       global: {
         stubs: {
           RouterLink: routerLinkStub,
           MintMapLeaflet: true,
           MintCoinDrawer: true,
-          UnattributedMintBucket: true,
         },
       },
     })
@@ -94,7 +93,6 @@ describe('MintMapPage', () => {
 
     expect(wrapper.text()).toContain('Mapped Coins:')
     expect(wrapper.text()).toContain('4')
-    expect(wrapper.findComponent({ name: 'UnattributedMintBucket' }).exists()).toBe(true)
   })
 
   it('renders the correct header with Map of Coins title and back link to /stats', () => {
@@ -219,7 +217,6 @@ describe('MintMapPage', () => {
           MintMapLeaflet: true,
           MintListPanel: true,
           MintCoinDrawer: true,
-          UnattributedMintBucket: true,
         },
       },
     })
@@ -229,5 +226,106 @@ describe('MintMapPage', () => {
     expect(layout.exists()).toBe(true)
     expect(layout.findComponent({ name: 'MintListPanel' }).exists()).toBe(true)
     expect(layout.findComponent({ name: 'MintMapLeaflet' }).exists()).toBe(true)
+  })
+
+  it('Unknown Mint appears in the side panel with its coin count and preview', async () => {
+    // buildMintMapFixtureCoins produces 1 unknown (mint='') + 1 unmatched (mint='Traveling Camp')
+    const wrapper = shallowMount(MintMapPage, {
+      global: {
+        stubs: {
+          RouterLink: routerLinkStub,
+          MintMapLeaflet: true,
+          MintCoinDrawer: true,
+          MintListPanel: {
+            props: ['groups', 'selectedMintId'],
+            template: `
+              <ul class="stub-panel">
+                <li v-for="g in groups" :key="g.mint.id" class="stub-panel-item">
+                  {{ g.mint.displayName }} {{ g.count }}
+                </li>
+              </ul>
+            `,
+          },
+        },
+      },
+    })
+    await flushMountedPromises()
+
+    expect(wrapper.text()).toContain('Unknown Mint')
+    // 1 unknown coin + 1 unmatched coin = 2
+    const items = wrapper.findAll('.stub-panel-item')
+    const unknownItem = items.find((el) => el.text().includes('Unknown Mint'))
+    expect(unknownItem).toBeDefined()
+    expect(unknownItem?.text()).toContain('2')
+  })
+
+  it('selecting Unknown Mint from the panel opens the coin drawer', async () => {
+    const wrapper = shallowMount(MintMapPage, {
+      global: {
+        stubs: {
+          RouterLink: routerLinkStub,
+          MintMapLeaflet: true,
+          MintListPanel: {
+            props: ['groups', 'selectedMintId'],
+            emits: ['select-mint'],
+            template: `
+              <button
+                v-for="g in groups"
+                :key="g.mint.id"
+                class="stub-panel-item"
+                @click="$emit('select-mint', g)"
+              >{{ g.mint.displayName }}</button>
+            `,
+          },
+          MintCoinDrawer: {
+            props: ['open', 'group'],
+            template: '<aside v-if="open" class="drawer-open">{{ group.mint.displayName }}</aside>',
+          },
+        },
+      },
+    })
+    await flushMountedPromises()
+
+    const unknownBtn = wrapper.findAll('.stub-panel-item').find((b) => b.text().includes('Unknown Mint'))
+    expect(unknownBtn).toBeDefined()
+    expect(wrapper.find('.drawer-open').exists()).toBe(false)
+
+    await unknownBtn!.trigger('click')
+
+    expect(wrapper.find('.drawer-open').exists()).toBe(true)
+    expect(wrapper.find('.drawer-open').text()).toContain('Unknown Mint')
+  })
+
+  it('does not render the below-map UnattributedMintBucket section', async () => {
+    const wrapper = shallowMount(MintMapPage, {
+      global: {
+        stubs: {
+          RouterLink: routerLinkStub,
+          MintMapLeaflet: true,
+          MintCoinDrawer: true,
+          MintListPanel: true,
+        },
+      },
+    })
+    await flushMountedPromises()
+
+    expect(wrapper.findComponent({ name: 'UnattributedMintBucket' }).exists()).toBe(false)
+  })
+
+  it('map-layout carries enlarged data-testid after unknown bucket moves to the panel', async () => {
+    // CSS height is min(80vh, 800px), up from min(70vh, 640px) — data-testid verifies enlarged mode
+    const wrapper = shallowMount(MintMapPage, {
+      global: {
+        stubs: {
+          RouterLink: routerLinkStub,
+          MintMapLeaflet: true,
+          MintCoinDrawer: true,
+          MintListPanel: true,
+        },
+      },
+    })
+    await flushMountedPromises()
+
+    expect(wrapper.find('[data-testid="map-layout-enlarged"]').exists()).toBe(true)
   })
 })

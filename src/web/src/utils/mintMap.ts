@@ -1,6 +1,9 @@
 import type { Coin } from '@/types'
 import type { MintLocation } from '@/types'
 
+/** Sentinel ID for the virtual Unknown Mint group (coins with no mappable location). */
+export const UNKNOWN_MINT_ID = 0
+
 export interface MintReference {
   id: number
   displayName: string
