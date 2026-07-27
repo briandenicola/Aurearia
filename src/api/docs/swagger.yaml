@@ -6,10 +6,10 @@ definitions:
         example: true
         type: boolean
       message:
-        example: 'Anthropic provider configured (model: claude-sonnet-4-20250514)'
+        example: 'Anthropic provider configured (model: claude-sonnet-5)'
         type: string
       model:
-        example: claude-sonnet-4-20250514
+        example: claude-sonnet-5
         type: string
       provider:
         example: anthropic

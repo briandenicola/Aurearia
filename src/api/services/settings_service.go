@@ -90,7 +90,7 @@ var settingDefaults = map[string]string{
 	SettingPublicAppURL:                       "",
 	SettingNumistaAPIKey:                      "",
 	SettingAnthropicAPIKey:                    "",
-	SettingAnthropicModel:                     "claude-sonnet-4-20250514",
+	SettingAnthropicModel:                     "claude-sonnet-5",
 	SettingCoinSearchPrompt:                   "",
 	SettingCoinShowsPrompt:                    "",
 	SettingValuationPrompt:                    "",

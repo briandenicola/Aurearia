@@ -210,8 +210,8 @@ type OllamaStatusResponse struct {
 type AIStatusResponse struct {
 	Available bool   `json:"available" example:"true"`
 	Provider  string `json:"provider" example:"anthropic"`
-	Model     string `json:"model" example:"claude-sonnet-4-20250514"`
-	Message   string `json:"message" example:"Anthropic provider configured (model: claude-sonnet-4-20250514)"`
+	Model     string `json:"model" example:"claude-sonnet-5"`
+	Message   string `json:"message" example:"Anthropic provider configured (model: claude-sonnet-5)"`
 }
 
 type UserInfoResponse struct {

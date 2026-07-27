@@ -85,12 +85,14 @@ roster of slots for the set. Respond with a single JSON array only:
     "criteria": {"year": "1943", "mint": "", "denomination": "Cent"},
     "group": "grouping value, e.g. decade or category label",
     "sort_order": 0,
-    "source_note": "basis for this entry, or a note about uncertainty"
+    "source_note": "brief basis or uncertainty note"
   }
 ]
 
 Rules:
 - Enumerate every slot the scope requires, up to the requested slot cap.
+- Keep each slot compact: labels under 80 characters and source_note under
+  120 characters. Do not write long historical explanations in each slot.
 - Use accurate numismatic facts. If you are not confident about a specific
   detail (a catalog number, a rare mint mark), say so plainly in
   "source_note" rather than inventing a confident-sounding fact.
@@ -167,9 +169,30 @@ async def _call_json(model, system_prompt: str, human_text: str) -> Any:
     """Invoke the model and parse a JSON payload from its response."""
     messages = [SystemMessage(content=system_prompt), HumanMessage(content=human_text)]
     response = await ainvoke_with_retry(model, messages)
-    content = response.content if isinstance(response.content, str) else str(response.content)
+    content = _message_content_text(response.content)
     payload = extract_json_payload(content)
     return json.loads(payload)
+
+
+def _message_content_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, dict):
+                text = block.get("text") or block.get("content")
+                if isinstance(text, str):
+                    parts.append(text)
+            elif isinstance(block, str):
+                parts.append(block)
+        if parts:
+            return "\n".join(parts)
+    if isinstance(content, dict):
+        text = content.get("text") or content.get("content")
+        if isinstance(text, str):
+            return text
+    return str(content)
 
 
 def _collection_summary_text(collection: dict[str, Any] | None) -> str:
