@@ -8,6 +8,7 @@
         :render-size-px="getRenderSize(coin)"
         :image-src-resolver="imageSrcResolver"
         :interactive="interactive"
+        :show-captions="showCaptions"
         @coin-clicked="emit('coin-clicked', $event)"
       />
     </div>
@@ -25,11 +26,13 @@ interface Props {
   feltTheme: FeltColor
   imageSrcResolver?: (filePath: string) => string
   interactive?: boolean
+  showCaptions?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   imageSrcResolver: undefined,
   interactive: true,
+  showCaptions: true,
 })
 const emit = defineEmits<{
   'coin-clicked': [coinId: number]

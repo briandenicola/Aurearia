@@ -38,6 +38,20 @@ describe('MuseumTray', () => {
     expect(wells).toHaveLength(3)
   })
 
+  it('passes caption visibility to each well', () => {
+    const wrapper = mount(MuseumTray, {
+      props: {
+        coins: mockCoins,
+        feltTheme: 'red',
+        showCaptions: false,
+      },
+    })
+
+    const wells = wrapper.findAllComponents(MuseumTrayWell)
+    expect(wells).toHaveLength(3)
+    expect(wells.every(well => well.props('showCaptions') === false)).toBe(true)
+  })
+
   it('applies red felt theme class', () => {
     const wrapper = mount(MuseumTray, {
       props: {

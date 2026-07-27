@@ -37,7 +37,7 @@
         </div>
       </div>
     </div>
-    <span v-if="displayDate" class="tray-date">{{ displayDate }}</span>
+    <span v-if="displayCaption" class="tray-date">{{ displayCaption }}</span>
   </div>
 </template>
 
@@ -52,11 +52,13 @@ interface Props {
   renderSizePx: number
   imageSrcResolver?: (filePath: string) => string
   interactive?: boolean
+  showCaptions?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   imageSrcResolver: undefined,
   interactive: true,
+  showCaptions: true,
 })
 const emit = defineEmits<{
   'coin-clicked': [coinId: number]
@@ -80,7 +82,8 @@ const resolvedImageSrc = computed(() => {
   return props.imageSrcResolver(path)
 })
 
-const displayDate = computed(() => {
+const displayCaption = computed(() => {
+  if (!props.showCaptions) return null
   if (props.coin.placeholder) return null
   if (props.coin.wishlistPlaceholder) return 'TBD'
   return props.coin.purchaseDate?.slice(0, 10) || 'TBD'

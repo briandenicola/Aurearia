@@ -26,6 +26,7 @@
         class="touch-pan-y select-none"
         :coins="currentDrawerCoins"
         :felt-theme="feltColor"
+        :show-captions="false"
         :style="traySwipeStyle"
         @pointerdown="onTrayPointerDown"
         @coin-clicked="handleCoinClicked"
