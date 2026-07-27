@@ -130,6 +130,22 @@ describe('MuseumTrayWell', () => {
     expect(wrapper.html()).toContain('well-placeholder')
   })
 
+  it('shows real purchase date when provided by the set/emperor-tray coin data shape', () => {
+    const coinWithDate: TrayCoin = {
+      ...mockCoinNoImage,
+      purchaseDate: '2026-02-01T00:00:00Z',
+    }
+    const wrapper = mount(MuseumTrayWell, {
+      props: {
+        coin: coinWithDate,
+        renderSizePx: 70,
+      },
+    })
+
+    expect(wrapper.find('.tray-date').text()).toBe('2026-02-01')
+    expect(wrapper.find('.tray-date').text()).not.toBe('TBD')
+  })
+
   it('hides captions when requested by the collection tray', () => {
     const wrapper = mount(MuseumTrayWell, {
       props: {
