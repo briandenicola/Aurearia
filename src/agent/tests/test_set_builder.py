@@ -30,7 +30,7 @@ def valid_payload(**overrides) -> dict:
 
 
 class _FakeResponse:
-    def __init__(self, content: str):
+    def __init__(self, content):
         self.content = content
 
 
@@ -42,6 +42,13 @@ class _FakeModel:
 
     async def ainvoke(self, _messages, **_kwargs):
         payload = self._payloads.pop(0)
+        if isinstance(payload, str) or (
+            isinstance(payload, list)
+            and payload
+            and isinstance(payload[0], dict)
+            and "type" in payload[0]
+        ):
+            return _FakeResponse(payload)
         return _FakeResponse(json.dumps(payload))
 
 
@@ -200,6 +207,43 @@ async def test_workflow_full_pipeline_produces_completed_proposal(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_workflow_parses_anthropic_content_blocks(monkeypatch):
+    intent = {
+        "subject": "Lincoln Wheat Cents",
+        "is_numismatic": True,
+        "clarification_needed": False,
+        "clarification_question": "",
+        "scope_summary": "One coin per date and mint from 1909 to 1930.",
+        "selected_scope": "date+mint",
+        "group_by": "decade",
+        "scope_options": [],
+    }
+    roster = [
+        {
+            "label": "1909-S VDB",
+            "criteria": {"year": "1909", "mint": "S"},
+            "group": "1900s",
+            "sort_order": 0,
+            "source_note": "Key date.",
+        },
+    ]
+    match = {"estimated_filled": 0, "estimated_total": 1, "notes": ""}
+    validated = [{**roster[0], "verification_status": "verified", "validation_notes": ""}]
+    roster_block = [{"type": "text", "text": "```json\n" + json.dumps(roster) + "\n```"}]
+
+    fake_model = _FakeModel([intent, roster_block, match, validated])
+    monkeypatch.setattr("app.teams.set_builder.get_chat_model", lambda _cfg: fake_model)
+    monkeypatch.setattr("app.teams.set_builder.get_search_model", lambda _cfg: fake_model)
+
+    request = SetBuilderRequest(**valid_payload())
+    response = await run_set_builder_workflow(request)
+
+    assert response.status == "completed"
+    assert response.proposal is not None
+    assert response.proposal.slots[0].label == "1909-S VDB"
+
+
+@pytest.mark.asyncio
 async def test_workflow_ambiguous_prompt_returns_clarification(monkeypatch):
     intent = {
         "subject": "cool coins",
@@ -301,4 +345,3 @@ async def test_workflow_caps_slots_at_max_slots(monkeypatch):
     assert response.status == "completed"
     assert len(response.proposal.slots) == 2
     assert "truncated" in response.proposal.prematch_summary.notes.lower()
-

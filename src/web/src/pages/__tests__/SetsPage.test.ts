@@ -14,6 +14,12 @@ vi.mock('@/api/client', () => ({
     const err = error as { response?: { data?: { error?: string } } }
     return err.response?.data?.error ?? ''
   },
+  formatSetBuilderError: (error: unknown) => {
+    const err = error as { response?: { data?: { error?: string } } }
+    const message = err.response?.data?.error ?? ''
+    if (/max_slots/i.test(message)) return 'The set-builder request exceeded the workflow slot limit.'
+    return message
+  },
   getSets: (...args: unknown[]) => mockGetSets(...args),
   createSet: (...args: unknown[]) => mockCreateSetApi(...args),
   createSetFromCsv: (...args: unknown[]) => mockCreateSetFromCsv(...args),
@@ -60,7 +66,7 @@ describe('SetsPage', () => {
     expect(mockCreateSetFromCsv).not.toHaveBeenCalled()
     expect(mockPush).not.toHaveBeenCalled()
     expect(mockShowAlert).toHaveBeenCalledWith(
-      expect.stringContaining('proposal request'),
+      expect.stringContaining('run #1'),
       expect.objectContaining({ title: 'Proposal Request Submitted' }),
     )
     expect(wrapper.find('.card').exists()).toBe(false)
@@ -81,5 +87,25 @@ describe('SetsPage', () => {
     await flushPromises()
 
     expect(mockShowAlert).toHaveBeenCalledWith('Prompt is required', { title: 'Failed to Submit Proposal Request' })
+  })
+
+  it('shows actionable slot-limit guidance when an agentic run request is rejected', async () => {
+    mockCreateSetBuilderRun.mockRejectedValue({ response: { data: { error: 'max_slots 500 is greater than 300' } } })
+    const wrapper = mount(SetsPage, { global: { stubs: { Teleport: true } } })
+    await flushPromises()
+
+    await wrapper.find('.btn-primary').trigger('click')
+    await flushPromises()
+
+    await wrapper.find('#setType').setValue('agentic')
+    await wrapper.find('#agenticPrompt').setValue('US wheat pennies across mints Denver, Philly, and San Fran from 1909 to 1930')
+    await wrapper.find('#setName').setValue('Wheat Pennies')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(mockShowAlert).toHaveBeenCalledWith(
+      'The set-builder request exceeded the workflow slot limit.',
+      { title: 'Failed to Submit Proposal Request' },
+    )
   })
 })

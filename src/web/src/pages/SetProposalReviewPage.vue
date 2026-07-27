@@ -45,6 +45,11 @@
         </div>
       </section>
 
+      <section v-if="proposalIssue" class="card issue-card">
+        <span class="section-label">Workflow issue</span>
+        <p class="description">{{ proposalIssue }}</p>
+      </section>
+
       <section v-if="scopeSummary || scopeOptions.length" class="card">
         <span class="section-label">Scope interpretation</span>
         <p v-if="scopeSummary" class="description">{{ scopeSummary }}</p>
@@ -58,6 +63,28 @@
             <small v-if="option.estimated_slot_count">Estimated slots: {{ option.estimated_slot_count }}</small>
           </div>
         </div>
+      </section>
+
+      <section class="card">
+        <span class="section-label">Collection match insight</span>
+        <div class="info-grid mt-3">
+          <div class="info-card">
+            <span class="info-label">Matched estimate</span>
+            <strong>{{ estimatedFilled }} / {{ estimatedTotal }}</strong>
+          </div>
+          <div class="info-card">
+            <span class="info-label">Verified slots</span>
+            <strong>{{ verifiedSlotCount }}</strong>
+          </div>
+          <div class="info-card">
+            <span class="info-label">Needs review</span>
+            <strong>{{ unverifiedSlotCount }}</strong>
+          </div>
+        </div>
+        <p v-if="preMatchNotes" class="description mt-3">{{ preMatchNotes }}</p>
+        <p v-else class="description mt-3">
+          The workflow uses existing collection data to estimate which proposed slots are already represented before you approve the set.
+        </p>
       </section>
 
       <section class="card">
@@ -239,7 +266,11 @@ const scopeOptions = computed(() => proposal.value?.scopeOptions?.options ?? [])
 const groupByLabel = computed(() => proposal.value?.scopeOptions?.groupBy ? `Grouped by ${proposal.value.scopeOptions.groupBy}` : 'Grouped by proposal')
 const estimatedFilled = computed(() => proposal.value?.preMatchSummary?.estimatedFilled ?? 0)
 const estimatedTotal = computed(() => proposal.value?.preMatchSummary?.estimatedTotal ?? slots.value.length)
+const preMatchNotes = computed(() => proposal.value?.preMatchSummary?.notes ?? '')
 const transcriptSummary = computed(() => proposal.value?.rosterPayload?.transcriptSummary ?? proposal.value?.run?.transcriptSummary ?? '')
+const proposalIssue = computed(() => proposal.value?.errorMessage ?? proposal.value?.run?.errorMessage ?? '')
+const verifiedSlotCount = computed(() => slots.value.filter((slot) => slot.verificationStatus === 'verified').length)
+const unverifiedSlotCount = computed(() => Math.max(0, slots.value.length - verifiedSlotCount.value))
 
 const groupedSlots = computed(() => {
   const groups = new Map<string, SetProposalSlot[]>()
@@ -427,6 +458,7 @@ onMounted(loadProposal)
 
 .info-card,
 .scope-option,
+.issue-card,
 .slot-card {
   padding: 0.75rem;
   border: 1px solid var(--border-subtle);
@@ -438,6 +470,10 @@ onMounted(loadProposal)
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.issue-card {
+  border-color: var(--border-accent);
 }
 
 .scope-options,

@@ -610,7 +610,7 @@ These settings are stored in the database and configured through the **Admin** U
 |---|---|---|
 | AIProvider | — | Explicit provider choice: `anthropic` or `ollama` (must be set before agent features work) |
 | AnthropicAPIKey | — | API key for Claude models |
-| AnthropicModel | — | Claude model (e.g., `claude-sonnet-4-20250514`) |
+| AnthropicModel | — | Claude model (e.g., `claude-sonnet-5`) |
 | OllamaURL | `http://localhost:11434` | Ollama server URL |
 | OllamaModel | `llava` | Vision model name |
 | OllamaTimeout | `300` | Request timeout in seconds |

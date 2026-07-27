@@ -17,11 +17,15 @@ import (
 const (
 	maxSetBuilderPromptLength = 1000
 	maxSetProposalNameLength  = 80
-	maxSetProposalSlots       = 500
-	defaultProposalExpiry     = 7 * 24 * time.Hour
-	setBuilderQueueSize       = 100
-	setBuilderRunTimeout      = 10 * time.Minute
-	setBuilderStaleTimeout    = 30 * time.Minute
+	// Keep in sync with Python app.models.requests.MAX_SET_BUILDER_MAX_SLOTS.
+	// The Go service must not ask the stateless agent for more slots than the
+	// Pydantic request contract accepts, or FastAPI rejects the call with 422.
+	maxSetBuilderAgentSlots = 300
+	maxSetProposalSlots     = maxSetBuilderAgentSlots
+	defaultProposalExpiry   = 7 * 24 * time.Hour
+	setBuilderQueueSize     = 100
+	setBuilderRunTimeout    = 10 * time.Minute
+	setBuilderStaleTimeout  = 30 * time.Minute
 )
 
 const (
@@ -224,15 +228,29 @@ func (s *SetBuilderService) processClaimedRun(run *models.SetBuilderRun) error {
 	if run.MaxTurns != nil && *run.MaxTurns > 0 {
 		maxTurns = *run.MaxTurns
 	}
+	requestedMaxSlots := maxSetProposalSlots
+	s.logInfo(
+		"Starting set builder run_id=%d user_id=%d provider=%s model=%s prompt=%.120q max_turns=%d requested_max_slots=%d agent_contract_max_slots=%d collection_coins=%d",
+		run.ID,
+		run.UserID,
+		llmCfg.Provider,
+		llmCfg.Model,
+		run.Prompt,
+		maxTurns,
+		requestedMaxSlots,
+		maxSetBuilderAgentSlots,
+		setBuilderCollectionCoinCount(collection),
+	)
 	ctx, cancel := context.WithTimeout(context.Background(), setBuilderRunTimeout)
 	defer cancel()
 	result, err := s.agent.RunSetBuilder(ctx, SetBuilderProxyRequest{
 		LLM:                  llmCfg,
 		User:                 UserContextProxy{UserID: run.UserID},
+		RunID:                run.ID,
 		Prompt:               run.Prompt,
 		Collection:           collection,
 		MaxTurns:             maxTurns,
-		MaxSlots:             maxSetProposalSlots,
+		MaxSlots:             minInt(requestedMaxSlots, maxSetBuilderAgentSlots),
 		EnableExternalLookup: true,
 		Feedback:             run.Feedback,
 	})
@@ -252,8 +270,20 @@ func (s *SetBuilderService) processClaimedRun(run *models.SetBuilderRun) error {
 	if err := s.repo.CompleteRun(run.ID, run.UserID, s.now(), strings.TrimSpace(result.TranscriptSummary), &usedTurns, nil); err != nil {
 		return err
 	}
-	_, err = s.CreateProposalFromWorkflow(run.UserID, run.ID, s.workflowDraft(run.UserID, run.Prompt, result))
-	return err
+	proposal, err := s.CreateProposalFromWorkflow(run.UserID, run.ID, s.workflowDraft(run.UserID, run.Prompt, result))
+	if err != nil {
+		return err
+	}
+	s.logInfo(
+		"Completed set builder run_id=%d proposal_id=%d user_id=%d prompt=%.120q slots=%d turns_used=%d",
+		run.ID,
+		proposal.ID,
+		run.UserID,
+		run.Prompt,
+		len(proposal.Slots),
+		usedTurns,
+	)
+	return nil
 }
 
 func (s *SetBuilderService) collectionSummary(userID uint) (*PortfolioData, error) {
@@ -594,7 +624,7 @@ func (s *SetBuilderService) notifyRunFailed(run *models.SetBuilderRun, reason st
 	}
 	message := "Agentic set proposal generation failed. Please check AI provider configuration and try again."
 	if reason != "" {
-		message = "Agentic set proposal generation failed. Please review the prompt or AI provider configuration and try again."
+		message = fmt.Sprintf("Agentic set proposal generation failed for %q: %s", truncateSetBuilderMessage(run.Prompt, 90), userFacingSetBuilderFailure(reason))
 	}
 	_ = s.notifRepo.Create(&models.Notification{
 		UserID:       run.UserID,
@@ -624,6 +654,45 @@ func (s *SetBuilderService) logError(format string, args ...interface{}) {
 	if s.logger != nil {
 		s.logger.Error("set-builder", format, args...)
 	}
+}
+
+func (s *SetBuilderService) logInfo(format string, args ...interface{}) {
+	if s.logger != nil {
+		s.logger.Info("set-builder", format, args...)
+	}
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func setBuilderCollectionCoinCount(collection *PortfolioData) int {
+	if collection == nil {
+		return 0
+	}
+	return collection.TotalCoins
+}
+
+func userFacingSetBuilderFailure(reason string) string {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return "Please review the prompt or AI provider configuration and try again."
+	}
+	if strings.Contains(reason, "max_slots") {
+		return "the workflow slot request was rejected before a proposal could be generated. The run details were saved for troubleshooting."
+	}
+	return truncateSetBuilderMessage(reason, 180)
+}
+
+func truncateSetBuilderMessage(value string, max int) string {
+	value = strings.TrimSpace(value)
+	if max <= 0 || len(value) <= max {
+		return value
+	}
+	return value[:max] + "..."
 }
 
 func normalizeSetBuilderPrompt(prompt string) (string, error) {

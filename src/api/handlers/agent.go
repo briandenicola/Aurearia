@@ -432,9 +432,9 @@ func (h *AgentHandler) ListModels(c *gin.Context) {
 
 func getDefaultModels() []map[string]string {
 	return []map[string]string{
-		{"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4"},
-		{"id": "claude-haiku-4-20250414", "name": "Claude Haiku 4"},
-		{"id": "claude-opus-4-20250514", "name": "Claude Opus 4"},
+		{"id": "claude-sonnet-5", "name": "Claude Sonnet 5"},
+		{"id": "claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5"},
+		{"id": "claude-opus-5", "name": "Claude Opus 5"},
 	}
 }
 

@@ -341,6 +341,7 @@ class SetBuilderRequest(StrictRequestModel):
 
     llm: LLMConfig
     user: UserContext
+    run_id: int | None = Field(default=None, ge=1)
     prompt: BoundedSetBuilderPrompt
     # Optional summary of the user's existing collection, passed from Go so
     # the Collection Matcher role can estimate filled/likely-matched slots

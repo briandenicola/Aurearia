@@ -15691,11 +15691,11 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string",
-                    "example": "Anthropic provider configured (model: claude-sonnet-4-20250514)"
+                    "example": "Anthropic provider configured (model: claude-sonnet-5)"
                 },
                 "model": {
                     "type": "string",
-                    "example": "claude-sonnet-4-20250514"
+                    "example": "claude-sonnet-5"
                 },
                 "provider": {
                     "type": "string",

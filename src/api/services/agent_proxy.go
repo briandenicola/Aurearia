@@ -46,12 +46,147 @@ func (p *AgentProxy) attachInternalCredential(req *http.Request) {
 
 func agentServiceHTTPError(statusCode int, body []byte) error {
 	var detail struct {
-		Detail string `json:"detail"`
+		Detail any `json:"detail"`
 	}
-	if err := json.Unmarshal(body, &detail); err == nil && strings.Contains(detail.Detail, agentMissingInternalCredentialDetail) {
-		return fmt.Errorf("agent service internal credential is not configured: set AGENT_INTERNAL_SERVICE_TOKEN on both Go API and Python agent service")
+	if err := json.Unmarshal(body, &detail); err == nil {
+		switch value := detail.Detail.(type) {
+		case string:
+			if strings.Contains(value, agentMissingInternalCredentialDetail) {
+				return fmt.Errorf("agent service internal credential is not configured: set AGENT_INTERNAL_SERVICE_TOKEN on both Go API and Python agent service")
+			}
+		case []any:
+			if summary := summarizeValidationDetails(value); summary != "" {
+				return fmt.Errorf("agent service returned HTTP %d: %s", statusCode, summary)
+			}
+		}
 	}
 	return fmt.Errorf("agent service returned HTTP %d", statusCode)
+}
+
+func summarizeValidationDetails(items []any) string {
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		loc := validationErrorLocation(entry["loc"])
+		msg := strings.TrimSpace(fmt.Sprint(entry["msg"]))
+		if msg == "<nil>" {
+			msg = ""
+		}
+		input := validationErrorInput(entry["input"])
+		if validationLocationContainsSensitiveName(loc) {
+			input = "[REDACTED]"
+		}
+		switch {
+		case loc != "" && msg != "" && input != "":
+			parts = append(parts, fmt.Sprintf("%s: %s (input: %s)", loc, msg, input))
+		case loc != "" && msg != "":
+			parts = append(parts, fmt.Sprintf("%s: %s", loc, msg))
+		case msg != "":
+			parts = append(parts, msg)
+		}
+	}
+	return truncateLogText(strings.Join(parts, "; "), 240)
+}
+
+func validationErrorLocation(value any) string {
+	items, ok := value.([]any)
+	if !ok {
+		return ""
+	}
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		text := strings.TrimSpace(fmt.Sprint(item))
+		if text != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.Join(parts, ".")
+}
+
+func validationLocationContainsSensitiveName(loc string) bool {
+	for _, part := range strings.Split(strings.ToLower(loc), ".") {
+		if isSensitiveLogField(part) {
+			return true
+		}
+	}
+	return false
+}
+
+func validationErrorInput(value any) string {
+	if value == nil {
+		return ""
+	}
+	if text, ok := value.(string); ok {
+		return truncateLogText(text, 80)
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return truncateLogText(fmt.Sprint(value), 80)
+	}
+	return truncateLogText(string(encoded), 80)
+}
+
+func sanitizeAgentErrorBodyForLog(body []byte, maxLen int) string {
+	if maxLen <= 0 {
+		maxLen = 600
+	}
+	var payload any
+	if err := json.Unmarshal(body, &payload); err == nil {
+		redactSensitiveJSON(payload)
+		if sanitized, err := json.Marshal(payload); err == nil {
+			return truncateLogText(string(sanitized), maxLen)
+		}
+	}
+	return truncateLogText(string(body), maxLen)
+}
+
+func redactSensitiveJSON(value any) {
+	switch typed := value.(type) {
+	case map[string]any:
+		if loc, ok := typed["loc"].([]any); ok && jsonPathContainsSensitiveName(loc) {
+			if _, exists := typed["input"]; exists {
+				typed["input"] = "[REDACTED]"
+			}
+		}
+		for key, child := range typed {
+			normalized := strings.ToLower(key)
+			if isSensitiveLogField(normalized) {
+				typed[key] = "[REDACTED]"
+				continue
+			}
+			redactSensitiveJSON(child)
+		}
+	case []any:
+		for _, child := range typed {
+			redactSensitiveJSON(child)
+		}
+	}
+}
+
+func jsonPathContainsSensitiveName(path []any) bool {
+	for _, segment := range path {
+		if text, ok := segment.(string); ok && isSensitiveLogField(strings.ToLower(text)) {
+			return true
+		}
+	}
+	return false
+}
+
+func isSensitiveLogField(name string) bool {
+	return strings.Contains(name, "api_key") ||
+		strings.Contains(name, "token") ||
+		strings.Contains(name, "secret") ||
+		strings.Contains(name, "password")
+}
+
+func truncateLogText(text string, maxLen int) string {
+	if len(text) <= maxLen {
+		return text
+	}
+	return text[:maxLen] + "... (truncated)"
 }
 
 // --- Request / response types matching the Python agent service ---
@@ -253,6 +388,7 @@ type BidMarketSignalProxyResponse struct {
 type SetBuilderProxyRequest struct {
 	LLM                  LLMConfig        `json:"llm"`
 	User                 UserContextProxy `json:"user"`
+	RunID                uint             `json:"run_id,omitempty"`
 	Prompt               string           `json:"prompt"`
 	Collection           *PortfolioData   `json:"collection,omitempty"`
 	MaxTurns             int              `json:"max_turns,omitempty"`
@@ -585,6 +721,17 @@ func (p *AgentProxy) RunSetBuilder(ctx context.Context, req SetBuilderProxyReque
 	if err != nil {
 		return nil, fmt.Errorf("marshal set builder request: %w", err)
 	}
+	if logger != nil {
+		logger.Info(
+			"agent-proxy",
+			"Set builder POST run_id=%d user_id=%d prompt=%.120q requested_max_slots=%d max_turns=%d",
+			req.RunID,
+			req.User.UserID,
+			req.Prompt,
+			req.MaxSlots,
+			req.MaxTurns,
+		)
+	}
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", p.baseURL+"/api/set-builder/run", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create set builder request: %w", err)
@@ -594,22 +741,49 @@ func (p *AgentProxy) RunSetBuilder(ctx context.Context, req SetBuilderProxyReque
 
 	resp, err := p.requestClient.Do(httpReq)
 	if err != nil {
-		logger.Error("agent-proxy", "Set builder request failed: %v", err)
+		if logger != nil {
+			logger.Error("agent-proxy", "Set builder request failed run_id=%d prompt=%.120q: %v", req.RunID, req.Prompt, err)
+		}
 		return nil, fmt.Errorf("agent service unreachable: %w", err)
 	}
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		errMsg := string(respBody)
-		if len(errMsg) > 200 {
-			errMsg = errMsg[:200] + "... (truncated)"
+		errMsg := sanitizeAgentErrorBodyForLog(respBody, 600)
+		if logger != nil {
+			logger.Error(
+				"agent-proxy",
+				"Set builder returned HTTP %d run_id=%d user_id=%d prompt=%.120q requested_max_slots=%d detail=%s",
+				resp.StatusCode,
+				req.RunID,
+				req.User.UserID,
+				req.Prompt,
+				req.MaxSlots,
+				errMsg,
+			)
 		}
-		logger.Error("agent-proxy", "Set builder returned %d: %s", resp.StatusCode, errMsg)
 		return nil, agentServiceHTTPError(resp.StatusCode, respBody)
 	}
 	var result SetBuilderProxyResponse
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		return nil, fmt.Errorf("parse set builder response: %w", err)
+	}
+	if logger != nil {
+		proposalID := "none"
+		slotCount := 0
+		if result.Proposal != nil {
+			proposalID = "pending-persistence"
+			slotCount = len(result.Proposal.Slots)
+		}
+		logger.Info(
+			"agent-proxy",
+			"Set builder completed run_id=%d proposal_id=%s status=%s slots=%d turns_used=%d",
+			req.RunID,
+			proposalID,
+			result.Status,
+			slotCount,
+			result.TurnsUsed,
+		)
 	}
 	return &result, nil
 }

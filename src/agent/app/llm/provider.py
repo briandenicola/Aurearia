@@ -20,12 +20,12 @@ def get_chat_model(config: LLMConfig) -> BaseChatModel:
     if config.provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
 
-        model_name = config.model or "claude-sonnet-4-20250514"
+        model_name = config.model or "claude-sonnet-5"
         logger.debug("Creating Anthropic model: %s", model_name)
         return ChatAnthropic(
             model=model_name,
             api_key=config.api_key,
-            max_tokens=4096,
+            max_tokens=12000,
         )
     elif config.provider == "ollama":
         from langchain_ollama import ChatOllama

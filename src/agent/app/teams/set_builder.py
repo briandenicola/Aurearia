@@ -85,12 +85,14 @@ roster of slots for the set. Respond with a single JSON array only:
     "criteria": {"year": "1943", "mint": "", "denomination": "Cent"},
     "group": "grouping value, e.g. decade or category label",
     "sort_order": 0,
-    "source_note": "basis for this entry, or a note about uncertainty"
+    "source_note": "brief basis or uncertainty note"
   }
 ]
 
 Rules:
 - Enumerate every slot the scope requires, up to the requested slot cap.
+- Keep each slot compact: labels under 80 characters and source_note under
+  120 characters. Do not write long historical explanations in each slot.
 - Use accurate numismatic facts. If you are not confident about a specific
   detail (a catalog number, a rare mint mark), say so plainly in
   "source_note" rather than inventing a confident-sounding fact.
@@ -141,6 +143,7 @@ Rules:
 
 
 class SetBuilderState(TypedDict, total=False):
+    run_id: int | None
     prompt: str
     feedback: str
     collection_summary: str
@@ -166,9 +169,30 @@ async def _call_json(model, system_prompt: str, human_text: str) -> Any:
     """Invoke the model and parse a JSON payload from its response."""
     messages = [SystemMessage(content=system_prompt), HumanMessage(content=human_text)]
     response = await ainvoke_with_retry(model, messages)
-    content = response.content if isinstance(response.content, str) else str(response.content)
+    content = _message_content_text(response.content)
     payload = extract_json_payload(content)
     return json.loads(payload)
+
+
+def _message_content_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, dict):
+                text = block.get("text") or block.get("content")
+                if isinstance(text, str):
+                    parts.append(text)
+            elif isinstance(block, str):
+                parts.append(block)
+        if parts:
+            return "\n".join(parts)
+    if isinstance(content, dict):
+        text = content.get("text") or content.get("content")
+        if isinstance(text, str):
+            return text
+    return str(content)
 
 
 def _collection_summary_text(collection: dict[str, Any] | None) -> str:
@@ -227,8 +251,8 @@ def create_set_builder_team(
 
     async def intent_node(state: SetBuilderState) -> dict:
         logger.info(
-            "[set_builder] stage=intent_analyst provider=%s model=%s prompt=%.80s",
-            llm_config.provider, llm_config.model, state.get("prompt", ""),
+            "[set_builder] stage=intent_analyst run_id=%s provider=%s model=%s prompt=%.120s max_slots=%s",
+            state.get("run_id"), llm_config.provider, llm_config.model, state.get("prompt", ""), state.get("max_slots"),
         )
         turns_used = state.get("turns_used", 0) + 1
         human_text = f"User prompt: {state.get('prompt', '')}"
@@ -261,7 +285,10 @@ def create_set_builder_team(
         return update
 
     async def roster_node(state: SetBuilderState) -> dict:
-        logger.info("[set_builder] stage=roster_researcher provider=%s model=%s", llm_config.provider, llm_config.model)
+        logger.info(
+            "[set_builder] stage=roster_researcher run_id=%s provider=%s model=%s max_slots=%s",
+            state.get("run_id"), llm_config.provider, llm_config.model, state.get("max_slots"),
+        )
         turns_used = state.get("turns_used", 0) + 1
         intent = state.get("intent", {})
         human_text = (
@@ -292,8 +319,8 @@ def create_set_builder_team(
 
     async def match_node(state: SetBuilderState) -> dict:
         logger.info(
-            "[set_builder] stage=collection_matcher provider=%s model=%s",
-            llm_config.provider, llm_config.model,
+            "[set_builder] stage=collection_matcher run_id=%s provider=%s model=%s",
+            state.get("run_id"), llm_config.provider, llm_config.model,
         )
         turns_used = state.get("turns_used", 0) + 1
         roster = state.get("roster", [])
@@ -314,7 +341,10 @@ def create_set_builder_team(
         }
 
     async def validate_node(state: SetBuilderState) -> dict:
-        logger.info("[set_builder] stage=validator provider=%s model=%s", llm_config.provider, llm_config.model)
+        logger.info(
+            "[set_builder] stage=validator run_id=%s provider=%s model=%s slots=%d",
+            state.get("run_id"), llm_config.provider, llm_config.model, len(state.get("roster", [])),
+        )
         turns_used = state.get("turns_used", 0) + 1
         roster = state.get("roster", [])
         human_text = f"Roster to validate: {json.dumps(roster)}"
@@ -337,8 +367,8 @@ def create_set_builder_team(
 
     async def finalize_node(state: SetBuilderState) -> dict:
         logger.info(
-            "[set_builder] stage=orchestrator_finalize status=%s turns_used=%s",
-            state.get("status"), state.get("turns_used"),
+            "[set_builder] stage=orchestrator_finalize run_id=%s status=%s turns_used=%s max_slots=%s",
+            state.get("run_id"), state.get("status"), state.get("turns_used"), state.get("max_slots"),
         )
         status = state.get("status")
         if status:
@@ -444,6 +474,7 @@ async def run_set_builder_workflow(request: SetBuilderRequest) -> SetBuilderResp
         collection_dict = request.collection.model_dump()
 
     initial_state: SetBuilderState = {
+        "run_id": request.run_id,
         "prompt": request.prompt,
         "feedback": request.feedback,
         "collection_summary": _collection_summary_text(collection_dict),

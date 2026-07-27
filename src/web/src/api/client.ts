@@ -15,6 +15,29 @@ type ApiErrorPayload = {
   detail?: unknown
 }
 
+function formatApiErrorCandidate(candidate: unknown): string {
+  if (typeof candidate === 'string') return candidate
+  if (Array.isArray(candidate)) {
+    return candidate
+      .map((item) => {
+        if (typeof item === 'string') return item
+        if (typeof item !== 'object' || item === null) return ''
+        const detail = item as { loc?: unknown; msg?: unknown }
+        const field = Array.isArray(detail.loc) ? detail.loc.map(String).filter(Boolean).join('.') : ''
+        const message = typeof detail.msg === 'string' ? detail.msg : ''
+        if (field && message) return `${field}: ${message}`
+        return message
+      })
+      .filter(Boolean)
+      .join('; ')
+  }
+  if (typeof candidate === 'object' && candidate !== null) {
+    const detail = candidate as { error?: unknown; message?: unknown; detail?: unknown; msg?: unknown }
+    return formatApiErrorCandidate(detail.error ?? detail.message ?? detail.detail ?? detail.msg)
+  }
+  return ''
+}
+
 export function getApiErrorMessage(error: unknown): string {
   if (typeof error === 'string') return error
 
@@ -22,7 +45,8 @@ export function getApiErrorMessage(error: unknown): string {
     const maybeResponse = error as { response?: { data?: ApiErrorPayload } }
     const data = maybeResponse.response?.data ?? (error as ApiErrorPayload)
     const candidate = data.error ?? data.message ?? data.detail
-    if (typeof candidate === 'string') return candidate
+    const message = formatApiErrorCandidate(candidate)
+    if (message) return message
   }
 
   if (error instanceof Error) return error.message
@@ -47,6 +71,23 @@ export function formatAgentServiceError(error: unknown, fallback = 'Agent servic
   }
 
   return message
+}
+
+export function formatSetBuilderError(error: unknown): string {
+  const message = getApiErrorMessage(error).trim()
+  if (/max_slots|maximum.*slots|less than or equal to 300/i.test(message)) {
+    return 'The set-builder request exceeded the workflow slot limit. Try a narrower prompt by date range, mint, ruler, or series, then submit again.'
+  }
+  if (/agent service returned HTTP 422/i.test(message)) {
+    return 'The agent rejected the set-builder request before it could run. Try a narrower prompt, or check the agent service configuration if this repeats.'
+  }
+  if (/set builder prompt is too long/i.test(message)) {
+    return 'The prompt is too long. Shorten it to the key series, date range, mints, and completion goal.'
+  }
+  if (/failed to submit set proposal request/i.test(message)) {
+    return 'The proposal request could not be submitted. Check AI provider and agent service configuration, then try again.'
+  }
+  return message || 'The proposal request could not be submitted. Check AI provider and agent service configuration, then try again.'
 }
 
 api.interceptors.request.use((config) => {

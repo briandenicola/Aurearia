@@ -16,6 +16,7 @@ describe('SetCreationWizard', () => {
     await wrapper.find('#setName').setValue('US Silver Quarters')
 
     expect(wrapper.text()).toContain('How agentic sets work')
+    expect(wrapper.text()).toContain('up to 300 roster slots')
     expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeUndefined()
     expect(wrapper.find('button[type="submit"]').text()).toBe('Create')
 
