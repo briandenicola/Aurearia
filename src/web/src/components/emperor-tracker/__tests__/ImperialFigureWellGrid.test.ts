@@ -17,8 +17,8 @@ vi.mock('@/api/client', () => ({
 
 const ownedSlot: ImperialFigureSlot = {
   figure: { id: 1, name: 'Augustus', aliases: [], role: 'emperor', region: 'west', dynasty: 'Julio-Claudian', reignStart: -27, reignEnd: 14, sortOrder: 1, rarityTier: 'common' },
-  coin: { id: 42, name: 'My Augustus Denarius', diameterMm: 18.5, images: [] } as ImperialFigureSlot['coin'],
-  coins: [{ id: 42, name: 'My Augustus Denarius', diameterMm: 18.5, images: [] } as NonNullable<ImperialFigureSlot['coin']>],
+  coin: { id: 42, name: 'My Augustus Denarius', diameterMm: 18.5, images: [], purchaseDate: '2026-02-01T00:00:00Z' } as ImperialFigureSlot['coin'],
+  coins: [{ id: 42, name: 'My Augustus Denarius', diameterMm: 18.5, images: [], purchaseDate: '2026-02-01T00:00:00Z' } as NonNullable<ImperialFigureSlot['coin']>],
   highlightedCoinId: 42,
 }
 
@@ -72,7 +72,7 @@ describe('ImperialFigureWellGrid', () => {
     const multiSlot: ImperialFigureSlot = {
       ...ownedSlot,
       coins: [
-        { id: 42, name: 'My Augustus Denarius', diameterMm: 18.5, images: [] } as NonNullable<ImperialFigureSlot['coin']>,
+        { id: 42, name: 'My Augustus Denarius', diameterMm: 18.5, images: [], purchaseDate: '2026-02-01T00:00:00Z' } as NonNullable<ImperialFigureSlot['coin']>,
         { id: 99, name: 'Augustus As', diameterMm: 27, images: [] } as NonNullable<ImperialFigureSlot['coin']>,
       ],
     }
@@ -82,5 +82,26 @@ describe('ImperialFigureWellGrid', () => {
 
     expect(mockUpdateHighlight).toHaveBeenCalledWith(1, 99)
     expect(wrapper.emitted('highlight-updated')).toHaveLength(1)
+  })
+
+  it('shows the real purchase date for an owned figure well, not TBD', () => {
+    const wrapper = mount(ImperialFigureWellGrid, { props: { slots: [ownedSlot] } })
+    expect(wrapper.find('.tray-date').text()).toBe('2026-02-01')
+    expect(wrapper.find('.tray-date').text()).not.toBe('TBD')
+  })
+
+  it('shows TBD for an unowned figure well (no purchase date)', () => {
+    const wrapper = mount(ImperialFigureWellGrid, { props: { slots: [unownedSlot] } })
+    expect(wrapper.find('.tray-date').text()).toBe('TBD')
+  })
+
+  it('shows TBD for an owned figure with a null purchase date', () => {
+    const nullDateSlot: ImperialFigureSlot = {
+      ...ownedSlot,
+      coin: { ...ownedSlot.coin!, purchaseDate: null },
+      coins: [{ ...ownedSlot.coins[0]!, purchaseDate: null }],
+    }
+    const wrapper = mount(ImperialFigureWellGrid, { props: { slots: [nullDateSlot] } })
+    expect(wrapper.find('.tray-date').text()).toBe('TBD')
   })
 })

@@ -53,6 +53,7 @@ function toTrayCoin(slot: ImperialFigureSlot): TrayCoin {
       name: slot.coin.name,
       diameterMm: slot.coin.diameterMm,
       images: slot.coin.images,
+      purchaseDate: slot.coin.purchaseDate,
     }
   }
   return {
