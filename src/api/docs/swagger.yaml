@@ -1123,6 +1123,9 @@ definitions:
       mint:
         example: Rome
         type: string
+      mintLocationId:
+        example: 42
+        type: integer
       notes:
         example: Prefer clear legends
         type: string
@@ -2831,6 +2834,8 @@ definitions:
         type: string
       mint:
         type: string
+      mintLocationId:
+        type: integer
       name:
         type: string
       notes:

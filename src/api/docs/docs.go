@@ -17332,6 +17332,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Rome"
                 },
+                "mintLocationId": {
+                    "type": "integer",
+                    "example": 42
+                },
                 "notes": {
                     "type": "string",
                     "example": "Prefer clear legends"
@@ -19811,6 +19815,9 @@ const docTemplate = `{
                 },
                 "mint": {
                     "type": "string"
+                },
+                "mintLocationId": {
+                    "type": "integer"
                 },
                 "name": {
                     "type": "string"
