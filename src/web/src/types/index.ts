@@ -61,6 +61,7 @@ export interface WishlistSearchAlertCriteria {
   dateFrom: number | null
   dateTo: number | null
   mint: string
+  mintLocationId: number | null
   material: string
   gradeOrCondition: string
   priceMin: number | null
@@ -81,6 +82,7 @@ export interface WishlistSearchAlert {
   dateFrom: number | null
   dateTo: number | null
   mint: string
+  mintLocationId: number | null
   material: string
   gradeOrCondition: string
   priceMin: number | null

@@ -49,6 +49,7 @@ type WishlistAlertCriteriaInput struct {
 	DateFrom         *int     `json:"dateFrom"`
 	DateTo           *int     `json:"dateTo"`
 	Mint             string   `json:"mint"`
+	MintLocationID   *uint    `json:"mintLocationId"`
 	Material         string   `json:"material"`
 	GradeOrCondition string   `json:"gradeOrCondition"`
 	PriceMin         *float64 `json:"priceMin"`
@@ -611,6 +612,7 @@ func (s *WishlistSearchAlertService) CriteriaSnapshot(alert *models.WishlistSear
 		"dateFrom":         alert.DateFrom,
 		"dateTo":           alert.DateTo,
 		"mint":             alert.Mint,
+		"mintLocationId":   alert.MintLocationID,
 		"material":         alert.Material,
 		"gradeOrCondition": alert.GradeOrCondition,
 		"priceMin":         alert.PriceMin,
@@ -635,6 +637,7 @@ type alertRunCriteriaSnapshot struct {
 	DateFrom         *int     `json:"dateFrom"`
 	DateTo           *int     `json:"dateTo"`
 	Mint             string   `json:"mint"`
+	MintLocationID   *uint    `json:"mintLocationId"`
 	Material         string   `json:"material"`
 	GradeOrCondition string   `json:"gradeOrCondition"`
 	PriceMin         *float64 `json:"priceMin"`
@@ -752,6 +755,7 @@ func buildAlertFromInput(userID uint, existing *models.WishlistSearchAlert, inpu
 	alert.DateFrom = criteria.DateFrom
 	alert.DateTo = criteria.DateTo
 	alert.Mint = criteria.Mint
+	alert.MintLocationID = criteria.MintLocationID
 	alert.Material = criteria.Material
 	alert.GradeOrCondition = criteria.GradeOrCondition
 	alert.PriceMin = criteria.PriceMin

@@ -74,6 +74,7 @@ type WishlistSearchAlertCriteriaRequest struct {
 	DateFrom         *int     `json:"dateFrom" example:"81"`
 	DateTo           *int     `json:"dateTo" example:"96"`
 	Mint             string   `json:"mint" example:"Rome"`
+	MintLocationID   *uint    `json:"mintLocationId,omitempty" example:"42"`
 	Material         string   `json:"material" example:"Silver"`
 	GradeOrCondition string   `json:"gradeOrCondition" example:"VF or better"`
 	PriceMin         *float64 `json:"priceMin" example:"0"`

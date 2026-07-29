@@ -71,6 +71,7 @@ type WishlistSearchAlert struct {
 	DateFrom         *int                 `json:"dateFrom"`
 	DateTo           *int                 `json:"dateTo"`
 	Mint             string               `gorm:"size:200" json:"mint"`
+	MintLocationID   *uint                `gorm:"index" json:"mintLocationId"`
 	Material         string               `gorm:"size:100" json:"material"`
 	GradeOrCondition string               `gorm:"size:200" json:"gradeOrCondition"`
 	PriceMin         *float64             `json:"priceMin"`
