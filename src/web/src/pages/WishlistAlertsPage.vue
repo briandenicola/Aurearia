@@ -423,6 +423,7 @@ function toInputCriteria(alert: WishlistSearchAlert): WishlistSearchAlertInput['
     dateFrom: alert.dateFrom,
     dateTo: alert.dateTo,
     mint: alert.mint,
+    mintLocationId: alert.mintLocationId,
     material: alert.material,
     gradeOrCondition: alert.gradeOrCondition,
     priceMin: alert.priceMin,

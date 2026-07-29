@@ -64,6 +64,32 @@ func validAlertInput() WishlistSearchAlertInput {
 
 func alertFloatPtr(v float64) *float64 { return &v }
 func alertIntPtr(v int) *int           { return &v }
+func alertUintPtr(v uint) *uint         { return &v }
+
+func TestWishlistSearchAlertService_PersistsMintLocationSelection(t *testing.T) {
+	svc, _ := setupWishlistSearchAlertService(t)
+	active := true
+	created, err := svc.CreateAlert(1, WishlistSearchAlertInput{
+		Name:     "Mint-linked alert",
+		Cadence:  "manual",
+		IsActive: &active,
+		Criteria: WishlistAlertCriteriaInput{
+			Mint:           "Rome",
+			MintLocationID: alertUintPtr(42),
+			Currency:       "USD",
+			Keywords:       "RIC",
+		},
+	})
+	if err != nil {
+		t.Fatalf("create alert: %v", err)
+	}
+	if created.MintLocationID == nil || *created.MintLocationID != 42 {
+		t.Fatalf("expected mint location id to be persisted, got %+v", created.MintLocationID)
+	}
+	if created.Mint != "Rome" {
+		t.Fatalf("expected mint text to be preserved, got %q", created.Mint)
+	}
+}
 
 func TestWishlistSearchAlertService_CRUDScopesToOwner(t *testing.T) {
 	svc, _ := setupWishlistSearchAlertService(t)
