@@ -420,7 +420,9 @@ func main() {
 		numistaHandler := handlers.NewNumistaHandler(settingsSvc)
 		protected.GET("/numista/search", numistaHandler.Search)
 
-		auctionLotSvc := services.NewAuctionLotService(auctionLotRepo, coinRepo).WithMarketSignal(agentProxy, settingsSvc)
+		auctionLotSvc := services.NewAuctionLotService(auctionLotRepo, coinRepo).
+			WithImageService(imageSvc).
+			WithMarketSignal(agentProxy, settingsSvc)
 		nbSvc := services.NewNumisBidsService(logger)
 		cngSvc := services.NewCNGAuctionService(logger)
 		auctionUserRepo := repository.NewUserRepository(database.DB)
