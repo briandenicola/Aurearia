@@ -22,11 +22,27 @@
 
     <!-- Tray view -->
     <div v-else-if="!loading" class="flex flex-col gap-4">
+      <div class="tray-controls-row">
+        <label class="tray-size-control" for="tray-size-slider">
+          <span>Coin size</span>
+          <input
+            id="tray-size-slider"
+            v-model.number="traySizeScale"
+            class="tray-size-slider"
+            type="range"
+            min="0.75"
+            max="1.4"
+            step="0.05"
+          />
+          <span class="tray-size-value">{{ traySizeScale.toFixed(2) }}x</span>
+        </label>
+      </div>
       <MuseumTray
         class="touch-pan-y select-none"
         :coins="currentDrawerCoins"
         :felt-theme="feltColor"
         :show-captions="false"
+        :size-scale="traySizeScale"
         :style="traySwipeStyle"
         @pointerdown="onTrayPointerDown"
         @coin-clicked="handleCoinClicked"
@@ -58,6 +74,11 @@ import MuseumTray from '@/components/tray/MuseumTray.vue'
 import TrayControls from '@/components/tray/TrayControls.vue'
 import { Landmark, ArrowLeft, Plus } from 'lucide-vue-next'
 
+const STORAGE_KEY = 'tray:sizeScale'
+const DEFAULT_SIZE_SCALE = 1
+const MIN_SIZE_SCALE = 0.75
+const MAX_SIZE_SCALE = 1.4
+
 const router = useRouter()
 const { feltColor } = useTrayPreference()
 
@@ -72,6 +93,7 @@ const trayDragY = ref(0)
 const trayIsDragging = ref(false)
 const trayIsAnimating = ref(false)
 const suppressCoinClick = ref(false)
+const traySizeScale = ref(DEFAULT_SIZE_SCALE)
 let trayStartX = 0
 let trayStartY = 0
 let trayPointerId: number | null = null
@@ -113,6 +135,12 @@ watch(totalDrawers, (drawers) => {
     return
   }
   drawerIndex.value = Math.min(drawerIndex.value, drawers - 1)
+})
+
+watch(traySizeScale, (value) => {
+  const normalizedValue = Math.min(MAX_SIZE_SCALE, Math.max(MIN_SIZE_SCALE, Number(value) || DEFAULT_SIZE_SCALE))
+  traySizeScale.value = normalizedValue
+  localStorage.setItem(STORAGE_KEY, normalizedValue.toString())
 })
 
 const traySwipeStyle = computed(() => {
@@ -240,9 +268,59 @@ async function loadTrayCoins() {
   }
 }
 
-onMounted(loadTrayCoins)
+onMounted(() => {
+  const storedScale = Number(localStorage.getItem(STORAGE_KEY))
+  if (Number.isFinite(storedScale)) {
+    traySizeScale.value = Math.min(MAX_SIZE_SCALE, Math.max(MIN_SIZE_SCALE, storedScale))
+  }
+  loadTrayCoins()
+})
 
 onBeforeUnmount(() => {
   trayAnimationTimers.forEach(clearTimeout)
 })
 </script>
+
+<style scoped>
+.tray-controls-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tray-size-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tray-size-slider {
+  width: 140px;
+  accent-color: var(--accent-gold);
+}
+
+.tray-size-value {
+  min-width: 3.2rem;
+  text-align: right;
+  color: var(--text-primary);
+}
+
+@media (max-width: 575px) {
+  .tray-controls-row {
+    justify-content: center;
+  }
+
+  .tray-size-control {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+</style>

@@ -4,37 +4,37 @@
       <div class="mb-6">
         <h3 class="mb-3 text-base font-medium text-text-primary">Upload Images</h3>
         <div>
-          <div class="flex gap-2 max-sm:flex-col">
-            <select v-model="uploadType" class="form-select flex-1">
+          <div class="action-row">
+            <select v-model="uploadType" class="form-select action-input flex-1">
               <option value="obverse">Obverse</option>
               <option value="reverse">Reverse</option>
               <option value="detail">Detail</option>
               <option value="other">Other</option>
             </select>
-            <label class="btn btn-secondary btn-sm cursor-pointer whitespace-nowrap">
+            <label class="btn btn-secondary btn-sm action-btn cursor-pointer whitespace-nowrap">
               Choose File
               <input type="file" accept="image/*" hidden @change="handleImageUpload" />
             </label>
             <button
               v-if="isPwa"
               type="button"
-              class="btn btn-secondary btn-sm inline-flex items-center gap-1 whitespace-nowrap"
+              class="btn btn-secondary btn-sm action-btn inline-flex items-center gap-1 whitespace-nowrap"
               @click="showCameraModal = true"
             >
               <Camera :size="14" /> Photo
             </button>
           </div>
 
-          <div class="mt-2 flex gap-2 max-sm:flex-col">
+          <div class="mt-2 action-row">
             <input
               v-model="imageUrl"
               type="url"
-              class="form-input min-w-0 flex-1 text-[0.82rem]"
+              class="form-input action-input min-w-0 flex-1 text-[0.82rem]"
               placeholder="Or paste an image URL..."
               @keydown.enter="handleUrlUpload"
             />
             <button
-              class="btn btn-secondary btn-sm"
+              class="btn btn-secondary btn-sm action-btn"
               :disabled="!imageUrl || urlLoading"
               @click="handleUrlUpload"
             >
@@ -47,10 +47,10 @@
       </div>
 
       <div class="mb-6">
-        <div class="mb-3 flex items-center justify-between gap-3">
+        <div class="mb-3 flex items-center justify-between gap-3 max-sm:flex-col max-sm:items-stretch">
           <h3 class="m-0 text-base font-medium text-text-primary">AI Value Estimate</h3>
           <button
-            class="btn btn-secondary btn-sm"
+            class="btn btn-secondary btn-sm action-btn"
             :disabled="estimating"
             @click="handleEstimateValue"
           >
@@ -463,3 +463,26 @@ function formatStatus(status: string) {
   return normalized
 }
 </script>
+
+<style scoped>
+.action-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.action-input {
+  min-height: 2rem;
+}
+
+.action-btn {
+  min-height: 2rem;
+  justify-content: center;
+}
+
+@media (max-width: 575px) {
+  .action-row {
+    flex-direction: column;
+  }
+}
+</style>
