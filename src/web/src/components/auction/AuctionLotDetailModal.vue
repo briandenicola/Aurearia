@@ -106,20 +106,22 @@
                 <button class="btn btn-ghost btn-xs" :disabled="alertBusy" @click="removeAlert(alert.id)">Delete</button>
               </div>
             </div>
-            <div class="control-row control-row--alert">
-              <select v-model="alertForm.direction" class="form-input control-input" aria-label="Price alert direction">
-                <option value="above">Above current bid</option>
-                <option value="below">Below current bid</option>
-              </select>
-              <input
-                v-model.number="alertForm.targetPrice"
-                type="number"
-                class="form-input control-input control-number"
-                min="0"
-                step="0.01"
-                :placeholder="lot.currentBid ? String(lot.currentBid) : 'Target'"
-                aria-label="Target price"
-              />
+            <div class="control-row">
+              <div class="control-left-group control-left-group--alert">
+                <select v-model="alertForm.direction" class="form-input control-input" aria-label="Price alert direction">
+                  <option value="above">Above current bid</option>
+                  <option value="below">Below current bid</option>
+                </select>
+                <input
+                  v-model.number="alertForm.targetPrice"
+                  type="number"
+                  class="form-input control-input control-number"
+                  min="0"
+                  step="0.01"
+                  :placeholder="lot.currentBid ? String(lot.currentBid) : 'Target'"
+                  aria-label="Target price"
+                />
+              </div>
               <button class="btn btn-secondary btn-sm control-btn control-btn-fixed" :disabled="alertBusy || !canCreateAlert" @click="saveAlert">Add Alert</button>
             </div>
           </div>
@@ -138,7 +140,7 @@
                 <button class="btn btn-ghost btn-xs" :disabled="reminderBusy" @click="removeReminder(reminder.id)">Delete</button>
               </div>
             </div>
-            <div class="control-row control-row--reminder">
+            <div class="control-row">
               <input
                 v-model.number="reminderForm.minutesBefore"
                 type="number"
@@ -216,7 +218,7 @@
       </div>
 
       <div v-if="!isEditing" class="flex flex-col gap-3 border-t border-border-subtle px-6 py-4">
-        <div class="control-row control-row--status">
+        <div class="control-row">
           <select v-model="newStatus" class="form-input control-input">
             <option value="watching">Watching</option>
             <option value="bidding">Bidding</option>
@@ -299,7 +301,7 @@
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="inline-flex items-center gap-[0.35rem] text-[0.82rem] text-text-secondary"><CalendarDays :size="14" /> Calendar Event</label>
-          <div class="control-row control-row--calendar">
+          <div class="control-row">
             <select v-model="selectedEventId" class="form-input control-input">
               <option value="">None</option>
               <option v-for="evt in calendarEvents" :key="evt.id" :value="evt.id">
@@ -731,30 +733,29 @@ onMounted(fetchCalendarEvents)
 
 <style scoped>
 .control-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: stretch;
   gap: 0.6rem;
 }
 
-.control-row--alert > :first-child,
-.control-row--calendar > :first-child {
-  flex: 1 1 auto;
+.control-left-group {
   min-width: 0;
 }
 
-.control-row--status > :first-child {
-  width: 11rem;
-  flex: 0 0 11rem;
+.control-left-group--alert {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9rem;
+  gap: 0.6rem;
 }
 
 .control-input {
   min-height: 2.5rem;
+  width: 100%;
 }
 
 .control-number {
-  width: 8.5rem;
-  flex: 0 0 8.5rem;
-  max-width: 8.5rem;
+  min-width: 0;
 }
 
 .control-btn {
@@ -777,13 +778,15 @@ onMounted(fetchCalendarEvents)
 
 @media (max-width: 575px) {
   .control-row {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .control-left-group--alert {
+    grid-template-columns: 1fr;
   }
 
   .control-btn-fixed,
   .control-number,
-  .control-row--status > :first-child,
   .bid-input,
   .winning-bid-input {
     min-width: 0;
