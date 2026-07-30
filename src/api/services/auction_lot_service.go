@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -25,6 +28,7 @@ type MarketSignalAgent interface {
 type AuctionLotService struct {
 	repo                 *repository.AuctionLotRepository
 	coinRepo             *repository.CoinRepository
+	imageService         *ImageService
 	marketSignalAgent    MarketSignalAgent
 	marketSignalSettings *SettingsService
 }
@@ -40,6 +44,12 @@ func NewAuctionLotService(repo *repository.AuctionLotRepository, coinRepo *repos
 func (s *AuctionLotService) WithMarketSignal(agent MarketSignalAgent, settingsSvc *SettingsService) *AuctionLotService {
 	s.marketSignalAgent = agent
 	s.marketSignalSettings = settingsSvc
+	return s
+}
+
+// WithImageService enables best-effort image transfer when converting a won lot to a coin.
+func (s *AuctionLotService) WithImageService(imageSvc *ImageService) *AuctionLotService {
+	s.imageService = imageSvc
 	return s
 }
 
@@ -121,7 +131,75 @@ func (s *AuctionLotService) ConvertToCoin(lotID, userID uint) (*models.Coin, err
 		return nil, err
 	}
 
+	s.tryAttachConvertedLotImage(coin.ID, userID, lot.ImageURL)
+
 	return coin, nil
+}
+
+const lotImageFetchTimeout = 15 * time.Second
+
+func (s *AuctionLotService) tryAttachConvertedLotImage(coinID, userID uint, imageURL string) {
+	if s.imageService == nil || strings.TrimSpace(imageURL) == "" {
+		return
+	}
+
+	client := &http.Client{Timeout: lotImageFetchTimeout}
+	req, err := http.NewRequest(http.MethodGet, strings.TrimSpace(imageURL), nil)
+	if err != nil {
+		return
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, MaxImageUploadBytes+1))
+	if err != nil {
+		return
+	}
+	if err := ValidateImageData(body); err != nil {
+		return
+	}
+
+	ext := imageExtFromHTTP(resp.Header.Get("Content-Type"), body)
+	if ext == "" {
+		return
+	}
+
+	// Converted lots create brand-new coins, so the imported lot image should become primary.
+	_, _ = s.imageService.UploadImage(coinID, userID, body, ext, string(models.ImageTypeObverse), true)
+}
+
+func imageExtFromHTTP(contentType string, body []byte) string {
+	switch strings.ToLower(strings.TrimSpace(contentType)) {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	}
+
+	switch http.DetectContentType(body) {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	default:
+		return ""
+	}
 }
 
 // BidRecommendationConfidence describes how much the user's own history backs a suggestion.

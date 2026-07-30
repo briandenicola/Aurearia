@@ -2,7 +2,12 @@ package services
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -26,7 +31,17 @@ func setupAuctionLotServiceDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.AuctionEvent{}, &models.AuctionLot{}, &models.Coin{}, &models.AppSetting{}); err != nil {
+	if err := db.AutoMigrate(
+		&models.User{},
+		&models.AuctionEvent{},
+		&models.AuctionLot{},
+		&models.Coin{},
+		&models.CoinImage{},
+		&models.CoinReference{},
+		&models.StorageLocation{},
+		&models.MintLocation{},
+		&models.AppSetting{},
+	); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
 	return db
@@ -324,5 +339,97 @@ func TestAuctionLotService_MarketSignalReturnsNotFoundForMissingLot(t *testing.T
 	_, err := svc.MarketSignal(999999, 1)
 	if !errors.Is(err, ErrAuctionLotNotFound) {
 		t.Fatalf("err = %v, want ErrAuctionLotNotFound", err)
+	}
+}
+
+func TestAuctionLotService_ConvertToCoinImportsAuctionImage(t *testing.T) {
+	db := setupAuctionLotServiceDB(t)
+	auctionRepo := repository.NewAuctionLotRepository(db)
+	coinRepo := repository.NewCoinRepository(db)
+	imageRepo := repository.NewImageRepository(db)
+
+	uploadDir := t.TempDir()
+	imageSvc := NewImageService(imageRepo, uploadDir)
+	svc := NewAuctionLotService(auctionRepo, coinRepo).WithImageService(imageSvc)
+
+	pngData, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAqMB9x27YhQAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatalf("failed to decode test image: %v", err)
+	}
+	imageServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(pngData)
+	}))
+	defer imageServer.Close()
+
+	lot := &models.AuctionLot{
+		Source:      models.AuctionSourceCNG,
+		SourceURL:   "https://auctions.cngcoins.com/lots/view/4-IMG/test",
+		Title:       "Won lot with image",
+		Category:    models.CategoryRoman,
+		Status:      models.AuctionStatusWon,
+		UserID:      1,
+		ImageURL:    imageServer.URL + "/image.png",
+		WinningBid:  float64Ptr(250),
+		Description: "Description",
+	}
+	if err := auctionRepo.Create(lot); err != nil {
+		t.Fatalf("failed to create lot: %v", err)
+	}
+
+	coin, err := svc.ConvertToCoin(lot.ID, 1)
+	if err != nil {
+		t.Fatalf("ConvertToCoin returned error: %v", err)
+	}
+
+	var images []models.CoinImage
+	if err := db.Where("coin_id = ?", coin.ID).Find(&images).Error; err != nil {
+		t.Fatalf("failed to load converted coin images: %v", err)
+	}
+	if len(images) != 1 {
+		t.Fatalf("converted coin images = %d, want 1", len(images))
+	}
+	if !images[0].IsPrimary {
+		t.Fatalf("image IsPrimary = false, want true")
+	}
+
+	savedPath := filepath.Join(uploadDir, filepath.FromSlash(images[0].FilePath))
+	if _, err := os.Stat(savedPath); err != nil {
+		t.Fatalf("saved image missing on disk: %v", err)
+	}
+}
+
+func TestAuctionLotService_ConvertToCoinSucceedsWhenAuctionImageImportFails(t *testing.T) {
+	db := setupAuctionLotServiceDB(t)
+	auctionRepo := repository.NewAuctionLotRepository(db)
+	coinRepo := repository.NewCoinRepository(db)
+	imageRepo := repository.NewImageRepository(db)
+	imageSvc := NewImageService(imageRepo, t.TempDir())
+	svc := NewAuctionLotService(auctionRepo, coinRepo).WithImageService(imageSvc)
+
+	lot := &models.AuctionLot{
+		Source:    models.AuctionSourceCNG,
+		SourceURL: "https://auctions.cngcoins.com/lots/view/4-BADIMG/test",
+		Title:     "Won lot with dead image URL",
+		Category:  models.CategoryRoman,
+		Status:    models.AuctionStatusWon,
+		UserID:    1,
+		ImageURL:  "http://127.0.0.1:1/not-reachable.png",
+	}
+	if err := auctionRepo.Create(lot); err != nil {
+		t.Fatalf("failed to create lot: %v", err)
+	}
+
+	coin, err := svc.ConvertToCoin(lot.ID, 1)
+	if err != nil {
+		t.Fatalf("ConvertToCoin returned error: %v", err)
+	}
+
+	var images []models.CoinImage
+	if err := db.Where("coin_id = ?", coin.ID).Find(&images).Error; err != nil {
+		t.Fatalf("failed to load converted coin images: %v", err)
+	}
+	if len(images) != 0 {
+		t.Fatalf("converted coin images = %d, want 0 on failed import", len(images))
 	}
 }
