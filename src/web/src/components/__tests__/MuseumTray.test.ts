@@ -147,4 +147,21 @@ describe('MuseumTray', () => {
     const grid = wrapper.find('.tray-grid')
     expect(grid.exists()).toBe(true)
   })
+
+  it('applies scaled render sizes when sizeScale is provided', () => {
+    const wrapper = mount(MuseumTray, {
+      props: {
+        coins: mockCoins,
+        feltTheme: 'red',
+        sizeScale: 1.2,
+      },
+    })
+
+    const wells = wrapper.findAllComponents(MuseumTrayWell)
+    const sizes = wells.map(well => well.props('renderSizePx'))
+
+    expect(sizes.every(size => size >= 40)).toBe(true)
+    expect(new Set(sizes).size).toBeGreaterThan(1)
+    expect(sizes[0]).toBeGreaterThan(40)
+  })
 })
