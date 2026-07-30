@@ -81,6 +81,17 @@ export function getCoinRenderSizePx(
   return Math.max(minCoinPx, Math.min(maxCoinPx, size))
 }
 
+export function getScaledCoinRenderSizePx(
+  diameterMm: number,
+  allDiameters: number[],
+  options: TrayLayoutOptions,
+  scale: number
+): number {
+  const baseSize = getCoinRenderSizePx(diameterMm, allDiameters, options)
+  const scaledSize = baseSize * scale
+  return Math.max(options.minCoinPx, Math.min(options.maxCoinPx, scaledSize))
+}
+
 /**
  * Returns the coins for a specific drawer (page of results)
  */
