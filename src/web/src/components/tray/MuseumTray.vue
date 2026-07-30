@@ -18,7 +18,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import MuseumTrayWell from './MuseumTrayWell.vue'
-import { getCoinRenderSizePx, normalizeDiameterMm, type TrayCoin } from '@/utils/trayLayout'
+import { getScaledCoinRenderSizePx, normalizeDiameterMm, type TrayCoin } from '@/utils/trayLayout'
 import type { FeltColor } from '@/composables/useTrayPreference'
 
 interface Props {
@@ -27,12 +27,14 @@ interface Props {
   imageSrcResolver?: (filePath: string) => string
   interactive?: boolean
   showCaptions?: boolean
+  sizeScale?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
   imageSrcResolver: undefined,
   interactive: true,
   showCaptions: true,
+  sizeScale: 1,
 })
 const emit = defineEmits<{
   'coin-clicked': [coinId: number]
@@ -50,7 +52,7 @@ const allDiameters = computed(() => {
 
 function getRenderSize(coin: TrayCoin): number {
   const diameter = normalizeDiameterMm(coin.diameterMm, layoutOptions.defaultDiameterMm)
-  return getCoinRenderSizePx(diameter, allDiameters.value, layoutOptions)
+  return getScaledCoinRenderSizePx(diameter, allDiameters.value, layoutOptions, props.sizeScale)
 }
 </script>
 
