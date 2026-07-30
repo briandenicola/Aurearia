@@ -4,6 +4,7 @@ import {
   hasKnownDiameterMm,
   selectTrayCoinImagePath,
   getCoinRenderSizePx,
+  getScaledCoinRenderSizePx,
   getDrawerCoins,
   getTotalDrawers,
 } from '../trayLayout'
@@ -106,6 +107,24 @@ describe('trayLayout', () => {
       const seventeenHalfMmSize = getCoinRenderSizePx(17.5, allDiameters, options)
 
       expect(seventeenHalfMmSize / sixteenMmSize).toBeCloseTo(17.5 / 16, 1)
+    })
+  })
+
+  describe('getScaledCoinRenderSizePx', () => {
+    const options = {
+      minCoinPx: 40,
+      maxCoinPx: 120,
+      defaultDiameterMm: 20,
+    }
+
+    it('applies a scale factor to the base render size', () => {
+      const size = getScaledCoinRenderSizePx(20, [20, 30], options, 1.25)
+      expect(size).toBe(100)
+    })
+
+    it('clamps scaled sizes to the configured maximum', () => {
+      const size = getScaledCoinRenderSizePx(30, [20, 30], options, 2)
+      expect(size).toBe(120)
     })
   })
 
