@@ -421,9 +421,12 @@ watch(traySizeScale, (value) => {
 })
 
 onMounted(async () => {
-  const storedScale = Number(localStorage.getItem('tray:sizeScale'))
-  if (Number.isFinite(storedScale)) {
-    traySizeScale.value = Math.min(1.4, Math.max(0.75, storedScale))
+  const storedScale = localStorage.getItem('tray:sizeScale')
+  if (storedScale !== null) {
+    const parsedScale = Number(storedScale)
+    if (Number.isFinite(parsedScale)) {
+      traySizeScale.value = Math.min(1.4, Math.max(0.75, parsedScale))
+    }
   }
   await loadSetDetails()
 })

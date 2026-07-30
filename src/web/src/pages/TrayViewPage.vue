@@ -269,9 +269,12 @@ async function loadTrayCoins() {
 }
 
 onMounted(() => {
-  const storedScale = Number(localStorage.getItem(STORAGE_KEY))
-  if (Number.isFinite(storedScale)) {
-    traySizeScale.value = Math.min(MAX_SIZE_SCALE, Math.max(MIN_SIZE_SCALE, storedScale))
+  const storedScale = localStorage.getItem(STORAGE_KEY)
+  if (storedScale !== null) {
+    const parsedScale = Number(storedScale)
+    if (Number.isFinite(parsedScale)) {
+      traySizeScale.value = Math.min(MAX_SIZE_SCALE, Math.max(MIN_SIZE_SCALE, parsedScale))
+    }
   }
   loadTrayCoins()
 })
