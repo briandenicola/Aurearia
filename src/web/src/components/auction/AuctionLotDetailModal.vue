@@ -106,21 +106,21 @@
                 <button class="btn btn-ghost btn-xs" :disabled="alertBusy" @click="removeAlert(alert.id)">Delete</button>
               </div>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
-              <select v-model="alertForm.direction" class="form-input min-w-[150px] flex-1" aria-label="Price alert direction">
+            <div class="control-row">
+              <select v-model="alertForm.direction" class="form-input control-input min-w-[150px] flex-1" aria-label="Price alert direction">
                 <option value="above">Above current bid</option>
                 <option value="below">Below current bid</option>
               </select>
               <input
                 v-model.number="alertForm.targetPrice"
                 type="number"
-                class="form-input max-w-[120px]"
+                class="form-input control-input control-number max-w-[120px]"
                 min="0"
                 step="0.01"
                 :placeholder="lot.currentBid ? String(lot.currentBid) : 'Target'"
                 aria-label="Target price"
               />
-              <button class="btn btn-secondary btn-sm" :disabled="alertBusy || !canCreateAlert" @click="saveAlert">Add Alert</button>
+              <button class="btn btn-secondary btn-sm control-btn control-btn-fixed" :disabled="alertBusy || !canCreateAlert" @click="saveAlert">Add Alert</button>
             </div>
           </div>
 
@@ -138,16 +138,16 @@
                 <button class="btn btn-ghost btn-xs" :disabled="reminderBusy" @click="removeReminder(reminder.id)">Delete</button>
               </div>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="control-row">
               <input
                 v-model.number="reminderForm.minutesBefore"
                 type="number"
-                class="form-input max-w-[120px]"
+                class="form-input control-input control-number max-w-[120px]"
                 min="1"
                 step="5"
                 aria-label="Reminder minutes before close"
               />
-              <button class="btn btn-secondary btn-sm" :disabled="reminderBusy || !canCreateReminder" @click="saveReminder">Add Reminder</button>
+              <button class="btn btn-secondary btn-sm control-btn control-btn-fixed" :disabled="reminderBusy || !canCreateReminder" @click="saveReminder">Add Reminder</button>
             </div>
           </div>
           <p v-if="alertMessage" class="m-0 text-chip" :class="alertError ? 'text-[var(--color-negative)]' : 'text-gold'">{{ alertMessage }}</p>
@@ -216,25 +216,25 @@
       </div>
 
       <div v-if="!isEditing" class="flex flex-col gap-3 border-t border-border-subtle px-6 py-4">
-        <div class="flex flex-wrap gap-[0.6rem]">
-          <select v-model="newStatus" class="form-input min-w-[120px] max-w-[160px] flex-1">
+        <div class="control-row">
+          <select v-model="newStatus" class="form-input control-input min-w-[120px] max-w-[160px] flex-1">
             <option value="watching">Watching</option>
             <option value="bidding">Bidding</option>
             <option value="won">Won</option>
             <option value="lost">Lost</option>
             <option value="passed">Passed</option>
           </select>
-          <button class="btn btn-secondary" @click="changeStatus" :disabled="statusBusy || !hasPendingStatusUpdate">
+          <button class="btn btn-secondary control-btn control-btn-fixed" @click="changeStatus" :disabled="statusBusy || !hasPendingStatusUpdate">
             {{ statusBusy ? 'Updating...' : 'Update Status' }}
           </button>
         </div>
         <p v-if="statusMessage" class="m-0 text-chip" :class="statusError ? 'text-[var(--color-negative)]' : 'text-gold'">{{ statusMessage }}</p>
-        <div v-if="newStatus === 'bidding'" class="flex flex-wrap items-center gap-[0.6rem]">
-          <label class="text-[0.82rem] text-text-secondary">Max Bid</label>
+        <div v-if="newStatus === 'bidding'" class="control-row control-row--labelled">
+          <label class="control-label text-[0.82rem] text-text-secondary">Max Bid</label>
           <input
             v-model.number="maxBidInput"
             type="number"
-            class="form-input bid-input max-w-[140px] flex-1"
+            class="form-input bid-input control-input max-w-[140px] flex-1"
             aria-label="Max bid"
             :placeholder="lot.currency || 'USD'"
             min="0"
@@ -285,12 +285,12 @@
             <span v-if="marketSignalError" class="ml-1 text-text-muted">Couldn't check the market right now.</span>
           </template>
         </div>
-        <div v-if="newStatus === 'won'" class="flex flex-wrap items-center gap-[0.6rem]">
-          <label class="text-[0.82rem] text-text-secondary">Winning Bid</label>
+        <div v-if="newStatus === 'won'" class="control-row control-row--labelled">
+          <label class="control-label text-[0.82rem] text-text-secondary">Winning Bid</label>
           <input
             v-model.number="winningBidInput"
             type="number"
-            class="form-input winning-bid-input max-w-[140px] flex-1"
+            class="form-input winning-bid-input control-input max-w-[140px] flex-1"
             aria-label="Winning bid"
             :placeholder="lot.currency || 'USD'"
             min="0"
@@ -299,15 +299,15 @@
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="inline-flex items-center gap-[0.35rem] text-[0.82rem] text-text-secondary"><CalendarDays :size="14" /> Calendar Event</label>
-          <div class="flex flex-wrap items-center gap-2">
-            <select v-model="selectedEventId" class="form-input min-w-[160px] flex-1">
+          <div class="control-row">
+            <select v-model="selectedEventId" class="form-input control-input min-w-[160px] flex-1">
               <option value="">None</option>
               <option v-for="evt in calendarEvents" :key="evt.id" :value="evt.id">
                 {{ evt.title }}
               </option>
             </select>
             <button
-              class="btn btn-secondary btn-sm"
+              class="btn btn-secondary btn-sm control-btn control-btn-fixed"
               @click="linkEvent"
               :disabled="(selectedEventId === '' ? null : Number(selectedEventId)) === (lot.eventId ?? null)"
             >
@@ -728,3 +728,56 @@ async function removeLot() {
 
 onMounted(fetchCalendarEvents)
 </script>
+
+<style scoped>
+.control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.6rem;
+}
+
+.control-row--labelled {
+  align-items: center;
+}
+
+.control-label {
+  width: 4.5rem;
+  flex-shrink: 0;
+}
+
+.control-input {
+  min-height: 2.5rem;
+}
+
+.control-number {
+  min-width: 8rem;
+}
+
+.control-btn {
+  min-height: 2.5rem;
+  justify-content: center;
+}
+
+.control-btn-fixed {
+  min-width: 8.25rem;
+}
+
+@media (max-width: 575px) {
+  .control-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .control-label {
+    width: auto;
+  }
+
+  .control-btn-fixed,
+  .control-number {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+}
+</style>

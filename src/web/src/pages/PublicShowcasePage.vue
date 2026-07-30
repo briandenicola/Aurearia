@@ -18,9 +18,25 @@
       </div>
 
       <div v-if="trayCoins.length" class="flex flex-col gap-4 pb-20">
+        <div class="flex justify-center md:justify-end">
+          <label class="inline-flex w-full items-center justify-between gap-3 rounded-full border border-border-subtle bg-[rgba(255,255,255,0.04)] px-3 py-2 text-[0.8rem] font-semibold uppercase tracking-[0.04em] text-text-secondary md:w-auto md:justify-start">
+            <span>Coin size</span>
+            <input
+              id="showcase-tray-size-slider"
+              v-model.number="traySizeScale"
+              class="w-[140px] accent-[var(--accent-gold)]"
+              type="range"
+              min="0.75"
+              max="1.4"
+              step="0.05"
+            />
+            <span class="min-w-[3.2rem] text-right text-text-primary">{{ traySizeScale.toFixed(2) }}x</span>
+          </label>
+        </div>
         <MuseumTray
           :coins="currentDrawerCoins"
           :felt-theme="feltColor"
+          :size-scale="traySizeScale"
           :image-src-resolver="imageUrl"
           :interactive="false"
         />
@@ -81,6 +97,7 @@ const showcase = ref<PublicShowcase | null>(null)
 const coins = ref<PublicCoin[]>([])
 const drawerIndex = ref(0)
 const coinsPerDrawer = 12
+const traySizeScale = ref(1)
 
 const trayCoins = computed((): TrayCoin[] => coins.value.map(coin => ({
   id: coin.id,
@@ -98,6 +115,12 @@ watch(totalDrawers, (drawers) => {
     return
   }
   drawerIndex.value = Math.min(drawerIndex.value, drawers - 1)
+})
+
+watch(traySizeScale, (value) => {
+  const normalizedValue = Math.min(1.4, Math.max(0.75, Number(value) || 1))
+  traySizeScale.value = normalizedValue
+  localStorage.setItem('tray:sizeScale', normalizedValue.toString())
 })
 
 function imageUrl(filePath: string): string {
@@ -128,5 +151,11 @@ async function loadShowcase() {
   }
 }
 
-onMounted(loadShowcase)
+onMounted(() => {
+  const storedScale = Number(localStorage.getItem('tray:sizeScale'))
+  if (Number.isFinite(storedScale)) {
+    traySizeScale.value = Math.min(1.4, Math.max(0.75, storedScale))
+  }
+  loadShowcase()
+})
 </script>
