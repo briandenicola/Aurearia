@@ -191,7 +191,7 @@ func TestCoinRecommendationService_AcceptAndRejectFlow(t *testing.T) {
 	}
 }
 
-func TestCoinRecommendationService_ListForCoin_FiltersOutNonHighTagRecommendations(t *testing.T) {
+func TestCoinRecommendationService_ListForCoin_FiltersOutNonHighRecommendations(t *testing.T) {
 	db := setupCoinRecommendationServiceDB(t)
 	createTestUserRecord(t, db, 1)
 
@@ -210,14 +210,24 @@ func TestCoinRecommendationService_ListForCoin_FiltersOutNonHighTagRecommendatio
 	peerCoin2 = coins[2]
 
 	tag := models.Tag{UserID: 1, Name: "Broad Roman", Color: "#c9a84c"}
+	set := models.CoinSet{UserID: 1, Name: "Broad Roman Set", SetType: models.CoinSetTypeGoal}
 	if err := db.Create(&tag).Error; err != nil {
 		t.Fatalf("failed to create tag: %v", err)
+	}
+	if err := db.Create(&set).Error; err != nil {
+		t.Fatalf("failed to create set: %v", err)
 	}
 	if err := db.Create(&[]models.CoinTag{
 		{CoinID: peerCoin1.ID, TagID: tag.ID},
 		{CoinID: peerCoin2.ID, TagID: tag.ID},
 	}).Error; err != nil {
 		t.Fatalf("failed to create tag memberships: %v", err)
+	}
+	if err := db.Create(&[]models.CoinSetMembership{
+		{SetID: set.ID, CoinID: peerCoin1.ID},
+		{SetID: set.ID, CoinID: peerCoin2.ID},
+	}).Error; err != nil {
+		t.Fatalf("failed to create set memberships: %v", err)
 	}
 
 	svc := NewCoinRecommendationService(
@@ -229,10 +239,8 @@ func TestCoinRecommendationService_ListForCoin_FiltersOutNonHighTagRecommendatio
 	if err != nil {
 		t.Fatalf("ListForCoin returned error: %v", err)
 	}
-	for _, rec := range recommendations {
-		if rec.TargetType == models.RecommendationTargetTypeTag {
-			t.Fatalf("expected no tag recommendations below high confidence, got tag recommendation %d (%s)", rec.TargetID, rec.Confidence)
-		}
+	if len(recommendations) != 0 {
+		t.Fatalf("expected no non-high recommendations, got %d", len(recommendations))
 	}
 }
 
