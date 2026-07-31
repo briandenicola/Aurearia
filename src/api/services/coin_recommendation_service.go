@@ -18,6 +18,7 @@ var (
 const (
 	minRecommendationSampleSize = 2
 	maxRecommendationsPerCoin   = 12
+	requiredTagConfidence       = "high"
 )
 
 type CoinRecommendationItem struct {
@@ -127,6 +128,10 @@ func (s *CoinRecommendationService) ListForCoin(coinID, userID uint) ([]CoinReco
 		if score <= 0 {
 			continue
 		}
+		confidence := confidenceTier(score)
+		if confidence != requiredTagConfidence {
+			continue
+		}
 		key := recommendationTargetKey(models.RecommendationTargetTypeTag, tag.ID)
 		if existingRec, ok := existingByTarget[key]; ok && existingRec.Status == models.RecommendationStatusRejected {
 			continue
@@ -136,7 +141,7 @@ func (s *CoinRecommendationService) ListForCoin(coinID, userID uint) ([]CoinReco
 			TargetID:   tag.ID,
 			TargetName: tag.Name,
 			Score:      score,
-			Confidence: confidenceTier(score),
+			Confidence: confidence,
 			Reasons:    reasons,
 			Status:     models.RecommendationStatusPending,
 		})
@@ -196,6 +201,9 @@ func (s *CoinRecommendationService) ListForCoin(coinID, userID uint) ([]CoinReco
 		case models.RecommendationTargetTypeSet:
 			targetName = setNameByID[rec.TargetID]
 		case models.RecommendationTargetTypeTag:
+			if rec.Confidence != requiredTagConfidence {
+				continue
+			}
 			targetName = tagNameByID[rec.TargetID]
 		}
 		if targetName == "" {
