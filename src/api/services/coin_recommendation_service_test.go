@@ -191,6 +191,51 @@ func TestCoinRecommendationService_AcceptAndRejectFlow(t *testing.T) {
 	}
 }
 
+func TestCoinRecommendationService_ListForCoin_FiltersOutNonHighTagRecommendations(t *testing.T) {
+	db := setupCoinRecommendationServiceDB(t)
+	createTestUserRecord(t, db, 1)
+
+	targetCoin := models.Coin{Name: "Target", Ruler: "Julia Domna", Category: models.CategoryRoman, Era: models.EraAncient, UserID: 1}
+	peerCoin1 := models.Coin{Name: "Peer 1", Ruler: "Other Ruler", Category: models.CategoryRoman, Era: models.EraAncient, UserID: 1}
+	peerCoin2 := models.Coin{Name: "Peer 2", Ruler: "Other Ruler", Category: models.CategoryRoman, Era: models.EraAncient, UserID: 1}
+	if err := db.Create(&[]models.Coin{targetCoin, peerCoin1, peerCoin2}).Error; err != nil {
+		t.Fatalf("failed to create coins: %v", err)
+	}
+	var coins []models.Coin
+	if err := db.Order("id ASC").Find(&coins).Error; err != nil {
+		t.Fatalf("failed to reload coins: %v", err)
+	}
+	targetCoin = coins[0]
+	peerCoin1 = coins[1]
+	peerCoin2 = coins[2]
+
+	tag := models.Tag{UserID: 1, Name: "Broad Roman", Color: "#c9a84c"}
+	if err := db.Create(&tag).Error; err != nil {
+		t.Fatalf("failed to create tag: %v", err)
+	}
+	if err := db.Create(&[]models.CoinTag{
+		{CoinID: peerCoin1.ID, TagID: tag.ID},
+		{CoinID: peerCoin2.ID, TagID: tag.ID},
+	}).Error; err != nil {
+		t.Fatalf("failed to create tag memberships: %v", err)
+	}
+
+	svc := NewCoinRecommendationService(
+		repository.NewCoinRecommendationRepository(db),
+		repository.NewTagRepository(db),
+		repository.NewSetRepository(db),
+	)
+	recommendations, err := svc.ListForCoin(targetCoin.ID, 1)
+	if err != nil {
+		t.Fatalf("ListForCoin returned error: %v", err)
+	}
+	for _, rec := range recommendations {
+		if rec.TargetType == models.RecommendationTargetTypeTag {
+			t.Fatalf("expected no tag recommendations below high confidence, got tag recommendation %d (%s)", rec.TargetID, rec.Confidence)
+		}
+	}
+}
+
 func createTestUserRecord(t *testing.T, db *gorm.DB, userID uint) {
 	t.Helper()
 	user := models.User{
