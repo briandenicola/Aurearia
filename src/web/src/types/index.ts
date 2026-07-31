@@ -556,6 +556,20 @@ export interface CoinSetDetail extends CoinSetSummary {
   agenticStatus?: string | null
 }
 
+export type CoinRecommendationTargetType = 'set' | 'tag'
+export type CoinRecommendationStatus = 'pending' | 'accepted' | 'rejected' | 'dismissed'
+
+export interface CoinRecommendation {
+  id: number
+  targetType: CoinRecommendationTargetType
+  targetId: number
+  targetName: string
+  score: number
+  confidence: 'high' | 'medium' | 'low'
+  reasons: string[]
+  status: CoinRecommendationStatus
+}
+
 export interface CreateCoinSetRequest {
   name: string
   description?: string

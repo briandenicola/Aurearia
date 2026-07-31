@@ -327,6 +327,9 @@ func main() {
 		tagRepo := repository.NewTagRepository(database.DB)
 		tagHandler := handlers.NewTagHandler(tagRepo)
 		setRepo := repository.NewSetRepository(database.DB)
+		recommendationRepo := repository.NewCoinRecommendationRepository(database.DB)
+		recommendationService := services.NewCoinRecommendationService(recommendationRepo, tagRepo, setRepo)
+		recommendationHandler := handlers.NewCoinRecommendationHandler(recommendationService)
 		protected.GET("/tags", tagHandler.List)
 		protected.POST("/tags", tagHandler.Create)
 		protected.PUT("/tags/:id", tagHandler.Update)
@@ -336,6 +339,9 @@ func main() {
 
 		protected.POST("/coins/:id/tags", tagHandler.AttachToCoin)
 		protected.DELETE("/coins/:id/tags/:tagId", tagHandler.DetachFromCoin)
+		protected.GET("/coins/:id/recommendations", recommendationHandler.List)
+		protected.POST("/coins/:id/recommendations/:recommendationId/accept", recommendationHandler.Accept)
+		protected.POST("/coins/:id/recommendations/:recommendationId/reject", recommendationHandler.Reject)
 
 		// Sets - new endpoints for coin sets
 		setService := services.NewSetService(setRepo, tagRepo, notifRepo)

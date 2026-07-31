@@ -66,14 +66,38 @@
       </select>
       <button class="btn btn-ghost btn-xs" type="button" @click="showTagPicker = false">Cancel</button>
     </div>
+
+    <div class="mt-4 border-t border-border-subtle pt-4">
+      <h4 class="mb-2 text-sm font-medium text-text-secondary">Suggested Tags & Sets</h4>
+      <div v-if="recommendationsLoading" class="text-sm text-text-muted">Loading suggestions...</div>
+      <div v-else-if="!recommendations.length" class="text-sm text-text-muted">No suggestions yet.</div>
+      <div v-else class="flex flex-col gap-2">
+        <div
+          v-for="recommendation in recommendations"
+          :key="recommendation.id"
+          class="rounded-sm border border-border-subtle bg-card p-2"
+        >
+          <div class="mb-1 flex items-center gap-2">
+            <span class="chip-sm">{{ recommendation.targetType === 'set' ? 'Set' : 'Tag' }}</span>
+            <span class="text-sm font-medium text-text-primary">{{ recommendation.targetName }}</span>
+            <span class="chip-sm ml-auto capitalize">{{ recommendation.confidence }}</span>
+          </div>
+          <p class="m-0 text-xs text-text-secondary">{{ recommendation.reasons.join(' • ') }}</p>
+          <div class="mt-2 flex gap-2">
+            <button class="btn btn-secondary btn-xs" type="button" @click="handleAcceptRecommendation(recommendation.id)">Accept</button>
+            <button class="btn btn-ghost btn-xs" type="button" @click="handleRejectRecommendation(recommendation.id)">Reject</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { getTags, getSets, addTagToCoin, removeTagFromCoin, addCoinToSet, removeCoinFromSet } from '@/api/client'
+import { getTags, getSets, addTagToCoin, removeTagFromCoin, addCoinToSet, removeCoinFromSet, getCoinRecommendations, acceptCoinRecommendation, rejectCoinRecommendation } from '@/api/client'
 import { normalizeCoinSetType } from '@/types'
-import type { CoinSetSummary, Tag } from '@/types'
+import type { CoinRecommendation, CoinSetSummary, Tag } from '@/types'
 
 type SetChip = Pick<CoinSetSummary, 'id' | 'name' | 'color' | 'setType'>
 
@@ -89,6 +113,8 @@ const emit = defineEmits<{
 
 const userTags = ref<Tag[]>([])
 const userSets = ref<CoinSetSummary[]>([])
+const recommendations = ref<CoinRecommendation[]>([])
+const recommendationsLoading = ref(false)
 const showTagPicker = ref(false)
 const itemToAdd = ref('')
 
@@ -108,12 +134,28 @@ function canManageSetMembership(setType: CoinSetSummary['setType']): boolean {
 }
 
 onMounted(async () => {
+  await Promise.all([loadAvailableItems(), loadRecommendations()])
+})
+
+async function loadAvailableItems() {
   try {
     const [tagsRes, setsRes] = await Promise.all([getTags(), getSets()])
     userTags.value = tagsRes.data?.tags ?? []
     userSets.value = setsRes.data?.sets ?? []
   } catch { /* ignore */ }
-})
+}
+
+async function loadRecommendations() {
+  recommendationsLoading.value = true
+  try {
+    const response = await getCoinRecommendations(props.coinId)
+    recommendations.value = response.data?.recommendations ?? []
+  } catch {
+    recommendations.value = []
+  } finally {
+    recommendationsLoading.value = false
+  }
+}
 
 async function handleAddItem() {
   if (!itemToAdd.value) return
@@ -128,6 +170,7 @@ async function handleAddItem() {
   } catch { /* ignore */ }
   itemToAdd.value = ''
   showTagPicker.value = false
+  await Promise.all([loadAvailableItems(), loadRecommendations()])
 }
 
 async function handleRemoveTag(tagId: number) {
@@ -135,6 +178,7 @@ async function handleRemoveTag(tagId: number) {
     await removeTagFromCoin(props.coinId, tagId)
     emit('tagsChanged')
   } catch { /* ignore */ }
+  await Promise.all([loadAvailableItems(), loadRecommendations()])
 }
 
 async function handleRemoveSet(setId: number) {
@@ -142,5 +186,21 @@ async function handleRemoveSet(setId: number) {
     await removeCoinFromSet(setId, props.coinId)
     emit('tagsChanged')
   } catch { /* ignore */ }
+  await Promise.all([loadAvailableItems(), loadRecommendations()])
+}
+
+async function handleAcceptRecommendation(recommendationId: number) {
+  try {
+    await acceptCoinRecommendation(props.coinId, recommendationId)
+    emit('tagsChanged')
+  } catch { /* ignore */ }
+  await Promise.all([loadAvailableItems(), loadRecommendations()])
+}
+
+async function handleRejectRecommendation(recommendationId: number) {
+  try {
+    await rejectCoinRecommendation(props.coinId, recommendationId)
+  } catch { /* ignore */ }
+  await loadRecommendations()
 }
 </script>
