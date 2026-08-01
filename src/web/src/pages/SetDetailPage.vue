@@ -5,7 +5,7 @@
     </div>
 
     <div v-else-if="set" class="space-y-6">
-      <div class="page-header items-start">
+      <div class="page-header relative items-start">
         <div class="flex min-w-0 flex-1 items-start gap-3 md:items-center">
           <span class="h-11 w-1 shrink-0 rounded-full shadow-[0_0_16px_var(--accent-gold-glow)]" :style="{ backgroundColor: set.color }" aria-hidden="true"></span>
           <div class="min-w-0">
@@ -41,10 +41,8 @@
             <Menu :size="16" /> Actions
           </button>
         </div>
-      </div>
 
-      <div v-if="menuOpen" class="relative z-20 flex justify-end">
-        <div class="w-full max-w-[260px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_rgba(0,0,0,0.45)]" role="menu">
+        <div v-if="menuOpen" class="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-full max-w-[260px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_rgba(0,0,0,0.45)]" role="menu">
           <button
             class="w-full rounded-sm px-3 py-2 text-left text-body text-text-secondary transition-all hover:bg-card-hover hover:text-text-primary"
             role="menuitem"
@@ -87,8 +85,8 @@
             </span>
           </button>
         </div>
+        <button v-if="menuOpen" class="fixed inset-0 z-10 bg-transparent" aria-label="Close menu" @click="menuOpen = false"></button>
       </div>
-      <button v-if="menuOpen" class="fixed inset-0 z-10 bg-transparent" aria-label="Close menu" @click="menuOpen = false"></button>
 
       <SetCompletionChecklist
         v-if="completion"
