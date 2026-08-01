@@ -24,8 +24,17 @@
         >
           <Menu :size="20" />
         </button>
-        <div v-if="menuOpen && result?.suggestions.length" class="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-[220px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_rgba(0,0,0,0.45)]">
+        <div v-if="menuOpen && result" class="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-[220px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_rgba(0,0,0,0.45)]">
           <router-link
+            to="/sets/emperors/stats"
+            class="inline-flex w-full items-center gap-2 whitespace-nowrap rounded-sm px-3 py-2 text-body text-text-secondary no-underline transition-all hover:bg-card-hover hover:text-text-primary"
+            @click="menuOpen = false"
+          >
+            <ChartNoAxesColumn :size="15" />
+            Stats
+          </router-link>
+          <router-link
+            v-if="result.suggestions.length"
             to="/sets/emperors/pursuits"
             class="inline-flex w-full items-center gap-2 whitespace-nowrap rounded-sm px-3 py-2 text-body text-text-secondary no-underline transition-all hover:bg-card-hover hover:text-text-primary"
             @click="menuOpen = false"
@@ -56,14 +65,6 @@
     </div>
 
     <template v-else-if="result">
-      <section class="card flex flex-col gap-1.5 p-5">
-        <p class="section-label mb-0">Commonly Accepted Augustuses</p>
-        <p class="m-0 text-2xl font-semibold text-heading">
-          {{ result.emperor.owned }} of {{ result.emperor.total }}
-          <span class="text-base font-normal text-text-secondary">({{ formatPct(result.emperor.percentage) }}%)</span>
-        </p>
-      </section>
-
       <section
         v-for="dynasty in result.emperor.dynasties"
         :key="dynasty.dynasty"
@@ -123,11 +124,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ArrowLeft, Crown, Menu } from 'lucide-vue-next'
+import { ArrowLeft, ChartNoAxesColumn, Crown, Menu } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { getEmperorTrackerProgress, getApiErrorMessage } from '@/api/client'
 import ImperialFigureWellGrid from '@/components/emperor-tracker/ImperialFigureWellGrid.vue'
-import type { EmperorTrackerResult, RarityTier } from '@/types'
+import type { EmperorTrackerResult } from '@/types'
 
 const auth = useAuthStore()
 
@@ -136,17 +137,6 @@ const enabled = ref(true)
 const errorMessage = ref('')
 const result = ref<EmperorTrackerResult | null>(null)
 const menuOpen = ref(false)
-
-const RARITY_LABELS: Record<RarityTier, string> = {
-  common: 'Common',
-  scarce: 'Scarce',
-  rare: 'Rare',
-  very_rare: 'Very Rare',
-}
-
-function rarityLabel(tier: RarityTier): string {
-  return RARITY_LABELS[tier] ?? tier
-}
 
 function formatPct(value: number): string {
   return Math.round(value).toString()
