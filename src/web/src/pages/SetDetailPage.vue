@@ -92,6 +92,9 @@
             <span v-else>Drag rows or use the arrows to arrange this set.</span>
           </p>
         </div>
+        <p v-if="normalizedSetType === 'agentic'" class="m-0 text-body text-text-secondary">
+          Click any tray slot to assign or replace the coin for that target.
+        </p>
         <div v-if="displayTrayCoins.length === 0" class="card space-y-4 py-8 text-center">
           <p class="m-0 text-base text-text-secondary">{{ emptySetMessage }}</p>
           <button v-if="canManageMembership" class="btn btn-primary" @click="openAddCoinModal">Add Coins</button>
@@ -122,7 +125,7 @@
               :coins="currentDrawerCoins"
               :felt-theme="feltColor"
               :size-scale="traySizeScale"
-              @coin-clicked="goToCoin"
+              @coin-clicked="handleTrayCoinClick"
             />
             <TrayControls
               v-if="totalDrawers > 1"
@@ -236,6 +239,47 @@
       </div>
     </div>
 
+    <div v-if="showAssignSlotModal" class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4" @click.self="showAssignSlotModal = false">
+      <div class="card w-[90%] max-w-[500px] p-8">
+        <h2 class="mt-0">Assign Coin to Slot</h2>
+        <p class="section-label mb-3">{{ slotTargetLabel }}</p>
+        <form @submit.prevent="assignCoinToSlot">
+          <div class="form-group">
+            <label for="slotCoinSearch" class="form-label">Search coins</label>
+            <input
+              id="slotCoinSearch"
+              v-model="slotCoinSearch"
+              type="search"
+              class="form-input"
+              placeholder="Search by name, ruler, denomination, or mint"
+            />
+          </div>
+          <div class="form-group">
+            <label for="slotCoinToAssign" class="form-label">Coin</label>
+            <select id="slotCoinToAssign" v-model.number="slotCoinIdToAssign" class="form-select" required>
+              <option :value="null" disabled>Select a coin...</option>
+              <option
+                v-for="coin in filteredAssignableCoins"
+                :key="coin.id"
+                :value="coin.id"
+              >
+                {{ coin.name }}<template v-if="coin.ruler"> - {{ coin.ruler }}</template>
+              </option>
+            </select>
+            <p v-if="filteredAssignableCoins.length === 0" class="mt-1.5 text-chip text-text-secondary">No matching coins found.</p>
+            <p v-if="slotAssignmentError" class="mt-1.5 text-chip text-[var(--error-bg)]">{{ slotAssignmentError }}</p>
+          </div>
+          <div class="mt-6 flex justify-end gap-2">
+            <button type="button" class="btn btn-ghost" :disabled="slotAssignmentSaving" @click="showAssignSlotModal = false">Cancel</button>
+            <button v-if="currentSlotCoinId" type="button" class="btn btn-danger" :disabled="slotAssignmentSaving" @click="clearSlotAssignment">Clear Slot</button>
+            <button type="submit" class="btn btn-primary" :disabled="!slotCoinIdToAssign || slotAssignmentSaving">
+              {{ currentSlotCoinId ? 'Replace Coin' : 'Assign Coin' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div v-if="showEditModal" class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4" @click.self="showEditModal = false">
       <div class="card w-[90%] max-w-[500px] p-8">
         <h2 class="mt-0">Edit Set</h2>
@@ -317,9 +361,17 @@ const orderError = ref<string | null>(null)
 const draggingCoinId = ref<number | null>(null)
 const dragOverCoinId = ref<number | null>(null)
 const showAddCoinModal = ref(false)
+const showAssignSlotModal = ref(false)
 const showEditModal = ref(false)
 const coinIdToAdd = ref<number | null>(null)
 const coinSearch = ref('')
+const slotCoinSearch = ref('')
+const slotCoinIdToAssign = ref<number | null>(null)
+const slotTargetId = ref<number | null>(null)
+const slotTargetLabel = ref('')
+const currentSlotCoinId = ref<number | null>(null)
+const slotAssignmentSaving = ref(false)
+const slotAssignmentError = ref<string | null>(null)
 const editForm = ref({
   name: '',
   description: '',
@@ -335,6 +387,7 @@ const canManageMembership = computed(() => {
 })
 const canReorderCoins = computed(() => canManageMembership.value && coins.value.length > 1)
 const normalizedSetType = computed(() => set.value ? normalizeCoinSetType(set.value.setType) : null)
+type AgenticTrayCoin = TrayCoin & { targetId: number; assignedCoinId?: number | null }
 const trayCoins = computed((): TrayCoin[] =>
   coins.value.map((coin) => ({
     id: coin.id,
@@ -345,7 +398,7 @@ const trayCoins = computed((): TrayCoin[] =>
     wishlistPlaceholder: normalizedSetType.value === 'goal' && coin.isWishlist,
   })),
 )
-const agenticTrayCoins = computed((): TrayCoin[] => {
+const agenticTrayCoins = computed((): AgenticTrayCoin[] => {
   if (normalizedSetType.value !== 'agentic') return []
   const targetMatches = completion.value?.targetMatches
   if (targetMatches && targetMatches.length > 0) {
@@ -353,6 +406,8 @@ const agenticTrayCoins = computed((): TrayCoin[] => {
       if (coin) {
         return {
           id: coin.id,
+          targetId: target.id,
+          assignedCoinId: coin.id,
           name: coin.name,
           diameterMm: coin.diameterMm,
           images: coin.images ?? [],
@@ -361,6 +416,8 @@ const agenticTrayCoins = computed((): TrayCoin[] => {
       }
       return {
         id: target.id,
+        targetId: target.id,
+        assignedCoinId: null,
         name: target.label,
         diameterMm: null,
         images: [],
@@ -372,6 +429,8 @@ const agenticTrayCoins = computed((): TrayCoin[] => {
   const targets = completion.value?.targets ?? completion.value?.missingTargets ?? []
   return targets.map((target) => ({
     id: target.id,
+    targetId: target.id,
+    assignedCoinId: null,
     name: target.label,
     diameterMm: null,
     images: [],
@@ -395,10 +454,33 @@ const availableCoins = computed(() => {
   return allCoins.value.filter((coin) => !existingIds.has(coin.id))
 })
 
+const assignableCoins = computed(() => {
+  if (normalizedSetType.value !== 'agentic') return availableCoins.value
+
+  const assignedToOtherSlots = new Set<number>()
+  for (const match of completion.value?.targetMatches ?? []) {
+    if (match.target.id !== slotTargetId.value && match.coin?.id != null) {
+      assignedToOtherSlots.add(match.coin.id)
+    }
+  }
+  return allCoins.value.filter((coin) => !assignedToOtherSlots.has(coin.id))
+})
+
 const filteredAvailableCoins = computed(() => {
   const term = coinSearch.value.trim().toLowerCase()
   if (!term) return availableCoins.value
   return availableCoins.value.filter((coin) => [
+    coin.name,
+    coin.ruler,
+    coin.denomination,
+    coin.mint,
+  ].some((field) => field?.toLowerCase().includes(term)))
+})
+
+const filteredAssignableCoins = computed(() => {
+  const term = slotCoinSearch.value.trim().toLowerCase()
+  if (!term) return assignableCoins.value
+  return assignableCoins.value.filter((coin) => [
     coin.name,
     coin.ruler,
     coin.denomination,
@@ -543,6 +625,48 @@ async function addCoin() {
   }
 }
 
+function openAssignSlotModal(targetId: number, targetLabel: string, assignedCoinId: number | null) {
+  slotTargetId.value = targetId
+  slotTargetLabel.value = targetLabel
+  currentSlotCoinId.value = assignedCoinId
+  slotCoinIdToAssign.value = assignedCoinId
+  slotCoinSearch.value = ''
+  slotAssignmentError.value = null
+  showAssignSlotModal.value = true
+}
+
+async function assignCoinToSlot() {
+  if (!slotCoinIdToAssign.value || !slotTargetId.value) return
+  slotAssignmentSaving.value = true
+  slotAssignmentError.value = null
+  try {
+    await addCoinToSet(setId, { coinId: slotCoinIdToAssign.value, targetId: slotTargetId.value })
+    showAssignSlotModal.value = false
+    await loadSetDetails()
+  } catch (error) {
+    console.error('Failed to assign coin to slot:', error)
+    slotAssignmentError.value = getErrorMessage(error, 'Unable to assign this coin to the slot.')
+  } finally {
+    slotAssignmentSaving.value = false
+  }
+}
+
+async function clearSlotAssignment() {
+  if (!currentSlotCoinId.value) return
+  slotAssignmentSaving.value = true
+  slotAssignmentError.value = null
+  try {
+    await removeCoinFromSet(setId, currentSlotCoinId.value)
+    showAssignSlotModal.value = false
+    await loadSetDetails()
+  } catch (error) {
+    console.error('Failed to clear slot assignment:', error)
+    slotAssignmentError.value = getErrorMessage(error, 'Unable to clear this slot.')
+  } finally {
+    slotAssignmentSaving.value = false
+  }
+}
+
 async function deleteSet() {
   if (!confirm('Are you sure you want to delete this set?')) return
   try {
@@ -657,6 +781,16 @@ function handleNextDrawer() {
 
 function goToCoin(coinId: number) {
   router.push({ name: 'coin-detail', params: { id: coinId } })
+}
+
+function handleTrayCoinClick(coinOrTargetId: number) {
+  if (normalizedSetType.value !== 'agentic') {
+    goToCoin(coinOrTargetId)
+    return
+  }
+  const slot = currentDrawerCoins.value.find((coin) => coin.id === coinOrTargetId) as AgenticTrayCoin | undefined
+  if (!slot || slot.targetId == null) return
+  openAssignSlotModal(slot.targetId, slot.name, slot.assignedCoinId ?? null)
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {

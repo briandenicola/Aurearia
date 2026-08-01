@@ -313,8 +313,8 @@ func (s *SetService) DeleteSet(setID, userID uint) error {
 	return s.repo.Delete(setID, userID)
 }
 
-// AddCoinToSet adds a coin to a manual set with validation.
-func (s *SetService) AddCoinToSet(coinID, setID, userID uint, notes string) error {
+// AddCoinToSet adds a coin to a set with validation.
+func (s *SetService) AddCoinToSet(coinID, setID, userID uint, notes string, targetID ...uint) error {
 	// Verify the set supports manual membership
 	set, err := s.repo.GetByID(setID, userID)
 	if err != nil {
@@ -324,7 +324,10 @@ func (s *SetService) AddCoinToSet(coinID, setID, userID uint, notes string) erro
 		return fmt.Errorf("cannot manually add coins to smart sets")
 	}
 	if set.SetType == models.CoinSetTypeAgentic {
-		return fmt.Errorf("cannot manually add coins to agentic sets")
+		if len(targetID) == 0 {
+			return fmt.Errorf("targetId is required for agentic sets")
+		}
+		return s.repo.AddCoinToSet(coinID, setID, userID, notes, targetID[0])
 	}
 
 	return s.repo.AddCoinToSet(coinID, setID, userID, notes)

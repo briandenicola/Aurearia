@@ -126,7 +126,7 @@ func TestSetRepository_ReorderCoinsInSet_RejectsInvalidMembersWithoutPartialUpda
 	}
 }
 
-func TestSetRepository_GetAgenticSetCompletionMatchesActiveCoinsOnce(t *testing.T) {
+func TestSetRepository_GetAgenticSetCompletionRequiresExplicitAssignments(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewSetRepository(db)
 
@@ -159,22 +159,68 @@ func TestSetRepository_GetAgenticSetCompletionMatchesActiveCoinsOnce(t *testing.
 	if err != nil {
 		t.Fatalf("GetSetCompletion: %v", err)
 	}
-	if completion["completedTargets"] != 2 {
-		t.Fatalf("expected two 1940 slots filled by two distinct active coins, got %#v", completion)
+	if completion["completedTargets"] != 0 {
+		t.Fatalf("expected no implicit auto-matching for agentic sets, got %#v", completion)
 	}
 	missing, ok := completion["missingTargets"].([]models.CoinSetTarget)
-	if !ok || len(missing) != 1 || missing[0].Label != "1941 US Silver Quarter" {
-		t.Fatalf("wishlist coin should not fill the 1941 slot, missing=%#v", completion["missingTargets"])
+	if !ok || len(missing) != 3 {
+		t.Fatalf("expected all unassigned targets to be missing, missing=%#v", completion["missingTargets"])
 	}
 	matches, ok := completion["targetMatches"].([]AgenticTargetMatch)
 	if !ok || len(matches) != 3 {
 		t.Fatalf("expected target matches in completion, got %#v", completion["targetMatches"])
 	}
-	if matches[0].Coin == nil || matches[1].Coin == nil || matches[0].Coin.ID == matches[1].Coin.ID {
-		t.Fatalf("expected first two targets matched to distinct coins, got %#v", matches)
+	if matches[0].Coin != nil || matches[1].Coin != nil || matches[2].Coin != nil {
+		t.Fatalf("expected no auto-assigned coins in agentic completion, got %#v", matches)
 	}
-	if matches[2].Coin != nil {
-		t.Fatalf("wishlist coin must not be auto-matched, got %#v", matches[2].Coin)
+}
+
+func TestSetRepository_AddCoinToSet_AssignsAgenticSlots(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewSetRepository(db)
+
+	set := models.CoinSet{UserID: 1, Name: "Byzantine Emperors", SetType: models.CoinSetTypeAgentic, CreationMode: models.CoinSetCreationModeDynamic}
+	if err := db.Create(&set).Error; err != nil {
+		t.Fatalf("create set: %v", err)
+	}
+	coins := []models.Coin{
+		{Name: "Anastasius Solidus", UserID: 1, Denomination: "Solidus", Material: "Gold"},
+		{Name: "Justin I Solidus", UserID: 1, Denomination: "Solidus", Material: "Gold"},
+	}
+	if err := db.Create(&coins).Error; err != nil {
+		t.Fatalf("create coins: %v", err)
+	}
+	targets := []models.CoinSetTarget{
+		{SetID: set.ID, Label: "Anastasius I", SortOrder: 1},
+		{SetID: set.ID, Label: "Justin I", SortOrder: 2},
+	}
+	if err := db.Create(&targets).Error; err != nil {
+		t.Fatalf("create targets: %v", err)
+	}
+
+	if err := repo.AddCoinToSet(coins[0].ID, set.ID, 1, "", targets[0].ID); err != nil {
+		t.Fatalf("assign first slot: %v", err)
+	}
+	if err := repo.AddCoinToSet(coins[0].ID, set.ID, 1, "", targets[1].ID); err != nil {
+		t.Fatalf("move coin to second slot: %v", err)
+	}
+	if err := repo.AddCoinToSet(coins[1].ID, set.ID, 1, "", targets[1].ID); err != nil {
+		t.Fatalf("replace second slot coin: %v", err)
+	}
+
+	completion, err := repo.GetSetCompletion(set.ID, 1)
+	if err != nil {
+		t.Fatalf("GetSetCompletion: %v", err)
+	}
+	if got := completion["completedTargets"].(int); got != 1 {
+		t.Fatalf("expected one completed target after replacement, got %d", got)
+	}
+	matches := completion["targetMatches"].([]AgenticTargetMatch)
+	if matches[0].Coin != nil {
+		t.Fatalf("first slot should be empty after coin reassignment, got %#v", matches[0].Coin)
+	}
+	if matches[1].Coin == nil || matches[1].Coin.ID != coins[1].ID {
+		t.Fatalf("second slot should contain replacement coin, got %#v", matches[1].Coin)
 	}
 }
 
