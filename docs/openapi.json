@@ -11773,6 +11773,9 @@
                                 },
                                 "notes": {
                                     "type": "string"
+                                },
+                                "targetId": {
+                                    "type": "integer"
                                 }
                             }
                         }

@@ -11780,6 +11780,9 @@ const docTemplate = `{
                                 },
                                 "notes": {
                                     "type": "string"
+                                },
+                                "targetId": {
+                                    "type": "integer"
                                 }
                             }
                         }
