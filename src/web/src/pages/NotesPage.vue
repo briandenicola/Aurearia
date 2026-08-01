@@ -29,12 +29,12 @@
     <div v-else class="grid items-start gap-4" :class="isPwa ? 'grid-cols-1' : 'md:grid-cols-[minmax(240px,0.85fr)_minmax(0,2fr)]'">
       <aside
         v-if="!isPwa || pwaMode === 'list'"
-        class="rounded-md border border-border-subtle bg-card p-4 shadow-[var(--shadow-card)]"
+        class="flex flex-col gap-2"
         :class="isPwa ? 'min-h-[calc(100vh-15rem)]' : 'max-h-[280px] overflow-y-auto md:max-h-none md:min-h-[460px]'"
         aria-label="Notes list"
       >
-        <div class="mb-4 flex items-start justify-between gap-4">
-          <span class="section-label mb-0">All notes</span>
+        <div class="card flex items-start justify-between gap-4 px-4 py-3">
+          <span class="section-label m-0">All notes</span>
           <span class="chip-sm">{{ notes.length }} {{ notes.length === 1 ? 'note' : 'notes' }}</span>
         </div>
 
@@ -48,24 +48,39 @@
         <button
           v-for="note in notes"
           :key="note.id"
-          class="flex w-full flex-col gap-1 rounded-sm border border-transparent px-3 py-3 text-left text-text-secondary transition-all hover:border-border-accent hover:bg-gold-glow"
-          :class="selectedId === note.id ? 'border-border-accent bg-gold-glow' : ''"
+          class="card !p-0 flex w-full items-start gap-3 border-l-[3px] border-l-transparent !px-4 !py-[0.85rem] text-left transition-colors hover:bg-card-hover"
+          :class="selectedId === note.id ? 'border-l-gold bg-[rgba(201,168,76,0.04)]' : ''"
           @click="selectNote(note.id)"
         >
-          <span class="flex min-w-0 items-center justify-between gap-2">
-            <span class="truncate text-base font-semibold text-text-primary">{{ note.title || 'Untitled Note' }}</span>
-            <span v-if="note.body" class="chip-sm">Markdown</span>
-          </span>
-          <span class="truncate text-chip text-text-muted">{{ previewText(note.body) }}</span>
-          <span class="text-chip text-text-muted">Updated {{ formatDate(note.updatedAt) }}</span>
+          <div class="mt-[2px] shrink-0 text-text-muted">
+            <StickyNote :size="18" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="mb-[0.2rem] flex items-start justify-between gap-2">
+              <span class="truncate text-base font-semibold text-text-primary">{{ note.title || 'Untitled Note' }}</span>
+              <span v-if="note.body" class="chip-sm shrink-0">Markdown</span>
+            </div>
+            <div class="truncate text-body leading-[1.4] text-text-secondary">{{ previewText(note.body) }}</div>
+            <div class="mt-[0.35rem] text-sm text-text-muted">Updated {{ formatDate(note.updatedAt) }}</div>
+          </div>
         </button>
       </aside>
 
       <section v-if="!isPwa || pwaMode !== 'list'" class="rounded-md border border-border-subtle bg-card p-6 shadow-[var(--shadow-card)] md:min-h-[460px]">
-        <div v-if="isPwa" class="mb-4">
+        <div v-if="isPwa && !editMode" class="mb-4 flex items-center justify-between gap-2">
           <button class="btn btn-ghost btn-sm" type="button" @click="showPwaList">
             <ArrowLeft :size="16" /> Back
           </button>
+          <div v-if="selectedNote" class="flex items-center gap-2">
+            <button class="btn btn-secondary btn-sm" @click="editSelected">
+              <Pencil :size="16" />
+              Edit
+            </button>
+            <button class="btn btn-danger btn-sm" :disabled="deleting" @click="deleteSelected">
+              <Trash2 :size="16" />
+              {{ deleting ? 'Deleting...' : 'Delete' }}
+            </button>
+          </div>
         </div>
         <div v-if="!editMode && !selectedNote" class="flex min-h-[320px] flex-col items-center justify-center gap-3 text-center text-text-muted">
           <BookOpen :size="44" />
@@ -116,7 +131,7 @@
               <h2 class="m-0 text-xl text-text-primary">{{ selectedNote.title || 'Untitled Note' }}</h2>
               <p class="text-chip text-text-muted">Updated {{ formatDate(selectedNote.updatedAt) }}</p>
             </div>
-            <div class="flex flex-wrap gap-2 md:justify-end">
+            <div v-if="!isPwa" class="flex flex-wrap gap-2 md:justify-end">
               <button class="btn btn-secondary btn-sm" @click="editSelected">
                 <Pencil :size="16" />
                 Edit
