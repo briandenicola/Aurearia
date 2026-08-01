@@ -26,8 +26,12 @@
       <button class="btn btn-secondary btn-sm" @click="loadNotes">Try Again</button>
     </div>
 
-    <div v-else class="grid items-start gap-4 md:grid-cols-[minmax(240px,0.85fr)_minmax(0,2fr)]">
-      <aside class="max-h-[280px] overflow-y-auto rounded-md border border-border-subtle bg-card p-4 shadow-[var(--shadow-card)] md:max-h-none md:min-h-[460px]" aria-label="Notes list">
+    <div v-else class="grid items-start gap-4" :class="isPwa ? 'grid-cols-1' : 'md:grid-cols-[minmax(240px,0.85fr)_minmax(0,2fr)]'">
+      <aside
+        v-if="!isPwa || pwaMode === 'list'"
+        class="max-h-[280px] overflow-y-auto rounded-md border border-border-subtle bg-card p-4 shadow-[var(--shadow-card)] md:max-h-none md:min-h-[460px]"
+        aria-label="Notes list"
+      >
         <div class="mb-4 flex items-start justify-between gap-4">
           <span class="section-label mb-0">All notes</span>
           <span class="chip-sm">{{ notes.length }} {{ notes.length === 1 ? 'note' : 'notes' }}</span>
@@ -56,7 +60,12 @@
         </button>
       </aside>
 
-      <section class="rounded-md border border-border-subtle bg-card p-6 shadow-[var(--shadow-card)] md:min-h-[460px]">
+      <section v-if="!isPwa || pwaMode !== 'list'" class="rounded-md border border-border-subtle bg-card p-6 shadow-[var(--shadow-card)] md:min-h-[460px]">
+        <div v-if="isPwa" class="mb-4">
+          <button class="btn btn-ghost btn-sm" type="button" @click="showPwaList">
+            <ArrowLeft :size="16" /> Back
+          </button>
+        </div>
         <div v-if="!editMode && !selectedNote" class="flex min-h-[320px] flex-col items-center justify-center gap-3 text-center text-text-muted">
           <BookOpen :size="44" />
           <h2 class="m-0 text-xl text-text-primary">Select or create a note</h2>
@@ -135,7 +144,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { AlertCircle, BookOpen, CirclePlus, Pencil, Plus, Save, StickyNote, Trash2 } from 'lucide-vue-next'
+import { AlertCircle, ArrowLeft, BookOpen, CirclePlus, Pencil, Plus, Save, StickyNote, Trash2 } from 'lucide-vue-next'
 import { createNote, deleteNote, getNotes, updateNote } from '@/api/client'
 import type { UserNote } from '@/types'
 import { useDialog } from '@/composables/useDialog'
@@ -155,6 +164,7 @@ const loadError = ref('')
 const formError = ref('')
 const draftTitle = ref('')
 const draftBody = ref('')
+const pwaMode = ref<'list' | 'detail' | 'edit'>('list')
 
 const selectedNote = computed(() => notes.value.find(note => note.id === selectedId.value) ?? null)
 const renderedSelectedBody = computed(() => renderSafeMarkdown(selectedNote.value?.body))
@@ -185,12 +195,14 @@ function startNewNote() {
   draftBody.value = ''
   formError.value = ''
   editMode.value = true
+  if (isPwa) pwaMode.value = 'edit'
 }
 
 function selectNote(id: number) {
   selectedId.value = id
   formError.value = ''
   editMode.value = false
+  if (isPwa) pwaMode.value = 'detail'
 }
 
 function editSelected() {
@@ -199,6 +211,7 @@ function editSelected() {
   draftBody.value = selectedNote.value.body
   formError.value = ''
   editMode.value = true
+  if (isPwa) pwaMode.value = 'edit'
 }
 
 function cancelEdit() {
@@ -206,9 +219,11 @@ function cancelEdit() {
   if (selectedId.value === null) {
     editMode.value = false
     selectedId.value = notes.value[0]?.id ?? null
+    if (isPwa) pwaMode.value = 'list'
     return
   }
   editMode.value = false
+  if (isPwa) pwaMode.value = 'detail'
 }
 
 async function saveNote() {
@@ -232,6 +247,7 @@ async function saveNote() {
       selectedId.value = res.data.id
     }
     editMode.value = false
+    if (isPwa) pwaMode.value = 'detail'
   } catch {
     formError.value = 'Unable to save this note. Try again before leaving the page.'
   } finally {
@@ -262,11 +278,19 @@ async function deleteSelected() {
     notes.value = notes.value.filter(note => note.id !== id)
     selectedId.value = notes.value[0]?.id ?? null
     editMode.value = false
+    if (isPwa) pwaMode.value = 'list'
   } catch {
     await showAlert('Unable to delete this note. Try again.', { title: 'Delete Failed' })
   } finally {
     deleting.value = false
   }
+
+}
+
+function showPwaList() {
+  pwaMode.value = 'list'
+  editMode.value = false
+  formError.value = ''
 }
 
 function previewText(body: string): string {

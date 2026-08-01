@@ -18,18 +18,22 @@
       Choose one or more other sets to compare against this set over the active trend range.
     </p>
 
-    <div v-if="sets.length" class="flex flex-wrap gap-[0.35rem]" aria-label="Sets available for comparison">
-      <button
-        v-for="set in sets"
-        :key="set.id"
-        type="button"
-        class="chip"
-        :class="selected.includes(set.id) ? 'border-gold bg-gold-dim text-gold' : ''"
-        :aria-pressed="selected.includes(set.id)"
-        @click="toggleSet(set.id)"
+    <div v-if="sets.length" class="space-y-3">
+      <label for="set-compare-select" class="form-label">Compare</label>
+      <select
+        id="set-compare-select"
+        v-model="selected"
+        class="form-select min-h-[8.5rem]"
+        multiple
+        aria-label="Sets available for comparison"
       >
-        {{ set.name }}
-      </button>
+        <option v-for="set in sets" :key="set.id" :value="set.id">
+          {{ set.name }}
+        </option>
+      </select>
+      <p class="m-0 text-chip text-text-muted">
+        {{ selected.length }} {{ selected.length === 1 ? 'set selected' : 'sets selected' }}
+      </p>
     </div>
     <p v-else class="mb-4 text-body text-text-secondary">Create another set to enable comparisons.</p>
 
@@ -80,14 +84,6 @@ const emit = defineEmits<{
 }>()
 
 const selected = ref<number[]>([])
-
-function toggleSet(setId: number) {
-  if (selected.value.includes(setId)) {
-    selected.value = selected.value.filter((id) => id !== setId)
-    return
-  }
-  selected.value = [...selected.value, setId]
-}
 
 function runCompare() {
   if (selected.value.length === 0 || props.loading) return
