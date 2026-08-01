@@ -17,60 +17,83 @@
           <button class="pwa-icon-btn" @click="router.push({ name: 'sets' })" title="Back to Sets">
             <ArrowLeft :size="22" />
           </button>
-          <button v-if="canManageMembership" class="pwa-icon-btn" @click="openAddCoinModal" title="Add Coin">
-            <CirclePlus :size="22" />
-          </button>
-          <button class="pwa-icon-btn" @click="showEditModal = true" title="Edit Set">
-            <Pencil :size="22" />
-          </button>
-          <button class="pwa-icon-btn text-[var(--error-bg)]" @click="deleteSet" title="Delete Set">
-            <Trash2 :size="22" />
+          <button
+            class="pwa-icon-btn"
+            :class="menuOpen ? 'border-border-accent bg-gold-glow text-gold' : ''"
+            @click="menuOpen = !menuOpen"
+            title="Set actions"
+            aria-label="Set actions"
+          >
+            <Menu :size="22" />
           </button>
         </div>
         <div v-else class="header-actions">
           <button class="btn btn-ghost" @click="router.push({ name: 'sets' })">
             <ArrowLeft :size="16" /> Back
           </button>
-          <button v-if="canManageMembership" class="btn btn-primary" @click="openAddCoinModal">
-            <Plus :size="16" /> Add Coin
-          </button>
-          <button class="btn btn-secondary" @click="showEditModal = true">
-            <Pencil :size="16" /> Edit
-          </button>
-          <button class="btn btn-danger" @click="deleteSet">
-            <Trash2 :size="16" /> Delete
+          <button
+            class="btn btn-secondary"
+            :class="menuOpen ? 'border-border-accent bg-gold-glow text-gold' : ''"
+            @click="menuOpen = !menuOpen"
+            aria-haspopup="menu"
+            :aria-expanded="menuOpen"
+          >
+            <Menu :size="16" /> Actions
           </button>
         </div>
       </div>
+
+      <div v-if="menuOpen" class="relative z-20 flex justify-end">
+        <div class="w-full max-w-[260px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_rgba(0,0,0,0.45)]" role="menu">
+          <button
+            class="w-full rounded-sm px-3 py-2 text-left text-body text-text-secondary transition-all hover:bg-card-hover hover:text-text-primary"
+            role="menuitem"
+            @click="openSetInfoPage"
+          >
+            <span class="inline-flex items-center gap-2">
+              <Info :size="15" />
+              Analytics & Value Trend
+            </span>
+          </button>
+          <button
+            v-if="canManageMembership"
+            class="w-full rounded-sm px-3 py-2 text-left text-body text-text-secondary transition-all hover:bg-card-hover hover:text-text-primary"
+            role="menuitem"
+            @click="openAddCoinModal"
+          >
+            <span class="inline-flex items-center gap-2">
+              <CirclePlus :size="15" />
+              Add Coin
+            </span>
+          </button>
+          <button
+            class="w-full rounded-sm px-3 py-2 text-left text-body text-text-secondary transition-all hover:bg-card-hover hover:text-text-primary"
+            role="menuitem"
+            @click="openEditModal"
+          >
+            <span class="inline-flex items-center gap-2">
+              <Pencil :size="15" />
+              Edit Set
+            </span>
+          </button>
+          <button
+            class="w-full rounded-sm px-3 py-2 text-left text-body text-[var(--error-bg)] transition-all hover:bg-card-hover"
+            role="menuitem"
+            @click="deleteSet"
+          >
+            <span class="inline-flex items-center gap-2">
+              <Trash2 :size="15" />
+              Delete Set
+            </span>
+          </button>
+        </div>
+      </div>
+      <button v-if="menuOpen" class="fixed inset-0 z-10 bg-transparent" aria-label="Close menu" @click="menuOpen = false"></button>
 
       <SetCompletionChecklist
         v-if="completion"
         :completion="completion"
       />
-
-      <section v-if="analytics" class="card p-6">
-        <h2 class="mt-0">Analytics</h2>
-        <div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
-          <div class="flex flex-col gap-1.5">
-            <span class="text-body text-text-secondary">ROI</span>
-            <strong class="text-lg text-gold">{{ analytics.roiPercent == null ? 'N/A' : `${analytics.roiPercent.toFixed(1)}%` }}</strong>
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <span class="text-body text-text-secondary">Acquisition Rate</span>
-            <strong class="text-lg text-gold">{{ analytics.acquisitionRatePerMonth == null ? 'N/A' : `${analytics.acquisitionRatePerMonth.toFixed(1)}/mo` }}</strong>
-          </div>
-        </div>
-      </section>
-
-      <SetTrendChart
-        :snapshots="snapshots"
-        :range="trendRange"
-        @update:range="changeTrendRange"
-      >
-        <template #actions>
-          <button class="btn btn-secondary" @click="captureSnapshot">Capture Snapshot</button>
-        </template>
-      </SetTrendChart>
 
       <div class="space-y-4">
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -301,25 +324,21 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, ChevronDown, ChevronUp, CirclePlus, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
+import { ArrowLeft, ChevronDown, ChevronUp, CirclePlus, Info, Menu, Pencil, Trash2, X } from 'lucide-vue-next'
 import {
   addCoinToSet,
-  createSetSnapshot,
   deleteSet as deleteSetApi,
   getCoins,
   getCoinsInSet,
   getSet,
-  getSetAnalytics,
   getSetCompletion,
-  getSetTrends,
   reorderSetCoins,
   removeCoinFromSet,
   updateSet as updateSetApi,
 } from '@/api/client'
 import { normalizeCoinSetType } from '@/types'
-import type { CoinSetAnalytics, CoinSetCompletion, CoinSetDetail, CoinSetSnapshot, Coin } from '@/types'
+import type { CoinSetCompletion, CoinSetDetail, Coin } from '@/types'
 import SetCompletionChecklist from '@/components/sets/SetCompletionChecklist.vue'
-import SetTrendChart from '@/components/sets/SetTrendChart.vue'
 import MuseumTray from '@/components/tray/MuseumTray.vue'
 import TrayControls from '@/components/tray/TrayControls.vue'
 import { usePwa } from '@/composables/usePwa'
@@ -335,9 +354,6 @@ const set = ref<CoinSetDetail | null>(null)
 const coins = ref<Coin[]>([])
 const allCoins = ref<Coin[]>([])
 const completion = ref<CoinSetCompletion | null>(null)
-const snapshots = ref<CoinSetSnapshot[]>([])
-const analytics = ref<CoinSetAnalytics | null>(null)
-const trendRange = ref('1y')
 const drawerIndex = ref(0)
 const coinsPerDrawer = 12
 const traySizeScale = ref(1)
@@ -357,6 +373,7 @@ const slotTargetLabel = ref('')
 const currentSlotCoinId = ref<number | null>(null)
 const slotAssignmentSaving = ref(false)
 const slotAssignmentError = ref<string | null>(null)
+const menuOpen = ref(false)
 const editForm = ref({
   name: '',
   description: '',
@@ -501,19 +518,15 @@ onMounted(async () => {
 async function loadSetDetails() {
   loading.value = true
   try {
-    const [setRes, coinsRes, trendsRes, analyticsRes, allCoinsRes] = await Promise.all([
+    const [setRes, coinsRes, allCoinsRes] = await Promise.all([
       getSet(setId),
       getCoinsInSet(setId),
-      getSetTrends(setId, trendRange.value),
-      getSetAnalytics(setId),
       getCoins({ wishlist: 'false', sold: 'false', limit: 100, sort: 'name', order: 'asc' }),
     ])
     set.value = setRes.data
     coins.value = coinsRes.data.coins
     orderError.value = null
     allCoins.value = allCoinsRes.data.coins
-    snapshots.value = trendsRes.data.snapshots
-    analytics.value = analyticsRes.data
     const normalizedSetType = normalizeCoinSetType(set.value.setType)
     if (normalizedSetType === 'goal' || normalizedSetType === 'agentic') {
       const completionRes = await getSetCompletion(setId)
@@ -534,22 +547,14 @@ async function loadSetDetails() {
   }
 }
 
-async function changeTrendRange(range: string) {
-  trendRange.value = range
-  const res = await getSetTrends(setId, trendRange.value)
-  snapshots.value = res.data.snapshots
+function openSetInfoPage() {
+  menuOpen.value = false
+  router.push({ name: 'set-insights', params: { id: setId } })
 }
 
-async function captureSnapshot() {
-  try {
-    await createSetSnapshot(setId)
-    await changeTrendRange(trendRange.value)
-    const analyticsRes = await getSetAnalytics(setId)
-    analytics.value = analyticsRes.data
-  } catch (error) {
-    console.error('Failed to capture snapshot:', error)
-    alert('Failed to capture snapshot')
-  }
+function openEditModal() {
+  menuOpen.value = false
+  showEditModal.value = true
 }
 
 async function updateSet() {
@@ -564,6 +569,7 @@ async function updateSet() {
 }
 
 function openAddCoinModal() {
+  menuOpen.value = false
   coinIdToAdd.value = null
   coinSearch.value = ''
   showAddCoinModal.value = true
@@ -625,6 +631,7 @@ async function clearSlotAssignment() {
 }
 
 async function deleteSet() {
+  menuOpen.value = false
   if (!confirm('Are you sure you want to delete this set?')) return
   try {
     await deleteSetApi(setId)

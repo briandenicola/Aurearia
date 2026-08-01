@@ -302,6 +302,12 @@ const router = createRouter({
       component: () => import('@/pages/SetDetailPage.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/sets/:id/info',
+      name: 'set-insights',
+      component: () => import('@/pages/SetInsightsPage.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 })
 
