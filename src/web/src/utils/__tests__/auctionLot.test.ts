@@ -4,38 +4,50 @@ import { auctionLotNeedsAttention, auctionLotStatusSourceLabel } from '../auctio
 describe('auctionLotNeedsAttention', () => {
   it('flags a watching lot whose auctionEndTime has already passed', () => {
     expect(auctionLotNeedsAttention({
-      status: 'watching', auctionEndTime: '2020-01-01T00:00:00Z', saleDate: null,
+      status: 'watching', auctionEndTime: '2020-01-01T00:00:00Z', saleDate: null, maxBid: null, currentBid: null,
     })).toBe(true)
   })
 
   it('flags a bidding lot whose auctionEndTime has already passed', () => {
     expect(auctionLotNeedsAttention({
-      status: 'bidding', auctionEndTime: '2020-01-01T00:00:00Z', saleDate: null,
+      status: 'bidding', auctionEndTime: '2020-01-01T00:00:00Z', saleDate: null, maxBid: null, currentBid: null,
     })).toBe(true)
   })
 
   it('falls back to saleDate when auctionEndTime is not set', () => {
     expect(auctionLotNeedsAttention({
-      status: 'watching', auctionEndTime: null, saleDate: '2020-01-01T00:00:00Z',
+      status: 'watching', auctionEndTime: null, saleDate: '2020-01-01T00:00:00Z', maxBid: null, currentBid: null,
     })).toBe(true)
   })
 
   it('does not flag a lot whose close time is in the future', () => {
     expect(auctionLotNeedsAttention({
-      status: 'watching', auctionEndTime: '2099-01-01T00:00:00Z', saleDate: null,
+      status: 'watching', auctionEndTime: '2099-01-01T00:00:00Z', saleDate: null, maxBid: null, currentBid: null,
     })).toBe(false)
   })
 
   it('does not flag a lot with no close time at all', () => {
-    expect(auctionLotNeedsAttention({ status: 'watching', auctionEndTime: null, saleDate: null })).toBe(false)
+    expect(auctionLotNeedsAttention({ status: 'watching', auctionEndTime: null, saleDate: null, maxBid: null, currentBid: null })).toBe(false)
   })
 
   it('does not flag already-resolved lots (won/lost/passed), even if close time has passed', () => {
     for (const status of ['won', 'lost', 'passed'] as const) {
       expect(auctionLotNeedsAttention({
-        status, auctionEndTime: '2020-01-01T00:00:00Z', saleDate: null,
+        status, auctionEndTime: '2020-01-01T00:00:00Z', saleDate: null, maxBid: null, currentBid: null,
       })).toBe(false)
     }
+  })
+
+  it('flags a bidding lot when current bid exceeds user max bid (outbid)', () => {
+    expect(auctionLotNeedsAttention({
+      status: 'bidding', auctionEndTime: null, saleDate: null, maxBid: 550, currentBid: 600,
+    })).toBe(true)
+  })
+
+  it('does not flag a bidding lot that is still winning by max bid when close time is unknown', () => {
+    expect(auctionLotNeedsAttention({
+      status: 'bidding', auctionEndTime: null, saleDate: null, maxBid: 650, currentBid: 600,
+    })).toBe(false)
   })
 })
 

@@ -7,8 +7,18 @@ import type { AuctionLot } from '@/types'
  * (see specs/_backlog/F021/F022), so this is the only signal a NumisBids user gets that a
  * lot needs a manual check.
  */
-export function auctionLotNeedsAttention(lot: Pick<AuctionLot, 'status' | 'auctionEndTime' | 'saleDate'>): boolean {
+export function auctionLotNeedsAttention(
+  lot: Pick<AuctionLot, 'status' | 'auctionEndTime' | 'saleDate' | 'maxBid' | 'currentBid'>,
+): boolean {
   if (lot.status !== 'watching' && lot.status !== 'bidding') return false
+  if (
+    lot.status === 'bidding' &&
+    lot.maxBid != null &&
+    lot.currentBid != null &&
+    lot.maxBid < lot.currentBid
+  ) {
+    return true
+  }
   const closeTime = lot.auctionEndTime ?? lot.saleDate
   if (!closeTime) return false
   return new Date(closeTime).getTime() < Date.now()

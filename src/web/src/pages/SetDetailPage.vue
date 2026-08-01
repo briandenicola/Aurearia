@@ -66,11 +66,11 @@
         :snapshots="snapshots"
         :range="trendRange"
         @update:range="changeTrendRange"
-      />
-
-      <div class="-mt-4 mb-6">
-        <button class="btn btn-secondary" @click="captureSnapshot">Capture Snapshot</button>
-      </div>
+      >
+        <template #actions>
+          <button class="btn btn-secondary" @click="captureSnapshot">Capture Snapshot</button>
+        </template>
+      </SetTrendChart>
 
       <SetComparePanel
         :sets="allSets"
