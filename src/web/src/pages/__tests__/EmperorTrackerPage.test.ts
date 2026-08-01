@@ -105,31 +105,14 @@ describe('EmperorTrackerPage', () => {
     expect(backLink.attributes('to')).toBe('/sets')
   })
 
-  it('shows the what-to-pursue-next suggestions list', async () => {
+  it('shows a link to the pursue-next page when suggestions exist', async () => {
     mockGetProgress.mockResolvedValue({ data: fullResult })
     const wrapper = mountPage()
     await flushPromises()
 
     expect(wrapper.text()).toContain('What to Pursue Next')
-    expect(wrapper.text()).toContain('Tiberius')
-    expect(wrapper.text()).toContain('Search Agent')
-  })
-
-  it('opens the agent with a search prompt for a suggested emperor', async () => {
-    const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
-    mockGetProgress.mockResolvedValue({ data: fullResult })
-    const wrapper = mountPage()
-    await flushPromises()
-
-    await wrapper.find('button[aria-label="Ask the agent to search for Tiberius coins"]').trigger('click')
-
-    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'open-agent-chat',
-      detail: expect.objectContaining({
-        prompt: expect.stringContaining('Look for available Tiberius coins'),
-      }),
-    }))
-    dispatchSpy.mockRestore()
+    const pursueLink = wrapper.find('a[to="/sets/emperors/pursuits"]')
+    expect(pursueLink.exists()).toBe(true)
   })
 
   it('does not render optional category sections when absent from the response', async () => {
