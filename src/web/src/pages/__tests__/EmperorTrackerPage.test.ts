@@ -105,12 +105,12 @@ describe('EmperorTrackerPage', () => {
     expect(backLink.attributes('to')).toBe('/sets')
   })
 
-  it('shows a link to the pursue-next page when suggestions exist', async () => {
+  it('shows pursue-next link in emperor actions menu when suggestions exist', async () => {
     mockGetProgress.mockResolvedValue({ data: fullResult })
     const wrapper = mountPage()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('What to Pursue Next')
+    await wrapper.find('button[aria-label="Emperor actions"]').trigger('click')
     const pursueLink = wrapper.find('a[to="/sets/emperors/pursuits"]')
     expect(pursueLink.exists()).toBe(true)
   })

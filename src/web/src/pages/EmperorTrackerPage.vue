@@ -1,5 +1,5 @@
 <template>
-  <div class="container flex flex-col gap-6">
+  <div class="container flex flex-col gap-4">
     <header class="page-header flex flex-nowrap items-center justify-between gap-4">
       <div>
         <p class="section-label">Sets</p>
@@ -8,14 +8,35 @@
           Your collection's progress toward every Western and Eastern Roman Emperor.
         </p>
       </div>
-      <router-link
-        class="inline-flex shrink-0 items-center justify-center rounded-sm border border-border-subtle bg-transparent p-[0.4rem] text-text-secondary transition hover:border-border-accent hover:bg-gold-glow hover:text-gold"
-        to="/sets"
-        aria-label="Back to Sets"
-      >
-        <ArrowLeft :size="20" />
-      </router-link>
+      <div class="relative flex shrink-0 items-center gap-2">
+        <router-link
+          class="inline-flex items-center justify-center rounded-sm border border-border-subtle bg-transparent p-[0.4rem] text-text-secondary transition hover:border-border-accent hover:bg-gold-glow hover:text-gold"
+          to="/sets"
+          aria-label="Back to Sets"
+        >
+          <ArrowLeft :size="20" />
+        </router-link>
+        <button
+          class="inline-flex items-center justify-center rounded-sm border border-border-subtle bg-transparent p-[0.4rem] text-text-secondary transition hover:border-border-accent hover:bg-gold-glow hover:text-gold"
+          :class="menuOpen ? 'border-border-accent bg-gold-glow text-gold' : ''"
+          aria-label="Emperor actions"
+          @click="menuOpen = !menuOpen"
+        >
+          <Menu :size="20" />
+        </button>
+        <div v-if="menuOpen && result?.suggestions.length" class="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-[220px] rounded-md border border-border-subtle bg-card p-2 shadow-[0_10px_26px_rgba(0,0,0,0.45)]">
+          <router-link
+            to="/sets/emperors/pursuits"
+            class="inline-flex w-full items-center gap-2 whitespace-nowrap rounded-sm px-3 py-2 text-body text-text-secondary no-underline transition-all hover:bg-card-hover hover:text-text-primary"
+            @click="menuOpen = false"
+          >
+            <Crown :size="15" />
+            What to Pursue Next
+          </router-link>
+        </div>
+      </div>
     </header>
+    <button v-if="menuOpen" class="fixed inset-0 z-10 bg-transparent" aria-label="Close emperor actions menu" @click="menuOpen = false"></button>
 
     <div v-if="loading" class="loading-overlay">
       <div class="spinner"></div>
@@ -35,22 +56,12 @@
     </div>
 
     <template v-else-if="result">
-      <section class="card flex flex-col gap-2 p-5">
-        <h2 class="m-0 font-display text-lg font-medium text-gold">Commonly Accepted Augustuses</h2>
+      <section class="card flex flex-col gap-1.5 p-5">
+        <p class="section-label mb-0">Commonly Accepted Augustuses</p>
         <p class="m-0 text-2xl font-semibold text-heading">
           {{ result.emperor.owned }} of {{ result.emperor.total }}
           <span class="text-base font-normal text-text-secondary">({{ formatPct(result.emperor.percentage) }}%)</span>
         </p>
-      </section>
-
-      <section v-if="result.suggestions.length" class="card flex items-center justify-between gap-3 p-5">
-        <div>
-          <h2 class="m-0 font-display text-lg font-medium text-gold">What to Pursue Next</h2>
-          <p class="m-0 mt-1 text-body text-text-secondary">Open the dedicated page for recommendations and quick search actions.</p>
-        </div>
-        <router-link to="/sets/emperors/pursuits" class="btn btn-secondary btn-sm">
-          View
-        </router-link>
       </section>
 
       <section
@@ -112,7 +123,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ArrowLeft, Crown } from 'lucide-vue-next'
+import { ArrowLeft, Crown, Menu } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { getEmperorTrackerProgress, getApiErrorMessage } from '@/api/client'
 import ImperialFigureWellGrid from '@/components/emperor-tracker/ImperialFigureWellGrid.vue'
@@ -124,6 +135,7 @@ const loading = ref(true)
 const enabled = ref(true)
 const errorMessage = ref('')
 const result = ref<EmperorTrackerResult | null>(null)
+const menuOpen = ref(false)
 
 const RARITY_LABELS: Record<RarityTier, string> = {
   common: 'Common',
@@ -142,6 +154,7 @@ function formatPct(value: number): string {
 
 async function load() {
   loading.value = true
+  menuOpen.value = false
   errorMessage.value = ''
   try {
     const res = await getEmperorTrackerProgress()

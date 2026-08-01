@@ -96,17 +96,11 @@
       />
 
       <div class="space-y-4">
-        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
-            <p class="section-label">{{ canReorderCoins ? 'Manual sequence' : 'Set members' }}</p>
-            <h2 class="m-0">Coins in Set</h2>
-          </div>
-          <p v-if="canReorderCoins && coins.length > 1" class="m-0 max-w-none text-left text-body text-text-secondary md:max-w-[24rem] md:text-right" :class="{ 'text-[var(--confidence-low)]': orderError }" aria-live="polite">
-            <span v-if="savingOrder">Saving order...</span>
-            <span v-else-if="orderError">{{ orderError }}</span>
-            <span v-else>Drag rows or use the arrows to arrange this set.</span>
-          </p>
-        </div>
+        <p v-if="canReorderCoins && coins.length > 1" class="m-0 max-w-none text-left text-body text-text-secondary md:text-right" :class="{ 'text-[var(--confidence-low)]': orderError }" aria-live="polite">
+          <span v-if="savingOrder">Saving order...</span>
+          <span v-else-if="orderError">{{ orderError }}</span>
+          <span v-else>Drag rows or use the arrows to arrange this set.</span>
+        </p>
         <p v-if="normalizedSetType === 'agentic'" class="m-0 text-body text-text-secondary">
           Click any tray slot to assign or replace the coin for that target.
         </p>
