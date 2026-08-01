@@ -4,16 +4,11 @@ import SetDetailPage from '@/pages/SetDetailPage.vue'
 import { buildRomanDenariusCore } from '@/test/fixtures/coins'
 
 const mockAddCoinToSet = vi.fn()
-const mockCompareSets = vi.fn()
-const mockCreateSetSnapshot = vi.fn()
 const mockDeleteSet = vi.fn()
 const mockGetCoins = vi.fn()
 const mockGetCoinsInSet = vi.fn()
 const mockGetSet = vi.fn()
-const mockGetSetAnalytics = vi.fn()
 const mockGetSetCompletion = vi.fn()
-const mockGetSets = vi.fn()
-const mockGetSetTrends = vi.fn()
 const mockReorderSetCoins = vi.fn()
 const mockRemoveCoinFromSet = vi.fn()
 const mockUpdateSet = vi.fn()
@@ -21,16 +16,11 @@ const mockPush = vi.fn()
 
 vi.mock('@/api/client', () => ({
   addCoinToSet: (...args: unknown[]) => mockAddCoinToSet(...args),
-  compareSets: (...args: unknown[]) => mockCompareSets(...args),
-  createSetSnapshot: (...args: unknown[]) => mockCreateSetSnapshot(...args),
   deleteSet: (...args: unknown[]) => mockDeleteSet(...args),
   getCoins: (...args: unknown[]) => mockGetCoins(...args),
   getCoinsInSet: (...args: unknown[]) => mockGetCoinsInSet(...args),
   getSet: (...args: unknown[]) => mockGetSet(...args),
-  getSetAnalytics: (...args: unknown[]) => mockGetSetAnalytics(...args),
   getSetCompletion: (...args: unknown[]) => mockGetSetCompletion(...args),
-  getSets: (...args: unknown[]) => mockGetSets(...args),
-  getSetTrends: (...args: unknown[]) => mockGetSetTrends(...args),
   reorderSetCoins: (...args: unknown[]) => mockReorderSetCoins(...args),
   removeCoinFromSet: (...args: unknown[]) => mockRemoveCoinFromSet(...args),
   updateSet: (...args: unknown[]) => mockUpdateSet(...args),
@@ -61,8 +51,6 @@ const defaultSet = {
 
 const defaultStubs = {
   SetCompletionChecklist: true,
-  SetTrendChart: true,
-  SetComparePanel: true,
   MuseumTray: true,
   TrayControls: true,
 }
@@ -73,9 +61,6 @@ function mockSetDetailLoad(coins = [
 ]) {
   mockGetSet.mockResolvedValue({ data: defaultSet })
   mockGetCoinsInSet.mockResolvedValue({ data: { coins } })
-  mockGetSetTrends.mockResolvedValue({ data: { snapshots: [] } })
-  mockGetSetAnalytics.mockResolvedValue({ data: { roiPercent: 12.5, acquisitionRatePerMonth: 1.2 } })
-  mockGetSets.mockResolvedValue({ data: { sets: [defaultSet] } })
   mockGetCoins.mockResolvedValue({ data: { coins: [], total: 0 } })
   mockGetSetCompletion.mockResolvedValue({
     data: { totalTargets: 12, completedTargets: 2, completionPercentage: 16.7, missingTargets: [] },
@@ -172,5 +157,22 @@ describe('SetDetailPage', () => {
     wrapper.findComponent({ name: 'MuseumTray' }).vm.$emit('coin-clicked', 2)
 
     expect(mockPush).toHaveBeenCalledWith({ name: 'coin-detail', params: { id: 2 } })
+  })
+
+  it('opens analytics and trends page from actions menu', async () => {
+    const wrapper = shallowMount(SetDetailPage, {
+      global: { stubs: defaultStubs },
+    })
+    await flushPromises()
+
+    const actionsButton = wrapper.findAll('button').find((node) => node.text().includes('Actions'))
+    expect(actionsButton?.exists()).toBe(true)
+    await actionsButton!.trigger('click')
+
+    const infoAction = wrapper.findAll('button').find((node) => node.text().includes('Analytics & Value Trend'))
+    expect(infoAction?.exists()).toBe(true)
+    await infoAction!.trigger('click')
+
+    expect(mockPush).toHaveBeenCalledWith({ name: 'set-insights', params: { id: 7 } })
   })
 })
