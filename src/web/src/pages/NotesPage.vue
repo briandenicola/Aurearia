@@ -1,8 +1,20 @@
 <template>
   <div class="container pb-6">
     <div class="page-header">
-      <h1>Notes</h1>
+      <h1 class="inline-flex items-center gap-2">
+        Notes
+        <span class="text-base font-medium text-text-secondary">({{ notes.length }})</span>
+      </h1>
       <div v-if="isPwa" class="pwa-actions">
+        <button
+          v-if="pwaMode !== 'list'"
+          class="pwa-icon-btn"
+          @click="showPwaList"
+          title="Back to Notes"
+          aria-label="Back to Notes"
+        >
+          <ArrowLeft :size="22" />
+        </button>
         <button class="pwa-icon-btn" @click="startNewNote" title="New Note">
           <CirclePlus :size="22" />
         </button>
@@ -33,9 +45,8 @@
         :class="isPwa ? 'min-h-[calc(100vh-15rem)]' : 'max-h-[280px] overflow-y-auto md:max-h-none md:min-h-[460px]'"
         aria-label="Notes list"
       >
-        <div class="card flex items-start justify-between gap-4 px-4 py-3">
+        <div class="card px-4 py-3">
           <span class="section-label m-0">All notes</span>
-          <span class="chip-sm">{{ notes.length }} {{ notes.length === 1 ? 'note' : 'notes' }}</span>
         </div>
 
         <div v-if="notes.length === 0 && !editMode" class="flex min-h-[320px] flex-col items-center justify-center gap-3 text-center text-text-muted">
@@ -67,21 +78,6 @@
       </aside>
 
       <section v-if="!isPwa || pwaMode !== 'list'" class="rounded-md border border-border-subtle bg-card p-6 shadow-[var(--shadow-card)] md:min-h-[460px]">
-        <div v-if="isPwa && !editMode" class="mb-4 flex items-center justify-between gap-2">
-          <button class="btn btn-ghost btn-sm" type="button" @click="showPwaList">
-            <ArrowLeft :size="16" /> Back
-          </button>
-          <div v-if="selectedNote" class="flex items-center gap-2">
-            <button class="btn btn-secondary btn-sm" @click="editSelected">
-              <Pencil :size="16" />
-              Edit
-            </button>
-            <button class="btn btn-danger btn-sm" :disabled="deleting" @click="deleteSelected">
-              <Trash2 :size="16" />
-              {{ deleting ? 'Deleting...' : 'Delete' }}
-            </button>
-          </div>
-        </div>
         <div v-if="!editMode && !selectedNote" class="flex min-h-[320px] flex-col items-center justify-center gap-3 text-center text-text-muted">
           <BookOpen :size="44" />
           <h2 class="m-0 text-xl text-text-primary">Select or create a note</h2>
@@ -125,21 +121,20 @@
         </form>
 
         <article v-else-if="selectedNote">
-          <div class="mb-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div class="mb-4">
             <div>
-              <p class="section-label">Display mode</p>
               <h2 class="m-0 text-xl text-text-primary">{{ selectedNote.title || 'Untitled Note' }}</h2>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <button class="btn btn-secondary btn-sm" @click="editSelected">
+                  <Pencil :size="16" />
+                  Edit
+                </button>
+                <button class="btn btn-danger btn-sm" :disabled="deleting" @click="deleteSelected">
+                  <Trash2 :size="16" />
+                  {{ deleting ? 'Deleting...' : 'Delete' }}
+                </button>
+              </div>
               <p class="text-chip text-text-muted">Updated {{ formatDate(selectedNote.updatedAt) }}</p>
-            </div>
-            <div v-if="!isPwa" class="flex flex-wrap gap-2 md:justify-end">
-              <button class="btn btn-secondary btn-sm" @click="editSelected">
-                <Pencil :size="16" />
-                Edit
-              </button>
-              <button class="btn btn-danger btn-sm" :disabled="deleting" @click="deleteSelected">
-                <Trash2 :size="16" />
-                {{ deleting ? 'Deleting...' : 'Delete' }}
-              </button>
             </div>
           </div>
 
