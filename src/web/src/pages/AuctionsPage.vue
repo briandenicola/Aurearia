@@ -46,19 +46,16 @@
           >
             {{ source.label }}
           </button>
+          <button
+            class="chip flex items-center gap-1"
+            :class="{ active: attentionOnly }"
+            :title="`Lots whose auction has closed but status hasn't been confirmed`"
+            @click="attentionOnly = !attentionOnly"
+          >
+            <AlertTriangle :size="13" /> Attention{{ attentionCount ? ` (${attentionCount})` : '' }}
+          </button>
         </div>
         <AuctionStatusFilter v-model="activeStatus" :counts="statusCounts" />
-      </div>
-
-      <div class="mb-4 flex flex-wrap gap-[0.35rem]">
-        <button
-          class="chip flex items-center gap-1"
-          :class="{ active: attentionOnly }"
-          :title="'Lots whose auction has closed but status hasn\'t been confirmed'"
-          @click="attentionOnly = !attentionOnly"
-        >
-          <AlertTriangle :size="13" /> Needs Attention{{ attentionCount ? ` (${attentionCount})` : '' }}
-        </button>
       </div>
 
       <div v-if="selectMode" class="mb-4 flex flex-wrap items-center gap-[0.6rem]">

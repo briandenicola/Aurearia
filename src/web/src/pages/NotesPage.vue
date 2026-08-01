@@ -29,7 +29,8 @@
     <div v-else class="grid items-start gap-4" :class="isPwa ? 'grid-cols-1' : 'md:grid-cols-[minmax(240px,0.85fr)_minmax(0,2fr)]'">
       <aside
         v-if="!isPwa || pwaMode === 'list'"
-        class="max-h-[280px] overflow-y-auto rounded-md border border-border-subtle bg-card p-4 shadow-[var(--shadow-card)] md:max-h-none md:min-h-[460px]"
+        class="rounded-md border border-border-subtle bg-card p-4 shadow-[var(--shadow-card)]"
+        :class="isPwa ? 'min-h-[calc(100vh-15rem)]' : 'max-h-[280px] overflow-y-auto md:max-h-none md:min-h-[460px]'"
         aria-label="Notes list"
       >
         <div class="mb-4 flex items-start justify-between gap-4">

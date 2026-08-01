@@ -20,6 +20,9 @@
       </div>
     </div>
     <p v-else class="m-0 text-body text-text-secondary">No snapshots yet. Capture one to start tracking trends.</p>
+    <div v-if="$slots.actions" class="mt-4">
+      <slot name="actions" />
+    </div>
   </section>
 </template>
 
