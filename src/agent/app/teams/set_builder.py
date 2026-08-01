@@ -141,6 +141,21 @@ Rules:
 - Do not add new slots that were not in the input roster.
 - Do not use emojis.""")
 
+ROSTER_RETRY_PROMPT = with_safety("""You are the Roster Researcher for a numismatic set-builder workflow.
+Return STRICT JSON only: a top-level array of roster slot objects.
+Do not return markdown, prose, or code fences.
+
+Each slot object must include:
+- "label": short string
+- "criteria": object (may be empty)
+- "group": string (may be empty)
+- "sort_order": integer (0-based)
+- "source_note": short string
+
+If uncertain about specifics, include concise uncertainty in "source_note"
+rather than omitting the slot entirely.
+Do not use emojis.""")
+
 
 class SetBuilderState(TypedDict, total=False):
     run_id: int | None
@@ -233,6 +248,16 @@ def _route_after_match(state: SetBuilderState) -> str:
         return "finalize"
     return "validator"
 
+def _normalize_roster_payload(payload: Any, max_slots: int) -> list[dict[str, Any]]:
+    if isinstance(payload, dict):
+        if isinstance(payload.get("roster"), list):
+            payload = payload.get("roster")
+        elif isinstance(payload.get("slots"), list):
+            payload = payload.get("slots")
+    if not isinstance(payload, list):
+        raise ValueError("roster researcher did not return a JSON array")
+    return [item for item in payload if isinstance(item, dict)][:max_slots]
+
 
 def create_set_builder_team(
     llm_config: LLMConfig,
@@ -298,19 +323,48 @@ def create_set_builder_team(
             f"Group by: {intent.get('group_by', 'none')}\n"
             f"Maximum roster entries: {state.get('max_slots', 200)}"
         )
+        max_slots = state.get("max_slots", 200)
+        roster: list[dict[str, Any]] | None = None
+        attempt_notes: list[str] = []
+
+        # Attempt 1: research-capable model with the normal roster prompt.
         try:
-            roster = await _call_json(research_model, ROSTER_PROMPT, human_text)
-            if not isinstance(roster, list):
-                raise ValueError("roster researcher did not return a JSON array")
-        except Exception:
-            logger.exception("[set_builder] roster_researcher failed")
+            raw_roster = await _call_json(research_model, ROSTER_PROMPT, human_text)
+            roster = _normalize_roster_payload(raw_roster, max_slots)
+            if not roster:
+                attempt_notes.append("attempt 1 returned no usable slots")
+        except Exception as exc:
+            logger.exception("[set_builder] roster_researcher attempt=1 failed")
+            attempt_notes.append(f"attempt 1 failed: {type(exc).__name__}")
+
+        # Attempt 2: plain chat model with stricter JSON-only constraints.
+        if not roster:
+            retry_text = (
+                f"{human_text}\n\n"
+                "Previous attempt did not return a valid slot array. "
+                "Return only a JSON array of slot objects that follows the required schema."
+            )
+            try:
+                raw_roster_retry = await _call_json(plain_model, ROSTER_RETRY_PROMPT, retry_text)
+                roster = _normalize_roster_payload(raw_roster_retry, max_slots)
+                if not roster:
+                    attempt_notes.append("attempt 2 returned no usable slots")
+            except Exception as exc:
+                logger.exception("[set_builder] roster_researcher attempt=2 failed")
+                attempt_notes.append(f"attempt 2 failed: {type(exc).__name__}")
+
+        if not roster:
             return {
-                "status": "failed",
-                "failure_reason": "Roster research failed to produce a valid roster.",
+                "status": "clarification_needed",
+                "clarification_question": (
+                    "I could not build a reliable roster from that scope. "
+                    "Please narrow by era/date range, ruler/dynasty, region, or denomination "
+                    "and I can draft the set."
+                ),
+                "failure_reason": "Roster research could not produce a valid structured roster after retries.",
                 "turns_used": turns_used,
-                "transcript": _record(state, "Roster research failed."),
+                "transcript": _record(state, f"Roster research failed after retries ({'; '.join(attempt_notes)})."),
             }
-        roster = [item for item in roster if isinstance(item, dict)][: state.get("max_slots", 200)]
         return {
             "roster": roster,
             "turns_used": turns_used,

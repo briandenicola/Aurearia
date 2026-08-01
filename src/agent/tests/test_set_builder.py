@@ -345,3 +345,67 @@ async def test_workflow_caps_slots_at_max_slots(monkeypatch):
     assert response.status == "completed"
     assert len(response.proposal.slots) == 2
     assert "truncated" in response.proposal.prematch_summary.notes.lower()
+
+
+@pytest.mark.asyncio
+async def test_workflow_roster_retry_recovers_after_invalid_research_output(monkeypatch):
+    intent = {
+        "subject": "Byzantine Emperors 476-565",
+        "is_numismatic": True,
+        "clarification_needed": False,
+        "clarification_question": "",
+        "scope_summary": "Coins from Byzantine emperors between 476 and 565 AD.",
+        "selected_scope": "ruler+date-range",
+        "group_by": "ruler",
+        "scope_options": [],
+    }
+    roster = [
+        {
+            "label": "Anastasius I",
+            "criteria": {"ruler": "Anastasius I", "era": "medieval"},
+            "group": "Byzantine Emperors",
+            "sort_order": 0,
+            "source_note": "Common attribution target.",
+        }
+    ]
+    match = {"estimated_filled": 0, "estimated_total": 1, "notes": ""}
+    validated = [{**roster[0], "verification_status": "verified", "validation_notes": ""}]
+
+    plain_model = _FakeModel([intent, roster, match, validated])
+    research_model = _FakeModel(["this is not valid json"])
+    monkeypatch.setattr("app.teams.set_builder.get_chat_model", lambda _cfg: plain_model)
+    monkeypatch.setattr("app.teams.set_builder.get_search_model", lambda _cfg: research_model)
+
+    request = SetBuilderRequest(**valid_payload(prompt="Create a set of all Byzantine Emperors from 476AD to 565AD"))
+    response = await run_set_builder_workflow(request)
+
+    assert response.status == "completed"
+    assert response.proposal is not None
+    assert len(response.proposal.slots) == 1
+    assert response.proposal.slots[0].label == "Anastasius I"
+
+
+@pytest.mark.asyncio
+async def test_workflow_roster_retry_returns_clarification_when_both_attempts_fail(monkeypatch):
+    intent = {
+        "subject": "English Kings 1800-2026",
+        "is_numismatic": True,
+        "clarification_needed": False,
+        "clarification_question": "",
+        "scope_summary": "Coins from English/British kings between 1800 and 2026.",
+        "selected_scope": "ruler+date-range",
+        "group_by": "ruler",
+        "scope_options": [],
+    }
+
+    plain_model = _FakeModel([intent, "still not valid json"])
+    research_model = _FakeModel(["not valid json either"])
+    monkeypatch.setattr("app.teams.set_builder.get_chat_model", lambda _cfg: plain_model)
+    monkeypatch.setattr("app.teams.set_builder.get_search_model", lambda _cfg: research_model)
+
+    request = SetBuilderRequest(**valid_payload(prompt="Create a set of English Kings from 1800 to 2026"))
+    response = await run_set_builder_workflow(request)
+
+    assert response.status == "clarification_needed"
+    assert response.proposal is None
+    assert "narrow" in response.clarification_question.lower()
