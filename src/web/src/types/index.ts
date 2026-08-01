@@ -690,6 +690,7 @@ export type UpdateCoinSetRequest = Partial<CreateCoinSetRequest>
 export interface AddCoinToSetRequest {
   coinId: number
   notes?: string
+  targetId?: number
 }
 
 export interface ReorderSetCoinsRequest {

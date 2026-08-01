@@ -10,6 +10,7 @@ export interface TrayCoinImage {
 export interface TrayCoin {
   id: number
   name: string
+  targetId?: number
   diameterMm: number | null
   images: readonly TrayCoinImage[]
   purchaseDate?: string | null

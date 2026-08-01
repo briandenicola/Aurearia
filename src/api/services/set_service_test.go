@@ -12,6 +12,12 @@ import (
 
 func setupSetServiceTest(t *testing.T) *SetService {
 	t.Helper()
+	service, _ := setupSetServiceTestWithDB(t)
+	return service
+}
+
+func setupSetServiceTestWithDB(t *testing.T) (*SetService, *gorm.DB) {
+	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open db: %v", err)
@@ -28,7 +34,7 @@ func setupSetServiceTest(t *testing.T) *SetService {
 	); err != nil {
 		t.Fatalf("migrate db: %v", err)
 	}
-	return NewSetService(repository.NewSetRepository(db), repository.NewTagRepository(db))
+	return NewSetService(repository.NewSetRepository(db), repository.NewTagRepository(db)), db
 }
 
 func TestSetService_CreateSet_NormalizesLegacySetTypes(t *testing.T) {
@@ -115,5 +121,23 @@ func TestSetService_CreateSet_DisablesDirectAgenticCreation(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("expected no set to be created, got %d", count)
+	}
+}
+
+func TestSetService_AddCoinToSet_AgenticRequiresTargetID(t *testing.T) {
+	service, db := setupSetServiceTestWithDB(t)
+
+	set := models.CoinSet{UserID: 1, Name: "Agentic Slot Set", SetType: models.CoinSetTypeAgentic, CreationMode: models.CoinSetCreationModeDynamic}
+	if err := service.repo.Create(&set); err != nil {
+		t.Fatalf("create set: %v", err)
+	}
+	coin := models.Coin{Name: "Test Coin", UserID: 1}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("create coin: %v", err)
+	}
+
+	err := service.AddCoinToSet(coin.ID, set.ID, 1, "")
+	if err == nil || !strings.Contains(err.Error(), "targetId is required") {
+		t.Fatalf("expected agentic targetId validation error, got %v", err)
 	}
 }

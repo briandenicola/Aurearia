@@ -3,14 +3,14 @@
     <div
       class="tray-well"
       :class="{
-        'is-interactive': interactive && !coin.placeholder,
+        'is-interactive': interactive,
         'is-placeholder': coin.placeholder,
         'is-wishlist-placeholder': coin.wishlistPlaceholder,
       }"
       :style="{ width: `${renderSizePx}px`, height: `${renderSizePx}px` }"
       :aria-label="coin.name"
-      :tabindex="interactive && !coin.placeholder ? 0 : undefined"
-      :role="interactive && !coin.placeholder ? 'button' : undefined"
+      :tabindex="interactive ? 0 : undefined"
+      :role="interactive ? 'button' : undefined"
       @click="handleClick"
       @keydown.enter="handleClick"
     >
@@ -90,7 +90,7 @@ const displayCaption = computed(() => {
 })
 
 function handleClick() {
-  if (!props.interactive || props.coin.placeholder) return
+  if (!props.interactive) return
   emit('coin-clicked', props.coin.id)
 }
 </script>

@@ -301,7 +301,7 @@ func (h *SetHandler) GetCoins(c *gin.Context) {
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			id		path		int							true	"Set ID"
-//	@Param			body	body		object{coinId=int,notes=string}	true	"Coin to add"
+//	@Param			body	body		object{coinId=int,notes=string,targetId=int}	true	"Coin to add"
 //	@Success		200		{object}	object{message=string}
 //	@Failure		400		{object}	object{error=string}
 //	@Failure		401		{object}	object{error=string}
@@ -317,15 +317,21 @@ func (h *SetHandler) AddCoin(c *gin.Context) {
 	}
 
 	var body struct {
-		CoinID uint   `json:"coinId" binding:"required"`
-		Notes  string `json:"notes"`
+		CoinID   uint   `json:"coinId" binding:"required"`
+		Notes    string `json:"notes"`
+		TargetID *uint  `json:"targetId"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Coin ID is required"})
 		return
 	}
 
-	if err := h.service.AddCoinToSet(body.CoinID, uint(setID), userID, body.Notes); err != nil {
+	if body.TargetID != nil {
+		err = h.service.AddCoinToSet(body.CoinID, uint(setID), userID, body.Notes, *body.TargetID)
+	} else {
+		err = h.service.AddCoinToSet(body.CoinID, uint(setID), userID, body.Notes)
+	}
+	if err != nil {
 		if repository.IsRecordNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Set or coin not found"})
 			return

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 )
 
 var ErrInvalidSetOrder = errors.New("ordered coin IDs must exactly match current set members")
+
+const agenticTargetNotePrefix = "agentic_target:"
 
 // SetRepository encapsulates all set-related database operations.
 type SetRepository struct {
@@ -89,26 +92,54 @@ func (r *SetRepository) Delete(id, userID uint) error {
 	})
 }
 
-// AddCoinToSet adds a coin to a manual set. Both must belong to the given user.
-// Idempotent — silently ignores if already added.
-func (r *SetRepository) AddCoinToSet(coinID, setID, userID uint, notes string) error {
+// AddCoinToSet adds a coin to a set. Agentic sets require a target ID assignment.
+// For manual sets, operation is idempotent and silently ignores duplicate memberships.
+func (r *SetRepository) AddCoinToSet(coinID, setID, userID uint, notes string, targetID ...uint) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Verify coin ownership
+		var set models.CoinSet
+		if err := tx.Select("id", "user_id", "set_type").Where("id = ? AND user_id = ?", setID, userID).First(&set).Error; err != nil {
+			return err
+		}
+
+		coinQuery := tx.Model(&models.Coin{}).Where("id = ? AND user_id = ?", coinID, userID)
+		if set.SetType == models.CoinSetTypeAgentic {
+			coinQuery = coinQuery.Where("is_wishlist = ? AND is_sold = ?", false, false)
+		}
 		var coinCount int64
-		if err := tx.Model(&models.Coin{}).Where("id = ? AND user_id = ?", coinID, userID).Count(&coinCount).Error; err != nil {
+		if err := coinQuery.Count(&coinCount).Error; err != nil {
 			return err
 		}
 		if coinCount == 0 {
 			return gorm.ErrRecordNotFound
 		}
-		// Verify set ownership
-		var setCount int64
-		if err := tx.Model(&models.CoinSet{}).Where("id = ? AND user_id = ?", setID, userID).Count(&setCount).Error; err != nil {
-			return err
+
+		if set.SetType == models.CoinSetTypeAgentic {
+			if len(targetID) == 0 {
+				return fmt.Errorf("targetId is required for agentic sets")
+			}
+			assignedTargetID := targetID[0]
+			var target models.CoinSetTarget
+			if err := tx.Where("id = ? AND set_id = ?", assignedTargetID, setID).First(&target).Error; err != nil {
+				return gorm.ErrRecordNotFound
+			}
+
+			// Keep one coin per slot and one slot per coin within the set.
+			if err := tx.Where("set_id = ? AND coin_id = ?", setID, coinID).Delete(&models.CoinSetMembership{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("set_id = ? AND notes = ?", setID, formatAgenticTargetNote(assignedTargetID)).Delete(&models.CoinSetMembership{}).Error; err != nil {
+				return err
+			}
+
+			return tx.Create(&models.CoinSetMembership{
+				CoinID:    coinID,
+				SetID:     setID,
+				AddedAt:   time.Now(),
+				SortOrder: target.SortOrder,
+				Notes:     formatAgenticTargetNote(assignedTargetID),
+			}).Error
 		}
-		if setCount == 0 {
-			return gorm.ErrRecordNotFound
-		}
+
 		sortOrder, err := nextSetSortOrder(tx, setID)
 		if err != nil {
 			return err
@@ -559,33 +590,57 @@ func (r *SetRepository) matchAgenticTargets(setID, userID uint) ([]AgenticTarget
 	if err != nil {
 		return nil, nil, err
 	}
-	var coins []models.Coin
+
+	var memberships []models.CoinSetMembership
 	if err := r.db.
-		Scopes(OwnedBy(userID)).
-		Where("is_wishlist = ? AND is_sold = ?", false, false).
-		Preload("Images").
-		Preload("Tags").
-		Order("name ASC").
-		Order("id ASC").
-		Find(&coins).Error; err != nil {
+		Model(&models.CoinSetMembership{}).
+		Joins("JOIN coin_sets ON coin_sets.id = coin_set_memberships.set_id").
+		Joins("JOIN coins ON coins.id = coin_set_memberships.coin_id").
+		Where("coin_set_memberships.set_id = ? AND coin_sets.user_id = ? AND coins.user_id = ?", setID, userID, userID).
+		Where("coins.is_wishlist = ? AND coins.is_sold = ?", false, false).
+		Find(&memberships).Error; err != nil {
 		return nil, nil, err
+	}
+
+	targetCoinIDs := make(map[uint]uint, len(memberships))
+	coinIDs := make([]uint, 0, len(memberships))
+	seenCoinIDs := make(map[uint]struct{}, len(memberships))
+	for _, membership := range memberships {
+		targetID, ok := parseAgenticTargetNote(membership.Notes)
+		if !ok {
+			continue
+		}
+		targetCoinIDs[targetID] = membership.CoinID
+		if _, seen := seenCoinIDs[membership.CoinID]; !seen {
+			coinIDs = append(coinIDs, membership.CoinID)
+			seenCoinIDs[membership.CoinID] = struct{}{}
+		}
+	}
+
+	coinsByID := make(map[uint]models.Coin, len(coinIDs))
+	if len(coinIDs) > 0 {
+		var assignedCoins []models.Coin
+		if err := r.db.
+			Scopes(OwnedBy(userID)).
+			Where("coins.id IN ?", coinIDs).
+			Preload("Images").
+			Preload("Tags").
+			Find(&assignedCoins).Error; err != nil {
+			return nil, nil, err
+		}
+		for _, coin := range assignedCoins {
+			coinsByID[coin.ID] = coin
+		}
 	}
 
 	matches := make([]AgenticTargetMatch, 0, len(targets))
 	missingTargets := []models.CoinSetTarget{}
-	usedCoinIDs := map[uint]struct{}{}
 	for _, target := range targets {
 		var matchedCoin *models.Coin
-		for i := range coins {
-			coin := coins[i]
-			if _, used := usedCoinIDs[coin.ID]; used {
-				continue
-			}
-			if matchCoinToTarget(coin, target) {
+		if coinID, ok := targetCoinIDs[target.ID]; ok {
+			if coin, exists := coinsByID[coinID]; exists {
 				matched := coin
 				matchedCoin = &matched
-				usedCoinIDs[coin.ID] = struct{}{}
-				break
 			}
 		}
 		if matchedCoin == nil {
@@ -644,6 +699,21 @@ func normalizeSetTypeModel(set *models.CoinSet) {
 	if set.CreationMode == "" {
 		set.CreationMode = models.CoinSetCreationModeManual
 	}
+}
+
+func formatAgenticTargetNote(targetID uint) string {
+	return agenticTargetNotePrefix + strconv.FormatUint(uint64(targetID), 10)
+}
+
+func parseAgenticTargetNote(note string) (uint, bool) {
+	if !strings.HasPrefix(note, agenticTargetNotePrefix) {
+		return 0, false
+	}
+	targetID, err := strconv.ParseUint(strings.TrimPrefix(note, agenticTargetNotePrefix), 10, 32)
+	if err != nil {
+		return 0, false
+	}
+	return uint(targetID), true
 }
 
 // CreateSnapshot creates or replaces today's aggregate snapshot for a set.
