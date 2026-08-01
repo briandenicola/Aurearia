@@ -52,7 +52,7 @@
             :title="`Lots whose auction has closed but status hasn't been confirmed`"
             @click="attentionOnly = !attentionOnly"
           >
-            <AlertTriangle :size="13" /> Attention{{ attentionCount ? ` (${attentionCount})` : '' }}
+            <AlertTriangle :size="13" /> Attention
           </button>
         </div>
         <AuctionStatusFilter v-model="activeStatus" :counts="statusCounts" />
@@ -156,7 +156,7 @@ const selectMode = ref(false)
 const selectedLotIds = ref(new Set<number>())
 const sourceOptions = [
   { value: '', label: 'All' },
-  { value: 'numisbids', label: 'NumisBids' },
+  { value: 'numisbids', label: 'Numis' },
   { value: 'cng', label: 'CNG' },
 ]
 const alertsByLot = computed(() => groupByLot(priceAlerts.value))
@@ -327,7 +327,6 @@ const emptyStateSuffix = computed(() => {
 
 const attentionOnly = ref(false)
 const visibleLots = computed(() => attentionOnly.value ? lots.value.filter(auctionLotNeedsAttention) : lots.value)
-const attentionCount = computed(() => lots.value.filter(auctionLotNeedsAttention).length)
 
 fetchLots()
 fetchAllCounts()

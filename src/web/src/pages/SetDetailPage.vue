@@ -72,14 +72,6 @@
         </template>
       </SetTrendChart>
 
-      <SetComparePanel
-        :sets="allSets"
-        :results="compareResults"
-        :loading="compareLoading"
-        :error="compareError"
-        @compare="compareSelectedSets"
-      />
-
       <div class="space-y-4">
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
@@ -312,7 +304,6 @@ import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeft, ChevronDown, ChevronUp, CirclePlus, Pencil, Plus, Trash2, X } from 'lucide-vue-next'
 import {
   addCoinToSet,
-  compareSets,
   createSetSnapshot,
   deleteSet as deleteSetApi,
   getCoins,
@@ -320,17 +311,15 @@ import {
   getSet,
   getSetAnalytics,
   getSetCompletion,
-  getSets,
   getSetTrends,
   reorderSetCoins,
   removeCoinFromSet,
   updateSet as updateSetApi,
 } from '@/api/client'
 import { normalizeCoinSetType } from '@/types'
-import type { CoinSetAnalytics, CoinSetComparison, CoinSetCompletion, CoinSetDetail, CoinSetSnapshot, CoinSetSummary, Coin } from '@/types'
+import type { CoinSetAnalytics, CoinSetCompletion, CoinSetDetail, CoinSetSnapshot, Coin } from '@/types'
 import SetCompletionChecklist from '@/components/sets/SetCompletionChecklist.vue'
 import SetTrendChart from '@/components/sets/SetTrendChart.vue'
-import SetComparePanel from '@/components/sets/SetComparePanel.vue'
 import MuseumTray from '@/components/tray/MuseumTray.vue'
 import TrayControls from '@/components/tray/TrayControls.vue'
 import { usePwa } from '@/composables/usePwa'
@@ -348,10 +337,6 @@ const allCoins = ref<Coin[]>([])
 const completion = ref<CoinSetCompletion | null>(null)
 const snapshots = ref<CoinSetSnapshot[]>([])
 const analytics = ref<CoinSetAnalytics | null>(null)
-const allSets = ref<CoinSetSummary[]>([])
-const compareResults = ref<CoinSetComparison[]>([])
-const compareLoading = ref(false)
-const compareError = ref<string | null>(null)
 const trendRange = ref('1y')
 const drawerIndex = ref(0)
 const coinsPerDrawer = 12
@@ -516,12 +501,11 @@ onMounted(async () => {
 async function loadSetDetails() {
   loading.value = true
   try {
-    const [setRes, coinsRes, trendsRes, analyticsRes, setsRes, allCoinsRes] = await Promise.all([
+    const [setRes, coinsRes, trendsRes, analyticsRes, allCoinsRes] = await Promise.all([
       getSet(setId),
       getCoinsInSet(setId),
       getSetTrends(setId, trendRange.value),
       getSetAnalytics(setId),
-      getSets(),
       getCoins({ wishlist: 'false', sold: 'false', limit: 100, sort: 'name', order: 'asc' }),
     ])
     set.value = setRes.data
@@ -530,7 +514,6 @@ async function loadSetDetails() {
     allCoins.value = allCoinsRes.data.coins
     snapshots.value = trendsRes.data.snapshots
     analytics.value = analyticsRes.data
-    allSets.value = setsRes.data.sets.filter((candidate) => candidate.id !== setId)
     const normalizedSetType = normalizeCoinSetType(set.value.setType)
     if (normalizedSetType === 'goal' || normalizedSetType === 'agentic') {
       const completionRes = await getSetCompletion(setId)
@@ -553,8 +536,6 @@ async function loadSetDetails() {
 
 async function changeTrendRange(range: string) {
   trendRange.value = range
-  compareResults.value = []
-  compareError.value = null
   const res = await getSetTrends(setId, trendRange.value)
   snapshots.value = res.data.snapshots
 }
@@ -568,30 +549,6 @@ async function captureSnapshot() {
   } catch (error) {
     console.error('Failed to capture snapshot:', error)
     alert('Failed to capture snapshot')
-  }
-}
-
-async function compareSelectedSets(setIds: number[]) {
-  compareLoading.value = true
-  compareError.value = null
-  try {
-    const uniqueSetIds = Array.from(new Set([setId, ...setIds]))
-    if (uniqueSetIds.length < 2) {
-      compareResults.value = []
-      compareError.value = 'Choose at least one other set to compare.'
-      return
-    }
-    const res = await compareSets(uniqueSetIds, trendRange.value)
-    compareResults.value = res.data.sets
-    if (compareResults.value.length === 0) {
-      compareError.value = 'No comparison data is available for the selected sets.'
-    }
-  } catch (error) {
-    console.error('Failed to compare sets:', error)
-    compareResults.value = []
-    compareError.value = getErrorMessage(error, 'Unable to compare these sets. Please try again.')
-  } finally {
-    compareLoading.value = false
   }
 }
 
