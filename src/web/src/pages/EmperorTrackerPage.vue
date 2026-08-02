@@ -65,58 +65,70 @@
     </div>
 
     <template v-else-if="result">
-      <section
+      <div
         v-for="dynasty in result.emperor.dynasties"
         :key="dynasty.dynasty"
-        class="card flex flex-col gap-3 p-5"
+        class="space-y-2"
       >
-        <h3 class="m-0 text-base text-heading">
-          {{ dynasty.dynasty }} — {{ dynasty.owned }} of {{ dynasty.total }}
-          ({{ formatPct(dynasty.total ? (dynasty.owned / dynasty.total) * 100 : 0) }}%)
-        </h3>
-        <ImperialFigureWellGrid :slots="dynasty.figures" @highlight-updated="load" />
-      </section>
+        <h2 class="m-0 font-display text-xl font-medium text-heading">{{ dynasty.dynasty }}</h2>
+        <section class="card flex flex-col gap-3 p-5">
+          <p class="m-0 text-body text-text-secondary">
+            {{ dynasty.owned }} of {{ dynasty.total }}
+            ({{ formatPct(dynasty.total ? (dynasty.owned / dynasty.total) * 100 : 0) }}%)
+          </p>
+          <ImperialFigureWellGrid :slots="dynasty.figures" @highlight-updated="load" />
+        </section>
+      </div>
 
       <section v-if="result.usurpers" class="flex flex-col gap-3">
         <h2 class="m-0 font-display text-lg font-medium text-gold">
           Usurpers — {{ result.usurpers.owned }} of {{ result.usurpers.total }} ({{ formatPct(result.usurpers.percentage) }}%)
         </h2>
-        <section
+        <div
           v-for="dynasty in result.usurpers.dynasties"
           :key="dynasty.dynasty"
-          class="card flex flex-col gap-3 p-5"
+          class="space-y-2"
         >
-          <h3 class="m-0 text-base text-heading">{{ dynasty.dynasty }} — {{ dynasty.owned }} of {{ dynasty.total }}</h3>
-          <ImperialFigureWellGrid :slots="dynasty.figures" @highlight-updated="load" />
-        </section>
+          <h3 class="m-0 font-display text-lg text-heading">{{ dynasty.dynasty }}</h3>
+          <section class="card flex flex-col gap-3 p-5">
+            <p class="m-0 text-body text-text-secondary">{{ dynasty.owned }} of {{ dynasty.total }}</p>
+            <ImperialFigureWellGrid :slots="dynasty.figures" @highlight-updated="load" />
+          </section>
+        </div>
       </section>
 
       <section v-if="result.empresses" class="flex flex-col gap-3">
         <h2 class="m-0 font-display text-lg font-medium text-gold">
           Empresses — {{ result.empresses.owned }} of {{ result.empresses.total }} ({{ formatPct(result.empresses.percentage) }}%)
         </h2>
-        <section
+        <div
           v-for="dynasty in result.empresses.dynasties"
           :key="dynasty.dynasty"
-          class="card flex flex-col gap-3 p-5"
+          class="space-y-2"
         >
-          <h3 class="m-0 text-base text-heading">{{ dynasty.dynasty }} — {{ dynasty.owned }} of {{ dynasty.total }}</h3>
-          <ImperialFigureWellGrid :slots="dynasty.figures" @highlight-updated="load" />
-        </section>
+          <h3 class="m-0 font-display text-lg text-heading">{{ dynasty.dynasty }}</h3>
+          <section class="card flex flex-col gap-3 p-5">
+            <p class="m-0 text-body text-text-secondary">{{ dynasty.owned }} of {{ dynasty.total }}</p>
+            <ImperialFigureWellGrid :slots="dynasty.figures" @highlight-updated="load" />
+          </section>
+        </div>
       </section>
 
       <section v-if="result.other" class="flex flex-col gap-3">
         <h2 class="m-0 font-display text-lg font-medium text-gold">
           Other Figures — {{ result.other.owned }} of {{ result.other.total }} ({{ formatPct(result.other.percentage) }}%)
         </h2>
-        <section
+        <div
           v-for="dynasty in result.other.dynasties"
           :key="dynasty.dynasty"
-          class="card flex flex-col gap-3 p-5"
+          class="space-y-2"
         >
-          <h3 class="m-0 text-base text-heading">{{ dynasty.dynasty }} — {{ dynasty.owned }} of {{ dynasty.total }}</h3>
-          <ImperialFigureWellGrid :slots="dynasty.figures" @highlight-updated="load" />
-        </section>
+          <h3 class="m-0 font-display text-lg text-heading">{{ dynasty.dynasty }}</h3>
+          <section class="card flex flex-col gap-3 p-5">
+            <p class="m-0 text-body text-text-secondary">{{ dynasty.owned }} of {{ dynasty.total }}</p>
+            <ImperialFigureWellGrid :slots="dynasty.figures" @highlight-updated="load" />
+          </section>
+        </div>
       </section>
     </template>
   </div>

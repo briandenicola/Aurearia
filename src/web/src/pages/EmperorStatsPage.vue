@@ -26,14 +26,6 @@
     </div>
 
     <template v-else-if="result">
-      <section class="card p-5">
-        <p class="section-label mb-1">Commonly Accepted Augustuses</p>
-        <p class="m-0 text-2xl font-semibold text-heading">
-          {{ result.emperor.owned }} of {{ result.emperor.total }}
-          <span class="text-base font-normal text-text-secondary">({{ formatPct(result.emperor.percentage) }}%)</span>
-        </p>
-      </section>
-
       <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <article class="card p-4">
           <p class="section-label mb-1">Overall Completion</p>
@@ -65,7 +57,7 @@
         </article>
       </section>
 
-      <section class="card p-5">
+      <section v-if="categoryRows.length" class="card p-5">
         <h2 class="m-0 mb-3 text-lg text-heading">Category Coverage</h2>
         <div class="flex flex-col gap-2">
           <div
@@ -97,17 +89,15 @@ const result = ref<EmperorTrackerResult | null>(null)
 
 const categoryRows = computed(() => {
   if (!result.value) return []
-  const rows: Array<{ label: string } & CategoryProgress> = [
-    { label: 'Commonly Accepted Augustuses', ...result.value.emperor },
-  ]
+  const rows: Array<{ label: string } & CategoryProgress> = []
   if (result.value.usurpers) rows.push({ label: 'Usurpers', ...result.value.usurpers })
   if (result.value.empresses) rows.push({ label: 'Empresses', ...result.value.empresses })
   if (result.value.other) rows.push({ label: 'Other Figures', ...result.value.other })
   return rows
 })
 
-const totalOwned = computed(() => categoryRows.value.reduce((sum, row) => sum + row.owned, 0))
-const totalFigures = computed(() => categoryRows.value.reduce((sum, row) => sum + row.total, 0))
+const totalOwned = computed(() => result.value?.emperor.owned ?? 0)
+const totalFigures = computed(() => result.value?.emperor.total ?? 0)
 const totalPct = computed(() => totalFigures.value > 0 ? (totalOwned.value / totalFigures.value) * 100 : 0)
 const remainingAugustuses = computed(() => Math.max(0, (result.value?.emperor.total ?? 0) - (result.value?.emperor.owned ?? 0)))
 const emperorDynasties = computed(() => result.value?.emperor.dynasties ?? [])
