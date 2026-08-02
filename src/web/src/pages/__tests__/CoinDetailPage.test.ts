@@ -97,7 +97,8 @@ describe('CoinDetailPage', () => {
       },
     })
 
-    await wrapper.find('button[aria-label="Duplicate"]').trigger('click')
+    await wrapper.find('button[aria-label="Open overflow actions"]').trigger('click')
+    await wrapper.find('button[aria-label="Copy Coin"]').trigger('click')
     await flushPromises()
 
     expect(duplicateCoin).toHaveBeenCalledWith(coin.id)
@@ -113,7 +114,6 @@ function pageStubs() {
     ImageLightbox: true,
     CoinTagsSection: true,
     CoinDetailMetadataTable: true,
-    CoinDetailSectionLinks: true,
     CoinListingStatus: true,
     CoinReferencesSection: true,
     AuthenticatedImage: true,

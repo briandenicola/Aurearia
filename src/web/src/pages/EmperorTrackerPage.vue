@@ -4,9 +4,6 @@
       <div>
         <p class="section-label">Sets</p>
         <h1>Emperors</h1>
-        <p class="mt-[0.35rem] text-base text-text-secondary">
-          Your collection's progress toward every Western and Eastern Roman Emperor.
-        </p>
       </div>
       <div class="relative flex shrink-0 items-center gap-2">
         <router-link
@@ -45,6 +42,9 @@
         </div>
       </div>
     </header>
+    <p class="m-0 -mt-1 text-base italic text-text-secondary">
+      Your collection's progress toward every Western and Eastern Roman Emperor.
+    </p>
     <button v-if="menuOpen" class="fixed inset-0 z-10 bg-transparent" aria-label="Close emperor actions menu" @click="menuOpen = false"></button>
 
     <div v-if="loading" class="loading-overlay">
