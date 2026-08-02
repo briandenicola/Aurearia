@@ -22,7 +22,7 @@
     </div>
 
     <div v-else class="flex flex-col gap-2">
-      <ZoomableSurface aria-label="Zoomable acquisition flow chart. Use the controls, mouse wheel, pinch, drag, or keyboard shortcuts to inspect dense paths.">
+      <ZoomableSurface :interactive="false" aria-label="Acquisition flow chart">
         <div class="grid pb-[0.35rem]" :style="colHeaderStyle">
           <span class="text-left text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Purchase Period</span>
           <span class="text-center text-label font-semibold uppercase tracking-[0.08em] text-text-muted">Ruler</span>

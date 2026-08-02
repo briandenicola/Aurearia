@@ -1,6 +1,6 @@
 <template>
   <div class="zoomable-surface">
-    <div class="zoomable-toolbar" aria-label="Chart zoom controls">
+    <div v-if="interactive" class="zoomable-toolbar" aria-label="Chart zoom controls">
       <span class="zoomable-status" aria-live="polite">{{ Math.round(scale * 100) }}%</span>
       <button
         type="button"
@@ -31,9 +31,9 @@
     <div
       ref="viewportRef"
       class="zoomable-viewport"
-      :class="{ 'is-panning': isPanning }"
+      :class="{ 'is-panning': isPanning, 'is-static': !interactive }"
       role="region"
-      tabindex="0"
+      :tabindex="interactive ? 0 : -1"
       :aria-label="resolvedAriaLabel"
       @wheel="handleWheel"
       @pointerdown="handlePointerDown"
@@ -71,11 +71,13 @@ const props = withDefaults(defineProps<{
   maxScale?: number
   scaleStep?: number
   keyboardPanStep?: number
+  interactive?: boolean
 }>(), {
   minScale: 0.75,
   maxScale: 3,
   scaleStep: 0.2,
   keyboardPanStep: 24,
+  interactive: true,
 })
 
 const viewportRef = ref<HTMLElement | null>(null)
@@ -86,6 +88,7 @@ const lastPointer = ref<Point | null>(null)
 const pinchDistance = ref<number | null>(null)
 const activePointers = new Map<number, Point>()
 const resolvedAriaLabel = computed(() => props.ariaLabel ?? 'Zoomable chart')
+const interactive = computed(() => props.interactive)
 
 const contentStyle = computed(() => ({
   transform: `translate(${pan.value.x}px, ${pan.value.y}px) scale(${scale.value})`,
@@ -119,10 +122,12 @@ function zoomAt(nextScale: number, clientPoint: Point) {
 }
 
 function zoomIn() {
+  if (!interactive.value) return
   zoomAt(scale.value + props.scaleStep, viewportCenter())
 }
 
 function zoomOut() {
+  if (!interactive.value) return
   zoomAt(scale.value - props.scaleStep, viewportCenter())
 }
 
@@ -136,6 +141,7 @@ function reset() {
 }
 
 function handleWheel(event: Event) {
+  if (!interactive.value) return
   const wheelEvent = event as ChartWheelEvent
   wheelEvent.preventDefault()
   const direction = wheelEvent.deltaY < 0 ? 1 : -1
@@ -147,6 +153,7 @@ function pointerPoint(event: PointerEvent): Point {
 }
 
 function handlePointerDown(event: PointerEvent) {
+  if (!interactive.value) return
   activePointers.set(event.pointerId, pointerPoint(event))
   const target = event.currentTarget as HTMLElement | null
   target?.setPointerCapture?.(event.pointerId)
@@ -159,6 +166,7 @@ function handlePointerDown(event: PointerEvent) {
 }
 
 function handlePointerMove(event: PointerEvent) {
+  if (!interactive.value) return
   if (!activePointers.has(event.pointerId)) return
   activePointers.set(event.pointerId, pointerPoint(event))
 
@@ -186,6 +194,7 @@ function handlePointerMove(event: PointerEvent) {
 }
 
 function handlePointerUp(event: PointerEvent) {
+  if (!interactive.value) return
   activePointers.delete(event.pointerId)
   lastPointer.value = null
   pinchDistance.value = activePointers.size >= 2 ? distanceBetweenActivePointers() : null
@@ -195,6 +204,7 @@ function handlePointerUp(event: PointerEvent) {
 }
 
 function handlePointerCancel(event: PointerEvent) {
+  if (!interactive.value) return
   activePointers.delete(event.pointerId)
   if (!activePointers.size) {
     isPanning.value = false
@@ -204,6 +214,7 @@ function handlePointerCancel(event: PointerEvent) {
 }
 
 function handleKeydown(event: KeyboardEvent) {
+  if (!interactive.value) return
   if (event.key === '+' || event.key === '=') {
     event.preventDefault()
     zoomIn()
@@ -283,6 +294,11 @@ function centerOfActivePointers(): Point {
   background: var(--bg-input);
   cursor: grab;
   touch-action: none;
+}
+
+.zoomable-viewport.is-static {
+  cursor: default;
+  touch-action: auto;
 }
 
 .zoomable-viewport:focus-visible {

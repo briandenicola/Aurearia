@@ -2,7 +2,7 @@
   <div class="stats-section card">
     <h2 class="mb-5 text-[1.1rem]">Collection Distribution</h2>
     <div v-if="heatMapEras.length && heatMapCategories.length" class="flex flex-col gap-3">
-      <ZoomableSurface aria-label="Zoomable collection distribution heat map. Use controls, wheel, pinch, drag, or keyboard shortcuts to inspect dense cells.">
+      <ZoomableSurface :interactive="false" aria-label="Collection distribution heat map">
         <div class="grid min-w-[300px] gap-[2px] p-3 max-[480px]:min-w-0 max-[480px]:gap-px" :style="{ gridTemplateColumns: `minmax(60px, 80px) repeat(${heatMapCategories.length}, 1fr)` }">
           <div></div>
           <div v-for="cat in heatMapCategories" :key="cat" class="overflow-hidden text-ellipsis whitespace-nowrap px-[0.15rem] py-[0.25rem] text-center text-[0.65rem] font-semibold text-text-secondary max-[480px]:px-[0.1rem] max-[480px]:py-[0.2rem] max-[480px]:text-[0.55rem]">{{ cat }}</div>

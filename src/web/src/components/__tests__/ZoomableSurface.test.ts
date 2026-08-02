@@ -45,6 +45,17 @@ function dispatchPointerEvent(
 }
 
 describe('ZoomableSurface', () => {
+  it('renders a locked surface when interactive is false', () => {
+    const wrapper = mount(ZoomableSurface, {
+      props: { interactive: false, ariaLabel: 'Locked chart' },
+      slots: { default: '<svg class="test-chart" />' },
+    })
+
+    expect(wrapper.find('.zoomable-toolbar').exists()).toBe(false)
+    expect(wrapper.find('.zoomable-viewport').classes()).toContain('is-static')
+    expect(wrapper.find('.zoomable-viewport').attributes('tabindex')).toBe('-1')
+  })
+
   it('zooms in, zooms out, and resets from toolbar controls', async () => {
     const { wrapper } = mountSurface()
 

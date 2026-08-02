@@ -1,7 +1,7 @@
 <template>
   <div class="stats-section card">
     <h2 class="mb-5 text-lg">{{ title }}</h2>
-    <ZoomableSurface :aria-label="`Zoomable ${title} bar chart. Use controls, wheel, pinch, drag, or keyboard shortcuts to inspect dense rows.`">
+    <ZoomableSurface :interactive="false" :aria-label="`${title} bar chart`">
       <div class="flex flex-col gap-3 p-3">
         <div
           v-for="item in items"
