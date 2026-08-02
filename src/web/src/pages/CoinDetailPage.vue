@@ -128,11 +128,6 @@
             @dismissed="refreshCoin"
           />
 
-          <!-- T019: Settings-style section links -->
-          <div class="mb-6">
-            <h3 class="mb-3 font-display text-base font-medium text-heading">Additional Details</h3>
-            <CoinDetailSectionLinks :coin-id="coin.id" />
-          </div>
         </div>
       </div>
     </div>
@@ -162,7 +157,6 @@ import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 import CoinDetailHeaderActions from '@/components/coin/CoinDetailHeaderActions.vue'
 import CoinTagsSection from '@/components/coin/CoinTagsSection.vue'
 import CoinDetailMetadataTable from '@/components/coin/CoinDetailMetadataTable.vue'
-import CoinDetailSectionLinks from '@/components/coin/CoinDetailSectionLinks.vue'
 import CoinListingStatus from '@/components/coin/CoinListingStatus.vue'
 import CoinReferencesSection from '@/components/coin/CoinReferencesSection.vue'
 import { deleteCoin, duplicateCoin, purchaseCoin, sellCoin } from '@/api/client'

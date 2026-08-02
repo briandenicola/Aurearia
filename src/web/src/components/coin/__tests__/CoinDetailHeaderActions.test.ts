@@ -12,7 +12,7 @@ const routerLinkStub = {
 }
 
 describe('CoinDetailHeaderActions', () => {
-  it('emits share and keeps existing actions available', async () => {
+  it('keeps primary icons visible and moves sell/copy/details into overflow menu', async () => {
     const wrapper = mount(CoinDetailHeaderActions, {
       props: {
         isWishlist: false,
@@ -33,15 +33,20 @@ describe('CoinDetailHeaderActions', () => {
     })
 
     expect(wrapper.find('button[aria-label="Share"]').exists()).toBe(true)
-    expect(wrapper.find('button[aria-label="Sell"]').exists()).toBe(true)
     expect(wrapper.find('a[href="/edit/42"]').exists()).toBe(true)
     expect(wrapper.find('a[aria-label="Edit"]').exists()).toBe(true)
-    expect(wrapper.find('button[aria-label="Duplicate"]').exists()).toBe(true)
     expect(wrapper.find('button[aria-label="Delete"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="Open overflow actions"]').exists()).toBe(true)
 
     await wrapper.find('button[aria-label="Share"]').trigger('click')
 
     expect(wrapper.emitted('share')).toHaveLength(1)
+
+    await wrapper.find('button[aria-label="Open overflow actions"]').trigger('click')
+    expect(wrapper.find('button[aria-label="Sell Coin"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="Copy Coin"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Activity Journal')
+    expect(wrapper.text()).toContain('Value Trend')
   })
 
   it('disables the share button while a share card is being generated', () => {
@@ -69,7 +74,7 @@ describe('CoinDetailHeaderActions', () => {
     expect(shareButton.attributes('disabled')).toBeDefined()
   })
 
-  it('emits duplicate and disables while duplicate is pending', async () => {
+  it('emits duplicate from overflow and disables copy while pending', async () => {
     const activeWrapper = mount(CoinDetailHeaderActions, {
       props: {
         isWishlist: false,
@@ -89,7 +94,8 @@ describe('CoinDetailHeaderActions', () => {
       },
     })
 
-    await activeWrapper.find('button[aria-label="Duplicate"]').trigger('click')
+    await activeWrapper.find('button[aria-label="Open overflow actions"]').trigger('click')
+    await activeWrapper.find('button[aria-label="Copy Coin"]').trigger('click')
 
     expect(activeWrapper.emitted('duplicate')).toHaveLength(1)
 
@@ -113,7 +119,8 @@ describe('CoinDetailHeaderActions', () => {
       },
     })
 
-    const duplicateButton = pendingWrapper.find('button[aria-label="Duplicating..."]')
+    await pendingWrapper.find('button[aria-label="Open overflow actions"]').trigger('click')
+    const duplicateButton = pendingWrapper.find('button[aria-label="Copying coin..."]')
     expect(duplicateButton.attributes('disabled')).toBeDefined()
   })
 })
