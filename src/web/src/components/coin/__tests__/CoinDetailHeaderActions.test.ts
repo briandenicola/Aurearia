@@ -33,8 +33,7 @@ describe('CoinDetailHeaderActions', () => {
     })
 
     expect(wrapper.find('button[aria-label="Share"]').exists()).toBe(true)
-    expect(wrapper.find('a[href="/edit/42"]').exists()).toBe(true)
-    expect(wrapper.find('a[aria-label="Edit"]').exists()).toBe(true)
+    expect(wrapper.find('button[aria-label="Edit"]').exists()).toBe(true)
     expect(wrapper.find('button[aria-label="Delete"]').exists()).toBe(true)
     expect(wrapper.find('button[aria-label="Open overflow actions"]').exists()).toBe(true)
 
@@ -122,5 +121,30 @@ describe('CoinDetailHeaderActions', () => {
     await pendingWrapper.find('button[aria-label="Open overflow actions"]').trigger('click')
     const duplicateButton = pendingWrapper.find('button[aria-label="Copying coin..."]')
     expect(duplicateButton.attributes('disabled')).toBeDefined()
+  })
+
+  it('emits edit from the primary action row', async () => {
+    const wrapper = mount(CoinDetailHeaderActions, {
+      props: {
+        isWishlist: false,
+        isSold: false,
+        coinId: 42,
+      },
+      global: {
+        stubs: {
+          RouterLink: routerLinkStub,
+          ArrowLeft: true,
+          CircleDollarSign: true,
+          Copy: true,
+          Menu: true,
+          Pencil: true,
+          Share2: true,
+          Trash2: true,
+        },
+      },
+    })
+
+    await wrapper.find('button[aria-label="Edit"]').trigger('click')
+    expect(wrapper.emitted('edit')).toHaveLength(1)
   })
 })

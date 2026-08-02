@@ -5,15 +5,15 @@
         <h1>Auctions</h1>
         <!-- PWA: icon-only buttons inline with title -->
         <div v-if="isPwa" class="pwa-actions">
-          <button class="pwa-icon-btn" :disabled="syncing" @click="syncWatchlist" title="Sync Watchlist">
+          <AppIconButton :disabled="syncing" title="Sync Watchlist" aria-label="Sync Watchlist" @click="syncWatchlist">
             <RefreshCw :size="22" :class="syncing ? 'animate-spin' : ''" />
-          </button>
-          <button class="pwa-icon-btn" :class="{ active: selectMode }" @click="toggleSelectMode" title="Select">
+          </AppIconButton>
+          <AppIconButton :active="selectMode" :title="selectMode ? 'Cancel Select' : 'Select'" aria-label="Select" @click="toggleSelectMode">
             <CheckSquare :size="22" />
-          </button>
-          <button class="pwa-icon-btn" @click="showImport = true" title="Add Lot">
+          </AppIconButton>
+          <AppIconButton title="Add Lot" aria-label="Add Lot" @click="showImport = true">
             <CirclePlus :size="22" />
-          </button>
+          </AppIconButton>
         </div>
         <!-- Desktop: full text buttons -->
         <div v-else class="header-actions gap-3">
@@ -130,6 +130,7 @@ import PullToRefresh from '@/components/PullToRefresh.vue'
 import AuctionStatusFilter from '@/components/auction/AuctionStatusFilter.vue'
 import AuctionLotDetailModal from '@/components/auction/AuctionLotDetailModal.vue'
 import AuctionBulkActionBar from '@/components/auction/AuctionBulkActionBar.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
 import { Plus, CirclePlus, RefreshCw, CheckSquare, ExternalLink, AlertTriangle } from 'lucide-vue-next'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { usePwa } from '@/composables/usePwa'
