@@ -15,6 +15,7 @@
           @share="handleShare"
           @sell="showSellModal = true"
           @duplicate="handleDuplicate"
+          @edit="handleEdit"
           @delete="handleDelete"
         />
       </div>
@@ -241,6 +242,11 @@ async function handleDuplicate() {
   } finally {
     duplicating.value = false
   }
+}
+
+function handleEdit() {
+  if (!coin.value) return
+  router.push(`/edit/${coin.value.id}`)
 }
 
 async function confirmSell(soldPrice: number | null, soldTo: string) {
