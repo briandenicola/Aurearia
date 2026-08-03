@@ -31,7 +31,7 @@
             class="tray-size-slider"
             type="range"
             min="0.75"
-            max="1.4"
+            max="2.5"
             step="0.05"
           />
           <span class="tray-size-value">{{ traySizeScale.toFixed(2) }}x</span>
@@ -77,7 +77,7 @@ import { Landmark, ArrowLeft, Plus } from 'lucide-vue-next'
 const STORAGE_KEY = 'tray:sizeScale'
 const DEFAULT_SIZE_SCALE = 1
 const MIN_SIZE_SCALE = 0.75
-const MAX_SIZE_SCALE = 1.4
+const MAX_SIZE_SCALE = 2.5
 
 const router = useRouter()
 const { feltColor } = useTrayPreference()

@@ -123,6 +123,24 @@ function handleClick() {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Caps how large zoom can render a well at each grid breakpoint below, so a
+     high size-scale can't overflow the tray's fixed column count. */
+  max-width: 120px;
+  max-height: 120px;
+}
+
+@media (min-width: 576px) {
+  .tray-well {
+    max-width: 170px;
+    max-height: 170px;
+  }
+}
+
+@media (min-width: 768px) {
+  .tray-well {
+    max-width: 240px;
+    max-height: 240px;
+  }
 }
 
 .tray-well.is-interactive {
