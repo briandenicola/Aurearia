@@ -32,7 +32,11 @@
           decoding="async"
         />
         <div v-else class="well-placeholder">
-          <span v-if="coin.placeholderLabel" class="placeholder-label">{{ coin.placeholderLabel }}</span>
+          <span
+            v-if="coin.placeholderLabel"
+            class="placeholder-label"
+            :style="{ fontSize: `${placeholderFontSizePx}px` }"
+          >{{ coin.placeholderLabel }}</span>
           <Coins v-else :size="Math.floor(renderSizePx * 0.4)" :stroke-width="1" />
         </div>
       </div>
@@ -82,6 +86,8 @@ const resolvedImageSrc = computed(() => {
   return props.imageSrcResolver(path)
 })
 
+const placeholderFontSizePx = computed(() => Math.max(9, Math.min(13, Math.round(props.renderSizePx * 0.115))))
+
 const displayCaption = computed(() => {
   if (!props.showCaptions) return null
   if (props.coin.placeholder) return null
@@ -117,6 +123,24 @@ function handleClick() {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Caps how large zoom can render a well at each grid breakpoint below, so a
+     high size-scale can't overflow the tray's fixed column count. */
+  max-width: 120px;
+  max-height: 120px;
+}
+
+@media (min-width: 576px) {
+  .tray-well {
+    max-width: 170px;
+    max-height: 170px;
+  }
+}
+
+@media (min-width: 768px) {
+  .tray-well {
+    max-width: 240px;
+    max-height: 240px;
+  }
 }
 
 .tray-well.is-interactive {
@@ -179,6 +203,11 @@ function handleClick() {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 16%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .is-placeholder .well-placeholder {
@@ -187,9 +216,16 @@ function handleClick() {
 }
 
 .placeholder-label {
-  font-size: 0.75rem;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
   font-weight: 600;
-  line-height: 1;
+  line-height: 1.2;
+  text-align: center;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .tray-date {

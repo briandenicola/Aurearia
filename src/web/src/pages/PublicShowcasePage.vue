@@ -27,7 +27,7 @@
               class="w-[140px] accent-[var(--accent-gold)]"
               type="range"
               min="0.75"
-              max="1.4"
+              max="2.5"
               step="0.05"
             />
             <span class="min-w-[3.2rem] text-right text-text-primary">{{ traySizeScale.toFixed(2) }}x</span>
@@ -118,7 +118,7 @@ watch(totalDrawers, (drawers) => {
 })
 
 watch(traySizeScale, (value) => {
-  const normalizedValue = Math.min(1.4, Math.max(0.75, Number(value) || 1))
+  const normalizedValue = Math.min(2.5, Math.max(0.75, Number(value) || 1))
   traySizeScale.value = normalizedValue
   localStorage.setItem('tray:sizeScale', normalizedValue.toString())
 })
@@ -156,7 +156,7 @@ onMounted(() => {
   if (storedScale !== null) {
     const parsedScale = Number(storedScale)
     if (Number.isFinite(parsedScale)) {
-      traySizeScale.value = Math.min(1.4, Math.max(0.75, parsedScale))
+      traySizeScale.value = Math.min(2.5, Math.max(0.75, parsedScale))
     }
   }
   loadShowcase()

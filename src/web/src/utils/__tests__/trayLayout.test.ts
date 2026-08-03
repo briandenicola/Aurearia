@@ -122,9 +122,9 @@ describe('trayLayout', () => {
       expect(size).toBe(100)
     })
 
-    it('clamps scaled sizes to the configured maximum', () => {
+    it('scales beyond the unscaled maximum so zoom stays meaningful at the ceiling', () => {
       const size = getScaledCoinRenderSizePx(30, [20, 30], options, 2)
-      expect(size).toBe(120)
+      expect(size).toBe(240)
     })
   })
 

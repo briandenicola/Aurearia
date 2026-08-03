@@ -88,9 +88,14 @@ export function getScaledCoinRenderSizePx(
   options: TrayLayoutOptions,
   scale: number
 ): number {
+  // getCoinRenderSizePx already bounds its result to [minCoinPx, maxCoinPx] at
+  // scale 1. Re-clamping the scaled result to those same fixed bounds would
+  // make scale a no-op for any coin already at the ceiling (or floor), which
+  // defeats the point of a zoom control. Let scale multiply freely; the tray
+  // wells themselves apply a (much larger, breakpoint-aware) CSS cap so zoom
+  // can't blow out the grid layout.
   const baseSize = getCoinRenderSizePx(diameterMm, allDiameters, options)
-  const scaledSize = baseSize * scale
-  return Math.max(options.minCoinPx, Math.min(options.maxCoinPx, scaledSize))
+  return baseSize * scale
 }
 
 /**
