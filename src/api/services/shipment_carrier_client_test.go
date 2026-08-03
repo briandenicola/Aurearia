@@ -39,6 +39,27 @@ func TestShipmentCarrierClientRegistry_ReturnsUnsupportedError(t *testing.T) {
 	registry := NewShipmentCarrierClientRegistry(&stubShipmentClient{carrier: models.ShipmentCarrierUSPS})
 
 	_, err := registry.ClientForCarrier(models.ShipmentCarrierFedEx)
+	if !errors.Is(err, ErrShipmentCarrierNotConfigured) {
+		t.Fatalf("expected not configured error, got: %v", err)
+	}
+}
+
+func TestShipmentCarrierClientRegistry_NormalizesCarrierValue(t *testing.T) {
+	registry := NewShipmentCarrierClientRegistry(&stubShipmentClient{carrier: models.ShipmentCarrierFedEx})
+
+	client, err := registry.ClientForCarrier(models.ShipmentCarrier(" FedEx "))
+	if err != nil {
+		t.Fatalf("resolve normalized carrier: %v", err)
+	}
+	if client.Carrier() != models.ShipmentCarrierFedEx {
+		t.Fatalf("resolved carrier = %s, want %s", client.Carrier(), models.ShipmentCarrierFedEx)
+	}
+}
+
+func TestShipmentCarrierClientRegistry_UnknownCarrierReturnsUnsupportedError(t *testing.T) {
+	registry := NewShipmentCarrierClientRegistry(&stubShipmentClient{carrier: models.ShipmentCarrierUSPS})
+
+	_, err := registry.ClientForCarrier(models.ShipmentCarrier("dhl"))
 	if !errors.Is(err, ErrShipmentCarrierUnsupported) {
 		t.Fatalf("expected unsupported carrier error, got: %v", err)
 	}

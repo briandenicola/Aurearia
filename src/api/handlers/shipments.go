@@ -241,6 +241,7 @@ func handleShipmentServiceError(c *gin.Context, err error) bool {
 	case errors.Is(err, services.ErrShipmentCarrierRequired),
 		errors.Is(err, services.ErrShipmentTrackingRequired),
 		errors.Is(err, services.ErrShipmentCarrierNameRequired),
+		errors.Is(err, services.ErrShipmentCarrierNotConfigured),
 		errors.Is(err, services.ErrShipmentCarrierUnsupported):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return true

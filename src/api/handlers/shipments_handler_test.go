@@ -219,6 +219,36 @@ func TestShipmentHandler_SyncForCoin(t *testing.T) {
 	}
 }
 
+func TestShipmentHandler_SyncForCoin_NotConfiguredCarrierReturnsBadRequest(t *testing.T) {
+	router, _, _, _, coin := setupShipmentHandlerTestRouter(t)
+
+	body := `{"carrier":"fedex","trackingNumber":"94001000"}`
+	putReq := httptest.NewRequest(http.MethodPut, "/api/coins/"+toUintParam(coin.ID)+"/shipment", bytes.NewBufferString(body))
+	putReq.Header.Set("Authorization", "owner")
+	putReq.Header.Set("Content-Type", "application/json")
+	putW := httptest.NewRecorder()
+	router.ServeHTTP(putW, putReq)
+	if putW.Code != http.StatusOK {
+		t.Fatalf("seed upsert status=%d body=%s", putW.Code, putW.Body.String())
+	}
+
+	syncReq := httptest.NewRequest(http.MethodPost, "/api/coins/"+toUintParam(coin.ID)+"/shipment/sync", nil)
+	syncReq.Header.Set("Authorization", "owner")
+	syncW := httptest.NewRecorder()
+	router.ServeHTTP(syncW, syncReq)
+	if syncW.Code != http.StatusBadRequest {
+		t.Fatalf("sync status=%d body=%s", syncW.Code, syncW.Body.String())
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(syncW.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse sync error response: %v", err)
+	}
+	if resp["error"] != "shipment carrier integration not configured: fedex" {
+		t.Fatalf("error=%q want %q", resp["error"], "shipment carrier integration not configured: fedex")
+	}
+}
+
 func toUintParam(value uint) string {
 	return strconv.FormatUint(uint64(value), 10)
 }

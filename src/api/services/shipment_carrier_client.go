@@ -11,6 +11,7 @@ import (
 )
 
 var ErrShipmentCarrierUnsupported = errors.New("unsupported shipment carrier")
+var ErrShipmentCarrierNotConfigured = errors.New("shipment carrier integration not configured")
 
 type ShipmentCarrierClient interface {
 	Carrier() models.ShipmentCarrier
@@ -33,9 +34,15 @@ func NewShipmentCarrierClientRegistry(clients ...ShipmentCarrierClient) *Shipmen
 }
 
 func (r *ShipmentCarrierClientRegistry) ClientForCarrier(carrier models.ShipmentCarrier) (ShipmentCarrierClient, error) {
-	client, ok := r.clients[carrier]
+	normalizedCarrier := models.ShipmentCarrier(strings.TrimSpace(strings.ToLower(string(carrier))))
+	client, ok := r.clients[normalizedCarrier]
 	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrShipmentCarrierUnsupported, carrier)
+		switch normalizedCarrier {
+		case models.ShipmentCarrierUSPS, models.ShipmentCarrierUPS, models.ShipmentCarrierFedEx:
+			return nil, fmt.Errorf("%w: %s", ErrShipmentCarrierNotConfigured, normalizedCarrier)
+		default:
+			return nil, fmt.Errorf("%w: %s", ErrShipmentCarrierUnsupported, normalizedCarrier)
+		}
 	}
 	return client, nil
 }
