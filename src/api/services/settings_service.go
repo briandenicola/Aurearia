@@ -54,6 +54,23 @@ const (
 	SettingSetSnapshotStartTime               = "SetSnapshotStartTime"
 	SettingCoinCategories                     = "CoinCategories"
 	SettingCoinEras                           = "CoinEras"
+	SettingUSPSAPIBaseURL                     = "USPSAPIBaseURL"
+	SettingUSPSAPIKey                         = "USPSAPIKey"
+	SettingUSPSAPIKeyHeader                   = "USPSAPIKeyHeader"
+	SettingUPSAPIBaseURL                      = "UPSAPIBaseURL"
+	SettingUPSTokenURL                        = "UPSTokenURL"
+	SettingUPSClientID                        = "UPSClientID"
+	SettingUPSClientSecret                    = "UPSClientSecret"
+	SettingUPSScope                           = "UPSScope"
+	SettingFedExAPIBaseURL                    = "FedExAPIBaseURL"
+	SettingFedExTokenURL                      = "FedExTokenURL"
+	SettingFedExClientID                      = "FedExClientID"
+	SettingFedExClientSecret                  = "FedExClientSecret"
+	SettingFedExScope                         = "FedExScope"
+	SettingShipmentSyncEnabled                = "ShipmentSyncEnabled"
+	SettingShipmentSyncInterval               = "ShipmentSyncInterval"
+	SettingShipmentSyncStartTime              = "ShipmentSyncStartTime"
+	SettingShipmentSyncBatchSize              = "ShipmentSyncBatchSize"
 )
 
 const DefaultObversePrompt = `You are an expert numismatist specializing in ancient and modern coins. Analyze the obverse (front) of this coin and provide:
@@ -125,6 +142,23 @@ var settingDefaults = map[string]string{
 	SettingSetSnapshotStartTime:               "04:00",
 	SettingCoinCategories:                     "Roman\nGreek\nByzantine\nModern\nOther",
 	SettingCoinEras:                           "ancient\nmedieval\nmodern",
+	SettingUSPSAPIBaseURL:                     "",
+	SettingUSPSAPIKey:                         "",
+	SettingUSPSAPIKeyHeader:                   "X-API-Key",
+	SettingUPSAPIBaseURL:                      "",
+	SettingUPSTokenURL:                        "",
+	SettingUPSClientID:                        "",
+	SettingUPSClientSecret:                    "",
+	SettingUPSScope:                           "",
+	SettingFedExAPIBaseURL:                    "",
+	SettingFedExTokenURL:                      "",
+	SettingFedExClientID:                      "",
+	SettingFedExClientSecret:                  "",
+	SettingFedExScope:                         "",
+	SettingShipmentSyncEnabled:                "false",
+	SettingShipmentSyncInterval:               "60",
+	SettingShipmentSyncStartTime:              "09:00",
+	SettingShipmentSyncBatchSize:              "100",
 }
 
 // SettingsService provides access to application settings backed by the database.

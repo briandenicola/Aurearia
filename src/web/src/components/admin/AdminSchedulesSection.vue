@@ -49,6 +49,60 @@
     </div>
 
     <hr class="my-6 border-0 border-t border-border-subtle" />
+
+    <!-- Shipment Sync -->
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Shipment Sync</h3>
+    <p class="mb-4 text-base text-text-secondary">Polls USPS/UPS/FedEx tracking APIs for shipment status updates and timeline events.</p>
+    <div class="mb-4">
+      <div class="form-group flex items-center justify-between gap-3">
+        <label class="form-label">Enable Automatic Sync</label>
+        <label class="relative inline-block h-[22px] w-[42px]">
+          <input
+            class="peer sr-only" type="checkbox"
+            :checked="settings.ShipmentSyncEnabled === 'true'"
+            @change="settings.ShipmentSyncEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
+          />
+          <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Start Time (daily anchor)</label>
+        <input
+          v-model="settings.ShipmentSyncStartTime"
+          class="form-input w-full max-w-[120px]"
+          type="time"
+        />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Repeat Interval (minutes)</label>
+        <input
+          v-model="settings.ShipmentSyncInterval"
+          class="form-input w-full max-w-[120px]"
+          type="number"
+          min="5"
+          step="5"
+        />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Batch Size</label>
+        <input
+          v-model="settings.ShipmentSyncBatchSize"
+          class="form-input w-full max-w-[120px]"
+          type="number"
+          min="1"
+          max="1000"
+          step="1"
+        />
+        <span class="form-hint">Maximum shipments processed per sync cycle.</span>
+      </div>
+      <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
+        <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
+          {{ settingsSaving ? 'Saving...' : 'Save Shipment Sync Settings' }}
+        </button>
+      </div>
+    </div>
+
+    <hr class="my-6 border-0 border-t border-border-subtle" />
     <h3 class="mb-4 text-base font-semibold text-text-primary">Availability Run History</h3>
 
     <div v-if="availLoading" class="flex justify-center py-8"><div class="spinner"></div></div>

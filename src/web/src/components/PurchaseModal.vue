@@ -41,6 +41,24 @@
 
       <p class="mb-3 text-[0.78rem] text-text-secondary">All fields are optional. You can update these later.</p>
 
+      <div class="mb-3 rounded-sm border border-border-subtle bg-card-hover p-3">
+        <label class="mb-2 inline-flex items-center gap-2 text-body text-text-secondary">
+          <input v-model="addShipment" type="checkbox" />
+          Add shipment tracking now
+        </label>
+        <div v-if="addShipment" class="grid gap-2">
+          <select v-model="shipmentCarrier" class="form-input">
+            <option value="usps">USPS</option>
+            <option value="ups">UPS</option>
+            <option value="fedex">FedEx</option>
+            <option value="other">Other</option>
+          </select>
+          <input v-model="shipmentTrackingNumber" class="form-input" placeholder="Tracking number" />
+          <input v-if="shipmentCarrier === 'other'" v-model="shipmentManualCarrierName" class="form-input" placeholder="Carrier name" />
+          <input v-model="shipmentNotes" class="form-input" placeholder="Shipment notes (optional)" />
+        </div>
+      </div>
+
       <div v-if="error" class="mb-3 text-[0.82rem] text-loss">{{ error }}</div>
 
       <div class="mt-6 flex justify-end gap-3">
@@ -63,12 +81,22 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
-  confirm: [data: { purchasePrice?: number; purchaseDate?: string; purchaseLocation?: string }]
+  confirm: [data: {
+    purchasePrice?: number
+    purchaseDate?: string
+    purchaseLocation?: string
+    shipment?: { carrier: 'usps' | 'ups' | 'fedex' | 'other'; trackingNumber: string; notes?: string; manualCarrierName?: string }
+  }]
 }>()
 
 const priceStr = ref('')
 const purchaseDate = ref(new Date().toISOString().slice(0, 10))
 const purchaseLocation = ref('')
+const addShipment = ref(false)
+const shipmentCarrier = ref<'usps' | 'ups' | 'fedex' | 'other'>('usps')
+const shipmentTrackingNumber = ref('')
+const shipmentManualCarrierName = ref('')
+const shipmentNotes = ref('')
 const error = ref('')
 const submitting = ref(false)
 const priceInput = ref<HTMLInputElement>()
@@ -86,7 +114,12 @@ onMounted(() => {
 function handleSubmit() {
   error.value = ''
 
-  const data: { purchasePrice?: number; purchaseDate?: string; purchaseLocation?: string } = {}
+  const data: {
+    purchasePrice?: number
+    purchaseDate?: string
+    purchaseLocation?: string
+    shipment?: { carrier: 'usps' | 'ups' | 'fedex' | 'other'; trackingNumber: string; notes?: string; manualCarrierName?: string }
+  } = {}
 
   if (priceStr.value) {
     const price = parseFloat(priceStr.value)
@@ -103,6 +136,23 @@ function handleSubmit() {
 
   if (purchaseLocation.value.trim()) {
     data.purchaseLocation = purchaseLocation.value.trim()
+  }
+
+  if (addShipment.value) {
+    if (!shipmentTrackingNumber.value.trim()) {
+      error.value = 'Tracking number is required when shipment tracking is enabled'
+      return
+    }
+    if (shipmentCarrier.value === 'other' && !shipmentManualCarrierName.value.trim()) {
+      error.value = 'Carrier name is required when carrier is Other'
+      return
+    }
+    data.shipment = {
+      carrier: shipmentCarrier.value,
+      trackingNumber: shipmentTrackingNumber.value.trim(),
+      notes: shipmentNotes.value.trim() || undefined,
+      manualCarrierName: shipmentCarrier.value === 'other' ? shipmentManualCarrierName.value.trim() : undefined,
+    }
   }
 
   submitting.value = true

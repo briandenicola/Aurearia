@@ -33,6 +33,37 @@ func (r *SchedulerRegistry) StartAll() {
 	}
 }
 
+func buildShipmentCarrierClients(settingsSvc *services.SettingsService, logger *services.Logger) []services.ShipmentCarrierClient {
+	carrierClients := make([]services.ShipmentCarrierClient, 0, 3)
+
+	if strings.TrimSpace(settingsSvc.GetSetting(services.SettingUSPSAPIBaseURL)) != "" {
+		uspsClient, err := services.NewUSPSShipmentCarrierClient(services.USPSShipmentClientConfigFromSettings(settingsSvc), nil)
+		if err != nil {
+			logger.Warn("shipment", "USPS client not configured: %v", err)
+		} else {
+			carrierClients = append(carrierClients, uspsClient)
+		}
+	}
+	if strings.TrimSpace(settingsSvc.GetSetting(services.SettingUPSAPIBaseURL)) != "" {
+		upsClient, err := services.NewUPSShipmentCarrierClient(services.UPSShipmentClientConfigFromSettings(settingsSvc), nil)
+		if err != nil {
+			logger.Warn("shipment", "UPS client not configured: %v", err)
+		} else {
+			carrierClients = append(carrierClients, upsClient)
+		}
+	}
+	if strings.TrimSpace(settingsSvc.GetSetting(services.SettingFedExAPIBaseURL)) != "" {
+		fedexClient, err := services.NewFedExShipmentCarrierClient(services.FedExShipmentClientConfigFromSettings(settingsSvc), nil)
+		if err != nil {
+			logger.Warn("shipment", "FedEx client not configured: %v", err)
+		} else {
+			carrierClients = append(carrierClients, fedexClient)
+		}
+	}
+
+	return carrierClients
+}
+
 //	@title						Aurearia API
 //	@version					1.0
 //	@description				REST API for managing a personal coin collection. Supports coin CRUD, image uploads, AI-powered analysis, user management, auction tracking, and admin features.
@@ -206,6 +237,14 @@ func main() {
 	priceAlertRepo := repository.NewPriceAlertRepository(database.DB)
 	bidReminderRepo := repository.NewBidReminderRepository(database.DB)
 	auctionAlertRunRepo := repository.NewAuctionAlertRunRepository(database.DB)
+	shipmentRepo := repository.NewShipmentRepository(database.DB)
+	shipmentSvc := services.NewShipmentService(
+		shipmentRepo,
+		coinRepo,
+		services.NewShipmentCarrierClientRegistry(buildShipmentCarrierClients(settingsSvc, logger)...),
+		notifSvc,
+		logger,
+	)
 
 	// Create schedulers before routes so they can be passed to admin handlers
 	availScheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, availRepo, settingsSvc, logger)
@@ -218,6 +257,7 @@ func main() {
 	auctionWatchBidDigestScheduler := services.NewAuctionWatchBidDigestScheduler(auctionLotRepo, auctionWatchBidDigestRepo, userRepoForVal, pushoverSvc, auctionWatchlistSyncSvc, settingsSvc, logger)
 	auctionAlertEvaluator := services.NewAuctionAlertEvaluator(priceAlertRepo, bidReminderRepo, notifSvc, logger)
 	auctionAlertScheduler := services.NewAuctionAlertScheduler(auctionAlertEvaluator, auctionAlertRunRepo, auctionWatchlistSyncSvc, settingsSvc, logger)
+	shipmentScheduler := services.NewShipmentScheduler(shipmentSvc, settingsSvc, logger)
 	collectionHealthSnapshotRunRepo := repository.NewCollectionHealthSnapshotRunRepository(database.DB)
 	healthScheduler := services.NewCollectionHealthScheduler(healthSvc, collectionHealthSnapshotRunRepo, settingsSvc, logger)
 	featuredCoinRepo := repository.NewFeaturedCoinRepository(database.DB)
@@ -230,6 +270,7 @@ func main() {
 	schedulerRegistry.Register(auctionEndingScheduler)
 	schedulerRegistry.Register(auctionWatchBidDigestScheduler)
 	schedulerRegistry.Register(auctionAlertScheduler)
+	schedulerRegistry.Register(shipmentScheduler)
 	schedulerRegistry.Register(healthScheduler)
 	schedulerRegistry.Register(wishlistSearchAlertScheduler)
 
@@ -254,8 +295,9 @@ func main() {
 		catalogRegistrySvc := services.NewCatalogRegistryService(catalogRegistryRepo)
 		catalogRegistryHandler := handlers.NewCatalogRegistryHandler(catalogRegistrySvc)
 		coinSvc := services.NewCoinService(coinRepo, notifSvc).WithReferenceSupport(coinReferenceRepo, coinReferenceSvc).WithStorageLocationSupport(storageLocationRepo).WithMintLocationSupport(mintLocationRepo).WithCatalogRegistrySupport(catalogRegistryRepo).WithSettingsSupport(settingsSvc)
+		shipmentHandler := handlers.NewShipmentHandler(shipmentSvc)
 		wishlistSearchAlertSvc.WithCoinCreation(coinSvc)
-		coinHandler := handlers.NewCoinHandler(coinRepo, coinSvc, logger).WithSettingsSupport(settingsSvc)
+		coinHandler := handlers.NewCoinHandler(coinRepo, coinSvc, logger).WithSettingsSupport(settingsSvc).WithShipmentSupport(shipmentSvc)
 		coinReferenceHandler := handlers.NewCoinReferenceHandler(coinReferenceRepo, coinReferenceSvc, referenceMigrationSvc)
 		coinIntakeSvc := services.NewCoinIntakeService(intakeDraftRepo, coinRepo, agentProxy, settingsSvc)
 		coinIntakeHandler := handlers.NewCoinIntakeHandler(coinIntakeSvc, logger)
@@ -285,6 +327,11 @@ func main() {
 		protected.POST("/references/migrate-legacy", coinReferenceHandler.MigrateLegacy)
 		protected.POST("/coins/:id/purchase", coinHandler.Purchase)
 		protected.POST("/coins/:id/sell", coinHandler.Sell)
+		protected.GET("/coins/:id/shipment", shipmentHandler.GetForCoin)
+		protected.PUT("/coins/:id/shipment", shipmentHandler.UpsertForCoin)
+		protected.DELETE("/coins/:id/shipment", shipmentHandler.DeleteForCoin)
+		protected.PUT("/coins/:id/shipment/manual-override", shipmentHandler.SetManualOverride)
+		protected.POST("/coins/:id/shipment/sync", shipmentHandler.SyncForCoin)
 		protected.DELETE("/coins/:id", coinHandler.Delete)
 		protected.GET("/catalogs", catalogRegistryHandler.List)
 
@@ -432,7 +479,7 @@ func main() {
 		nbSvc := services.NewNumisBidsService(logger)
 		cngSvc := services.NewCNGAuctionService(logger)
 		auctionUserRepo := repository.NewUserRepository(database.DB)
-		auctionLotHandler := handlers.NewAuctionLotHandler(auctionLotRepo, auctionLotSvc, auctionUserRepo, nbSvc, cngSvc, logger, credentialEncryptionSvc)
+		auctionLotHandler := handlers.NewAuctionLotHandler(auctionLotRepo, auctionLotSvc, auctionUserRepo, nbSvc, cngSvc, logger, credentialEncryptionSvc).WithShipmentSupport(shipmentSvc)
 		protected.GET("/auctions", auctionLotHandler.List)
 		protected.GET("/auctions/counts", auctionLotHandler.Counts)
 		protected.PUT("/auctions/bulk-link-event", auctionLotHandler.BulkLinkEvent)

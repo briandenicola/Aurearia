@@ -114,6 +114,11 @@
             @changed="refreshCoin"
           />
 
+          <CoinShipmentSection
+            :coin-id="coin.id"
+            @changed="refreshCoin"
+          />
+
           <CoinTagsSection
             :tags="coin.tags ?? []"
             :sets="coin.sets ?? []"
@@ -160,6 +165,7 @@ import CoinTagsSection from '@/components/coin/CoinTagsSection.vue'
 import CoinDetailMetadataTable from '@/components/coin/CoinDetailMetadataTable.vue'
 import CoinListingStatus from '@/components/coin/CoinListingStatus.vue'
 import CoinReferencesSection from '@/components/coin/CoinReferencesSection.vue'
+import CoinShipmentSection from '@/components/coin/CoinShipmentSection.vue'
 import { deleteCoin, duplicateCoin, purchaseCoin, sellCoin } from '@/api/client'
 import { colorForLabel, colorForLabelBackground } from '@/utils/categoryColor'
 import { useDialog } from '@/composables/useDialog'
@@ -214,7 +220,7 @@ async function handleShare() {
   await shareCoinCard(coin.value)
 }
 
-async function confirmPurchase(data: { purchasePrice?: number; purchaseDate?: string; purchaseLocation?: string }) {
+async function confirmPurchase(data: { purchasePrice?: number; purchaseDate?: string; purchaseLocation?: string; shipment?: { carrier: 'usps' | 'ups' | 'fedex' | 'other'; trackingNumber: string; notes?: string; manualCarrierName?: string } }) {
   if (!coin.value) return
   try {
     await purchaseCoin(coin.value.id, data)
