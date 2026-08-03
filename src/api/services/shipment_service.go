@@ -79,20 +79,31 @@ func (s *ShipmentService) UpsertShipmentForCoin(
 		shipment.ManualCarrierName = normalized.manualCarrierName
 		shipment.TrackingNumber = normalized.trackingNumber
 		shipment.Notes = strings.TrimSpace(notes)
+		shipment.ManualOverrideEnabled = true
+		if shipment.CurrentStatus == "" {
+			shipment.CurrentStatus = models.ShipmentStatusPending
+		}
+		shipment.CurrentStatusSource = models.ShipmentStatusSourceManual
+		shipment.ManualOverrideStatus = shipment.CurrentStatus
 		if updateErr := s.shipmentRepo.Update(shipment); updateErr != nil {
 			return nil, updateErr
 		}
 		return s.shipmentRepo.GetByIDForUser(shipment.ID, userID)
 	}
 
+	now := time.Now().UTC()
 	newShipment := &models.Shipment{
-		UserID:            userID,
-		CoinID:            coinID,
-		Carrier:           normalized.carrier,
-		ManualCarrierName: normalized.manualCarrierName,
-		TrackingNumber:    normalized.trackingNumber,
-		CurrentStatus:     models.ShipmentStatusPending,
-		Notes:             strings.TrimSpace(notes),
+		UserID:                  userID,
+		CoinID:                  coinID,
+		Carrier:                 normalized.carrier,
+		ManualCarrierName:       normalized.manualCarrierName,
+		TrackingNumber:          normalized.trackingNumber,
+		CurrentStatus:           models.ShipmentStatusPending,
+		CurrentStatusSource:     models.ShipmentStatusSourceManual,
+		Notes:                   strings.TrimSpace(notes),
+		ManualOverrideEnabled:   true,
+		ManualOverrideStatus:    models.ShipmentStatusPending,
+		ManualOverrideUpdatedAt: &now,
 	}
 	if err := s.shipmentRepo.Create(newShipment); err != nil {
 		return nil, err

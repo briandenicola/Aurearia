@@ -36,12 +36,12 @@ func (c *stubShipmentCarrierClient) GetTracking(_ context.Context, trackingNumbe
 }
 
 type shipmentServiceHarness struct {
-	db          *gorm.DB
-	coinRepo    *repository.CoinRepository
+	db           *gorm.DB
+	coinRepo     *repository.CoinRepository
 	shipmentRepo *repository.ShipmentRepository
-	service     *ShipmentService
-	user        models.User
-	coin        models.Coin
+	service      *ShipmentService
+	user         models.User
+	coin         models.Coin
 }
 
 func setupShipmentServiceHarness(t *testing.T, clients ...ShipmentCarrierClient) shipmentServiceHarness {
@@ -107,6 +107,15 @@ func TestShipmentService_UpsertShipmentForCoin_CreateThenUpdate(t *testing.T) {
 	if created.TrackingNumber != "94001000" {
 		t.Fatalf("tracking = %q, want 94001000", created.TrackingNumber)
 	}
+	if !created.ManualOverrideEnabled {
+		t.Fatalf("expected manual override enabled for manual-first tracking")
+	}
+	if created.CurrentStatus != models.ShipmentStatusPending {
+		t.Fatalf("current status = %s, want %s", created.CurrentStatus, models.ShipmentStatusPending)
+	}
+	if created.CurrentStatusSource != models.ShipmentStatusSourceManual {
+		t.Fatalf("status source = %s, want %s", created.CurrentStatusSource, models.ShipmentStatusSourceManual)
+	}
 
 	updated, err := h.service.UpsertShipmentForCoin(h.user.ID, h.coin.ID, models.ShipmentCarrierUSPS, "94001001", "updated note", "")
 	if err != nil {
@@ -117,6 +126,9 @@ func TestShipmentService_UpsertShipmentForCoin_CreateThenUpdate(t *testing.T) {
 	}
 	if updated.TrackingNumber != "94001001" || updated.Notes != "updated note" {
 		t.Fatalf("unexpected updated shipment: %+v", updated)
+	}
+	if !updated.ManualOverrideEnabled {
+		t.Fatalf("expected manual override enabled after update")
 	}
 }
 
@@ -150,6 +162,9 @@ func TestShipmentService_SyncShipment_UpdatesStatusAndMergesTimeline(t *testing.
 	shipment, err := h.service.UpsertShipmentForCoin(h.user.ID, h.coin.ID, models.ShipmentCarrierUSPS, "94001000", "", "")
 	if err != nil {
 		t.Fatalf("create shipment: %v", err)
+	}
+	if _, err := h.service.SetManualOverride(h.user.ID, shipment.ID, false, models.ShipmentStatusPending, ""); err != nil {
+		t.Fatalf("disable manual override: %v", err)
 	}
 
 	synced, err := h.service.SyncShipment(context.Background(), shipment.ID, h.user.ID)

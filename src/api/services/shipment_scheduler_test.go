@@ -42,6 +42,9 @@ func TestShipmentScheduler_RunNow_SyncsShipments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create shipment: %v", err)
 	}
+	if _, err := h.service.SetManualOverride(h.user.ID, shipment.ID, false, models.ShipmentStatusPending, ""); err != nil {
+		t.Fatalf("disable manual override: %v", err)
+	}
 
 	scheduler := NewShipmentScheduler(h.service, settingsSvc, NewLogger(10))
 	if err := scheduler.RunNow(); err != nil {

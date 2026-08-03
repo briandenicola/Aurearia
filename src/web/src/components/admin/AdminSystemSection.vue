@@ -35,60 +35,6 @@
         <input v-model="localPublicAppUrl" class="form-input" type="url" placeholder="https://coins.example.com" />
         <span class="form-hint text-sm text-text-muted mt-1 block">Full browser URL for this app. Used to make Pushover Coin of the Day links open directly to a coin; leave blank to send the alert without an external link.</span>
       </div>
-      <hr class="my-6 border-0 border-t border-border-subtle" />
-      <h3 class="mb-4 text-base font-semibold text-text-primary">Shipment Carrier Integrations</h3>
-      <div class="form-group">
-        <label class="form-label">USPS API Base URL</label>
-        <input v-model="localUSPSAPIBaseURL" class="form-input" type="url" placeholder="https://api.usps.com" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">USPS API Key</label>
-        <input v-model="localUSPSAPIKey" class="form-input" type="password" placeholder="USPS API key" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">USPS API Key Header</label>
-        <input v-model="localUSPSAPIKeyHeader" class="form-input" placeholder="X-API-Key" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">UPS API Base URL</label>
-        <input v-model="localUPSAPIBaseURL" class="form-input" type="url" placeholder="https://onlinetools.ups.com" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">UPS Token URL</label>
-        <input v-model="localUPSTokenURL" class="form-input" type="url" placeholder="https://onlinetools.ups.com/security/v1/oauth/token" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">UPS Client ID</label>
-        <input v-model="localUPSClientID" class="form-input" placeholder="UPS client ID" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">UPS Client Secret</label>
-        <input v-model="localUPSClientSecret" class="form-input" type="password" placeholder="UPS client secret" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">UPS Scope</label>
-        <input v-model="localUPSScope" class="form-input" placeholder="Optional OAuth scope" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">FedEx API Base URL</label>
-        <input v-model="localFedExAPIBaseURL" class="form-input" type="url" placeholder="https://apis.fedex.com" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">FedEx Token URL</label>
-        <input v-model="localFedExTokenURL" class="form-input" type="url" placeholder="https://apis.fedex.com/oauth/token" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">FedEx Client ID</label>
-        <input v-model="localFedExClientID" class="form-input" placeholder="FedEx client ID" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">FedEx Client Secret</label>
-        <input v-model="localFedExClientSecret" class="form-input" type="password" placeholder="FedEx client secret" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">FedEx Scope</label>
-        <input v-model="localFedExScope" class="form-input" placeholder="Optional OAuth scope" />
-      </div>
       <div class="form-group">
         <label class="form-label">Log Level</label>
         <select v-model="localLogLevel" class="form-select">

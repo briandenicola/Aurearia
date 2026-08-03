@@ -201,6 +201,15 @@ func TestShipmentHandler_SyncForCoin(t *testing.T) {
 		t.Fatalf("seed upsert status=%d body=%s", putW.Code, putW.Body.String())
 	}
 
+	overrideReq := httptest.NewRequest(http.MethodPut, "/api/coins/"+toUintParam(coin.ID)+"/shipment/manual-override", bytes.NewBufferString(`{"enabled":false,"status":"pending","note":""}`))
+	overrideReq.Header.Set("Authorization", "owner")
+	overrideReq.Header.Set("Content-Type", "application/json")
+	overrideW := httptest.NewRecorder()
+	router.ServeHTTP(overrideW, overrideReq)
+	if overrideW.Code != http.StatusOK {
+		t.Fatalf("disable override status=%d body=%s", overrideW.Code, overrideW.Body.String())
+	}
+
 	syncReq := httptest.NewRequest(http.MethodPost, "/api/coins/"+toUintParam(coin.ID)+"/shipment/sync", nil)
 	syncReq.Header.Set("Authorization", "owner")
 	syncW := httptest.NewRecorder()
@@ -230,6 +239,15 @@ func TestShipmentHandler_SyncForCoin_NotConfiguredCarrierReturnsBadRequest(t *te
 	router.ServeHTTP(putW, putReq)
 	if putW.Code != http.StatusOK {
 		t.Fatalf("seed upsert status=%d body=%s", putW.Code, putW.Body.String())
+	}
+
+	overrideReq := httptest.NewRequest(http.MethodPut, "/api/coins/"+toUintParam(coin.ID)+"/shipment/manual-override", bytes.NewBufferString(`{"enabled":false,"status":"pending","note":""}`))
+	overrideReq.Header.Set("Authorization", "owner")
+	overrideReq.Header.Set("Content-Type", "application/json")
+	overrideW := httptest.NewRecorder()
+	router.ServeHTTP(overrideW, overrideReq)
+	if overrideW.Code != http.StatusOK {
+		t.Fatalf("disable override status=%d body=%s", overrideW.Code, overrideW.Body.String())
 	}
 
 	syncReq := httptest.NewRequest(http.MethodPost, "/api/coins/"+toUintParam(coin.ID)+"/shipment/sync", nil)

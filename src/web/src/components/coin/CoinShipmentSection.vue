@@ -13,23 +13,20 @@
         <div class="mb-4 grid gap-2 text-body text-text-secondary">
           <p class="m-0"><strong class="text-text-primary">Tracking:</strong> {{ shipment.trackingNumber }}</p>
           <p v-if="shipment.notes" class="m-0"><strong class="text-text-primary">Notes:</strong> {{ shipment.notes }}</p>
-          <p v-if="shipment.lastSyncError" class="m-0 text-[var(--color-negative)]"><strong>Last sync error:</strong> {{ shipment.lastSyncError }}</p>
+          <p class="m-0"><strong class="text-text-primary">Status:</strong> {{ statusLabel(shipment.currentStatus) }}</p>
         </div>
 
         <div class="mb-4 grid gap-2 border-t border-border-subtle pt-4">
-          <label class="form-label">Manual Override</label>
-          <div class="flex items-center gap-2">
-            <input id="shipment-manual-enabled" v-model="manualOverrideEnabled" type="checkbox" />
-            <label for="shipment-manual-enabled" class="text-body text-text-secondary">Use manual status instead of carrier API sync</label>
-          </div>
-          <div v-if="manualOverrideEnabled" class="grid gap-2 md:grid-cols-2">
+          <label class="form-label">Update Shipment Status</label>
+          <p class="m-0 text-body text-text-secondary">Shipment status is managed manually.</p>
+          <div class="grid gap-2 md:grid-cols-2">
             <select v-model="manualStatus" class="form-input">
               <option v-for="value in statusOptions" :key="value" :value="value">{{ statusLabel(value) }}</option>
             </select>
-            <input v-model="manualNote" class="form-input" placeholder="Optional override note" />
+            <input v-model="manualNote" class="form-input" placeholder="Optional status note" />
           </div>
-          <button class="btn btn-secondary btn-sm w-fit" :disabled="saving" @click="saveManualOverride">
-            {{ saving ? 'Saving...' : 'Save Manual Override' }}
+          <button class="btn btn-secondary btn-sm w-fit" :disabled="saving" @click="saveStatus">
+            {{ saving ? 'Saving...' : 'Save Status' }}
           </button>
         </div>
 
@@ -46,7 +43,6 @@
         </div>
 
         <div class="flex flex-wrap gap-2 border-t border-border-subtle pt-4">
-          <button class="btn btn-secondary btn-sm" :disabled="syncing" @click="syncShipment">{{ syncing ? 'Syncing...' : 'Sync Now' }}</button>
           <button class="btn btn-danger btn-sm" :disabled="deleting" @click="removeShipment">{{ deleting ? 'Removing...' : 'Remove Shipment' }}</button>
         </div>
       </template>
@@ -76,7 +72,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { deleteCoinShipment, getCoinShipment, setCoinShipmentManualOverride, syncCoinShipment, upsertCoinShipment } from '@/api/client'
+import { deleteCoinShipment, getCoinShipment, setCoinShipmentManualOverride, upsertCoinShipment } from '@/api/client'
 import type { Shipment, ShipmentCarrier, ShipmentStatus, ShipmentUpsertInput } from '@/types'
 
 const props = defineProps<{ coinId: number }>()
@@ -84,13 +80,11 @@ const emit = defineEmits<{ changed: [] }>()
 
 const loading = ref(true)
 const saving = ref(false)
-const syncing = ref(false)
 const deleting = ref(false)
 const shipment = ref<Shipment | null>(null)
 const trackingUrl = ref('')
 const message = ref('')
 const messageError = ref(false)
-const manualOverrideEnabled = ref(false)
 const manualStatus = ref<ShipmentStatus>('in_transit')
 const manualNote = ref('')
 const form = reactive<ShipmentUpsertInput>({
@@ -131,8 +125,7 @@ async function loadShipment() {
     const res = await getCoinShipment(props.coinId)
     shipment.value = res.data.shipment
     trackingUrl.value = res.data.trackingUrl ?? ''
-    manualOverrideEnabled.value = !!shipment.value.manualOverrideEnabled
-    manualStatus.value = (shipment.value.manualOverrideStatus || shipment.value.currentStatus || 'in_transit') as ShipmentStatus
+    manualStatus.value = (shipment.value.currentStatus || shipment.value.manualOverrideStatus || 'in_transit') as ShipmentStatus
     manualNote.value = shipment.value.manualOverrideNote || ''
   } catch (err: unknown) {
     const msg = apiErrorMessage(err).toLowerCase()
@@ -183,38 +176,23 @@ async function saveShipment() {
   }
 }
 
-async function saveManualOverride() {
+async function saveStatus() {
   if (!shipment.value) return
   saving.value = true
   setMessage('')
   try {
     const res = await setCoinShipmentManualOverride(props.coinId, {
-      enabled: manualOverrideEnabled.value,
+      enabled: true,
       status: manualStatus.value,
       note: manualNote.value.trim(),
     })
     shipment.value = res.data.shipment
     trackingUrl.value = res.data.trackingUrl ?? ''
-    setMessage('Manual override saved')
+    setMessage('Shipment status saved')
   } catch (err: unknown) {
-    setMessage(apiErrorMessage(err) || 'Failed to save manual override', true)
+    setMessage(apiErrorMessage(err) || 'Failed to save shipment status', true)
   } finally {
     saving.value = false
-  }
-}
-
-async function syncShipment() {
-  syncing.value = true
-  setMessage('')
-  try {
-    const res = await syncCoinShipment(props.coinId)
-    shipment.value = res.data.shipment
-    trackingUrl.value = res.data.trackingUrl ?? ''
-    setMessage('Shipment synced')
-  } catch (err: unknown) {
-    setMessage(apiErrorMessage(err) || 'Failed to sync shipment', true)
-  } finally {
-    syncing.value = false
   }
 }
 
