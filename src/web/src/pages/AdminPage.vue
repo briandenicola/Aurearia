@@ -78,6 +78,19 @@
           :numista-api-key="settings.NumistaAPIKey ?? ''"
           :pushover-app-token="settings.PushoverAppToken ?? ''"
           :public-app-url="settings.PublicAppURL ?? ''"
+          :usps-api-base-url="settings.USPSAPIBaseURL ?? ''"
+          :usps-api-key="settings.USPSAPIKey ?? ''"
+          :usps-api-key-header="settings.USPSAPIKeyHeader ?? ''"
+          :ups-api-base-url="settings.UPSAPIBaseURL ?? ''"
+          :ups-token-url="settings.UPSTokenURL ?? ''"
+          :ups-client-id="settings.UPSClientID ?? ''"
+          :ups-client-secret="settings.UPSClientSecret ?? ''"
+          :ups-scope="settings.UPSScope ?? ''"
+          :fedex-api-base-url="settings.FedExAPIBaseURL ?? ''"
+          :fedex-token-url="settings.FedExTokenURL ?? ''"
+          :fedex-client-id="settings.FedExClientID ?? ''"
+          :fedex-client-secret="settings.FedExClientSecret ?? ''"
+          :fedex-scope="settings.FedExScope ?? ''"
           :log-level="settings.LogLevel ?? ''"
           :log-levels="LOG_LEVELS"
           :saving="settingsSaving"
@@ -378,11 +391,42 @@ function exportLogs() {
   URL.revokeObjectURL(url)
 }
 
-function onSystemSave(payload: { numistaApiKey: string; logLevel: string; pushoverAppToken: string; publicAppUrl: string }) {
+function onSystemSave(payload: {
+  numistaApiKey: string
+  logLevel: string
+  pushoverAppToken: string
+  publicAppUrl: string
+  uspsApiBaseUrl: string
+  uspsApiKey: string
+  uspsApiKeyHeader: string
+  upsApiBaseUrl: string
+  upsTokenUrl: string
+  upsClientId: string
+  upsClientSecret: string
+  upsScope: string
+  fedexApiBaseUrl: string
+  fedexTokenUrl: string
+  fedexClientId: string
+  fedexClientSecret: string
+  fedexScope: string
+}) {
   settings.value.NumistaAPIKey = payload.numistaApiKey
   settings.value.LogLevel = payload.logLevel
   settings.value.PushoverAppToken = payload.pushoverAppToken
   settings.value.PublicAppURL = payload.publicAppUrl
+  settings.value.USPSAPIBaseURL = payload.uspsApiBaseUrl
+  settings.value.USPSAPIKey = payload.uspsApiKey
+  settings.value.USPSAPIKeyHeader = payload.uspsApiKeyHeader
+  settings.value.UPSAPIBaseURL = payload.upsApiBaseUrl
+  settings.value.UPSTokenURL = payload.upsTokenUrl
+  settings.value.UPSClientID = payload.upsClientId
+  settings.value.UPSClientSecret = payload.upsClientSecret
+  settings.value.UPSScope = payload.upsScope
+  settings.value.FedExAPIBaseURL = payload.fedexApiBaseUrl
+  settings.value.FedExTokenURL = payload.fedexTokenUrl
+  settings.value.FedExClientID = payload.fedexClientId
+  settings.value.FedExClientSecret = payload.fedexClientSecret
+  settings.value.FedExScope = payload.fedexScope
   saveSettings()
 }
 

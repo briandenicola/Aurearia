@@ -214,7 +214,7 @@ async function handleShare() {
   await shareCoinCard(coin.value)
 }
 
-async function confirmPurchase(data: { purchasePrice?: number; purchaseDate?: string; purchaseLocation?: string }) {
+async function confirmPurchase(data: { purchasePrice?: number; purchaseDate?: string; purchaseLocation?: string; shipment?: { carrier: 'usps' | 'ups' | 'fedex' | 'other'; trackingNumber: string; notes?: string; manualCarrierName?: string } }) {
   if (!coin.value) return
   try {
     await purchaseCoin(coin.value.id, data)

@@ -38,6 +38,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/coin/:id/shipment',
+      name: 'coin-detail-shipment',
+      component: () => import('@/pages/CoinDetailShipmentPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/coin/:id/health',
       name: 'coin-detail-health',
       component: () => import('@/pages/CoinDetailHealthPage.vue'),

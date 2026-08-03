@@ -7,7 +7,7 @@ type SchedulerStatus struct {
 	Name      string        `json:"name"`
 	Enabled   bool          `json:"enabled"`
 	IsRunning bool          `json:"isRunning"`
-	NextRunIn time.Duration `json:"nextRunIn"`
+	NextRunIn time.Duration `json:"nextRunIn" swaggertype:"string" example:"1h30m0s"`
 }
 
 // Scheduler defines the standard scheduler contract used by registry wiring.
