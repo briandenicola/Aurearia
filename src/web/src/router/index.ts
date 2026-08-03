@@ -128,6 +128,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/shipments',
+      name: 'shipments',
+      component: () => import('@/pages/ShipmentTrackerPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/stats',
       name: 'stats',
       component: () => import('@/pages/StatsPage.vue'),

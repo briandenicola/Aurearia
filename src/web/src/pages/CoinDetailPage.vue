@@ -114,11 +114,6 @@
             @changed="refreshCoin"
           />
 
-          <CoinShipmentSection
-            :coin-id="coin.id"
-            @changed="refreshCoin"
-          />
-
           <CoinTagsSection
             :tags="coin.tags ?? []"
             :sets="coin.sets ?? []"
@@ -165,7 +160,6 @@ import CoinTagsSection from '@/components/coin/CoinTagsSection.vue'
 import CoinDetailMetadataTable from '@/components/coin/CoinDetailMetadataTable.vue'
 import CoinListingStatus from '@/components/coin/CoinListingStatus.vue'
 import CoinReferencesSection from '@/components/coin/CoinReferencesSection.vue'
-import CoinShipmentSection from '@/components/coin/CoinShipmentSection.vue'
 import { deleteCoin, duplicateCoin, purchaseCoin, sellCoin } from '@/api/client'
 import { colorForLabel, colorForLabelBackground } from '@/utils/categoryColor'
 import { useDialog } from '@/composables/useDialog'

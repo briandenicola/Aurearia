@@ -57,4 +57,14 @@ describe('App sidebar navigation', () => {
     expect(routerSource).not.toContain('/quick-capture/intake')
     expect(routerSource).not.toContain('/quick-capture/ai')
   })
+
+  it('includes shipment tracker as a standalone sidebar route', () => {
+    const source = fs.readFileSync(appPath, 'utf8')
+    const routerSource = fs.readFileSync(path.resolve(__dirname, '../router/index.ts'), 'utf8')
+
+    expect(source).toContain("id: 'shipments'")
+    expect(source).toContain("label: 'Shipment Tracker'")
+    expect(source).toContain("to: '/shipments'")
+    expect(routerSource).toContain("path: '/shipments'")
+  })
 })
