@@ -9,7 +9,6 @@ import (
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
-	"gorm.io/gorm"
 )
 
 var (
@@ -146,53 +145,41 @@ func (s *ShipmentService) DeleteShipment(userID, shipmentID uint) error {
 }
 
 func (s *ShipmentService) SetManualOverride(userID, shipmentID uint, enabled bool, status models.ShipmentStatus, note string) (*models.Shipment, error) {
-	var updated *models.Shipment
-	err := s.shipmentRepo.DB().Transaction(func(tx *gorm.DB) error {
-		txShipmentRepo := s.shipmentRepo.WithTx(tx)
-		shipment, err := txShipmentRepo.GetByIDForUser(shipmentID, userID)
-		if err != nil {
-			if repository.IsRecordNotFound(err) {
-				return ErrShipmentNotFound
-			}
-			return err
-		}
-
-		previousStatus := shipment.CurrentStatus
-		now := time.Now().UTC()
-		shipment.ManualOverrideEnabled = enabled
-		shipment.ManualOverrideNote = strings.TrimSpace(note)
-		if enabled {
-			shipment.ManualOverrideStatus = status
-			shipment.CurrentStatus = status
-			shipment.CurrentStatusSource = models.ShipmentStatusSourceManual
-			shipment.ManualOverrideUpdatedAt = &now
-		} else {
-			shipment.ManualOverrideStatus = ""
-			shipment.ManualOverrideUpdatedAt = nil
-		}
-
-		if err := txShipmentRepo.Update(shipment); err != nil {
-			return err
-		}
-
-		if enabled && previousStatus != status {
-			entry := &models.CoinJournal{
-				CoinID: shipment.CoinID,
-				UserID: shipment.UserID,
-				Entry:  buildShipmentStatusJournalEntry(status, shipment.ManualOverrideNote),
-			}
-			if err := s.coinRepo.WithTx(tx).CreateJournalEntry(entry); err != nil {
-				return err
-			}
-		}
-
-		updated, err = txShipmentRepo.GetByIDForUser(shipmentID, userID)
-		return err
-	})
+	shipment, err := s.GetShipmentByID(userID, shipmentID)
 	if err != nil {
 		return nil, err
 	}
-	return updated, nil
+
+	previousStatus := shipment.CurrentStatus
+	now := time.Now().UTC()
+	shipment.ManualOverrideEnabled = enabled
+	shipment.ManualOverrideNote = strings.TrimSpace(note)
+	if enabled {
+		shipment.ManualOverrideStatus = status
+		shipment.CurrentStatus = status
+		shipment.CurrentStatusSource = models.ShipmentStatusSourceManual
+		shipment.ManualOverrideUpdatedAt = &now
+	} else {
+		shipment.ManualOverrideStatus = ""
+		shipment.ManualOverrideUpdatedAt = nil
+	}
+
+	if err := s.shipmentRepo.Update(shipment); err != nil {
+		return nil, err
+	}
+
+	if enabled && previousStatus != status {
+		entry := &models.CoinJournal{
+			CoinID: shipment.CoinID,
+			UserID: shipment.UserID,
+			Entry:  buildShipmentStatusJournalEntry(status, shipment.ManualOverrideNote),
+		}
+		if err := s.coinRepo.CreateJournalEntry(entry); err != nil {
+			return nil, err
+		}
+	}
+
+	return s.GetShipmentByID(userID, shipmentID)
 }
 
 func (s *ShipmentService) SyncShipment(ctx context.Context, shipmentID, userID uint) (*models.Shipment, error) {
