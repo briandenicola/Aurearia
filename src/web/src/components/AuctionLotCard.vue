@@ -44,7 +44,6 @@
       <div class="flex flex-wrap gap-2">
         <span v-if="lot.auctionHouse" class="text-[0.78rem] text-text-secondary">{{ lot.auctionHouse }}</span>
         <span v-if="lot.saleName" class="text-[0.78rem] text-text-secondary">{{ lot.saleName }}</span>
-        <span v-if="lot.lotNumber" class="text-[0.78rem] font-semibold text-gold">Lot {{ lot.lotNumber }}</span>
       </div>
       <div class="flex flex-wrap gap-2">
         <span class="rounded-full bg-surface px-[0.45rem] py-[0.12rem] text-[0.72rem] text-text-secondary">{{ providerLabel }}</span>
@@ -57,21 +56,40 @@
         </span>
         <span v-if="lot.currency && lot.currency !== 'USD'" class="rounded-full bg-surface px-[0.45rem] py-[0.12rem] text-[0.72rem] text-text-secondary">{{ lot.currency }}</span>
       </div>
-      <div class="mt-auto flex flex-wrap gap-2 text-[0.82rem]">
-        <div v-if="lot.estimate" class="text-text-secondary">Est: {{ formatCurrency(lot.estimate, lot.currency) }}</div>
-        <div v-if="lot.initialBid && !lot.winningBid" class="text-text-muted">Start: {{ formatCurrency(lot.initialBid, lot.currency) }}</div>
-        <div v-if="lot.currentBid" class="font-semibold text-gold">Bid: {{ formatCurrency(lot.currentBid, lot.currency) }}</div>
-        <div v-if="lot.maxBid && lot.status !== 'won'" class="italic text-text-muted">Max: {{ formatCurrency(lot.maxBid, lot.currency) }}</div>
-        <div v-if="lot.winningBid" class="font-semibold text-[#4ade80]">Won: {{ formatCurrency(lot.winningBid, lot.currency) }}</div>
-        <div v-if="statusSourceLabel" class="text-[0.78rem] text-text-muted" :title="statusSourceLabel.title">{{ statusSourceLabel.text }}</div>
+      <div v-if="countdown" class="flex items-center gap-1.5 text-[1.05rem] font-semibold text-bronze">
+        <Timer :size="18" /> {{ countdown }}
+      </div>
+      <div v-if="hasLotSummaryRows" class="mt-auto overflow-hidden rounded-sm border border-border-subtle bg-surface/40 text-[0.82rem]">
+        <div v-if="lot.lotNumber" class="flex items-center justify-between gap-3 border-b border-border-subtle px-3 py-[0.45rem]">
+          <span class="text-text-secondary">Lot</span>
+          <span class="font-semibold text-text-primary">{{ lot.lotNumber }}</span>
+        </div>
+        <div v-if="lot.estimate" class="flex items-center justify-between gap-3 border-b border-border-subtle px-3 py-[0.45rem]">
+          <span class="text-text-secondary">Estimate Value</span>
+          <span class="font-semibold text-text-primary">{{ formatCurrency(lot.estimate, lot.currency) }}</span>
+        </div>
+        <div v-if="lot.initialBid && !lot.winningBid" class="flex items-center justify-between gap-3 border-b border-border-subtle px-3 py-[0.45rem]">
+          <span class="text-text-secondary">Starting Bid</span>
+          <span class="font-semibold text-text-primary">{{ formatCurrency(lot.initialBid, lot.currency) }}</span>
+        </div>
+        <div v-if="lot.currentBid" class="flex items-center justify-between gap-3 border-b border-border-subtle px-3 py-[0.45rem]">
+          <span class="text-text-secondary">Bid</span>
+          <span class="font-semibold text-gold">{{ formatCurrency(lot.currentBid, lot.currency) }}</span>
+        </div>
+        <div v-if="lot.maxBid && lot.status !== 'won'" class="flex items-center justify-between gap-3 px-3 py-[0.45rem]">
+          <span class="text-text-secondary">Max Bid</span>
+          <span class="font-semibold text-text-primary">{{ formatCurrency(lot.maxBid, lot.currency) }}</span>
+        </div>
+        <div v-else-if="lot.winningBid" class="flex items-center justify-between gap-3 px-3 py-[0.45rem]">
+          <span class="text-text-secondary">Won</span>
+          <span class="font-semibold text-[#4ade80]">{{ formatCurrency(lot.winningBid, lot.currency) }}</span>
+        </div>
       </div>
       <div v-if="priceAlerts.length || bidReminders.length" class="flex flex-wrap gap-[0.35rem]" aria-label="Auction alerts">
         <span v-if="priceAlerts.length" class="chip-sm">{{ priceAlerts.length }} price {{ priceAlerts.length === 1 ? 'alert' : 'alerts' }}</span>
         <span v-if="bidReminders.length" class="chip-sm">{{ bidReminders.length }} {{ bidReminders.length === 1 ? 'reminder' : 'reminders' }}</span>
       </div>
-      <div v-if="countdown" class="flex items-center gap-1.5 text-[1.05rem] font-semibold text-bronze">
-        <Timer :size="18" /> {{ countdown }}
-      </div>
+      <div v-if="statusSourceLabel" class="text-[0.78rem] text-text-muted" :title="statusSourceLabel.title">{{ statusSourceLabel.text }}</div>
       <SafeExternalLink
         v-if="externalUrl"
         :href="externalUrl"
@@ -150,6 +168,9 @@ const biddingIndicator = computed(() => {
 
 const needsAttention = computed(() => auctionLotNeedsAttention(props.lot))
 const statusSourceLabel = computed(() => auctionLotStatusSourceLabel(props.lot))
+const hasLotSummaryRows = computed(() =>
+  !!(props.lot.lotNumber || props.lot.estimate || (props.lot.initialBid && !props.lot.winningBid) || props.lot.currentBid || (props.lot.maxBid && props.lot.status !== 'won') || props.lot.winningBid),
+)
 
 
 </script>
