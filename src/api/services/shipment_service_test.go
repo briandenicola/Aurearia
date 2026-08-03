@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -11,6 +13,8 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
+
+var shipmentServiceDBCounter atomic.Uint64
 
 type stubShipmentCarrierClient struct {
 	carrier   models.ShipmentCarrier
@@ -42,10 +46,17 @@ type shipmentServiceHarness struct {
 
 func setupShipmentServiceHarness(t *testing.T, clients ...ShipmentCarrierClient) shipmentServiceHarness {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:shipment_service_%d_%d?mode=memory&cache=shared", time.Now().UnixNano(), shipmentServiceDBCounter.Add(1))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db handle: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.StorageLocation{},
