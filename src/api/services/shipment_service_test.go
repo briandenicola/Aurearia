@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -66,6 +67,7 @@ func setupShipmentServiceHarness(t *testing.T, clients ...ShipmentCarrierClient)
 		&models.Coin{},
 		&models.CoinImage{},
 		&models.CoinReference{},
+		&models.CoinJournal{},
 		&models.Notification{},
 		&models.Shipment{},
 		&models.ShipmentEvent{},
@@ -225,5 +227,16 @@ func TestShipmentService_SetManualOverride_DisablesSyncUpdates(t *testing.T) {
 	}
 	if synced.CurrentStatus != models.ShipmentStatusException {
 		t.Fatalf("status after sync with manual override = %s, want %s", synced.CurrentStatus, models.ShipmentStatusException)
+	}
+
+	journalEntries, err := repository.NewJournalRepository(h.db).GetEntries(h.coin.ID, h.user.ID)
+	if err != nil {
+		t.Fatalf("load journal entries: %v", err)
+	}
+	if len(journalEntries) == 0 {
+		t.Fatalf("expected shipment status journal entry")
+	}
+	if !strings.Contains(journalEntries[0].Entry, "Shipment status updated to Exception") {
+		t.Fatalf("journal entry = %q, expected shipment status update", journalEntries[0].Entry)
 	}
 }

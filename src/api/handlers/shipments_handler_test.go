@@ -46,6 +46,7 @@ func setupShipmentHandlerTestRouter(t *testing.T, clients ...services.ShipmentCa
 		&models.Coin{},
 		&models.CoinImage{},
 		&models.CoinReference{},
+		&models.CoinJournal{},
 		&models.Notification{},
 		&models.Shipment{},
 		&models.ShipmentEvent{},

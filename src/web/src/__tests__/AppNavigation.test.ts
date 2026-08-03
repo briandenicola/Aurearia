@@ -58,13 +58,11 @@ describe('App sidebar navigation', () => {
     expect(routerSource).not.toContain('/quick-capture/ai')
   })
 
-  it('includes shipment tracker as a standalone sidebar route', () => {
+  it('keeps shipment tracker under coin-scoped routes, not top-level sidebar navigation', () => {
     const source = fs.readFileSync(appPath, 'utf8')
     const routerSource = fs.readFileSync(path.resolve(__dirname, '../router/index.ts'), 'utf8')
 
-    expect(source).toContain("id: 'shipments'")
-    expect(source).toContain("label: 'Shipment Tracker'")
-    expect(source).toContain("to: '/shipments'")
-    expect(routerSource).toContain("path: '/shipments'")
+    expect(source).not.toContain("id: 'shipments'")
+    expect(routerSource).toContain("path: '/coin/:id/shipment'")
   })
 })
