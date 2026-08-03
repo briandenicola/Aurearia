@@ -5,12 +5,19 @@
     </div>
 
     <div v-else-if="coin" class="mx-auto max-w-[900px]">
-      <!-- Back link -->
-      <div class="mb-4">
+      <div class="mb-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <button class="btn btn-ghost btn-sm inline-flex items-center gap-1" @click="navigateToOverview">
           <ChevronLeft :size="16" />
           Back to Overview
         </button>
+        <CoinDetailOverflowMenu
+          :coin-id="coin.id"
+          :is-wishlist="coin.isWishlist"
+          :is-sold="coin.isSold"
+          :duplicating="duplicating"
+          @sell="showSellModal = true"
+          @duplicate="handleDuplicate"
+        />
       </div>
 
       <div class="mb-4 grid grid-cols-2 gap-4">
@@ -53,15 +60,27 @@
       <div>
         <slot :coin="coin" :refresh="refreshCoin"></slot>
       </div>
+
+      <SellModal
+        v-if="showSellModal && coin"
+        :coin="coin"
+        @close="showSellModal = false"
+        @confirm="confirmSell"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ChevronLeft } from 'lucide-vue-next'
 import { useCoinDetailContext } from '@/composables/useCoinDetailContext'
+import { useDialog } from '@/composables/useDialog'
+import { duplicateCoin, sellCoin } from '@/api/client'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+import SellModal from '@/components/SellModal.vue'
+import CoinDetailOverflowMenu from '@/components/coin/CoinDetailOverflowMenu.vue'
 
 defineProps<{
   sectionTitle: string
@@ -70,4 +89,33 @@ defineProps<{
 const { coin, loading, refreshCoin, navigateToOverview } = useCoinDetailContext()
 const obverseImage = computed(() => coin.value?.images?.find((image) => image.imageType === 'obverse') ?? null)
 const reverseImage = computed(() => coin.value?.images?.find((image) => image.imageType === 'reverse') ?? null)
+const showSellModal = ref(false)
+const duplicating = ref(false)
+const router = useRouter()
+const { showAlert } = useDialog()
+
+async function handleDuplicate() {
+  if (!coin.value || duplicating.value) return
+  duplicating.value = true
+  try {
+    const res = await duplicateCoin(coin.value.id)
+    await router.push(`/coin/${res.data.id}`)
+  } catch {
+    await showAlert('Failed to duplicate coin', { title: 'Error' })
+  } finally {
+    duplicating.value = false
+  }
+}
+
+async function confirmSell(soldPrice: number | null, soldTo: string) {
+  if (!coin.value) return
+  try {
+    await sellCoin(coin.value.id, soldPrice, soldTo)
+    showSellModal.value = false
+    await router.push('/sold')
+  } catch {
+    await showAlert('Failed to mark as sold', { title: 'Error' })
+    showSellModal.value = false
+  }
+}
 </script>
