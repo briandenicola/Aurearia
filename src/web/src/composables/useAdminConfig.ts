@@ -30,6 +30,8 @@ export function useAdminConfig() {
     AuctionAlertsCheckEnabled: 'false',
     AuctionAlertsCheckStartTime: '08:00',
     AuctionAlertsCheckInterval: '60',
+    WishlistSearchAlertsCheckEnabled: 'false',
+    WishlistSearchAlertsCheckStartTime: '03:00',
     CoinCategories: '',
     CoinEras: '',
   })
@@ -47,6 +49,8 @@ export function useAdminConfig() {
     AuctionAlertsCheckEnabled: 'false',
     AuctionAlertsCheckStartTime: '08:00',
     AuctionAlertsCheckInterval: '60',
+    WishlistSearchAlertsCheckEnabled: 'false',
+    WishlistSearchAlertsCheckStartTime: '03:00',
     CoinCategories: '',
     CoinEras: '',
   })
@@ -133,6 +137,12 @@ export function useAdminConfig() {
       }
       if (!settings.value.AuctionAlertsCheckInterval) {
         settings.value.AuctionAlertsCheckInterval = '60'
+      }
+      if (!settings.value.WishlistSearchAlertsCheckEnabled) {
+        settings.value.WishlistSearchAlertsCheckEnabled = 'false'
+      }
+      if (!settings.value.WishlistSearchAlertsCheckStartTime) {
+        settings.value.WishlistSearchAlertsCheckStartTime = '03:00'
       }
       if (!settings.value.AuctionWatchBidDigestEnabled) {
         settings.value.AuctionWatchBidDigestEnabled = 'false'
