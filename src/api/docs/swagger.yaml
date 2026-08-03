@@ -493,6 +493,11 @@ definitions:
       updatedAt:
         type: string
     type: object
+  handlers.ConvertToCoinRequest:
+    properties:
+      shipment:
+        $ref: '#/definitions/handlers.ShipmentAttachRequest'
+    type: object
   handlers.DeleteAnalysisResponse:
     properties:
       coin:
@@ -858,6 +863,8 @@ definitions:
         type: string
       purchasePrice:
         type: number
+      shipment:
+        $ref: '#/definitions/handlers.ShipmentAttachRequest'
     type: object
   handlers.ResetPasswordRequest:
     properties:
@@ -897,6 +904,52 @@ definitions:
       needsSetup:
         example: false
         type: boolean
+    type: object
+  handlers.ShipmentAttachRequest:
+    properties:
+      carrier:
+        type: string
+      manualCarrierName:
+        type: string
+      notes:
+        type: string
+      trackingNumber:
+        type: string
+    type: object
+  handlers.ShipmentEnvelopeResponse:
+    properties:
+      shipment:
+        $ref: '#/definitions/models.Shipment'
+      trackingUrl:
+        example: https://tools.usps.com/go/TrackConfirmAction?qtc_tLabels1=94001000
+        type: string
+    type: object
+  handlers.ShipmentManualOverrideRequest:
+    properties:
+      enabled:
+        example: true
+        type: boolean
+      note:
+        example: Carrier text confirmed by seller message
+        type: string
+      status:
+        example: out_for_delivery
+        type: string
+    type: object
+  handlers.ShipmentUpsertRequest:
+    properties:
+      carrier:
+        example: usps
+        type: string
+      manualCarrierName:
+        example: DHL
+        type: string
+      notes:
+        example: Seller ships next business day
+        type: string
+      trackingNumber:
+        example: "94001000"
+        type: string
     type: object
   handlers.StatsResponse:
     properties:
@@ -2738,6 +2791,118 @@ definitions:
     - SetProposalStatusRejected
     - SetProposalStatusExpired
     - SetProposalStatusCreationFailed
+  models.Shipment:
+    properties:
+      carrier:
+        $ref: '#/definitions/models.ShipmentCarrier'
+      coinId:
+        type: integer
+      createdAt:
+        type: string
+      currentStatus:
+        $ref: '#/definitions/models.ShipmentStatus'
+      currentStatusSource:
+        $ref: '#/definitions/models.ShipmentStatusSource'
+      deliveredAt:
+        type: string
+      estimatedDeliveryAt:
+        type: string
+      events:
+        items:
+          $ref: '#/definitions/models.ShipmentEvent'
+        type: array
+      id:
+        type: integer
+      lastSyncError:
+        type: string
+      lastSyncedAt:
+        type: string
+      manualCarrierName:
+        type: string
+      manualOverrideEnabled:
+        type: boolean
+      manualOverrideNote:
+        type: string
+      manualOverrideStatus:
+        $ref: '#/definitions/models.ShipmentStatus'
+      manualOverrideUpdatedAt:
+        type: string
+      notes:
+        type: string
+      trackingNumber:
+        type: string
+      updatedAt:
+        type: string
+      userId:
+        type: integer
+    type: object
+  models.ShipmentCarrier:
+    enum:
+    - usps
+    - ups
+    - fedex
+    - other
+    type: string
+    x-enum-varnames:
+    - ShipmentCarrierUSPS
+    - ShipmentCarrierUPS
+    - ShipmentCarrierFedEx
+    - ShipmentCarrierOther
+  models.ShipmentEvent:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      eventKey:
+        type: string
+      id:
+        type: integer
+      location:
+        type: string
+      occurredAt:
+        type: string
+      rawPayload:
+        type: string
+      rawStatus:
+        type: string
+      shipmentId:
+        type: integer
+      status:
+        $ref: '#/definitions/models.ShipmentStatus'
+      statusSource:
+        $ref: '#/definitions/models.ShipmentStatusSource'
+      userId:
+        type: integer
+    type: object
+  models.ShipmentStatus:
+    enum:
+    - pending
+    - label_created
+    - in_transit
+    - out_for_delivery
+    - delivered
+    - exception
+    - returned
+    - unknown
+    type: string
+    x-enum-varnames:
+    - ShipmentStatusPending
+    - ShipmentStatusLabelCreated
+    - ShipmentStatusInTransit
+    - ShipmentStatusOutForDelivery
+    - ShipmentStatusDelivered
+    - ShipmentStatusException
+    - ShipmentStatusReturned
+    - ShipmentStatusUnknown
+  models.ShipmentStatusSource:
+    enum:
+    - manual
+    - carrier_api
+    type: string
+    x-enum-varnames:
+    - ShipmentStatusSourceManual
+    - ShipmentStatusSourceAPI
   models.StorageLocation:
     properties:
       createdAt:
@@ -3439,29 +3604,9 @@ definitions:
       name:
         type: string
       nextRunIn:
-        $ref: '#/definitions/time.Duration'
+        example: 1h30m0s
+        type: string
     type: object
-  time.Duration:
-    enum:
-    - -9223372036854775808
-    - 9223372036854775807
-    - 1
-    - 1000
-    - 1000000
-    - 1000000000
-    - 60000000000
-    - 3600000000000
-    format: int64
-    type: integer
-    x-enum-varnames:
-    - minDuration
-    - maxDuration
-    - Nanosecond
-    - Microsecond
-    - Millisecond
-    - Second
-    - Minute
-    - Hour
 info:
   contact: {}
   description: REST API for managing a personal coin collection. Supports coin CRUD,
@@ -5924,6 +6069,8 @@ paths:
       - Auctions
   /auctions/{id}/convert:
     post:
+      consumes:
+      - application/json
       description: Creates an owned Coin from a won auction lot.
       parameters:
       - description: Auction lot ID
@@ -5931,6 +6078,11 @@ paths:
         name: id
         required: true
         type: integer
+      - description: Optional shipment attachment
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/handlers.ConvertToCoinRequest'
       produces:
       - application/json
       responses:
@@ -8342,6 +8494,209 @@ paths:
       security:
       - BearerAuth: []
       summary: Mark coin as sold
+      tags:
+      - Coins
+  /coins/{id}/shipment:
+    delete:
+      description: Deletes a shipment record attached to a coin owned by the authenticated
+        user.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete coin shipment
+      tags:
+      - Coins
+    get:
+      description: Returns the shipment record and timeline for a coin owned by the
+        authenticated user.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ShipmentEnvelopeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get coin shipment
+      tags:
+      - Coins
+    put:
+      consumes:
+      - application/json
+      description: Attaches or updates a shipment record (carrier, tracking, notes)
+        for a coin owned by the authenticated user.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Shipment payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ShipmentUpsertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ShipmentEnvelopeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create or update coin shipment
+      tags:
+      - Coins
+  /coins/{id}/shipment/manual-override:
+    put:
+      consumes:
+      - application/json
+      description: Enables/disables manual shipment status override for a coin shipment.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Manual override payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ShipmentManualOverrideRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ShipmentEnvelopeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Set shipment manual override
+      tags:
+      - Coins
+  /coins/{id}/shipment/sync:
+    post:
+      description: Fetches latest shipment status/events from the configured carrier
+        integration for the coin shipment.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.ShipmentEnvelopeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Sync coin shipment status
       tags:
       - Coins
   /coins/{id}/tags:

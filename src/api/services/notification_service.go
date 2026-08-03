@@ -26,6 +26,7 @@ const (
 	NotificationTypeAuctionPriceAlert  = "auction_price_alert"
 	NotificationTypeAuctionBidReminder = "auction_bid_reminder"
 	NotificationTypeAuctionEndingSoon  = "auction_ending_soon"
+	NotificationTypeShipmentStatus      = "shipment_status"
 )
 
 // NewNotificationService creates a new NotificationService.
@@ -70,6 +71,38 @@ func (s *NotificationService) NotifyWishlistUnavailable(userID uint, coin models
 	}
 
 	go s.sendPushover(userID, title, message, coin.ReferenceURL)
+}
+
+// NotifyShipmentStatusTransition creates an in-app shipment milestone notification
+// and best-effort Pushover push when available.
+func (s *NotificationService) NotifyShipmentStatusTransition(
+	userID uint,
+	coinID uint,
+	shipmentID uint,
+	previousStatus models.ShipmentStatus,
+	currentStatus models.ShipmentStatus,
+) {
+	title := "Shipment update"
+	message := fmt.Sprintf(
+		"Shipment for coin #%d changed from %s to %s.",
+		coinID,
+		formatShipmentStatusLabel(previousStatus),
+		formatShipmentStatusLabel(currentStatus),
+	)
+	refURL := fmt.Sprintf("/coin/%d", coinID)
+
+	n := &models.Notification{
+		UserID:       userID,
+		Type:         NotificationTypeShipmentStatus,
+		Title:        title,
+		Message:      message,
+		ReferenceID:  shipmentID,
+		ReferenceURL: refURL,
+	}
+	if err := s.notifRepo.Create(n); err != nil {
+		s.logger.Error("notifications", "Failed to create shipment notification for user %d, shipment %d: %v", userID, shipmentID, err)
+	}
+	go s.sendPushover(userID, title, message, refURL)
 }
 
 // NotifyNewCoin creates notifications for all accepted followers when a user
@@ -447,4 +480,19 @@ func truncateRunes(value string, max int) string {
 		return value
 	}
 	return string(runes[:max-3]) + "..."
+}
+
+func formatShipmentStatusLabel(status models.ShipmentStatus) string {
+	value := strings.ReplaceAll(string(status), "_", " ")
+	if value == "" {
+		return "unknown"
+	}
+	words := strings.Fields(value)
+	for i, word := range words {
+		if word == "" {
+			continue
+		}
+		words[i] = strings.ToUpper(word[:1]) + word[1:]
+	}
+	return strings.Join(words, " ")
 }

@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -20,6 +22,7 @@ type AuctionLotHandler struct {
 	userRepo    *repository.UserRepository
 	nbSvc       *services.NumisBidsService
 	cngSvc      *services.CNGAuctionService
+	shipmentSvc *services.ShipmentService
 	logger      *services.Logger
 	credentials *services.CredentialEncryptionService
 }
@@ -31,6 +34,12 @@ func NewAuctionLotHandler(repo *repository.AuctionLotRepository, svc *services.A
 		credentials = credentialSvc[0]
 	}
 	return &AuctionLotHandler{repo: repo, svc: svc, userRepo: userRepo, nbSvc: nbSvc, cngSvc: cngSvc, logger: logger, credentials: credentials}
+}
+
+// WithShipmentSupport enables optional shipment creation on conversion flow.
+func (h *AuctionLotHandler) WithShipmentSupport(shipmentSvc *services.ShipmentService) *AuctionLotHandler {
+	h.shipmentSvc = shipmentSvc
+	return h
 }
 
 // List returns a paginated list of auction lots for the authenticated user.
@@ -469,6 +478,10 @@ type BulkLinkEventRequest struct {
 	EventID *uint  `json:"eventId"`
 }
 
+type ConvertToCoinRequest struct {
+	Shipment *ShipmentAttachRequest `json:"shipment,omitempty"`
+}
+
 // BulkLinkEvent associates or disassociates multiple auction lots with a calendar event.
 //
 //	@Summary		Bulk link lots to calendar event
@@ -508,8 +521,10 @@ func (h *AuctionLotHandler) BulkLinkEvent(c *gin.Context) {
 //	@Summary		Convert won lot to coin
 //	@Description	Creates an owned Coin from a won auction lot.
 //	@Tags			Auctions
+//	@Accept			json
 //	@Produce		json
 //	@Param			id	path		int	true	"Auction lot ID"
+//	@Param			body	body		ConvertToCoinRequest	false	"Optional shipment attachment"
 //	@Success		201	{object}	models.Coin
 //	@Failure		400	{object}	ErrorResponse
 //	@Security		BearerAuth
@@ -520,6 +535,19 @@ func (h *AuctionLotHandler) ConvertToCoin(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
 		return
+	}
+
+	var req ConvertToCoinRequest
+	rawBody, err := c.GetRawData()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+	if len(bytes.TrimSpace(rawBody)) > 0 {
+		if err := json.Unmarshal(rawBody, &req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			return
+		}
 	}
 
 	coin, err := h.svc.ConvertToCoin(uint(id), userID)
@@ -534,6 +562,19 @@ func (h *AuctionLotHandler) ConvertToCoin(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to convert lot to coin"})
 		return
+	}
+
+	if req.Shipment != nil && h.shipmentSvc != nil {
+		if _, err := h.shipmentSvc.UpsertShipmentForCoin(
+			userID,
+			coin.ID,
+			models.ShipmentCarrier(req.Shipment.Carrier),
+			req.Shipment.TrackingNumber,
+			req.Shipment.Notes,
+			req.Shipment.ManualCarrierName,
+		); err != nil {
+			h.logger.Warn("auction_lots", "Shipment attach failed for converted lot %d coin %d user %d: %v", uint(id), coin.ID, userID, err)
+		}
 	}
 
 	c.JSON(http.StatusCreated, coin)

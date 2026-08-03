@@ -4058,6 +4058,9 @@
                     }
                 ],
                 "description": "Creates an owned Coin from a won auction lot.",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4072,6 +4075,14 @@
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Optional shipment attachment",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ConvertToCoinRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -7811,6 +7822,316 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/models.Coin"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/coins/{id}/shipment": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the shipment record and timeline for a coin owned by the authenticated user.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Get coin shipment",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ShipmentEnvelopeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Attaches or updates a shipment record (carrier, tracking, notes) for a coin owned by the authenticated user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Create or update coin shipment",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Shipment payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ShipmentUpsertRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ShipmentEnvelopeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes a shipment record attached to a coin owned by the authenticated user.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Delete coin shipment",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/coins/{id}/shipment/manual-override": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Enables/disables manual shipment status override for a coin shipment.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Set shipment manual override",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Manual override payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ShipmentManualOverrideRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ShipmentEnvelopeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/coins/{id}/shipment/sync": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Fetches latest shipment status/events from the configured carrier integration for the coin shipment.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Sync coin shipment status",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ShipmentEnvelopeResponse"
                         }
                     },
                     "400": {
@@ -16634,6 +16955,14 @@
                 }
             }
         },
+        "handlers.ConvertToCoinRequest": {
+            "type": "object",
+            "properties": {
+                "shipment": {
+                    "$ref": "#/definitions/handlers.ShipmentAttachRequest"
+                }
+            }
+        },
         "handlers.DeleteAnalysisResponse": {
             "type": "object",
             "properties": {
@@ -17165,6 +17494,9 @@
                 },
                 "purchasePrice": {
                     "type": "number"
+                },
+                "shipment": {
+                    "$ref": "#/definitions/handlers.ShipmentAttachRequest"
                 }
             }
         },
@@ -17223,6 +17555,73 @@
                 "needsSetup": {
                     "type": "boolean",
                     "example": false
+                }
+            }
+        },
+        "handlers.ShipmentAttachRequest": {
+            "type": "object",
+            "properties": {
+                "carrier": {
+                    "type": "string"
+                },
+                "manualCarrierName": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "trackingNumber": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.ShipmentEnvelopeResponse": {
+            "type": "object",
+            "properties": {
+                "shipment": {
+                    "$ref": "#/definitions/models.Shipment"
+                },
+                "trackingUrl": {
+                    "type": "string",
+                    "example": "https://tools.usps.com/go/TrackConfirmAction?qtc_tLabels1=94001000"
+                }
+            }
+        },
+        "handlers.ShipmentManualOverrideRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "note": {
+                    "type": "string",
+                    "example": "Carrier text confirmed by seller message"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "out_for_delivery"
+                }
+            }
+        },
+        "handlers.ShipmentUpsertRequest": {
+            "type": "object",
+            "properties": {
+                "carrier": {
+                    "type": "string",
+                    "example": "usps"
+                },
+                "manualCarrierName": {
+                    "type": "string",
+                    "example": "DHL"
+                },
+                "notes": {
+                    "type": "string",
+                    "example": "Seller ships next business day"
+                },
+                "trackingNumber": {
+                    "type": "string",
+                    "example": "94001000"
                 }
             }
         },
@@ -19899,6 +20298,164 @@
                 "SetProposalStatusCreationFailed"
             ]
         },
+        "models.Shipment": {
+            "type": "object",
+            "properties": {
+                "carrier": {
+                    "$ref": "#/definitions/models.ShipmentCarrier"
+                },
+                "coinId": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "currentStatus": {
+                    "$ref": "#/definitions/models.ShipmentStatus"
+                },
+                "currentStatusSource": {
+                    "$ref": "#/definitions/models.ShipmentStatusSource"
+                },
+                "deliveredAt": {
+                    "type": "string"
+                },
+                "estimatedDeliveryAt": {
+                    "type": "string"
+                },
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ShipmentEvent"
+                    }
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "lastSyncError": {
+                    "type": "string"
+                },
+                "lastSyncedAt": {
+                    "type": "string"
+                },
+                "manualCarrierName": {
+                    "type": "string"
+                },
+                "manualOverrideEnabled": {
+                    "type": "boolean"
+                },
+                "manualOverrideNote": {
+                    "type": "string"
+                },
+                "manualOverrideStatus": {
+                    "$ref": "#/definitions/models.ShipmentStatus"
+                },
+                "manualOverrideUpdatedAt": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "trackingNumber": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.ShipmentCarrier": {
+            "type": "string",
+            "enum": [
+                "usps",
+                "ups",
+                "fedex",
+                "other"
+            ],
+            "x-enum-varnames": [
+                "ShipmentCarrierUSPS",
+                "ShipmentCarrierUPS",
+                "ShipmentCarrierFedEx",
+                "ShipmentCarrierOther"
+            ]
+        },
+        "models.ShipmentEvent": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "eventKey": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "occurredAt": {
+                    "type": "string"
+                },
+                "rawPayload": {
+                    "type": "string"
+                },
+                "rawStatus": {
+                    "type": "string"
+                },
+                "shipmentId": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.ShipmentStatus"
+                },
+                "statusSource": {
+                    "$ref": "#/definitions/models.ShipmentStatusSource"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.ShipmentStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "label_created",
+                "in_transit",
+                "out_for_delivery",
+                "delivered",
+                "exception",
+                "returned",
+                "unknown"
+            ],
+            "x-enum-varnames": [
+                "ShipmentStatusPending",
+                "ShipmentStatusLabelCreated",
+                "ShipmentStatusInTransit",
+                "ShipmentStatusOutForDelivery",
+                "ShipmentStatusDelivered",
+                "ShipmentStatusException",
+                "ShipmentStatusReturned",
+                "ShipmentStatusUnknown"
+            ]
+        },
+        "models.ShipmentStatusSource": {
+            "type": "string",
+            "enum": [
+                "manual",
+                "carrier_api"
+            ],
+            "x-enum-varnames": [
+                "ShipmentStatusSourceManual",
+                "ShipmentStatusSourceAPI"
+            ]
+        },
         "models.StorageLocation": {
             "type": "object",
             "properties": {
@@ -20950,33 +21507,10 @@
                     "type": "string"
                 },
                 "nextRunIn": {
-                    "$ref": "#/definitions/time.Duration"
+                    "type": "string",
+                    "example": "1h30m0s"
                 }
             }
-        },
-        "time.Duration": {
-            "type": "integer",
-            "format": "int64",
-            "enum": [
-                -9223372036854775808,
-                9223372036854775807,
-                1,
-                1000,
-                1000000,
-                1000000000,
-                60000000000,
-                3600000000000
-            ],
-            "x-enum-varnames": [
-                "minDuration",
-                "maxDuration",
-                "Nanosecond",
-                "Microsecond",
-                "Millisecond",
-                "Second",
-                "Minute",
-                "Hour"
-            ]
         }
     },
     "securityDefinitions": {

@@ -317,6 +317,23 @@
             </button>
           </div>
         </div>
+        <div v-if="lot.status === 'won'" class="rounded-sm border border-border-subtle bg-card-hover p-3">
+          <label class="mb-2 inline-flex items-center gap-2 text-[0.82rem] text-text-secondary">
+            <input v-model="attachShipment" type="checkbox" />
+            Add shipment tracking when converting
+          </label>
+          <div v-if="attachShipment" class="grid gap-2 md:grid-cols-2">
+            <select v-model="shipmentCarrier" class="form-input">
+              <option value="usps">USPS</option>
+              <option value="ups">UPS</option>
+              <option value="fedex">FedEx</option>
+              <option value="other">Other</option>
+            </select>
+            <input v-model="shipmentTrackingNumber" class="form-input" placeholder="Tracking number" />
+            <input v-if="shipmentCarrier === 'other'" v-model="shipmentManualCarrierName" class="form-input md:col-span-2" placeholder="Carrier name" />
+            <input v-model="shipmentNotes" class="form-input md:col-span-2" placeholder="Shipment notes (optional)" />
+          </div>
+        </div>
         <div class="flex flex-wrap gap-[0.6rem]">
           <SafeExternalLink v-if="externalUrl" :href="externalUrl" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
             <ExternalLink :size="14" /> View on {{ providerLabel }}
@@ -338,7 +355,7 @@ import { ref, computed, onMounted, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { updateAuctionLotStatus, updateAuctionLot, convertAuctionLotToCoin, deleteAuctionLot, listCalendarEvents, linkAuctionLotEvent, createAlert, deleteAlert, createReminder, deleteReminder, getAuctionLotBidRecommendation, getAuctionLotMarketSignal, getAgentStatus } from '@/api/client'
 import { useProxiedImage } from '@/composables/useProxiedImage'
-import type { AuctionLot, AuctionLotStatus, BidReminder, BidRecommendation, MarketSignal, PriceAlert, PriceAlertDirection } from '@/types'
+import type { AuctionLot, AuctionLotStatus, BidReminder, BidRecommendation, MarketSignal, PriceAlert, PriceAlertDirection, ShipmentUpsertInput } from '@/types'
 import { X, ExternalLink, ArrowRightCircle, Trash2, CalendarDays, Pencil, AlertTriangle } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
 import { auctionLotNeedsAttention, auctionLotStatusSourceLabel } from '@/utils/auctionLot'
@@ -407,6 +424,11 @@ const reminderForm = reactive<{ minutesBefore: number | null }>({
 })
 const canCreateAlert = computed(() => typeof alertForm.targetPrice === 'number' && alertForm.targetPrice > 0)
 const canCreateReminder = computed(() => typeof reminderForm.minutesBefore === 'number' && reminderForm.minutesBefore > 0)
+const attachShipment = ref(false)
+const shipmentCarrier = ref<'usps' | 'ups' | 'fedex' | 'other'>('usps')
+const shipmentTrackingNumber = ref('')
+const shipmentManualCarrierName = ref('')
+const shipmentNotes = ref('')
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
@@ -680,8 +702,12 @@ async function changeStatus() {
     await updateAuctionLotStatus(props.lot.id, newStatus.value, bid, winBid)
 
     if (newStatus.value === 'won') {
+      const shipment = buildShipmentInput()
+      if (shipment === null) {
+        return
+      }
       try {
-        const coinRes = await convertAuctionLotToCoin(props.lot.id)
+        const coinRes = await convertAuctionLotToCoin(props.lot.id, shipment ? { shipment } : undefined)
         emit('close')
         router.push(`/edit/${coinRes.data.id}`)
         return
@@ -703,8 +729,13 @@ async function changeStatus() {
 async function convertToCoin() {
   statusBusy.value = true
   setStatusMessage('')
+  const shipment = buildShipmentInput()
+  if (shipment === null) {
+    statusBusy.value = false
+    return
+  }
   try {
-    const coinRes = await convertAuctionLotToCoin(props.lot.id)
+    const coinRes = await convertAuctionLotToCoin(props.lot.id, shipment ? { shipment } : undefined)
     emit('close')
     router.push(`/edit/${coinRes.data.id}`)
   } catch (err) {
@@ -729,6 +760,24 @@ async function removeLot() {
 }
 
 onMounted(fetchCalendarEvents)
+
+function buildShipmentInput(): ShipmentUpsertInput | null | undefined {
+  if (!attachShipment.value) return undefined
+  if (!shipmentTrackingNumber.value.trim()) {
+    setStatusMessage('Tracking number is required when shipment tracking is enabled', true)
+    return null
+  }
+  if (shipmentCarrier.value === 'other' && !shipmentManualCarrierName.value.trim()) {
+    setStatusMessage('Carrier name is required when carrier is Other', true)
+    return null
+  }
+  return {
+    carrier: shipmentCarrier.value,
+    trackingNumber: shipmentTrackingNumber.value.trim(),
+    notes: shipmentNotes.value.trim() || undefined,
+    manualCarrierName: shipmentCarrier.value === 'other' ? shipmentManualCarrierName.value.trim() : undefined,
+  }
+}
 </script>
 
 <style scoped>

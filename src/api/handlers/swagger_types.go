@@ -154,6 +154,24 @@ type WishlistSearchAlertCriteriaAdjustRequest struct {
 	Criteria     WishlistSearchAlertCriteriaRequest `json:"criteria"`
 }
 
+type ShipmentUpsertRequest struct {
+	Carrier           string `json:"carrier" example:"usps"`
+	TrackingNumber    string `json:"trackingNumber" example:"94001000"`
+	Notes             string `json:"notes" example:"Seller ships next business day"`
+	ManualCarrierName string `json:"manualCarrierName,omitempty" example:"DHL"`
+}
+
+type ShipmentManualOverrideRequest struct {
+	Enabled bool   `json:"enabled" example:"true"`
+	Status  string `json:"status" example:"out_for_delivery"`
+	Note    string `json:"note" example:"Carrier text confirmed by seller message"`
+}
+
+type ShipmentEnvelopeResponse struct {
+	Shipment    *models.Shipment `json:"shipment"`
+	TrackingURL string           `json:"trackingUrl" example:"https://tools.usps.com/go/TrackConfirmAction?qtc_tLabels1=94001000"`
+}
+
 type StatsResponse struct {
 	TotalCoins    int64           `json:"totalCoins" example:"25"`
 	TotalWishlist int64           `json:"totalWishlist" example:"5"`
