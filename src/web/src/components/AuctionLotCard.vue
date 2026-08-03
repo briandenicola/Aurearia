@@ -69,8 +69,8 @@
         <span v-if="priceAlerts.length" class="chip-sm">{{ priceAlerts.length }} price {{ priceAlerts.length === 1 ? 'alert' : 'alerts' }}</span>
         <span v-if="bidReminders.length" class="chip-sm">{{ bidReminders.length }} {{ bidReminders.length === 1 ? 'reminder' : 'reminders' }}</span>
       </div>
-      <div v-if="countdown" class="flex items-center gap-1 text-sm font-medium text-bronze">
-        <Timer :size="14" /> {{ countdown }}
+      <div v-if="countdown" class="flex items-center gap-1.5 text-[1.05rem] font-semibold text-bronze">
+        <Timer :size="18" /> {{ countdown }}
       </div>
       <SafeExternalLink
         v-if="externalUrl"
