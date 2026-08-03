@@ -63,7 +63,9 @@
         <span v-if="priceAlerts.length" class="chip-sm">{{ priceAlerts.length }} price {{ priceAlerts.length === 1 ? 'alert' : 'alerts' }}</span>
         <span v-if="bidReminders.length" class="chip-sm">{{ bidReminders.length }} {{ bidReminders.length === 1 ? 'reminder' : 'reminders' }}</span>
       </div>
-      <div v-if="saleCountdown" class="text-sm font-medium text-bronze">{{ saleCountdown }}</div>
+      <div v-if="countdown" class="flex items-center gap-1 text-sm font-medium text-bronze">
+        <Timer :size="14" /> {{ countdown }}
+      </div>
       <SafeExternalLink
         v-if="externalUrl"
         :href="externalUrl"
@@ -81,10 +83,11 @@
 <script setup lang="ts">
 import type { AuctionLot, BidReminder, PriceAlert } from '@/types'
 import { computed } from 'vue'
-import { Gavel, Check, AlertTriangle } from 'lucide-vue-next'
+import { Gavel, Check, AlertTriangle, Timer } from 'lucide-vue-next'
 import { formatCurrency } from '@/utils/format'
 import { auctionLotNeedsAttention, auctionLotStatusSourceLabel } from '@/utils/auctionLot'
 import { useProxiedImage } from '@/composables/useProxiedImage'
+import { useCountdown } from '@/composables/useCountdown'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { colorForLabel } from '@/utils/categoryColor'
 
@@ -128,18 +131,8 @@ const statusLabel = computed(() => {
   return labels[props.lot.status] ?? props.lot.status
 })
 
-const saleCountdown = computed(() => {
-  if (!props.lot.saleDate) return null
-  const sale = new Date(props.lot.saleDate)
-  const now = new Date()
-  const diff = sale.getTime() - now.getTime()
-  if (diff <= 0) return null
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  if (days > 30) return `${Math.floor(days / 30)}mo away`
-  if (days > 0) return `${days}d away`
-  const hours = Math.floor(diff / (1000 * 60 * 60))
-  return `${hours}h away`
-})
+const countdownTarget = computed(() => props.lot.auctionEndTime ?? props.lot.saleDate)
+const { label: countdown } = useCountdown(countdownTarget)
 
 const biddingIndicator = computed(() => {
   if (props.lot.status !== 'bidding' || !props.lot.currentBid || !props.lot.maxBid) return null
