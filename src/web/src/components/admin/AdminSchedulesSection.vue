@@ -49,6 +49,39 @@
     </div>
 
     <hr class="my-6 border-0 border-t border-border-subtle" />
+
+    <!-- Wishlist Search Alerts -->
+    <h3 class="mb-4 text-base font-semibold text-text-primary">Wishlist Search Alerts</h3>
+    <p class="mb-4 text-base text-text-secondary">Runs the daily sweep that queues automatic discovery runs for wishlist search alerts whose cadence (daily/weekly/monthly) has elapsed. Individual alerts also support Run Now from the Wishlist Alerts page.</p>
+    <div class="mb-4">
+      <div class="form-group flex items-center justify-between gap-3">
+        <label class="form-label">Enable Automatic Checks</label>
+        <label class="relative inline-block h-[22px] w-[42px]">
+          <input
+            class="peer sr-only" type="checkbox"
+            :checked="settings.WishlistSearchAlertsCheckEnabled === 'true'"
+            @change="settings.WishlistSearchAlertsCheckEnabled = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
+          />
+          <span class="absolute inset-0 rounded-full border border-border-subtle bg-surface transition-colors after:absolute after:bottom-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-[var(--text-secondary)] after:transition-transform peer-checked:border-gold peer-checked:bg-[var(--accent-gold-dim)] peer-checked:after:translate-x-5 peer-checked:after:bg-gold peer-focus-visible:outline-2 peer-focus-visible:outline-gold peer-focus-visible:outline-offset-2"></span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Start Time (daily anchor)</label>
+        <input
+          v-model="settings.WishlistSearchAlertsCheckStartTime"
+          class="form-input w-full max-w-[120px]"
+          type="time"
+        />
+        <span class="form-hint">The daily sweep runs at this time and queues any alerts whose cadence has elapsed since their last run.</span>
+      </div>
+      <div class="mt-4 flex w-full flex-col gap-3 md:flex-row md:items-center">
+        <button class="btn btn-primary btn-sm" :disabled="settingsSaving" @click="$emit('save')">
+          {{ settingsSaving ? 'Saving...' : 'Save Schedule Settings' }}
+        </button>
+      </div>
+    </div>
+
+    <hr class="my-6 border-0 border-t border-border-subtle" />
     <h3 class="mb-4 text-base font-semibold text-text-primary">Availability Run History</h3>
 
     <div v-if="availLoading" class="flex justify-center py-8"><div class="spinner"></div></div>

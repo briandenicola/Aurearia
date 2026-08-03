@@ -1224,6 +1224,8 @@ export interface AppSettings {
   AuctionAlertsCheckEnabled?: string
   AuctionAlertsCheckStartTime?: string
   AuctionAlertsCheckInterval?: string
+  WishlistSearchAlertsCheckEnabled?: string
+  WishlistSearchAlertsCheckStartTime?: string
   CoinCategories?: string
   CoinEras?: string
   [key: string]: string | undefined
