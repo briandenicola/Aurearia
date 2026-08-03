@@ -20,6 +20,13 @@
       >
         {{ statusLabel }}
       </span>
+      <span
+        v-if="biddingIndicator"
+        class="absolute bottom-2 left-2 z-[2] rounded-full px-2.5 py-[0.2rem] text-label font-semibold uppercase tracking-[0.04em]"
+        :class="biddingIndicator.badgeCls"
+      >
+        {{ biddingIndicator.label }}
+      </span>
       <div
         v-if="selectable"
         class="absolute top-2 left-2 z-[4] flex h-6 w-6 items-center justify-center rounded-full border-2 border-white/70 bg-black/40 transition-all"
@@ -56,15 +63,14 @@
         <div v-if="lot.currentBid" class="font-semibold text-gold">Bid: {{ formatCurrency(lot.currentBid, lot.currency) }}</div>
         <div v-if="lot.maxBid && lot.status !== 'won'" class="italic text-text-muted">Max: {{ formatCurrency(lot.maxBid, lot.currency) }}</div>
         <div v-if="lot.winningBid" class="font-semibold text-[#4ade80]">Won: {{ formatCurrency(lot.winningBid, lot.currency) }}</div>
-        <div v-if="biddingIndicator" :class="biddingIndicator.cls" class="text-[0.78rem] font-semibold">{{ biddingIndicator.label }}</div>
         <div v-if="statusSourceLabel" class="text-[0.78rem] text-text-muted" :title="statusSourceLabel.title">{{ statusSourceLabel.text }}</div>
       </div>
       <div v-if="priceAlerts.length || bidReminders.length" class="flex flex-wrap gap-[0.35rem]" aria-label="Auction alerts">
         <span v-if="priceAlerts.length" class="chip-sm">{{ priceAlerts.length }} price {{ priceAlerts.length === 1 ? 'alert' : 'alerts' }}</span>
         <span v-if="bidReminders.length" class="chip-sm">{{ bidReminders.length }} {{ bidReminders.length === 1 ? 'reminder' : 'reminders' }}</span>
       </div>
-      <div v-if="countdown" class="flex items-center gap-1 text-sm font-medium text-bronze">
-        <Timer :size="14" /> {{ countdown }}
+      <div v-if="countdown" class="flex items-center gap-1.5 text-[1.05rem] font-semibold text-bronze">
+        <Timer :size="18" /> {{ countdown }}
       </div>
       <SafeExternalLink
         v-if="externalUrl"
@@ -137,9 +143,9 @@ const { label: countdown } = useCountdown(countdownTarget)
 const biddingIndicator = computed(() => {
   if (props.lot.status !== 'bidding' || !props.lot.currentBid || !props.lot.maxBid) return null
   if (props.lot.maxBid >= props.lot.currentBid) {
-    return { label: 'Winning', cls: 'text-[#4ade80]' }
+    return { label: 'Winning', badgeCls: 'bg-[#4ade80] text-[#052e13]' }
   }
-  return { label: 'Outbid', cls: 'text-[#f87171]' }
+  return { label: 'Outbid', badgeCls: 'bg-[#f87171] text-[#450a0a]' }
 })
 
 const needsAttention = computed(() => auctionLotNeedsAttention(props.lot))
