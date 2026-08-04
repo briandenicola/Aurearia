@@ -66,7 +66,7 @@ type ParcelAppEvent struct {
 }
 
 func (c *HTTPParcelAppClient) ListDeliveries(ctx context.Context, apiKey string) ([]ParcelAppDelivery, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(c.baseURL, "/")+"/deliveries/?filter_mode=active", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(c.baseURL, "/")+"/deliveries/?filter_mode=recent", nil)
 	if err != nil {
 		return nil, err
 	}

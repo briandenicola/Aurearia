@@ -384,24 +384,24 @@ func (s *ShipmentService) syncSingleShipment(ctx context.Context, shipment *mode
 func (s *ShipmentService) syncParcelShipmentsForUser(ctx context.Context, userID uint, shipments []models.Shipment) ShipmentSyncSummary {
 	summary := ShipmentSyncSummary{Checked: len(shipments)}
 	if !s.parcelAppEnabled() {
-		for _, shipment := range shipments {
-			_ = s.shipmentRepo.MarkSyncFailure(shipment.ID, shipment.UserID, ErrParcelAppDisabled.Error())
+		for i := range shipments {
+			s.markShipmentSyncFailure(&shipments[i], ErrParcelAppDisabled)
 		}
 		summary.Failed = len(shipments)
 		return summary
 	}
 	apiKey, err := s.parcelAPIKeyForUser(userID)
 	if err != nil {
-		for _, shipment := range shipments {
-			_ = s.shipmentRepo.MarkSyncFailure(shipment.ID, shipment.UserID, err.Error())
+		for i := range shipments {
+			s.markShipmentSyncFailure(&shipments[i], err)
 		}
 		summary.Failed = len(shipments)
 		return summary
 	}
 	deliveries, err := s.parcelClient.ListDeliveries(ctx, apiKey)
 	if err != nil {
-		for _, shipment := range shipments {
-			_ = s.shipmentRepo.MarkSyncFailure(shipment.ID, shipment.UserID, err.Error())
+		for i := range shipments {
+			s.markShipmentSyncFailure(&shipments[i], err)
 		}
 		summary.Failed = len(shipments)
 		return summary
@@ -411,7 +411,7 @@ func (s *ShipmentService) syncParcelShipmentsForUser(ctx context.Context, userID
 		delivery, ok := byTracking[normalizeTrackingLookup(shipments[i].TrackingNumber)]
 		if !ok {
 			err := errors.New("ParcelApp delivery not found")
-			_ = s.shipmentRepo.MarkSyncFailure(shipments[i].ID, shipments[i].UserID, err.Error())
+			s.markShipmentSyncFailure(&shipments[i], err)
 			summary.Failed++
 			continue
 		}
@@ -426,17 +426,17 @@ func (s *ShipmentService) syncParcelShipmentsForUser(ctx context.Context, userID
 
 func (s *ShipmentService) syncParcelShipment(ctx context.Context, shipment *models.Shipment, description string, allowCreate bool) (*models.Shipment, error) {
 	if !s.parcelAppEnabled() {
-		_ = s.shipmentRepo.MarkSyncFailure(shipment.ID, shipment.UserID, ErrParcelAppDisabled.Error())
+		s.markShipmentSyncFailure(shipment, ErrParcelAppDisabled)
 		return nil, ErrParcelAppDisabled
 	}
 	apiKey, err := s.parcelAPIKeyForUser(shipment.UserID)
 	if err != nil {
-		_ = s.shipmentRepo.MarkSyncFailure(shipment.ID, shipment.UserID, err.Error())
+		s.markShipmentSyncFailure(shipment, err)
 		return nil, err
 	}
 	deliveries, err := s.parcelClient.ListDeliveries(ctx, apiKey)
 	if err != nil {
-		_ = s.shipmentRepo.MarkSyncFailure(shipment.ID, shipment.UserID, err.Error())
+		s.markShipmentSyncFailure(shipment, err)
 		return nil, err
 	}
 	if delivery, ok := parcelDeliveriesByTracking(deliveries)[normalizeTrackingLookup(shipment.TrackingNumber)]; ok {
@@ -444,7 +444,7 @@ func (s *ShipmentService) syncParcelShipment(ctx context.Context, shipment *mode
 	}
 	if !allowCreate {
 		err := errors.New("ParcelApp delivery not found")
-		_ = s.shipmentRepo.MarkSyncFailure(shipment.ID, shipment.UserID, err.Error())
+		s.markShipmentSyncFailure(shipment, err)
 		return nil, err
 	}
 	if strings.TrimSpace(description) == "" {
@@ -457,7 +457,7 @@ func (s *ShipmentService) syncParcelShipment(ctx context.Context, shipment *mode
 		description = "Coin shipment"
 	}
 	if err := s.parcelClient.AddDelivery(ctx, apiKey, shipment.TrackingNumber, description); err != nil {
-		_ = s.shipmentRepo.MarkSyncFailure(shipment.ID, shipment.UserID, err.Error())
+		s.markShipmentSyncFailure(shipment, err)
 		return nil, err
 	}
 	snapshot := ShipmentTrackingSnapshot{
@@ -568,6 +568,31 @@ func parcelDeliveriesByTracking(deliveries []ParcelAppDelivery) map[string]Parce
 
 func normalizeTrackingLookup(value string) string {
 	return strings.ToUpper(strings.TrimSpace(value))
+}
+
+func (s *ShipmentService) markShipmentSyncFailure(shipment *models.Shipment, err error) {
+	if shipment == nil || err == nil {
+		return
+	}
+	_ = s.shipmentRepo.MarkSyncFailure(shipment.ID, shipment.UserID, err.Error())
+	if s.logger != nil {
+		s.logger.Warn(
+			"shipment",
+			"parcel sync failed shipment=%d user=%d trackingSuffix=%s: %v",
+			shipment.ID,
+			shipment.UserID,
+			trackingSuffix(shipment.TrackingNumber),
+			err,
+		)
+	}
+}
+
+func trackingSuffix(trackingNumber string) string {
+	normalized := normalizeTrackingLookup(trackingNumber)
+	if len(normalized) <= 6 {
+		return normalized
+	}
+	return normalized[len(normalized)-6:]
 }
 
 func isParcelConfigurationError(err error) bool {
