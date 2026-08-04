@@ -48,6 +48,7 @@ export function useSettingsProfile() {
   const nbPassword = ref('')
   const cngUsername = ref(auth.user?.cngUsername || '')
   const cngPassword = ref('')
+  const parcelAppAPIKey = ref('')
   const pushoverKey = ref('')
   const pushoverTesting = ref(false)
   const pushoverTestMsg = ref('')
@@ -153,6 +154,9 @@ export function useSettingsProfile() {
       if (cngPassword.value) {
         data.cngPassword = cngPassword.value
       }
+      if (parcelAppAPIKey.value !== '') {
+        data.parcelAppAPIKey = parcelAppAPIKey.value
+      }
       if (pushoverKey.value !== '') {
         data.pushoverUserKey = pushoverKey.value
       }
@@ -166,6 +170,7 @@ export function useSettingsProfile() {
         auth.user.numisBidsConfigured = res.data.numisBidsConfigured
         auth.user.cngUsername = res.data.cngUsername
         auth.user.cngConfigured = res.data.cngConfigured
+        auth.user.parcelAppConfigured = res.data.parcelAppConfigured
         auth.user.pushoverEnabled = res.data.pushoverEnabled
         auth.user.coinOfDayEnabled = res.data.coinOfDayEnabled
         auth.user.emperorTrackerEnabled = res.data.emperorTrackerEnabled
@@ -176,6 +181,7 @@ export function useSettingsProfile() {
       }
       nbPassword.value = ''
       cngPassword.value = ''
+      parcelAppAPIKey.value = ''
       pushoverKey.value = ''
       profileMsg.value = 'Profile saved'
     } catch {
@@ -248,6 +254,7 @@ export function useSettingsProfile() {
     nbPassword,
     cngUsername,
     cngPassword,
+    parcelAppAPIKey,
     pushoverKey,
     pushoverTesting,
     pushoverTestMsg,

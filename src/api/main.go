@@ -244,7 +244,7 @@ func main() {
 		services.NewShipmentCarrierClientRegistry(buildShipmentCarrierClients(settingsSvc, logger)...),
 		notifSvc,
 		logger,
-	)
+	).WithParcelAppSupport(userRepoForVal, settingsSvc, credentialEncryptionSvc, services.NewHTTPParcelAppClient())
 
 	// Create schedulers before routes so they can be passed to admin handlers
 	availScheduler := services.NewAvailabilityScheduler(availSvc, coinRepo, availRepo, settingsSvc, logger)

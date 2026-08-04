@@ -2841,12 +2841,14 @@ definitions:
     - usps
     - ups
     - fedex
+    - parcel
     - other
     type: string
     x-enum-varnames:
     - ShipmentCarrierUSPS
     - ShipmentCarrierUPS
     - ShipmentCarrierFedEx
+    - ShipmentCarrierParcel
     - ShipmentCarrierOther
   models.ShipmentEvent:
     properties:

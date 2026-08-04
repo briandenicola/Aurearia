@@ -36,6 +36,28 @@ func (c *stubShipmentCarrierClient) GetTracking(_ context.Context, trackingNumbe
 	return snapshot, nil
 }
 
+type stubParcelAppClient struct {
+	deliveries []ParcelAppDelivery
+	listCalls  int
+	addCalls   int
+	added      []string
+	err        error
+}
+
+func (c *stubParcelAppClient) ListDeliveries(_ context.Context, _ string) ([]ParcelAppDelivery, error) {
+	c.listCalls++
+	if c.err != nil {
+		return nil, c.err
+	}
+	return c.deliveries, nil
+}
+
+func (c *stubParcelAppClient) AddDelivery(_ context.Context, _ string, trackingNumber, _ string) error {
+	c.addCalls++
+	c.added = append(c.added, trackingNumber)
+	return c.err
+}
+
 type shipmentServiceHarness struct {
 	db           *gorm.DB
 	coinRepo     *repository.CoinRepository
@@ -131,6 +153,81 @@ func TestShipmentService_UpsertShipmentForCoin_CreateThenUpdate(t *testing.T) {
 	}
 	if !updated.ManualOverrideEnabled {
 		t.Fatalf("expected manual override enabled after update")
+	}
+}
+
+func TestShipmentService_UpsertParcelShipment_AddsMissingParcelDelivery(t *testing.T) {
+	h := setupShipmentServiceHarness(t)
+	if err := h.db.AutoMigrate(&models.AppSetting{}); err != nil {
+		t.Fatalf("migrate app_setting: %v", err)
+	}
+	if err := h.db.Model(&models.User{}).Where("id = ?", h.user.ID).Update("parcel_app_api_key", "parcel-key").Error; err != nil {
+		t.Fatalf("set parcel key: %v", err)
+	}
+	settingsSvc := NewSettingsService(repository.NewSettingsRepository(h.db))
+	if err := settingsSvc.SetSetting(SettingParcelAppEnabled, "true"); err != nil {
+		t.Fatalf("enable parcel app: %v", err)
+	}
+	parcel := &stubParcelAppClient{}
+	h.service.WithParcelAppSupport(repository.NewUserRepository(h.db), settingsSvc, NewDisabledCredentialEncryptionService(), parcel)
+
+	shipment, err := h.service.UpsertShipmentForCoin(h.user.ID, h.coin.ID, models.ShipmentCarrierParcel, "PX-100", "", "")
+	if err != nil {
+		t.Fatalf("create parcel shipment: %v", err)
+	}
+	if shipment.Carrier != models.ShipmentCarrierParcel {
+		t.Fatalf("carrier = %s, want parcel", shipment.Carrier)
+	}
+	if shipment.ManualOverrideEnabled {
+		t.Fatalf("parcel shipments should not enable manual override by default")
+	}
+	if shipment.CurrentStatus != models.ShipmentStatusLabelCreated {
+		t.Fatalf("status = %s, want %s", shipment.CurrentStatus, models.ShipmentStatusLabelCreated)
+	}
+	if parcel.listCalls != 1 || parcel.addCalls != 1 || len(parcel.added) != 1 || parcel.added[0] != "PX-100" {
+		t.Fatalf("parcel calls = list:%d add:%d added:%v, want one list and one add for PX-100", parcel.listCalls, parcel.addCalls, parcel.added)
+	}
+}
+
+func TestShipmentService_SyncCandidates_GroupsParcelRequestsByUser(t *testing.T) {
+	h := setupShipmentServiceHarness(t)
+	if err := h.db.AutoMigrate(&models.AppSetting{}); err != nil {
+		t.Fatalf("migrate app_setting: %v", err)
+	}
+	if err := h.db.Model(&models.User{}).Where("id = ?", h.user.ID).Update("parcel_app_api_key", "parcel-key").Error; err != nil {
+		t.Fatalf("set parcel key: %v", err)
+	}
+	secondCoin := models.Coin{Name: "Denarius", UserID: h.user.ID}
+	if err := h.db.Create(&secondCoin).Error; err != nil {
+		t.Fatalf("create second coin: %v", err)
+	}
+	settingsSvc := NewSettingsService(repository.NewSettingsRepository(h.db))
+	parcel := &stubParcelAppClient{}
+	h.service.WithParcelAppSupport(repository.NewUserRepository(h.db), settingsSvc, NewDisabledCredentialEncryptionService(), parcel)
+	if _, err := h.service.UpsertShipmentForCoin(h.user.ID, h.coin.ID, models.ShipmentCarrierParcel, "PX-100", "", ""); err != nil {
+		t.Fatalf("create first parcel shipment: %v", err)
+	}
+	if _, err := h.service.UpsertShipmentForCoin(h.user.ID, secondCoin.ID, models.ShipmentCarrierParcel, "PX-200", "", ""); err != nil {
+		t.Fatalf("create second parcel shipment: %v", err)
+	}
+	parcel.deliveries = []ParcelAppDelivery{
+		{TrackingNumber: "PX-100", StatusCode: 2},
+		{TrackingNumber: "PX-200", StatusCode: 4},
+	}
+	if err := settingsSvc.SetSetting(SettingParcelAppEnabled, "true"); err != nil {
+		t.Fatalf("enable parcel app: %v", err)
+	}
+
+	carrier := models.ShipmentCarrierParcel
+	summary, err := h.service.SyncCandidates(context.Background(), &carrier, 10)
+	if err != nil {
+		t.Fatalf("sync candidates: %v", err)
+	}
+	if summary.Checked != 2 || summary.Updated != 2 || summary.Failed != 0 {
+		t.Fatalf("summary = %+v, want 2 checked/updated", summary)
+	}
+	if parcel.listCalls != 1 {
+		t.Fatalf("parcel list calls = %d, want 1 per user", parcel.listCalls)
 	}
 }
 

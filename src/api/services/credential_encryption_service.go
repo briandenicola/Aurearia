@@ -107,6 +107,10 @@ func AuctionCredentialAAD(userID uint, field string) []byte {
 	return []byte(fmt.Sprintf("auction-credential:%d:%s", userID, field))
 }
 
+func UserCredentialAAD(userID uint, field string) []byte {
+	return []byte(fmt.Sprintf("user-credential:%d:%s", userID, field))
+}
+
 func parseCredentialEncryptionKey(rawKey string) ([]byte, error) {
 	rawKey = strings.TrimSpace(rawKey)
 	if rawKey == "" {

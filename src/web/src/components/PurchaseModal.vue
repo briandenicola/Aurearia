@@ -47,14 +47,8 @@
           Add shipment tracking now
         </label>
         <div v-if="addShipment" class="grid gap-2">
-          <select v-model="shipmentCarrier" class="form-input">
-            <option value="usps">USPS</option>
-            <option value="ups">UPS</option>
-            <option value="fedex">FedEx</option>
-            <option value="other">Other</option>
-          </select>
+          <p class="m-0 text-chip text-text-muted">Enter only the tracking number. ParcelApp will use the coin title as the delivery description.</p>
           <input v-model="shipmentTrackingNumber" class="form-input" placeholder="Tracking number" />
-          <input v-if="shipmentCarrier === 'other'" v-model="shipmentManualCarrierName" class="form-input" placeholder="Carrier name" />
           <input v-model="shipmentNotes" class="form-input" placeholder="Shipment notes (optional)" />
         </div>
       </div>
@@ -73,7 +67,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import type { Coin } from '@/types'
+import type { Coin, ShipmentUpsertInput } from '@/types'
 
 const props = defineProps<{
   coin: Coin
@@ -85,7 +79,7 @@ const emit = defineEmits<{
     purchasePrice?: number
     purchaseDate?: string
     purchaseLocation?: string
-    shipment?: { carrier: 'usps' | 'ups' | 'fedex' | 'other'; trackingNumber: string; notes?: string; manualCarrierName?: string }
+    shipment?: ShipmentUpsertInput
   }]
 }>()
 
@@ -93,9 +87,7 @@ const priceStr = ref('')
 const purchaseDate = ref(new Date().toISOString().slice(0, 10))
 const purchaseLocation = ref('')
 const addShipment = ref(false)
-const shipmentCarrier = ref<'usps' | 'ups' | 'fedex' | 'other'>('usps')
 const shipmentTrackingNumber = ref('')
-const shipmentManualCarrierName = ref('')
 const shipmentNotes = ref('')
 const error = ref('')
 const submitting = ref(false)
@@ -118,7 +110,7 @@ function handleSubmit() {
     purchasePrice?: number
     purchaseDate?: string
     purchaseLocation?: string
-    shipment?: { carrier: 'usps' | 'ups' | 'fedex' | 'other'; trackingNumber: string; notes?: string; manualCarrierName?: string }
+    shipment?: ShipmentUpsertInput
   } = {}
 
   if (priceStr.value) {
@@ -143,15 +135,10 @@ function handleSubmit() {
       error.value = 'Tracking number is required when shipment tracking is enabled'
       return
     }
-    if (shipmentCarrier.value === 'other' && !shipmentManualCarrierName.value.trim()) {
-      error.value = 'Carrier name is required when carrier is Other'
-      return
-    }
     data.shipment = {
-      carrier: shipmentCarrier.value,
+      carrier: 'parcel',
       trackingNumber: shipmentTrackingNumber.value.trim(),
       notes: shipmentNotes.value.trim() || undefined,
-      manualCarrierName: shipmentCarrier.value === 'other' ? shipmentManualCarrierName.value.trim() : undefined,
     }
   }
 

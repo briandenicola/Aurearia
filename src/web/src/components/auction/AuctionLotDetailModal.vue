@@ -323,14 +323,8 @@
             Add shipment tracking when converting
           </label>
           <div v-if="attachShipment" class="grid gap-2 md:grid-cols-2">
-            <select v-model="shipmentCarrier" class="form-input">
-              <option value="usps">USPS</option>
-              <option value="ups">UPS</option>
-              <option value="fedex">FedEx</option>
-              <option value="other">Other</option>
-            </select>
+            <p class="m-0 text-chip text-text-muted md:col-span-2">Enter only the tracking number. ParcelApp will use the coin title as the delivery description.</p>
             <input v-model="shipmentTrackingNumber" class="form-input" placeholder="Tracking number" />
-            <input v-if="shipmentCarrier === 'other'" v-model="shipmentManualCarrierName" class="form-input md:col-span-2" placeholder="Carrier name" />
             <input v-model="shipmentNotes" class="form-input md:col-span-2" placeholder="Shipment notes (optional)" />
           </div>
         </div>
@@ -425,9 +419,7 @@ const reminderForm = reactive<{ minutesBefore: number | null }>({
 const canCreateAlert = computed(() => typeof alertForm.targetPrice === 'number' && alertForm.targetPrice > 0)
 const canCreateReminder = computed(() => typeof reminderForm.minutesBefore === 'number' && reminderForm.minutesBefore > 0)
 const attachShipment = ref(false)
-const shipmentCarrier = ref<'usps' | 'ups' | 'fedex' | 'other'>('usps')
 const shipmentTrackingNumber = ref('')
-const shipmentManualCarrierName = ref('')
 const shipmentNotes = ref('')
 
 function formatDate(dateStr: string) {
@@ -767,15 +759,10 @@ function buildShipmentInput(): ShipmentUpsertInput | null | undefined {
     setStatusMessage('Tracking number is required when shipment tracking is enabled', true)
     return null
   }
-  if (shipmentCarrier.value === 'other' && !shipmentManualCarrierName.value.trim()) {
-    setStatusMessage('Carrier name is required when carrier is Other', true)
-    return null
-  }
   return {
-    carrier: shipmentCarrier.value,
+    carrier: 'parcel',
     trackingNumber: shipmentTrackingNumber.value.trim(),
     notes: shipmentNotes.value.trim() || undefined,
-    manualCarrierName: shipmentCarrier.value === 'other' ? shipmentManualCarrierName.value.trim() : undefined,
   }
 }
 </script>
