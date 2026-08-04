@@ -49,7 +49,7 @@ export interface Coin {
   updatedAt: string
 }
 
-export type ShipmentCarrier = 'usps' | 'ups' | 'fedex' | 'other'
+export type ShipmentCarrier = 'usps' | 'ups' | 'fedex' | 'parcel' | 'other'
 export type ShipmentStatus =
   | 'pending'
   | 'label_created'
@@ -956,6 +956,7 @@ export interface User {
   numisBidsConfigured?: boolean
   cngUsername?: string
   cngConfigured?: boolean
+  parcelAppConfigured?: boolean
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean
   emperorTrackerEnabled?: boolean
@@ -1260,6 +1261,7 @@ export interface UserInfo {
   numisBidsConfigured: boolean
   cngUsername?: string
   cngConfigured?: boolean
+  parcelAppConfigured?: boolean
   pushoverEnabled?: boolean
   coinOfDayEnabled?: boolean
   emperorTrackerEnabled?: boolean

@@ -67,6 +67,7 @@ const (
 	SettingFedExClientID                      = "FedExClientID"
 	SettingFedExClientSecret                  = "FedExClientSecret"
 	SettingFedExScope                         = "FedExScope"
+	SettingParcelAppEnabled                   = "ParcelAppEnabled"
 	SettingShipmentSyncEnabled                = "ShipmentSyncEnabled"
 	SettingShipmentSyncInterval               = "ShipmentSyncInterval"
 	SettingShipmentSyncStartTime              = "ShipmentSyncStartTime"
@@ -155,8 +156,9 @@ var settingDefaults = map[string]string{
 	SettingFedExClientID:                      "",
 	SettingFedExClientSecret:                  "",
 	SettingFedExScope:                         "",
+	SettingParcelAppEnabled:                   "false",
 	SettingShipmentSyncEnabled:                "false",
-	SettingShipmentSyncInterval:               "60",
+	SettingShipmentSyncInterval:               "20",
 	SettingShipmentSyncStartTime:              "09:00",
 	SettingShipmentSyncBatchSize:              "100",
 }

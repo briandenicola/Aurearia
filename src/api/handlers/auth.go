@@ -172,6 +172,7 @@ func writeAuthResponse(c *gin.Context, statusCode int, result services.AuthResul
 			"numisBidsConfigured":            user.NumisBidsUsername != "" && user.NumisBidsPassword != "",
 			"cngUsername":                    user.CNGUsername,
 			"cngConfigured":                  user.CNGUsername != "" && user.CNGPassword != "",
+			"parcelAppConfigured":            user.ParcelAppAPIKey != "",
 			"pushoverEnabled":                user.PushoverEnabled,
 			"coinOfDayEnabled":               user.CoinOfDayEnabled,
 			"emperorTrackerEnabled":          user.EmperorTrackerEnabled,

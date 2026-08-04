@@ -124,6 +124,7 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 		"numisBidsConfigured":            user.NumisBidsUsername != "" && user.NumisBidsPassword != "",
 		"cngUsername":                    user.CNGUsername,
 		"cngConfigured":                  user.CNGUsername != "" && user.CNGPassword != "",
+		"parcelAppConfigured":            user.ParcelAppAPIKey != "",
 		"pushoverEnabled":                user.PushoverEnabled,
 		"coinOfDayEnabled":               user.CoinOfDayEnabled,
 		"emperorTrackerEnabled":          user.EmperorTrackerEnabled,
@@ -255,6 +256,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		NumisBidsPassword              *string `json:"numisBidsPassword"`
 		CNGUsername                    *string `json:"cngUsername"`
 		CNGPassword                    *string `json:"cngPassword"`
+		ParcelAppAPIKey                *string `json:"parcelAppAPIKey"`
 		PushoverUserKey                *string `json:"pushoverUserKey"`
 		CoinOfDayEnabled               *bool   `json:"coinOfDayEnabled"`
 		EmperorTrackerEnabled          *bool   `json:"emperorTrackerEnabled"`
@@ -319,6 +321,15 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		}
 		updates["cng_password"] = encrypted
 	}
+	if req.ParcelAppAPIKey != nil {
+		key := strings.TrimSpace(*req.ParcelAppAPIKey)
+		encrypted, err := h.credentials.EncryptStringWithAAD(key, services.UserCredentialAAD(user.ID, "parcel_app_api_key"))
+		if err != nil {
+			respondError(c, http.StatusInternalServerError, "Failed to protect ParcelApp credentials", err)
+			return
+		}
+		updates["parcel_app_api_key"] = encrypted
+	}
 	if req.PushoverUserKey != nil {
 		key := strings.TrimSpace(*req.PushoverUserKey)
 		updates["pushover_user_key"] = key
@@ -378,6 +389,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		"numisBidsConfigured":            user.NumisBidsUsername != "" && user.NumisBidsPassword != "",
 		"cngUsername":                    user.CNGUsername,
 		"cngConfigured":                  user.CNGUsername != "" && user.CNGPassword != "",
+		"parcelAppConfigured":            user.ParcelAppAPIKey != "",
 		"pushoverEnabled":                user.PushoverEnabled,
 		"coinOfDayEnabled":               user.CoinOfDayEnabled,
 		"emperorTrackerEnabled":          user.EmperorTrackerEnabled,

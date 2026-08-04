@@ -117,6 +117,22 @@
       CNG account connected
     </div>
 
+    <h3 class="mb-3 mt-5 text-base text-text-secondary">ParcelApp Integration</h3>
+    <p class="mb-3 text-sm text-text-muted">
+      Connect ParcelApp so shipment tracking can be created from a tracking number and synced automatically when the admin setting is enabled.
+    </p>
+    <div class="form-group">
+      <label class="form-label">ParcelApp API Key</label>
+      <input v-model="parcelAppAPIKey" type="password" class="form-input" placeholder="Your ParcelApp API key" autocomplete="new-password" />
+      <span class="mt-1 block text-chip text-text-muted">Generate this at web.parcelapp.net. The key is encrypted at rest and only used for your shipments.</span>
+    </div>
+    <div
+      v-if="auth.user?.parcelAppConfigured"
+      class="mt-1 rounded-sm border border-[color-mix(in_srgb,var(--color-positive)_20%,transparent)] bg-[color-mix(in_srgb,var(--color-positive)_10%,transparent)] px-3 py-[0.4rem] text-chip text-[var(--color-positive)]"
+    >
+      ParcelApp key connected
+    </div>
+
     <h3 class="mb-3 mt-5 text-base text-text-secondary">Pushover Notifications</h3>
     <p class="mb-3 text-sm text-text-muted">
       Receive push notifications on your phone when wishlist items become unavailable or friends add new coins.
@@ -401,7 +417,7 @@ const { showConfirm } = useDialog()
 const {
   avatarUrl, handleAvatarUpload, handleAvatarDelete,
   profileEmail, profileBio, profileZipCode,
-  nbUsername, nbPassword, cngUsername, cngPassword, pushoverKey, pushoverTesting, pushoverTestMsg, pushoverTestError,
+  nbUsername, nbPassword, cngUsername, cngPassword, parcelAppAPIKey, pushoverKey, pushoverTesting, pushoverTestMsg, pushoverTestError,
   handleTestPushover, profilePublic, profileMsg, profileError, profileSaving,
   showPrivacyWarning, onPublicToggle, confirmGoPrivate, cancelGoPrivate,
   nbValidating, nbValidationError, cngValidating, cngValidationError, handleSaveProfile, coinOfDayEnabled,
