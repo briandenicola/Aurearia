@@ -43,21 +43,16 @@
         </div>
 
         <div class="flex flex-wrap gap-2 border-t border-border-subtle pt-4">
+          <button class="btn btn-secondary btn-sm" :disabled="syncing || shipment.carrier !== 'parcel'" @click="syncShipment">{{ syncing ? 'Checking...' : 'Check ParcelApp Now' }}</button>
           <button class="btn btn-danger btn-sm" :disabled="deleting" @click="removeShipment">{{ deleting ? 'Removing...' : 'Remove Shipment' }}</button>
         </div>
       </template>
 
       <template v-else>
         <p class="m-0 mb-4 text-body text-text-secondary">No shipment attached to this coin yet.</p>
+        <p class="m-0 mb-4 text-body text-text-secondary">Enter the tracking number only. Aurearia uses ParcelApp and the coin title as the delivery description.</p>
         <div class="grid gap-3 md:grid-cols-2">
-          <select v-model="form.carrier" class="form-input">
-            <option value="usps">USPS</option>
-            <option value="ups">UPS</option>
-            <option value="fedex">FedEx</option>
-            <option value="other">Other</option>
-          </select>
           <input v-model="form.trackingNumber" class="form-input" placeholder="Tracking number" />
-          <input v-if="form.carrier === 'other'" v-model="form.manualCarrierName" class="form-input md:col-span-2" placeholder="Carrier name" />
           <input v-model="form.notes" class="form-input md:col-span-2" placeholder="Optional notes" />
         </div>
         <div class="mt-4">
@@ -72,7 +67,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { deleteCoinShipment, getCoinShipment, setCoinShipmentManualOverride, upsertCoinShipment } from '@/api/client'
+import { deleteCoinShipment, getCoinShipment, setCoinShipmentManualOverride, syncCoinShipment, upsertCoinShipment } from '@/api/client'
 import type { Shipment, ShipmentCarrier, ShipmentStatus, ShipmentUpsertInput } from '@/types'
 
 const props = defineProps<{ coinId: number }>()
@@ -80,6 +75,7 @@ const emit = defineEmits<{ changed: [] }>()
 
 const loading = ref(true)
 const saving = ref(false)
+const syncing = ref(false)
 const deleting = ref(false)
 const shipment = ref<Shipment | null>(null)
 const trackingUrl = ref('')
@@ -88,7 +84,7 @@ const messageError = ref(false)
 const manualStatus = ref<ShipmentStatus>('in_transit')
 const manualNote = ref('')
 const form = reactive<ShipmentUpsertInput>({
-  carrier: 'usps',
+  carrier: 'parcel',
   trackingNumber: '',
   notes: '',
   manualCarrierName: '',
@@ -111,6 +107,7 @@ function statusLabel(status: string) {
 }
 
 function carrierLabel(carrier: ShipmentCarrier, manualName: string) {
+  if (carrier === 'parcel') return 'ParcelApp'
   if (carrier === 'other' && manualName) return manualName
   return carrier.toUpperCase()
 }
@@ -146,15 +143,11 @@ function buildUpsertInput(): ShipmentUpsertInput | null {
     setMessage('Tracking number is required', true)
     return null
   }
-  if (form.carrier === 'other' && !form.manualCarrierName?.trim()) {
-    setMessage('Carrier name is required when carrier is Other', true)
-    return null
-  }
   return {
-    carrier: form.carrier,
+    carrier: 'parcel',
     trackingNumber,
     notes: form.notes?.trim() || '',
-    manualCarrierName: form.carrier === 'other' ? form.manualCarrierName?.trim() || '' : '',
+    manualCarrierName: '',
   }
 }
 
@@ -193,6 +186,22 @@ async function saveStatus() {
     setMessage(apiErrorMessage(err) || 'Failed to save shipment status', true)
   } finally {
     saving.value = false
+  }
+}
+
+async function syncShipment() {
+  if (!shipment.value) return
+  syncing.value = true
+  setMessage('')
+  try {
+    const res = await syncCoinShipment(props.coinId)
+    shipment.value = res.data.shipment
+    trackingUrl.value = res.data.trackingUrl ?? ''
+    setMessage('ParcelApp status checked')
+  } catch (err: unknown) {
+    setMessage(apiErrorMessage(err) || 'Failed to check ParcelApp status', true)
+  } finally {
+    syncing.value = false
   }
 }
 

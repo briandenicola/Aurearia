@@ -20379,12 +20379,14 @@ const docTemplate = `{
                 "usps",
                 "ups",
                 "fedex",
+                "parcel",
                 "other"
             ],
             "x-enum-varnames": [
                 "ShipmentCarrierUSPS",
                 "ShipmentCarrierUPS",
                 "ShipmentCarrierFedEx",
+                "ShipmentCarrierParcel",
                 "ShipmentCarrierOther"
             ]
         },

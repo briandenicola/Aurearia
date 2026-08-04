@@ -165,7 +165,7 @@ import { colorForLabel, colorForLabelBackground } from '@/utils/categoryColor'
 import { useDialog } from '@/composables/useDialog'
 import { useCoinDetailMetadataRows } from '@/composables/useCoinDetailMetadataRows'
 import { useCoinShareCard } from '@/composables/useCoinShareCard'
-import type { CoinImage } from '@/types'
+import type { CoinImage, ShipmentUpsertInput } from '@/types'
 
 const { showConfirm, showAlert } = useDialog()
 const route = useRoute()
@@ -214,7 +214,7 @@ async function handleShare() {
   await shareCoinCard(coin.value)
 }
 
-async function confirmPurchase(data: { purchasePrice?: number; purchaseDate?: string; purchaseLocation?: string; shipment?: { carrier: 'usps' | 'ups' | 'fedex' | 'other'; trackingNumber: string; notes?: string; manualCarrierName?: string } }) {
+async function confirmPurchase(data: { purchasePrice?: number; purchaseDate?: string; purchaseLocation?: string; shipment?: ShipmentUpsertInput }) {
   if (!coin.value) return
   try {
     await purchaseCoin(coin.value.id, data)

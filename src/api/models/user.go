@@ -23,6 +23,7 @@ type User struct {
 	NumisBidsPassword              string     `gorm:"type:text" json:"-"`
 	CNGUsername                    string     `gorm:"type:varchar(100)" json:"-"`
 	CNGPassword                    string     `gorm:"type:text" json:"-"`
+	ParcelAppAPIKey                string     `gorm:"type:text" json:"-"`
 	PushoverUserKey                string     `gorm:"type:varchar(100)" json:"-"`
 	PushoverEnabled                bool       `gorm:"default:false" json:"pushoverEnabled"`
 	CoinOfDayEnabled               bool       `gorm:"default:true" json:"coinOfDayEnabled"`

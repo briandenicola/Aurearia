@@ -117,7 +117,7 @@ func (s *ShipmentScheduler) runCycleWithTrigger(triggerType string) error {
 }
 
 func (s *ShipmentScheduler) isEnabled() bool {
-	return s.settingsSvc.GetSetting(SettingShipmentSyncEnabled) == "true"
+	return s.settingsSvc.GetSetting(SettingParcelAppEnabled) == "true"
 }
 
 func (s *ShipmentScheduler) timeUntilNextRun() time.Duration {
@@ -147,8 +147,8 @@ func (s *ShipmentScheduler) getStartTime() (int, int) {
 func (s *ShipmentScheduler) getInterval() time.Duration {
 	minStr := s.settingsSvc.GetSetting(SettingShipmentSyncInterval)
 	mins, err := strconv.Atoi(minStr)
-	if err != nil || mins < 5 {
-		mins = 60
+	if err != nil || mins < 20 {
+		mins = 20
 	}
 	return time.Duration(mins) * time.Minute
 }
