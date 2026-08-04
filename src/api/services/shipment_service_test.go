@@ -201,7 +201,7 @@ func TestShipmentService_UpsertParcelShipment_PersistsWhenParcelAPIFails(t *test
 	if err := settingsSvc.SetSetting(SettingParcelAppEnabled, "true"); err != nil {
 		t.Fatalf("enable parcel app: %v", err)
 	}
-	parcel := &stubParcelAppClient{err: errors.New("parcel rate limited")}
+	parcel := &stubParcelAppClient{err: &ParcelAppError{Operation: "list deliveries", StatusCode: 200, ErrorMessage: "parcel rate limited"}}
 	h.service.WithParcelAppSupport(repository.NewUserRepository(h.db), settingsSvc, NewDisabledCredentialEncryptionService(), parcel)
 
 	shipment, err := h.service.UpsertShipmentForCoin(h.user.ID, h.coin.ID, models.ShipmentCarrierParcel, "9402150105800000607499", "", "")
@@ -211,7 +211,7 @@ func TestShipmentService_UpsertParcelShipment_PersistsWhenParcelAPIFails(t *test
 	if shipment.TrackingNumber != "9402150105800000607499" {
 		t.Fatalf("tracking = %q, want saved tracking number", shipment.TrackingNumber)
 	}
-	if shipment.LastSyncError != "parcel rate limited" {
+	if !strings.Contains(shipment.LastSyncError, "parcel rate limited") {
 		t.Fatalf("last sync error = %q, want ParcelApp failure recorded", shipment.LastSyncError)
 	}
 }
@@ -235,7 +235,7 @@ func TestShipmentService_SyncParcelShipment_ReturnsShipmentWhenParcelAPIFails(t 
 		t.Fatalf("create parcel shipment: %v", err)
 	}
 
-	parcel.err = errors.New("parcel unavailable")
+	parcel.err = &ParcelAppError{Operation: "list deliveries", StatusCode: 200, ErrorMessage: "parcel unavailable"}
 	synced, err := h.service.SyncShipment(context.Background(), shipment.ID, h.user.ID)
 	if err != nil {
 		t.Fatalf("sync parcel shipment should return saved shipment despite ParcelApp error: %v", err)
@@ -243,7 +243,7 @@ func TestShipmentService_SyncParcelShipment_ReturnsShipmentWhenParcelAPIFails(t 
 	if synced.ID != shipment.ID {
 		t.Fatalf("synced shipment id = %d, want %d", synced.ID, shipment.ID)
 	}
-	if synced.LastSyncError != "parcel unavailable" {
+	if !strings.Contains(synced.LastSyncError, "parcel unavailable") {
 		t.Fatalf("last sync error = %q, want ParcelApp failure recorded", synced.LastSyncError)
 	}
 }

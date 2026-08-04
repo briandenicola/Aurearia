@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -29,6 +28,24 @@ type HTTPParcelAppClient struct {
 	client  *http.Client
 }
 
+type ParcelAppError struct {
+	Operation    string
+	StatusCode   int
+	ErrorMessage string
+	BodyExcerpt  string
+}
+
+func (e *ParcelAppError) Error() string {
+	message := strings.TrimSpace(e.ErrorMessage)
+	if message == "" {
+		message = "no ParcelApp error message"
+	}
+	if e.BodyExcerpt != "" {
+		return fmt.Sprintf("ParcelApp %s failed: status=%d error=%q body=%q", e.Operation, e.StatusCode, message, e.BodyExcerpt)
+	}
+	return fmt.Sprintf("ParcelApp %s failed: status=%d error=%q", e.Operation, e.StatusCode, message)
+}
+
 func NewHTTPParcelAppClient() *HTTPParcelAppClient {
 	return &HTTPParcelAppClient{
 		baseURL: defaultParcelAppBaseURL,
@@ -37,14 +54,18 @@ func NewHTTPParcelAppClient() *HTTPParcelAppClient {
 }
 
 type parcelAppListResponse struct {
-	Success      bool                `json:"_success"`
-	ErrorMessage string              `json:"_error_message"`
-	Deliveries   []ParcelAppDelivery `json:"deliveries"`
+	Success                bool                `json:"success"`
+	UnderscoreSuccess      bool                `json:"_success"`
+	ErrorMessage           string              `json:"error_message"`
+	UnderscoreErrorMessage string              `json:"_error_message"`
+	Deliveries             []ParcelAppDelivery `json:"deliveries"`
 }
 
 type parcelAppAddResponse struct {
-	Success      bool   `json:"_success"`
-	ErrorMessage string `json:"_error_message"`
+	Success                bool   `json:"success"`
+	UnderscoreSuccess      bool   `json:"_success"`
+	ErrorMessage           string `json:"error_message"`
+	UnderscoreErrorMessage string `json:"_error_message"`
 }
 
 type ParcelAppDelivery struct {
@@ -78,20 +99,17 @@ func (c *HTTPParcelAppClient) ListDeliveries(ctx context.Context, apiKey string)
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("parcel deliveries request failed: status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, parcelAPIError("list deliveries", resp.StatusCode, "", body)
 	}
 
 	var parsed parcelAppListResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
-		return nil, fmt.Errorf("decode parcel deliveries: %w", err)
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, fmt.Errorf("decode parcel deliveries: %w; body=%q", err, responseExcerpt(body))
 	}
-	if !parsed.Success {
-		if parsed.ErrorMessage == "" {
-			parsed.ErrorMessage = "parcel deliveries request failed"
-		}
-		return nil, errors.New(parsed.ErrorMessage)
+	if !parcelResponseSuccess(parsed.Success, parsed.UnderscoreSuccess) {
+		return nil, parcelAPIError("list deliveries", resp.StatusCode, parcelResponseError(parsed.ErrorMessage, parsed.UnderscoreErrorMessage), body)
 	}
 	return parsed.Deliveries, nil
 }
@@ -121,22 +139,47 @@ func (c *HTTPParcelAppClient) AddDelivery(ctx context.Context, apiKey, trackingN
 	}
 	defer resp.Body.Close()
 
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("parcel add delivery failed: status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
+		return parcelAPIError("add delivery", resp.StatusCode, "", respBody)
 	}
 
 	var parsed parcelAppAddResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
-		return fmt.Errorf("decode parcel add delivery: %w", err)
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
+		return fmt.Errorf("decode parcel add delivery: %w; body=%q", err, responseExcerpt(respBody))
 	}
-	if !parsed.Success {
-		if parsed.ErrorMessage == "" {
-			parsed.ErrorMessage = "parcel add delivery failed"
-		}
-		return errors.New(parsed.ErrorMessage)
+	if !parcelResponseSuccess(parsed.Success, parsed.UnderscoreSuccess) {
+		return parcelAPIError("add delivery", resp.StatusCode, parcelResponseError(parsed.ErrorMessage, parsed.UnderscoreErrorMessage), respBody)
 	}
 	return nil
+}
+
+func parcelResponseSuccess(success bool, underscoreSuccess bool) bool {
+	return success || underscoreSuccess
+}
+
+func parcelResponseError(errorMessage string, underscoreErrorMessage string) string {
+	if strings.TrimSpace(errorMessage) != "" {
+		return errorMessage
+	}
+	return underscoreErrorMessage
+}
+
+func parcelAPIError(operation string, statusCode int, errorMessage string, body []byte) error {
+	return &ParcelAppError{
+		Operation:    operation,
+		StatusCode:   statusCode,
+		ErrorMessage: strings.TrimSpace(errorMessage),
+		BodyExcerpt:  responseExcerpt(body),
+	}
+}
+
+func responseExcerpt(body []byte) string {
+	excerpt := strings.Join(strings.Fields(string(body)), " ")
+	if len(excerpt) > 300 {
+		return excerpt[:300]
+	}
+	return excerpt
 }
 
 func parcelDeliveryToSnapshot(delivery ParcelAppDelivery) ShipmentTrackingSnapshot {

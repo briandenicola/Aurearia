@@ -20,6 +20,7 @@ var (
 	ErrShipmentCarrierNameRequired = errors.New("manual carrier name is required when carrier is other")
 	ErrParcelAppDisabled           = errors.New("ParcelApp shipment tracking is disabled")
 	ErrParcelAppAPIKeyRequired     = errors.New("ParcelApp API key is required")
+	ErrParcelAppDeliveryNotFound   = errors.New("ParcelApp delivery not found")
 )
 
 type ShipmentService struct {
@@ -190,10 +191,10 @@ func (s *ShipmentService) upsertParcelShipmentForCoin(
 	if s.parcelAppEnabled() {
 		updated, err := s.syncParcelShipment(ctx, shipment, strings.TrimSpace(coinTitle), true)
 		if err != nil {
-			if s.logger != nil {
-				s.logger.Warn("shipment", "parcel sync during save failed shipment=%d user=%d: %v", shipment.ID, shipment.UserID, err)
+			if isParcelRecoverableSyncError(err) {
+				return s.shipmentRepo.GetByIDForUser(shipment.ID, userID)
 			}
-			return s.shipmentRepo.GetByIDForUser(shipment.ID, userID)
+			return nil, err
 		}
 		return updated, nil
 	}
@@ -278,10 +279,7 @@ func (s *ShipmentService) SyncShipment(ctx context.Context, shipmentID, userID u
 	}
 	updated, err := s.syncSingleShipment(ctx, shipment, true)
 	if err != nil {
-		if shipment.Carrier == models.ShipmentCarrierParcel && !isParcelConfigurationError(err) {
-			if s.logger != nil {
-				s.logger.Warn("shipment", "parcel manual sync failed shipment=%d user=%d: %v", shipment.ID, shipment.UserID, err)
-			}
+		if shipment.Carrier == models.ShipmentCarrierParcel && isParcelRecoverableSyncError(err) {
 			return s.shipmentRepo.GetByIDForUser(shipment.ID, shipment.UserID)
 		}
 		return nil, err
@@ -410,8 +408,7 @@ func (s *ShipmentService) syncParcelShipmentsForUser(ctx context.Context, userID
 	for i := range shipments {
 		delivery, ok := byTracking[normalizeTrackingLookup(shipments[i].TrackingNumber)]
 		if !ok {
-			err := errors.New("ParcelApp delivery not found")
-			s.markShipmentSyncFailure(&shipments[i], err)
+			s.markShipmentSyncFailure(&shipments[i], ErrParcelAppDeliveryNotFound)
 			summary.Failed++
 			continue
 		}
@@ -443,9 +440,8 @@ func (s *ShipmentService) syncParcelShipment(ctx context.Context, shipment *mode
 		return s.applyShipmentSnapshot(shipment, parcelDeliveryToSnapshot(delivery))
 	}
 	if !allowCreate {
-		err := errors.New("ParcelApp delivery not found")
-		s.markShipmentSyncFailure(shipment, err)
-		return nil, err
+		s.markShipmentSyncFailure(shipment, ErrParcelAppDeliveryNotFound)
+		return nil, ErrParcelAppDeliveryNotFound
 	}
 	if strings.TrimSpace(description) == "" {
 		coin, err := s.coinRepo.FindByID(shipment.CoinID, shipment.UserID)
@@ -597,6 +593,11 @@ func trackingSuffix(trackingNumber string) string {
 
 func isParcelConfigurationError(err error) bool {
 	return errors.Is(err, ErrParcelAppDisabled) || errors.Is(err, ErrParcelAppAPIKeyRequired)
+}
+
+func isParcelRecoverableSyncError(err error) bool {
+	var parcelErr *ParcelAppError
+	return errors.As(err, &parcelErr) || errors.Is(err, ErrParcelAppDeliveryNotFound)
 }
 
 type normalizedShipmentInput struct {
