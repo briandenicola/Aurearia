@@ -190,7 +190,10 @@ func (s *ShipmentService) upsertParcelShipmentForCoin(
 	if s.parcelAppEnabled() {
 		updated, err := s.syncParcelShipment(ctx, shipment, strings.TrimSpace(coinTitle), true)
 		if err != nil {
-			return nil, err
+			if s.logger != nil {
+				s.logger.Warn("shipment", "parcel sync during save failed shipment=%d user=%d: %v", shipment.ID, shipment.UserID, err)
+			}
+			return s.shipmentRepo.GetByIDForUser(shipment.ID, userID)
 		}
 		return updated, nil
 	}
@@ -275,6 +278,12 @@ func (s *ShipmentService) SyncShipment(ctx context.Context, shipmentID, userID u
 	}
 	updated, err := s.syncSingleShipment(ctx, shipment, true)
 	if err != nil {
+		if shipment.Carrier == models.ShipmentCarrierParcel && !isParcelConfigurationError(err) {
+			if s.logger != nil {
+				s.logger.Warn("shipment", "parcel manual sync failed shipment=%d user=%d: %v", shipment.ID, shipment.UserID, err)
+			}
+			return s.shipmentRepo.GetByIDForUser(shipment.ID, shipment.UserID)
+		}
 		return nil, err
 	}
 	return updated, nil
@@ -559,6 +568,10 @@ func parcelDeliveriesByTracking(deliveries []ParcelAppDelivery) map[string]Parce
 
 func normalizeTrackingLookup(value string) string {
 	return strings.ToUpper(strings.TrimSpace(value))
+}
+
+func isParcelConfigurationError(err error) bool {
+	return errors.Is(err, ErrParcelAppDisabled) || errors.Is(err, ErrParcelAppAPIKeyRequired)
 }
 
 type normalizedShipmentInput struct {

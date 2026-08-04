@@ -189,6 +189,65 @@ func TestShipmentService_UpsertParcelShipment_AddsMissingParcelDelivery(t *testi
 	}
 }
 
+func TestShipmentService_UpsertParcelShipment_PersistsWhenParcelAPIFails(t *testing.T) {
+	h := setupShipmentServiceHarness(t)
+	if err := h.db.AutoMigrate(&models.AppSetting{}); err != nil {
+		t.Fatalf("migrate app_setting: %v", err)
+	}
+	if err := h.db.Model(&models.User{}).Where("id = ?", h.user.ID).Update("parcel_app_api_key", "parcel-key").Error; err != nil {
+		t.Fatalf("set parcel key: %v", err)
+	}
+	settingsSvc := NewSettingsService(repository.NewSettingsRepository(h.db))
+	if err := settingsSvc.SetSetting(SettingParcelAppEnabled, "true"); err != nil {
+		t.Fatalf("enable parcel app: %v", err)
+	}
+	parcel := &stubParcelAppClient{err: errors.New("parcel rate limited")}
+	h.service.WithParcelAppSupport(repository.NewUserRepository(h.db), settingsSvc, NewDisabledCredentialEncryptionService(), parcel)
+
+	shipment, err := h.service.UpsertShipmentForCoin(h.user.ID, h.coin.ID, models.ShipmentCarrierParcel, "9402150105800000607499", "", "")
+	if err != nil {
+		t.Fatalf("create parcel shipment should persist despite ParcelApp error: %v", err)
+	}
+	if shipment.TrackingNumber != "9402150105800000607499" {
+		t.Fatalf("tracking = %q, want saved tracking number", shipment.TrackingNumber)
+	}
+	if shipment.LastSyncError != "parcel rate limited" {
+		t.Fatalf("last sync error = %q, want ParcelApp failure recorded", shipment.LastSyncError)
+	}
+}
+
+func TestShipmentService_SyncParcelShipment_ReturnsShipmentWhenParcelAPIFails(t *testing.T) {
+	h := setupShipmentServiceHarness(t)
+	if err := h.db.AutoMigrate(&models.AppSetting{}); err != nil {
+		t.Fatalf("migrate app_setting: %v", err)
+	}
+	if err := h.db.Model(&models.User{}).Where("id = ?", h.user.ID).Update("parcel_app_api_key", "parcel-key").Error; err != nil {
+		t.Fatalf("set parcel key: %v", err)
+	}
+	settingsSvc := NewSettingsService(repository.NewSettingsRepository(h.db))
+	if err := settingsSvc.SetSetting(SettingParcelAppEnabled, "true"); err != nil {
+		t.Fatalf("enable parcel app: %v", err)
+	}
+	parcel := &stubParcelAppClient{}
+	h.service.WithParcelAppSupport(repository.NewUserRepository(h.db), settingsSvc, NewDisabledCredentialEncryptionService(), parcel)
+	shipment, err := h.service.UpsertShipmentForCoin(h.user.ID, h.coin.ID, models.ShipmentCarrierParcel, "9402150105800000607499", "", "")
+	if err != nil {
+		t.Fatalf("create parcel shipment: %v", err)
+	}
+
+	parcel.err = errors.New("parcel unavailable")
+	synced, err := h.service.SyncShipment(context.Background(), shipment.ID, h.user.ID)
+	if err != nil {
+		t.Fatalf("sync parcel shipment should return saved shipment despite ParcelApp error: %v", err)
+	}
+	if synced.ID != shipment.ID {
+		t.Fatalf("synced shipment id = %d, want %d", synced.ID, shipment.ID)
+	}
+	if synced.LastSyncError != "parcel unavailable" {
+		t.Fatalf("last sync error = %q, want ParcelApp failure recorded", synced.LastSyncError)
+	}
+}
+
 func TestShipmentService_SyncCandidates_GroupsParcelRequestsByUser(t *testing.T) {
 	h := setupShipmentServiceHarness(t)
 	if err := h.db.AutoMigrate(&models.AppSetting{}); err != nil {

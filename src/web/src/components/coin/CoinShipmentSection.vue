@@ -14,6 +14,7 @@
           <p class="m-0"><strong class="text-text-primary">Tracking:</strong> {{ shipment.trackingNumber }}</p>
           <p v-if="shipment.notes" class="m-0"><strong class="text-text-primary">Notes:</strong> {{ shipment.notes }}</p>
           <p class="m-0"><strong class="text-text-primary">Status:</strong> {{ statusLabel(shipment.currentStatus) }}</p>
+          <p v-if="shipment.lastSyncError" class="m-0 text-[var(--color-negative)]"><strong>ParcelApp:</strong> {{ shipment.lastSyncError }}</p>
         </div>
 
         <div class="mb-4 grid gap-2 border-t border-border-subtle pt-4">
@@ -160,7 +161,11 @@ async function saveShipment() {
     const res = await upsertCoinShipment(props.coinId, input)
     shipment.value = res.data.shipment
     trackingUrl.value = res.data.trackingUrl ?? ''
-    setMessage('Shipment saved')
+    if (shipment.value.lastSyncError) {
+      setMessage(`Shipment saved. ParcelApp check failed: ${shipment.value.lastSyncError}`, true)
+    } else {
+      setMessage('Shipment saved')
+    }
     emit('changed')
   } catch (err: unknown) {
     setMessage(apiErrorMessage(err) || 'Failed to save shipment', true)
@@ -197,7 +202,11 @@ async function syncShipment() {
     const res = await syncCoinShipment(props.coinId)
     shipment.value = res.data.shipment
     trackingUrl.value = res.data.trackingUrl ?? ''
-    setMessage('ParcelApp status checked')
+    if (shipment.value.lastSyncError) {
+      setMessage(`ParcelApp check failed: ${shipment.value.lastSyncError}`, true)
+    } else {
+      setMessage('ParcelApp status checked')
+    }
   } catch (err: unknown) {
     setMessage(apiErrorMessage(err) || 'Failed to check ParcelApp status', true)
   } finally {
