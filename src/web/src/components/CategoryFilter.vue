@@ -1,34 +1,13 @@
 <template>
-  <div class="flex flex-wrap gap-[0.4rem]">
-    <button
-      class="chip"
-      :class="{ active: !modelValue }"
-      @click="$emit('update:modelValue', '')"
-    >
-      All
-    </button>
-    <button
-      v-for="cat in categoryOptions"
-      :key="cat"
-      class="chip"
-      :style="modelValue === cat
-        ? {
-            borderColor: colorForLabel(cat),
-            backgroundColor: colorForLabelBackground(cat),
-            color: colorForLabel(cat),
-          }
-        : undefined"
-      @click="$emit('update:modelValue', cat)"
-    >
-      {{ cat }}
-    </button>
-  </div>
+  <select :value="modelValue" @change="$emit('update:modelValue', ($event.target as HTMLSelectElement).value)" class="form-select h-[38px] min-w-0 flex-1 bg-card px-[0.6rem] py-[0.45rem] text-body transition-colors hover:border-border-accent">
+    <option value="">All Categories</option>
+    <option v-for="cat in categoryOptions" :key="cat" :value="cat">{{ cat }}</option>
+  </select>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useCoinOptions } from '@/composables/useCoinOptions'
-import { colorForLabel, colorForLabelBackground } from '@/utils/categoryColor'
 
 defineProps<{ modelValue: string }>()
 defineEmits<{ 'update:modelValue': [value: string] }>()

@@ -13,7 +13,7 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-3 max-md:flex-col max-md:items-stretch">
-        <div class="flex min-w-0 flex-wrap gap-[0.35rem] max-md:w-full">
+        <div class="flex min-w-[180px] flex-wrap gap-[0.35rem] max-md:w-full">
           <CategoryFilter :model-value="selectedCategory" @update:model-value="$emit('update:selectedCategory', $event)" />
         </div>
 
