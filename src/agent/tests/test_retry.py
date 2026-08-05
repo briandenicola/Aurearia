@@ -1,5 +1,6 @@
 """Tests for LLM retry utility."""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -78,3 +79,25 @@ async def test_ainvoke_passes_kwargs():
     model.ainvoke.return_value = "result"
     await ainvoke_with_retry(model, ["msg"], temperature=0.5)
     model.ainvoke.assert_called_once_with(["msg"], temperature=0.5)
+
+
+@pytest.mark.asyncio
+async def test_ainvoke_logs_cache_usage(caplog):
+    """Should log usage metrics including Anthropic prompt-cache fields."""
+    model = AsyncMock()
+    model.ainvoke.return_value = SimpleNamespace(
+        response_metadata={
+            "usage": {
+                "input_tokens": 100,
+                "output_tokens": 40,
+                "cache_creation_input_tokens": 80,
+                "cache_read_input_tokens": 20,
+            }
+        }
+    )
+
+    with caplog.at_level("INFO"):
+        await ainvoke_with_retry(model, ["hello"])
+
+    assert "cache_creation_input_tokens=80" in caplog.text
+    assert "cache_read_input_tokens=20" in caplog.text
