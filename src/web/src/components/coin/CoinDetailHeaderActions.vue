@@ -1,6 +1,6 @@
 <template>
   <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 max-md:mb-4">
-    <button class="btn btn-ghost btn-xs justify-self-start whitespace-nowrap" @click="router.push('/')">
+    <button class="btn btn-ghost btn-xs justify-self-start whitespace-nowrap" @click="router.push(backTarget)">
       <ArrowLeft :size="14" />
       Back to Gallery
     </button>
@@ -33,11 +33,12 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { computed } from 'vue'
 import { ArrowLeft, Pencil, Share2, Trash2 } from 'lucide-vue-next'
 import AppIconButton from '@/components/ui/AppIconButton.vue'
 import CoinDetailOverflowMenu from '@/components/coin/CoinDetailOverflowMenu.vue'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   isWishlist: boolean
   isSold: boolean
   coinId: number
@@ -57,4 +58,5 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
+const backTarget = computed(() => props.isWishlist ? '/wishlist' : '/')
 </script>
