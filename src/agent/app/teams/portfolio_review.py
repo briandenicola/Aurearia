@@ -35,7 +35,8 @@ Output your summary as clear text with section headers.
 Do not make assumptions about values — report exactly what the data shows.""")
 
 VALUATION_PROMPT = with_safety("""You are a numismatic valuation specialist for a coin collection.
-You receive a portfolio summary and your job is to assess current market conditions.
+You receive a portfolio summary prepared by another analyst and your job is to assess
+current market conditions.
 
 Based on the portfolio data provided:
 1. Comment on which categories/types tend to appreciate or depreciate
@@ -117,10 +118,7 @@ def create_portfolio_review_team(
 
         messages = [
             SystemMessage(content=VALUATION_PROMPT),
-            HumanMessage(
-                content=f"Portfolio summary:\n{summary}\n\n"
-                f"Raw portfolio data:\n{portfolio_data}"
-            ),
+            HumanMessage(content=f"Portfolio summary:\n{summary}"),
         ]
         response = await ainvoke_with_retry(model, messages)
         content = response.content if isinstance(response.content, str) else str(response.content)
@@ -148,8 +146,7 @@ def create_portfolio_review_team(
             SystemMessage(content=ANALYSIS_PROMPT),
             HumanMessage(
                 content=f"Portfolio summary:\n{summary}\n\n"
-                f"Valuation commentary:\n{valuation}\n\n"
-                f"Raw data:\n{portfolio_data}"
+                f"Valuation commentary:\n{valuation}"
                 f"{user_context}"
             ),
         ]

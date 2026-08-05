@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Anthropic server-side tool — executed by Anthropic's servers, not us.
 WEB_SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search"}
+ANTHROPIC_CACHE_CONTROL = {"type": "ephemeral"}
 
 
 def get_chat_model(config: LLMConfig) -> BaseChatModel:
@@ -26,6 +27,7 @@ def get_chat_model(config: LLMConfig) -> BaseChatModel:
             model=model_name,
             api_key=config.api_key,
             max_tokens=12000,
+            model_kwargs={"cache_control": ANTHROPIC_CACHE_CONTROL},
         )
     elif config.provider == "ollama":
         from langchain_ollama import ChatOllama
