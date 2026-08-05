@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import CoinDetailHeaderActions from '../CoinDetailHeaderActions.vue'
 
+const pushMock = vi.fn()
+
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: pushMock }),
 }))
 
 const routerLinkStub = {
@@ -12,6 +14,56 @@ const routerLinkStub = {
 }
 
 describe('CoinDetailHeaderActions', () => {
+  it('routes back to wishlist gallery for wishlist items', async () => {
+    pushMock.mockReset()
+    const wrapper = mount(CoinDetailHeaderActions, {
+      props: {
+        isWishlist: true,
+        isSold: false,
+        coinId: 42,
+      },
+      global: {
+        stubs: {
+          RouterLink: routerLinkStub,
+          ArrowLeft: true,
+          CircleDollarSign: true,
+          Copy: true,
+          Pencil: true,
+          Share2: true,
+          Trash2: true,
+        },
+      },
+    })
+
+    await wrapper.find('button').trigger('click')
+    expect(pushMock).toHaveBeenCalledWith('/wishlist')
+  })
+
+  it('routes back to collection gallery for non-wishlist items', async () => {
+    pushMock.mockReset()
+    const wrapper = mount(CoinDetailHeaderActions, {
+      props: {
+        isWishlist: false,
+        isSold: false,
+        coinId: 42,
+      },
+      global: {
+        stubs: {
+          RouterLink: routerLinkStub,
+          ArrowLeft: true,
+          CircleDollarSign: true,
+          Copy: true,
+          Pencil: true,
+          Share2: true,
+          Trash2: true,
+        },
+      },
+    })
+
+    await wrapper.find('button').trigger('click')
+    expect(pushMock).toHaveBeenCalledWith('/')
+  })
+
   it('keeps primary icons visible and moves sell/copy/details into overflow menu', async () => {
     const wrapper = mount(CoinDetailHeaderActions, {
       props: {
