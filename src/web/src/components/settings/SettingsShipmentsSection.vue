@@ -99,16 +99,17 @@ function isShipmentNotFound(err: unknown): boolean {
 async function fetchAllCollectionCoins(): Promise<Coin[]> {
   const all: Coin[] = []
   let page = 1
-  let total = 0
+  let total: number | null = null
 
-  do {
+  while (true) {
     const res = await getCoins({ sold: 'false', page, limit: 100 })
     const coins = res.data.coins || []
     all.push(...coins)
-    total = res.data.total || all.length
+    total = typeof res.data.total === 'number' ? res.data.total : total
     page += 1
     if (!coins.length) break
-  } while (all.length < total)
+    if (total !== null && all.length >= total) break
+  }
 
   return all
 }
