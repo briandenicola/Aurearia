@@ -44,7 +44,8 @@
           </button>
         </div>
 
-        <SettingsAccountSection v-if="activeTab === 'account'" ref="accountSection" />
+        <SettingsAccountSection v-if="activeTab === 'account'" ref="accountSection" :show-connections="false" />
+        <SettingsConnectionsSection v-if="activeTab === 'connections'" />
 
         <SettingsAppearanceSection
           v-if="activeTab === 'appearance'"
@@ -121,10 +122,12 @@ import SettingsApiKeysSection from '@/components/settings/SettingsApiKeysSection
 import SavedConversationsSection from '@/components/settings/SavedConversationsSection.vue'
 import SettingsToolsSection from '@/components/settings/SettingsToolsSection.vue'
 import SettingsShipmentsSection from '@/components/settings/SettingsShipmentsSection.vue'
-import { User, Palette, Database, MessageSquare, HelpCircle, Wrench, Menu, ShieldCheck, Archive, KeyRound, Truck } from 'lucide-vue-next'
+import SettingsConnectionsSection from '@/components/settings/SettingsConnectionsSection.vue'
+import { User, Palette, Database, MessageSquare, HelpCircle, Wrench, Menu, ShieldCheck, Archive, KeyRound, Truck, Link } from 'lucide-vue-next'
 
 const tabIcons: Record<string, Component> = {
   account: User,
+  connections: Link,
   appearance: Palette,
   data: Database,
   backups: Archive,
@@ -154,6 +157,7 @@ const shipmentsSection = ref<InstanceType<typeof SettingsShipmentsSection> | nul
 
 const baseTabs = [
   { id: 'account', label: 'Account' },
+  { id: 'connections', label: 'Connections' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'data', label: 'Data' },
   { id: 'apikeys', label: 'Keys' },
@@ -169,6 +173,7 @@ const tabs = computed(() => {
     return [
       { id: 'account', label: 'Account' },
       { id: 'admin', label: 'Admin' },
+      { id: 'connections', label: 'Connections' },
       { id: 'appearance', label: 'Appearance' },
       { id: 'data', label: 'Data' },
       { id: 'apikeys', label: 'Keys' },

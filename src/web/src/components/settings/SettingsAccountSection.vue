@@ -53,7 +53,8 @@
       <span class="mt-1 block text-chip text-text-muted">Used by the Agent to find nearby coin shows and dealers</span>
     </div>
 
-    <h3 class="mb-3 mt-5 text-base text-text-secondary">NumisBids Integration</h3>
+    <template v-if="showConnections">
+      <h3 class="mb-3 mt-5 text-base text-text-secondary">NumisBids Integration</h3>
     <p class="mb-3 text-sm text-text-muted">
       Connect your NumisBids account for watchlist/import tracking. Won/lost outcomes, winning bids, and max bids should be checked on NumisBids and updated manually.
     </p>
@@ -155,13 +156,14 @@
     >
       {{ pushoverTesting ? 'Sending...' : 'Test Notification' }}
     </button>
-    <p
-      v-if="pushoverTestMsg"
-      class="mt-1 text-body text-gold"
-      :class="{ 'text-[var(--color-negative)]': pushoverTestError }"
-    >
-      {{ pushoverTestMsg }}
-    </p>
+      <p
+        v-if="pushoverTestMsg"
+        class="mt-1 text-body text-gold"
+        :class="{ 'text-[var(--color-negative)]': pushoverTestError }"
+      >
+        {{ pushoverTestMsg }}
+      </p>
+    </template>
     <div class="flex items-center justify-between gap-4 border-b border-border-subtle py-3 last:border-0">
       <div class="flex flex-col gap-[0.15rem]">
         <span class="text-base font-medium">Public Collection</span>
@@ -239,9 +241,9 @@
     <button
       class="btn btn-primary btn-sm mt-2 focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
       @click="handleSaveProfile"
-      :disabled="profileSaving || nbValidating || cngValidating"
+      :disabled="saveDisabled"
     >
-      {{ nbValidating || cngValidating ? 'Validating...' : profileSaving ? 'Saving...' : 'Save Profile' }}
+      {{ saveLabel }}
     </button>
     <p v-if="profileMsg" class="mt-2 text-body text-gold" :class="{ 'text-[var(--color-negative)]': profileError }">{{ profileMsg }}</p>
 
@@ -411,6 +413,12 @@ import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 import type { OIDCLinkedIdentity, OIDCPublicProvider, WebAuthnCredentialInfo } from '@/types'
 import { Link as LinkIcon, LockKeyhole } from 'lucide-vue-next'
 
+const props = withDefaults(defineProps<{
+  showConnections?: boolean
+}>(), {
+  showConnections: true,
+})
+
 const auth = useAuthStore()
 const { showConfirm } = useDialog()
 
@@ -443,6 +451,13 @@ const unlinkingIdentityId = ref<number | null>(null)
 const linkableProviders = computed(() => {
   const linkedProviderIds = new Set(oidcIdentities.value.map(identity => identity.providerId))
   return oidcProviders.value.filter(provider => !linkedProviderIds.has(provider.id))
+})
+
+const saveDisabled = computed(() => profileSaving.value || (props.showConnections && (nbValidating.value || cngValidating.value)))
+const saveLabel = computed(() => {
+  if (props.showConnections && (nbValidating.value || cngValidating.value)) return 'Validating...'
+  if (profileSaving.value) return 'Saving...'
+  return 'Save Profile'
 })
 
 async function loadOIDCAccounts() {
