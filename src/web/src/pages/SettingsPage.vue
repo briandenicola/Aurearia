@@ -74,6 +74,7 @@
           @saved="handleProcessSaved"
           @unblock="handleUnblock"
         />
+        <SettingsShipmentsSection v-if="activeTab === 'shipments'" ref="shipmentsSection" />
 
         <SavedConversationsSection
           v-if="activeTab === 'conversations'"
@@ -119,7 +120,8 @@ import SettingsBackupsSection from '@/components/settings/SettingsBackupsSection
 import SettingsApiKeysSection from '@/components/settings/SettingsApiKeysSection.vue'
 import SavedConversationsSection from '@/components/settings/SavedConversationsSection.vue'
 import SettingsToolsSection from '@/components/settings/SettingsToolsSection.vue'
-import { User, Palette, Database, MessageSquare, HelpCircle, Wrench, Menu, ShieldCheck, Archive, KeyRound } from 'lucide-vue-next'
+import SettingsShipmentsSection from '@/components/settings/SettingsShipmentsSection.vue'
+import { User, Palette, Database, MessageSquare, HelpCircle, Wrench, Menu, ShieldCheck, Archive, KeyRound, Truck } from 'lucide-vue-next'
 
 const tabIcons: Record<string, Component> = {
   account: User,
@@ -128,6 +130,7 @@ const tabIcons: Record<string, Component> = {
   backups: Archive,
   apikeys: KeyRound,
   tools: Wrench,
+  shipments: Truck,
   conversations: MessageSquare,
   help: HelpCircle,
   admin: ShieldCheck,
@@ -147,15 +150,17 @@ const accountSection = ref<InstanceType<typeof SettingsAccountSection> | null>(n
 const dataSection = ref<InstanceType<typeof SettingsDataSection> | null>(null)
 const backupsSection = ref<InstanceType<typeof SettingsBackupsSection> | null>(null)
 const apiKeysSection = ref<InstanceType<typeof SettingsApiKeysSection> | null>(null)
+const shipmentsSection = ref<InstanceType<typeof SettingsShipmentsSection> | null>(null)
 
 const baseTabs = [
   { id: 'account', label: 'Account' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'data', label: 'Data' },
-  { id: 'backups', label: 'Backups' },
   { id: 'apikeys', label: 'Keys' },
   { id: 'tools', label: 'Tools' },
   { id: 'conversations', label: 'Conversations' },
+  { id: 'shipments', label: 'Shipments' },
+  { id: 'backups', label: 'Backups' },
   { id: 'help', label: 'Help' },
 ]
 const validTabIds = baseTabs.map(t => t.id).concat('admin')
@@ -166,10 +171,11 @@ const tabs = computed(() => {
       { id: 'admin', label: 'Admin' },
       { id: 'appearance', label: 'Appearance' },
       { id: 'data', label: 'Data' },
-      { id: 'backups', label: 'Backups' },
       { id: 'apikeys', label: 'Keys' },
       { id: 'tools', label: 'Tools' },
       { id: 'conversations', label: 'Conversations' },
+      { id: 'shipments', label: 'Shipments' },
+      { id: 'backups', label: 'Backups' },
       { id: 'help', label: 'Help' },
     ]
   }
@@ -315,6 +321,7 @@ async function handleRefresh() {
     loadConversations(),
     loadBlockedUsers(),
     accountSection.value?.loadCredentials() ?? Promise.resolve(),
+    shipmentsSection.value?.loadShipments() ?? Promise.resolve(),
   ])
 }
 
