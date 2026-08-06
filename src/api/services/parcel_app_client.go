@@ -99,11 +99,12 @@ func (c *HTTPParcelAppClient) ListDeliveries(ctx context.Context, apiKey string)
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return nil, parcelAPIError("list deliveries", resp.StatusCode, "", body)
 	}
 
+	body, _ := io.ReadAll(resp.Body)
 	var parsed parcelAppListResponse
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return nil, fmt.Errorf("decode parcel deliveries: %w; body=%q", err, responseExcerpt(body))

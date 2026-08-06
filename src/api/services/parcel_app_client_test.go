@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -59,5 +60,31 @@ func TestHTTPParcelAppClient_ListDeliveriesAcceptsActualSuccessField(t *testing.
 	}
 	if deliveries[0].TrackingNumber != "9402150105800000607499" {
 		t.Fatalf("tracking = %q, want parsed tracking number", deliveries[0].TrackingNumber)
+	}
+}
+
+func TestHTTPParcelAppClient_ListDeliveries_AcceptsLargePayload(t *testing.T) {
+	longAdditional := strings.Repeat("X", 9000)
+	body := `{"success":true,"deliveries":[{"tracking_number":"9402150105800000607499","carrier_code":"dhlgm","status_code":2,"description":"Mark Weldon","events":[{"event":"DEPARTURE ORIGIN DHL ECOMMERCE FACILITY","date":"August 5 2026 03:41","location":"Avenel, NJ, UNITED","additional":"` + longAdditional + `"}]}]}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+		_, _ = w.Write([]byte(body))
+	}))
+	defer server.Close()
+
+	client := NewHTTPParcelAppClient()
+	client.baseURL = server.URL
+
+	deliveries, err := client.ListDeliveries(context.Background(), "test-key")
+	if err != nil {
+		t.Fatalf("ListDeliveries returned error for large payload: %v", err)
+	}
+	if len(deliveries) != 1 {
+		t.Fatalf("deliveries len = %d, want 1", len(deliveries))
+	}
+	if deliveries[0].StatusCode != 2 {
+		t.Fatalf("status code = %d, want 2", deliveries[0].StatusCode)
 	}
 }
