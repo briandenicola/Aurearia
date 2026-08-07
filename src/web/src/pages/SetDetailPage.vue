@@ -132,6 +132,7 @@
               :coins="currentDrawerCoins"
               :felt-theme="feltColor"
               :size-scale="traySizeScale"
+              :show-names="true"
               @coin-clicked="handleTrayCoinClick"
             />
             <TrayControls

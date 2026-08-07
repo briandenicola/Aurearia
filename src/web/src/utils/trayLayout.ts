@@ -25,9 +25,15 @@ export interface TrayLayoutOptions {
   defaultDiameterMm: number
 }
 
-export function selectTrayCoinImage(images: readonly TrayCoinImage[]): TrayCoinImage | null {
-  return images.find(image => image.imageType?.toLowerCase() === 'obverse')
-    ?? images.find(image => image.imageType?.toLowerCase() === 'reverse')
+export type TrayCoinFace = 'obverse' | 'reverse'
+
+export function selectTrayCoinImage(
+  images: readonly TrayCoinImage[],
+  preferredFace: TrayCoinFace = 'obverse'
+): TrayCoinImage | null {
+  const fallbackFace: TrayCoinFace = preferredFace === 'obverse' ? 'reverse' : 'obverse'
+  return images.find(image => image.imageType?.toLowerCase() === preferredFace)
+    ?? images.find(image => image.imageType?.toLowerCase() === fallbackFace)
     ?? images.find(image => image.isPrimary)
     ?? images[0]
     ?? null
@@ -50,8 +56,11 @@ export function hasKnownDiameterMm(diameterMm: number | null | undefined): boole
   return diameterMm != null && diameterMm > 0
 }
 
-export function selectTrayCoinImagePath(images: readonly TrayCoinImage[]): string | null {
-  return selectTrayCoinImage(images)?.filePath ?? null
+export function selectTrayCoinImagePath(
+  images: readonly TrayCoinImage[],
+  preferredFace: TrayCoinFace = 'obverse'
+): string | null {
+  return selectTrayCoinImage(images, preferredFace)?.filePath ?? null
 }
 
 /**
