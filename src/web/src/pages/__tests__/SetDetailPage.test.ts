@@ -82,6 +82,7 @@ describe('SetDetailPage', () => {
     const tray = wrapper.findComponent({ name: 'MuseumTray' })
     expect(tray.exists()).toBe(true)
     expect(tray.props('feltTheme')).toBe('navy')
+    expect(tray.props('showNames')).toBe(true)
     expect(tray.props('coins')).toEqual([
       {
         id: 1,

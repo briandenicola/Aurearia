@@ -146,6 +146,18 @@ describe('MuseumTrayWell', () => {
     expect(wrapper.find('.tray-date').text()).not.toBe('TBD')
   })
 
+  it('shows the coin title above the image when requested', () => {
+    const wrapper = mount(MuseumTrayWell, {
+      props: {
+        coin: mockCoin,
+        renderSizePx: 70,
+        showNames: true,
+      },
+    })
+
+    expect(wrapper.find('.tray-name').text()).toBe('Test Coin')
+  })
+
   it('hides captions when requested by the collection tray', () => {
     const wrapper = mount(MuseumTrayWell, {
       props: {
@@ -205,6 +217,26 @@ describe('MuseumTrayWell', () => {
 
     const img = wrapper.find('img')
     expect(img.attributes('src')).toBe('/api/showcase/featured/uploads/coins/obverse.webp')
+  })
+
+  it('can prefer reverse face when requested', () => {
+    const wrapper = mount(MuseumTrayWell, {
+      props: {
+        coin: {
+          ...mockCoin,
+          images: [
+            { id: 12, filePath: 'coins/reverse.webp', imageType: 'reverse', isPrimary: false },
+            { id: 13, filePath: 'coins/obverse.webp', imageType: 'obverse', isPrimary: false },
+          ],
+        },
+        renderSizePx: 70,
+        preferredFace: 'reverse',
+        imageSrcResolver: (filePath: string) => `/api/showcase/featured/uploads/${filePath}`,
+      },
+    })
+
+    const img = wrapper.find('img')
+    expect(img.attributes('src')).toBe('/api/showcase/featured/uploads/coins/reverse.webp')
   })
 
   it('can render as a non-interactive public well', async () => {

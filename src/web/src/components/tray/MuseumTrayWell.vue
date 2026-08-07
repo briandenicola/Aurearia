@@ -1,5 +1,6 @@
 <template>
   <div class="tray-item">
+    <span v-if="displayName" class="tray-name">{{ displayName }}</span>
     <div
       class="tray-well"
       :class="{
@@ -48,7 +49,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Coins } from 'lucide-vue-next'
-import { selectTrayCoinImage, type TrayCoin } from '@/utils/trayLayout'
+import { selectTrayCoinImage, type TrayCoin, type TrayCoinFace } from '@/utils/trayLayout'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
 
 interface Props {
@@ -57,18 +58,22 @@ interface Props {
   imageSrcResolver?: (filePath: string) => string
   interactive?: boolean
   showCaptions?: boolean
+  showNames?: boolean
+  preferredFace?: TrayCoinFace
 }
 
 const props = withDefaults(defineProps<Props>(), {
   imageSrcResolver: undefined,
   interactive: true,
   showCaptions: true,
+  showNames: false,
+  preferredFace: 'obverse',
 })
 const emit = defineEmits<{
   'coin-clicked': [coinId: number]
 }>()
 
-const selectedImagePath = computed(() => selectTrayCoinImage(props.coin.images)?.filePath ?? null)
+const selectedImagePath = computed(() => selectTrayCoinImage(props.coin.images, props.preferredFace)?.filePath ?? null)
 
 const primaryImage = computed(() => {
   const path = selectedImagePath.value
@@ -95,6 +100,12 @@ const displayCaption = computed(() => {
   return props.coin.purchaseDate?.slice(0, 10) || 'TBD'
 })
 
+const displayName = computed(() => {
+  if (!props.showNames) return null
+  if (props.coin.placeholder) return null
+  return props.coin.name
+})
+
 function handleClick() {
   if (!props.interactive) return
   emit('coin-clicked', props.coin.id)
@@ -107,6 +118,19 @@ function handleClick() {
   flex-direction: column;
   align-items: center;
   gap: 0.35rem;
+}
+
+.tray-name {
+  min-height: 1rem;
+  max-width: 100%;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text-primary);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tray-well {

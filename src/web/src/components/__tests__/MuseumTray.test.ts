@@ -25,6 +25,17 @@ describe('MuseumTray', () => {
       images: [],
     },
   ]
+  const mockCoinsWithFaces: TrayCoin[] = [
+    {
+      id: 11,
+      name: 'Dual Face Coin',
+      diameterMm: 21,
+      images: [
+        { filePath: 'coins/dual-obverse.webp', imageType: 'obverse' },
+        { filePath: 'coins/dual-reverse.webp', imageType: 'reverse' },
+      ],
+    },
+  ]
 
   it('renders all coin wells', () => {
     const wrapper = mount(MuseumTray, {
@@ -163,5 +174,32 @@ describe('MuseumTray', () => {
     expect(sizes.every(size => size >= 40)).toBe(true)
     expect(new Set(sizes).size).toBeGreaterThan(1)
     expect(sizes[0]).toBeGreaterThan(40)
+  })
+
+  it('shows a face toggle button when face images exist', () => {
+    const wrapper = mount(MuseumTray, {
+      props: {
+        coins: mockCoinsWithFaces,
+        feltTheme: 'red',
+      },
+    })
+
+    expect(wrapper.find('.tray-face-toggle').exists()).toBe(true)
+  })
+
+  it('toggles preferred face for all wells', async () => {
+    const wrapper = mount(MuseumTray, {
+      props: {
+        coins: mockCoinsWithFaces,
+        feltTheme: 'red',
+      },
+    })
+
+    const well = wrapper.findComponent(MuseumTrayWell)
+    expect(well.props('preferredFace')).toBe('obverse')
+
+    await wrapper.find('.tray-face-toggle').trigger('click')
+
+    expect(well.props('preferredFace')).toBe('reverse')
   })
 })
