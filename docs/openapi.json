@@ -16581,6 +16581,14 @@
                 "storageLocationId": {
                     "type": "integer"
                 },
+                "vendorInvoice": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "vendorSku": {
+                    "type": "string",
+                    "maxLength": 200
+                },
                 "weightGrams": {
                     "type": "number"
                 }
@@ -16661,10 +16669,6 @@
                     "type": "integer",
                     "example": 42
                 },
-                "invoiceNumber": {
-                    "type": "string",
-                    "example": "INV-2024-001"
-                },
                 "number": {
                     "type": "string",
                     "example": "234"
@@ -16690,10 +16694,6 @@
                     "type": "string",
                     "maxLength": 32
                 },
-                "invoiceNumber": {
-                    "type": "string",
-                    "maxLength": 64
-                },
                 "number": {
                     "type": "string",
                     "maxLength": 128
@@ -16714,10 +16714,6 @@
                 "catalog": {
                     "type": "string",
                     "example": "RIC"
-                },
-                "invoiceNumber": {
-                    "type": "string",
-                    "example": "INV-2024-001"
                 },
                 "number": {
                     "type": "string",
@@ -16899,6 +16895,14 @@
                 },
                 "storageLocationId": {
                     "type": "integer"
+                },
+                "vendorInvoice": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "vendorSku": {
+                    "type": "string",
+                    "maxLength": 200
                 },
                 "weightGrams": {
                     "type": "number"
@@ -19411,6 +19415,14 @@
                 "userId": {
                     "type": "integer"
                 },
+                "vendorInvoice": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "vendorSku": {
+                    "type": "string",
+                    "maxLength": 200
+                },
                 "weightGrams": {
                     "type": "number"
                 }
@@ -19545,10 +19557,6 @@
                 },
                 "id": {
                     "type": "integer"
-                },
-                "invoiceNumber": {
-                    "type": "string",
-                    "maxLength": 64
                 },
                 "number": {
                     "type": "string",
