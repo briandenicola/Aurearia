@@ -7,11 +7,10 @@ import (
 )
 
 type CoinReferenceRequest struct {
-	Catalog       string `json:"catalog" binding:"max=32"`
-	Volume        string `json:"volume" binding:"max=64"`
-	Number        string `json:"number" binding:"max=128"`
-	InvoiceNumber string `json:"invoiceNumber" binding:"max=64"`
-	URI           string `json:"uri" binding:"max=2000"`
+	Catalog string `json:"catalog" binding:"max=32"`
+	Volume  string `json:"volume" binding:"max=64"`
+	Number  string `json:"number" binding:"max=128"`
+	URI     string `json:"uri" binding:"max=2000"`
 }
 
 type CoinCreateRequest struct {
@@ -36,6 +35,8 @@ type CoinCreateRequest struct {
 	CurrentValue          *float64               `json:"currentValue"`
 	PurchaseDate          *time.Time             `json:"purchaseDate"`
 	PurchaseLocation      string                 `json:"purchaseLocation" binding:"max=500"`
+	VendorSKU             string                 `json:"vendorSku" binding:"max=200"`
+	VendorInvoice         string                 `json:"vendorInvoice" binding:"max=200"`
 	Notes                 string                 `json:"notes" binding:"max=5000"`
 	ReferenceURL          string                 `json:"referenceUrl" binding:"max=2000"`
 	ReferenceText         string                 `json:"referenceText" binding:"max=2000"`
@@ -71,6 +72,8 @@ type CoinUpdateRequest struct {
 	CurrentValue          *float64               `json:"currentValue"`
 	PurchaseDate          *time.Time             `json:"purchaseDate"`
 	PurchaseLocation      *string                `json:"purchaseLocation" binding:"omitempty,max=500"`
+	VendorSKU             *string                `json:"vendorSku" binding:"omitempty,max=200"`
+	VendorInvoice         *string                `json:"vendorInvoice" binding:"omitempty,max=200"`
 	Notes                 *string                `json:"notes" binding:"omitempty,max=5000"`
 	ReferenceURL          *string                `json:"referenceUrl" binding:"omitempty,max=2000"`
 	ReferenceText         *string                `json:"referenceText" binding:"omitempty,max=2000"`
@@ -111,6 +114,8 @@ func (r CoinCreateRequest) toCoin(userID uint) models.Coin {
 		CurrentValue:          r.CurrentValue,
 		PurchaseDate:          r.PurchaseDate,
 		PurchaseLocation:      r.PurchaseLocation,
+		VendorSKU:             r.VendorSKU,
+		VendorInvoice:         r.VendorInvoice,
 		Notes:                 r.Notes,
 		ReferenceURL:          r.ReferenceURL,
 		ReferenceText:         r.ReferenceText,
@@ -224,6 +229,14 @@ func (r CoinUpdateRequest) toCoin(existing *models.Coin, storageLocationProvided
 		updates.PurchaseLocation = *r.PurchaseLocation
 		updateFields = append(updateFields, "PurchaseLocation")
 	}
+	if r.VendorSKU != nil {
+		updates.VendorSKU = *r.VendorSKU
+		updateFields = append(updateFields, "VendorSKU")
+	}
+	if r.VendorInvoice != nil {
+		updates.VendorInvoice = *r.VendorInvoice
+		updateFields = append(updateFields, "VendorInvoice")
+	}
 	if r.Notes != nil {
 		updates.Notes = *r.Notes
 		updateFields = append(updateFields, "Notes")
@@ -280,11 +293,10 @@ func mapCoinReferenceRequests(requests []CoinReferenceRequest) []models.CoinRefe
 	refs := make([]models.CoinReference, 0, len(requests))
 	for _, ref := range requests {
 		refs = append(refs, models.CoinReference{
-			Catalog:       ref.Catalog,
-			Volume:        ref.Volume,
-			Number:        ref.Number,
-			InvoiceNumber: ref.InvoiceNumber,
-			URI:           ref.URI,
+			Catalog: ref.Catalog,
+			Volume:  ref.Volume,
+			Number:  ref.Number,
+			URI:     ref.URI,
 		})
 	}
 	return refs

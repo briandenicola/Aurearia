@@ -140,6 +140,7 @@ paths:
         Requires a key with `write` capability. Returns a proposal id + token + preview.
         No coin write occurs until `commit_update` confirms. Only allowlisted fields are
         accepted (grade, currentValue, notes, tags, referenceText, referenceUrl,
+        vendorSku, vendorInvoice,
         references); identity fields are rejected.
       tags: [write]
       requestBody:

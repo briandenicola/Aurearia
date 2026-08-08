@@ -272,11 +272,10 @@ func TestMigrationWithExistingReference(t *testing.T) {
 	}
 
 	existingRef := models.CoinReference{
-		CoinID:        1,
-		Catalog:       "RIC",
-		Volume:        "II",
-		Number:        "207",
-		InvoiceNumber: "INV-2024-001",
+		CoinID:  1,
+		Catalog: "RIC",
+		Volume:  "II",
+		Number:  "207",
 	}
 	if err := db.Create(&existingRef).Error; err != nil {
 		t.Fatalf("failed to create existing reference: %v", err)
@@ -301,9 +300,6 @@ func TestMigrationWithExistingReference(t *testing.T) {
 	var ref models.CoinReference
 	if err := db.Where("coin_id = ?", 1).First(&ref).Error; err != nil {
 		t.Fatalf("failed to fetch reference: %v", err)
-	}
-	if ref.InvoiceNumber != "INV-2024-001" {
-		t.Errorf("expected existing reference invoiceNumber=INV-2024-001, got %q", ref.InvoiceNumber)
 	}
 }
 

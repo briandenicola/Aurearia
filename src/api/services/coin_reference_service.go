@@ -71,7 +71,6 @@ func (s *CoinReferenceService) NormalizeAndValidateOne(
 	ref.Catalog = strings.ToUpper(strings.TrimSpace(ref.Catalog))
 	ref.Volume = strings.TrimSpace(ref.Volume)
 	ref.Number = strings.TrimSpace(ref.Number)
-	ref.InvoiceNumber = strings.TrimSpace(ref.InvoiceNumber)
 	ref.URI = strings.TrimSpace(ref.URI)
 
 	if ref.Catalog == "" {

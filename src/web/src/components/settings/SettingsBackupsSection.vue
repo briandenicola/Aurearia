@@ -92,6 +92,8 @@ const CSV_IMPORT_DEFAULTS: Partial<Coin> = {
   currentValue: null,
   purchaseDate: null,
   purchaseLocation: '',
+  vendorSku: '',
+  vendorInvoice: '',
   storageLocationId: null,
   storageLocation: null,
   notes: '',
@@ -248,6 +250,8 @@ function parseCsvCoins(text: string): { coins: Partial<Coin>[]; skippedRows: num
       currentValue,
       purchaseDate: parseDateString(getValue(values, ['purchaseDate', 'acquiredDate'])),
       purchaseLocation: getValue(values, ['purchaseLocation', 'store', 'dealer']),
+      vendorSku: getValue(values, ['vendorSku', 'sku', 'vendorCode']),
+      vendorInvoice: getValue(values, ['vendorInvoice', 'invoice', 'invoiceNumber']),
       notes: getValue(values, ['notes']),
       referenceUrl: getValue(values, ['referenceUrl', 'url']),
       referenceText: getValue(values, ['referenceText', 'referenceLabel']) || 'Store Link',
@@ -273,12 +277,12 @@ function escapeCsvValue(value: string): string {
 function downloadCsvTemplate() {
   const headers = [
     'name', 'category', 'material', 'denomination', 'ruler', 'era', 'mint', 'weightGrams', 'diameterMm',
-    'grade', 'purchasePrice', 'currentValue', 'purchaseDate', 'purchaseLocation', 'notes',
+    'grade', 'purchasePrice', 'currentValue', 'purchaseDate', 'purchaseLocation', 'vendorSku', 'vendorInvoice', 'notes',
     'referenceUrl', 'referenceText', 'isWishlist',
   ]
   const sampleRows = [
-    ['Augustus Denarius', 'Roman', 'Silver', 'Denarius', 'Augustus', '27 BC - 14 AD', 'Rome', '3.82', '19.5', 'VF', '450', '600', '2024-03-15', 'Heritage Auctions', 'Strong portrait with clear legend', 'https://www.acsearch.info/', 'ACSearch', 'false'],
-    ['Constantius II Follis', 'Roman', 'Bronze', 'Follis', 'Constantius II', '337-361 AD', 'Antioch', '2.9', '18.1', 'F', '35', '45', '2025-01-20', 'Local show', 'Entry-level late Roman bronze', '', 'Store Link', 'false'],
+    ['Augustus Denarius', 'Roman', 'Silver', 'Denarius', 'Augustus', '27 BC - 14 AD', 'Rome', '3.82', '19.5', 'VF', '450', '600', '2024-03-15', 'Heritage Auctions', 'CNG-84291', 'INV-2026-0042', 'Strong portrait with clear legend', 'https://www.acsearch.info/', 'ACSearch', 'false'],
+    ['Constantius II Follis', 'Roman', 'Bronze', 'Follis', 'Constantius II', '337-361 AD', 'Antioch', '2.9', '18.1', 'F', '35', '45', '2025-01-20', 'Local show', '', '', 'Entry-level late Roman bronze', '', 'Store Link', 'false'],
   ]
 
   const lines = [

@@ -446,6 +446,8 @@ func (r *CoinRepository) Duplicate(id uint, userID uint) (*models.Coin, error) {
 		CurrentValueUpdatedAt: source.CurrentValueUpdatedAt,
 		PurchaseDate:          source.PurchaseDate,
 		PurchaseLocation:      source.PurchaseLocation,
+		VendorSKU:             source.VendorSKU,
+		VendorInvoice:         source.VendorInvoice,
 		Notes:                 source.Notes,
 		AIAnalysis:            source.AIAnalysis,
 		ObverseAnalysis:       source.ObverseAnalysis,
@@ -472,12 +474,11 @@ func (r *CoinRepository) Duplicate(id uint, userID uint) (*models.Coin, error) {
 		references := make([]models.CoinReference, 0, len(source.References))
 		for _, ref := range source.References {
 			references = append(references, models.CoinReference{
-				CoinID:        duplicate.ID,
-				Catalog:       ref.Catalog,
-				Volume:        ref.Volume,
-				Number:        ref.Number,
-				InvoiceNumber: ref.InvoiceNumber,
-				URI:           ref.URI,
+				CoinID:  duplicate.ID,
+				Catalog: ref.Catalog,
+				Volume:  ref.Volume,
+				Number:  ref.Number,
+				URI:     ref.URI,
 			})
 		}
 		if err := r.db.Create(&references).Error; err != nil {

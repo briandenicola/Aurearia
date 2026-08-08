@@ -492,7 +492,14 @@ func buildImage(imageType models.ImageType, isPrimary bool) models.CoinImage {
 }
 
 func buildReference(catalog, volume, number string) models.CoinReference {
-	return models.CoinReference{Catalog: catalog, Volume: volume, Number: number, InvoiceNumber: fmt.Sprintf("INV-%s-%s", catalog, number), URI: fmt.Sprintf("https://example.test/catalog/%s/%s", catalog, number), CreatedAt: fixtureTimestamp, UpdatedAt: fixtureTimestamp}
+	return models.CoinReference{
+		Catalog:   catalog,
+		Volume:    volume,
+		Number:    number,
+		URI:       fmt.Sprintf("https://example.test/catalog/%s/%s", catalog, number),
+		CreatedAt: fixtureTimestamp,
+		UpdatedAt: fixtureTimestamp,
+	}
 }
 
 func fixtureSet(userID uint, name string) models.CoinSet {

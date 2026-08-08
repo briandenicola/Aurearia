@@ -16588,6 +16588,14 @@ const docTemplate = `{
                 "storageLocationId": {
                     "type": "integer"
                 },
+                "vendorInvoice": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "vendorSku": {
+                    "type": "string",
+                    "maxLength": 200
+                },
                 "weightGrams": {
                     "type": "number"
                 }
@@ -16668,10 +16676,6 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 42
                 },
-                "invoiceNumber": {
-                    "type": "string",
-                    "example": "INV-2024-001"
-                },
                 "number": {
                     "type": "string",
                     "example": "234"
@@ -16697,10 +16701,6 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 32
                 },
-                "invoiceNumber": {
-                    "type": "string",
-                    "maxLength": 64
-                },
                 "number": {
                     "type": "string",
                     "maxLength": 128
@@ -16721,10 +16721,6 @@ const docTemplate = `{
                 "catalog": {
                     "type": "string",
                     "example": "RIC"
-                },
-                "invoiceNumber": {
-                    "type": "string",
-                    "example": "INV-2024-001"
                 },
                 "number": {
                     "type": "string",
@@ -16906,6 +16902,14 @@ const docTemplate = `{
                 },
                 "storageLocationId": {
                     "type": "integer"
+                },
+                "vendorInvoice": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "vendorSku": {
+                    "type": "string",
+                    "maxLength": 200
                 },
                 "weightGrams": {
                     "type": "number"
@@ -19418,6 +19422,14 @@ const docTemplate = `{
                 "userId": {
                     "type": "integer"
                 },
+                "vendorInvoice": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "vendorSku": {
+                    "type": "string",
+                    "maxLength": 200
+                },
                 "weightGrams": {
                     "type": "number"
                 }
@@ -19552,10 +19564,6 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
-                },
-                "invoiceNumber": {
-                    "type": "string",
-                    "maxLength": 64
                 },
                 "number": {
                     "type": "string",

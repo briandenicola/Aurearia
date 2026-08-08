@@ -186,6 +186,16 @@
             <AutocompleteInput v-model="form.purchaseLocation!" field="purchaseLocation" placeholder="e.g. Heritage Auctions" />
           </div>
         </div>
+        <div class="grid gap-3 md:grid-cols-2">
+          <div class="form-group min-w-0">
+            <label class="form-label">Vendor SKU</label>
+            <input v-model="form.vendorSku" class="form-input" placeholder="e.g. CNG-12345" />
+          </div>
+          <div class="form-group min-w-0">
+            <label class="form-label">Vendor Invoice</label>
+            <input v-model="form.vendorInvoice" class="form-input" placeholder="e.g. INV-2026-0421" />
+          </div>
+        </div>
       </fieldset>
 
       <!-- Links & Notes -->
