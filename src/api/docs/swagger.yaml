@@ -237,6 +237,12 @@ definitions:
         type: string
       storageLocationId:
         type: integer
+      vendorInvoice:
+        maxLength: 200
+        type: string
+      vendorSku:
+        maxLength: 200
+        type: string
       weightGrams:
         type: number
     type: object
@@ -292,9 +298,6 @@ definitions:
       id:
         example: 42
         type: integer
-      invoiceNumber:
-        example: INV-2024-001
-        type: string
       number:
         example: "234"
         type: string
@@ -313,9 +316,6 @@ definitions:
       catalog:
         maxLength: 32
         type: string
-      invoiceNumber:
-        maxLength: 64
-        type: string
       number:
         maxLength: 128
         type: string
@@ -330,9 +330,6 @@ definitions:
     properties:
       catalog:
         example: RIC
-        type: string
-      invoiceNumber:
-        example: INV-2024-001
         type: string
       number:
         example: "234"
@@ -457,6 +454,12 @@ definitions:
         type: string
       storageLocationId:
         type: integer
+      vendorInvoice:
+        maxLength: 200
+        type: string
+      vendorSku:
+        maxLength: 200
+        type: string
       weightGrams:
         type: number
     type: object
@@ -2167,6 +2170,12 @@ definitions:
         type: string
       userId:
         type: integer
+      vendorInvoice:
+        maxLength: 200
+        type: string
+      vendorSku:
+        maxLength: 200
+        type: string
       weightGrams:
         type: number
     type: object
@@ -2256,9 +2265,6 @@ definitions:
         type: string
       id:
         type: integer
-      invoiceNumber:
-        maxLength: 64
-        type: string
       number:
         maxLength: 128
         type: string
