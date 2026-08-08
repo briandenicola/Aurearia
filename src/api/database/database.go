@@ -42,6 +42,9 @@ func Connect(dbPath string) {
 	if err := migrateCoinSetTypes(DB); err != nil {
 		log.Fatalf("Failed to migrate coin set types: %v", err)
 	}
+	if err := backfillVendorInvoiceFromCoinReferences(DB); err != nil {
+		log.Fatalf("Failed to backfill vendor invoice values: %v", err)
+	}
 
 	// Note: CurrentValueUpdatedAt is a new nullable time.Time column.
 	// SQLite AutoMigrate adds it as a plain NULL column without FK constraints — safe additive change.
@@ -259,6 +262,70 @@ func migrateCoinReferenceCertaintyColumn(db *gorm.DB) error {
 	}
 
 	return nil
+}
+
+const vendorInvoiceBackfillVersionKey = "VendorInvoiceBackfillVersion"
+const currentVendorInvoiceBackfillVersion = "1"
+
+// backfillVendorInvoiceFromCoinReferences copies existing invoice_number values
+// from structured coin references into the new top-level coins.vendor_invoice
+// field when vendor_invoice is blank. It is idempotent and versioned.
+func backfillVendorInvoiceFromCoinReferences(db *gorm.DB) error {
+	var existingSetting models.AppSetting
+	err := db.First(&existingSetting, "key = ?", vendorInvoiceBackfillVersionKey).Error
+	if err == nil && existingSetting.Value == currentVendorInvoiceBackfillVersion {
+		return nil
+	}
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return err
+	}
+
+	// Fresh installs created from the new model no longer include invoice_number
+	// on coin_references, so there is nothing to backfill.
+	var columns []struct {
+		Name string
+	}
+	if err := db.Raw("PRAGMA table_info(coin_references)").Scan(&columns).Error; err != nil {
+		return err
+	}
+	hasInvoiceNumber := false
+	for _, col := range columns {
+		if col.Name == "invoice_number" {
+			hasInvoiceNumber = true
+			break
+		}
+	}
+
+	return db.Transaction(func(tx *gorm.DB) error {
+		if hasInvoiceNumber {
+			if err := tx.Exec(`
+				UPDATE coins
+				SET vendor_invoice = (
+					SELECT cr.invoice_number
+					FROM coin_references cr
+					WHERE cr.coin_id = coins.id
+						AND cr.invoice_number IS NOT NULL
+						AND TRIM(cr.invoice_number) <> ''
+					ORDER BY cr.updated_at DESC, cr.id DESC
+					LIMIT 1
+				)
+				WHERE (vendor_invoice IS NULL OR TRIM(vendor_invoice) = '')
+					AND EXISTS (
+						SELECT 1
+						FROM coin_references cr
+						WHERE cr.coin_id = coins.id
+							AND cr.invoice_number IS NOT NULL
+							AND TRIM(cr.invoice_number) <> ''
+					)
+			`).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Save(&models.AppSetting{
+			Key:   vendorInvoiceBackfillVersionKey,
+			Value: currentVendorInvoiceBackfillVersion,
+		}).Error
+	})
 }
 
 func seedCatalogRegistry(db *gorm.DB) error {
