@@ -163,11 +163,10 @@ func (h *CoinReferenceHandler) Update(c *gin.Context) {
 	}
 
 	if err := h.repo.Update(existing, map[string]interface{}{
-		"catalog":        normalized.Catalog,
-		"volume":         normalized.Volume,
-		"number":         normalized.Number,
-		"invoice_number": normalized.InvoiceNumber,
-		"uri":            normalized.URI,
+		"catalog": normalized.Catalog,
+		"volume":  normalized.Volume,
+		"number":  normalized.Number,
+		"uri":     normalized.URI,
 	}); err != nil {
 		if isUniqueConstraintError(err) {
 			respondError(c, http.StatusBadRequest, services.ErrReferenceDuplicate.Error(), err)

@@ -288,6 +288,8 @@ func (s *CollectionToolsService) ProposeUpdate(userID uint, coinID uint, changes
 		"tags":          true,
 		"referenceText": true,
 		"referenceUrl":  true,
+		"vendorSku":     true,
+		"vendorInvoice": true,
 	}
 
 	for key := range changes {
@@ -525,6 +527,10 @@ func applyAllowedFieldChanges(tx *gorm.DB, coin *models.Coin, userID uint, chang
 			updates["reference_text"] = strings.TrimSpace(fmt.Sprintf("%v", value))
 		case "referenceUrl":
 			updates["reference_url"] = strings.TrimSpace(fmt.Sprintf("%v", value))
+		case "vendorSku":
+			updates["vendor_sku"] = strings.TrimSpace(fmt.Sprintf("%v", value))
+		case "vendorInvoice":
+			updates["vendor_invoice"] = strings.TrimSpace(fmt.Sprintf("%v", value))
 		case "tags":
 			// handled after scalar updates
 		default:
@@ -649,6 +655,8 @@ var missingFieldNames = []string{
 	"currentValue",
 	"purchaseDate",
 	"storageLocation",
+	"vendorSku",
+	"vendorInvoice",
 	"notes",
 	"referenceUrl",
 	"referenceText",
@@ -699,6 +707,12 @@ func requestedMissingFields(query string) []string {
 	}
 	if strings.Contains(query, "storage") || strings.Contains(query, "location") {
 		add("storageLocation")
+	}
+	if strings.Contains(query, "vendor") || strings.Contains(query, "sku") {
+		add("vendorSku")
+	}
+	if strings.Contains(query, "invoice") {
+		add("vendorInvoice")
 	}
 	if strings.Contains(query, "note") {
 		add("notes")
@@ -759,6 +773,12 @@ func missingFieldsForCoin(coin models.Coin) []string {
 	}
 	if coin.StorageLocationID == nil {
 		missing = append(missing, "storageLocation")
+	}
+	if strings.TrimSpace(coin.VendorSKU) == "" {
+		missing = append(missing, "vendorSku")
+	}
+	if strings.TrimSpace(coin.VendorInvoice) == "" {
+		missing = append(missing, "vendorInvoice")
 	}
 	if strings.TrimSpace(coin.Notes) == "" {
 		missing = append(missing, "notes")

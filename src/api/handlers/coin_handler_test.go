@@ -497,7 +497,7 @@ func TestCoinHandler_Duplicate_PreservesOwnedDataAndAssociationsExcludingMedia(t
 	if err := db.Create(&models.CoinImage{CoinID: coin.ID, FilePath: "uploads/original-obverse.jpg", ImageType: models.ImageTypeObverse, IsPrimary: true}).Error; err != nil {
 		t.Fatalf("failed to seed image: %v", err)
 	}
-	if err := db.Create(&models.CoinReference{CoinID: coin.ID, Catalog: "RIC", Volume: "I", Number: "12", InvoiceNumber: "INV-1", URI: "https://example.test/ric"}).Error; err != nil {
+	if err := db.Create(&models.CoinReference{CoinID: coin.ID, Catalog: "RIC", Volume: "I", Number: "12", URI: "https://example.test/ric"}).Error; err != nil {
 		t.Fatalf("failed to seed reference: %v", err)
 	}
 	tag := models.Tag{UserID: 1, Name: "Favorites", Color: "#c9a84c"}

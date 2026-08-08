@@ -22,6 +22,8 @@ export interface Coin {
   currentValue: number | null
   purchaseDate: string | null
   purchaseLocation: string
+  vendorSku: string
+  vendorInvoice: string
   storageLocationId: number | null
   storageLocation: Pick<StorageLocation, 'id' | 'name'> | null
   notes: string
@@ -290,7 +292,6 @@ export interface CoinReference {
   catalog: string
   volume: string
   number: string
-  invoiceNumber: string
   uri: string
   createdAt: string
   updatedAt: string
@@ -300,7 +301,6 @@ export interface CoinReferenceInput {
   catalog: string
   volume?: string
   number: string
-  invoiceNumber?: string
   uri?: string
 }
 

@@ -27,10 +27,7 @@
               <input v-model.trim="draft.volume" class="form-input" placeholder="Volume (optional)" />
               <input v-model.trim="draft.number" class="form-input" placeholder="Number" />
             </div>
-            <div class="grid gap-2 md:grid-cols-2">
-              <input v-model.trim="draft.invoiceNumber" class="form-input" placeholder="Invoice Number (optional)" />
-              <input v-model.trim="draft.uri" class="form-input" placeholder="URI (optional)" />
-            </div>
+            <input v-model.trim="draft.uri" class="form-input" placeholder="Catalog Reference URL (optional)" />
             <div class="inline-flex flex-wrap items-center gap-[0.35rem]">
               <button type="submit" class="btn btn-primary btn-sm" :disabled="saving">Save</button>
               <button type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="cancelEdit">Cancel</button>
@@ -44,7 +41,6 @@
             <span class="text-base text-text-primary">
               <template v-if="ref.volume">{{ ref.volume }} </template>{{ ref.number }}
             </span>
-            <span v-if="ref.invoiceNumber" class="text-sm text-text-secondary">{{ ref.invoiceNumber }}</span>
           </div>
           <div class="inline-flex flex-wrap items-center gap-[0.35rem]">
             <SafeExternalLink
@@ -74,10 +70,7 @@
             <input v-model.trim="draft.volume" class="form-input" placeholder="Volume (optional)" />
             <input v-model.trim="draft.number" class="form-input" placeholder="Number" />
           </div>
-          <div class="grid gap-2 md:grid-cols-2">
-            <input v-model.trim="draft.invoiceNumber" class="form-input" placeholder="Invoice Number (optional)" />
-            <input v-model.trim="draft.uri" class="form-input" placeholder="URI (optional)" />
-          </div>
+          <input v-model.trim="draft.uri" class="form-input" placeholder="Catalog Reference URL (optional)" />
           <div class="inline-flex flex-wrap items-center gap-[0.35rem]">
             <button type="submit" class="btn btn-primary btn-sm" :disabled="saving">Save</button>
             <button type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="cancelEdit">Cancel</button>
@@ -99,7 +92,6 @@ type ReferenceDraft = {
   catalog: string
   volume: string
   number: string
-  invoiceNumber: string
   uri: string
 }
 
@@ -122,7 +114,6 @@ const draft = ref<ReferenceDraft>({
   catalog: '',
   volume: '',
   number: '',
-  invoiceNumber: '',
   uri: '',
 })
 
@@ -167,7 +158,6 @@ function resetDraft(value?: Partial<CoinReference>) {
     catalog: value?.catalog ?? '',
     volume: value?.volume ?? '',
     number: value?.number ?? '',
-    invoiceNumber: value?.invoiceNumber ?? '',
     uri: value?.uri ?? '',
   }
 }

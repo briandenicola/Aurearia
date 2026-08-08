@@ -38,6 +38,22 @@ export function useCoinDetailMetadataRows(coin: Coin | null) {
       })
     }
 
+    if (coin.vendorSku) {
+      result.push({
+        key: 'vendorSku',
+        label: 'Vendor SKU',
+        value: coin.vendorSku,
+      })
+    }
+
+    if (coin.vendorInvoice) {
+      result.push({
+        key: 'vendorInvoice',
+        label: 'Vendor Invoice',
+        value: coin.vendorInvoice,
+      })
+    }
+
     result.push({
       key: 'storageLocation',
       label: 'Storage Location',

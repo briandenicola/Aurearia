@@ -25,7 +25,6 @@ function reference(id: number, uri: string): CoinReference {
     catalog: 'RIC',
     volume: '',
     number: String(id),
-    invoiceNumber: '',
     uri,
     createdAt: '2026-06-19T00:00:00Z',
     updatedAt: '2026-06-19T00:00:00Z',

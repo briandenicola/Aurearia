@@ -169,7 +169,7 @@ func TestDuplicateCoin_CopiesFieldsAssociationsAndExcludesMediaAndCardState(t *t
 	if err := db.Create(&models.CoinImage{CoinID: source.ID, FilePath: "coins/source-obverse.jpg", ImageType: models.ImageTypeObverse, IsPrimary: true}).Error; err != nil {
 		t.Fatalf("failed to seed image: %v", err)
 	}
-	if err := db.Create(&models.CoinReference{CoinID: source.ID, Catalog: "RIC", Volume: "I", Number: "167a", InvoiceNumber: "INV-1", URI: "https://example.test/ric"}).Error; err != nil {
+	if err := db.Create(&models.CoinReference{CoinID: source.ID, Catalog: "RIC", Volume: "I", Number: "167a", URI: "https://example.test/ric"}).Error; err != nil {
 		t.Fatalf("failed to seed reference: %v", err)
 	}
 	tag := models.Tag{UserID: 1, Name: "Silver", Color: "#cccccc"}
