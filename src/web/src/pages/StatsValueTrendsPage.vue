@@ -82,6 +82,8 @@
           </div>
           <StatsValueOverTime :history="filteredHistory" />
         </div>
+
+        <StatsPurchasesPerYear />
       </template>
     </div>
   </PullToRefresh>
@@ -93,6 +95,7 @@ import { ArrowLeft } from 'lucide-vue-next'
 import { useCoinsStore } from '@/stores/coins'
 import PullToRefresh from '@/components/PullToRefresh.vue'
 import StatsValueOverTime from '@/components/stats/StatsValueOverTime.vue'
+import StatsPurchasesPerYear from '@/components/stats/StatsPurchasesPerYear.vue'
 import { formatCurrency } from '@/utils/format'
 
 const store = useCoinsStore()

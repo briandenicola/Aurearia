@@ -40,6 +40,7 @@ const defaultStubs = {
   PullToRefresh: { template: '<div><slot /></div>' },
   RouterLink: { template: '<a><slot /></a>' },
   ArrowLeft: { template: '<span />' },
+  StatsPurchasesPerYear: { template: '<div class="stub-purchases-by-year" />' },
 }
 
 // Stub StatsValueOverTime so timeframe filter tests can inspect the `history` prop
