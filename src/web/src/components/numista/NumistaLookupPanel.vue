@@ -15,14 +15,15 @@
     </div>
 
     <div>
-      <label for="numista-query" class="form-label">Search query</label>
+      <span id="numista-query-label" class="form-label">Search query</span>
       <textarea
         id="numista-query"
         v-model="query"
         class="form-textarea min-h-20"
         maxlength="500"
         rows="3"
-        :disabled="loading"
+        :disabled="searching"
+        aria-labelledby="numista-query-label"
         aria-describedby="numista-query-help"
         @input="queryEdited = true"
       />
@@ -43,16 +44,42 @@
         {{ searchButtonLabel }}
       </button>
       <button
+        v-if="enriching"
+        type="button"
+        class="btn btn-ghost btn-sm min-h-11"
+        @click="cancelEnrichment()"
+      >
+        Cancel enrichment
+      </button>
+      <button
+        v-else-if="canRetryEnrichment"
+        type="button"
+        class="btn btn-ghost btn-sm min-h-11"
+        :disabled="searching"
+        @click="retryEnrichment"
+      >
+        Retry details
+      </button>
+      <button
         v-if="selected"
         type="button"
         class="btn btn-ghost btn-sm min-h-11"
-        :disabled="loading"
+        :disabled="searching"
         aria-label="Remove selected Numista reference"
         @click="clearSelection"
       >
         Remove selection
       </button>
     </div>
+
+    <p
+      v-if="enrichmentMessage"
+      class="m-0 text-sm text-text-secondary"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      {{ enrichmentMessage }}
+    </p>
 
     <div
       ref="statusRegion"
@@ -103,13 +130,20 @@
           :value="candidate.id"
           @change="selectCandidate(candidate)"
         >
-        <img
-          v-if="candidate.obverseThumbnail"
-          :src="candidate.obverseThumbnail"
-          :alt="`Obverse thumbnail for ${candidate.title}`"
-          class="h-16 w-16 rounded-sm object-contain"
-        >
-        <span v-else class="hidden h-16 w-16 sm:block" aria-hidden="true" />
+        <span class="grid h-16 w-16 grid-cols-2 gap-1">
+          <img
+            v-if="safeHttpsImage(candidate.obverseThumbnail)"
+            :src="safeHttpsImage(candidate.obverseThumbnail) ?? ''"
+            :alt="`Obverse thumbnail for ${candidate.title}`"
+            class="h-16 min-w-0 rounded-sm object-contain"
+          >
+          <img
+            v-if="safeHttpsImage(candidate.reverseThumbnail)"
+            :src="safeHttpsImage(candidate.reverseThumbnail) ?? ''"
+            :alt="`Reverse thumbnail for ${candidate.title}`"
+            class="h-16 min-w-0 rounded-sm object-contain"
+          >
+        </span>
         <span class="grid min-w-0 gap-2">
           <span class="flex min-w-0 flex-wrap items-start justify-between gap-2">
             <span class="min-w-0">
@@ -155,7 +189,7 @@
         v-if="showConfirmation"
         type="button"
         class="btn btn-primary btn-sm min-h-11"
-        :disabled="loading"
+        :disabled="searching"
         @click="confirmSelection"
       >
         {{ confirmationLabel }}
@@ -165,9 +199,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { lookupNumista } from '@/api/client'
+import { enrichNumista, lookupNumista } from '@/api/client'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import {
   getNumistaCacheFreshnessText,
@@ -178,6 +212,7 @@ import {
 } from '@/utils/numistaLookup'
 import type {
   NumistaCandidate,
+  NumistaEnrichmentRequest,
   NumistaEvidence,
   NumistaLookupOutcome,
   NumistaLookupPath,
@@ -206,15 +241,19 @@ const emit = defineEmits<{
 
 const query = ref(props.initialQuery)
 const queryEdited = ref(false)
-const loading = ref(false)
+const searching = ref(false)
+const enriching = ref(false)
+const enrichmentMessage = ref('')
+const enrichmentRetryAvailable = ref(false)
 const outcome = ref<NumistaLookupOutcome | null>(null)
 const selected = ref<NumistaCandidate | null>(props.initialSelection)
 const selectedId = ref<number | null>(props.initialSelection?.id ?? null)
 const statusRegion = ref<HTMLElement | null>(null)
+let enrichmentController: AbortController | null = null
 
 const candidates = computed(() => outcome.value?.candidates ?? [])
 const selectionOutsideResults = computed(() => isSelectionOutsideResults(selected.value, candidates.value))
-const panelState = computed(() => loading.value ? 'loading' : outcome.value?.status ?? 'idle')
+const panelState = computed(() => searching.value ? 'loading' : outcome.value?.status ?? 'idle')
 const statusGuidance = computed(() => getNumistaStatusGuidance(
   panelState.value,
   props.isAdmin,
@@ -225,21 +264,26 @@ const cacheFreshnessText = computed(() => getNumistaCacheFreshnessText(
   outcome.value?.cache,
 ))
 const searchDisabled = computed(() => {
-  if (loading.value || !query.value.trim()) return true
+  if (searching.value || !query.value.trim()) return true
   if (outcome.value?.status === 'unconfigured') return !statusGuidance.value.canRetry
   return false
 })
 const searchButtonLabel = computed(() => {
-  if (loading.value) return 'Searching...'
+  if (searching.value) return 'Searching...'
   if (!outcome.value) return 'Search Numista'
   if (outcome.value.status === 'success') return 'Search again'
   if (outcome.value.status === 'unconfigured' && props.isAdmin) return 'Retry after configuration'
   if (statusGuidance.value.canRetry) return 'Retry lookup'
   return 'Search unavailable'
 })
+const canRetryEnrichment = computed(() => (
+  enrichmentRetryAvailable.value
+  && outcome.value?.status === 'success'
+  && candidates.value.length > 0
+))
 
 watch(() => props.initialQuery, (value) => {
-  if (!queryEdited.value && !outcome.value && !loading.value) query.value = value
+  if (!queryEdited.value && !outcome.value && !searching.value) query.value = value
 })
 
 watch(() => props.initialSelection, (value) => {
@@ -249,9 +293,12 @@ watch(() => props.initialSelection, (value) => {
 
 async function search() {
   const effectiveQuery = query.value
-  if (!effectiveQuery.trim() || loading.value) return
+  if (!effectiveQuery.trim() || searching.value) return
 
-  loading.value = true
+  cancelEnrichment(false)
+  enrichmentMessage.value = ''
+  enrichmentRetryAvailable.value = false
+  searching.value = true
   try {
     const response = await lookupNumista({
       query: effectiveQuery,
@@ -262,6 +309,16 @@ async function search() {
     query.value = response.data.effectiveQuery || effectiveQuery
     selected.value = retainNumistaSelection(selected.value, response.data.candidates)
     selectedId.value = selected.value?.id ?? null
+
+    await nextTick()
+    if (shouldEnrich(response.data)) {
+      void startEnrichment({
+        query: effectiveQuery,
+        path: props.path,
+        evidence: props.evidence,
+        candidates: response.data.candidates,
+      })
+    }
   } catch {
     outcome.value = {
       status: 'unavailable',
@@ -270,10 +327,126 @@ async function search() {
       stage: 'broad',
     }
   } finally {
-    loading.value = false
+    searching.value = false
     await nextTick()
     statusRegion.value?.focus()
   }
+}
+
+function shouldEnrich(result: NumistaLookupOutcome): boolean {
+  return result.status === 'success'
+    && result.stage === 'broad'
+    && result.candidates.some(candidate => candidate.enrichmentState === 'not_requested')
+}
+
+async function startEnrichment(request: NumistaEnrichmentRequest) {
+  cancelEnrichment(false)
+  const controller = new AbortController()
+  enrichmentController = controller
+  enriching.value = true
+  enrichmentRetryAvailable.value = false
+  enrichmentMessage.value = 'Enriching leading candidates with catalog details.'
+
+  try {
+    const response = await enrichNumista(request, controller.signal)
+    if (enrichmentController !== controller) return
+
+    const merged = mergeEnrichedCandidates(request.candidates, response.data.candidates)
+    outcome.value = {
+      ...response.data,
+      status: 'success',
+      candidates: merged,
+      stage: 'enriched',
+    }
+    selected.value = retainNumistaSelection(selected.value, merged)
+    selectedId.value = selected.value?.id ?? null
+
+    const failedCount = merged.filter(candidate => candidate.enrichmentState === 'failed').length
+    const detailedCount = merged.filter(candidate => (
+      candidate.enrichmentState === 'enriched' || candidate.enrichmentState === 'cached'
+    )).length
+    enrichmentRetryAvailable.value = failedCount > 0
+    enrichmentMessage.value = failedCount === 0
+      ? 'Candidate details are ready.'
+      : detailedCount === 0
+        ? 'Details could not be loaded. Broad results remain selectable.'
+        : `Details are ready for ${detailedCount} candidates; ${failedCount} remain broad results.`
+  } catch (error) {
+    if (enrichmentController !== controller) return
+    if (isCancellation(error)) {
+      enrichmentRetryAvailable.value = true
+      enrichmentMessage.value = 'Enrichment cancelled. Broad results remain selectable.'
+      return
+    }
+
+    const retained = request.candidates.map(candidate => (
+      candidate.enrichmentState === 'not_requested'
+        ? { ...candidate, enrichmentState: 'failed' as const }
+        : candidate
+    ))
+    if (outcome.value) {
+      outcome.value = { ...outcome.value, candidates: retained, stage: 'enriched' }
+    }
+    selected.value = retainNumistaSelection(selected.value, retained)
+    selectedId.value = selected.value?.id ?? null
+    enrichmentRetryAvailable.value = true
+    enrichmentMessage.value = 'Details could not be loaded. Broad results remain selectable.'
+  } finally {
+    if (enrichmentController === controller) {
+      enrichmentController = null
+      enriching.value = false
+    }
+  }
+}
+
+function retryEnrichment() {
+  const result = outcome.value
+  if (!result || result.status !== 'success' || !result.candidates.length) return
+  void startEnrichment({
+    query: result.effectiveQuery || query.value,
+    path: props.path,
+    evidence: props.evidence,
+    candidates: result.candidates.map(candidate => (
+      candidate.enrichmentState === 'failed'
+        ? { ...candidate, enrichmentState: 'not_requested' as const }
+        : candidate
+    )),
+  })
+}
+
+function cancelEnrichment(announce = true) {
+  if (!enrichmentController) return
+  const controller = enrichmentController
+  enrichmentController = null
+  controller.abort()
+  enriching.value = false
+  enrichmentRetryAvailable.value = announce
+  if (announce) enrichmentMessage.value = 'Enrichment cancelled. Broad results remain selectable.'
+}
+
+function mergeEnrichedCandidates(
+  broadCandidates: NumistaCandidate[],
+  enrichedCandidates: NumistaCandidate[],
+): NumistaCandidate[] {
+  const broadById = new Map(broadCandidates.map(candidate => [candidate.id, candidate]))
+  const merged = enrichedCandidates
+    .filter(candidate => broadById.has(candidate.id))
+    .map(candidate => ({ ...broadById.get(candidate.id), ...candidate }))
+  const returnedIds = new Set(merged.map(candidate => candidate.id))
+  return [
+    ...merged,
+    ...broadCandidates
+      .filter(candidate => !returnedIds.has(candidate.id))
+      .map(candidate => ({ ...candidate, enrichmentState: 'failed' as const })),
+  ]
+}
+
+function isCancellation(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  const candidate = error as { code?: unknown; name?: unknown }
+  return candidate.code === 'ERR_CANCELED'
+    || candidate.name === 'CanceledError'
+    || candidate.name === 'AbortError'
 }
 
 function selectCandidate(candidate: NumistaCandidate) {
@@ -310,4 +483,16 @@ function enrichmentLabel(candidate: NumistaCandidate): string {
     case 'not_requested': return 'Broad result'
   }
 }
+
+function safeHttpsImage(value: string | undefined): string | null {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
+onUnmounted(() => cancelEnrichment(false))
 </script>

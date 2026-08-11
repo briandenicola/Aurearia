@@ -1,5 +1,6 @@
 import type {
   NumistaCandidate,
+  NumistaEnrichmentRequest,
   NumistaEvidence,
   NumistaLookupOutcome,
   NumistaLookupRequest,
@@ -25,6 +26,16 @@ export function makeNumistaLookupRequest(overrides: Partial<NumistaLookupRequest
     query: 'Antoninus Pius denarius Rome 138–161 Silver',
     path: 'direct',
     evidence: makeNumistaEvidence(),
+    ...overrides,
+  }
+}
+
+export function makeNumistaEnrichmentRequest(
+  overrides: Partial<NumistaEnrichmentRequest> = {},
+): NumistaEnrichmentRequest {
+  return {
+    ...makeNumistaLookupRequest(),
+    candidates: [makeNumistaCandidate({ enrichmentState: 'not_requested' })],
     ...overrides,
   }
 }

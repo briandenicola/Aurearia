@@ -1283,6 +1283,10 @@ export interface NumistaLookupRequest {
   evidence: NumistaEvidence
 }
 
+export interface NumistaEnrichmentRequest extends NumistaLookupRequest {
+  candidates: NumistaCandidate[]
+}
+
 export interface NumistaRelevanceReason {
   field: NumistaRelevanceField
   kind: NumistaRelevanceKind
