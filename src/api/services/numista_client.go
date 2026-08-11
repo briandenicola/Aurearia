@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -49,6 +50,37 @@ func (e *NumistaError) Error() string {
 type NumistaClient interface {
 	Search(ctx context.Context, query string, limit int) ([]models.NumistaCandidate, error)
 	Detail(ctx context.Context, id int) (models.NumistaCandidate, error)
+}
+
+type NumistaClientOperation struct {
+	Attempts   int
+	RetryCount int
+}
+
+type numistaOperationRecorder struct {
+	attempts atomic.Int32
+}
+
+type numistaOperationRecorderKey struct{}
+
+func withNumistaOperationRecorder(ctx context.Context) (context.Context, *numistaOperationRecorder) {
+	recorder := &numistaOperationRecorder{}
+	return context.WithValue(ctx, numistaOperationRecorderKey{}, recorder), recorder
+}
+
+func recordNumistaAttempt(ctx context.Context) {
+	if recorder, ok := ctx.Value(numistaOperationRecorderKey{}).(*numistaOperationRecorder); ok {
+		recorder.attempts.Add(1)
+	}
+}
+
+func (r *numistaOperationRecorder) Result() NumistaClientOperation {
+	attempts := int(r.attempts.Load())
+	retries := attempts - 1
+	if retries < 0 {
+		retries = 0
+	}
+	return NumistaClientOperation{Attempts: attempts, RetryCount: retries}
 }
 
 type NumistaClientConfig struct {
@@ -166,6 +198,7 @@ func (c *HTTPNumistaClient) get(ctx context.Context, path string, timeout time.D
 		}
 		req.Header.Set("Accept", "application/json")
 		req.Header.Set("Numista-API-Key", apiKey)
+		recordNumistaAttempt(ctx)
 		resp, err := c.client.Do(req)
 		if err != nil {
 			if requestCtx.Err() != nil {

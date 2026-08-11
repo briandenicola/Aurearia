@@ -21,6 +21,20 @@ func (realNumistaClock) Now() time.Time { return time.Now().UTC() }
 
 func NewSystemNumistaClock() NumistaClock { return realNumistaClock{} }
 
+type NumistaCacheOutcome string
+
+const (
+	NumistaCacheOutcomeLoader          NumistaCacheOutcome = "loader"
+	NumistaCacheOutcomeFreshHit        NumistaCacheOutcome = "fresh_hit"
+	NumistaCacheOutcomeCoalescedWaiter NumistaCacheOutcome = "coalesced_waiter"
+	NumistaCacheOutcomeBypass          NumistaCacheOutcome = "bypass"
+)
+
+type NumistaCacheResult struct {
+	*models.NumistaCacheMetadata
+	Outcome NumistaCacheOutcome
+}
+
 type numistaSearchCacheEntry struct {
 	value     []models.NumistaCandidate
 	createdAt time.Time
@@ -50,6 +64,9 @@ type numistaDetailCall struct {
 	metadata *models.NumistaCacheMetadata
 	err      error
 }
+
+type numistaSearchLoad func(context.Context) ([]models.NumistaCandidate, func(), error)
+type numistaDetailLoad func(context.Context) (models.NumistaCandidate, func(), error)
 
 type NumistaCache struct {
 	mu             sync.Mutex
@@ -145,7 +162,34 @@ func (c *NumistaCache) DoSearch(
 	limit int,
 	ttl time.Duration,
 	load func(context.Context) ([]models.NumistaCandidate, error),
-) ([]models.NumistaCandidate, *models.NumistaCacheMetadata, error) {
+) ([]models.NumistaCandidate, *NumistaCacheResult, error) {
+	return c.doSearch(ctx, query, limit, ttl, func(loadCtx context.Context) (
+		[]models.NumistaCandidate,
+		func(),
+		error,
+	) {
+		value, err := load(loadCtx)
+		return value, nil, err
+	})
+}
+
+func (c *NumistaCache) doSearchOwned(
+	ctx context.Context,
+	query string,
+	limit int,
+	ttl time.Duration,
+	load numistaSearchLoad,
+) ([]models.NumistaCandidate, *NumistaCacheResult, error) {
+	return c.doSearch(ctx, query, limit, ttl, load)
+}
+
+func (c *NumistaCache) doSearch(
+	ctx context.Context,
+	query string,
+	limit int,
+	ttl time.Duration,
+	load numistaSearchLoad,
+) ([]models.NumistaCandidate, *NumistaCacheResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
@@ -154,12 +198,12 @@ func (c *NumistaCache) DoSearch(
 	now := c.clock.Now()
 	if cached, metadata, ok := c.getSearchLocked(key, now); ok {
 		c.mu.Unlock()
-		return cached, metadata, nil
+		return cached, newNumistaCacheResult(metadata, NumistaCacheOutcomeFreshHit), nil
 	}
 	if call, ok := c.searchInflight[key]; ok {
 		call.waiters++
 		c.mu.Unlock()
-		return c.waitSearch(ctx, key, call)
+		return c.waitSearch(ctx, key, call, NumistaCacheOutcomeCoalescedWaiter)
 	}
 	loadCtx, cancel := context.WithCancel(context.Background())
 	call := &numistaSearchCall{done: make(chan struct{}), cancel: cancel, waiters: 1}
@@ -167,14 +211,15 @@ func (c *NumistaCache) DoSearch(
 	c.mu.Unlock()
 
 	go c.runSearchLoad(key, call, ttl, loadCtx, load)
-	return c.waitSearch(ctx, key, call)
+	return c.waitSearch(ctx, key, call, NumistaCacheOutcomeLoader)
 }
 
 func (c *NumistaCache) waitSearch(
 	ctx context.Context,
 	key string,
 	call *numistaSearchCall,
-) ([]models.NumistaCandidate, *models.NumistaCacheMetadata, error) {
+	outcome NumistaCacheOutcome,
+) ([]models.NumistaCandidate, *NumistaCacheResult, error) {
 	select {
 	case <-ctx.Done():
 		c.mu.Lock()
@@ -186,12 +231,17 @@ func (c *NumistaCache) waitSearch(
 			}
 		}
 		c.mu.Unlock()
-		return nil, nil, ctx.Err()
+		return nil, newNumistaCacheResult(nil, outcome), ctx.Err()
 	case <-call.done:
 		if err := ctx.Err(); err != nil {
-			return nil, nil, err
+			return nil, newNumistaCacheResult(nil, outcome), err
 		}
-		return cloneCandidates(call.value), cloneCacheMetadata(call.metadata), call.err
+		metadata := cloneCacheMetadata(call.metadata)
+		if metadata != nil && outcome == NumistaCacheOutcomeCoalescedWaiter {
+			metadata.Hit = false
+			metadata.Coalesced = true
+		}
+		return cloneCandidates(call.value), newNumistaCacheResult(metadata, outcome), call.err
 	}
 }
 
@@ -200,14 +250,14 @@ func (c *NumistaCache) runSearchLoad(
 	call *numistaSearchCall,
 	ttl time.Duration,
 	ctx context.Context,
-	load func(context.Context) ([]models.NumistaCandidate, error),
+	load numistaSearchLoad,
 ) {
 	defer call.cancel()
-	value, err := load(ctx)
+	value, onAccepted, err := load(ctx)
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if current, ok := c.searchInflight[key]; !ok || current != call {
 		call.value, call.err = cloneCandidates(value), err
+		c.mu.Unlock()
 		close(call.done)
 		return
 	}
@@ -218,6 +268,10 @@ func (c *NumistaCache) runSearchLoad(
 	}
 	call.value, call.metadata, call.err = cloneCandidates(value), cloneCacheMetadata(metadata), err
 	delete(c.searchInflight, key)
+	c.mu.Unlock()
+	if onAccepted != nil {
+		onAccepted()
+	}
 	close(call.done)
 }
 
@@ -240,7 +294,7 @@ func (c *NumistaCache) getDetailLocked(
 		delete(c.detail, key)
 		return models.NumistaCandidate{}, nil, false
 	}
-	value := entry.value
+	value := cloneCandidate(entry.value)
 	value.EnrichmentState = models.NumistaEnrichmentCached
 	return value, cacheMetadata(now, entry.createdAt, entry.expiresAt, true), true
 }
@@ -263,7 +317,9 @@ func (c *NumistaCache) setDetailLocked(
 	if _, exists := c.detail[key]; !exists && len(c.detail) >= c.detailMax {
 		c.evictOldestDetailLocked()
 	}
-	c.detail[key] = numistaDetailCacheEntry{value: value, createdAt: now, expiresAt: now.Add(ttl)}
+	c.detail[key] = numistaDetailCacheEntry{
+		value: cloneCandidate(value), createdAt: now, expiresAt: now.Add(ttl),
+	}
 }
 
 func (c *NumistaCache) DoDetail(
@@ -271,7 +327,32 @@ func (c *NumistaCache) DoDetail(
 	id int,
 	ttl time.Duration,
 	load func(context.Context) (models.NumistaCandidate, error),
-) (models.NumistaCandidate, *models.NumistaCacheMetadata, error) {
+) (models.NumistaCandidate, *NumistaCacheResult, error) {
+	return c.doDetail(ctx, id, ttl, func(loadCtx context.Context) (
+		models.NumistaCandidate,
+		func(),
+		error,
+	) {
+		value, err := load(loadCtx)
+		return value, nil, err
+	})
+}
+
+func (c *NumistaCache) doDetailOwned(
+	ctx context.Context,
+	id int,
+	ttl time.Duration,
+	load numistaDetailLoad,
+) (models.NumistaCandidate, *NumistaCacheResult, error) {
+	return c.doDetail(ctx, id, ttl, load)
+}
+
+func (c *NumistaCache) doDetail(
+	ctx context.Context,
+	id int,
+	ttl time.Duration,
+	load numistaDetailLoad,
+) (models.NumistaCandidate, *NumistaCacheResult, error) {
 	if err := ctx.Err(); err != nil {
 		return models.NumistaCandidate{}, nil, err
 	}
@@ -280,12 +361,12 @@ func (c *NumistaCache) DoDetail(
 	now := c.clock.Now()
 	if cached, metadata, ok := c.getDetailLocked(key, now); ok {
 		c.mu.Unlock()
-		return cached, metadata, nil
+		return cached, newNumistaCacheResult(metadata, NumistaCacheOutcomeFreshHit), nil
 	}
 	if call, ok := c.detailInflight[key]; ok {
 		call.waiters++
 		c.mu.Unlock()
-		return c.waitDetail(ctx, key, call)
+		return c.waitDetail(ctx, key, call, NumistaCacheOutcomeCoalescedWaiter)
 	}
 	loadCtx, cancel := context.WithCancel(context.Background())
 	call := &numistaDetailCall{done: make(chan struct{}), cancel: cancel, waiters: 1}
@@ -293,14 +374,15 @@ func (c *NumistaCache) DoDetail(
 	c.mu.Unlock()
 
 	go c.runDetailLoad(key, call, ttl, loadCtx, load)
-	return c.waitDetail(ctx, key, call)
+	return c.waitDetail(ctx, key, call, NumistaCacheOutcomeLoader)
 }
 
 func (c *NumistaCache) waitDetail(
 	ctx context.Context,
 	key string,
 	call *numistaDetailCall,
-) (models.NumistaCandidate, *models.NumistaCacheMetadata, error) {
+	outcome NumistaCacheOutcome,
+) (models.NumistaCandidate, *NumistaCacheResult, error) {
 	select {
 	case <-ctx.Done():
 		c.mu.Lock()
@@ -312,12 +394,17 @@ func (c *NumistaCache) waitDetail(
 			}
 		}
 		c.mu.Unlock()
-		return models.NumistaCandidate{}, nil, ctx.Err()
+		return models.NumistaCandidate{}, newNumistaCacheResult(nil, outcome), ctx.Err()
 	case <-call.done:
 		if err := ctx.Err(); err != nil {
-			return models.NumistaCandidate{}, nil, err
+			return models.NumistaCandidate{}, newNumistaCacheResult(nil, outcome), err
 		}
-		return call.value, cloneCacheMetadata(call.metadata), call.err
+		metadata := cloneCacheMetadata(call.metadata)
+		if metadata != nil && outcome == NumistaCacheOutcomeCoalescedWaiter {
+			metadata.Hit = false
+			metadata.Coalesced = true
+		}
+		return cloneCandidate(call.value), newNumistaCacheResult(metadata, outcome), call.err
 	}
 }
 
@@ -326,14 +413,14 @@ func (c *NumistaCache) runDetailLoad(
 	call *numistaDetailCall,
 	ttl time.Duration,
 	ctx context.Context,
-	load func(context.Context) (models.NumistaCandidate, error),
+	load numistaDetailLoad,
 ) {
 	defer call.cancel()
-	value, err := load(ctx)
+	value, onAccepted, err := load(ctx)
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if current, ok := c.detailInflight[key]; !ok || current != call {
-		call.value, call.err = value, err
+		call.value, call.err = cloneCandidate(value), err
+		c.mu.Unlock()
 		close(call.done)
 		return
 	}
@@ -343,8 +430,12 @@ func (c *NumistaCache) runDetailLoad(
 		c.setDetailLocked(key, value, ttl, now)
 		metadata = cacheMetadata(now, now, now.Add(ttl), false)
 	}
-	call.value, call.metadata, call.err = value, cloneCacheMetadata(metadata), err
+	call.value, call.metadata, call.err = cloneCandidate(value), cloneCacheMetadata(metadata), err
 	delete(c.detailInflight, key)
+	c.mu.Unlock()
+	if onAccepted != nil {
+		onAccepted()
+	}
 	close(call.done)
 }
 
@@ -389,7 +480,8 @@ func cacheMetadata(now, createdAt, expiresAt time.Time, hit bool) *models.Numist
 		age = 0
 	}
 	return &models.NumistaCacheMetadata{
-		Hit: hit, CreatedAt: createdAt.UTC(), ExpiresAt: expiresAt.UTC(), AgeSeconds: int64(age),
+		Hit: hit, Coalesced: false, CreatedAt: createdAt.UTC(),
+		ExpiresAt: expiresAt.UTC(), AgeSeconds: int64(age),
 	}
 }
 
@@ -398,10 +490,26 @@ func cloneCandidates(value []models.NumistaCandidate) []models.NumistaCandidate 
 		return []models.NumistaCandidate{}
 	}
 	cloned := make([]models.NumistaCandidate, len(value))
-	copy(cloned, value)
 	for i := range cloned {
-		cloned[i].Assessment.Reasons = append([]models.NumistaRelevanceReason(nil), value[i].Assessment.Reasons...)
+		cloned[i] = cloneCandidate(value[i])
 	}
+	return cloned
+}
+
+func cloneCandidate(value models.NumistaCandidate) models.NumistaCandidate {
+	cloned := value
+	if value.MinYear != nil {
+		minYear := *value.MinYear
+		cloned.MinYear = &minYear
+	}
+	if value.MaxYear != nil {
+		maxYear := *value.MaxYear
+		cloned.MaxYear = &maxYear
+	}
+	cloned.Assessment.Reasons = append(
+		[]models.NumistaRelevanceReason(nil),
+		value.Assessment.Reasons...,
+	)
 	return cloned
 }
 
@@ -411,4 +519,14 @@ func cloneCacheMetadata(metadata *models.NumistaCacheMetadata) *models.NumistaCa
 	}
 	cloned := *metadata
 	return &cloned
+}
+
+func newNumistaCacheResult(
+	metadata *models.NumistaCacheMetadata,
+	outcome NumistaCacheOutcome,
+) *NumistaCacheResult {
+	return &NumistaCacheResult{
+		NumistaCacheMetadata: cloneCacheMetadata(metadata),
+		Outcome:              outcome,
+	}
 }

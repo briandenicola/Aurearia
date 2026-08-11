@@ -130,6 +130,105 @@ func TestNumistaCacheCoalescesDetailAndLetsWaiterCancel(t *testing.T) {
 	}
 }
 
+func TestNumistaCacheDetailDeepMutationIsolationAcrossLoadCoalescingAndHits(t *testing.T) {
+	cache := NewNumistaCache(nil, 10, 10)
+	minYear, maxYear := 98, 117
+	canonical := models.NumistaCandidate{
+		ID: 42, Title: "Trajan Denarius", MinYear: &minYear, MaxYear: &maxYear,
+		Assessment: models.NumistaRelevanceAssessment{
+			ScoringVersion: models.NumistaScoringVersion,
+			Score:          90,
+			Band:           "strong",
+			Reasons: []models.NumistaRelevanceReason{{
+				Field: "title", Kind: models.NumistaReasonMatch,
+				Code: "title_match", Label: "Title matches",
+			}},
+		},
+	}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var loads atomic.Int32
+	load := func(context.Context) (models.NumistaCandidate, error) {
+		loads.Add(1)
+		close(started)
+		<-release
+		return canonical, nil
+	}
+	type detailResult struct {
+		value    models.NumistaCandidate
+		metadata *NumistaCacheResult
+		err      error
+	}
+	results := make(chan detailResult, 2)
+	for range 2 {
+		go func() {
+			value, metadata, err := cache.DoDetail(context.Background(), 42, time.Hour, load)
+			results <- detailResult{value: value, metadata: metadata, err: err}
+		}()
+	}
+	<-started
+	waitForDetailWaiters(t, cache, NumistaDetailCacheKey(42), 2)
+	close(release)
+
+	first, second := <-results, <-results
+	if first.err != nil || second.err != nil || loads.Load() != 1 {
+		t.Fatalf("coalesced detail results first=%+v second=%+v loads=%d", first, second, loads.Load())
+	}
+	outcomes := map[NumistaCacheOutcome]int{
+		first.metadata.Outcome: 1,
+	}
+	outcomes[second.metadata.Outcome]++
+	if outcomes[NumistaCacheOutcomeLoader] != 1 ||
+		outcomes[NumistaCacheOutcomeCoalescedWaiter] != 1 {
+		t.Fatalf("detail ownership outcomes=%v", outcomes)
+	}
+
+	mutateDetailCandidate(&first.value)
+	assertCanonicalDetailCandidate(t, second.value)
+
+	hit, metadata, err := cache.DoDetail(context.Background(), 42, time.Hour, load)
+	if err != nil || metadata == nil || metadata.Outcome != NumistaCacheOutcomeFreshHit ||
+		!metadata.Hit || loads.Load() != 1 {
+		t.Fatalf("first cache hit=%+v metadata=%+v err=%v loads=%d", hit, metadata, err, loads.Load())
+	}
+	assertCanonicalDetailCandidate(t, hit)
+	if hit.EnrichmentState != models.NumistaEnrichmentCached {
+		t.Fatalf("cache hit enrichment state=%q, want cached", hit.EnrichmentState)
+	}
+
+	mutateDetailCandidate(&hit)
+	canonicalHit, metadata, err := cache.DoDetail(context.Background(), 42, time.Hour, load)
+	if err != nil || metadata == nil || metadata.Outcome != NumistaCacheOutcomeFreshHit {
+		t.Fatalf("canonical cache hit=%+v metadata=%+v err=%v", canonicalHit, metadata, err)
+	}
+	assertCanonicalDetailCandidate(t, canonicalHit)
+	if *canonical.MinYear != 98 || *canonical.MaxYear != 117 ||
+		canonical.Assessment.Reasons[0].Label != "Title matches" {
+		t.Fatalf("provider-owned source was mutated: %+v", canonical)
+	}
+}
+
+func mutateDetailCandidate(candidate *models.NumistaCandidate) {
+	*candidate.MinYear = -999
+	*candidate.MaxYear = 999
+	candidate.Assessment.Reasons[0].Code = "mutated"
+	candidate.Assessment.Reasons[0].Label = "Mutated"
+	candidate.Assessment.Reasons = append(candidate.Assessment.Reasons, models.NumistaRelevanceReason{
+		Field: "issuer", Kind: models.NumistaReasonConflict, Code: "extra", Label: "Extra",
+	})
+}
+
+func assertCanonicalDetailCandidate(t *testing.T, candidate models.NumistaCandidate) {
+	t.Helper()
+	if candidate.MinYear == nil || *candidate.MinYear != 98 ||
+		candidate.MaxYear == nil || *candidate.MaxYear != 117 ||
+		len(candidate.Assessment.Reasons) != 1 ||
+		candidate.Assessment.Reasons[0].Code != "title_match" ||
+		candidate.Assessment.Reasons[0].Label != "Title matches" {
+		t.Fatalf("detail candidate was not isolated: %+v", candidate)
+	}
+}
+
 func TestNumistaCacheSearchWaiterDeadlineDoesNotCancelLeader(t *testing.T) {
 	cache := NewNumistaCache(nil, 10, 10)
 	var loads atomic.Int32
@@ -374,4 +473,30 @@ func waitForSearchWaiters(t *testing.T, cache *NumistaCache, key string, want in
 	}
 	cache.mu.Unlock()
 	t.Fatalf("search waiters=%d, want %d", got, want)
+}
+
+func waitForDetailWaiters(t *testing.T, cache *NumistaCache, key string, want int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		cache.mu.Lock()
+		call := cache.detailInflight[key]
+		got := 0
+		if call != nil {
+			got = call.waiters
+		}
+		cache.mu.Unlock()
+		if got == want {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	cache.mu.Lock()
+	call := cache.detailInflight[key]
+	got := 0
+	if call != nil {
+		got = call.waiters
+	}
+	cache.mu.Unlock()
+	t.Fatalf("detail waiters=%d, want %d", got, want)
 }

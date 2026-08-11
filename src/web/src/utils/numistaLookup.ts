@@ -197,6 +197,7 @@ export function getNumistaCacheFreshnessText(
   cache: NumistaCacheMetadata | null | undefined,
 ): string | null {
   if (!cache || (status !== 'success' && status !== 'empty')) return null
+  if (cache.coalesced) return 'Shared in-flight results'
   if (!cache.hit) return 'Fresh results'
   return `Cached results · ${formatAge(cache.ageSeconds)} old`
 }

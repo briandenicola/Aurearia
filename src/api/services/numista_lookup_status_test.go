@@ -271,7 +271,16 @@ func TestNumistaLookupRecordsAndPropagatesCallerCancellationAndDeadline(t *testi
 			telemetry.mu.RLock()
 			events := append([]NumistaTelemetryEvent(nil), telemetry.events...)
 			telemetry.mu.RUnlock()
-			if len(events) != 1 || !events[0].Cancelled || events[0].Status != "" {
+			callerCancellations := 0
+			for _, event := range events {
+				if event.Cancelled && event.CacheOutcome != NumistaCacheOutcomeLoader {
+					callerCancellations++
+				}
+				if event.Status != "" {
+					t.Fatalf("cancellation telemetry polluted status: %+v", events)
+				}
+			}
+			if callerCancellations != 1 {
 				t.Fatalf("cancellation telemetry=%+v", events)
 			}
 			health := telemetry.Health(true, true)

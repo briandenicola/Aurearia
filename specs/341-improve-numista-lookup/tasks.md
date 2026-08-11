@@ -170,19 +170,19 @@ draft lookup remains available, and no Phase 6/7 behavior changed.
 
 ### Tests for User Story 4
 
-- [ ] T054 [P] [US4] Add shared-service cache tests for normalized cross-path reuse, fresh empty results, expiry refresh, concurrent coalescing, setting changes, removed credentials, and independent detail/search TTLs in src/api/services/numista_lookup_cache_test.go
-- [ ] T055 [P] [US4] Add telemetry integration tests for every status, cache hit/refresh, broad/detail counts, retry/quota timing, latency percentiles, bounded retention, and absence of keys/query/inscriptions/labels/raw errors in src/api/services/numista_lookup_telemetry_test.go
-- [ ] T056 [P] [US4] Add admin-only health endpoint tests for empty and populated summaries, invalid configuration, 401/403 boundaries, and redacted JSON in src/api/handlers/admin_numista_test.go
-- [ ] T057 [P] [US4] Add admin component tests for validated settings, status counts, p50/p95, cache/enrichment/quota signals, no estimated remaining quota, and no sensitive text in src/web/src/components/admin/__tests__/AdminSystemSection.numista.test.ts
+- [x] T054 [P] [US4] Add shared-service cache tests for normalized cross-path reuse, fresh empty results, expiry refresh, concurrent coalescing, setting changes, removed credentials, and independent detail/search TTLs in src/api/services/numista_lookup_cache_test.go
+- [x] T055 [P] [US4] Add telemetry integration tests for every status, cache hit/refresh, broad/detail counts, retry/quota timing, latency percentiles, bounded retention, and absence of keys/query/inscriptions/labels/raw errors in src/api/services/numista_lookup_telemetry_test.go
+- [x] T056 [P] [US4] Add admin-only health endpoint tests for empty and populated summaries, invalid configuration, 401/403 boundaries, and redacted JSON in src/api/handlers/admin_numista_test.go
+- [x] T057 [P] [US4] Add admin component tests for validated settings, status counts, p50/p95, cache/enrichment/quota signals, no estimated remaining quota, and no sensitive text in src/web/src/components/admin/__tests__/AdminSystemSection.numista.test.ts
 
 ### Implementation for User Story 4
 
-- [ ] T058 [US4] Integrate normalized hashed cache identities, fresh success/empty reuse, expiry refresh, and same-key coalescing into lookup operations in src/api/services/numista_lookup_service.go
-- [ ] T059 [US4] Record redacted broad/detail/status/cache/retry/quota/enrichment events and expose aggregate snapshots in src/api/services/numista_lookup_service.go and src/api/services/numista_telemetry.go
-- [ ] T060 [US4] Implement the admin-only redacted Numista configuration and rolling health handler with Swagger annotations in src/api/handlers/admin_numista.go
-- [ ] T061 [US4] Register the health route under the existing admin authorization group and inject the shared telemetry/settings dependencies in src/api/main.go
-- [ ] T062 [P] [US4] Add Numista settings and health summary TypeScript contracts plus admin API calls in src/web/src/types/index.ts and src/web/src/api/client.ts
-- [ ] T063 [US4] Add bounded Numista configuration controls and redacted operational health cards to the existing system settings surface in src/web/src/components/admin/AdminSystemSection.vue
+- [x] T058 [US4] Integrate normalized hashed cache identities, fresh success/empty reuse, expiry refresh, and same-key coalescing into lookup operations in src/api/services/numista_lookup_service.go
+- [x] T059 [US4] Record redacted broad/detail/status/cache/retry/quota/enrichment events and expose aggregate snapshots in src/api/services/numista_lookup_service.go and src/api/services/numista_telemetry.go
+- [x] T060 [US4] Implement the admin-only redacted Numista configuration and rolling health handler with Swagger annotations in src/api/handlers/admin_numista.go
+- [x] T061 [US4] Register the health route under the existing admin authorization group and inject the shared telemetry/settings dependencies in src/api/main.go
+- [x] T062 [P] [US4] Add Numista settings and health summary TypeScript contracts plus admin API calls in src/web/src/types/index.ts and src/web/src/api/client.ts
+- [x] T063 [US4] Add bounded Numista configuration controls and redacted operational health cards to the existing system settings surface in src/web/src/components/admin/AdminSystemSection.vue
 
 **Checkpoint**: Equivalent work conserves provider allowance, stale data is never shown as fresh, and administrators have safe operational visibility.
 

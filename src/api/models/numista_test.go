@@ -438,7 +438,7 @@ func TestNumistaHealthSummaryVariantsAndJSONContract(t *testing.T) {
 	valid := NumistaHealthSummary{
 		Configured: true, ConfigurationValid: true, LastOutcome: NumistaStatusSuccess,
 		LastCheckedAt: &now, StatusCounts: map[NumistaLookupStatus]int{NumistaStatusSuccess: 1},
-		CacheHitRate: 0.5, LastQuotaLimitedAt: &now, LastRetryAfterSeconds: &retryAfter,
+		FreshCacheHitRate: 0.5, LastQuotaLimitedAt: &now, LastRetryAfterSeconds: &retryAfter,
 	}
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("valid health summary rejected: %v", err)
@@ -447,9 +447,23 @@ func TestNumistaHealthSummaryVariantsAndJSONContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	empty := valid
+	empty.StatusCounts = map[NumistaLookupStatus]int{}
+	emptyData, err := json.Marshal(empty)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(emptyData), `"statusCounts":{}`) {
+		t.Fatalf("empty statusCounts must remain a sparse object: %s", emptyData)
+	}
+	if !strings.Contains(string(data), `"statusCounts":{"success":1}`) {
+		t.Fatalf("partial statusCounts must remain sparse: %s", data)
+	}
 	for _, field := range []string{
 		`"configured"`, `"configurationValid"`, `"statusCounts"`, `"broadRequestCount"`,
-		`"detailRequestCount"`, `"cacheHitCount"`, `"cacheRefreshCount"`, `"cacheHitRate"`,
+		`"detailRequestCount"`, `"freshCacheHitCount"`, `"coalescedRequestCount"`,
+		`"providerLoadCount"`, `"providerFailureCount"`, `"cancelledRequestCount"`,
+		`"freshCacheHitRate"`,
 		`"p50ElapsedMs"`, `"p95ElapsedMs"`, `"enrichmentAttempted"`,
 		`"enrichmentSucceeded"`, `"enrichmentFailed"`,
 	} {
@@ -468,10 +482,13 @@ func TestNumistaHealthSummaryVariantsAndJSONContract(t *testing.T) {
 		{"negative status count", func(h *NumistaHealthSummary) { h.StatusCounts[NumistaStatusSuccess] = -1 }},
 		{"negative broad count", func(h *NumistaHealthSummary) { h.BroadRequestCount = -1 }},
 		{"negative detail count", func(h *NumistaHealthSummary) { h.DetailRequestCount = -1 }},
-		{"negative cache hit count", func(h *NumistaHealthSummary) { h.CacheHitCount = -1 }},
-		{"negative cache refresh count", func(h *NumistaHealthSummary) { h.CacheRefreshCount = -1 }},
-		{"cache hit rate below minimum", func(h *NumistaHealthSummary) { h.CacheHitRate = -0.1 }},
-		{"cache hit rate above maximum", func(h *NumistaHealthSummary) { h.CacheHitRate = 1.1 }},
+		{"negative fresh cache hit count", func(h *NumistaHealthSummary) { h.FreshCacheHitCount = -1 }},
+		{"negative coalesced count", func(h *NumistaHealthSummary) { h.CoalescedRequestCount = -1 }},
+		{"negative provider load count", func(h *NumistaHealthSummary) { h.ProviderLoadCount = -1 }},
+		{"negative provider failure count", func(h *NumistaHealthSummary) { h.ProviderFailureCount = -1 }},
+		{"negative cancellation count", func(h *NumistaHealthSummary) { h.CancelledRequestCount = -1 }},
+		{"fresh cache hit rate below minimum", func(h *NumistaHealthSummary) { h.FreshCacheHitRate = -0.1 }},
+		{"fresh cache hit rate above maximum", func(h *NumistaHealthSummary) { h.FreshCacheHitRate = 1.1 }},
 		{"negative p50", func(h *NumistaHealthSummary) { h.P50ElapsedMs = -1 }},
 		{"negative p95", func(h *NumistaHealthSummary) { h.P95ElapsedMs = -1 }},
 		{"negative enrichment attempted", func(h *NumistaHealthSummary) { h.EnrichmentAttempted = -1 }},

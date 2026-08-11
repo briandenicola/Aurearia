@@ -163,6 +163,8 @@ certainty. Preserving source text meets FR-006.
 TTLs, same-key in-flight coalescing, and injected clock. Cache successful
 searches including empty results and valid details; never cache failures. Hash
 canonical keys with SHA-256. Check current configuration before reading cache.
+Treat in-flight coalescing as reuse of active work, not as a fresh persisted
+cache hit, including when the shared provider load fails.
 
 **Rationale**: Cache data is explicitly disposable and does not need cross-
 restart durability. In-memory storage avoids schema cleanup and keeps provider
@@ -185,8 +187,11 @@ masked by old data.
 
 **Decision**: Maintain a bounded in-memory rolling telemetry ring and expose
 aggregates from an admin-only endpoint. Record only path, operation, status,
-cache/refreshed flags, duration, counts, retry and observed retry-after, plus a
-truncated non-reversible correlation digest. Do not claim remaining quota.
+typed cache outcome, duration, counts, retry and observed retry-after, plus a
+truncated non-reversible correlation digest. Fresh cache hits, coalesced
+waiters, provider loads, provider failures, and cancellations are distinct.
+Provider status/retry/latency belongs to the loader; waiters own only
+coalesced reuse and their own cancellation. Do not claim remaining quota.
 
 **Rationale**: This supplies recent operational health without introducing a
 high-volume event table or retaining user text. It meets FR-025/026 while

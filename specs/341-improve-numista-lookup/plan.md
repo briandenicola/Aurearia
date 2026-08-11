@@ -256,13 +256,17 @@ details only. Each response includes `cache.hit`, `cache.createdAt`,
 served as current. Same-key misses share one in-flight call.
 
 The telemetry ring records timestamp, path (`direct`/`photo`), operation
-(`search`/`detail`), status, cache hit/refreshed, elapsed milliseconds,
+(`search`/`detail`), status, typed cache outcome, elapsed milliseconds,
 candidate/detail counts, enrichment failures, retry count, optional
 retry-after, and the first 16 bytes of a SHA-256 correlation digest. It never
 records the key, images, raw provider body/error, query, inscriptions, or label
-text. Admin summary exposes configuration boolean, last outcome, rolling
-counts, p50/p95 latency, cache-hit rate, last quota-limited time/retry-after,
-and enrichment success/failure. Logs use the same safe fields.
+text. A fresh persisted-cache hit, a coalesced in-flight waiter, and a provider
+load are mutually distinct. Only the loader owns provider status, retry,
+latency, and provider failure; failed fan-in records coalescing with zero fresh
+hits. Admin summary exposes configuration boolean, last outcome, rolling
+counts, p50/p95 latency, fresh-cache hit/coalesced/provider load/failure and
+cancellation counts, last quota-limited time/retry-after, and enrichment
+success/failure. Logs use the same safe fields.
 
 ## Persistence, Migration, and Transactions
 

@@ -1535,6 +1535,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/numista/health": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns redacted Numista configuration validity and bounded rolling status, latency, cache, quota, and enrichment aggregates. Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get Numista operational health",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.NumistaHealthSummary"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/oidc/providers": {
             "get": {
                 "security": [
@@ -20068,6 +20105,9 @@ const docTemplate = `{
                 "ageSeconds": {
                     "type": "integer"
                 },
+                "coalesced": {
+                    "type": "boolean"
+                },
                 "createdAt": {
                     "type": "string"
                 },
@@ -20182,6 +20222,77 @@ const docTemplate = `{
                 },
                 "visibleText": {
                     "type": "string"
+                }
+            }
+        },
+        "models.NumistaHealthSummary": {
+            "type": "object",
+            "properties": {
+                "broadRequestCount": {
+                    "type": "integer"
+                },
+                "cancelledRequestCount": {
+                    "type": "integer"
+                },
+                "coalescedRequestCount": {
+                    "type": "integer"
+                },
+                "configurationValid": {
+                    "type": "boolean"
+                },
+                "configured": {
+                    "type": "boolean"
+                },
+                "detailRequestCount": {
+                    "type": "integer"
+                },
+                "enrichmentAttempted": {
+                    "type": "integer"
+                },
+                "enrichmentFailed": {
+                    "type": "integer"
+                },
+                "enrichmentSucceeded": {
+                    "type": "integer"
+                },
+                "freshCacheHitCount": {
+                    "type": "integer"
+                },
+                "freshCacheHitRate": {
+                    "type": "number"
+                },
+                "lastCheckedAt": {
+                    "type": "string"
+                },
+                "lastOutcome": {
+                    "$ref": "#/definitions/models.NumistaLookupStatus"
+                },
+                "lastQuotaLimitedAt": {
+                    "type": "string"
+                },
+                "lastRetryAfterSeconds": {
+                    "type": "integer"
+                },
+                "p50ElapsedMs": {
+                    "description": "R-7 linearly interpolated percentile, rounded to milliseconds.",
+                    "type": "integer"
+                },
+                "p95ElapsedMs": {
+                    "description": "R-7 linearly interpolated percentile, rounded to milliseconds.",
+                    "type": "integer"
+                },
+                "providerFailureCount": {
+                    "type": "integer"
+                },
+                "providerLoadCount": {
+                    "type": "integer"
+                },
+                "statusCounts": {
+                    "description": "Sparse rolling counts; absent statuses have zero events.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
                 }
             }
         },

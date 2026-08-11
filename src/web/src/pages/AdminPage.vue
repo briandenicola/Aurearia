@@ -76,6 +76,12 @@
         <AdminSystemSection
           v-if="activeTab === 'system'"
           :numista-api-key="settings.NumistaAPIKey ?? ''"
+          :numista-search-t-t-l-hours="settings.NumistaSearchTTLHours ?? '24'"
+          :numista-detail-t-t-l-hours="settings.NumistaDetailTTLHours ?? '168'"
+          :numista-enrichment-limit="settings.NumistaEnrichmentLimit ?? '5'"
+          :numista-search-result-limit="settings.NumistaSearchResultLimit ?? '20'"
+          :numista-search-timeout-seconds="settings.NumistaSearchTimeoutSeconds ?? '4'"
+          :numista-detail-timeout-seconds="settings.NumistaDetailTimeoutSeconds ?? '3'"
           :pushover-app-token="settings.PushoverAppToken ?? ''"
           :public-app-url="settings.PublicAppURL ?? ''"
           :usps-api-base-url="settings.USPSAPIBaseURL ?? ''"
@@ -393,6 +399,12 @@ function exportLogs() {
 
 function onSystemSave(payload: {
   numistaApiKey: string
+  numistaSearchTTLHours: string
+  numistaDetailTTLHours: string
+  numistaEnrichmentLimit: string
+  numistaSearchResultLimit: string
+  numistaSearchTimeoutSeconds: string
+  numistaDetailTimeoutSeconds: string
   logLevel: string
   pushoverAppToken: string
   publicAppUrl: string
@@ -411,6 +423,12 @@ function onSystemSave(payload: {
   fedexScope: string
 }) {
   settings.value.NumistaAPIKey = payload.numistaApiKey
+  settings.value.NumistaSearchTTLHours = payload.numistaSearchTTLHours
+  settings.value.NumistaDetailTTLHours = payload.numistaDetailTTLHours
+  settings.value.NumistaEnrichmentLimit = payload.numistaEnrichmentLimit
+  settings.value.NumistaSearchResultLimit = payload.numistaSearchResultLimit
+  settings.value.NumistaSearchTimeoutSeconds = payload.numistaSearchTimeoutSeconds
+  settings.value.NumistaDetailTimeoutSeconds = payload.numistaDetailTimeoutSeconds
   settings.value.LogLevel = payload.logLevel
   settings.value.PushoverAppToken = payload.pushoverAppToken
   settings.value.PublicAppURL = payload.publicAppUrl

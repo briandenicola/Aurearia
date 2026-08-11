@@ -660,6 +660,8 @@ func main() {
 		admin.GET("/settings/defaults", adminHandler.GetSettingDefaults)
 		admin.PUT("/settings", adminHandler.UpdateSettings)
 		admin.GET("/logs", adminHandler.GetLogs)
+		adminNumistaHandler := handlers.NewAdminNumistaHandler(numistaTelemetry, settingsSvc)
+		admin.GET("/numista/health", adminNumistaHandler.Health)
 		admin.GET("/test-anthropic", adminHandler.TestAnthropicConnection)
 		admin.GET("/test-searxng", adminHandler.TestSearXNGConnection)
 

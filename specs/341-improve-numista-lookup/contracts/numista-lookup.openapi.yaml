@@ -363,9 +363,12 @@ components:
         assessment: { $ref: '#/components/schemas/RelevanceAssessment' }
     CacheMetadata:
       type: object
-      required: [hit, createdAt, expiresAt, ageSeconds]
+      required: [hit, coalesced, createdAt, expiresAt, ageSeconds]
       properties:
         hit: { type: boolean }
+        coalesced:
+          type: boolean
+          description: True only when this caller joined in-flight work; never a persisted fresh-cache hit.
         createdAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
         ageSeconds: { type: integer, minimum: 0 }
@@ -491,9 +494,12 @@ components:
         - statusCounts
         - broadRequestCount
         - detailRequestCount
-        - cacheHitCount
-        - cacheRefreshCount
-        - cacheHitRate
+        - freshCacheHitCount
+        - coalescedRequestCount
+        - providerLoadCount
+        - providerFailureCount
+        - cancelledRequestCount
+        - freshCacheHitRate
         - p50ElapsedMs
         - p95ElapsedMs
         - enrichmentAttempted
@@ -506,14 +512,28 @@ components:
         lastCheckedAt: { type: string, format: date-time }
         statusCounts:
           type: object
+          description: Sparse rolling counts keyed by LookupStatus; omitted statuses have zero events.
           additionalProperties: { type: integer, minimum: 0 }
         broadRequestCount: { type: integer, minimum: 0 }
         detailRequestCount: { type: integer, minimum: 0 }
-        cacheHitCount: { type: integer, minimum: 0 }
-        cacheRefreshCount: { type: integer, minimum: 0 }
-        cacheHitRate: { type: number, minimum: 0, maximum: 1 }
-        p50ElapsedMs: { type: integer, minimum: 0 }
-        p95ElapsedMs: { type: integer, minimum: 0 }
+        freshCacheHitCount: { type: integer, minimum: 0 }
+        coalescedRequestCount: { type: integer, minimum: 0 }
+        providerLoadCount: { type: integer, minimum: 0 }
+        providerFailureCount: { type: integer, minimum: 0 }
+        cancelledRequestCount: { type: integer, minimum: 0 }
+        freshCacheHitRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Fresh persisted-cache hits divided by fresh hits plus provider loads; coalesced waiters are excluded.
+        p50ElapsedMs:
+          type: integer
+          minimum: 0
+          description: R-7 linearly interpolated p50 latency rounded to whole milliseconds.
+        p95ElapsedMs:
+          type: integer
+          minimum: 0
+          description: R-7 linearly interpolated p95 latency rounded to whole milliseconds.
         enrichmentAttempted: { type: integer, minimum: 0 }
         enrichmentSucceeded: { type: integer, minimum: 0 }
         enrichmentFailed: { type: integer, minimum: 0 }

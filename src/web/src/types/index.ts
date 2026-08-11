@@ -1319,6 +1319,7 @@ export interface NumistaCandidate {
 
 export interface NumistaCacheMetadata {
   hit: boolean
+  coalesced: boolean
   createdAt: string
   expiresAt: string
   ageSeconds: number
@@ -1332,6 +1333,40 @@ export interface NumistaLookupOutcome {
   retryAfterSeconds?: number
   cache?: NumistaCacheMetadata
   stage: 'broad' | 'enriched'
+}
+
+export interface NumistaSettings {
+  NumistaSearchTTLHours: string
+  NumistaDetailTTLHours: string
+  NumistaEnrichmentLimit: string
+  NumistaSearchResultLimit: string
+  NumistaSearchTimeoutSeconds: string
+  NumistaDetailTimeoutSeconds: string
+}
+
+export type NumistaStatusCounts = Partial<Record<NumistaLookupStatus, number>>
+
+export interface NumistaHealthSummary {
+  configured: boolean
+  configurationValid: boolean
+  lastOutcome?: NumistaLookupStatus | null
+  lastCheckedAt?: string | null
+  statusCounts: NumistaStatusCounts
+  broadRequestCount: number
+  detailRequestCount: number
+  freshCacheHitCount: number
+  coalescedRequestCount: number
+  providerLoadCount: number
+  providerFailureCount: number
+  cancelledRequestCount: number
+  freshCacheHitRate: number
+  p50ElapsedMs: number
+  p95ElapsedMs: number
+  enrichmentAttempted: number
+  enrichmentSucceeded: number
+  enrichmentFailed: number
+  lastQuotaLimitedAt?: string | null
+  lastRetryAfterSeconds?: number | null
 }
 
 export interface SelectedNumistaReference {
@@ -1366,7 +1401,7 @@ export interface UserInfo {
   createdAt: string
 }
 
-export interface AppSettings {
+export interface AppSettings extends Partial<NumistaSettings> {
   AIProvider: string
   OllamaURL: string
   OllamaModel: string

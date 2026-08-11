@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -24,15 +25,21 @@ func TestNumistaTelemetryBoundedConcurrentAggregate(t *testing.T) {
 			}
 			telemetry.Record(NumistaTelemetryEvent{
 				OccurredAt: time.Unix(int64(i), 0), Path: models.NumistaLookupPathDirect,
-				Operation: "broad", Status: status, CacheHit: i%2 == 0,
-				Refreshed: i%2 != 0, ElapsedMilliseconds: int64(i),
-				CorrelationDigest: strings.Repeat("secret-query", 4),
+				Operation: "broad", Status: status,
+				CacheOutcome: func() NumistaCacheOutcome {
+					if i%2 == 0 {
+						return NumistaCacheOutcomeFreshHit
+					}
+					return NumistaCacheOutcomeLoader
+				}(),
+				ElapsedMilliseconds: int64(i),
+				CorrelationDigest:   strings.Repeat("secret-query", 4),
 			})
 		}(i)
 	}
 	wg.Wait()
 	summary := telemetry.Health(true, true)
-	if summary.BroadRequestCount != 10 || summary.P95ElapsedMs == 0 {
+	if summary.BroadRequestCount+summary.FreshCacheHitCount != 10 || summary.P95ElapsedMs == 0 {
 		t.Fatalf("unexpected aggregate: %+v", summary)
 	}
 	telemetry.mu.RLock()
@@ -59,6 +66,7 @@ func TestNumistaTelemetryQuotaAndEnrichmentAggregate(t *testing.T) {
 		OccurredAt: at, Path: models.NumistaLookupPathPhoto, Operation: "detail",
 		Status: models.NumistaStatusQuotaLimited, DetailAttemptCount: 3,
 		DetailSuccessCount: 1, DetailFailureCount: 2, RetryAfterSeconds: &retry,
+		CacheOutcome: NumistaCacheOutcomeLoader,
 	})
 	summary := telemetry.Health(true, true)
 	if summary.DetailRequestCount != 1 || summary.EnrichmentAttempted != 3 ||
@@ -87,9 +95,12 @@ func TestNumistaTelemetryStatusCacheLatencyAndOperationAggregates(t *testing.T) 
 			Operation:           "broad",
 			Status:              status,
 			ElapsedMilliseconds: int64((i + 1) * 10),
-			CacheHit:            i == 0,
-			Refreshed:           i == 1,
 			CorrelationDigest:   NumistaCorrelationDigest(models.NumistaLookupPathDirect, "private query"),
+		}
+		if i == 0 {
+			event.CacheOutcome = NumistaCacheOutcomeFreshHit
+		} else {
+			event.CacheOutcome = NumistaCacheOutcomeLoader
 		}
 		if status == models.NumistaStatusQuotaLimited {
 			event.RetryAfterSeconds = &retry
@@ -100,26 +111,175 @@ func TestNumistaTelemetryStatusCacheLatencyAndOperationAggregates(t *testing.T) 
 		OccurredAt: time.Date(2026, 8, 11, 2, 0, 0, 0, time.UTC),
 		Path:       models.NumistaLookupPathPhoto, Operation: "detail", Status: models.NumistaStatusSuccess,
 		ElapsedMilliseconds: 70, DetailAttemptCount: 4, DetailSuccessCount: 3, DetailFailureCount: 1,
+		CacheOutcome: NumistaCacheOutcomeLoader,
 	})
 
 	summary := telemetry.Health(true, true)
 	for _, status := range statuses {
 		want := 1
-		if status == models.NumistaStatusSuccess {
-			want = 2
-		}
 		if summary.StatusCounts[status] != want {
 			t.Fatalf("status %q count=%d, want %d: %+v", status, summary.StatusCounts[status], want, summary)
 		}
 	}
-	if summary.StatusCounts[models.NumistaStatusSuccess] != 2 ||
-		summary.BroadRequestCount != 6 || summary.DetailRequestCount != 1 ||
-		summary.CacheHitCount != 1 || summary.CacheRefreshCount != 1 || summary.CacheHitRate != 0.5 ||
-		summary.P50ElapsedMs != 40 || summary.P95ElapsedMs != 70 ||
+	if summary.StatusCounts[models.NumistaStatusSuccess] != 1 ||
+		summary.BroadRequestCount != 5 || summary.DetailRequestCount != 1 ||
+		summary.FreshCacheHitCount != 1 || summary.ProviderLoadCount != 6 ||
+		summary.ProviderFailureCount != 4 || summary.FreshCacheHitRate != 1.0/7.0 ||
+		summary.P50ElapsedMs != 45 || summary.P95ElapsedMs != 68 ||
 		summary.EnrichmentAttempted != 4 || summary.EnrichmentSucceeded != 3 || summary.EnrichmentFailed != 1 ||
 		summary.LastQuotaLimitedAt == nil || summary.LastRetryAfterSeconds == nil ||
 		*summary.LastRetryAfterSeconds != retry {
 		t.Fatalf("unexpected aggregate: %+v", summary)
+	}
+
+}
+
+func TestNumistaTelemetryAggregationOwnershipByEventKind(t *testing.T) {
+	retry := 60
+	at := time.Date(2026, 8, 11, 3, 0, 0, 0, time.UTC)
+	poisoned := NumistaTelemetryEvent{
+		OccurredAt: at, Path: models.NumistaLookupPathPhoto, Operation: "detail",
+		Status: models.NumistaStatusQuotaLimited, ElapsedMilliseconds: 90,
+		DetailAttemptCount: 3, DetailSuccessCount: 2, DetailFailureCount: 1,
+		RetryCount: 2, RetryAfterSeconds: &retry, Cancelled: true,
+	}
+	tests := []struct {
+		name  string
+		event NumistaTelemetryEvent
+		check func(*testing.T, models.NumistaHealthSummary)
+	}{
+		{
+			name: "cancelled loader owns only cancellation",
+			event: func() NumistaTelemetryEvent {
+				event := poisoned
+				event.CacheOutcome = NumistaCacheOutcomeLoader
+				return event
+			}(),
+			check: func(t *testing.T, summary models.NumistaHealthSummary) {
+				assertOnlyReuseAggregate(t, summary, 0, 0, 1)
+			},
+		},
+		{
+			name: "fresh hit owns only fresh cache count",
+			event: func() NumistaTelemetryEvent {
+				event := poisoned
+				event.CacheOutcome = NumistaCacheOutcomeFreshHit
+				event.Cancelled = false
+				return event
+			}(),
+			check: func(t *testing.T, summary models.NumistaHealthSummary) {
+				assertOnlyReuseAggregate(t, summary, 1, 0, 0)
+			},
+		},
+		{
+			name: "coalesced waiter owns only coalesced count",
+			event: func() NumistaTelemetryEvent {
+				event := poisoned
+				event.CacheOutcome = NumistaCacheOutcomeCoalescedWaiter
+				event.Cancelled = false
+				return event
+			}(),
+			check: func(t *testing.T, summary models.NumistaHealthSummary) {
+				assertOnlyReuseAggregate(t, summary, 0, 1, 0)
+			},
+		},
+		{
+			name: "bypass cancellation owns only cancellation count",
+			event: func() NumistaTelemetryEvent {
+				event := poisoned
+				event.CacheOutcome = NumistaCacheOutcomeBypass
+				return event
+			}(),
+			check: func(t *testing.T, summary models.NumistaHealthSummary) {
+				assertOnlyReuseAggregate(t, summary, 0, 0, 1)
+			},
+		},
+		{
+			name: "bypass bookkeeping owns no aggregates",
+			event: func() NumistaTelemetryEvent {
+				event := poisoned
+				event.CacheOutcome = NumistaCacheOutcomeBypass
+				event.Cancelled = false
+				return event
+			}(),
+			check: func(t *testing.T, summary models.NumistaHealthSummary) {
+				assertOnlyReuseAggregate(t, summary, 0, 0, 0)
+			},
+		},
+		{
+			name: "unconfigured bypass owns only configuration status",
+			event: NumistaTelemetryEvent{
+				OccurredAt: at, Path: models.NumistaLookupPathDirect, Operation: "broad",
+				Status: models.NumistaStatusUnconfigured, CacheOutcome: NumistaCacheOutcomeBypass,
+			},
+			check: func(t *testing.T, summary models.NumistaHealthSummary) {
+				if len(summary.StatusCounts) != 1 ||
+					summary.StatusCounts[models.NumistaStatusUnconfigured] != 1 ||
+					summary.LastOutcome != models.NumistaStatusUnconfigured ||
+					summary.LastCheckedAt == nil || summary.ProviderLoadCount != 0 ||
+					summary.BroadRequestCount != 0 || summary.P50ElapsedMs != 0 ||
+					summary.P95ElapsedMs != 0 || summary.LastQuotaLimitedAt != nil {
+					t.Fatalf("unconfigured bypass polluted provider aggregates: %+v", summary)
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			telemetry := NewNumistaTelemetry(1)
+			telemetry.Record(test.event)
+			test.check(t, telemetry.Health(true, true))
+		})
+	}
+}
+
+func assertOnlyReuseAggregate(
+	t *testing.T,
+	summary models.NumistaHealthSummary,
+	freshHits int,
+	coalesced int,
+	cancelled int,
+) {
+	t.Helper()
+	if summary.FreshCacheHitCount != freshHits ||
+		summary.CoalescedRequestCount != coalesced ||
+		summary.CancelledRequestCount != cancelled ||
+		summary.BroadRequestCount != 0 || summary.DetailRequestCount != 0 ||
+		summary.ProviderLoadCount != 0 || summary.ProviderFailureCount != 0 ||
+		len(summary.StatusCounts) != 0 || summary.P50ElapsedMs != 0 || summary.P95ElapsedMs != 0 ||
+		summary.EnrichmentAttempted != 0 || summary.EnrichmentSucceeded != 0 ||
+		summary.EnrichmentFailed != 0 || summary.LastOutcome != "" ||
+		summary.LastCheckedAt != nil || summary.LastQuotaLimitedAt != nil ||
+		summary.LastRetryAfterSeconds != nil {
+		t.Fatalf("non-loader polluted provider aggregates: %+v", summary)
+	}
+}
+
+func TestNumistaTelemetryPercentileBoundaries(t *testing.T) {
+	tests := []struct {
+		name   string
+		values []int64
+		p50    int64
+		p95    int64
+	}{
+		{name: "empty", p50: 0, p95: 0},
+		{name: "one", values: []int64{40}, p50: 40, p95: 40},
+		{name: "two", values: []int64{10, 20}, p50: 15, p95: 20},
+		{name: "odd", values: []int64{10, 20, 30}, p50: 20, p95: 29},
+		{name: "even", values: []int64{10, 20, 30, 40}, p50: 25, p95: 39},
+		{name: "larger unsorted", values: []int64{70, 10, 50, 30, 60, 20, 40}, p50: 40, p95: 67},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			values := append([]int64(nil), test.values...)
+			sort.Slice(values, func(i, j int) bool { return values[i] < values[j] })
+			if got := percentile(values, 0.50); got != test.p50 {
+				t.Fatalf("p50=%d, want %d for %v", got, test.p50, test.values)
+			}
+			if got := percentile(values, 0.95); got != test.p95 {
+				t.Fatalf("p95=%d, want %d for %v", got, test.p95, test.values)
+			}
+		})
 	}
 }
 

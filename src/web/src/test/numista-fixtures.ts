@@ -60,6 +60,7 @@ export function makeNumistaLookupOutcome(overrides: Partial<NumistaLookupOutcome
     candidates: [makeNumistaCandidate()],
     cache: {
       hit: false,
+      coalesced: false,
       createdAt: '2026-08-11T12:00:00Z',
       expiresAt: '2026-08-12T12:00:00Z',
       ageSeconds: 0,

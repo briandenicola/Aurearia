@@ -106,6 +106,7 @@ type NumistaCandidate struct {
 
 type NumistaCacheMetadata struct {
 	Hit        bool      `json:"hit"`
+	Coalesced  bool      `json:"coalesced"`
 	CreatedAt  time.Time `json:"createdAt"`
 	ExpiresAt  time.Time `json:"expiresAt"`
 	AgeSeconds int64     `json:"ageSeconds"`
@@ -156,14 +157,17 @@ type NumistaHealthSummary struct {
 	ConfigurationValid    bool                        `json:"configurationValid"`
 	LastOutcome           NumistaLookupStatus         `json:"lastOutcome,omitempty"`
 	LastCheckedAt         *time.Time                  `json:"lastCheckedAt,omitempty"`
-	StatusCounts          map[NumistaLookupStatus]int `json:"statusCounts"`
+	StatusCounts          map[NumistaLookupStatus]int `json:"statusCounts"` // Sparse rolling counts; absent statuses have zero events.
 	BroadRequestCount     int                         `json:"broadRequestCount"`
 	DetailRequestCount    int                         `json:"detailRequestCount"`
-	CacheHitCount         int                         `json:"cacheHitCount"`
-	CacheRefreshCount     int                         `json:"cacheRefreshCount"`
-	CacheHitRate          float64                     `json:"cacheHitRate"`
-	P50ElapsedMs          int64                       `json:"p50ElapsedMs"`
-	P95ElapsedMs          int64                       `json:"p95ElapsedMs"`
+	FreshCacheHitCount    int                         `json:"freshCacheHitCount"`
+	CoalescedRequestCount int                         `json:"coalescedRequestCount"`
+	ProviderLoadCount     int                         `json:"providerLoadCount"`
+	ProviderFailureCount  int                         `json:"providerFailureCount"`
+	CancelledRequestCount int                         `json:"cancelledRequestCount"`
+	FreshCacheHitRate     float64                     `json:"freshCacheHitRate"`
+	P50ElapsedMs          int64                       `json:"p50ElapsedMs"` // R-7 linearly interpolated percentile, rounded to milliseconds.
+	P95ElapsedMs          int64                       `json:"p95ElapsedMs"` // R-7 linearly interpolated percentile, rounded to milliseconds.
 	EnrichmentAttempted   int                         `json:"enrichmentAttempted"`
 	EnrichmentSucceeded   int                         `json:"enrichmentSucceeded"`
 	EnrichmentFailed      int                         `json:"enrichmentFailed"`
@@ -339,7 +343,8 @@ func numistaRelevanceBand(score int) string {
 }
 
 func (m NumistaCacheMetadata) Validate() error {
-	if m.CreatedAt.IsZero() || !m.ExpiresAt.After(m.CreatedAt) || m.AgeSeconds < 0 {
+	if m.Hit && m.Coalesced ||
+		m.CreatedAt.IsZero() || !m.ExpiresAt.After(m.CreatedAt) || m.AgeSeconds < 0 {
 		return errors.New("cache metadata is invalid")
 	}
 	return nil
@@ -383,7 +388,9 @@ func (o NumistaLookupOutcome) Validate() error {
 
 func (h NumistaHealthSummary) Validate() error {
 	if h.StatusCounts == nil || h.BroadRequestCount < 0 || h.DetailRequestCount < 0 ||
-		h.CacheHitCount < 0 || h.CacheRefreshCount < 0 || h.CacheHitRate < 0 || h.CacheHitRate > 1 ||
+		h.FreshCacheHitCount < 0 || h.CoalescedRequestCount < 0 ||
+		h.ProviderLoadCount < 0 || h.ProviderFailureCount < 0 || h.CancelledRequestCount < 0 ||
+		h.FreshCacheHitRate < 0 || h.FreshCacheHitRate > 1 ||
 		h.P50ElapsedMs < 0 || h.P95ElapsedMs < 0 || h.EnrichmentAttempted < 0 ||
 		h.EnrichmentSucceeded < 0 || h.EnrichmentFailed < 0 {
 		return errors.New("health summary is invalid")

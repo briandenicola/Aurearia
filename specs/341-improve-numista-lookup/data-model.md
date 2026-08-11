@@ -153,6 +153,7 @@ Expected domain statuses use HTTP 200. Invalid request syntax/ranges use 400.
 | Field | Type | Rules |
 |---|---|---|
 | `hit` | boolean | true only when a fresh entry was reused |
+| `coalesced` | boolean | true only when the caller joined in-flight work; mutually exclusive with `hit` |
 | `createdAt` | timestamp | UTC |
 | `expiresAt` | timestamp | UTC, after creation |
 | `ageSeconds` | integer | non-negative |
@@ -178,10 +179,15 @@ by reordering or duplicating IDs.
 
 In-memory only:
 
-`occurredAt`, `path`, `operation`, `status`, `cacheHit`, `refreshed`,
+`occurredAt`, `path`, `operation`, `status`, `cacheOutcome`,
 `elapsedMs`, `candidateCount`, `detailAttemptCount`, `detailSuccessCount`,
 `detailFailureCount`, `retryCount`, optional `retryAfterSeconds`, and
 `correlationDigest`.
+
+`cacheOutcome` distinguishes `loader`, `fresh_hit`, `coalesced_waiter`, and
+`bypass`. Only the loader owns provider status, retry, latency, refresh/load,
+and provider-failure signals. A coalesced waiter records only coalesced reuse
+and its own cancellation, never a fresh cache hit.
 
 Prohibited fields: API key, query, evidence strings, images, raw provider
 request/response, raw errors. The ring defaults to 500 events.
@@ -194,7 +200,8 @@ Admin-only aggregate:
 - `lastOutcome`, `lastCheckedAt`;
 - status counts for the rolling ring;
 - broad/detail request counts;
-- cache hit and refresh counts/rate;
+- fresh cache hit, coalesced request, provider load/failure, and cancellation counts;
+- fresh-cache hit rate calculated from fresh hits versus provider loads;
 - p50/p95 elapsed milliseconds;
 - enrichment attempted/succeeded/failed;
 - `lastQuotaLimitedAt`, optional `lastRetryAfterSeconds`.

@@ -125,16 +125,25 @@ describe('NumistaLookupPanel status behavior', () => {
     expect(getNumistaCacheFreshnessText('success', undefined)).toBeNull()
     expect(getNumistaCacheFreshnessText('unavailable', {
       hit: true,
+      coalesced: false,
       createdAt: '',
       expiresAt: '',
       ageSeconds: 120,
     })).toBeNull()
     expect(getNumistaCacheFreshnessText('success', {
       hit: true,
+      coalesced: false,
       createdAt: '',
       expiresAt: '',
       ageSeconds: 120,
     })).toBe('Cached results · 2 min old')
+    expect(getNumistaCacheFreshnessText('success', {
+      hit: false,
+      coalesced: true,
+      createdAt: '',
+      expiresAt: '',
+      ageSeconds: 0,
+    })).toBe('Shared in-flight results')
 
     vi.mocked(lookupNumista)
       .mockResolvedValueOnce({
@@ -155,7 +164,7 @@ describe('NumistaLookupPanel status behavior', () => {
       })
       .mockResolvedValueOnce({
         data: makeNumistaLookupOutcome({
-          cache: { hit: true, createdAt: '', expiresAt: '', ageSeconds: 120 },
+          cache: { hit: true, coalesced: false, createdAt: '', expiresAt: '', ageSeconds: 120 },
         }),
       })
 
