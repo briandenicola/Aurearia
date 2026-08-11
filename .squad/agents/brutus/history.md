@@ -277,3 +277,34 @@
 - Revalidated backend set semantics with targeted Go tests: legacy type normalization (`open→standard`, `defined→goal`), tracker dynamic mode validation, goal completion using collection vs wishlist, and tag-sync membership recalculation all passed.
 - Revalidated frontend with strict `vue-tsc --build` and set-focused Vitest suites (`SetCreationWizard`, `SetDetailPage`, `useCollectionFilters`); all passed.
 - QA outcome: APPROVE. No obvious new design-token or design-system violation observed in touched set UI diffs.
+
+## 2026-08-11 — Numista Lookup Task Planning & QA Integration
+
+**Session:** Synchronous feature specification completion and comprehensive task generation
+
+- Received Maximus specification package (8 artifacts: spec.md, plan.md, data-model.md, OpenAPI contract, research.md, quickstart.md, requirements checklist, cross-agent walkthrough).
+
+- **Generated 86 Dependency-Ordered Tasks** (phases 1–8, new file: `specs/341-improve-numista-lookup/tasks.md`):
+  - **Phase 1 (Setup):** 3 tasks for shared testdata fixtures (Go, Vue, SQL)
+  - **Phase 2 (Foundational, blocking):** 12 tasks for models, typed client, cache, scorer, telemetry, settings (all user stories wait for Phase 2 completion)
+  - **Phase 3 (User Story 1 — Direct Lookup):** 12 tasks (8 tests + 4 implementations), direct coin-detail lookups with rich evidence and editable queries
+  - **Phase 4 (User Story 2 — Photo Lookup):** 18 tasks (10 tests + 8 implementations), photo-evidence queries without eager Numista access, draft selection persistence, reference copy during promotion
+  - **Phase 5 (User Story 3 — Availability States):** 8 tasks (3 tests + 5 implementations), six domain statuses (success, empty, unconfigured, quota_limited, timeout, unavailable) with role-safe guidance
+  - **Phase 6 (User Story 4 — Quota & Caching):** 9 tasks (3 tests + 6 implementations), cache hit/miss tracking, quota enforcement, telemetry aggregation
+  - **Phase 7 (User Story 5 — Staged Enrichment):** 14 tasks (5 tests + 9 implementations), broad search + optional enrich contract, detail caching, partial failure handling
+  - **Phase 8 (User Story 6 — Filtering & Favorites):** 10 tasks (4 tests + 6 implementations), result filtering, user favorites persistence
+
+- **Requirement Coverage Matrix:** All 29 FR + 8 NFR + 10 SC mapped to phase/task numbers. MVP scope = Phases 1–3 (direct lookup, ~27 tasks, critical path 2–3 weeks).
+
+- **Parallelization Analysis:** 46 task pairs identified as parallelizable within phases; Phase 1 sequential, Phase 2 sequential (foundational blocking), Phases 3–5 partially parallel (direct + photo can run side-by-side after Phase 2), Phases 6–8 independent post-MVP.
+
+- **Test-First Discipline:** Each task has [P] marked test preceding implementation per TDD. All Phase 2 services must have 90%+ coverage (client, cache, scorer, telemetry). Acceptance criteria explicit (go test target, npm run build success, vue-tsc --build clean).
+
+- **Cross-Agent Context Added:** Cassius can begin Phase 1 testdata setup; Aurelia ready for Vue component scaffolding after fixtures finalized; Coordinator can approve MVP scope and prioritize Phase 1 kickoff; Maximus monitoring for Phase 2–3 contract drift.
+
+- **Quality Metrics:** MVP passes all architecture validation (layered: handler→service→interface-based client), no new design patterns, redacted telemetry, server-only API keys, admin-only configuration.
+
+- **QA Readiness:** Phase 1 testdata will establish test infrastructure (fixtures, mocks, httptest harness); Phase 2–8 follow TDD (test before implementation) across all layers; all routes validated against drift detection tests; full Go + Vue suite must pass before phase completion.
+
+- **Orchestration Log:** `.squad/orchestration-log/2026-08-11T13-07-00Z-brutus-numista-task-planning.md`. Session log: `.squad/log/2026-08-11T13-06-00Z-numista-lookup-feature-planning.md`.
+
