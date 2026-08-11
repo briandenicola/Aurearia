@@ -1126,3 +1126,115 @@ Limited to unavailable `go test -race` execution because `CGO_ENABLED=0`. Determ
 - Constitution §21 (Definition of Done): all 15-item checklist verified
 
 ---
+
+### Decision: Feature 341 Phase 4 Backend — Selected Reference Persistence
+
+**Date:** 2026-08-11  
+**Agent:** Cassius  
+**Scope:** T028–T032, T036–T042  
+**Status:** IMPLEMENTED
+
+## Context
+
+The active spec/plan/data model govern selected-reference persistence: an additive child row stores owner, canonical `Catalog`/`Number`/`URI`, and promotion copies the existing `CoinReference` shape transactionally for both collection and wishlist targets.
+
+An older `.squad/decisions.md` sketch mentions `catalog_number`, `linkType='lookup_selected'`, and a separate reference route. Per Constitution §0, implementation follows the higher-ranked Feature 341 artifacts and additive Quick Capture create/update DTOs. Those historical fields/routes do not exist in the authoritative active contract or current `CoinReference` schema.
+
+## Decision
+
+Canonical selection validation is performed before draft writes and then delegated to the existing `CoinReferenceService` catalog rules. Repository transactions own create/replace/remove and promotion copy, preserving rollback, ownership, CAS concurrency, and repeated-promotion idempotency.
+
+## Alignment
+- Principle I: Clear layered architecture (handler → service → repository)
+- Principle III: Exact typed multipart DTO contract
+- Principle IV: Simple complete proportional change to Quick Capture flow
+- Constitution §0: Higher-ranked Feature 341 spec takes precedence
+
+## Validation
+- Transaction tests: create/preserve/replace/remove, owner isolation, rollback, CAS concurrency, repeated promotion
+- Repository and service contract tests pass
+- Handler compatibility tests pass
+- Migration tests pass (additive, no row rewrites)
+
+---
+
+### Decision: Quick Capture Numista Selection — Explicit Tri-State Mutation
+
+**Date:** 2026-08-11  
+**Agent:** Aurelia  
+**Feature:** 341 Improved Numista Lookup, Phase 4  
+**Status:** IMPLEMENTED
+
+## Context
+
+Quick Capture updates must distinguish an unrelated edit from replacing or removing the optional selected Numista reference. The Identify Coin integration must keep the Numista lookup panel visible for manual entry, even when photo evidence produces an empty proposed query (matching spec's required disabled-search guidance).
+
+## Decision
+
+The frontend tracks selection mutation as three explicit states:
+- **unchanged** — Unrelated draft updates omit all selection multipart fields
+- **replace** — Selection changes send approved `selectedNumistaId`/`selectedNumistaUrl` pair
+- **clear** — Removal sends only `clearSelectedNumista=true`
+
+The shared lookup panel accepts an initial selection so a retained reference remains visible outside later result sets. Promotion is disabled while a reference change is pending (promotes saved draft relation, not unsaved frontend state).
+
+Identify Coin leaves the Numista panel visible with a disabled search button when photo evidence produces an empty `proposedNumistaQuery`, allowing manual entry at the disabled-search stage (matches active spec).
+
+## Alignment
+- Principle III: Exact typed multipart DTO contract
+- Principle IV: Explicit local state without hidden inference
+- Principle VI: Stable, keyboard-operable selection on mobile and desktop
+- Constitution §17/§21: Focused serialization and workflow regression coverage
+
+## Validation
+- Type-check: `npx vue-tsc --noEmit` (strict)
+- Tests: Draft resume, Identify Coin integration, multipart serialization
+- Frontend build: Vue Vite production build pass
+- Lint: ESLint 0 errors
+
+---
+
+### Decision: Feature 341 Phase 4 QA Review — Final Approval
+
+**Date:** 2026-08-11  
+**Reviewer:** Brutus  
+**Status:** APPROVED
+
+## Context
+
+Three Strict Lockout blocks (Constitution §18.2) were issued:
+1. **Generated Swagger nullability mismatch** — Runtime nullable pointers not reflected in OpenAPI contract
+2. **Identify Coin panel visibility** — Numista panel hidden when empty proposed query (contradicted spec guidance)
+3. **Handler/model contract drift** — Changed contracts not propagated to generated Swagger snapshots
+
+Hadrian's independent revision addressed block 1 (schema alignment). Aurelia revised block 2 (panel visibility logic). All snapshots were regenerated for block 3.
+
+## Verdict
+
+**APPROVE** — All three Strict Lockout blocks cleared. T028–T045 complete and verified.
+
+## Verified Gates
+- ✅ Nullable runtime pointers and generated Swagger schemas aligned (`x-nullable` / `allOf` / `$ref` accurate)
+- ✅ All four OpenAPI artifacts regenerate byte-identically (docs/openapi.json, src/api/docs/docs.go, swagger.json, swagger.yaml)
+- ✅ Identify Coin panel visible with disabled search for empty proposed query (manual entry allowed)
+- ✅ Prior manual-entry/no-eager-call/NGC-first/contract/task findings cleared
+- ✅ T028–T045 checksum complete
+- ✅ Focused contracts/Go/frontend tests pass
+- ✅ Full Go build/vet/test suite pass
+- ✅ Frontend 654/654 tests pass
+- ✅ Frontend lint 0 errors
+- ✅ Type-check (strict) pass
+- ✅ Production build pass
+- ✅ Diff/secret checks pass
+- ⚠️ Gitleaks/Trivy unavailable (residual)
+
+## Residual Risk
+
+Limited to unavailable Gitleaks and Trivy scanning. All code quality and functional gates passed.
+
+## Alignment
+- Principle I, III, IV, VII, X: Architecture, typing, simplicity, convention, audit
+- Constitution §17 (Quality Gate): all gates passed
+- Constitution §21 (Definition of Done): T028–T045 checksum complete
+
+---

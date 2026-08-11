@@ -368,3 +368,22 @@
 - Prior blocks remain resolved: canonical Numista reference persistence, generated route coverage, 80/60 bands, real date-range evidence, exact submitted query preservation, bounded jitter/retry policy, cancellation mapping, BCE/CE shorthand, DTO/status/cache/telemetry/settings matrices, and truthful T001–T027 completion.
 - Gates passed: focused concurrency/body/scoring stress at `-count=100`; all Numista tests repeated at `-count=50` across three clean passes after one non-reproduced noisy combined-run exit; Go build/vet/full tests; architecture/route drift; frontend focused 57/57 and full 640/640; strict type-check, explicit `vue-tsc --build`, production build, ESLint 0 errors/169 warnings, and `git diff --check`.
 - Residual risk: the Go race detector remains unavailable because `CGO_ENABLED=0`. Deterministic stress and direct synchronization review provide sufficient evidence; a future CGO-enabled CI race job would further reduce residual concurrency risk.
+
+## 2026-08-11 — Feature 341 Phase 4 / User Story 2 review
+
+- **Verdict: BLOCK.**
+- Backend persistence, owner scoping, tri-state mutation, discard retention, collection/wishlist exact-once copy, rollback, concurrent claims, NGC-first suppression, bounded photo evidence, and legacy aliases passed focused and full Go review.
+- Frontend focused Phase 4 tests passed 35/35; the full Vitest, lint, strict type-check, `vue-tsc --build`, and production build command completed successfully.
+- Blocking UX/spec defect: `CoinLookupPage.vue` renders the shared Numista panel only when `photoNumistaQuery` is non-empty, so empty/noisy photo evidence provides neither the required disabled search state nor guidance/manual query entry.
+- Blocking contract drift: scratch Swagger regeneration differs from committed snapshots and introduces `selectedNumistaId`, `clearSelectedNumista`, and `proposedNumistaQuery`; CI's OpenAPI snapshot gate would fail.
+- T028–T045 remain unchecked, violating Constitution §21.13 and preventing the phase from being ready to mark/commit.
+- Diff hygiene and targeted credential scan passed. Full Go build/vet/test and architecture/route tests passed.
+
+## 2026-08-11 — Feature 341 Phase 4 Hadrian Strict Lockout re-review
+
+- **Verdict: BLOCK; Hadrian is locked out from further revision.**
+- Cleared original findings: empty/noisy photo evidence now renders the shared manual-entry panel with disabled guidance and no eager Numista request; NGC results still suppress the panel/provider request; regenerated OpenAPI snapshots are deterministic and contain the new request/response fields; T028–T045 are checked and implementation/test coverage is otherwise coherent.
+- Blocking contract defect: runtime responses serialize `numistaLookup: null` and `selectedNumistaReference: null`, but generated Swagger defines both only as object `$ref` properties without `nullable`/`x-nullable`. This contradicts the OAS3 planning contract and the TypeScript `| null` DTOs, so generated clients cannot represent valid responses.
+- Focused Phase 4 tests passed: Go packages and 36 frontend tests. Full gates passed: Go build/vet/all tests, architecture/route/migration checks, OpenAPI regeneration hash stability, frontend 654/654, lint 0 errors/169 warnings, type-check, explicit `vue-tsc --build`, production build, design/UI tests, diff check, and targeted secret scan.
+- Parallel Vitest worker timeouts were not reproduced: two normal full-suite runs passed, including a 106-file/654-test run in 73.64s. Treat the reported timeout as environment-only unless it becomes reproducible under the bounded command.
+- Gitleaks and Trivy were unavailable in this environment.
