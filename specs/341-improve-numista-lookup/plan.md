@@ -14,7 +14,10 @@ render the same outcome/candidate DTOs, and persist only an explicit selection.
 Photo analysis will propose evidence and a query but will not perform a Numista
 search before the collector can edit it. Quick Capture will retain its selected
 reference in a one-to-one draft-reference row and copy it into
-`coin_references` in the existing promotion transaction.
+`coin_references` in the existing promotion transaction. The amended saved-coin
+UX makes Catalog References the canonical lookup surface, retains lookup only
+where it is contextual to Identify Coin and Quick Capture, and adds no
+top-level navigation or eager NGC-path request.
 
 ## Technical Context
 
@@ -285,25 +288,48 @@ Cached data is never authoritative and needs no migration.
 
 ## Frontend Design
 
+- `CoinReferencesSection.vue`: canonical saved-coin surface. Place compact
+  `Search Numista` beside manual `Add Reference`, expand the lookup inline,
+  retain all manual create/edit/delete behavior, and collapse only after a
+  confirmed selection persists and the reference list refreshes.
 - `CoinNumistaPanel.vue`: initialize a multiline/combobox-style editable query
   from all coin evidence; show status/guidance, cache freshness, ranked cards,
   reason lists, enrichment progress, selection radio, clear/replace, and an
   explicit “Add selected reference” action through the existing coin-reference
-  API. Never persist on result click.
+  API. Never persist on result click. It is composed by Catalog References for
+  saved coins, not by the full Actions panel.
+- `CoinActionsPanel.vue`: remove the full lookup panel. During compatibility
+  transition it may render one compact contextual row/link to the saved coin's
+  Catalog References section; it does not own lookup state.
 - `CoinLookupPage.vue`: after vision analysis, preserve NGC-first behavior. If
   no NGC result, show the proposed editable query and evidence, but wait for
-  collector search. Preserve query and selected reference across retries.
-  Broad results render before enrichment. Saving a Quick Capture draft sends
-  only the selected reference.
+  collector search. If NGC succeeds, show `Also search Numista`; activating it
+  reveals an editable panel but still performs no provider request before
+  explicit search submission. Label initial analysis `Analyze Photos`; retain
+  `Save as Draft` for persistence. Preserve query and selected reference across
+  retries. Broad results render before enrichment. Saving a Quick Capture draft
+  sends only the selected reference.
 - `QuickCaptureDraftPage.vue` and draft card/forms: display retained selection,
   allow replace/remove, and preserve it when unrelated edits or validation
   failures occur. Promotion readiness identifies that a reference is optional.
+  `QuickCaptureDraftCard.vue` renders `Numista #<identifier>` from the existing
+  selected-reference list projection.
 - Shared `NumistaLookupPanel.vue` and small pure query/status helpers avoid
   divergent behavior while keeping page ownership explicit.
 - Use native buttons/radio semantics, visible focus, `aria-live` for status,
-  textual score explanations, descriptive image alt text, 44 px mobile tap
-  targets, and no color-only meaning. Cards stack on narrow screens and do not
-  overflow the PWA viewport. Existing design tokens and Lucide icons apply.
+  `aria-expanded`/`aria-controls` for disclosure controls, textual score
+  explanations, descriptive image alt text, 44 px mobile tap targets, and no
+  color-only meaning. Cards and header actions wrap at 375 px without
+  horizontal overflow. Existing design tokens and Lucide icons apply.
+
+### Approved placement amendment and authority
+
+Feature 341 is active and unmerged, so Constitution §0 permits editing its
+specification package in place. The amendment does not alter landed Feature
+214 or Feature 336 artifacts, reopen completed T001–T053, or require a
+constitutional/ADR amendment. It is a proportional Principle IV reconciliation
+of the active spec, plan, contract projection, quickstart, and tasks. Phase 6
+cache/telemetry and Phase 7 enrichment scope remain unchanged.
 
 ## API Compatibility and Rollout
 
@@ -322,6 +348,9 @@ Cached data is never authoritative and needs no migration.
    ADR. Announce legacy adapter removal separately; do not remove it here.
 6. Observe status mix, p95 search latency, cache hit rate, 429s, and detail
    failures. Roll back UI independently if needed; additive data remains safe.
+7. Move saved-coin composition from Actions to Catalog References without
+   removing the Actions route, manual reference controls, legacy lookup routes,
+   or draft APIs. No new top-level route or navigation entry is introduced.
 
 ## Project Structure
 
@@ -369,10 +398,15 @@ src/web/src/
 ├── api/client.ts
 ├── types/index.ts
 ├── components/coin/CoinNumistaPanel.vue
+├── components/coin/CoinReferencesSection.vue
+├── components/coin/CoinActionsPanel.vue
 ├── components/numista/NumistaLookupPanel.vue
+├── components/quick-capture/QuickCaptureDraftCard.vue
 ├── components/admin/AdminSystemSection.vue
 ├── pages/CoinLookupPage.vue
+├── pages/CoinDetailPage.vue
 ├── pages/QuickCaptureDraftPage.vue
+├── pages/QuickCaptureDraftsPage.vue
 └── corresponding __tests__/
 
 docs/
@@ -418,6 +452,12 @@ Implementation should proceed in dependency order:
    `main.go` injection, Swagger generation, contract and `httptest` coverage.
 3. **Photo integration**: make `CoinLookupService` return typed evidence/query
    proposal without eager Numista calls; add NGC-first and status regressions.
+4. **Canonical-placement amendment**: after completed P1 status behavior, move
+   the saved-coin panel into Catalog References, add the explicit NGC override,
+   reconcile labels and draft-card chip, and prove the existing draft-list
+   projection. This slice depends only on T001–T053 and is part of the P1 MVP;
+   it does not depend on or modify Phase 6 caching/telemetry or Phase 7
+   enrichment.
 4. **Persistence**: add draft-reference model/migration/repository operations;
    extend create/update/read and promotion transaction; test ownership,
    validation rollback, collection/wishlist copy, repeated promotion, and no

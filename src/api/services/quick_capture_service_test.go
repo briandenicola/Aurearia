@@ -77,6 +77,7 @@ func TestQuickCaptureServiceSelectedReferenceCreatePreserveReplaceClearAndValida
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if draft.SelectedNumistaReference == nil || draft.SelectedNumistaReference.Number != "123" {
 		t.Fatalf("create selection missing: %#v", draft)
 	}
@@ -124,6 +125,50 @@ func TestQuickCaptureServiceSelectedReferenceCreatePreserveReplaceClearAndValida
 	})
 	if err != nil || cleared.SelectedNumistaReference != nil {
 		t.Fatalf("clear failed: %#v err=%v", cleared, err)
+	}
+}
+
+func TestQuickCaptureServiceListDraftsReturnsOnlyOwnerSelections(t *testing.T) {
+	svc, _ := newQuickCaptureServiceAndDBForTest(t, t.TempDir())
+	selected, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID: 1, WorkingTitle: "Selected owner draft",
+		SelectedNumistaReference: selectedNumistaServiceRef(t, 12345),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unselected, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID: 1, WorkingTitle: "Unselected owner draft",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID: 2, WorkingTitle: "Other owner draft",
+		SelectedNumistaReference: selectedNumistaServiceRef(t, 99999),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	drafts, total, err := svc.ListDrafts(1, models.QuickCaptureDraftStatusActive, 1, 50)
+	if err != nil {
+		t.Fatalf("list owner drafts: %v", err)
+	}
+	if total != 2 || len(drafts) != 2 {
+		t.Fatalf("owner-scoped total mismatch: total=%d drafts=%#v", total, drafts)
+	}
+
+	byID := make(map[uint]models.QuickCaptureDraft, len(drafts))
+	for _, draft := range drafts {
+		byID[draft.ID] = draft
+	}
+	if got := byID[selected.ID].SelectedNumistaReference; got == nil ||
+		got.Catalog != "Numista" || got.Number != "12345" ||
+		got.URI != "https://en.numista.com/catalogue/pieces12345.html" {
+		t.Fatalf("selected list projection mismatch: %#v", got)
+	}
+	if got := byID[unselected.ID].SelectedNumistaReference; got != nil {
+		t.Fatalf("unselected list projection should be nil: %#v", got)
 	}
 }
 

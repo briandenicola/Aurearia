@@ -243,6 +243,13 @@ The draft relation is returned as:
 
 Internal IDs/user IDs of the selected-reference row need not be exposed.
 
+The owner-scoped draft list uses the same `QuickCaptureDraft` projection and
+therefore includes `selectedNumistaReference` when present. This existing
+projection is sufficient for the `Numista #<identifier>` draft-card chip; the
+UX amendment adds no table, column, provider call, or separate summary
+endpoint. List queries must continue owner-scoped preloading of the optional
+relation.
+
 ## Validation and write semantics
 
 ### Selection validation

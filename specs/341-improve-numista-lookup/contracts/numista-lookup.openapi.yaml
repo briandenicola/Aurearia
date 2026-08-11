@@ -97,6 +97,29 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '500': { $ref: '#/components/responses/InternalError' }
   /api/quick-capture/drafts:
+    get:
+      summary: List owner-scoped drafts with retained Numista selection
+      description: >
+        Existing draft-list contract. Each draft includes the optional
+        selectedNumistaReference used by the compact draft-card chip.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [active, promoting, promoted, discarded] }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Owner-scoped draft page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuickCaptureDraftListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       summary: Create draft with optional selected Numista reference
       security: [{ bearerAuth: [] }]
@@ -450,6 +473,16 @@ components:
             images: { type: array, items: { type: object, additionalProperties: true } }
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
+    QuickCaptureDraftListResponse:
+      type: object
+      required: [drafts, total, page, limit]
+      properties:
+        drafts:
+          type: array
+          items: { $ref: '#/components/schemas/QuickCaptureDraft' }
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        limit: { type: integer, minimum: 1, maximum: 100 }
     NumistaHealthSummary:
       type: object
       required:

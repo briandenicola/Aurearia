@@ -104,17 +104,12 @@
         </div>
       </div>
 
-      <CoinNumistaPanel
-        :coin-id="coinId"
-        :coin-name="coinName"
-        :coin-ruler="coinRuler ?? ''"
-        :coin-denomination="coinDenomination ?? ''"
-        :coin-mint="coinMint ?? ''"
-        :coin-date-range="coinDateRange ?? ''"
-        :coin-material="coinMaterial"
-        :coin-obverse-inscription="coinObverseInscription ?? ''"
-        :coin-reverse-inscription="coinReverseInscription ?? ''"
-      />
+      <div class="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4">
+        <span class="text-body text-text-secondary">Catalog lookup and saved references</span>
+        <RouterLink class="btn btn-ghost btn-sm" :to="`/coin/${coinId}#catalog-references`">
+          Catalog References
+        </RouterLink>
+      </div>
     </div>
 
     <CameraCaptureModal
@@ -129,7 +124,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { uploadImage, proxyImage, estimateCoinValue, updateCoin, getAIJob, getCoinAIJobs } from '@/api/client'
 import { formatCurrency } from '@/utils/format'
-import CoinNumistaPanel from '@/components/coin/CoinNumistaPanel.vue'
+import { RouterLink } from 'vue-router'
 import CameraCaptureModal from '@/components/CameraCaptureModal.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { Camera } from 'lucide-vue-next'

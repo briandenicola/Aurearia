@@ -33,7 +33,7 @@ const props = defineProps<{
   coinReverseInscription: string
 }>()
 
-const emit = defineEmits<{ referenceAdded: [] }>()
+const emit = defineEmits<{ referenceAdded: [candidate: NumistaCandidate] }>()
 const auth = useAuthStore()
 const saving = ref(false)
 const saveMessage = ref('')
@@ -64,7 +64,7 @@ async function addSelectedReference(candidate: NumistaCandidate) {
       uri: candidate.canonicalUrl,
     })
     saveMessage.value = 'Numista reference added.'
-    emit('referenceAdded')
+    emit('referenceAdded', candidate)
   } catch (error) {
     saveError.value = true
     saveMessage.value = getApiErrorMessage(error) || 'The Numista reference could not be added.'

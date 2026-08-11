@@ -1,10 +1,43 @@
 <template>
-  <section class="mb-6">
-    <div class="mb-3 flex items-center justify-between gap-3">
+  <section id="catalog-references" class="mb-6 scroll-mt-24">
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
       <h3 class="m-0 text-base font-medium text-text-primary">Catalog References</h3>
-      <button type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="startCreate">
-        + Add Reference
-      </button>
+      <div class="inline-flex flex-wrap items-center gap-[0.35rem]">
+        <button type="button" class="btn btn-secondary btn-sm" :disabled="saving" @click="startCreate">
+          Add Reference
+        </button>
+        <button
+          ref="numistaDisclosure"
+          type="button"
+          class="btn btn-secondary btn-sm"
+          :aria-expanded="numistaExpanded"
+          :aria-controls="numistaPanelId"
+          @click="toggleNumista"
+          @keydown.enter.prevent="toggleNumista"
+          @keydown.space.prevent="toggleNumista"
+        >
+          Search Numista
+        </button>
+      </div>
+    </div>
+
+    <div
+      v-if="numistaExpanded"
+      :id="numistaPanelId"
+      class="mb-3 min-w-0 overflow-hidden rounded-sm border border-border-subtle bg-card p-3"
+    >
+      <CoinNumistaPanel
+        :coin-id="coinId"
+        :coin-name="coinName"
+        :coin-ruler="coinRuler"
+        :coin-denomination="coinDenomination"
+        :coin-mint="coinMint"
+        :coin-date-range="coinDateRange"
+        :coin-material="coinMaterial"
+        :coin-obverse-inscription="coinObverseInscription"
+        :coin-reverse-inscription="coinReverseInscription"
+        @reference-added="handleNumistaReferenceAdded"
+      />
     </div>
 
     <div v-if="!rows.length && !editing" class="section-content-card text-body text-text-secondary">
@@ -13,11 +46,11 @@
 
     <div v-else class="flex flex-col gap-2">
       <article
-        v-for="ref in rows"
-        :key="ref.id"
+        v-for="reference in rows"
+        :key="reference.id"
         class="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-border-subtle bg-card p-3"
       >
-        <template v-if="editing?.mode === 'edit' && editing.id === ref.id">
+        <template v-if="editing?.mode === 'edit' && editing.id === reference.id">
           <form class="flex w-full flex-col gap-2" @submit.prevent="saveEdit">
             <div class="grid gap-2 md:grid-cols-3">
               <select v-model="draft.catalog" class="form-input">
@@ -37,23 +70,23 @@
 
         <template v-else>
           <div class="inline-flex flex-wrap items-center gap-2">
-            <span class="chip-sm border-border-accent text-gold">{{ ref.catalog }}</span>
+            <span class="chip-sm border-border-accent text-gold">{{ reference.catalog }}</span>
             <span class="text-base text-text-primary">
-              <template v-if="ref.volume">{{ ref.volume }} </template>{{ ref.number }}
+              <template v-if="reference.volume">{{ reference.volume }} </template>{{ reference.number }}
             </span>
           </div>
           <div class="inline-flex flex-wrap items-center gap-[0.35rem]">
             <SafeExternalLink
-              v-if="ref.uri"
-              :href="ref.uri"
+              v-if="reference.uri"
+              :href="reference.uri"
               class="btn btn-ghost btn-xs"
             >
               Open
             </SafeExternalLink>
-            <button type="button" class="btn btn-ghost btn-xs" :disabled="saving" @click="startEdit(ref)">
+            <button type="button" class="btn btn-ghost btn-xs" :disabled="saving" @click="startEdit(reference)">
               Edit
             </button>
-            <button type="button" class="btn btn-danger btn-xs" :disabled="saving" @click="removeReference(ref)">
+            <button type="button" class="btn btn-danger btn-xs" :disabled="saving" @click="removeReference(reference)">
               Delete
             </button>
           </div>
@@ -82,11 +115,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, nextTick, ref, watch, onMounted, onUpdated } from 'vue'
 import { createCoinReference, deleteCoinReference, updateCoinReference, listCatalogs } from '@/api/client'
-import type { CoinReference, CatalogRegistry } from '@/types'
+import type { Coin, CoinReference, CatalogRegistry, NumistaCandidate } from '@/types'
 import { useDialog } from '@/composables/useDialog'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
+import CoinNumistaPanel from '@/components/coin/CoinNumistaPanel.vue'
 
 type ReferenceDraft = {
   catalog: string
@@ -95,10 +129,27 @@ type ReferenceDraft = {
   uri: string
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   coinId: number
   references: CoinReference[]
-}>()
+  coinName?: string
+  coinRuler?: string
+  coinDenomination?: string
+  coinMint?: string
+  coinDateRange?: string
+  coinMaterial?: Coin['material']
+  coinObverseInscription?: string
+  coinReverseInscription?: string
+}>(), {
+  coinName: '',
+  coinRuler: '',
+  coinDenomination: '',
+  coinMint: '',
+  coinDateRange: '',
+  coinMaterial: 'Other',
+  coinObverseInscription: '',
+  coinReverseInscription: '',
+})
 
 const emit = defineEmits<{
   changed: []
@@ -110,6 +161,12 @@ const localReferences = ref<CoinReference[]>([])
 const catalogs = ref<CatalogRegistry[]>([])
 const saving = ref(false)
 const editing = ref<{ mode: 'create' } | { mode: 'edit'; id: number } | null>(null)
+const numistaExpanded = ref(false)
+const numistaDisclosure = ref<HTMLElement | null>(null)
+const pendingNumistaNumber = ref<string | null>(null)
+const numistaReferenceBaseline = ref(new Set<number>())
+const numistaPanelId = `coin-${props.coinId}-numista-lookup`
+let restoreNumistaDisclosureFocus = false
 const draft = ref<ReferenceDraft>({
   catalog: '',
   volume: '',
@@ -144,6 +201,18 @@ watch(
   () => props.references,
   (next) => {
     localReferences.value = (next ?? []).map((item) => ({ ...item }))
+    if (pendingNumistaNumber.value !== null) {
+      const refreshedMatch = localReferences.value.some((item) => {
+        if (item.catalog.toLowerCase() !== 'numista') return false
+        if (pendingNumistaNumber.value) return item.number === pendingNumistaNumber.value
+        return !numistaReferenceBaseline.value.has(item.id)
+      })
+      if (refreshedMatch) {
+        restoreNumistaDisclosureFocus = true
+        numistaExpanded.value = false
+        pendingNumistaNumber.value = null
+      }
+    }
     if (editing.value?.mode === 'edit') {
       const editID = editing.value.id
       const stillExists = localReferences.value.some((item) => item.id === editID)
@@ -152,6 +221,25 @@ watch(
   },
   { immediate: true, deep: true },
 )
+
+onUpdated(() => {
+  if (!restoreNumistaDisclosureFocus) return
+  restoreNumistaDisclosureFocus = false
+  numistaDisclosure.value?.focus()
+})
+
+async function toggleNumista() {
+  numistaExpanded.value = !numistaExpanded.value
+  if (!numistaExpanded.value) return
+  await nextTick()
+  document.getElementById('numista-query')?.focus()
+}
+
+function handleNumistaReferenceAdded(candidate?: NumistaCandidate) {
+  numistaReferenceBaseline.value = new Set(localReferences.value.map((item) => item.id))
+  pendingNumistaNumber.value = candidate ? String(candidate.id) : ''
+  emit('changed')
+}
 
 function resetDraft(value?: Partial<CoinReference>) {
   draft.value = {

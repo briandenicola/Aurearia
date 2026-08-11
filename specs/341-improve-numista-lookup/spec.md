@@ -3,6 +3,7 @@
 **Feature Branch**: `341-improve-numista-lookup`  
 **Created**: 2026-08-11  
 **Status**: Draft  
+**Amended**: 2026-08-11 — approved canonical-placement UX reconciliation
 **Input**: Improve Numista lookup for direct coin-detail and photo-assisted workflows through a shared contract, richer editable queries, explainable relevance ranking, selected-reference persistence, distinct service states, caching and telemetry, and staged result enrichment.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -91,6 +92,36 @@ As a collector, I want broad search results quickly and richer details only for 
 3. **Given** enrichment adds useful mint, date, material, inscription, issuer, or image evidence, **When** final ranking is shown, **Then** explanations identify the evidence that affected relevance.
 4. **Given** detail enrichment fails for one or more candidates, **When** broad search data remains usable, **Then** those results remain available with their unenriched state identified.
 
+---
+
+### User Story 6 - Find catalog references where collectors expect them (Priority: P1)
+
+As a collector, I want Numista lookup presented as part of catalog-reference
+management, with contextual access while identifying coins, so I can follow
+one mental model: find a catalog reference.
+
+**Why this priority**: Phases 1–5 delivered the lookup capability, but the
+saved-coin placement under Actions makes a reference-finding workflow harder
+to discover and separates lookup from the reference it creates.
+
+**Independent Test**: Open a saved coin, expand `Search Numista` from Catalog
+References, save a selected result, and verify the panel collapses and the
+reference appears. Then exercise non-NGC and NGC Identify Coin paths, save a
+draft, and verify its retained `Numista #...` chip without any top-level
+navigation addition or eager NGC-path provider request.
+
+**Acceptance Scenarios**:
+
+1. **Given** a collector views a saved coin, **When** they reach Catalog References, **Then** a compact `Search Numista` action appears beside the existing manual `Add Reference` action and no top-level navigation item is added.
+2. **Given** the collector activates `Search Numista`, **When** the lookup opens, **Then** it expands inline within Catalog References, preserves manual reference management, and returns focus to a predictable control when collapsed.
+3. **Given** a selected Numista result is successfully persisted, **When** the Catalog References list refreshes, **Then** the inline lookup collapses and the new structured reference is visible.
+4. **Given** the saved coin's Actions page is opened during transition, **When** Numista is mentioned, **Then** it shows at most a compact contextual row or link to Catalog References and does not render the full lookup panel.
+5. **Given** Identify Coin or a Quick Capture draft needs contextual attribution, **When** the collector reviews it, **Then** the editable Numista lookup remains available in that draft context without becoming a global destination.
+6. **Given** photo analysis returns a usable NGC result, **When** the collector reviews the NGC result, **Then** an explicit `Also search Numista` control is shown and no Numista provider request occurs until the collector activates the control and submits the editable query.
+7. **Given** the collector starts photo analysis, **When** the primary analysis control is shown, **Then** its label is `Analyze Photos`; after results, the persistence control remains `Save as Draft`.
+8. **Given** a Quick Capture draft retains a selected Numista reference, **When** the draft list is displayed, **Then** its card shows a compact `Numista #<identifier>` chip; drafts without a selection show no Numista chip.
+9. **Given** any amended surface is used with keyboard, screen reader, or a narrow mobile viewport, **When** controls expand, collapse, announce status, or wrap, **Then** focus, accessible names, live guidance, tap targets, and layout remain usable without color-only meaning or horizontal overflow.
+
 ### Edge Cases
 
 - The proposed query is empty because neither stored fields nor photo analysis produced useful evidence; search is disabled with guidance to enter at least one term.
@@ -139,6 +170,15 @@ As a collector, I want broad search results quickly and richer details only for 
 - **FR-027**: Existing NGC-first photo behavior MUST remain unchanged: a usable NGC certification result does not automatically trigger Numista lookup unless the collector explicitly requests it.
 - **FR-028**: Existing authenticated ownership and authorization rules MUST apply to selecting references, saving drafts, adding references to coins, and promotion.
 - **FR-029**: Existing structured-reference validation and deduplication rules MUST govern persisted Numista references.
+- **FR-030**: For saved coins, Catalog References MUST be the canonical Numista lookup surface, and `Search Numista` MUST appear as a compact peer of the existing manual `Add Reference` action.
+- **FR-031**: Saved-coin Numista lookup MUST expand inline within Catalog References and MUST collapse after successful selected-reference persistence and reference-list refresh.
+- **FR-032**: The full saved-coin Numista lookup panel MUST be removed from Actions; during transition, Actions MAY retain only a compact contextual row or link that leads to Catalog References.
+- **FR-033**: Numista lookup MUST remain contextual in Identify Coin and Quick Capture draft workflows, and the feature MUST NOT add a top-level navigation item or standalone global Numista destination.
+- **FR-034**: A usable NGC result MUST offer an explicit `Also search Numista` override that reveals an editable lookup panel without issuing a Numista provider request merely because the override was revealed.
+- **FR-035**: The photo-analysis action MUST be labeled `Analyze Photos`, while the action that persists reviewed results MUST remain labeled `Save as Draft`.
+- **FR-036**: Quick Capture draft cards MUST show `Numista #<identifier>` when the list response contains a retained selected Numista reference and MUST omit the chip otherwise.
+- **FR-037**: Canonical and contextual lookup controls MUST preserve accessible names, keyboard focus, status announcements, non-color meaning, mobile tap targets, and narrow-viewport wrapping without overflow.
+- **FR-038**: The placement transition MUST preserve existing manual reference controls, saved references, legacy lookup/API compatibility, NGC-first behavior, draft selection semantics, and existing coin-detail/Quick Capture routes.
 
 ### Nonfunctional Expectations
 
@@ -150,6 +190,7 @@ As a collector, I want broad search results quickly and richer details only for 
 - **NFR-006**: Full inscriptions and visible label text MUST not be retained in telemetry; operational correlation MUST use non-reversible or redacted identifiers where needed.
 - **NFR-007**: Lookup, caching, scoring, and selection behavior MUST be independently testable without live provider access.
 - **NFR-008**: The change MUST preserve responsive behavior in the mobile/PWA photo workflow and accessible keyboard operation in both lookup paths.
+- **NFR-009**: Expanding or collapsing lookup MUST not cause horizontal overflow at a 375 px viewport and MUST preserve a logical focus order and programmatic expanded/collapsed state.
 
 ### Key Entities
 
@@ -171,6 +212,9 @@ As a collector, I want broad search results quickly and richer details only for 
 - Any persisted selected-reference field is optional during rollout; absent data means no selection.
 - Promotion remains compatible with existing collection and wishlist targets, lifecycle states, validation, ownership, and idempotency.
 - Existing direct lookup and photo lookup entry points remain available; their result and error presentations transition to the shared outcome model.
+- Existing saved-coin Actions routes remain valid during the placement transition, but
+  they no longer own the full Numista panel; a compact link back to Catalog
+  References is sufficient compatibility.
 - Existing configuration remains authoritative. No credential re-entry is required.
 - Cached data is disposable and does not become an authoritative collection record.
 - Rollback MUST leave existing coins and references readable and MUST not strand drafts or block promotion solely because improved lookup data is absent.
@@ -186,6 +230,8 @@ As a collector, I want broad search results quickly and richer details only for 
 - Offline Numista search or offline Quick Capture promotion.
 - Guaranteeing provider quota availability or exposing provider credentials.
 - Reworking unrelated coin catalogs or general-purpose search ranking.
+- Adding top-level navigation, a standalone Numista page, or a new provider
+  request triggered only by revealing the NGC override panel.
 
 ## Assumptions
 
@@ -220,3 +266,7 @@ As a collector, I want broad search results quickly and richer details only for 
 - **SC-008**: At least 95% of normal-availability uncached searches show initial candidates or a terminal status within 5 seconds, and at least 95% of fresh-cache searches do so within 1 second.
 - **SC-009**: Administrators can distinguish all required outcome states, cache use, and enrichment outcomes for 100% of sampled lookups without access to credentials or full inscription text.
 - **SC-010**: Existing NGC-first lookup, direct structured-reference management, draft ownership, collection/wishlist promotion, and promotion idempotency regression scenarios continue to pass with no behavior change outside this feature's stated scope.
+- **SC-011**: 100% of saved-coin usability scenarios locate Numista lookup in Catalog References, persist through the existing structured-reference workflow, collapse after success, and render no full lookup panel in Actions.
+- **SC-012**: 100% of tested usable-NGC scenarios issue zero Numista requests before explicit collector submission through `Also search Numista`.
+- **SC-013**: 100% of draft-list fixtures with a retained selection show the correct `Numista #<identifier>` chip, while fixtures without one show none.
+- **SC-014**: Automated keyboard/accessibility checks and a 375 px viewport regression pass for Catalog References, NGC override, contextual draft lookup, and draft-card chip surfaces.

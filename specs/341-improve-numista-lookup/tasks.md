@@ -123,6 +123,45 @@
 
 ---
 
+## Phase 5A: User Story 6 - Canonical catalog-reference placement (Priority: P1 MVP amendment)
+
+**Goal**: Make Catalog References the canonical saved-coin lookup surface,
+retain contextual Identify Coin/Quick Capture lookup, provide an explicit
+no-eager-request NGC override, reconcile labels and draft-card reference
+visibility, and add no top-level navigation.
+
+**Dependencies**: Depends on completed T001–T053 only. This amendment is part of
+the P1 MVP and is independent of Phase 6 cache/telemetry and Phase 7
+enrichment. It does not reopen or renumber completed work.
+
+**Independent Test**: From a saved coin, expand `Search Numista` beside `Add
+Reference`, persist one selection, and observe inline collapse plus the new
+reference. From Identify Coin, verify contextual non-NGC lookup, reveal
+`Also search Numista` under a usable NGC result with zero provider requests,
+save a draft, and observe `Numista #<identifier>` on its list card.
+
+### Tests for User Story 6
+
+- [x] T087 [P] [US6] [Brutus] Add canonical placement tests for compact peer actions, inline disclosure semantics/focus, manual reference compatibility, selected-reference persistence refresh, and collapse-after-success in src/web/src/components/coin/__tests__/CoinReferencesSection.test.ts
+- [x] T088 [P] [US6] [Brutus] Add transition tests proving Actions renders no full Numista panel and at most one compact contextual link to Catalog References without adding a route/navigation destination in src/web/src/components/coin/__tests__/CoinActionsPanel.test.ts and src/web/src/pages/__tests__/CoinDetailPage.test.ts
+- [x] T089 [P] [US6] [Brutus] Add Identify Coin tests for retained non-NGC contextual lookup, `Also search Numista` under usable NGC results, editable reveal with zero eager Numista requests, `Analyze Photos`, retained `Save as Draft`, keyboard disclosure, and 375 px layout in src/web/src/pages/__tests__/CoinLookupPage.test.ts
+- [x] T090 [P] [US6] [Brutus] Add owner-scoped draft-list contract tests proving selectedNumistaReference is preloaded/serialized when present and omitted or null otherwise in src/api/repository/quick_capture_repository_test.go, src/api/services/quick_capture_service_test.go, and src/api/handlers/quick_capture_handler_test.go
+- [x] T091 [P] [US6] [Brutus] Add draft-card tests for exact `Numista #<identifier>` chip text, absence without selection, wrapping, and accessible link/card behavior in src/web/src/components/quick-capture/__tests__/QuickCaptureDraftCard.test.ts and src/web/src/pages/__tests__/QuickCaptureDraftsPage.test.ts
+
+### Implementation for User Story 6
+
+- [x] T092 [US6] [Aurelia] Compose CoinNumistaPanel as an inline disclosure in Catalog References beside the existing manual Add Reference action, pass complete coin evidence from src/web/src/pages/CoinDetailPage.vue, and collapse only after confirmed persistence plus refresh in src/web/src/components/coin/CoinReferencesSection.vue and src/web/src/pages/CoinDetailPage.vue
+- [x] T093 [US6] [Aurelia] Remove CoinNumistaPanel from Actions and add at most one compact contextual row/link targeting the saved coin's Catalog References section, without changing router or top-level navigation definitions, in src/web/src/components/coin/CoinActionsPanel.vue and src/web/src/pages/CoinDetailActionsPage.vue
+- [x] T094 [US6] [Aurelia] Preserve contextual non-NGC lookup, add the explicit NGC `Also search Numista` disclosure without eager lookup, rename the initial action to `Analyze Photos`, and retain `Save as Draft` in src/web/src/pages/CoinLookupPage.vue
+- [x] T095 [US6] [Aurelia] Render the retained `Numista #<identifier>` chip from selectedNumistaReference without new API calls in src/web/src/components/quick-capture/QuickCaptureDraftCard.vue
+- [x] T096 [US6] [Maximus] Reconcile canonical placement, contextual surfaces, NGC override/no-eager behavior, labels, draft-card chip, no-navigation scope, and transition compatibility in docs/features/numista-integration.md and docs/quick-capture.md; run the targeted Go/Vitest checks plus npm run type-check and npm run build from specs/341-improve-numista-lookup/quickstart.md
+
+**Checkpoint**: The P1 MVP matches the collector mental model “find catalog
+reference”; saved-coin lookup is canonical under Catalog References, contextual
+draft lookup remains available, and no Phase 6/7 behavior changed.
+
+---
+
 ## Phase 6: User Story 4 - Conserve quota without hiding freshness (Priority: P2)
 
 **Goal**: Reuse fresh equivalent work across paths, expose freshness, and give administrators redacted configuration, quota, latency, cache, and enrichment health.
@@ -204,6 +243,9 @@
 - **Phase 3 (US1)**: Depends on Phase 2; establishes the MVP shared lookup and panel.
 - **Phase 4 (US2)**: Depends on Phase 2 and reuses US1's lookup service/panel; its persistence slice is independently testable through API tests.
 - **Phase 5 (US3)**: Depends on US1's shared service/panel and should follow US2 to prove selection preservation across both paths.
+- **Phase 5A (US6 amendment)**: Depends on completed T001–T053 and closes the
+  P1 MVP UX. It has no dependency on Phase 6 or Phase 7 and must not change
+  their cache/telemetry or enrichment scope.
 - **Phase 6 (US4)**: Depends on Phase 2 primitives and US1 service orchestration; admin UI is independent of US2 persistence.
 - **Phase 7 (US5)**: Depends on US1 broad lookup and Phase 2 client/cache/scorer; it does not depend on Quick Capture persistence.
 - **Phase 8 (Polish)**: Depends on all stories selected for release.
@@ -213,9 +255,10 @@
 ```text
 Setup -> Foundational -> US1 (MVP)
                          |-> US2 -> US3
+                         |          `-> US6 placement amendment (P1 MVP)
                          |-> US4
                          `-> US5
-US2 + US3 + US4 + US5 -> Polish
+US2 + US3 + US6 + US4 + US5 -> Polish
 ```
 
 ### Within Each Story
@@ -230,6 +273,8 @@ US2 + US3 + US4 + US5 -> Polish
 - **US1**: T016, T017, T018, and T019 can run concurrently; after T020-T023, T024 and T025 can run concurrently before T026-T027.
 - **US2**: T028-T035 are independent test files and can run concurrently; T041-T042 can proceed beside T036-T040; T043 can proceed before T044-T045.
 - **US3**: T046, T047, and T048 can run concurrently; T051 can proceed beside backend work T049-T050.
+- **US6**: T087-T091 can run concurrently; after they fail for the intended
+  reasons, T092-T095 can proceed by owned surface, followed by T096.
 - **US4**: T054-T057 can run concurrently; T062 can proceed beside T058-T061 before T063.
 - **US5**: T064-T067 can run concurrently; T071 can proceed beside T068-T070 before T072.
 
@@ -266,8 +311,18 @@ US2 + US3 + US4 + US5 -> Polish
 | FR-027 NGC-first behavior | T032, T041-T044, T074 |
 | FR-028 auth and ownership | T017, T030-T031, T038-T040, T047, T056, T066, T074-T075 |
 | FR-029 reference validation/deduplication | T029-T031, T038-T040, T073-T075 |
+| FR-030 canonical Catalog References placement | T087-T088, T092-T093 |
+| FR-031 inline expand/collapse after persistence | T087, T092 |
+| FR-032 no full Actions panel/compact transition link | T088, T093 |
+| FR-033 contextual surfaces/no top-level navigation | T088-T089, T093-T094, T096 |
+| FR-034 NGC explicit override/no eager request | T089, T094 |
+| FR-035 Analyze Photos/Save as Draft labels | T089, T094 |
+| FR-036 retained draft-card Numista chip | T090-T091, T095 |
+| FR-037 accessibility/mobile behavior | T087-T089, T091-T096 |
+| FR-038 transition compatibility | T087-T090, T092-T096 |
 | NFR-001/NFR-002 latency | T007, T076 |
 | NFR-003 progressive bounded enrichment | T065-T072, T076 |
+| NFR-009 disclosure focus/375 px overflow | T087, T089, T091-T095 |
 | NFR-004 understandable uncertainty | T010-T011, T019, T026, T067, T072 |
 | NFR-005/NFR-006 secrecy and redaction | T006-T013, T046-T052, T055-T060, T075 |
 | NFR-007 no live-provider dependency | T001-T015, T016-T076 |
@@ -282,15 +337,22 @@ US2 + US3 + US4 + US5 -> Polish
 | SC-008 | T007, T054, T058, T064-T072, T076 |
 | SC-009 | T012-T013, T055-T063, T075 |
 | SC-010 | T028-T045, T073-T075, T081-T085 |
+| SC-011 | T087-T088, T092-T093, T096 |
+| SC-012 | T089, T094, T096 |
+| SC-013 | T090-T091, T095-T096 |
+| SC-014 | T087-T089, T091-T096 |
 
 ## Implementation Strategy
 
 ### MVP First
 
-1. Complete Setup and Foundational.
-2. Complete US1 only.
-3. Run the US1 focused Go and Vue tests and demonstrate editable direct lookup plus selected-only persistence.
-4. Stop and validate before adding photo persistence, operations, or enrichment.
+1. Historical initial MVP: Setup, Foundational, and US1 (completed T001–T027).
+2. Completed P1 workflow expansion: US2 and US3 (completed T028–T053).
+3. Current MVP UX reconciliation: execute US6 T087–T096 test-first, then
+   validate canonical placement, contextual photo/draft access, labels, and
+   draft-card reference visibility.
+4. Stop and validate the amended P1 MVP before starting or changing Phase 6
+   caching/telemetry or Phase 7 enrichment.
 
 ### Incremental Delivery
 

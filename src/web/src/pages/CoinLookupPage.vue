@@ -51,7 +51,7 @@
         >
           <span v-if="submitting" class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"></span>
           <Search v-else :size="20" />
-          {{ submitting ? 'Analyzing...' : 'Create Quick AI Draft' }}
+          {{ submitting ? 'Analyzing...' : 'Analyze Photos' }}
         </button>
       </div>
 
@@ -182,6 +182,30 @@
             </div>
           </form>
 
+          <div v-if="ngcCertNumber" class="card min-w-0 overflow-hidden">
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              :aria-expanded="ngcNumistaExpanded"
+              aria-controls="ngc-numista-lookup"
+              @click="toggleNgcNumista"
+              @keydown.enter.prevent="toggleNgcNumista"
+              @keydown.space.prevent="toggleNgcNumista"
+            >
+              Also search Numista
+            </button>
+            <div v-if="ngcNumistaExpanded" id="ngc-numista-lookup" class="mt-3 min-w-0 overflow-hidden">
+              <NumistaLookupPanel
+                :initial-query="photoNumistaQuery"
+                :evidence="photoNumistaEvidence"
+                path="photo"
+                :is-admin="auth.isAdmin"
+                :show-confirmation="false"
+                @selection-changed="selectedNumistaCandidate = $event"
+              />
+            </div>
+          </div>
+
           <div
             v-if="!ngcCertNumber && (hasPhotoNumistaProposalContract || numistaResults.length === 0)"
             class="card min-w-0 overflow-hidden"
@@ -245,7 +269,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onBeforeUnmount } from 'vue'
+import { ref, computed, reactive, nextTick, onBeforeUnmount } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { createQuickCaptureDraft, lookupCoin } from '@/api/client'
 import type { CoinLookupResponse, CoinMutationPayload, NumistaCandidate, NumistaEvidence } from '@/types'
@@ -287,6 +311,7 @@ const error = ref('')
 const results = ref<CoinLookupResponse | null>(null)
 const aiObservations = ref('')
 const selectedNumistaCandidate = ref<NumistaCandidate | null>(null)
+const ngcNumistaExpanded = ref(false)
 
 const reviewForm = reactive<CoinMutationPayload>({
   name: '',
@@ -324,6 +349,13 @@ const hasPhotoNumistaProposalContract = computed(() => {
 })
 const photoNumistaEvidence = computed<NumistaEvidence>(() => results.value?.numistaEvidence ?? {})
 const renderedAiObservations = computed(() => renderSafeMarkdown(aiObservations.value))
+
+async function toggleNgcNumista() {
+  ngcNumistaExpanded.value = !ngcNumistaExpanded.value
+  if (!ngcNumistaExpanded.value) return
+  await nextTick()
+  document.getElementById('numista-query')?.focus()
+}
 
 function applyDraftToReviewForm(prefilled: CoinMutationPayload) {
   Object.assign(reviewForm, {
@@ -426,6 +458,7 @@ function handleRetake() {
   capturedImages.value = []
   results.value = null
   selectedNumistaCandidate.value = null
+  ngcNumistaExpanded.value = false
   aiObservations.value = ''
   error.value = ''
   Object.assign(ngcForm, {

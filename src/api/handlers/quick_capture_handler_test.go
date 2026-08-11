@@ -175,6 +175,101 @@ func TestQuickCaptureSelectedNumistaReferenceHandlerCompatibilityAndAuthorizatio
 		t.Fatalf("other-owner update should be hidden: %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestQuickCaptureListSerializesOwnerSelectedReferenceAndNullOtherwise(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:quick_capture_handler_list_numista_%d?mode=memory&cache=shared", time.Now().UnixNano())), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(
+		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{},
+		&models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	ownerSelected := models.QuickCaptureDraft{
+		UserID: 7, WorkingTitle: "Owner selected", Status: models.QuickCaptureDraftStatusActive,
+	}
+	ownerUnselected := models.QuickCaptureDraft{
+		UserID: 7, WorkingTitle: "Owner unselected", Status: models.QuickCaptureDraftStatusActive,
+	}
+	otherSelected := models.QuickCaptureDraft{
+		UserID: 99, WorkingTitle: "Other selected", Status: models.QuickCaptureDraftStatusActive,
+	}
+	for _, draft := range []*models.QuickCaptureDraft{&ownerSelected, &ownerUnselected, &otherSelected} {
+		if err := db.Create(draft).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, ref := range []*models.QuickCaptureDraftReference{
+		{
+			DraftID: ownerSelected.ID, UserID: 7, Catalog: "Numista", Number: "12345",
+			URI: "https://en.numista.com/catalogue/pieces12345.html",
+		},
+		{
+			DraftID: otherSelected.ID, UserID: 99, Catalog: "Numista", Number: "99999",
+			URI: "https://en.numista.com/catalogue/pieces99999.html",
+		},
+	} {
+		if err := db.Create(ref).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	handler := NewQuickCaptureHandler(
+		services.NewQuickCaptureService(repository.NewQuickCaptureRepository(db), t.TempDir()),
+		nil,
+	)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("userId", uint(7))
+		c.Next()
+	})
+	router.GET("/api/quick-capture/drafts", handler.ListDrafts)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/quick-capture/drafts?status=active", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var response struct {
+		Drafts []map[string]any `json:"drafts"`
+		Total  int64            `json:"total"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Total != 2 || len(response.Drafts) != 2 {
+		t.Fatalf("owner-scoped response mismatch: %#v", response)
+	}
+
+	byTitle := make(map[string]map[string]any, len(response.Drafts))
+	for _, draft := range response.Drafts {
+		title, _ := draft["workingTitle"].(string)
+		byTitle[title] = draft
+	}
+	if _, exists := byTitle["Other selected"]; exists {
+		t.Fatal("other owner's selected draft leaked into list")
+	}
+
+	selected, ok := byTitle["Owner selected"]["selectedNumistaReference"].(map[string]any)
+	if !ok || selected["catalog"] != "Numista" || selected["number"] != "12345" ||
+		selected["uri"] != "https://en.numista.com/catalogue/pieces12345.html" {
+		t.Fatalf("selected reference serialization mismatch: %#v", byTitle["Owner selected"])
+	}
+	for _, private := range []string{"id", "draftId", "userId"} {
+		if _, exists := selected[private]; exists {
+			t.Fatalf("private selected-reference field %q leaked: %#v", private, selected)
+		}
+	}
+	if value, exists := byTitle["Owner unselected"]["selectedNumistaReference"]; exists && value != nil {
+		t.Fatalf("unselected draft must omit or null the relation: %#v", byTitle["Owner unselected"])
+	}
+}
+
 func TestQuickCaptureCreateDraftRejectsOversizedUploadBeforeContentValidation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:quick_capture_handler_oversized_%d?mode=memory&cache=shared", time.Now().UnixNano())), &gorm.Config{})

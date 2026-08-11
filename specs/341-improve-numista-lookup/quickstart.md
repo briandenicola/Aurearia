@@ -8,7 +8,8 @@
 - No real Numista key is required for tests
 - Read the constitution, active spec, plan, research and data model first
 
-Do not modify `spec.md`. Do not use a live provider in automated tests.
+Treat the amended `spec.md` as authoritative. Do not use a live provider in
+automated tests.
 
 ## Recommended implementation order
 
@@ -134,6 +135,42 @@ Targeted tests must assert:
 - keyboard selection, focus, `aria-live`, non-color explanations;
 - narrow mobile viewport does not overflow.
 
+### 5A. Reconcile the approved canonical-placement UX
+
+Implement this P1 amendment after the completed T001–T053 foundation and before
+declaring the MVP user workflow complete. It does not wait for Phase 6 caching/
+telemetry or Phase 7 enrichment.
+
+1. Compose saved-coin lookup inside
+   `src/web/src/components/coin/CoinReferencesSection.vue`, with compact
+   `Search Numista` beside `Add Reference`.
+2. Collapse the inline panel only after selected-reference persistence succeeds
+   and the refreshed reference appears.
+3. Remove the full panel from
+   `src/web/src/components/coin/CoinActionsPanel.vue`; retain at most a compact
+   contextual link to Catalog References.
+4. In `src/web/src/pages/CoinLookupPage.vue`, keep non-NGC lookup contextual,
+   add `Also search Numista` beneath usable NGC results, and assert revealing
+   the panel makes zero Numista requests before explicit submission.
+5. Rename the initial action to `Analyze Photos`; keep `Save as Draft`.
+6. Render `Numista #<identifier>` in
+   `src/web/src/components/quick-capture/QuickCaptureDraftCard.vue` from the
+   existing owner-scoped list response.
+7. Do not add a route, sidebar item, top-level menu item, schema migration,
+   endpoint, cache/telemetry behavior, or enrichment behavior.
+
+Targeted validation:
+
+```powershell
+Set-Location src/api
+go test ./repository ./services ./handlers -run "Test.*QuickCapture.*(List|Numista)" -count=1
+
+Set-Location ..\web
+npm run test -- --run src/components/coin/__tests__/CoinReferencesSection.test.ts src/components/coin/__tests__/CoinActionsPanel.test.ts src/pages/__tests__/CoinLookupPage.test.ts src/components/quick-capture/__tests__/QuickCaptureDraftCard.test.ts
+npm run type-check
+npm run build
+```
+
 ### 6. Update contracts and lower-authority docs
 
 Regenerate all repository-standard Swagger files and update:
@@ -175,7 +212,16 @@ development key. Never commit the key.
 8. **Admin**: verify status counts, p50/p95, cache/enrichment/quota signals and
    that no key/query/inscription/label text is visible.
 9. **NGC**: upload a usable NGC slab and confirm Numista is not automatically
-   requested.
+   requested. Activate `Also search Numista`, confirm the editable panel is
+   revealed with no request, then submit explicitly.
+10. **Canonical placement**: on a saved coin, confirm `Search Numista` is beside
+    `Add Reference`, expands inline, persists through the structured-reference
+    API, collapses after success, and is absent as a full panel from Actions.
+11. **Draft list**: save a selected Numista reference and confirm the list card
+    shows `Numista #<identifier>`; confirm an unselected draft has no chip.
+12. **Labels/navigation/mobile**: confirm `Analyze Photos`, `Save as Draft`, no
+    new top-level navigation, keyboard disclosure/focus behavior, and no 375 px
+    horizontal overflow.
 
 ## Full quality gate
 

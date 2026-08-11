@@ -272,6 +272,16 @@ func TestQuickCaptureRepositoryListsActiveDraftsByOwnerAndUpdatedOrder(t *testin
 			t.Fatalf("create draft %d: %v", i, err)
 		}
 	}
+	selected := selectedDraftReference(owner, "12345")
+	selected.DraftID = drafts[3].ID
+	if err := db.Create(selected).Error; err != nil {
+		t.Fatalf("create owner selected reference: %v", err)
+	}
+	otherSelected := selectedDraftReference(other, "99999")
+	otherSelected.DraftID = drafts[2].ID
+	if err := db.Create(otherSelected).Error; err != nil {
+		t.Fatalf("create other-owner selected reference: %v", err)
+	}
 
 	found, total, err := repo.ListDraftsForOwner(owner, models.QuickCaptureDraftStatusActive, 1, 50)
 	if err != nil {
@@ -282,6 +292,14 @@ func TestQuickCaptureRepositoryListsActiveDraftsByOwnerAndUpdatedOrder(t *testin
 	}
 	if found[0].WorkingTitle != "Newest active" || found[1].WorkingTitle != "Older active" {
 		t.Fatalf("expected updated_at desc order, got %q then %q", found[0].WorkingTitle, found[1].WorkingTitle)
+	}
+	if found[0].SelectedNumistaReference == nil ||
+		found[0].SelectedNumistaReference.Number != "12345" ||
+		found[0].SelectedNumistaReference.UserID != owner {
+		t.Fatalf("owner selected reference was not preloaded: %#v", found[0].SelectedNumistaReference)
+	}
+	if found[1].SelectedNumistaReference != nil {
+		t.Fatalf("unselected owner draft should not acquire a relation: %#v", found[1].SelectedNumistaReference)
 	}
 }
 
