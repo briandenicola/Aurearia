@@ -1452,3 +1452,412 @@ ull latency/retry details
 Limited to unavailable race detector and binary scanners. All code, architecture, contract, and functional gates passed.
 
 ---
+## Feature 341 Release Review — adr-0008-accepted.ToUpper().Replace('-', ' ')
+
+# ADR 0008 Acceptance
+
+**Date:** 2026-08-11
+**Author:** Cincinnatus
+**Status:** ACCEPTED
+**Feature:** 341 Improved Numista Lookup
+
+## Decision
+
+Brian explicitly selected “Approve ADR 0008 (Recommended).” ADR 0008 is
+therefore accepted as the one-time §22 waiver for the exact four immutable
+Feature 341 public-history deviations in its exception matrix.
+
+Public `beta` history remains unchanged. The waiver is non-precedential and
+does not relax future commit hygiene: subsequent AI-assisted commits and the
+future PR/release evidence must use an allowed conventional prefix, include a
+parseable required Copilot co-author trailer, and disclose the accepted ADR
+and all four exceptions.
+
+T086's evidence acceptance is satisfied by the accepted ADR, transparent
+matrix, completed quality/workflow checks, and prospective enforcement.
+Maximus's final-review block is not cleared by this decision and still
+requires his explicit re-review and clearance.
+
+## Authority
+
+Constitution §0, Principle VII, §17, §21 items 14 and 17, and §22.
+
+
+---
+
+## Feature 341 Release Review — directive-20260811T163624-0500.ToUpper().Replace('-', ' ')
+
+### 2026-08-11T16:36:24-05:00: User directive
+**By:** Brian DeNicola (via Copilot)
+**What:** Group the Numista API key and lookup-limit settings directly above Numista Health, and place the combined settings and health content inside one visually bounded Numista section.
+**Why:** User approved this Admin System information-architecture refinement based on the current UI.
+
+
+---
+
+## Feature 341 Release Review — directive-20260811T164500-0500.ToUpper().Replace('-', ' ')
+
+### 2026-08-11T16:45:00-05:00: User directive
+**By:** Brian DeNicola (via Copilot)
+**What:** Accept the documented immutable-history exception for Feature 341 and proceed without rewriting public beta history.
+**Why:** Public history contains nonstandard historical subjects and one malformed co-author trailer; preserving published history takes precedence over retroactive correction.
+
+
+---
+
+## Feature 341 Release Review — feature-341-adr0008-rereview-block.ToUpper().Replace('-', ' ')
+
+# Feature 341 ADR 0008 Final Re-Review
+
+**Date:** 2026-08-11
+**Reviewer:** Maximus
+**Verdict:** BLOCK
+
+## Cleared
+
+- Brian's explicit approval and accepted ADR 0008 provide a narrowly bounded,
+  non-precedential waiver for only `31cb603`, `a8f59b3`, `8e77500`, and
+  `460dbfc`. The matrix, subjects, and parsed trailer states are accurate.
+- Public `beta` history is preserved. The ADR requires future conventional
+  subjects, parseable required Copilot trailers, and full PR disclosure.
+- SC-002 remains credible at 24/24 fixtures, six candidates, three
+  permutations, no `ExactNumistaID`, required field reasons, and fourth-place
+  discrimination.
+- Admin settings and Health are grouped in one labelled Numista boundary;
+  focused tests cover structure, token-backed responsive layout, save/bounds,
+  loading, error, retry, empty/sparse/populated states, redaction, and
+  accessibility.
+- T073-T085 evidence remains credible. Focused integration and Admin tests,
+  frontend type-check, architecture/OpenAPI route checks, Gitleaks history and
+  worktree scans, and Trivy High/Critical scan of the published beta image pass.
+  GitHub run 31536414201 checked out and published SHA `011c635`.
+- The worktree contains only the reviewed Phase 8 integration tests, Admin UI
+  refinement/tests, Gitleaks hardening, Feature 341 evidence/tasks, ADR/index,
+  and append-only squad history. No generated artifacts or secrets are
+  package candidates.
+
+## Blocker
+
+Constitution §22 states that deviations from any Principle must be explicitly
+justified in the PR and tracked in the plan's Complexity Tracking table.
+Accepted ADR 0008 waives four Principle VII/§17/§21 historical deviations, but
+`specs/341-improve-numista-lookup/plan.md` still says:
+
+> No constitutional violations require justification.
+
+That higher-authority process requirement conflicts with T086's completed
+state and the quickstart's claim that the DoD is fully reconciled. Update only
+the plan's Complexity Tracking entry to identify ADR 0008's exact immutable
+exception matrix and non-precedential scope, then request Maximus re-review.
+
+## Gate note
+
+Focused `go test -race ./integration` was attempted but could not run because
+the local Go environment has CGO disabled. Normal focused integration tests
+pass. Physical-browser and live-provider E2E remain explicitly unperformed.
+
+Strict Lockout remains active. Scribe must not commit, push `beta`, or open the
+`beta`-to-`main` PR until Maximus explicitly clears this blocker.
+
+
+---
+
+## Feature 341 Release Review — feature-341-final-clearance-approved.ToUpper().Replace('-', ' ')
+
+# Feature 341 Final Release Clearance
+
+**Date:** 2026-08-11
+**Reviewer:** Maximus
+**Verdict:** APPROVE
+
+## Clearance
+
+Scipio's plan reconciliation clears the sole remaining reviewer block.
+`specs/341-improve-numista-lookup/plan.md` no longer claims that no waiver or
+Complexity Tracking entry is required. It now records ADR 0008's exact
+exceptions:
+
+- nonconventional subjects on `31cb6033875bcb6da0db82e9fc59a1278a56b0f6`,
+  `8e77500f05dde63ed7335fa12ba14614fe6e2ba2`, and
+  `a8f59b3bf7e2479e1083ee21f0737369c89c3a91`;
+- the unparseable required Copilot co-author trailer on
+  `460dbfcd0ba4bd36d39d150945d9c39546551be3`;
+- no trailer waiver for the reconciliation merge;
+- preservation of published history and audited references;
+- rejection of amend/rebase/reset/rewrite/force-push;
+- expiry after this Feature 341 `beta`-to-`main` review, non-precedent, and
+  mandatory prospective prefix/trailer enforcement.
+
+The design and post-design gates remain accurately scoped to product design.
+T086 and the §21 Definition of Done remain legitimate: the accepted waiver
+covers only the disclosed immutable history, while the next commit and PR must
+comply prospectively. The older “pending final clearance” evidence is resolved
+by this explicit review record.
+
+## Package and gates
+
+The worktree package remains limited to the previously reviewed Phase 8
+integration tests, Admin System refinement/tests, Gitleaks hardening, Feature
+341 evidence/tasks, ADR/index, append-only squad records, and the approved plan
+reconciliation. No unrelated candidate or generated artifact appeared.
+`beta` and `HEAD` both remain
+`011c6350fd067d64597c8ecb601c649bf097f78f`; public history was not rewritten.
+
+Final focused checks:
+
+- `git diff --check` — PASS
+- Feature 341/ADR local Markdown links — PASS
+- contradiction search for false no-waiver/no-deviation claims — PASS
+- ADR/plan/quickstart/tasks exception-matrix consistency — PASS
+- four immutable SHA subjects and parsed trailer states — PASS
+- worktree package/status comparison to prior approved evidence — PASS
+
+The previously approved Go, Vue, Python, architecture, OpenAPI, Gitleaks, and
+published-beta Trivy evidence is unaffected, so full suites were not rerun.
+The recorded CGO race-detector and physical-browser/live-provider limitations
+remain unchanged and non-blocking.
+
+## Authorization
+
+Strict Lockout is cleared. Scribe is authorized to:
+
+1. create one prospectively compliant commit with an allowed Conventional
+   Commit prefix and a parseable required Copilot co-author trailer;
+2. push `beta` without rewriting history; and
+3. open the `beta`-to-`main` pull request with the title and body below.
+
+## PR title
+
+`feat: improve Numista lookup workflows and operations`
+
+## PR body
+
+### Summary
+
+- deliver typed, authenticated Numista lookup and bounded enrichment across
+  saved-coin and Quick Capture workflows;
+- add deterministic scoring, cache/telemetry health, admin configuration, and
+  transactional selected-reference promotion;
+- preserve legacy compatibility while documenting rollout, operations,
+  security, and release evidence.
+
+### Validation
+
+- Go build, vet, full tests, architecture, route drift, and deterministic
+  provider-independent integration workflows: pass
+- Vue focused/full tests, type checks, Docker-equivalent `vue-tsc --build`,
+  and production build: pass
+- Python Ruff and 189 tests: pass
+- OpenAPI regeneration byte stability and documentation links: pass
+- Gitleaks history/worktree scans: pass
+- published `beta`/immutable image Trivy scan: 0 High/Critical
+
+No physical-browser or live-provider E2E was performed. The focused race test
+was unavailable because local CGO is disabled; normal focused integration
+tests pass.
+
+### Immutable release-history waiver
+
+[ADR 0008](https://github.com/briandenicola/Aurearia/blob/beta/docs/adr/0008-feature-341-immutable-public-history-waiver.md) is
+accepted under Constitution §22. It waives only:
+
+| SHA | Exception |
+| --- | --- |
+| `31cb6033875bcb6da0db82e9fc59a1278a56b0f6` | disallowed `scribe:` subject |
+| `8e77500f05dde63ed7335fa12ba14614fe6e2ba2` | disallowed `merge:` subject; no trailer waiver asserted |
+| `a8f59b3bf7e2479e1083ee21f0737369c89c3a91` | disallowed `merge:` subject |
+| `460dbfcd0ba4bd36d39d150945d9c39546551be3` | required Copilot trailer is a list item and not parseable |
+
+No amend, rebase, reset, rewrite, or force-push occurred. The waiver expires
+with this Feature 341 release, is not precedent, and does not relax later
+commit or PR enforcement.
+
+### Constitution and Definition of Done
+
+This PR complies with Constitution §0, Principles I–IX, §17, §21, and §22,
+subject only to ADR 0008's exact immutable exceptions.
+
+- [x] Builds, tests, architecture checks, type checks, and linters pass
+- [x] Workflow/config contracts and exact regression paths are covered
+- [x] Swagger/OpenAPI and documentation are synchronized
+- [x] Material decisions are recorded in ADRs 0007 and 0008
+- [x] Active Feature 341 tasks, including T086, are complete
+- [x] Secrets and container vulnerability gates pass
+- [x] Change is simple, complete, and proportional
+- [x] New release-evidence commit uses an allowed prefix and parseable required
+      Copilot co-author trailer
+- [x] Historical exceptions are fully disclosed above
+
+
+---
+
+## Feature 341 Release Review — feature-341-final-clearance-block.ToUpper().Replace('-', ' ')
+
+# Feature 341 Final Combined Clearance
+
+**Date:** 2026-08-11  
+**Reviewer:** Maximus  
+**Verdict:** BLOCK
+
+## Cleared findings
+
+- SC-002/T076 is genuine: 24 distinct Roman, Greek/Hellenistic, Byzantine,
+  and medieval fixtures; six plausible candidates each; three deterministic
+  permutations; no `ExactNumistaID`; field-reason and fourth-place score
+  discrimination; 24/24 top-three. Focused and full integration tests pass.
+- Aurelia's Admin System refinement places the API key and six limits directly
+  above Health inside one labelled, token-backed, mobile-first Numista
+  boundary. Unrelated settings remain outside. Save, bounds, loading, error,
+  retry, empty, sparse, populated, redaction, and accessibility tests pass.
+- T073–T085 evidence is credible. OpenAPI regeneration is byte-stable; Go,
+  Vue, and Python gates pass; Gitleaks history/worktree scans report no leaks;
+  Trivy reports 0 High/Critical for the published beta image. GitHub run
+  31536414201 proves the beta and immutable SHA tags were built from
+  `011c6350fd067d64597c8ecb601c649bf097f78f`.
+- The immutable exception matrix is accurate: nonconventional subjects
+  `31cb603`, `8e77500`, and `a8f59b3`; malformed/unparseable required
+  co-author at `460dbfc`; `Copilot-Session` is optional. Public beta history
+  remains unchanged.
+
+## Remaining blocker
+
+Brian's directive in
+`.squad/decisions/inbox/copilot-directive-20260811T164500-0500.md` explicitly
+accepts the immutable-history exception. It is not, however, the waiver ADR
+required by the Constitution header and §22. Under §0, an inbox decision cannot
+override the Constitution. Transparent PR disclosure is necessary but cannot
+alone make Principle VII, §17, and §21 item 17 compliant.
+
+T086 therefore remains unchecked. The requirements checklist remains
+consistent; T087–T096 are complete.
+
+## Lockout and required action
+
+The prior T086 rejection is not cleared. Octavian remains locked out from
+revising the rejected closure. Governance owner Brian must authorize an
+ADR-backed waiver through §22; an independent governance author must record
+it, and Maximus must explicitly clear the block. Scribe must not commit/push
+or open the beta-to-main PR before clearance.
+
+## Gates run
+
+- Focused benchmark and all `src/api/integration` tests: PASS
+- Focused Admin Numista Vitest, full Vitest, type-check, `vue-tsc --build`,
+  production build: PASS
+- Go build, vet, full tests, architecture, route drift: PASS
+- Ruff and 189 Python tests: PASS
+- OpenAPI byte stability and `git diff --check`: PASS
+- Gitleaks git/dir: PASS
+- Trivy published `bjd145/ancient-coins:beta`: 0 High/Critical
+
+Residual evidence limitation remains explicit: no physical-browser or
+live-provider E2E was performed.
+
+
+---
+
+## Feature 341 Release Review — feature-341-phase8-docs.ToUpper().Replace('-', ' ')
+
+# Feature 341 Phase 8 Documentation Reconciliation
+
+**Date:** 2026-08-11  
+**Agent:** Maximus  
+**Status:** DOCUMENTED
+
+## Decision
+
+Phase 8 documentation follows merged runtime and higher-authority Feature 341
+artifacts. Lower-authority sketches describing inferred persistence,
+`quota_limited`, a separate draft-reference route,
+`/admin/numista/telemetry`, query truncation, non-loader latency, a one-hour
+empty TTL, or a 100-event ring are not runtime contracts.
+
+The shipped contract uses typed lookup/enrichment POST routes, deprecated GET
+compatibility, six statuses including `quota-limited`, raw broad effective
+query and trimmed enrichment query, 500-event publication-owned telemetry at
+`GET /api/admin/numista/health`, 24/168-hour TTL defaults, additive Quick
+Capture selection fields, and exact transactional promotion copy.
+
+## Alignment
+
+Feature 341 FR-001–FR-038; Constitution §0, Principles I, III, IV, V, VIII,
+IX, §17, and §21.
+
+## Release evidence correction
+
+The public merge description on
+`a8f59b3bf7e2479e1083ee21f0737369c89c3a91` incorrectly labels T087–T096
+as Quick Capture promotion. The active task list governs: those tasks are
+Phase 5A / User Story 6 canonical catalog-reference placement and contextual
+lookup UX. Transactional Quick Capture promotion is User Story 2 work,
+principally T030–T031 and T038–T040. This correction is append-only; public
+history is not amended.
+
+Principle VII exceptions are also explicit:
+`31cb6033875bcb6da0db82e9fc59a1278a56b0f6` uses `scribe:` and
+`a8f59b3bf7e2479e1083ee21f0737369c89c3a91` uses `merge:`, neither of which
+is an allowed conventional prefix. Both have the required Copilot trailer.
+The Phase 8 follow-up commit and future PR must be compliant and must disclose
+these immutable historical exceptions rather than claiming strict historical
+subject compliance.
+
+
+---
+
+## Feature 341 Release Review — feature-341-phase8-final-block.ToUpper().Replace('-', ' ')
+
+# Feature 341 Phase 8 Final Re-Review
+
+**Date:** 2026-08-11  
+**Reviewer:** Maximus  
+**Verdict:** BLOCK
+
+## Blocking findings
+
+1. **T076 does not prove SC-002.** In
+   `src/api/integration/numista_performance_test.go`,
+   `TestNumistaDeterministicScoringFixturesAndDefaultDetailCeiling` supplies
+   the expected candidate as `ExactNumistaID`, while broad candidates are
+   generic and enriched candidates have identical comparison evidence. The
+   reported 20/20 top-three result is therefore tautological, not the
+   specification's curated known-coin scoring benchmark. Replace this with a
+   sanitized, diverse known-coin fixture set whose correct candidates are
+   ranked from realistic title/issuer/denomination/mint/date/material/
+   inscription evidence, and prove the SC-002 threshold without supplying the
+   answer as exact-ID evidence except where exact-ID is genuinely the tested
+   scenario.
+
+2. **T086's immutable-history disclosure is incomplete.** The quickstart and
+   existing decision inbox state there are only two nonconventional subjects,
+   but `8e77500` also uses the disallowed `merge:` prefix. Additionally,
+   `460dbfc` is AI-assisted Feature 341 history but its
+   `- Co-authored-by: ...` bullet is not a Git trailer
+   (`git interpret-trailers --parse` returns none). Public history must remain
+   immutable, but the append-only correction and future PR must disclose all
+   subject/trailer exceptions accurately. `Copilot-Session` is optional under
+   the constitution: it is present on the main Feature 341 product sequence
+   and `a8f59b3`, absent on `31cb603`, `97bba2e`, `6726b09`, `011c635`, and
+   not parseable on `460dbfc`/`8e77500`; no claim should make it mandatory.
+
+## Passing evidence
+
+- Focused integration tests and deterministic repetitions pass.
+- Architecture and route-drift tests pass.
+- OpenAPI generation is byte-stable across two runs.
+- Tightened Gitleaks configuration passes full history and worktree scans;
+  exclusions are path/placeholder scoped, and the three commit exclusions
+  contain verified documentation placeholders only.
+- The immutable `sha-011c6350fd067d64597c8ecb601c649bf097f78f`
+  production image and mutable `beta` image scan with 0 High/Critical
+  vulnerabilities. GitHub run `31536414201` checked out `011c635` and
+  published the immutable SHA tag, so published-image evidence is acceptable
+  despite local Docker unavailability.
+- Quickstart correctly discloses that no physical-browser/live-provider
+  walkthrough occurred.
+
+Octavian remains locked out under Constitution §18.2 until Maximus explicitly
+clears these findings.
+
+
+---
+

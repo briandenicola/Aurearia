@@ -20,6 +20,11 @@
   - Full Go/frontend/OpenAPI gates pass; deterministic fakes; no live provider access; no regressions.
   - Scribe merged inbox decisions and created product + squad commits per protocol.
 
+- **2026-08-11 — Feature 341 Phase 8 integration tests T073–T076 on merged `beta`:**
+  - Added four behavior-focused Go integration suites under `src/api/integration/`: explicit direct selection persistence; photo draft collection/wishlist promotion, failed retry, no-selection, and idempotency; legacy/photo/draft/NGC/ownership/dedup/rollback compatibility; provider-key, response, cache, telemetry, scoring, canonical-link, auth/admin, and request-bound privacy; deterministic fake-clock/provider performance workloads.
+  - Deterministic budgets distinguish logical provider/cache time from environment wall clock: uncached p95 4s against 5s, fresh-cache p95 0s against 1s, repeated-query broad-call reduction 96%, 20/20 scoring fixtures in the top three, and no more than five details per fixture.
+  - Focused `go test ./integration -count=1`, full `go build ./...`, `go vet ./...`, `go test ./... -count=1`, and `go test -run TestArchitecture ./... -count=1` all pass. No product defects or unexpected failures were exposed; no docs, tasks, product code, commits, or pushes were made.
+
 - **2026-08-11 — Feature 341 Phase 7 US5 acceptance suite (T064–T067):**
   - Added test-first provider detail, enrichment service, authenticated handler/OpenAPI, and progressive Vue component acceptance suites.
   - Deterministic fakes use injected transports/clocks and cancellation/concurrency barriers; no live Numista access or product implementation was added.
