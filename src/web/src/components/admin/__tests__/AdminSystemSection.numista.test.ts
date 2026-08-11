@@ -49,6 +49,48 @@ describe('AdminSystemSection Numista configuration and health', () => {
     })
   })
 
+  it('groups all Numista controls directly before health in one labelled boundary', () => {
+    const wrapper = mount(AdminSystemSection, { props: baseProps() })
+    const groups = wrapper.findAll('[data-testid="numista-section"]')
+
+    expect(groups).toHaveLength(1)
+    const group = wrapper.get('[data-testid="numista-section"]')
+    expect(group.attributes('aria-labelledby')).toBe('numista-section-heading')
+    expect(group.get('#numista-section-heading').text()).toBe('Numista')
+    expect(group.get('input#numista-api-key').exists()).toBe(true)
+    expect(group.findAll('input[type="number"]')).toHaveLength(6)
+
+    const limits = group.get('fieldset')
+    const healthSection = group.get('section[aria-labelledby="numista-health-heading"]')
+    expect(limits.element.nextElementSibling).toBe(healthSection.element)
+    expect(healthSection.get('#numista-health-heading').text()).toBe('Numista Health')
+
+    expect(group.find('input[placeholder*="Pushover"]').exists()).toBe(false)
+    expect(group.find('select').exists()).toBe(false)
+  })
+
+  it('uses token-backed boundary styles and a mobile-first two-column settings grid', () => {
+    const wrapper = mount(AdminSystemSection, { props: baseProps() })
+    const group = wrapper.get('[data-testid="numista-section"]')
+    const settingsGrid = group.get('fieldset > div')
+
+    expect(group.classes()).toEqual(expect.arrayContaining([
+      'min-w-0',
+      'rounded-md',
+      'border-border-subtle',
+      'bg-input',
+      'p-4',
+      'md:p-6',
+    ]))
+    expect(settingsGrid.classes()).toEqual(expect.arrayContaining([
+      'grid',
+      'min-w-0',
+      'gap-4',
+      'md:grid-cols-2',
+    ]))
+    expect(settingsGrid.classes()).not.toContain('grid-cols-2')
+  })
+
   it('renders bounded Numista settings and emits exact validated setting values', async () => {
     const wrapper = mount(AdminSystemSection, { props: baseProps() })
     const bounds = [
@@ -69,15 +111,18 @@ describe('AdminSystemSection Numista configuration and health', () => {
       expect(input.element.value).toBe(value)
     }
 
+    await wrapper.find<HTMLInputElement>('input[name="NumistaEnrichmentLimit"]').setValue('99')
+    await wrapper.find<HTMLInputElement>('#numista-api-key').setValue('updated-key')
     await wrapper.find<HTMLInputElement>('input[name="NumistaSearchTTLHours"]').setValue('48')
     await wrapper.find<HTMLInputElement>('input[name="NumistaDetailTTLHours"]').setValue('336')
     await wrapper.find('form').trigger('submit')
 
     const payload = wrapper.emitted('save')?.at(-1)?.[0]
     expect(payload).toMatchObject({
+      numistaApiKey: 'updated-key',
       numistaSearchTTLHours: '48',
       numistaDetailTTLHours: '336',
-      numistaEnrichmentLimit: '5',
+      numistaEnrichmentLimit: '10',
       numistaSearchResultLimit: '20',
       numistaSearchTimeoutSeconds: '4',
       numistaDetailTimeoutSeconds: '3',

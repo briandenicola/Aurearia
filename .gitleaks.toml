@@ -3,21 +3,88 @@ title = "Ancient Coins gitleaks config"
 [extend]
 useDefault = true
 
-[allowlist]
-description = "Generated artifacts and documented fake examples"
+[[allowlists]]
+description = "Local Python virtual environment dependencies"
 paths = [
-  '''src/web/dist/.*''',
-  '''src/api/docs/docs\.go''',
-  '''src/api/docs/swagger\.json''',
-  '''src/api/docs/swagger\.yaml'''
+  '''src/agent/\.venv/.*'''
+]
+
+[[allowlists]]
+description = "Authentication guide placeholders"
+condition = "AND"
+regexTarget = "match"
+paths = [
+  '''docs/authentication\.md'''
 ]
 regexes = [
-  '''password123''',
-  '''eyJhbGciOiJIUzI1NiIs\.\.\.''',
-  '''Bearer eyJhbGci\.\.\.''',
-  '''ak_a1b2c3d4(?:e5f6)?\.\.\.''',
-  '''ak_test_(?:valid|revoked)_key(?:_[0-9]+)?''',
-  '''ak_nonexistent_key''',
-  '''rt_bogus_token_that_does_not_exist''',
-  '''rt_completely_invalid_token'''
+  '''Authorization:\s+\*{6}''',
+  '''"token":\s*"\*{6}''',
+  '''rt_(?:a1b2c3d4e5f6|f6e5d4c3b2a1)\.\.\.''',
+  '''X-API-Key:\s+ak_a1b2c3d4e5f6\.\.\.'''
+]
+
+[[allowlists]]
+description = "Getting-started Authorization placeholder"
+condition = "AND"
+regexTarget = "match"
+paths = [
+  '''docs/getting-started\.md'''
+]
+regexes = [
+  '''Authorization:\s+\*{6}'''
+]
+
+[[allowlists]]
+description = "API reference example credentials"
+condition = "AND"
+regexTarget = "match"
+paths = [
+  '''docs/api-reference\.md'''
+]
+regexes = [
+  '''Authorization:\s+\*{6}''',
+  '''ak_abc123def456\.\.\.''',
+  '''tok_abcdef1234567890'''
+]
+
+[[allowlists]]
+description = "External tool guide example credentials"
+condition = "AND"
+regexTarget = "match"
+paths = [
+  '''docs/external-tool-server\.md'''
+]
+regexes = [
+  '''ak_your_key_here''',
+  '''tok_abcdef1234567890'''
+]
+
+[[allowlists]]
+description = "API-key middleware test fixture"
+condition = "AND"
+regexTarget = "match"
+paths = [
+  '''src/api/middleware/auth_test\.go'''
+]
+regexes = [
+  '''ak_test_valid_key_12345'''
+]
+
+[[allowlists]]
+description = "Secret-handling documentation private-key markers"
+condition = "AND"
+regexTarget = "match"
+paths = [
+  '''\.squad/templates/skills/secret-handling/SKILL\.md'''
+]
+regexes = [
+  '''-----BEGIN (?:RSA )?PRIVATE KEY-----'''
+]
+
+[[allowlists]]
+description = "Immutable commits containing only verified documentation placeholders"
+commits = [
+  '''1d171e415ba23a0a06b2298d6ccaacbb247518d7''',
+  '''56722d276d23dbfd45935acf01ffcdf6fd03f87e''',
+  '''7e01e2c21ff00464d2001ac9f84f971400a33988'''
 ]

@@ -3,33 +3,6 @@
     <h2 class="mb-5 border-b border-border-subtle pb-3 text-xl font-medium">System Settings</h2>
     <form @submit.prevent="save">
       <div class="form-group">
-        <label class="form-label" for="numista-api-key">Numista API Key</label>
-        <input id="numista-api-key" v-model="localNumistaApiKey" class="form-input" type="password" autocomplete="off" placeholder="Enter your Numista API key" />
-        <span class="mt-1 block text-sm text-text-muted">Get a free key at <a href="https://en.numista.com/api/" target="_blank" rel="noopener">numista.com/api</a> (2,000 requests/month free)</span>
-      </div>
-
-      <fieldset class="mb-6">
-        <legend class="section-label mb-3">Numista Lookup Limits</legend>
-        <div class="grid gap-4 md:grid-cols-2">
-          <div v-for="setting in numistaSettingFields" :key="setting.name" class="form-group">
-            <label class="form-label" :for="setting.name">{{ setting.label }}</label>
-            <input
-              :id="setting.name"
-              v-model="setting.model.value"
-              class="form-input"
-              type="number"
-              :name="setting.name"
-              :min="setting.min"
-              :max="setting.max"
-              step="1"
-              required
-            />
-            <span class="mt-1 block text-sm text-text-muted">{{ setting.hint }}</span>
-          </div>
-        </div>
-      </fieldset>
-
-      <div class="form-group">
         <label class="form-label">Pushover API Token</label>
         <input v-model="localPushoverAppToken" class="form-input" type="password" placeholder="Enter your Pushover application API token" />
         <span class="mt-1 block text-sm text-text-muted">Create an app at <a href="https://pushover.net/apps" target="_blank" rel="noopener">pushover.net/apps</a> to get a token. Users provide their own User Key in Account Settings.</span>
@@ -45,94 +18,141 @@
           <option v-for="level in logLevels" :key="level" :value="level">{{ level }}</option>
         </select>
       </div>
+
+      <section
+        class="mt-6 min-w-0 rounded-md border border-border-subtle bg-input p-4 md:p-6"
+        aria-labelledby="numista-section-heading"
+        data-testid="numista-section"
+      >
+        <div class="mb-5">
+          <p class="section-label">Catalog Integration</p>
+          <h3 id="numista-section-heading" class="m-0 text-lg font-medium text-heading">Numista</h3>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="numista-api-key">Numista API Key</label>
+          <input
+            id="numista-api-key"
+            v-model="localNumistaApiKey"
+            class="form-input"
+            type="password"
+            autocomplete="off"
+            aria-describedby="numista-api-key-help"
+            placeholder="Enter your Numista API key"
+          />
+          <span id="numista-api-key-help" class="mt-1 block text-sm text-text-muted">Get a free key at <a href="https://en.numista.com/api/" target="_blank" rel="noopener">numista.com/api</a> (2,000 requests/month free)</span>
+        </div>
+
+        <fieldset class="mb-6 min-w-0">
+          <legend class="section-label mb-3">Numista Lookup Limits</legend>
+          <div class="grid min-w-0 gap-4 md:grid-cols-2">
+            <div v-for="setting in numistaSettingFields" :key="setting.name" class="form-group min-w-0">
+              <label class="form-label" :for="setting.name">{{ setting.label }}</label>
+              <input
+                :id="setting.name"
+                v-model="setting.model.value"
+                class="form-input"
+                type="number"
+                :name="setting.name"
+                :min="setting.min"
+                :max="setting.max"
+                step="1"
+                required
+              />
+              <span class="mt-1 block text-sm text-text-muted">{{ setting.hint }}</span>
+            </div>
+          </div>
+        </fieldset>
+
+        <section class="border-t border-border-subtle pt-6" aria-labelledby="numista-health-heading">
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h3 id="numista-health-heading" class="m-0 text-lg font-medium text-heading">Numista Health</h3>
+            <button type="button" class="btn btn-secondary btn-xs" :disabled="healthLoading" @click="loadHealth">
+              {{ healthLoading ? 'Refreshing...' : 'Refresh' }}
+            </button>
+          </div>
+
+          <div v-if="healthLoading" class="flex items-center gap-3 py-6 text-sm text-text-secondary" role="status">
+            <span class="spinner"></span>
+            Loading Numista health
+          </div>
+          <p v-else-if="healthError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-[var(--color-negative)]" role="alert">
+            Numista health is temporarily unavailable. Try again.
+          </p>
+          <div v-else-if="health && !hasHealthEvents" class="rounded-sm border border-border-subtle bg-card p-4" role="status">
+            <h4 class="section-label mb-2">No Recent Activity</h4>
+            <p class="m-0 text-sm text-text-primary">No Numista lookup health events have been recorded yet.</p>
+            <p class="mb-0 mt-1 text-sm text-text-secondary">
+              {{ health.configured ? 'Numista is configured.' : 'Numista is not configured.' }}
+              Refresh after a lookup to view operational metrics.
+            </p>
+          </div>
+          <div v-else-if="health" class="grid gap-4">
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div class="rounded-sm border border-border-subtle bg-card p-3">
+                <div class="section-label">Configuration</div>
+                <div class="mt-1 font-semibold text-text-primary">{{ health.configured ? 'Configured' : 'Not configured' }}</div>
+                <div class="mt-1 text-sm text-text-secondary">{{ health.configurationValid ? 'Configuration valid' : 'Configuration invalid' }}</div>
+              </div>
+              <div class="rounded-sm border border-border-subtle bg-card p-3">
+                <div class="section-label">Requests</div>
+                <div class="mt-1 text-sm text-text-primary">{{ health.broadRequestCount }} broad</div>
+                <div class="mt-1 text-sm text-text-secondary">{{ health.detailRequestCount }} detail</div>
+              </div>
+              <div class="rounded-sm border border-border-subtle bg-card p-3">
+                <div class="section-label">Latency</div>
+                <div class="mt-1 text-sm text-text-primary">p50 {{ health.p50ElapsedMs }} ms</div>
+                <div class="mt-1 text-sm text-text-secondary">p95 {{ health.p95ElapsedMs }} ms</div>
+              </div>
+              <div class="rounded-sm border border-border-subtle bg-card p-3">
+                <div class="section-label">Latest Outcome</div>
+                <div class="mt-1 font-semibold text-text-primary">{{ formatStatus(health.lastOutcome) }}</div>
+                <div class="mt-1 text-sm text-text-secondary">{{ formatTimestamp(health.lastCheckedAt) }}</div>
+              </div>
+            </div>
+
+            <div class="rounded-sm border border-border-subtle bg-card p-4">
+              <h4 class="section-label mb-3">Status Counts</h4>
+              <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <div v-for="status in statusRows" :key="status.key" class="flex items-center justify-between gap-2 rounded-sm bg-input px-3 py-2">
+                  <span class="text-sm text-text-secondary">{{ status.label }}</span>
+                  <strong class="text-gold">{{ health.statusCounts[status.key] ?? 0 }}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div class="rounded-sm border border-border-subtle bg-card p-4">
+                <h4 class="section-label mb-2">Cache</h4>
+                <p class="m-0 text-sm text-text-primary">{{ health.freshCacheHitCount }} fresh cache hits</p>
+                <p class="mb-0 mt-1 text-sm text-text-secondary">{{ health.coalescedRequestCount }} coalesced requests · {{ formatPercent(health.freshCacheHitRate) }}</p>
+              </div>
+              <div class="rounded-sm border border-border-subtle bg-card p-4">
+                <h4 class="section-label mb-2">Provider Loads</h4>
+                <p class="m-0 text-sm text-text-primary">{{ health.providerLoadCount }} loads</p>
+                <p class="mb-0 mt-1 text-sm text-text-secondary">{{ health.providerFailureCount }} failed · {{ health.cancelledRequestCount }} cancelled</p>
+              </div>
+              <div class="rounded-sm border border-border-subtle bg-card p-4">
+                <h4 class="section-label mb-2">Enrichment</h4>
+                <p class="m-0 text-sm text-text-primary">{{ health.enrichmentAttempted }} attempted</p>
+                <p class="mb-0 mt-1 text-sm text-text-secondary">{{ health.enrichmentSucceeded }} succeeded · {{ health.enrichmentFailed }} failed</p>
+              </div>
+              <div class="rounded-sm border border-border-subtle bg-card p-4">
+                <h4 class="section-label mb-2">Quota Signals</h4>
+                <p class="m-0 text-sm text-text-primary">Last limited: {{ formatTimestamp(health.lastQuotaLimitedAt) }}</p>
+                <p class="mb-0 mt-1 text-sm text-text-secondary">Retry after: {{ formatRetryAfter(health.lastRetryAfterSeconds) }}</p>
+              </div>
+            </div>
+          </div>
+          <p v-else class="py-6 text-sm text-text-muted">No Numista health data is available yet.</p>
+        </section>
+      </section>
+
       <p v-if="msg" class="my-2 text-body" :class="error ? 'text-[var(--color-negative)]' : 'text-gold'">{{ msg }}</p>
       <button type="submit" class="btn btn-primary btn-sm" :disabled="saving">
         {{ saving ? 'Saving...' : 'Save System Settings' }}
       </button>
     </form>
-
-    <section class="mt-6 border-t border-border-subtle pt-6" aria-labelledby="numista-health-heading">
-      <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h3 id="numista-health-heading" class="m-0 text-lg font-medium text-heading">Numista Health</h3>
-        <button type="button" class="btn btn-secondary btn-xs" :disabled="healthLoading" @click="loadHealth">
-          {{ healthLoading ? 'Refreshing...' : 'Refresh' }}
-        </button>
-      </div>
-
-      <div v-if="healthLoading" class="flex items-center gap-3 py-6 text-sm text-text-secondary" role="status">
-        <span class="spinner"></span>
-        Loading Numista health
-      </div>
-      <p v-else-if="healthError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-[var(--color-negative)]" role="alert">
-        Numista health is temporarily unavailable. Try again.
-      </p>
-      <div v-else-if="health && !hasHealthEvents" class="rounded-sm border border-border-subtle bg-card p-4" role="status">
-        <h4 class="section-label mb-2">No Recent Activity</h4>
-        <p class="m-0 text-sm text-text-primary">No Numista lookup health events have been recorded yet.</p>
-        <p class="mb-0 mt-1 text-sm text-text-secondary">
-          {{ health.configured ? 'Numista is configured.' : 'Numista is not configured.' }}
-          Refresh after a lookup to view operational metrics.
-        </p>
-      </div>
-      <div v-else-if="health" class="grid gap-4">
-        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div class="rounded-sm border border-border-subtle bg-input p-3">
-            <div class="section-label">Configuration</div>
-            <div class="mt-1 font-semibold text-text-primary">{{ health.configured ? 'Configured' : 'Not configured' }}</div>
-            <div class="mt-1 text-sm text-text-secondary">{{ health.configurationValid ? 'Configuration valid' : 'Configuration invalid' }}</div>
-          </div>
-          <div class="rounded-sm border border-border-subtle bg-input p-3">
-            <div class="section-label">Requests</div>
-            <div class="mt-1 text-sm text-text-primary">{{ health.broadRequestCount }} broad</div>
-            <div class="mt-1 text-sm text-text-secondary">{{ health.detailRequestCount }} detail</div>
-          </div>
-          <div class="rounded-sm border border-border-subtle bg-input p-3">
-            <div class="section-label">Latency</div>
-            <div class="mt-1 text-sm text-text-primary">p50 {{ health.p50ElapsedMs }} ms</div>
-            <div class="mt-1 text-sm text-text-secondary">p95 {{ health.p95ElapsedMs }} ms</div>
-          </div>
-          <div class="rounded-sm border border-border-subtle bg-input p-3">
-            <div class="section-label">Latest Outcome</div>
-            <div class="mt-1 font-semibold text-text-primary">{{ formatStatus(health.lastOutcome) }}</div>
-            <div class="mt-1 text-sm text-text-secondary">{{ formatTimestamp(health.lastCheckedAt) }}</div>
-          </div>
-        </div>
-
-        <div class="rounded-sm border border-border-subtle bg-card p-4">
-          <h4 class="section-label mb-3">Status Counts</h4>
-          <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <div v-for="status in statusRows" :key="status.key" class="flex items-center justify-between gap-2 rounded-sm bg-input px-3 py-2">
-              <span class="text-sm text-text-secondary">{{ status.label }}</span>
-              <strong class="text-gold">{{ health.statusCounts[status.key] ?? 0 }}</strong>
-            </div>
-          </div>
-        </div>
-
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div class="rounded-sm border border-border-subtle bg-card p-4">
-            <h4 class="section-label mb-2">Cache</h4>
-            <p class="m-0 text-sm text-text-primary">{{ health.freshCacheHitCount }} fresh cache hits</p>
-            <p class="mb-0 mt-1 text-sm text-text-secondary">{{ health.coalescedRequestCount }} coalesced requests · {{ formatPercent(health.freshCacheHitRate) }}</p>
-          </div>
-          <div class="rounded-sm border border-border-subtle bg-card p-4">
-            <h4 class="section-label mb-2">Provider Loads</h4>
-            <p class="m-0 text-sm text-text-primary">{{ health.providerLoadCount }} loads</p>
-            <p class="mb-0 mt-1 text-sm text-text-secondary">{{ health.providerFailureCount }} failed · {{ health.cancelledRequestCount }} cancelled</p>
-          </div>
-          <div class="rounded-sm border border-border-subtle bg-card p-4">
-            <h4 class="section-label mb-2">Enrichment</h4>
-            <p class="m-0 text-sm text-text-primary">{{ health.enrichmentAttempted }} attempted</p>
-            <p class="mb-0 mt-1 text-sm text-text-secondary">{{ health.enrichmentSucceeded }} succeeded · {{ health.enrichmentFailed }} failed</p>
-          </div>
-          <div class="rounded-sm border border-border-subtle bg-card p-4">
-            <h4 class="section-label mb-2">Quota Signals</h4>
-            <p class="m-0 text-sm text-text-primary">Last limited: {{ formatTimestamp(health.lastQuotaLimitedAt) }}</p>
-            <p class="mb-0 mt-1 text-sm text-text-secondary">Retry after: {{ formatRetryAfter(health.lastRetryAfterSeconds) }}</p>
-          </div>
-        </div>
-      </div>
-      <p v-else class="py-6 text-sm text-text-muted">No Numista health data is available yet.</p>
-    </section>
 
     <div class="mt-6 flex items-center gap-2 border-t border-border-subtle pt-4 text-[0.78rem] text-text-muted">
       <span class="font-semibold uppercase tracking-[0.05em]">Version</span>

@@ -53,7 +53,9 @@ alternatives are recorded in [research.md](./research.md).
 | Principle IX — Automated Enforcement | Rules covered by automated tests | PASS by design. Live Numista is replaced by interfaces/`httptest`; route drift, migration, ownership, scoring, and UI paths get automated coverage. |
 | §21 Definition of Done | Workflow blast radius, config contracts, new-service tests, Swagger, secrets | PASS at planning. All affected sibling paths are enumerated below. |
 
-**Gate result**: PASS. No waiver or Complexity Tracking entry is required.
+**Gate result**: PASS for the proposed design. No design-time waiver was
+identified; the later immutable release-history exception is tracked in
+Complexity Tracking below.
 
 ### Post-design re-evaluation
 
@@ -76,8 +78,9 @@ The Phase 1 model and contracts preserve the same results:
   and keeps partial detail failure from erasing broad candidates (Principles
   IV and IX).
 
-**Post-design gate result**: PASS. No unresolved clarification or justified
-constitutional violation remains.
+**Post-design gate result**: PASS for the product design. No unresolved
+technical clarification or design violation remains; the later historical
+release-record deviations are separately governed below.
 
 ## Component Ownership and Dependency Flow
 
@@ -493,4 +496,6 @@ Do not gate product correctness on a live Numista account.
 
 ## Complexity Tracking
 
-No constitutional violations require justification.
+| Violation | Why Needed | Simpler Alternative Rejected Because |
+|-----------|------------|-------------------------------------|
+| One-time historical waiver under [ADR 0008](../../docs/adr/0008-feature-341-immutable-public-history-waiver.md) for Principle VII / §17 / §21 item 17: nonconventional subjects on `31cb6033875bcb6da0db82e9fc59a1278a56b0f6` (`scribe:`), `8e77500f05dde63ed7335fa12ba14614fe6e2ba2` (`merge:`), and `a8f59b3bf7e2479e1083ee21f0737369c89c3a91` (`merge:`), plus the unparseable list-form required Copilot co-author trailer on `460dbfcd0ba4bd36d39d150945d9c39546551be3`. No trailer waiver is asserted for the reconciliation merge `8e77500f05dde63ed7335fa12ba14614fe6e2ba2`. | These four deviations were already published on shared `beta`. Preserving that history keeps existing commit and image references valid and avoids amend, rebase, reset, rewrite, or force-push operations. | Rewriting published history was rejected because it would change audited commit identities and invalidate references. The narrower compliant alternative is ADR 0008's accepted, ADR-backed non-rewriting exception for only these exact SHAs and deviations. It is exhausted by the single Feature 341 `beta`-to-`main` release review, is not precedent, and does not apply to replacement SHAs, other branches/features, or future commits. PR/release review must disclose the matrix and enforce allowed prefixes plus a parseable required Copilot trailer on every later AI-assisted commit. |

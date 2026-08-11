@@ -217,20 +217,20 @@ draft lookup remains available, and no Phase 6/7 behavior changed.
 
 **Purpose**: Prove security, compatibility, performance, contracts, documentation, rollout readiness, and the complete quality gate.
 
-- [ ] T073 [P] Add backend workflow integration tests for direct selected-only persistence and photo draft-to-collection/wishlist promotion with no-selection and repeated-promotion cases in src/api/integration/numista_workflows_test.go
-- [ ] T074 [P] Add compatibility regression tests for legacy GET clients, additive photo fields, old draft inputs, NGC references, ownership, structured-reference deduplication, and rollback-readable records in src/api/integration/numista_compatibility_test.go
-- [ ] T075 [P] Add API-key secrecy and privacy tests covering headers only, errors, logs, responses, cache keys, telemetry, scorer explanations, canonical links, auth/admin boundaries, and oversized input/body rejection in src/api/integration/numista_security_test.go
-- [ ] T076 [P] Add deterministic fake-provider workload tests for 5-second uncached p95, 1-second fresh-cache p95, at least 80% broad-call reduction, top-three scoring fixtures, and default five-detail ceiling in src/api/integration/numista_performance_test.go
-- [ ] T077 Regenerate Swagger with task openapi and reconcile route/schema drift in src/api/docs/docs.go, src/api/docs/swagger.json, src/api/docs/swagger.yaml, and docs/openapi.json
-- [ ] T078 [P] Reconcile explicit-selection, editable-query, status, caching, enrichment, and NGC-first behavior in docs/features/numista-integration.md and docs/quick-capture.md
-- [ ] T079 [P] Document typed endpoints, compatibility rollout, settings defaults/ranges, redacted health signals, backend-first deployment, observation, and rollback in docs/api-reference.md and docs/deployment.md
-- [ ] T080 [P] Record the shared client/cache/scoring/telemetry boundary and additive selected-reference migration as a Nygard ADR in docs/adr/0007-shared-numista-lookup.md
-- [ ] T081 Run go build ./..., go vet ./..., go test ./... -count=1, and go test -run TestArchitecture ./... from src/api/ and resolve all failures in src/api/
-- [ ] T082 Run npm run test -- --run, npm run type-check, vue-tsc --build, and npm run build from src/web/ and resolve all failures in src/web/
-- [ ] T083 [P] Run ruff check app/ tests/ and pytest tests/ -v from src/agent/ to prove the untouched service remains green, recording any environment-only exception in specs/341-improve-numista-lookup/quickstart.md
-- [ ] T084 Run task --list and applicable OpenAPI/documentation checks from Taskfile.yml, then complete every direct/photo/status/cache/enrichment/admin/manual rollout walkthrough in specs/341-improve-numista-lookup/quickstart.md
-- [ ] T085 Run gitleaks against the repository and Trivy against the production container, requiring no leaked secrets and no High/Critical findings; resolve configuration findings in .gitleaks.toml and Dockerfile without weakening policy
-- [ ] T086 Verify conventional-commit/co-author expectations for the future PR, Constitution Principles I-IX, §17, §21, workflow/blast-radius evidence, no generated build artifacts, and the full Definition of Done in .github/pull_request_template.md
+- [x] T073 [P] Add backend workflow integration tests for direct selected-only persistence and photo draft-to-collection/wishlist promotion with no-selection and repeated-promotion cases in src/api/integration/numista_workflows_test.go
+- [x] T074 [P] Add compatibility regression tests for legacy GET clients, additive photo fields, old draft inputs, NGC references, ownership, structured-reference deduplication, and rollback-readable records in src/api/integration/numista_compatibility_test.go
+- [x] T075 [P] Add API-key secrecy and privacy tests covering headers only, errors, logs, responses, cache keys, telemetry, scorer explanations, canonical links, auth/admin boundaries, and oversized input/body rejection in src/api/integration/numista_security_test.go
+- [x] T076 [P] Add deterministic fake-provider workload tests for 5-second uncached p95, 1-second fresh-cache p95, at least 80% broad-call reduction, top-three scoring fixtures, and default five-detail ceiling in src/api/integration/numista_performance_test.go
+- [x] T077 Regenerate Swagger with task openapi and reconcile route/schema drift in src/api/docs/docs.go, src/api/docs/swagger.json, src/api/docs/swagger.yaml, and docs/openapi.json
+- [x] T078 [P] Reconcile explicit-selection, editable-query, status, caching, enrichment, and NGC-first behavior in docs/features/numista-integration.md and docs/quick-capture.md
+- [x] T079 [P] Document typed endpoints, compatibility rollout, settings defaults/ranges, redacted health signals, backend-first deployment, observation, and rollback in docs/api-reference.md and docs/deployment.md
+- [x] T080 [P] Record the shared client/cache/scoring/telemetry boundary and additive selected-reference migration as a Nygard ADR in docs/adr/0007-shared-numista-lookup.md
+- [x] T081 Run go build ./..., go vet ./..., go test ./... -count=1, and go test -run TestArchitecture ./... from src/api/ and resolve all failures in src/api/
+- [x] T082 Run npm run test -- --run, npm run type-check, vue-tsc --build, and npm run build from src/web/ and resolve all failures in src/web/
+- [x] T083 [P] Run ruff check app/ tests/ and pytest tests/ -v from src/agent/ to prove the untouched service remains green, recording any environment-only exception in specs/341-improve-numista-lookup/quickstart.md
+- [x] T084 Run task --list and applicable OpenAPI/documentation checks from Taskfile.yml, then complete every direct/photo/status/cache/enrichment/admin/manual rollout walkthrough in specs/341-improve-numista-lookup/quickstart.md
+- [x] T085 Run gitleaks against the repository and Trivy against the production container, requiring no leaked secrets and no High/Critical findings; resolve configuration findings in .gitleaks.toml and Dockerfile without weakening policy
+- [x] T086 Verify conventional-commit/co-author expectations for the future PR, Constitution Principles I-IX, §17, §21, workflow/blast-radius evidence, no generated build artifacts, and the full Definition of Done in .github/pull_request_template.md. [Accepted ADR 0008](../../docs/adr/0008-feature-341-immutable-public-history-waiver.md) authorizes only the transparent immutable exception matrix; prospective commit and PR enforcement remains mandatory. Maximus final clearance remains a separate pending reviewer step.
 
 ---
 

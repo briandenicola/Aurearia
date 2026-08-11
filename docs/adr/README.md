@@ -58,5 +58,6 @@ ADR 0001 for the full list.
 | 0005 | [Streamline Constitution Principles](0005-streamline-constitution-principles.md) | 2026-06-09 | Proposed |
 | 0006 | [Workflow Contract Regression Gates](0006-workflow-contract-regression-gates.md) | — | Accepted |
 | 0007 | [Shared Numista Lookup Boundary](0007-shared-numista-lookup.md)       | 2026-08-11 | Accepted |
+| 0008 | [Feature 341 Immutable Public-History Waiver](0008-feature-341-immutable-public-history-waiver.md) | 2026-08-11 | Accepted |
 
 [nygard]: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions
