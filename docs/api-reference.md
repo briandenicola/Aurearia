@@ -533,15 +533,73 @@ Get autocomplete suggestions for coin fields (e.g., rulers, mints, denominations
 
 ### Numista
 
+Feature 341 uses application-owned typed contracts for direct and
+photo-assisted lookup. Expected lookup domain outcomes use HTTP 200;
+malformed input, authentication, authorization, and unexpected failures retain
+normal HTTP status semantics.
+
+#### POST /api/numista/lookup
+
+Run broad lookup. `query` is required (1–500 characters), `path` is `direct`
+or `photo`, and `evidence` is required but may be empty.
+
+```json
+{
+  "query": "Augustus denarius Lugdunum silver",
+  "path": "direct",
+  "evidence": {
+    "title": "Augustus Denarius",
+    "issuer": "Augustus",
+    "denomination": "Denarius",
+    "mint": "Lugdunum",
+    "dateText": "2 BCE–4 CE",
+    "material": "Silver"
+  }
+}
+```
+
+The response contains `status`, the submitted `effectiveQuery`, application-
+owned `candidates`, optional `guidanceCode`, `retryAfterSeconds`, optional
+search-cache metadata, and `stage: "broad"`.
+
+Statuses are exactly `success`, `empty`, `unconfigured`, `quota-limited`,
+`timeout`, and `unavailable`. `cache.hit` means a fresh stored in-memory entry
+was reused; `cache.coalesced` means this caller joined in-flight work. They are
+mutually exclusive. Cache metadata also contains `createdAt`, `expiresAt`, and
+`ageSeconds`.
+
+**Errors:** `400` invalid/oversized/unknown fields, `401` unauthenticated,
+`500` unexpected application failure. Expected provider/configuration states
+remain typed HTTP 200 outcomes.
+
+#### POST /api/numista/enrich
+
+Submit the complete broad candidate set with the same `query`, `path`, and
+`evidence`. The candidate array must contain 1–50 unique valid application
+candidates.
+
+The service reranks before choosing targets, applies the administrator limit
+with a current runtime cap of five, fetches details with concurrency two,
+reranks again, and returns every candidate with `stage: "enriched"`. Candidate
+states are `not_requested`, `enriched`, `cached`, or `failed`; failed details
+retain the broad candidate.
+
+Surrounding whitespace is trimmed from the enrichment query during validation.
+Broad lookup preserves the raw submitted query in `effectiveQuery`.
+
+**Errors:** `400` invalid candidates/IDs/query, `401` unauthenticated,
+`500` unexpected application failure.
+
 #### GET /api/numista/search
 
-Search the [Numista](https://en.numista.com/) coin catalog.
+Deprecated compatibility adapter backed by the shared lookup service. It
+preserves the legacy `{count,types}` response for older clients.
 
 **Query Parameters:**
 
 | Param | Description |
 | ----- | ----------- |
-| `q` | Search terms (e.g., `Augustus denarius`) |
+| `q` | Required search terms, 1–500 characters |
 
 **Example:**
 
@@ -549,6 +607,22 @@ Search the [Numista](https://en.numista.com/) coin catalog.
 curl "http://localhost:8080/api/numista/search?q=Augustus+denarius" \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+Non-success/non-empty domain outcomes map to a generic HTTP 503 on this legacy
+route. New clients should use the typed POST routes.
+
+#### Photo and Quick Capture compatibility
+
+- `POST /api/coins/lookup` additively returns `proposedNumistaQuery`,
+  `numistaEvidence`, and nullable `numistaLookup`. It makes no Numista provider
+  request during photo analysis. Deprecated `numistaCandidates` remains empty
+  until explicit search; `candidateReferences` retains NGC compatibility only.
+- Quick Capture create/update multipart requests accept optional
+  `selectedNumistaId` and canonical `selectedNumistaUrl`. Update omission
+  preserves the selection; `clearSelectedNumista=true` removes it.
+- Draft responses, including `GET /api/quick-capture/drafts`, add nullable
+  `selectedNumistaReference`. Promotion copies exactly that reference
+  transactionally and remains idempotent.
 
 ---
 
@@ -1582,6 +1656,46 @@ curl -X PUT http://localhost:8080/api/admin/settings \
   -H "Content-Type: application/json" \
   -d '[{"key": "ollama_url", "value": "http://ollama:11434"}]'
 ```
+
+Numista operational settings use these exact keys and integer ranges. Invalid
+stored values fall back independently to the default and make
+`configurationValid` false in Numista health. Settings are read live; TTL
+changes apply to new cache writes, while existing entries keep their expiry.
+
+| Key | Default | Valid range |
+| ----- | -----: | ----- |
+| `NumistaSearchTTLHours` | 24 | 1–720 hours |
+| `NumistaDetailTTLHours` | 168 | 1–2160 hours |
+| `NumistaEnrichmentLimit` | 5 | 1–10 configured; current runtime caps at 5 |
+| `NumistaSearchResultLimit` | 20 | 1–50 candidates |
+| `NumistaSearchTimeoutSeconds` | 4 | 1–10 seconds |
+| `NumistaDetailTimeoutSeconds` | 3 | 1–10 seconds |
+
+### GET /api/admin/numista/health
+
+Return the admin-only, in-memory rolling Numista health summary. The ring holds
+the latest 500 events and resets when the API process restarts. It contains no
+API key, query, evidence text, image, provider body, raw error, or user
+identity; correlation uses only a 16-hex-character digest.
+
+| Field | Exact meaning |
+| ----- | ----- |
+| `configured` | `NumistaAPIKey` is non-empty. |
+| `configurationValid` | All six numeric settings are in range; independent of key presence. |
+| `statusCounts` | Sparse owned provider-loader outcomes plus unconfigured pre-cache bypasses. Fresh hits, coalesced waiters, and cancellations do not increment a status. |
+| `broadRequestCount` / `detailRequestCount` | Provider loader operations, not browser/API request totals. |
+| `freshCacheHitCount` | Fresh search or detail cache reuses. |
+| `coalescedRequestCount` | Callers that joined in-flight work, including a coalesced caller that later cancelled. |
+| `providerLoadCount` | Search and detail loads owned after a cache miss. |
+| `providerFailureCount` | Owned loads whose typed status was neither `success` nor `empty`. |
+| `cancelledRequestCount` | Caller cancellations; they do not become timeout/unavailable statuses. |
+| `freshCacheHitRate` | `freshCacheHitCount / (freshCacheHitCount + providerLoadCount)`; coalesced calls are excluded. |
+| `p50ElapsedMs` / `p95ElapsedMs` | R-7 linearly interpolated latency over owned provider loads, rounded to milliseconds; cache/coalesced calls are excluded. |
+| `enrichmentAttempted/Succeeded/Failed` | Owned detail-provider loads and their result, one attempt per detail loader. |
+| `lastOutcome` / `lastCheckedAt` | Most recent owned provider outcome or unconfigured bypass. |
+| `lastQuotaLimitedAt` / `lastRetryAfterSeconds` | Most recent owned 429 and positive observed retry value, when supplied. No remaining-quota estimate is invented. |
+
+The endpoint returns `401` or `403` to unauthorized callers.
 
 ### GET /api/admin/logs
 

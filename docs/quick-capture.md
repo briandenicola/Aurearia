@@ -28,15 +28,32 @@ a standalone navigation destination.
 
 - Photo analysis proposes evidence and an editable query but does not issue a
   Numista request before explicit search submission.
+- The editable broad-search query is preserved as submitted. Progressive
+  detail enrichment uses the same query with surrounding whitespace trimmed,
+  preventing a second query identity from being introduced after broad paint.
 - A usable NGC result remains primary. **Also search Numista** reveals the
   optional editable lookup without making an eager request.
-- Draft save persists only the explicitly selected Numista reference.
+- Broad candidates appear before bounded detail enrichment. Detail failure
+  leaves broad candidates selectable, and enrichment never changes the
+  explicit selection automatically.
+- Draft save persists only the explicitly selected Numista reference as
+  `Catalog: Numista`, its positive identifier, and the server-validated
+  canonical Numista URL.
 - Unrelated draft edits and validation failures preserve the retained
   selection until it is explicitly replaced or removed.
+- Draft update omission preserves the selection; a replacement ID/URL pair
+  replaces it; the explicit clear field removes it.
 - Draft cards display `Numista #<identifier>` from the existing owner-scoped
   draft-list response. Drafts without a selection display no Numista chip.
 - Collection or wish-list promotion copies exactly the retained selection
-  once. No selection means no generated Numista reference.
+  inside the existing promotion transaction. Repeated promotion reuses the
+  promoted coin and does not duplicate the reference. No selection means no
+  generated Numista reference.
+
+Expected lookup states are `success`, `empty`, `unconfigured`,
+`quota-limited`, `timeout`, and `unavailable`. Status changes, retry, cache
+reuse, and a selected reference that is absent from later results do not clear
+the editable query or retained selection.
 
 ## Regression Notes
 
@@ -49,3 +66,6 @@ a standalone navigation destination.
 - Existing Quick Capture, Identify Coin, saved-coin, and Actions routes remain
   compatible; no Numista route or top-level navigation item is added.
 - Quick Capture is deterministic and does not expand Python agent behavior.
+
+See [Numista Catalog Lookup](features/numista-integration.md) for cache
+freshness, enrichment states, status guidance, and the typed API contract.
