@@ -387,3 +387,22 @@
 - Focused Phase 4 tests passed: Go packages and 36 frontend tests. Full gates passed: Go build/vet/all tests, architecture/route/migration checks, OpenAPI regeneration hash stability, frontend 654/654, lint 0 errors/169 warnings, type-check, explicit `vue-tsc --build`, production build, design/UI tests, diff check, and targeted secret scan.
 - Parallel Vitest worker timeouts were not reproduced: two normal full-suite runs passed, including a 106-file/654-test run in 73.64s. Treat the reported timeout as environment-only unless it becomes reproducible under the bounded command.
 - Gitleaks and Trivy were unavailable in this environment.
+
+## 2026-08-11 — Feature 341 Phase 5 / User Story 3 review
+
+- **Verdict: BLOCK; Cassius is under Strict Lockout for the backend status mapping.**
+- Provider authentication failures are incorrectly mapped to `unavailable`; the approved taxonomy requires a missing or invalid Numista credential (HTTP 401/403 / `NumistaErrorUnauthorized`) to produce `unconfigured` so administrators receive configuration guidance.
+- The new service and handler tests encode the incorrect mapping, so all automated gates pass while the acceptance behavior remains wrong.
+- T046–T053 remain unchecked. No product files or task checkboxes were modified.
+- Passed: focused Go status tests; Go build/vet/full tests; architecture, route drift, and OpenAPI nullability tests; focused frontend 37/37; full frontend 662/662; ESLint 0 errors; strict type-check; production build; diff check and targeted secret scan.
+- Frontend taxonomy, retention, role-safe links, cache freshness, focus/ARIA, keyboard/mobile structure, and Phase 4 regressions were otherwise coherent.
+
+## 2026-08-11 — Feature 341 Phase 5 Marcus Strict Lockout re-review
+
+- **Verdict: APPROVE; the Phase 5 Strict Lockout block is cleared by Marcus's independent revision.**
+- Provider 401/403 now maps through `NumistaErrorUnauthorized` to HTTP 200 `unconfigured`; provider 400 maps to HTTP 200 `empty`. Admins retain configuration guidance while ordinary-user responses and UI expose neither API-key nor settings details.
+- Legacy GET retains the approved `{count,types}` compatibility shape, generic 503 handling for non-success states, and an empty 200 response for the newly approved invalid-query domain outcome.
+- Configuration-before-cache, positive-only Retry-After propagation, caller cancellation/deadline propagation and redacted telemetry, safe unexpected 500 handling, all six status states, query/selection retention, focus/ARIA, and non-color guidance are covered and pass.
+- `data-model.md` now reconciles its lower-authority status table to the approved spec/plan/research taxonomy without changing higher-authority requirements. T046–T053 are truthfully complete.
+- Independent gates passed: focused Go status packages; Go build/vet/full tests; architecture, route drift, OpenAPI nullability, and migration checks; focused frontend 37/37; full frontend 662/662; type-check, explicit `vue-tsc --build`, production build, ESLint 0 errors/169 warnings; diff check and targeted secret scan.
+- Residual risk is limited to unavailable optional external scanners (Gitleaks/Trivy); direct diff and credential-pattern checks were clean.
