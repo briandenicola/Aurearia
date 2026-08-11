@@ -47,6 +47,8 @@ type quickCaptureDraftListResponse struct {
 //	@Param			ngcGrade			formData	string	false	"NGC grade"
 //	@Param			labelText			formData	string	false	"Visible label text"
 //	@Param			aiConfidence		formData	string	false	"AI confidence"
+//	@Param			selectedNumistaId	formData	string	false	"Selected positive Numista type ID"
+//	@Param			selectedNumistaUrl	formData	string	false	"Canonical selected Numista URL"
 //	@Param			obverseImage		formData	file	false	"Obverse image"
 //	@Param			reverseImage		formData	file	false	"Reverse image"
 //	@Param			detailImages		formData	file	false	"Detail images"
@@ -68,6 +70,14 @@ func (h *QuickCaptureHandler) CreateDraft(c *gin.Context) {
 		NGCGrade:          c.PostForm("ngcGrade"),
 		LabelText:         c.PostForm("labelText"),
 		AIConfidence:      c.PostForm("aiConfidence"),
+	}
+	selected, provided, _, err := selectedNumistaForm(c, false)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid selected Numista reference"})
+		return
+	}
+	if provided {
+		input.SelectedNumistaReference = selected
 	}
 	if rawPrice := c.PostForm("purchasePrice"); rawPrice != "" {
 		price, err := strconv.ParseFloat(rawPrice, 64)
@@ -102,6 +112,9 @@ func (h *QuickCaptureHandler) CreateDraft(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "File type not allowed. Accepted: .jpg, .jpeg, .png, .gif, .webp"})
 		case errors.Is(err, services.ErrImageTooLarge):
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Image exceeds 20MB limit"})
+		case errors.Is(err, services.ErrQuickCaptureInvalidReference),
+			errors.Is(err, services.ErrQuickCaptureReferenceConflict):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid selected Numista reference"})
 		default:
 			if h.logger != nil {
 				h.logger.Error("quick-capture", "Create draft failed: %v", err)
@@ -217,6 +230,9 @@ func (r *promoteDraftOverridesRequest) UnmarshalJSON(data []byte) error {
 //	@Param			ngcGrade			formData	string	false	"NGC grade"
 //	@Param			labelText			formData	string	false	"Visible label text"
 //	@Param			aiConfidence		formData	string	false	"AI confidence"
+//	@Param			selectedNumistaId	formData	string	false	"Replacement positive Numista type ID; omit to preserve"
+//	@Param			selectedNumistaUrl	formData	string	false	"Replacement canonical Numista URL; omit to preserve"
+//	@Param			clearSelectedNumista	formData	bool	false	"Remove the retained Numista selection"
 //	@Param			removeImageIds		formData	string	false	"Comma-separated image IDs to remove"
 //	@Param			replaceObverse		formData	bool	false	"Replace existing obverse images"
 //	@Param			replaceReverse		formData	bool	false	"Replace existing reverse images"
@@ -252,6 +268,14 @@ func (h *QuickCaptureHandler) UpdateDraft(c *gin.Context) {
 		ReplaceObverse:    c.PostForm("replaceObverse") == "true",
 		ReplaceReverse:    c.PostForm("replaceReverse") == "true",
 	}
+	selected, provided, clear, err := selectedNumistaForm(c, true)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid selected Numista reference"})
+		return
+	}
+	input.SelectedNumistaReference = selected
+	input.SelectedNumistaProvided = provided
+	input.ClearSelectedNumista = clear
 	if rawPrice := c.PostForm("purchasePrice"); rawPrice != "" {
 		price, err := strconv.ParseFloat(rawPrice, 64)
 		if err != nil {
@@ -288,6 +312,9 @@ func (h *QuickCaptureHandler) UpdateDraft(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "File type not allowed. Accepted: .jpg, .jpeg, .png, .gif, .webp"})
 		case errors.Is(err, services.ErrImageTooLarge):
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Image exceeds 20MB limit"})
+		case errors.Is(err, services.ErrQuickCaptureInvalidReference),
+			errors.Is(err, services.ErrQuickCaptureReferenceConflict):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid selected Numista reference"})
 		default:
 			if h.logger != nil {
 				h.logger.Error("quick-capture", "Update draft failed: %v", err)
@@ -416,6 +443,41 @@ func (h *QuickCaptureHandler) PromoteDraft(c *gin.Context) {
 		"alreadyPromoted": result.AlreadyPromoted,
 		"target":          result.Target,
 	})
+}
+
+func selectedNumistaForm(
+	c *gin.Context,
+	allowClear bool,
+) (*models.SelectedNumistaReference, bool, bool, error) {
+	number, numberProvided := c.GetPostForm("selectedNumistaId")
+	uri, uriProvided := c.GetPostForm("selectedNumistaUrl")
+	provided := numberProvided || uriProvided
+
+	clear := false
+	if rawClear, clearProvided := c.GetPostForm("clearSelectedNumista"); clearProvided {
+		if !allowClear {
+			return nil, provided, false, errors.New("clear is not allowed")
+		}
+		parsed, err := strconv.ParseBool(rawClear)
+		if err != nil {
+			return nil, provided, false, err
+		}
+		clear = parsed
+	}
+	if clear && provided {
+		return nil, true, true, services.ErrQuickCaptureReferenceConflict
+	}
+	if !provided {
+		return nil, false, clear, nil
+	}
+	if !numberProvided || !uriProvided {
+		return nil, true, clear, services.ErrQuickCaptureInvalidReference
+	}
+	ref, err := models.ParseSelectedNumistaReference(number, uri)
+	if err != nil {
+		return nil, true, clear, err
+	}
+	return &ref, true, clear, nil
 }
 
 func readQuickCaptureUploads(c *gin.Context) ([]services.QuickCaptureImageUpload, error) {

@@ -68,7 +68,7 @@ func (s *CoinReferenceService) NormalizeAndValidate(
 func (s *CoinReferenceService) NormalizeAndValidateOne(
 	ref models.CoinReference,
 ) (models.CoinReference, error) {
-	ref.Catalog = strings.ToUpper(strings.TrimSpace(ref.Catalog))
+	ref.Catalog = strings.TrimSpace(ref.Catalog)
 	ref.Volume = strings.TrimSpace(ref.Volume)
 	ref.Number = strings.TrimSpace(ref.Number)
 	ref.URI = strings.TrimSpace(ref.URI)
@@ -90,6 +90,7 @@ func (s *CoinReferenceService) NormalizeAndValidateOne(
 	if registry.VolumeRequired && ref.Volume == "" {
 		return ref, fmt.Errorf("%w: %s", ErrReferenceVolumeRequired, ref.Catalog)
 	}
+	ref.Catalog = registry.Catalog
 
 	return ref, nil
 }

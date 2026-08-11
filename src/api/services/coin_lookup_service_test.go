@@ -1,8 +1,19 @@
 package services
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/briandenicola/ancient-coins-api/models"
+	"github.com/briandenicola/ancient-coins-api/repository"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestNormalizeCertNumber(t *testing.T) {
@@ -405,11 +416,13 @@ func TestBuildNumistaQuery(t *testing.T) {
 		{
 			name: "all fields present",
 			coinFields: map[string]any{
+				"name":         "Trajan coin",
 				"ruler":        "Trajan",
 				"denomination": "Denarius",
-				"era":          "ancient",
+				"mint":         "Rome",
+				"material":     "Silver",
 			},
-			expected: "Trajan Denarius ancient",
+			expected: "Trajan coin Trajan Denarius Rome Silver",
 		},
 		{
 			name: "only ruler and denomination",
@@ -561,8 +574,8 @@ func TestBuildCandidateReferences(t *testing.T) {
 
 	refs := svc.buildCandidateReferences(data, candidates)
 
-	if len(refs) != 2 {
-		t.Errorf("buildCandidateReferences() returned %d refs, want 2", len(refs))
+	if len(refs) != 1 {
+		t.Errorf("buildCandidateReferences() returned %d refs, want 1", len(refs))
 	}
 
 	// Check NGC reference
@@ -573,13 +586,6 @@ func TestBuildCandidateReferences(t *testing.T) {
 		t.Errorf("refs[0].Number = %q, want 823160-093", refs[0].Number)
 	}
 
-	// Check Numista reference
-	if refs[1].Catalog != "Numista" {
-		t.Errorf("refs[1].Catalog = %q, want Numista", refs[1].Catalog)
-	}
-	if refs[1].Number != "12345" {
-		t.Errorf("refs[1].Number = %q, want 12345", refs[1].Number)
-	}
 }
 
 func TestSlabCertDetectionReturnsCertData(t *testing.T) {
@@ -604,7 +610,7 @@ func TestSlabCertDetectionReturnsCertData(t *testing.T) {
 	}
 }
 
-func TestBuildPrefilledDraft_NonSlabAnalysisUsesExtractedFieldsAndTopCandidate(t *testing.T) {
+func TestBuildPrefilledDraft_NonSlabAnalysisDoesNotInferTopCandidate(t *testing.T) {
 	svc := &CoinLookupService{}
 
 	data := &LookupExtractedData{
@@ -627,14 +633,12 @@ func TestBuildPrefilledDraft_NonSlabAnalysisUsesExtractedFieldsAndTopCandidate(t
 	draft := svc.buildPrefilledDraft(data, candidates)
 
 	expected := map[string]any{
-		"name":         "Denarius - Trajan (98-117)",
+		"name":         "Trajan Denarius",
 		"ruler":        "Trajan",
 		"era":          "ancient",
 		"denomination": "Denarius",
 		"material":     "Silver",
 		"category":     "Roman",
-		"numista_id":   "12345",
-		"numista_url":  "https://en.numista.com/catalogue/pieces12345.html",
 	}
 	for key, want := range expected {
 		if got := draft[key]; got != want {
@@ -643,5 +647,194 @@ func TestBuildPrefilledDraft_NonSlabAnalysisUsesExtractedFieldsAndTopCandidate(t
 	}
 	if _, ok := draft["notes"]; ok {
 		t.Errorf("draft[notes] was set for non-slab lookup, want absent")
+	}
+	if _, ok := draft["numista_id"]; ok {
+		t.Fatal("unselected Numista candidate leaked into prefilled draft")
+	}
+	if _, ok := draft["numista_url"]; ok {
+		t.Fatal("unselected Numista URL leaked into prefilled draft")
+	}
+}
+
+func newCoinLookupServiceForResponse(t *testing.T, analysis string, handler func(*http.Request)) *CoinLookupService {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handler != nil {
+			handler(r)
+		}
+		_ = json.NewEncoder(w).Encode(AnalyzeProxyResponse{Analysis: analysis})
+	}))
+	t.Cleanup(server.Close)
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:coin_lookup_phase4_%d?mode=memory&cache=shared", time.Now().UnixNano())), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.AppSetting{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, setting := range []models.AppSetting{
+		{Key: SettingAIProvider, Value: "anthropic"},
+		{Key: SettingAnthropicAPIKey, Value: "test-key"},
+		{Key: SettingAnthropicModel, Value: "test-model"},
+	} {
+		if err := db.Create(&setting).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	return NewCoinLookupService(
+		NewAgentProxy(server.URL, "internal-token", NewLogger(10)),
+		NewSettingsService(repository.NewSettingsRepository(db)),
+		NewLogger(10),
+	)
+}
+
+func TestCoinLookupPhotoProposalWithoutEagerNumistaAndNGCFirstAliases(t *testing.T) {
+	nonNGC := `{"ngcCert":null,"labelText":"IMP TRAIANO","name":"Trajan Denarius","ruler":"Trajan","mint":"Rome","denomination":"Denarius","material":"Silver","obverseInscription":"IMP TRAIANO","reverseInscription":"PAX"}`
+	svc := newCoinLookupServiceForResponse(t, nonNGC, func(r *http.Request) {
+		if r.URL.Path != "/api/analyze" {
+			t.Fatalf("unexpected eager provider request: %s", r.URL.Path)
+		}
+	})
+	result, err := svc.Lookup(context.Background(), 1, CoinLookupRequest{Images: []string{"data:image/png;base64,AA=="}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ProposedNumistaQuery == "" || !strings.Contains(result.ProposedNumistaQuery, "Trajan Denarius") {
+		t.Fatalf("missing editable proposal: %#v", result)
+	}
+	if result.NumistaEvidence.Title != "Trajan Denarius" || result.NumistaEvidence.Mint != "Rome" {
+		t.Fatalf("typed evidence mismatch: %#v", result.NumistaEvidence)
+	}
+	if result.NumistaLookup != nil || len(result.NumistaCandidates) != 0 || len(result.CandidateReferences) != 0 {
+		t.Fatalf("unselected Numista results leaked through aliases: %#v", result)
+	}
+
+	ngc := `{"ngcCert":"823160-093","ngcGrade":"Ch AU","labelText":"NGC","name":"Trajan Denarius","ruler":"Trajan"}`
+	svc = newCoinLookupServiceForResponse(t, ngc, nil)
+	result, err = svc.Lookup(context.Background(), 1, CoinLookupRequest{Images: []string{"data:image/png;base64,AA=="}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ProposedNumistaQuery != "" || result.NumistaEvidence != (models.NumistaEvidence{}) {
+		t.Fatalf("NGC-first result should suppress Numista proposal: %#v", result)
+	}
+	if len(result.NumistaCandidates) != 0 || len(result.CandidateReferences) != 1 ||
+		result.CandidateReferences[0].Catalog != "NGC" {
+		t.Fatalf("deprecated aliases should contain NGC only: %#v", result)
+	}
+}
+
+func TestCoinLookupResponseNumistaLookupJSONNullability(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		lookup *models.NumistaLookupOutcome
+		want   any
+	}{
+		{name: "null", lookup: nil, want: nil},
+		{
+			name: "object",
+			lookup: &models.NumistaLookupOutcome{
+				Status:         models.NumistaStatusEmpty,
+				EffectiveQuery: "Trajan denarius",
+				Candidates:     []models.NumistaCandidate{},
+				Stage:          "broad",
+			},
+			want: map[string]any{},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			data, err := json.Marshal(CoinLookupResponse{NumistaLookup: test.lookup})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var wire map[string]any
+			if err := json.Unmarshal(data, &wire); err != nil {
+				t.Fatal(err)
+			}
+			got, ok := wire["numistaLookup"]
+			if !ok {
+				t.Fatal("numistaLookup must remain present in runtime JSON")
+			}
+			if test.want == nil {
+				if got != nil {
+					t.Fatalf("numistaLookup = %#v, want null", got)
+				}
+				return
+			}
+			object, ok := got.(map[string]any)
+			if !ok {
+				t.Fatalf("numistaLookup = %T, want object", got)
+			}
+			if object["status"] != string(models.NumistaStatusEmpty) ||
+				object["effectiveQuery"] != "Trajan denarius" {
+				t.Fatalf("unexpected numistaLookup object: %#v", object)
+			}
+		})
+	}
+}
+
+func TestCoinLookupPhotoEvidenceBoundsNoiseNoImageAndCancellation(t *testing.T) {
+	long := strings.Repeat("é", 700)
+	evidence := buildPhotoNumistaEvidence(&LookupExtractedData{
+		LabelText: "not visible",
+		CoinFields: map[string]any{
+			"name": long, "ruler": "unknown", "denomination": "Denarius",
+			"obverseInscription": long,
+		},
+	})
+	if len([]rune(evidence.Title)) != 200 || len([]rune(evidence.ObverseInscription)) != 500 {
+		t.Fatalf("evidence was not bounded: title=%d obverse=%d", len([]rune(evidence.Title)), len([]rune(evidence.ObverseInscription)))
+	}
+	if evidence.Issuer != "" || evidence.VisibleText != "" {
+		t.Fatalf("noisy non-specific evidence should be omitted: %#v", evidence)
+	}
+	if len([]rune(buildPhotoNumistaQuery(evidence))) > models.NumistaMaxQueryLength {
+		t.Fatal("proposed query exceeded contract bound")
+	}
+
+	svc := newCoinLookupServiceForResponse(t, `{}`, nil)
+	emptyResult, err := svc.Lookup(context.Background(), 1, CoinLookupRequest{
+		Images: []string{"data:image/png;base64,AA=="},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if emptyResult.ProposedNumistaQuery != "" || emptyResult.NumistaEvidence != (models.NumistaEvidence{}) ||
+		emptyResult.NumistaLookup != nil || len(emptyResult.NumistaCandidates) != 0 {
+		t.Fatalf("empty photo evidence should remain an editable manual-search state: %#v", emptyResult)
+	}
+
+	if _, err := svc.Lookup(context.Background(), 1, CoinLookupRequest{}); err == nil {
+		t.Fatal("no-image lookup should fail")
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&models.AppSetting{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, setting := range []models.AppSetting{
+		{Key: SettingAIProvider, Value: "anthropic"},
+		{Key: SettingAnthropicAPIKey, Value: "test-key"},
+	} {
+		if err := db.Create(&setting).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	cancelSvc := NewCoinLookupService(
+		NewAgentProxy(server.URL, "token", NewLogger(10)),
+		NewSettingsService(repository.NewSettingsRepository(db)),
+		NewLogger(10),
+	)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := cancelSvc.Lookup(ctx, 1, CoinLookupRequest{Images: []string{"data:image/png;base64,AA=="}}); err == nil {
+		t.Fatal("cancelled lookup should fail")
 	}
 }

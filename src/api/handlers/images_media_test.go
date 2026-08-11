@@ -26,7 +26,7 @@ func setupImageMediaRouter(t *testing.T) (*gin.Engine, *gorm.DB, string) {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.Follow{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.Follow{}, &models.Showcase{}, &models.ShowcaseCoin{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
 

@@ -18,6 +18,11 @@ type QuickCaptureRepository struct {
 	db *gorm.DB
 }
 
+type DraftReferenceMutation struct {
+	Replace *models.QuickCaptureDraftReference
+	Clear   bool
+}
+
 func NewQuickCaptureRepository(db *gorm.DB) *QuickCaptureRepository {
 	return &QuickCaptureRepository{db: db}
 }
@@ -34,6 +39,7 @@ func (r *QuickCaptureRepository) CreateDraft(draft *models.QuickCaptureDraft) er
 func (r *QuickCaptureRepository) CreateDraftWithImages(
 	draft *models.QuickCaptureDraft,
 	createdEvent *models.DraftLifecycleEvent,
+	selectedReference *models.QuickCaptureDraftReference,
 	buildImages func(draftID uint) ([]models.QuickCaptureDraftImage, error),
 ) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
@@ -44,6 +50,14 @@ func (r *QuickCaptureRepository) CreateDraftWithImages(
 		createdEvent.DraftID = draft.ID
 		if err := tx.Create(createdEvent).Error; err != nil {
 			return err
+		}
+
+		if selectedReference != nil {
+			selectedReference.DraftID = draft.ID
+			selectedReference.UserID = draft.UserID
+			if err := tx.Create(selectedReference).Error; err != nil {
+				return err
+			}
 		}
 
 		images, err := buildImages(draft.ID)
@@ -73,7 +87,8 @@ func (r *QuickCaptureRepository) GetDraftForOwner(draftID, userID uint) (*models
 	var draft models.QuickCaptureDraft
 	err := r.db.Preload("Images", func(db *gorm.DB) *gorm.DB {
 		return db.Order("display_order ASC, id ASC")
-	}).Where("id = ? AND user_id = ?", draftID, userID).First(&draft).Error
+	}).Preload("SelectedNumistaReference", "user_id = ?", userID).
+		Where("id = ? AND user_id = ?", draftID, userID).First(&draft).Error
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +121,8 @@ func (r *QuickCaptureRepository) ListDraftsForOwner(userID uint, status models.Q
 	}
 	err := query.Preload("Images", func(db *gorm.DB) *gorm.DB {
 		return db.Order("display_order ASC, id ASC")
-	}).Order("updated_at DESC").Offset((page - 1) * limit).Limit(limit).Find(&drafts).Error
+	}).Preload("SelectedNumistaReference", "user_id = ?", userID).
+		Order("updated_at DESC").Offset((page - 1) * limit).Limit(limit).Find(&drafts).Error
 	return drafts, total, err
 }
 
@@ -154,6 +170,7 @@ func (r *QuickCaptureRepository) UpdateDraftTransaction(
 	removeByTypes []models.ImageType,
 	addImages []models.QuickCaptureDraftImage,
 	event *models.DraftLifecycleEvent,
+	referenceMutation DraftReferenceMutation,
 ) (draft *models.QuickCaptureDraft, removedFilePaths []string, err error) {
 	err = r.db.Transaction(func(tx *gorm.DB) error {
 		var d models.QuickCaptureDraft
@@ -194,6 +211,24 @@ func (r *QuickCaptureRepository) UpdateDraftTransaction(
 			}
 		}
 
+		if referenceMutation.Clear {
+			if err2 := tx.Where("draft_id = ? AND user_id = ?", draftID, userID).
+				Delete(&models.QuickCaptureDraftReference{}).Error; err2 != nil {
+				return err2
+			}
+		} else if referenceMutation.Replace != nil {
+			if err2 := tx.Where("draft_id = ? AND user_id = ?", draftID, userID).
+				Delete(&models.QuickCaptureDraftReference{}).Error; err2 != nil {
+				return err2
+			}
+			referenceMutation.Replace.ID = 0
+			referenceMutation.Replace.DraftID = draftID
+			referenceMutation.Replace.UserID = userID
+			if err2 := tx.Create(referenceMutation.Replace).Error; err2 != nil {
+				return err2
+			}
+		}
+
 		// Add new images
 		for i := range addImages {
 			addImages[i].DraftID = draftID
@@ -212,7 +247,7 @@ func (r *QuickCaptureRepository) UpdateDraftTransaction(
 		var refreshed models.QuickCaptureDraft
 		if err2 := tx.Preload("Images", func(db *gorm.DB) *gorm.DB {
 			return db.Order("display_order ASC, id ASC")
-		}).First(&refreshed, draftID).Error; err2 != nil {
+		}).Preload("SelectedNumistaReference", "user_id = ?", userID).First(&refreshed, draftID).Error; err2 != nil {
 			return err2
 		}
 		draft = &refreshed
@@ -242,7 +277,8 @@ func (r *QuickCaptureRepository) PromoteDraftTransaction(
 
 		// Load draft with images for image transfer
 		var d models.QuickCaptureDraft
-		if err2 := tx.Preload("Images").First(&d, draftID).Error; err2 != nil {
+		if err2 := tx.Preload("Images").Preload("SelectedNumistaReference", "user_id = ?", userID).
+			Where("id = ? AND user_id = ?", draftID, userID).First(&d).Error; err2 != nil {
 			return err2
 		}
 
@@ -251,6 +287,18 @@ func (r *QuickCaptureRepository) PromoteDraftTransaction(
 			return err2
 		}
 		createdCoin = coin
+
+		if d.SelectedNumistaReference != nil {
+			ref := models.CoinReference{
+				CoinID:  coin.ID,
+				Catalog: d.SelectedNumistaReference.Catalog,
+				Number:  d.SelectedNumistaReference.Number,
+				URI:     d.SelectedNumistaReference.URI,
+			}
+			if err2 := tx.Create(&ref).Error; err2 != nil {
+				return err2
+			}
+		}
 
 		// Transfer draft images → coin images
 		for _, di := range d.Images {

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { ref } from 'vue'
 import CoinDetailPage from '../CoinDetailPage.vue'
+import router from '@/router'
 import { buildRomanDenariusCore } from '@/test/fixtures/coins'
 
 const coin = buildRomanDenariusCore()
@@ -18,16 +19,24 @@ vi.mock('@/stores/coins', () => ({
   }),
 }))
 
-vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { id: String(coin.id) } }),
-  useRouter: () => ({ push: routerPush }),
-}))
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>()
+  return {
+    ...actual,
+    useRoute: () => ({ params: { id: String(coin.id) } }),
+    useRouter: () => ({ push: routerPush }),
+  }
+})
 
 vi.mock('@/api/client', () => ({
+  createCoinReference: vi.fn(),
   deleteCoin: vi.fn(),
+  deleteCoinReference: vi.fn(),
   duplicateCoin: vi.fn(),
+  listCatalogs: vi.fn().mockResolvedValue([]),
   purchaseCoin: vi.fn(),
   sellCoin: vi.fn(),
+  updateCoinReference: vi.fn(),
 }))
 
 import { duplicateCoin } from '@/api/client'
@@ -103,6 +112,23 @@ describe('CoinDetailPage', () => {
 
     expect(duplicateCoin).toHaveBeenCalledWith(coin.id)
     expect(routerPush).toHaveBeenCalledWith('/coin/314')
+  })
+
+  it('anchors Catalog References on the existing coin detail route without a standalone Numista destination', () => {
+    const stubs = pageStubs()
+    delete stubs.CoinReferencesSection
+    const wrapper = mount(CoinDetailPage, {
+      global: { stubs },
+    })
+
+    const heading = wrapper.findAll('h3').find(item => item.text() === 'Catalog References')
+    expect(heading).toBeDefined()
+    expect(heading!.element.closest('section')?.id).toBe('catalog-references')
+
+    const numistaRoutes = router.getRoutes().filter(route =>
+      /numista/i.test(`${route.path} ${String(route.name ?? '')}`),
+    )
+    expect(numistaRoutes).toHaveLength(0)
   })
 })
 

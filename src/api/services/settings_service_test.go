@@ -1,13 +1,93 @@
 package services
 
 import (
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
+
+type numistaSettingTestCase struct {
+	name       string
+	key        string
+	defaultVal int64
+	min        int
+	max        int
+	read       func(NumistaSettings) int64
+}
+
+var numistaSettingTestCases = []numistaSettingTestCase{
+	{"search TTL", SettingNumistaSearchTTLHours, 24, 1, 720, func(s NumistaSettings) int64 { return int64(s.SearchTTL / time.Hour) }},
+	{"detail TTL", SettingNumistaDetailTTLHours, 168, 1, 2160, func(s NumistaSettings) int64 { return int64(s.DetailTTL / time.Hour) }},
+	{"enrichment limit", SettingNumistaEnrichmentLimit, 5, 1, 10, func(s NumistaSettings) int64 { return int64(s.EnrichmentLimit) }},
+	{"search result limit", SettingNumistaSearchResultLimit, 20, 1, 50, func(s NumistaSettings) int64 { return int64(s.SearchResultLimit) }},
+	{"search timeout", SettingNumistaSearchTimeoutSeconds, 4, 1, 10, func(s NumistaSettings) int64 { return int64(s.SearchTimeout / time.Second) }},
+	{"detail timeout", SettingNumistaDetailTimeoutSeconds, 3, 1, 10, func(s NumistaSettings) int64 { return int64(s.DetailTimeout / time.Second) }},
+}
+
+func TestNumistaSettingsDefaults(t *testing.T) {
+	svc, _ := newTestSettingsService(t)
+	settings := svc.GetNumistaSettings()
+	if !settings.Valid {
+		t.Fatal("default settings marked invalid")
+	}
+	for _, setting := range numistaSettingTestCases {
+		if got := setting.read(settings); got != setting.defaultVal {
+			t.Errorf("%s default = %d, want %d", setting.name, got, setting.defaultVal)
+		}
+	}
+}
+
+func TestNumistaSettingsValidBoundsAndLiveReload(t *testing.T) {
+	for _, setting := range numistaSettingTestCases {
+		t.Run(setting.name, func(t *testing.T) {
+			svc, _ := newTestSettingsService(t)
+			for _, value := range []int{setting.min, setting.max} {
+				if err := svc.SetSetting(setting.key, strconv.Itoa(value)); err != nil {
+					t.Fatal(err)
+				}
+				settings := svc.GetNumistaSettings()
+				if got := setting.read(settings); got != int64(value) || !settings.Valid {
+					t.Fatalf("live value %d produced %+v (read %d)", value, settings, got)
+				}
+			}
+		})
+	}
+}
+
+func TestNumistaSettingsInvalidValuesFallBackIndependently(t *testing.T) {
+	for _, setting := range numistaSettingTestCases {
+		t.Run(setting.name, func(t *testing.T) {
+			for _, value := range []string{
+				strconv.Itoa(setting.min - 1),
+				strconv.Itoa(setting.max + 1),
+				"not-an-integer",
+				" ",
+			} {
+				svc, _ := newTestSettingsService(t)
+				if err := svc.SetSetting(setting.key, value); err != nil {
+					t.Fatal(err)
+				}
+				settings := svc.GetNumistaSettings()
+				if got := setting.read(settings); got != setting.defaultVal {
+					t.Errorf("value %q = %d, want fallback %d", value, got, setting.defaultVal)
+				}
+				if settings.Valid {
+					t.Errorf("value %q did not mark settings invalid", value)
+				}
+				for _, sibling := range numistaSettingTestCases {
+					if sibling.key != setting.key && sibling.read(settings) != sibling.defaultVal {
+						t.Errorf("%s invalid value changed sibling %s", setting.name, sibling.name)
+					}
+				}
+			}
+		})
+	}
+}
 
 func setupSettingsTestDB(t *testing.T) *gorm.DB {
 	t.Helper()

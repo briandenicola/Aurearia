@@ -233,3 +233,32 @@ Outcome: BLOCK. The alert architecture is mostly correctly layered and Python re
 - **2026-07-20 — Post-Major-Work QC Audit Skill authored:** Created `.squad/skills/post-major-work-qc-audit/SKILL.md` — a portable, repo-agnostic deep quality-control audit skill for use after significant feature batches land. Covers 8 audit domains (engineering best practices, security/threat model, documentation alignment, architecture/contract alignment, test coverage, supply chain/deployment, UX/accessibility, operational readiness). Key design decisions: (1) mandatory 3-phase Investigation Protocol (bound changeset → diff reading → reference reading) must complete before any findings are written, to prevent fact-invention; (2) all findings must cite file path + line + observed evidence — no checklist-from-memory; (3) blockers vs. follow-ups are strictly separated in the report table; (4) REPO-HOOK markers isolate constitution/Quality Gate steps so the skill is portable to repos without governance scaffolding. Confidence set to "low" as newly authored; to be uprated after first live audit validates the format.
 
 - **2026-07-26 — Tracker set create contract:** Frontend create payload must use `creationMode` (not `trackerCreationMode`) for tracker dynamic/manual mode, or backend defaults to manual silently. Add a focused wizard submit test that asserts emitted contract keys to prevent regressions.
+
+## 2026-08-11 — Numista Lookup End-to-End Architecture Specification
+
+**Session:** Synchronous walkthrough + full feature specification and planning
+
+- Completed end-to-end product analysis of Numista lookup feature. Identified seven gaps: direct passthrough (no ranking), disconnected photo analysis (no scoring integration), no HTTP reuse (duplicated cookie-jar clients), weak contracts (untyped status/error/partial), no persistence (user selections not saved), missing telemetry (no cache/quota tracking), no staged enrichment.
+
+- **Decision: Six Material Architecture Decisions Recorded** (`.squad/decisions.md` entries dated 2026-08-11):
+  1. **Shared Typed HTTP Client** — single injected `NumistaClient` interface, private provider DTOs, safe error taxonomy
+  2. **Bounded TTL Caches** — independent search/detail namespaces, in-flight request coalescing, configurable TTL per setting
+  3. **Deterministic Versioned Scoring (numista-v1)** — weighted dimensions (ID match 1.0, inscription 0.8, ruler 0.7, denomination/mint 0.6, date 0.5, material 0.4), neutral missing data, stable tie-breaking by ID
+  4. **Transactional Selected-Reference Persistence** — new `quick_capture_draft_references` table (one-to-one draft), copied to coin during promotion, additive schema
+  5. **Six Explicit Domain Statuses** — success, empty, unconfigured, quota_limited, timeout, unavailable (replaces unstructured errors)
+  6. **Redacted Bounded Telemetry** — 500-operation ring, correlation digest only (never full query), p50/p95 aggregation, admin-only access
+
+- **Specification Package Created** (8 new files in `specs/341-improve-numista-lookup/`):
+  - `spec.md` — 5 user stories (P1: direct lookup, photo lookup, availability; P2: caching, enrichment), 29 FR + 8 NFR, 10 scenario tests, **constitution gate: PASS**
+  - `plan.md` — 8-phase roadmap, technical context, layered architecture, performance targets (p95 uncached <5s, cached <1s), constraints (shared allowance, explicit selection, NGC-first)
+  - `data-model.md` — additive schema (new table, no existing modifications, rollback-compatible)
+  - `contracts/numista-lookup.openapi.yaml` — typed request/response DTOs, Swagger annotations for POST /api/numista/lookup, POST /api/numista/enrich, GET /api/numista/search (deprecated adapter)
+  - `research.md` — gap analysis, alternative evaluation (rejected: shared agent, background worker, local catalogue, monolithic endpoint)
+  - `quickstart.md` — development walkthrough, test/build commands, fixture setup
+
+- **Handoff to Brutus for Task Planning:** 86 dependency-ordered tasks across 8 phases (Phase 1–3 MVP = 27 tasks: testdata + foundational + direct lookup; Phases 4–8 post-MVP = 59 tasks: photo/draft, status, caching, enrichment, favorites). Blocking phase: Phase 2 foundational (client, cache, scorer, telemetry, settings) gates all user stories. 46 parallelizable task pairs identified. MVP critical path: ~2–3 weeks.
+
+- **Cross-Agent Coordination:** Cassius ready for Phase 1 testdata setup; Aurelia ready for component scaffolding (CoinNumistaPanel direct, CoinLookupPage photo); Brutus coordinating test/task tracking. All decisions documented in research.md, all phase boundaries explicit, no new design patterns or PWA surfaces required.
+
+- **Quality Gate Status:** Constitution compliance verified (Principles I/II/III/IV/V/VI/VII/VIII/IX all PASS). §17 Quality Gate ready for Phase 1 task initiation. Orchestration log: `.squad/orchestration-log/2026-08-11T13-06-00Z-maximus-numista-spec-planning.md`.
+

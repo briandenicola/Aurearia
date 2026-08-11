@@ -24,7 +24,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&models.ValuationRun{}, &models.ValuationResult{},
 		&models.Tag{}, &models.CoinTag{},
 		&models.CoinSet{}, &models.CoinSetMembership{}, &models.CoinSetTarget{}, &models.SmartCriteriaTemplate{},
-		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{},
+		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)

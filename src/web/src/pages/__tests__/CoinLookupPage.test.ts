@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import CoinLookupPage from '../CoinLookupPage.vue'
-import { createQuickCaptureDraft, lookupCoin } from '@/api/client'
+import { createQuickCaptureDraft, lookupCoin, lookupNumista } from '@/api/client'
+import { makeNumistaCandidate, makeNumistaLookupOutcome } from '@/test/numista-fixtures'
 
 const routerPush = vi.fn()
 const routerBack = vi.fn()
@@ -19,14 +21,15 @@ vi.mock('vue-router', () => ({
 
 vi.mock('@/api/client', () => ({
   lookupCoin: vi.fn(),
+  lookupNumista: vi.fn(),
   createQuickCaptureDraft: vi.fn(),
+  onTokenRefreshed: vi.fn(),
 }))
 
-// The "Create Quick AI Draft" button that kicks off analysis no longer carries a
-// stable class (it was refactored from `.btn-submit` to plain Tailwind utility
-// classes shared with other buttons), so locate it by its visible label instead.
-function findSubmitButton(wrapper: ReturnType<typeof mount>) {
-  return wrapper.findAll('button').find((button) => button.text().includes('Create Quick AI Draft'))
+function findAnalyzeButton(wrapper: ReturnType<typeof mount>) {
+  return wrapper.findAll('button').find((button) =>
+    button.text().includes('Analyze Photos') || button.text().includes('Create Quick AI Draft'),
+  )
 }
 
 // The results-state action row (Retake Photo / Cancel / Save as Draft) no longer
@@ -41,8 +44,10 @@ function findActionButtons(wrapper: ReturnType<typeof mount>) {
 
 describe('CoinLookupPage', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     vi.mocked(lookupCoin).mockReset()
     vi.mocked(createQuickCaptureDraft).mockReset()
+    vi.mocked(lookupNumista).mockReset()
     routerPush.mockReset()
     routerBack.mockReset()
 
@@ -171,7 +176,7 @@ describe('CoinLookupPage', () => {
 
     await input.trigger('change')
 
-    await findSubmitButton(wrapper)!.trigger('click')
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     // No NGC cert, so should show editable review form
@@ -180,7 +185,7 @@ describe('CoinLookupPage', () => {
     expect(wrapper.text()).toContain('AI Observations')
     expect(wrapper.text()).not.toContain('Obverse Description')
     expect(wrapper.text()).not.toContain('Reverse Description')
-    expect(wrapper.findAll('textarea')).toHaveLength(0)
+    expect(wrapper.findAll('textarea').filter(textarea => textarea.attributes('id') !== 'numista-query')).toHaveLength(0)
     expect(wrapper.text()).not.toContain('Add to Collection')
     expect(wrapper.text()).toContain('Save as Draft')
 
@@ -224,6 +229,115 @@ describe('CoinLookupPage', () => {
     expect(wrapper.text()).toContain('Identify Coin')
     expect(wrapper.find('[aria-label="All drafts"]').exists()).toBe(true)
     expect(wrapper.find('.pwa-icon-btn').exists()).toBe(true)
+  })
+
+  it('labels the photo workflow Analyze Photos and retains Save as Draft', async () => {
+    const file = new File(['coin'], 'labels.jpg', { type: 'image/jpeg' })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: { confidence: 'low', rawAnalysis: '' },
+        proposedNumistaQuery: '',
+        numistaEvidence: {},
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Unidentified Coin' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+
+    const wrapper = mount(CoinLookupPage, {
+      global: { stubs: { RouterLink: true, List: true } },
+    })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+
+    expect(findAnalyzeButton(wrapper)?.text()).toBe('Analyze Photos')
+    await findAnalyzeButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(findActionButtons(wrapper).map(button => button.text())).toContain('Save as Draft')
+  })
+
+  it('reveals an editable NGC Numista override by keyboard without an eager request', async () => {
+    Object.defineProperty(window, 'innerWidth', { value: 375, configurable: true })
+    const file = new File(['slab'], 'ngc-override.jpg', { type: 'image/jpeg' })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: {
+          confidence: 'high',
+          rawAnalysis: 'NGC cert detected',
+          ngc: {
+            certNumber: '1234567-001',
+            normalizedCert: '1234567001',
+            lookupURL: 'https://www.ngccoin.com/certlookup/1234567001/NGCAncients/',
+            grade: 'Ch VF',
+          },
+        },
+        proposedNumistaQuery: 'Augustus denarius silver',
+        numistaEvidence: { title: 'Augustus denarius', issuer: 'Augustus', material: 'Silver' },
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Augustus Denarius', ruler: 'Augustus', material: 'Silver' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+    vi.mocked(lookupNumista).mockResolvedValue({
+      data: makeNumistaLookupOutcome({ effectiveQuery: 'edited Augustus query' }),
+    })
+
+    const wrapper = mount(CoinLookupPage, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          RouterLink: true,
+          Camera: true,
+          Images: true,
+          Search: true,
+          X: true,
+          AlertCircle: true,
+          ShieldCheck: true,
+          ExternalLink: true,
+          RotateCcw: true,
+          Bookmark: true,
+          List: true,
+        },
+      },
+    })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    await findAnalyzeButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('NGC Certification: 1234567001')
+    expect(wrapper.text()).toContain('Save as Draft')
+    expect(lookupNumista).not.toHaveBeenCalled()
+
+    const disclosure = wrapper.findAll('button').find(button => button.text() === 'Also search Numista')!
+    expect(disclosure).toBeDefined()
+    expect(disclosure.attributes('aria-expanded')).toBe('false')
+    disclosure.element.focus()
+    await disclosure.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+
+    expect(disclosure.attributes('aria-expanded')).toBe('true')
+    expect(lookupNumista).not.toHaveBeenCalled()
+    const query = wrapper.get('#numista-query')
+    expect(document.activeElement).toBe(query.element)
+    expect((query.element as HTMLTextAreaElement).value).toBe('Augustus denarius silver')
+    await query.setValue('edited Augustus query')
+    expect(lookupNumista).not.toHaveBeenCalled()
+
+    const search = wrapper.findAll('button').find(button => button.text().includes('Search Numista'))!
+    await search.trigger('click')
+    await flushPromises()
+    expect(lookupNumista).toHaveBeenCalledWith(expect.objectContaining({
+      query: 'edited Augustus query',
+      path: 'photo',
+    }))
+
+    const lookupContainer = query.element.closest('.min-w-0')
+    expect(lookupContainer?.classList.contains('overflow-hidden')).toBe(true)
+    expect(wrapper.find('.flex.flex-wrap').exists()).toBe(true)
+
+    wrapper.unmount()
   })
 
   it('renders safe AI observations narrative instead of editable side description boxes', async () => {
@@ -274,7 +388,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await findSubmitButton(wrapper)!.trigger('click')
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('AI Observations')
@@ -284,7 +398,7 @@ describe('CoinLookupPage', () => {
     expect(wrapper.text()).toContain('Victory standing left')
     expect(wrapper.text()).not.toContain('Obverse Description')
     expect(wrapper.text()).not.toContain('Reverse Description')
-    expect(wrapper.findAll('textarea')).toHaveLength(0)
+    expect(wrapper.findAll('textarea').filter(textarea => textarea.attributes('id') !== 'numista-query')).toHaveLength(0)
 
     const inputs = wrapper.findAll('input[type="text"]')
     expect((inputs[0]!.element as HTMLInputElement).value).toBe('Trajan Denarius')
@@ -356,7 +470,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await findSubmitButton(wrapper)!.trigger('click')
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     const nameInput = wrapper.find('input[type="text"]')
@@ -421,7 +535,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await findSubmitButton(wrapper)!.trigger('click')
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     const nameInput = wrapper.find('input[type="text"]')
@@ -476,7 +590,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await findSubmitButton(wrapper)!.trigger('click')
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     const cancel = wrapper.findAll('button').find(button => button.text().includes('Cancel'))
@@ -541,7 +655,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await findSubmitButton(wrapper)!.trigger('click')
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     // NGC path should keep the review form editable while preserving certification details.
@@ -587,6 +701,157 @@ describe('CoinLookupPage', () => {
     expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
       notes: expect.stringContaining('Grade: Choice VF'),
     }))
+    expect(lookupNumista).not.toHaveBeenCalled()
+  })
+
+  it('shows an editable photo proposal without an eager request and retains explicit selection on retry', async () => {
+    const file = new File(['coin'], 'photo.jpg', { type: 'image/jpeg' })
+    const selected = makeNumistaCandidate({ id: 12345, title: 'Selected denarius' })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: { confidence: 'medium', rawAnalysis: 'photo evidence' },
+        proposedNumistaQuery: 'Trajan denarius Rome silver',
+        numistaEvidence: { title: 'Trajan denarius', issuer: 'Trajan', material: 'Silver' },
+        numistaLookup: null,
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Trajan denarius', ruler: 'Trajan', material: 'Silver' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+    vi.mocked(lookupNumista)
+      .mockResolvedValueOnce({ data: makeNumistaLookupOutcome({ candidates: [selected] }) })
+      .mockResolvedValueOnce({
+        data: makeNumistaLookupOutcome({
+          effectiveQuery: 'edited retry',
+          candidates: [makeNumistaCandidate({ id: 999, title: 'Different result' })],
+        }),
+      })
+    vi.mocked(createQuickCaptureDraft).mockResolvedValue({ data: { id: 101 } } as never)
+
+    const wrapper = mount(CoinLookupPage, {
+      global: {
+        stubs: {
+          Camera: true, Images: true, Search: true, X: true, AlertCircle: true,
+          ShieldCheck: true, ExternalLink: true, RotateCcw: true, Bookmark: true, List: true,
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    await findAnalyzeButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(lookupNumista).not.toHaveBeenCalled()
+    const query = wrapper.find('#numista-query')
+    expect((query.element as HTMLTextAreaElement).value).toBe('Trajan denarius Rome silver')
+    await query.setValue('edited first')
+    await wrapper.findAll('button').find(button => button.text().includes('Search Numista'))!.trigger('click')
+    await flushPromises()
+    expect(lookupNumista).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      query: 'edited first',
+      path: 'photo',
+    }))
+
+    await wrapper.find('input[type="radio"]').trigger('keydown', { key: ' ' })
+    await wrapper.find('input[type="radio"]').setValue(true)
+    await query.setValue('edited retry')
+    await wrapper.findAll('button').find(button => button.text().includes('Search again'))!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Selection retained from an earlier search')
+
+    await findActionButtons(wrapper)[2]!.trigger('click')
+    await flushPromises()
+    expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
+      selectedNumistaId: '12345',
+      selectedNumistaUrl: 'https://en.numista.com/catalogue/pieces12345.html',
+    }))
+  })
+
+  it('keeps empty or noisy photo evidence available for manual Numista query entry', async () => {
+    const file = new File(['coin'], 'uncertain-photo.jpg', { type: 'image/jpeg' })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: {
+          confidence: 'low',
+          rawAnalysis: 'Legend unclear; issuer cannot be determined.',
+        },
+        proposedNumistaQuery: '',
+        numistaEvidence: {},
+        numistaLookup: null,
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Unidentified Coin' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+    vi.mocked(lookupNumista).mockResolvedValue({
+      data: makeNumistaLookupOutcome({
+        effectiveQuery: 'manual bronze coin',
+        candidates: [],
+      }),
+    })
+
+    const wrapper = mount(CoinLookupPage, {
+      global: {
+        stubs: {
+          Camera: true, Images: true, Search: true, X: true, AlertCircle: true,
+          ShieldCheck: true, ExternalLink: true, RotateCcw: true, Bookmark: true, List: true,
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    await findAnalyzeButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(lookupNumista).not.toHaveBeenCalled()
+    const query = wrapper.find('#numista-query')
+    const searchButton = wrapper.findAll('button').find(button => button.text().includes('Search Numista'))!
+    expect(query.exists()).toBe(true)
+    expect((query.element as HTMLTextAreaElement).value).toBe('')
+    expect(wrapper.text()).toContain('Enter at least one search term to enable Numista lookup.')
+    expect(searchButton.attributes('disabled')).toBeDefined()
+
+    await query.setValue('manual bronze coin')
+    expect(searchButton.attributes('disabled')).toBeUndefined()
+    await searchButton.trigger('click')
+    await flushPromises()
+
+    expect(lookupNumista).toHaveBeenCalledTimes(1)
+    expect(lookupNumista).toHaveBeenCalledWith({
+      query: 'manual bronze coin',
+      path: 'photo',
+      evidence: {},
+    })
+  })
+
+  it('keeps the shared lookup panel contained for narrow mobile layouts', async () => {
+    Object.defineProperty(window, 'innerWidth', { value: 375, configurable: true })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: { confidence: 'low', rawAnalysis: '' },
+        proposedNumistaQuery: 'editable query',
+        numistaEvidence: {},
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Unknown coin' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+    const wrapper = mount(CoinLookupPage, {
+      global: { stubs: { RouterLink: true, List: true } },
+    })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [new File(['coin'], 'mobile.jpg', { type: 'image/jpeg' })],
+      configurable: true,
+    })
+    await input.trigger('change')
+    await findAnalyzeButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.card.min-w-0.overflow-hidden').exists()).toBe(true)
+    expect(wrapper.find('#numista-query').attributes('maxlength')).toBe('500')
+    expect(wrapper.find('fieldset').exists()).toBe(false)
   })
 
   it.each([undefined, 'Unidentified Coin'] as Array<string | undefined>)(
@@ -639,7 +904,7 @@ describe('CoinLookupPage', () => {
       })
       await input.trigger('change')
 
-      await findSubmitButton(wrapper)!.trigger('click')
+      await findAnalyzeButton(wrapper)!.trigger('click')
       await flushPromises()
 
       const textInputs = wrapper.findAll('input[type="text"]')
@@ -712,7 +977,7 @@ describe('CoinLookupPage', () => {
     })
     await input.trigger('change')
 
-    await findSubmitButton(wrapper)!.trigger('click')
+    await findAnalyzeButton(wrapper)!.trigger('click')
     await flushPromises()
 
     const links = wrapper.findAll('a').filter((link) => link.text().includes('View on Numista'))

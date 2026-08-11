@@ -1,0 +1,25 @@
+{
+  "count": 3,
+  "types": [
+    {
+      "id": 12345,
+      "title": "Denarius - Trajan",
+      "issuer": { "name": "Roman Empire" },
+      "min_year": 101,
+      "max_year": 102,
+      "obverse_thumbnail": "https://static-numista.com/catalogue/photos/rome/thumb123.jpg",
+      "reverse_thumbnail": "https://static-numista.com/catalogue/photos/rome/thumb124.jpg"
+    },
+    {
+      "id": 67890,
+      "title": "Drachm - Trajan",
+      "issuer": { "name": "Roman Empire" },
+      "min_year": 98,
+      "max_year": 117
+    },
+    {
+      "id": 0,
+      "title": "Invalid fixture row"
+    }
+  ]
+}

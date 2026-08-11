@@ -1,6 +1,7 @@
 package database
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -90,13 +91,66 @@ func TestQuickCaptureModelsAutoMigrate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}); err != nil {
 		t.Fatalf("quick capture automigrate failed: %v", err)
 	}
-	for _, table := range []string{"quick_capture_drafts", "quick_capture_draft_images", "draft_lifecycle_events"} {
+	for _, table := range []string{"quick_capture_drafts", "quick_capture_draft_images", "quick_capture_draft_references", "draft_lifecycle_events"} {
 		if !db.Migrator().HasTable(table) {
 			t.Fatalf("expected table %s", table)
 		}
+	}
+	if !db.Migrator().HasIndex(&models.QuickCaptureDraftReference{}, "DraftID") {
+		t.Fatal("expected unique draft reference index")
+	}
+	if !db.Migrator().HasIndex(&models.QuickCaptureDraftReference{}, "UserID") {
+		t.Fatal("expected owner index")
+	}
+}
+
+type preNumistaQuickCaptureDraft struct {
+	ID             uint
+	UserID         uint
+	WorkingTitle   string
+	Status         string
+	PromotedCoinID *uint
+}
+
+func (preNumistaQuickCaptureDraft) TableName() string { return "quick_capture_drafts" }
+
+func TestQuickCaptureSelectedReferenceMigrationIsAdditiveAndRollbackCompatible(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture, err := os.ReadFile("testdata/pre_numista_quick_capture.sql")
+	if err != nil {
+		t.Fatalf("read pre-feature fixture: %v", err)
+	}
+	if err := db.Exec(string(fixture)).Error; err != nil {
+		t.Fatalf("apply pre-feature fixture: %v", err)
+	}
+
+	if err := db.AutoMigrate(&models.QuickCaptureDraftReference{}); err != nil {
+		t.Fatalf("add selected-reference table: %v", err)
+	}
+	if !db.Migrator().HasTable(&models.QuickCaptureDraftReference{}) {
+		t.Fatal("selected-reference table was not created")
+	}
+
+	var drafts []models.QuickCaptureDraft
+	if err := db.Preload("SelectedNumistaReference").Order("id").Find(&drafts).Error; err != nil {
+		t.Fatalf("new binary could not read pre-feature drafts: %v", err)
+	}
+	if len(drafts) != 2 || drafts[0].SelectedNumistaReference != nil || drafts[1].SelectedNumistaReference != nil {
+		t.Fatalf("existing drafts should remain readable with no relation: %#v", drafts)
+	}
+
+	var oldBinaryDrafts []preNumistaQuickCaptureDraft
+	if err := db.Order("id").Find(&oldBinaryDrafts).Error; err != nil {
+		t.Fatalf("old binary shape could not read additive schema: %v", err)
+	}
+	if len(oldBinaryDrafts) != 2 || oldBinaryDrafts[0].Status != "active" || oldBinaryDrafts[1].Status != "promoted" {
+		t.Fatalf("rollback compatibility changed draft rows: %#v", oldBinaryDrafts)
 	}
 }
 

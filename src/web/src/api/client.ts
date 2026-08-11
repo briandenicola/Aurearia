@@ -1,7 +1,8 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, GeocodeCandidate, ValuationRun, AuctionEndingRun, AuctionWatchBidDigestRun, CollectionHealthSnapshotRunResult, CollectionHealthSnapshotRun, SchedulerStatus, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, CreateSetBuilderRunRequest, SetBuilderRun, SetProposal, UpdateSetProposalRequest, RegenerateSetProposalRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, SmartCriteriaTemplate, SuggestedSmartCriteria, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse, AIJob, AIJobStartResponse, PriceAlert, BidReminder, PriceAlertDirection, AuctionAlertReminderRun, CoinOfDayRun, BidRecommendation, MarketSignal, RomanImperialFigure, ImperialFigureRole, EmperorTrackerResult, CoinRecommendation, ShipmentEnvelopeResponse, ShipmentUpsertInput, ShipmentStatus } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, NumistaLookupRequest, NumistaEnrichmentRequest, NumistaLookupOutcome, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, GeocodeCandidate, ValuationRun, AuctionEndingRun, AuctionWatchBidDigestRun, CollectionHealthSnapshotRunResult, CollectionHealthSnapshotRun, SchedulerStatus, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, CreateSetBuilderRunRequest, SetBuilderRun, SetProposal, UpdateSetProposalRequest, RegenerateSetProposalRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, SmartCriteriaTemplate, SuggestedSmartCriteria, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse, AIJob, AIJobStartResponse, PriceAlert, BidReminder, PriceAlertDirection, AuctionAlertReminderRun, CoinOfDayRun, BidRecommendation, MarketSignal, RomanImperialFigure, ImperialFigureRole, EmperorTrackerResult, CoinRecommendation, ShipmentEnvelopeResponse, ShipmentUpsertInput, ShipmentStatus } from '@/types'
 import type { QuickCaptureDraft, QuickCaptureDraftInput, QuickCaptureDraftUpdateInput, QuickCaptureDraftListResponse, QuickCaptureDraftStatus, QuickCapturePromoteRequest, QuickCapturePromotionResponse } from '@/types'
 import type { WishlistSearchAlert, WishlistSearchAlertInput, WishlistSearchAlertListResponse, AlertRun, AlertRunListResponse, AlertRunResult, AlertCandidate, AlertCandidateListResponse, AlertCandidateState, CandidateProvenanceStatus, DismissWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateResponse, AdjustWishlistSearchAlertCriteriaInput } from '@/types'
+import type { NumistaHealthSummary } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -297,6 +298,8 @@ export async function createQuickCaptureDraft(input: QuickCaptureDraftInput) {
   appendOptionalFormValue(formData, 'ngcGrade', input.ngcGrade)
   appendOptionalFormValue(formData, 'labelText', input.labelText)
   appendOptionalFormValue(formData, 'aiConfidence', input.aiConfidence)
+  appendOptionalFormValue(formData, 'selectedNumistaId', input.selectedNumistaId)
+  appendOptionalFormValue(formData, 'selectedNumistaUrl', input.selectedNumistaUrl)
   if (input.purchasePrice !== undefined && input.purchasePrice !== null) {
     formData.append('purchasePrice', String(input.purchasePrice))
   }
@@ -324,6 +327,9 @@ export async function updateQuickCaptureDraft(id: number, input: QuickCaptureDra
   appendOptionalFormValue(formData, 'ngcGrade', input.ngcGrade)
   appendOptionalFormValue(formData, 'labelText', input.labelText)
   appendOptionalFormValue(formData, 'aiConfidence', input.aiConfidence)
+  appendOptionalFormValue(formData, 'selectedNumistaId', input.selectedNumistaId)
+  appendOptionalFormValue(formData, 'selectedNumistaUrl', input.selectedNumistaUrl)
+  if (input.clearSelectedNumista) formData.append('clearSelectedNumista', 'true')
   if (input.purchasePrice !== null && input.purchasePrice !== undefined) {
     formData.append('purchasePrice', String(input.purchasePrice))
   }
@@ -498,6 +504,10 @@ export const deleteJournalEntry = (coinId: number, entryId: number) =>
 
 // Numista
 export const searchNumista = (q: string) => api.get<NumistaSearchResponse>('/numista/search', { params: { q } })
+export const lookupNumista = (request: NumistaLookupRequest) =>
+  api.post<NumistaLookupOutcome>('/numista/lookup', request)
+export const enrichNumista = (request: NumistaEnrichmentRequest, signal?: AbortSignal) =>
+  api.post<NumistaLookupOutcome>('/numista/enrich', request, { signal })
 
 // Coin Lookup
 export async function lookupCoin(images: File[]) {
@@ -785,6 +795,8 @@ export const getAppSettings = () => api.get<AppSettings>('/admin/settings')
 export const getAppSettingDefaults = () => api.get<AppSettings>('/admin/settings/defaults')
 export const updateAppSettings = (settings: { key: string; value: string }[]) =>
   api.put('/admin/settings', settings)
+export const getAdminNumistaHealth = () =>
+  api.get<NumistaHealthSummary>('/admin/numista/health')
 export const getSecuritySummary = () =>
   api.get<SecuritySummary | { summary?: Partial<SecuritySummary>; backupStatus?: string }>('/admin/security/summary')
 export const getSecurityEvents = (filters?: SecurityEventFilters) => {

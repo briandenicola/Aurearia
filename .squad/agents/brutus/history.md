@@ -13,6 +13,19 @@
 
 ## Recent Updates
 
+- **2026-08-11 — Feature 341 Phase 7 Strict Lockout APPROVED (T064–T072):**
+  - Initial QA identified two P1 blockers: deterministic ranking contract mismatch (ProviderPosition vs ID order) and effective-query whitespace handling divergence.
+  - Domitian's independent revision: refactored `rankNumistaEnrichmentTargets` to use shared `numistaCandidateRanksBefore` with correct binding order (score, exact ID, completeness, normalized title, numeric ID, provider position); added TrimSpace to `NumistaEnrichmentRequest.Validate()` while preserving exact query in direct lookup.
+  - All T064–T072 tests verified: acceptance suites (provider detail, enrichment, handler, progressive component), implementation tests (caching, concurrency, auth, frontend state), and product fixes confirmed.
+  - Full Go/frontend/OpenAPI gates pass; deterministic fakes; no live provider access; no regressions.
+  - Scribe merged inbox decisions and created product + squad commits per protocol.
+
+- **2026-08-11 — Feature 341 Phase 7 US5 acceptance suite (T064–T067):**
+  - Added test-first provider detail, enrichment service, authenticated handler/OpenAPI, and progressive Vue component acceptance suites.
+  - Deterministic fakes use injected transports/clocks and cancellation/concurrency barriers; no live Numista access or product implementation was added.
+  - Intended red state: malformed optional detail mapping; missing `NumistaLookupService.Enrich`; missing authenticated `/api/numista/enrich` handler/route/OpenAPI; missing frontend progressive enrichment and unsafe HTTP image suppression.
+  - Phase 1–6 Numista service/handler/component baselines, route drift, Go vet, frontend type-check/build, and diff check remain clean. No unexpected regression was found.
+
 - **2026-07-26 — Sets Refinement: Integration QA & Revalidation (sets-refinement merged to beta):**
   - Initial pass identified Strict BLOCK: frontend emitted `trackerCreationMode` while backend read `creationMode`, causing silent tracker creation failures
   - Issued clear blocking issue statement per Constitution §18.2 with required follow-up owner (Aurelia)
@@ -277,3 +290,325 @@
 - Revalidated backend set semantics with targeted Go tests: legacy type normalization (`open→standard`, `defined→goal`), tracker dynamic mode validation, goal completion using collection vs wishlist, and tag-sync membership recalculation all passed.
 - Revalidated frontend with strict `vue-tsc --build` and set-focused Vitest suites (`SetCreationWizard`, `SetDetailPage`, `useCollectionFilters`); all passed.
 - QA outcome: APPROVE. No obvious new design-token or design-system violation observed in touched set UI diffs.
+
+## 2026-08-11 — Numista Lookup Task Planning & QA Integration
+
+**Session:** Synchronous feature specification completion and comprehensive task generation
+
+- Received Maximus specification package (8 artifacts: spec.md, plan.md, data-model.md, OpenAPI contract, research.md, quickstart.md, requirements checklist, cross-agent walkthrough).
+
+- **Generated 86 Dependency-Ordered Tasks** (phases 1–8, new file: `specs/341-improve-numista-lookup/tasks.md`):
+  - **Phase 1 (Setup):** 3 tasks for shared testdata fixtures (Go, Vue, SQL)
+  - **Phase 2 (Foundational, blocking):** 12 tasks for models, typed client, cache, scorer, telemetry, settings (all user stories wait for Phase 2 completion)
+  - **Phase 3 (User Story 1 — Direct Lookup):** 12 tasks (8 tests + 4 implementations), direct coin-detail lookups with rich evidence and editable queries
+  - **Phase 4 (User Story 2 — Photo Lookup):** 18 tasks (10 tests + 8 implementations), photo-evidence queries without eager Numista access, draft selection persistence, reference copy during promotion
+  - **Phase 5 (User Story 3 — Availability States):** 8 tasks (3 tests + 5 implementations), six domain statuses (success, empty, unconfigured, quota_limited, timeout, unavailable) with role-safe guidance
+  - **Phase 6 (User Story 4 — Quota & Caching):** 9 tasks (3 tests + 6 implementations), cache hit/miss tracking, quota enforcement, telemetry aggregation
+  - **Phase 7 (User Story 5 — Staged Enrichment):** 14 tasks (5 tests + 9 implementations), broad search + optional enrich contract, detail caching, partial failure handling
+  - **Phase 8 (User Story 6 — Filtering & Favorites):** 10 tasks (4 tests + 6 implementations), result filtering, user favorites persistence
+
+- **Requirement Coverage Matrix:** All 29 FR + 8 NFR + 10 SC mapped to phase/task numbers. MVP scope = Phases 1–3 (direct lookup, ~27 tasks, critical path 2–3 weeks).
+
+- **Parallelization Analysis:** 46 task pairs identified as parallelizable within phases; Phase 1 sequential, Phase 2 sequential (foundational blocking), Phases 3–5 partially parallel (direct + photo can run side-by-side after Phase 2), Phases 6–8 independent post-MVP.
+
+- **Test-First Discipline:** Each task has [P] marked test preceding implementation per TDD. All Phase 2 services must have 90%+ coverage (client, cache, scorer, telemetry). Acceptance criteria explicit (go test target, npm run build success, vue-tsc --build clean).
+
+- **Cross-Agent Context Added:** Cassius can begin Phase 1 testdata setup; Aurelia ready for Vue component scaffolding after fixtures finalized; Coordinator can approve MVP scope and prioritize Phase 1 kickoff; Maximus monitoring for Phase 2–3 contract drift.
+
+- **Quality Metrics:** MVP passes all architecture validation (layered: handler→service→interface-based client), no new design patterns, redacted telemetry, server-only API keys, admin-only configuration.
+
+- **QA Readiness:** Phase 1 testdata will establish test infrastructure (fixtures, mocks, httptest harness); Phase 2–8 follow TDD (test before implementation) across all layers; all routes validated against drift detection tests; full Go + Vue suite must pass before phase completion.
+
+- **Orchestration Log:** `.squad/orchestration-log/2026-08-11T13-07-00Z-brutus-numista-task-planning.md`. Session log: `.squad/log/2026-08-11T13-06-00Z-numista-lookup-feature-planning.md`.
+
+## 2026-08-11 — Feature 341 MVP implementation review
+
+- **Verdict: BLOCK.**
+- Targeted Numista Go tests, `go build ./...`, and `go vet ./...` passed.
+- Full `go test ./... -count=1` failed `TestRegisteredAPIRoutesAreDocumentedInOpenAPI` because `POST /api/numista/lookup` is absent from generated OpenAPI.
+- Targeted frontend tests (56), strict type-check, production build, and the full frontend Vitest suite passed.
+- Blocking workflow defect: direct confirmation sends `catalog: "Numista"`, but reference validation uppercases it to `NUMISTA` while the seeded registry stores mixed-case `Numista`; SQLite equality is case-sensitive, so the required structured reference cannot be persisted.
+- Contract defects: relevance bands use 70/40 thresholds instead of the planned 80/60 thresholds; direct lookup passes the categorical `coin.era` as `dateText`, so it does not supply an actual coin date/range.
+- Retry policy retries every transport error, exceeding T007's connection-reset-only transport retry contract.
+- T017 lacks authenticated/rate-limit integration evidence, and T027 mocks reference persistence rather than proving the existing structured-reference API accepts Numista.
+- Deferring T077 does not waive Constitution §17 or §21.11; the route-drift failure blocks an MVP commit. T001–T027 also remain unchecked, contrary to §21.13.
+
+## 2026-08-11 — Feature 341 revised MVP Strict Lockout re-review
+
+- **Verdict: BLOCK; Strict Lockout remains active.**
+- Verified corrected: case-insensitive registry lookup with canonical persisted casing; authenticated Numista reference-save regression; regenerated OpenAPI artifacts and passing route-drift test; 80/60 confidence bands; connection-reset/502/503/504-only retry eligibility; authenticated/rate-limit coverage; removal of `coin.era` as date evidence.
+- New/remaining contract blocks:
+  - FR-006 is violated because `NumistaLookupRequest.Validate` trims and mutates the submitted query, while the plan requires the effective query returned verbatim; the service test incorrectly expects the trimmed value.
+  - FR-003/T018/T027 remain incomplete: direct evidence has no date/date-range input at all, and the regression explicitly expects a sample date not to appear rather than proving a real date appears.
+  - The plan requires context-aware 100–300 ms jittered retry backoff, but the client uses a fixed 150 ms delay.
+  - T001–T027 remain unchecked, so §21.13 is not satisfied.
+- Gates passed independently: focused Go tests; focused Vitest 56/56; full Go tests; Go build/vet; route drift; Numista safe-error/API-key/auth/reference tests; full Vitest 639/639; strict type-check; production build; ESLint with 0 errors/169 warnings.
+- Cicero is the locked-out revision author for the next cycle. Required remediation expertise: backend contract semantics plus Vue domain/data modeling, with test-first spec conformance.
+
+## 2026-08-11 — Feature 341 MVP final Strict Lockout re-review
+
+- **Verdict: BLOCK; Seneca is locked out from further revision.**
+- Independently verified the prior product findings are corrected: byte-for-byte query whitespace reaches validation, response, cache loader, and provider request while blank and over-500-rune inputs are rejected; `Coin.dateRange` is additively migrated and wired through create/update/form/direct evidence without using `era`; retry jitter is injected, clamped to 100–300 ms, context-cancellable, deterministic in tests, and limited to connection reset plus 502/503/504; Numista reference casing, route generation, 80/60 bands, authentication/rate limiting, and safe errors remain corrected.
+- Blocking task-integrity finding: T001–T027 are checked complete, but multiple test tasks do not satisfy their explicit acceptance text. T004 does not exercise invalid lookup paths, cache metadata validation, or invalid candidate/outcome/health variants. T014 tests defaults, one valid Search TTL update, and one invalid enrichment limit only—not valid/invalid/live behavior for all TTL, limit, and timeout settings. T017 has no oversized-query/body/evidence boundary regression. T006/T010/T012 similarly omit portions of their enumerated matrices.
+- Independent gates passed: focused Go tests, OpenAPI route drift, Go build, Go vet, full Go suite; focused Vitest 57/57; full Vitest 640/640; frontend type-check and production build; diff check and targeted secret-pattern scan.
+- Residual product risk is low in the revised paths, but Constitution §21.6/§21.9/§21.13 and the explicit final-review condition require truthful completion and acceptance-level regression coverage before approval.
+
+## 2026-08-11 — Feature 341 MVP final clearance after Cato revision
+
+- **Verdict: BLOCK; Cato is locked out from further revision.**
+- Cato's revisions materially complete T014 and the explicit POST/GET query, evidence, and 32 KiB body boundaries in T017. T004 now has broad validation coverage, but JSON-contract assertions remain limited to request and health DTOs rather than every DTO named by the task.
+- New product finding: a cancelled same-key cache waiter returns plain `context.Canceled`, while `NumistaLookupService` recognizes only typed `NumistaErrorCancelled`; the cancellation is therefore mapped and telemetered as `unavailable`, contrary to the caller-cancellation contract.
+- New scoring finding: `parseDateRange` applies BCE/BC only to the numeric token carrying the suffix. A normal shorthand range such as `44–40 BCE` becomes `[-40, 44]`, causing a true BCE overlap to be scored as a conflict.
+- T006, T010, and T012 remain materially incomplete despite being checked: missing exact response-size and independent retry-forbidden matrices; no independent proof of every weighted scorer dimension/conflict/neutrality; and no exact percentile/status/cache aggregate or bounded-retention assertions. T006's 429 case occurs only on the second/final attempt, so it cannot prove 429 is forbidden from retry.
+- Strengthened DTO validation is mostly compatible, but relevance validation accepts impossible score/band combinations (for example score 0 with `strong`) despite the approved 80/60 thresholds.
+- Gates passed: focused Go packages; full Go suite; route drift; Go vet/build; focused Vitest 57/57; full frontend Vitest, type-check, and production build; `git diff --check`; targeted credential-pattern scan.
+
+## 2026-08-11 — Feature 341 MVP fifth independent revision review
+
+- **Verdict: BLOCK; Pliny is locked out from further revision.**
+- Verified prior fixes remain present: cancellation/deadline distinction for canceled waiters, shared-suffix and mixed-era BCE/CE parsing, 80/60 DTO score-band invariants, standalone 429 no-retry coverage, rich direct date-range evidence, canonical Numista reference persistence, route/OpenAPI sync, settings matrices, and redacted telemetry aggregates.
+- New blocking coalescing defect: the first caller's context owns the shared provider load. If that leader disconnects, its cancellation is published to every active waiter; the lookup service converts the shared typed cancellation to `context.Canceled`, and a still-connected waiter reaches the handler's generic 500 path because its own request context is healthy.
+- New blocking race window: `DoSearch`/`DoDetail` check the cache before locking the in-flight registry and do not re-check after acquiring it. A competing load can complete between those operations, allowing a second provider load despite a fresh result and violating same-key coalescing/quota conservation.
+- T006 remains short of the prior exact response-size acceptance finding: tests cover malformed JSON and `limit+1`, but not a valid response exactly at the one-MiB boundary. T010's “missing neutrality” test is not mutation-sensitive: positive title/date support can keep the score above its loose threshold even if missing material is incorrectly penalized, and it does not assert the unavailable reason or unchanged score.
+- Validation passed: focused Numista Go tests at `-count=50`; focused frontend 57/57; full Go build/vet/test; route drift/architecture; full frontend tests/type-check/build; `git diff --check`. Race detector unavailable because CGO is disabled.
+
+## 2026-08-11 — Feature 341 MVP sixth independent revision review
+
+- **Verdict: APPROVE; Strict Lockout findings are cleared and the MVP is ready to commit.**
+- Audited the per-key search/detail state machines: cache lookup, in-flight registration, and publication are mutex-atomic; provider work runs outside the mutex; waiter cancellation detaches promptly; the provider context is canceled only when the last waiter leaves; superseded calls cannot publish or cache because publication checks pointer identity.
+- Verified healthy waiters survive first-caller cancellation, canceled/deadline waiters return promptly, all-canceled work receives provider cancellation and publishes no cache entry, 100-iteration cold fan-in makes one provider call, and failed replacement/takeover remains bounded.
+- T006 now proves a valid response of exactly 1 MiB is accepted, 1 MiB+1 is rejected, and reads stop at the bounded sentinel byte. T010 now isolates missing date, issuer/ruler, denomination, and inscriptions at neutral score 50 with unavailable reasons, no conflicts, and deterministic ties.
+- Prior blocks remain resolved: canonical Numista reference persistence, generated route coverage, 80/60 bands, real date-range evidence, exact submitted query preservation, bounded jitter/retry policy, cancellation mapping, BCE/CE shorthand, DTO/status/cache/telemetry/settings matrices, and truthful T001–T027 completion.
+- Gates passed: focused concurrency/body/scoring stress at `-count=100`; all Numista tests repeated at `-count=50` across three clean passes after one non-reproduced noisy combined-run exit; Go build/vet/full tests; architecture/route drift; frontend focused 57/57 and full 640/640; strict type-check, explicit `vue-tsc --build`, production build, ESLint 0 errors/169 warnings, and `git diff --check`.
+- Residual risk: the Go race detector remains unavailable because `CGO_ENABLED=0`. Deterministic stress and direct synchronization review provide sufficient evidence; a future CGO-enabled CI race job would further reduce residual concurrency risk.
+
+## 2026-08-11 — Feature 341 Phase 4 / User Story 2 review
+
+- **Verdict: BLOCK.**
+- Backend persistence, owner scoping, tri-state mutation, discard retention, collection/wishlist exact-once copy, rollback, concurrent claims, NGC-first suppression, bounded photo evidence, and legacy aliases passed focused and full Go review.
+- Frontend focused Phase 4 tests passed 35/35; the full Vitest, lint, strict type-check, `vue-tsc --build`, and production build command completed successfully.
+- Blocking UX/spec defect: `CoinLookupPage.vue` renders the shared Numista panel only when `photoNumistaQuery` is non-empty, so empty/noisy photo evidence provides neither the required disabled search state nor guidance/manual query entry.
+- Blocking contract drift: scratch Swagger regeneration differs from committed snapshots and introduces `selectedNumistaId`, `clearSelectedNumista`, and `proposedNumistaQuery`; CI's OpenAPI snapshot gate would fail.
+- T028–T045 remain unchecked, violating Constitution §21.13 and preventing the phase from being ready to mark/commit.
+- Diff hygiene and targeted credential scan passed. Full Go build/vet/test and architecture/route tests passed.
+
+## 2026-08-11 — Feature 341 Phase 4 Hadrian Strict Lockout re-review
+
+- **Verdict: BLOCK; Hadrian is locked out from further revision.**
+- Cleared original findings: empty/noisy photo evidence now renders the shared manual-entry panel with disabled guidance and no eager Numista request; NGC results still suppress the panel/provider request; regenerated OpenAPI snapshots are deterministic and contain the new request/response fields; T028–T045 are checked and implementation/test coverage is otherwise coherent.
+- Blocking contract defect: runtime responses serialize `numistaLookup: null` and `selectedNumistaReference: null`, but generated Swagger defines both only as object `$ref` properties without `nullable`/`x-nullable`. This contradicts the OAS3 planning contract and the TypeScript `| null` DTOs, so generated clients cannot represent valid responses.
+- Focused Phase 4 tests passed: Go packages and 36 frontend tests. Full gates passed: Go build/vet/all tests, architecture/route/migration checks, OpenAPI regeneration hash stability, frontend 654/654, lint 0 errors/169 warnings, type-check, explicit `vue-tsc --build`, production build, design/UI tests, diff check, and targeted secret scan.
+- Parallel Vitest worker timeouts were not reproduced: two normal full-suite runs passed, including a 106-file/654-test run in 73.64s. Treat the reported timeout as environment-only unless it becomes reproducible under the bounded command.
+- Gitleaks and Trivy were unavailable in this environment.
+
+## 2026-08-11 — Feature 341 Phase 5 / User Story 3 review
+
+- **Verdict: BLOCK; Cassius is under Strict Lockout for the backend status mapping.**
+- Provider authentication failures are incorrectly mapped to `unavailable`; the approved taxonomy requires a missing or invalid Numista credential (HTTP 401/403 / `NumistaErrorUnauthorized`) to produce `unconfigured` so administrators receive configuration guidance.
+- The new service and handler tests encode the incorrect mapping, so all automated gates pass while the acceptance behavior remains wrong.
+- T046–T053 remain unchecked. No product files or task checkboxes were modified.
+- Passed: focused Go status tests; Go build/vet/full tests; architecture, route drift, and OpenAPI nullability tests; focused frontend 37/37; full frontend 662/662; ESLint 0 errors; strict type-check; production build; diff check and targeted secret scan.
+- Frontend taxonomy, retention, role-safe links, cache freshness, focus/ARIA, keyboard/mobile structure, and Phase 4 regressions were otherwise coherent.
+
+## 2026-08-11 — Feature 341 Phase 5 Marcus Strict Lockout re-review
+
+- **Verdict: APPROVE; the Phase 5 Strict Lockout block is cleared by Marcus's independent revision.**
+- Provider 401/403 now maps through `NumistaErrorUnauthorized` to HTTP 200 `unconfigured`; provider 400 maps to HTTP 200 `empty`. Admins retain configuration guidance while ordinary-user responses and UI expose neither API-key nor settings details.
+- Legacy GET retains the approved `{count,types}` compatibility shape, generic 503 handling for non-success states, and an empty 200 response for the newly approved invalid-query domain outcome.
+- Configuration-before-cache, positive-only Retry-After propagation, caller cancellation/deadline propagation and redacted telemetry, safe unexpected 500 handling, all six status states, query/selection retention, focus/ARIA, and non-color guidance are covered and pass.
+- `data-model.md` now reconciles its lower-authority status table to the approved spec/plan/research taxonomy without changing higher-authority requirements. T046–T053 are truthfully complete.
+- Independent gates passed: focused Go status packages; Go build/vet/full tests; architecture, route drift, OpenAPI nullability, and migration checks; focused frontend 37/37; full frontend 662/662; type-check, explicit `vue-tsc --build`, production build, ESLint 0 errors/169 warnings; diff check and targeted secret scan.
+- Residual risk is limited to unavailable optional external scanners (Gitleaks/Trivy); direct diff and credential-pattern checks were clean.
+
+## 2026-08-11 — Feature 341 User Story 6 acceptance tests T087–T091
+
+- Canonical-placement tests should separate the already-supported manual reference workflow from the new Numista disclosure so failures identify the amendment rather than masking baseline behavior.
+- Collapse-after-success requires two observable events: selected-reference persistence completes, then refreshed saved references contain the matching Numista reference. A persistence event alone must not close the disclosure.
+- Draft-list coverage belongs at repository, service, handler JSON, page, and card seams: owner scoping/preload, optional serialization, exact chip text, absence, wrapping, and the existing resume-link behavior.
+- Identify Coin acceptance must preserve non-NGC manual lookup while proving a usable NGC result makes zero Numista requests on analysis, reveal, and query editing; only explicit search may issue the request.
+
+## 2026-08-11 — Feature 341 User Story 6 / Phase 5A final review
+
+- **Verdict: APPROVE.** T087–T096 satisfy FR-030–FR-038, NFR-009, and SC-011–SC-014 without reopening landed Feature 214/336 artifacts or adding routes, endpoints, schema, provider calls, cache, telemetry, or enrichment behavior.
+- Saved-coin lookup is canonical under Catalog References, preserves manual reference management, waits for persistence plus matching refresh before collapse, returns focus, stays open on failure, and renders the persisted reference.
+- Actions contains one compact contextual anchor and no full panel. Identify Coin preserves non-NGC lookup, NGC-first behavior, zero eager NGC-path Numista requests, editable override, labels, selection retention, and narrow-layout containment.
+- Draft cards render the exact retained identifier from the owner-scoped preloaded list relation, omit it otherwise, wrap safely, and add no API request.
+- Gates passed: focused Go and 34 focused frontend tests; full Go build/vet/tests; architecture/OpenAPI/migration gates; full frontend 109 files/671 tests; design tokens 8/8; type-check; production build; ESLint 0 errors/168 warnings; diff check; targeted secret scan.
+- Residual risks are limited to structural jsdom mobile assertions rather than a physical 375 px browser run and unavailable optional external scanners; neither blocks this proportional frontend placement amendment.
+
+## 2026-08-11 — Feature 341 Phase 6 / User Story 4 acceptance tests T054–T057
+
+- Shared-cache acceptance is strongest at the lookup-service seam: use the same normalized query through direct and photo paths, assert one provider call, preserve each exact submitted query, and separately prove fresh-empty reuse, exact-expiry refresh, concurrent fan-in, live limit/TTL changes, and configuration-before-cache.
+- TTL-change coverage must distinguish existing entries from new writes: changing a TTL does not rewrite an entry's recorded expiry, while a new cache identity uses the current TTL. Search and detail expiry remain independently observable with one fake clock.
+- Telemetry privacy coverage should inspect both the event type and serialized retained events. Field-name checks prevent future query/key/error fields, while sentinel input passed through the correlation seam proves it is replaced by a bounded digest rather than merely omitted from the health summary.
+- Admin health tests assert the exact empty JSON shape, populated aggregate values, invalid live configuration, real 401/403 middleware boundaries, and absence of credentials, queries, inscriptions, labels, raw errors, and correlation digests.
+- T054 and T055 pass against the landed shared cache/telemetry foundation. T056 intentionally fails to compile because `NewAdminNumistaHandler` is Phase 6 product work; T057 intentionally fails because bounded Numista controls and the health request/rendering are not implemented. Related service/model baselines, Go build, Vue type-check, and production build pass.
+
+## 2026-08-11 — Feature 341 Phase 6 strict-lockout re-review
+
+- BLOCKED Augustus's independent revision: actual HTTP retry capture is wired
+  only around broad `Search`; detail retry evidence remains manual event
+  injection rather than a production `Detail` operation.
+- Coalesced lookup telemetry is not provider-operation truthful: all waiters
+  inherit `Hit:false` and record refreshes for one shared provider call, while
+  only the loader records the actual retry count.
+- Verified correct R-7 percentile boundaries and sparse `statusCounts`
+  alignment. Admin loading/error/retry/empty/partial/populated states,
+  authorization, redaction, and responsive design otherwise pass.
+- Focused/full Go and frontend gates, architecture/OpenAPI, diff check, and
+  concurrency/retry stress ×50 passed. T054–T063 remain unchecked; Augustus is
+  locked out pending independent revision.
+
+## 2026-08-11 — Feature 341 Phase 6 Tiberius second-revision review
+
+- **Verdict: BLOCK; Tiberius is locked out from further revision.**
+- The typed loader/fresh/coalesced/bypass state machine, loader-owned real
+  broad/detail retry telemetry, cancellation-safe takeover, bounded retention,
+  R-7 percentiles, sparse maps, admin states/auth/settings, and redaction pass.
+- Blocking contract defect: `coalesced_waiter` is converted to `CacheHit=true`,
+  returned publicly as `cache.hit=true`, aggregated as a cache hit, and labeled
+  “Cached results”/“hits” in the collector/admin UI. A coalesced waiter reused
+  in-flight work, not a fresh cache entry; failed coalesced requests are also
+  counted as cache hits. This contradicts `CacheMetadata.hit` (“true only when
+  a fresh entry was reused”) and makes cache health/freshness misleading.
+- Existing stress tests explicitly encode the wrong behavior by expecting
+  `callers-1` cache hits for coalesced fan-in, including provider failure.
+- Gates passed: focused Numista stress ×100; full Go build/vet/tests;
+  architecture/OpenAPI route checks; focused/full frontend tests, strict type
+  check, production build, lint with zero errors; deterministic OpenAPI
+  regeneration; diff/privacy checks. Race remains unavailable because CGO is
+  disabled.
+- T054–T063 remain unchecked. No product files or task checkboxes were changed.
+
+## 2026-08-11 — Feature 341 Phase 6 Germanicus third-revision review
+
+- **Verdict: BLOCK; Germanicus is locked out from further revision.**
+- Germanicus cleared the false-freshness defect: successful and failed cold
+  fan-in now report coalescing separately, with zero fresh hits; warm cache,
+  expiry, broad/detail retry ownership, cancellation/takeover, bypass,
+  contracts, admin labels, and redaction otherwise passed.
+- Blocking telemetry defect: fresh-cache and bypass events still contribute
+  status and elapsed time to the rolling latency/status aggregates. This
+  contradicts the reconciled Phase 6 rule that only the loader owns provider
+  status/retry/latency/failure. Existing detail coverage explicitly expects a
+  25 ms p50 from one 50 ms provider load plus a zero-duration fresh hit.
+- Blocking admin defect: `hasHealthEvents` checks only broad/detail provider
+  counts. A real unconfigured-only event has a non-empty status count but zero
+  provider counts and is rendered as “No Recent Activity”; a retained window
+  containing only fresh/coalesced/cancellation events is hidden the same way.
+  Zero-event behavior is therefore not truthful.
+- Gates passed: focused Numista stress ×100; full Go build/vet/tests;
+  focused/full frontend tests; strict type-check, production build, and lint;
+  deterministic OpenAPI regeneration; diff check. T054–T063 remain unchecked.
+
+## 2026-08-11 — Feature 341 Phase 6 Vespasian fourth-revision review
+
+- **Verdict: BLOCK; Vespasian is locked out from further revision.**
+- Fresh hits, coalesced waiters, bypass bookkeeping, and unconfigured bypass
+  aggregation are now isolated correctly, and the admin activity predicate
+  recognizes status, timestamp, quota, fresh, coalesced, cancellation,
+  provider, and enrichment activity while preserving a true zero-event state.
+- Blocking cancellation aggregation defect: a cancelled loader still
+  increments provider load/request/latency (and detail-attempt) aggregates,
+  while the loader event itself is explicitly excluded from cancellation
+  count. This violates the required event matrix that cancellation contributes
+  only cancellation, plus coalescing when the cancelled caller was a waiter.
+  The takeover integration test encodes the defect by expecting two provider
+  loads/requests for one cancelled load and one successful replacement.
+- Additional cache-isolation gap: search values deep-copy assessment reasons,
+  but detail cache writes/reads remain shallow and there is no Phase 6
+  mutation-isolation regression test, contrary to the revision report.
+- Gates passed: focused Go/frontend tests; telemetry stress ×100; full Go
+  build/vet/tests; full frontend tests, type-check, production build, and lint;
+  diff check and contract/redaction inspection. T054–T063 remain unchecked.
+
+## 2026-08-11 — Feature 341 Phase 6 Nerva fifth-revision review
+
+- **Verdict: BLOCK; Nerva is locked out from further revision.**
+- Nerva cleared the prior cancellation aggregate and detail clone defects for
+  cooperative cancellation: cancelled caller events own only cancellation
+  (plus coalescing for cancelled waiters), replacement success/failure owns one
+  provider aggregate, and detail candidates deep-clone both year pointers and
+  assessment reasons across store, publication, coalesced returns, and hits.
+- Blocking ownership race remains: provider telemetry is recorded inside the
+  loader closure before `runSearchLoad` / `runDetailLoad` verifies that the
+  call still owns the in-flight slot. After all callers cancel and the call is
+  removed, a provider that returns success/failure despite or concurrently
+  with cancellation can record a stale loader status/load/failure/latency (and
+  detail enrichment) beside the replacement loader, although its result is
+  discarded and never published. Cancellation-only outcomes therefore are not
+  guaranteed to remain cancellation-only, and exactly-one completing-loader
+  ownership is not proven.
+- Existing cancellation tests use clients that always return `ctx.Err()` after
+  cancellation; they do not cover a late/non-cooperative success or failure
+  after orphaning, so the race is not regression-protected.
+- Focused Numista tests, cancellation/clone stress ×100, full Go
+  build/vet/tests, full frontend tests/type-check/build/lint, deterministic
+  OpenAPI regeneration, and diff check passed. Race testing was unavailable
+  because no C compiler is installed; Gitleaks and Trivy were unavailable.
+  T054–T063 remain unchecked.
+
+## 2026-08-11 — Feature 341 Phase 6 Claudius sixth-revision final review
+
+- **Verdict: APPROVE; the Phase 6 Strict Lockout block is cleared.**
+- Search and detail provider I/O now only prepare deferred telemetry. The cache invokes it after mutex-protected pointer identity confirms the call still owns the in-flight slot; superseded/orphaned late success and failure close without emission or cache publication.
+- Normal owned success/failure emits one loader event; replacement work emits one; cancelled callers emit cancellation only, coalesced cancellations retain coalescing, and healthy waiters complete from the shared provider operation.
+- Deterministic late-result, takeover, cancellation, healthy-waiter, fan-in, warm-cache, expiry, and independent-TTL tests passed at `-count=100`. Focused frontend Phase 6 tests passed 15/15.
+- Full gates passed: Go build, vet, and all tests; full frontend Vitest, type-check, explicit `vue-tsc --build`, production build, lint; `git diff --check`.
+- T054–T063 are checked complete. Residual risk remains limited to the unavailable Go race detector (`CGO_ENABLED=0`); deterministic synchronization stress and direct state-machine inspection provide high confidence.
+
+## 2026-08-11 — Feature 341 Phase 7 T064–T072 combined review
+
+- **Verdict: BLOCK.** Pre-review commits `97bba2e` (Aurelia, frontend) and
+  `6726b09` (Cassius, backend) are both ancestors of `HEAD`; branch and remote
+  point to `6726b09`, and the combined product diff is clean.
+- **Cassius blocker:** `rankNumistaEnrichmentTargets` uses provider position
+  before numeric ID for tied pre-enrichment candidates
+  (`src/api/services/numista_lookup_service.go:299-302`). The binding data
+  model requires score, exact ID, completeness, normalized title, numeric ID,
+  then provider position. This can enrich a different bounded subset than the
+  specified deterministic application order.
+- **Cassius/Aurelia contract blocker:** enrichment returns and submits the raw
+  query rather than the exact trimmed effective query
+  (`src/api/services/numista_lookup_service.go:266`,
+  `src/web/src/components/numista/NumistaLookupPanel.vue:316`). The binding
+  contract requires surrounding whitespace trimmed, including retry identity.
+- Focused Go tests, enrichment/concurrency stress, full Go build/vet/tests,
+  full frontend Vitest/lint/type-check/build, deterministic OpenAPI
+  regeneration, diff check, auth/rate-limit inspection, and privacy review
+  passed. Phase 6 cache/telemetry ownership regressions remained green.
+- T064–T072 remain unchecked under Strict Lockout. Uncommitted Brutus artifacts
+  remain: `.squad/agents/brutus/history.md` and
+  `src/web/src/components/numista/__tests__/NumistaLookupPanel.enrichment.test.ts`;
+  Scribe must capture them after the block is resolved.
+
+## 2026-08-11 — Feature 341 Phase 7 Domitian independent-revision review
+
+- **Verdict: APPROVE.** Domitian independently cleared both Phase 7 blockers;
+  Cassius and Aurelia did not revise after rejection.
+- The binding order independently derived from `data-model.md` and `plan.md` is
+  score descending, exact-ID match, enrichment completeness descending,
+  normalized title ascending, numeric Numista ID ascending, then provider
+  position. One shared comparator now governs bounded target selection and
+  final reranking. Six permutations of lexical-edge IDs 2/10/30 prove both
+  paths select and return numeric order; duplicate candidate IDs remain
+  rejected before provider access.
+- Enrichment validation trims only surrounding query whitespace and returns
+  the same trimmed `effectiveQuery`; internal whitespace is preserved.
+  Whitespace-only enrichment returns 400 without a provider call. Direct lookup
+  continues submitting, returning, and displaying the exact raw FR-006 query;
+  the frontend submits only the trimmed enrichment identity and retains the raw
+  editable display.
+- Branch integrity is intact: `97bba2e` is the parent/ancestor of `6726b09`;
+  `HEAD`, the local branch, and `origin/341-improve-numista-lookup` all point to
+  `6726b09` with ahead/behind `0/0`. No history rewrite, new commit, or push
+  occurred during review.
+- T064–T072 were rechecked individually and marked complete. Focused Go
+  ranking/enrichment/cancellation/concurrency stress, handler repetition, full
+  Go build/vet/tests, targeted and full frontend Vitest, ESLint, type-check,
+  production build, deterministic OpenAPI regeneration, and `git diff --check`
+  all passed.
+- Residual risk is low: no live Numista call or browser E2E was used, by design;
+  deterministic transport/component coverage exercises the binding contracts.
+  All product fixes, tests, this history, the task checklist, and the decision
+  inbox remain uncommitted for Scribe.

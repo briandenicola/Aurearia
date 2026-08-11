@@ -22,6 +22,12 @@
         <span class="chip-sm inline-block max-w-full truncate align-middle">{{ draft.status }}</span>
         <span v-if="draft.source === 'find_coin_ai'" class="chip-sm inline-block max-w-full truncate align-middle">AI draft</span>
         <span v-if="draft.ngcCertNumber" class="chip-sm inline-block max-w-full truncate align-middle">NGC {{ draft.ngcCertNumber }}</span>
+        <span
+          v-if="draft.selectedNumistaReference"
+          class="chip-sm inline-block max-w-full whitespace-normal break-all align-middle"
+        >
+          Numista #{{ draft.selectedNumistaReference.number }}
+        </span>
         <span class="text-sm text-text-muted">{{ relativeTime }}</span>
       </div>
     </div>

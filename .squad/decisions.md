@@ -2,6 +2,52 @@
 
 ## Active Decisions
 
+### Decision: Feature 341 Phase 7 — Progressive Numista Enrichment (T064–T072)
+
+**Date:** 2026-08-11  
+**Agent:** Domitian (implementation), Brutus (QA review)  
+**Status:** APPROVED
+
+## Context
+Feature 341 Phase 7 delivers progressive detail enrichment for Numista lookup: after broad candidates render, the backend fetches details for a bounded deterministic subset (default 5), reranks them, and streams the enriched response. Frontend progressively updates candidate cards without changing explicit selection.
+
+Brutus identified two P1 blockers during initial QA:
+
+1. **Deterministic ranking contract mismatch**: `rankNumistaEnrichmentTargets` was comparing `ProviderPosition` before numeric ID, causing different candidate subsets to receive detail requests than the binding application-owned deterministic order (data-model.md §117-119).
+
+2. **Effective-query contract not preserved**: Enrichment request returned raw `request.Query` instead of trimmed query; frontend submitted trimmed `effectiveQuery` to endpoint. This divergence broke first enrichment / retry identity contract (data-model.md §46-50, 142).
+
+## Decision
+Domitian delivered an independent revision that:
+
+- Refactors `rankNumistaEnrichmentTargets` in `numista_lookup_service.go` to delegate deterministic reranking to a new shared `numistaCandidateRanksBefore` function in `numista_scoring.go`
+- Enforces binding order: score > exact ID > completeness > normalized title > numeric ID > provider position (matching spec exactly)
+- Adds `TrimSpace` to `NumistaEnrichmentRequest.Validate()` to trim surrounding whitespace while direct FR-006 lookup preserves exact raw query
+- Frontend submits `effectiveQuery.trim()` to enrichment endpoint
+- All T064–T067 acceptance tests (provider detail, enrichment service, authenticated handler, progressive component) pass deterministic fakes with injected transports and clocks
+- All T068–T072 implementation tests (backend caching, concurrent detail fetches, handler auth guards, frontend progressive state display) pass
+
+## Validation
+- `go build ./...` ✓
+- `go vet ./...` ✓
+- `go test ./... -count=1` ✓ (full suite including enrichment unit/integration)
+- `npm run test` ✓ (112 test files, 689 tests, 80% coverage)
+- `vue-tsc --build` ✓ (strict type-check)
+- `npm run build` ✓ (production build)
+- OpenAPI regeneration ✓ (byte-stable, no route drift)
+- `git diff --check` ✓
+- No live Numista access, browser E2E, or provider credentials in tests
+
+## Alignment
+- **Principle III (Explicit typing)**: All request/response contracts typed; binding order documented and enforced in both frontend and backend
+- **Principle IV (Simple proportional change)**: Two focused fixes addressing root causes; no unrelated refactoring
+- **Principle VII (Proven tests)**: Acceptance and implementation tests written test-first per protocol; deterministic fakes verify behavior without live provider access
+- **Principle X (All gates pass)**: Full Go/frontend/OpenAPI suite clean; no pre-existing regressions
+- **§17 Quality Gate**: All lint/build/test gates pass; code review and approval documented
+- **§21 Definition of Done**: Acceptance criteria met; tests pass; no unrelated changes; commit message cites spec sections and principles
+
+---
+
 ### Decision: Sets Type Refinement + Goal Completion Formula
 
 **Date:** 2026-07-26  
@@ -675,5 +721,734 @@ iOS/PWA users should not see a camera permission prompt just by opening Add Coin
 - Principle III: Vue strict type-check passed.
 - Principle IV: Simple complete change across both affected camera entry points.
 - Principle VI: Preserves existing dark, token-based camera UI and upload fallback.
+
+---
+
+### Decision: Shared Typed HTTP Client for Numista Lookup
+
+**Date:** 2026-08-11
+**Agent:** Maximus
+**Status:** DECISION (spec/research documented; implementation pending)
+**Feature:** specs/341-improve-numista-lookup
+
+## Context
+
+Legacy lookup had two independent Numista integrations: direct passthrough at `GET /api/numista/search` and disconnected photo analysis at `POST /api/coins/lookup`. Both duplicated HTTP/cookie-jar setup, error handling, and status mapping.
+
+## Decision
+
+Implement single injected `NumistaClient` interface with typed request/response DTOs, private provider-specific structs, and safe error taxonomy. All Numista HTTP goes through this client.
+
+**HTTP Client Design:**
+- `NumistaClient` interface: `SearchBroad(ctx, query) → []Candidate | error`, `EnrichDetail(ctx, id) → *Detail | error`
+- `HTTPNumistaClient` implements interface using `net/http` with four/three-second deadlines, context cancellation, and one bounded transient retry
+- Provider structs (request/response) are private; application DTOs are public
+- Safe error mapping: 400 validation errors, 401 auth, 403 forbidden, 429 quota, 5xx unavailable, timeout, cancellation
+
+**Injection Pattern:**
+- Single client instance created in `main.go` during startup
+- Injected into `NumistaLookupService`, `NumistaCache`, handlers
+- Live provider replaced by interfaces in tests; `httptest` harness for contract validation
+
+## Validation
+
+- Phase 2 tasks T006–T007: httptest and fake-RoundTripper tests for provider URL/header mapping, retries, deadline handling, all error codes
+- `go test ./services -run TestNumistaClient`
+- `go build ./...` && `go vet ./...`
+
+## Alignment
+
+- Principle I: handler-thin, service-owned HTTP, interface-based dependency injection
+- Principle III: explicit public application DTOs, private provider payloads, Swagger-documented contracts
+- Principle V: no secrets leaked to logs, bounded retries, context-safe cancellation
+- Principle IX: live provider replaced by interfaces; httptest ensures no drift
+
+---
+
+### Decision: Bounded TTL Caches with In-Flight Request Coalescing
+
+**Date:** 2026-08-11
+**Agent:** Maximus
+**Status:** DECISION (spec/research documented; implementation pending)
+**Feature:** specs/341-improve-numista-lookup
+
+## Context
+
+Numista has a shared quota allowance. Repeated identical queries should reuse cached results. In-flight duplicate requests should coalesce to a single provider call.
+
+## Decision
+
+Implement injectable-clock bounded TTL caches in `NumistaCache` with independent search/detail namespaces:
+
+**Search Cache:**
+- Key: SHA-256(normalized query string)
+- Value: `[]Candidate` or empty-outcome status
+- TTL: configurable per setting (default 24 hours for success, 1 hour for empty)
+- Eviction: bounded in-memory map with LRU-style deletion on capacity exceed (default 500 searches)
+
+**Detail Cache:**
+- Key: `numista_id` (numeric identifier)
+- Value: enriched detail object
+- TTL: configurable per setting (default 7 days for success)
+- Eviction: bounded, separate namespace (default 5,000 details)
+
+**In-Flight Request Coalescing:**
+- Same-key in-flight requests wait on a channel for first completion
+- Only first caller hits provider; others receive cached result or error
+- Context cancellation propagates safely without partial writes
+
+**TTL Check:**
+- `CheckFresh(key, now) → bool` returns true if entry exists and not expired
+- `Get(key, now)` returns value if fresh, else `nil`
+- Expired entries automatically deleted on `Get` miss
+
+## Validation
+
+- Phase 2 tasks T008–T009: fake-clock tests for TTL, eviction, coalescing, cancellation
+- `go test ./services -run TestNumistaCache`
+
+## Alignment
+
+- Principle I: service-owned cache, interface-based injection of injectable clock
+- Principle IV: simple deterministic eviction without background worker
+- Principle V: no key material in cache; bounded memory to prevent DoS
+
+---
+
+### Decision: Deterministic Versioned Scoring with Weighted Dimensions
+
+**Date:** 2026-08-11
+**Agent:** Maximus
+**Status:** DECISION (spec/research documented; implementation pending)
+**Feature:** specs/341-improve-numista-lookup
+
+## Context
+
+Numista's default ordering is provider-driven and may not rank evidence relevant to the collector's coin. Application must score candidates deterministically so repeated queries produce stable results.
+
+## Decision
+
+Implement `NumistaScorer` (pure service) using `numista-v1` versioned normalization and weighted scoring:
+
+**Scoring Dimensions (versioned numista-v1):**
+- **Exact ID Match** (weight: 1.0) — if collector provides NGC/exact Numista ID
+- **Inscription Match** (weight: 0.8) — substring match, case-insensitive, non-ASCII normalized (NFKC)
+- **Ruler/Issuer Match** (weight: 0.7) — exact after normalization
+- **Denomination Match** (weight: 0.6) — normalized abbreviations (AR, AV, etc.)
+- **Mint/Location Match** (weight: 0.6) — normalized place name
+- **Date Range Match** (weight: 0.5) — candidate date overlaps coin date range (BCE/CE-aware)
+- **Material Match** (weight: 0.4) — normalized material (Gold, Silver, Bronze, etc.)
+- **Missing Data** (weight: neutral) — absent evidence does not penalize; only present evidence scores
+
+**Relevance Reasons:**
+- For each matched dimension, generate a human-readable reason: "Inscription matches 'IMP CAES'", "Date range overlaps 117–138 CE"
+- Redact full inscription text in public reasons; show only truncated preview
+- Deterministic tie-breaking: by Numista ID ascending if scores are equal
+
+**Validation & Determinism:**
+- All tie-breaks based on immutable Numista ID, not provider order
+- Results cached, so identical queries always return same rank order
+- `numista-v1` version pinned in code; future scoring changes go to `numista-v2` with migration
+
+## Validation
+
+- Phase 2 tasks T010–T011: table-driven scorer tests for every dimension, edge cases (BCE ranges, punctuation, duplicates), stable tie-breaking
+- `go test ./services -run TestNumistaScorer`
+
+## Alignment
+
+- Principle I: pure service, no mutable state
+- Principle III: explicit scoring version (numista-v1) in code; contract documents reasons
+- Principle IV: weights are simple sums, no neural network or hidden logic
+- Principle IX: deterministic scoring is fully testable without Numista access
+
+---
+
+### Decision: Transactional Selected-Reference Persistence for Quick Capture Drafts
+
+**Date:** 2026-08-11
+**Agent:** Maximus
+**Status:** DECISION (spec/research documented; implementation pending)
+**Feature:** specs/341-improve-numista-lookup
+
+## Context
+
+Photo lookup and Quick Capture must let collectors select one Numista result without creating a coin. The selected reference must survive draft edits and be copied to the coin during promotion (collection or wishlist).
+
+## Decision
+
+Add `quick_capture_draft_references` table with one-to-zero-or-one relationship to `quick_capture_drafts`:
+
+**Schema:**
+```sql
+CREATE TABLE quick_capture_draft_references (
+  id INTEGER PRIMARY KEY,
+  draft_id INTEGER NOT NULL,
+  catalog VARCHAR(50) NOT NULL,  -- always 'numista' for now
+  catalog_number INTEGER NOT NULL,  -- Numista ID
+  canonical_url TEXT,  -- HTTPS numista.com URL
+  created_at TIMESTAMP,
+  FOREIGN KEY (draft_id) REFERENCES quick_capture_drafts(id) ON DELETE CASCADE,
+  UNIQUE(draft_id),
+  INDEX(draft_id)
+);
+```
+
+**Lifecycle:**
+1. Photo lookup returns proposed evidence + editable query (no Numista call)
+2. Collector edits query and triggers lookup (shared `NumistaLookupService`)
+3. Results display with explicit radio selection (not auto-selected)
+4. `POST /api/quick-capture-drafts/{id}/reference` creates or updates row, persisting only selected candidate ID
+5. Draft edit operations (photo add/remove, field edit) preserve reference unless explicitly cleared
+6. `POST /api/quick-capture-drafts/{id}/promote` transaction:
+   - Copies selected reference to new `CoinReference` with `linkType='lookup_selected'`, owner-scoped
+   - If no reference selected, promotes without one (null `CoinReference`)
+   - Idempotent: repeated promotion attempts use same reference, never duplicate
+
+**Constraints:**
+- Owner-scoped: can only create/read own references
+- One reference per draft: upsert semantics
+- Reference is optional: draft can be promoted with or without one
+- Additive schema: no existing table modifications
+
+## Validation
+
+- Phase 2 task T036: schema migration tests for additive table, rollback compatibility
+- Phase 4 tasks T028–T030: repository tests for create/preserve/replace/remove, promotion transaction
+- `go test ./repository -run TestQuickCapture`
+- `go test ./database -run TestMigration`
+
+## Alignment
+
+- Principle I: repository owns transaction for draft + reference + coin + lifecycle event in one atomic write
+- Principle III: explicit `linkType='lookup_selected'` in CoinReference; typed DTO contract
+- Principle IV: single table, minimal schema, reuses existing promotion transaction
+- Principle V: owner-scoped at repository layer; no provider keys stored
+
+---
+
+### Decision: Six Explicit Domain Statuses for Lookup Outcomes
+
+**Date:** 2026-08-11
+**Agent:** Maximus
+**Status:** DECISION (spec/research documented; implementation pending)
+**Feature:** specs/341-improve-numista-lookup
+
+## Context
+
+Direct lookup and photo analysis currently return raw provider errors. Collectors cannot distinguish "no results" from "service unavailable" from "quota exhausted". Frontend and backend need explicit, actionable statuses.
+
+## Decision
+
+Define six domain statuses for all lookup outcomes, mapping provider errors and HTTP codes to application-owned enums:
+
+**Domain Statuses:**
+1. **success** — provider returned results; candidate list may be empty after filtering
+2. **empty** — provider returned HTTP 200 with no candidates; recommend query revision
+3. **unconfigured** — Numista API key not set or invalid; admin users see configuration link, others see supportive message
+4. **quota_limited** — provider returned HTTP 429 or documented quota exhaustion; include `Retry-After` header if present
+5. **timeout** — provider request exceeded deadline (3–4 seconds); query remains editable, retry offered
+6. **unavailable** — provider returned HTTP 500–599 or is otherwise unhealthy; transient failure, safe retry guidance
+
+**Provider → Domain Mapping:**
+- HTTP 200 → success or empty (based on result count)
+- HTTP 400 validation error → success with empty results (invalid query)
+- HTTP 401 auth failure → unconfigured
+- HTTP 403 forbidden → unconfigured (e.g., plan limit)
+- HTTP 429 or documented quota → quota_limited
+- `context.DeadlineExceeded` → timeout
+- `context.Canceled` → timeout (user cancellation treated same as deadline)
+- HTTP 500–599 → unavailable
+- Other error → unavailable (safe fallback)
+
+**Role-Aware Guidance:**
+- Non-admin users: no raw error text, no API key hints
+- Admin users: configuration link for unconfigured state, error summary for unavailable
+- All users: query/selection preserved across status changes; retry available for quota_limited and timeout
+
+## Validation
+
+- Phase 5 tasks T046–T048: service tests for all six statuses, HTTP layer tests for guidance boundaries, Vue component tests for state rendering
+- `go test ./services -run TestNumistaLookupStatus`
+- `npm run test -- ...NumistaLookupPanel.status.test.ts`
+
+## Alignment
+
+- Principle III: explicit enum, no stringly-typed status; Swagger contract documents each state
+- Principle V: admin-only error details; no secret/config hints to non-admin users
+- Principle VI: non-color guidance (text + icon + action), aria-live announcements
+- Principle IX: status state machine is fully testable without Numista access
+
+---
+
+### Decision: Redacted Bounded Telemetry for Numista Lookup Health
+
+**Date:** 2026-08-11
+**Agent:** Maximus
+**Status:** DECISION (spec/research documented; implementation pending)
+**Feature:** specs/341-improve-numista-lookup
+
+## Context
+
+Instance administrators need visibility into Numista health and quota usage without exposing collector search terms, images, or API keys.
+
+## Decision
+
+Implement thread-safe bounded `NumistaTelemetry` ring buffer with 500-operation limit, redaction, and aggregate metrics:
+
+**Telemetry Record (one per lookup):**
+- Timestamp, path (lookup or enrich), HTTP status code or domain status
+- Cache result: fresh, hit, miss, expired
+- Enrichment: count of details requested, count of details succeeded
+- Quota: Retry-After value if present
+- Correlation digest: first 16 hex chars of SHA-256(normalized query), never full query
+- Duration (milliseconds)
+- Zero secrets, user text, image data, raw provider error messages
+
+**Aggregate Metrics:**
+- Last N operations (N ≤ 500)
+- Count by status: success, empty, unconfigured, quota_limited, timeout, unavailable, cached
+- Count by cache state: fresh, hit, miss, expired
+- p50, p95 latency percentiles (for fresh + cached, separate)
+- Quota-limited count and latest Retry-After
+- Provider error count (no detail)
+
+**Redaction Rules:**
+- Query terms: truncated to first 50 chars, no sensitive fields (addresses, names)
+- Inscription text: never stored; digest only
+- Image data: never stored
+- API key: never stored
+- User context: correlation digest only
+
+**Access Control:**
+- Telemetry endpoint (`GET /api/admin/numista/telemetry`) requires admin JWT
+- Non-admin: 403 Forbidden
+- Public health check (`GET /ai-status`) returns simple availability, never telemetry
+
+## Validation
+
+- Phase 2 tasks T012–T013: concurrency tests for ring buffer, atomic updates, redaction guards against secret/user-text fields
+- `go test ./services -run TestNumistaTelemetry`
+
+## Alignment
+
+- Principle V: no keys/full-text/images in logs; role-based access to telemetry
+- Principle IX: redaction rules enforced by type system (correlation digest, not raw query)
+- Constitution §17: telemetry scoped to operational health, not privacy-invasive
+
+---
+
+## Feature 341 User Story 6 / Phase 5A — Canonical Catalog References + Actions Refactor
+
+### Decision: Gate saved-coin Numista disclosure collapse on refreshed persistence
+
+**Date:** 2026-08-11
+**Agent:** Aurelia
+**Feature:** 341 User Story 6
+
+Saved-coin Numista lookup is composed inside Catalog References as a compact peer disclosure. The disclosure records the confirmed candidate identifier, requests the existing coin refresh, and collapses only when refreshed references contain the matching Numista number; a compatibility fallback recognizes a newly returned Numista reference when older emitters provide no candidate payload.
+
+Actions links to the existing `/coin/:id#catalog-references` anchor rather than owning another lookup panel or route. This follows FR-030–FR-032, NFR-009, Constitution Principle IV, and §17.
+
+---
+
+### Decision: Feature 341 Phase 5 Frontend Status Contract
+
+**Date:** 2026-08-11  
+**Agent:** Aurelia  
+**Scope:** T048, T051, T052, T053
+
+`NumistaLookupPanel` uses one typed presentation helper for `idle`, `loading`, `success`, `empty`, `unconfigured`, `quota-limited`, `timeout`, and `unavailable`.
+
+- Every state has a visible text label, title, guidance, and retry eligibility.
+- Only administrators see Numista API-key instructions and `/admin?tab=system`; ordinary users receive safe administrator-contact guidance.
+- Retry-After appears only when `retryAfterSeconds` is supplied.
+- Freshness appears only when cache metadata accompanies `success` or `empty`; no remaining-quota estimate is shown.
+- The terminal status region receives focus after lookup completion.
+- Once the collector edits a query, later parent evidence changes cannot overwrite it. Errors, retries, and status changes retain the edited query and explicit selection.
+
+## Alignment
+
+- Constitution Principle III: typed state/presentation contract.
+- Principle IV: one shared helper and panel behavior across direct, photo, and draft paths.
+- Principle V: role-safe configuration guidance with no raw errors or quota estimates.
+- Principle VI and NFR-008: aria-live, focus management, non-color text, retained mobile-safe controls.
+
+---
+
+### Decision: Feature 341 Phase 5 Numista Outcome and Cancellation Boundaries
+
+**Date:** 2026-08-11  
+**Agent:** Cassius  
+**Feature:** 341 Improved Numista Lookup, Phase 5
+
+Only typed Numista/provider failures map to expected HTTP 200 domain outcomes. Unknown internal errors propagate to the handler and receive the generic safe HTTP 500 response. Caller cancellation and caller deadlines propagate as context errors and do not pollute the six-status health taxonomy. Retry-After is propagated only when it is a positive observed value. Configuration remains checked before cache access. The service emits the established admin guidance code `numista_configuration_required`; the authenticated handler replaces it with `numista_contact_administrator` for non-admin callers. The deprecated GET adapter continues returning its legacy generic HTTP 503 failure for all non-success/non-empty states.
+
+## Alignment
+
+- Constitution Principles I, III, IV, V, IX and §17 Quality Gate and §21 Definition of Done
+- Feature 341 FR-016, FR-017, FR-024, FR-028 and NFR-005–NFR-007
+
+---
+
+### Decision: Feature 341 Phase 5 Strict Lockout Cleared
+
+**Date:** 2026-08-11
+**Reviewer:** Brutus
+**Status:** APPROVED
+**Feature:** specs/341-improve-numista-lookup
+
+Marcus's independent revision clears the rejected Phase 5 backend mapping. Provider 401/403 is `unconfigured`, provider 400 is HTTP 200 `empty`, non-admin guidance remains non-privileged, and legacy GET compatibility behavior remains covered. Configuration precedence, Retry-After, cancellation/deadline handling, safe 500 responses, frontend retention/accessibility, the reconciled lower-authority data model, and T046–T053 all passed focused and full gates.
+
+Alignment: Constitution §0, Principles III/V/VI/IX, §17, §18.2, and §21.
+
+---
+
+### Decision: Feature 341 User Story 6 QA Acceptance Tests and Final Approval
+
+**Date:** 2026-08-11  
+**Reviewer:** Brutus  
+**Scope:** T087–T096  
+**Verdict:** APPROVE  
+**Feature:** 341 Improved Numista Lookup
+
+T087–T096 satisfy FR-030–FR-038, NFR-009, and SC-011–SC-014 without reopening landed Feature 214/336 artifacts or adding routes, endpoints, schema, provider calls, cache, telemetry, or enrichment behavior.
+
+- Saved-coin lookup is canonical under Catalog References, preserves manual reference management, waits for persistence plus matching refresh before collapse, returns focus, stays open on failure, and renders the persisted reference.
+- Actions contains one compact contextual anchor and no full panel. Identify Coin preserves non-NGC lookup, NGC-first behavior, zero eager NGC-path Numista requests, editable override, labels, selection retention, and narrow-layout containment.
+- Draft cards render the exact retained identifier from the owner-scoped preloaded list relation, omit it otherwise, wrap safely, and add no API request.
+- Gates passed: focused Go and 34 focused frontend tests; full Go build/vet/tests; architecture/OpenAPI/migration gates; full frontend 109 files/671 tests; design tokens 8/8; type-check; production build; ESLint 0 errors/168 warnings; diff check; targeted secret scan.
+- Residual risks are limited to structural jsdom mobile assertions rather than a physical 375 px browser run and unavailable optional external scanners; neither blocks this proportional frontend placement amendment.
+
+Alignment: Constitution Principles III/IV/V/VI/VII/X, §17 Quality Gate, §21 Definition of Done.
+
+---
+
+## Feature 341 MVP — Reviewed & APPROVED
+
+### Decision: Feature 341 Backend MVP — Numista Direct Lookup Architecture
+
+**Date:** 2026-08-11  
+**Agent:** Cassius  
+**Scope:** T001–T027 backend/shared foundations  
+**Status:** IMPLEMENTED & APPROVED
+
+## Context
+Feature 341 implements direct Numista lookup workflow as an authenticated API feature with service-to-service caching and deterministic relevance scoring.
+
+## Decision
+The direct Numista workflow uses one process-wide injected composition:
+```
+NumistaHandler -> NumistaLookupService -> NumistaClient
+```
+
+The HTTP client owns provider URL/header mapping, private provider DTOs, response limits, timeouts, cancellation, retry policy, and safe errors. The lookup service owns configuration precedence, cache orchestration, candidate sanitization, deterministic scoring, statuses, compatibility mapping, and redacted telemetry.
+
+Search cache keys are SHA-256 digests of normalized query plus result limit. The server reconstructs every canonical catalog URL from the positive numeric Numista ID and never trusts provider/client URLs.
+
+Compatibility: `GET /api/numista/search` remains authenticated and returns the legacy `{count,types}` shape while delegating to the shared service. New direct clients use authenticated `POST /api/numista/lookup`.
+
+## Note
+Generated Swagger/OpenAPI artifacts were not refreshed as OpenAPI regeneration is explicitly T077, outside T001–T027 boundary. Handler annotations and Swagger aliases are present.
+
+## Validation
+- Go build/vet/full tests PASS
+- Architecture test PASS
+- Targeted Numista service tests PASS
+
+## Alignment
+- Principle I: Clear Layered Architecture (handler → service → client)
+- Principle IV: simplest complete service composition
+- Constitution §17: all gates passed before merge
+
+---
+
+### Decision: Feature 341 Frontend MVP — Direct Date Evidence & Panel Composition
+
+**Date:** 2026-08-11  
+**Agent:** Aurelia  
+**Scope:** T002, T018–T019, T024–T027  
+**Status:** IMPLEMENTED & APPROVED
+
+## Context
+Frontend Numista panel maps coin attributes to OpenAPI contract evidence fields. Existing frontend `Coin` model lacks dedicated date-range field, requiring contract alignment for date evidence.
+
+## Decision
+Direct lookup maps `Coin.era` to the approved Numista contract's `evidence.dateText` field, with all other evidence mapped from coin name, ruler, denomination, mint, material, and inscriptions.
+
+When lookup returns HTTP 200 domain statuses, expected outcomes are handled by the reusable panel. If POST rejects unexpectedly, the panel presents the safe `unavailable` state while retaining exact editable query and any explicit selection; raw transport details are not exposed.
+
+No OpenAPI deviations introduced. All frontend tests pass (640/640).
+
+## Validation
+- `npm run type-check` PASS
+- `npm run build` PASS
+- Full `npm run test -- --run` PASS
+- ESLint 0 errors
+
+## Alignment
+- Principle III: explicit typed API contract
+- Principle IV: reused panel composition, no new routes
+- Principle VI: PWA-compatible, no emoji in UI text
+
+---
+
+### Decision: Feature 341 MVP Cache Coalescing & Cancellation Safety
+
+**Date:** 2026-08-11  
+**Agent:** Tacitus  
+**Status:** IMPLEMENTED & APPROVED
+
+## Context
+Cache coalescing must preserve caller cancellation/deadline errors without poisoning healthy waiters and must prevent a cancelled first caller from blocking replacement attempts.
+
+## Decision
+Same-key cache misses use an explicit per-key call state containing an internally owned provider context, waiter count, completion signal, and result. Cache lookup, in-flight discovery/creation, and successful publication occur under the cache mutex; provider I/O remains outside it.
+
+A caller cancellation detaches only that caller. The provider context is cancelled and the state removed only when the final waiter leaves. A later caller may then create one replacement call; the removed call cannot publish over that replacement because publication verifies pointer identity.
+
+This preserves caller cancellation/deadline errors, prevents a cancelled first caller from poisoning healthy waiters, bounds takeover calls, and avoids retaining provider contexts after completion.
+
+## Validation
+- Targeted Numista service tests pass including:
+  - 100-iteration cold-cache fan-in
+  - Cancelled-first-caller, cancelled waiter, all-cancelled scenarios
+  - Bounded replacement failure, cache publication coverage
+  - Deterministic stress tests and synchronization audit passed
+- Note: `-race` unavailable because CGO_ENABLED=0; residual synchronization risk assessed through deterministic tests and inspection
+
+## Alignment
+- Principle IV: simplest complete state machine without race-condition surface
+- Principle IX: fully testable without external dependencies
+- Constitution §17, §21.6–7
+
+---
+
+### Decision: Feature 341 MVP QA Approval — Final Sixth Revision
+
+**Date:** 2026-08-11  
+**Reviewer:** Brutus  
+**Status:** APPROVED
+
+## Context
+Five prior iterations were blocked under Constitution §18.2 Strict Lockout for contract semantics, cache safety, acceptance-level test coverage, and data model completeness. Tacitus's independent sixth revision addresses all findings.
+
+## Verdict
+APPROVE — All prior Strict Lockout findings cleared. The per-key coalescing state machine is accepted: leader cancellation does not poison healthy waiters, all-canceled work is canceled without publication, cache/in-flight operations are atomic, and superseded calls cannot overwrite replacement work.
+
+## Verified Gates
+- ✅ Exact 1 MiB/1 MiB+1 provider body boundaries proven
+- ✅ Mutation-sensitive missing date/ruler/denomination/inscription neutrality proven
+- ✅ Full Go build/vet/test suite passed
+- ✅ Frontend 640/640 tests passed
+- ✅ Route drift test passed
+- ✅ Architecture test passed
+- ✅ Strict types/build passed
+- ✅ Focused stress tests passed
+- ✅ Lint passed
+- ✅ Diff hygiene passed
+- ✅ T001–T027 checksum complete
+
+## Residual Risk
+Limited to unavailable `go test -race` execution because `CGO_ENABLED=0`. Deterministic stress and synchronization review were sufficient for approval.
+
+## Alignment
+- Principle I, IV, VII, X: Architecture, simplicity, convention, audit
+- Constitution §17 (Quality Gate): all gates passed
+- Constitution §21 (Definition of Done): all 15-item checklist verified
+
+---
+
+### Decision: Feature 341 Phase 4 Backend — Selected Reference Persistence
+
+**Date:** 2026-08-11  
+**Agent:** Cassius  
+**Scope:** T028–T032, T036–T042  
+**Status:** IMPLEMENTED
+
+## Context
+
+The active spec/plan/data model govern selected-reference persistence: an additive child row stores owner, canonical `Catalog`/`Number`/`URI`, and promotion copies the existing `CoinReference` shape transactionally for both collection and wishlist targets.
+
+An older `.squad/decisions.md` sketch mentions `catalog_number`, `linkType='lookup_selected'`, and a separate reference route. Per Constitution §0, implementation follows the higher-ranked Feature 341 artifacts and additive Quick Capture create/update DTOs. Those historical fields/routes do not exist in the authoritative active contract or current `CoinReference` schema.
+
+## Decision
+
+Canonical selection validation is performed before draft writes and then delegated to the existing `CoinReferenceService` catalog rules. Repository transactions own create/replace/remove and promotion copy, preserving rollback, ownership, CAS concurrency, and repeated-promotion idempotency.
+
+## Alignment
+- Principle I: Clear layered architecture (handler → service → repository)
+- Principle III: Exact typed multipart DTO contract
+- Principle IV: Simple complete proportional change to Quick Capture flow
+- Constitution §0: Higher-ranked Feature 341 spec takes precedence
+
+## Validation
+- Transaction tests: create/preserve/replace/remove, owner isolation, rollback, CAS concurrency, repeated promotion
+- Repository and service contract tests pass
+- Handler compatibility tests pass
+- Migration tests pass (additive, no row rewrites)
+
+---
+
+### Decision: Quick Capture Numista Selection — Explicit Tri-State Mutation
+
+**Date:** 2026-08-11  
+**Agent:** Aurelia  
+**Feature:** 341 Improved Numista Lookup, Phase 4  
+**Status:** IMPLEMENTED
+
+## Context
+
+Quick Capture updates must distinguish an unrelated edit from replacing or removing the optional selected Numista reference. The Identify Coin integration must keep the Numista lookup panel visible for manual entry, even when photo evidence produces an empty proposed query (matching spec's required disabled-search guidance).
+
+## Decision
+
+The frontend tracks selection mutation as three explicit states:
+- **unchanged** — Unrelated draft updates omit all selection multipart fields
+- **replace** — Selection changes send approved `selectedNumistaId`/`selectedNumistaUrl` pair
+- **clear** — Removal sends only `clearSelectedNumista=true`
+
+The shared lookup panel accepts an initial selection so a retained reference remains visible outside later result sets. Promotion is disabled while a reference change is pending (promotes saved draft relation, not unsaved frontend state).
+
+Identify Coin leaves the Numista panel visible with a disabled search button when photo evidence produces an empty `proposedNumistaQuery`, allowing manual entry at the disabled-search stage (matches active spec).
+
+## Alignment
+- Principle III: Exact typed multipart DTO contract
+- Principle IV: Explicit local state without hidden inference
+- Principle VI: Stable, keyboard-operable selection on mobile and desktop
+- Constitution §17/§21: Focused serialization and workflow regression coverage
+
+## Validation
+- Type-check: `npx vue-tsc --noEmit` (strict)
+- Tests: Draft resume, Identify Coin integration, multipart serialization
+- Frontend build: Vue Vite production build pass
+- Lint: ESLint 0 errors
+
+---
+
+### Decision: Feature 341 Phase 4 QA Review — Final Approval
+
+**Date:** 2026-08-11  
+**Reviewer:** Brutus  
+**Status:** APPROVED
+
+## Context
+
+Three Strict Lockout blocks (Constitution §18.2) were issued:
+1. **Generated Swagger nullability mismatch** — Runtime nullable pointers not reflected in OpenAPI contract
+2. **Identify Coin panel visibility** — Numista panel hidden when empty proposed query (contradicted spec guidance)
+3. **Handler/model contract drift** — Changed contracts not propagated to generated Swagger snapshots
+
+Hadrian's independent revision addressed block 1 (schema alignment). Aurelia revised block 2 (panel visibility logic). All snapshots were regenerated for block 3.
+
+## Verdict
+
+**APPROVE** — All three Strict Lockout blocks cleared. T028–T045 complete and verified.
+
+## Verified Gates
+- ✅ Nullable runtime pointers and generated Swagger schemas aligned (`x-nullable` / `allOf` / `$ref` accurate)
+- ✅ All four OpenAPI artifacts regenerate byte-identically (docs/openapi.json, src/api/docs/docs.go, swagger.json, swagger.yaml)
+- ✅ Identify Coin panel visible with disabled search for empty proposed query (manual entry allowed)
+- ✅ Prior manual-entry/no-eager-call/NGC-first/contract/task findings cleared
+- ✅ T028–T045 checksum complete
+- ✅ Focused contracts/Go/frontend tests pass
+- ✅ Full Go build/vet/test suite pass
+- ✅ Frontend 654/654 tests pass
+- ✅ Frontend lint 0 errors
+- ✅ Type-check (strict) pass
+- ✅ Production build pass
+- ✅ Diff/secret checks pass
+- ⚠️ Gitleaks/Trivy unavailable (residual)
+
+## Residual Risk
+
+Limited to unavailable Gitleaks and Trivy scanning. All code quality and functional gates passed.
+
+## Alignment
+- Principle I, III, IV, VII, X: Architecture, typing, simplicity, convention, audit
+- Constitution §17 (Quality Gate): all gates passed
+- Constitution §21 (Definition of Done): T028–T045 checksum complete
+
+---
+---
+
+### Decision: Feature 341 Phase 6 QA Review and Approved Implementation
+
+**Date:** 2026-08-11  
+**Reviewers:** Brutus (QA/approval), Claudius (implementation fix)  
+**Status:** APPROVED
+
+## Context
+
+Phase 6 cycles refined Numista cache telemetry ownership, health API, and admin UI:
+
+**Cassius-Aurelia-Augustus iterations** identified three critical misalignments:
+1. Real provider retry attempts not captured in production (only test-constructed events)
+2. TypeScript health contract type mismatch with sparse backend maps
+3. Admin UI missing successful-empty state; incomplete retry/coalesced/failure semantics
+
+**Tiberius-Germanicus revision** corrected false cache-hit classification. The subsequent **Vespasian-Nerva revisions** remained blocked on orthogonal issues:
+- Cancelled loader events still emitting provider aggregates
+- Shallow detail cache copy allowing nested reason mutation
+- Orphaned/late provider results emitting despite cancellation
+
+**Claudius independent revision** (2026-08-11 15:04) implemented the definitive fix:
+- Loader closures prepare redacted telemetry callbacks only after cache confirms pointer-identity ownership
+- Superseded or orphaned late results discard callbacks and emit zero provider aggregates
+- Successful/failed cold fan-in produces exactly one provider event; replacement ownership emits once
+- Fresh cache hits, coalesced waiters, unconfigured bypasses retain existing semantics
+- Barrier-controlled ownership/cancellation/replacement tests pass at -count=100
+
+## Verdict
+
+**APPROVE** — All Phase 6 blockers cleared. T054–T063 satisfy FR-021–FR-026, NFR-005–NFR-007, SC-006, SC-008, SC-009.
+
+## Requirements Coverage
+
+- **FR-021** (Real provider retry telemetry): Search and detail loaders capture and emit retry attempt counts from provider layer
+- **FR-022** (Separate fresh/coalesced metrics): Distinct event types for fresh cache hits, coalesced waiter reuse, and provider loads
+- **FR-023** (Cache state visibility): Admin health API exposes cache hit rate, refresh rate, bypass rate, failure rate, and provider latency percentiles
+- **FR-024** (Admin health UI): Real-time cache metrics with sparse/empty/partial/populated rendering; redaction for non-admin users
+- **FR-025** (Ownership semantics): Only cache loaders own provider status/latency/failure aggregates; cancellation emits only cancellation events
+- **FR-026** (Coalesce transparency): Concurrent callers correctly attributed as coalesced (one provider call, N-1 waiters reuse result, zero provider latency for reuse)
+- **NFR-005** (Percentile fidelity): Rolling R-7 p50/p95 calculated per reconciled definition; boundary tests validate small/large windows
+- **NFR-006** (Bounded retention): Health ring stores ≤100 events; oldest FIFO expiry; zero-event ring handled explicitly
+- **NFR-007** (Telemetry redaction): Non-admin GET /admin/health/numista returns sparse maps, zero counts, and 
+ull latency/retry details
+
+## Verified Gates
+- ✅ Ownership/cancellation/replacement/late-success regressions at -count=100
+- ✅ Go build, vet, architecture rules, OpenAPI contract checks, full test suite
+- ✅ Frontend Vitest (654 tests), strict type-check, production build, lint (0 errors)
+- ✅ OpenAPI regeneration byte-stable (docs/openapi.json, Swagger artifacts)
+- ✅ Numista domain deep-copy mutation isolation
+- ✅ Admin layout/auth/redaction/responsive/empty/partial/populated state coverage
+- ✅ Diff and privacy compliance checks
+- ⚠️ Go race detector (unavailable: CGO disabled), Gitleaks, Trivy (residual)
+
+## Implementation Summary: 9 Cycles
+
+| Cycle | Agent | Focus | Outcome |
+|-------|-------|-------|---------|
+| 1 | Cassius | Cache structure, basic telemetry | BLOCK: production retries missing |
+| 2 | Aurelia | Health UI, TS contract | BLOCK: type mismatch, missing states |
+| 3 | Augustus | Retry telemetry, coalesce accounting | BLOCK: detail retries incomplete, double-count waiters |
+| 4 | Tiberius | Retry ownership, cache-hit classification | BLOCK: false freshness classification |
+| 5 | Germanicus | Hit correction, fresh/provider separation | BLOCK: fresh hits in provider p50/p95, incomplete activity detection |
+| 6 | Vespasian | Cancellation/replacement ownership | BLOCK: cancelled events emit provider aggregates |
+| 7 | Nerva | Late orphaned-result handling | BLOCK: non-cooperative cancellation emits double provider events |
+| 8 | Claudius | Pointer-identity ownership callback | PASS: telemetry conditional on cache ownership confirmation |
+| 9 | Brutus | Final QA review | APPROVE: all requirements satisfied, gates passed |
+
+## Alignment
+
+- Constitution Principles III (Consistent API), IV (Simple Complete Changes), V (Security/Privacy), IX (Test-Driven), X (Audit)
+- Constitution §17 (Quality Gate): all 15 gate checks passed
+- Constitution §21 (Definition of Done): T054–T063 checksum and cycle-log complete
+- Feature 341 Phase 6 Specification (.specify/specs/341-improve-numista-lookup/)
+
+## Residual Risk
+
+Limited to unavailable race detector and binary scanners. All code, architecture, contract, and functional gates passed.
 
 ---
