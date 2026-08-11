@@ -12,6 +12,7 @@ import (
 )
 
 const numistaLookupBodyLimit = 32 * 1024
+const numistaEnrichmentBodyLimit = 256 * 1024
 
 type NumistaHandler struct {
 	lookup *services.NumistaLookupService
@@ -21,6 +22,13 @@ type numistaLookupWireRequest struct {
 	Query    string                   `json:"query"`
 	Path     models.NumistaLookupPath `json:"path"`
 	Evidence *models.NumistaEvidence  `json:"evidence"`
+}
+
+type numistaEnrichmentWireRequest struct {
+	Query      string                    `json:"query"`
+	Path       models.NumistaLookupPath  `json:"path"`
+	Evidence   *models.NumistaEvidence   `json:"evidence"`
+	Candidates []models.NumistaCandidate `json:"candidates"`
 }
 
 func NewNumistaHandler(lookup *services.NumistaLookupService) *NumistaHandler {
@@ -71,6 +79,54 @@ func (h *NumistaHandler) Lookup(c *gin.Context) {
 	}
 	outcome = roleSafeNumistaOutcome(c, outcome)
 	c.JSON(http.StatusOK, outcome)
+}
+
+// Enrich retrieves details for a server-ranked bounded candidate subset.
+//
+//	@Summary		Enrich and rerank Numista candidates
+//	@Description	Reranks the complete broad candidate set, enriches at most five server-selected candidates with concurrency two, and retains candidates when details fail.
+//	@Tags			Numista
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		NumistaEnrichmentRequestSwagger	true	"Enrichment request"
+//	@Success		200		{object}	NumistaLookupOutcomeSwagger
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/numista/enrich [post]
+func (h *NumistaHandler) Enrich(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, numistaEnrichmentBodyLimit)
+	decoder := json.NewDecoder(c.Request.Body)
+	decoder.DisallowUnknownFields()
+	var wireRequest numistaEnrichmentWireRequest
+	if err := decoder.Decode(&wireRequest); err != nil || wireRequest.Evidence == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Numista enrichment request"})
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Numista enrichment request"})
+		return
+	}
+	request := models.NumistaEnrichmentRequest{
+		NumistaLookupRequest: models.NumistaLookupRequest{
+			Query: wireRequest.Query, Path: wireRequest.Path, Evidence: *wireRequest.Evidence,
+		},
+		Candidates: wireRequest.Candidates,
+	}
+	if err := request.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	outcome, err := h.lookup.Enrich(c.Request.Context(), request)
+	if err != nil {
+		if c.Request.Context().Err() != nil {
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Numista enrichment failed"})
+		return
+	}
+	c.JSON(http.StatusOK, roleSafeNumistaOutcome(c, outcome))
 }
 
 func roleSafeNumistaOutcome(c *gin.Context, outcome models.NumistaLookupOutcome) models.NumistaLookupOutcome {

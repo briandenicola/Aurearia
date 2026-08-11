@@ -9605,6 +9605,63 @@
                 }
             }
         },
+        "/numista/enrich": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Reranks the complete broad candidate set, enriches at most five server-selected candidates with concurrency two, and retains candidates when details fail.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Numista"
+                ],
+                "summary": "Enrich and rerank Numista candidates",
+                "parameters": [
+                    {
+                        "description": "Enrichment request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.NumistaEnrichmentRequestSwagger"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.NumistaLookupOutcomeSwagger"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/numista/lookup": {
             "post": {
                 "security": [
@@ -17600,6 +17657,26 @@
                 "year": {
                     "type": "string",
                     "example": "101-102"
+                }
+            }
+        },
+        "handlers.NumistaEnrichmentRequestSwagger": {
+            "type": "object",
+            "properties": {
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.NumistaCandidate"
+                    }
+                },
+                "evidence": {
+                    "$ref": "#/definitions/models.NumistaEvidence"
+                },
+                "path": {
+                    "$ref": "#/definitions/models.NumistaLookupPath"
+                },
+                "query": {
+                    "type": "string"
                 }
             }
         },

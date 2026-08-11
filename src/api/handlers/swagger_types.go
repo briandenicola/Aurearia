@@ -359,6 +359,7 @@ type NumistaCandidateSwagger struct {
 }
 
 type NumistaLookupRequestSwagger = models.NumistaLookupRequest
+type NumistaEnrichmentRequestSwagger = models.NumistaEnrichmentRequest
 type NumistaLookupOutcomeSwagger = models.NumistaLookupOutcome
 type LegacyNumistaSearchResponseSwagger = models.LegacyNumistaSearchResponse
 

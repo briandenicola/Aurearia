@@ -12,6 +12,7 @@ import (
 const (
 	NumistaMaxQueryLength       = 500
 	NumistaMaxCandidateCount    = 50
+	NumistaMaxID                = 2147483647
 	NumistaScoringVersion       = "numista-v1"
 	NumistaCanonicalURLTemplate = "https://en.numista.com/catalogue/pieces%d.html"
 )
@@ -201,8 +202,8 @@ func (e NumistaEvidence) Validate() error {
 			return fmt.Errorf("%s exceeds %d characters", bound.name, bound.max)
 		}
 	}
-	if e.ExactNumistaID != nil && *e.ExactNumistaID <= 0 {
-		return errors.New("exactNumistaId must be positive")
+	if e.ExactNumistaID != nil && (*e.ExactNumistaID <= 0 || *e.ExactNumistaID > NumistaMaxID) {
+		return errors.New("exactNumistaId must be between 1 and 2147483647")
 	}
 	return nil
 }
@@ -228,8 +229,8 @@ func (r *NumistaEnrichmentRequest) Validate() error {
 }
 
 func CanonicalNumistaURL(id int) (string, error) {
-	if id <= 0 {
-		return "", errors.New("Numista ID must be positive")
+	if id <= 0 || id > NumistaMaxID {
+		return "", errors.New("Numista ID must be between 1 and 2147483647")
 	}
 	return fmt.Sprintf(NumistaCanonicalURLTemplate, id), nil
 }
@@ -274,8 +275,8 @@ func (r SelectedNumistaReference) Validate() error {
 }
 
 func (c NumistaCandidate) Validate() error {
-	if c.ID <= 0 || strings.TrimSpace(c.Title) == "" {
-		return errors.New("candidate requires a positive ID and title")
+	if c.ID <= 0 || c.ID > NumistaMaxID || strings.TrimSpace(c.Title) == "" {
+		return errors.New("candidate requires an ID between 1 and 2147483647 and a title")
 	}
 	canonical, _ := CanonicalNumistaURL(c.ID)
 	if c.CanonicalURL != canonical {

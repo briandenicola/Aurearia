@@ -164,7 +164,7 @@ func (c *HTTPNumistaClient) Search(ctx context.Context, query string, limit int)
 }
 
 func (c *HTTPNumistaClient) Detail(ctx context.Context, id int) (models.NumistaCandidate, error) {
-	if id <= 0 {
+	if id <= 0 || id > models.NumistaMaxID {
 		return models.NumistaCandidate{}, &NumistaError{Kind: NumistaErrorInvalidRequest}
 	}
 	body, err := c.get(ctx, "/types/"+strconv.Itoa(id), c.detailTimeout())
@@ -316,18 +316,18 @@ type providerSearchResponse struct {
 }
 
 type providerType struct {
-	ID               int            `json:"id"`
-	Title            string         `json:"title"`
-	Issuer           *providerName  `json:"issuer"`
-	MinYear          *int           `json:"min_year"`
-	MaxYear          *int           `json:"max_year"`
-	ObverseThumbnail string         `json:"obverse_thumbnail"`
-	ReverseThumbnail string         `json:"reverse_thumbnail"`
-	Value            *providerText  `json:"value"`
-	Composition      *providerText  `json:"composition"`
-	Mints            []providerName `json:"mints"`
-	Obverse          *providerSide  `json:"obverse"`
-	Reverse          *providerSide  `json:"reverse"`
+	ID               int             `json:"id"`
+	Title            string          `json:"title"`
+	Issuer           json.RawMessage `json:"issuer"`
+	MinYear          json.RawMessage `json:"min_year"`
+	MaxYear          json.RawMessage `json:"max_year"`
+	ObverseThumbnail json.RawMessage `json:"obverse_thumbnail"`
+	ReverseThumbnail json.RawMessage `json:"reverse_thumbnail"`
+	Value            json.RawMessage `json:"value"`
+	Composition      json.RawMessage `json:"composition"`
+	Mints            json.RawMessage `json:"mints"`
+	Obverse          json.RawMessage `json:"obverse"`
+	Reverse          json.RawMessage `json:"reverse"`
 }
 
 type providerName struct {
@@ -344,39 +344,81 @@ type providerSide struct {
 
 func mapProviderType(item providerType, position int) (models.NumistaCandidate, bool) {
 	title := boundedProviderText(item.Title, 500)
-	if item.ID <= 0 || title == "" {
+	if item.ID <= 0 || item.ID > models.NumistaMaxID || title == "" {
 		return models.NumistaCandidate{}, false
 	}
-	if item.MinYear != nil && item.MaxYear != nil && *item.MinYear > *item.MaxYear {
-		item.MinYear, item.MaxYear = nil, nil
+	minYear := optionalProviderInt(item.MinYear)
+	maxYear := optionalProviderInt(item.MaxYear)
+	if minYear != nil && maxYear != nil && *minYear > *maxYear {
+		minYear, maxYear = nil, nil
 	}
 	canonicalURL, _ := models.CanonicalNumistaURL(item.ID)
 	candidate := models.NumistaCandidate{
 		ID: item.ID, CanonicalURL: canonicalURL, Title: title,
-		MinYear: item.MinYear, MaxYear: item.MaxYear, YearDisplay: formatNumistaYears(item.MinYear, item.MaxYear),
-		ObverseThumbnail: safeNumistaImageURL(item.ObverseThumbnail),
-		ReverseThumbnail: safeNumistaImageURL(item.ReverseThumbnail),
+		MinYear: minYear, MaxYear: maxYear, YearDisplay: formatNumistaYears(minYear, maxYear),
+		ObverseThumbnail: safeNumistaImageURL(optionalProviderString(item.ObverseThumbnail)),
+		ReverseThumbnail: safeNumistaImageURL(optionalProviderString(item.ReverseThumbnail)),
 		ProviderPosition: position, EnrichmentState: models.NumistaEnrichmentNotRequested,
 	}
-	if item.Issuer != nil {
-		candidate.Issuer = boundedProviderText(item.Issuer.Name, 200)
+	if issuer, ok := optionalProviderObject[providerName](item.Issuer); ok {
+		candidate.Issuer = boundedProviderText(issuer.Name, 200)
 	}
-	if item.Value != nil {
-		candidate.Denomination = boundedProviderText(item.Value.Text, 100)
+	if value, ok := optionalProviderObject[providerText](item.Value); ok {
+		candidate.Denomination = boundedProviderText(value.Text, 100)
 	}
-	if item.Composition != nil {
-		candidate.Material = boundedProviderText(item.Composition.Text, 100)
+	if composition, ok := optionalProviderObject[providerText](item.Composition); ok {
+		candidate.Material = boundedProviderText(composition.Text, 100)
 	}
-	if len(item.Mints) > 0 {
-		candidate.Mint = boundedProviderText(item.Mints[0].Name, 200)
+	for _, mint := range optionalProviderArray[providerName](item.Mints) {
+		if candidate.Mint = boundedProviderText(mint.Name, 200); candidate.Mint != "" {
+			break
+		}
 	}
-	if item.Obverse != nil {
-		candidate.ObverseInscription = boundedProviderText(item.Obverse.Inscription, 500)
+	if obverse, ok := optionalProviderObject[providerSide](item.Obverse); ok {
+		candidate.ObverseInscription = boundedProviderText(obverse.Inscription, 500)
 	}
-	if item.Reverse != nil {
-		candidate.ReverseInscription = boundedProviderText(item.Reverse.Inscription, 500)
+	if reverse, ok := optionalProviderObject[providerSide](item.Reverse); ok {
+		candidate.ReverseInscription = boundedProviderText(reverse.Inscription, 500)
 	}
 	return candidate, true
+}
+
+func optionalProviderObject[T any](raw json.RawMessage) (T, bool) {
+	var value T
+	if len(raw) == 0 || string(raw) == "null" || json.Unmarshal(raw, &value) != nil {
+		return value, false
+	}
+	return value, true
+}
+
+func optionalProviderArray[T any](raw json.RawMessage) []T {
+	var items []json.RawMessage
+	if json.Unmarshal(raw, &items) != nil {
+		return nil
+	}
+	values := make([]T, 0, len(items))
+	for _, item := range items {
+		if value, ok := optionalProviderObject[T](item); ok {
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
+func optionalProviderString(raw json.RawMessage) string {
+	var value string
+	if json.Unmarshal(raw, &value) != nil {
+		return ""
+	}
+	return value
+}
+
+func optionalProviderInt(raw json.RawMessage) *int {
+	var value int
+	if json.Unmarshal(raw, &value) != nil {
+		return nil
+	}
+	return &value
 }
 
 func safeNumistaImageURL(raw string) string {

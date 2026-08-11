@@ -3,8 +3,10 @@ package services
 import (
 	"context"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
@@ -115,8 +117,8 @@ func (s *NumistaLookupService) LookupDetail(
 	if path != models.NumistaLookupPathDirect && path != models.NumistaLookupPathPhoto {
 		return models.NumistaCandidate{}, nil, errors.New("path must be direct or photo")
 	}
-	if id <= 0 {
-		return models.NumistaCandidate{}, nil, errors.New("Numista detail ID must be positive")
+	if id <= 0 || id > models.NumistaMaxID {
+		return models.NumistaCandidate{}, nil, errors.New("Numista detail ID must be between 1 and 2147483647")
 	}
 	start := s.clock.Now()
 	correlation := "detail:" + strconv.Itoa(id)
@@ -165,6 +167,183 @@ func (s *NumistaLookupService) LookupDetail(
 		s.recordDetailReuse(path, correlation, start, cacheResult, models.NumistaStatusSuccess, nil)
 	}
 	return candidate, cacheResult.NumistaCacheMetadata, nil
+}
+
+func (s *NumistaLookupService) Enrich(
+	ctx context.Context,
+	request models.NumistaEnrichmentRequest,
+) (models.NumistaLookupOutcome, error) {
+	if err := request.Validate(); err != nil {
+		return models.NumistaLookupOutcome{}, err
+	}
+
+	ranked := rankNumistaEnrichmentTargets(s.scorer, request.NumistaLookupRequest, request.Candidates)
+	config := s.settings.GetNumistaSettings()
+	limit := config.EnrichmentLimit
+	if limit <= 0 {
+		limit = 5
+	}
+	if limit > 5 {
+		limit = 5
+	}
+	if limit > len(ranked) {
+		limit = len(ranked)
+	}
+
+	type detailResult struct {
+		id        int
+		candidate models.NumistaCandidate
+		err       error
+	}
+	jobs := make(chan int)
+	results := make(chan detailResult, limit)
+	workerCount := 2
+	if limit < workerCount {
+		workerCount = limit
+	}
+	var workers sync.WaitGroup
+	workers.Add(workerCount)
+	for range workerCount {
+		go func() {
+			defer workers.Done()
+			for id := range jobs {
+				if ctx.Err() != nil {
+					return
+				}
+				candidate, _, err := s.LookupDetail(ctx, request.Path, id)
+				results <- detailResult{id: id, candidate: candidate, err: err}
+				if ctx.Err() != nil {
+					return
+				}
+			}
+		}()
+	}
+
+	go func() {
+		defer close(jobs)
+		for index := 0; index < limit; index++ {
+			if ctx.Err() != nil {
+				return
+			}
+			select {
+			case jobs <- ranked[index].ID:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	go func() {
+		workers.Wait()
+		close(results)
+	}()
+
+	details := make(map[int]detailResult, limit)
+	for result := range results {
+		if ctx.Err() != nil {
+			return models.NumistaLookupOutcome{}, ctx.Err()
+		}
+		details[result.id] = result
+	}
+	if err := ctx.Err(); err != nil {
+		return models.NumistaLookupOutcome{}, err
+	}
+
+	for index := range ranked {
+		result, attempted := details[ranked[index].ID]
+		if !attempted {
+			ranked[index].EnrichmentState = models.NumistaEnrichmentNotRequested
+			continue
+		}
+		if result.err != nil {
+			ranked[index].EnrichmentState = models.NumistaEnrichmentFailed
+			continue
+		}
+		ranked[index] = mergeNumistaDetail(ranked[index], result.candidate)
+	}
+	ranked = s.scorer.Rank(request.NumistaLookupRequest, ranked)
+	return models.NumistaLookupOutcome{
+		Status:         models.NumistaStatusSuccess,
+		EffectiveQuery: request.Query,
+		Candidates:     ranked,
+		Stage:          "enriched",
+	}, nil
+}
+
+func rankNumistaEnrichmentTargets(
+	scorer NumistaScorer,
+	request models.NumistaLookupRequest,
+	candidates []models.NumistaCandidate,
+) []models.NumistaCandidate {
+	ranked := cloneCandidates(candidates)
+	for index := range ranked {
+		ranked[index].Assessment = scorer.Score(request, ranked[index])
+	}
+	sort.SliceStable(ranked, func(i, j int) bool {
+		left, right := ranked[i], ranked[j]
+		if left.Assessment.Score != right.Assessment.Score {
+			return left.Assessment.Score > right.Assessment.Score
+		}
+		leftExact := request.Evidence.ExactNumistaID != nil && left.ID == *request.Evidence.ExactNumistaID
+		rightExact := request.Evidence.ExactNumistaID != nil && right.ID == *request.Evidence.ExactNumistaID
+		if leftExact != rightExact {
+			return leftExact
+		}
+		leftComplete, rightComplete := candidateCompleteness(left), candidateCompleteness(right)
+		if leftComplete != rightComplete {
+			return leftComplete > rightComplete
+		}
+		leftTitle, rightTitle := NormalizeNumistaText(left.Title), NormalizeNumistaText(right.Title)
+		if leftTitle != rightTitle {
+			return leftTitle < rightTitle
+		}
+		if left.ProviderPosition != right.ProviderPosition {
+			return left.ProviderPosition < right.ProviderPosition
+		}
+		return left.ID < right.ID
+	})
+	return ranked
+}
+
+func mergeNumistaDetail(broad, detail models.NumistaCandidate) models.NumistaCandidate {
+	detail.ProviderPosition = broad.ProviderPosition
+	detail.CanonicalURL, _ = models.CanonicalNumistaURL(broad.ID)
+	if detail.Title == "" {
+		detail.Title = broad.Title
+	}
+	if detail.Issuer == "" {
+		detail.Issuer = broad.Issuer
+	}
+	if detail.Denomination == "" {
+		detail.Denomination = broad.Denomination
+	}
+	if detail.Mint == "" {
+		detail.Mint = broad.Mint
+	}
+	if detail.MinYear == nil {
+		detail.MinYear = broad.MinYear
+	}
+	if detail.MaxYear == nil {
+		detail.MaxYear = broad.MaxYear
+	}
+	if detail.YearDisplay == "" {
+		detail.YearDisplay = broad.YearDisplay
+	}
+	if detail.Material == "" {
+		detail.Material = broad.Material
+	}
+	if detail.ObverseInscription == "" {
+		detail.ObverseInscription = broad.ObverseInscription
+	}
+	if detail.ReverseInscription == "" {
+		detail.ReverseInscription = broad.ReverseInscription
+	}
+	if detail.ObverseThumbnail == "" {
+		detail.ObverseThumbnail = broad.ObverseThumbnail
+	}
+	if detail.ReverseThumbnail == "" {
+		detail.ReverseThumbnail = broad.ReverseThumbnail
+	}
+	return detail
 }
 
 func sanitizeNumistaCandidates(candidates []models.NumistaCandidate) []models.NumistaCandidate {

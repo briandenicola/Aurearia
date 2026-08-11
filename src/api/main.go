@@ -489,6 +489,7 @@ func main() {
 
 		numistaHandler := handlers.NewNumistaHandler(numistaLookupSvc)
 		protected.POST("/numista/lookup", numistaHandler.Lookup)
+		protected.POST("/numista/enrich", numistaHandler.Enrich)
 		protected.GET("/numista/search", numistaHandler.Search)
 
 		auctionLotSvc := services.NewAuctionLotService(auctionLotRepo, coinRepo).

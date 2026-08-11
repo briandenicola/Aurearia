@@ -849,6 +849,19 @@ definitions:
         example: 101-102
         type: string
     type: object
+  handlers.NumistaEnrichmentRequestSwagger:
+    properties:
+      candidates:
+        items:
+          $ref: '#/definitions/models.NumistaCandidate'
+        type: array
+      evidence:
+        $ref: '#/definitions/models.NumistaEvidence'
+      path:
+        $ref: '#/definitions/models.NumistaLookupPath'
+      query:
+        type: string
+    type: object
   handlers.NumistaLookupOutcomeSwagger:
     properties:
       cache:
@@ -10176,6 +10189,44 @@ paths:
       summary: Unread notification count
       tags:
       - Notifications
+  /numista/enrich:
+    post:
+      consumes:
+      - application/json
+      description: Reranks the complete broad candidate set, enriches at most five
+        server-selected candidates with concurrency two, and retains candidates when
+        details fail.
+      parameters:
+      - description: Enrichment request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.NumistaEnrichmentRequestSwagger'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.NumistaLookupOutcomeSwagger'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Enrich and rerank Numista candidates
+      tags:
+      - Numista
   /numista/lookup:
     post:
       consumes:
