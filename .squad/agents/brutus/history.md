@@ -422,3 +422,124 @@
 - Draft cards render the exact retained identifier from the owner-scoped preloaded list relation, omit it otherwise, wrap safely, and add no API request.
 - Gates passed: focused Go and 34 focused frontend tests; full Go build/vet/tests; architecture/OpenAPI/migration gates; full frontend 109 files/671 tests; design tokens 8/8; type-check; production build; ESLint 0 errors/168 warnings; diff check; targeted secret scan.
 - Residual risks are limited to structural jsdom mobile assertions rather than a physical 375 px browser run and unavailable optional external scanners; neither blocks this proportional frontend placement amendment.
+
+## 2026-08-11 — Feature 341 Phase 6 / User Story 4 acceptance tests T054–T057
+
+- Shared-cache acceptance is strongest at the lookup-service seam: use the same normalized query through direct and photo paths, assert one provider call, preserve each exact submitted query, and separately prove fresh-empty reuse, exact-expiry refresh, concurrent fan-in, live limit/TTL changes, and configuration-before-cache.
+- TTL-change coverage must distinguish existing entries from new writes: changing a TTL does not rewrite an entry's recorded expiry, while a new cache identity uses the current TTL. Search and detail expiry remain independently observable with one fake clock.
+- Telemetry privacy coverage should inspect both the event type and serialized retained events. Field-name checks prevent future query/key/error fields, while sentinel input passed through the correlation seam proves it is replaced by a bounded digest rather than merely omitted from the health summary.
+- Admin health tests assert the exact empty JSON shape, populated aggregate values, invalid live configuration, real 401/403 middleware boundaries, and absence of credentials, queries, inscriptions, labels, raw errors, and correlation digests.
+- T054 and T055 pass against the landed shared cache/telemetry foundation. T056 intentionally fails to compile because `NewAdminNumistaHandler` is Phase 6 product work; T057 intentionally fails because bounded Numista controls and the health request/rendering are not implemented. Related service/model baselines, Go build, Vue type-check, and production build pass.
+
+## 2026-08-11 — Feature 341 Phase 6 strict-lockout re-review
+
+- BLOCKED Augustus's independent revision: actual HTTP retry capture is wired
+  only around broad `Search`; detail retry evidence remains manual event
+  injection rather than a production `Detail` operation.
+- Coalesced lookup telemetry is not provider-operation truthful: all waiters
+  inherit `Hit:false` and record refreshes for one shared provider call, while
+  only the loader records the actual retry count.
+- Verified correct R-7 percentile boundaries and sparse `statusCounts`
+  alignment. Admin loading/error/retry/empty/partial/populated states,
+  authorization, redaction, and responsive design otherwise pass.
+- Focused/full Go and frontend gates, architecture/OpenAPI, diff check, and
+  concurrency/retry stress ×50 passed. T054–T063 remain unchecked; Augustus is
+  locked out pending independent revision.
+
+## 2026-08-11 — Feature 341 Phase 6 Tiberius second-revision review
+
+- **Verdict: BLOCK; Tiberius is locked out from further revision.**
+- The typed loader/fresh/coalesced/bypass state machine, loader-owned real
+  broad/detail retry telemetry, cancellation-safe takeover, bounded retention,
+  R-7 percentiles, sparse maps, admin states/auth/settings, and redaction pass.
+- Blocking contract defect: `coalesced_waiter` is converted to `CacheHit=true`,
+  returned publicly as `cache.hit=true`, aggregated as a cache hit, and labeled
+  “Cached results”/“hits” in the collector/admin UI. A coalesced waiter reused
+  in-flight work, not a fresh cache entry; failed coalesced requests are also
+  counted as cache hits. This contradicts `CacheMetadata.hit` (“true only when
+  a fresh entry was reused”) and makes cache health/freshness misleading.
+- Existing stress tests explicitly encode the wrong behavior by expecting
+  `callers-1` cache hits for coalesced fan-in, including provider failure.
+- Gates passed: focused Numista stress ×100; full Go build/vet/tests;
+  architecture/OpenAPI route checks; focused/full frontend tests, strict type
+  check, production build, lint with zero errors; deterministic OpenAPI
+  regeneration; diff/privacy checks. Race remains unavailable because CGO is
+  disabled.
+- T054–T063 remain unchecked. No product files or task checkboxes were changed.
+
+## 2026-08-11 — Feature 341 Phase 6 Germanicus third-revision review
+
+- **Verdict: BLOCK; Germanicus is locked out from further revision.**
+- Germanicus cleared the false-freshness defect: successful and failed cold
+  fan-in now report coalescing separately, with zero fresh hits; warm cache,
+  expiry, broad/detail retry ownership, cancellation/takeover, bypass,
+  contracts, admin labels, and redaction otherwise passed.
+- Blocking telemetry defect: fresh-cache and bypass events still contribute
+  status and elapsed time to the rolling latency/status aggregates. This
+  contradicts the reconciled Phase 6 rule that only the loader owns provider
+  status/retry/latency/failure. Existing detail coverage explicitly expects a
+  25 ms p50 from one 50 ms provider load plus a zero-duration fresh hit.
+- Blocking admin defect: `hasHealthEvents` checks only broad/detail provider
+  counts. A real unconfigured-only event has a non-empty status count but zero
+  provider counts and is rendered as “No Recent Activity”; a retained window
+  containing only fresh/coalesced/cancellation events is hidden the same way.
+  Zero-event behavior is therefore not truthful.
+- Gates passed: focused Numista stress ×100; full Go build/vet/tests;
+  focused/full frontend tests; strict type-check, production build, and lint;
+  deterministic OpenAPI regeneration; diff check. T054–T063 remain unchecked.
+
+## 2026-08-11 — Feature 341 Phase 6 Vespasian fourth-revision review
+
+- **Verdict: BLOCK; Vespasian is locked out from further revision.**
+- Fresh hits, coalesced waiters, bypass bookkeeping, and unconfigured bypass
+  aggregation are now isolated correctly, and the admin activity predicate
+  recognizes status, timestamp, quota, fresh, coalesced, cancellation,
+  provider, and enrichment activity while preserving a true zero-event state.
+- Blocking cancellation aggregation defect: a cancelled loader still
+  increments provider load/request/latency (and detail-attempt) aggregates,
+  while the loader event itself is explicitly excluded from cancellation
+  count. This violates the required event matrix that cancellation contributes
+  only cancellation, plus coalescing when the cancelled caller was a waiter.
+  The takeover integration test encodes the defect by expecting two provider
+  loads/requests for one cancelled load and one successful replacement.
+- Additional cache-isolation gap: search values deep-copy assessment reasons,
+  but detail cache writes/reads remain shallow and there is no Phase 6
+  mutation-isolation regression test, contrary to the revision report.
+- Gates passed: focused Go/frontend tests; telemetry stress ×100; full Go
+  build/vet/tests; full frontend tests, type-check, production build, and lint;
+  diff check and contract/redaction inspection. T054–T063 remain unchecked.
+
+## 2026-08-11 — Feature 341 Phase 6 Nerva fifth-revision review
+
+- **Verdict: BLOCK; Nerva is locked out from further revision.**
+- Nerva cleared the prior cancellation aggregate and detail clone defects for
+  cooperative cancellation: cancelled caller events own only cancellation
+  (plus coalescing for cancelled waiters), replacement success/failure owns one
+  provider aggregate, and detail candidates deep-clone both year pointers and
+  assessment reasons across store, publication, coalesced returns, and hits.
+- Blocking ownership race remains: provider telemetry is recorded inside the
+  loader closure before `runSearchLoad` / `runDetailLoad` verifies that the
+  call still owns the in-flight slot. After all callers cancel and the call is
+  removed, a provider that returns success/failure despite or concurrently
+  with cancellation can record a stale loader status/load/failure/latency (and
+  detail enrichment) beside the replacement loader, although its result is
+  discarded and never published. Cancellation-only outcomes therefore are not
+  guaranteed to remain cancellation-only, and exactly-one completing-loader
+  ownership is not proven.
+- Existing cancellation tests use clients that always return `ctx.Err()` after
+  cancellation; they do not cover a late/non-cooperative success or failure
+  after orphaning, so the race is not regression-protected.
+- Focused Numista tests, cancellation/clone stress ×100, full Go
+  build/vet/tests, full frontend tests/type-check/build/lint, deterministic
+  OpenAPI regeneration, and diff check passed. Race testing was unavailable
+  because no C compiler is installed; Gitleaks and Trivy were unavailable.
+  T054–T063 remain unchecked.
+
+## 2026-08-11 — Feature 341 Phase 6 Claudius sixth-revision final review
+
+- **Verdict: APPROVE; the Phase 6 Strict Lockout block is cleared.**
+- Search and detail provider I/O now only prepare deferred telemetry. The cache invokes it after mutex-protected pointer identity confirms the call still owns the in-flight slot; superseded/orphaned late success and failure close without emission or cache publication.
+- Normal owned success/failure emits one loader event; replacement work emits one; cancelled callers emit cancellation only, coalesced cancellations retain coalescing, and healthy waiters complete from the shared provider operation.
+- Deterministic late-result, takeover, cancellation, healthy-waiter, fan-in, warm-cache, expiry, and independent-TTL tests passed at `-count=100`. Focused frontend Phase 6 tests passed 15/15.
+- Full gates passed: Go build, vet, and all tests; full frontend Vitest, type-check, explicit `vue-tsc --build`, production build, lint; `git diff --check`.
+- T054–T063 are checked complete. Residual risk remains limited to the unavailable Go race detector (`CGO_ENABLED=0`); deterministic synchronization stress and direct state-machine inspection provide high confidence.

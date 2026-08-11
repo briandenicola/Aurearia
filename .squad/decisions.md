@@ -1324,3 +1324,85 @@ Limited to unavailable Gitleaks and Trivy scanning. All code quality and functio
 - Constitution §21 (Definition of Done): T028–T045 checksum complete
 
 ---
+---
+
+### Decision: Feature 341 Phase 6 QA Review and Approved Implementation
+
+**Date:** 2026-08-11  
+**Reviewers:** Brutus (QA/approval), Claudius (implementation fix)  
+**Status:** APPROVED
+
+## Context
+
+Phase 6 cycles refined Numista cache telemetry ownership, health API, and admin UI:
+
+**Cassius-Aurelia-Augustus iterations** identified three critical misalignments:
+1. Real provider retry attempts not captured in production (only test-constructed events)
+2. TypeScript health contract type mismatch with sparse backend maps
+3. Admin UI missing successful-empty state; incomplete retry/coalesced/failure semantics
+
+**Tiberius-Germanicus revision** corrected false cache-hit classification. The subsequent **Vespasian-Nerva revisions** remained blocked on orthogonal issues:
+- Cancelled loader events still emitting provider aggregates
+- Shallow detail cache copy allowing nested reason mutation
+- Orphaned/late provider results emitting despite cancellation
+
+**Claudius independent revision** (2026-08-11 15:04) implemented the definitive fix:
+- Loader closures prepare redacted telemetry callbacks only after cache confirms pointer-identity ownership
+- Superseded or orphaned late results discard callbacks and emit zero provider aggregates
+- Successful/failed cold fan-in produces exactly one provider event; replacement ownership emits once
+- Fresh cache hits, coalesced waiters, unconfigured bypasses retain existing semantics
+- Barrier-controlled ownership/cancellation/replacement tests pass at -count=100
+
+## Verdict
+
+**APPROVE** — All Phase 6 blockers cleared. T054–T063 satisfy FR-021–FR-026, NFR-005–NFR-007, SC-006, SC-008, SC-009.
+
+## Requirements Coverage
+
+- **FR-021** (Real provider retry telemetry): Search and detail loaders capture and emit retry attempt counts from provider layer
+- **FR-022** (Separate fresh/coalesced metrics): Distinct event types for fresh cache hits, coalesced waiter reuse, and provider loads
+- **FR-023** (Cache state visibility): Admin health API exposes cache hit rate, refresh rate, bypass rate, failure rate, and provider latency percentiles
+- **FR-024** (Admin health UI): Real-time cache metrics with sparse/empty/partial/populated rendering; redaction for non-admin users
+- **FR-025** (Ownership semantics): Only cache loaders own provider status/latency/failure aggregates; cancellation emits only cancellation events
+- **FR-026** (Coalesce transparency): Concurrent callers correctly attributed as coalesced (one provider call, N-1 waiters reuse result, zero provider latency for reuse)
+- **NFR-005** (Percentile fidelity): Rolling R-7 p50/p95 calculated per reconciled definition; boundary tests validate small/large windows
+- **NFR-006** (Bounded retention): Health ring stores ≤100 events; oldest FIFO expiry; zero-event ring handled explicitly
+- **NFR-007** (Telemetry redaction): Non-admin GET /admin/health/numista returns sparse maps, zero counts, and 
+ull latency/retry details
+
+## Verified Gates
+- ✅ Ownership/cancellation/replacement/late-success regressions at -count=100
+- ✅ Go build, vet, architecture rules, OpenAPI contract checks, full test suite
+- ✅ Frontend Vitest (654 tests), strict type-check, production build, lint (0 errors)
+- ✅ OpenAPI regeneration byte-stable (docs/openapi.json, Swagger artifacts)
+- ✅ Numista domain deep-copy mutation isolation
+- ✅ Admin layout/auth/redaction/responsive/empty/partial/populated state coverage
+- ✅ Diff and privacy compliance checks
+- ⚠️ Go race detector (unavailable: CGO disabled), Gitleaks, Trivy (residual)
+
+## Implementation Summary: 9 Cycles
+
+| Cycle | Agent | Focus | Outcome |
+|-------|-------|-------|---------|
+| 1 | Cassius | Cache structure, basic telemetry | BLOCK: production retries missing |
+| 2 | Aurelia | Health UI, TS contract | BLOCK: type mismatch, missing states |
+| 3 | Augustus | Retry telemetry, coalesce accounting | BLOCK: detail retries incomplete, double-count waiters |
+| 4 | Tiberius | Retry ownership, cache-hit classification | BLOCK: false freshness classification |
+| 5 | Germanicus | Hit correction, fresh/provider separation | BLOCK: fresh hits in provider p50/p95, incomplete activity detection |
+| 6 | Vespasian | Cancellation/replacement ownership | BLOCK: cancelled events emit provider aggregates |
+| 7 | Nerva | Late orphaned-result handling | BLOCK: non-cooperative cancellation emits double provider events |
+| 8 | Claudius | Pointer-identity ownership callback | PASS: telemetry conditional on cache ownership confirmation |
+| 9 | Brutus | Final QA review | APPROVE: all requirements satisfied, gates passed |
+
+## Alignment
+
+- Constitution Principles III (Consistent API), IV (Simple Complete Changes), V (Security/Privacy), IX (Test-Driven), X (Audit)
+- Constitution §17 (Quality Gate): all 15 gate checks passed
+- Constitution §21 (Definition of Done): T054–T063 checksum and cycle-log complete
+- Feature 341 Phase 6 Specification (.specify/specs/341-improve-numista-lookup/)
+
+## Residual Risk
+
+Limited to unavailable race detector and binary scanners. All code, architecture, contract, and functional gates passed.
+
+---

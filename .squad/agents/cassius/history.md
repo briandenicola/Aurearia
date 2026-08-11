@@ -30,6 +30,12 @@
 
 ## Recent Updates
 
+- **2026-08-11 — Feature 341 Phase 6 backend (T058–T061):**
+  - Completed shared normalized search caching and coalescing acceptance coverage, bounded redacted telemetry aggregates, and the admin-only `GET /api/admin/numista/health` endpoint.
+  - The health handler reports only configuration validity and rolling status/latency/cache/quota/enrichment aggregates; credentials and collector/provider text are never exposed.
+  - Wired the handler to the existing shared settings/telemetry instances under JWT + admin middleware and regenerated Swagger/OpenAPI artifacts.
+  - Validated focused T054–T056 tests plus `go test ./...`, `go build ./...`, `go vet ./...`, architecture, and OpenAPI route drift.
+
 - **2026-07-26 — Sets Refinement: Backend Semantics & Goal Completion (sets-refinement merged to beta):**
   - Implemented set type normalization: `defined`→`goal`, `open`→`standard` via database migration
   - Added `creation_mode` field to `coin_sets` (`manual` default, `dynamic` only for tracker sets)
