@@ -27,7 +27,7 @@ func (r *CatalogRegistryRepository) List() ([]models.CatalogRegistry, error) {
 // FindByCatalog returns a registry entry by catalog code.
 func (r *CatalogRegistryRepository) FindByCatalog(catalog string) (*models.CatalogRegistry, error) {
 	var entry models.CatalogRegistry
-	err := r.db.Where("catalog = ?", strings.ToUpper(strings.TrimSpace(catalog))).First(&entry).Error
+	err := r.db.Where("LOWER(catalog) = LOWER(?)", strings.TrimSpace(catalog)).First(&entry).Error
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (r *CatalogRegistryRepository) Delete(id uint) error {
 func (r *CatalogRegistryRepository) CountReferencesUsing(catalog string) (int64, error) {
 	var count int64
 	err := r.db.Table("coin_references").
-		Where("catalog = ?", strings.ToUpper(strings.TrimSpace(catalog))).
+		Where("LOWER(catalog) = LOWER(?)", strings.TrimSpace(catalog)).
 		Count(&count).Error
 	return count, err
 }

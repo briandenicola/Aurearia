@@ -89,7 +89,7 @@ func (s *CatalogRegistryService) Update(id uint, entry models.CatalogRegistry) (
 	}
 
 	// If code changed, check for duplicate
-	if entry.Catalog != existing.Catalog {
+	if !strings.EqualFold(entry.Catalog, existing.Catalog) {
 		duplicate, err := s.repo.FindByCatalog(entry.Catalog)
 		if err != nil && !repository.IsRecordNotFound(err) {
 			return entry, err
@@ -97,6 +97,8 @@ func (s *CatalogRegistryService) Update(id uint, entry models.CatalogRegistry) (
 		if duplicate != nil {
 			return entry, ErrCatalogDuplicate
 		}
+	} else {
+		entry.Catalog = existing.Catalog
 	}
 
 	updates := map[string]interface{}{

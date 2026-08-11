@@ -88,6 +88,21 @@ func main() {
 	settingsRepo := repository.NewSettingsRepository(database.DB)
 	settingsSvc := services.NewSettingsService(settingsRepo)
 	settingsSvc.SyncLogLevel(logger)
+	numistaClock := services.NewSystemNumistaClock()
+	numistaCache := services.NewNumistaCache(numistaClock, 500, 5000)
+	numistaTelemetry := services.NewNumistaTelemetry(500)
+	numistaClient, err := services.NewHTTPNumistaClient(services.NumistaClientConfig{
+		APIKey:        func() string { return settingsSvc.GetSetting(services.SettingNumistaAPIKey) },
+		SearchTimeout: func() time.Duration { return settingsSvc.GetNumistaSettings().SearchTimeout },
+		DetailTimeout: func() time.Duration { return settingsSvc.GetNumistaSettings().DetailTimeout },
+	})
+	if err != nil {
+		log.Fatalf("Failed to configure Numista client: %v", err)
+	}
+	numistaLookupSvc := services.NewNumistaLookupService(
+		numistaClient, numistaCache, services.NewNumistaV1Scorer(),
+		numistaTelemetry, settingsSvc, numistaClock,
+	)
 
 	// Create internal token service for Python agent callbacks
 	internalTokenSvc := services.NewInternalTokenService(cfg.JWTSecret)
@@ -470,7 +485,8 @@ func main() {
 		protected.GET("/featured-coins/latest", coinOfDayHandler.Latest)
 		protected.GET("/featured-coins/:id", coinOfDayHandler.Get)
 
-		numistaHandler := handlers.NewNumistaHandler(settingsSvc)
+		numistaHandler := handlers.NewNumistaHandler(numistaLookupSvc)
+		protected.POST("/numista/lookup", numistaHandler.Lookup)
 		protected.GET("/numista/search", numistaHandler.Search)
 
 		auctionLotSvc := services.NewAuctionLotService(auctionLotRepo, coinRepo).

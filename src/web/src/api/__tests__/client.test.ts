@@ -139,6 +139,29 @@ describe('API Client', () => {
   // sanitizeCoin
   // ========================================================================
 
+  describe('Numista lookup', () => {
+    it('posts the exact typed broad lookup request', async () => {
+      mockApi.post.mockResolvedValue({ data: { status: 'empty', effectiveQuery: '  edited   query  ', candidates: [], stage: 'broad' } })
+      const request = {
+        query: '  edited   query  ',
+        path: 'direct' as const,
+        evidence: { title: 'Denarius', mint: 'Rome' },
+      }
+
+      await client.lookupNumista(request)
+
+      expect(mockApi.post).toHaveBeenCalledWith('/numista/lookup', request)
+    })
+
+    it('preserves the deprecated GET search adapter', async () => {
+      mockApi.get.mockResolvedValue({ data: { count: 0, types: [] } })
+
+      await client.searchNumista('legacy query')
+
+      expect(mockApi.get).toHaveBeenCalledWith('/numista/search', { params: { q: 'legacy query' } })
+    })
+  })
+
   describe('sanitizeCoin (via createCoin / updateCoin)', () => {
     // sanitizeCoin is not exported directly, so we test it through the public API wrappers
 

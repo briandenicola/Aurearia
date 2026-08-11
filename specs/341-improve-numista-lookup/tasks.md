@@ -8,9 +8,9 @@
 
 **Purpose**: Establish live-provider-free fixtures for backend, migration, and Vue work.
 
-- [ ] T001 Add sanitized Numista broad-search, detail, malformed-response, and quota-response fixtures in src/api/services/testdata/numista/
-- [ ] T002 [P] Add typed Numista request, candidate, outcome, and selected-reference factories in src/web/src/test/numista-fixtures.ts
-- [ ] T003 [P] Add a pre-feature Quick Capture schema fixture with active and promoted drafts in src/api/database/testdata/pre_numista_quick_capture.sql
+- [x] T001 Add sanitized Numista broad-search, detail, malformed-response, and quota-response fixtures in src/api/services/testdata/numista/
+- [x] T002 [P] Add typed Numista request, candidate, outcome, and selected-reference factories in src/web/src/test/numista-fixtures.ts
+- [x] T003 [P] Add a pre-feature Quick Capture schema fixture with active and promoted drafts in src/api/database/testdata/pre_numista_quick_capture.sql
 
 ---
 
@@ -20,18 +20,18 @@
 
 **Critical**: No user-story implementation starts until this phase is complete.
 
-- [ ] T004 [P] Add validation and JSON-contract tests for lookup paths, evidence bounds, candidates, outcomes, enrichment states, relevance reasons, cache metadata, and health summaries in src/api/models/numista_test.go
-- [ ] T005 Implement standard-library-only application DTOs, enums, validation helpers, canonical Numista URLs, and bounded value objects in src/api/models/numista.go
-- [ ] T006 [P] Add httptest and fake-RoundTripper tests for provider URL/header mapping, response-size limits, malformed fields, 400/401/403/429/5xx mapping, Retry-After, cancellation, deadlines, one eligible retry, and forbidden retries in src/api/services/numista_client_test.go
-- [ ] T007 Implement NumistaClient, HTTPNumistaClient, private provider DTOs, typed safe error taxonomy, context cancellation, four/three-second deadlines, and one bounded transient retry in src/api/services/numista_client.go
-- [ ] T008 [P] Add fake-clock tests for search/detail namespaces, independent TTLs, fresh empty outcomes, expiry deletion, bounded eviction, hashed identities, and same-key in-flight coalescing in src/api/services/numista_cache_test.go
-- [ ] T009 Implement injectable-clock bounded TTL caches and cancellation-safe same-key request coalescing in src/api/services/numista_cache.go
-- [ ] T010 [P] Add table-driven scorer tests for every weighted dimension, neutral missing data, exact-ID precedence, BCE/CE ranges, conflicts, NFKC/mixed scripts, punctuation, duplicate/long evidence, safe reasons, and stable ties in src/api/services/numista_scoring_test.go
-- [ ] T011 Implement versioned numista-v1 normalization, date parsing, weighted scoring, relevance bands/reasons, redaction, and deterministic tie-breaking in src/api/services/numista_scoring.go
-- [ ] T012 [P] Add concurrency and aggregate tests for bounded telemetry, p50/p95, status/cache/enrichment/quota counts, empty-ring behavior, and rejection of secret or user-text fields in src/api/services/numista_telemetry_test.go
-- [ ] T013 Implement the thread-safe bounded Numista telemetry ring, safe correlation digests, and redacted health aggregation in src/api/services/numista_telemetry.go
-- [ ] T014 [P] Add default, valid-range, invalid-value fallback, and live-reload tests for all Numista TTL, limit, and timeout settings in src/api/services/settings_service_test.go
-- [ ] T015 Add validated Numista search/detail TTL, enrichment/result limit, and timeout settings with documented defaults and safe invalid-configuration signals in src/api/services/settings_service.go
+- [x] T004 [P] Add validation and JSON-contract tests for lookup paths, evidence bounds, candidates, outcomes, enrichment states, relevance reasons, cache metadata, and health summaries in src/api/models/numista_test.go
+- [x] T005 Implement standard-library-only application DTOs, enums, validation helpers, canonical Numista URLs, and bounded value objects in src/api/models/numista.go
+- [x] T006 [P] Add httptest and fake-RoundTripper tests for provider URL/header mapping, response-size limits, malformed fields, 400/401/403/429/5xx mapping, Retry-After, cancellation, deadlines, one eligible retry, and forbidden retries in src/api/services/numista_client_test.go
+- [x] T007 Implement NumistaClient, HTTPNumistaClient, private provider DTOs, typed safe error taxonomy, context cancellation, four/three-second deadlines, and one bounded transient retry in src/api/services/numista_client.go
+- [x] T008 [P] Add fake-clock tests for search/detail namespaces, independent TTLs, fresh empty outcomes, expiry deletion, bounded eviction, hashed identities, and same-key in-flight coalescing in src/api/services/numista_cache_test.go
+- [x] T009 Implement injectable-clock bounded TTL caches and cancellation-safe same-key request coalescing in src/api/services/numista_cache.go
+- [x] T010 [P] Add table-driven scorer tests for every weighted dimension, neutral missing data, exact-ID precedence, BCE/CE ranges, conflicts, NFKC/mixed scripts, punctuation, duplicate/long evidence, safe reasons, and stable ties in src/api/services/numista_scoring_test.go
+- [x] T011 Implement versioned numista-v1 normalization, date parsing, weighted scoring, relevance bands/reasons, redaction, and deterministic tie-breaking in src/api/services/numista_scoring.go
+- [x] T012 [P] Add concurrency and aggregate tests for bounded telemetry, p50/p95, status/cache/enrichment/quota counts, empty-ring behavior, and rejection of secret or user-text fields in src/api/services/numista_telemetry_test.go
+- [x] T013 Implement the thread-safe bounded Numista telemetry ring, safe correlation digests, and redacted health aggregation in src/api/services/numista_telemetry.go
+- [x] T014 [P] Add default, valid-range, invalid-value fallback, and live-reload tests for all Numista TTL, limit, and timeout settings in src/api/services/settings_service_test.go
+- [x] T015 Add validated Numista search/detail TTL, enrichment/result limit, and timeout settings with documented defaults and safe invalid-configuration signals in src/api/services/settings_service.go
 
 **Checkpoint**: Provider access, scoring, caching, telemetry, and configuration are typed and independently testable without Numista access.
 
@@ -45,21 +45,21 @@
 
 ### Tests for User Story 1
 
-- [ ] T016 [P] [US1] Add broad-lookup service tests for rich evidence, exact effective-query preservation, application-owned candidate mapping, deterministic initial scoring, unusable provider rows, and empty manual evidence in src/api/services/numista_lookup_service_test.go
-- [ ] T017 [P] [US1] Add authenticated POST lookup and deprecated GET adapter tests for request bounds, safe failures, legacy count/types shape, and Swagger annotations in src/api/handlers/numista_test.go
-- [ ] T018 [P] [US1] Add pure direct-query builder tests covering every coin field, empty omission, source-text preservation, length bounds, and editable retry values in src/web/src/utils/__tests__/numistaLookup.test.ts
-- [ ] T019 [P] [US1] Add component tests for direct query editing, explained ranking, explicit radio selection, replace/remove, outside-latest-result retention, and add-only-on-confirm behavior in src/web/src/components/coin/__tests__/CoinNumistaPanel.test.ts
+- [x] T016 [P] [US1] Add broad-lookup service tests for rich evidence, exact effective-query preservation, application-owned candidate mapping, deterministic initial scoring, unusable provider rows, and empty manual evidence in src/api/services/numista_lookup_service_test.go
+- [x] T017 [P] [US1] Add authenticated POST lookup and deprecated GET adapter tests for request bounds, safe failures, legacy count/types shape, and Swagger annotations in src/api/handlers/numista_test.go
+- [x] T018 [P] [US1] Add pure direct-query builder tests covering every coin field, empty omission, source-text preservation, length bounds, and editable retry values in src/web/src/utils/__tests__/numistaLookup.test.ts
+- [x] T019 [P] [US1] Add component tests for direct query editing, explained ranking, explicit radio selection, replace/remove, outside-latest-result retention, and add-only-on-confirm behavior in src/web/src/components/coin/__tests__/CoinNumistaPanel.test.ts
 
 ### Implementation for User Story 1
 
-- [ ] T020 [US1] Implement broad search orchestration, application mapping, effective-query preservation, initial scoring, and safe success/empty outcomes in src/api/services/numista_lookup_service.go
-- [ ] T021 [US1] Replace handler-owned provider HTTP with typed POST lookup and a deprecated shared-service GET compatibility adapter in src/api/handlers/numista.go
-- [ ] T022 [P] [US1] Add Swagger request/response aliases for Numista application contracts and the preserved legacy response in src/api/handlers/swagger_types.go
-- [ ] T023 [US1] Construct one client, cache, scorer, telemetry recorder, and lookup service; inject them into authenticated Numista routes in src/api/main.go
-- [ ] T024 [P] [US1] Add exact TypeScript lookup/evidence/candidate/outcome/relevance/cache DTOs and typed broad/legacy API calls in src/web/src/types/index.ts and src/web/src/api/client.ts
-- [ ] T025 [P] [US1] Implement the pure rich-query builder, canonical candidate identity, selection retention, and role-safe status mapping helpers in src/web/src/utils/numistaLookup.ts
-- [ ] T026 [US1] Create the reusable editable lookup/results/selection panel with textual relevance reasons, canonical links, and explicit confirmation events in src/web/src/components/numista/NumistaLookupPanel.vue
-- [ ] T027 [US1] Refine direct lookup to use all coin evidence and persist only the confirmed selection through the existing structured-reference API in src/web/src/components/coin/CoinNumistaPanel.vue
+- [x] T020 [US1] Implement broad search orchestration, application mapping, effective-query preservation, initial scoring, and safe success/empty outcomes in src/api/services/numista_lookup_service.go
+- [x] T021 [US1] Replace handler-owned provider HTTP with typed POST lookup and a deprecated shared-service GET compatibility adapter in src/api/handlers/numista.go
+- [x] T022 [P] [US1] Add Swagger request/response aliases for Numista application contracts and the preserved legacy response in src/api/handlers/swagger_types.go
+- [x] T023 [US1] Construct one client, cache, scorer, telemetry recorder, and lookup service; inject them into authenticated Numista routes in src/api/main.go
+- [x] T024 [P] [US1] Add exact TypeScript lookup/evidence/candidate/outcome/relevance/cache DTOs and typed broad/legacy API calls in src/web/src/types/index.ts and src/web/src/api/client.ts
+- [x] T025 [P] [US1] Implement the pure rich-query builder, canonical candidate identity, selection retention, and role-safe status mapping helpers in src/web/src/utils/numistaLookup.ts
+- [x] T026 [US1] Create the reusable editable lookup/results/selection panel with textual relevance reasons, canonical links, and explicit confirmation events in src/web/src/components/numista/NumistaLookupPanel.vue
+- [x] T027 [US1] Refine direct lookup to use all coin evidence and persist only the confirmed selection through the existing structured-reference API in src/web/src/components/coin/CoinNumistaPanel.vue
 
 **Checkpoint**: Direct lookup is a complete, independently testable MVP and the legacy GET route remains usable.
 

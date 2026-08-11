@@ -6,6 +6,7 @@ export interface Coin {
   ruler: string
   romanImperialFigureId: number | null
   era: string
+  dateRange?: string | null
   mint: string
   mintLocationId: number | null
   mintLocation: Pick<MintLocation, 'id' | 'displayName' | 'lat' | 'lng'> | null
@@ -1245,6 +1246,89 @@ export interface NumistaType {
 export interface NumistaSearchResponse {
   count: number
   types: NumistaType[]
+}
+
+export type NumistaLookupPath = 'direct' | 'photo'
+export type NumistaLookupStatus = 'success' | 'empty' | 'unconfigured' | 'quota-limited' | 'timeout' | 'unavailable'
+export type NumistaEnrichmentState = 'not_requested' | 'enriched' | 'cached' | 'failed'
+export type NumistaRelevanceField = 'exact_id' | 'title' | 'issuer' | 'denomination' | 'mint' | 'date' | 'material' | 'inscription'
+export type NumistaRelevanceKind = 'match' | 'conflict' | 'unavailable'
+export type NumistaRelevanceBand = 'strong' | 'possible' | 'weak'
+
+export interface NumistaEvidence {
+  title?: string
+  issuer?: string
+  denomination?: string
+  mint?: string
+  dateText?: string
+  material?: string
+  obverseInscription?: string
+  reverseInscription?: string
+  visibleText?: string
+  exactNumistaId?: number
+}
+
+export interface NumistaLookupRequest {
+  query: string
+  path: NumistaLookupPath
+  evidence: NumistaEvidence
+}
+
+export interface NumistaRelevanceReason {
+  field: NumistaRelevanceField
+  kind: NumistaRelevanceKind
+  code: string
+  label: string
+}
+
+export interface NumistaRelevanceAssessment {
+  scoringVersion: 'numista-v1'
+  score: number
+  band: NumistaRelevanceBand
+  reasons: NumistaRelevanceReason[]
+}
+
+export interface NumistaCandidate {
+  id: number
+  canonicalUrl: string
+  title: string
+  issuer?: string
+  denomination?: string
+  mint?: string
+  minYear?: number
+  maxYear?: number
+  yearDisplay?: string
+  material?: string
+  obverseInscription?: string
+  reverseInscription?: string
+  obverseThumbnail?: string
+  reverseThumbnail?: string
+  providerPosition: number
+  enrichmentState: NumistaEnrichmentState
+  assessment: NumistaRelevanceAssessment
+}
+
+export interface NumistaCacheMetadata {
+  hit: boolean
+  createdAt: string
+  expiresAt: string
+  ageSeconds: number
+}
+
+export interface NumistaLookupOutcome {
+  status: NumistaLookupStatus
+  effectiveQuery: string
+  candidates: NumistaCandidate[]
+  guidanceCode?: string
+  retryAfterSeconds?: number
+  cache?: NumistaCacheMetadata
+  stage: 'broad' | 'enriched'
+}
+
+export interface SelectedNumistaReference {
+  catalog: 'Numista'
+  number: string
+  uri: string
 }
 
 export interface UserInfo {

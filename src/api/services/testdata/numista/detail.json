@@ -1,0 +1,12 @@
+{
+  "id": 12345,
+  "title": "Denarius - Trajan",
+  "issuer": { "name": "Roman Empire" },
+  "min_year": 101,
+  "max_year": 102,
+  "value": { "text": "Denarius" },
+  "composition": { "text": "Silver" },
+  "mints": [{ "name": "Rome" }],
+  "obverse": { "inscription": "IMP TRAIANO AVG GER DAC" },
+  "reverse": { "inscription": "P M TR P COS V P P" }
+}

@@ -161,6 +161,9 @@ definitions:
         maxLength: 64
       currentValue:
         type: number
+      dateRange:
+        maxLength: 200
+        type: string
       denomination:
         maxLength: 200
         type: string
@@ -378,6 +381,9 @@ definitions:
         maxLength: 64
       currentValue:
         type: number
+      dateRange:
+        maxLength: 200
+        type: string
       denomination:
         maxLength: 200
         type: string
@@ -685,6 +691,15 @@ definitions:
           $ref: '#/definitions/repository.InvestmentMovementCoin'
         type: array
     type: object
+  handlers.LegacyNumistaSearchResponseSwagger:
+    properties:
+      count:
+        type: integer
+      types:
+        items:
+          $ref: '#/definitions/models.LegacyNumistaType'
+        type: array
+    type: object
   handlers.LinkEventRequest:
     properties:
       eventId:
@@ -824,6 +839,34 @@ definitions:
         type: string
       year:
         example: 101-102
+        type: string
+    type: object
+  handlers.NumistaLookupOutcomeSwagger:
+    properties:
+      cache:
+        $ref: '#/definitions/models.NumistaCacheMetadata'
+      candidates:
+        items:
+          $ref: '#/definitions/models.NumistaCandidate'
+        type: array
+      effectiveQuery:
+        type: string
+      guidanceCode:
+        type: string
+      retryAfterSeconds:
+        type: integer
+      stage:
+        type: string
+      status:
+        $ref: '#/definitions/models.NumistaLookupStatus'
+    type: object
+  handlers.NumistaLookupRequestSwagger:
+    properties:
+      evidence:
+        $ref: '#/definitions/models.NumistaEvidence'
+      path:
+        $ref: '#/definitions/models.NumistaLookupPath'
+      query:
         type: string
     type: object
   handlers.OllamaStatusResponse:
@@ -2060,6 +2103,9 @@ definitions:
         type: number
       currentValueUpdatedAt:
         type: string
+      dateRange:
+        maxLength: 200
+        type: string
       denomination:
         maxLength: 200
         type: string
@@ -2422,6 +2468,28 @@ definitions:
   models.JSONObject:
     additionalProperties: true
     type: object
+  models.LegacyNumistaIssuer:
+    properties:
+      name:
+        type: string
+    type: object
+  models.LegacyNumistaType:
+    properties:
+      id:
+        type: integer
+      issuer:
+        $ref: '#/definitions/models.LegacyNumistaIssuer'
+      max_year:
+        type: integer
+      min_year:
+        type: integer
+      obverse_thumbnail:
+        type: string
+      reverse_thumbnail:
+        type: string
+      title:
+        type: string
+    type: object
   models.Material:
     enum:
     - Gold
@@ -2475,6 +2543,147 @@ definitions:
         type: string
       userId:
         type: integer
+    type: object
+  models.NumistaCacheMetadata:
+    properties:
+      ageSeconds:
+        type: integer
+      createdAt:
+        type: string
+      expiresAt:
+        type: string
+      hit:
+        type: boolean
+    type: object
+  models.NumistaCandidate:
+    properties:
+      assessment:
+        $ref: '#/definitions/models.NumistaRelevanceAssessment'
+      canonicalUrl:
+        type: string
+      denomination:
+        type: string
+      enrichmentState:
+        $ref: '#/definitions/models.NumistaEnrichmentState'
+      id:
+        type: integer
+      issuer:
+        type: string
+      material:
+        type: string
+      maxYear:
+        type: integer
+      minYear:
+        type: integer
+      mint:
+        type: string
+      obverseInscription:
+        type: string
+      obverseThumbnail:
+        type: string
+      providerPosition:
+        type: integer
+      reverseInscription:
+        type: string
+      reverseThumbnail:
+        type: string
+      title:
+        type: string
+      yearDisplay:
+        type: string
+    type: object
+  models.NumistaEnrichmentState:
+    enum:
+    - not_requested
+    - enriched
+    - cached
+    - failed
+    type: string
+    x-enum-varnames:
+    - NumistaEnrichmentNotRequested
+    - NumistaEnrichmentEnriched
+    - NumistaEnrichmentCached
+    - NumistaEnrichmentFailed
+  models.NumistaEvidence:
+    properties:
+      dateText:
+        type: string
+      denomination:
+        type: string
+      exactNumistaId:
+        type: integer
+      issuer:
+        type: string
+      material:
+        type: string
+      mint:
+        type: string
+      obverseInscription:
+        type: string
+      reverseInscription:
+        type: string
+      title:
+        type: string
+      visibleText:
+        type: string
+    type: object
+  models.NumistaLookupPath:
+    enum:
+    - direct
+    - photo
+    type: string
+    x-enum-varnames:
+    - NumistaLookupPathDirect
+    - NumistaLookupPathPhoto
+  models.NumistaLookupStatus:
+    enum:
+    - success
+    - empty
+    - unconfigured
+    - quota-limited
+    - timeout
+    - unavailable
+    type: string
+    x-enum-varnames:
+    - NumistaStatusSuccess
+    - NumistaStatusEmpty
+    - NumistaStatusUnconfigured
+    - NumistaStatusQuotaLimited
+    - NumistaStatusTimeout
+    - NumistaStatusUnavailable
+  models.NumistaReasonKind:
+    enum:
+    - match
+    - conflict
+    - unavailable
+    type: string
+    x-enum-varnames:
+    - NumistaReasonMatch
+    - NumistaReasonConflict
+    - NumistaReasonUnavailable
+  models.NumistaRelevanceAssessment:
+    properties:
+      band:
+        type: string
+      reasons:
+        items:
+          $ref: '#/definitions/models.NumistaRelevanceReason'
+        type: array
+      score:
+        type: integer
+      scoringVersion:
+        type: string
+    type: object
+  models.NumistaRelevanceReason:
+    properties:
+      code:
+        type: string
+      field:
+        type: string
+      kind:
+        $ref: '#/definitions/models.NumistaReasonKind'
+      label:
+        type: string
     type: object
   models.OIDCProviderTestStatus:
     enum:
@@ -9853,13 +10062,52 @@ paths:
       summary: Unread notification count
       tags:
       - Notifications
+  /numista/lookup:
+    post:
+      consumes:
+      - application/json
+      description: Searches Numista through the shared application lookup service
+        and returns explained, application-owned candidates.
+      parameters:
+      - description: Lookup request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.NumistaLookupRequestSwagger'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.NumistaLookupOutcomeSwagger'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Run broad Numista lookup
+      tags:
+      - Numista
   /numista/search:
     get:
-      description: Searches the Numista coin catalog by query string. Requires a Numista
-        API key in admin settings.
+      description: Deprecated compatibility route preserving the legacy count/types
+        response.
       parameters:
       - description: Search query
         in: query
+        maxLength: 500
+        minLength: 1
         name: q
         required: true
         type: string
@@ -9869,7 +10117,7 @@ paths:
         "200":
           description: OK
           schema:
-            type: object
+            $ref: '#/definitions/handlers.LegacyNumistaSearchResponseSwagger'
         "400":
           description: Bad Request
           schema:

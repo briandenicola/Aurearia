@@ -105,9 +105,15 @@
       </div>
 
       <CoinNumistaPanel
+        :coin-id="coinId"
         :coin-name="coinName"
         :coin-ruler="coinRuler ?? ''"
         :coin-denomination="coinDenomination ?? ''"
+        :coin-mint="coinMint ?? ''"
+        :coin-date-range="coinDateRange ?? ''"
+        :coin-material="coinMaterial"
+        :coin-obverse-inscription="coinObverseInscription ?? ''"
+        :coin-reverse-inscription="coinReverseInscription ?? ''"
       />
     </div>
 
@@ -131,13 +137,18 @@ import { useDialog } from '@/composables/useDialog'
 import { useNotifications } from '@/composables/useNotifications'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 import { useToast } from '@/composables/useToast'
-import type { AIJob, AIJobStartResponse, ValueEstimate } from '@/types'
+import type { AIJob, AIJobStartResponse, Coin, ValueEstimate } from '@/types'
 
 const props = defineProps<{
   coinId: number
   coinName: string
   coinRuler?: string | null
   coinDenomination?: string | null
+  coinMint?: string | null
+  coinDateRange?: string | null
+  coinMaterial: Coin['material']
+  coinObverseInscription?: string | null
+  coinReverseInscription?: string | null
   imageCount: number
   isPwa: boolean
 }>()

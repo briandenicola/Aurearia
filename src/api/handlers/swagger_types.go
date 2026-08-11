@@ -358,6 +358,10 @@ type NumistaCandidateSwagger struct {
 	URL       string `json:"url" example:"https://en.numista.com/catalogue/pieces12345.html"`
 }
 
+type NumistaLookupRequestSwagger = models.NumistaLookupRequest
+type NumistaLookupOutcomeSwagger = models.NumistaLookupOutcome
+type LegacyNumistaSearchResponseSwagger = models.LegacyNumistaSearchResponse
+
 type CandidateReferenceSwagger struct {
 	Catalog string `json:"catalog" example:"NGC"`
 	Volume  string `json:"volume,omitempty" example:""`
