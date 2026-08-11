@@ -991,3 +991,138 @@ Implement thread-safe bounded `NumistaTelemetry` ring buffer with 500-operation 
 - Constitution §17: telemetry scoped to operational health, not privacy-invasive
 
 ---
+
+## Feature 341 MVP — Reviewed & APPROVED
+
+### Decision: Feature 341 Backend MVP — Numista Direct Lookup Architecture
+
+**Date:** 2026-08-11  
+**Agent:** Cassius  
+**Scope:** T001–T027 backend/shared foundations  
+**Status:** IMPLEMENTED & APPROVED
+
+## Context
+Feature 341 implements direct Numista lookup workflow as an authenticated API feature with service-to-service caching and deterministic relevance scoring.
+
+## Decision
+The direct Numista workflow uses one process-wide injected composition:
+```
+NumistaHandler -> NumistaLookupService -> NumistaClient
+```
+
+The HTTP client owns provider URL/header mapping, private provider DTOs, response limits, timeouts, cancellation, retry policy, and safe errors. The lookup service owns configuration precedence, cache orchestration, candidate sanitization, deterministic scoring, statuses, compatibility mapping, and redacted telemetry.
+
+Search cache keys are SHA-256 digests of normalized query plus result limit. The server reconstructs every canonical catalog URL from the positive numeric Numista ID and never trusts provider/client URLs.
+
+Compatibility: `GET /api/numista/search` remains authenticated and returns the legacy `{count,types}` shape while delegating to the shared service. New direct clients use authenticated `POST /api/numista/lookup`.
+
+## Note
+Generated Swagger/OpenAPI artifacts were not refreshed as OpenAPI regeneration is explicitly T077, outside T001–T027 boundary. Handler annotations and Swagger aliases are present.
+
+## Validation
+- Go build/vet/full tests PASS
+- Architecture test PASS
+- Targeted Numista service tests PASS
+
+## Alignment
+- Principle I: Clear Layered Architecture (handler → service → client)
+- Principle IV: simplest complete service composition
+- Constitution §17: all gates passed before merge
+
+---
+
+### Decision: Feature 341 Frontend MVP — Direct Date Evidence & Panel Composition
+
+**Date:** 2026-08-11  
+**Agent:** Aurelia  
+**Scope:** T002, T018–T019, T024–T027  
+**Status:** IMPLEMENTED & APPROVED
+
+## Context
+Frontend Numista panel maps coin attributes to OpenAPI contract evidence fields. Existing frontend `Coin` model lacks dedicated date-range field, requiring contract alignment for date evidence.
+
+## Decision
+Direct lookup maps `Coin.era` to the approved Numista contract's `evidence.dateText` field, with all other evidence mapped from coin name, ruler, denomination, mint, material, and inscriptions.
+
+When lookup returns HTTP 200 domain statuses, expected outcomes are handled by the reusable panel. If POST rejects unexpectedly, the panel presents the safe `unavailable` state while retaining exact editable query and any explicit selection; raw transport details are not exposed.
+
+No OpenAPI deviations introduced. All frontend tests pass (640/640).
+
+## Validation
+- `npm run type-check` PASS
+- `npm run build` PASS
+- Full `npm run test -- --run` PASS
+- ESLint 0 errors
+
+## Alignment
+- Principle III: explicit typed API contract
+- Principle IV: reused panel composition, no new routes
+- Principle VI: PWA-compatible, no emoji in UI text
+
+---
+
+### Decision: Feature 341 MVP Cache Coalescing & Cancellation Safety
+
+**Date:** 2026-08-11  
+**Agent:** Tacitus  
+**Status:** IMPLEMENTED & APPROVED
+
+## Context
+Cache coalescing must preserve caller cancellation/deadline errors without poisoning healthy waiters and must prevent a cancelled first caller from blocking replacement attempts.
+
+## Decision
+Same-key cache misses use an explicit per-key call state containing an internally owned provider context, waiter count, completion signal, and result. Cache lookup, in-flight discovery/creation, and successful publication occur under the cache mutex; provider I/O remains outside it.
+
+A caller cancellation detaches only that caller. The provider context is cancelled and the state removed only when the final waiter leaves. A later caller may then create one replacement call; the removed call cannot publish over that replacement because publication verifies pointer identity.
+
+This preserves caller cancellation/deadline errors, prevents a cancelled first caller from poisoning healthy waiters, bounds takeover calls, and avoids retaining provider contexts after completion.
+
+## Validation
+- Targeted Numista service tests pass including:
+  - 100-iteration cold-cache fan-in
+  - Cancelled-first-caller, cancelled waiter, all-cancelled scenarios
+  - Bounded replacement failure, cache publication coverage
+  - Deterministic stress tests and synchronization audit passed
+- Note: `-race` unavailable because CGO_ENABLED=0; residual synchronization risk assessed through deterministic tests and inspection
+
+## Alignment
+- Principle IV: simplest complete state machine without race-condition surface
+- Principle IX: fully testable without external dependencies
+- Constitution §17, §21.6–7
+
+---
+
+### Decision: Feature 341 MVP QA Approval — Final Sixth Revision
+
+**Date:** 2026-08-11  
+**Reviewer:** Brutus  
+**Status:** APPROVED
+
+## Context
+Five prior iterations were blocked under Constitution §18.2 Strict Lockout for contract semantics, cache safety, acceptance-level test coverage, and data model completeness. Tacitus's independent sixth revision addresses all findings.
+
+## Verdict
+APPROVE — All prior Strict Lockout findings cleared. The per-key coalescing state machine is accepted: leader cancellation does not poison healthy waiters, all-canceled work is canceled without publication, cache/in-flight operations are atomic, and superseded calls cannot overwrite replacement work.
+
+## Verified Gates
+- ✅ Exact 1 MiB/1 MiB+1 provider body boundaries proven
+- ✅ Mutation-sensitive missing date/ruler/denomination/inscription neutrality proven
+- ✅ Full Go build/vet/test suite passed
+- ✅ Frontend 640/640 tests passed
+- ✅ Route drift test passed
+- ✅ Architecture test passed
+- ✅ Strict types/build passed
+- ✅ Focused stress tests passed
+- ✅ Lint passed
+- ✅ Diff hygiene passed
+- ✅ T001–T027 checksum complete
+
+## Residual Risk
+Limited to unavailable `go test -race` execution because `CGO_ENABLED=0`. Deterministic stress and synchronization review were sufficient for approval.
+
+## Alignment
+- Principle I, IV, VII, X: Architecture, simplicity, convention, audit
+- Constitution §17 (Quality Gate): all gates passed
+- Constitution §21 (Definition of Done): all 15-item checklist verified
+
+---
