@@ -308,3 +308,63 @@
 
 - **Orchestration Log:** `.squad/orchestration-log/2026-08-11T13-07-00Z-brutus-numista-task-planning.md`. Session log: `.squad/log/2026-08-11T13-06-00Z-numista-lookup-feature-planning.md`.
 
+## 2026-08-11 — Feature 341 MVP implementation review
+
+- **Verdict: BLOCK.**
+- Targeted Numista Go tests, `go build ./...`, and `go vet ./...` passed.
+- Full `go test ./... -count=1` failed `TestRegisteredAPIRoutesAreDocumentedInOpenAPI` because `POST /api/numista/lookup` is absent from generated OpenAPI.
+- Targeted frontend tests (56), strict type-check, production build, and the full frontend Vitest suite passed.
+- Blocking workflow defect: direct confirmation sends `catalog: "Numista"`, but reference validation uppercases it to `NUMISTA` while the seeded registry stores mixed-case `Numista`; SQLite equality is case-sensitive, so the required structured reference cannot be persisted.
+- Contract defects: relevance bands use 70/40 thresholds instead of the planned 80/60 thresholds; direct lookup passes the categorical `coin.era` as `dateText`, so it does not supply an actual coin date/range.
+- Retry policy retries every transport error, exceeding T007's connection-reset-only transport retry contract.
+- T017 lacks authenticated/rate-limit integration evidence, and T027 mocks reference persistence rather than proving the existing structured-reference API accepts Numista.
+- Deferring T077 does not waive Constitution §17 or §21.11; the route-drift failure blocks an MVP commit. T001–T027 also remain unchecked, contrary to §21.13.
+
+## 2026-08-11 — Feature 341 revised MVP Strict Lockout re-review
+
+- **Verdict: BLOCK; Strict Lockout remains active.**
+- Verified corrected: case-insensitive registry lookup with canonical persisted casing; authenticated Numista reference-save regression; regenerated OpenAPI artifacts and passing route-drift test; 80/60 confidence bands; connection-reset/502/503/504-only retry eligibility; authenticated/rate-limit coverage; removal of `coin.era` as date evidence.
+- New/remaining contract blocks:
+  - FR-006 is violated because `NumistaLookupRequest.Validate` trims and mutates the submitted query, while the plan requires the effective query returned verbatim; the service test incorrectly expects the trimmed value.
+  - FR-003/T018/T027 remain incomplete: direct evidence has no date/date-range input at all, and the regression explicitly expects a sample date not to appear rather than proving a real date appears.
+  - The plan requires context-aware 100–300 ms jittered retry backoff, but the client uses a fixed 150 ms delay.
+  - T001–T027 remain unchecked, so §21.13 is not satisfied.
+- Gates passed independently: focused Go tests; focused Vitest 56/56; full Go tests; Go build/vet; route drift; Numista safe-error/API-key/auth/reference tests; full Vitest 639/639; strict type-check; production build; ESLint with 0 errors/169 warnings.
+- Cicero is the locked-out revision author for the next cycle. Required remediation expertise: backend contract semantics plus Vue domain/data modeling, with test-first spec conformance.
+
+## 2026-08-11 — Feature 341 MVP final Strict Lockout re-review
+
+- **Verdict: BLOCK; Seneca is locked out from further revision.**
+- Independently verified the prior product findings are corrected: byte-for-byte query whitespace reaches validation, response, cache loader, and provider request while blank and over-500-rune inputs are rejected; `Coin.dateRange` is additively migrated and wired through create/update/form/direct evidence without using `era`; retry jitter is injected, clamped to 100–300 ms, context-cancellable, deterministic in tests, and limited to connection reset plus 502/503/504; Numista reference casing, route generation, 80/60 bands, authentication/rate limiting, and safe errors remain corrected.
+- Blocking task-integrity finding: T001–T027 are checked complete, but multiple test tasks do not satisfy their explicit acceptance text. T004 does not exercise invalid lookup paths, cache metadata validation, or invalid candidate/outcome/health variants. T014 tests defaults, one valid Search TTL update, and one invalid enrichment limit only—not valid/invalid/live behavior for all TTL, limit, and timeout settings. T017 has no oversized-query/body/evidence boundary regression. T006/T010/T012 similarly omit portions of their enumerated matrices.
+- Independent gates passed: focused Go tests, OpenAPI route drift, Go build, Go vet, full Go suite; focused Vitest 57/57; full Vitest 640/640; frontend type-check and production build; diff check and targeted secret-pattern scan.
+- Residual product risk is low in the revised paths, but Constitution §21.6/§21.9/§21.13 and the explicit final-review condition require truthful completion and acceptance-level regression coverage before approval.
+
+## 2026-08-11 — Feature 341 MVP final clearance after Cato revision
+
+- **Verdict: BLOCK; Cato is locked out from further revision.**
+- Cato's revisions materially complete T014 and the explicit POST/GET query, evidence, and 32 KiB body boundaries in T017. T004 now has broad validation coverage, but JSON-contract assertions remain limited to request and health DTOs rather than every DTO named by the task.
+- New product finding: a cancelled same-key cache waiter returns plain `context.Canceled`, while `NumistaLookupService` recognizes only typed `NumistaErrorCancelled`; the cancellation is therefore mapped and telemetered as `unavailable`, contrary to the caller-cancellation contract.
+- New scoring finding: `parseDateRange` applies BCE/BC only to the numeric token carrying the suffix. A normal shorthand range such as `44–40 BCE` becomes `[-40, 44]`, causing a true BCE overlap to be scored as a conflict.
+- T006, T010, and T012 remain materially incomplete despite being checked: missing exact response-size and independent retry-forbidden matrices; no independent proof of every weighted scorer dimension/conflict/neutrality; and no exact percentile/status/cache aggregate or bounded-retention assertions. T006's 429 case occurs only on the second/final attempt, so it cannot prove 429 is forbidden from retry.
+- Strengthened DTO validation is mostly compatible, but relevance validation accepts impossible score/band combinations (for example score 0 with `strong`) despite the approved 80/60 thresholds.
+- Gates passed: focused Go packages; full Go suite; route drift; Go vet/build; focused Vitest 57/57; full frontend Vitest, type-check, and production build; `git diff --check`; targeted credential-pattern scan.
+
+## 2026-08-11 — Feature 341 MVP fifth independent revision review
+
+- **Verdict: BLOCK; Pliny is locked out from further revision.**
+- Verified prior fixes remain present: cancellation/deadline distinction for canceled waiters, shared-suffix and mixed-era BCE/CE parsing, 80/60 DTO score-band invariants, standalone 429 no-retry coverage, rich direct date-range evidence, canonical Numista reference persistence, route/OpenAPI sync, settings matrices, and redacted telemetry aggregates.
+- New blocking coalescing defect: the first caller's context owns the shared provider load. If that leader disconnects, its cancellation is published to every active waiter; the lookup service converts the shared typed cancellation to `context.Canceled`, and a still-connected waiter reaches the handler's generic 500 path because its own request context is healthy.
+- New blocking race window: `DoSearch`/`DoDetail` check the cache before locking the in-flight registry and do not re-check after acquiring it. A competing load can complete between those operations, allowing a second provider load despite a fresh result and violating same-key coalescing/quota conservation.
+- T006 remains short of the prior exact response-size acceptance finding: tests cover malformed JSON and `limit+1`, but not a valid response exactly at the one-MiB boundary. T010's “missing neutrality” test is not mutation-sensitive: positive title/date support can keep the score above its loose threshold even if missing material is incorrectly penalized, and it does not assert the unavailable reason or unchanged score.
+- Validation passed: focused Numista Go tests at `-count=50`; focused frontend 57/57; full Go build/vet/test; route drift/architecture; full frontend tests/type-check/build; `git diff --check`. Race detector unavailable because CGO is disabled.
+
+## 2026-08-11 — Feature 341 MVP sixth independent revision review
+
+- **Verdict: APPROVE; Strict Lockout findings are cleared and the MVP is ready to commit.**
+- Audited the per-key search/detail state machines: cache lookup, in-flight registration, and publication are mutex-atomic; provider work runs outside the mutex; waiter cancellation detaches promptly; the provider context is canceled only when the last waiter leaves; superseded calls cannot publish or cache because publication checks pointer identity.
+- Verified healthy waiters survive first-caller cancellation, canceled/deadline waiters return promptly, all-canceled work receives provider cancellation and publishes no cache entry, 100-iteration cold fan-in makes one provider call, and failed replacement/takeover remains bounded.
+- T006 now proves a valid response of exactly 1 MiB is accepted, 1 MiB+1 is rejected, and reads stop at the bounded sentinel byte. T010 now isolates missing date, issuer/ruler, denomination, and inscriptions at neutral score 50 with unavailable reasons, no conflicts, and deterministic ties.
+- Prior blocks remain resolved: canonical Numista reference persistence, generated route coverage, 80/60 bands, real date-range evidence, exact submitted query preservation, bounded jitter/retry policy, cancellation mapping, BCE/CE shorthand, DTO/status/cache/telemetry/settings matrices, and truthful T001–T027 completion.
+- Gates passed: focused concurrency/body/scoring stress at `-count=100`; all Numista tests repeated at `-count=50` across three clean passes after one non-reproduced noisy combined-run exit; Go build/vet/full tests; architecture/route drift; frontend focused 57/57 and full 640/640; strict type-check, explicit `vue-tsc --build`, production build, ESLint 0 errors/169 warnings, and `git diff --check`.
+- Residual risk: the Go race detector remains unavailable because `CGO_ENABLED=0`. Deterministic stress and direct synchronization review provide sufficient evidence; a future CGO-enabled CI race job would further reduce residual concurrency risk.

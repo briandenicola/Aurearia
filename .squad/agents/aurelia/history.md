@@ -435,6 +435,8 @@ Investigated production 429s on collection browsing. App mount makes expected da
 
 - **2026-07-26 (Set type migration compatibility):** Frontend set contracts now treat open and defined as legacy read values only. New writes use standard and goal, while UI logic should normalize legacy values with a shared helper before branching (filters, membership controls, completion loading) so mixed API rollouts do not break UX.
 
+- **2026-08-11 (Feature 341 direct Numista MVP):** Direct coin lookup now uses the typed `POST /api/numista/lookup` contract, builds an editable query from all available coin evidence, renders ranked textual explanations and explicit domain states, retains selections across retries, and persists only after “Add selected reference.” The existing `Coin.era` field is the frontend’s direct `dateText` evidence source because the coin model has no separate attribution date-range field. Reusable helpers live in `src/web/src/utils/numistaLookup.ts`; reusable UI lives in `src/web/src/components/numista/NumistaLookupPanel.vue`. Focused tests, strict type-check, lint, design-system tests, and production build passed.
+
 ## Historical Notes (Pre-2026-06-20)
 
 **Summary of durable frontend patterns established in early June:**
