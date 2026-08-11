@@ -73,27 +73,27 @@
 
 ### Tests for User Story 2
 
-- [ ] T028 [P] [US2] Add additive migration and rollback-compatibility tests from the pre-feature schema for active/promoted drafts with no selected relation in src/api/database/migration_test.go
-- [ ] T029 [P] [US2] Add model validation tests for optional selection, fixed Numista catalog, positive canonical number, generated HTTPS URI, mismatches, and omitted/clear conflicts in src/api/models/quick_capture_draft_test.go
-- [ ] T030 [P] [US2] Add repository transaction tests for create/preserve/replace/remove, owner isolation, rollback, discard history, collection/wishlist copy, duplicate guards, concurrent claims, and repeated promotion in src/api/repository/quick_capture_repository_test.go
-- [ ] T031 [P] [US2] Add Quick Capture service/handler compatibility tests for omitted legacy inputs, additive responses, validation failure preservation, explicit clear, and authorization in src/api/services/quick_capture_service_test.go and src/api/handlers/quick_capture_handler_test.go
-- [ ] T032 [P] [US2] Add photo-analysis tests for no image, usable NGC-first suppression, non-NGC typed evidence/query without a provider call, noisy/empty evidence, cancellation, and additive legacy aliases in src/api/services/coin_lookup_service_test.go
-- [ ] T033 [P] [US2] Add photo and draft API serialization tests for selected-reference create/read/update/clear payloads in src/web/src/api/__tests__/quickCaptureNumista.test.ts
-- [ ] T034 [P] [US2] Add Identify Coin tests for user-initiated camera behavior, editable first/retry query, no eager request, NGC-first behavior, explicit selection, and narrow mobile layout in src/web/src/pages/__tests__/CoinLookupPage.test.ts
-- [ ] T035 [P] [US2] Add draft resume tests for retained/outside-results selection, replace/remove, unrelated edit, validation failure, optional readiness, and failed/repeated promotion in src/web/src/pages/__tests__/QuickCaptureDraftPage.test.ts
+- [x] T028 [P] [US2] Add additive migration and rollback-compatibility tests from the pre-feature schema for active/promoted drafts with no selected relation in src/api/database/migration_test.go
+- [x] T029 [P] [US2] Add model validation tests for optional selection, fixed Numista catalog, positive canonical number, generated HTTPS URI, mismatches, and omitted/clear conflicts in src/api/models/quick_capture_draft_test.go
+- [x] T030 [P] [US2] Add repository transaction tests for create/preserve/replace/remove, owner isolation, rollback, discard history, collection/wishlist copy, duplicate guards, concurrent claims, and repeated promotion in src/api/repository/quick_capture_repository_test.go
+- [x] T031 [P] [US2] Add Quick Capture service/handler compatibility tests for omitted legacy inputs, additive responses, validation failure preservation, explicit clear, and authorization in src/api/services/quick_capture_service_test.go and src/api/handlers/quick_capture_handler_test.go
+- [x] T032 [P] [US2] Add photo-analysis tests for no image, usable NGC-first suppression, non-NGC typed evidence/query without a provider call, noisy/empty evidence, cancellation, and additive legacy aliases in src/api/services/coin_lookup_service_test.go
+- [x] T033 [P] [US2] Add photo and draft API serialization tests for selected-reference create/read/update/clear payloads in src/web/src/api/__tests__/quickCaptureNumista.test.ts
+- [x] T034 [P] [US2] Add Identify Coin tests for user-initiated camera behavior, editable first/retry query, no eager request, NGC-first behavior, explicit selection, and narrow mobile layout in src/web/src/pages/__tests__/CoinLookupPage.test.ts
+- [x] T035 [P] [US2] Add draft resume tests for retained/outside-results selection, replace/remove, unrelated edit, validation failure, optional readiness, and failed/repeated promotion in src/web/src/pages/__tests__/QuickCaptureDraftPage.test.ts
 
 ### Implementation for User Story 2
 
-- [ ] T036 [US2] Register the additive selected-reference table and indexes in AutoMigrate without modifying existing rows in src/api/database/database.go
-- [ ] T037 [US2] Add the one-to-zero-or-one QuickCaptureDraftReference model and optional draft response relation in src/api/models/quick_capture_draft.go
-- [ ] T038 [US2] Implement owner-scoped preload/create/upsert/delete and exact-once CoinReference copy inside existing draft write and promotion transactions in src/api/repository/quick_capture_repository.go
-- [ ] T039 [US2] Implement canonical selected-reference validation and preserve/replace/remove semantics while delegating persisted-reference rules to existing services in src/api/services/quick_capture_service.go
-- [ ] T040 [US2] Extend Quick Capture create/read/update/promote DTO binding and safe validation responses without breaking omitted legacy fields in src/api/handlers/quick_capture.go
-- [ ] T041 [US2] Refactor photo analysis to return bounded NumistaEvidence and proposedNumistaQuery without eager provider access while preserving NGC-first behavior in src/api/services/coin_lookup_service.go
-- [ ] T042 [US2] Add photo response fields and keep deprecated numistaCandidates/candidateReferences additive and free of unselected Numista results in src/api/handlers/coin_lookup.go
-- [ ] T043 [P] [US2] Add selected-reference, photo proposal, draft, and promotion DTOs plus typed multipart request mapping in src/web/src/types/index.ts and src/web/src/api/client.ts
-- [ ] T044 [US2] Integrate the shared lookup panel into Identify Coin with editable evidence queries, explicit selection, retained retries, and no automatic Numista request in src/web/src/pages/CoinLookupPage.vue
-- [ ] T045 [US2] Display, preserve, replace, and remove the optional selection across draft editing and promotion readiness in src/web/src/pages/QuickCaptureDraftPage.vue
+- [x] T036 [US2] Register the additive selected-reference table and indexes in AutoMigrate without modifying existing rows in src/api/database/database.go
+- [x] T037 [US2] Add the one-to-zero-or-one QuickCaptureDraftReference model and optional draft response relation in src/api/models/quick_capture_draft.go
+- [x] T038 [US2] Implement owner-scoped preload/create/upsert/delete and exact-once CoinReference copy inside existing draft write and promotion transactions in src/api/repository/quick_capture_repository.go
+- [x] T039 [US2] Implement canonical selected-reference validation and preserve/replace/remove semantics while delegating persisted-reference rules to existing services in src/api/services/quick_capture_service.go
+- [x] T040 [US2] Extend Quick Capture create/read/update/promote DTO binding and safe validation responses without breaking omitted legacy fields in src/api/handlers/quick_capture.go
+- [x] T041 [US2] Refactor photo analysis to return bounded NumistaEvidence and proposedNumistaQuery without eager provider access while preserving NGC-first behavior in src/api/services/coin_lookup_service.go
+- [x] T042 [US2] Add photo response fields and keep deprecated numistaCandidates/candidateReferences additive and free of unselected Numista results in src/api/handlers/coin_lookup.go
+- [x] T043 [P] [US2] Add selected-reference, photo proposal, draft, and promotion DTOs plus typed multipart request mapping in src/web/src/types/index.ts and src/web/src/api/client.ts
+- [x] T044 [US2] Integrate the shared lookup panel into Identify Coin with editable evidence queries, explicit selection, retained retries, and no automatic Numista request in src/web/src/pages/CoinLookupPage.vue
+- [x] T045 [US2] Display, preserve, replace, and remove the optional selection across draft editing and promotion readiness in src/web/src/pages/QuickCaptureDraftPage.vue
 
 **Checkpoint**: The photo-to-draft-to-coin workflow persists exactly one explicit selection or none, without changing NGC-first behavior.
 

@@ -238,6 +238,21 @@ func NewSelectedNumistaReference(id int) (SelectedNumistaReference, error) {
 	return SelectedNumistaReference{Catalog: "Numista", Number: strconv.Itoa(id), URI: uri}, nil
 }
 
+func ParseSelectedNumistaReference(number, uri string) (SelectedNumistaReference, error) {
+	id, err := strconv.Atoi(strings.TrimSpace(number))
+	if err != nil || id <= 0 {
+		return SelectedNumistaReference{}, errors.New("number must be a positive integer")
+	}
+	ref, err := NewSelectedNumistaReference(id)
+	if err != nil {
+		return SelectedNumistaReference{}, err
+	}
+	if strings.TrimSpace(uri) == "" || strings.TrimSpace(uri) != ref.URI {
+		return SelectedNumistaReference{}, errors.New("uri must match the canonical Numista URL")
+	}
+	return ref, nil
+}
+
 func (r SelectedNumistaReference) Validate() error {
 	if !strings.EqualFold(strings.TrimSpace(r.Catalog), "Numista") {
 		return errors.New("catalog must be Numista")

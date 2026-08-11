@@ -398,6 +398,9 @@ export interface CoinLookupNumistaCandidate {
 export interface CoinLookupResponse {
   extractedData: CoinLookupExtractedData
   numistaCandidates: CoinLookupNumistaCandidate[]
+  proposedNumistaQuery?: string
+  numistaEvidence?: NumistaEvidence
+  numistaLookup?: NumistaLookupOutcome | null
   prefilledDraft?: CoinMutationPayload
   candidateReferences?: CoinReferenceInput[]
 }
@@ -442,6 +445,7 @@ export interface QuickCaptureDraft {
   ngcGrade: string
   labelText: string
   aiConfidence: string
+  selectedNumistaReference?: SelectedNumistaReference | null
   status: QuickCaptureDraftStatus
   promotedCoinId: number | null
   promotedAt: string | null
@@ -471,6 +475,8 @@ export interface QuickCaptureDraftInput {
   ngcGrade?: string
   labelText?: string
   aiConfidence?: string
+  selectedNumistaId?: string
+  selectedNumistaUrl?: string
   obverseImage?: File | null
   reverseImage?: File | null
   detailImages?: File[]
@@ -489,6 +495,9 @@ export interface QuickCaptureDraftUpdateInput {
   ngcGrade?: string
   labelText?: string
   aiConfidence?: string
+  selectedNumistaId?: string
+  selectedNumistaUrl?: string
+  clearSelectedNumista?: boolean
   removeImageIds?: string // comma-separated IDs
   replaceObverse?: boolean
   replaceReverse?: boolean

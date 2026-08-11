@@ -3,6 +3,7 @@ import type {
   NumistaCandidate,
   NumistaEvidence,
   NumistaLookupStatus,
+  SelectedNumistaReference,
 } from '@/types'
 
 const QUERY_LIMIT = 500
@@ -59,6 +60,38 @@ export function buildDirectNumistaQuery(coin: DirectCoinEvidence): string {
 
 export function numistaCandidateIdentity(candidate: Pick<NumistaCandidate, 'id'>): string {
   return `numista:${candidate.id}`
+}
+
+export function selectedNumistaReferenceFromCandidate(
+  candidate: NumistaCandidate,
+): SelectedNumistaReference {
+  return {
+    catalog: 'Numista',
+    number: String(candidate.id),
+    uri: candidate.canonicalUrl,
+  }
+}
+
+export function numistaCandidateFromReference(
+  reference: SelectedNumistaReference | null | undefined,
+): NumistaCandidate | null {
+  if (!reference) return null
+  const id = Number(reference.number)
+  if (!Number.isSafeInteger(id) || id <= 0) return null
+
+  return {
+    id,
+    canonicalUrl: reference.uri,
+    title: `Numista #${reference.number}`,
+    providerPosition: 0,
+    enrichmentState: 'not_requested',
+    assessment: {
+      scoringVersion: 'numista-v1',
+      score: 50,
+      band: 'weak',
+      reasons: [],
+    },
+  }
 }
 
 export function retainNumistaSelection(

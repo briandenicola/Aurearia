@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import CoinLookupPage from '../CoinLookupPage.vue'
-import { createQuickCaptureDraft, lookupCoin } from '@/api/client'
+import { createQuickCaptureDraft, lookupCoin, lookupNumista } from '@/api/client'
+import { makeNumistaCandidate, makeNumistaLookupOutcome } from '@/test/numista-fixtures'
 
 const routerPush = vi.fn()
 const routerBack = vi.fn()
@@ -19,6 +20,7 @@ vi.mock('vue-router', () => ({
 
 vi.mock('@/api/client', () => ({
   lookupCoin: vi.fn(),
+  lookupNumista: vi.fn(),
   createQuickCaptureDraft: vi.fn(),
 }))
 
@@ -43,6 +45,7 @@ describe('CoinLookupPage', () => {
   beforeEach(() => {
     vi.mocked(lookupCoin).mockReset()
     vi.mocked(createQuickCaptureDraft).mockReset()
+    vi.mocked(lookupNumista).mockReset()
     routerPush.mockReset()
     routerBack.mockReset()
 
@@ -180,7 +183,7 @@ describe('CoinLookupPage', () => {
     expect(wrapper.text()).toContain('AI Observations')
     expect(wrapper.text()).not.toContain('Obverse Description')
     expect(wrapper.text()).not.toContain('Reverse Description')
-    expect(wrapper.findAll('textarea')).toHaveLength(0)
+    expect(wrapper.findAll('textarea').filter(textarea => textarea.attributes('id') !== 'numista-query')).toHaveLength(0)
     expect(wrapper.text()).not.toContain('Add to Collection')
     expect(wrapper.text()).toContain('Save as Draft')
 
@@ -284,7 +287,7 @@ describe('CoinLookupPage', () => {
     expect(wrapper.text()).toContain('Victory standing left')
     expect(wrapper.text()).not.toContain('Obverse Description')
     expect(wrapper.text()).not.toContain('Reverse Description')
-    expect(wrapper.findAll('textarea')).toHaveLength(0)
+    expect(wrapper.findAll('textarea').filter(textarea => textarea.attributes('id') !== 'numista-query')).toHaveLength(0)
 
     const inputs = wrapper.findAll('input[type="text"]')
     expect((inputs[0]!.element as HTMLInputElement).value).toBe('Trajan Denarius')
@@ -587,6 +590,157 @@ describe('CoinLookupPage', () => {
     expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
       notes: expect.stringContaining('Grade: Choice VF'),
     }))
+    expect(lookupNumista).not.toHaveBeenCalled()
+  })
+
+  it('shows an editable photo proposal without an eager request and retains explicit selection on retry', async () => {
+    const file = new File(['coin'], 'photo.jpg', { type: 'image/jpeg' })
+    const selected = makeNumistaCandidate({ id: 12345, title: 'Selected denarius' })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: { confidence: 'medium', rawAnalysis: 'photo evidence' },
+        proposedNumistaQuery: 'Trajan denarius Rome silver',
+        numistaEvidence: { title: 'Trajan denarius', issuer: 'Trajan', material: 'Silver' },
+        numistaLookup: null,
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Trajan denarius', ruler: 'Trajan', material: 'Silver' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+    vi.mocked(lookupNumista)
+      .mockResolvedValueOnce({ data: makeNumistaLookupOutcome({ candidates: [selected] }) })
+      .mockResolvedValueOnce({
+        data: makeNumistaLookupOutcome({
+          effectiveQuery: 'edited retry',
+          candidates: [makeNumistaCandidate({ id: 999, title: 'Different result' })],
+        }),
+      })
+    vi.mocked(createQuickCaptureDraft).mockResolvedValue({ data: { id: 101 } } as never)
+
+    const wrapper = mount(CoinLookupPage, {
+      global: {
+        stubs: {
+          Camera: true, Images: true, Search: true, X: true, AlertCircle: true,
+          ShieldCheck: true, ExternalLink: true, RotateCcw: true, Bookmark: true, List: true,
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    await findSubmitButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(lookupNumista).not.toHaveBeenCalled()
+    const query = wrapper.find('#numista-query')
+    expect((query.element as HTMLTextAreaElement).value).toBe('Trajan denarius Rome silver')
+    await query.setValue('edited first')
+    await wrapper.findAll('button').find(button => button.text().includes('Search Numista'))!.trigger('click')
+    await flushPromises()
+    expect(lookupNumista).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      query: 'edited first',
+      path: 'photo',
+    }))
+
+    await wrapper.find('input[type="radio"]').trigger('keydown', { key: ' ' })
+    await wrapper.find('input[type="radio"]').setValue(true)
+    await query.setValue('edited retry')
+    await wrapper.findAll('button').find(button => button.text().includes('Search again'))!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Selection retained from an earlier search')
+
+    await findActionButtons(wrapper)[2]!.trigger('click')
+    await flushPromises()
+    expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
+      selectedNumistaId: '12345',
+      selectedNumistaUrl: 'https://en.numista.com/catalogue/pieces12345.html',
+    }))
+  })
+
+  it('keeps empty or noisy photo evidence available for manual Numista query entry', async () => {
+    const file = new File(['coin'], 'uncertain-photo.jpg', { type: 'image/jpeg' })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: {
+          confidence: 'low',
+          rawAnalysis: 'Legend unclear; issuer cannot be determined.',
+        },
+        proposedNumistaQuery: '',
+        numistaEvidence: {},
+        numistaLookup: null,
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Unidentified Coin' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+    vi.mocked(lookupNumista).mockResolvedValue({
+      data: makeNumistaLookupOutcome({
+        effectiveQuery: 'manual bronze coin',
+        candidates: [],
+      }),
+    })
+
+    const wrapper = mount(CoinLookupPage, {
+      global: {
+        stubs: {
+          Camera: true, Images: true, Search: true, X: true, AlertCircle: true,
+          ShieldCheck: true, ExternalLink: true, RotateCcw: true, Bookmark: true, List: true,
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    await findSubmitButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(lookupNumista).not.toHaveBeenCalled()
+    const query = wrapper.find('#numista-query')
+    const searchButton = wrapper.findAll('button').find(button => button.text().includes('Search Numista'))!
+    expect(query.exists()).toBe(true)
+    expect((query.element as HTMLTextAreaElement).value).toBe('')
+    expect(wrapper.text()).toContain('Enter at least one search term to enable Numista lookup.')
+    expect(searchButton.attributes('disabled')).toBeDefined()
+
+    await query.setValue('manual bronze coin')
+    expect(searchButton.attributes('disabled')).toBeUndefined()
+    await searchButton.trigger('click')
+    await flushPromises()
+
+    expect(lookupNumista).toHaveBeenCalledTimes(1)
+    expect(lookupNumista).toHaveBeenCalledWith({
+      query: 'manual bronze coin',
+      path: 'photo',
+      evidence: {},
+    })
+  })
+
+  it('keeps the shared lookup panel contained for narrow mobile layouts', async () => {
+    Object.defineProperty(window, 'innerWidth', { value: 375, configurable: true })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: { confidence: 'low', rawAnalysis: '' },
+        proposedNumistaQuery: 'editable query',
+        numistaEvidence: {},
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Unknown coin' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+    const wrapper = mount(CoinLookupPage, {
+      global: { stubs: { RouterLink: true, List: true } },
+    })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [new File(['coin'], 'mobile.jpg', { type: 'image/jpeg' })],
+      configurable: true,
+    })
+    await input.trigger('change')
+    await findSubmitButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.card.min-w-0.overflow-hidden').exists()).toBe(true)
+    expect(wrapper.find('#numista-query').attributes('maxlength')).toBe('500')
+    expect(wrapper.find('fieldset').exists()).toBe(false)
   })
 
   it.each([undefined, 'Unidentified Coin'] as Array<string | undefined>)(

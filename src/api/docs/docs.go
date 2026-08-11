@@ -6054,7 +6054,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Analyzes coin/slab images to extract NGC cert, label text, and provides Numista candidates. Returns data compatible with Add to Wishlist/Collection.",
+                "description": "Analyzes coin/slab images, preserves NGC-first behavior, and proposes bounded Numista evidence/query without running Numista lookup.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -9912,6 +9912,18 @@ const docTemplate = `{
                         "in": "formData"
                     },
                     {
+                        "type": "string",
+                        "description": "Selected positive Numista type ID",
+                        "name": "selectedNumistaId",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Canonical selected Numista URL",
+                        "name": "selectedNumistaUrl",
+                        "in": "formData"
+                    },
+                    {
                         "type": "file",
                         "description": "Obverse image",
                         "name": "obverseImage",
@@ -10086,6 +10098,24 @@ const docTemplate = `{
                         "type": "string",
                         "description": "AI confidence",
                         "name": "aiConfidence",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Replacement positive Numista type ID; omit to preserve",
+                        "name": "selectedNumistaId",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Replacement canonical Numista URL; omit to preserve",
+                        "name": "selectedNumistaUrl",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Remove the retained Numista selection",
+                        "name": "clearSelectedNumista",
                         "in": "formData"
                     },
                     {
@@ -16714,9 +16744,23 @@ const docTemplate = `{
                         "$ref": "#/definitions/handlers.NumistaCandidateSwagger"
                     }
                 },
+                "numistaEvidence": {
+                    "$ref": "#/definitions/models.NumistaEvidence"
+                },
+                "numistaLookup": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.NumistaLookupOutcome"
+                        }
+                    ],
+                    "x-nullable": true
+                },
                 "prefilledDraft": {
                     "type": "object",
                     "additionalProperties": {}
+                },
+                "proposedNumistaQuery": {
+                    "type": "string"
                 }
             }
         },
@@ -20141,6 +20185,35 @@ const docTemplate = `{
                 }
             }
         },
+        "models.NumistaLookupOutcome": {
+            "type": "object",
+            "properties": {
+                "cache": {
+                    "$ref": "#/definitions/models.NumistaCacheMetadata"
+                },
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.NumistaCandidate"
+                    }
+                },
+                "effectiveQuery": {
+                    "type": "string"
+                },
+                "guidanceCode": {
+                    "type": "string"
+                },
+                "retryAfterSeconds": {
+                    "type": "integer"
+                },
+                "stage": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.NumistaLookupStatus"
+                }
+            }
+        },
         "models.NumistaLookupPath": {
             "type": "string",
             "enum": [
@@ -20359,6 +20432,14 @@ const docTemplate = `{
                 "purchasePrice": {
                     "type": "number"
                 },
+                "selectedNumistaReference": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.QuickCaptureDraftReference"
+                        }
+                    ],
+                    "x-nullable": true
+                },
                 "source": {
                     "type": "string",
                     "maxLength": 40
@@ -20401,6 +20482,20 @@ const docTemplate = `{
                 },
                 "isPrimary": {
                     "type": "boolean"
+                }
+            }
+        },
+        "models.QuickCaptureDraftReference": {
+            "type": "object",
+            "properties": {
+                "catalog": {
+                    "type": "string"
+                },
+                "number": {
+                    "type": "string"
+                },
+                "uri": {
+                    "type": "string"
                 }
             }
         },

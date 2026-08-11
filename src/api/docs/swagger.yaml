@@ -283,9 +283,17 @@ definitions:
         items:
           $ref: '#/definitions/handlers.NumistaCandidateSwagger'
         type: array
+      numistaEvidence:
+        $ref: '#/definitions/models.NumistaEvidence'
+      numistaLookup:
+        allOf:
+        - $ref: '#/definitions/models.NumistaLookupOutcome'
+        x-nullable: true
       prefilledDraft:
         additionalProperties: {}
         type: object
+      proposedNumistaQuery:
+        type: string
     type: object
   handlers.CoinReferenceDTO:
     properties:
@@ -2627,6 +2635,25 @@ definitions:
       visibleText:
         type: string
     type: object
+  models.NumistaLookupOutcome:
+    properties:
+      cache:
+        $ref: '#/definitions/models.NumistaCacheMetadata'
+      candidates:
+        items:
+          $ref: '#/definitions/models.NumistaCandidate'
+        type: array
+      effectiveQuery:
+        type: string
+      guidanceCode:
+        type: string
+      retryAfterSeconds:
+        type: integer
+      stage:
+        type: string
+      status:
+        $ref: '#/definitions/models.NumistaLookupStatus'
+    type: object
   models.NumistaLookupPath:
     enum:
     - direct
@@ -2783,6 +2810,10 @@ definitions:
         type: integer
       purchasePrice:
         type: number
+      selectedNumistaReference:
+        allOf:
+        - $ref: '#/definitions/models.QuickCaptureDraftReference'
+        x-nullable: true
       source:
         maxLength: 40
         type: string
@@ -2812,6 +2843,15 @@ definitions:
         $ref: '#/definitions/models.ImageType'
       isPrimary:
         type: boolean
+    type: object
+  models.QuickCaptureDraftReference:
+    properties:
+      catalog:
+        type: string
+      number:
+        type: string
+      uri:
+        type: string
     type: object
   models.QuickCaptureDraftStatus:
     enum:
@@ -9181,8 +9221,8 @@ paths:
     post:
       consumes:
       - multipart/form-data
-      description: Analyzes coin/slab images to extract NGC cert, label text, and
-        provides Numista candidates. Returns data compatible with Add to Wishlist/Collection.
+      description: Analyzes coin/slab images, preserves NGC-first behavior, and proposes
+        bounded Numista evidence/query without running Numista lookup.
       parameters:
       - description: Coin or slab images (use multiple files)
         in: formData
@@ -10277,6 +10317,14 @@ paths:
         in: formData
         name: aiConfidence
         type: string
+      - description: Selected positive Numista type ID
+        in: formData
+        name: selectedNumistaId
+        type: string
+      - description: Canonical selected Numista URL
+        in: formData
+        name: selectedNumistaUrl
+        type: string
       - description: Obverse image
         in: formData
         name: obverseImage
@@ -10393,6 +10441,18 @@ paths:
         in: formData
         name: aiConfidence
         type: string
+      - description: Replacement positive Numista type ID; omit to preserve
+        in: formData
+        name: selectedNumistaId
+        type: string
+      - description: Replacement canonical Numista URL; omit to preserve
+        in: formData
+        name: selectedNumistaUrl
+        type: string
+      - description: Remove the retained Numista selection
+        in: formData
+        name: clearSelectedNumista
+        type: boolean
       - description: Comma-separated image IDs to remove
         in: formData
         name: removeImageIds

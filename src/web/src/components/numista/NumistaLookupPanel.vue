@@ -21,12 +21,15 @@
         aria-describedby="numista-query-help"
       />
       <p id="numista-query-help" class="mt-1 text-sm text-text-muted">
-        Review or refine the attribution evidence before searching.
+        {{ query.trim()
+          ? 'Review or refine the attribution evidence before searching.'
+          : 'Enter at least one search term to enable Numista lookup.' }}
       </p>
     </div>
 
     <div class="flex flex-wrap gap-2">
       <button
+        type="button"
         class="btn btn-primary btn-sm min-h-11"
         :disabled="loading || !query.trim()"
         @click="search"
@@ -35,8 +38,10 @@
       </button>
       <button
         v-if="selected"
+        type="button"
         class="btn btn-ghost btn-sm min-h-11"
         :disabled="loading"
+        aria-label="Remove selected Numista reference"
         @click="clearSelection"
       >
         Remove selection
@@ -137,8 +142,14 @@
       <span class="min-w-0 text-body text-text-primary">
         Selected: <strong class="break-words">{{ selected.title }}</strong>
       </span>
-      <button class="btn btn-primary btn-sm min-h-11" :disabled="loading" @click="confirmSelection">
-        Add selected reference
+      <button
+        v-if="showConfirmation"
+        type="button"
+        class="btn btn-primary btn-sm min-h-11"
+        :disabled="loading"
+        @click="confirmSelection"
+      >
+        {{ confirmationLabel }}
       </button>
     </div>
   </section>
@@ -146,6 +157,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { lookupNumista } from '@/api/client'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import {
@@ -166,9 +178,15 @@ const props = withDefaults(defineProps<{
   evidence: NumistaEvidence
   path?: NumistaLookupPath
   isAdmin?: boolean
+  initialSelection?: NumistaCandidate | null
+  showConfirmation?: boolean
+  confirmationLabel?: string
 }>(), {
   path: 'direct',
   isAdmin: false,
+  initialSelection: null,
+  showConfirmation: true,
+  confirmationLabel: 'Add selected reference',
 })
 
 const emit = defineEmits<{
@@ -179,8 +197,8 @@ const emit = defineEmits<{
 const query = ref(props.initialQuery)
 const loading = ref(false)
 const outcome = ref<NumistaLookupOutcome | null>(null)
-const selected = ref<NumistaCandidate | null>(null)
-const selectedId = ref<number | null>(null)
+const selected = ref<NumistaCandidate | null>(props.initialSelection)
+const selectedId = ref<number | null>(props.initialSelection?.id ?? null)
 
 const candidates = computed(() => outcome.value?.candidates ?? [])
 const selectionOutsideResults = computed(() => isSelectionOutsideResults(selected.value, candidates.value))
@@ -193,6 +211,11 @@ const guidance = computed(() => {
 
 watch(() => props.initialQuery, (value) => {
   if (!outcome.value && !loading.value) query.value = value
+})
+
+watch(() => props.initialSelection, (value) => {
+  selected.value = value
+  selectedId.value = value?.id ?? null
 })
 
 async function search() {

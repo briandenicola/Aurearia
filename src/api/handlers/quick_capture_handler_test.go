@@ -26,7 +26,7 @@ func TestQuickCaptureCreateDraftMultipartAndDoesNotCreateCoin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	handler := NewQuickCaptureHandler(services.NewQuickCaptureService(repository.NewQuickCaptureRepository(db), t.TempDir()), nil)
@@ -62,7 +62,8 @@ func TestQuickCaptureCreateDraftValidationFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}); err != nil {
+
+	if err := db.AutoMigrate(&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	handler := NewQuickCaptureHandler(services.NewQuickCaptureService(repository.NewQuickCaptureRepository(db), t.TempDir()), nil)
@@ -83,13 +84,104 @@ func TestQuickCaptureCreateDraftValidationFailure(t *testing.T) {
 	}
 }
 
+func TestQuickCaptureSelectedNumistaReferenceHandlerCompatibilityAndAuthorization(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:quick_capture_handler_numista_%d?mode=memory&cache=shared", time.Now().UnixNano())), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(
+		&models.User{}, &models.Coin{}, &models.CoinReference{}, &models.CatalogRegistry{},
+		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{},
+		&models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&models.CatalogRegistry{Catalog: "Numista", DisplayName: "Numista", Era: models.EraModern}).Error; err != nil {
+		t.Fatal(err)
+	}
+	referenceSvc := services.NewCoinReferenceService(
+		repository.NewCoinReferenceRepository(db),
+		repository.NewCatalogRegistryRepository(db),
+	)
+	svc := services.NewQuickCaptureService(repository.NewQuickCaptureRepository(db), t.TempDir()).
+		WithReferenceValidation(referenceSvc)
+	handler := NewQuickCaptureHandler(svc, nil)
+	router := gin.New()
+	viewerID := uint(7)
+	router.Use(func(c *gin.Context) {
+		c.Set("userId", viewerID)
+		c.Next()
+	})
+	router.POST("/api/quick-capture/drafts", handler.CreateDraft)
+	router.GET("/api/quick-capture/drafts/:id", handler.GetDraft)
+	router.PUT("/api/quick-capture/drafts/:id", handler.UpdateDraft)
+
+	createForm := url.Values{
+		"workingTitle":       {"Selected draft"},
+		"selectedNumistaId":  {"12345"},
+		"selectedNumistaUrl": {"https://en.numista.com/catalogue/pieces12345.html"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/quick-capture/drafts", strings.NewReader(createForm.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated || !strings.Contains(rec.Body.String(), `"selectedNumistaReference":{"catalog":"Numista","number":"12345"`) {
+		t.Fatalf("selected create failed: %d %s", rec.Code, rec.Body.String())
+	}
+	var created models.QuickCaptureDraft
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+
+	invalidUpdate := url.Values{
+		"workingTitle":       {"Must not persist"},
+		"selectedNumistaId":  {"777"},
+		"selectedNumistaUrl": {"https://en.numista.com/catalogue/pieces999.html"},
+	}
+	req = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/quick-capture/drafts/%d", created.ID), strings.NewReader(invalidUpdate.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid selection status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/quick-capture/drafts/%d", created.ID), nil))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"number":"12345"`) ||
+		!strings.Contains(rec.Body.String(), `"workingTitle":"Selected draft"`) {
+		t.Fatalf("validation failure did not preserve draft: %d %s", rec.Code, rec.Body.String())
+	}
+
+	clearForm := url.Values{"workingTitle": {"Selected draft"}, "clearSelectedNumista": {"true"}}
+	req = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/quick-capture/drafts/%d", created.ID), strings.NewReader(clearForm.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"selectedNumistaReference":null`) {
+		t.Fatalf("clear failed: %d %s", rec.Code, rec.Body.String())
+	}
+
+	other := models.QuickCaptureDraft{UserID: 99, WorkingTitle: "Other", Status: models.QuickCaptureDraftStatusActive}
+	if err := db.Create(&other).Error; err != nil {
+		t.Fatal(err)
+	}
+	req = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/quick-capture/drafts/%d", other.ID), strings.NewReader(clearForm.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("other-owner update should be hidden: %d %s", rec.Code, rec.Body.String())
+	}
+}
 func TestQuickCaptureCreateDraftRejectsOversizedUploadBeforeContentValidation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:quick_capture_handler_oversized_%d?mode=memory&cache=shared", time.Now().UnixNano())), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	handler := NewQuickCaptureHandler(services.NewQuickCaptureService(repository.NewQuickCaptureRepository(db), t.TempDir()), nil)
@@ -142,7 +234,7 @@ func TestQuickCaptureDraftResumeDiscardPromoteContracts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.ValueSnapshot{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.ValueSnapshot{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	handler := NewQuickCaptureHandler(services.NewQuickCaptureService(repository.NewQuickCaptureRepository(db), t.TempDir()), nil)
@@ -322,7 +414,7 @@ func TestQuickCapturePromotionIncrementsActiveCountExactlyOnceAndPreservesWishli
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.ValueSnapshot{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.ValueSnapshot{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -397,7 +489,7 @@ func TestQuickCapturePromotionCanTargetWishlist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.ValueSnapshot{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.ValueSnapshot{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 

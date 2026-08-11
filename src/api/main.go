@@ -316,7 +316,9 @@ func main() {
 		coinReferenceHandler := handlers.NewCoinReferenceHandler(coinReferenceRepo, coinReferenceSvc, referenceMigrationSvc)
 		coinIntakeSvc := services.NewCoinIntakeService(intakeDraftRepo, coinRepo, agentProxy, settingsSvc)
 		coinIntakeHandler := handlers.NewCoinIntakeHandler(coinIntakeSvc, logger)
-		quickCaptureSvc := services.NewQuickCaptureService(quickCaptureRepo, cfg.UploadDir).WithCoinValidation(coinSvc)
+		quickCaptureSvc := services.NewQuickCaptureService(quickCaptureRepo, cfg.UploadDir).
+			WithCoinValidation(coinSvc).
+			WithReferenceValidation(coinReferenceSvc)
 		quickCaptureHandler := handlers.NewQuickCaptureHandler(quickCaptureSvc, logger)
 		coinLookupSvc := services.NewCoinLookupService(agentProxy, settingsSvc, logger)
 		coinLookupHandler := handlers.NewCoinLookupHandler(coinLookupSvc, logger)

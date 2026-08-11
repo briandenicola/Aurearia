@@ -182,8 +182,21 @@
             </div>
           </form>
 
-          <!-- Numista matches -->
-          <div v-if="numistaResults && numistaResults.length > 0" class="card">
+          <div
+            v-if="!ngcCertNumber && (hasPhotoNumistaProposalContract || numistaResults.length === 0)"
+            class="card min-w-0 overflow-hidden"
+          >
+            <NumistaLookupPanel
+              :initial-query="photoNumistaQuery"
+              :evidence="photoNumistaEvidence"
+              path="photo"
+              :show-confirmation="false"
+              @selection-changed="selectedNumistaCandidate = $event"
+            />
+          </div>
+
+          <!-- Deprecated result compatibility for older API deployments -->
+          <div v-else-if="!ngcCertNumber && numistaResults.length > 0" class="card">
             <h3 class="mb-4 text-lg text-text-primary">Possible Matches</h3>
             <div class="flex flex-col gap-3">
               <div v-for="match in numistaResults" :key="match.id" class="flex flex-col gap-4 rounded-md border border-border-subtle bg-card p-4 transition-colors hover:border-border-accent md:flex-row md:items-start">
@@ -234,7 +247,7 @@
 import { ref, computed, reactive, onBeforeUnmount } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { createQuickCaptureDraft, lookupCoin } from '@/api/client'
-import type { CoinLookupResponse, CoinMutationPayload } from '@/types'
+import type { CoinLookupResponse, CoinMutationPayload, NumistaCandidate, NumistaEvidence } from '@/types'
 import { renderSafeMarkdown } from '@/composables/useMarkdown'
 import { appendUniqueObservation, deriveAiObservations, normalizedEra, normalizeLookupDraft } from '@/utils/coinLookupDraft'
 import {
@@ -249,6 +262,8 @@ import {
 } from 'lucide-vue-next'
 import InlineCameraCapturePanel from '@/components/InlineCameraCapturePanel.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
+import NumistaLookupPanel from '@/components/numista/NumistaLookupPanel.vue'
+import { selectedNumistaReferenceFromCandidate } from '@/utils/numistaLookup'
 
 interface CapturedImage {
   file: File
@@ -268,6 +283,7 @@ const saving = ref(false)
 const error = ref('')
 const results = ref<CoinLookupResponse | null>(null)
 const aiObservations = ref('')
+const selectedNumistaCandidate = ref<NumistaCandidate | null>(null)
 
 const reviewForm = reactive<CoinMutationPayload>({
   name: '',
@@ -297,6 +313,13 @@ const ngcLookupUrl = computed(() => {
 })
 
 const numistaResults = computed(() => results.value?.numistaCandidates ?? [])
+const photoNumistaQuery = computed(() => results.value?.proposedNumistaQuery?.trim() ?? '')
+const hasPhotoNumistaProposalContract = computed(() => {
+  return typeof results.value?.proposedNumistaQuery === 'string'
+    || results.value?.numistaEvidence !== undefined
+    || results.value?.numistaLookup !== undefined
+})
+const photoNumistaEvidence = computed<NumistaEvidence>(() => results.value?.numistaEvidence ?? {})
 const renderedAiObservations = computed(() => renderSafeMarkdown(aiObservations.value))
 
 function applyDraftToReviewForm(prefilled: CoinMutationPayload) {
@@ -399,6 +422,7 @@ function handleRetake() {
   }
   capturedImages.value = []
   results.value = null
+  selectedNumistaCandidate.value = null
   aiObservations.value = ''
   error.value = ''
   Object.assign(ngcForm, {
@@ -447,6 +471,9 @@ async function handleSaveAsDraft() {
   if (saving.value) return
   saving.value = true
   try {
+    const selectedReference = selectedNumistaCandidate.value
+      ? selectedNumistaReferenceFromCandidate(selectedNumistaCandidate.value)
+      : null
     const draft = await createQuickCaptureDraft({
       workingTitle: reviewForm.name || 'Unidentified Coin',
       era: normalizedEra(reviewForm.era),
@@ -457,6 +484,8 @@ async function handleSaveAsDraft() {
       ngcGrade: ngcForm.grade || reviewForm.grade,
       labelText: ngcForm.labelText,
       aiConfidence: ngcForm.confidence,
+      selectedNumistaId: selectedReference?.number,
+      selectedNumistaUrl: selectedReference?.uri,
       obverseImage: capturedImages.value[0]?.file ?? null,
       reverseImage: capturedImages.value[1]?.file ?? null,
       detailImages: capturedImages.value.slice(2).map(img => img.file),

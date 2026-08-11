@@ -297,6 +297,8 @@ export async function createQuickCaptureDraft(input: QuickCaptureDraftInput) {
   appendOptionalFormValue(formData, 'ngcGrade', input.ngcGrade)
   appendOptionalFormValue(formData, 'labelText', input.labelText)
   appendOptionalFormValue(formData, 'aiConfidence', input.aiConfidence)
+  appendOptionalFormValue(formData, 'selectedNumistaId', input.selectedNumistaId)
+  appendOptionalFormValue(formData, 'selectedNumistaUrl', input.selectedNumistaUrl)
   if (input.purchasePrice !== undefined && input.purchasePrice !== null) {
     formData.append('purchasePrice', String(input.purchasePrice))
   }
@@ -324,6 +326,9 @@ export async function updateQuickCaptureDraft(id: number, input: QuickCaptureDra
   appendOptionalFormValue(formData, 'ngcGrade', input.ngcGrade)
   appendOptionalFormValue(formData, 'labelText', input.labelText)
   appendOptionalFormValue(formData, 'aiConfidence', input.aiConfidence)
+  appendOptionalFormValue(formData, 'selectedNumistaId', input.selectedNumistaId)
+  appendOptionalFormValue(formData, 'selectedNumistaUrl', input.selectedNumistaUrl)
+  if (input.clearSelectedNumista) formData.append('clearSelectedNumista', 'true')
   if (input.purchasePrice !== null && input.purchasePrice !== undefined) {
     formData.append('purchasePrice', String(input.purchasePrice))
   }

@@ -370,8 +370,11 @@ type CandidateReferenceSwagger struct {
 }
 
 type CoinLookupSwaggerResponse struct {
-	ExtractedData       LookupExtractedDataSwagger  `json:"extractedData"`
-	NumistaCandidates   []NumistaCandidateSwagger   `json:"numistaCandidates"`
-	PrefilledDraft      map[string]any              `json:"prefilledDraft,omitempty"`
-	CandidateReferences []CandidateReferenceSwagger `json:"candidateReferences,omitempty"`
+	ExtractedData        LookupExtractedDataSwagger   `json:"extractedData"`
+	NumistaCandidates    []NumistaCandidateSwagger    `json:"numistaCandidates"`
+	ProposedNumistaQuery string                       `json:"proposedNumistaQuery,omitempty"`
+	NumistaEvidence      models.NumistaEvidence       `json:"numistaEvidence"`
+	NumistaLookup        *models.NumistaLookupOutcome `json:"numistaLookup" extensions:"x-nullable"`
+	PrefilledDraft       map[string]any               `json:"prefilledDraft,omitempty"`
+	CandidateReferences  []CandidateReferenceSwagger  `json:"candidateReferences,omitempty"`
 }
