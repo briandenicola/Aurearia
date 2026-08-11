@@ -214,6 +214,10 @@ Outcome: BLOCK. The alert architecture is mostly correctly layered and Python re
 
 - **2026-06-29 — NGC label frontend lockout revision:** Slash-delimited NGC slab labels need structured segment promotion: discard issuer/mint context, remove date ranges and metal prefixes, then derive collector title (e.g., Constantine I + Reduced Nummus). Regression coverage should exercise both missing and placeholder draft names because Unidentified Coin must be treated as replaceable fallback, not a backend-provided title.
 
+## Learnings
+
+- **2026-08-11 — Numista lookup architecture:** Numista access is duplicated between a direct handler proxy and CoinLookupService enrichment, with no shared typed client, cache, quota tracking, or application ranking. Photo lookup emits candidate references, but the current Quick Capture save/promotion contract does not persist Numista candidates or references into the promoted coin.
+
 - **2026-06-29 — Find Coin NGC editable review lockout:** The NGC result branch must reuse the key editable review fields (Name, Ruler, Denomination, Category, Grade) rather than a read-only details grid; keep NGC cert verification/grade metadata as a separate certification block and cover the Constantine slash-label NGC path in targeted Vitest regression.
 
 - **2026-06-30 — CNG Auctions Integration Spike (Complete):** Led parallel team spike with Cassius (backend), Aurelia (frontend), and Brutus (QA). Consensus: **Feature parity achievable with phased implementation; research phase is prerequisite gate for Phase 2 approval.**

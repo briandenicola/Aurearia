@@ -162,6 +162,441 @@ This preserves the existing AI job polling/notification contract, avoids chat at
 
 ---
 
+### Decision: Python Agent Dynamic Set Builder Workflow (Phase 2)
+
+**Date:** 2026-07-26
+**Agent:** Cassius
+**Status:** IMPLEMENTED
+**Issue:** specs/011-dynamic-set-builder-correction-plan.md (Phase 2)
+
+## Context
+
+Spec 011 (Dynamic Set Builder) requires a Python multi-agent group-chat/magentic workflow that turns a free-text prompt into a structured Set Proposal for human review, without ever creating a set itself.
+
+## Decision
+
+- Added `POST /api/set-builder/run` to the existing router in `src/agent/app/routes.py`, covered by existing `InternalServiceAuthMiddleware`.
+- Added `SetBuilderRequest` (Pydantic, `extra="forbid"`) with bounded `prompt` (500 chars), `max_turns` (1-8, default 4), `max_slots` (1-300, default 200), `enable_external_lookup` (default `True`), and optional `feedback`.
+- Added response DTOs: `SetBuilderResponse` (status, proposal, clarification_question, failure_reason, transcript_summary, turns_used). Status is one of `completed`, `clarification_needed`, `rejected`, `failed`, `limit_reached` — there is no "set created" outcome.
+- Added LangGraph `StateGraph` with five nodes (intent_analyst, roster_researcher, collection_matcher, validator, finalize). Each LLM-calling node increments turn counter; conditional edges route to finalize once status is set or turns exhausted.
+- Roster research uses `get_search_model`/`get_chat_model` from `app/llm/provider.py` per existing per-request LLM config pattern.
+- Top-level `run_set_builder_workflow(request)` is what routes.py calls and what tests monkeypatch.
+
+## Validation
+
+- `python -m pytest tests/test_set_builder.py -v` (12 passed)
+- `python -m pytest -q` — full agent suite, 182 passed
+- `python -m ruff check app/models/requests.py app/models/responses.py app/routes.py app/teams/set_builder.py tests/test_set_builder.py` — clean
+
+---
+
+### Decision: Phase 3 Backend Submission Slice Complete
+
+**Date:** 2026-07-26
+**Agent:** Cassius
+**Status:** IMPLEMENTED
+**Issue:** specs/011-dynamic-set-builder-correction-plan.md (Phase 3)
+
+## Context
+
+Task was to finish and verify `POST /set-builder/runs` as a real, safe submission endpoint: queue a run only, create no set or proposal.
+
+## Decision
+
+- `POST /set-builder/runs` is wired under the `protected` (JWT-required) route group in `main.go`, calling `SetBuilderHandler.CreateRun` → `SetBuilderService.CreateRun`.
+- Only inserts a `SetBuilderRun` row with status `queued` and owner-scoped `UserID` from JWT context. No `SetProposal`, `ProposalSlot`, `CoinSet`, or `CoinSetTarget` is touched.
+- Regenerated OpenAPI because the new route/request/response shapes were undocumented and drift detection was failing.
+
+## Validation
+
+- `go build ./...` — clean.
+- `go vet ./...` — clean.
+- `go test ./...` (full suite) — all packages pass, including `TestRegisteredAPIRoutesAreDocumentedInOpenAPI`.
+- `go test ./handlers -run TestSetBuilder -v`, `go test ./services -run TestSetBuilder -v`, `go test ./repository -run TestSetBuilder -v` — all pass.
+
+## Alignment
+
+- Principle I: handler stays thin; all persistence lives in `SetBuilderService` / `SetBuilderRepository`.
+- Principle VII: Swagger annotations present; OpenAPI regenerated.
+- Principle XI: owner scoping enforced via JWT auth middleware under `protected` group.
+
+---
+
+### Decision: User custom mint/location CRUD is already fully implemented
+
+**Date:** 2026-07-27
+**Agent:** Cassius
+**Status:** Informational (test coverage added)
+
+## Context
+
+Task requested backend support for user-scoped custom mint/location CRUD, but discovered the entire feature already exists in the codebase.
+
+## Finding
+
+- Model: `MintLocation.UserID *uint` (nil = global, non-nil = private)
+- Repository: `CreatePrivate`, `FindOwnedByID`, `ListVisibleTo`, `ExistsVisibleTo`
+- Service: `CreatePrivate`, `UpdatePrivate`, `DeletePrivate`, `List`
+- Handler: `CreatePrivate`, `UpdatePrivate`, `DeletePrivate`, `List` with Swagger
+- Routes: Protected routes under `main.go:308–312`
+- AutoMigrate: `MintLocation` included
+
+## Added This Session
+
+Service-layer test coverage (8 new tests):
+- `TestMintLocationService_CreatePrivateSetsUserID`
+- `TestMintLocationService_CreatePrivateDuplicateRejectsNameCollidingWithGlobal`
+- `TestMintLocationService_CreatePrivateTwoUsersSameNameAllowed`
+- `TestMintLocationService_UpdatePrivateOwnerScopingRejectsOtherUser`
+- `TestMintLocationService_UpdatePrivateOwnerCanRenameOwnMint`
+- `TestMintLocationService_UpdatePrivateCannotMutateGlobalMint`
+- `TestMintLocationService_DeletePrivateOwnerScopingRejectsOtherUser`
+- `TestMintLocationService_DeletePrivateCannotDeleteGlobalMint`
+- `TestMintLocationService_ListReturnsGlobalAndUsersOwn`
+
+## Key Design Notes
+
+- Owner-scoping enforced at repository layer (`FindOwnedByID` uses `WHERE id = ? AND user_id = ?`).
+- Private mint name cannot shadow a global entry visible to the user.
+- Two users may hold private mints with the same name — separate visibility scopes.
+- In-use guard applies to both global and private delete paths.
+
+---
+
+### Decision: Agentic Set Submit UX Uses Set Builder Run, Not Local Set Creation
+
+**Date:** 2026-07-26
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+Phase 3 of Dynamic Set Builder correction plan required unblocking the Agentic option in `SetCreationWizard.vue`. Coordinator had already added `createSetBuilderRun` to API client.
+
+## Decision
+
+- `SetCreationWizard.vue` enables normal submit button for `setType === 'agentic'` and emits standard `submit` payload (including `agenticPrompt`) without attempting local set creation.
+- `SetsPage.vue`'s `createSet` branches on `value.setType === 'agentic'`: calls `createSetBuilderRun({ prompt: value.agenticPrompt || value.name })`, closes modal, resets form, shows confirmation dialog.
+- Both agentic and standard/goal/smart/CSV error paths use `useDialog().showAlert(...)` instead of `window.alert`.
+
+## Validation
+
+- `npm run test -- src/components/sets/__tests__/SetCreationWizard.test.ts src/pages/__tests__/SetsPage.test.ts src/pages/__tests__/SetDetailPage.test.ts` — 9/9 passed
+- `npm run type-check` — clean
+
+## Alignment
+
+- Principle III: strict typing preserved
+- Principle IV: minimal change scoped to wizard button/copy and one branch in SetsPage
+- Constitution "no raw `window.alert`" convention: replaced with `useDialog`
+
+---
+
+### Decision: User Custom Mint Locations UI — Global/User Separation
+
+**Date:** 2026-07-27
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+Cassius added user-scoped `/mint-locations` protected routes. `getMintLocations()` returns mixed list of global (userId=null) and user-owned (userId=number) locations. UI needed to present only user-owned entries as editable in Settings.
+
+## Decision
+
+`SettingsDataSection.vue` calls `getMintLocations()` and filters result to `m.userId != null` via computed property (`userMintLocations`). Global/admin locations excluded from list, badge count, and form context. Create/update/delete use user-scoped wrappers, never admin paths.
+
+## Validation
+
+- 10 Vitest tests including explicit test: "renders only user-scoped locations, not global"
+- `npm.cmd run type-check` passes
+- Commit `84e01f1` on beta branch
+
+---
+
+### Decision: CategoryEraConfirmModal z-index fix
+
+**Date:** 2026-07-27
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+During Add Coin agentic mode, `CategoryEraConfirmModal` opened invisibly because `CoinSearchChat` sidebar (`z-[1400]`) covered it — modal used `z-[300]`.
+
+## Root Cause
+
+Modal uses `<Teleport to="body">`, placing overlay as sibling of `CoinSearchChat` root div. Since 300 < 1400, sidebar always painted on top.
+
+## Decision
+
+Raise `CategoryEraConfirmModal`'s overlay from `z-[300]` to `z-[1600]`.
+
+**Z-index scale after fix:**
+| Element | z-index |
+|---|---|
+| CoinSearchChat sidebar | 1400 |
+| Note-draft modal | 1500 |
+| CategoryEraConfirmModal | 1600 |
+
+## Test Pattern
+
+For teleported Vue components: stub `Teleport: true` in `global.stubs` so content renders inline — `wrapper.find()` and `wrapper.trigger()` work normally.
+
+## Files Changed
+
+- `src/web/src/components/chat/CategoryEraConfirmModal.vue` — z-[300] → z-[1600]
+- `src/web/src/components/__tests__/CategoryEraConfirmModal.test.ts` — new (4 tests including z-index regression guard)
+
+## Alignment
+
+- Principle IV: smallest complete fix, targeted regression coverage
+- §17 Quality Gate: type-check passed, targeted tests pass
+
+---
+
+### Decision: Mint Map List + Grid Layout
+
+**Date:** 2026-07-27
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+Mint map page showed only Leaflet map with coins revealed via floating drawer on marker click. No summary overview of which mints were represented without mousing over each marker.
+
+## Decision
+
+Added `MintListPanel.vue` alongside `MintMapLeaflet.vue` in two-column CSS grid layout:
+
+- **Desktop:** 260px scrollable list on left, map fills remaining width
+- **Mobile:** Single-column stack; map first (primary), list below capped at 280px
+- List items show: `displayName`, `region` (uppercase label), count badge, coin name preview (first 2, with `+N more` suffix)
+- Selecting mint from list emits `select-mint` to page, updates `selectedMintId`, highlights marker, opens drawer
+- Detail view: existing `MintCoinDrawer` (fixed-position, `z-[1100]`) continues as selected-mint surface
+
+## Validation
+
+- 9 new `MintListPanel.test.ts` unit tests
+- 2 new `MintMapPage.test.ts` integration tests
+- All 23 targeted tests pass; `vue-tsc --build` clean
+
+## Alignment
+
+- Principle IV: reused MintCoinDrawer, existing groupCoinsByMint, existing selectedMintId state
+- Principle VI: design tokens throughout; dark theme; mobile-responsive
+- §17 Quality Gate: targeted tests pass, type-check clean
+
+---
+
+### Decision: Mint Map Layout — Equal-Height Panel and Map Cards
+
+**Date:** 2026-07-27
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+After `MintListPanel.vue` was added, stray vertical scrollbar appeared in gap between list panel and map. List panel taller than map card, causing mismatched heights on desktop.
+
+Root cause: `.map-layout` used `align-items: start`, so each grid column sized independently. List panel (~692px) exceeded map (~640px). Scrollbar on `.mint-list` leaked into column gap.
+
+## Decision
+
+1. Set `height: min(70vh, 640px)` on `.map-layout`, remove `align-items: start` (default stretch). Both columns fill same row height.
+2. Changed `.mint-map-leaflet` from `height: min(70vh, 640px)` to `height: 100%`. Added `@media (max-width: 768px)` override to `height: min(50vh, 380px)` (mobile grid is `height: auto`).
+3. Removed `max-height: min(70vh, 640px)` from `.mint-list`. Added `min-height: 0` (critical flex-child shrink property). Grid row height bounds panel; `flex: 1; min-height: 0; overflow-y: auto` produces correctly scrollable list with no overflow artifact.
+4. Mobile grid overrides to `grid-template-columns: 1fr; height: auto`. List panel `max-height: 280px` retained on mobile.
+
+## Validation
+
+- All 22 targeted tests pass
+- Added layout structure test: verifies `.map-layout` contains both `MintListPanel` and `MintMapLeaflet`
+- `vue-tsc --noEmit` clean
+
+## Alignment
+
+- Principle IV: minimal surgical change; 3 CSS properties across 3 files
+- §17 Quality Gate: targeted tests pass, type-check clean
+
+---
+
+### Decision: TrayCoin Adapters Must Forward All MuseumTrayWell Caption Fields
+
+**Date:** 2026-07-27
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+`MuseumTrayWell.displayCaption` reads three fields from `TrayCoin`: `purchaseDate`, `placeholder`, `wishlistPlaceholder`. Any adapter that converts a `Coin` into `TrayCoin` must explicitly map all three or captions fall back to `'TBD'`.
+
+`ImperialFigureWellGrid.toTrayCoin()` was missing `purchaseDate`, causing every owned emperor-tracker well to display `TBD` even when coin had valid purchase date.
+
+## Decision
+
+- Any `Coin → TrayCoin` adapter must include `purchaseDate: coin.purchaseDate`
+- Unowned figure/goal placeholders with no purchase date correctly show `'TBD'`
+- Collection > Tray continues to pass `showCaptions: false` — unaffected
+
+## Validation
+
+- `npm.cmd run test -- src/components/__tests__/MuseumTrayWell.test.ts src/components/__tests__/MuseumTray.test.ts src/components/emperor-tracker/__tests__/ImperialFigureWellGrid.test.ts src/pages/__tests__/TrayViewPage.test.ts` — all 37 tests pass
+- `npm.cmd run type-check` — clean
+
+## Alignment
+
+- Principle IV: smallest complete fix
+- Principle IX: UI correctness — real dates shown where real dates exist
+
+---
+
+### Decision: Unknown Mint moved into the side panel as a first-class list entry
+
+**Date:** 2026-07-27
+**Agent:** Aurelia
+**Status:** IMPLEMENTED
+
+## Context
+
+`UnattributedMintBucket` lived below map row as collapsible card. Consumed vertical space below map/list pair; required separate expand interaction; second-class compared to matched-mint list.
+
+## Decision
+
+All unattributable coins (both `aggregation.unknown` and `aggregation.unmatched`) collapsed into single virtual `MintGroup` using sentinel `UNKNOWN_MINT_ID = 0`. This group appended to `panelGroups` and passed to `MintListPanel`.
+
+- `MintMapLeaflet` continues to receive only `aggregation.matched` (no phantom marker)
+- `selectedGroup` checks `selectedMintId === UNKNOWN_MINT_ID`, returns virtual group, opens `MintCoinDrawer`
+- `UnattributedMintBucket` no longer imported or rendered
+- Map-layout height increased from `min(70vh, 640px)` to `min(80vh, 800px)` since below-map section removed
+- Mobile stacked layout preserved
+
+## Validation
+
+- `npm.cmd run test -- src/pages/__tests__/MintMapPage.test.ts src/components/map/__tests__/MintListPanel.test.ts src/utils/__tests__/mintMap.test.ts` — 29/29 pass
+- `npm.cmd run type-check` — clean
+
+## Alignment
+
+- Principle IV: simplest complete change; reuses existing panel + drawer
+- Principle VI: consistent tap-to-select interaction
+- §17: targeted test coverage for all acceptance criteria
+
+---
+
+### Decision: Phase 2 Python Set-Builder QA Coverage
+
+**Date:** 2026-07-26
+**Agent:** Brutus
+**Status:** IMPLEMENTED
+**Issue:** specs/011-dynamic-set-builder-correction-plan.md (Phase 2)
+
+## Context
+
+Cassius landed the Phase 2 Python set-builder workflow while Brutus was drafting QA coverage in the same session. Test coverage was added against the landed contract.
+
+## Confirmed Contract
+
+1. Route: `POST /api/set-builder/run`, guarded by existing `X-Internal-Service-Token` middleware
+2. Route body: `await run_set_builder_workflow(request)` — route does not build/invoke graph itself
+3. Response contract:
+   - `SetBuilderResponse.status` is one of `completed`, `clarification_needed`, `rejected`, `failed`, `limit_reached`
+   - Only `status == "completed"` populates `proposal`; ambiguous/unbounded prompts return clarification/failed/limit with `proposal = None`
+   - `SetBuilderSlot` carries `criteria`, `group`, `sort_order`, `verification_status`
+
+## Test Additions
+
+`src/agent/tests/test_set_builder_api.py` (24 tests, all passing):
+- Request validation: empty/missing/oversized prompt, oversized feedback, bounds checks
+- Response schema: slot defaults, verification status, proposal presence/absence by status
+- Route: requires internal token (401), rejects invalid body (422), returns structured response, handles workflow failure as structured failure (not 500)
+
+## Alignment
+
+- Constitution §17/§21: targeted regression coverage without editing implementation files
+- Principle IV: test-only change validated against actual landed contract
+
+---
+
+### Decision: Agentic Set Builder Correction — QA Checklist & Phase 3 Submit Coverage
+
+**Date:** 2026-07-26
+**Agent:** Brutus
+**Status:** IN PROGRESS (tracking, not implementation-blocking)
+
+## Context
+
+`specs/011-dynamic-set-builder-correction-plan.md` defines Phases 0-6. Cassius/Aurelia have active uncommitted work. Brutus added only a new, independent test file.
+
+## What Exists Today
+
+- Models: `SetBuilderRun`, `SetProposal`, `ProposalSlot`
+- Repository: full lifecycle (`CreateRun`, `StartRun`, `CompleteRun`, `FailRun`, `CreateProposalWithSlots`, `ListProposals`, `GetProposalForUser`, `MarkApproved`, `MarkRejected`, `MarkExpired`)
+- Service: `CreateRun`, `FindPendingProposalByPrompt`, `CreateProposalFromWorkflow`, `ListProposals`, `GetProposal`, `RejectProposal`
+- Handler: only `POST /set-builder/runs` (`CreateRun`) implemented and wired
+- Not yet implemented: GET list/get routes, PUT edit, POST approve (transactional set creation), POST reject, POST regenerate handlers
+
+## Added This Session
+
+`src/api/handlers/set_builder_handler_test.go` — proves currently live Phase 0/Phase 3 contract at HTTP layer:
+- `TestSetBuilderHandlerCreateRunRequiresAuth` — 401 without bearer token
+- `TestSetBuilderHandlerCreateRunRejectsBlankPrompt` — 400, zero persisted runs
+- `TestSetBuilderHandlerCreateRunPersistsQueuedRunWithoutCreatingSet` — 202, run persisted with status=queued, trimmed prompt, correct userId, **zero** `CoinSet`/`CoinSetTarget`/`SetProposal` rows
+- `TestSetBuilderHandlerCreateRunIsScopedPerUser` — two users get independent runs
+
+All new tests pass: `go test ./handlers -run TestSetBuilderHandler -v` (4/4 PASS).
+
+## Full Phase Test Checklist (summary)
+
+### Phase 0 — Stop misleading behavior
+- [x] Submitting prompt does not create set immediately
+- [ ] Python agent unavailable surfaces actionable error
+- [ ] Legacy deterministic Agentic rows remain readable
+
+### Phase 1 — Backend data model
+- [x] Proposals persist without creating sets
+- [x] `ProposalSlot` verification defaults
+
+### Phase 2 — Python agent workflow
+- [ ] Tests for set-builder endpoint
+- [ ] Intent analyst rejects non-numismatic
+- [ ] Roster researcher structured-only output
+- [ ] Orchestrator enforces max turns/budget
+- [ ] Backend/provider logs show real Python calls
+
+### Phase 3 — Backend agent proxy and proposal service
+- [x] Prompt submission creates run, no set
+- [x] Proposal review fetch is user-scoped
+- [ ] Dedup identical pending prompts end-to-end
+- [ ] GET proposals handlers
+- [ ] PUT edit handler
+- [ ] POST approve (transactional)
+- [ ] POST reject handler
+- [ ] POST regenerate handler
+- [ ] Expired proposal cannot be approved
+
+### Phase 4 — Human review UI
+- [ ] Wizard submits builder run instead of creating set
+- [ ] Notification deep-links to proposal review
+- [ ] Review screen renders roster
+- [ ] Approve/Reject/Regenerate actions
+
+### Phase 5 — Roman-Emperor-style matching
+- [ ] Matching auto-fills owned coins into slots
+- [ ] Matching recalculates on coin lifecycle
+- [ ] Deterministic tie-break
+- [ ] Tray renders every slot
+
+### Phase 6 — Integration tests
+Items 1 and 3 covered; items 2, 4-10 and all frontend/integration open.
+
+## Alignment
+
+- Principle IX / §17: regression coverage without modifying implementation files
+- Constitution §18.2 Strict Lockout: no BLOCK; Phase 3 behavior matches documented acceptance criterion
+
+---
+
 ### Decision: Auction Sync Auto-Creates In-App Calendar Events
 
 **Date:** 2026-07-01
