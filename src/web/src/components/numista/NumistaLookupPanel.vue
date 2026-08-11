@@ -4,9 +4,14 @@
       <h3 id="numista-lookup-heading" class="m-0 text-base font-medium text-text-primary">
         Numista Lookup
       </h3>
-      <span v-if="outcome?.cache" class="chip-sm border border-border-subtle text-text-secondary">
-        {{ outcome.cache.hit ? `Cached ${outcome.cache.ageSeconds}s ago` : 'Fresh results' }}
-      </span>
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <span class="chip-sm border border-border-subtle text-text-secondary">
+          Status: {{ statusGuidance.label }}
+        </span>
+        <span v-if="cacheFreshnessText" class="chip-sm border border-border-subtle text-text-secondary">
+          {{ cacheFreshnessText }}
+        </span>
+      </div>
     </div>
 
     <div>
@@ -19,6 +24,7 @@
         rows="3"
         :disabled="loading"
         aria-describedby="numista-query-help"
+        @input="queryEdited = true"
       />
       <p id="numista-query-help" class="mt-1 text-sm text-text-muted">
         {{ query.trim()
@@ -31,10 +37,10 @@
       <button
         type="button"
         class="btn btn-primary btn-sm min-h-11"
-        :disabled="loading || !query.trim()"
+        :disabled="searchDisabled"
         @click="search"
       >
-        {{ loading ? 'Searching...' : outcome ? 'Search again' : 'Search Numista' }}
+        {{ searchButtonLabel }}
       </button>
       <button
         v-if="selected"
@@ -48,20 +54,23 @@
       </button>
     </div>
 
-    <div aria-live="polite" aria-atomic="true">
-      <p v-if="loading" role="status" class="m-0 text-body text-text-secondary">
-        Searching Numista for ranked candidates...
-      </p>
+    <div
+      ref="statusRegion"
+      tabindex="-1"
+      aria-live="polite"
+      aria-atomic="true"
+      class="outline-none"
+    >
       <div
-        v-else-if="guidance"
         role="status"
         class="grid gap-1 rounded-sm border border-border-subtle bg-input p-3"
+        :data-lookup-state="panelState"
       >
-        <strong class="text-body text-text-primary">{{ guidance.title }}</strong>
-        <span class="text-body text-text-secondary">{{ guidance.message }}</span>
+        <strong class="text-body text-text-primary">{{ statusGuidance.title }}</strong>
+        <span class="text-body text-text-secondary">{{ statusGuidance.message }}</span>
         <RouterLink
-          v-if="guidance.settingsHref"
-          :to="guidance.settingsHref"
+          v-if="statusGuidance.settingsHref"
+          :to="statusGuidance.settingsHref"
           class="text-body text-gold"
         >
           Open Numista settings
@@ -156,11 +165,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { lookupNumista } from '@/api/client'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import {
+  getNumistaCacheFreshnessText,
   getNumistaStatusGuidance,
   isSelectionOutsideResults,
   numistaCandidateIdentity,
@@ -195,22 +205,41 @@ const emit = defineEmits<{
 }>()
 
 const query = ref(props.initialQuery)
+const queryEdited = ref(false)
 const loading = ref(false)
 const outcome = ref<NumistaLookupOutcome | null>(null)
 const selected = ref<NumistaCandidate | null>(props.initialSelection)
 const selectedId = ref<number | null>(props.initialSelection?.id ?? null)
+const statusRegion = ref<HTMLElement | null>(null)
 
 const candidates = computed(() => outcome.value?.candidates ?? [])
 const selectionOutsideResults = computed(() => isSelectionOutsideResults(selected.value, candidates.value))
-const guidance = computed(() => {
-  const current = outcome.value
-  return current
-    ? getNumistaStatusGuidance(current.status, props.isAdmin, current.retryAfterSeconds)
-    : null
+const panelState = computed(() => loading.value ? 'loading' : outcome.value?.status ?? 'idle')
+const statusGuidance = computed(() => getNumistaStatusGuidance(
+  panelState.value,
+  props.isAdmin,
+  outcome.value?.retryAfterSeconds,
+))
+const cacheFreshnessText = computed(() => getNumistaCacheFreshnessText(
+  outcome.value?.status ?? null,
+  outcome.value?.cache,
+))
+const searchDisabled = computed(() => {
+  if (loading.value || !query.value.trim()) return true
+  if (outcome.value?.status === 'unconfigured') return !statusGuidance.value.canRetry
+  return false
+})
+const searchButtonLabel = computed(() => {
+  if (loading.value) return 'Searching...'
+  if (!outcome.value) return 'Search Numista'
+  if (outcome.value.status === 'success') return 'Search again'
+  if (outcome.value.status === 'unconfigured' && props.isAdmin) return 'Retry after configuration'
+  if (statusGuidance.value.canRetry) return 'Retry lookup'
+  return 'Search unavailable'
 })
 
 watch(() => props.initialQuery, (value) => {
-  if (!outcome.value && !loading.value) query.value = value
+  if (!queryEdited.value && !outcome.value && !loading.value) query.value = value
 })
 
 watch(() => props.initialSelection, (value) => {
@@ -230,7 +259,7 @@ async function search() {
       evidence: props.evidence,
     })
     outcome.value = response.data
-    query.value = response.data.effectiveQuery
+    query.value = response.data.effectiveQuery || effectiveQuery
     selected.value = retainNumistaSelection(selected.value, response.data.candidates)
     selectedId.value = selected.value?.id ?? null
   } catch {
@@ -242,6 +271,8 @@ async function search() {
     }
   } finally {
     loading.value = false
+    await nextTick()
+    statusRegion.value?.focus()
   }
 }
 

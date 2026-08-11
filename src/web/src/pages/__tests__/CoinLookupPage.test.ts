@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import CoinLookupPage from '../CoinLookupPage.vue'
 import { createQuickCaptureDraft, lookupCoin, lookupNumista } from '@/api/client'
 import { makeNumistaCandidate, makeNumistaLookupOutcome } from '@/test/numista-fixtures'
@@ -22,6 +23,7 @@ vi.mock('@/api/client', () => ({
   lookupCoin: vi.fn(),
   lookupNumista: vi.fn(),
   createQuickCaptureDraft: vi.fn(),
+  onTokenRefreshed: vi.fn(),
 }))
 
 // The "Create Quick AI Draft" button that kicks off analysis no longer carries a
@@ -43,6 +45,7 @@ function findActionButtons(wrapper: ReturnType<typeof mount>) {
 
 describe('CoinLookupPage', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     vi.mocked(lookupCoin).mockReset()
     vi.mocked(createQuickCaptureDraft).mockReset()
     vi.mocked(lookupNumista).mockReset()

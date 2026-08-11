@@ -190,6 +190,7 @@
               :initial-query="photoNumistaQuery"
               :evidence="photoNumistaEvidence"
               path="photo"
+              :is-admin="auth.isAdmin"
               :show-confirmation="false"
               @selection-changed="selectedNumistaCandidate = $event"
             />
@@ -264,6 +265,7 @@ import InlineCameraCapturePanel from '@/components/InlineCameraCapturePanel.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import NumistaLookupPanel from '@/components/numista/NumistaLookupPanel.vue'
 import { selectedNumistaReferenceFromCandidate } from '@/utils/numistaLookup'
+import { useAuthStore } from '@/stores/auth'
 
 interface CapturedImage {
   file: File
@@ -273,6 +275,7 @@ interface CapturedImage {
 type LookupState = 'capture' | 'analyzing' | 'results'
 
 const router = useRouter()
+const auth = useAuthStore()
 
 const state = ref<LookupState>('capture')
 const capturedImages = ref<CapturedImage[]>([])

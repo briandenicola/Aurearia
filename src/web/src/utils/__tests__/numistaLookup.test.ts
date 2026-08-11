@@ -80,11 +80,13 @@ describe('numistaLookup helpers', () => {
 
   it('maps unconfigured guidance without exposing settings to non-admin users', () => {
     expect(getNumistaStatusGuidance('unconfigured', false)).toEqual({
+      state: 'unconfigured',
+      label: 'Setup needed',
       title: 'Numista lookup is not configured',
-      message: 'Numista lookup is not available on this instance. Contact an administrator.',
+      message: 'Numista lookup is not available on this instance. Ask an administrator for help.',
       canRetry: false,
       settingsHref: undefined,
     })
-    expect(getNumistaStatusGuidance('unconfigured', true)?.settingsHref).toBe('/settings?tab=connections')
+    expect(getNumistaStatusGuidance('unconfigured', true).settingsHref).toBe('/admin?tab=system')
   })
 })

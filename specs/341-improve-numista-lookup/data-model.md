@@ -125,11 +125,11 @@ Enum and meaning:
 | Status | Meaning |
 |---|---|
 | `success` | one or more usable broad candidates |
-| `empty` | configured/reachable search completed with zero usable candidates |
-| `unconfigured` | no current server-side API key; checked before cache |
+| `empty` | configured search completed with zero usable candidates, including provider invalid-request rejection |
+| `unconfigured` | no current server-side API key or provider rejected the credential (401/403); checked before cache |
 | `quota-limited` | provider returned 429 |
 | `timeout` | application/provider deadline exceeded |
-| `unavailable` | invalid credential, network/provider/malformed response, or internal lookup capability unhealthy |
+| `unavailable` | network/provider/malformed response or internal lookup capability unhealthy |
 
 Caller cancellation ends the HTTP request and records a safe cancelled
 operation internally; it is not returned as a misleading provider status.

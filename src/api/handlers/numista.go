@@ -69,7 +69,19 @@ func (h *NumistaHandler) Lookup(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Numista lookup failed"})
 		return
 	}
+	outcome = roleSafeNumistaOutcome(c, outcome)
 	c.JSON(http.StatusOK, outcome)
+}
+
+func roleSafeNumistaOutcome(c *gin.Context, outcome models.NumistaLookupOutcome) models.NumistaLookupOutcome {
+	if outcome.Status != models.NumistaStatusUnconfigured {
+		return outcome
+	}
+	role, _ := c.Get("userRole")
+	if role != string(models.RoleAdmin) {
+		outcome.GuidanceCode = "numista_contact_administrator"
+	}
+	return outcome
 }
 
 // Search is the deprecated compatibility adapter for the legacy Numista response.

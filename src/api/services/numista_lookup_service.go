@@ -65,15 +65,21 @@ func (s *NumistaLookupService) Lookup(ctx context.Context, request models.Numist
 	)
 	if err != nil {
 		if ctx.Err() != nil {
+			s.recordCancellation(request, start)
 			return models.NumistaLookupOutcome{}, ctx.Err()
 		}
 		var numistaErr *NumistaError
 		if errors.Is(err, context.Canceled) ||
 			(errors.As(err, &numistaErr) && numistaErr.Kind == NumistaErrorCancelled) {
+			s.recordCancellation(request, start)
 			return models.NumistaLookupOutcome{}, context.Canceled
 		}
-		outcome.Status, outcome.GuidanceCode, outcome.RetryAfterSeconds = lookupStatusForError(err)
+		var expected bool
+		outcome.Status, outcome.GuidanceCode, outcome.RetryAfterSeconds, expected = lookupStatusForError(err)
 		s.recordLookup(request, outcome, start, false)
+		if !expected {
+			return models.NumistaLookupOutcome{}, err
+		}
 		return outcome, nil
 	}
 	candidates = sanitizeNumistaCandidates(candidates)
@@ -135,24 +141,35 @@ type NumistaLookupStatusError struct {
 
 func (e *NumistaLookupStatusError) Error() string { return "Numista lookup unavailable" }
 
-func lookupStatusForError(err error) (models.NumistaLookupStatus, string, *int) {
+func lookupStatusForError(err error) (models.NumistaLookupStatus, string, *int, bool) {
 	var numistaErr *NumistaError
 	if !errors.As(err, &numistaErr) {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return models.NumistaStatusTimeout, "retry_numista_lookup", nil
+			return models.NumistaStatusTimeout, "retry_numista_lookup", nil, true
 		}
-		return models.NumistaStatusUnavailable, "retry_numista_lookup", nil
+		return models.NumistaStatusUnavailable, "retry_numista_lookup", nil, false
 	}
 	switch numistaErr.Kind {
-	case NumistaErrorUnconfigured:
-		return models.NumistaStatusUnconfigured, "numista_configuration_required", nil
+	case NumistaErrorInvalidRequest:
+		return models.NumistaStatusEmpty, "revise_numista_query", nil, true
+	case NumistaErrorUnconfigured, NumistaErrorUnauthorized:
+		return models.NumistaStatusUnconfigured, "numista_configuration_required", nil, true
 	case NumistaErrorQuotaLimited:
-		return models.NumistaStatusQuotaLimited, "numista_quota_limited", numistaErr.RetryAfterSeconds
+		return models.NumistaStatusQuotaLimited, "numista_quota_limited",
+			positiveRetryAfter(numistaErr.RetryAfterSeconds), true
 	case NumistaErrorTimeout:
-		return models.NumistaStatusTimeout, "retry_numista_lookup", nil
+		return models.NumistaStatusTimeout, "retry_numista_lookup", nil, true
 	default:
-		return models.NumistaStatusUnavailable, "retry_numista_lookup", nil
+		return models.NumistaStatusUnavailable, "retry_numista_lookup", nil, true
 	}
+}
+
+func positiveRetryAfter(value *int) *int {
+	if value == nil || *value <= 0 {
+		return nil
+	}
+	retryAfter := *value
+	return &retryAfter
 }
 
 func (s *NumistaLookupService) recordLookup(
@@ -170,5 +187,20 @@ func (s *NumistaLookupService) recordLookup(
 		ElapsedMilliseconds: s.clock.Now().Sub(start).Milliseconds(),
 		CandidateCount:      len(outcome.Candidates), RetryAfterSeconds: outcome.RetryAfterSeconds,
 		CorrelationDigest: NumistaCorrelationDigest(request.Path, request.Query),
+	})
+}
+
+func (s *NumistaLookupService) recordCancellation(
+	request models.NumistaLookupRequest,
+	start time.Time,
+) {
+	if s.telemetry == nil {
+		return
+	}
+	s.telemetry.Record(NumistaTelemetryEvent{
+		OccurredAt: s.clock.Now(), Path: request.Path, Operation: "broad",
+		ElapsedMilliseconds: s.clock.Now().Sub(start).Milliseconds(),
+		CorrelationDigest:   NumistaCorrelationDigest(request.Path, request.Query),
+		Cancelled:           true,
 	})
 }

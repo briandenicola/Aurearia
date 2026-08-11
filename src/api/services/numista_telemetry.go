@@ -25,6 +25,7 @@ type NumistaTelemetryEvent struct {
 	RetryCount          int
 	RetryAfterSeconds   *int
 	CorrelationDigest   string
+	Cancelled           bool
 }
 
 type NumistaTelemetry struct {
@@ -69,7 +70,9 @@ func (t *NumistaTelemetry) Health(configured, configurationValid bool) models.Nu
 	}
 	durations := make([]int64, 0, len(events))
 	for _, event := range events {
-		summary.StatusCounts[event.Status]++
+		if event.Status != "" {
+			summary.StatusCounts[event.Status]++
+		}
 		if event.Operation == "broad" {
 			summary.BroadRequestCount++
 		} else if event.Operation == "detail" {
@@ -91,10 +94,15 @@ func (t *NumistaTelemetry) Health(configured, configurationValid bool) models.Nu
 			summary.LastRetryAfterSeconds = event.RetryAfterSeconds
 		}
 	}
-	last := events[len(events)-1]
-	lastAt := last.OccurredAt.UTC()
-	summary.LastOutcome = last.Status
-	summary.LastCheckedAt = &lastAt
+	for index := len(events) - 1; index >= 0; index-- {
+		if events[index].Status == "" {
+			continue
+		}
+		lastAt := events[index].OccurredAt.UTC()
+		summary.LastOutcome = events[index].Status
+		summary.LastCheckedAt = &lastAt
+		break
+	}
 	totalCache := summary.CacheHitCount + summary.CacheRefreshCount
 	if totalCache > 0 {
 		summary.CacheHitRate = float64(summary.CacheHitCount) / float64(totalCache)

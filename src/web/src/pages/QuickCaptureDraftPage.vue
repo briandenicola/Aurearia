@@ -131,6 +131,7 @@
                 :evidence="draftNumistaEvidence"
                 :initial-selection="selectedNumistaCandidate"
                 path="photo"
+                :is-admin="auth.isAdmin"
                 :show-confirmation="false"
                 @selection-changed="handleNumistaSelectionChanged"
               />
@@ -203,9 +204,11 @@ import {
   selectedNumistaReferenceFromCandidate,
 } from '@/utils/numistaLookup'
 import type { NumistaCandidate, NumistaEvidence } from '@/types'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 
 const draft = ref<QuickCaptureDraft | null>(null)
 const loading = ref(true)

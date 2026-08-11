@@ -3,6 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 import QuickCaptureDraftPage from '../QuickCaptureDraftPage.vue'
 import {
   getQuickCaptureDraft,
@@ -26,6 +27,7 @@ vi.mock('@/api/client', () => ({
   getApiErrorMessage: vi.fn((error: unknown) => error instanceof Error ? error.message : ''),
   getQuickCaptureDraft: vi.fn(),
   lookupNumista: vi.fn(),
+  onTokenRefreshed: vi.fn(),
   promoteQuickCaptureDraft: vi.fn(),
   updateQuickCaptureDraft: vi.fn(),
 }))
@@ -76,6 +78,7 @@ function mountPage() {
 
 describe('QuickCaptureDraftPage', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     vi.resetAllMocks()
     routerPush.mockReset()
     vi.mocked(getQuickCaptureDraft).mockResolvedValue({ data: draft() } as never)

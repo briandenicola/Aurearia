@@ -107,17 +107,17 @@
 
 ### Tests for User Story 3
 
-- [ ] T046 [P] [US3] Add service tests for all six domain statuses, caller cancellation, Retry-After propagation, configuration-before-cache, and generic internal failures in src/api/services/numista_lookup_status_test.go
-- [ ] T047 [P] [US3] Add handler tests for HTTP 200 domain outcomes, 400 validation, 401 authentication, safe 500 responses, and admin/non-admin guidance boundaries in src/api/handlers/numista_status_test.go
-- [ ] T048 [P] [US3] Add status-helper and panel tests for all six states, retained query/selection, retry actions, role-safe configuration links, aria-live announcements, and non-color guidance in src/web/src/components/numista/__tests__/NumistaLookupPanel.status.test.ts
+- [x] T046 [P] [US3] Add service tests for all six domain statuses, caller cancellation, Retry-After propagation, configuration-before-cache, and generic internal failures in src/api/services/numista_lookup_status_test.go
+- [x] T047 [P] [US3] Add handler tests for HTTP 200 domain outcomes, 400 validation, 401 authentication, safe 500 responses, and admin/non-admin guidance boundaries in src/api/handlers/numista_status_test.go
+- [x] T048 [P] [US3] Add status-helper and panel tests for all six states, retained query/selection, retry actions, role-safe configuration links, aria-live announcements, and non-color guidance in src/web/src/components/numista/__tests__/NumistaLookupPanel.status.test.ts
 
 ### Implementation for User Story 3
 
-- [ ] T049 [US3] Complete typed error-to-domain outcome mapping, guidance codes, Retry-After handling, configuration-before-cache, and cancellation recording in src/api/services/numista_lookup_service.go
-- [ ] T050 [US3] Return expected domain states without leaking raw errors or configuration details and preserve legacy GET failure semantics in src/api/handlers/numista.go
-- [ ] T051 [P] [US3] Implement complete role-sensitive status labels, guidance, retry eligibility, and cache freshness text in src/web/src/utils/numistaLookup.ts
-- [ ] T052 [US3] Render explicit idle/loading/success/empty/unconfigured/quota-limited/timeout/unavailable states with focus management and retained input in src/web/src/components/numista/NumistaLookupPanel.vue
-- [ ] T053 [US3] Add cross-path regression coverage proving status transitions never clear edited queries or persisted draft selections in src/web/src/pages/__tests__/NumistaStatusWorkflows.test.ts
+- [x] T049 [US3] Complete typed error-to-domain outcome mapping, guidance codes, Retry-After handling, configuration-before-cache, and cancellation recording in src/api/services/numista_lookup_service.go
+- [x] T050 [US3] Return expected domain states without leaking raw errors or configuration details and preserve legacy GET failure semantics in src/api/handlers/numista.go
+- [x] T051 [P] [US3] Implement complete role-sensitive status labels, guidance, retry eligibility, and cache freshness text in src/web/src/utils/numistaLookup.ts
+- [x] T052 [US3] Render explicit idle/loading/success/empty/unconfigured/quota-limited/timeout/unavailable states with focus management and retained input in src/web/src/components/numista/NumistaLookupPanel.vue
+- [x] T053 [US3] Add cross-path regression coverage proving status transitions never clear edited queries or persisted draft selections in src/web/src/pages/__tests__/NumistaStatusWorkflows.test.ts
 
 **Checkpoint**: Collectors can reliably choose whether to edit, configure, wait, or retry without seeing sensitive details.
 

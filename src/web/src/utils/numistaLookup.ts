@@ -1,6 +1,7 @@
 import type {
   Coin,
   NumistaCandidate,
+  NumistaCacheMetadata,
   NumistaEvidence,
   NumistaLookupStatus,
   SelectedNumistaReference,
@@ -8,12 +9,16 @@ import type {
 
 const QUERY_LIMIT = 500
 
+export type NumistaPanelState = 'idle' | 'loading' | NumistaLookupStatus
+
 type DirectCoinEvidence = Pick<
   Coin,
   'name' | 'ruler' | 'denomination' | 'mint' | 'dateRange' | 'material' | 'obverseInscription' | 'reverseInscription'
 >
 
 export interface NumistaStatusGuidance {
+  state: NumistaPanelState
+  label: string
   title: string
   message: string
   canRetry: boolean
@@ -110,47 +115,104 @@ export function isSelectionOutsideResults(
 }
 
 export function getNumistaStatusGuidance(
-  status: NumistaLookupStatus,
+  state: NumistaPanelState,
   isAdmin: boolean,
   retryAfterSeconds?: number,
-): NumistaStatusGuidance | null {
-  switch (status) {
+): NumistaStatusGuidance {
+  switch (state) {
+    case 'idle':
+      return {
+        state,
+        label: 'Ready',
+        title: 'Ready to search',
+        message: 'Review the query, then search when you are ready.',
+        canRetry: false,
+      }
+    case 'loading':
+      return {
+        state,
+        label: 'Searching',
+        title: 'Searching Numista',
+        message: 'Looking for ranked catalog candidates.',
+        canRetry: false,
+      }
     case 'success':
-      return null
+      return {
+        state,
+        label: 'Results ready',
+        title: 'Matches ready for review',
+        message: 'Review the evidence and explicitly select a catalog reference.',
+        canRetry: false,
+      }
     case 'empty':
       return {
+        state,
+        label: 'No matches',
         title: 'No matches found',
         message: 'Revise the query and search again.',
         canRetry: true,
       }
     case 'unconfigured':
       return {
+        state,
+        label: 'Setup needed',
         title: 'Numista lookup is not configured',
         message: isAdmin
-          ? 'Configure the Numista integration in Settings, then retry.'
-          : 'Numista lookup is not available on this instance. Contact an administrator.',
-        canRetry: false,
-        settingsHref: isAdmin ? '/settings?tab=connections' : undefined,
+          ? 'Add the Numista API key in Admin System settings, then retry the lookup.'
+          : 'Numista lookup is not available on this instance. Ask an administrator for help.',
+        canRetry: isAdmin,
+        settingsHref: isAdmin ? '/admin?tab=system' : undefined,
       }
     case 'quota-limited':
       return {
+        state,
+        label: 'Temporarily limited',
         title: 'Numista lookup limit reached',
         message: retryAfterSeconds
-          ? `Try again in about ${retryAfterSeconds} seconds.`
+          ? `Numista asked the app to wait ${formatDuration(retryAfterSeconds)} before retrying.`
           : 'Wait before trying again.',
         canRetry: true,
       }
     case 'timeout':
       return {
+        state,
+        label: 'Timed out',
         title: 'Numista lookup timed out',
-        message: 'The query is still available. Try again.',
+        message: 'The query and selection are unchanged. Retry when ready.',
         canRetry: true,
       }
     case 'unavailable':
       return {
+        state,
+        label: 'Unavailable',
         title: 'Numista lookup is unavailable',
-        message: 'The service could not complete the lookup. Try again later.',
+        message: 'The service could not complete the lookup. Your query and selection are unchanged.',
         canRetry: true,
       }
   }
+}
+
+export function getNumistaCacheFreshnessText(
+  status: NumistaLookupStatus | null,
+  cache: NumistaCacheMetadata | null | undefined,
+): string | null {
+  if (!cache || (status !== 'success' && status !== 'empty')) return null
+  if (!cache.hit) return 'Fresh results'
+  return `Cached results · ${formatAge(cache.ageSeconds)} old`
+}
+
+function formatAge(seconds: number): string {
+  if (seconds < 60) return `${seconds} sec`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hr`
+  return `${Math.floor(seconds / 86400)} day${seconds < 172800 ? '' : 's'}`
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds} second${seconds === 1 ? '' : 's'}`
+  if (seconds % 60 === 0 && seconds < 3600) {
+    const minutes = seconds / 60
+    return `${minutes} minute${minutes === 1 ? '' : 's'}`
+  }
+  return `${seconds} seconds`
 }
