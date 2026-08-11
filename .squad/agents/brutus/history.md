@@ -13,6 +13,19 @@
 
 ## Recent Updates
 
+- **2026-08-11 — Feature 341 Phase 7 Strict Lockout APPROVED (T064–T072):**
+  - Initial QA identified two P1 blockers: deterministic ranking contract mismatch (ProviderPosition vs ID order) and effective-query whitespace handling divergence.
+  - Domitian's independent revision: refactored `rankNumistaEnrichmentTargets` to use shared `numistaCandidateRanksBefore` with correct binding order (score, exact ID, completeness, normalized title, numeric ID, provider position); added TrimSpace to `NumistaEnrichmentRequest.Validate()` while preserving exact query in direct lookup.
+  - All T064–T072 tests verified: acceptance suites (provider detail, enrichment, handler, progressive component), implementation tests (caching, concurrency, auth, frontend state), and product fixes confirmed.
+  - Full Go/frontend/OpenAPI gates pass; deterministic fakes; no live provider access; no regressions.
+  - Scribe merged inbox decisions and created product + squad commits per protocol.
+
+- **2026-08-11 — Feature 341 Phase 7 US5 acceptance suite (T064–T067):**
+  - Added test-first provider detail, enrichment service, authenticated handler/OpenAPI, and progressive Vue component acceptance suites.
+  - Deterministic fakes use injected transports/clocks and cancellation/concurrency barriers; no live Numista access or product implementation was added.
+  - Intended red state: malformed optional detail mapping; missing `NumistaLookupService.Enrich`; missing authenticated `/api/numista/enrich` handler/route/OpenAPI; missing frontend progressive enrichment and unsafe HTTP image suppression.
+  - Phase 1–6 Numista service/handler/component baselines, route drift, Go vet, frontend type-check/build, and diff check remain clean. No unexpected regression was found.
+
 - **2026-07-26 — Sets Refinement: Integration QA & Revalidation (sets-refinement merged to beta):**
   - Initial pass identified Strict BLOCK: frontend emitted `trackerCreationMode` while backend read `creationMode`, causing silent tracker creation failures
   - Issued clear blocking issue statement per Constitution §18.2 with required follow-up owner (Aurelia)
@@ -543,3 +556,59 @@
 - Deterministic late-result, takeover, cancellation, healthy-waiter, fan-in, warm-cache, expiry, and independent-TTL tests passed at `-count=100`. Focused frontend Phase 6 tests passed 15/15.
 - Full gates passed: Go build, vet, and all tests; full frontend Vitest, type-check, explicit `vue-tsc --build`, production build, lint; `git diff --check`.
 - T054–T063 are checked complete. Residual risk remains limited to the unavailable Go race detector (`CGO_ENABLED=0`); deterministic synchronization stress and direct state-machine inspection provide high confidence.
+
+## 2026-08-11 — Feature 341 Phase 7 T064–T072 combined review
+
+- **Verdict: BLOCK.** Pre-review commits `97bba2e` (Aurelia, frontend) and
+  `6726b09` (Cassius, backend) are both ancestors of `HEAD`; branch and remote
+  point to `6726b09`, and the combined product diff is clean.
+- **Cassius blocker:** `rankNumistaEnrichmentTargets` uses provider position
+  before numeric ID for tied pre-enrichment candidates
+  (`src/api/services/numista_lookup_service.go:299-302`). The binding data
+  model requires score, exact ID, completeness, normalized title, numeric ID,
+  then provider position. This can enrich a different bounded subset than the
+  specified deterministic application order.
+- **Cassius/Aurelia contract blocker:** enrichment returns and submits the raw
+  query rather than the exact trimmed effective query
+  (`src/api/services/numista_lookup_service.go:266`,
+  `src/web/src/components/numista/NumistaLookupPanel.vue:316`). The binding
+  contract requires surrounding whitespace trimmed, including retry identity.
+- Focused Go tests, enrichment/concurrency stress, full Go build/vet/tests,
+  full frontend Vitest/lint/type-check/build, deterministic OpenAPI
+  regeneration, diff check, auth/rate-limit inspection, and privacy review
+  passed. Phase 6 cache/telemetry ownership regressions remained green.
+- T064–T072 remain unchecked under Strict Lockout. Uncommitted Brutus artifacts
+  remain: `.squad/agents/brutus/history.md` and
+  `src/web/src/components/numista/__tests__/NumistaLookupPanel.enrichment.test.ts`;
+  Scribe must capture them after the block is resolved.
+
+## 2026-08-11 — Feature 341 Phase 7 Domitian independent-revision review
+
+- **Verdict: APPROVE.** Domitian independently cleared both Phase 7 blockers;
+  Cassius and Aurelia did not revise after rejection.
+- The binding order independently derived from `data-model.md` and `plan.md` is
+  score descending, exact-ID match, enrichment completeness descending,
+  normalized title ascending, numeric Numista ID ascending, then provider
+  position. One shared comparator now governs bounded target selection and
+  final reranking. Six permutations of lexical-edge IDs 2/10/30 prove both
+  paths select and return numeric order; duplicate candidate IDs remain
+  rejected before provider access.
+- Enrichment validation trims only surrounding query whitespace and returns
+  the same trimmed `effectiveQuery`; internal whitespace is preserved.
+  Whitespace-only enrichment returns 400 without a provider call. Direct lookup
+  continues submitting, returning, and displaying the exact raw FR-006 query;
+  the frontend submits only the trimmed enrichment identity and retains the raw
+  editable display.
+- Branch integrity is intact: `97bba2e` is the parent/ancestor of `6726b09`;
+  `HEAD`, the local branch, and `origin/341-improve-numista-lookup` all point to
+  `6726b09` with ahead/behind `0/0`. No history rewrite, new commit, or push
+  occurred during review.
+- T064–T072 were rechecked individually and marked complete. Focused Go
+  ranking/enrichment/cancellation/concurrency stress, handler repetition, full
+  Go build/vet/tests, targeted and full frontend Vitest, ESLint, type-check,
+  production build, deterministic OpenAPI regeneration, and `git diff --check`
+  all passed.
+- Residual risk is low: no live Numista call or browser E2E was used, by design;
+  deterministic transport/component coverage exercises the binding contracts.
+  All product fixes, tests, this history, the task checklist, and the decision
+  inbox remain uncommitted for Scribe.

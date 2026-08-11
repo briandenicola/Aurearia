@@ -2,6 +2,52 @@
 
 ## Active Decisions
 
+### Decision: Feature 341 Phase 7 — Progressive Numista Enrichment (T064–T072)
+
+**Date:** 2026-08-11  
+**Agent:** Domitian (implementation), Brutus (QA review)  
+**Status:** APPROVED
+
+## Context
+Feature 341 Phase 7 delivers progressive detail enrichment for Numista lookup: after broad candidates render, the backend fetches details for a bounded deterministic subset (default 5), reranks them, and streams the enriched response. Frontend progressively updates candidate cards without changing explicit selection.
+
+Brutus identified two P1 blockers during initial QA:
+
+1. **Deterministic ranking contract mismatch**: `rankNumistaEnrichmentTargets` was comparing `ProviderPosition` before numeric ID, causing different candidate subsets to receive detail requests than the binding application-owned deterministic order (data-model.md §117-119).
+
+2. **Effective-query contract not preserved**: Enrichment request returned raw `request.Query` instead of trimmed query; frontend submitted trimmed `effectiveQuery` to endpoint. This divergence broke first enrichment / retry identity contract (data-model.md §46-50, 142).
+
+## Decision
+Domitian delivered an independent revision that:
+
+- Refactors `rankNumistaEnrichmentTargets` in `numista_lookup_service.go` to delegate deterministic reranking to a new shared `numistaCandidateRanksBefore` function in `numista_scoring.go`
+- Enforces binding order: score > exact ID > completeness > normalized title > numeric ID > provider position (matching spec exactly)
+- Adds `TrimSpace` to `NumistaEnrichmentRequest.Validate()` to trim surrounding whitespace while direct FR-006 lookup preserves exact raw query
+- Frontend submits `effectiveQuery.trim()` to enrichment endpoint
+- All T064–T067 acceptance tests (provider detail, enrichment service, authenticated handler, progressive component) pass deterministic fakes with injected transports and clocks
+- All T068–T072 implementation tests (backend caching, concurrent detail fetches, handler auth guards, frontend progressive state display) pass
+
+## Validation
+- `go build ./...` ✓
+- `go vet ./...` ✓
+- `go test ./... -count=1` ✓ (full suite including enrichment unit/integration)
+- `npm run test` ✓ (112 test files, 689 tests, 80% coverage)
+- `vue-tsc --build` ✓ (strict type-check)
+- `npm run build` ✓ (production build)
+- OpenAPI regeneration ✓ (byte-stable, no route drift)
+- `git diff --check` ✓
+- No live Numista access, browser E2E, or provider credentials in tests
+
+## Alignment
+- **Principle III (Explicit typing)**: All request/response contracts typed; binding order documented and enforced in both frontend and backend
+- **Principle IV (Simple proportional change)**: Two focused fixes addressing root causes; no unrelated refactoring
+- **Principle VII (Proven tests)**: Acceptance and implementation tests written test-first per protocol; deterministic fakes verify behavior without live provider access
+- **Principle X (All gates pass)**: Full Go/frontend/OpenAPI suite clean; no pre-existing regressions
+- **§17 Quality Gate**: All lint/build/test gates pass; code review and approval documented
+- **§21 Definition of Done**: Acceptance criteria met; tests pass; no unrelated changes; commit message cites spec sections and principles
+
+---
+
 ### Decision: Sets Type Refinement + Goal Completion Formula
 
 **Date:** 2026-07-26  
