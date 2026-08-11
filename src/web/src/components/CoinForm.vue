@@ -62,6 +62,16 @@
             </select>
           </div>
         </div>
+        <div class="form-group min-w-0">
+          <label class="form-label">Date or Date Range</label>
+          <input
+            v-model="form.dateRange"
+            class="form-input"
+            type="text"
+            maxlength="200"
+            placeholder="e.g. 138–161 CE or c. 330–335"
+          />
+        </div>
         <div v-if="form.category === 'Roman'" class="form-group min-w-0">
           <label class="form-label">Imperial figure (optional)</label>
           <ImperialFigurePicker v-model="form.romanImperialFigureId!" />

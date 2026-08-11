@@ -358,6 +358,11 @@ type NumistaCandidateSwagger struct {
 	URL       string `json:"url" example:"https://en.numista.com/catalogue/pieces12345.html"`
 }
 
+type NumistaLookupRequestSwagger = models.NumistaLookupRequest
+type NumistaEnrichmentRequestSwagger = models.NumistaEnrichmentRequest
+type NumistaLookupOutcomeSwagger = models.NumistaLookupOutcome
+type LegacyNumistaSearchResponseSwagger = models.LegacyNumistaSearchResponse
+
 type CandidateReferenceSwagger struct {
 	Catalog string `json:"catalog" example:"NGC"`
 	Volume  string `json:"volume,omitempty" example:""`
@@ -366,8 +371,11 @@ type CandidateReferenceSwagger struct {
 }
 
 type CoinLookupSwaggerResponse struct {
-	ExtractedData       LookupExtractedDataSwagger  `json:"extractedData"`
-	NumistaCandidates   []NumistaCandidateSwagger   `json:"numistaCandidates"`
-	PrefilledDraft      map[string]any              `json:"prefilledDraft,omitempty"`
-	CandidateReferences []CandidateReferenceSwagger `json:"candidateReferences,omitempty"`
+	ExtractedData        LookupExtractedDataSwagger   `json:"extractedData"`
+	NumistaCandidates    []NumistaCandidateSwagger    `json:"numistaCandidates"`
+	ProposedNumistaQuery string                       `json:"proposedNumistaQuery,omitempty"`
+	NumistaEvidence      models.NumistaEvidence       `json:"numistaEvidence"`
+	NumistaLookup        *models.NumistaLookupOutcome `json:"numistaLookup" extensions:"x-nullable"`
+	PrefilledDraft       map[string]any               `json:"prefilledDraft,omitempty"`
+	CandidateReferences  []CandidateReferenceSwagger  `json:"candidateReferences,omitempty"`
 }

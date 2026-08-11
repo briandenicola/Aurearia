@@ -17,10 +17,209 @@ func newQuickCaptureRepositoryTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.ValueSnapshot{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.ValueSnapshot{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
 	return db
+}
+
+func selectedDraftReference(userID uint, number string) *models.QuickCaptureDraftReference {
+	return &models.QuickCaptureDraftReference{
+		UserID: userID, Catalog: "Numista", Number: number,
+		URI: fmt.Sprintf("https://en.numista.com/catalogue/pieces%s.html", number),
+	}
+}
+
+func TestQuickCaptureRepositorySelectedReferenceCreatePreserveReplaceRemoveAndOwnerIsolation(t *testing.T) {
+	db := newQuickCaptureRepositoryTestDB(t)
+	repo := NewQuickCaptureRepository(db)
+	userID := uint(7)
+	draft := &models.QuickCaptureDraft{UserID: userID, WorkingTitle: "Selected", Status: models.QuickCaptureDraftStatusActive}
+	event := &models.DraftLifecycleEvent{UserID: userID, EventType: models.DraftLifecycleEventCreated, CreatedAt: time.Now().UTC()}
+	if err := repo.CreateDraftWithImages(draft, event, selectedDraftReference(userID, "123"), func(uint) ([]models.QuickCaptureDraftImage, error) {
+		return nil, nil
+	}); err != nil {
+		t.Fatalf("create selected draft: %v", err)
+	}
+	found, err := repo.GetDraftForOwner(draft.ID, userID)
+	if err != nil || found.SelectedNumistaReference == nil || found.SelectedNumistaReference.Number != "123" {
+		t.Fatalf("selected relation not preloaded: draft=%#v err=%v", found, err)
+	}
+	if _, err := repo.GetDraftForOwner(draft.ID, userID+1); err == nil {
+		t.Fatal("other owner read selected draft")
+	}
+
+	updateEvent := func() *models.DraftLifecycleEvent {
+		return &models.DraftLifecycleEvent{UserID: userID, EventType: models.DraftLifecycleEventUpdated, CreatedAt: time.Now().UTC()}
+	}
+	preserved, _, err := repo.UpdateDraftTransaction(
+		draft.ID, userID, map[string]interface{}{"working_title": "Preserved"},
+		nil, nil, nil, updateEvent(), DraftReferenceMutation{},
+	)
+	if err != nil || preserved.SelectedNumistaReference == nil || preserved.SelectedNumistaReference.Number != "123" {
+		t.Fatalf("omitted update did not preserve selection: %#v err=%v", preserved, err)
+	}
+
+	replaced, _, err := repo.UpdateDraftTransaction(
+		draft.ID, userID, nil, nil, nil, nil, updateEvent(),
+		DraftReferenceMutation{Replace: selectedDraftReference(userID, "456")},
+	)
+	if err != nil || replaced.SelectedNumistaReference == nil || replaced.SelectedNumistaReference.Number != "456" {
+		t.Fatalf("replace failed: %#v err=%v", replaced, err)
+	}
+	var count int64
+	if err := db.Model(&models.QuickCaptureDraftReference{}).Where("draft_id = ?", draft.ID).Count(&count).Error; err != nil || count != 1 {
+		t.Fatalf("one-to-one guard failed: count=%d err=%v", count, err)
+	}
+
+	cleared, _, err := repo.UpdateDraftTransaction(
+		draft.ID, userID, nil, nil, nil, nil, updateEvent(),
+		DraftReferenceMutation{Clear: true},
+	)
+	if err != nil || cleared.SelectedNumistaReference != nil {
+		t.Fatalf("clear failed: %#v err=%v", cleared, err)
+	}
+}
+
+func TestQuickCaptureRepositorySelectedReferenceSurvivesDiscard(t *testing.T) {
+	db := newQuickCaptureRepositoryTestDB(t)
+	repo := NewQuickCaptureRepository(db)
+	draft := models.QuickCaptureDraft{UserID: 7, WorkingTitle: "History", Status: models.QuickCaptureDraftStatusActive}
+	if err := db.Create(&draft).Error; err != nil {
+		t.Fatal(err)
+	}
+	ref := selectedDraftReference(7, "987")
+	ref.DraftID = draft.ID
+	if err := db.Create(ref).Error; err != nil {
+		t.Fatal(err)
+	}
+	discarded, err := repo.DiscardDraft(draft.ID, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if discarded.SelectedNumistaReference == nil || discarded.SelectedNumistaReference.Number != "987" {
+		t.Fatalf("discard should retain history relation: %#v", discarded)
+	}
+}
+
+func TestQuickCaptureRepositoryPromotionCopiesSelectedReferenceForCollectionAndWishlistExactlyOnce(t *testing.T) {
+	for _, wishlist := range []bool{false, true} {
+		t.Run(fmt.Sprintf("wishlist_%v", wishlist), func(t *testing.T) {
+			db := newQuickCaptureRepositoryTestDB(t)
+			repo := NewQuickCaptureRepository(db)
+			draft := models.QuickCaptureDraft{UserID: 7, WorkingTitle: "Promote", Status: models.QuickCaptureDraftStatusActive}
+			if err := db.Create(&draft).Error; err != nil {
+				t.Fatal(err)
+			}
+			ref := selectedDraftReference(7, "12345")
+			ref.DraftID = draft.ID
+			if err := db.Create(ref).Error; err != nil {
+				t.Fatal(err)
+			}
+			coin := &models.Coin{
+				UserID: 7, Name: "Promoted", Category: models.CategoryRoman,
+				Material: models.MaterialSilver, Era: models.EraAncient, IsWishlist: wishlist,
+			}
+			_, created, err := repo.PromoteDraftTransaction(draft.ID, 7, coin)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var refs []models.CoinReference
+			if err := db.Where("coin_id = ?", created.ID).Find(&refs).Error; err != nil {
+				t.Fatal(err)
+			}
+			if len(refs) != 1 || refs[0].Catalog != "Numista" || refs[0].Number != "12345" {
+				t.Fatalf("selected reference copy mismatch: %#v", refs)
+			}
+			if _, _, err := repo.PromoteDraftTransaction(draft.ID, 7, &models.Coin{UserID: 7, Name: "Duplicate"}); !errors.Is(err, ErrDraftNotClaimable) {
+				t.Fatalf("repeated repository promotion should not copy again: %v", err)
+			}
+			var count int64
+			if err := db.Model(&models.CoinReference{}).Where("coin_id = ?", created.ID).Count(&count).Error; err != nil || count != 1 {
+				t.Fatalf("reference duplicated: count=%d err=%v", count, err)
+			}
+		})
+	}
+}
+
+func TestQuickCaptureRepositoryPromotionReferenceFailureRollsBackEverything(t *testing.T) {
+	db := newQuickCaptureRepositoryTestDB(t)
+	repo := NewQuickCaptureRepository(db)
+	draft := models.QuickCaptureDraft{UserID: 7, WorkingTitle: "Rollback", Status: models.QuickCaptureDraftStatusActive}
+	if err := db.Create(&draft).Error; err != nil {
+		t.Fatal(err)
+	}
+	ref := selectedDraftReference(7, "55")
+	ref.DraftID = draft.ID
+	if err := db.Create(ref).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Callback().Create().Before("gorm:create").Register("fail_coin_reference_copy", func(tx *gorm.DB) {
+		if _, ok := tx.Statement.Dest.(*models.CoinReference); ok {
+			tx.AddError(errors.New("forced reference copy failure"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := repo.PromoteDraftTransaction(draft.ID, 7, &models.Coin{
+		UserID: 7, Name: "Rollback", Category: models.CategoryRoman, Material: models.MaterialSilver, Era: models.EraAncient,
+	})
+	if err == nil {
+		t.Fatal("expected promotion failure")
+	}
+	var refreshed models.QuickCaptureDraft
+	if err := db.First(&refreshed, draft.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.Status != models.QuickCaptureDraftStatusActive || refreshed.PromotedCoinID != nil {
+		t.Fatalf("draft claim was not rolled back: %#v", refreshed)
+	}
+	var coinCount int64
+	if err := db.Model(&models.Coin{}).Count(&coinCount).Error; err != nil || coinCount != 0 {
+		t.Fatalf("coin write was not rolled back: count=%d err=%v", coinCount, err)
+	}
+}
+
+func TestQuickCaptureRepositoryConcurrentPromotionCreatesAtMostOneCoinAndReference(t *testing.T) {
+	db := newQuickCaptureRepositoryTestDB(t)
+	repo := NewQuickCaptureRepository(db)
+	draft := models.QuickCaptureDraft{UserID: 7, WorkingTitle: "Concurrent", Status: models.QuickCaptureDraftStatusActive}
+	if err := db.Create(&draft).Error; err != nil {
+		t.Fatal(err)
+	}
+	ref := selectedDraftReference(7, "77")
+	ref.DraftID = draft.ID
+	if err := db.Create(ref).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			<-start
+			_, _, err := repo.PromoteDraftTransaction(draft.ID, 7, &models.Coin{
+				UserID: 7, Name: "Concurrent", Category: models.CategoryRoman,
+				Material: models.MaterialSilver, Era: models.EraAncient,
+			})
+			results <- err
+		}()
+	}
+	close(start)
+	err1, err2 := <-results, <-results
+	if err1 != nil && err2 != nil {
+		t.Fatalf("expected one concurrent promotion to succeed: %v / %v", err1, err2)
+	}
+	var coins, refs int64
+	if err := db.Model(&models.Coin{}).Count(&coins).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&models.CoinReference{}).Count(&refs).Error; err != nil {
+		t.Fatal(err)
+	}
+	if coins != 1 || refs != 1 {
+		t.Fatalf("concurrent promotion duplicated writes: coins=%d refs=%d errors=%v/%v", coins, refs, err1, err2)
+	}
 }
 
 func TestQuickCaptureRepositoryCreateIsOwnerScopedAndPreloadsImages(t *testing.T) {
@@ -73,6 +272,16 @@ func TestQuickCaptureRepositoryListsActiveDraftsByOwnerAndUpdatedOrder(t *testin
 			t.Fatalf("create draft %d: %v", i, err)
 		}
 	}
+	selected := selectedDraftReference(owner, "12345")
+	selected.DraftID = drafts[3].ID
+	if err := db.Create(selected).Error; err != nil {
+		t.Fatalf("create owner selected reference: %v", err)
+	}
+	otherSelected := selectedDraftReference(other, "99999")
+	otherSelected.DraftID = drafts[2].ID
+	if err := db.Create(otherSelected).Error; err != nil {
+		t.Fatalf("create other-owner selected reference: %v", err)
+	}
 
 	found, total, err := repo.ListDraftsForOwner(owner, models.QuickCaptureDraftStatusActive, 1, 50)
 	if err != nil {
@@ -83,6 +292,14 @@ func TestQuickCaptureRepositoryListsActiveDraftsByOwnerAndUpdatedOrder(t *testin
 	}
 	if found[0].WorkingTitle != "Newest active" || found[1].WorkingTitle != "Older active" {
 		t.Fatalf("expected updated_at desc order, got %q then %q", found[0].WorkingTitle, found[1].WorkingTitle)
+	}
+	if found[0].SelectedNumistaReference == nil ||
+		found[0].SelectedNumistaReference.Number != "12345" ||
+		found[0].SelectedNumistaReference.UserID != owner {
+		t.Fatalf("owner selected reference was not preloaded: %#v", found[0].SelectedNumistaReference)
+	}
+	if found[1].SelectedNumistaReference != nil {
+		t.Fatalf("unselected owner draft should not acquire a relation: %#v", found[1].SelectedNumistaReference)
 	}
 }
 
@@ -148,6 +365,7 @@ func TestQuickCaptureRepositoryUpdateAndDiscardDraft(t *testing.T) {
 		nil,
 		[]models.QuickCaptureDraftImage{{UserID: userID, FilePath: "quick-capture-draft-1/new.png", ImageType: models.ImageTypeReverse}},
 		&models.DraftLifecycleEvent{UserID: userID, EventType: models.DraftLifecycleEventUpdated, Message: "updated", CreatedAt: time.Now().UTC()},
+		DraftReferenceMutation{},
 	)
 	if err != nil {
 		t.Fatalf("update draft: %v", err)
@@ -174,6 +392,7 @@ func TestQuickCaptureRepositoryUpdateAndDiscardDraft(t *testing.T) {
 		nil,
 		nil,
 		&models.DraftLifecycleEvent{UserID: userID, EventType: models.DraftLifecycleEventUpdated, Message: "updated", CreatedAt: time.Now().UTC()},
+		DraftReferenceMutation{},
 	); !errors.Is(err, ErrDraftNotEditable) {
 		t.Fatalf("expected inactive update to fail, got %v", err)
 	}

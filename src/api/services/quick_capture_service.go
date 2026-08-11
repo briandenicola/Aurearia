@@ -19,6 +19,8 @@ var (
 	ErrQuickCaptureInvalidPrice          = errors.New("purchase price must be zero or greater")
 	ErrQuickCaptureDraftAlreadyPromoted  = errors.New("quick capture draft has already been promoted")
 	ErrQuickCaptureDraftConcurrentAction = errors.New("draft is currently being promoted or is not in an active state")
+	ErrQuickCaptureInvalidReference      = errors.New("selected Numista reference is invalid")
+	ErrQuickCaptureReferenceConflict     = errors.New("selected Numista reference cannot be supplied while clearing it")
 )
 
 type QuickCapturePromotionTarget string
@@ -45,44 +47,48 @@ type QuickCaptureImageUpload struct {
 }
 
 type CreateQuickCaptureDraftInput struct {
-	UserID            uint
-	WorkingTitle      string
-	DateRange         string
-	Era               string
-	AcquisitionSource string
-	PurchasePrice     *float64
-	Notes             string
-	Source            string
-	NGCCertNumber     string
-	NGCLookupURL      string
-	NGCGrade          string
-	LabelText         string
-	AIConfidence      string
-	Images            []QuickCaptureImageUpload
+	UserID                   uint
+	WorkingTitle             string
+	DateRange                string
+	Era                      string
+	AcquisitionSource        string
+	PurchasePrice            *float64
+	Notes                    string
+	Source                   string
+	NGCCertNumber            string
+	NGCLookupURL             string
+	NGCGrade                 string
+	LabelText                string
+	AIConfidence             string
+	SelectedNumistaReference *models.SelectedNumistaReference
+	Images                   []QuickCaptureImageUpload
 }
 
 // UpdateQuickCaptureDraftInput carries all fields for a draft update.
 // String fields always replace the current value (send current value to preserve it).
 // RemoveImageIDsRaw is a comma-separated list of image IDs to remove.
 type UpdateQuickCaptureDraftInput struct {
-	UserID            uint
-	WorkingTitle      string
-	DateRange         string
-	Era               string
-	AcquisitionSource string
-	PurchasePrice     *float64
-	PurchasePriceSet  bool // true means PurchasePrice was explicitly provided (even if nil)
-	Notes             string
-	Source            string
-	NGCCertNumber     string
-	NGCLookupURL      string
-	NGCGrade          string
-	LabelText         string
-	AIConfidence      string
-	RemoveImageIDsRaw string // e.g. "3,7,12"
-	ReplaceObverse    bool
-	ReplaceReverse    bool
-	NewImages         []QuickCaptureImageUpload
+	UserID                   uint
+	WorkingTitle             string
+	DateRange                string
+	Era                      string
+	AcquisitionSource        string
+	PurchasePrice            *float64
+	PurchasePriceSet         bool // true means PurchasePrice was explicitly provided (even if nil)
+	Notes                    string
+	Source                   string
+	NGCCertNumber            string
+	NGCLookupURL             string
+	NGCGrade                 string
+	LabelText                string
+	AIConfidence             string
+	SelectedNumistaReference *models.SelectedNumistaReference
+	SelectedNumistaProvided  bool
+	ClearSelectedNumista     bool
+	RemoveImageIDsRaw        string // e.g. "3,7,12"
+	ReplaceObverse           bool
+	ReplaceReverse           bool
+	NewImages                []QuickCaptureImageUpload
 }
 
 // PromoteOverrides are optional coin-field overrides provided by the user at promotion time.
@@ -113,9 +119,10 @@ type PromoteDraftResult struct {
 }
 
 type QuickCaptureService struct {
-	repo      *repository.QuickCaptureRepository
-	uploadDir string
-	coinSvc   *CoinService
+	repo         *repository.QuickCaptureRepository
+	uploadDir    string
+	coinSvc      *CoinService
+	referenceSvc *CoinReferenceService
 }
 
 func NewQuickCaptureService(repo *repository.QuickCaptureRepository, uploadDir string) *QuickCaptureService {
@@ -130,12 +137,21 @@ func (s *QuickCaptureService) WithCoinValidation(coinSvc *CoinService) *QuickCap
 	return s
 }
 
+func (s *QuickCaptureService) WithReferenceValidation(referenceSvc *CoinReferenceService) *QuickCaptureService {
+	s.referenceSvc = referenceSvc
+	return s
+}
+
 func (s *QuickCaptureService) CreateDraft(input CreateQuickCaptureDraftInput) (*models.QuickCaptureDraft, error) {
 	if err := validateQuickCaptureIdentity(input.WorkingTitle, input.Notes, len(input.Images)); err != nil {
 		return nil, err
 	}
 	if input.PurchasePrice != nil && *input.PurchasePrice < 0 {
 		return nil, ErrQuickCaptureInvalidPrice
+	}
+	selectedReference, err := s.normalizeSelectedNumistaReference(input.UserID, input.SelectedNumistaReference)
+	if err != nil {
+		return nil, err
 	}
 
 	normalizedImages := make([]struct {
@@ -193,7 +209,7 @@ func (s *QuickCaptureService) CreateDraft(input CreateQuickCaptureDraftInput) (*
 		Message:   "Quick Capture draft created",
 		CreatedAt: time.Now().UTC(),
 	}
-	err := s.repo.CreateDraftWithImages(draft, createdEvent, func(draftID uint) ([]models.QuickCaptureDraftImage, error) {
+	err = s.repo.CreateDraftWithImages(draft, createdEvent, selectedReference, func(draftID uint) ([]models.QuickCaptureDraftImage, error) {
 		images := make([]models.QuickCaptureDraftImage, 0, len(normalizedImages))
 		for index, normalized := range normalizedImages {
 			filePath, err := s.saveDraftImageFile(draftID, normalized.upload.Data, normalized.ext, normalized.imageType)
@@ -251,6 +267,19 @@ func (s *QuickCaptureService) UpdateDraft(userID, draftID uint, input UpdateQuic
 	}
 	if current.Status != models.QuickCaptureDraftStatusActive {
 		return nil, ErrQuickCaptureNotFound
+	}
+	if input.ClearSelectedNumista && input.SelectedNumistaProvided {
+		return nil, ErrQuickCaptureReferenceConflict
+	}
+	var referenceMutation repository.DraftReferenceMutation
+	if input.ClearSelectedNumista {
+		referenceMutation.Clear = true
+	} else if input.SelectedNumistaProvided {
+		selectedReference, err := s.normalizeSelectedNumistaReference(userID, input.SelectedNumistaReference)
+		if err != nil {
+			return nil, err
+		}
+		referenceMutation.Replace = selectedReference
 	}
 
 	// Parse remove-by-ID list
@@ -378,6 +407,7 @@ func (s *QuickCaptureService) UpdateDraft(userID, draftID uint, input UpdateQuic
 		removeByTypes,
 		newImageRecords,
 		lifecycleEvent,
+		referenceMutation,
 	)
 	if err != nil {
 		cleanupWritten()
@@ -391,6 +421,36 @@ func (s *QuickCaptureService) UpdateDraft(userID, draftID uint, input UpdateQuic
 	}
 
 	return updated, nil
+}
+
+func (s *QuickCaptureService) normalizeSelectedNumistaReference(
+	userID uint,
+	selected *models.SelectedNumistaReference,
+) (*models.QuickCaptureDraftReference, error) {
+	if selected == nil {
+		return nil, nil
+	}
+	if err := selected.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrQuickCaptureInvalidReference, err)
+	}
+	normalized := models.CoinReference{
+		Catalog: selected.Catalog,
+		Number:  selected.Number,
+		URI:     selected.URI,
+	}
+	if s.referenceSvc != nil {
+		var err error
+		normalized, err = s.referenceSvc.NormalizeAndValidateOne(normalized)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrQuickCaptureInvalidReference, err)
+		}
+	}
+	return &models.QuickCaptureDraftReference{
+		UserID:  userID,
+		Catalog: normalized.Catalog,
+		Number:  normalized.Number,
+		URI:     normalized.URI,
+	}, nil
 }
 
 // DiscardDraft marks an active draft as discarded and records a lifecycle event.

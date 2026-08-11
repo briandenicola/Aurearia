@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -40,7 +41,7 @@ func setupCoinHandlerTestDB(t *testing.T) *gorm.DB {
 		&models.Tag{}, &models.CoinTag{},
 		&models.CoinSet{}, &models.CoinSetMembership{},
 		&models.Showcase{}, &models.ShowcaseCoin{},
-		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{},
+		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate: %v", err)
@@ -102,6 +103,7 @@ func setupCoinHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 		WithCatalogRegistrySupport(catalogRegistryRepo).
 		WithSettingsSupport(settingsSvc)
 	handler := NewCoinHandler(coinRepo, coinSvc, services.NewLogger(100)).WithSettingsSupport(settingsSvc)
+	coinReferenceHandler := NewCoinReferenceHandler(coinReferenceRepo, coinReferenceSvc, nil)
 
 	r := gin.New()
 	protected := r.Group("/api")
@@ -111,11 +113,51 @@ func setupCoinHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	protected.GET("/stats/investment-breakdown", handler.InvestmentBreakdown)
 	protected.POST("/coins", handler.Create)
 	protected.PUT("/coins/:id", handler.Update)
+	protected.POST("/coins/:id/references", coinReferenceHandler.Create)
 	protected.POST("/coins/:id/duplicate", handler.Duplicate)
 	protected.DELETE("/coins/:id", handler.Delete)
 	protected.POST("/coins/match-category-era", handler.MatchCategoryEra)
 
 	return r, db
+}
+
+func TestCoinReferenceHandler_CreatePersistsCanonicalNumistaReference(t *testing.T) {
+	router, db := setupCoinHandlerRouter(t)
+	createTestUser(t, db, 1, "numista-reference-owner")
+
+	if err := db.Create(&models.CatalogRegistry{
+		Catalog:     "Numista",
+		DisplayName: "Numista",
+		Era:         models.EraModern,
+	}).Error; err != nil {
+		t.Fatalf("seed Numista catalog: %v", err)
+	}
+	coin := models.Coin{
+		Name: "Selected Numista coin", Category: models.CategoryRoman,
+		Material: models.MaterialSilver, UserID: 1,
+	}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatalf("seed coin: %v", err)
+	}
+
+	body := bytes.NewBufferString(`{"catalog":"numista","number":"12345","uri":"https://en.numista.com/catalogue/pieces12345.html"}`)
+	request := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/coins/%d/references", coin.ID), body)
+	request.Header.Set("Authorization", authHeader(1))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("create status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var persisted models.CoinReference
+	if err := db.Where("coin_id = ?", coin.ID).First(&persisted).Error; err != nil {
+		t.Fatalf("load persisted reference: %v", err)
+	}
+	if persisted.Catalog != "Numista" || persisted.Number != "12345" ||
+		persisted.URI != "https://en.numista.com/catalogue/pieces12345.html" {
+		t.Fatalf("persisted reference changed: %+v", persisted)
+	}
 }
 
 func TestCoinHandler_Update_PromotedQuickCaptureCoinUsesExistingEditContract(t *testing.T) {
@@ -132,6 +174,7 @@ func TestCoinHandler_Update_PromotedQuickCaptureCoinUsesExistingEditContract(t *
 		IsWishlist: false,
 		IsSold:     false,
 	}
+
 	if err := db.Create(&coin).Error; err != nil {
 		t.Fatalf("create promoted coin: %v", err)
 	}
@@ -172,6 +215,25 @@ func TestCoinHandler_Update_PromotedQuickCaptureCoinUsesExistingEditContract(t *
 	}
 	if resp.IsWishlist || resp.IsSold {
 		t.Fatalf("Quick Capture v1 promoted coin should remain active collection coin, got wishlist=%v sold=%v", resp.IsWishlist, resp.IsSold)
+	}
+}
+
+func TestCoinRequestsPreserveCoinDateRange(t *testing.T) {
+	created := (CoinCreateRequest{
+		Name: "Dated coin", DateRange: "138–161 CE",
+	}).toCoin(1)
+	if created.DateRange != "138–161 CE" {
+		t.Fatalf("created date range = %q", created.DateRange)
+	}
+
+	dateRange := "c. 330–335"
+	updated, fields := (CoinUpdateRequest{DateRange: &dateRange}).toCoin(
+		&models.Coin{ID: 2, UserID: 1, DateRange: "330 CE"},
+		false,
+		map[string]bool{},
+	)
+	if updated.DateRange != dateRange || !slices.Contains(fields, "DateRange") {
+		t.Fatalf("updated date range=%q fields=%v", updated.DateRange, fields)
 	}
 }
 

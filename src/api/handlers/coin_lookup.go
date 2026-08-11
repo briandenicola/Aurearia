@@ -22,7 +22,7 @@ func NewCoinLookupHandler(service *services.CoinLookupService, logger *services.
 // Lookup performs coin lookup from uploaded images.
 //
 //	@Summary		Coin lookup from images
-//	@Description	Analyzes coin/slab images to extract NGC cert, label text, and provides Numista candidates. Returns data compatible with Add to Wishlist/Collection.
+//	@Description	Analyzes coin/slab images, preserves NGC-first behavior, and proposes bounded Numista evidence/query without running Numista lookup.
 //	@Tags			Coins
 //	@Accept			multipart/form-data
 //	@Produce		json
@@ -70,8 +70,8 @@ func (h *CoinLookupHandler) Lookup(c *gin.Context) {
 		return
 	}
 
-	logger.Info("coin-lookup-handler", "Lookup completed: NGC=%v, Numista candidates=%d",
-		result.ExtractedData.NGC != nil, len(result.NumistaCandidates))
+	logger.Info("coin-lookup-handler", "Lookup completed: NGC=%v, Numista proposal=%v",
+		result.ExtractedData.NGC != nil, result.ProposedNumistaQuery != "")
 
 	c.JSON(http.StatusOK, result)
 }

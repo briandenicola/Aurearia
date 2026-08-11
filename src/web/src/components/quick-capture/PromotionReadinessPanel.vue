@@ -66,6 +66,13 @@
             <small class="text-sm text-text-secondary">Saved draft images will move with the promoted coin.</small>
           </span>
         </div>
+        <div class="flex items-start gap-3 text-text-primary">
+          <LinkIcon :size="18" class="mt-[0.15rem] shrink-0 text-gold" />
+          <span class="grid gap-1">
+            <strong class="text-base font-semibold text-text-primary">{{ referenceReadinessLabel }}</strong>
+            <small class="text-sm text-text-secondary">{{ referenceReadinessMessage }}</small>
+          </span>
+        </div>
         <p class="m-0 text-sm text-text-secondary">Draft fields stay editable in the form above. This panel only chooses the destination and confirms the final action.</p>
         <span v-if="fieldErrors.name" class="text-body text-warning">{{ fieldErrors.name }}</span>
         <div v-if="readinessFieldErrors.length" class="grid text-body text-warning">
@@ -84,7 +91,7 @@
         <button
           type="button"
           class="btn btn-primary w-full justify-center sm:w-auto"
-          :disabled="!confirmed || promoting || !hasRequiredName"
+          :disabled="!confirmed || promoting || !hasRequiredName || selectionChangesPending"
           @click="doPromote"
         >
           {{ promoting ? 'Promoting...' : `Promote to ${destinationLabel}` }}
@@ -99,11 +106,18 @@ import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { getApiErrorMessage, promoteQuickCaptureDraft } from '@/api/client'
 import type { QuickCaptureDraft, QuickCapturePromoteOverrides } from '@/types'
-import { AlertCircle, Bookmark, CheckCircle, Coins, Image as ImageIcon } from 'lucide-vue-next'
+import { AlertCircle, Bookmark, CheckCircle, Coins, Image as ImageIcon, Link as LinkIcon } from 'lucide-vue-next'
 
 const props = withDefaults(
-  defineProps<{ draft: QuickCaptureDraft; promotionOverrides?: QuickCapturePromoteOverrides }>(),
-  { promotionOverrides: () => ({}) }
+  defineProps<{
+    draft: QuickCaptureDraft
+    promotionOverrides?: QuickCapturePromoteOverrides
+    selectionChangesPending?: boolean
+  }>(),
+  {
+    promotionOverrides: () => ({}),
+    selectionChangesPending: false,
+  }
 )
 const emit = defineEmits<{ promoted: [coinId: number] }>()
 
@@ -124,12 +138,25 @@ const destinationLabel = computed(() => target.value === 'wishlist' ? 'Wishlist'
 const hasRequiredName = computed(() => (props.promotionOverrides.name ?? props.draft.workingTitle ?? '').trim().length > 0)
 const imageCount = computed(() => props.draft.images?.length ?? 0)
 const imageCountLabel = computed(() => `${imageCount.value} saved ${imageCount.value === 1 ? 'image' : 'images'}`)
+const referenceReadinessLabel = computed(() => {
+  if (props.selectionChangesPending) return 'Save the reference change before promotion'
+  return props.draft.selectedNumistaReference
+    ? `Numista #${props.draft.selectedNumistaReference.number} selected`
+    : 'No Numista reference selected'
+})
+const referenceReadinessMessage = computed(() => props.selectionChangesPending
+  ? 'Promotion uses the saved draft reference. Save Changes first so the intended selection is copied.'
+  : 'A Numista reference is optional and only the explicitly saved selection is promoted.')
 const readinessFieldErrors = computed(() => Object.entries(fieldErrors.value)
   .filter(([field]) => !['target', 'name', 'confirm'].includes(field)))
 
 async function doPromote() {
   promoteError.value = ''
   fieldErrors.value = {}
+  if (props.selectionChangesPending) {
+    promoteError.value = 'Save the Numista reference change before promotion.'
+    return
+  }
   if (!hasRequiredName.value) {
     fieldErrors.value = { name: 'Name is required' }
     promoteError.value = 'Complete required fields before promotion.'

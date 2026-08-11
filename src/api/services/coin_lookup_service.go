@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
-	"time"
+
+	"github.com/briandenicola/ancient-coins-api/models"
 )
 
 // CoinLookupService handles quick coin lookup from images with NGC cert extraction and minimum draft enrichment.
@@ -17,7 +16,6 @@ type CoinLookupService struct {
 	proxy       *AgentProxy
 	settingsSvc *SettingsService
 	logger      *Logger
-	client      *http.Client
 }
 
 func NewCoinLookupService(proxy *AgentProxy, settingsSvc *SettingsService, logger *Logger) *CoinLookupService {
@@ -25,7 +23,6 @@ func NewCoinLookupService(proxy *AgentProxy, settingsSvc *SettingsService, logge
 		proxy:       proxy,
 		settingsSvc: settingsSvc,
 		logger:      logger,
-		client:      &http.Client{Timeout: 15 * time.Second},
 	}
 }
 
@@ -62,30 +59,15 @@ type NumistaCandidate struct {
 	URL       string `json:"url"`
 }
 
-type numistaSearchResponse struct {
-	Types []numistaType `json:"types"`
-}
-
-type numistaType struct {
-	ID               int            `json:"id"`
-	Title            string         `json:"title"`
-	Issuer           *numistaIssuer `json:"issuer,omitempty"`
-	MinYear          *int           `json:"min_year,omitempty"`
-	MaxYear          *int           `json:"max_year,omitempty"`
-	ObverseThumbnail string         `json:"obverse_thumbnail,omitempty"`
-	ReverseThumbnail string         `json:"reverse_thumbnail,omitempty"`
-}
-
-type numistaIssuer struct {
-	Name string `json:"name"`
-}
-
 // CoinLookupResponse is the final response returned to the client.
 type CoinLookupResponse struct {
-	ExtractedData       LookupExtractedData       `json:"extractedData"`
-	NumistaCandidates   []NumistaCandidate        `json:"numistaCandidates"`
-	PrefilledDraft      map[string]any            `json:"prefilledDraft,omitempty"`
-	CandidateReferences []CandidateReferenceProxy `json:"candidateReferences,omitempty"`
+	ExtractedData        LookupExtractedData          `json:"extractedData"`
+	NumistaCandidates    []NumistaCandidate           `json:"numistaCandidates"`
+	ProposedNumistaQuery string                       `json:"proposedNumistaQuery,omitempty"`
+	NumistaEvidence      models.NumistaEvidence       `json:"numistaEvidence"`
+	NumistaLookup        *models.NumistaLookupOutcome `json:"numistaLookup"`
+	PrefilledDraft       map[string]any               `json:"prefilledDraft,omitempty"`
+	CandidateReferences  []CandidateReferenceProxy    `json:"candidateReferences,omitempty"`
 }
 
 var (
@@ -113,31 +95,28 @@ func (s *CoinLookupService) Lookup(ctx context.Context, userID uint, req CoinLoo
 
 	logger.Info("coin-lookup", "Extracted data: NGC=%v, LabelText=%v", extractedData.NGC != nil, extractedData.LabelText != "")
 
-	// 2. Build Numista search query from extracted fields.
-	// NGC-slab lookups should return as soon as cert extraction succeeds; Numista
-	// enrichment is only needed when there is no cert to verify directly.
 	numistaCandidates := []NumistaCandidate{}
-	if extractedData.NGC == nil && extractedData.CoinFields != nil {
-		candidates, err := s.searchNumista(ctx, extractedData.CoinFields)
-		if err != nil {
-			logger.Warn("coin-lookup", "Numista search failed: %v", err)
-		} else {
-			numistaCandidates = candidates
-			logger.Info("coin-lookup", "Found %d Numista candidates", len(numistaCandidates))
-		}
+	evidence := models.NumistaEvidence{}
+	proposedQuery := ""
+	if extractedData.NGC == nil {
+		evidence = buildPhotoNumistaEvidence(extractedData)
+		proposedQuery = buildPhotoNumistaQuery(evidence)
 	}
 
 	// 3. Build prefilled draft for "Add to Collection/Wishlist"
-	prefilledDraft := s.buildPrefilledDraft(extractedData, numistaCandidates)
+	prefilledDraft := s.buildPrefilledDraft(extractedData, nil)
 
-	// 4. Build candidate references from NGC and Numista
-	candidateReferences := s.buildCandidateReferences(extractedData, numistaCandidates)
+	// 4. Deprecated aliases retain NGC compatibility but never expose unselected Numista results.
+	candidateReferences := s.buildCandidateReferences(extractedData, nil)
 
 	return &CoinLookupResponse{
-		ExtractedData:       *extractedData,
-		NumistaCandidates:   numistaCandidates,
-		PrefilledDraft:      prefilledDraft,
-		CandidateReferences: candidateReferences,
+		ExtractedData:        *extractedData,
+		NumistaCandidates:    numistaCandidates,
+		ProposedNumistaQuery: proposedQuery,
+		NumistaEvidence:      evidence,
+		NumistaLookup:        nil,
+		PrefilledDraft:       prefilledDraft,
+		CandidateReferences:  candidateReferences,
 	}, nil
 }
 
@@ -221,6 +200,7 @@ func (s *CoinLookupService) buildVisionPrompt() string {
    - Ruler (e.g., "Augustus", "Constantine I", "Philip II")
    - Era (ancient, medieval, or modern)
    - Denomination (e.g., "Denarius", "Tetradrachm", "Solidus")
+   - Date or date range when visible or strongly inferable
    - Material (Gold, Silver, Bronze, Copper, Electrum, Other)
    - Category (Roman, Greek, Byzantine, Modern, Other)
    - One short obverse description
@@ -238,6 +218,7 @@ Return your response in this EXACT JSON format (no markdown, no extra text):
   "mint": null,
   "era": "ancient/medieval/modern or null",
   "denomination": "denomination or null",
+  "dateRange": "date or date range text or null",
   "material": "material or null",
   "category": "category or null",
   "obverseInscription": "obverse legend or null",
@@ -588,6 +569,7 @@ func copyCoinFieldsFromMap(source map[string]any, target map[string]any) {
 		"mint":               {"mint"},
 		"era":                {"era"},
 		"denomination":       {"denomination"},
+		"dateRange":          {"dateRange", "date_range", "date", "year"},
 		"material":           {"material"},
 		"category":           {"category"},
 		"obverseInscription": {"obverseInscription", "obverse_inscription"},
@@ -680,108 +662,79 @@ func (s *CoinLookupService) determineConfidence(data *LookupExtractedData) strin
 	return "low"
 }
 
-// searchNumista queries Numista API with extracted coin fields.
-func (s *CoinLookupService) searchNumista(ctx context.Context, coinFields map[string]any) ([]NumistaCandidate, error) {
-	logger := s.logger
-
-	apiKey := s.settingsSvc.GetSetting(SettingNumistaAPIKey)
-	if apiKey == "" {
-		return nil, fmt.Errorf("Numista API key not configured")
-	}
-
-	// Build search query from coin fields
-	query := s.buildNumistaQuery(coinFields)
-	if query == "" {
-		logger.Warn("coin-lookup", "No Numista search query could be built from fields")
-		return nil, fmt.Errorf("insufficient data for Numista search")
-	}
-
-	logger.Info("coin-lookup", "Numista query: %s", query)
-
-	numistaURL := fmt.Sprintf("https://api.numista.com/v3/types?q=%s&category=coin&count=5&lang=en", url.QueryEscape(query))
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, numistaURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Numista request: %w", err)
-	}
-	httpReq.Header.Set("Numista-API-Key", apiKey)
-
-	resp, err := s.client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to reach Numista API: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read Numista response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Numista API returned status %d", resp.StatusCode)
-	}
-
-	var result numistaSearchResponse
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse Numista response: %w", err)
-	}
-
-	candidates := make([]NumistaCandidate, 0, len(result.Types))
-	for _, item := range result.Types {
-		candidate := NumistaCandidate{
-			ID:    fmt.Sprintf("%d", item.ID),
-			Title: item.Title,
-			URL:   fmt.Sprintf("https://en.numista.com/catalogue/pieces%d.html", item.ID),
-			Year:  formatNumistaYearRange(item.MinYear, item.MaxYear),
-		}
-		if item.Issuer != nil {
-			candidate.Issuer = item.Issuer.Name
-		}
-		if item.ObverseThumbnail != "" {
-			candidate.Thumbnail = item.ObverseThumbnail
-		} else {
-			candidate.Thumbnail = item.ReverseThumbnail
-		}
-		candidates = append(candidates, candidate)
-	}
-
-	return candidates, nil
-}
-
-func formatNumistaYearRange(minYear, maxYear *int) string {
-	if minYear == nil && maxYear == nil {
-		return ""
-	}
-	if minYear != nil && maxYear != nil {
-		if *minYear == *maxYear {
-			return fmt.Sprintf("%d", *minYear)
-		}
-		return fmt.Sprintf("%d-%d", *minYear, *maxYear)
-	}
-	if minYear != nil {
-		return fmt.Sprintf("%d", *minYear)
-	}
-	return fmt.Sprintf("%d", *maxYear)
-}
-
 // buildNumistaQuery constructs a Numista search query from extracted fields.
 func (s *CoinLookupService) buildNumistaQuery(coinFields map[string]any) string {
-	parts := []string{}
+	return buildPhotoNumistaQuery(buildPhotoNumistaEvidence(&LookupExtractedData{CoinFields: coinFields}))
+}
 
-	if ruler, ok := coinFields["ruler"].(string); ok && ruler != "" {
-		parts = append(parts, ruler)
+func buildPhotoNumistaEvidence(data *LookupExtractedData) models.NumistaEvidence {
+	if data == nil {
+		return models.NumistaEvidence{}
 	}
-	if denom, ok := coinFields["denomination"].(string); ok && denom != "" {
-		parts = append(parts, denom)
+	fields := data.CoinFields
+	return models.NumistaEvidence{
+		Title:              boundedEvidenceField(stringField(fields, "name"), 200),
+		Issuer:             boundedEvidenceField(stringField(fields, "ruler"), 200),
+		Denomination:       boundedEvidenceField(stringField(fields, "denomination"), 100),
+		Mint:               boundedEvidenceField(stringField(fields, "mint"), 200),
+		DateText:           boundedEvidenceField(firstStringField(fields, "dateRange", "date", "year"), 100),
+		Material:           boundedEvidenceField(stringField(fields, "material"), 100),
+		ObverseInscription: boundedEvidenceField(stringField(fields, "obverseInscription"), 500),
+		ReverseInscription: boundedEvidenceField(stringField(fields, "reverseInscription"), 500),
+		VisibleText:        boundedEvidenceField(data.LabelText, 500),
 	}
-	if era, ok := coinFields["era"].(string); ok && era != "" {
-		parts = append(parts, era)
-	}
+}
 
-	return strings.Join(parts, " ")
+func buildPhotoNumistaQuery(evidence models.NumistaEvidence) string {
+	parts := []string{
+		evidence.Title, evidence.Issuer, evidence.Denomination, evidence.Mint,
+		evidence.DateText, evidence.Material, evidence.ObverseInscription,
+		evidence.ReverseInscription, evidence.VisibleText,
+	}
+	query := strings.Join(nonEmptyStrings(parts), " ")
+	return boundedEvidenceField(query, models.NumistaMaxQueryLength)
+}
+
+func stringField(fields map[string]any, key string) string {
+	if value, ok := fields[key].(string); ok {
+		return value
+	}
+	return ""
+}
+
+func firstStringField(fields map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value := stringField(fields, key); strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func boundedEvidenceField(value string, maxRunes int) string {
+	value = strings.TrimSpace(value)
+	if value == "" || isNonSpecificExtraction(value) {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) > maxRunes {
+		value = strings.TrimSpace(string(runes[:maxRunes]))
+	}
+	return value
+}
+
+func nonEmptyStrings(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			result = append(result, value)
+		}
+	}
+	return result
 }
 
 // buildPrefilledDraft creates a prefilled draft for Add to Collection/Wishlist.
-func (s *CoinLookupService) buildPrefilledDraft(data *LookupExtractedData, candidates []NumistaCandidate) map[string]any {
+func (s *CoinLookupService) buildPrefilledDraft(data *LookupExtractedData, _ []NumistaCandidate) map[string]any {
 	draft := make(map[string]any)
 
 	// Use extracted coin fields
@@ -789,16 +742,6 @@ func (s *CoinLookupService) buildPrefilledDraft(data *LookupExtractedData, candi
 		for k, v := range data.CoinFields {
 			draft[k] = v
 		}
-	}
-
-	// Use top Numista candidate if available
-	if len(candidates) > 0 {
-		top := candidates[0]
-		if _, ok := draft["name"]; !ok {
-			draft["name"] = top.Title
-		}
-		draft["numista_id"] = top.ID
-		draft["numista_url"] = top.URL
 	}
 
 	if _, ok := draft["name"]; !ok {
@@ -850,7 +793,7 @@ func fallbackDraftName(fields map[string]any) string {
 }
 
 // buildCandidateReferences creates CoinReference-compatible data for Add to Wishlist.
-func (s *CoinLookupService) buildCandidateReferences(data *LookupExtractedData, candidates []NumistaCandidate) []CandidateReferenceProxy {
+func (s *CoinLookupService) buildCandidateReferences(data *LookupExtractedData, _ []NumistaCandidate) []CandidateReferenceProxy {
 	refs := []CandidateReferenceProxy{}
 
 	// Add NGC reference if present
@@ -859,15 +802,6 @@ func (s *CoinLookupService) buildCandidateReferences(data *LookupExtractedData, 
 			Catalog: "NGC",
 			Number:  data.NGC.NormalizedCert,
 			URI:     data.NGC.LookupURL,
-		})
-	}
-
-	// Add Numista references
-	for _, candidate := range candidates {
-		refs = append(refs, CandidateReferenceProxy{
-			Catalog: "Numista",
-			Number:  candidate.ID,
-			URI:     candidate.URL,
 		})
 	}
 

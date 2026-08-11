@@ -214,6 +214,10 @@ Outcome: BLOCK. The alert architecture is mostly correctly layered and Python re
 
 - **2026-06-29 — NGC label frontend lockout revision:** Slash-delimited NGC slab labels need structured segment promotion: discard issuer/mint context, remove date ranges and metal prefixes, then derive collector title (e.g., Constantine I + Reduced Nummus). Regression coverage should exercise both missing and placeholder draft names because Unidentified Coin must be treated as replaceable fallback, not a backend-provided title.
 
+## Learnings
+
+- **2026-08-11 — Numista lookup architecture:** Numista access is duplicated between a direct handler proxy and CoinLookupService enrichment, with no shared typed client, cache, quota tracking, or application ranking. Photo lookup emits candidate references, but the current Quick Capture save/promotion contract does not persist Numista candidates or references into the promoted coin.
+
 - **2026-06-29 — Find Coin NGC editable review lockout:** The NGC result branch must reuse the key editable review fields (Name, Ruler, Denomination, Category, Grade) rather than a read-only details grid; keep NGC cert verification/grade metadata as a separate certification block and cover the Constantine slash-label NGC path in targeted Vitest regression.
 
 - **2026-06-30 — CNG Auctions Integration Spike (Complete):** Led parallel team spike with Cassius (backend), Aurelia (frontend), and Brutus (QA). Consensus: **Feature parity achievable with phased implementation; research phase is prerequisite gate for Phase 2 approval.**
@@ -229,3 +233,37 @@ Outcome: BLOCK. The alert architecture is mostly correctly layered and Python re
 - **2026-07-20 — Post-Major-Work QC Audit Skill authored:** Created `.squad/skills/post-major-work-qc-audit/SKILL.md` — a portable, repo-agnostic deep quality-control audit skill for use after significant feature batches land. Covers 8 audit domains (engineering best practices, security/threat model, documentation alignment, architecture/contract alignment, test coverage, supply chain/deployment, UX/accessibility, operational readiness). Key design decisions: (1) mandatory 3-phase Investigation Protocol (bound changeset → diff reading → reference reading) must complete before any findings are written, to prevent fact-invention; (2) all findings must cite file path + line + observed evidence — no checklist-from-memory; (3) blockers vs. follow-ups are strictly separated in the report table; (4) REPO-HOOK markers isolate constitution/Quality Gate steps so the skill is portable to repos without governance scaffolding. Confidence set to "low" as newly authored; to be uprated after first live audit validates the format.
 
 - **2026-07-26 — Tracker set create contract:** Frontend create payload must use `creationMode` (not `trackerCreationMode`) for tracker dynamic/manual mode, or backend defaults to manual silently. Add a focused wizard submit test that asserts emitted contract keys to prevent regressions.
+
+## 2026-08-11 — Numista Lookup End-to-End Architecture Specification
+
+**Session:** Synchronous walkthrough + full feature specification and planning
+
+- Completed end-to-end product analysis of Numista lookup feature. Identified seven gaps: direct passthrough (no ranking), disconnected photo analysis (no scoring integration), no HTTP reuse (duplicated cookie-jar clients), weak contracts (untyped status/error/partial), no persistence (user selections not saved), missing telemetry (no cache/quota tracking), no staged enrichment.
+
+- **Decision: Six Material Architecture Decisions Recorded** (`.squad/decisions.md` entries dated 2026-08-11):
+  1. **Shared Typed HTTP Client** — single injected `NumistaClient` interface, private provider DTOs, safe error taxonomy
+  2. **Bounded TTL Caches** — independent search/detail namespaces, in-flight request coalescing, configurable TTL per setting
+  3. **Deterministic Versioned Scoring (numista-v1)** — weighted dimensions (ID match 1.0, inscription 0.8, ruler 0.7, denomination/mint 0.6, date 0.5, material 0.4), neutral missing data, stable tie-breaking by ID
+  4. **Transactional Selected-Reference Persistence** — new `quick_capture_draft_references` table (one-to-one draft), copied to coin during promotion, additive schema
+  5. **Six Explicit Domain Statuses** — success, empty, unconfigured, quota_limited, timeout, unavailable (replaces unstructured errors)
+  6. **Redacted Bounded Telemetry** — 500-operation ring, correlation digest only (never full query), p50/p95 aggregation, admin-only access
+
+- **Specification Package Created** (8 new files in `specs/341-improve-numista-lookup/`):
+  - `spec.md` — 5 user stories (P1: direct lookup, photo lookup, availability; P2: caching, enrichment), 29 FR + 8 NFR, 10 scenario tests, **constitution gate: PASS**
+  - `plan.md` — 8-phase roadmap, technical context, layered architecture, performance targets (p95 uncached <5s, cached <1s), constraints (shared allowance, explicit selection, NGC-first)
+  - `data-model.md` — additive schema (new table, no existing modifications, rollback-compatible)
+  - `contracts/numista-lookup.openapi.yaml` — typed request/response DTOs, Swagger annotations for POST /api/numista/lookup, POST /api/numista/enrich, GET /api/numista/search (deprecated adapter)
+  - `research.md` — gap analysis, alternative evaluation (rejected: shared agent, background worker, local catalogue, monolithic endpoint)
+  - `quickstart.md` — development walkthrough, test/build commands, fixture setup
+
+- **Handoff to Brutus for Task Planning:** 86 dependency-ordered tasks across 8 phases (Phase 1–3 MVP = 27 tasks: testdata + foundational + direct lookup; Phases 4–8 post-MVP = 59 tasks: photo/draft, status, caching, enrichment, favorites). Blocking phase: Phase 2 foundational (client, cache, scorer, telemetry, settings) gates all user stories. 46 parallelizable task pairs identified. MVP critical path: ~2–3 weeks.
+
+- **Cross-Agent Coordination:** Cassius ready for Phase 1 testdata setup; Aurelia ready for component scaffolding (CoinNumistaPanel direct, CoinLookupPage photo); Brutus coordinating test/task tracking. All decisions documented in research.md, all phase boundaries explicit, no new design patterns or PWA surfaces required.
+
+- **Quality Gate Status:** Constitution compliance verified (Principles I/II/III/IV/V/VI/VII/VIII/IX all PASS). §17 Quality Gate ready for Phase 1 task initiation. Orchestration log: `.squad/orchestration-log/2026-08-11T13-06-00Z-maximus-numista-spec-planning.md`.
+
+- **2026-08-11 — Feature 341 final combined clearance after Galba/Aurelia remediation:** **BLOCK remains solely on T086 governance form.** The 24-fixture SC-002 benchmark is non-tautological and passed 24/24 across three permutations with no `ExactNumistaID`; Admin System grouping, responsive token boundary, save/loading/error/empty/populated behavior, and accessibility tests pass. Full Go, Vue, Python, OpenAPI, Gitleaks, and published-beta Trivy gates pass. Brian's immutable-history directive is explicit and public history remains preserved, but `.specify/memory/constitution.md` requires a documented waiver ADR under §22; an inbox directive and future PR disclosure cannot override the higher-authority Constitution. T086 remains unchecked until that ADR-backed waiver is accepted.
+
+- **2026-08-11 — Feature 341 re-review after Brian accepted ADR 0008:** **BLOCK on one cross-artifact governance inconsistency.** ADR 0008 is accurately bounded to `31cb603`, `a8f59b3`, `8e77500`, and `460dbfc`, records explicit approval, preserves public history, is non-precedential, and requires prospective compliance and PR disclosure. Technical evidence remains green: focused integration/Admin tests, architecture/OpenAPI checks, Gitleaks history/worktree, and published-beta Trivy; focused `-race` could not run because CGO is disabled. However Constitution §22 requires every Principle deviation to be tracked in the plan's Complexity Tracking table, while `specs/341-improve-numista-lookup/plan.md` still says no constitutional violations require justification. T086 and the DoD are therefore not yet cross-artifact consistent, so Scribe may not commit/push or open the PR.
+
+- **2026-08-11 — Feature 341 final clearance after Complexity Tracking reconciliation:** **APPROVE.** The plan now tracks ADR 0008's exact four immutable exceptions, preservation rationale, rejected history rewrite, single-release expiry, non-precedent, and prospective enforcement without weakening the product-design gates. Feature artifacts, T086, and the DoD are consistent. `git diff --check`, local documentation links, exception SHA subjects/trailers, branch identity, contradiction searches, and package status pass. Prior technical/security evidence remains valid and unaffected. Scribe is authorized to create a compliant release-evidence commit, push `beta`, and open the `beta`-to-`main` PR using the approved title/body in `.squad/decisions/inbox/maximus-feature-341-final-clearance-approved.md`.

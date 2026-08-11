@@ -20,6 +20,7 @@ type CoinCreateRequest struct {
 	Ruler                 string                 `json:"ruler" binding:"max=200"`
 	RomanImperialFigureID *uint                  `json:"romanImperialFigureId"`
 	Era                   models.Era             `json:"era" binding:"omitempty,max=64"`
+	DateRange             string                 `json:"dateRange" binding:"max=200"`
 	Mint                  string                 `json:"mint" binding:"max=200"`
 	MintLocationID        *uint                  `json:"mintLocationId"`
 	Material              models.Material        `json:"material"`
@@ -57,6 +58,7 @@ type CoinUpdateRequest struct {
 	Ruler                 *string                `json:"ruler" binding:"omitempty,max=200"`
 	RomanImperialFigureID *uint                  `json:"romanImperialFigureId"`
 	Era                   *models.Era            `json:"era" binding:"omitempty,max=64"`
+	DateRange             *string                `json:"dateRange" binding:"omitempty,max=200"`
 	Mint                  *string                `json:"mint" binding:"omitempty,max=200"`
 	MintLocationID        *uint                  `json:"mintLocationId"`
 	Material              *models.Material       `json:"material"`
@@ -99,6 +101,7 @@ func (r CoinCreateRequest) toCoin(userID uint) models.Coin {
 		Ruler:                 r.Ruler,
 		RomanImperialFigureID: romanImperialFigureID,
 		Era:                   r.Era,
+		DateRange:             r.DateRange,
 		Mint:                  r.Mint,
 		MintLocationID:        r.MintLocationID,
 		Material:              r.Material,
@@ -168,6 +171,10 @@ func (r CoinUpdateRequest) toCoin(existing *models.Coin, storageLocationProvided
 	if r.Era != nil {
 		updates.Era = *r.Era
 		updateFields = append(updateFields, "Era")
+	}
+	if r.DateRange != nil {
+		updates.DateRange = *r.DateRange
+		updateFields = append(updateFields, "DateRange")
 	}
 	if r.Mint != nil {
 		updates.Mint = *r.Mint

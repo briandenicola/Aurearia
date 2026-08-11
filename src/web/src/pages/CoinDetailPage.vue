@@ -111,6 +111,14 @@
           <CoinReferencesSection
             :coin-id="coin.id"
             :references="coin.references ?? []"
+            :coin-name="coin.name"
+            :coin-ruler="coin.ruler ?? ''"
+            :coin-denomination="coin.denomination ?? ''"
+            :coin-mint="coin.mint ?? ''"
+            :coin-date-range="coin.dateRange ?? coin.era ?? ''"
+            :coin-material="coin.material"
+            :coin-obverse-inscription="coin.obverseInscription ?? ''"
+            :coin-reverse-inscription="coin.reverseInscription ?? ''"
             @changed="refreshCoin"
           />
 

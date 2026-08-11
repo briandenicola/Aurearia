@@ -2,7 +2,9 @@ package services
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/briandenicola/ancient-coins-api/repository"
 )
@@ -18,6 +20,12 @@ const (
 	SettingLogLevel                           = "LogLevel"
 	SettingPublicAppURL                       = "PublicAppURL"
 	SettingNumistaAPIKey                      = "NumistaAPIKey"
+	SettingNumistaSearchTTLHours              = "NumistaSearchTTLHours"
+	SettingNumistaDetailTTLHours              = "NumistaDetailTTLHours"
+	SettingNumistaEnrichmentLimit             = "NumistaEnrichmentLimit"
+	SettingNumistaSearchResultLimit           = "NumistaSearchResultLimit"
+	SettingNumistaSearchTimeoutSeconds        = "NumistaSearchTimeoutSeconds"
+	SettingNumistaDetailTimeoutSeconds        = "NumistaDetailTimeoutSeconds"
 	SettingAnthropicAPIKey                    = "AnthropicAPIKey"
 	SettingAnthropicModel                     = "AnthropicModel"
 	SettingCoinSearchPrompt                   = "CoinSearchPrompt"
@@ -107,6 +115,12 @@ var settingDefaults = map[string]string{
 	SettingLogLevel:                           "info",
 	SettingPublicAppURL:                       "",
 	SettingNumistaAPIKey:                      "",
+	SettingNumistaSearchTTLHours:              "24",
+	SettingNumistaDetailTTLHours:              "168",
+	SettingNumistaEnrichmentLimit:             "5",
+	SettingNumistaSearchResultLimit:           "20",
+	SettingNumistaSearchTimeoutSeconds:        "4",
+	SettingNumistaDetailTimeoutSeconds:        "3",
 	SettingAnthropicAPIKey:                    "",
 	SettingAnthropicModel:                     "claude-sonnet-5",
 	SettingCoinSearchPrompt:                   "",
@@ -161,6 +175,43 @@ var settingDefaults = map[string]string{
 	SettingShipmentSyncInterval:               "20",
 	SettingShipmentSyncStartTime:              "09:00",
 	SettingShipmentSyncBatchSize:              "100",
+}
+
+type NumistaSettings struct {
+	SearchTTL         time.Duration
+	DetailTTL         time.Duration
+	EnrichmentLimit   int
+	SearchResultLimit int
+	SearchTimeout     time.Duration
+	DetailTimeout     time.Duration
+	Valid             bool
+}
+
+// GetNumistaSettings reads and validates live Numista settings. Invalid values
+// fall back independently to documented defaults and mark the snapshot invalid.
+func (s *SettingsService) GetNumistaSettings() NumistaSettings {
+	valid := true
+	readInt := func(key string, fallback, minimum, maximum int) int {
+		value, err := strconv.Atoi(strings.TrimSpace(s.GetSetting(key)))
+		if err != nil || value < minimum || value > maximum {
+			valid = false
+			return fallback
+		}
+		return value
+	}
+	searchTTLHours := readInt(SettingNumistaSearchTTLHours, 24, 1, 720)
+	detailTTLHours := readInt(SettingNumistaDetailTTLHours, 168, 1, 2160)
+	searchTimeoutSeconds := readInt(SettingNumistaSearchTimeoutSeconds, 4, 1, 10)
+	detailTimeoutSeconds := readInt(SettingNumistaDetailTimeoutSeconds, 3, 1, 10)
+	return NumistaSettings{
+		SearchTTL:         time.Duration(searchTTLHours) * time.Hour,
+		DetailTTL:         time.Duration(detailTTLHours) * time.Hour,
+		EnrichmentLimit:   readInt(SettingNumistaEnrichmentLimit, 5, 1, 10),
+		SearchResultLimit: readInt(SettingNumistaSearchResultLimit, 20, 1, 50),
+		SearchTimeout:     time.Duration(searchTimeoutSeconds) * time.Second,
+		DetailTimeout:     time.Duration(detailTimeoutSeconds) * time.Second,
+		Valid:             valid,
+	}
 }
 
 // SettingsService provides access to application settings backed by the database.

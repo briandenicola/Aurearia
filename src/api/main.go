@@ -88,6 +88,21 @@ func main() {
 	settingsRepo := repository.NewSettingsRepository(database.DB)
 	settingsSvc := services.NewSettingsService(settingsRepo)
 	settingsSvc.SyncLogLevel(logger)
+	numistaClock := services.NewSystemNumistaClock()
+	numistaCache := services.NewNumistaCache(numistaClock, 500, 5000)
+	numistaTelemetry := services.NewNumistaTelemetry(500)
+	numistaClient, err := services.NewHTTPNumistaClient(services.NumistaClientConfig{
+		APIKey:        func() string { return settingsSvc.GetSetting(services.SettingNumistaAPIKey) },
+		SearchTimeout: func() time.Duration { return settingsSvc.GetNumistaSettings().SearchTimeout },
+		DetailTimeout: func() time.Duration { return settingsSvc.GetNumistaSettings().DetailTimeout },
+	})
+	if err != nil {
+		log.Fatalf("Failed to configure Numista client: %v", err)
+	}
+	numistaLookupSvc := services.NewNumistaLookupService(
+		numistaClient, numistaCache, services.NewNumistaV1Scorer(),
+		numistaTelemetry, settingsSvc, numistaClock,
+	)
 
 	// Create internal token service for Python agent callbacks
 	internalTokenSvc := services.NewInternalTokenService(cfg.JWTSecret)
@@ -301,7 +316,9 @@ func main() {
 		coinReferenceHandler := handlers.NewCoinReferenceHandler(coinReferenceRepo, coinReferenceSvc, referenceMigrationSvc)
 		coinIntakeSvc := services.NewCoinIntakeService(intakeDraftRepo, coinRepo, agentProxy, settingsSvc)
 		coinIntakeHandler := handlers.NewCoinIntakeHandler(coinIntakeSvc, logger)
-		quickCaptureSvc := services.NewQuickCaptureService(quickCaptureRepo, cfg.UploadDir).WithCoinValidation(coinSvc)
+		quickCaptureSvc := services.NewQuickCaptureService(quickCaptureRepo, cfg.UploadDir).
+			WithCoinValidation(coinSvc).
+			WithReferenceValidation(coinReferenceSvc)
 		quickCaptureHandler := handlers.NewQuickCaptureHandler(quickCaptureSvc, logger)
 		coinLookupSvc := services.NewCoinLookupService(agentProxy, settingsSvc, logger)
 		coinLookupHandler := handlers.NewCoinLookupHandler(coinLookupSvc, logger)
@@ -470,7 +487,9 @@ func main() {
 		protected.GET("/featured-coins/latest", coinOfDayHandler.Latest)
 		protected.GET("/featured-coins/:id", coinOfDayHandler.Get)
 
-		numistaHandler := handlers.NewNumistaHandler(settingsSvc)
+		numistaHandler := handlers.NewNumistaHandler(numistaLookupSvc)
+		protected.POST("/numista/lookup", numistaHandler.Lookup)
+		protected.POST("/numista/enrich", numistaHandler.Enrich)
 		protected.GET("/numista/search", numistaHandler.Search)
 
 		auctionLotSvc := services.NewAuctionLotService(auctionLotRepo, coinRepo).
@@ -642,6 +661,8 @@ func main() {
 		admin.GET("/settings/defaults", adminHandler.GetSettingDefaults)
 		admin.PUT("/settings", adminHandler.UpdateSettings)
 		admin.GET("/logs", adminHandler.GetLogs)
+		adminNumistaHandler := handlers.NewAdminNumistaHandler(numistaTelemetry, settingsSvc)
+		admin.GET("/numista/health", adminNumistaHandler.Health)
 		admin.GET("/test-anthropic", adminHandler.TestAnthropicConnection)
 		admin.GET("/test-searxng", adminHandler.TestSearXNGConnection)
 

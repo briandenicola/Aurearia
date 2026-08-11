@@ -1528,6 +1528,43 @@
                 }
             }
         },
+        "/admin/numista/health": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns redacted Numista configuration validity and bounded rolling status, latency, cache, quota, and enrichment aggregates. Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get Numista operational health",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.NumistaHealthSummary"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/oidc/providers": {
             "get": {
                 "security": [
@@ -6047,7 +6084,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Analyzes coin/slab images to extract NGC cert, label text, and provides Numista candidates. Returns data compatible with Add to Wishlist/Collection.",
+                "description": "Analyzes coin/slab images, preserves NGC-first behavior, and proposes bounded Numista evidence/query without running Numista lookup.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -9568,6 +9605,120 @@
                 }
             }
         },
+        "/numista/enrich": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Reranks the complete broad candidate set, enriches at most five server-selected candidates with concurrency two, and retains candidates when details fail.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Numista"
+                ],
+                "summary": "Enrich and rerank Numista candidates",
+                "parameters": [
+                    {
+                        "description": "Enrichment request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.NumistaEnrichmentRequestSwagger"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.NumistaLookupOutcomeSwagger"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/numista/lookup": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Searches Numista through the shared application lookup service and returns explained, application-owned candidates.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Numista"
+                ],
+                "summary": "Run broad Numista lookup",
+                "parameters": [
+                    {
+                        "description": "Lookup request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.NumistaLookupRequestSwagger"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.NumistaLookupOutcomeSwagger"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/numista/search": {
             "get": {
                 "security": [
@@ -9575,7 +9726,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Searches the Numista coin catalog by query string. Requires a Numista API key in admin settings.",
+                "description": "Deprecated compatibility route preserving the legacy count/types response.",
                 "produces": [
                     "application/json"
                 ],
@@ -9585,6 +9736,8 @@
                 "summary": "Search Numista catalog",
                 "parameters": [
                     {
+                        "maxLength": 500,
+                        "minLength": 1,
                         "type": "string",
                         "description": "Search query",
                         "name": "q",
@@ -9596,7 +9749,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/handlers.LegacyNumistaSearchResponseSwagger"
                         }
                     },
                     "400": {
@@ -9846,6 +9999,18 @@
                         "in": "formData"
                     },
                     {
+                        "type": "string",
+                        "description": "Selected positive Numista type ID",
+                        "name": "selectedNumistaId",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Canonical selected Numista URL",
+                        "name": "selectedNumistaUrl",
+                        "in": "formData"
+                    },
+                    {
                         "type": "file",
                         "description": "Obverse image",
                         "name": "obverseImage",
@@ -10020,6 +10185,24 @@
                         "type": "string",
                         "description": "AI confidence",
                         "name": "aiConfidence",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Replacement positive Numista type ID; omit to preserve",
+                        "name": "selectedNumistaId",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Replacement canonical Numista URL; omit to preserve",
+                        "name": "selectedNumistaUrl",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Remove the retained Numista selection",
+                        "name": "clearSelectedNumista",
                         "in": "formData"
                     },
                     {
@@ -16472,6 +16655,10 @@
                 "currentValue": {
                     "type": "number"
                 },
+                "dateRange": {
+                    "type": "string",
+                    "maxLength": 200
+                },
                 "denomination": {
                     "type": "string",
                     "maxLength": 200
@@ -16644,9 +16831,23 @@
                         "$ref": "#/definitions/handlers.NumistaCandidateSwagger"
                     }
                 },
+                "numistaEvidence": {
+                    "$ref": "#/definitions/models.NumistaEvidence"
+                },
+                "numistaLookup": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.NumistaLookupOutcome"
+                        }
+                    ],
+                    "x-nullable": true
+                },
                 "prefilledDraft": {
                     "type": "object",
                     "additionalProperties": {}
+                },
+                "proposedNumistaQuery": {
+                    "type": "string"
                 }
             }
         },
@@ -16786,6 +16987,10 @@
                 },
                 "currentValue": {
                     "type": "number"
+                },
+                "dateRange": {
+                    "type": "string",
+                    "maxLength": 200
                 },
                 "denomination": {
                     "type": "string",
@@ -17238,6 +17443,20 @@
                 }
             }
         },
+        "handlers.LegacyNumistaSearchResponseSwagger": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "types": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.LegacyNumistaType"
+                    }
+                }
+            }
+        },
         "handlers.LinkEventRequest": {
             "type": "object",
             "properties": {
@@ -17438,6 +17657,69 @@
                 "year": {
                     "type": "string",
                     "example": "101-102"
+                }
+            }
+        },
+        "handlers.NumistaEnrichmentRequestSwagger": {
+            "type": "object",
+            "properties": {
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.NumistaCandidate"
+                    }
+                },
+                "evidence": {
+                    "$ref": "#/definitions/models.NumistaEvidence"
+                },
+                "path": {
+                    "$ref": "#/definitions/models.NumistaLookupPath"
+                },
+                "query": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.NumistaLookupOutcomeSwagger": {
+            "type": "object",
+            "properties": {
+                "cache": {
+                    "$ref": "#/definitions/models.NumistaCacheMetadata"
+                },
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.NumistaCandidate"
+                    }
+                },
+                "effectiveQuery": {
+                    "type": "string"
+                },
+                "guidanceCode": {
+                    "type": "string"
+                },
+                "retryAfterSeconds": {
+                    "type": "integer"
+                },
+                "stage": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.NumistaLookupStatus"
+                }
+            }
+        },
+        "handlers.NumistaLookupRequestSwagger": {
+            "type": "object",
+            "properties": {
+                "evidence": {
+                    "$ref": "#/definitions/models.NumistaEvidence"
+                },
+                "path": {
+                    "$ref": "#/definitions/models.NumistaLookupPath"
+                },
+                "query": {
+                    "type": "string"
                 }
             }
         },
@@ -19255,6 +19537,10 @@
                 "currentValueUpdatedAt": {
                     "type": "string"
                 },
+                "dateRange": {
+                    "type": "string",
+                    "maxLength": 200
+                },
                 "denomination": {
                     "type": "string",
                     "maxLength": 200
@@ -19772,6 +20058,40 @@
             "type": "object",
             "additionalProperties": true
         },
+        "models.LegacyNumistaIssuer": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.LegacyNumistaType": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "issuer": {
+                    "$ref": "#/definitions/models.LegacyNumistaIssuer"
+                },
+                "max_year": {
+                    "type": "integer"
+                },
+                "min_year": {
+                    "type": "integer"
+                },
+                "obverse_thumbnail": {
+                    "type": "string"
+                },
+                "reverse_thumbnail": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "models.Material": {
             "type": "string",
             "enum": [
@@ -19846,6 +20166,312 @@
                 },
                 "userId": {
                     "type": "integer"
+                }
+            }
+        },
+        "models.NumistaCacheMetadata": {
+            "type": "object",
+            "properties": {
+                "ageSeconds": {
+                    "type": "integer"
+                },
+                "coalesced": {
+                    "type": "boolean"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "hit": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "models.NumistaCandidate": {
+            "type": "object",
+            "properties": {
+                "assessment": {
+                    "$ref": "#/definitions/models.NumistaRelevanceAssessment"
+                },
+                "canonicalUrl": {
+                    "type": "string"
+                },
+                "denomination": {
+                    "type": "string"
+                },
+                "enrichmentState": {
+                    "$ref": "#/definitions/models.NumistaEnrichmentState"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "issuer": {
+                    "type": "string"
+                },
+                "material": {
+                    "type": "string"
+                },
+                "maxYear": {
+                    "type": "integer"
+                },
+                "minYear": {
+                    "type": "integer"
+                },
+                "mint": {
+                    "type": "string"
+                },
+                "obverseInscription": {
+                    "type": "string"
+                },
+                "obverseThumbnail": {
+                    "type": "string"
+                },
+                "providerPosition": {
+                    "type": "integer"
+                },
+                "reverseInscription": {
+                    "type": "string"
+                },
+                "reverseThumbnail": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "yearDisplay": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.NumistaEnrichmentState": {
+            "type": "string",
+            "enum": [
+                "not_requested",
+                "enriched",
+                "cached",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "NumistaEnrichmentNotRequested",
+                "NumistaEnrichmentEnriched",
+                "NumistaEnrichmentCached",
+                "NumistaEnrichmentFailed"
+            ]
+        },
+        "models.NumistaEvidence": {
+            "type": "object",
+            "properties": {
+                "dateText": {
+                    "type": "string"
+                },
+                "denomination": {
+                    "type": "string"
+                },
+                "exactNumistaId": {
+                    "type": "integer"
+                },
+                "issuer": {
+                    "type": "string"
+                },
+                "material": {
+                    "type": "string"
+                },
+                "mint": {
+                    "type": "string"
+                },
+                "obverseInscription": {
+                    "type": "string"
+                },
+                "reverseInscription": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "visibleText": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.NumistaHealthSummary": {
+            "type": "object",
+            "properties": {
+                "broadRequestCount": {
+                    "type": "integer"
+                },
+                "cancelledRequestCount": {
+                    "type": "integer"
+                },
+                "coalescedRequestCount": {
+                    "type": "integer"
+                },
+                "configurationValid": {
+                    "type": "boolean"
+                },
+                "configured": {
+                    "type": "boolean"
+                },
+                "detailRequestCount": {
+                    "type": "integer"
+                },
+                "enrichmentAttempted": {
+                    "type": "integer"
+                },
+                "enrichmentFailed": {
+                    "type": "integer"
+                },
+                "enrichmentSucceeded": {
+                    "type": "integer"
+                },
+                "freshCacheHitCount": {
+                    "type": "integer"
+                },
+                "freshCacheHitRate": {
+                    "type": "number"
+                },
+                "lastCheckedAt": {
+                    "type": "string"
+                },
+                "lastOutcome": {
+                    "$ref": "#/definitions/models.NumistaLookupStatus"
+                },
+                "lastQuotaLimitedAt": {
+                    "type": "string"
+                },
+                "lastRetryAfterSeconds": {
+                    "type": "integer"
+                },
+                "p50ElapsedMs": {
+                    "description": "R-7 linearly interpolated percentile, rounded to milliseconds.",
+                    "type": "integer"
+                },
+                "p95ElapsedMs": {
+                    "description": "R-7 linearly interpolated percentile, rounded to milliseconds.",
+                    "type": "integer"
+                },
+                "providerFailureCount": {
+                    "type": "integer"
+                },
+                "providerLoadCount": {
+                    "type": "integer"
+                },
+                "statusCounts": {
+                    "description": "Sparse rolling counts; absent statuses have zero events.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "models.NumistaLookupOutcome": {
+            "type": "object",
+            "properties": {
+                "cache": {
+                    "$ref": "#/definitions/models.NumistaCacheMetadata"
+                },
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.NumistaCandidate"
+                    }
+                },
+                "effectiveQuery": {
+                    "type": "string"
+                },
+                "guidanceCode": {
+                    "type": "string"
+                },
+                "retryAfterSeconds": {
+                    "type": "integer"
+                },
+                "stage": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.NumistaLookupStatus"
+                }
+            }
+        },
+        "models.NumistaLookupPath": {
+            "type": "string",
+            "enum": [
+                "direct",
+                "photo"
+            ],
+            "x-enum-varnames": [
+                "NumistaLookupPathDirect",
+                "NumistaLookupPathPhoto"
+            ]
+        },
+        "models.NumistaLookupStatus": {
+            "type": "string",
+            "enum": [
+                "success",
+                "empty",
+                "unconfigured",
+                "quota-limited",
+                "timeout",
+                "unavailable"
+            ],
+            "x-enum-varnames": [
+                "NumistaStatusSuccess",
+                "NumistaStatusEmpty",
+                "NumistaStatusUnconfigured",
+                "NumistaStatusQuotaLimited",
+                "NumistaStatusTimeout",
+                "NumistaStatusUnavailable"
+            ]
+        },
+        "models.NumistaReasonKind": {
+            "type": "string",
+            "enum": [
+                "match",
+                "conflict",
+                "unavailable"
+            ],
+            "x-enum-varnames": [
+                "NumistaReasonMatch",
+                "NumistaReasonConflict",
+                "NumistaReasonUnavailable"
+            ]
+        },
+        "models.NumistaRelevanceAssessment": {
+            "type": "object",
+            "properties": {
+                "band": {
+                    "type": "string"
+                },
+                "reasons": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.NumistaRelevanceReason"
+                    }
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "scoringVersion": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.NumistaRelevanceReason": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "field": {
+                    "type": "string"
+                },
+                "kind": {
+                    "$ref": "#/definitions/models.NumistaReasonKind"
+                },
+                "label": {
+                    "type": "string"
                 }
             }
         },
@@ -19987,6 +20613,14 @@
                 "purchasePrice": {
                     "type": "number"
                 },
+                "selectedNumistaReference": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.QuickCaptureDraftReference"
+                        }
+                    ],
+                    "x-nullable": true
+                },
                 "source": {
                     "type": "string",
                     "maxLength": 40
@@ -20029,6 +20663,20 @@
                 },
                 "isPrimary": {
                     "type": "boolean"
+                }
+            }
+        },
+        "models.QuickCaptureDraftReference": {
+            "type": "object",
+            "properties": {
+                "catalog": {
+                    "type": "string"
+                },
+                "number": {
+                    "type": "string"
+                },
+                "uri": {
+                    "type": "string"
                 }
             }
         },

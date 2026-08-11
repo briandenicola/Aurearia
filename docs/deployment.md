@@ -616,6 +616,12 @@ These settings are stored in the database and configured through the **Admin** U
 | OllamaTimeout | `300` | Request timeout in seconds |
 | SearXNGURL | — | SearXNG search engine URL (required for Ollama web search) |
 | NumistaAPIKey | — | Numista catalog API key |
+| NumistaSearchTTLHours | `24` | Search-cache TTL, integer 1–720 hours |
+| NumistaDetailTTLHours | `168` | Detail-cache TTL, integer 1–2160 hours |
+| NumistaEnrichmentLimit | `5` | Leading detail candidates, integer 1–10; current runtime caps each request at 5 |
+| NumistaSearchResultLimit | `20` | Broad candidate limit, integer 1–50 |
+| NumistaSearchTimeoutSeconds | `4` | Broad provider timeout, integer 1–10 seconds |
+| NumistaDetailTimeoutSeconds | `3` | Per-detail provider timeout, integer 1–10 seconds |
 | CoinSearchPrompt | — | System prompt for coin search agent |
 | CoinShowsPrompt | — | System prompt for coin shows agent |
 | ValuationPrompt | — | System prompt for value estimator |
@@ -627,6 +633,59 @@ These settings are stored in the database and configured through the **Admin** U
 | RegistrationMode | `closed` | `closed`, `invite`, or `open`; use `invite` for public beta |
 | BackupStatus | `not_configured` | Operator-maintained backup readiness/status surfaced in the Admin Security summary |
 
+
+---
+
+## Numista Backend-First Rollout
+
+Feature 341 is designed for backend-first deployment. Do not publish the new
+SPA before the matching API image is healthy.
+
+1. Back up SQLite and uploads together.
+2. Deploy the API/app image first. Startup applies the additive
+   `quick_capture_draft_references` table without rewriting existing rows.
+3. Verify authenticated `POST /api/numista/lookup`,
+   `POST /api/numista/enrich`, deprecated
+   `GET /api/numista/search?q=...`, and admin-only
+   `GET /api/admin/numista/health`.
+4. Confirm Admin → System shows the six validated settings above. Invalid
+   values fall back safely and set `configurationValid=false`.
+5. Publish the SPA. Old assets continue using the legacy GET and additive
+   photo/draft contracts; new assets use the typed POST routes.
+
+The compatibility adapter remains for this release. Remove it only in a
+separately announced and verified release.
+
+### Observation
+
+During the first beta window, inspect Numista health after cold, repeated,
+concurrent, photo, and detail-failure lookups. Observe:
+
+- status mix, especially `quota-limited`, `timeout`, and `unavailable`;
+- provider-load p50/p95, excluding cache/coalesced latency;
+- fresh hits, fresh-hit rate, and coalesced waiters as separate signals;
+- provider loads, failures, cancellations, and enrichment outcomes;
+- latest observed 429 time and positive `Retry-After`, without estimating
+  remaining quota.
+
+Health is a bounded 500-event in-memory window and resets on API restart. It
+contains operational counts and digests only, never keys, queries,
+inscriptions, label text, images, raw provider errors, or user identity.
+
+### Rollback
+
+- Roll back the SPA independently first; the legacy GET route and additive
+  response fields remain available.
+- An older API binary ignores the additive draft-reference table. Existing
+  coins and promoted `CoinReference` rows remain readable.
+- Restarting safely discards in-memory cache and telemetry.
+- Do not drop `quick_capture_draft_references` during emergency rollback. A
+  later re-deploy can recover retained draft selections.
+- Promotion is transactional, so a selected-reference failure does not leave a
+  partially created coin/reference write.
+
+This rollout follows Feature 341 FR-021–FR-029 and Constitution Principles I,
+III, IV, V, §17, and §21.
 
 ---
 

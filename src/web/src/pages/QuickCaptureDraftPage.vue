@@ -17,6 +17,13 @@
         <!-- Promoted state -->
         <section v-if="draft.status === 'promoted'" class="card grid gap-4">
           <p class="m-0 text-chip text-text-secondary">This draft was promoted to a coin.</p>
+          <SafeExternalLink
+            v-if="draft.selectedNumistaReference"
+            :href="draft.selectedNumistaReference.uri"
+            class="text-body text-gold"
+          >
+            Promoted with Numista #{{ draft.selectedNumistaReference.number }}
+          </SafeExternalLink>
           <RouterLink v-if="draft.promotedCoinId" class="btn btn-primary w-fit" :to="`/coin/${draft.promotedCoinId}`">View Coin</RouterLink>
         </section>
 
@@ -112,6 +119,30 @@
               </label>
             </div>
 
+            <section class="grid min-w-0 gap-3">
+              <div>
+                <span class="section-label">Optional catalog reference</span>
+                <p class="mt-1 mb-0 text-body text-text-secondary">
+                  Search, replace, or remove the Numista reference saved with this draft.
+                </p>
+              </div>
+              <NumistaLookupPanel
+                :initial-query="draftNumistaQuery"
+                :evidence="draftNumistaEvidence"
+                :initial-selection="selectedNumistaCandidate"
+                path="photo"
+                :is-admin="auth.isAdmin"
+                :show-confirmation="false"
+                @selection-changed="handleNumistaSelectionChanged"
+              />
+              <p v-if="selectionMutation === 'replace'" class="m-0 text-sm text-text-secondary" role="status">
+                The selected reference will be saved with the draft.
+              </p>
+              <p v-else-if="selectionMutation === 'clear'" class="m-0 text-sm text-text-secondary" role="status">
+                The saved reference will be removed when changes are saved.
+              </p>
+            </section>
+
             <p v-if="saveError" class="m-0 text-chip text-warning">{{ saveError }}</p>
             <p v-if="saveSuccess" class="m-0 text-chip text-text-secondary">Draft saved.</p>
 
@@ -139,7 +170,12 @@
           </form>
 
           <!-- Promotion panel -->
-          <PromotionReadinessPanel :draft="draft" :promotion-overrides="promotionOverrides" @promoted="onPromoted" />
+          <PromotionReadinessPanel
+            :draft="draft"
+            :promotion-overrides="promotionOverrides"
+            :selection-changes-pending="selectionMutation !== 'unchanged'"
+            @promoted="onPromoted"
+          />
         </template>
       </template>
     </div>
@@ -157,12 +193,22 @@ import {
 } from '@/api/client'
 import type { QuickCaptureDraft, QuickCapturePromoteOverrides } from '@/types'
 import AuthenticatedImage from '@/components/AuthenticatedImage.vue'
+import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import QuickCaptureImageSlots from '@/components/quick-capture/QuickCaptureImageSlots.vue'
 import PromotionReadinessPanel from '@/components/quick-capture/PromotionReadinessPanel.vue'
 import { List } from 'lucide-vue-next'
+import NumistaLookupPanel from '@/components/numista/NumistaLookupPanel.vue'
+import {
+  buildNumistaQuery,
+  numistaCandidateFromReference,
+  selectedNumistaReferenceFromCandidate,
+} from '@/utils/numistaLookup'
+import type { NumistaCandidate, NumistaEvidence } from '@/types'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 
 const draft = ref<QuickCaptureDraft | null>(null)
 const loading = ref(true)
@@ -179,6 +225,8 @@ const removeImageIds = ref<Set<number>>(new Set())
 const newObverse = ref<File | null>(null)
 const newReverse = ref<File | null>(null)
 const newDetails = ref<File[]>([])
+const selectedNumistaCandidate = ref<NumistaCandidate | null>(null)
+const selectionMutation = ref<'unchanged' | 'replace' | 'clear'>('unchanged')
 
 const saving = ref(false)
 const saveError = ref('')
@@ -195,6 +243,12 @@ const promotionOverrides = computed<QuickCapturePromoteOverrides>(() => ({
   purchasePrice: currentPurchasePrice(),
   notes: notes.value.trim(),
 }))
+const draftNumistaEvidence = computed<NumistaEvidence>(() => ({
+  title: workingTitle.value.trim() || undefined,
+  dateText: dateRange.value.trim() || era.value.trim() || undefined,
+  visibleText: draft.value?.labelText?.trim() || undefined,
+}))
+const draftNumistaQuery = computed(() => buildNumistaQuery(draftNumistaEvidence.value))
 
 function currentPurchasePrice(): number | null {
   return typeof purchasePrice.value === 'number' ? purchasePrice.value : null
@@ -211,8 +265,15 @@ function populateForm(d: QuickCaptureDraft) {
   newObverse.value = null
   newReverse.value = null
   newDetails.value = []
+  selectedNumistaCandidate.value = numistaCandidateFromReference(d.selectedNumistaReference)
+  selectionMutation.value = 'unchanged'
   saveError.value = ''
   saveSuccess.value = false
+}
+
+function handleNumistaSelectionChanged(candidate: NumistaCandidate | null) {
+  selectedNumistaCandidate.value = candidate
+  selectionMutation.value = candidate ? 'replace' : 'clear'
 }
 
 function toggleRemoveImage(id: number) {
@@ -238,6 +299,9 @@ async function saveDraft() {
   saveError.value = ''
   saveSuccess.value = false
   try {
+    const selectedReference = selectionMutation.value === 'replace' && selectedNumistaCandidate.value
+      ? selectedNumistaReferenceFromCandidate(selectedNumistaCandidate.value)
+      : null
     const res = await updateQuickCaptureDraft(draft.value!.id, {
       workingTitle: workingTitle.value,
       dateRange: dateRange.value,
@@ -245,6 +309,9 @@ async function saveDraft() {
       acquisitionSource: acquisitionSource.value,
       purchasePrice: currentPurchasePrice(),
       notes: notes.value,
+      selectedNumistaId: selectedReference?.number,
+      selectedNumistaUrl: selectedReference?.uri,
+      clearSelectedNumista: selectionMutation.value === 'clear' || undefined,
       removeImageIds: removeImageIds.value.size > 0 ? [...removeImageIds.value].join(',') : undefined,
       obverseImage: newObverse.value,
       reverseImage: newReverse.value,

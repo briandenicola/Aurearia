@@ -62,7 +62,7 @@ describe('PromotionReadinessPanel', () => {
     expect(source).toContain('confirm')
     expect(source).toContain('fieldErrors.name')
     expect(source).toContain('alreadyPromoted')
-    expect(source).toContain(':disabled="!confirmed || promoting || !hasRequiredName"')
+    expect(source).toContain(':disabled="!confirmed || promoting || !hasRequiredName || selectionChangesPending"')
     expect(source).toContain("emit('promoted'")
   })
 
@@ -162,5 +162,22 @@ describe('PromotionReadinessPanel', () => {
       target: 'wishlist',
       overrides: { name: 'Wishlist coin' },
     }))
+  })
+
+  it('blocks promotion until a pending reference replacement or clear is saved', async () => {
+    const wrapper = mount(PromotionReadinessPanel, {
+      props: {
+        draft: draft(),
+        promotionOverrides: { name: 'Current title' },
+        selectionChangesPending: true,
+      },
+      global: { stubs: { RouterLink: true } },
+    })
+
+    expect(wrapper.text()).toContain('Save the reference change before promotion')
+    await wrapper.find('input[type="checkbox"]').setValue(true)
+    expect(wrapper.find('button.btn-primary').attributes('disabled')).toBeDefined()
+    await wrapper.find('button.btn-primary').trigger('click')
+    expect(promoteQuickCaptureDraft).not.toHaveBeenCalled()
   })
 })

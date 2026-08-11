@@ -26,10 +26,20 @@ func newQuickCaptureServiceAndDBForTest(t *testing.T, uploadDir string) (*QuickC
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.ValueSnapshot{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.DraftLifecycleEvent{}, &models.AppSetting{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.CatalogRegistry{}, &models.ValueSnapshot{}, &models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{}, &models.AppSetting{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	return NewQuickCaptureService(repository.NewQuickCaptureRepository(db), uploadDir), db
+	if err := db.Create(&models.CatalogRegistry{
+		Catalog: "Numista", DisplayName: "Numista", Era: models.EraModern,
+	}).Error; err != nil {
+		t.Fatalf("seed Numista registry: %v", err)
+	}
+	referenceSvc := NewCoinReferenceService(
+		repository.NewCoinReferenceRepository(db),
+		repository.NewCatalogRegistryRepository(db),
+	)
+	return NewQuickCaptureService(repository.NewQuickCaptureRepository(db), uploadDir).
+		WithReferenceValidation(referenceSvc), db
 }
 
 func TestQuickCaptureServiceRequiresMinimumIdentity(t *testing.T) {
@@ -46,6 +56,158 @@ func TestQuickCaptureServiceRejectsInvalidPrice(t *testing.T) {
 	_, err := svc.CreateDraft(CreateQuickCaptureDraftInput{UserID: 1, WorkingTitle: "Draft", PurchasePrice: &price})
 	if !errors.Is(err, ErrQuickCaptureInvalidPrice) {
 		t.Fatalf("expected invalid price error, got %v", err)
+	}
+}
+
+func selectedNumistaServiceRef(t *testing.T, id int) *models.SelectedNumistaReference {
+	t.Helper()
+	ref, err := models.NewSelectedNumistaReference(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &ref
+}
+
+func TestQuickCaptureServiceSelectedReferenceCreatePreserveReplaceClearAndValidationRollback(t *testing.T) {
+	svc, _ := newQuickCaptureServiceAndDBForTest(t, t.TempDir())
+	draft, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID: 1, WorkingTitle: "Selected",
+		SelectedNumistaReference: selectedNumistaServiceRef(t, 123),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if draft.SelectedNumistaReference == nil || draft.SelectedNumistaReference.Number != "123" {
+		t.Fatalf("create selection missing: %#v", draft)
+	}
+
+	preserved, err := svc.UpdateDraft(1, draft.ID, UpdateQuickCaptureDraftInput{
+		WorkingTitle: "Preserved",
+	})
+	if err != nil || preserved.SelectedNumistaReference == nil || preserved.SelectedNumistaReference.Number != "123" {
+		t.Fatalf("omitted selection was not preserved: %#v err=%v", preserved, err)
+	}
+
+	invalid := &models.SelectedNumistaReference{
+		Catalog: "Numista", Number: "456",
+		URI: "https://en.numista.com/catalogue/pieces999.html",
+	}
+	if _, err := svc.UpdateDraft(1, draft.ID, UpdateQuickCaptureDraftInput{
+		WorkingTitle: "Invalid must not save", SelectedNumistaProvided: true,
+		SelectedNumistaReference: invalid,
+	}); !errors.Is(err, ErrQuickCaptureInvalidReference) {
+		t.Fatalf("expected invalid reference error, got %v", err)
+	}
+	afterInvalid, err := svc.GetDraft(1, draft.ID)
+	if err != nil || afterInvalid.WorkingTitle != "Preserved" ||
+		afterInvalid.SelectedNumistaReference == nil || afterInvalid.SelectedNumistaReference.Number != "123" {
+		t.Fatalf("validation failure mutated draft: %#v err=%v", afterInvalid, err)
+	}
+
+	replaced, err := svc.UpdateDraft(1, draft.ID, UpdateQuickCaptureDraftInput{
+		WorkingTitle: "Replaced", SelectedNumistaProvided: true,
+		SelectedNumistaReference: selectedNumistaServiceRef(t, 456),
+	})
+	if err != nil || replaced.SelectedNumistaReference == nil || replaced.SelectedNumistaReference.Number != "456" {
+		t.Fatalf("replace failed: %#v err=%v", replaced, err)
+	}
+	if _, err := svc.UpdateDraft(1, draft.ID, UpdateQuickCaptureDraftInput{
+		WorkingTitle: "Conflict", SelectedNumistaProvided: true,
+		SelectedNumistaReference: selectedNumistaServiceRef(t, 789),
+		ClearSelectedNumista:     true,
+	}); !errors.Is(err, ErrQuickCaptureReferenceConflict) {
+		t.Fatalf("expected clear/replace conflict, got %v", err)
+	}
+
+	cleared, err := svc.UpdateDraft(1, draft.ID, UpdateQuickCaptureDraftInput{
+		WorkingTitle: "Cleared", ClearSelectedNumista: true,
+	})
+	if err != nil || cleared.SelectedNumistaReference != nil {
+		t.Fatalf("clear failed: %#v err=%v", cleared, err)
+	}
+}
+
+func TestQuickCaptureServiceListDraftsReturnsOnlyOwnerSelections(t *testing.T) {
+	svc, _ := newQuickCaptureServiceAndDBForTest(t, t.TempDir())
+	selected, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID: 1, WorkingTitle: "Selected owner draft",
+		SelectedNumistaReference: selectedNumistaServiceRef(t, 12345),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unselected, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID: 1, WorkingTitle: "Unselected owner draft",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+		UserID: 2, WorkingTitle: "Other owner draft",
+		SelectedNumistaReference: selectedNumistaServiceRef(t, 99999),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	drafts, total, err := svc.ListDrafts(1, models.QuickCaptureDraftStatusActive, 1, 50)
+	if err != nil {
+		t.Fatalf("list owner drafts: %v", err)
+	}
+	if total != 2 || len(drafts) != 2 {
+		t.Fatalf("owner-scoped total mismatch: total=%d drafts=%#v", total, drafts)
+	}
+
+	byID := make(map[uint]models.QuickCaptureDraft, len(drafts))
+	for _, draft := range drafts {
+		byID[draft.ID] = draft
+	}
+	if got := byID[selected.ID].SelectedNumistaReference; got == nil ||
+		got.Catalog != "Numista" || got.Number != "12345" ||
+		got.URI != "https://en.numista.com/catalogue/pieces12345.html" {
+		t.Fatalf("selected list projection mismatch: %#v", got)
+	}
+	if got := byID[unselected.ID].SelectedNumistaReference; got != nil {
+		t.Fatalf("unselected list projection should be nil: %#v", got)
+	}
+}
+
+func TestQuickCaptureServiceSelectedReferencePromotionCollectionWishlistAndNoSelection(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		target    QuickCapturePromotionTarget
+		selection *models.SelectedNumistaReference
+		wantRefs  int64
+	}{
+		{"collection", QuickCapturePromotionTargetCollection, selectedNumistaServiceRef(t, 101), 1},
+		{"wishlist", QuickCapturePromotionTargetWishlist, selectedNumistaServiceRef(t, 202), 1},
+		{"none", QuickCapturePromotionTargetCollection, nil, 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			svc, db := newQuickCaptureServiceAndDBForTest(t, t.TempDir())
+			draft, err := svc.CreateDraft(CreateQuickCaptureDraftInput{
+				UserID: 1, WorkingTitle: "Promote", Era: string(models.EraAncient),
+				SelectedNumistaReference: test.selection,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			first, err := svc.PromoteDraft(1, draft.ID, PromoteDraftInput{Confirm: true, Target: test.target})
+			if err != nil {
+				t.Fatal(err)
+			}
+			second, err := svc.PromoteDraft(1, draft.ID, PromoteDraftInput{Confirm: true})
+			if err != nil || !second.AlreadyPromoted || second.CoinID != first.CoinID {
+				t.Fatalf("repeated promotion not idempotent: %#v err=%v", second, err)
+			}
+			var refs int64
+			if err := db.Model(&models.CoinReference{}).Where("coin_id = ?", first.CoinID).Count(&refs).Error; err != nil {
+				t.Fatal(err)
+			}
+			if refs != test.wantRefs {
+				t.Fatalf("reference count=%d want %d", refs, test.wantRefs)
+			}
+		})
 	}
 }
 

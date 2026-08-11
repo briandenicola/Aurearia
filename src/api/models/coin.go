@@ -48,6 +48,7 @@ type Coin struct {
 	Ruler                  string           `json:"ruler" binding:"max=200"`
 	RomanImperialFigureID  *uint            `gorm:"index" json:"romanImperialFigureId"`
 	Era                    Era              `gorm:"type:varchar(64)" json:"era" binding:"omitempty,max=64"`
+	DateRange              string           `gorm:"type:varchar(200)" json:"dateRange" binding:"max=200"`
 	Mint                   string           `json:"mint" binding:"max=200"`
 	MintLocationID         *uint            `json:"mintLocationId"`
 	MintLocation           *MintLocation    `gorm:"foreignKey:MintLocationID;constraint:-" json:"mintLocation"`

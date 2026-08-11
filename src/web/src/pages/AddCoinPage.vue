@@ -329,6 +329,7 @@ function createEmptyForm(category: Category, material: Material): Partial<Coin> 
     romanImperialFigureId: null,
     mint: '',
     era: '',
+    dateRange: '',
     weightGrams: undefined,
     diameterMm: undefined,
     grade: '',

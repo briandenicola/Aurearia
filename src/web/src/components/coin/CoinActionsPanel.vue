@@ -104,11 +104,12 @@
         </div>
       </div>
 
-      <CoinNumistaPanel
-        :coin-name="coinName"
-        :coin-ruler="coinRuler ?? ''"
-        :coin-denomination="coinDenomination ?? ''"
-      />
+      <div class="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4">
+        <span class="text-body text-text-secondary">Catalog lookup and saved references</span>
+        <RouterLink class="btn btn-ghost btn-sm" :to="`/coin/${coinId}#catalog-references`">
+          Catalog References
+        </RouterLink>
+      </div>
     </div>
 
     <CameraCaptureModal
@@ -123,7 +124,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { uploadImage, proxyImage, estimateCoinValue, updateCoin, getAIJob, getCoinAIJobs } from '@/api/client'
 import { formatCurrency } from '@/utils/format'
-import CoinNumistaPanel from '@/components/coin/CoinNumistaPanel.vue'
+import { RouterLink } from 'vue-router'
 import CameraCaptureModal from '@/components/CameraCaptureModal.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import { Camera } from 'lucide-vue-next'
@@ -131,13 +132,18 @@ import { useDialog } from '@/composables/useDialog'
 import { useNotifications } from '@/composables/useNotifications'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 import { useToast } from '@/composables/useToast'
-import type { AIJob, AIJobStartResponse, ValueEstimate } from '@/types'
+import type { AIJob, AIJobStartResponse, Coin, ValueEstimate } from '@/types'
 
 const props = defineProps<{
   coinId: number
   coinName: string
   coinRuler?: string | null
   coinDenomination?: string | null
+  coinMint?: string | null
+  coinDateRange?: string | null
+  coinMaterial: Coin['material']
+  coinObverseInscription?: string | null
+  coinReverseInscription?: string | null
   imageCount: number
   isPwa: boolean
 }>()
