@@ -406,3 +406,19 @@
 - `data-model.md` now reconciles its lower-authority status table to the approved spec/plan/research taxonomy without changing higher-authority requirements. T046–T053 are truthfully complete.
 - Independent gates passed: focused Go status packages; Go build/vet/full tests; architecture, route drift, OpenAPI nullability, and migration checks; focused frontend 37/37; full frontend 662/662; type-check, explicit `vue-tsc --build`, production build, ESLint 0 errors/169 warnings; diff check and targeted secret scan.
 - Residual risk is limited to unavailable optional external scanners (Gitleaks/Trivy); direct diff and credential-pattern checks were clean.
+
+## 2026-08-11 — Feature 341 User Story 6 acceptance tests T087–T091
+
+- Canonical-placement tests should separate the already-supported manual reference workflow from the new Numista disclosure so failures identify the amendment rather than masking baseline behavior.
+- Collapse-after-success requires two observable events: selected-reference persistence completes, then refreshed saved references contain the matching Numista reference. A persistence event alone must not close the disclosure.
+- Draft-list coverage belongs at repository, service, handler JSON, page, and card seams: owner scoping/preload, optional serialization, exact chip text, absence, wrapping, and the existing resume-link behavior.
+- Identify Coin acceptance must preserve non-NGC manual lookup while proving a usable NGC result makes zero Numista requests on analysis, reveal, and query editing; only explicit search may issue the request.
+
+## 2026-08-11 — Feature 341 User Story 6 / Phase 5A final review
+
+- **Verdict: APPROVE.** T087–T096 satisfy FR-030–FR-038, NFR-009, and SC-011–SC-014 without reopening landed Feature 214/336 artifacts or adding routes, endpoints, schema, provider calls, cache, telemetry, or enrichment behavior.
+- Saved-coin lookup is canonical under Catalog References, preserves manual reference management, waits for persistence plus matching refresh before collapse, returns focus, stays open on failure, and renders the persisted reference.
+- Actions contains one compact contextual anchor and no full panel. Identify Coin preserves non-NGC lookup, NGC-first behavior, zero eager NGC-path Numista requests, editable override, labels, selection retention, and narrow-layout containment.
+- Draft cards render the exact retained identifier from the owner-scoped preloaded list relation, omit it otherwise, wrap safely, and add no API request.
+- Gates passed: focused Go and 34 focused frontend tests; full Go build/vet/tests; architecture/OpenAPI/migration gates; full frontend 109 files/671 tests; design tokens 8/8; type-check; production build; ESLint 0 errors/168 warnings; diff check; targeted secret scan.
+- Residual risks are limited to structural jsdom mobile assertions rather than a physical 375 px browser run and unavailable optional external scanners; neither blocks this proportional frontend placement amendment.

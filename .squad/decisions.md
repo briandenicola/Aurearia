@@ -992,6 +992,92 @@ Implement thread-safe bounded `NumistaTelemetry` ring buffer with 500-operation 
 
 ---
 
+## Feature 341 User Story 6 / Phase 5A — Canonical Catalog References + Actions Refactor
+
+### Decision: Gate saved-coin Numista disclosure collapse on refreshed persistence
+
+**Date:** 2026-08-11
+**Agent:** Aurelia
+**Feature:** 341 User Story 6
+
+Saved-coin Numista lookup is composed inside Catalog References as a compact peer disclosure. The disclosure records the confirmed candidate identifier, requests the existing coin refresh, and collapses only when refreshed references contain the matching Numista number; a compatibility fallback recognizes a newly returned Numista reference when older emitters provide no candidate payload.
+
+Actions links to the existing `/coin/:id#catalog-references` anchor rather than owning another lookup panel or route. This follows FR-030–FR-032, NFR-009, Constitution Principle IV, and §17.
+
+---
+
+### Decision: Feature 341 Phase 5 Frontend Status Contract
+
+**Date:** 2026-08-11  
+**Agent:** Aurelia  
+**Scope:** T048, T051, T052, T053
+
+`NumistaLookupPanel` uses one typed presentation helper for `idle`, `loading`, `success`, `empty`, `unconfigured`, `quota-limited`, `timeout`, and `unavailable`.
+
+- Every state has a visible text label, title, guidance, and retry eligibility.
+- Only administrators see Numista API-key instructions and `/admin?tab=system`; ordinary users receive safe administrator-contact guidance.
+- Retry-After appears only when `retryAfterSeconds` is supplied.
+- Freshness appears only when cache metadata accompanies `success` or `empty`; no remaining-quota estimate is shown.
+- The terminal status region receives focus after lookup completion.
+- Once the collector edits a query, later parent evidence changes cannot overwrite it. Errors, retries, and status changes retain the edited query and explicit selection.
+
+## Alignment
+
+- Constitution Principle III: typed state/presentation contract.
+- Principle IV: one shared helper and panel behavior across direct, photo, and draft paths.
+- Principle V: role-safe configuration guidance with no raw errors or quota estimates.
+- Principle VI and NFR-008: aria-live, focus management, non-color text, retained mobile-safe controls.
+
+---
+
+### Decision: Feature 341 Phase 5 Numista Outcome and Cancellation Boundaries
+
+**Date:** 2026-08-11  
+**Agent:** Cassius  
+**Feature:** 341 Improved Numista Lookup, Phase 5
+
+Only typed Numista/provider failures map to expected HTTP 200 domain outcomes. Unknown internal errors propagate to the handler and receive the generic safe HTTP 500 response. Caller cancellation and caller deadlines propagate as context errors and do not pollute the six-status health taxonomy. Retry-After is propagated only when it is a positive observed value. Configuration remains checked before cache access. The service emits the established admin guidance code `numista_configuration_required`; the authenticated handler replaces it with `numista_contact_administrator` for non-admin callers. The deprecated GET adapter continues returning its legacy generic HTTP 503 failure for all non-success/non-empty states.
+
+## Alignment
+
+- Constitution Principles I, III, IV, V, IX and §17 Quality Gate and §21 Definition of Done
+- Feature 341 FR-016, FR-017, FR-024, FR-028 and NFR-005–NFR-007
+
+---
+
+### Decision: Feature 341 Phase 5 Strict Lockout Cleared
+
+**Date:** 2026-08-11
+**Reviewer:** Brutus
+**Status:** APPROVED
+**Feature:** specs/341-improve-numista-lookup
+
+Marcus's independent revision clears the rejected Phase 5 backend mapping. Provider 401/403 is `unconfigured`, provider 400 is HTTP 200 `empty`, non-admin guidance remains non-privileged, and legacy GET compatibility behavior remains covered. Configuration precedence, Retry-After, cancellation/deadline handling, safe 500 responses, frontend retention/accessibility, the reconciled lower-authority data model, and T046–T053 all passed focused and full gates.
+
+Alignment: Constitution §0, Principles III/V/VI/IX, §17, §18.2, and §21.
+
+---
+
+### Decision: Feature 341 User Story 6 QA Acceptance Tests and Final Approval
+
+**Date:** 2026-08-11  
+**Reviewer:** Brutus  
+**Scope:** T087–T096  
+**Verdict:** APPROVE  
+**Feature:** 341 Improved Numista Lookup
+
+T087–T096 satisfy FR-030–FR-038, NFR-009, and SC-011–SC-014 without reopening landed Feature 214/336 artifacts or adding routes, endpoints, schema, provider calls, cache, telemetry, or enrichment behavior.
+
+- Saved-coin lookup is canonical under Catalog References, preserves manual reference management, waits for persistence plus matching refresh before collapse, returns focus, stays open on failure, and renders the persisted reference.
+- Actions contains one compact contextual anchor and no full panel. Identify Coin preserves non-NGC lookup, NGC-first behavior, zero eager NGC-path Numista requests, editable override, labels, selection retention, and narrow-layout containment.
+- Draft cards render the exact retained identifier from the owner-scoped preloaded list relation, omit it otherwise, wrap safely, and add no API request.
+- Gates passed: focused Go and 34 focused frontend tests; full Go build/vet/tests; architecture/OpenAPI/migration gates; full frontend 109 files/671 tests; design tokens 8/8; type-check; production build; ESLint 0 errors/168 warnings; diff check; targeted secret scan.
+- Residual risks are limited to structural jsdom mobile assertions rather than a physical 375 px browser run and unavailable optional external scanners; neither blocks this proportional frontend placement amendment.
+
+Alignment: Constitution Principles III/IV/V/VI/VII/X, §17 Quality Gate, §21 Definition of Done.
+
+---
+
 ## Feature 341 MVP — Reviewed & APPROVED
 
 ### Decision: Feature 341 Backend MVP — Numista Direct Lookup Architecture
