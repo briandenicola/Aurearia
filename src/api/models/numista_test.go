@@ -162,6 +162,34 @@ func TestNumistaEnrichmentRequestCandidateBounds(t *testing.T) {
 	}
 }
 
+func TestNumistaEnrichmentRequestTrimsOnlySurroundingWhitespace(t *testing.T) {
+	candidate := validNumistaTestCandidate(1)
+	request := NumistaEnrichmentRequest{
+		NumistaLookupRequest: NumistaLookupRequest{
+			Query: " \tTrajan   denarius\n",
+			Path:  NumistaLookupPathDirect,
+		},
+		Candidates: []NumistaCandidate{candidate},
+	}
+	if err := request.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if request.Query != "Trajan   denarius" {
+		t.Fatalf("enrichment query=%q, want surrounding whitespace trimmed only", request.Query)
+	}
+
+	direct := NumistaLookupRequest{
+		Query: " \tTrajan   denarius\n",
+		Path:  NumistaLookupPathDirect,
+	}
+	if err := direct.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if direct.Query != " \tTrajan   denarius\n" {
+		t.Fatalf("direct lookup query changed to %q", direct.Query)
+	}
+}
+
 func TestNumistaCandidateEnrichmentAndAssessmentVariants(t *testing.T) {
 	for _, state := range []NumistaEnrichmentState{
 		NumistaEnrichmentNotRequested, NumistaEnrichmentEnriched,

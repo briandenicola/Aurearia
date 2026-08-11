@@ -219,6 +219,41 @@ func TestNumistaEnrichmentReranksServerSideBeforeChoosingBoundedSubset(t *testin
 	}
 }
 
+func TestNumistaEnrichmentTargetSelectionIsPermutationIndependentAndNumeric(t *testing.T) {
+	base := []models.NumistaCandidate{
+		enrichmentCandidate(10, "Same", 0),
+		enrichmentCandidate(2, "Same", 2),
+		enrichmentCandidate(30, "Same", 1),
+	}
+	permutations := [][]int{
+		{0, 1, 2}, {0, 2, 1}, {1, 0, 2},
+		{1, 2, 0}, {2, 0, 1}, {2, 1, 0},
+	}
+	for _, permutation := range permutations {
+		candidates := make([]models.NumistaCandidate, len(permutation))
+		details := make(map[int]models.NumistaCandidate, len(permutation))
+		for index, source := range permutation {
+			candidates[index] = base[source]
+			details[base[source].ID] = models.NumistaCandidate{ID: base[source].ID, Title: "Same"}
+		}
+		client := &enrichmentDetailClient{details: details}
+		enrichment := requireNumistaEnrichment(t, newEnrichmentService(client, nil, 2, nil))
+		outcome, err := enrichment.Enrich(context.Background(), enrichmentRequest(candidates))
+		if err != nil {
+			t.Fatal(err)
+		}
+		called := client.calledIDs()
+		sort.Ints(called)
+		if !reflect.DeepEqual(called, []int{2, 10}) {
+			t.Fatalf("permutation %v enriched IDs %v, want numeric leading subset", permutation, called)
+		}
+		got := []int{outcome.Candidates[0].ID, outcome.Candidates[1].ID, outcome.Candidates[2].ID}
+		if !reflect.DeepEqual(got, []int{2, 10, 30}) {
+			t.Fatalf("permutation %v reranked %v, want numeric ID order", permutation, got)
+		}
+	}
+}
+
 func TestNumistaEnrichmentUsesDefaultAndConfiguredCaps(t *testing.T) {
 	for _, test := range []struct {
 		name       string
@@ -295,12 +330,12 @@ func TestNumistaEnrichmentLimitsDetailConcurrencyToTwo(t *testing.T) {
 func TestNumistaEnrichmentUsesCachedDetailsWithoutProviderCalls(t *testing.T) {
 	clock := &fakeNumistaClock{now: time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC)}
 	cache := NewNumistaCache(clock, 10, 10)
-	cache.SetDetail(2, models.NumistaCandidate{
-		ID: 2, Title: "Trajan denarius", Mint: "Rome", Material: "Silver",
+	cache.SetDetail(1, models.NumistaCandidate{
+		ID: 1, Title: "Trajan denarius", Mint: "Rome", Material: "Silver",
 		EnrichmentState: models.NumistaEnrichmentEnriched,
 	}, time.Hour)
 	client := &enrichmentDetailClient{details: map[int]models.NumistaCandidate{
-		1: {ID: 1, Title: "Trajan denarius"},
+		2: {ID: 2, Title: "Trajan denarius"},
 	}}
 	candidates := []models.NumistaCandidate{
 		enrichmentCandidate(2, "Trajan denarius", 0),
@@ -316,7 +351,7 @@ func TestNumistaEnrichmentUsesCachedDetailsWithoutProviderCalls(t *testing.T) {
 	}
 	var cached bool
 	for _, candidate := range outcome.Candidates {
-		if candidate.ID == 2 {
+		if candidate.ID == 1 {
 			cached = candidate.EnrichmentState == models.NumistaEnrichmentCached
 		}
 	}

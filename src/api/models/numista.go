@@ -209,6 +209,7 @@ func (e NumistaEvidence) Validate() error {
 }
 
 func (r *NumistaEnrichmentRequest) Validate() error {
+	r.Query = strings.TrimSpace(r.Query)
 	if err := r.NumistaLookupRequest.Validate(); err != nil {
 		return err
 	}

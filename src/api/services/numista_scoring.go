@@ -105,29 +105,36 @@ func (s *NumistaV1Scorer) Rank(request models.NumistaLookupRequest, candidates [
 		ranked[i].Assessment = s.Score(request, ranked[i])
 	}
 	sort.SliceStable(ranked, func(i, j int) bool {
-		left, right := ranked[i], ranked[j]
-		if left.Assessment.Score != right.Assessment.Score {
-			return left.Assessment.Score > right.Assessment.Score
-		}
-		leftExact := request.Evidence.ExactNumistaID != nil && left.ID == *request.Evidence.ExactNumistaID
-		rightExact := request.Evidence.ExactNumistaID != nil && right.ID == *request.Evidence.ExactNumistaID
-		if leftExact != rightExact {
-			return leftExact
-		}
-		leftComplete, rightComplete := candidateCompleteness(left), candidateCompleteness(right)
-		if leftComplete != rightComplete {
-			return leftComplete > rightComplete
-		}
-		leftTitle, rightTitle := NormalizeNumistaText(left.Title), NormalizeNumistaText(right.Title)
-		if leftTitle != rightTitle {
-			return leftTitle < rightTitle
-		}
-		if left.ID != right.ID {
-			return left.ID < right.ID
-		}
-		return left.ProviderPosition < right.ProviderPosition
+		return numistaCandidateRanksBefore(request, ranked[i], ranked[j])
 	})
 	return ranked
+}
+
+func numistaCandidateRanksBefore(
+	request models.NumistaLookupRequest,
+	left models.NumistaCandidate,
+	right models.NumistaCandidate,
+) bool {
+	if left.Assessment.Score != right.Assessment.Score {
+		return left.Assessment.Score > right.Assessment.Score
+	}
+	leftExact := request.Evidence.ExactNumistaID != nil && left.ID == *request.Evidence.ExactNumistaID
+	rightExact := request.Evidence.ExactNumistaID != nil && right.ID == *request.Evidence.ExactNumistaID
+	if leftExact != rightExact {
+		return leftExact
+	}
+	leftComplete, rightComplete := candidateCompleteness(left), candidateCompleteness(right)
+	if leftComplete != rightComplete {
+		return leftComplete > rightComplete
+	}
+	leftTitle, rightTitle := NormalizeNumistaText(left.Title), NormalizeNumistaText(right.Title)
+	if leftTitle != rightTitle {
+		return leftTitle < rightTitle
+	}
+	if left.ID != right.ID {
+		return left.ID < right.ID
+	}
+	return left.ProviderPosition < right.ProviderPosition
 }
 
 func NormalizeNumistaText(value string) string {

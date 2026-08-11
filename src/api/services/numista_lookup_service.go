@@ -279,27 +279,7 @@ func rankNumistaEnrichmentTargets(
 		ranked[index].Assessment = scorer.Score(request, ranked[index])
 	}
 	sort.SliceStable(ranked, func(i, j int) bool {
-		left, right := ranked[i], ranked[j]
-		if left.Assessment.Score != right.Assessment.Score {
-			return left.Assessment.Score > right.Assessment.Score
-		}
-		leftExact := request.Evidence.ExactNumistaID != nil && left.ID == *request.Evidence.ExactNumistaID
-		rightExact := request.Evidence.ExactNumistaID != nil && right.ID == *request.Evidence.ExactNumistaID
-		if leftExact != rightExact {
-			return leftExact
-		}
-		leftComplete, rightComplete := candidateCompleteness(left), candidateCompleteness(right)
-		if leftComplete != rightComplete {
-			return leftComplete > rightComplete
-		}
-		leftTitle, rightTitle := NormalizeNumistaText(left.Title), NormalizeNumistaText(right.Title)
-		if leftTitle != rightTitle {
-			return leftTitle < rightTitle
-		}
-		if left.ProviderPosition != right.ProviderPosition {
-			return left.ProviderPosition < right.ProviderPosition
-		}
-		return left.ID < right.ID
+		return numistaCandidateRanksBefore(request, ranked[i], ranked[j])
 	})
 	return ranked
 }

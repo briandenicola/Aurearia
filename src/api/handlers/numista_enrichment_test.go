@@ -229,6 +229,38 @@ func TestNumistaEnrichmentHandlerIgnoresClientReorderingAndReturnsFullBroadSet(t
 	}
 }
 
+func TestNumistaEnrichmentHandlerCanonicalizesQueryAndRejectsWhitespaceOnly(t *testing.T) {
+	client := &handlerEnrichmentClient{details: map[int]models.NumistaCandidate{
+		1: {ID: 1, Title: "Trajan denarius"},
+	}}
+	router := newAuthenticatedNumistaEnrichmentRouter(t, client, 1)
+	request := handlerEnrichmentRequest([]models.NumistaCandidate{
+		handlerEnrichmentCandidate(1, "Trajan denarius", 0),
+	})
+	request.Query = " \tTrajan   denarius\n"
+
+	recorder := performEnrichmentRequest(t, router, request, true)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s, want 200", recorder.Code, recorder.Body.String())
+	}
+	var outcome models.NumistaLookupOutcome
+	if err := json.Unmarshal(recorder.Body.Bytes(), &outcome); err != nil {
+		t.Fatal(err)
+	}
+	if outcome.EffectiveQuery != "Trajan   denarius" {
+		t.Fatalf("effectiveQuery=%q, want canonical trimmed query", outcome.EffectiveQuery)
+	}
+
+	request.Query = " \t\r\n "
+	recorder = performEnrichmentRequest(t, router, request, true)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("whitespace-only status=%d body=%s, want 400", recorder.Code, recorder.Body.String())
+	}
+	if calls := client.calledIDs(); !reflect.DeepEqual(calls, []int{1}) {
+		t.Fatalf("whitespace-only request reached provider: %v", calls)
+	}
+}
+
 func TestNumistaEnrichmentHandlerReturnsSafePartialAndAllFailureOutcomes(t *testing.T) {
 	const privateFailure = "provider key abc123 and private upstream body"
 	for _, failures := range []map[int]error{

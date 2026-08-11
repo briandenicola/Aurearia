@@ -196,18 +196,18 @@ draft lookup remains available, and no Phase 6/7 behavior changed.
 
 ### Tests for User Story 5
 
-- [ ] T064 [P] [US5] Add provider detail tests for validated IDs, application-needed field mapping, canonical/image URL safety, malformed optional fields, cacheability, timeout, cancellation, and transient retry policy in src/api/services/numista_client_detail_test.go
-- [ ] T065 [P] [US5] Add enrichment tests for server-side reranking before selection, unique IDs, 1-50 bounds, default/configured cap, concurrency two, cached details, cancellation, deterministic rerank, and partial/all failure retention in src/api/services/numista_enrichment_test.go
-- [ ] T066 [P] [US5] Add authenticated enrichment contract tests for invalid/reordered/duplicated client candidates, provider-call suppression on 400, full broad-set responses, safe failures, and route documentation in src/api/handlers/numista_enrichment_test.go
-- [ ] T067 [P] [US5] Add component tests proving broad-first paint, enrichment progress, cached/enriched/failed labels, reason updates, stable explicit selection, keyboard operation, image alt text, and mobile stacking in src/web/src/components/numista/__tests__/NumistaLookupPanel.enrichment.test.ts
+- [x] T064 [P] [US5] Add provider detail tests for validated IDs, application-needed field mapping, canonical/image URL safety, malformed optional fields, cacheability, timeout, cancellation, and transient retry policy in src/api/services/numista_client_detail_test.go
+- [x] T065 [P] [US5] Add enrichment tests for server-side reranking before selection, unique IDs, 1-50 bounds, default/configured cap, concurrency two, cached details, cancellation, deterministic rerank, and partial/all failure retention in src/api/services/numista_enrichment_test.go
+- [x] T066 [P] [US5] Add authenticated enrichment contract tests for invalid/reordered/duplicated client candidates, provider-call suppression on 400, full broad-set responses, safe failures, and route documentation in src/api/handlers/numista_enrichment_test.go
+- [x] T067 [P] [US5] Add component tests proving broad-first paint, enrichment progress, cached/enriched/failed labels, reason updates, stable explicit selection, keyboard operation, image alt text, and mobile stacking in src/web/src/components/numista/__tests__/NumistaLookupPanel.enrichment.test.ts
 
 ### Implementation for User Story 5
 
-- [ ] T068 [US5] Implement typed GET /types/{id} mapping, HTTPS image validation, response bounds, cancellation, and retry rules in src/api/services/numista_client.go
-- [ ] T069 [US5] Implement server-capped two-stage enrichment with concurrency two, independent detail caching, all-candidate retention, reranking, and safe partial degradation in src/api/services/numista_lookup_service.go
-- [ ] T070 [US5] Implement authenticated POST enrichment validation and full-outcome mapping with Swagger annotations in src/api/handlers/numista.go
-- [ ] T071 [P] [US5] Add typed enrichment request/response calls and cancellation support in src/web/src/types/index.ts and src/web/src/api/client.ts
-- [ ] T072 [US5] Trigger enrichment only after broad paint, display progressive states/reasons, and avoid silently changing explicit selection in src/web/src/components/numista/NumistaLookupPanel.vue
+- [x] T068 [US5] Implement typed GET /types/{id} mapping, HTTPS image validation, response bounds, cancellation, and retry rules in src/api/services/numista_client.go
+- [x] T069 [US5] Implement server-capped two-stage enrichment with concurrency two, independent detail caching, all-candidate retention, reranking, and safe partial degradation in src/api/services/numista_lookup_service.go
+- [x] T070 [US5] Implement authenticated POST enrichment validation and full-outcome mapping with Swagger annotations in src/api/handlers/numista.go
+- [x] T071 [P] [US5] Add typed enrichment request/response calls and cancellation support in src/web/src/types/index.ts and src/web/src/api/client.ts
+- [x] T072 [US5] Trigger enrichment only after broad paint, display progressive states/reasons, and avoid silently changing explicit selection in src/web/src/components/numista/NumistaLookupPanel.vue
 
 **Checkpoint**: Detail data improves comparison without delaying discovery or multiplying provider usage.
 

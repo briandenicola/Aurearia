@@ -313,7 +313,7 @@ async function search() {
     await nextTick()
     if (shouldEnrich(response.data)) {
       void startEnrichment({
-        query: effectiveQuery,
+        query: effectiveQuery.trim(),
         path: props.path,
         evidence: props.evidence,
         candidates: response.data.candidates,

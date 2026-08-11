@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -76,6 +77,30 @@ func TestNumistaScorerBoundsDuplicateEvidenceAndStableTieBreak(t *testing.T) {
 	})
 	if ranked[0].ID != 3 {
 		t.Fatalf("numeric stable tie-break failed: %+v", ranked)
+	}
+}
+
+func TestNumistaScorerTieBreakIsPermutationIndependentAndNumeric(t *testing.T) {
+	request := models.NumistaLookupRequest{Query: "coin", Path: models.NumistaLookupPathDirect}
+	candidates := []models.NumistaCandidate{
+		{ID: 10, Title: "Same", ProviderPosition: 0},
+		{ID: 2, Title: "Same", ProviderPosition: 2},
+		{ID: 30, Title: "Same", ProviderPosition: 1},
+	}
+	permutations := [][]int{
+		{0, 1, 2}, {0, 2, 1}, {1, 0, 2},
+		{1, 2, 0}, {2, 0, 1}, {2, 1, 0},
+	}
+	for _, permutation := range permutations {
+		input := make([]models.NumistaCandidate, len(permutation))
+		for index, source := range permutation {
+			input[index] = candidates[source]
+		}
+		ranked := NewNumistaV1Scorer().Rank(request, input)
+		got := []int{ranked[0].ID, ranked[1].ID, ranked[2].ID}
+		if !reflect.DeepEqual(got, []int{2, 10, 30}) {
+			t.Fatalf("permutation %v ranked %v, want numeric ID order", permutation, got)
+		}
 	}
 }
 
