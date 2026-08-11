@@ -1,0 +1,488 @@
+openapi: 3.0.3
+info:
+  title: Improved Numista Lookup Contract
+  version: 1.0.0
+  description: >
+    Planning contract fragment. Expected lookup domain outcomes use HTTP 200;
+    authentication, authorization, malformed input, and unexpected application
+    failures retain normal HTTP error semantics.
+paths:
+  /api/numista/lookup:
+    post:
+      summary: Run broad Numista lookup
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NumistaLookupRequest' }
+      responses:
+        '200':
+          description: Broad lookup outcome, including expected terminal states
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NumistaLookupOutcome' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/numista/enrich:
+    post:
+      summary: Enrich and rerank a bounded leading candidate subset
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NumistaEnrichmentRequest' }
+      responses:
+        '200':
+          description: Enriched outcome; broad candidates survive detail failures
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NumistaLookupOutcome' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/numista/search:
+    get:
+      deprecated: true
+      summary: Legacy direct-search adapter
+      description: >
+        Preserves the existing count/types response for one compatibility
+        release while delegating to the shared lookup service.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        '200':
+          description: Legacy search response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LegacyNumistaSearchResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503':
+          description: Legacy mapping for non-success provider/configuration states
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/coins/lookup:
+    post:
+      summary: Analyze coin photos and propose Numista evidence/query
+      description: >
+        Existing multipart image endpoint. A usable NGC result remains first
+        priority. No Numista provider call is made before collector submission.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [images]
+              properties:
+                images:
+                  type: array
+                  items: { type: string, format: binary }
+      responses:
+        '200':
+          description: Photo analysis and optional Numista proposal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CoinLookupResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/quick-capture/drafts:
+    post:
+      summary: Create draft with optional selected Numista reference
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/QuickCaptureDraftFields'
+                - type: object
+                  properties:
+                    selectedNumistaId:
+                      type: string
+                      pattern: '^[1-9][0-9]*$'
+                    selectedNumistaUrl:
+                      type: string
+                      format: uri
+      responses:
+        '201':
+          description: Created owner-scoped draft
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuickCaptureDraft' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/quick-capture/drafts/{id}:
+    get:
+      summary: Read draft and retained selection
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/DraftId' }]
+      responses:
+        '200':
+          description: Owner-scoped draft
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuickCaptureDraft' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      summary: Update draft while preserving, replacing, or clearing selection
+      description: >
+        Omitting selection fields preserves the current selection.
+        clearSelectedNumista=true removes it. A supplied ID/URL pair replaces it.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/DraftId' }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/QuickCaptureDraftFields'
+                - type: object
+                  properties:
+                    selectedNumistaId:
+                      type: string
+                      pattern: '^[1-9][0-9]*$'
+                    selectedNumistaUrl:
+                      type: string
+                      format: uri
+                    clearSelectedNumista:
+                      type: boolean
+                      default: false
+      responses:
+        '200':
+          description: Updated owner-scoped draft
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuickCaptureDraft' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/quick-capture/drafts/{id}/promote:
+    post:
+      summary: Transactionally promote draft and exactly its selected reference
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/DraftId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm]
+              properties:
+                confirm: { type: boolean }
+                target:
+                  type: string
+                  enum: [collection, wishlist]
+                  default: collection
+                overrides: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Existing promotion response; repeated calls are idempotent
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [draftId, status, coinId, alreadyPromoted, target]
+                properties:
+                  draftId: { type: integer }
+                  status: { type: string, enum: [promoted] }
+                  coinId: { type: integer }
+                  alreadyPromoted: { type: boolean }
+                  target: { type: string, enum: [collection, wishlist] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Concurrent or ineligible promotion
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/admin/numista/health:
+    get:
+      summary: Read redacted Numista configuration and rolling health
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Admin-only health summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NumistaHealthSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Admin role required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    DraftId:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer, minimum: 1 }
+  responses:
+    BadRequest:
+      description: Invalid bounded request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Owner-scoped resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    InternalError:
+      description: Safe unexpected application error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    NumistaLookupPath:
+      type: string
+      enum: [direct, photo]
+    LookupStatus:
+      type: string
+      enum: [success, empty, unconfigured, quota-limited, timeout, unavailable]
+    EnrichmentState:
+      type: string
+      enum: [not_requested, enriched, cached, failed]
+    NumistaEvidence:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, maxLength: 200 }
+        issuer: { type: string, maxLength: 200 }
+        denomination: { type: string, maxLength: 100 }
+        mint: { type: string, maxLength: 200 }
+        dateText: { type: string, maxLength: 100 }
+        material: { type: string, maxLength: 100 }
+        obverseInscription: { type: string, maxLength: 500 }
+        reverseInscription: { type: string, maxLength: 500 }
+        visibleText: { type: string, maxLength: 500 }
+        exactNumistaId: { type: integer, minimum: 1 }
+    NumistaLookupRequest:
+      type: object
+      additionalProperties: false
+      required: [query, path, evidence]
+      properties:
+        query: { type: string, minLength: 1, maxLength: 500 }
+        path: { $ref: '#/components/schemas/NumistaLookupPath' }
+        evidence: { $ref: '#/components/schemas/NumistaEvidence' }
+    RelevanceReason:
+      type: object
+      required: [field, kind, code, label]
+      properties:
+        field:
+          type: string
+          enum: [exact_id, title, issuer, denomination, mint, date, material, inscription]
+        kind: { type: string, enum: [match, conflict, unavailable] }
+        code: { type: string }
+        label: { type: string }
+    RelevanceAssessment:
+      type: object
+      required: [scoringVersion, score, band, reasons]
+      properties:
+        scoringVersion: { type: string, enum: [numista-v1] }
+        score: { type: integer, minimum: 0, maximum: 100 }
+        band: { type: string, enum: [strong, possible, weak] }
+        reasons:
+          type: array
+          items: { $ref: '#/components/schemas/RelevanceReason' }
+    NumistaCandidate:
+      type: object
+      required: [id, canonicalUrl, title, providerPosition, enrichmentState, assessment]
+      properties:
+        id: { type: integer, minimum: 1 }
+        canonicalUrl: { type: string, format: uri }
+        title: { type: string }
+        issuer: { type: string }
+        denomination: { type: string }
+        mint: { type: string }
+        minYear: { type: integer }
+        maxYear: { type: integer }
+        yearDisplay: { type: string }
+        material: { type: string }
+        obverseInscription: { type: string }
+        reverseInscription: { type: string }
+        obverseThumbnail: { type: string, format: uri }
+        reverseThumbnail: { type: string, format: uri }
+        providerPosition: { type: integer, minimum: 0 }
+        enrichmentState: { $ref: '#/components/schemas/EnrichmentState' }
+        assessment: { $ref: '#/components/schemas/RelevanceAssessment' }
+    CacheMetadata:
+      type: object
+      required: [hit, createdAt, expiresAt, ageSeconds]
+      properties:
+        hit: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        ageSeconds: { type: integer, minimum: 0 }
+    NumistaLookupOutcome:
+      type: object
+      required: [status, effectiveQuery, candidates, stage]
+      properties:
+        status: { $ref: '#/components/schemas/LookupStatus' }
+        effectiveQuery: { type: string }
+        candidates:
+          type: array
+          items: { $ref: '#/components/schemas/NumistaCandidate' }
+        guidanceCode: { type: string }
+        retryAfterSeconds: { type: integer, minimum: 1 }
+        cache: { $ref: '#/components/schemas/CacheMetadata' }
+        stage: { type: string, enum: [broad, enriched] }
+    NumistaEnrichmentRequest:
+      allOf:
+        - $ref: '#/components/schemas/NumistaLookupRequest'
+        - type: object
+          required: [candidates]
+          properties:
+            candidates:
+              type: array
+              minItems: 1
+              maxItems: 50
+              items: { $ref: '#/components/schemas/NumistaCandidate' }
+    LegacyNumistaType:
+      type: object
+      required: [id, title]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        issuer:
+          type: object
+          properties:
+            name: { type: string }
+        min_year: { type: integer }
+        max_year: { type: integer }
+        obverse_thumbnail: { type: string }
+        reverse_thumbnail: { type: string }
+    LegacyNumistaSearchResponse:
+      type: object
+      required: [count, types]
+      properties:
+        count: { type: integer }
+        types:
+          type: array
+          items: { $ref: '#/components/schemas/LegacyNumistaType' }
+    CoinLookupResponse:
+      type: object
+      required: [extractedData, numistaCandidates]
+      properties:
+        extractedData: { type: object, additionalProperties: true }
+        proposedNumistaQuery: { type: string }
+        numistaEvidence: { $ref: '#/components/schemas/NumistaEvidence' }
+        numistaLookup:
+          nullable: true
+          allOf: [{ $ref: '#/components/schemas/NumistaLookupOutcome' }]
+        prefilledDraft: { type: object, additionalProperties: true }
+        candidateReferences:
+          type: array
+          deprecated: true
+          description: NGC compatibility references only; no unselected Numista candidates.
+          items: { type: object, additionalProperties: true }
+        numistaCandidates:
+          type: array
+          deprecated: true
+          description: Compatibility alias, empty until explicit search.
+          items: { type: object, additionalProperties: true }
+    SelectedNumistaReference:
+      type: object
+      required: [catalog, number, uri]
+      properties:
+        catalog: { type: string, enum: [Numista] }
+        number: { type: string, pattern: '^[1-9][0-9]*$' }
+        uri: { type: string, format: uri }
+    QuickCaptureDraftFields:
+      type: object
+      properties:
+        workingTitle: { type: string, maxLength: 200 }
+        dateRange: { type: string, maxLength: 200 }
+        era: { type: string, maxLength: 64 }
+        acquisitionSource: { type: string, maxLength: 500 }
+        purchasePrice: { type: number, minimum: 0 }
+        notes: { type: string, maxLength: 5000 }
+        source: { type: string, maxLength: 40 }
+        ngcCertNumber: { type: string, maxLength: 32 }
+        ngcLookupUrl: { type: string, maxLength: 500 }
+        ngcGrade: { type: string, maxLength: 100 }
+        labelText: { type: string, maxLength: 5000 }
+        aiConfidence: { type: string, maxLength: 20 }
+    QuickCaptureDraft:
+      allOf:
+        - $ref: '#/components/schemas/QuickCaptureDraftFields'
+        - type: object
+          required: [id, userId, status, images, createdAt, updatedAt]
+          properties:
+            id: { type: integer }
+            userId: { type: integer }
+            status: { type: string, enum: [active, promoting, promoted, discarded] }
+            selectedNumistaReference:
+              nullable: true
+              allOf: [{ $ref: '#/components/schemas/SelectedNumistaReference' }]
+            images: { type: array, items: { type: object, additionalProperties: true } }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    NumistaHealthSummary:
+      type: object
+      required:
+        - configured
+        - configurationValid
+        - statusCounts
+        - broadRequestCount
+        - detailRequestCount
+        - cacheHitCount
+        - cacheRefreshCount
+        - cacheHitRate
+        - p50ElapsedMs
+        - p95ElapsedMs
+        - enrichmentAttempted
+        - enrichmentSucceeded
+        - enrichmentFailed
+      properties:
+        configured: { type: boolean }
+        configurationValid: { type: boolean }
+        lastOutcome: { $ref: '#/components/schemas/LookupStatus' }
+        lastCheckedAt: { type: string, format: date-time }
+        statusCounts:
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
+        broadRequestCount: { type: integer, minimum: 0 }
+        detailRequestCount: { type: integer, minimum: 0 }
+        cacheHitCount: { type: integer, minimum: 0 }
+        cacheRefreshCount: { type: integer, minimum: 0 }
+        cacheHitRate: { type: number, minimum: 0, maximum: 1 }
+        p50ElapsedMs: { type: integer, minimum: 0 }
+        p95ElapsedMs: { type: integer, minimum: 0 }
+        enrichmentAttempted: { type: integer, minimum: 0 }
+        enrichmentSucceeded: { type: integer, minimum: 0 }
+        enrichmentFailed: { type: integer, minimum: 0 }
+        lastQuotaLimitedAt: { type: string, format: date-time }
+        lastRetryAfterSeconds: { type: integer, minimum: 1 }
