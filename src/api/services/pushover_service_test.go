@@ -111,3 +111,52 @@ func TestPushoverServiceSendNotification_RemainsPlain(t *testing.T) {
 		t.Fatalf("url form field should be omitted when no reference URL is provided")
 	}
 }
+
+func TestPushoverServiceSendMessage_SetsURLTitleWhenURLPresent(t *testing.T) {
+	var captured url.Values
+	svc, cleanup := newTestPushoverService(t, &captured)
+	defer cleanup()
+
+	message := PushoverMessage{
+		UserKey:  "user-key",
+		Title:    "Auction Price Alert",
+		Message:  "Julia Domna AR Denarius\nCNG - Keystone 17 (Lot 95)",
+		URL:      "https://cngcoins.com/lot/95",
+		URLTitle: "View auction lot",
+	}
+
+	if err := svc.SendMessage(message); err != nil {
+		t.Fatalf("SendMessage() error = %v", err)
+	}
+
+	if got := captured.Get("url"); got != "https://cngcoins.com/lot/95" {
+		t.Fatalf("url form field = %q, want lot url", got)
+	}
+	if got := captured.Get("url_title"); got != "View auction lot" {
+		t.Fatalf("url_title form field = %q, want %q", got, "View auction lot")
+	}
+}
+
+func TestPushoverServiceSendMessage_OmitsURLTitleWhenURLBlank(t *testing.T) {
+	var captured url.Values
+	svc, cleanup := newTestPushoverService(t, &captured)
+	defer cleanup()
+
+	message := PushoverMessage{
+		UserKey:  "user-key",
+		Title:    "Auction Bid Reminder",
+		Message:  "Untitled lot\nCNG - Keystone 17 (Lot 95)",
+		URLTitle: "View auction lot",
+	}
+
+	if err := svc.SendMessage(message); err != nil {
+		t.Fatalf("SendMessage() error = %v", err)
+	}
+
+	if _, ok := captured["url"]; ok {
+		t.Fatalf("url form field should be omitted when URL is blank")
+	}
+	if _, ok := captured["url_title"]; ok {
+		t.Fatalf("url_title form field should be omitted when URL is blank")
+	}
+}

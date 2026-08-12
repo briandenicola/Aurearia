@@ -189,8 +189,14 @@ func (s *NotificationService) NotifyFollowRequest(followerID, targetID uint) {
 // notification for auction events at all (specs/_backlog/F027).
 func (s *NotificationService) NotifyAuctionPriceAlert(userID uint, lot models.AuctionLot, targetPrice float64) {
 	title := "Auction Price Alert"
-	message := fmt.Sprintf("%s crossed your %.2f %s target. Current bid: %s.",
-		auctionLotLabel(lot), targetPrice, auctionCurrency(lot.Currency), formatAuctionBid(lot.CurrentBid, lot.Currency))
+	message := fmt.Sprintf(
+		"%s\n%s\nTarget: %.2f %s\nCurrent bid: %s",
+		auctionLotTitle(lot),
+		auctionLotLabel(lot),
+		targetPrice,
+		auctionCurrency(lot.Currency),
+		formatAuctionBid(lot.CurrentBid, lot.Currency),
+	)
 	refURL := auctionLotURL(lot)
 
 	n := &models.Notification{
@@ -200,7 +206,7 @@ func (s *NotificationService) NotifyAuctionPriceAlert(userID uint, lot models.Au
 	if err := s.notifRepo.Create(n); err != nil {
 		s.logger.Error("notifications", "Failed to create price alert notification for user %d, lot %d: %v", userID, lot.ID, err)
 	}
-	go s.sendPushover(userID, title, message, refURL)
+	go s.sendPushoverWithURLTitle(userID, title, message, refURL, "View auction lot")
 }
 
 // NotifyAuctionBidReminder creates an in-app notification for a bid reminder that has come
@@ -208,7 +214,13 @@ func (s *NotificationService) NotifyAuctionPriceAlert(userID uint, lot models.Au
 // is best-effort here.
 func (s *NotificationService) NotifyAuctionBidReminder(userID uint, lot models.AuctionLot, minutesBefore int) {
 	title := "Auction Bid Reminder"
-	message := fmt.Sprintf("%s ends soon. Reminder window: %d minutes before close.", auctionLotLabel(lot), minutesBefore)
+	message := fmt.Sprintf(
+		"%s\n%s\nReminder: %d minutes before close\nCurrent bid: %s",
+		auctionLotTitle(lot),
+		auctionLotLabel(lot),
+		minutesBefore,
+		formatAuctionBid(lot.CurrentBid, lot.Currency),
+	)
 	refURL := auctionLotURL(lot)
 
 	n := &models.Notification{
@@ -218,7 +230,7 @@ func (s *NotificationService) NotifyAuctionBidReminder(userID uint, lot models.A
 	if err := s.notifRepo.Create(n); err != nil {
 		s.logger.Error("notifications", "Failed to create bid reminder notification for user %d, lot %d: %v", userID, lot.ID, err)
 	}
-	go s.sendPushover(userID, title, message, refURL)
+	go s.sendPushoverWithURLTitle(userID, title, message, refURL, "View auction lot")
 }
 
 // NotifyAuctionEndingSoon creates a single in-app notification consolidating every lot a user
@@ -394,6 +406,17 @@ func (s *NotificationService) sendPushover(userID uint, title, message, refURL s
 		Title:   title,
 		Message: message,
 		URL:     refURL,
+	})
+}
+
+// sendPushoverWithURLTitle behaves like sendPushover but also sets a Pushover URL title so the
+// action link shows a readable label (e.g. "View auction lot") instead of the raw URL.
+func (s *NotificationService) sendPushoverWithURLTitle(userID uint, title, message, refURL, urlTitle string) {
+	s.sendPushoverMessage(userID, PushoverMessage{
+		Title:    title,
+		Message:  message,
+		URL:      refURL,
+		URLTitle: urlTitle,
 	})
 }
 
