@@ -110,6 +110,150 @@ func TestNotifyAuctionBidReminderCreatesNotification(t *testing.T) {
 	}
 }
 
+func TestNotifyAuctionPriceAlertMessageLeadsWithTitleAndKeepsBidDetails(t *testing.T) {
+	db := setupNotificationServiceDB(t)
+	svc := newTestNotificationService(db)
+
+	user := models.User{Username: "bidder", Email: "bidder@example.com", PasswordHash: "hash"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	bid := 150.0
+	lot := models.AuctionLot{
+		UserID:       user.ID,
+		Title:        "Julia Domna AR Denarius",
+		AuctionHouse: "CNG",
+		SaleName:     "Keystone 17",
+		LotNumber:    95,
+		CurrentBid:   &bid,
+		Currency:     "USD",
+		SourceURL:    "https://cngcoins.com/lot/95",
+	}
+
+	svc.NotifyAuctionPriceAlert(user.ID, lot, 100)
+
+	var n models.Notification
+	if err := db.Where("user_id = ? AND type = ?", user.ID, NotificationTypeAuctionPriceAlert).First(&n).Error; err != nil {
+		t.Fatalf("failed to query notification: %v", err)
+	}
+
+	wantMessage := "Julia Domna AR Denarius\n" +
+		"CNG - Keystone 17 (Lot 95)\n" +
+		"Target: 100.00 USD\n" +
+		"Current bid: current high bid 150.00 USD"
+	if n.Message != wantMessage {
+		t.Errorf("message = %q, want %q", n.Message, wantMessage)
+	}
+	if n.Title != "Auction Price Alert" {
+		t.Errorf("title = %q, want %q", n.Title, "Auction Price Alert")
+	}
+	if n.ReferenceURL != lot.SourceURL {
+		t.Errorf("referenceUrl = %q, want %q", n.ReferenceURL, lot.SourceURL)
+	}
+}
+
+func TestNotifyAuctionPriceAlertBlankTitleFallsBackToUntitledLot(t *testing.T) {
+	db := setupNotificationServiceDB(t)
+	svc := newTestNotificationService(db)
+
+	user := models.User{Username: "bidder", Email: "bidder@example.com", PasswordHash: "hash"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	lot := models.AuctionLot{
+		UserID:       user.ID,
+		Title:        "   ",
+		AuctionHouse: "CNG",
+		SaleName:     "Keystone 17",
+		LotNumber:    95,
+		Currency:     "USD",
+	}
+
+	svc.NotifyAuctionPriceAlert(user.ID, lot, 100)
+
+	var n models.Notification
+	if err := db.Where("user_id = ? AND type = ?", user.ID, NotificationTypeAuctionPriceAlert).First(&n).Error; err != nil {
+		t.Fatalf("failed to query notification: %v", err)
+	}
+
+	if !strings.HasPrefix(n.Message, "Untitled lot\n") {
+		t.Errorf("message = %q, want it to start with fallback title line", n.Message)
+	}
+	if !strings.Contains(n.Message, "Current bid: current high bid unavailable") {
+		t.Errorf("message = %q, want unavailable-bid fallback", n.Message)
+	}
+}
+
+func TestNotifyAuctionBidReminderMessageLeadsWithTitleAndIncludesCurrentBid(t *testing.T) {
+	db := setupNotificationServiceDB(t)
+	svc := newTestNotificationService(db)
+
+	user := models.User{Username: "bidder", Email: "bidder@example.com", PasswordHash: "hash"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	bid := 42.5
+	lot := models.AuctionLot{
+		UserID:       user.ID,
+		Title:        "Athens AR Tetradrachm",
+		AuctionHouse: "CNG",
+		SaleName:     "Keystone 17",
+		LotNumber:    95,
+		CurrentBid:   &bid,
+		Currency:     "USD",
+		SourceURL:    "https://cngcoins.com/lot/95",
+	}
+
+	svc.NotifyAuctionBidReminder(user.ID, lot, 30)
+
+	var n models.Notification
+	if err := db.Where("user_id = ? AND type = ?", user.ID, NotificationTypeAuctionBidReminder).First(&n).Error; err != nil {
+		t.Fatalf("failed to query notification: %v", err)
+	}
+
+	wantMessage := "Athens AR Tetradrachm\n" +
+		"CNG - Keystone 17 (Lot 95)\n" +
+		"Reminder: 30 minutes before close\n" +
+		"Current bid: current high bid 42.50 USD"
+	if n.Message != wantMessage {
+		t.Errorf("message = %q, want %q", n.Message, wantMessage)
+	}
+	if n.Title != "Auction Bid Reminder" {
+		t.Errorf("title = %q, want %q", n.Title, "Auction Bid Reminder")
+	}
+}
+
+func TestNotifyAuctionBidReminderBlankTitleFallsBackToUntitledLot(t *testing.T) {
+	db := setupNotificationServiceDB(t)
+	svc := newTestNotificationService(db)
+
+	user := models.User{Username: "bidder", Email: "bidder@example.com", PasswordHash: "hash"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	lot := models.AuctionLot{
+		UserID:       user.ID,
+		AuctionHouse: "CNG",
+		SaleName:     "Keystone 17",
+		LotNumber:    95,
+	}
+
+	svc.NotifyAuctionBidReminder(user.ID, lot, 15)
+
+	var n models.Notification
+	if err := db.Where("user_id = ? AND type = ?", user.ID, NotificationTypeAuctionBidReminder).First(&n).Error; err != nil {
+		t.Fatalf("failed to query notification: %v", err)
+	}
+
+	if !strings.HasPrefix(n.Message, "Untitled lot\n") {
+		t.Errorf("message = %q, want it to start with fallback title line", n.Message)
+	}
+}
+
 func TestNotifyAuctionEndingSoonCreatesSingleConsolidatedNotification(t *testing.T) {
 	db := setupNotificationServiceDB(t)
 	svc := newTestNotificationService(db)
