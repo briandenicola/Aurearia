@@ -2,6 +2,78 @@
 
 ## Active Decisions
 
+### Decision: Feature 342 — Measured Numista Text-Query Tuning (T001–T025)
+
+**Date:** 2026-08-11  
+**Agent:** Sabinus (implementation), Brutus (QA review), Cassius (backend contract), Maximus (follow-up)  
+**Status:** APPROVED for Beta (T001–T025 valid; T026 pending Maximus review)
+
+## Context
+
+Feature 342 delivers canonical Go-based Numista text-query construction with measured improvements over divergent TypeScript assembly. Brutus identified three blocking issues in initial review: enrichment attribution loss, `generationVersion` validation gap, and incomplete test coverage for `reverseType` and alias cases. Sabinus addressed all three with bounded focused fixes: enrichment faithfully preserves source/attempt/query through successful/partial/failed detail fetch; `generationVersion` is now required for generated and user-edited requests; exact SMN/SMNT aliasing and reversed-type builder logic are exercised in expanded deterministic replay. Independent revision clears focused QA.
+
+## Decision
+
+Sabinus delivers:
+
+- Pure injected Go `NumistaQueryBuilder` (`numista-query-v2`) in `src/api/services/numista_query.go` with exact `SMN`/`SMNT` → `Nicomedia` alias allowlist (unapproved mintmarks omitted)
+- `POST /api/numista/query-proposal` authenticated, bounded, strict-decoded handler with no provider or telemetry calls
+- Generated-only relaxed fallback (one distinct query after empty server-verified primary only; manual/edited/error/NGC paths remain one-query)
+- Frontend query attribution preserved through enrichment: `NumistaLookupPanel` submits trimmed `effectiveQuery`, backend returns verified source/attempt/query metadata, Vue panel displays explicit relaxed-query disclosure
+- `generationVersion` validation enforced for generated and user-edited request sources
+- 12-case sanitized deterministic replay in `src/api/services/testdata/numista/query_v2_comparison.json`
+- Live-evidence sample (six cases, sanitized) in `specs/342-numista-text-query-tuning/live-evidence.md` measures improvement from 0/6 to 3/6 top-three inclusion (+50 percentage points)
+- 24/24 deterministic scorer benchmark maintained
+- All T001–T025 acceptance and implementation tests pass; T026 (Maximus final review) remains pending
+
+## Validation
+
+- Focused Feature 342 Go and Vitest tests ✓
+- 12-case deterministic replay and enrichment attribution matrix ✓
+- 24/24 known-coin scorer benchmark ✓
+- `go build ./...`, `go vet ./...`, `go test ./...` ✓
+- `npm run test` (113 files, 702 tests) ✓
+- `vue-tsc --build` ✓
+- `npm run build` ✓
+- OpenAPI regeneration (byte-stable, no route drift) ✓
+- Gitleaks history/worktree scan ✓
+- `git diff --check` ✓
+- No live Numista access, credentials, or E2E browser tests
+
+## Alignment
+
+- **Principle III (Explicit typing)**: All request/response contracts typed; `generationVersion` required for generated/edited; source/attempt enums safe
+- **Principle IV (Simple proportional change)**: Three focused fixes addressing root causes; no unrelated refactoring
+- **Principle V (Security/Privacy)**: No credentials/images/raw prose in tests or payloads; sanitized evidence only
+- **Principle VII (Proven tests)**: 12-case deterministic replay; test-first per protocol; no live provider access
+- **Principle X (All gates pass)**: Full Go/frontend/OpenAPI suite clean; no pre-existing regressions
+- **§17 Quality Gate**: All lint/build/test gates pass; code review and approval documented; T001–T025 valid
+- **§21 Definition of Done**: Acceptance criteria met; tests pass; measurement documented; T026 pending
+
+## Pending
+
+- T026: Maximus reviews fixture/live comparison, alias allowlist, request ceiling, NGC/no-eager regressions, and explicit absence of image search before release approval.
+
+---
+
+### User Directive (2026-08-11)
+
+**By:** Brian DeNicola  
+**What:** Do not pursue Numista image search because of its cost. Improve and empirically test text-query construction instead.  
+**Why:** Live Numista testing showed concise expanded terms can find candidates, while exact mintmarks and catalog references may eliminate all results.
+
+---
+
+### User Directive (2026-08-12)
+
+**By:** Brian DeNicola  
+**What:** Finish the current Numista query-tuning work, but avoid overengineering future changes. Default to the smallest measured query transformation and focused tests; add APIs or generalized infrastructure only when evidence requires them.  
+**Why:** User wants proportional implementation scope after Feature 342 expanded beyond the apparent size of the original query adjustment.
+
+---
+
+## Active Decisions
+
 ### Decision: Feature 341 Phase 7 — Progressive Numista Enrichment (T064–T072)
 
 **Date:** 2026-08-11  

@@ -617,3 +617,19 @@
   deterministic transport/component coverage exercises the binding contracts.
   All product fixes, tests, this history, the task checklist, and the decision
   inbox remain uncommitted for Scribe.
+
+- **2026-08-12 — Feature 342 combined review and measurement BLOCK:**
+  - Recorded 12 sanitized deterministic query fixtures and bounded live evidence. Six live comparisons improved expected-candidate top-three inclusion from 0/6 to 3/6; the existing scorer benchmark remained 24/24.
+  - Blocked because successful progressive enrichment overwrites relaxed search attribution, the documented generation-version condition is not enforced for user-edited requests, and checked test tasks overstate no-fallback/builder coverage.
+  - Full Go, frontend, architecture, OpenAPI stability, privacy, secret-scan, and diff gates passed. T022–T026 remain release work.
+
+- **2026-08-12 — Feature 342 Strict Lockout re-review BLOCK:**
+  - Quintus's enrichment attribution, generation-version validation, Unicode/exact-alias, and generated unconfigured/cancellation fixes behave as required; focused and full gates pass.
+  - T009, T023, and T025 checkmarks are valid. T004 remains overstated because `numista_query_test.go` still has no explicit `reverseType` case, despite T004 claiming that coverage.
+  - Strict Lockout remains active. T022, T024, and T026 also remain release work.
+
+- **2026-08-12 — Feature 342 Sabinus bounded-fix review APPROVE:**
+  - Backend and frontend preserve the effective primary/relaxed query, source, attempt, and count through successful, partial, and all-failed enrichment without mutating the editable query or explicit selection; frontend accepts backend attribution rather than masking it.
+  - The 12-case sanitized replay proves Athens `373031` at relaxed rank 3 and Justinian `85834` at verbose/primary rank 1, measuring 1/6 to 3/6 (+33.3 points) without exact-ID evidence or sensitive data. Documentation matches.
+  - Sabinus's Maximus-history correction is append-only and accurately supersedes the retained 0/6 statement. T001–T025 are valid; T026 remains unchecked for Maximus.
+  - Focused tests, 24/24 scorer benchmark, full Go build/vet/test, full Vitest/build, byte-stable OpenAPI, Gitleaks history/worktree, and diff hygiene passed.
