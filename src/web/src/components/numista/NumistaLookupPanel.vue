@@ -124,7 +124,7 @@
       <label
         v-for="candidate in candidates"
         :key="numistaCandidateIdentity(candidate)"
-        class="grid min-h-11 cursor-pointer gap-3 rounded-sm border p-3 transition-colors sm:grid-cols-[auto_4rem_1fr]"
+        class="grid min-h-11 cursor-pointer gap-3 rounded-sm border p-3 transition-colors sm:grid-cols-[auto_11rem_1fr]"
         :class="selected?.id === candidate.id ? 'border-gold bg-input' : 'border-border-subtle bg-card hover:border-border-accent'"
       >
         <input
@@ -135,19 +135,47 @@
           :value="candidate.id"
           @change="selectCandidate(candidate)"
         >
-        <span class="grid h-16 w-16 grid-cols-2 gap-1">
-          <img
+        <span class="flex min-w-0 flex-wrap gap-2">
+          <button
             v-if="safeHttpsImage(candidate.obverseThumbnail)"
-            :src="safeHttpsImage(candidate.obverseThumbnail) ?? ''"
-            :alt="`Obverse thumbnail for ${candidate.title}`"
-            class="h-16 min-w-0 rounded-sm object-contain"
+            type="button"
+            class="group relative h-20 w-20 shrink-0 cursor-zoom-in overflow-hidden rounded-sm border border-border-subtle bg-input p-1 transition-colors hover:border-border-accent focus-visible:border-gold"
+            :aria-label="`Enlarge obverse image for ${candidate.title}`"
+            @click.stop.prevent="openCandidateImage($event, candidate, 'obverse', safeHttpsImage(candidate.obverseThumbnail) ?? '')"
+            @keydown.enter.stop.prevent="openCandidateImage($event, candidate, 'obverse', safeHttpsImage(candidate.obverseThumbnail) ?? '')"
+            @keydown.space.stop.prevent="openCandidateImage($event, candidate, 'obverse', safeHttpsImage(candidate.obverseThumbnail) ?? '')"
           >
-          <img
+            <img
+              :src="safeHttpsImage(candidate.obverseThumbnail) ?? ''"
+              :alt="`Obverse thumbnail for ${candidate.title}`"
+              class="h-full w-full object-contain"
+            >
+            <ZoomIn
+              :size="16"
+              aria-hidden="true"
+              class="absolute bottom-1 right-1 rounded-full bg-card p-0.5 text-gold shadow-card"
+            />
+          </button>
+          <button
             v-if="safeHttpsImage(candidate.reverseThumbnail)"
-            :src="safeHttpsImage(candidate.reverseThumbnail) ?? ''"
-            :alt="`Reverse thumbnail for ${candidate.title}`"
-            class="h-16 min-w-0 rounded-sm object-contain"
+            type="button"
+            class="group relative h-20 w-20 shrink-0 cursor-zoom-in overflow-hidden rounded-sm border border-border-subtle bg-input p-1 transition-colors hover:border-border-accent focus-visible:border-gold"
+            :aria-label="`Enlarge reverse image for ${candidate.title}`"
+            @click.stop.prevent="openCandidateImage($event, candidate, 'reverse', safeHttpsImage(candidate.reverseThumbnail) ?? '')"
+            @keydown.enter.stop.prevent="openCandidateImage($event, candidate, 'reverse', safeHttpsImage(candidate.reverseThumbnail) ?? '')"
+            @keydown.space.stop.prevent="openCandidateImage($event, candidate, 'reverse', safeHttpsImage(candidate.reverseThumbnail) ?? '')"
           >
+            <img
+              :src="safeHttpsImage(candidate.reverseThumbnail) ?? ''"
+              :alt="`Reverse thumbnail for ${candidate.title}`"
+              class="h-full w-full object-contain"
+            >
+            <ZoomIn
+              :size="16"
+              aria-hidden="true"
+              class="absolute bottom-1 right-1 rounded-full bg-card p-0.5 text-gold shadow-card"
+            />
+          </button>
         </span>
         <span class="grid min-w-0 gap-2">
           <span class="flex min-w-0 flex-wrap items-start justify-between gap-2">
@@ -200,11 +228,50 @@
         {{ confirmationLabel }}
       </button>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="activeCandidateImage"
+        class="fixed inset-0 z-[2000] flex items-center justify-center bg-overlay-full p-3"
+        data-testid="numista-image-overlay"
+        @click.self="closeCandidateImage"
+      >
+        <div
+          class="flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-md border border-border-accent bg-card shadow-glow"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="activeCandidateImage.alt"
+        >
+          <div class="flex items-center justify-between gap-3 border-b border-border-subtle p-3">
+            <h2 class="m-0 min-w-0 break-words text-base text-heading">
+              {{ activeCandidateImage.heading }}
+            </h2>
+            <button
+              ref="imageCloseButton"
+              type="button"
+              class="btn btn-ghost btn-sm shrink-0"
+              aria-label="Close enlarged candidate image"
+              @click="closeCandidateImage"
+            >
+              <X :size="20" aria-hidden="true" />
+            </button>
+          </div>
+          <div class="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-input p-3">
+            <img
+              :src="activeCandidateImage.url"
+              :alt="activeCandidateImage.alt"
+              class="max-h-[calc(90dvh-5rem)] max-w-full object-contain"
+            >
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { X, ZoomIn } from 'lucide-vue-next'
 import { RouterLink } from 'vue-router'
 import { enrichNumista, lookupNumista } from '@/api/client'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
@@ -259,7 +326,14 @@ const outcome = ref<NumistaLookupOutcome | null>(null)
 const selected = ref<NumistaCandidate | null>(props.initialSelection)
 const selectedId = ref<number | null>(props.initialSelection?.id ?? null)
 const statusRegion = ref<HTMLElement | null>(null)
+const imageCloseButton = ref<HTMLElement | null>(null)
+const activeCandidateImage = ref<{
+  url: string
+  alt: string
+  heading: string
+} | null>(null)
 let enrichmentController: AbortController | null = null
+let imageTrigger: HTMLElement | null = null
 
 const candidates = computed(() => outcome.value?.candidates ?? [])
 const selectionOutsideResults = computed(() => isSelectionOutsideResults(selected.value, candidates.value))
@@ -542,5 +616,42 @@ function safeHttpsImage(value: string | undefined): string | null {
   }
 }
 
-onUnmounted(() => cancelEnrichment(false))
+function openCandidateImage(
+  event: MouseEvent | KeyboardEvent,
+  candidate: NumistaCandidate,
+  side: 'obverse' | 'reverse',
+  url: string,
+) {
+  if (!safeHttpsImage(url)) return
+  const sideLabel = side === 'obverse' ? 'Obverse' : 'Reverse'
+  imageTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  activeCandidateImage.value = {
+    url,
+    alt: `${sideLabel} image for Numista candidate ${candidate.title}`,
+    heading: `${sideLabel} · ${candidate.title}`,
+  }
+  void nextTick(() => imageCloseButton.value?.focus())
+}
+
+function closeCandidateImage() {
+  if (!activeCandidateImage.value) return
+  const trigger = imageTrigger
+  activeCandidateImage.value = null
+  imageTrigger = null
+  void nextTick(() => trigger?.focus())
+}
+
+function handleDocumentKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && activeCandidateImage.value) {
+    event.preventDefault()
+    closeCandidateImage()
+  }
+}
+
+onMounted(() => document.addEventListener('keydown', handleDocumentKeydown))
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleDocumentKeydown)
+  cancelEnrichment(false)
+})
 </script>
