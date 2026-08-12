@@ -87,8 +87,8 @@ func TestAuctionWatchBidDigestNotifyUserIncludesCurrentHighBids(t *testing.T) {
 	bidOne := 125.5
 	bidTwo := 300.0
 	sent := scheduler.notifyUser(user.ID, []models.AuctionLot{
-		{AuctionHouse: "The Coin Cabinet", SaleName: "Ancients Auction 35", LotNumber: 30, CurrentBid: &bidOne, Currency: "GBP"},
-		{AuctionHouse: "Classical Numismatic Group", SaleName: "Keystone 17", LotNumber: 95, CurrentBid: &bidTwo, Currency: "USD"},
+		{Title: "Denarius of Trajan", AuctionHouse: "The Coin Cabinet", SaleName: "Ancients Auction 35", LotNumber: 30, CurrentBid: &bidOne, Currency: "GBP"},
+		{Title: "Keystone Tetradrachm", AuctionHouse: "Classical Numismatic Group", SaleName: "Keystone 17", LotNumber: 95, CurrentBid: &bidTwo, Currency: "USD"},
 	})
 	if !sent {
 		t.Fatal("notifyUser returned false")
@@ -98,19 +98,71 @@ func TestAuctionWatchBidDigestNotifyUserIncludesCurrentHighBids(t *testing.T) {
 		t.Fatalf("title = %q, want Auction Watch Bid Digest", got)
 	}
 	message := captured.Get("message")
-	for _, want := range []string{
-		"2 watched auction lot(s):",
-		"The Coin Cabinet - Ancients Auction 35 (Lot 30): current high bid 125.50 GBP",
-		"Classical Numismatic Group - Keystone 17 (Lot 95): current high bid 300.00 USD",
-	} {
-		if !strings.Contains(message, want) {
-			t.Fatalf("message %q missing %q", message, want)
-		}
+	want := "2 watched auction lot(s):\n\n" +
+		"Denarius of Trajan\n" +
+		"The Coin Cabinet - Ancients Auction 35 (Lot 30): current high bid 125.50 GBP\n\n" +
+		"Keystone Tetradrachm\n" +
+		"Classical Numismatic Group - Keystone 17 (Lot 95): current high bid 300.00 USD"
+	if message != want {
+		t.Fatalf("message = %q, want %q", message, want)
 	}
 }
 
 func TestFormatAuctionBidHandlesMissingBid(t *testing.T) {
 	if got := formatAuctionBid(nil, "USD"); got != "current high bid unavailable" {
 		t.Fatalf("formatAuctionBid(nil) = %q", got)
+	}
+}
+
+func TestBuildAuctionWatchBidDigestMessageBlankTitleFallsBackToUntitledLot(t *testing.T) {
+	bid := 42.0
+	message := buildAuctionWatchBidDigestMessage([]models.AuctionLot{
+		{Title: "   ", AuctionHouse: "NumisBids", SaleName: "Sale 12", LotNumber: 7, CurrentBid: &bid, Currency: "EUR"},
+	})
+	want := "1 watched auction lot(s):\n\n" +
+		"Untitled lot\n" +
+		"NumisBids - Sale 12 (Lot 7): current high bid 42.00 EUR"
+	if message != want {
+		t.Fatalf("message = %q, want %q", message, want)
+	}
+}
+
+func TestBuildAuctionWatchBidDigestMessageCurrentBidUnavailable(t *testing.T) {
+	message := buildAuctionWatchBidDigestMessage([]models.AuctionLot{
+		{Title: "Athenian Owl Tetradrachm", AuctionHouse: "NumisBids", SaleName: "Sale 12", LotNumber: 7, CurrentBid: nil, Currency: "EUR"},
+	})
+	want := "1 watched auction lot(s):\n\n" +
+		"Athenian Owl Tetradrachm\n" +
+		"NumisBids - Sale 12 (Lot 7): current high bid unavailable"
+	if message != want {
+		t.Fatalf("message = %q, want %q", message, want)
+	}
+}
+
+func TestBuildAuctionWatchBidDigestMessageStaysWithinPushoverLimitAndNotesOmittedLots(t *testing.T) {
+	bid := 99.0
+	longTitle := strings.Repeat("Extremely Long Ancient Coin Lot Title ", 5)
+	lots := make([]models.AuctionLot, 0, 40)
+	for i := 0; i < 40; i++ {
+		lots = append(lots, models.AuctionLot{
+			Title:        longTitle,
+			AuctionHouse: "Classical Numismatic Group",
+			SaleName:     "Electronic Auction 616",
+			LotNumber:    i + 1,
+			CurrentBid:   &bid,
+			Currency:     "USD",
+		})
+	}
+
+	message := buildAuctionWatchBidDigestMessage(lots)
+
+	if len(message) > pushoverMessageLimit {
+		t.Fatalf("message length = %d, want <= %d", len(message), pushoverMessageLimit)
+	}
+	if !strings.Contains(message, "more lot(s) omitted") {
+		t.Fatalf("message %q missing omitted-lots note", message)
+	}
+	if strings.Contains(message, "Lot 40") {
+		t.Fatalf("message unexpectedly includes every lot: %q", message)
 	}
 }
