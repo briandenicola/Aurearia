@@ -256,6 +256,16 @@ func (e *AuctionAlertEvaluator) notifyBidReminder(reminder models.BidReminder, n
 	return true, nil
 }
 
+// auctionLotTitle returns the lot's title, falling back to a non-empty placeholder when
+// blank so alerts always lead with something scannable (specs/_backlog/F027).
+func auctionLotTitle(lot models.AuctionLot) string {
+	title := strings.TrimSpace(lot.Title)
+	if title == "" {
+		return "Untitled lot"
+	}
+	return title
+}
+
 func auctionLotLabel(lot models.AuctionLot) string {
 	house := strings.TrimSpace(lot.AuctionHouse)
 	if house == "" {
