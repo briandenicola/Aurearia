@@ -200,6 +200,11 @@ func (s *AuctionWatchBidDigestScheduler) runDigest(triggerType string, triggerUs
 	s.logger.Info("scheduler", "%s auction watch bid digest complete — %d lots checked, %d digests sent", triggerType, run.LotsChecked, run.DigestsSent)
 }
 
+// pushoverMessageLimit is Pushover's hard cap on the message field; exceeding it causes the
+// API to reject the request outright, so the digest must stay within it even after adding
+// per-lot titles (specs/_backlog/F027).
+const pushoverMessageLimit = 1024
+
 func (s *AuctionWatchBidDigestScheduler) notifyUser(userID uint, lots []models.AuctionLot) bool {
 	if s.userRepo == nil || s.pushoverSvc == nil {
 		return false
@@ -209,25 +214,37 @@ func (s *AuctionWatchBidDigestScheduler) notifyUser(userID uint, lots []models.A
 		return false
 	}
 
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("%d watched auction lot(s):\n\n", len(lots)))
-	for _, lot := range lots {
-		auctionHouse := strings.TrimSpace(lot.AuctionHouse)
-		if auctionHouse == "" {
-			auctionHouse = "Auction"
-		}
-		saleName := strings.TrimSpace(lot.SaleName)
-		if saleName == "" {
-			saleName = "Sale"
-		}
-		builder.WriteString(fmt.Sprintf("- %s - %s (Lot %d): %s\n", auctionHouse, saleName, lot.LotNumber, formatAuctionBid(lot.CurrentBid, lot.Currency)))
-	}
+	message := buildAuctionWatchBidDigestMessage(lots)
 
-	if err := s.pushoverSvc.SendNotification(user.PushoverUserKey, "Auction Watch Bid Digest", builder.String(), ""); err != nil {
+	if err := s.pushoverSvc.SendNotification(user.PushoverUserKey, "Auction Watch Bid Digest", message, ""); err != nil {
 		s.logger.Error("scheduler", "Failed to send auction watch bid digest to user %d: %s", userID, err)
 		return false
 	}
 	return true
+}
+
+// buildAuctionWatchBidDigestMessage renders the multi-lot digest body. Each watched lot
+// leads with its title (falling back to "Untitled lot" via the shared auctionLotTitle
+// helper), then a separate line with auction metadata and the current bid, reusing
+// auctionLotLabel/formatAuctionBid so this stays consistent with the single-lot alert
+// wording. Lots are dropped (with a trailing summary line) once the message would exceed
+// Pushover's message length limit, so a long watchlist can never cause an API rejection
+// (specs/_backlog/F027).
+func buildAuctionWatchBidDigestMessage(lots []models.AuctionLot) string {
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("%d watched auction lot(s):\n\n", len(lots)))
+
+	for i, lot := range lots {
+		entry := fmt.Sprintf("%s\n%s: %s\n\n", auctionLotTitle(lot), auctionLotLabel(lot), formatAuctionBid(lot.CurrentBid, lot.Currency))
+		omittedNote := fmt.Sprintf("… %d more lot(s) omitted\n", len(lots)-i)
+		if builder.Len()+len(entry) > pushoverMessageLimit-len(omittedNote) {
+			builder.WriteString(omittedNote)
+			return strings.TrimRight(builder.String(), "\n")
+		}
+		builder.WriteString(entry)
+	}
+
+	return strings.TrimRight(builder.String(), "\n")
 }
 
 func formatAuctionBid(bid *float64, currency string) string {
