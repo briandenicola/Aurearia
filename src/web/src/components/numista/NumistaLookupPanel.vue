@@ -25,12 +25,17 @@
         :disabled="searching"
         aria-labelledby="numista-query-label"
         aria-describedby="numista-query-help"
-        @input="queryEdited = true"
+        @input="markQueryEdited"
       />
       <p id="numista-query-help" class="mt-1 text-sm text-text-muted">
-        {{ query.trim()
-          ? 'Review or refine the attribution evidence before searching.'
-          : 'Enter at least one search term to enable Numista lookup.' }}
+        {{ queryHelp }}
+      </p>
+      <p
+        v-if="relaxedQueryDisclosure"
+        class="mt-1 mb-0 text-sm text-text-secondary"
+        role="status"
+      >
+        {{ relaxedQueryDisclosure }}
       </p>
     </div>
 
@@ -216,7 +221,10 @@ import type {
   NumistaEvidence,
   NumistaLookupOutcome,
   NumistaLookupPath,
+  NumistaQuerySource,
 } from '@/types'
+
+const QUERY_GENERATION_VERSION = 'numista-query-v2' as const
 
 const props = withDefaults(defineProps<{
   initialQuery: string
@@ -241,6 +249,8 @@ const emit = defineEmits<{
 
 const query = ref(props.initialQuery)
 const queryEdited = ref(false)
+const proposalInitialized = ref(Boolean(props.initialQuery.trim()))
+const serverDowngraded = ref(false)
 const searching = ref(false)
 const enriching = ref(false)
 const enrichmentMessage = ref('')
@@ -263,6 +273,20 @@ const cacheFreshnessText = computed(() => getNumistaCacheFreshnessText(
   outcome.value?.status ?? null,
   outcome.value?.cache,
 ))
+const querySource = computed<NumistaQuerySource>(() => {
+  if (!proposalInitialized.value) return 'manual'
+  return queryEdited.value || serverDowngraded.value ? 'user-edited' : 'generated'
+})
+const queryHelp = computed(() => {
+  if (!query.value.trim()) return 'Enter at least one search term to enable Numista lookup.'
+  if (querySource.value === 'generated') return 'Generated from catalog evidence. Review or refine it before searching.'
+  return 'Review or refine the attribution evidence before searching.'
+})
+const relaxedQueryDisclosure = computed(() => {
+  const result = outcome.value
+  if (result?.searchAttempt !== 'relaxed' || result.searchAttemptCount !== 2) return ''
+  return `Numista retried once with the relaxed query “${result.effectiveQuery}”. Your editable query is unchanged.`
+})
 const searchDisabled = computed(() => {
   if (searching.value || !query.value.trim()) return true
   if (outcome.value?.status === 'unconfigured') return !statusGuidance.value.canRetry
@@ -283,7 +307,10 @@ const canRetryEnrichment = computed(() => (
 ))
 
 watch(() => props.initialQuery, (value) => {
-  if (!queryEdited.value && !outcome.value && !searching.value) query.value = value
+  if (queryEdited.value || outcome.value || searching.value) return
+  query.value = value
+  proposalInitialized.value = Boolean(value.trim())
+  serverDowngraded.value = false
 })
 
 watch(() => props.initialSelection, (value) => {
@@ -304,18 +331,28 @@ async function search() {
       query: effectiveQuery,
       path: props.path,
       evidence: props.evidence,
+      querySource: querySource.value,
+      ...(querySource.value === 'manual'
+        ? {}
+        : { generationVersion: QUERY_GENERATION_VERSION }),
     })
     outcome.value = response.data
-    query.value = response.data.effectiveQuery || effectiveQuery
+    if (response.data.querySource === 'user-edited' && querySource.value === 'generated') {
+      serverDowngraded.value = true
+    }
     selected.value = retainNumistaSelection(selected.value, response.data.candidates)
     selectedId.value = selected.value?.id ?? null
 
     await nextTick()
     if (shouldEnrich(response.data)) {
       void startEnrichment({
-        query: effectiveQuery.trim(),
+        query: response.data.effectiveQuery.trim(),
         path: props.path,
         evidence: props.evidence,
+        querySource: response.data.querySource,
+        ...(response.data.querySource === 'manual'
+          ? {}
+          : { generationVersion: QUERY_GENERATION_VERSION }),
         candidates: response.data.candidates,
       })
     }
@@ -325,6 +362,9 @@ async function search() {
       effectiveQuery,
       candidates: [],
       stage: 'broad',
+      querySource: querySource.value,
+      searchAttempt: 'primary',
+      searchAttemptCount: 1,
     }
   } finally {
     searching.value = false
@@ -406,6 +446,10 @@ function retryEnrichment() {
     query: result.effectiveQuery || query.value,
     path: props.path,
     evidence: props.evidence,
+    querySource: result.querySource,
+    ...(result.querySource === 'manual'
+      ? {}
+      : { generationVersion: QUERY_GENERATION_VERSION }),
     candidates: result.candidates.map(candidate => (
       candidate.enrichmentState === 'failed'
         ? { ...candidate, enrichmentState: 'not_requested' as const }
@@ -447,6 +491,10 @@ function isCancellation(error: unknown): boolean {
   return candidate.code === 'ERR_CANCELED'
     || candidate.name === 'CanceledError'
     || candidate.name === 'AbortError'
+}
+
+function markQueryEdited() {
+  queryEdited.value = true
 }
 
 function selectCandidate(candidate: NumistaCandidate) {

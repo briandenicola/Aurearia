@@ -13,16 +13,27 @@ import (
 
 // CoinLookupService handles quick coin lookup from images with NGC cert extraction and minimum draft enrichment.
 type CoinLookupService struct {
-	proxy       *AgentProxy
-	settingsSvc *SettingsService
-	logger      *Logger
+	proxy        *AgentProxy
+	settingsSvc  *SettingsService
+	logger       *Logger
+	queryBuilder *NumistaQueryBuilder
 }
 
-func NewCoinLookupService(proxy *AgentProxy, settingsSvc *SettingsService, logger *Logger) *CoinLookupService {
+func NewCoinLookupService(
+	proxy *AgentProxy,
+	settingsSvc *SettingsService,
+	logger *Logger,
+	builders ...*NumistaQueryBuilder,
+) *CoinLookupService {
+	builder := NewNumistaQueryBuilder()
+	if len(builders) > 0 && builders[0] != nil {
+		builder = builders[0]
+	}
 	return &CoinLookupService{
-		proxy:       proxy,
-		settingsSvc: settingsSvc,
-		logger:      logger,
+		proxy:        proxy,
+		settingsSvc:  settingsSvc,
+		logger:       logger,
+		queryBuilder: builder,
 	}
 }
 
@@ -100,7 +111,7 @@ func (s *CoinLookupService) Lookup(ctx context.Context, userID uint, req CoinLoo
 	proposedQuery := ""
 	if extractedData.NGC == nil {
 		evidence = buildPhotoNumistaEvidence(extractedData)
-		proposedQuery = buildPhotoNumistaQuery(evidence)
+		proposedQuery = s.queryBuilder.Build(evidence).Primary
 	}
 
 	// 3. Build prefilled draft for "Add to Collection/Wishlist"
@@ -664,7 +675,11 @@ func (s *CoinLookupService) determineConfidence(data *LookupExtractedData) strin
 
 // buildNumistaQuery constructs a Numista search query from extracted fields.
 func (s *CoinLookupService) buildNumistaQuery(coinFields map[string]any) string {
-	return buildPhotoNumistaQuery(buildPhotoNumistaEvidence(&LookupExtractedData{CoinFields: coinFields}))
+	builder := s.queryBuilder
+	if builder == nil {
+		builder = NewNumistaQueryBuilder()
+	}
+	return builder.Build(buildPhotoNumistaEvidence(&LookupExtractedData{CoinFields: coinFields})).Primary
 }
 
 func buildPhotoNumistaEvidence(data *LookupExtractedData) models.NumistaEvidence {
@@ -681,18 +696,13 @@ func buildPhotoNumistaEvidence(data *LookupExtractedData) models.NumistaEvidence
 		Material:           boundedEvidenceField(stringField(fields, "material"), 100),
 		ObverseInscription: boundedEvidenceField(stringField(fields, "obverseInscription"), 500),
 		ReverseInscription: boundedEvidenceField(stringField(fields, "reverseInscription"), 500),
+		ReverseType:        boundedEvidenceField(stringField(fields, "reverseDescription"), 500),
 		VisibleText:        boundedEvidenceField(data.LabelText, 500),
 	}
 }
 
 func buildPhotoNumistaQuery(evidence models.NumistaEvidence) string {
-	parts := []string{
-		evidence.Title, evidence.Issuer, evidence.Denomination, evidence.Mint,
-		evidence.DateText, evidence.Material, evidence.ObverseInscription,
-		evidence.ReverseInscription, evidence.VisibleText,
-	}
-	query := strings.Join(nonEmptyStrings(parts), " ")
-	return boundedEvidenceField(query, models.NumistaMaxQueryLength)
+	return NewNumistaQueryBuilder().Build(evidence).Primary
 }
 
 func stringField(fields map[string]any, key string) string {

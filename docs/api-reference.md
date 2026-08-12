@@ -533,34 +533,81 @@ Get autocomplete suggestions for coin fields (e.g., rulers, mints, denominations
 
 ### Numista
 
-Feature 341 uses application-owned typed contracts for direct and
-photo-assisted lookup. Expected lookup domain outcomes use HTTP 200;
+Features 341–342 use application-owned typed contracts for direct and
+photo-assisted text lookup. Expected lookup domain outcomes use HTTP 200;
 malformed input, authentication, authorization, and unexpected failures retain
 normal HTTP status semantics.
 
-#### POST /api/numista/lookup
+#### POST /api/numista/query-proposal
 
-Run broad lookup. `query` is required (1–500 characters), `path` is `direct`
-or `photo`, and `evidence` is required but may be empty.
+Build a `numista-query-v2` proposal locally. This authenticated endpoint
+validates `path` (`direct` or `photo`) and bounded `evidence`; it does not call
+Numista, search images, rank candidates, persist data, or publish provider
+telemetry.
 
 ```json
 {
-  "query": "Augustus denarius Lugdunum silver",
   "path": "direct",
   "evidence": {
-    "title": "Augustus Denarius",
-    "issuer": "Augustus",
-    "denomination": "Denarius",
-    "mint": "Lugdunum",
-    "dateText": "2 BCE–4 CE",
-    "material": "Silver"
+    "issuer": "Honorius",
+    "mint": "SMNT",
+    "reverseInscription": "GLORIA ROMANORVM",
+    "denomination": "AE3",
+    "material": "Bronze"
   }
 }
 ```
 
-The response contains `status`, the submitted `effectiveQuery`, application-
-owned `candidates`, optional `guidanceCode`, `retryAfterSeconds`, optional
-search-cache metadata, and `stage: "broad"`.
+```json
+{
+  "query": "Honorius GLORIA ROMANORVM Nicomedia",
+  "querySource": "generated",
+  "generationVersion": "numista-query-v2"
+}
+```
+
+Generated `q` uses subject, reverse inscription/type, and a reliable mint.
+Exact normalized `SMN` and `SMNT` aliases become `Nicomedia`. Denomination,
+date, material, catalog references, obverse/visible text, and prose remain in
+`evidence` for deterministic scoring but are excluded from `q`.
+
+**Errors:** `400` invalid/oversized/unknown fields, `401` unauthenticated.
+
+#### POST /api/numista/lookup
+
+Run broad lookup. `query` is required (1–500 characters), `path` is `direct`
+or `photo`, and `evidence` is required but may be empty. `querySource` is
+`generated`, `user-edited`, or `manual`. Generated and user-edited requests
+carry `generationVersion: "numista-query-v2"`; manual requests omit it.
+
+```json
+{
+  "query": "Honorius GLORIA ROMANORVM Nicomedia",
+  "path": "direct",
+  "evidence": {
+    "issuer": "Honorius",
+    "denomination": "AE3",
+    "mint": "SMNT",
+    "dateText": "393–423 CE",
+    "material": "Bronze",
+    "reverseInscription": "GLORIA ROMANORVM"
+  },
+  "querySource": "generated",
+  "generationVersion": "numista-query-v2"
+}
+```
+
+The response contains `status`, `effectiveQuery`, application-owned
+`candidates`, optional `guidanceCode`, `retryAfterSeconds`, optional
+search-cache metadata, `stage: "broad"`, `querySource`, `searchAttempt`, and
+`searchAttemptCount`.
+
+Manual and user-edited queries are searched exactly once as submitted. The
+server rebuilds a claimed generated proposal from its evidence and version;
+a mismatch is treated as user-edited. Only an empty verified generated primary
+may trigger one distinct relaxed search. `effectiveQuery` is the exact primary
+or relaxed query used for the returned/final outcome, `searchAttempt` is
+`primary` or `relaxed`, and `searchAttemptCount` is `1` or `2`.
 
 Statuses are exactly `success`, `empty`, `unconfigured`, `quota-limited`,
 `timeout`, and `unavailable`. `cache.hit` means a fresh stored in-memory entry
@@ -585,7 +632,9 @@ states are `not_requested`, `enriched`, `cached`, or `failed`; failed details
 retain the broad candidate.
 
 Surrounding whitespace is trimmed from the enrichment query during validation.
-Broad lookup preserves the raw submitted query in `effectiveQuery`.
+Broad lookup preserves exact manual/user-edited input. For a generated
+fallback, enrichment retains the effective relaxed query and its
+source/attempt attribution.
 
 **Errors:** `400` invalid candidates/IDs/query, `401` unauthenticated,
 `500` unexpected application failure.
@@ -609,7 +658,8 @@ curl "http://localhost:8080/api/numista/search?q=Augustus+denarius" \
 ```
 
 Non-success/non-empty domain outcomes map to a generic HTTP 503 on this legacy
-route. New clients should use the typed POST routes.
+route. New clients should use the typed POST routes. It performs one exact
+query and never receives generated-query relaxation.
 
 #### Photo and Quick Capture compatibility
 

@@ -857,10 +857,26 @@ definitions:
         type: array
       evidence:
         $ref: '#/definitions/models.NumistaEvidence'
+      generationVersion:
+        enum:
+        - numista-query-v2
+        type: string
       path:
         $ref: '#/definitions/models.NumistaLookupPath'
       query:
         type: string
+      querySource:
+        allOf:
+        - $ref: '#/definitions/models.NumistaQuerySource'
+        enum:
+        - generated
+        - user-edited
+        - manual
+    required:
+    - evidence
+    - path
+    - query
+    - querySource
     type: object
   handlers.NumistaLookupOutcomeSwagger:
     properties:
@@ -874,21 +890,79 @@ definitions:
         type: string
       guidanceCode:
         type: string
+      querySource:
+        $ref: '#/definitions/models.NumistaQuerySource'
       retryAfterSeconds:
+        type: integer
+      searchAttempt:
+        $ref: '#/definitions/models.NumistaSearchAttempt'
+      searchAttemptCount:
         type: integer
       stage:
         type: string
       status:
         $ref: '#/definitions/models.NumistaLookupStatus'
+    required:
+    - candidates
+    - effectiveQuery
+    - querySource
+    - searchAttempt
+    - searchAttemptCount
+    - stage
+    - status
     type: object
   handlers.NumistaLookupRequestSwagger:
     properties:
       evidence:
         $ref: '#/definitions/models.NumistaEvidence'
+      generationVersion:
+        enum:
+        - numista-query-v2
+        type: string
       path:
         $ref: '#/definitions/models.NumistaLookupPath'
       query:
         type: string
+      querySource:
+        allOf:
+        - $ref: '#/definitions/models.NumistaQuerySource'
+        enum:
+        - generated
+        - user-edited
+        - manual
+    required:
+    - evidence
+    - path
+    - query
+    - querySource
+    type: object
+  handlers.NumistaQueryProposalRequestSwagger:
+    properties:
+      evidence:
+        $ref: '#/definitions/models.NumistaEvidence'
+      path:
+        $ref: '#/definitions/models.NumistaLookupPath'
+    required:
+    - evidence
+    - path
+    type: object
+  handlers.NumistaQueryProposalSwagger:
+    properties:
+      generationVersion:
+        enum:
+        - numista-query-v2
+        type: string
+      query:
+        type: string
+      querySource:
+        allOf:
+        - $ref: '#/definitions/models.NumistaQuerySource'
+        enum:
+        - generated
+    required:
+    - generationVersion
+    - query
+    - querySource
     type: object
   handlers.OllamaStatusResponse:
     properties:
@@ -2645,6 +2719,8 @@ definitions:
         type: string
       reverseInscription:
         type: string
+      reverseType:
+        type: string
       title:
         type: string
       visibleText:
@@ -2674,6 +2750,8 @@ definitions:
         type: integer
       freshCacheHitRate:
         type: number
+      generatedQueryCount:
+        type: integer
       lastCheckedAt:
         type: string
       lastOutcome:
@@ -2681,6 +2759,8 @@ definitions:
       lastQuotaLimitedAt:
         type: string
       lastRetryAfterSeconds:
+        type: integer
+      manualQueryCount:
         type: integer
       p50ElapsedMs:
         description: R-7 linearly interpolated percentile, rounded to milliseconds.
@@ -2692,11 +2772,15 @@ definitions:
         type: integer
       providerLoadCount:
         type: integer
+      relaxedAttemptCount:
+        type: integer
       statusCounts:
         additionalProperties:
           type: integer
         description: Sparse rolling counts; absent statuses have zero events.
         type: object
+      userEditedQueryCount:
+        type: integer
     type: object
   models.NumistaLookupOutcome:
     properties:
@@ -2710,12 +2794,26 @@ definitions:
         type: string
       guidanceCode:
         type: string
+      querySource:
+        $ref: '#/definitions/models.NumistaQuerySource'
       retryAfterSeconds:
+        type: integer
+      searchAttempt:
+        $ref: '#/definitions/models.NumistaSearchAttempt'
+      searchAttemptCount:
         type: integer
       stage:
         type: string
       status:
         $ref: '#/definitions/models.NumistaLookupStatus'
+    required:
+    - candidates
+    - effectiveQuery
+    - querySource
+    - searchAttempt
+    - searchAttemptCount
+    - stage
+    - status
     type: object
   models.NumistaLookupPath:
     enum:
@@ -2741,6 +2839,16 @@ definitions:
     - NumistaStatusQuotaLimited
     - NumistaStatusTimeout
     - NumistaStatusUnavailable
+  models.NumistaQuerySource:
+    enum:
+    - generated
+    - user-edited
+    - manual
+    type: string
+    x-enum-varnames:
+    - NumistaQuerySourceGenerated
+    - NumistaQuerySourceUserEdited
+    - NumistaQuerySourceManual
   models.NumistaReasonKind:
     enum:
     - match
@@ -2775,6 +2883,14 @@ definitions:
       label:
         type: string
     type: object
+  models.NumistaSearchAttempt:
+    enum:
+    - primary
+    - relaxed
+    type: string
+    x-enum-varnames:
+    - NumistaSearchAttemptPrimary
+    - NumistaSearchAttemptRelaxed
   models.OIDCProviderTestStatus:
     enum:
     - unknown
@@ -10262,6 +10378,39 @@ paths:
       security:
       - BearerAuth: []
       summary: Run broad Numista lookup
+      tags:
+      - Numista
+  /numista/query-proposal:
+    post:
+      consumes:
+      - application/json
+      description: Builds a generated text-query proposal locally without contacting
+        Numista.
+      parameters:
+      - description: Proposal request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.NumistaQueryProposalRequestSwagger'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.NumistaQueryProposalSwagger'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Build a Numista query proposal
       tags:
       - Numista
   /numista/search:

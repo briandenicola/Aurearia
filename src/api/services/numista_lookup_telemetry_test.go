@@ -1184,6 +1184,7 @@ func TestNumistaLookupTelemetryCannotRetainOrExposeSensitiveInputs(t *testing.T)
 			if strings.Contains(field, prohibited) {
 				t.Fatalf("telemetry event field %q can retain prohibited %q data", eventType.Field(index).Name, prohibited)
 			}
+
 		}
 	}
 

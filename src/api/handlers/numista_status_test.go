@@ -140,7 +140,7 @@ func TestNumistaStatusHandlerReturnsExpectedDomainOutcomesWithRoleSafeGuidance(t
 			router := newAuthenticatedNumistaStatusRouter(test.client, test.key)
 			recorder := performNumistaStatusLookup(
 				t, router, test.role,
-				`{"query":"coin","path":"direct","evidence":{}}`,
+				`{"query":"coin","path":"direct","evidence":{},"querySource":"manual"}`,
 			)
 			if recorder.Code != http.StatusOK {
 				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
@@ -175,7 +175,7 @@ func TestNumistaStatusHandlerValidationAuthenticationAndSafeInternalFailure(t *t
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/api/numista/lookup",
-		bytes.NewBufferString(`{"query":"coin","path":"direct","evidence":{}}`),
+		bytes.NewBufferString(`{"query":"coin","path":"direct","evidence":{},"querySource":"manual"}`),
 	)
 	router.ServeHTTP(unauthorized, request)
 	if unauthorized.Code != http.StatusUnauthorized {
@@ -184,7 +184,7 @@ func TestNumistaStatusHandlerValidationAuthenticationAndSafeInternalFailure(t *t
 
 	invalid := performNumistaStatusLookup(
 		t, router, models.RoleUser,
-		`{"query":"","path":"direct","evidence":{}}`,
+		`{"query":"","path":"direct","evidence":{},"querySource":"manual"}`,
 	)
 	if invalid.Code != http.StatusBadRequest {
 		t.Fatalf("invalid status=%d body=%s", invalid.Code, invalid.Body.String())
@@ -197,7 +197,7 @@ func TestNumistaStatusHandlerValidationAuthenticationAndSafeInternalFailure(t *t
 	)
 	internal := performNumistaStatusLookup(
 		t, internalRouter, models.RoleUser,
-		`{"query":"coin","path":"direct","evidence":{}}`,
+		`{"query":"coin","path":"direct","evidence":{},"querySource":"manual"}`,
 	)
 	if internal.Code != http.StatusInternalServerError ||
 		strings.Contains(internal.Body.String(), privateError) ||
@@ -249,7 +249,7 @@ func TestNumistaStatusHandlerStopsSilentlyForCancelledCaller(t *testing.T) {
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/api/numista/lookup",
-		bytes.NewBufferString(`{"query":"coin","path":"direct","evidence":{}}`),
+		bytes.NewBufferString(`{"query":"coin","path":"direct","evidence":{},"querySource":"manual"}`),
 	).WithContext(ctx)
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer "+numistaStatusToken(t, models.RoleUser))

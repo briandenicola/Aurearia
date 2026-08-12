@@ -407,54 +407,31 @@ func TestDetermineConfidence(t *testing.T) {
 	}
 }
 
-func TestBuildNumistaQuery(t *testing.T) {
-	tests := []struct {
-		name       string
-		coinFields map[string]any
-		expected   string
-	}{
-		{
-			name: "all fields present",
-			coinFields: map[string]any{
-				"name":         "Trajan coin",
-				"ruler":        "Trajan",
-				"denomination": "Denarius",
-				"mint":         "Rome",
-				"material":     "Silver",
-			},
-			expected: "Trajan coin Trajan Denarius Rome Silver",
-		},
-		{
-			name: "only ruler and denomination",
-			coinFields: map[string]any{
-				"ruler":        "Trajan",
-				"denomination": "Denarius",
-			},
-			expected: "Trajan Denarius",
-		},
-		{
-			name: "only ruler",
-			coinFields: map[string]any{
-				"ruler": "Trajan",
-			},
-			expected: "Trajan",
-		},
-		{
-			name:       "no fields",
-			coinFields: map[string]any{},
-			expected:   "",
+func TestPhotoNumistaProposalUsesSharedBuilderAndPreservesRichEvidence(t *testing.T) {
+	data := &LookupExtractedData{
+		LabelText: "NGC Ancients Honorius AE3 RIC IX 46",
+		CoinFields: map[string]any{
+			"name":               "Honorius AE3 GLORIA ROMANORVM RIC IX 46 LRBC 2424",
+			"ruler":              "Honorius",
+			"denomination":       "AE3",
+			"mint":               "SMNT",
+			"dateRange":          "393-423 CE",
+			"material":           "Bronze",
+			"obverseInscription": "DN HONORIVS PF AVG",
+			"reverseInscription": "GLORIA ROMANORVM",
 		},
 	}
 
-	svc := &CoinLookupService{}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := svc.buildNumistaQuery(tt.coinFields)
-			if result != tt.expected {
-				t.Errorf("buildNumistaQuery() = %q, want %q", result, tt.expected)
-			}
-		})
+	evidence := buildPhotoNumistaEvidence(data)
+	builder := NewNumistaQueryBuilder()
+	if got := builder.Build(evidence).Primary; got != "Honorius GLORIA ROMANORVM Nicomedia" {
+		t.Fatalf("shared provider proposal = %q", got)
+	}
+	if evidence.Title != "Honorius AE3 GLORIA ROMANORVM RIC IX 46 LRBC 2424" ||
+		evidence.DateText != "393-423 CE" || evidence.Material != "Bronze" ||
+		evidence.ObverseInscription != "DN HONORIVS PF AVG" ||
+		evidence.VisibleText != "NGC Ancients Honorius AE3 RIC IX 46" {
+		t.Fatalf("rich local evidence was changed: %#v", evidence)
 	}
 }
 
@@ -699,8 +676,8 @@ func TestCoinLookupPhotoProposalWithoutEagerNumistaAndNGCFirstAliases(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.ProposedNumistaQuery == "" || !strings.Contains(result.ProposedNumistaQuery, "Trajan Denarius") {
-		t.Fatalf("missing editable proposal: %#v", result)
+	if result.ProposedNumistaQuery != "Trajan PAX Rome" {
+		t.Fatalf("canonical editable proposal = %q, want %q", result.ProposedNumistaQuery, "Trajan PAX Rome")
 	}
 	if result.NumistaEvidence.Title != "Trajan Denarius" || result.NumistaEvidence.Mint != "Rome" {
 		t.Fatalf("typed evidence mismatch: %#v", result.NumistaEvidence)

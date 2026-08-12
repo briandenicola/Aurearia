@@ -3,6 +3,7 @@ import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, Us
 import type { QuickCaptureDraft, QuickCaptureDraftInput, QuickCaptureDraftUpdateInput, QuickCaptureDraftListResponse, QuickCaptureDraftStatus, QuickCapturePromoteRequest, QuickCapturePromotionResponse } from '@/types'
 import type { WishlistSearchAlert, WishlistSearchAlertInput, WishlistSearchAlertListResponse, AlertRun, AlertRunListResponse, AlertRunResult, AlertCandidate, AlertCandidateListResponse, AlertCandidateState, CandidateProvenanceStatus, DismissWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateResponse, AdjustWishlistSearchAlertCriteriaInput } from '@/types'
 import type { NumistaHealthSummary } from '@/types'
+import type { NumistaQueryProposal, NumistaQueryProposalRequest } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -504,6 +505,8 @@ export const deleteJournalEntry = (coinId: number, entryId: number) =>
 
 // Numista
 export const searchNumista = (q: string) => api.get<NumistaSearchResponse>('/numista/search', { params: { q } })
+export const proposeNumistaQuery = (request: NumistaQueryProposalRequest) =>
+  api.post<NumistaQueryProposal>('/numista/query-proposal', request)
 export const lookupNumista = (request: NumistaLookupRequest) =>
   api.post<NumistaLookupOutcome>('/numista/lookup', request)
 export const enrichNumista = (request: NumistaEnrichmentRequest, signal?: AbortSignal) =>

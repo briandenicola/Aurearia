@@ -1,0 +1,176 @@
+openapi: 3.0.3
+info:
+  title: Numista Text-Query Tuning Contract
+  version: 1.0.0
+  description: >
+    Additive contract over Feature 341. Generated proposals are local
+    application behavior. No endpoint accepts images or invokes Numista image
+    search.
+paths:
+  /api/numista/query-proposal:
+    post:
+      summary: Build a local versioned Numista text-query proposal
+      description: Performs no external provider request.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NumistaQueryProposalRequest' }
+      responses:
+        '200':
+          description: Generated query proposal; query may be empty.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NumistaQueryProposal' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/numista/lookup:
+    post:
+      summary: Run broad text lookup with generated-only empty fallback
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NumistaLookupRequest' }
+      responses:
+        '200':
+          description: >
+            Existing Feature 341 outcome plus safe source/attempt attribution.
+            At most one relaxed query follows an empty server-verified
+            generated primary query.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NumistaLookupOutcome' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    BadRequest:
+      description: Invalid bounded request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    InternalError:
+      description: Generic internal failure
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    NumistaLookupPath:
+      type: string
+      enum: [direct, photo]
+    NumistaQuerySource:
+      type: string
+      enum: [generated, user-edited, manual]
+    NumistaSearchAttempt:
+      type: string
+      enum: [primary, relaxed]
+    NumistaEvidence:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, maxLength: 200 }
+        issuer: { type: string, maxLength: 200 }
+        denomination: { type: string, maxLength: 100 }
+        mint: { type: string, maxLength: 200 }
+        dateText: { type: string, maxLength: 100 }
+        material: { type: string, maxLength: 100 }
+        obverseInscription: { type: string, maxLength: 500 }
+        reverseInscription: { type: string, maxLength: 500 }
+        reverseType: { type: string, maxLength: 500 }
+        visibleText: { type: string, maxLength: 500 }
+        exactNumistaId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+    NumistaQueryProposalRequest:
+      type: object
+      additionalProperties: false
+      required: [path, evidence]
+      properties:
+        path: { $ref: '#/components/schemas/NumistaLookupPath' }
+        evidence: { $ref: '#/components/schemas/NumistaEvidence' }
+    NumistaQueryProposal:
+      type: object
+      additionalProperties: false
+      required: [query, querySource, generationVersion]
+      properties:
+        query:
+          type: string
+          maxLength: 500
+        querySource:
+          type: string
+          enum: [generated]
+        generationVersion:
+          type: string
+          enum: [numista-query-v2]
+    NumistaLookupRequest:
+      type: object
+      additionalProperties: false
+      required: [query, path, evidence, querySource]
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 500
+        path: { $ref: '#/components/schemas/NumistaLookupPath' }
+        evidence: { $ref: '#/components/schemas/NumistaEvidence' }
+        querySource: { $ref: '#/components/schemas/NumistaQuerySource' }
+        generationVersion:
+          type: string
+          description: >
+            Required for generated and user-edited requests; omitted for
+            manual requests. Generated fallback eligibility is verified by
+            rebuilding the proposal server-side.
+          enum: [numista-query-v2]
+    NumistaLookupOutcome:
+      type: object
+      description: >
+        Existing Feature 341 fields remain unchanged. This fragment specifies
+        only the additive query-attribution fields and effective-query meaning.
+      required:
+        - status
+        - effectiveQuery
+        - candidates
+        - stage
+        - querySource
+        - searchAttempt
+        - searchAttemptCount
+      properties:
+        status:
+          type: string
+          enum: [success, empty, unconfigured, quota-limited, timeout, unavailable]
+        effectiveQuery:
+          type: string
+          description: Exact query used for the returned or final outcome.
+        candidates:
+          type: array
+          items: { type: object, additionalProperties: true }
+        stage:
+          type: string
+          enum: [broad, enriched]
+        querySource: { $ref: '#/components/schemas/NumistaQuerySource' }
+        searchAttempt: { $ref: '#/components/schemas/NumistaSearchAttempt' }
+        searchAttemptCount:
+          type: integer
+          minimum: 1
+          maximum: 2
+

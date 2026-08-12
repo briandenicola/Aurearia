@@ -26,6 +26,8 @@ type NumistaTelemetryEvent struct {
 	RetryAfterSeconds   *int
 	CorrelationDigest   string
 	Cancelled           bool
+	Source              models.NumistaQuerySource
+	Attempt             models.NumistaSearchAttempt
 }
 
 type NumistaTelemetry struct {
@@ -76,6 +78,19 @@ func (t *NumistaTelemetry) Health(configured, configurationValid bool) models.Nu
 				summary.CoalescedRequestCount++
 			}
 			continue
+		}
+		if event.CacheOutcome != NumistaCacheOutcomeCoalescedWaiter {
+			switch event.Source {
+			case models.NumistaQuerySourceGenerated:
+				summary.GeneratedQueryCount++
+			case models.NumistaQuerySourceUserEdited:
+				summary.UserEditedQueryCount++
+			case models.NumistaQuerySourceManual:
+				summary.ManualQueryCount++
+			}
+			if event.Attempt == models.NumistaSearchAttemptRelaxed {
+				summary.RelaxedAttemptCount++
+			}
 		}
 		switch event.CacheOutcome {
 		case NumistaCacheOutcomeFreshHit:

@@ -14,11 +14,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { createCoinReference, getApiErrorMessage } from '@/api/client'
+import { computed, ref, watch } from 'vue'
+import { createCoinReference, getApiErrorMessage, proposeNumistaQuery } from '@/api/client'
 import NumistaLookupPanel from '@/components/numista/NumistaLookupPanel.vue'
 import { useAuthStore } from '@/stores/auth'
-import { buildDirectNumistaEvidence, buildNumistaQuery } from '@/utils/numistaLookup'
+import { buildDirectNumistaEvidence } from '@/utils/numistaLookup'
 import type { Coin, NumistaCandidate } from '@/types'
 
 const props = defineProps<{
@@ -38,6 +38,8 @@ const auth = useAuthStore()
 const saving = ref(false)
 const saveMessage = ref('')
 const saveError = ref(false)
+const initialQuery = ref('')
+let proposalRequest = 0
 
 const evidence = computed(() => buildDirectNumistaEvidence({
   name: props.coinName,
@@ -49,7 +51,16 @@ const evidence = computed(() => buildDirectNumistaEvidence({
   obverseInscription: props.coinObverseInscription,
   reverseInscription: props.coinReverseInscription,
 }))
-const initialQuery = computed(() => buildNumistaQuery(evidence.value))
+
+watch(evidence, async (currentEvidence) => {
+  const request = ++proposalRequest
+  try {
+    const response = await proposeNumistaQuery({ path: 'direct', evidence: currentEvidence })
+    if (request === proposalRequest) initialQuery.value = response.data.query
+  } catch {
+    if (request === proposalRequest) initialQuery.value = ''
+  }
+}, { immediate: true })
 
 async function addSelectedReference(candidate: NumistaCandidate) {
   if (saving.value) return

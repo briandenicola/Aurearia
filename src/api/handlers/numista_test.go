@@ -47,16 +47,64 @@ func newNumistaTestRouter(client services.NumistaClient, key string) *gin.Engine
 	)
 	handler := NewNumistaHandler(lookup)
 	router := gin.New()
+	router.POST("/numista/query-proposal", handler.QueryProposal)
 	router.POST("/numista/lookup", handler.Lookup)
 	router.GET("/numista/search", handler.Search)
 	return router
+}
+
+func TestNumistaHandlerQueryProposalIsTypedBoundedAndLocal(t *testing.T) {
+	client := &handlerNumistaClient{}
+	router := newNumistaTestRouter(client, "configured")
+	body := bytes.NewBufferString(`{
+		"path":"direct",
+		"evidence":{
+			"title":"Honorius AE3 RIC IX 46",
+			"issuer":"Honorius",
+			"mint":"SMNT",
+			"reverseInscription":"GLORIA ROMANORVM",
+			"material":"Bronze",
+			"visibleText":"NGC slab text"
+		}
+	}`)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/numista/query-proposal", body)
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("proposal status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var proposal models.NumistaQueryProposal
+	if err := json.Unmarshal(recorder.Body.Bytes(), &proposal); err != nil {
+		t.Fatal(err)
+	}
+	if proposal.Query != "Honorius GLORIA ROMANORVM Nicomedia" ||
+		proposal.QuerySource != models.NumistaQuerySourceGenerated ||
+		proposal.GenerationVersion != models.NumistaQueryGenerationVersion {
+		t.Fatalf("proposal=%#v", proposal)
+	}
+
+	for _, invalid := range []string{
+		`{"path":"direct"}`,
+		`{"path":"other","evidence":{}}`,
+		`{"path":"direct","evidence":{},"unknown":true}`,
+		`{"path":"direct","evidence":{"reverseType":"` + strings.Repeat("x", 501) + `"}}`,
+	} {
+		recorder = httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(
+			http.MethodPost, "/numista/query-proposal", strings.NewReader(invalid),
+		))
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("invalid proposal status=%d body=%s", recorder.Code, recorder.Body.String())
+		}
+	}
 }
 
 func TestNumistaHandlerLookupAndLegacyShape(t *testing.T) {
 	router := newNumistaTestRouter(&handlerNumistaClient{candidates: []models.NumistaCandidate{
 		{ID: 123, Title: "Trajan Denarius", Issuer: "Roman Empire"},
 	}}, "configured")
-	body := bytes.NewBufferString(`{"query":"  Trajan   denarius  ","path":"direct","evidence":{"issuer":"Trajan"}}`)
+	body := bytes.NewBufferString(`{"query":"  Trajan   denarius  ","path":"direct","evidence":{"issuer":"Trajan"},"querySource":"manual"}`)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/numista/lookup", body)
 	request.Header.Set("Content-Type", "application/json")
@@ -82,9 +130,10 @@ func TestNumistaHandlerLookupAndLegacyShape(t *testing.T) {
 func TestNumistaHandlerRejectsInvalidAndReturnsSafeLegacyFailure(t *testing.T) {
 	router := newNumistaTestRouter(&handlerNumistaClient{}, "")
 	for _, body := range []string{
-		`{"query":"","path":"direct","evidence":{}}`,
-		`{"query":"coin","path":"direct"}`,
-		`{"query":"coin","path":"direct","evidence":{},"unknown":true}`,
+		`{"query":"","path":"direct","evidence":{},"querySource":"manual"}`,
+		`{"query":"coin","path":"direct","evidence":{}}`,
+		`{"query":"coin","path":"direct","querySource":"manual"}`,
+		`{"query":"coin","path":"direct","evidence":{},"querySource":"manual","unknown":true}`,
 	} {
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodPost, "/numista/lookup", bytes.NewBufferString(body))
@@ -114,8 +163,10 @@ func TestNumistaHandlerLookupRequestBoundaries(t *testing.T) {
 	}
 	marshalRequest := func(query string, evidence models.NumistaEvidence) []byte {
 		t.Helper()
+		source := models.NumistaQuerySourceManual
 		body, err := json.Marshal(numistaLookupWireRequest{
 			Query: query, Path: models.NumistaLookupPathDirect, Evidence: &evidence,
+			QuerySource: &source,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -218,6 +269,7 @@ func TestNumistaRoutesRequireAuthenticationAndApplyRateLimit(t *testing.T) {
 	protected := router.Group("/api")
 	protected.Use(middleware.AuthRequired(jwtSecret, nil))
 	protected.Use(middleware.AuthenticatedRateLimit(2, time.Minute))
+	protected.POST("/numista/query-proposal", numistaHandler.QueryProposal)
 	protected.POST("/numista/lookup", numistaHandler.Lookup)
 	protected.GET("/numista/search", numistaHandler.Search)
 
@@ -226,7 +278,8 @@ func TestNumistaRoutesRequireAuthenticationAndApplyRateLimit(t *testing.T) {
 		path   string
 		body   string
 	}{
-		{http.MethodPost, "/api/numista/lookup", `{"query":"Trajan","path":"direct","evidence":{}}`},
+		{http.MethodPost, "/api/numista/query-proposal", `{"path":"direct","evidence":{}}`},
+		{http.MethodPost, "/api/numista/lookup", `{"query":"Trajan","path":"direct","evidence":{},"querySource":"manual"}`},
 		{http.MethodGet, "/api/numista/search?q=Trajan", ""},
 	} {
 		recorder := httptest.NewRecorder()
@@ -251,7 +304,7 @@ func TestNumistaRoutesRequireAuthenticationAndApplyRateLimit(t *testing.T) {
 		request := httptest.NewRequest(
 			http.MethodPost,
 			"/api/numista/lookup",
-			bytes.NewBufferString(`{"query":"Trajan","path":"direct","evidence":{}}`),
+			bytes.NewBufferString(`{"query":"Trajan","path":"direct","evidence":{},"querySource":"manual"}`),
 		)
 		request.Header.Set("Authorization", "Bearer "+signed)
 		request.Header.Set("Content-Type", "application/json")

@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-12",
+  "notes": "Sanitized deterministic comparison fixtures. Candidate arrays freeze bounded provider observations; tests must replay these values and must not call Numista.",
+  "cases": [
+    {
+      "name": "direct-honorius-smnt",
+      "liveEvidence": true,
+      "workflow": "direct",
+      "evidence": {
+        "title": "Honorius AE3 GLORIA ROMANORVM RIC IX 46 LRBC 2424",
+        "issuer": "Honorius",
+        "denomination": "AE3",
+        "mint": "SMNT",
+        "dateText": "393-423 CE",
+        "material": "Bronze",
+        "obverseInscription": "DN HONORIVS PF AVG",
+        "reverseInscription": "GLORIA ROMANORVM"
+      },
+      "oldQuery": "Honorius AE3 GLORIA ROMANORVM RIC IX 46 LRBC 2424 Honorius AE3 SMNT 393-423 CE Bronze DN HONORIVS PF AVG GLORIA ROMANORVM",
+      "primaryQuery": "Honorius GLORIA ROMANORVM Nicomedia",
+      "relaxedQuery": "Honorius Nicomedia",
+      "expectedCandidateId": 208360,
+      "frozenCandidateIds": {
+        "old": [],
+        "primary": [407348, 397084, 208360],
+        "relaxed": [407348, 397084, 208360, 380408]
+      }
+    },
+    {
+      "name": "photo-honorius-smnt-exclusions",
+      "workflow": "photo",
+      "evidence": {
+        "issuer": "Honorius",
+        "mint": "SMNT",
+        "reverseInscription": "GLORIA ROMANORVM",
+        "visibleText": "Sanitized slab text omitted from query"
+      },
+      "oldQuery": "Honorius SMNT GLORIA ROMANORVM Sanitized slab text omitted from query",
+      "primaryQuery": "Honorius GLORIA ROMANORVM Nicomedia",
+      "relaxedQuery": "Honorius Nicomedia",
+      "expectedCandidateId": 208360,
+      "frozenCandidateIds": {
+        "old": [],
+        "primary": [407348, 397084, 208360],
+        "relaxed": [407348, 397084, 208360, 380408]
+      }
+    },
+    {
+      "name": "draft-honorius-smnt-scorer-retention",
+      "workflow": "draft",
+      "evidence": {
+        "issuer": "Honorius",
+        "denomination": "AE3",
+        "mint": "SMNT",
+        "dateText": "393-423 CE",
+        "material": "Bronze",
+        "reverseInscription": "GLORIA ROMANORVM"
+      },
+      "oldQuery": "Honorius AE3 SMNT 393-423 CE Bronze GLORIA ROMANORVM",
+      "primaryQuery": "Honorius GLORIA ROMANORVM Nicomedia",
+      "relaxedQuery": "Honorius Nicomedia",
+      "expectedCandidateId": 208360,
+      "frozenCandidateIds": {
+        "old": [],
+        "primary": [407348, 397084, 208360],
+        "relaxed": [407348, 397084, 208360, 380408]
+      }
+    },
+    {
+      "name": "direct-valentinian-smn",
+      "liveEvidence": true,
+      "workflow": "direct",
+      "evidence": {
+        "issuer": "Valentinian II",
+        "mint": "S.M-N",
+        "reverseInscription": "VOT V MVLT X"
+      },
+      "oldQuery": "Valentinian II S.M-N VOT V MVLT X",
+      "primaryQuery": "Valentinian II VOT V MVLT X Nicomedia",
+      "relaxedQuery": "Valentinian II Nicomedia",
+      "expectedCandidateId": 332493,
+      "frozenCandidateIds": {
+        "old": [],
+        "primary": [],
+        "relaxed": [308850, 430316, 430315, 428057, 428096, 428098, 430314]
+      }
+    },
+    {
+      "name": "photo-valentinian-smn-separator-normalization",
+      "workflow": "photo",
+      "evidence": {
+        "issuer": "Valentinian II",
+        "mint": "SMN",
+        "reverseType": "Vows in wreath"
+      },
+      "oldQuery": "Valentinian II SMN Vows in wreath",
+      "primaryQuery": "Valentinian II Vows in wreath Nicomedia",
+      "relaxedQuery": "Valentinian II Nicomedia",
+      "expectedCandidateId": 332493,
+      "frozenCandidateIds": {
+        "old": [],
+        "primary": [],
+        "relaxed": [308850, 430316, 430315, 428057, 428096, 428098, 430314]
+      }
+    },
+    {
+      "name": "draft-trajan-reverse-legend",
+      "liveEvidence": true,
+      "workflow": "draft",
+      "evidence": {
+        "issuer": "Trajan",
+        "denomination": "Denarius",
+        "mint": "Rome",
+        "reverseInscription": "COS V PP SPQR OPTIMO PRINC"
+      },
+      "oldQuery": "Trajan Denarius Rome COS V PP SPQR OPTIMO PRINC",
+      "primaryQuery": "Trajan COS V PP SPQR OPTIMO PRINC Rome",
+      "relaxedQuery": "Trajan Rome",
+      "expectedCandidateId": 253021,
+      "frozenCandidateIds": {
+        "old": [],
+        "primary": [],
+        "relaxed": [89399, 372454, 81137, 81144, 83739, 81413, 525488, 486079, 486080, 486081]
+      }
+    },
+    {
+      "name": "direct-athens-title-fallback",
+      "liveEvidence": true,
+      "workflow": "direct",
+      "evidence": {
+        "title": "Athens tetradrachm owl",
+        "mint": "Athens",
+        "reverseInscription": "AOE"
+      },
+      "oldQuery": "Athens tetradrachm owl Athens AOE",
+      "primaryQuery": "Athens tetradrachm owl AOE",
+      "relaxedQuery": "Athens tetradrachm owl",
+      "expectedCandidateId": 373031,
+      "frozenCandidateIds": {
+        "old": [],
+        "primary": [],
+        "relaxed": [60496, 168835, 373031, 463045, 168892, 168834, 463133, 185986, 168837, 168836]
+      }
+    },
+    {
+      "name": "photo-justinian-reverse-type",
+      "liveEvidence": true,
+      "workflow": "photo",
+      "evidence": {
+        "issuer": "Justinian I Byzantine",
+        "mint": "Constantinople",
+        "reverseType": "M ANNO XII"
+      },
+      "oldQuery": "Justinian I Byzantine Constantinople M ANNO XII",
+      "primaryQuery": "Justinian I Byzantine M ANNO XII Constantinople",
+      "relaxedQuery": "Justinian I Byzantine Constantinople",
+      "expectedCandidateId": 85834,
+      "frozenCandidateIds": {
+        "old": [85834],
+        "primary": [85834],
+        "relaxed": [70232, 99964, 297894, 62932, 297900, 297898, 143530, 55142, 235933, 477664]
+      }
+    },
+    {
+      "name": "draft-aurelian-unknown-mintmark",
+      "liveEvidence": true,
+      "workflow": "draft",
+      "evidence": {
+        "issuer": "Aurelian",
+        "mint": "XXIT",
+        "reverseInscription": "ORIENS AVG"
+      },
+      "oldQuery": "Aurelian XXIT ORIENS AVG",
+      "primaryQuery": "Aurelian ORIENS AVG",
+      "relaxedQuery": "Aurelian",
+      "expectedCandidateId": 290869,
+      "frozenCandidateIds": {
+        "old": [],
+        "primary": [290875, 290869, 290870, 290871, 290872, 290873, 290942, 290943, 290944, 290945],
+        "relaxed": [308496, 478523, 478638, 55483, 457910, 492009, 492010, 492000, 492005, 492003]
+      }
+    },
+    {
+      "name": "direct-hadrian-ordinary-mint",
+      "workflow": "direct",
+      "evidence": {
+        "issuer": "Hadrian",
+        "mint": "Rome",
+        "reverseInscription": "FELICITAS AVG"
+      },
+      "oldQuery": "Hadrian Rome FELICITAS AVG",
+      "primaryQuery": "Hadrian FELICITAS AVG Rome",
+      "relaxedQuery": "Hadrian Rome",
+      "expectedCandidateId": 254812,
+      "frozenCandidateIds": {
+        "old": [],
+        "primary": [254812, 255162, 255163, 255164, 255165, 255166, 254807, 254808, 254809, 254810],
+        "relaxed": []
+      }
+    },
+    {
+      "name": "photo-unknown-alias-like-sentence",
+      "workflow": "photo",
+      "evidence": {
+        "issuer": "Arcadius",
+        "mint": "mark near SMNT in field",
+        "reverseType": "Emperor standing"
+      },
+      "oldQuery": "Arcadius mark near SMNT in field Emperor standing",
+      "primaryQuery": "Arcadius Emperor standing",
+      "relaxedQuery": "Arcadius",
+      "expectedCandidateId": 589394,
+      "frozenCandidateIds": {
+        "old": [],
+        "primary": [589394, 138857, 17222, 62805, 62624, 152054, 308829, 478630, 465048, 64945],
+        "relaxed": []
+      }
+    },
+    {
+      "name": "draft-missing-reverse",
+      "workflow": "draft",
+      "evidence": {
+        "issuer": "Licinius I",
+        "mint": "Nicomedia",
+        "dateText": "308-324 CE",
+        "material": "Bronze"
+      },
+      "oldQuery": "Licinius I Nicomedia 308-324 CE Bronze",
+      "primaryQuery": "Licinius I Nicomedia",
+      "relaxedQuery": "Licinius I Nicomedia",
+      "expectedCandidateId": 463330,
+      "frozenCandidateIds": {
+        "old": [],
+        "primary": [463330, 389077, 389090, 389092, 388566, 381463, 389095, 389101, 116617, 389102],
+        "relaxed": [463330, 389077, 389090, 389092, 388566, 381463, 389095, 389101, 116617, 389102]
+      }
+    }
+  ]
+}

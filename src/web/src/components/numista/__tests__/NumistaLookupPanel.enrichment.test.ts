@@ -97,7 +97,11 @@ describe('NumistaLookupPanel progressive enrichment', () => {
     ]
     const enrichment = deferredOutcome()
     apiMocks.lookupNumista.mockResolvedValueOnce({
-      data: makeNumistaLookupOutcome({ candidates: broad, stage: 'broad' }),
+      data: makeNumistaLookupOutcome({
+        effectiveQuery: 'Trajan denarius Rome silver',
+        candidates: broad,
+        stage: 'broad',
+      }),
     })
     apiMocks.enrichNumista.mockReturnValueOnce(enrichment.promise)
 
@@ -154,6 +158,122 @@ describe('NumistaLookupPanel progressive enrichment', () => {
       expect.any(AbortSignal),
     )
     expect(wrapper.find<HTMLTextAreaElement>('#numista-query').element.value).toBe(query)
+  })
+
+  it('preserves relaxed fallback attribution after enrichment completes', async () => {
+    const primaryQuery = 'Honorius GLORIA ROMANORVM Nicomedia'
+    const relaxedQuery = 'Honorius Nicomedia'
+    const broad = [broadCandidate(1, 'Relaxed broad result', 0)]
+    apiMocks.lookupNumista.mockResolvedValueOnce({
+      data: makeNumistaLookupOutcome({
+        effectiveQuery: relaxedQuery,
+        candidates: broad,
+        stage: 'broad',
+        querySource: 'generated',
+        searchAttempt: 'relaxed',
+        searchAttemptCount: 2,
+      }),
+    })
+    apiMocks.enrichNumista.mockResolvedValueOnce({
+      data: makeNumistaLookupOutcome({
+        effectiveQuery: relaxedQuery,
+        candidates: [makeNumistaCandidate({
+          ...broad[0],
+          enrichmentState: 'enriched',
+        })],
+        stage: 'enriched',
+        querySource: 'generated',
+        searchAttempt: 'relaxed',
+        searchAttemptCount: 2,
+      }),
+    })
+
+    const wrapper = mountPanel(primaryQuery)
+    await wrapper.find('button.btn-primary').trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.enrichNumista).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: relaxedQuery,
+        querySource: 'generated',
+        generationVersion: 'numista-query-v2',
+      }),
+      expect.any(AbortSignal),
+    )
+    expect(wrapper.text()).toContain(`Numista retried once with the relaxed query “${relaxedQuery}”.`)
+    expect(wrapper.find<HTMLTextAreaElement>('#numista-query').element.value).toBe(primaryQuery)
+  })
+
+  it('preserves relaxed fallback attribution after partial enrichment failure', async () => {
+    const primaryQuery = 'Honorius GLORIA ROMANORVM Nicomedia'
+    const relaxedQuery = 'Honorius Nicomedia'
+    const broad = [
+      broadCandidate(1, 'Enriched result', 0),
+      broadCandidate(2, 'Failed detail result', 1),
+    ]
+    apiMocks.lookupNumista.mockResolvedValueOnce({
+      data: makeNumistaLookupOutcome({
+        effectiveQuery: relaxedQuery,
+        candidates: broad,
+        stage: 'broad',
+        querySource: 'generated',
+        searchAttempt: 'relaxed',
+        searchAttemptCount: 2,
+      }),
+    })
+    apiMocks.enrichNumista.mockResolvedValueOnce({
+      data: makeNumistaLookupOutcome({
+        effectiveQuery: relaxedQuery,
+        candidates: [
+          makeNumistaCandidate({ ...broad[0], enrichmentState: 'enriched' }),
+          makeNumistaCandidate({ ...broad[1], enrichmentState: 'failed' }),
+        ],
+        stage: 'enriched',
+        querySource: 'generated',
+        searchAttempt: 'relaxed',
+        searchAttemptCount: 2,
+      }),
+    })
+
+    const wrapper = mountPanel(primaryQuery)
+    await wrapper.find('button.btn-primary').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain(`Numista retried once with the relaxed query “${relaxedQuery}”.`)
+    expect(wrapper.text()).toContain('Detail unavailable')
+    expect(wrapper.find<HTMLTextAreaElement>('#numista-query').element.value).toBe(primaryQuery)
+  })
+
+  it('uses the backend enrichment attribution instead of masking it with broad metadata', async () => {
+    const primaryQuery = 'Honorius GLORIA ROMANORVM Nicomedia'
+    const relaxedQuery = 'Honorius Nicomedia'
+    const broad = [broadCandidate(1, 'Broad result', 0)]
+    apiMocks.lookupNumista.mockResolvedValueOnce({
+      data: makeNumistaLookupOutcome({
+        effectiveQuery: primaryQuery,
+        candidates: broad,
+        stage: 'broad',
+        querySource: 'generated',
+        searchAttempt: 'primary',
+        searchAttemptCount: 1,
+      }),
+    })
+    apiMocks.enrichNumista.mockResolvedValueOnce({
+      data: makeNumistaLookupOutcome({
+        effectiveQuery: relaxedQuery,
+        candidates: [makeNumistaCandidate({ ...broad[0], enrichmentState: 'enriched' })],
+        stage: 'enriched',
+        querySource: 'generated',
+        searchAttempt: 'relaxed',
+        searchAttemptCount: 2,
+      }),
+    })
+
+    const wrapper = mountPanel(primaryQuery)
+    await wrapper.find('button.btn-primary').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain(`Numista retried once with the relaxed query “${relaxedQuery}”.`)
   })
 
   it('suppresses whitespace-only lookup and enrichment submissions', async () => {

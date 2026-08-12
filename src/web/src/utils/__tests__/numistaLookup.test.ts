@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildDirectNumistaEvidence,
-  buildDirectNumistaQuery,
   getNumistaStatusGuidance,
   isSelectionOutsideResults,
   retainNumistaSelection,
@@ -25,7 +24,7 @@ const coin: Pick<
 }
 
 describe('numistaLookup helpers', () => {
-  it('builds direct evidence from the coin date range without substituting era', () => {
+  it('keeps rich direct evidence available for the server-owned proposal and scorer', () => {
     expect(buildDirectNumistaEvidence(coin)).toEqual({
       title: coin.name,
       issuer: coin.ruler,
@@ -36,35 +35,29 @@ describe('numistaLookup helpers', () => {
       obverseInscription: coin.obverseInscription,
       reverseInscription: coin.reverseInscription,
     })
-    expect(buildDirectNumistaQuery(coin)).toBe(
-      'Antoninus Pius denarius Antoninus Pius Denarius Rome 138–161 CE Silver ANTONINVS AVG PIVS TR POT COS III',
-    )
   })
 
   it('omits nullable or partial date evidence without fabricating a replacement', () => {
     expect(buildDirectNumistaEvidence({ ...coin, dateRange: '' }).dateText).toBeUndefined()
-    expect(buildDirectNumistaQuery({ ...coin, dateRange: '' })).not.toContain(coin.era)
     expect(buildDirectNumistaEvidence({ ...coin, dateRange: 'c. 138' }).dateText).toBe('c. 138')
   })
 
-  it('omits empty values without rewriting collector source text', () => {
-    expect(buildDirectNumistaQuery({
+  it('omits empty evidence values without rewriting collector source text', () => {
+    expect(buildDirectNumistaEvidence({
       ...coin,
       ruler: '',
       mint: '  Lugdunum?  ',
       obverseInscription: '',
-    })).toBe('Antoninus Pius denarius Denarius Lugdunum? 138–161 CE Silver TR POT COS III')
-  })
-
-  it('bounds the visible query to the contract maximum', () => {
-    const query = buildDirectNumistaQuery({
-      ...coin,
-      name: 'A'.repeat(300),
-      ruler: 'B'.repeat(300),
-      reverseInscription: 'C'.repeat(600),
+    })).toEqual({
+      title: coin.name,
+      issuer: undefined,
+      denomination: coin.denomination,
+      mint: 'Lugdunum?',
+      dateText: coin.dateRange,
+      material: coin.material,
+      obverseInscription: undefined,
+      reverseInscription: coin.reverseInscription,
     })
-    expect(query).toHaveLength(500)
-    expect(query.startsWith('A'.repeat(200))).toBe(true)
   })
 
   it('retains an explicit selection when retry results replace or omit it', () => {

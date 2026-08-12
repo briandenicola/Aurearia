@@ -141,16 +141,54 @@ describe('API Client', () => {
 
   describe('Numista lookup', () => {
     it('posts the exact typed broad lookup request', async () => {
-      mockApi.post.mockResolvedValue({ data: { status: 'empty', effectiveQuery: '  edited   query  ', candidates: [], stage: 'broad' } })
+      mockApi.post.mockResolvedValue({
+        data: {
+          status: 'empty',
+          effectiveQuery: '  edited   query  ',
+          candidates: [],
+          stage: 'broad',
+          querySource: 'user-edited',
+          searchAttempt: 'primary',
+          searchAttemptCount: 1,
+        },
+      })
       const request = {
         query: '  edited   query  ',
         path: 'direct' as const,
         evidence: { title: 'Denarius', mint: 'Rome' },
+        querySource: 'user-edited' as const,
+        generationVersion: 'numista-query-v2' as const,
       }
 
       await client.lookupNumista(request)
 
       expect(mockApi.post).toHaveBeenCalledWith('/numista/lookup', request)
+    })
+
+    it('posts evidence to the local proposal endpoint with a strict generated response', async () => {
+      mockApi.post.mockResolvedValue({
+        data: {
+          query: 'Antoninus Pius TR POT COS III Rome',
+          querySource: 'generated',
+          generationVersion: 'numista-query-v2',
+        },
+      })
+      const request = {
+        path: 'direct' as const,
+        evidence: {
+          issuer: 'Antoninus Pius',
+          reverseType: 'Standing left',
+          mint: 'Rome',
+        },
+      }
+
+      const response = await client.proposeNumistaQuery(request)
+
+      expect(mockApi.post).toHaveBeenCalledWith('/numista/query-proposal', request)
+      expect(response.data).toEqual(expect.objectContaining({
+        querySource: 'generated',
+        generationVersion: 'numista-query-v2',
+      }))
     })
 
     it('preserves the deprecated GET search adapter', async () => {

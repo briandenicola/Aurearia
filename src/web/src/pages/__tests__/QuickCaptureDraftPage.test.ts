@@ -8,6 +8,7 @@ import QuickCaptureDraftPage from '../QuickCaptureDraftPage.vue'
 import {
   getQuickCaptureDraft,
   lookupNumista,
+  proposeNumistaQuery,
   promoteQuickCaptureDraft,
   updateQuickCaptureDraft,
 } from '@/api/client'
@@ -28,6 +29,7 @@ vi.mock('@/api/client', () => ({
   getQuickCaptureDraft: vi.fn(),
   lookupNumista: vi.fn(),
   onTokenRefreshed: vi.fn(),
+  proposeNumistaQuery: vi.fn(),
   promoteQuickCaptureDraft: vi.fn(),
   updateQuickCaptureDraft: vi.fn(),
 }))
@@ -83,6 +85,13 @@ describe('QuickCaptureDraftPage', () => {
     routerPush.mockReset()
     vi.mocked(getQuickCaptureDraft).mockResolvedValue({ data: draft() } as never)
     vi.mocked(updateQuickCaptureDraft).mockResolvedValue({ data: draft() } as never)
+    vi.mocked(proposeNumistaQuery).mockResolvedValue({
+      data: {
+        query: 'Trajan',
+        querySource: 'generated',
+        generationVersion: 'numista-query-v2',
+      },
+    })
     vi.mocked(lookupNumista).mockResolvedValue({
       data: makeNumistaLookupOutcome({
         candidates: [makeNumistaCandidate({
@@ -156,6 +165,23 @@ describe('QuickCaptureDraftPage', () => {
       selectedNumistaUrl: undefined,
       clearSelectedNumista: undefined,
     }))
+  })
+
+  it('loads the draft default from the server proposal without searching eagerly', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(proposeNumistaQuery).toHaveBeenCalledWith({
+      path: 'photo',
+      evidence: {
+        title: 'Trajan denarius',
+        dateText: '98-117',
+        visibleText: 'TRAIANO AVG',
+      },
+    })
+    expect(wrapper.find<HTMLTextAreaElement>('#numista-query').element.value).toBe('Trajan')
+    expect(lookupNumista).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Numista #12345')
   })
 
   it('replaces and explicitly clears the saved reference with keyboard-operable controls', async () => {
