@@ -443,10 +443,11 @@ describe('NumistaLookupPanel progressive enrichment', () => {
     expect(images).toHaveLength(1)
     expect(images[0]?.attributes('src')).toBe('https://images.numista.test/coin.jpg')
     expect(images[0]?.attributes('alt')).toBe('Obverse thumbnail for Safe image')
+    expect(wrapper.findAll('[aria-label^="Enlarge obverse image"]')).toHaveLength(1)
 
     for (const card of wrapper.findAll('fieldset > label')) {
       expect(card.classes()).toContain('grid')
-      expect(card.classes()).toContain('sm:grid-cols-[auto_4rem_1fr]')
+      expect(card.classes()).toContain('sm:grid-cols-[auto_11rem_1fr]')
       expect(card.classes().some(className => className.startsWith('min-w-['))).toBe(false)
     }
   })
