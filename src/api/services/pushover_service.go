@@ -22,11 +22,12 @@ type PushoverService struct {
 
 // PushoverMessage describes a single Pushover notification payload.
 type PushoverMessage struct {
-	UserKey string
-	Title   string
-	Message string
-	URL     string
-	HTML    bool
+	UserKey  string
+	Title    string
+	Message  string
+	URL      string
+	URLTitle string
+	HTML     bool
 }
 
 // NewPushoverService creates a new PushoverService.
@@ -69,6 +70,9 @@ func (s *PushoverService) SendMessage(message PushoverMessage) error {
 	form.Set("message", message.Message)
 	if message.URL != "" {
 		form.Set("url", message.URL)
+		if message.URLTitle != "" {
+			form.Set("url_title", message.URLTitle)
+		}
 	}
 	if message.HTML {
 		form.Set("html", "1")
