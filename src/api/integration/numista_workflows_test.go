@@ -199,7 +199,7 @@ func TestNumistaWorkflowDirectPersistsOnlyExplicitSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lookupBody := []byte(`{"query":"Trajan denarius","path":"direct","evidence":{"title":"Trajan Denarius","issuer":"Trajan"}}`)
+	lookupBody := []byte(`{"query":"Trajan denarius","path":"direct","evidence":{"title":"Trajan Denarius","issuer":"Trajan"},"querySource":"manual"}`)
 	response := performRequest(t, h.router, http.MethodPost, "/api/numista/lookup", "application/json", lookupBody)
 	if response.Code != http.StatusOK {
 		t.Fatalf("lookup status=%d body=%s", response.Code, response.Body.String())

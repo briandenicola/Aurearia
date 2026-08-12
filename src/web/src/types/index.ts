@@ -1259,6 +1259,9 @@ export interface NumistaSearchResponse {
 
 export type NumistaLookupPath = 'direct' | 'photo'
 export type NumistaLookupStatus = 'success' | 'empty' | 'unconfigured' | 'quota-limited' | 'timeout' | 'unavailable'
+export type NumistaQuerySource = 'generated' | 'user-edited' | 'manual'
+export type NumistaSearchAttempt = 'primary' | 'relaxed'
+export type NumistaQueryGenerationVersion = 'numista-query-v2'
 export type NumistaEnrichmentState = 'not_requested' | 'enriched' | 'cached' | 'failed'
 export type NumistaRelevanceField = 'exact_id' | 'title' | 'issuer' | 'denomination' | 'mint' | 'date' | 'material' | 'inscription'
 export type NumistaRelevanceKind = 'match' | 'conflict' | 'unavailable'
@@ -1273,14 +1276,28 @@ export interface NumistaEvidence {
   material?: string
   obverseInscription?: string
   reverseInscription?: string
+  reverseType?: string
   visibleText?: string
   exactNumistaId?: number
+}
+
+export interface NumistaQueryProposalRequest {
+  path: NumistaLookupPath
+  evidence: NumistaEvidence
+}
+
+export interface NumistaQueryProposal {
+  query: string
+  querySource: 'generated'
+  generationVersion: NumistaQueryGenerationVersion
 }
 
 export interface NumistaLookupRequest {
   query: string
   path: NumistaLookupPath
   evidence: NumistaEvidence
+  querySource: NumistaQuerySource
+  generationVersion?: NumistaQueryGenerationVersion
 }
 
 export interface NumistaEnrichmentRequest extends NumistaLookupRequest {
@@ -1337,6 +1354,9 @@ export interface NumistaLookupOutcome {
   retryAfterSeconds?: number
   cache?: NumistaCacheMetadata
   stage: 'broad' | 'enriched'
+  querySource: NumistaQuerySource
+  searchAttempt: NumistaSearchAttempt
+  searchAttemptCount: 1 | 2
 }
 
 export interface NumistaSettings {

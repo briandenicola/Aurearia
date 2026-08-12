@@ -158,7 +158,7 @@ func TestNumistaSecurityAuthAdminAndOversizedBodies(t *testing.T) {
 	admin.Use(handlers.AdminRequired())
 	admin.GET("/numista/health", adminHandler.Health)
 
-	validBody := []byte(`{"query":"Trajan","path":"direct","evidence":{}}`)
+	validBody := []byte(`{"query":"Trajan","path":"direct","evidence":{},"querySource":"manual"}`)
 	if response := performRequest(t, router, http.MethodPost, "/api/numista/lookup", "application/json", validBody); response.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthenticated lookup status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -226,7 +226,7 @@ func TestNumistaSecurityCollectorResponsesNeverExposeProviderSecretsOrRawEvidenc
 	router.POST("/lookup", handlers.NewNumistaHandler(lookup).Lookup)
 	response := performRequest(
 		t, router, http.MethodPost, "/lookup", "application/json",
-		[]byte(`{"query":"private inscription","path":"direct","evidence":{"visibleText":"dealer label"}}`),
+		[]byte(`{"query":"private inscription","path":"direct","evidence":{"visibleText":"dealer label"},"querySource":"manual"}`),
 	)
 	if response.Code != http.StatusInternalServerError ||
 		responseContainsAny(response.Body.String(), secret, "raw evidence", "private inscription", "dealer label") ||

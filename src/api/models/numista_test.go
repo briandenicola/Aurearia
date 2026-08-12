@@ -80,6 +80,43 @@ func TestNumistaLookupRequestPathsQueryBoundsAndJSONContract(t *testing.T) {
 	}
 }
 
+func TestNumistaLookupRequestGenerationVersionInvariant(t *testing.T) {
+	tests := []struct {
+		name    string
+		source  NumistaQuerySource
+		version string
+		wantErr bool
+	}{
+		{name: "generated exact version", source: NumistaQuerySourceGenerated, version: NumistaQueryGenerationVersion},
+		{name: "generated missing version", source: NumistaQuerySourceGenerated, wantErr: true},
+		{name: "generated unknown version", source: NumistaQuerySourceGenerated, version: "numista-query-v1", wantErr: true},
+		{name: "user edited exact version", source: NumistaQuerySourceUserEdited, version: NumistaQueryGenerationVersion},
+		{name: "user edited missing version", source: NumistaQuerySourceUserEdited, wantErr: true},
+		{name: "user edited unknown version", source: NumistaQuerySourceUserEdited, version: "numista-query-v3", wantErr: true},
+		{name: "manual omitted version", source: NumistaQuerySourceManual},
+		{name: "manual supplied version", source: NumistaQuerySourceManual, version: NumistaQueryGenerationVersion, wantErr: true},
+		{name: "legacy missing source remains manual", source: "", version: ""},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := NumistaLookupRequest{
+				Query:             "coin",
+				Path:              NumistaLookupPathDirect,
+				QuerySource:       test.source,
+				GenerationVersion: test.version,
+			}
+			err := request.Validate()
+			if (err != nil) != test.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %v", err, test.wantErr)
+			}
+			if test.source == "" && request.QuerySource != NumistaQuerySourceManual {
+				t.Fatalf("legacy source = %q, want manual", request.QuerySource)
+			}
+		})
+	}
+}
+
 func TestNumistaEvidenceFieldBounds(t *testing.T) {
 	fields := []struct {
 		name string
@@ -94,8 +131,10 @@ func TestNumistaEvidenceFieldBounds(t *testing.T) {
 		{"material", 100, func(e *NumistaEvidence, value string) { e.Material = value }},
 		{"obverseInscription", 500, func(e *NumistaEvidence, value string) { e.ObverseInscription = value }},
 		{"reverseInscription", 500, func(e *NumistaEvidence, value string) { e.ReverseInscription = value }},
+		{"reverseType", 500, func(e *NumistaEvidence, value string) { e.ReverseType = value }},
 		{"visibleText", 500, func(e *NumistaEvidence, value string) { e.VisibleText = value }},
 	}
+
 	for _, field := range fields {
 		t.Run(field.name, func(t *testing.T) {
 			var evidence NumistaEvidence
@@ -116,9 +155,34 @@ func TestNumistaEvidenceFieldBounds(t *testing.T) {
 			t.Fatalf("exactNumistaId %d accepted", id)
 		}
 	}
+
 	evidence := NumistaEvidence{ExactNumistaID: intPointer(1)}
 	if err := evidence.Validate(); err != nil {
 		t.Fatalf("positive exactNumistaId rejected: %v", err)
+	}
+}
+
+func TestNumistaQueryProposalContracts(t *testing.T) {
+	request := NumistaQueryProposalRequest{
+		Path:     NumistaLookupPathDirect,
+		Evidence: NumistaEvidence{ReverseType: "Victory standing left"},
+	}
+	if err := request.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	proposal := NumistaQueryProposal{
+		Query:             "Constantine I VOT XX Nicomedia",
+		QuerySource:       NumistaQuerySourceGenerated,
+		GenerationVersion: NumistaQueryGenerationVersion,
+	}
+	data, err := json.Marshal(proposal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{`"query"`, `"querySource":"generated"`, `"generationVersion":"numista-query-v2"`} {
+		if !strings.Contains(string(data), field) {
+			t.Fatalf("proposal JSON missing %s: %s", field, data)
+		}
 	}
 }
 

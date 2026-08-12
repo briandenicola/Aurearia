@@ -18,12 +18,13 @@ type NumistaSettingsProvider interface {
 }
 
 type NumistaLookupService struct {
-	client    NumistaClient
-	cache     *NumistaCache
-	scorer    NumistaScorer
-	telemetry *NumistaTelemetry
-	settings  NumistaSettingsProvider
-	clock     NumistaClock
+	client       NumistaClient
+	cache        *NumistaCache
+	scorer       NumistaScorer
+	telemetry    *NumistaTelemetry
+	settings     NumistaSettingsProvider
+	clock        NumistaClock
+	queryBuilder *NumistaQueryBuilder
 }
 
 func NewNumistaLookupService(
@@ -33,13 +34,18 @@ func NewNumistaLookupService(
 	telemetry *NumistaTelemetry,
 	settings NumistaSettingsProvider,
 	clock NumistaClock,
+	builders ...*NumistaQueryBuilder,
 ) *NumistaLookupService {
 	if clock == nil {
 		clock = realNumistaClock{}
 	}
+	builder := NewNumistaQueryBuilder()
+	if len(builders) > 0 && builders[0] != nil {
+		builder = builders[0]
+	}
 	return &NumistaLookupService{
 		client: client, cache: cache, scorer: scorer, telemetry: telemetry,
-		settings: settings, clock: clock,
+		settings: settings, clock: clock, queryBuilder: builder,
 	}
 }
 
@@ -47,10 +53,58 @@ func (s *NumistaLookupService) Lookup(ctx context.Context, request models.Numist
 	if err := request.Validate(); err != nil {
 		return models.NumistaLookupOutcome{}, err
 	}
+	request.QuerySource = s.verifiedQuerySource(request)
+	primary, err := s.lookupAttempt(ctx, request, request.Query, models.NumistaSearchAttemptPrimary)
+	if err != nil || primary.Status != models.NumistaStatusEmpty ||
+		request.QuerySource != models.NumistaQuerySourceGenerated {
+		return primary, err
+	}
+	plan := s.queryBuilder.Build(request.Evidence)
+	if plan.Relaxed == "" || plan.Relaxed == request.Query {
+		return primary, nil
+	}
+	relaxed, err := s.lookupAttempt(ctx, request, plan.Relaxed, models.NumistaSearchAttemptRelaxed)
+	if err != nil {
+		return models.NumistaLookupOutcome{}, err
+	}
+	relaxed.SearchAttemptCount = 2
+	return relaxed, nil
+}
+
+func (s *NumistaLookupService) Propose(request models.NumistaQueryProposalRequest) (models.NumistaQueryProposal, error) {
+	if err := request.Validate(); err != nil {
+		return models.NumistaQueryProposal{}, err
+	}
+	plan := s.queryBuilder.Build(request.Evidence)
+	return models.NumistaQueryProposal{
+		Query:             plan.Primary,
+		QuerySource:       models.NumistaQuerySourceGenerated,
+		GenerationVersion: plan.Version,
+	}, nil
+}
+
+func (s *NumistaLookupService) verifiedQuerySource(request models.NumistaLookupRequest) models.NumistaQuerySource {
+	if request.QuerySource != models.NumistaQuerySourceGenerated {
+		return request.QuerySource
+	}
+	plan := s.queryBuilder.Build(request.Evidence)
+	if request.GenerationVersion != plan.Version || request.Query != plan.Primary {
+		return models.NumistaQuerySourceUserEdited
+	}
+	return models.NumistaQuerySourceGenerated
+}
+
+func (s *NumistaLookupService) lookupAttempt(
+	ctx context.Context,
+	request models.NumistaLookupRequest,
+	query string,
+	attempt models.NumistaSearchAttempt,
+) (models.NumistaLookupOutcome, error) {
 	start := s.clock.Now()
 	outcome := models.NumistaLookupOutcome{
-		Status: models.NumistaStatusUnavailable, EffectiveQuery: request.Query,
-		Candidates: []models.NumistaCandidate{}, Stage: "broad",
+		Status: models.NumistaStatusUnavailable, EffectiveQuery: query,
+		Candidates: []models.NumistaCandidate{}, Stage: "broad", QuerySource: request.QuerySource,
+		SearchAttempt: attempt, SearchAttemptCount: 1,
 	}
 	if strings.TrimSpace(s.settings.GetSetting(SettingNumistaAPIKey)) == "" {
 		outcome.Status = models.NumistaStatusUnconfigured
@@ -61,27 +115,28 @@ func (s *NumistaLookupService) Lookup(ctx context.Context, request models.Numist
 
 	config := s.settings.GetNumistaSettings()
 	candidates, cacheResult, err := s.cache.doSearchOwned(
-		ctx, request.Query, config.SearchResultLimit, config.SearchTTL,
+		ctx, query, config.SearchResultLimit, config.SearchTTL,
 		func(loadCtx context.Context) ([]models.NumistaCandidate, func(), error) {
 			loadStart := s.clock.Now()
 			operationCtx, recorder := withNumistaOperationRecorder(loadCtx)
-			candidates, err := s.client.Search(operationCtx, request.Query, config.SearchResultLimit)
+			candidates, err := s.client.Search(operationCtx, query, config.SearchResultLimit)
 			candidates = sanitizeNumistaCandidates(candidates)
 			onAccepted := s.prepareProviderOperation(
-				request.Path, request.Query, "broad", loadStart, candidates, err, recorder.Result(),
+				request.Path, query, "broad", loadStart, candidates, err, recorder.Result(),
+				request.QuerySource, attempt,
 			)
 			return candidates, onAccepted, err
 		},
 	)
 	if err != nil {
 		if ctx.Err() != nil {
-			s.recordCancellation(request.Path, request.Query, "broad", start, cacheResult)
+			s.recordCancellation(request.Path, query, "broad", start, cacheResult, request.QuerySource, attempt)
 			return models.NumistaLookupOutcome{}, ctx.Err()
 		}
 		var numistaErr *NumistaError
 		if errors.Is(err, context.Canceled) ||
 			(errors.As(err, &numistaErr) && numistaErr.Kind == NumistaErrorCancelled) {
-			s.recordCancellation(request.Path, request.Query, "broad", start, cacheResult)
+			s.recordCancellation(request.Path, query, "broad", start, cacheResult, request.QuerySource, attempt)
 			return models.NumistaLookupOutcome{}, context.Canceled
 		}
 		var expected bool
@@ -148,13 +203,14 @@ func (s *NumistaLookupService) LookupDetail(
 			}
 			onAccepted := s.prepareProviderOperation(
 				path, correlation, "detail", loadStart, candidates, err, recorder.Result(),
+				"", "",
 			)
 			return candidate, onAccepted, err
 		},
 	)
 	if err != nil {
 		if ctx.Err() != nil {
-			s.recordCancellation(path, correlation, "detail", start, cacheResult)
+			s.recordCancellation(path, correlation, "detail", start, cacheResult, "", "")
 			return models.NumistaCandidate{}, nil, ctx.Err()
 		}
 		if cacheResult == nil || cacheResult.Outcome != NumistaCacheOutcomeLoader {
@@ -261,12 +317,30 @@ func (s *NumistaLookupService) Enrich(
 		ranked[index] = mergeNumistaDetail(ranked[index], result.candidate)
 	}
 	ranked = s.scorer.Rank(request.NumistaLookupRequest, ranked)
+	searchAttempt, searchAttemptCount := s.enrichmentSearchAttribution(request.NumistaLookupRequest)
 	return models.NumistaLookupOutcome{
-		Status:         models.NumistaStatusSuccess,
-		EffectiveQuery: request.Query,
-		Candidates:     ranked,
-		Stage:          "enriched",
+		Status:             models.NumistaStatusSuccess,
+		EffectiveQuery:     request.Query,
+		Candidates:         ranked,
+		Stage:              "enriched",
+		QuerySource:        request.QuerySource,
+		SearchAttempt:      searchAttempt,
+		SearchAttemptCount: searchAttemptCount,
 	}, nil
+}
+
+func (s *NumistaLookupService) enrichmentSearchAttribution(
+	request models.NumistaLookupRequest,
+) (models.NumistaSearchAttempt, int) {
+	if request.QuerySource == models.NumistaQuerySourceGenerated {
+		plan := s.queryBuilder.Build(request.Evidence)
+		if request.GenerationVersion == plan.Version &&
+			plan.Relaxed != plan.Primary &&
+			request.Query == plan.Relaxed {
+			return models.NumistaSearchAttemptRelaxed, 2
+		}
+	}
+	return models.NumistaSearchAttemptPrimary, 1
 }
 
 func rankNumistaEnrichmentTargets(
@@ -343,6 +417,7 @@ func sanitizeNumistaCandidates(candidates []models.NumistaCandidate) []models.Nu
 func (s *NumistaLookupService) LegacySearch(ctx context.Context, query string) (models.LegacyNumistaSearchResponse, error) {
 	outcome, err := s.Lookup(ctx, models.NumistaLookupRequest{
 		Query: query, Path: models.NumistaLookupPathDirect, Evidence: models.NumistaEvidence{},
+		QuerySource: models.NumistaQuerySourceManual,
 	})
 	if err != nil {
 		return models.LegacyNumistaSearchResponse{}, err
@@ -420,6 +495,7 @@ func (s *NumistaLookupService) recordLookup(
 			OccurredAt: s.clock.Now(), Path: request.Path, Operation: "broad",
 			CacheOutcome:      cacheOutcome,
 			CorrelationDigest: NumistaCorrelationDigest(request.Path, request.Query),
+			Source:            request.QuerySource, Attempt: outcome.SearchAttempt,
 		})
 		return
 	}
@@ -429,6 +505,7 @@ func (s *NumistaLookupService) recordLookup(
 		ElapsedMilliseconds: s.clock.Now().Sub(start).Milliseconds(),
 		CandidateCount:      len(outcome.Candidates), RetryAfterSeconds: outcome.RetryAfterSeconds,
 		CorrelationDigest: NumistaCorrelationDigest(request.Path, request.Query),
+		Source:            request.QuerySource, Attempt: outcome.SearchAttempt,
 	})
 }
 
@@ -438,6 +515,8 @@ func (s *NumistaLookupService) recordCancellation(
 	operation string,
 	start time.Time,
 	cacheResult *NumistaCacheResult,
+	source models.NumistaQuerySource,
+	attempt models.NumistaSearchAttempt,
 ) {
 	if s.telemetry == nil {
 		return
@@ -453,6 +532,7 @@ func (s *NumistaLookupService) recordCancellation(
 		OccurredAt: s.clock.Now(), Path: path, Operation: operation, CacheOutcome: cacheOutcome,
 		ElapsedMilliseconds: boolDuration(cacheOutcome != NumistaCacheOutcomeCoalescedWaiter, s.clock.Now().Sub(start)),
 		CorrelationDigest:   NumistaCorrelationDigest(path, correlation), Cancelled: true,
+		Source: source, Attempt: attempt,
 	})
 }
 
@@ -464,6 +544,8 @@ func (s *NumistaLookupService) prepareProviderOperation(
 	candidates []models.NumistaCandidate,
 	err error,
 	clientOperation NumistaClientOperation,
+	source models.NumistaQuerySource,
+	attempt models.NumistaSearchAttempt,
 ) func() {
 	if s.telemetry == nil {
 		return nil
@@ -489,6 +571,8 @@ func (s *NumistaLookupService) prepareProviderOperation(
 		RetryCount:          clientOperation.RetryCount,
 		RetryAfterSeconds:   retryAfter,
 		CorrelationDigest:   NumistaCorrelationDigest(path, correlation),
+		Source:              source,
+		Attempt:             attempt,
 	}
 	if operation == "detail" {
 		event.DetailAttemptCount = 1

@@ -9726,6 +9726,57 @@ const docTemplate = `{
                 }
             }
         },
+        "/numista/query-proposal": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Builds a generated text-query proposal locally without contacting Numista.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Numista"
+                ],
+                "summary": "Build a Numista query proposal",
+                "parameters": [
+                    {
+                        "description": "Proposal request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.NumistaQueryProposalRequestSwagger"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.NumistaQueryProposalSwagger"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/numista/search": {
             "get": {
                 "security": [
@@ -17669,6 +17720,12 @@ const docTemplate = `{
         },
         "handlers.NumistaEnrichmentRequestSwagger": {
             "type": "object",
+            "required": [
+                "evidence",
+                "path",
+                "query",
+                "querySource"
+            ],
             "properties": {
                 "candidates": {
                     "type": "array",
@@ -17679,16 +17736,43 @@ const docTemplate = `{
                 "evidence": {
                     "$ref": "#/definitions/models.NumistaEvidence"
                 },
+                "generationVersion": {
+                    "type": "string",
+                    "enum": [
+                        "numista-query-v2"
+                    ]
+                },
                 "path": {
                     "$ref": "#/definitions/models.NumistaLookupPath"
                 },
                 "query": {
                     "type": "string"
+                },
+                "querySource": {
+                    "enum": [
+                        "generated",
+                        "user-edited",
+                        "manual"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.NumistaQuerySource"
+                        }
+                    ]
                 }
             }
         },
         "handlers.NumistaLookupOutcomeSwagger": {
             "type": "object",
+            "required": [
+                "candidates",
+                "effectiveQuery",
+                "querySource",
+                "searchAttempt",
+                "searchAttemptCount",
+                "stage",
+                "status"
+            ],
             "properties": {
                 "cache": {
                     "$ref": "#/definitions/models.NumistaCacheMetadata"
@@ -17705,7 +17789,16 @@ const docTemplate = `{
                 "guidanceCode": {
                     "type": "string"
                 },
+                "querySource": {
+                    "$ref": "#/definitions/models.NumistaQuerySource"
+                },
                 "retryAfterSeconds": {
+                    "type": "integer"
+                },
+                "searchAttempt": {
+                    "$ref": "#/definitions/models.NumistaSearchAttempt"
+                },
+                "searchAttemptCount": {
                     "type": "integer"
                 },
                 "stage": {
@@ -17718,15 +17811,83 @@ const docTemplate = `{
         },
         "handlers.NumistaLookupRequestSwagger": {
             "type": "object",
+            "required": [
+                "evidence",
+                "path",
+                "query",
+                "querySource"
+            ],
             "properties": {
                 "evidence": {
                     "$ref": "#/definitions/models.NumistaEvidence"
+                },
+                "generationVersion": {
+                    "type": "string",
+                    "enum": [
+                        "numista-query-v2"
+                    ]
                 },
                 "path": {
                     "$ref": "#/definitions/models.NumistaLookupPath"
                 },
                 "query": {
                     "type": "string"
+                },
+                "querySource": {
+                    "enum": [
+                        "generated",
+                        "user-edited",
+                        "manual"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.NumistaQuerySource"
+                        }
+                    ]
+                }
+            }
+        },
+        "handlers.NumistaQueryProposalRequestSwagger": {
+            "type": "object",
+            "required": [
+                "evidence",
+                "path"
+            ],
+            "properties": {
+                "evidence": {
+                    "$ref": "#/definitions/models.NumistaEvidence"
+                },
+                "path": {
+                    "$ref": "#/definitions/models.NumistaLookupPath"
+                }
+            }
+        },
+        "handlers.NumistaQueryProposalSwagger": {
+            "type": "object",
+            "required": [
+                "generationVersion",
+                "query",
+                "querySource"
+            ],
+            "properties": {
+                "generationVersion": {
+                    "type": "string",
+                    "enum": [
+                        "numista-query-v2"
+                    ]
+                },
+                "query": {
+                    "type": "string"
+                },
+                "querySource": {
+                    "enum": [
+                        "generated"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.NumistaQuerySource"
+                        }
+                    ]
                 }
             }
         },
@@ -20294,6 +20455,9 @@ const docTemplate = `{
                 "reverseInscription": {
                     "type": "string"
                 },
+                "reverseType": {
+                    "type": "string"
+                },
                 "title": {
                     "type": "string"
                 },
@@ -20338,6 +20502,9 @@ const docTemplate = `{
                 "freshCacheHitRate": {
                     "type": "number"
                 },
+                "generatedQueryCount": {
+                    "type": "integer"
+                },
                 "lastCheckedAt": {
                     "type": "string"
                 },
@@ -20348,6 +20515,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "lastRetryAfterSeconds": {
+                    "type": "integer"
+                },
+                "manualQueryCount": {
                     "type": "integer"
                 },
                 "p50ElapsedMs": {
@@ -20364,17 +20534,32 @@ const docTemplate = `{
                 "providerLoadCount": {
                     "type": "integer"
                 },
+                "relaxedAttemptCount": {
+                    "type": "integer"
+                },
                 "statusCounts": {
                     "description": "Sparse rolling counts; absent statuses have zero events.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "integer"
                     }
+                },
+                "userEditedQueryCount": {
+                    "type": "integer"
                 }
             }
         },
         "models.NumistaLookupOutcome": {
             "type": "object",
+            "required": [
+                "candidates",
+                "effectiveQuery",
+                "querySource",
+                "searchAttempt",
+                "searchAttemptCount",
+                "stage",
+                "status"
+            ],
             "properties": {
                 "cache": {
                     "$ref": "#/definitions/models.NumistaCacheMetadata"
@@ -20391,7 +20576,16 @@ const docTemplate = `{
                 "guidanceCode": {
                     "type": "string"
                 },
+                "querySource": {
+                    "$ref": "#/definitions/models.NumistaQuerySource"
+                },
                 "retryAfterSeconds": {
+                    "type": "integer"
+                },
+                "searchAttempt": {
+                    "$ref": "#/definitions/models.NumistaSearchAttempt"
+                },
+                "searchAttemptCount": {
                     "type": "integer"
                 },
                 "stage": {
@@ -20430,6 +20624,19 @@ const docTemplate = `{
                 "NumistaStatusQuotaLimited",
                 "NumistaStatusTimeout",
                 "NumistaStatusUnavailable"
+            ]
+        },
+        "models.NumistaQuerySource": {
+            "type": "string",
+            "enum": [
+                "generated",
+                "user-edited",
+                "manual"
+            ],
+            "x-enum-varnames": [
+                "NumistaQuerySourceGenerated",
+                "NumistaQuerySourceUserEdited",
+                "NumistaQuerySourceManual"
             ]
         },
         "models.NumistaReasonKind": {
@@ -20481,6 +20688,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "models.NumistaSearchAttempt": {
+            "type": "string",
+            "enum": [
+                "primary",
+                "relaxed"
+            ],
+            "x-enum-varnames": [
+                "NumistaSearchAttemptPrimary",
+                "NumistaSearchAttemptRelaxed"
+            ]
         },
         "models.OIDCProviderTestStatus": {
             "type": "string",

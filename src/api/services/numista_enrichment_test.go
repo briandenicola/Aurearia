@@ -463,6 +463,88 @@ func TestNumistaEnrichmentIsDeterministicRetainsAllFailuresAndDoesNotMutateInput
 	}
 }
 
+func TestNumistaEnrichmentPreservesBroadSearchAttribution(t *testing.T) {
+	evidence := models.NumistaEvidence{
+		Issuer: "Honorius", Mint: "SMNT", ReverseInscription: "GLORIA ROMANORVM",
+	}
+	candidates := []models.NumistaCandidate{
+		enrichmentCandidate(1, "First", 0),
+		enrichmentCandidate(2, "Second", 1),
+	}
+	tests := []struct {
+		name         string
+		query        string
+		failures     map[int]error
+		wantAttempt  models.NumistaSearchAttempt
+		wantCount    int
+		wantFailures int
+	}{
+		{
+			name: "relaxed enrichment succeeds", query: "Honorius Nicomedia",
+			wantAttempt: models.NumistaSearchAttemptRelaxed, wantCount: 2,
+		},
+		{
+			name: "relaxed enrichment partially fails", query: "Honorius Nicomedia",
+			failures:    map[int]error{2: &NumistaError{Kind: NumistaErrorUnavailable}},
+			wantAttempt: models.NumistaSearchAttemptRelaxed, wantCount: 2, wantFailures: 1,
+		},
+		{
+			name: "relaxed enrichment entirely fails", query: "Honorius Nicomedia",
+			failures: map[int]error{
+				1: &NumistaError{Kind: NumistaErrorUnavailable},
+				2: &NumistaError{Kind: NumistaErrorTimeout},
+			},
+			wantAttempt: models.NumistaSearchAttemptRelaxed, wantCount: 2, wantFailures: 2,
+		},
+		{
+			name:        "primary enrichment succeeds",
+			query:       "Honorius GLORIA ROMANORVM Nicomedia",
+			wantAttempt: models.NumistaSearchAttemptPrimary, wantCount: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := &enrichmentDetailClient{
+				details: map[int]models.NumistaCandidate{
+					1: {ID: 1, Title: "First"},
+					2: {ID: 2, Title: "Second"},
+				},
+				failures: test.failures,
+			}
+			request := models.NumistaEnrichmentRequest{
+				NumistaLookupRequest: models.NumistaLookupRequest{
+					Query: test.query, Path: models.NumistaLookupPathDirect, Evidence: evidence,
+					QuerySource:       models.NumistaQuerySourceGenerated,
+					GenerationVersion: models.NumistaQueryGenerationVersion,
+				},
+				Candidates: candidates,
+			}
+			outcome, err := newEnrichmentService(client, nil, 2, nil).Enrich(
+				context.Background(), request,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if outcome.EffectiveQuery != test.query ||
+				outcome.QuerySource != models.NumistaQuerySourceGenerated ||
+				outcome.SearchAttempt != test.wantAttempt ||
+				outcome.SearchAttemptCount != test.wantCount {
+				t.Fatalf("enrichment attribution = %#v", outcome)
+			}
+			failures := 0
+			for _, candidate := range outcome.Candidates {
+				if candidate.EnrichmentState == models.NumistaEnrichmentFailed {
+					failures++
+				}
+			}
+			if failures != test.wantFailures {
+				t.Fatalf("failed candidates = %d, want %d", failures, test.wantFailures)
+			}
+		})
+	}
+}
+
 func TestNumistaEnrichmentRecordsActualDetailTelemetryWithoutPrivateText(t *testing.T) {
 	telemetry := NewNumistaTelemetry(20)
 	const privateText = "PRIVATE INSCRIPTION SHOULD NOT APPEAR"

@@ -91,6 +91,7 @@ func main() {
 	numistaClock := services.NewSystemNumistaClock()
 	numistaCache := services.NewNumistaCache(numistaClock, 500, 5000)
 	numistaTelemetry := services.NewNumistaTelemetry(500)
+	numistaQueryBuilder := services.NewNumistaQueryBuilder()
 	numistaClient, err := services.NewHTTPNumistaClient(services.NumistaClientConfig{
 		APIKey:        func() string { return settingsSvc.GetSetting(services.SettingNumistaAPIKey) },
 		SearchTimeout: func() time.Duration { return settingsSvc.GetNumistaSettings().SearchTimeout },
@@ -101,7 +102,7 @@ func main() {
 	}
 	numistaLookupSvc := services.NewNumistaLookupService(
 		numistaClient, numistaCache, services.NewNumistaV1Scorer(),
-		numistaTelemetry, settingsSvc, numistaClock,
+		numistaTelemetry, settingsSvc, numistaClock, numistaQueryBuilder,
 	)
 
 	// Create internal token service for Python agent callbacks
@@ -320,7 +321,7 @@ func main() {
 			WithCoinValidation(coinSvc).
 			WithReferenceValidation(coinReferenceSvc)
 		quickCaptureHandler := handlers.NewQuickCaptureHandler(quickCaptureSvc, logger)
-		coinLookupSvc := services.NewCoinLookupService(agentProxy, settingsSvc, logger)
+		coinLookupSvc := services.NewCoinLookupService(agentProxy, settingsSvc, logger, numistaQueryBuilder)
 		coinLookupHandler := handlers.NewCoinLookupHandler(coinLookupSvc, logger)
 		protected.GET("/coins", coinHandler.List)
 		protected.GET("/coins/:id", coinHandler.Get)
@@ -488,6 +489,7 @@ func main() {
 		protected.GET("/featured-coins/:id", coinOfDayHandler.Get)
 
 		numistaHandler := handlers.NewNumistaHandler(numistaLookupSvc)
+		protected.POST("/numista/query-proposal", numistaHandler.QueryProposal)
 		protected.POST("/numista/lookup", numistaHandler.Lookup)
 		protected.POST("/numista/enrich", numistaHandler.Enrich)
 		protected.GET("/numista/search", numistaHandler.Search)

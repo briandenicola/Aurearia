@@ -19,16 +19,25 @@ type NumistaHandler struct {
 }
 
 type numistaLookupWireRequest struct {
-	Query    string                   `json:"query"`
+	Query             string                     `json:"query"`
+	Path              models.NumistaLookupPath   `json:"path"`
+	Evidence          *models.NumistaEvidence    `json:"evidence"`
+	QuerySource       *models.NumistaQuerySource `json:"querySource"`
+	GenerationVersion string                     `json:"generationVersion"`
+}
+
+type numistaQueryProposalWireRequest struct {
 	Path     models.NumistaLookupPath `json:"path"`
 	Evidence *models.NumistaEvidence  `json:"evidence"`
 }
 
 type numistaEnrichmentWireRequest struct {
-	Query      string                    `json:"query"`
-	Path       models.NumistaLookupPath  `json:"path"`
-	Evidence   *models.NumistaEvidence   `json:"evidence"`
-	Candidates []models.NumistaCandidate `json:"candidates"`
+	Query             string                    `json:"query"`
+	Path              models.NumistaLookupPath  `json:"path"`
+	Evidence          *models.NumistaEvidence   `json:"evidence"`
+	Candidates        []models.NumistaCandidate `json:"candidates"`
+	QuerySource       models.NumistaQuerySource `json:"querySource"`
+	GenerationVersion string                    `json:"generationVersion"`
 }
 
 func NewNumistaHandler(lookup *services.NumistaLookupService) *NumistaHandler {
@@ -54,7 +63,8 @@ func (h *NumistaHandler) Lookup(c *gin.Context) {
 	decoder := json.NewDecoder(c.Request.Body)
 	decoder.DisallowUnknownFields()
 	var wireRequest numistaLookupWireRequest
-	if err := decoder.Decode(&wireRequest); err != nil || wireRequest.Evidence == nil {
+	if err := decoder.Decode(&wireRequest); err != nil ||
+		wireRequest.Evidence == nil || wireRequest.QuerySource == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Numista lookup request"})
 		return
 	}
@@ -64,6 +74,7 @@ func (h *NumistaHandler) Lookup(c *gin.Context) {
 	}
 	request := models.NumistaLookupRequest{
 		Query: wireRequest.Query, Path: wireRequest.Path, Evidence: *wireRequest.Evidence,
+		QuerySource: *wireRequest.QuerySource, GenerationVersion: wireRequest.GenerationVersion,
 	}
 	outcome, err := h.lookup.Lookup(c.Request.Context(), request)
 	if err != nil {
@@ -79,6 +90,42 @@ func (h *NumistaHandler) Lookup(c *gin.Context) {
 	}
 	outcome = roleSafeNumistaOutcome(c, outcome)
 	c.JSON(http.StatusOK, outcome)
+}
+
+// QueryProposal builds a local versioned Numista text-query proposal.
+//
+//	@Summary		Build a Numista query proposal
+//	@Description	Builds a generated text-query proposal locally without contacting Numista.
+//	@Tags			Numista
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		NumistaQueryProposalRequestSwagger	true	"Proposal request"
+//	@Success		200		{object}	NumistaQueryProposalSwagger
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/numista/query-proposal [post]
+func (h *NumistaHandler) QueryProposal(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, numistaLookupBodyLimit)
+	decoder := json.NewDecoder(c.Request.Body)
+	decoder.DisallowUnknownFields()
+	var wireRequest numistaQueryProposalWireRequest
+	if err := decoder.Decode(&wireRequest); err != nil || wireRequest.Evidence == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Numista query proposal request"})
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Numista query proposal request"})
+		return
+	}
+	proposal, err := h.lookup.Propose(models.NumistaQueryProposalRequest{
+		Path: wireRequest.Path, Evidence: *wireRequest.Evidence,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, proposal)
 }
 
 // Enrich retrieves details for a server-ranked bounded candidate subset.
@@ -111,6 +158,7 @@ func (h *NumistaHandler) Enrich(c *gin.Context) {
 	request := models.NumistaEnrichmentRequest{
 		NumistaLookupRequest: models.NumistaLookupRequest{
 			Query: wireRequest.Query, Path: wireRequest.Path, Evidence: *wireRequest.Evidence,
+			QuerySource: wireRequest.QuerySource, GenerationVersion: wireRequest.GenerationVersion,
 		},
 		Candidates: wireRequest.Candidates,
 	}

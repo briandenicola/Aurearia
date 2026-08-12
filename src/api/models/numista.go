@@ -10,11 +10,12 @@ import (
 )
 
 const (
-	NumistaMaxQueryLength       = 500
-	NumistaMaxCandidateCount    = 50
-	NumistaMaxID                = 2147483647
-	NumistaScoringVersion       = "numista-v1"
-	NumistaCanonicalURLTemplate = "https://en.numista.com/catalogue/pieces%d.html"
+	NumistaMaxQueryLength         = 500
+	NumistaMaxCandidateCount      = 50
+	NumistaMaxID                  = 2147483647
+	NumistaScoringVersion         = "numista-v1"
+	NumistaQueryGenerationVersion = "numista-query-v2"
+	NumistaCanonicalURLTemplate   = "https://en.numista.com/catalogue/pieces%d.html"
 )
 
 type NumistaLookupPath string
@@ -33,6 +34,21 @@ const (
 	NumistaStatusQuotaLimited NumistaLookupStatus = "quota-limited"
 	NumistaStatusTimeout      NumistaLookupStatus = "timeout"
 	NumistaStatusUnavailable  NumistaLookupStatus = "unavailable"
+)
+
+type NumistaQuerySource string
+
+const (
+	NumistaQuerySourceGenerated  NumistaQuerySource = "generated"
+	NumistaQuerySourceUserEdited NumistaQuerySource = "user-edited"
+	NumistaQuerySourceManual     NumistaQuerySource = "manual"
+)
+
+type NumistaSearchAttempt string
+
+const (
+	NumistaSearchAttemptPrimary NumistaSearchAttempt = "primary"
+	NumistaSearchAttemptRelaxed NumistaSearchAttempt = "relaxed"
 )
 
 type NumistaEnrichmentState string
@@ -61,14 +77,28 @@ type NumistaEvidence struct {
 	Material           string `json:"material,omitempty"`
 	ObverseInscription string `json:"obverseInscription,omitempty"`
 	ReverseInscription string `json:"reverseInscription,omitempty"`
+	ReverseType        string `json:"reverseType,omitempty"`
 	VisibleText        string `json:"visibleText,omitempty"`
 	ExactNumistaID     *int   `json:"exactNumistaId,omitempty"`
 }
 
 type NumistaLookupRequest struct {
-	Query    string            `json:"query"`
-	Path     NumistaLookupPath `json:"path"`
-	Evidence NumistaEvidence   `json:"evidence"`
+	Query             string             `json:"query" binding:"required"`
+	Path              NumistaLookupPath  `json:"path" binding:"required"`
+	Evidence          NumistaEvidence    `json:"evidence" binding:"required"`
+	QuerySource       NumistaQuerySource `json:"querySource" binding:"required" enums:"generated,user-edited,manual"`
+	GenerationVersion string             `json:"generationVersion,omitempty" enums:"numista-query-v2"`
+}
+
+type NumistaQueryProposalRequest struct {
+	Path     NumistaLookupPath `json:"path" binding:"required"`
+	Evidence NumistaEvidence   `json:"evidence" binding:"required"`
+}
+
+type NumistaQueryProposal struct {
+	Query             string             `json:"query" binding:"required"`
+	QuerySource       NumistaQuerySource `json:"querySource" binding:"required" enums:"generated"`
+	GenerationVersion string             `json:"generationVersion" binding:"required" enums:"numista-query-v2"`
 }
 
 type NumistaRelevanceReason struct {
@@ -114,13 +144,16 @@ type NumistaCacheMetadata struct {
 }
 
 type NumistaLookupOutcome struct {
-	Status            NumistaLookupStatus   `json:"status"`
-	EffectiveQuery    string                `json:"effectiveQuery"`
-	Candidates        []NumistaCandidate    `json:"candidates"`
-	GuidanceCode      string                `json:"guidanceCode,omitempty"`
-	RetryAfterSeconds *int                  `json:"retryAfterSeconds,omitempty"`
-	Cache             *NumistaCacheMetadata `json:"cache,omitempty"`
-	Stage             string                `json:"stage"`
+	Status             NumistaLookupStatus   `json:"status" binding:"required"`
+	EffectiveQuery     string                `json:"effectiveQuery" binding:"required"`
+	Candidates         []NumistaCandidate    `json:"candidates" binding:"required"`
+	GuidanceCode       string                `json:"guidanceCode,omitempty"`
+	RetryAfterSeconds  *int                  `json:"retryAfterSeconds,omitempty"`
+	Cache              *NumistaCacheMetadata `json:"cache,omitempty"`
+	Stage              string                `json:"stage" binding:"required"`
+	QuerySource        NumistaQuerySource    `json:"querySource" binding:"required"`
+	SearchAttempt      NumistaSearchAttempt  `json:"searchAttempt" binding:"required"`
+	SearchAttemptCount int                   `json:"searchAttemptCount" binding:"required"`
 }
 
 type NumistaEnrichmentRequest struct {
@@ -172,6 +205,10 @@ type NumistaHealthSummary struct {
 	EnrichmentAttempted   int                         `json:"enrichmentAttempted"`
 	EnrichmentSucceeded   int                         `json:"enrichmentSucceeded"`
 	EnrichmentFailed      int                         `json:"enrichmentFailed"`
+	GeneratedQueryCount   int                         `json:"generatedQueryCount,omitempty"`
+	UserEditedQueryCount  int                         `json:"userEditedQueryCount,omitempty"`
+	ManualQueryCount      int                         `json:"manualQueryCount,omitempty"`
+	RelaxedAttemptCount   int                         `json:"relaxedAttemptCount,omitempty"`
 	LastQuotaLimitedAt    *time.Time                  `json:"lastQuotaLimitedAt,omitempty"`
 	LastRetryAfterSeconds *int                        `json:"lastRetryAfterSeconds,omitempty"`
 }
@@ -182,6 +219,24 @@ func (r *NumistaLookupRequest) Validate() error {
 	}
 	if r.Path != NumistaLookupPathDirect && r.Path != NumistaLookupPathPhoto {
 		return errors.New("path must be direct or photo")
+	}
+	if r.QuerySource == "" {
+		r.QuerySource = NumistaQuerySourceManual
+	}
+	switch r.QuerySource {
+	case NumistaQuerySourceGenerated, NumistaQuerySourceUserEdited, NumistaQuerySourceManual:
+	default:
+		return errors.New("querySource must be generated, user-edited, or manual")
+	}
+	switch r.QuerySource {
+	case NumistaQuerySourceGenerated, NumistaQuerySourceUserEdited:
+		if r.GenerationVersion != NumistaQueryGenerationVersion {
+			return errors.New("generationVersion must be numista-query-v2 for generated or user-edited queries")
+		}
+	case NumistaQuerySourceManual:
+		if r.GenerationVersion != "" {
+			return errors.New("generationVersion must be omitted for manual queries")
+		}
 	}
 	return r.Evidence.Validate()
 }
@@ -195,8 +250,10 @@ func (e NumistaEvidence) Validate() error {
 		{"title", e.Title, 200}, {"issuer", e.Issuer, 200}, {"denomination", e.Denomination, 100},
 		{"mint", e.Mint, 200}, {"dateText", e.DateText, 100}, {"material", e.Material, 100},
 		{"obverseInscription", e.ObverseInscription, 500}, {"reverseInscription", e.ReverseInscription, 500},
+		{"reverseType", e.ReverseType, 500},
 		{"visibleText", e.VisibleText, 500},
 	}
+
 	for _, bound := range bounds {
 		if len([]rune(strings.TrimSpace(bound.value))) > bound.max {
 			return fmt.Errorf("%s exceeds %d characters", bound.name, bound.max)
@@ -206,6 +263,13 @@ func (e NumistaEvidence) Validate() error {
 		return errors.New("exactNumistaId must be between 1 and 2147483647")
 	}
 	return nil
+}
+
+func (r NumistaQueryProposalRequest) Validate() error {
+	if r.Path != NumistaLookupPathDirect && r.Path != NumistaLookupPathPhoto {
+		return errors.New("path must be direct or photo")
+	}
+	return r.Evidence.Validate()
 }
 
 func (r *NumistaEnrichmentRequest) Validate() error {
@@ -362,6 +426,22 @@ func (o NumistaLookupOutcome) Validate() error {
 	if strings.TrimSpace(o.EffectiveQuery) == "" || (o.Stage != "broad" && o.Stage != "enriched") {
 		return errors.New("lookup outcome is invalid")
 	}
+	legacyAttribution := o.QuerySource == "" && o.SearchAttempt == "" && o.SearchAttemptCount == 0
+	if !legacyAttribution {
+		switch o.QuerySource {
+		case NumistaQuerySourceGenerated, NumistaQuerySourceUserEdited, NumistaQuerySourceManual:
+		default:
+			return errors.New("lookup query source is invalid")
+		}
+		if o.SearchAttempt != NumistaSearchAttemptPrimary && o.SearchAttempt != NumistaSearchAttemptRelaxed {
+			return errors.New("lookup search attempt is invalid")
+		}
+		if o.SearchAttemptCount < 1 || o.SearchAttemptCount > 2 ||
+			(o.SearchAttempt == NumistaSearchAttemptPrimary && o.SearchAttemptCount != 1) ||
+			(o.SearchAttempt == NumistaSearchAttemptRelaxed && o.SearchAttemptCount != 2) {
+			return errors.New("lookup search attempt count is invalid")
+		}
+	}
 	if o.Candidates == nil {
 		return errors.New("lookup candidates must be present")
 	}
@@ -394,7 +474,9 @@ func (h NumistaHealthSummary) Validate() error {
 		h.ProviderLoadCount < 0 || h.ProviderFailureCount < 0 || h.CancelledRequestCount < 0 ||
 		h.FreshCacheHitRate < 0 || h.FreshCacheHitRate > 1 ||
 		h.P50ElapsedMs < 0 || h.P95ElapsedMs < 0 || h.EnrichmentAttempted < 0 ||
-		h.EnrichmentSucceeded < 0 || h.EnrichmentFailed < 0 {
+		h.EnrichmentSucceeded < 0 || h.EnrichmentFailed < 0 ||
+		h.GeneratedQueryCount < 0 || h.UserEditedQueryCount < 0 ||
+		h.ManualQueryCount < 0 || h.RelaxedAttemptCount < 0 {
 		return errors.New("health summary is invalid")
 	}
 	if h.LastOutcome != "" && !validNumistaLookupStatus(h.LastOutcome) {

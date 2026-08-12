@@ -96,6 +96,7 @@ func TestNumistaLookupCacheReusesFreshEmptyAndRefreshesAtExpiry(t *testing.T) {
 	if err != nil || first.Status != models.NumistaStatusEmpty || first.Cache == nil || first.Cache.Hit {
 		t.Fatalf("fresh empty lookup = %+v, error = %v", first, err)
 	}
+
 	clock.Add(59 * time.Minute)
 	second, err := service.Lookup(context.Background(), request)
 	if err != nil || second.Status != models.NumistaStatusEmpty || second.Cache == nil ||
@@ -114,6 +115,38 @@ func TestNumistaLookupCacheReusesFreshEmptyAndRefreshesAtExpiry(t *testing.T) {
 	}
 	if !third.Cache.CreatedAt.Equal(clock.Now()) || !third.Cache.ExpiresAt.Equal(clock.Now().Add(time.Hour)) {
 		t.Fatalf("refresh metadata = %+v, want fake-clock creation and expiry", third.Cache)
+	}
+}
+
+func TestNumistaLookupCacheKeepsPrimaryAndRelaxedQueriesIndependent(t *testing.T) {
+	client := &sequenceNumistaClient{results: map[string][]models.NumistaCandidate{
+		"Honorius GLORIA ROMANORVM Nicomedia": {},
+		"Honorius Nicomedia":                  {{ID: 208360, Title: "AE3 - Honorius"}},
+	}}
+	settings := &fakeNumistaSettings{key: "configured", config: NumistaSettings{
+		SearchTTL: time.Hour, SearchResultLimit: 20, Valid: true,
+	}}
+	service := newPhase6CacheService(client, NewNumistaCache(nil, 20, 20), settings, nil)
+	request := models.NumistaLookupRequest{
+		Query: "Honorius GLORIA ROMANORVM Nicomedia", Path: models.NumistaLookupPathDirect,
+		Evidence: models.NumistaEvidence{
+			Issuer: "Honorius", Mint: "SMNT", ReverseInscription: "GLORIA ROMANORVM",
+		},
+		QuerySource:       models.NumistaQuerySourceGenerated,
+		GenerationVersion: models.NumistaQueryGenerationVersion,
+	}
+	first, err := service.Lookup(context.Background(), request)
+	if err != nil || first.Cache == nil || first.Cache.Hit ||
+		first.SearchAttempt != models.NumistaSearchAttemptRelaxed ||
+		first.SearchAttemptCount != 2 {
+		t.Fatalf("fresh generated lookup=%+v err=%v", first, err)
+	}
+	second, err := service.Lookup(context.Background(), request)
+	if err != nil || second.Cache == nil || !second.Cache.Hit ||
+		second.EffectiveQuery != "Honorius Nicomedia" ||
+		second.SearchAttempt != models.NumistaSearchAttemptRelaxed ||
+		second.SearchAttemptCount != 2 || client.CallCount() != 2 {
+		t.Fatalf("cached generated lookup=%+v calls=%v err=%v", second, client.Queries(), err)
 	}
 }
 

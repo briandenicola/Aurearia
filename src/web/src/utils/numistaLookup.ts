@@ -7,8 +7,6 @@ import type {
   SelectedNumistaReference,
 } from '@/types'
 
-const QUERY_LIMIT = 500
-
 export type NumistaPanelState = 'idle' | 'loading' | NumistaLookupStatus
 
 type DirectCoinEvidence = Pick<
@@ -41,26 +39,6 @@ export function buildDirectNumistaEvidence(coin: DirectCoinEvidence): NumistaEvi
     obverseInscription: bounded(coin.obverseInscription, 500),
     reverseInscription: bounded(coin.reverseInscription, 500),
   }
-}
-
-export function buildNumistaQuery(evidence: NumistaEvidence): string {
-  return [
-    evidence.title,
-    evidence.issuer,
-    evidence.denomination,
-    evidence.mint,
-    evidence.dateText,
-    evidence.material,
-    evidence.obverseInscription,
-    evidence.reverseInscription,
-    evidence.visibleText,
-  ].filter((value): value is string => Boolean(value?.trim()))
-    .join(' ')
-    .slice(0, QUERY_LIMIT)
-}
-
-export function buildDirectNumistaQuery(coin: DirectCoinEvidence): string {
-  return buildNumistaQuery(buildDirectNumistaEvidence(coin))
 }
 
 export function numistaCandidateIdentity(candidate: Pick<NumistaCandidate, 'id'>): string {

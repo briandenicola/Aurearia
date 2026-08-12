@@ -5,10 +5,13 @@ import CoinNumistaPanel from '../CoinNumistaPanel.vue'
 import { createCoinReference, lookupNumista } from '@/api/client'
 import { makeNumistaCandidate, makeNumistaLookupOutcome } from '@/test/numista-fixtures'
 
+const proposalMock = vi.hoisted(() => vi.fn())
+
 vi.mock('@/api/client', () => ({
   createCoinReference: vi.fn(),
   getApiErrorMessage: vi.fn(() => ''),
   lookupNumista: vi.fn(),
+  proposeNumistaQuery: proposalMock,
   onTokenRefreshed: vi.fn(),
 }))
 
@@ -38,18 +41,36 @@ describe('CoinNumistaPanel', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.mocked(lookupNumista).mockReset()
+    proposalMock.mockReset()
+    proposalMock.mockResolvedValue({
+      data: {
+        query: 'Antoninus Pius TR POT COS III Rome',
+        querySource: 'generated',
+        generationVersion: 'numista-query-v2',
+      },
+    })
     vi.mocked(createCoinReference).mockReset()
     vi.mocked(createCoinReference).mockResolvedValue({ data: {} } as never)
   })
 
-  it('builds an editable rich query and submits the exact edited value on first search and retry', async () => {
+  it('builds a concise default while submitting exact edited values on first search and retry', async () => {
     vi.mocked(lookupNumista)
       .mockResolvedValueOnce({ data: makeNumistaLookupOutcome({ effectiveQuery: 'edited first' }) })
       .mockResolvedValueOnce({ data: makeNumistaLookupOutcome({ effectiveQuery: 'edited retry' }) })
 
     const wrapper = mountPanel()
-    expect(wrapper.find('textarea').element.value).toContain('Rome 138–161 CE Silver')
-    expect(wrapper.find('textarea').element.value).toContain('ANTONINVS AVG PIVS')
+    await flushPromises()
+    expect(wrapper.find('textarea').element.value).toBe('Antoninus Pius TR POT COS III Rome')
+    expect(proposalMock).toHaveBeenCalledWith({
+      path: 'direct',
+      evidence: expect.objectContaining({
+        issuer: 'Antoninus Pius',
+        reverseInscription: 'TR POT COS III',
+        mint: 'Rome',
+        dateText: '138–161 CE',
+        material: 'Silver',
+      }),
+    })
 
     await wrapper.find('textarea').setValue('edited first')
     await wrapper.find('button.btn-primary').trigger('click')
@@ -78,6 +99,7 @@ describe('CoinNumistaPanel', () => {
       data: makeNumistaLookupOutcome({ candidates: [candidate] }),
     })
     const wrapper = mountPanel()
+    await flushPromises()
 
     await wrapper.find('button.btn-primary').trigger('click')
     await flushPromises()
@@ -106,6 +128,7 @@ describe('CoinNumistaPanel', () => {
       data: makeNumistaLookupOutcome({ candidates: [first, second] }),
     })
     const wrapper = mountPanel()
+    await flushPromises()
 
     await wrapper.find('button.btn-primary').trigger('click')
     await flushPromises()
@@ -127,6 +150,7 @@ describe('CoinNumistaPanel', () => {
         data: makeNumistaLookupOutcome({ candidates: [makeNumistaCandidate({ id: 2, title: 'New result' })] }),
       })
     const wrapper = mountPanel()
+    await flushPromises()
 
     await wrapper.find('button.btn-primary').trigger('click')
     await flushPromises()
@@ -151,6 +175,7 @@ describe('CoinNumistaPanel', () => {
       data: makeNumistaLookupOutcome({ status, candidates: [], retryAfterSeconds: 60 }),
     })
     const wrapper = mountPanel()
+    await flushPromises()
     await wrapper.find('button.btn-primary').trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain(text)

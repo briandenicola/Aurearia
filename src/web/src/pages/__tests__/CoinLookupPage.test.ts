@@ -823,6 +823,7 @@ describe('CoinLookupPage', () => {
       query: 'manual bronze coin',
       path: 'photo',
       evidence: {},
+      querySource: 'manual',
     })
   })
 

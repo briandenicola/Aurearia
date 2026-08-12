@@ -96,6 +96,210 @@ func TestNumistaLookupEmptyEvidenceCacheAndStatuses(t *testing.T) {
 	}
 }
 
+func TestNumistaLookupGeneratedEmptyUsesExactlyOneRelaxedAttempt(t *testing.T) {
+	client := &sequenceNumistaClient{
+		results: map[string][]models.NumistaCandidate{
+			"Honorius GLORIA ROMANORVM Nicomedia": {},
+			"Honorius Nicomedia": {
+				{ID: 208360, Title: "AE3 - Honorius", Issuer: "Roman Empire"},
+			},
+		},
+	}
+
+	settings := &fakeNumistaSettings{key: "configured", config: NumistaSettings{
+		SearchTTL: time.Hour, SearchResultLimit: 20, Valid: true,
+	}}
+	service := newLookupTestService(client, settings)
+	outcome, err := service.Lookup(context.Background(), models.NumistaLookupRequest{
+		Query: "Honorius GLORIA ROMANORVM Nicomedia",
+		Path:  models.NumistaLookupPathDirect,
+		Evidence: models.NumistaEvidence{
+			Issuer: "Honorius", Mint: "SMNT", ReverseInscription: "GLORIA ROMANORVM",
+		},
+		QuerySource:       models.NumistaQuerySourceGenerated,
+		GenerationVersion: models.NumistaQueryGenerationVersion,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Status != models.NumistaStatusSuccess ||
+		outcome.EffectiveQuery != "Honorius Nicomedia" ||
+		outcome.SearchAttempt != models.NumistaSearchAttemptRelaxed ||
+		outcome.SearchAttemptCount != 2 ||
+		client.CallCount() != 2 {
+		t.Fatalf("unexpected generated fallback: outcome=%#v calls=%v", outcome, client.Queries())
+	}
+}
+
+func TestNumistaLookupStaleGeneratedMarkerIsDowngradedWithoutRetry(t *testing.T) {
+	client := &sequenceNumistaClient{results: map[string][]models.NumistaCandidate{
+		"Honorius verbose stale query": {},
+	}}
+	settings := &fakeNumistaSettings{key: "configured", config: NumistaSettings{
+		SearchTTL: time.Hour, SearchResultLimit: 20, Valid: true,
+	}}
+	outcome, err := newLookupTestService(client, settings).Lookup(
+		context.Background(),
+		models.NumistaLookupRequest{
+			Query: "Honorius verbose stale query", Path: models.NumistaLookupPathDirect,
+			Evidence: models.NumistaEvidence{
+				Issuer: "Honorius", Mint: "SMNT", ReverseInscription: "GLORIA ROMANORVM",
+			},
+			QuerySource:       models.NumistaQuerySourceGenerated,
+			GenerationVersion: models.NumistaQueryGenerationVersion,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.CallCount() != 1 ||
+		outcome.QuerySource != models.NumistaQuerySourceUserEdited ||
+		outcome.SearchAttempt != models.NumistaSearchAttemptPrimary ||
+		outcome.SearchAttemptCount != 1 ||
+		outcome.EffectiveQuery != "Honorius verbose stale query" {
+		t.Fatalf("stale marker was not safely downgraded: outcome=%#v queries=%v", outcome, client.Queries())
+	}
+}
+
+func TestNumistaLookupDoesNotRelaxManualEditedOrTerminalOutcomes(t *testing.T) {
+	tests := []struct {
+		name   string
+		source models.NumistaQuerySource
+		err    error
+		result []models.NumistaCandidate
+	}{
+		{name: "manual empty", source: models.NumistaQuerySourceManual},
+		{name: "user edited empty", source: models.NumistaQuerySourceUserEdited},
+		{
+			name: "generated success", source: models.NumistaQuerySourceGenerated,
+			result: []models.NumistaCandidate{{ID: 208360, Title: "AE3 - Honorius"}},
+		},
+		{
+			name: "generated quota", source: models.NumistaQuerySourceGenerated,
+			err: &NumistaError{Kind: NumistaErrorQuotaLimited},
+		},
+		{
+			name: "generated timeout", source: models.NumistaQuerySourceGenerated,
+			err: &NumistaError{Kind: NumistaErrorTimeout},
+		},
+		{
+			name: "generated unavailable", source: models.NumistaQuerySourceGenerated,
+			err: &NumistaError{Kind: NumistaErrorUnavailable},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := &sequenceNumistaClient{
+				results: map[string][]models.NumistaCandidate{
+					"  Honorius RIC IX 46  ": test.result,
+				},
+				err: test.err,
+			}
+			settings := &fakeNumistaSettings{key: "configured", config: NumistaSettings{
+				SearchTTL: time.Hour, SearchResultLimit: 20, Valid: true,
+			}}
+			outcome, err := newLookupTestService(client, settings).Lookup(
+				context.Background(),
+				models.NumistaLookupRequest{
+					Query: "  Honorius RIC IX 46  ", Path: models.NumistaLookupPathDirect,
+					Evidence: models.NumistaEvidence{
+						Issuer: "Honorius", Mint: "SMNT", ReverseInscription: "GLORIA ROMANORVM",
+					},
+					QuerySource: test.source,
+					GenerationVersion: func() string {
+						if test.source == models.NumistaQuerySourceManual {
+							return ""
+						}
+						return models.NumistaQueryGenerationVersion
+					}(),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if client.CallCount() != 1 || client.Queries()[0] != "  Honorius RIC IX 46  " {
+				t.Fatalf("query was rewritten or retried: %v", client.Queries())
+			}
+			if outcome.EffectiveQuery != "  Honorius RIC IX 46  " ||
+				outcome.SearchAttemptCount != 1 {
+				t.Fatalf("unexpected exact-query outcome: %#v", outcome)
+			}
+		})
+	}
+}
+
+func TestNumistaLookupGeneratedUnconfiguredHasNoProviderRetry(t *testing.T) {
+	client := &sequenceNumistaClient{}
+	outcome, err := newLookupTestService(client, &fakeNumistaSettings{}).Lookup(
+		context.Background(),
+		models.NumistaLookupRequest{
+			Query: "Honorius GLORIA ROMANORVM Nicomedia",
+			Path:  models.NumistaLookupPathDirect,
+			Evidence: models.NumistaEvidence{
+				Issuer: "Honorius", Mint: "SMNT", ReverseInscription: "GLORIA ROMANORVM",
+			},
+			QuerySource:       models.NumistaQuerySourceGenerated,
+			GenerationVersion: models.NumistaQueryGenerationVersion,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Status != models.NumistaStatusUnconfigured ||
+		outcome.SearchAttempt != models.NumistaSearchAttemptPrimary ||
+		outcome.SearchAttemptCount != 1 ||
+		client.CallCount() != 0 {
+		t.Fatalf("unconfigured generated lookup retried: outcome=%#v calls=%v", outcome, client.Queries())
+	}
+}
+
+func TestNumistaLookupGeneratedCancellationHasOneProviderCall(t *testing.T) {
+	client := &sequenceNumistaClient{err: context.Canceled}
+	settings := &fakeNumistaSettings{key: "configured", config: NumistaSettings{
+		SearchTTL: time.Hour, SearchResultLimit: 20, Valid: true,
+	}}
+	_, err := newLookupTestService(client, settings).Lookup(
+		context.Background(),
+		models.NumistaLookupRequest{
+			Query: "Honorius GLORIA ROMANORVM Nicomedia",
+			Path:  models.NumistaLookupPathDirect,
+			Evidence: models.NumistaEvidence{
+				Issuer: "Honorius", Mint: "SMNT", ReverseInscription: "GLORIA ROMANORVM",
+			},
+			QuerySource:       models.NumistaQuerySourceGenerated,
+			GenerationVersion: models.NumistaQueryGenerationVersion,
+		},
+	)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
+	}
+	if client.CallCount() != 1 {
+		t.Fatalf("provider calls = %d, want exactly 1", client.CallCount())
+	}
+}
+
+type sequenceNumistaClient struct {
+	results map[string][]models.NumistaCandidate
+	err     error
+	queries []string
+}
+
+func (c *sequenceNumistaClient) Search(_ context.Context, query string, _ int) ([]models.NumistaCandidate, error) {
+	c.queries = append(c.queries, query)
+	return cloneCandidates(c.results[query]), c.err
+}
+
+func (c *sequenceNumistaClient) Detail(context.Context, int) (models.NumistaCandidate, error) {
+	return models.NumistaCandidate{}, c.err
+}
+
+func (c *sequenceNumistaClient) CallCount() int { return len(c.queries) }
+
+func (c *sequenceNumistaClient) Queries() []string {
+	return append([]string(nil), c.queries...)
+}
+
 func TestNumistaLookupMapsSafeQuotaOutcome(t *testing.T) {
 	retry := 30
 	client := &fakeNumistaClient{err: &NumistaError{Kind: NumistaErrorQuotaLimited, RetryAfterSeconds: &retry}}

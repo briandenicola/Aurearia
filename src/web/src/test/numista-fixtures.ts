@@ -26,6 +26,7 @@ export function makeNumistaLookupRequest(overrides: Partial<NumistaLookupRequest
     query: 'Antoninus Pius denarius Rome 138–161 Silver',
     path: 'direct',
     evidence: makeNumistaEvidence(),
+    querySource: 'manual',
     ...overrides,
   }
 }
@@ -77,6 +78,9 @@ export function makeNumistaLookupOutcome(overrides: Partial<NumistaLookupOutcome
       ageSeconds: 0,
     },
     stage: 'broad',
+    querySource: 'manual',
+    searchAttempt: 'primary',
+    searchAttemptCount: 1,
     ...overrides,
   }
 }

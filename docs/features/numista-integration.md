@@ -26,20 +26,43 @@ collection record.
 
 ## Query and Ranking Contract
 
-- Saved-coin queries are proposed from available name, ruler/issuer,
-  denomination, mint, era/date text, material, and obverse/reverse
-  inscriptions.
-- Photo-assisted queries use the bounded evidence returned by image analysis.
-  The collector can also enter a query when analysis produces no useful text.
-- The query remains editable before the first search and every retry. Broad
-  lookup preserves the submitted text, including intentional internal and
-  surrounding whitespace, as `effectiveQuery`; the follow-up enrichment
-  request trims surrounding whitespace so both enrichment and retry use one
-  stable query identity.
+- Aurearia generates concise Numista text queries from ruler/issuer (or a
+  short structured title fallback), reverse inscription/type, and a reliable
+  mint. It does not put denomination, date/range, material, catalog
+  references, obverse text, slab/label text, notes, or descriptive prose in
+  the provider `q`.
+- Those excluded fields remain in the bounded evidence sent to Aurearia's
+  deterministic scorer. Omitting a field from `q` does not discard it from
+  candidate ranking.
+- Exact normalized mint aliases `SMN` and `SMNT` map to `Nicomedia`.
+  Normalization is limited to Unicode compatibility/case folding and removal
+  of spaces, dots, and hyphens. Embedded, longer, unknown, or prose-like
+  mintmarks are not inferred.
+- Saved-coin and Quick Capture draft screens request the proposal from the Go
+  API. Non-NGC photo analysis reuses the same Go builder and returns a
+  proposal without searching Numista. The browser displays and edits proposals
+  but does not independently assemble provider query text.
+- A query is `generated` only while it remains an exact, server-verifiable
+  `numista-query-v2` proposal. Once the collector changes it, it is
+  `user-edited` for that panel session even if the text is later restored.
+  Input that was not initialized by a proposal is `manual`.
+- Manual and user-edited queries are searched exactly as submitted and receive
+  one application search attempt. Only an empty, verified generated primary
+  query may receive one distinct relaxed attempt. The relaxed query keeps the
+  subject and reliable mint while omitting reverse terms; every other status
+  and source performs one application search.
+- `effectiveQuery` reports the actual primary or relaxed query behind the
+  returned outcome. `querySource`, `searchAttempt`, and
+  `searchAttemptCount` disclose the source and whether one or two application
+  searches occurred. The editable control continues to show the collector's
+  submitted primary query, with relaxed use disclosed separately.
 - Ranking is application-owned and deterministic (`numista-v1`). Candidate
   cards explain meaningful matches, conflicts, and unavailable evidence.
   Scores support comparison; they are not an attribution or authenticity
   opinion.
+- Numista telemetry records safe source/attempt enums and digest-only
+  correlation. It does not record query/evidence text, mint aliases, images,
+  slab text, credentials, or raw provider payloads.
 
 ## Saved Coins: Catalog References
 
@@ -49,6 +72,10 @@ collection record.
 4. Review or edit the proposed query, then submit it explicitly.
 5. Review the candidates and select one.
 6. Confirm **Add selected reference**.
+
+If an untouched generated query returns no candidates, Aurearia may try its
+single relaxed query and identifies that effective query in the result. An
+edited query is never rewritten or relaxed.
 
 The lookup expands inline without replacing manual reference management. After
 the selected reference is persisted and the refreshed reference list contains
@@ -70,7 +97,8 @@ validation and deduplication remain authoritative.
 2. Select **Analyze Photos**.
 3. Review the extracted coin details.
 4. If no usable NGC certification is found, review or edit the contextual
-   Numista query and submit it when ready.
+   server-generated Numista query and submit it when ready. Analysis creates
+   evidence and a proposal only; it does not eagerly search Numista.
 5. If a usable NGC result is found, NGC remains primary. Select
    **Also search Numista** to reveal the editable lookup. Revealing it does not
    call Numista; a request occurs only after explicit search submission.
@@ -109,6 +137,13 @@ being collapsed into “no results”:
 Malformed requests still use HTTP 400, authentication/authorization use
 401/403, and unexpected application failures use a generic HTTP 500. Caller
 cancellation ends the request and is not misreported as a provider status.
+
+For broad lookup outcomes, `effectiveQuery` is the exact query used for the
+final result. A generated empty primary may therefore return
+`searchAttempt: "relaxed"` and `searchAttemptCount: 2`; manual, user-edited,
+successful, configuration, quota, timeout, unavailable, and cancelled paths
+do not receive that application-level fallback. Existing transient HTTP retry
+behavior remains separate transport behavior.
 
 ## Freshness and Coalescing
 
@@ -150,10 +185,14 @@ a successful broad search into `empty`.
 - Manual structured-reference add, edit, delete, validation, and
   deduplication remain authoritative.
 - The legacy Numista search endpoint remains available for compatibility.
+- Numista image search, image upload, and perceptual matching are not part of
+  this integration. Coin photos may supply bounded text evidence through the
+  existing analysis workflow, but no image is sent to a Numista search API.
 
 ## API Endpoints
 
 ```text
+POST /api/numista/query-proposal      # Local versioned proposal; no provider call
 POST /api/numista/lookup             # Typed explicit lookup
 POST /api/numista/enrich             # Bounded progressive detail enrichment
 GET  /api/numista/search?q=...       # Deprecated compatibility adapter
@@ -165,6 +204,29 @@ The deprecated GET adapter keeps its legacy `{count,types}` response and maps
 non-success/non-empty domain outcomes to HTTP 503. New clients use the typed
 POST routes.
 
+`POST /api/numista/query-proposal` is an authenticated local helper for the
+implemented direct/photo evidence contract. It validates bounded
+`NumistaEvidence` and returns only `query`, `querySource: "generated"`, and
+`generationVersion: "numista-query-v2"`. It does not call Numista, rank
+candidates, persist data, or record provider telemetry.
+
+## Measurement and Limitations
+
+The sanitized six-case live comparison observed on 2026-08-12 improved
+expected-candidate top-three inclusion from **1/6 (16.7%)** with the landed
+verbose builder to **3/6 (50%)** with the v2 primary query: **+33.3 percentage
+points**, with no previously top-three verbose case lost. The deterministic
+24-known-coin scoring benchmark remained **24/24** without exact-ID evidence.
+
+This is evidence for a narrower query transformation, not proof that concise
+text always identifies a coin. Valentinian II and Trajan still missed the
+expected candidate in the bounded first ten live results, while Athens
+required the relaxed query to reach rank 3. Provider catalog/search ordering
+may change after the observation date. Future tuning should make the smallest
+measured transformation supported by sanitized fixtures and should not add
+speculative alias grammars, scoring changes, extra retries, or image-search
+infrastructure.
+
 ## Related Features
 
 - [Coin Details](coin-details.md) — Structured catalog references
@@ -173,5 +235,7 @@ POST routes.
 - [Admin Settings](admin-settings.md) — Configure the Numista API key
 - [API Reference](../api-reference.md#numista) — Typed request/response contract
 - [ADR 0007](../adr/0007-shared-numista-lookup.md) — Shared boundary and migration
+- [Feature 342 contract](../../specs/342-numista-text-query-tuning/contracts/numista-query.openapi.yaml) — Proposal and attribution fields
+- [Feature 342 measurement](../../specs/342-numista-text-query-tuning/live-evidence.md) — Sanitized comparison and limitations
 
 See also: [Numista.com](https://en.numista.com/)

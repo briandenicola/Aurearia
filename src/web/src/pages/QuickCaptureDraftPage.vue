@@ -183,11 +183,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   getApiErrorMessage,
   getQuickCaptureDraft,
+  proposeNumistaQuery,
   updateQuickCaptureDraft,
   discardQuickCaptureDraft,
 } from '@/api/client'
@@ -199,7 +200,6 @@ import PromotionReadinessPanel from '@/components/quick-capture/PromotionReadine
 import { List } from 'lucide-vue-next'
 import NumistaLookupPanel from '@/components/numista/NumistaLookupPanel.vue'
 import {
-  buildNumistaQuery,
   numistaCandidateFromReference,
   selectedNumistaReferenceFromCandidate,
 } from '@/utils/numistaLookup'
@@ -227,6 +227,8 @@ const newReverse = ref<File | null>(null)
 const newDetails = ref<File[]>([])
 const selectedNumistaCandidate = ref<NumistaCandidate | null>(null)
 const selectionMutation = ref<'unchanged' | 'replace' | 'clear'>('unchanged')
+const draftNumistaQuery = ref('')
+let proposalRequest = 0
 
 const saving = ref(false)
 const saveError = ref('')
@@ -248,7 +250,17 @@ const draftNumistaEvidence = computed<NumistaEvidence>(() => ({
   dateText: dateRange.value.trim() || era.value.trim() || undefined,
   visibleText: draft.value?.labelText?.trim() || undefined,
 }))
-const draftNumistaQuery = computed(() => buildNumistaQuery(draftNumistaEvidence.value))
+
+watch(draftNumistaEvidence, async (evidence) => {
+  if (!draft.value) return
+  const request = ++proposalRequest
+  try {
+    const response = await proposeNumistaQuery({ path: 'photo', evidence })
+    if (request === proposalRequest) draftNumistaQuery.value = response.data.query
+  } catch {
+    if (request === proposalRequest) draftNumistaQuery.value = ''
+  }
+}, { deep: true })
 
 function currentPurchasePrice(): number | null {
   return typeof purchasePrice.value === 'number' ? purchasePrice.value : null
