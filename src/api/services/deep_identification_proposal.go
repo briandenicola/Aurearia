@@ -47,6 +47,12 @@ var deepProposalCoinFieldAllowlist = map[string]string{
 	"obverseDescription": "ObverseDescription",
 	"reverseDescription": "ReverseDescription",
 	"notes":              "Notes",
+	// coin_type carries the OCRE RIC-style catalog type label (e.g.
+	// "RIC II Hadrian 39b"). It reuses the existing ReferenceText column —
+	// no schema migration — because a coin-type is a catalogue reference.
+	// The canonical numismatics.org/ocre citation lives in the claim
+	// evidence, never on the Coin row itself (Feature 345, data-model §5).
+	"coin_type": "ReferenceText",
 }
 
 // deepProposalDraftFieldAllowlist maps a Proposal.fields JSON key to the

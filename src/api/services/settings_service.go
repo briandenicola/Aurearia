@@ -92,6 +92,7 @@ const (
 	SettingDeepIdentificationMaxProviders        = "DeepIdentificationMaxProviders"
 	SettingDeepIdentificationNumistaCallBudget   = "DeepIdentificationNumistaCallBudget"
 	SettingDeepIdentificationOCREEnabled         = "DeepIdentificationOCREEnabled"
+	SettingDeepIdentificationOCRECallBudget      = "DeepIdentificationOCRECallBudget"
 	SettingDeepIdentificationRPCEnabled          = "DeepIdentificationRPCEnabled"
 )
 
@@ -202,6 +203,7 @@ var settingDefaults = map[string]string{
 	SettingDeepIdentificationMaxProviders:        "4",
 	SettingDeepIdentificationNumistaCallBudget:   "4",
 	SettingDeepIdentificationOCREEnabled:         "false",
+	SettingDeepIdentificationOCRECallBudget:      "3",
 	SettingDeepIdentificationRPCEnabled:          "false",
 }
 
@@ -257,6 +259,7 @@ type DeepIdentificationSettings struct {
 	MaxProviders      int
 	NumistaCallBudget int
 	OCREEnabled       bool
+	OCRECallBudget    int
 	RPCEnabled        bool
 	Valid             bool
 }
@@ -299,6 +302,7 @@ func (s *SettingsService) GetDeepIdentificationSettings() DeepIdentificationSett
 		MaxProviders:      readInt(SettingDeepIdentificationMaxProviders, 4, 1, 10),
 		NumistaCallBudget: readInt(SettingDeepIdentificationNumistaCallBudget, 4, 1, 20),
 		OCREEnabled:       readBool(SettingDeepIdentificationOCREEnabled, false),
+		OCRECallBudget:    readInt(SettingDeepIdentificationOCRECallBudget, 3, 1, 20),
 		RPCEnabled:        readBool(SettingDeepIdentificationRPCEnabled, false),
 		Valid:             valid,
 	}
