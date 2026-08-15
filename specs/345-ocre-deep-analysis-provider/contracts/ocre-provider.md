@@ -63,6 +63,7 @@ boundary. Mirrors `nomisma_client.go`.
 type OCREErrorKind string
 const (
     OCREErrorUnavailable     OCREErrorKind = "unavailable"
+    OCREErrorTimeout         OCREErrorKind = "timeout"
     OCREErrorNoMatch         OCREErrorKind = "no_match"
     OCREErrorInvalidResponse OCREErrorKind = "invalid_response"
     OCREErrorInvalidRequest  OCREErrorKind = "invalid_request"
@@ -88,7 +89,9 @@ type OCREClient interface {
   non-default identifier (a default/empty UA is rejected 403 by the CDN).
 - **POST is NOT used** (returns 403 at the Cloudflare edge).
 - Timeout 8 s (`http.Client{Timeout}`), response cap 1 MiB (`io.LimitReader`),
-  context cancellation → `OCRECancelled`. Any non-200 → `OCREErrorUnavailable`;
+  context cancellation → `OCRECancelled`; a caller/client deadline or any
+  `net.Error.Timeout()` → `OCREErrorTimeout` (wire `timeout` → Python
+  `timed_out`). Any non-200 → `OCREErrorUnavailable`;
   malformed/oversize JSON → `OCREErrorInvalidResponse`. Never leaks a raw error.
 - `NewHTTPOCREClientForTest(baseURL)` constructor for httptest (never reaches the
   real host in CI), same pattern as `NewHTTPNomismaClientForTest`.

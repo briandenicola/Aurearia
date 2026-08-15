@@ -154,8 +154,28 @@ func TestHTTPOCREClient_Search_Timeout(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error")
 	}
-	if kind != OCREErrorUnavailable && kind != OCREErrorCancelled {
-		t.Fatalf("expected unavailable/cancelled on timeout, got %q", kind)
+	// F2: a caller context deadline is a timeout, not a generic unavailable.
+	if kind != OCREErrorTimeout {
+		t.Fatalf("expected timeout on a context deadline, got %q", kind)
+	}
+}
+
+func TestHTTPOCREClient_Search_ClientTimeout(t *testing.T) {
+	// F2: the client's own http.Client.Timeout (no caller deadline) must also
+	// map to the typed timeout kind, so a slow upstream flows as timed_out.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(60 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := &HTTPOCREClient{baseURL: server.URL, client: &http.Client{Timeout: 5 * time.Millisecond}}
+	_, kind, err := client.Search(context.Background(), hadrianParams(), 5)
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if kind != OCREErrorTimeout {
+		t.Fatalf("expected timeout on http.Client.Timeout, got %q", kind)
 	}
 }
 
@@ -235,6 +255,7 @@ func TestHTTPOCREClient_Search_ConnectionRefused(t *testing.T) {
 func TestHTTPOCREClient_Search_RawErrorsNeverSurfacedOnlyTypedKind(t *testing.T) {
 	typedKinds := map[OCREErrorKind]bool{
 		OCREErrorUnavailable:     true,
+		OCREErrorTimeout:         true,
 		OCREErrorInvalidResponse: true,
 		OCREErrorCancelled:       true,
 	}

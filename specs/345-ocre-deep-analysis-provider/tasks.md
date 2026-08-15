@@ -19,7 +19,7 @@ migration in this feature.
 
 **Tests**: Included per Testing & CI Constraints (spec.md) — CI MUST use
 offline fixtures/httptest/fake tools only; exactly **one** manual, CI-excluded
-live-smoke task exists (T057).
+live-smoke task exists (T054).
 
 **Organization**: Tasks are grouped by user story (spec.md priorities). Phase 2
 (Go SPARQL boundary) is foundational and blocks every user story because the

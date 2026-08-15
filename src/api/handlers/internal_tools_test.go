@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -77,6 +78,10 @@ func setupDeepProviderToolsTest(t *testing.T, numistaBudget int) (*gin.Engine, *
 }
 
 func setupDeepProviderToolsTestWithOCRE(t *testing.T, numistaBudget, ocreBudget int) (*gin.Engine, *services.InternalTokenService, *fakeDeepNumistaClient, *fakeDeepNomismaClient, *fakeDeepOCREClient) {
+	return setupDeepProviderToolsTestWithOCREFlag(t, numistaBudget, ocreBudget, true)
+}
+
+func setupDeepProviderToolsTestWithOCREFlag(t *testing.T, numistaBudget, ocreBudget int, ocreEnabled bool) (*gin.Engine, *services.InternalTokenService, *fakeDeepNumistaClient, *fakeDeepNomismaClient, *fakeDeepOCREClient) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	dsn := fmt.Sprintf("file:deep_provider_tools_%d_%d?mode=memory&cache=shared", time.Now().UnixNano(), atomic.AddInt64(&deepProviderToolsTestDBCounter, 1))
@@ -98,7 +103,7 @@ func setupDeepProviderToolsTestWithOCRE(t *testing.T, numistaBudget, ocreBudget 
 		t.Fatalf("seed ocre budget: %v", err)
 	}
 	if err := db.Create(&models.AppSetting{
-		Key: services.SettingDeepIdentificationOCREEnabled, Value: "true",
+		Key: services.SettingDeepIdentificationOCREEnabled, Value: strconv.FormatBool(ocreEnabled),
 	}).Error; err != nil {
 		t.Fatalf("seed ocre enabled: %v", err)
 	}
@@ -379,6 +384,37 @@ func TestDeepProviderTools_OCRESearchCancelled(t *testing.T) {
 	code, resp := ocreCall(t, router, token, ocreHadrianBody)
 	if code != http.StatusOK || resp["status"] != "cancelled" {
 		t.Fatalf("expected 200/cancelled, got %d/%v", code, resp["status"])
+	}
+}
+
+func TestDeepProviderTools_OCRESearchTimeoutMapsToWireTimeout(t *testing.T) {
+	// F2: a client-reported OCREErrorTimeout must surface as the wire status
+	// "timeout" (never "unavailable"), so the Python node maps it to timed_out.
+	router, tokenSvc, _, _, ocreClient := setupDeepProviderToolsTestWithOCRE(t, 4, 3)
+	ocreClient.candidates = nil
+	ocreClient.kind = services.OCREErrorTimeout
+	token, _ := tokenSvc.MintForJob(1, 5)
+	code, resp := ocreCall(t, router, token, ocreHadrianBody)
+	if code != http.StatusOK || resp["status"] != "timeout" {
+		t.Fatalf("expected 200/timeout, got %d/%v", code, resp["status"])
+	}
+}
+
+func TestDeepProviderTools_OCRESearchFlagOffZeroCall(t *testing.T) {
+	// F1: defense in depth — with the OCRE flag OFF, a direct job-token
+	// invocation must NOT reach the client. Expect a typed, non-contributing
+	// "unavailable" and exactly zero upstream calls (FR-004/FR-016, SC-004).
+	router, tokenSvc, _, _, ocreClient := setupDeepProviderToolsTestWithOCREFlag(t, 4, 3, false)
+	token, _ := tokenSvc.MintForJob(1, 5)
+	code, resp := ocreCall(t, router, token, ocreHadrianBody)
+	if code != http.StatusOK || resp["status"] != "unavailable" {
+		t.Fatalf("expected 200/unavailable while flag off, got %d/%v", code, resp["status"])
+	}
+	if cands, _ := resp["candidates"].([]any); len(cands) != 0 {
+		t.Fatalf("expected zero candidates while flag off, got %v", resp["candidates"])
+	}
+	if ocreClient.searchCalls.Load() != 0 {
+		t.Fatalf("expected ZERO upstream calls while OCRE flag is off, got %d", ocreClient.searchCalls.Load())
 	}
 }
 

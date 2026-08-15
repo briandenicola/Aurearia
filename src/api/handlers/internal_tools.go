@@ -555,6 +555,20 @@ func (h *DeepProviderToolsHandler) OCRESearch(c *gin.Context) {
 	}
 
 	settings := h.settingsSvc.GetDeepIdentificationSettings()
+
+	// Defense in depth (FR-004/FR-016): even a valid job token must not reach
+	// upstream while the OCRE flag is off. The Python node already short-
+	// circuits to a not_automated row without a call, so this branch is only
+	// reachable by a direct internal invocation that bypasses the node — answer
+	// with a typed, non-contributing "unavailable" and never touch the client,
+	// cache, or budget. Rollback (flag off) therefore guarantees zero OCRE
+	// upstream calls at the boundary itself, not merely at the caller.
+	if !settings.OCREEnabled {
+		h.logger.Info("internal-tools", "OCRE search invoked for job %d while OCRE flag disabled; returning unavailable without an upstream call", jobID)
+		c.JSON(http.StatusOK, OCRESearchResponse{Status: "unavailable", Candidates: []services.OCRECandidate{}, Attribution: ocreAttribution})
+		return
+	}
+
 	params := services.NewOCREQueryParams(
 		req.Ruler, req.Denomination, req.Mint, req.Material, req.LegendTokens, req.OCREID, req.Limit,
 	)
@@ -618,6 +632,8 @@ func ocreErrorKindToWire(kind services.OCREErrorKind, candidateCount int) string
 		return "empty"
 	case services.OCREErrorInvalidResponse:
 		return "invalid_response"
+	case services.OCREErrorTimeout:
+		return "timeout"
 	case services.OCREErrorCancelled:
 		return "cancelled"
 	case services.OCREErrorInvalidRequest:

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -33,6 +34,7 @@ type OCREErrorKind string
 
 const (
 	OCREErrorUnavailable     OCREErrorKind = "unavailable"
+	OCREErrorTimeout         OCREErrorKind = "timeout"
 	OCREErrorNoMatch         OCREErrorKind = "no_match"
 	OCREErrorInvalidResponse OCREErrorKind = "invalid_response"
 	OCREErrorInvalidRequest  OCREErrorKind = "invalid_request"
@@ -110,10 +112,20 @@ func (c *HTTPOCREClient) Search(ctx context.Context, params OCREQueryParams, lim
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		if errors.Is(ctx.Err(), context.Canceled) {
+		// Order matters: an explicit caller cancellation is reported as
+		// cancelled; a deadline/timeout (either the caller's context deadline
+		// or this client's own http.Client.Timeout, which also surfaces as a
+		// net.Error with Timeout()==true / context.DeadlineExceeded) maps to
+		// the typed timeout kind so it flows client→handler→Python as
+		// timed_out (FR-015). Anything else is a generic transport failure.
+		switch {
+		case errors.Is(ctx.Err(), context.Canceled):
 			return nil, OCREErrorCancelled, err
+		case ocreErrIsTimeout(ctx, err):
+			return nil, OCREErrorTimeout, err
+		default:
+			return nil, OCREErrorUnavailable, err
 		}
-		return nil, OCREErrorUnavailable, err
 	}
 	defer resp.Body.Close()
 
@@ -145,6 +157,21 @@ func (c *HTTPOCREClient) Search(ctx context.Context, params OCREQueryParams, lim
 		return []OCRECandidate{}, OCREErrorNoMatch, nil
 	}
 	return validated, "", nil
+}
+
+// ocreErrIsTimeout reports whether a failed http.Client.Do is a timeout/deadline
+// (as opposed to an outright transport failure). It covers three shapes: the
+// caller's context deadline, the client's own http.Client.Timeout (which wraps
+// context.DeadlineExceeded), and any net.Error whose Timeout() is true.
+func ocreErrIsTimeout(ctx context.Context, err error) bool {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	return false
 }
 
 // ocreHostIsCanonical reports whether uri is an absolute URL whose host is

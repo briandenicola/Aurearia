@@ -54,8 +54,10 @@ The wire contract was verified live on 2026-08-15:
 `OCREClient` (interface) / `HTTPOCREClient` (implementation) in
 `src/api/services/ocre_client.go` is the **only** OCRE/Nomisma-triplestore HTTP
 boundary, mirroring `nomisma_client.go`. Bounded 8 s timeout, 1 MiB response cap,
-and every outcome mapped to a typed `OCREErrorKind` (`unavailable`, `no_match`,
-`invalid_response`, `invalid_request`, `cancelled`) — never a raw error. Fixed
+and every outcome mapped to a typed `OCREErrorKind` (`unavailable`, `timeout`,
+`no_match`, `invalid_response`, `invalid_request`, `cancelled`) — never a raw
+error. A caller/client deadline or any `net.Error.Timeout()` maps to `timeout`
+(wire `timeout` → Python `timed_out`), keeping degradation typed end-to-end. Fixed
 SPARQL templates (`ocre_query.go`) interpolate **only** application-validated
 Nomisma id slugs inside `<...>` URI brackets (regex-validated, length-bounded);
 free legend/inscription text never enters SPARQL, so injection cannot alter query
