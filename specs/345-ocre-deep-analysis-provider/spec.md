@@ -2,7 +2,7 @@
 
 **Feature Branch**: `345-ocre-deep-analysis-provider`
 **Created**: 2026-08-15
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "Enable OCRE (Online Coins of the Roman Empire, American Numismatic Society) as an automated Roman Imperial coin-type authority provider inside the existing Deep Analysis pipeline. Automated access uses fixed-template, parameterized Nomisma SPARQL against `https://nomisma.org/query` (no OCRE frontend scraping, no arbitrary user-supplied SPARQL). Persist bounded OCRE-derived metadata/evidence with canonical OCRE links and explicit ODbL 1.0 / American Numismatic Society attribution and share-alike posture. Exclude OCRE images and any bulk corpus ingestion. RPC remains out of scope. Opens gate G-OCRE / deferred task T155."
 
 ## Context & Background

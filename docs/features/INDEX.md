@@ -23,6 +23,7 @@ The repository currently includes app icons in `src/web/public/` but does not in
 ## AI Features
 
 - **[AI Coin Analysis](ai-analysis.md)** — Vision-model analysis of obverse/reverse photos using Anthropic Claude or Ollama
+- **[Deep Analysis](deep-analysis.md)** — Resumable multi-provider identification with cited evidence and confirm-gated proposals
 - **[Coin Agent](ai-search-agent.md)** — Chat with an AI agent to find coins, answer collection questions, research shows, and save useful answers to Notes
 - **[AI Grading Assistant](ai-grading.md)** — Estimate coin grades from photos with reasoning and confidence scores
 - **[Price Trend Analysis](price-trends.md)** — Analyze historical auction data to identify market trends
@@ -85,6 +86,11 @@ The repository currently includes app icons in `src/web/public/` but does not in
 | Coin Sets with Trend Tracking | Shipped | v2.0 |
 | Agentic Set Proposal Review | Shipped | v2.1 |
 | Coin Agent Notes | Shipped | v2.1 |
+| Improved Numista Lookup | Shipped | v4.0 |
+| Nomisma Mint Authority Linking | Shipped | v4.0 |
+| Deep Agentic Coin Identification | Shipped (default off) | v4.0 |
+| OCRE Roman Imperial Evidence | Shipped (default off) | v4.0 |
+| Automated RPC Integration | Paused | Post-v4 |
 | Stats Health, Investment, Value, Map, and Emperor subviews | Shipped | v2.0 |
 | PWA & Mobile Capture | Shipped | v1.0 |
 

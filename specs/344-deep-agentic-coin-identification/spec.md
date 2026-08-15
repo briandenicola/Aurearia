@@ -2,7 +2,7 @@
 
 **Feature Branch**: `344-deep-agentic-coin-identification`
 **Created**: 2026-08-15
-**Status**: Draft
+**Status**: Implemented (MVP; post-MVP tasks remain deferred)
 **Input**: User description: "Deep Agentic Coin Identification: an explicit optional
 deep-analysis path alongside the existing fast Identify Coin flow, using a
 persisted resumable background job that fans out to multiple numismatic

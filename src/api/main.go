@@ -66,7 +66,7 @@ func buildShipmentCarrierClients(settingsSvc *services.SettingsService, logger *
 }
 
 //	@title						Aurearia API
-//	@version					1.0
+//	@version					4.0.0
 //	@description				REST API for managing a personal coin collection. Supports coin CRUD, image uploads, AI-powered analysis, user management, auction tracking, and admin features.
 //	@BasePath					/api
 //	@securityDefinitions.apikey	BearerAuth

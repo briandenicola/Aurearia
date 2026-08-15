@@ -2,7 +2,7 @@
 
 **Feature Branch**: `343-nomisma-mint-authority-linking`
 **Created**: 2026-08-14
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "Optional Nomisma.org Authority Linking for Global Mint Locations — admin-managed linking of global MintLocation records to Nomisma.org authority concepts, with visible CC BY 4.0 attribution, live on-demand lookup, and no bulk ingestion."
 
 ## User Scenarios & Testing *(mandatory)*
