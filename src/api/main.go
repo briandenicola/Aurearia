@@ -696,6 +696,8 @@ func main() {
 		admin.GET("/logs", adminHandler.GetLogs)
 		adminNumistaHandler := handlers.NewAdminNumistaHandler(numistaTelemetry, settingsSvc)
 		admin.GET("/numista/health", adminNumistaHandler.Health)
+		adminOCREHandler := handlers.NewAdminOCREHandler(settingsSvc, deepIdentificationRepo)
+		admin.GET("/deep-identification/ocre/health", adminOCREHandler.Health)
 		admin.GET("/test-anthropic", adminHandler.TestAnthropicConnection)
 		admin.GET("/test-searxng", adminHandler.TestSearXNGConnection)
 

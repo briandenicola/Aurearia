@@ -4,12 +4,17 @@ import AdminSystemSection from '../AdminSystemSection.vue'
 
 const mocks = vi.hoisted(() => ({
   getAdminNumistaHealth: vi.fn(),
+  getAdminOCREHealth: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => mocks)
 
 describe('AdminSystemSection Numista configuration and health', () => {
   beforeEach(() => {
+    mocks.getAdminOCREHealth.mockReset()
+    mocks.getAdminOCREHealth.mockResolvedValue({
+      data: { enabled: false, callBudget: 3, gateValidated: true, lastOutcome: null, lastCheckedAt: null },
+    })
     mocks.getAdminNumistaHealth.mockReset()
     mocks.getAdminNumistaHealth.mockResolvedValue({
       data: {
@@ -289,6 +294,8 @@ function baseProps() {
     numistaSearchResultLimit: '20',
     numistaSearchTimeoutSeconds: '4',
     numistaDetailTimeoutSeconds: '3',
+    deepIdentificationOCREEnabled: 'false',
+    deepIdentificationOCRECallBudget: '3',
     pushoverAppToken: '',
     publicAppUrl: '',
     uspsApiBaseUrl: '',

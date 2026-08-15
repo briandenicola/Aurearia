@@ -1462,7 +1462,21 @@ export interface AppSettings extends Partial<NumistaSettings> {
   WishlistSearchAlertsCheckStartTime?: string
   CoinCategories?: string
   CoinEras?: string
+  DeepIdentificationOCREEnabled?: string
+  DeepIdentificationOCRECallBudget?: string
   [key: string]: string | undefined
+}
+
+// OCREHealthSummary mirrors the Go models.OCREHealthSummary bounded admin
+// view of the OCRE Deep Analysis provider (Feature 345 US4). It carries only
+// enablement/gate state and the last recorded outcome class — no per-job
+// user content.
+export interface OCREHealthSummary {
+  enabled: boolean
+  callBudget: number
+  gateValidated: boolean
+  lastOutcome?: string | null
+  lastCheckedAt?: string | null
 }
 
 export interface SecuritySummary {

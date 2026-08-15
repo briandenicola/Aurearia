@@ -450,3 +450,28 @@ func (r *DeepIdentificationRepository) ListJobIDsWithUndeletedHintArtifacts() ([
 		Pluck("deep_identification_artifacts.job_id", &jobIDs).Error
 	return jobIDs, err
 }
+
+// GetLatestProviderStatus returns the most recent provider-run row for the
+// given provider across all jobs, ordered by created_at desc (Feature 345
+// US4 admin health, FR-034). This is a deliberately NON-user-scoped read:
+// it powers the admin-only OCRE health surface and therefore selects only
+// the bounded operational columns (status/timing/counts/error-kind) — it
+// never joins or returns per-job user content (notes, legends, claims). It
+// returns (nil, nil) when no attempt has ever been recorded for the
+// provider, which the caller renders as a null lastOutcome.
+func (r *DeepIdentificationRepository) GetLatestProviderStatus(provider models.DeepProviderName) (*models.DeepIdentificationProviderRun, error) {
+	var run models.DeepIdentificationProviderRun
+	err := r.db.
+		Select("id", "provider", "status", "confidence", "call_count", "latency_ms", "error_kind", "started_at", "completed_at", "created_at", "updated_at").
+		Where("provider = ?", provider).
+		Order("created_at DESC").
+		Limit(1).
+		Take(&run).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &run, nil
+}
