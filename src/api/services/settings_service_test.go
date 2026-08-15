@@ -374,3 +374,62 @@ func TestGetAllSettings_IncludesPublicAppURLDefault(t *testing.T) {
 		t.Errorf("GetAllSettings[PublicAppURL] = %q (present %v), want blank default", got, ok)
 	}
 }
+
+// 344-deep-agentic-coin-identification: default value + admin round-trip
+// coverage for each new SettingDeepIdentification* key (data-model.md §8).
+func TestGetSetting_DeepIdentificationDefaults(t *testing.T) {
+	svc, _ := newTestSettingsService(t)
+
+	wantDefaults := map[string]string{
+		SettingDeepIdentificationEnabled:             "false",
+		SettingDeepIdentificationWorkerCount:         "2",
+		SettingDeepIdentificationMaxActivePerUser:    "1",
+		SettingDeepIdentificationQueueDepth:          "32",
+		SettingDeepIdentificationHardTimeoutSeconds:  "300",
+		SettingDeepIdentificationEventRetentionHours: "24",
+		SettingDeepIdentificationResultRetentionDays: "90",
+		SettingDeepIdentificationMaxProviders:        "4",
+		SettingDeepIdentificationNumistaCallBudget:   "4",
+		SettingDeepIdentificationOCREEnabled:         "false",
+		SettingDeepIdentificationRPCEnabled:          "false",
+	}
+
+	for key, want := range wantDefaults {
+		if got := svc.GetSetting(key); got != want {
+			t.Errorf("GetSetting(%s) = %q, want default %q", key, got, want)
+		}
+	}
+}
+
+func TestSetSetting_DeepIdentificationRoundTrip(t *testing.T) {
+	svc, _ := newTestSettingsService(t)
+
+	writes := map[string]string{
+		SettingDeepIdentificationEnabled:           "true",
+		SettingDeepIdentificationWorkerCount:       "5",
+		SettingDeepIdentificationMaxActivePerUser:  "2",
+		SettingDeepIdentificationQueueDepth:        "64",
+		SettingDeepIdentificationOCREEnabled:       "false",
+		SettingDeepIdentificationRPCEnabled:        "false",
+		SettingDeepIdentificationNumistaCallBudget: "10",
+	}
+
+	for key, value := range writes {
+		if err := svc.SetSetting(key, value); err != nil {
+			t.Fatalf("SetSetting(%s) failed: %v", key, err)
+		}
+	}
+
+	for key, want := range writes {
+		if got := svc.GetSetting(key); got != want {
+			t.Errorf("after SetSetting, GetSetting(%s) = %q, want %q", key, got, want)
+		}
+	}
+
+	all := svc.GetAllSettings()
+	for key, want := range writes {
+		if all[key] != want {
+			t.Errorf("GetAllSettings[%s] = %q, want %q", key, all[key], want)
+		}
+	}
+}

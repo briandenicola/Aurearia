@@ -211,3 +211,63 @@ func TestMigrateCoinSetTypes_NormalizesLegacyValues(t *testing.T) {
 		t.Fatalf("expected dynamic legacy set to have creation_mode dynamic, got %q", got)
 	}
 }
+
+// TestDeepIdentificationModelsAutoMigrate follows
+// TestQuickCaptureModelsAutoMigrate: it asserts the four new
+// 344-deep-agentic-coin-identification models migrate additively (no
+// existing table/column is altered) and that their expected indexes exist.
+func TestDeepIdentificationModelsAutoMigrate(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to open test db: %v", err)
+	}
+	// Migrate a representative slice of pre-existing models first, mirroring
+	// how database.go's real AutoMigrate call already includes User/Coin
+	// before these new tables, to prove additivity.
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}); err != nil {
+		t.Fatalf("pre-existing automigrate failed: %v", err)
+	}
+	if err := db.AutoMigrate(
+		&models.DeepIdentificationJob{},
+		&models.DeepIdentificationEvent{},
+		&models.DeepIdentificationProviderRun{},
+		&models.DeepIdentificationArtifact{},
+	); err != nil {
+		t.Fatalf("deep identification automigrate failed: %v", err)
+	}
+
+	for _, table := range []string{
+		"deep_identification_jobs",
+		"deep_identification_events",
+		"deep_identification_provider_runs",
+		"deep_identification_artifacts",
+	} {
+		if !db.Migrator().HasTable(table) {
+			t.Fatalf("expected table %s", table)
+		}
+	}
+
+	if !db.Migrator().HasTable(&models.User{}) || !db.Migrator().HasTable(&models.Coin{}) {
+		t.Fatal("expected pre-existing users/coins tables to remain present")
+	}
+
+	if !db.Migrator().HasIndex(&models.DeepIdentificationEvent{}, "uix_deep_events_job_seq") {
+		t.Fatal("expected unique job/seq index on deep_identification_events")
+	}
+	if !db.Migrator().HasIndex(&models.DeepIdentificationProviderRun{}, "uix_deep_provider_run_job_provider") {
+		t.Fatal("expected unique job/provider index on deep_identification_provider_runs")
+	}
+	if !db.Migrator().HasIndex(&models.DeepIdentificationJob{}, "idx_deep_jobs_user_status_created") {
+		t.Fatal("expected user/status/created index on deep_identification_jobs")
+	}
+	if !db.Migrator().HasIndex(&models.DeepIdentificationJob{}, "idx_deep_jobs_status_heartbeat") {
+		t.Fatal("expected status/heartbeat index on deep_identification_jobs")
+	}
+	if !db.Migrator().HasIndex(&models.DeepIdentificationJob{}, "idx_deep_jobs_expires") {
+		t.Fatal("expected expires_at index on deep_identification_jobs")
+	}
+
+	if err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uix_deep_artifact_job_role ON deep_identification_artifacts(job_id, role) WHERE role <> 'hint'`).Error; err != nil {
+		t.Fatalf("expected partial unique artifact role index to be creatable: %v", err)
+	}
+}
