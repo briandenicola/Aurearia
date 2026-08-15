@@ -59,7 +59,7 @@ internal tool, provider node, and UI all depend on it.
 
 ## Phase 1: Setup
 
-- [ ] T001 [P] Confirm and finalize ADR acceptance: review `docs/adr/0010-ocre-odbl-provider.md` against the implemented design once Phases 2–7 land, flip `Status: Proposed` → `Status: Accepted`, and add/verify its entry in `docs/adr/README.md`'s ADR index
+- [X] T001 [P] Confirm and finalize ADR acceptance: review `docs/adr/0010-ocre-odbl-provider.md` against the implemented design once Phases 2–7 land, flip `Status: Proposed` → `Status: Accepted`, and add/verify its entry in `docs/adr/README.md`'s ADR index
 - [X] T002 [P] Add the new bounded budget setting in `src/api/services/settings_service.go`: constant `SettingDeepIdentificationOCRECallBudget = "DeepIdentificationOCRECallBudget"`, default `"3"` in `settingDefaults`, field `OCRECallBudget int` on `DeepIdentificationSettings`, and `readInt(SettingDeepIdentificationOCRECallBudget, 3, 1, 20)` in `GetDeepIdentificationSettings()` (alongside the existing `OCREEnabled`/`NumistaCallBudget` lines)
 - [X] T003 [P] Add `coin_type` → an existing reused `models.Coin` field (no schema change) to `deepProposalCoinFieldAllowlist` in `src/api/services/deep_identification_proposal.go`, with a comment explaining it carries the OCRE RIC-style type label (citation lives in claim evidence, not the Coin row)
 
@@ -239,14 +239,14 @@ zero calls.
 guard, and the single manual live-network check — none of which touches
 production code paths already covered above.
 
-- [ ] T048 [P] Verify `docs/adr/README.md` lists ADR 0010 in its index (add the entry if the acceptance step in T001 didn't already do so)
-- [ ] T049 [P] Update any Feature-344-era developer/user docs that describe OCRE as `not_automated`/deferred (search `docs/` for G-OCRE/T155 references) to reflect that OCRE is now a first-class, default-off, admin-gated automated provider
+- [X] T048 [P] Verify `docs/adr/README.md` lists ADR 0010 in its index (add the entry if the acceptance step in T001 didn't already do so)
+- [X] T049 [P] Update any Feature-344-era developer/user docs that describe OCRE as `not_automated`/deferred (search `docs/` for G-OCRE/T155 references) to reflect that OCRE is now a first-class, default-off, admin-gated automated provider
 - [ ] T050 Run `specs/345-ocre-deep-analysis-provider/quickstart.md` §2 (happy path) and §3 (robustness) end-to-end against a local dev stack with the flag toggled both ways, confirming the exact attribution string, deterministic re-run ordering (SC-005), and flag-off zero-call behavior (SC-004)
-- [ ] T051 Run the full §17/§21 gate commands from `quickstart.md` §6 and record pass/fail: `go vet ./... && go build ./... && go test ./...` (`src/api/`), `ruff check app/ tests/ && pytest tests/ -v` (`src/agent/`), `npm run build` + the vitest suite (`src/web/`)
-- [ ] T052 [P] Regenerate Swagger/OpenAPI docs for the new `OCRESearch` internal handler (existing swag generation script/task) and review the diff for accuracy against contract §1
-- [ ] T053 [P] CI-safety guard: grep the full `src/api`, `src/agent`, and `src/web` test suites for any literal `nomisma.org`/live-network reference outside the one manual smoke script (T054) and confirm every OCRE test in Phases 2–7 uses `NewHTTPOCREClientForTest`/httptest/fake tool clients/fixtures only — zero live network calls in CI (Testing & CI Constraints)
-- [ ] T054 **[MANUAL ONLY — EXCLUDED FROM CI]** Execute the manual live smoke test exactly as specified in `quickstart.md` §5 (PowerShell `GET https://nomisma.org/query?query=...` with the fixed `User-Agent`), confirm HTTP 200 / `application/sparql-results+json` / `http://numismatics.org/ocre/id/ric.2.hdn.*` bindings; run this once, locally, before beta release — never add it to any CI workflow or automated test target
-- [ ] T055 Update `docs/CHANGELOG.md` with a beta release note for OCRE automation (gate G-OCRE / T155 closure, default-off admin-gated flag, ODbL 1.0 / ANS attribution posture) and confirm ADR 0010's `Status: Accepted` (from T001) is dated to the release
+- [X] T051 Run the full §17/§21 gate commands from `quickstart.md` §6 and record pass/fail: `go vet ./... && go build ./... && go test ./...` (`src/api/`), `ruff check app/ tests/ && pytest tests/ -v` (`src/agent/`), `npm run build` + the vitest suite (`src/web/`)
+- [X] T052 [P] Regenerate Swagger/OpenAPI docs for the new `OCRESearch` internal handler (existing swag generation script/task) and review the diff for accuracy against contract §1
+- [X] T053 [P] CI-safety guard: grep the full `src/api`, `src/agent`, and `src/web` test suites for any literal `nomisma.org`/live-network reference outside the one manual smoke script (T054) and confirm every OCRE test in Phases 2–7 uses `NewHTTPOCREClientForTest`/httptest/fake tool clients/fixtures only — zero live network calls in CI (Testing & CI Constraints)
+- [X] T054 **[MANUAL ONLY — EXCLUDED FROM CI]** Execute the manual live smoke test exactly as specified in `quickstart.md` §5 (PowerShell `GET https://nomisma.org/query?query=...` with the fixed `User-Agent`), confirm HTTP 200 / `application/sparql-results+json` / `http://numismatics.org/ocre/id/ric.2.hdn.*` bindings; run this once, locally, before beta release — never add it to any CI workflow or automated test target
+- [X] T055 Update `docs/CHANGELOG.md` with a beta release note for OCRE automation (gate G-OCRE / T155 closure, default-off admin-gated flag, ODbL 1.0 / ANS attribution posture) and confirm ADR 0010's `Status: Accepted` (from T001) is dated to the release
 
 ---
 

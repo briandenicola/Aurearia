@@ -1207,6 +1207,43 @@
                 }
             }
         },
+        "/admin/deep-identification/ocre/health": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the OCRE Deep Analysis enablement flag, per-job call budget, configuration gate validity, and the last recorded provider-run outcome class and timestamp. No per-job user content is exposed. Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get OCRE Deep Analysis operational health",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.OCREHealthSummary"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/health/summary": {
             "get": {
                 "security": [
@@ -9594,6 +9631,61 @@
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/tools/ocre_search": {
+            "post": {
+                "description": "Job-scoped, call-budget-limited OCRE (Nomisma SPARQL) coin-type search for the Python deep identification pipeline",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal"
+                ],
+                "summary": "Deep-identification OCRE search tool",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "******",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Bound OCRE query signals",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.OCRESearchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "status, candidates, attribution",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.OCRESearchResponse"
                         }
                     },
                     "400": {
@@ -18853,6 +18945,52 @@
                 }
             }
         },
+        "handlers.OCRESearchRequest": {
+            "type": "object",
+            "properties": {
+                "denomination": {
+                    "type": "string"
+                },
+                "legend_tokens": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "material": {
+                    "type": "string"
+                },
+                "mint": {
+                    "type": "string"
+                },
+                "ocre_id": {
+                    "type": "string"
+                },
+                "ruler": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.OCRESearchResponse": {
+            "type": "object",
+            "properties": {
+                "attribution": {
+                    "type": "string"
+                },
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.OCRECandidate"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.OllamaStatusResponse": {
             "type": "object",
             "properties": {
@@ -21327,6 +21465,31 @@
                 }
             }
         },
+        "models.DeepProviderRunStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "running",
+                "contributed",
+                "no_match",
+                "failed",
+                "timed_out",
+                "skipped",
+                "not_automated",
+                "unavailable"
+            ],
+            "x-enum-varnames": [
+                "DeepProviderRunPending",
+                "DeepProviderRunRunning",
+                "DeepProviderRunContributed",
+                "DeepProviderRunNoMatch",
+                "DeepProviderRunFailed",
+                "DeepProviderRunTimedOut",
+                "DeepProviderRunSkipped",
+                "DeepProviderRunNotAutomated",
+                "DeepProviderRunUnavailable"
+            ]
+        },
         "models.Era": {
             "type": "string",
             "enum": [
@@ -21896,6 +22059,35 @@
                 "NumistaSearchAttemptPrimary",
                 "NumistaSearchAttemptRelaxed"
             ]
+        },
+        "models.OCREHealthSummary": {
+            "type": "object",
+            "properties": {
+                "callBudget": {
+                    "description": "CallBudget is the current per-job OCRE call budget.",
+                    "type": "integer"
+                },
+                "enabled": {
+                    "description": "Enabled reflects the current DeepIdentificationOCREEnabled flag.",
+                    "type": "boolean"
+                },
+                "gateValidated": {
+                    "description": "GateValidated reports whether the deep-identification settings snapshot\nparsed to a valid enablement gate (bounded flag + budget). A false value\nmeans an operator must correct configuration before OCRE can be trusted.",
+                    "type": "boolean"
+                },
+                "lastCheckedAt": {
+                    "description": "LastCheckedAt is the created_at of that most recent OCRE provider-run\nrow, or nil when OCRE has never run.",
+                    "type": "string"
+                },
+                "lastOutcome": {
+                    "description": "LastOutcome is the status of the most recent OCRE provider-run row, or\nnil when OCRE has never run.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.DeepProviderRunStatus"
+                        }
+                    ]
+                }
+            }
         },
         "models.OIDCProviderTestStatus": {
             "type": "string",
@@ -23389,6 +23581,29 @@
                 "NomismaSearchNoMatch",
                 "NomismaSearchUnavailable"
             ]
+        },
+        "services.OCRECandidate": {
+            "type": "object",
+            "properties": {
+                "confidence": {
+                    "type": "number"
+                },
+                "explanation": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "matched_fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "type_uri": {
+                    "type": "string"
+                }
+            }
         },
         "services.OIDCAdminProviderDTO": {
             "type": "object",

@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Encrypted auction credentials** — Stored NumisBids and CNG provider passwords are encrypted at rest with lazy plaintext migration
 - **Agentic set proposals** — Agentic set creation now submits a proposal request, runs asynchronously through the Python agent service, notifies the user when ready, and requires human review before any set is created
 - **Coin Agent note saving** — Completed Coin Agent answers can be reviewed as markdown and saved into Notes from the chat surface
+- **OCRE Deep Analysis provider (beta)** — Online Coins of the Roman Empire (OCRE, via the Nomisma.org SPARQL endpoint) is now a first-class, deterministic automated Deep Analysis provider for Roman Imperial coin-type identification. Off by default behind the admin-gated `DeepIdentificationOCREEnabled` flag (rollback = flag off; zero OCRE calls when disabled). Closes Feature 344 gate G-OCRE / T155. Go owns the fixed-template, injection-proof SPARQL boundary (only validated Nomisma id slugs are interpolated as bracketed URIs), bounded per-job call budget, cache, scoring, and the authenticated internal `ocre_search` tool; Python stays stateless. Typed partial outcomes (timeout/unavailable/no_match/invalid) never fail the overall job. Visible attribution on every surface where OCRE contributes: "Online Coins of the Roman Empire (OCRE), American Numismatic Society — ODbL 1.0." See [ADR 0010](adr/0010-ocre-odbl-provider.md).
 
 ### Changed
 

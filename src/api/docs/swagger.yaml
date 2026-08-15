@@ -989,6 +989,36 @@ definitions:
     required:
     - query
     type: object
+  handlers.OCRESearchRequest:
+    properties:
+      denomination:
+        type: string
+      legend_tokens:
+        items:
+          type: string
+        type: array
+      limit:
+        type: integer
+      material:
+        type: string
+      mint:
+        type: string
+      ocre_id:
+        type: string
+      ruler:
+        type: string
+    type: object
+  handlers.OCRESearchResponse:
+    properties:
+      attribution:
+        type: string
+      candidates:
+        items:
+          $ref: '#/definitions/services.OCRECandidate'
+        type: array
+      status:
+        type: string
+    type: object
   handlers.OllamaStatusResponse:
     properties:
       available:
@@ -2671,6 +2701,28 @@ definitions:
       value:
         type: number
     type: object
+  models.DeepProviderRunStatus:
+    enum:
+    - pending
+    - running
+    - contributed
+    - no_match
+    - failed
+    - timed_out
+    - skipped
+    - not_automated
+    - unavailable
+    type: string
+    x-enum-varnames:
+    - DeepProviderRunPending
+    - DeepProviderRunRunning
+    - DeepProviderRunContributed
+    - DeepProviderRunNoMatch
+    - DeepProviderRunFailed
+    - DeepProviderRunTimedOut
+    - DeepProviderRunSkipped
+    - DeepProviderRunNotAutomated
+    - DeepProviderRunUnavailable
   models.Era:
     enum:
     - ancient
@@ -3077,6 +3129,32 @@ definitions:
     x-enum-varnames:
     - NumistaSearchAttemptPrimary
     - NumistaSearchAttemptRelaxed
+  models.OCREHealthSummary:
+    properties:
+      callBudget:
+        description: CallBudget is the current per-job OCRE call budget.
+        type: integer
+      enabled:
+        description: Enabled reflects the current DeepIdentificationOCREEnabled flag.
+        type: boolean
+      gateValidated:
+        description: |-
+          GateValidated reports whether the deep-identification settings snapshot
+          parsed to a valid enablement gate (bounded flag + budget). A false value
+          means an operator must correct configuration before OCRE can be trusted.
+        type: boolean
+      lastCheckedAt:
+        description: |-
+          LastCheckedAt is the created_at of that most recent OCRE provider-run
+          row, or nil when OCRE has never run.
+        type: string
+      lastOutcome:
+        allOf:
+        - $ref: '#/definitions/models.DeepProviderRunStatus'
+        description: |-
+          LastOutcome is the status of the most recent OCRE provider-run row, or
+          nil when OCRE has never run.
+    type: object
   models.OIDCProviderTestStatus:
     enum:
     - unknown
@@ -4098,6 +4176,21 @@ definitions:
     - NomismaSearchOK
     - NomismaSearchNoMatch
     - NomismaSearchUnavailable
+  services.OCRECandidate:
+    properties:
+      confidence:
+        type: number
+      explanation:
+        type: string
+      label:
+        type: string
+      matched_fields:
+        items:
+          type: string
+        type: array
+      type_uri:
+        type: string
+    type: object
   services.OIDCAdminProviderDTO:
     properties:
       callbackPath:
@@ -5034,6 +5127,31 @@ paths:
       security:
       - BearerAuth: []
       summary: Get collection health scheduler status
+      tags:
+      - Admin
+  /admin/deep-identification/ocre/health:
+    get:
+      description: Returns the OCRE Deep Analysis enablement flag, per-job call budget,
+        configuration gate validity, and the last recorded provider-run outcome class
+        and timestamp. No per-job user content is exposed. Admin only.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.OCREHealthSummary'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get OCRE Deep Analysis operational health
       tags:
       - Admin
   /admin/health/summary:
@@ -10524,6 +10642,44 @@ paths:
             additionalProperties: true
             type: object
       summary: Deep-identification Numista search tool
+      tags:
+      - Internal
+  /internal/tools/ocre_search:
+    post:
+      consumes:
+      - application/json
+      description: Job-scoped, call-budget-limited OCRE (Nomisma SPARQL) coin-type
+        search for the Python deep identification pipeline
+      parameters:
+      - description: '******'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Bound OCRE query signals
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.OCRESearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: status, candidates, attribution
+          schema:
+            $ref: '#/definitions/handlers.OCRESearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Deep-identification OCRE search tool
       tags:
       - Internal
   /internal/tools/propose_update:
