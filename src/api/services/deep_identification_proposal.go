@@ -83,10 +83,10 @@ type deepProposalFieldEntry struct {
 
 // deepProposalDocument mirrors the `Proposal` schema.
 type deepProposalDocument struct {
-	SchemaVersion           int                               `json:"schemaVersion"`
-	TargetCoinID            *uint                             `json:"targetCoinId,omitempty"`
+	SchemaVersion           int                                `json:"schemaVersion"`
+	TargetCoinID            *uint                              `json:"targetCoinId,omitempty"`
 	Fields                  map[string]*deepProposalFieldEntry `json:"fields"`
-	SourceReportGeneratedAt string                            `json:"sourceReportGeneratedAt,omitempty"`
+	SourceReportGeneratedAt string                             `json:"sourceReportGeneratedAt,omitempty"`
 }
 
 // DeepProposalFieldEdit is one caller-supplied edit for PATCH .../proposal.
