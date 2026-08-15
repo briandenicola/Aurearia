@@ -68,13 +68,13 @@ be implemented as part of this MVP.
 
 **⚠️ CRITICAL**: Blocks US1/US2/US6.
 
-- [ ] T022 Create `src/api/services/deep_identification_service.go` skeleton (`DeepIdentificationService` struct, constructor DI per `main.go:246-249` pattern) — no worker logic yet
-- [ ] T023 Add `ValidateAndSaveArtifact(jobID, role, fileHeader)` to `src/api/services/deep_identification_service.go`, reusing `services.ValidateImageData`/`NormalizeImageExt`/`MaxImageUploadBytes` (FR-005); enforces ≤1 `obverse`, ≤1 `reverse`, ≤3 `hint` (data-model.md §5)
-- [ ] T024 Add `ReuseSavedCoinImage(jobID, coinID, role)` to `src/api/services/deep_identification_service.go` — creates an artifact row with `Origin=saved_coin_image`, empty `FilePath`, fingerprint derived from stored file path+size+mtime (data-model.md §2.3)
-- [ ] T025 Add `DeleteHintArtifacts(jobID)` and `DeleteJobArtifacts(jobID)` to `src/api/services/deep_identification_service.go` — stamps `DeletedAt`, tolerant of an already-missing file, used by every terminal path and the retention janitor
-- [ ] T026 Add `ComputeInputFingerprint(userID, coinID, images, notes, requestedProviders)` to `src/api/services/deep_identification_service.go` per the sha256 formula in data-model.md §2.3
-- [ ] T027 [P] Create `src/api/services/deep_identification_service_test.go` covering: validation rejects disallowed type/magic-byte mismatch/oversize/hint-count>3/missing obverse-or-reverse; saved-image reuse creates the correct artifact row; fingerprint is stable for identical inputs and changes when a saved image's stored size/mtime changes (retry-after-change edge case)
-- [ ] T028 [P] Add orphan-artifact recovery cases to `src/api/services/deep_identification_service_test.go`: `DeleteJobArtifacts` is idempotent when called twice; a simulated already-missing file does not error
+- [X] T022 Create `src/api/services/deep_identification_service.go` skeleton (`DeepIdentificationService` struct, constructor DI per `main.go:246-249` pattern) — no worker logic yet
+- [X] T023 Add `ValidateAndSaveArtifact(jobID, role, fileHeader)` to `src/api/services/deep_identification_service.go`, reusing `services.ValidateImageData`/`NormalizeImageExt`/`MaxImageUploadBytes` (FR-005); enforces ≤1 `obverse`, ≤1 `reverse`, ≤3 `hint` (data-model.md §5)
+- [X] T024 Add `ReuseSavedCoinImage(jobID, coinID, role)` to `src/api/services/deep_identification_service.go` — creates an artifact row with `Origin=saved_coin_image`, empty `FilePath`, fingerprint derived from stored file path+size+mtime (data-model.md §2.3)
+- [X] T025 Add `DeleteHintArtifacts(jobID)` and `DeleteJobArtifacts(jobID)` to `src/api/services/deep_identification_service.go` — stamps `DeletedAt`, tolerant of an already-missing file, used by every terminal path and the retention janitor
+- [X] T026 Add `ComputeInputFingerprint(userID, coinID, images, notes, requestedProviders)` to `src/api/services/deep_identification_service.go` per the sha256 formula in data-model.md §2.3
+- [X] T027 [P] Create `src/api/services/deep_identification_service_test.go` covering: validation rejects disallowed type/magic-byte mismatch/oversize/hint-count>3/missing obverse-or-reverse; saved-image reuse creates the correct artifact row; fingerprint is stable for identical inputs and changes when a saved image's stored size/mtime changes (retry-after-change edge case)
+- [X] T028 [P] Add orphan-artifact recovery cases to `src/api/services/deep_identification_service_test.go`: `DeleteJobArtifacts` is idempotent when called twice; a simulated already-missing file does not error
 
 **Checkpoint**: Image validation/storage/reuse/deletion exists independent of the worker/pipeline.
 
@@ -84,18 +84,18 @@ be implemented as part of this MVP.
 
 **⚠️ CRITICAL**: Blocks every user story phase.
 
-- [ ] T029 Add worker pool to `src/api/services/deep_identification_service.go`: `StartWorkers(ctx)` bounded by `SettingDeepIdentificationWorkerCount`; each worker loop: `ClaimNextQueuedJob` → heartbeat ticker → run pipeline → `SettleTerminal`
-- [ ] T030 Add per-user active-job limit (`SettingDeepIdentificationMaxActivePerUser`) to `StartJob(...)` in `src/api/services/deep_identification_service.go` — returns the existing active job instead of enqueuing a second (FR-007)
-- [ ] T031 Add queue-depth backpressure (`SettingDeepIdentificationQueueDepth`) to `StartJob(...)` — returns a typed `queue_full` error mapped to `503` when exceeded
-- [ ] T032 Add an in-memory cancel registry (`map[jobID]context.CancelFunc`) to `src/api/services/deep_identification_service.go`; `RequestCancel` cancels the running job's context and records `CancelRequestedAt` via the repository
-- [ ] T033 Add hard-timeout enforcement (`SettingDeepIdentificationHardTimeoutSeconds`) wrapping each job's pipeline run in `context.WithTimeout` — expiry settles `partial`/`failed`, never leaves a job `running` (FR-014)
-- [ ] T034 Add `StartJanitor(ctx)` to `src/api/services/deep_identification_service.go`: on boot and every 60s calls `RecoverStaleJobs`; hourly calls `PruneEventsBefore` (24h post-terminal, FR-017) and expires/deletes job rows + artifacts past `ExpiresAt` (90d, FR-034)
-- [ ] T035 Wire `StartWorkers` + `StartJanitor` into `src/api/main.go` following the existing scheduler-wiring pattern
-- [ ] T036 [P] Add worker-pool bound test to `src/api/services/deep_identification_service_test.go`: a fake pipeline runner + N goroutines assert max concurrent claimed jobs never exceeds the configured worker count; queue backpressure returns `queue_full` once depth+1 is reached; per-user limit returns the existing job, not a new one
-- [ ] T037 [P] Add hard-timeout test to `src/api/services/deep_identification_service_test.go`: a fake pipeline that never returns settles to `failed`/`partial` before the test deadline, exactly once
-- [ ] T038 [P] Add **cancel-vs-complete concurrency test** to `src/api/services/deep_identification_service_test.go`: a goroutine requesting cancel and a goroutine completing the same job race repeatedly (many iterations) — asserts exactly one terminal state and exactly one terminal event every time, with no flaky double-settle (FR-019)
-- [ ] T039 [P] Add restart-recovery test to `src/api/services/deep_identification_service_test.go`: jobs left `running` with a stale heartbeat from a simulated prior process instance settle to `failed:stale_restart` and never remain `running` (FR-012)
-- [ ] T040 [P] Add hint-cleanup-on-restart test to `src/api/services/deep_identification_service_test.go`: hint artifacts with no `DeletedAt` after a simulated crash are swept and deleted by the janitor's startup sweep, not only by the terminal-hook path
+- [X] T029 Add worker pool to `src/api/services/deep_identification_service.go`: `StartWorkers(ctx)` bounded by `SettingDeepIdentificationWorkerCount`; each worker loop: `ClaimNextQueuedJob` → heartbeat ticker → run pipeline → `SettleTerminal`
+- [X] T030 Add per-user active-job limit (`SettingDeepIdentificationMaxActivePerUser`) to `StartJob(...)` in `src/api/services/deep_identification_service.go` — returns the existing active job instead of enqueuing a second (FR-007)
+- [X] T031 Add queue-depth backpressure (`SettingDeepIdentificationQueueDepth`) to `StartJob(...)` — returns a typed `queue_full` error mapped to `503` when exceeded
+- [X] T032 Add an in-memory cancel registry (`map[jobID]context.CancelFunc`) to `src/api/services/deep_identification_service.go`; `RequestCancel` cancels the running job's context and records `CancelRequestedAt` via the repository
+- [X] T033 Add hard-timeout enforcement (`SettingDeepIdentificationHardTimeoutSeconds`) wrapping each job's pipeline run in `context.WithTimeout` — expiry settles `partial`/`failed`, never leaves a job `running` (FR-014)
+- [X] T034 Add `StartJanitor(ctx)` to `src/api/services/deep_identification_service.go`: on boot and every 60s calls `RecoverStaleJobs`; hourly calls `PruneEventsBefore` (24h post-terminal, FR-017) and expires/deletes job rows + artifacts past `ExpiresAt` (90d, FR-034)
+- [X] T035 Wire `StartWorkers` + `StartJanitor` into `src/api/main.go` following the existing scheduler-wiring pattern
+- [X] T036 [P] Add worker-pool bound test to `src/api/services/deep_identification_service_test.go`: a fake pipeline runner + N goroutines assert max concurrent claimed jobs never exceeds the configured worker count; queue backpressure returns `queue_full` once depth+1 is reached; per-user limit returns the existing job, not a new one
+- [X] T037 [P] Add hard-timeout test to `src/api/services/deep_identification_service_test.go`: a fake pipeline that never returns settles to `failed`/`partial` before the test deadline, exactly once
+- [X] T038 [P] Add **cancel-vs-complete concurrency test** to `src/api/services/deep_identification_service_test.go`: a goroutine requesting cancel and a goroutine completing the same job race repeatedly (many iterations) — asserts exactly one terminal state and exactly one terminal event every time, with no flaky double-settle (FR-019)
+- [X] T039 [P] Add restart-recovery test to `src/api/services/deep_identification_service_test.go`: jobs left `running` with a stale heartbeat from a simulated prior process instance settle to `failed:stale_restart` and never remain `running` (FR-012)
+- [X] T040 [P] Add hint-cleanup-on-restart test to `src/api/services/deep_identification_service_test.go`: hint artifacts with no `DeletedAt` after a simulated crash are swept and deleted by the janitor's startup sweep, not only by the terminal-hook path
 
 **Checkpoint**: A job can be created, claimed, cancelled, retried-in-theory, bounded, and safely recovered from restart — via poll (`GET`) only, no pipeline output yet.
 
