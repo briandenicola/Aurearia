@@ -24,6 +24,7 @@ vi.mock('@/api/client', () => ({
   lookupNumista: vi.fn(),
   createQuickCaptureDraft: vi.fn(),
   createDeepIdentificationJob: vi.fn(),
+  getDeepIdentificationCapability: vi.fn().mockResolvedValue({ data: { enabled: true } }),
   onTokenRefreshed: vi.fn(),
 }))
 

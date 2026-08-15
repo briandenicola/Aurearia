@@ -8,12 +8,13 @@
     :aria-label="label"
     @click="$emit('click')"
   >
-    <span aria-hidden="true">🔬</span>
+    <Microscope :size="16" aria-hidden="true" />
     {{ label }}
   </BaseButton>
 </template>
 
 <script setup lang="ts">
+import { Microscope } from 'lucide-vue-next'
 import BaseButton from '@/components/ui/BaseButton.vue'
 
 withDefaults(defineProps<{

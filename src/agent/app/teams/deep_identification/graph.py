@@ -205,11 +205,18 @@ async def synthesizer_node(state: DeepIdentificationState, model, partial_succes
     return {"synthesis": synthesis.model_dump()}
 
 
-def build_graph(model, tools: ProviderToolsClient | None):
+def build_graph(model, tools: ProviderToolsClient | None, recursion_limit: int | None = None):
     """Compile a topology-testable `StateGraph` using the same node
     callables the streaming runner uses. Not used at request-serving time
     (see module docstring) — this exists so graph shape is independently
     verifiable without needing to drive the fine-grained SSE frames.
+
+    When `recursion_limit` is provided (contract §6, `bounds.recursion_limit`),
+    it is bound into the compiled graph's invocation config so any
+    `.ainvoke`/`.astream` on the returned graph is capped at that iteration
+    bound. The production SSE driver is a hand-written generator that does not
+    invoke the compiled graph, so this binding governs graph-based callers and
+    the topology tests rather than the streaming path.
     """
 
     async def _prepare(state: DeepIdentificationState) -> dict:
@@ -241,7 +248,34 @@ def build_graph(model, tools: ProviderToolsClient | None):
     graph.add_edge("evaluator", "synthesizer")
     graph.add_edge("synthesizer", END)
 
-    return graph.compile()
+    compiled = graph.compile()
+    if recursion_limit is not None:
+        return compiled.with_config({"recursion_limit": recursion_limit})
+    return compiled
+
+
+def _classify_pipeline_error(exc: BaseException) -> str:
+    """Map an unexpected pipeline exception to a typed contract §3 `error`
+    frame code (`llm_unavailable` | `timeout` | `invalid_model_output` |
+    `internal`). Deliberately narrow: only well-understood model-output
+    parse failures and provider/model connectivity failures get a specific
+    code; everything else stays `internal` rather than guessing.
+    """
+    from pydantic import ValidationError
+
+    try:
+        from langchain_core.exceptions import OutputParserException
+    except Exception:  # pragma: no cover - langchain always present in practice
+        parser_exc: tuple[type[BaseException], ...] = ()
+    else:
+        parser_exc = (OutputParserException,)
+
+    if isinstance(exc, (ValidationError, *parser_exc)):
+        return "invalid_model_output"
+    name = type(exc).__name__
+    if isinstance(exc, ConnectionError) or "Connection" in name or "Unavailable" in name:
+        return "llm_unavailable"
+    return "internal"
 
 
 def _emit(frame: dict) -> str:
@@ -355,7 +389,7 @@ async def run_deep_identification_stream(request: DeepIdentifyRequest) -> AsyncG
         if not evidence:
             yield _emit({
                 "type": "error",
-                "error_kind": "timeout",
+                "code": "timeout",
                 "message": "Deep analysis timed out before any evidence was gathered.",
             })
             return
@@ -368,11 +402,15 @@ async def run_deep_identification_stream(request: DeepIdentifyRequest) -> AsyncG
             logger.exception("[deep_identification.graph] partial-synthesis fallback failed after timeout")
             yield _emit({
                 "type": "error",
-                "error_kind": "timeout",
+                "code": "timeout",
                 "message": "Deep analysis timed out and partial synthesis failed.",
             })
-    except Exception:
+    except Exception as exc:
         logger.exception("[deep_identification.graph] pipeline failed unexpectedly")
         pipeline_task.cancel()
         watcher.cancel()
-        yield _emit({"type": "error", "error_kind": "internal", "message": "Deep analysis failed unexpectedly."})
+        yield _emit({
+            "type": "error",
+            "code": _classify_pipeline_error(exc),
+            "message": "Deep analysis failed unexpectedly.",
+        })

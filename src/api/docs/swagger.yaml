@@ -1560,6 +1560,11 @@ definitions:
       jobId:
         type: integer
     type: object
+  handlers.deepCapabilityResponse:
+    properties:
+      enabled:
+        type: boolean
+    type: object
   handlers.deepJobDTO:
     properties:
       appliedAt:
@@ -9817,6 +9822,21 @@ paths:
       summary: Match a category/era candidate against known values
       tags:
       - coins
+  /deep-identification/capability:
+    get:
+      description: Returns the Deep Analysis feature-flag state so the client can
+        hide or disable the entry point. The backend remains authoritative; job creation
+        is independently gated.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.deepCapabilityResponse'
+      summary: Report whether Deep Analysis is enabled for the current user
+      tags:
+      - Deep Identification
   /deep-identification/jobs:
     get:
       parameters:

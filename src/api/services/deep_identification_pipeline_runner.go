@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -125,6 +126,13 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 	var lastErrorCode, lastErrorMessage string
 	var seq int64
 
+	// providerClaims accumulates each provider_result frame's validated
+	// claims keyed by provider, indexed positionally so the terminal
+	// synthesis' proposed_fields.evidence_refs (contract §5) can be
+	// resolved into full citation-bearing evidence when the rich proposal
+	// document is built (B1: no citations/confidence are dropped).
+	providerClaims := map[string][]deepProposalClaim{}
+
 	onFrame := func(frame DeepIdentifyFrame) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -141,6 +149,14 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 				// (no wrapping "report" key) - fall back to treating the
 				// whole payload minus "type" as the report.
 				lastSynthesis = frame.Raw
+			}
+		case "provider_result":
+			var evidence struct {
+				Provider string              `json:"provider"`
+				Claims   []deepProposalClaim `json:"claims"`
+			}
+			if jsonErr := json.Unmarshal(frame.Raw, &evidence); jsonErr == nil && evidence.Provider != "" {
+				providerClaims[evidence.Provider] = evidence.Claims
 			}
 		case "error":
 			var payload struct {
@@ -198,7 +214,7 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 		_ = json.Unmarshal(lastSynthesis, &partial)
 		return &DeepPipelineResult{
 			ReportJSON:   string(lastSynthesis),
-			ProposalJSON: deepPipelineProposalJSON(lastSynthesis),
+			ProposalJSON: buildDeepProposalDocumentJSON(lastSynthesis, job.CoinID, providerClaims),
 			Partial:      partial.PartialSuccess,
 		}, nil
 	}
@@ -318,26 +334,108 @@ func deepPipelineEventType(frameType string) (models.DeepIdentificationEventType
 	}
 }
 
-// deepPipelineProposalJSON extracts a flat field->value map from the
-// synthesis report's `proposed_fields` (contract §5) as the stored
-// proposal payload. Later phases (Quick Capture promotion / saved-coin
-// update review) define the exact confirm/apply shape; this phase only
-// needs a faithful, lossless-enough snapshot of what the pipeline proposed
-// so nothing is fabricated or silently dropped.
-func deepPipelineProposalJSON(reportJSON json.RawMessage) string {
+// deepCitationHostAllowlist mirrors the Python
+// merge.CITATION_HOST_ALLOWLIST (contracts/agent-internal-contract.md §4):
+// every persisted claim's citation host must belong to the emitting
+// provider's canonical allowlist. Python drops non-allowlisted citations
+// before emission; Go re-checks here before the citation is persisted into
+// a proposal, so a compromised/buggy provider frame can never inject an
+// arbitrary citation URL into stored owner-facing data (SC-006, Principle V).
+var deepCitationHostAllowlist = map[string]map[string]bool{
+	"numista": {"en.numista.com": true, "api.numista.com": true},
+	"nomisma": {"nomisma.org": true},
+	"ngc":     {"www.ngccoin.com": true},
+	"ocre":    {"numismatics.org": true},
+	"rpc":     {"rpc.ashmus.ox.ac.uk": true},
+}
+
+// deepCitationHostAllowed reports whether citation is an absolute http(s)
+// URL whose host is on provider's canonical allowlist.
+func deepCitationHostAllowed(provider, citation string) bool {
+	allow, ok := deepCitationHostAllowlist[provider]
+	if !ok {
+		return false
+	}
+	u, err := url.Parse(citation)
+	if err != nil {
+		return false
+	}
+	return allow[strings.ToLower(u.Hostname())]
+}
+
+// buildDeepProposalDocumentJSON translates the terminal synthesis'
+// `proposed_fields` (contract §5) into the rich, owner-editable
+// deepProposalDocument the proposal/apply endpoints and the frontend
+// DeepProposalEditor consume (data-model.md §7, OpenAPI Proposal schema).
+//
+// It is the single writer of ProposalJSON and enforces two invariants:
+//  1. only fields writable through the coin update path
+//     (deepProposalCoinFieldAllowlist) survive - every other proposed key
+//     is dropped, so no silent new write surface is created (Principle IV);
+//  2. each field's per-provider evidence is resolved from the streamed
+//     provider_result claims via evidence_refs and re-validated against the
+//     citation host allowlist, preserving citations + confidence while
+//     rejecting any non-allowlisted citation (SC-006).
+//
+// Owner-decision fields are initialized to their pristine state
+// (ownerEdited=false, ownerValue=null, accepted=null) so nothing is
+// auto-accepted and no coin data is written until an explicit confirm.
+func buildDeepProposalDocumentJSON(reportJSON json.RawMessage, targetCoinID *uint, providerClaims map[string][]deepProposalClaim) string {
 	var report struct {
 		ProposedFields map[string]struct {
-			Value string `json:"value"`
+			Value        string  `json:"value"`
+			Confidence   float64 `json:"confidence"`
+			EvidenceRefs []struct {
+				Provider   string `json:"provider"`
+				ClaimIndex *int   `json:"claim_index"`
+			} `json:"evidence_refs"`
 		} `json:"proposed_fields"`
 	}
 	if err := json.Unmarshal(reportJSON, &report); err != nil || len(report.ProposedFields) == 0 {
 		return ""
 	}
-	fields := make(map[string]string, len(report.ProposedFields))
-	for field, entry := range report.ProposedFields {
-		fields[field] = entry.Value
+
+	fields := make(map[string]*deepProposalFieldEntry, len(report.ProposedFields))
+	for name, pf := range report.ProposedFields {
+		if _, allowed := deepProposalCoinFieldAllowlist[name]; !allowed {
+			continue // restrict to the existing update allowlist
+		}
+		entry := &deepProposalFieldEntry{
+			Proposed:    pf.Value,
+			Confidence:  pf.Confidence,
+			OwnerEdited: false,
+			OwnerValue:  nil,
+			Accepted:    nil,
+		}
+		for _, ref := range pf.EvidenceRefs {
+			// `provider: "image"` refs (contract §5) carry no citation and
+			// are intentionally not rendered as a Claim.
+			if ref.Provider == "" || ref.Provider == "image" || ref.ClaimIndex == nil {
+				continue
+			}
+			claims, ok := providerClaims[ref.Provider]
+			if !ok || *ref.ClaimIndex < 0 || *ref.ClaimIndex >= len(claims) {
+				continue
+			}
+			claim := claims[*ref.ClaimIndex]
+			if !deepCitationHostAllowed(ref.Provider, claim.Citation) {
+				continue
+			}
+			entry.Evidence = append(entry.Evidence, claim)
+		}
+		fields[name] = entry
 	}
-	out, err := json.Marshal(map[string]any{"fields": fields})
+
+	if len(fields) == 0 {
+		return ""
+	}
+
+	doc := deepProposalDocument{
+		SchemaVersion: 1,
+		TargetCoinID:  targetCoinID,
+		Fields:        fields,
+	}
+	out, err := json.Marshal(doc)
 	if err != nil {
 		return ""
 	}

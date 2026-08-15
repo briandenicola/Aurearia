@@ -40,6 +40,23 @@
             @cancel="onCancel"
           />
 
+          <div v-if="canRetry" class="flex flex-wrap items-center gap-3">
+            <BaseButton
+              variant="secondary"
+              size="sm"
+              class="min-h-[44px]"
+              :loading="deep.retrying.value"
+              :disabled="deep.retrying.value"
+              :aria-busy="deep.retrying.value"
+              aria-label="Retry Deep Analysis"
+              @click="onRetry"
+            >
+              <RefreshCw v-if="!deep.retrying.value" :size="16" aria-hidden="true" />
+              {{ deep.retrying.value ? 'Retrying…' : 'Retry' }}
+            </BaseButton>
+            <p v-if="retryError" role="alert" class="m-0 text-body text-byzantine">{{ retryError }}</p>
+          </div>
+
           <template v-if="isTerminal && deep.report.value">
             <DeepReportPanel :report="deep.report.value" />
           </template>
@@ -65,9 +82,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
-import { Search } from 'lucide-vue-next'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { Search, RefreshCw } from 'lucide-vue-next'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
 import DeepAnalysisProgressTimeline from '@/components/deep-identification/DeepAnalysisProgressTimeline.vue'
 import DeepReportPanel from '@/components/deep-identification/DeepReportPanel.vue'
 import DeepProposalEditor from '@/components/deep-identification/DeepProposalEditor.vue'
@@ -76,6 +94,7 @@ import { useDeepIdentificationStream } from '@/composables/useDeepIdentification
 import type { DeepApplyTarget, DeepProposalFieldEdit } from '@/types'
 
 const route = useRoute()
+const router = useRouter()
 const jobId = computed(() => {
   const raw = route.params.jobId
   const value = Array.isArray(raw) ? raw[0] : raw
@@ -106,6 +125,37 @@ async function onCancel() {
 }
 
 const isTerminal = computed(() => terminalStatus.value === 'completed' || terminalStatus.value === 'partial')
+
+// Retry is offered for any contract-eligible terminal state (completed,
+// partial, failed, cancelled) and never while the job is still active
+// (queued/running) — the backend remains authoritative and rejects an
+// ineligible or depth-exceeded retry. The button is disabled while a retry
+// request is in flight to prevent duplicate submissions.
+const canRetry = computed(() =>
+  ['completed', 'partial', 'failed', 'cancelled'].includes(terminalStatus.value ?? ''),
+)
+
+const retryError = ref('')
+
+async function onRetry() {
+  if (jobId.value === null || deep.retrying.value) return
+  retryError.value = ''
+  const newJob = await deep.retry(jobId.value)
+  if (!newJob) {
+    retryError.value = deep.error.value || 'Unable to retry Deep Analysis.'
+    // deep.error is the same ref backing the page-level load error; clear it
+    // after capturing so a failed retry surfaces beside the Retry button
+    // instead of replacing the whole job view.
+    deep.error.value = ''
+    return
+  }
+  // The retry is a brand-new job row: tear down the current stream and its
+  // resume key, then navigate to the new job's route. The jobId watcher
+  // re-initializes the page (refresh + reconnect) for the new id.
+  stream.disconnect()
+  if (jobId.value !== null) sessionStorage.removeItem(storageKey(jobId.value))
+  await router.push({ name: 'deep-analysis', params: { jobId: String(newJob.id) } })
+}
 
 const applyError = ref('')
 
@@ -159,11 +209,29 @@ watch(() => stream.terminal.value, async (terminal) => {
   }
 })
 
+async function activateJob(id: number) {
+  await refresh(id)
+  const since = loadStoredSeq(id)
+  stream.connect(id, { since })
+}
+
+// A retry navigates to a new jobId under the same route, so the component
+// is reused rather than remounted: re-initialize (disconnect the old
+// stream, refresh, reconnect) whenever the id actually changes.
+watch(jobId, async (newId, oldId) => {
+  if (oldId !== null && newId !== oldId) {
+    stream.disconnect()
+    retryError.value = ''
+    applyError.value = ''
+  }
+  if (newId !== null && newId !== oldId) {
+    await activateJob(newId)
+  }
+})
+
 onMounted(async () => {
   if (jobId.value !== null) {
-    await refresh(jobId.value)
-    const since = loadStoredSeq(jobId.value)
-    stream.connect(jobId.value, { since })
+    await activateJob(jobId.value)
   }
 })
 

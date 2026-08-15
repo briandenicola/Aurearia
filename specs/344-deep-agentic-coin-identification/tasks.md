@@ -27,6 +27,39 @@ be implemented as part of this MVP.
 
 ---
 
+## Post-BLOCK Remediation (Cassius, MVP re-review)
+
+The reviewed MVP was BLOCKed. Remediation addressed the following on the
+existing branch (see `.squad/decisions/inbox/344-remediation-proposal-contract-and-followups.md`).
+No post-MVP task (T125+) is marked complete by this work.
+
+- **B1 — Proposal contract mismatch (RE-DONE, supersedes Phase 7 decision #8)**:
+  `deep_identification_pipeline_runner.go` now builds the rich
+  `deepProposalDocument` (per-field proposed/confidence/evidence/ownerEdited/
+  ownerValue/accepted) instead of the flat `{fields}` map, reusing the existing
+  proposal DTOs. Evidence/citations resolved Go-side from `provider_result`
+  frames; field + citation-host allowlists enforced at translation and apply.
+  New integration regression (`deep_identification_proposal_integration_test.go`,
+  saved-coin + new-intake) fails under the old flat shape. Reopens/validates the
+  US4 confirm-and-apply path (T100-range) that the flat shape had silently broken.
+- **B2 — Retry unreachable (FIXED)**: Retry wired into `DeepAnalysisPage.vue`
+  for eligible terminal states with navigation + safe re-init, duplicate-click
+  guard, and accessible loading/error. Component tests added.
+- **B3 — Emoji violation (FIXED)**: microscope emoji in
+  `DeepAnalysisEntryButton.vue` replaced with the lucide `Microscope` icon; test added.
+- **F1 — Feature-flag entry UX (FIXED)**: added `GET /deep-identification/capability`
+  (typed, authenticated, boolean-only) + `useDeepIdentificationCapability`
+  (fails closed); entry button gated in `CoinLookupPage.vue` + `CoinActionsPanel.vue`.
+- **F3 — recursion_limit (WIRED, inert in streaming driver)**: `build_graph`
+  binds `bounds.recursion_limit` via `.with_config`; topology test asserts it.
+- **F4 — Typed error taxonomy (FIXED)**: Python `error` frame now emits `code`
+  (contract §3) via a narrow classifier; SSE tests updated.
+- **F5 — Design tokens / 44px targets (FIXED)**: no new hardcoded colors; 44px
+  min touch targets on DeepProposalEditor inputs/decision/apply controls and the
+  new retry control; design-token tests pass.
+
+---
+
 ## Phase 1: Setup
 
 **Purpose**: Confirm environment/config prerequisites before any domain code lands.

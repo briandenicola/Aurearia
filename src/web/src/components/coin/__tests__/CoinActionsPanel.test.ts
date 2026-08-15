@@ -23,6 +23,7 @@ vi.mock('@/api/client', () => ({
   getAIJob: vi.fn(),
   getCoinAIJobs: vi.fn().mockResolvedValue({ data: [] }),
   createDeepIdentificationJob: vi.fn(),
+  getDeepIdentificationCapability: vi.fn().mockResolvedValue({ data: { enabled: true } }),
   getApiErrorMessage: vi.fn(() => 'error'),
 }))
 
@@ -144,5 +145,33 @@ describe('CoinActionsPanel Numista transition', () => {
     expect(createDeepIdentificationJob).toHaveBeenCalledWith(expect.objectContaining({ coinId: 42 }))
     expect(updateCoin).not.toHaveBeenCalled()
     expect(routerPush).toHaveBeenCalledWith('/deep-analysis/7')
+  })
+
+  it('hides the Deep Analysis entry point when the capability flag is disabled (backend authoritative)', async () => {
+    const { getDeepIdentificationCapability } = await import('@/api/client')
+    vi.mocked(getDeepIdentificationCapability).mockResolvedValueOnce({ data: { enabled: false } } as never)
+
+    const wrapper = shallowMount(CoinActionsPanel, {
+      props: {
+        coinId: 42,
+        coinName: 'Trajan denarius',
+        coinMaterial: 'Silver',
+        imageCount: 2,
+        coinHasObverseImage: true,
+        coinHasReverseImage: true,
+        isPwa: false,
+      },
+      global: {
+        stubs: {
+          CoinNumistaPanel: { template: '<section />' },
+          RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'DeepAnalysisEntryButton' }).exists()).toBe(false)
+    // Existing catalog/quick actions remain unaffected by the Deep Analysis gate.
+    expect(wrapper.findAll('a').some((link) => /Catalog References/i.test(link.text()))).toBe(true)
   })
 })

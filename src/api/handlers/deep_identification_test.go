@@ -94,6 +94,7 @@ func setupDeepIdentificationHandlerTest(t *testing.T, userID uint, enabled bool)
 		c.Set("userId", userID)
 		c.Next()
 	})
+	router.GET("/api/deep-identification/capability", handler.Capability)
 	router.POST("/api/deep-identification/jobs", handler.CreateJob)
 	router.GET("/api/deep-identification/jobs", handler.ListJobs)
 	router.GET("/api/deep-identification/jobs/:id", handler.GetJob)
@@ -231,6 +232,39 @@ func TestDeepIdentificationHandler_CreateJob_DisabledReturns403(t *testing.T) {
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// F1: the capability probe reflects the feature flag so normal-user UI can
+// hide/disable the Deep Analysis entry point, while the backend remains
+// authoritative (job creation is independently gated above).
+func TestDeepIdentificationHandler_Capability_ReflectsFeatureFlag(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		enabled bool
+	}{
+		{"enabled", true},
+		{"disabled", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := setupDeepIdentificationHandlerTest(t, 1, tc.enabled)
+			req := httptest.NewRequest(http.MethodGet, "/api/deep-identification/capability", nil)
+			rec := httptest.NewRecorder()
+			deps.router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+			}
+			var resp struct {
+				Enabled bool `json:"enabled"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("decode capability response: %v", err)
+			}
+			if resp.Enabled != tc.enabled {
+				t.Fatalf("expected enabled=%v, got %v", tc.enabled, resp.Enabled)
+			}
+		})
 	}
 }
 

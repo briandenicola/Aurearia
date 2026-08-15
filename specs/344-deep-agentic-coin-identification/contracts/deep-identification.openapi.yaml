@@ -24,6 +24,28 @@ servers:
 tags:
   - name: deep-identification
 paths:
+  /deep-identification/capability:
+    get:
+      tags: [deep-identification]
+      summary: Report whether Deep Analysis is enabled for the current user
+      operationId: getDeepIdentificationCapability
+      description: |
+        Returns the Deep Analysis feature-flag state (FR-008) so the client can
+        hide or disable the entry point when it is disabled. Exposes only the
+        boolean gate, never the underlying admin settings; the backend remains
+        authoritative and independently gates job creation with 403 when
+        disabled. Available to any authenticated owner.
+      responses:
+        '200':
+          description: Capability state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enabled]
+                properties:
+                  enabled: { type: boolean }
+        '401': { description: Unauthenticated }
   /deep-identification/jobs:
     post:
       tags: [deep-identification]

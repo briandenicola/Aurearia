@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -193,22 +192,86 @@ func TestStreamDeepIdentificationMalformedFrameSkippedNotFabricated(t *testing.T
 	}
 }
 
-func TestDeepPipelineProposalJSONExtractsFieldValues(t *testing.T) {
-	report := json.RawMessage(fmt.Sprintf(`{"proposed_fields":{"denomination":{"value":"denarius","confidence":0.8},"ruler":{"value":"Severus","confidence":0.6}}}`))
-	out := deepPipelineProposalJSON(report)
-	var decoded struct {
-		Fields map[string]string `json:"fields"`
+func TestBuildDeepProposalDocumentJSONProducesRichAllowlistedShape(t *testing.T) {
+	// A realistic synthesis report: two allowlisted proposed fields with
+	// evidence_refs, plus one non-allowlisted field that must be dropped.
+	report := json.RawMessage(`{
+		"proposed_fields": {
+			"denomination": {"value":"Denarius","confidence":0.82,"evidence_refs":[{"provider":"numista","claim_index":0}]},
+			"mint": {"value":"Rome","confidence":0.6,"evidence_refs":[{"provider":"nomisma","claim_index":0}]},
+			"secretAdminField": {"value":"nope","confidence":0.99,"evidence_refs":[]}
+		}
+	}`)
+	providerClaims := map[string][]deepProposalClaim{
+		"numista": {{Field: "denomination", Value: "Denarius", Confidence: 0.8, Citation: "https://en.numista.com/catalogue/pieces12345.html", Excerpt: "Silver denarius"}},
+		"nomisma": {{Field: "mint", Value: "Rome", Confidence: 0.6, Citation: "http://nomisma.org/id/roma"}},
 	}
-	if err := json.Unmarshal([]byte(out), &decoded); err != nil {
-		t.Fatalf("expected valid JSON, got error %v (raw: %s)", err, out)
+	var coinID uint = 42
+	out := buildDeepProposalDocumentJSON(report, &coinID, providerClaims)
+
+	var doc deepProposalDocument
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("expected valid rich proposal JSON, got error %v (raw: %s)", err, out)
 	}
-	if decoded.Fields["denomination"] != "denarius" || decoded.Fields["ruler"] != "Severus" {
-		t.Fatalf("expected extracted field values, got %#v", decoded.Fields)
+	if doc.SchemaVersion != 1 {
+		t.Fatalf("expected schemaVersion 1, got %d", doc.SchemaVersion)
+	}
+	if doc.TargetCoinID == nil || *doc.TargetCoinID != 42 {
+		t.Fatalf("expected targetCoinId 42, got %v", doc.TargetCoinID)
+	}
+	if _, dropped := doc.Fields["secretAdminField"]; dropped {
+		t.Fatal("non-allowlisted field must be dropped from the proposal document")
+	}
+	den := doc.Fields["denomination"]
+	if den == nil {
+		t.Fatal("expected denomination field in proposal")
+	}
+	// Rich shape: proposed value + confidence + citation-bearing evidence,
+	// and pristine owner-decision state (nothing auto-accepted).
+	if den.Proposed != "Denarius" {
+		t.Fatalf("expected proposed=Denarius, got %v", den.Proposed)
+	}
+	if den.Confidence != 0.82 {
+		t.Fatalf("expected confidence 0.82 preserved, got %v", den.Confidence)
+	}
+	if len(den.Evidence) != 1 || den.Evidence[0].Citation != "https://en.numista.com/catalogue/pieces12345.html" {
+		t.Fatalf("expected preserved citation evidence, got %#v", den.Evidence)
+	}
+	if den.OwnerEdited || den.OwnerValue != nil || den.Accepted != nil {
+		t.Fatalf("expected pristine owner-decision state, got ownerEdited=%v ownerValue=%v accepted=%v", den.OwnerEdited, den.OwnerValue, den.Accepted)
+	}
+
+	// The old flat shape ({"fields":{"denomination":"Denarius"}}) would not
+	// unmarshal into deepProposalDocument's rich per-field entries, so this
+	// test necessarily fails against the pre-remediation implementation.
+	if err := json.Unmarshal([]byte(`{"fields":{"denomination":"Denarius"}}`), &doc); err == nil {
+		t.Fatal("sanity: the old flat proposal shape must be incompatible with the rich document")
 	}
 }
 
-func TestDeepPipelineProposalJSONEmptyWhenNoProposedFields(t *testing.T) {
-	if out := deepPipelineProposalJSON(json.RawMessage(`{"narrative":"no fields here"}`)); out != "" {
+func TestBuildDeepProposalDocumentJSONRejectsNonAllowlistedCitationHost(t *testing.T) {
+	report := json.RawMessage(`{
+		"proposed_fields": {
+			"denomination": {"value":"Denarius","confidence":0.8,"evidence_refs":[{"provider":"numista","claim_index":0}]}
+		}
+	}`)
+	// A citation whose host is NOT on numista's allowlist must be dropped,
+	// never persisted (no arbitrary citation injection).
+	providerClaims := map[string][]deepProposalClaim{
+		"numista": {{Field: "denomination", Value: "Denarius", Confidence: 0.8, Citation: "https://evil.example.com/inject"}},
+	}
+	out := buildDeepProposalDocumentJSON(report, nil, providerClaims)
+	var doc deepProposalDocument
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("expected valid JSON, got %v", err)
+	}
+	if den := doc.Fields["denomination"]; den == nil || len(den.Evidence) != 0 {
+		t.Fatalf("expected non-allowlisted citation to be dropped, got %#v", den)
+	}
+}
+
+func TestBuildDeepProposalDocumentJSONEmptyWhenNoProposedFields(t *testing.T) {
+	if out := buildDeepProposalDocumentJSON(json.RawMessage(`{"narrative":"no fields here"}`), nil, nil); out != "" {
 		t.Fatalf("expected empty proposal JSON, got %q", out)
 	}
 }

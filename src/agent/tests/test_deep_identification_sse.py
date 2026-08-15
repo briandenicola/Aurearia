@@ -171,4 +171,43 @@ async def test_timeout_with_zero_evidence_emits_typed_error(monkeypatch):
     frames = await _collect_frames(request)
 
     assert frames[-1]["type"] == "error"
-    assert frames[-1]["error_kind"] == "timeout"
+    assert frames[-1]["code"] == "timeout"
+
+
+@pytest.mark.asyncio
+async def test_unexpected_failure_maps_to_typed_error_code(monkeypatch):
+    """F4: an unexpected pipeline exception ends the stream with a typed
+    contract §3 `error` frame carrying `code` (never `error_kind`). The
+    narrow classifier maps model-output parse failures to
+    `invalid_model_output`, provider/model connectivity failures to
+    `llm_unavailable`, and anything else to `internal`.
+    """
+    from langchain_core.exceptions import OutputParserException
+
+    monkeypatch.setattr(graph_module, "get_chat_model", lambda llm: FakeModel())
+
+    cases = [
+        (OutputParserException("bad model output"), "invalid_model_output"),
+        (ConnectionError("provider unreachable"), "llm_unavailable"),
+        (RuntimeError("something else broke"), "internal"),
+    ]
+    for exc, expected_code in cases:
+        async def failing_synthesize(*args, _exc=exc, **kwargs):
+            raise _exc
+
+        monkeypatch.setattr(graph_module, "synthesize", failing_synthesize)
+        frames = await _collect_frames(_request())
+        assert frames[-1]["type"] == "error"
+        assert frames[-1]["code"] == expected_code
+        assert "error_kind" not in frames[-1]
+
+
+def test_classify_pipeline_error_is_narrow():
+    """The classifier only assigns specific codes to well-understood
+    failures and otherwise stays `internal` (no broad guessing)."""
+    from langchain_core.exceptions import OutputParserException
+
+    assert graph_module._classify_pipeline_error(OutputParserException("x")) == "invalid_model_output"
+    assert graph_module._classify_pipeline_error(ConnectionError("x")) == "llm_unavailable"
+    assert graph_module._classify_pipeline_error(ValueError("x")) == "internal"
+    assert graph_module._classify_pipeline_error(RuntimeError("x")) == "internal"

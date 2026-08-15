@@ -26,7 +26,7 @@
           <input
             :id="`deep-proposal-field-${name}`"
             type="text"
-            class="rounded-sm border border-border-subtle bg-background px-2 py-1 text-text-primary"
+            class="min-h-[44px] rounded-sm border border-border-subtle bg-background px-2 py-1 text-text-primary"
             :value="ownerValue(name)"
             @input="onOwnerValueInput(name, $event)"
           >
@@ -35,7 +35,7 @@
         <div class="flex items-center gap-2" role="group" :aria-label="`${fieldLabel(name)} decision`">
           <button
             type="button"
-            class="rounded-full border px-3 py-1 text-sm font-medium transition-colors duration-150"
+            class="inline-flex min-h-[44px] items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors duration-150"
             :class="entryOf(name).accepted === true ? 'border-gold bg-gold text-white' : 'border-border-subtle text-text-secondary'"
             :aria-pressed="entryOf(name).accepted === true"
             @click="setAccepted(name, true)"
@@ -44,7 +44,7 @@
           </button>
           <button
             type="button"
-            class="rounded-full border px-3 py-1 text-sm font-medium transition-colors duration-150"
+            class="inline-flex min-h-[44px] items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors duration-150"
             :class="entryOf(name).accepted === false ? 'border-byzantine bg-byzantine text-white' : 'border-border-subtle text-text-secondary'"
             :aria-pressed="entryOf(name).accepted === false"
             @click="setAccepted(name, false)"
@@ -57,7 +57,7 @@
 
     <button
       type="button"
-      class="justify-self-start rounded-full border border-gold bg-gold px-5 py-2 text-sm font-semibold text-white transition-opacity duration-150 disabled:cursor-not-allowed disabled:opacity-50"
+      class="inline-flex min-h-[44px] items-center justify-self-start rounded-full border border-gold bg-gold px-5 py-2 text-sm font-semibold text-white transition-opacity duration-150 disabled:cursor-not-allowed disabled:opacity-50"
       :disabled="confirmDisabled"
       @click="$emit('confirm')"
     >

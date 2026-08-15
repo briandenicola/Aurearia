@@ -8556,6 +8556,26 @@ const docTemplate = `{
                 }
             }
         },
+        "/deep-identification/capability": {
+            "get": {
+                "description": "Returns the Deep Analysis feature-flag state so the client can hide or disable the entry point. The backend remains authoritative; job creation is independently gated.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Deep Identification"
+                ],
+                "summary": "Report whether Deep Analysis is enabled for the current user",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.deepCapabilityResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/deep-identification/jobs": {
             "get": {
                 "security": [
@@ -19677,6 +19697,14 @@ const docTemplate = `{
                 },
                 "jobId": {
                     "type": "integer"
+                }
+            }
+        },
+        "handlers.deepCapabilityResponse": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
                 }
             }
         },

@@ -26,3 +26,18 @@ def test_build_graph_has_expected_node_topology():
     assert ("provider_fanout", "evaluator") in edges
     assert ("evaluator", "synthesizer") in edges
     assert ("synthesizer", "__end__") in edges
+
+
+def test_build_graph_binds_recursion_limit_into_invocation_config():
+    """F3 (contract §6): `bounds.recursion_limit` is bound into the compiled
+    graph's invocation config so graph-based invocation is capped at the
+    iteration bound."""
+    graph = build_graph(model=None, tools=None, recursion_limit=12)
+    assert graph.config.get("recursion_limit") == 12
+    # Topology is preserved through the config binding.
+    assert "synthesizer" in set(graph.get_graph().nodes.keys())
+
+
+def test_build_graph_without_recursion_limit_is_unbound():
+    graph = build_graph(model=None, tools=None)
+    assert (getattr(graph, "config", None) or {}).get("recursion_limit") is None

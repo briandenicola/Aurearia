@@ -54,7 +54,7 @@
           {{ submitting ? 'Analyzing...' : 'Analyze Photos' }}
         </button>
 
-        <div class="flex justify-center">
+        <div v-if="deepAnalysisEnabled" class="flex justify-center">
           <DeepAnalysisEntryButton @click="showDeepAnalysisModal = true" />
         </div>
       </div>
@@ -313,6 +313,7 @@ import DeepAnalysisEntryButton from '@/components/deep-identification/DeepAnalys
 import DeepAnalysisStartPanel from '@/components/deep-identification/DeepAnalysisStartPanel.vue'
 import AppIconButton from '@/components/ui/AppIconButton.vue'
 import { useDeepIdentification } from '@/composables/useDeepIdentification'
+import { useDeepIdentificationCapability } from '@/composables/useDeepIdentificationCapability'
 import { selectedNumistaReferenceFromCandidate } from '@/utils/numistaLookup'
 import { useAuthStore } from '@/stores/auth'
 
@@ -339,6 +340,7 @@ const selectedNumistaCandidate = ref<NumistaCandidate | null>(null)
 const ngcNumistaExpanded = ref(false)
 
 const showDeepAnalysisModal = ref(false)
+const { enabled: deepAnalysisEnabled } = useDeepIdentificationCapability()
 const deepIdentification = useDeepIdentification()
 
 async function onDeepAnalysisSubmit(input: CreateDeepIdentificationJobInput) {

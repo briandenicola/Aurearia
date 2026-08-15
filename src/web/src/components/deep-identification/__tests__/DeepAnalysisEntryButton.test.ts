@@ -20,4 +20,11 @@ describe('DeepAnalysisEntryButton', () => {
     const wrapper = mount(DeepAnalysisEntryButton, { props: { label: 'Run Deep Analysis' } })
     expect(wrapper.text()).toContain('Run Deep Analysis')
   })
+
+  it('renders a lucide icon and contains no emoji (constitution: no emojis in UI)', () => {
+    const wrapper = mount(DeepAnalysisEntryButton)
+    // The microscope is an accessible-hidden SVG icon, never an emoji glyph.
+    expect(wrapper.find('svg').exists()).toBe(true)
+    expect(wrapper.html()).not.toMatch(/\p{Extended_Pictographic}/u)
+  })
 })

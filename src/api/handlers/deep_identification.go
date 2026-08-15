@@ -155,6 +155,29 @@ func (h *DeepIdentificationHandler) deepIdentificationEnabled() bool {
 	return h.settingsSvc.GetDeepIdentificationSettings().Enabled
 }
 
+// deepCapabilityResponse is the wire shape for the Deep Analysis capability
+// probe (contracts/deep-identification.openapi.yaml `Capability`).
+type deepCapabilityResponse struct {
+	Enabled bool `json:"enabled"`
+}
+
+// Capability reports whether Deep Analysis is currently available to the
+// authenticated user (FR-008 feature flag). It exposes only the boolean
+// gate derived from the admin feature flag - never the underlying admin
+// settings - so normal-user UI can hide/disable the Deep Analysis entry
+// point while the backend stays authoritative (job creation still 403s
+// when disabled). Read-only and safe for any authenticated user.
+//
+//	@Summary		Report whether Deep Analysis is enabled for the current user
+//	@Description	Returns the Deep Analysis feature-flag state so the client can hide or disable the entry point. The backend remains authoritative; job creation is independently gated.
+//	@Tags			Deep Identification
+//	@Produce		json
+//	@Success		200	{object}	deepCapabilityResponse
+//	@Router			/deep-identification/capability [get]
+func (h *DeepIdentificationHandler) Capability(c *gin.Context) {
+	c.JSON(http.StatusOK, deepCapabilityResponse{Enabled: h.deepIdentificationEnabled()})
+}
+
 // CreateJob starts a Deep Analysis job from multipart intake.
 //
 //	@Summary		Start a Deep Analysis job

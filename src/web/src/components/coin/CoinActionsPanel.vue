@@ -111,7 +111,7 @@
         </RouterLink>
       </div>
 
-      <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4">
+      <div v-if="deepAnalysisEnabled" class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4">
         <span class="text-body text-text-secondary">Re-analyze this coin with multiple catalog providers</span>
         <DeepAnalysisEntryButton @click="showDeepAnalysisModal = true" />
       </div>
@@ -159,6 +159,7 @@ import { useNotifications } from '@/composables/useNotifications'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 import { useToast } from '@/composables/useToast'
 import { useDeepIdentification } from '@/composables/useDeepIdentification'
+import { useDeepIdentificationCapability } from '@/composables/useDeepIdentificationCapability'
 import DeepAnalysisEntryButton from '@/components/deep-identification/DeepAnalysisEntryButton.vue'
 import DeepAnalysisStartPanel from '@/components/deep-identification/DeepAnalysisStartPanel.vue'
 import AppIconButton from '@/components/ui/AppIconButton.vue'
@@ -190,6 +191,7 @@ const { refresh: refreshNotifications } = useNotifications()
 const { showToast } = useToast()
 const router = useRouter()
 const deepIdentification = useDeepIdentification()
+const { enabled: deepAnalysisEnabled } = useDeepIdentificationCapability()
 const showDeepAnalysisModal = ref(false)
 const coinHasObverseImage = computed(() => props.coinHasObverseImage ?? false)
 const coinHasReverseImage = computed(() => props.coinHasReverseImage ?? false)

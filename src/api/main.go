@@ -498,6 +498,7 @@ func main() {
 
 		deepIdentificationProposalSvc := services.NewDeepIdentificationProposalService(deepIdentificationRepo, coinRepo, coinSvc, quickCaptureSvc)
 		deepIdentificationHandler := handlers.NewDeepIdentificationHandler(deepIdentificationSvc, settingsSvc, logger).WithProposalSupport(deepIdentificationProposalSvc)
+		protected.GET("/deep-identification/capability", deepIdentificationHandler.Capability)
 		protected.POST("/deep-identification/jobs", writeRateLimit, deepIdentificationHandler.CreateJob)
 		protected.GET("/deep-identification/jobs", deepIdentificationHandler.ListJobs)
 		protected.GET("/deep-identification/jobs/:id", deepIdentificationHandler.GetJob)

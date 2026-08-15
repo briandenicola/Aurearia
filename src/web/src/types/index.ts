@@ -1990,6 +1990,10 @@ export interface DeepJobListResponse {
   nextCursor?: string
 }
 
+export interface DeepIdentificationCapability {
+  enabled: boolean
+}
+
 export interface CreateDeepIdentificationJobInput {
   coinId?: number
   obverseImage?: File | null
