@@ -37,6 +37,10 @@ export interface WorkflowApiState {
   mediaRequests: Array<{ path: string; authorization: string; cacheControl: string }>
   coinQueries: Array<Record<string, string>>
   authorizedRequests: string[]
+  deepIdentificationJobs: Array<{ id: number; notes: string; providers: string; status: string; source?: string; report?: unknown; proposal?: Record<string, { proposed: unknown; ownerEdited: boolean; ownerValue: unknown; accepted: boolean | null }>; appliedAt?: string | null; appliedCoinId?: number | null; appliedDraftId?: number | null }>
+  deepIdentificationCancels: number[]
+  deepIdentificationProposalUpdates: Array<{ id: number; fields: Record<string, unknown> }>
+  deepIdentificationApplies: Array<{ id: number; target: string }>
 }
 
 export async function installAuthenticatedSession(page: Page) {
@@ -62,9 +66,14 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
     mediaRequests: [],
     coinQueries: [],
     authorizedRequests: [],
+    deepIdentificationJobs: [],
+    deepIdentificationCancels: [],
+    deepIdentificationProposalUpdates: [],
+    deepIdentificationApplies: [],
   }
   let nextCoinId = 7001
   let nextImageId = 9001
+  let nextDeepJobId = 5001
 
   await page.route('**/uploads/**', async (route) => {
     const request = route.request()
@@ -322,6 +331,146 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
         ? cloneCoin({ ...coin, sets: coin.sets?.filter((set) => set.id !== setId) ?? [] })
         : coin)
       await json(route, { message: 'Coin removed from set' })
+      return
+    }
+
+    if (path === '/deep-identification/jobs' && method === 'POST') {
+      const id = nextDeepJobId++
+      const rawBody = request.postData() ?? ''
+      const source = /name="coinId"/.test(rawBody) ? 'saved_coin' : 'intake'
+      state.deepIdentificationJobs.push({
+        id,
+        notes: String(rawBody.includes('notes') ? 'submitted' : ''),
+        providers: '',
+        status: 'running',
+        source,
+      })
+      await route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          job: {
+            id,
+            source,
+            status: 'running',
+            partialSuccess: false,
+            cancelRequested: false,
+            lastSeq: 0,
+            eventsAvailable: false,
+            expiresAt: '2030-01-01T00:00:00Z',
+            createdAt: '2030-01-01T00:00:00Z',
+          },
+        }),
+      })
+      return
+    }
+
+    if (path.match(/^\/deep-identification\/jobs\/\d+$/) && method === 'GET') {
+      const id = Number(path.split('/').pop())
+      const job = state.deepIdentificationJobs.find((item) => item.id === id)
+      await json(route, {
+        job: {
+          id,
+          source: job?.source ?? 'intake',
+          status: job?.status ?? 'queued',
+          partialSuccess: Boolean(job?.report && (job.report as { partialSuccess?: boolean }).partialSuccess),
+          cancelRequested: false,
+          lastSeq: 0,
+          eventsAvailable: false,
+          appliedAt: job?.appliedAt ?? null,
+          appliedCoinId: job?.appliedCoinId ?? null,
+          appliedDraftId: job?.appliedDraftId ?? null,
+          expiresAt: '2030-01-01T00:00:00Z',
+          createdAt: '2030-01-01T00:00:00Z',
+        },
+        report: job?.report ?? null,
+        proposal: job?.proposal ? { schemaVersion: 1, fields: job.proposal } : null,
+      })
+      return
+    }
+
+    const proposalMatch = path.match(/^\/deep-identification\/jobs\/(\d+)\/proposal$/)
+    if (proposalMatch && method === 'PATCH') {
+      const id = Number(proposalMatch[1])
+      const job = state.deepIdentificationJobs.find((item) => item.id === id)
+      const body = JSON.parse(request.postData() ?? '{}') as { fields?: Record<string, { ownerValue?: unknown; accepted?: boolean | null }> }
+      state.deepIdentificationProposalUpdates.push({ id, fields: body.fields ?? {} })
+      if (job?.proposal && body.fields) {
+        for (const [name, edit] of Object.entries(body.fields)) {
+          const entry = job.proposal[name]
+          if (!entry) continue
+          if (edit.ownerValue !== undefined) {
+            entry.ownerValue = edit.ownerValue
+            entry.ownerEdited = true
+          }
+          if (edit.accepted !== undefined) entry.accepted = edit.accepted ?? null
+        }
+      }
+      await json(route, job?.proposal ? { schemaVersion: 1, fields: job.proposal } : { schemaVersion: 1, fields: {} })
+      return
+    }
+
+    const applyMatch = path.match(/^\/deep-identification\/jobs\/(\d+)\/apply$/)
+    if (applyMatch && method === 'POST') {
+      const id = Number(applyMatch[1])
+      const job = state.deepIdentificationJobs.find((item) => item.id === id)
+      const body = JSON.parse(request.postData() ?? '{}') as { target?: string }
+      const target = body.target ?? 'draft'
+      state.deepIdentificationApplies.push({ id, target })
+      const appliedAt = '2030-01-02T00:00:00Z'
+      if (job) {
+        job.appliedAt = appliedAt
+        if (target === 'coin') job.appliedCoinId = 8001
+        else job.appliedDraftId = 8002
+      }
+      await json(route, {
+        jobId: id,
+        coinId: target === 'coin' ? 8001 : null,
+        draftId: target === 'draft' ? 8002 : null,
+        appliedFields: job?.proposal ? Object.keys(job.proposal).filter((name) => job.proposal![name].accepted === true) : [],
+        appliedAt,
+      })
+      return
+    }
+
+    const cancelMatch = path.match(/^\/deep-identification\/jobs\/(\d+)\/cancel$/)
+    if (cancelMatch && method === 'POST') {
+      const id = Number(cancelMatch[1])
+      state.deepIdentificationCancels.push(id)
+      const job = state.deepIdentificationJobs.find((item) => item.id === id)
+      if (job) job.status = 'cancelled'
+      await json(route, {
+        job: {
+          id,
+          source: 'intake',
+          status: 'cancelled',
+          partialSuccess: false,
+          cancelRequested: true,
+          lastSeq: 1,
+          eventsAvailable: true,
+          expiresAt: '2030-01-01T00:00:00Z',
+          createdAt: '2030-01-01T00:00:00Z',
+        },
+      })
+      return
+    }
+
+    const eventsMatch = path.match(/^\/deep-identification\/jobs\/(\d+)\/events$/)
+    if (eventsMatch && method === 'GET') {
+      const id = Number(eventsMatch[1])
+      const job = state.deepIdentificationJobs.find((item) => item.id === id)
+      const frames = [
+        `id: 1\nevent: job_accepted\ndata: ${JSON.stringify({ seq: 1, jobId: id, type: 'job_accepted', ts: '2030-01-01T00:00:00Z', payload: { status: 'queued' } })}\n\n`,
+        `id: 2\nevent: progress\ndata: ${JSON.stringify({ seq: 2, jobId: id, type: 'progress', ts: '2030-01-01T00:00:00Z', payload: { message: 'Running providers' } })}\n\n`,
+      ]
+      if (job && ['completed', 'partial', 'failed', 'cancelled'].includes(job.status)) {
+        frames.push(`id: 3\nevent: terminal\ndata: ${JSON.stringify({ seq: 3, jobId: id, type: 'terminal', ts: '2030-01-01T00:00:00Z', payload: { status: job.status } })}\n\n`)
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: frames.join(''),
+      })
       return
     }
 

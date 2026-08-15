@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, NumistaLookupRequest, NumistaEnrichmentRequest, NumistaLookupOutcome, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, GeocodeCandidate, ValuationRun, AuctionEndingRun, AuctionWatchBidDigestRun, CollectionHealthSnapshotRunResult, CollectionHealthSnapshotRun, SchedulerStatus, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, CreateSetBuilderRunRequest, SetBuilderRun, SetProposal, UpdateSetProposalRequest, RegenerateSetProposalRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, SmartCriteriaTemplate, SuggestedSmartCriteria, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse, AIJob, AIJobStartResponse, PriceAlert, BidReminder, PriceAlertDirection, AuctionAlertReminderRun, CoinOfDayRun, BidRecommendation, MarketSignal, RomanImperialFigure, ImperialFigureRole, EmperorTrackerResult, CoinRecommendation, ShipmentEnvelopeResponse, ShipmentUpsertInput, ShipmentStatus, NomismaSearchResponse } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, NumistaLookupRequest, NumistaEnrichmentRequest, NumistaLookupOutcome, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, GeocodeCandidate, ValuationRun, AuctionEndingRun, AuctionWatchBidDigestRun, CollectionHealthSnapshotRunResult, CollectionHealthSnapshotRun, SchedulerStatus, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, CreateSetBuilderRunRequest, SetBuilderRun, SetProposal, UpdateSetProposalRequest, RegenerateSetProposalRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, SmartCriteriaTemplate, SuggestedSmartCriteria, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse, AIJob, AIJobStartResponse, PriceAlert, BidReminder, PriceAlertDirection, AuctionAlertReminderRun, CoinOfDayRun, BidRecommendation, MarketSignal, RomanImperialFigure, ImperialFigureRole, EmperorTrackerResult, CoinRecommendation, ShipmentEnvelopeResponse, ShipmentUpsertInput, ShipmentStatus, NomismaSearchResponse, DeepProviderId, DeepJob, DeepJobEnvelope, DeepJobListResponse, DeepIdentificationCapability, CreateDeepIdentificationJobInput, ListDeepIdentificationJobsParams, DeepProposal, UpdateDeepIdentificationProposalInput, ApplyDeepIdentificationProposalInput, DeepApplyResult } from '@/types'
 import type { QuickCaptureDraft, QuickCaptureDraftInput, QuickCaptureDraftUpdateInput, QuickCaptureDraftListResponse, QuickCaptureDraftStatus, QuickCapturePromoteRequest, QuickCapturePromotionResponse } from '@/types'
 import type { WishlistSearchAlert, WishlistSearchAlertInput, WishlistSearchAlertListResponse, AlertRun, AlertRunListResponse, AlertRunResult, AlertCandidate, AlertCandidateListResponse, AlertCandidateState, CandidateProvenanceStatus, DismissWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateResponse, AdjustWishlistSearchAlertCriteriaInput } from '@/types'
 import type { NumistaHealthSummary } from '@/types'
@@ -1126,6 +1126,39 @@ export const markAllNotificationsRead = () =>
   api.put('/notifications/read-all')
 export const deleteNotification = (id: number) =>
   api.delete(`/notifications/${id}`)
+
+// Deep Agentic Coin Identification (344-deep-agentic-coin-identification).
+export async function createDeepIdentificationJob(input: CreateDeepIdentificationJobInput) {
+  const formData = new FormData()
+  if (input.coinId !== undefined) formData.append('coinId', String(input.coinId))
+  if (input.obverseImage) formData.append('obverse', input.obverseImage)
+  if (input.reverseImage) formData.append('reverse', input.reverseImage)
+  for (const hint of input.hintImages ?? []) {
+    formData.append('hints', hint)
+  }
+  appendOptionalFormValue(formData, 'notes', input.notes)
+  if (input.providers && input.providers.length > 0) {
+    formData.append('providers', input.providers.join(','))
+  }
+  return api.post<DeepJobEnvelope>('/deep-identification/jobs', formData)
+}
+export const listDeepIdentificationJobs = (params?: ListDeepIdentificationJobsParams) =>
+  api.get<DeepJobListResponse>('/deep-identification/jobs', { params })
+export const getDeepIdentificationCapability = () =>
+  api.get<DeepIdentificationCapability>('/deep-identification/capability')
+export const getDeepIdentificationJob = (id: number) =>
+  api.get<DeepJobEnvelope>(`/deep-identification/jobs/${id}`)
+export const cancelDeepIdentificationJob = (id: number) =>
+  api.post<DeepJobEnvelope>(`/deep-identification/jobs/${id}/cancel`)
+export const retryDeepIdentificationJob = (id: number, input?: { notes?: string; providers?: DeepProviderId[] }) =>
+  api.post<DeepJobEnvelope>(`/deep-identification/jobs/${id}/retry`, {
+    notes: input?.notes,
+    providers: input?.providers,
+  })
+export const patchDeepIdentificationProposal = (id: number, input: UpdateDeepIdentificationProposalInput) =>
+  api.patch<DeepProposal>(`/deep-identification/jobs/${id}/proposal`, input)
+export const applyDeepIdentificationProposal = (id: number, input: ApplyDeepIdentificationProposalInput) =>
+  api.post<DeepApplyResult>(`/deep-identification/jobs/${id}/apply`, input)
 
 export default api
 

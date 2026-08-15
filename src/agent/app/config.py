@@ -18,6 +18,16 @@ class Settings(BaseSettings):
     verification_timeout: int = 10
     max_supervisor_iterations: int = 25
 
+    # 344-deep-agentic-coin-identification pipeline bounds (contracts/
+    # agent-internal-contract.md §2, research.md Performance table). These
+    # are service-level ceilings; Go additionally passes a per-request
+    # `bounds` object that must never exceed these env-configured maximums.
+    deep_max_concurrency: int = 2
+    deep_max_providers: int = 4
+    deep_provider_timeout: int = 45
+    deep_total_timeout: int = 280
+    deep_recursion_limit: int = 12
+
     model_config = {"env_prefix": "AGENT_"}
 
 

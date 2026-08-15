@@ -53,6 +53,27 @@
           <Search v-else :size="20" />
           {{ submitting ? 'Analyzing...' : 'Analyze Photos' }}
         </button>
+
+        <div v-if="deepAnalysisEnabled" class="flex justify-center">
+          <DeepAnalysisEntryButton @click="showDeepAnalysisModal = true" />
+        </div>
+      </div>
+
+      <div v-if="showDeepAnalysisModal" class="fixed inset-0 z-[1000] flex items-center justify-center bg-overlay p-4" @click.self="showDeepAnalysisModal = false">
+        <div class="card max-h-[90vh] w-full max-w-[640px] overflow-y-auto p-6">
+          <div class="mb-4 flex items-center justify-between">
+            <h2 class="text-lg text-heading">Deep Analysis</h2>
+            <AppIconButton title="Close" @click="showDeepAnalysisModal = false">
+              <X :size="18" />
+            </AppIconButton>
+          </div>
+          <DeepAnalysisStartPanel
+            :submitting="deepIdentification.starting.value"
+            :submit-error="deepIdentification.error.value"
+            @submit="onDeepAnalysisSubmit"
+            @cancel="showDeepAnalysisModal = false"
+          />
+        </div>
       </div>
 
       <!-- Analyzing State -->
@@ -272,7 +293,7 @@
 import { ref, computed, reactive, nextTick, onBeforeUnmount } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { createQuickCaptureDraft, lookupCoin } from '@/api/client'
-import type { CoinLookupResponse, CoinMutationPayload, NumistaCandidate, NumistaEvidence } from '@/types'
+import type { CoinLookupResponse, CoinMutationPayload, CreateDeepIdentificationJobInput, NumistaCandidate, NumistaEvidence } from '@/types'
 import { renderSafeMarkdown } from '@/composables/useMarkdown'
 import { appendUniqueObservation, deriveAiObservations, normalizedEra, normalizeLookupDraft } from '@/utils/coinLookupDraft'
 import {
@@ -288,6 +309,11 @@ import {
 import InlineCameraCapturePanel from '@/components/InlineCameraCapturePanel.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import NumistaLookupPanel from '@/components/numista/NumistaLookupPanel.vue'
+import DeepAnalysisEntryButton from '@/components/deep-identification/DeepAnalysisEntryButton.vue'
+import DeepAnalysisStartPanel from '@/components/deep-identification/DeepAnalysisStartPanel.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
+import { useDeepIdentification } from '@/composables/useDeepIdentification'
+import { useDeepIdentificationCapability } from '@/composables/useDeepIdentificationCapability'
 import { selectedNumistaReferenceFromCandidate } from '@/utils/numistaLookup'
 import { useAuthStore } from '@/stores/auth'
 
@@ -312,6 +338,19 @@ const results = ref<CoinLookupResponse | null>(null)
 const aiObservations = ref('')
 const selectedNumistaCandidate = ref<NumistaCandidate | null>(null)
 const ngcNumistaExpanded = ref(false)
+
+const showDeepAnalysisModal = ref(false)
+const { enabled: deepAnalysisEnabled } = useDeepIdentificationCapability()
+const deepIdentification = useDeepIdentification()
+
+async function onDeepAnalysisSubmit(input: CreateDeepIdentificationJobInput) {
+  const job = await deepIdentification.start(input)
+  if (job) {
+    showDeepAnalysisModal.value = false
+    await router.push(`/deep-analysis/${job.id}`)
+  }
+}
+
 
 const reviewForm = reactive<CoinMutationPayload>({
   name: '',

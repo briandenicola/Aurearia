@@ -110,6 +110,31 @@
           Catalog References
         </RouterLink>
       </div>
+
+      <div v-if="deepAnalysisEnabled" class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4">
+        <span class="text-body text-text-secondary">Re-analyze this coin with multiple catalog providers</span>
+        <DeepAnalysisEntryButton @click="showDeepAnalysisModal = true" />
+      </div>
+    </div>
+
+    <div v-if="showDeepAnalysisModal" class="fixed inset-0 z-[1000] flex items-center justify-center bg-overlay p-4" @click.self="showDeepAnalysisModal = false">
+      <div class="card max-h-[90vh] w-full max-w-[640px] overflow-y-auto p-6">
+        <div class="mb-4 flex items-center justify-between">
+          <h2 class="text-lg text-heading">Deep Analysis</h2>
+          <AppIconButton title="Close" @click="showDeepAnalysisModal = false">
+            <X :size="18" />
+          </AppIconButton>
+        </div>
+        <DeepAnalysisStartPanel
+          :coin-id="coinId"
+          :has-existing-obverse="coinHasObverseImage"
+          :has-existing-reverse="coinHasReverseImage"
+          :submitting="deepIdentification.starting.value"
+          :submit-error="deepIdentification.error.value"
+          @submit="onDeepAnalysisSubmit"
+          @cancel="showDeepAnalysisModal = false"
+        />
+      </div>
     </div>
 
     <CameraCaptureModal
@@ -122,17 +147,23 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { uploadImage, proxyImage, estimateCoinValue, updateCoin, getAIJob, getCoinAIJobs } from '@/api/client'
 import { formatCurrency } from '@/utils/format'
 import { RouterLink } from 'vue-router'
 import CameraCaptureModal from '@/components/CameraCaptureModal.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
-import { Camera } from 'lucide-vue-next'
+import { Camera, X } from 'lucide-vue-next'
 import { useDialog } from '@/composables/useDialog'
 import { useNotifications } from '@/composables/useNotifications'
 import { sanitizeExternalUrl } from '@/composables/useSafeExternalLink'
 import { useToast } from '@/composables/useToast'
-import type { AIJob, AIJobStartResponse, Coin, ValueEstimate } from '@/types'
+import { useDeepIdentification } from '@/composables/useDeepIdentification'
+import { useDeepIdentificationCapability } from '@/composables/useDeepIdentificationCapability'
+import DeepAnalysisEntryButton from '@/components/deep-identification/DeepAnalysisEntryButton.vue'
+import DeepAnalysisStartPanel from '@/components/deep-identification/DeepAnalysisStartPanel.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
+import type { AIJob, AIJobStartResponse, Coin, CreateDeepIdentificationJobInput, ValueEstimate } from '@/types'
 
 const props = defineProps<{
   coinId: number
@@ -145,6 +176,8 @@ const props = defineProps<{
   coinObverseInscription?: string | null
   coinReverseInscription?: string | null
   imageCount: number
+  coinHasObverseImage?: boolean
+  coinHasReverseImage?: boolean
   isPwa: boolean
 }>()
 
@@ -156,6 +189,12 @@ const emit = defineEmits<{
 const { showAlert } = useDialog()
 const { refresh: refreshNotifications } = useNotifications()
 const { showToast } = useToast()
+const router = useRouter()
+const deepIdentification = useDeepIdentification()
+const { enabled: deepAnalysisEnabled } = useDeepIdentificationCapability()
+const showDeepAnalysisModal = ref(false)
+const coinHasObverseImage = computed(() => props.coinHasObverseImage ?? false)
+const coinHasReverseImage = computed(() => props.coinHasReverseImage ?? false)
 const POLL_INTERVAL_MS = 3_000
 
 const uploadType = ref('obverse')
@@ -282,6 +321,14 @@ async function handleApplyEstimate() {
     emit('estimateApplied')
   } catch {
     await showAlert('Failed to update coin value', { title: 'Error' })
+  }
+}
+
+async function onDeepAnalysisSubmit(input: CreateDeepIdentificationJobInput) {
+  const job = await deepIdentification.start({ ...input, coinId: props.coinId })
+  if (job) {
+    showDeepAnalysisModal.value = false
+    await router.push(`/deep-analysis/${job.id}`)
   }
 }
 

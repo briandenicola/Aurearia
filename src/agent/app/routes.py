@@ -14,6 +14,7 @@ from app.models.requests import (
     BidMarketSignalRequest,
     CoinSearchRequest,
     CoinShowSearchRequest,
+    DeepIdentifyRequest,
     GradeRequest,
     IntakeDraftRequest,
     PortfolioReviewRequest,
@@ -45,6 +46,7 @@ from app.teams.coin_analysis import create_coin_analysis_team
 from app.teams.coin_grading import create_coin_grading_team
 from app.teams.coin_intake import generate_intake_draft
 from app.teams.coin_search import discover_alert_candidates
+from app.teams.deep_identification.graph import run_deep_identification_stream
 from app.teams.set_builder import run_set_builder_workflow
 
 logger = logging.getLogger(__name__)
@@ -361,3 +363,29 @@ async def set_builder_run(request: SetBuilderRequest):
         request.enable_external_lookup,
     )
     return await run_set_builder_workflow(request)
+
+
+# Deep Agentic Coin Identification streaming route anchor:
+# specs/344-deep-agentic-coin-identification/contracts/agent-internal-contract.md §3
+@router.post("/deep-identify/stream")
+async def deep_identify_stream(request: DeepIdentifyRequest):
+    """Run the deep-identification pipeline and stream typed SSE frames.
+
+    Stateless and DB-free (Principle II): every field the pipeline needs
+    for this one job is in `request`; Go persists each frame as a
+    sequenced `DeepIdentificationEvent` (contracts/sse-events.md §2).
+    """
+    logger.info(
+        "POST /deep-identify/stream — job_id=%s, images=%d, providers=%d, max_providers=%d, total_timeout_s=%d",
+        request.job_id,
+        len(request.images),
+        len(request.provider_catalog),
+        request.bounds.max_providers,
+        request.bounds.total_timeout_s,
+    )
+
+    async def event_stream():
+        async for chunk in run_deep_identification_stream(request):
+            yield chunk
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")

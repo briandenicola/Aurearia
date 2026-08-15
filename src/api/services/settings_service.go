@@ -80,6 +80,19 @@ const (
 	SettingShipmentSyncInterval               = "ShipmentSyncInterval"
 	SettingShipmentSyncStartTime              = "ShipmentSyncStartTime"
 	SettingShipmentSyncBatchSize              = "ShipmentSyncBatchSize"
+
+	// 344-deep-agentic-coin-identification settings (data-model.md §8).
+	SettingDeepIdentificationEnabled             = "DeepIdentificationEnabled"
+	SettingDeepIdentificationWorkerCount         = "DeepIdentificationWorkerCount"
+	SettingDeepIdentificationMaxActivePerUser    = "DeepIdentificationMaxActivePerUser"
+	SettingDeepIdentificationQueueDepth          = "DeepIdentificationQueueDepth"
+	SettingDeepIdentificationHardTimeoutSeconds  = "DeepIdentificationHardTimeoutSeconds"
+	SettingDeepIdentificationEventRetentionHours = "DeepIdentificationEventRetentionHours"
+	SettingDeepIdentificationResultRetentionDays = "DeepIdentificationResultRetentionDays"
+	SettingDeepIdentificationMaxProviders        = "DeepIdentificationMaxProviders"
+	SettingDeepIdentificationNumistaCallBudget   = "DeepIdentificationNumistaCallBudget"
+	SettingDeepIdentificationOCREEnabled         = "DeepIdentificationOCREEnabled"
+	SettingDeepIdentificationRPCEnabled          = "DeepIdentificationRPCEnabled"
 )
 
 const DefaultObversePrompt = `You are an expert numismatist specializing in ancient and modern coins. Analyze the obverse (front) of this coin and provide:
@@ -175,6 +188,21 @@ var settingDefaults = map[string]string{
 	SettingShipmentSyncInterval:               "20",
 	SettingShipmentSyncStartTime:              "09:00",
 	SettingShipmentSyncBatchSize:              "100",
+
+	// 344-deep-agentic-coin-identification defaults (data-model.md §8).
+	// Enabled defaults to false: this is a feature-flagged, safe-by-default
+	// capability; flipping it on is an explicit out-of-band rollout step.
+	SettingDeepIdentificationEnabled:             "false",
+	SettingDeepIdentificationWorkerCount:         "2",
+	SettingDeepIdentificationMaxActivePerUser:    "1",
+	SettingDeepIdentificationQueueDepth:          "32",
+	SettingDeepIdentificationHardTimeoutSeconds:  "300",
+	SettingDeepIdentificationEventRetentionHours: "24",
+	SettingDeepIdentificationResultRetentionDays: "90",
+	SettingDeepIdentificationMaxProviders:        "4",
+	SettingDeepIdentificationNumistaCallBudget:   "4",
+	SettingDeepIdentificationOCREEnabled:         "false",
+	SettingDeepIdentificationRPCEnabled:          "false",
 }
 
 type NumistaSettings struct {
@@ -210,6 +238,68 @@ func (s *SettingsService) GetNumistaSettings() NumistaSettings {
 		SearchResultLimit: readInt(SettingNumistaSearchResultLimit, 20, 1, 50),
 		SearchTimeout:     time.Duration(searchTimeoutSeconds) * time.Second,
 		DetailTimeout:     time.Duration(detailTimeoutSeconds) * time.Second,
+		Valid:             valid,
+	}
+}
+
+// DeepIdentificationSettings is a validated snapshot of the live worker
+// pool / retention bounds for the deep agentic identification job service
+// (data-model.md §8). Invalid values fall back independently to documented
+// defaults and mark the snapshot invalid.
+type DeepIdentificationSettings struct {
+	Enabled           bool
+	WorkerCount       int
+	MaxActivePerUser  int
+	QueueDepth        int
+	HardTimeout       time.Duration
+	EventRetention    time.Duration
+	ResultRetention   time.Duration
+	MaxProviders      int
+	NumistaCallBudget int
+	OCREEnabled       bool
+	RPCEnabled        bool
+	Valid             bool
+}
+
+// GetDeepIdentificationSettings reads and validates the live deep
+// identification settings, mirroring the GetNumistaSettings pattern.
+func (s *SettingsService) GetDeepIdentificationSettings() DeepIdentificationSettings {
+	valid := true
+	readInt := func(key string, fallback, minimum, maximum int) int {
+		value, err := strconv.Atoi(strings.TrimSpace(s.GetSetting(key)))
+		if err != nil || value < minimum || value > maximum {
+			valid = false
+			return fallback
+		}
+		return value
+	}
+	readBool := func(key string, fallback bool) bool {
+		value := strings.TrimSpace(strings.ToLower(s.GetSetting(key)))
+		switch value {
+		case "true":
+			return true
+		case "false":
+			return false
+		default:
+			valid = false
+			return fallback
+		}
+	}
+	hardTimeoutSeconds := readInt(SettingDeepIdentificationHardTimeoutSeconds, 300, 1, 900)
+	eventRetentionHours := readInt(SettingDeepIdentificationEventRetentionHours, 24, 1, 720)
+	resultRetentionDays := readInt(SettingDeepIdentificationResultRetentionDays, 90, 1, 3650)
+	return DeepIdentificationSettings{
+		Enabled:           readBool(SettingDeepIdentificationEnabled, false),
+		WorkerCount:       readInt(SettingDeepIdentificationWorkerCount, 2, 1, 32),
+		MaxActivePerUser:  readInt(SettingDeepIdentificationMaxActivePerUser, 1, 1, 10),
+		QueueDepth:        readInt(SettingDeepIdentificationQueueDepth, 32, 1, 1000),
+		HardTimeout:       time.Duration(hardTimeoutSeconds) * time.Second,
+		EventRetention:    time.Duration(eventRetentionHours) * time.Hour,
+		ResultRetention:   time.Duration(resultRetentionDays) * 24 * time.Hour,
+		MaxProviders:      readInt(SettingDeepIdentificationMaxProviders, 4, 1, 10),
+		NumistaCallBudget: readInt(SettingDeepIdentificationNumistaCallBudget, 4, 1, 20),
+		OCREEnabled:       readBool(SettingDeepIdentificationOCREEnabled, false),
+		RPCEnabled:        readBool(SettingDeepIdentificationRPCEnabled, false),
 		Valid:             valid,
 	}
 }

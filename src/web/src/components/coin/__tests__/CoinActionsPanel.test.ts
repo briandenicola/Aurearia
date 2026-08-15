@@ -2,6 +2,19 @@ import { flushPromises, shallowMount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import CoinActionsPanel from '../CoinActionsPanel.vue'
 
+const routerPush = vi.fn()
+
+vi.mock('vue-router', () => ({
+  RouterLink: {
+    name: 'RouterLink',
+    props: ['to'],
+    template: '<a :href="to"><slot /></a>',
+  },
+  useRouter: () => ({
+    push: routerPush,
+  }),
+}))
+
 vi.mock('@/api/client', () => ({
   uploadImage: vi.fn(),
   proxyImage: vi.fn(),
@@ -9,6 +22,9 @@ vi.mock('@/api/client', () => ({
   updateCoin: vi.fn(),
   getAIJob: vi.fn(),
   getCoinAIJobs: vi.fn().mockResolvedValue({ data: [] }),
+  createDeepIdentificationJob: vi.fn(),
+  getDeepIdentificationCapability: vi.fn().mockResolvedValue({ data: { enabled: true } }),
+  getApiErrorMessage: vi.fn(() => 'error'),
 }))
 
 vi.mock('@/composables/useDialog', () => ({
@@ -62,5 +78,100 @@ describe('CoinActionsPanel Numista transition', () => {
     expect(contextualLinks).toHaveLength(1)
     expect(contextualLinks[0]!.attributes('href')).toBe('/coin/42#catalog-references')
     expect(contextualLinks[0]!.classes()).toContain('btn-sm')
+  })
+
+  it('offers a Deep Analysis entry point that opens a saved-coin start panel reusing existing images', async () => {
+    const wrapper = shallowMount(CoinActionsPanel, {
+      props: {
+        coinId: 42,
+        coinName: 'Trajan denarius',
+        coinMaterial: 'Silver',
+        imageCount: 2,
+        coinHasObverseImage: true,
+        coinHasReverseImage: true,
+        isPwa: false,
+      },
+      global: {
+        stubs: {
+          CoinNumistaPanel: { template: '<section />' },
+          RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'DeepAnalysisEntryButton' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'DeepAnalysisStartPanel' }).exists()).toBe(false)
+
+    await wrapper.findComponent({ name: 'DeepAnalysisEntryButton' }).vm.$emit('click')
+    await flushPromises()
+
+    const panel = wrapper.findComponent({ name: 'DeepAnalysisStartPanel' })
+    expect(panel.exists()).toBe(true)
+    expect(panel.props('coinId')).toBe(42)
+    expect(panel.props('hasExistingObverse')).toBe(true)
+    expect(panel.props('hasExistingReverse')).toBe(true)
+  })
+
+  it('does not issue any direct coin update when starting a saved-coin Deep Analysis job', async () => {
+    const { updateCoin, createDeepIdentificationJob } = await import('@/api/client')
+    vi.mocked(createDeepIdentificationJob).mockResolvedValue({ data: { job: { id: 7, status: 'queued' } } } as never)
+
+    const wrapper = shallowMount(CoinActionsPanel, {
+      props: {
+        coinId: 42,
+        coinName: 'Trajan denarius',
+        coinMaterial: 'Silver',
+        imageCount: 1,
+        coinHasObverseImage: true,
+        coinHasReverseImage: false,
+        isPwa: false,
+      },
+      global: {
+        stubs: {
+          CoinNumistaPanel: { template: '<section />' },
+          RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+    await wrapper.findComponent({ name: 'DeepAnalysisEntryButton' }).vm.$emit('click')
+    await flushPromises()
+
+    const panel = wrapper.findComponent({ name: 'DeepAnalysisStartPanel' })
+    await panel.vm.$emit('submit', { coinId: 42, obverseImage: null, reverseImage: new File([], 'r.png'), hintImages: [] })
+    await flushPromises()
+
+    expect(createDeepIdentificationJob).toHaveBeenCalledWith(expect.objectContaining({ coinId: 42 }))
+    expect(updateCoin).not.toHaveBeenCalled()
+    expect(routerPush).toHaveBeenCalledWith('/deep-analysis/7')
+  })
+
+  it('hides the Deep Analysis entry point when the capability flag is disabled (backend authoritative)', async () => {
+    const { getDeepIdentificationCapability } = await import('@/api/client')
+    vi.mocked(getDeepIdentificationCapability).mockResolvedValueOnce({ data: { enabled: false } } as never)
+
+    const wrapper = shallowMount(CoinActionsPanel, {
+      props: {
+        coinId: 42,
+        coinName: 'Trajan denarius',
+        coinMaterial: 'Silver',
+        imageCount: 2,
+        coinHasObverseImage: true,
+        coinHasReverseImage: true,
+        isPwa: false,
+      },
+      global: {
+        stubs: {
+          CoinNumistaPanel: { template: '<section />' },
+          RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'DeepAnalysisEntryButton' }).exists()).toBe(false)
+    // Existing catalog/quick actions remain unaffected by the Deep Analysis gate.
+    expect(wrapper.findAll('a').some((link) => /Catalog References/i.test(link.text()))).toBe(true)
   })
 })

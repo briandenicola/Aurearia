@@ -1,0 +1,524 @@
+openapi: 3.0.3
+info:
+  title: Deep Agentic Coin Identification API (Feature 344)
+  version: 1.0.0
+  description: |
+    Owner-scoped, persisted, resumable deep coin identification jobs.
+
+    Contract notes:
+      * This document is the planning contract. The shipped surface is
+        generated from swaggo annotations on the Go handlers into
+        `docs/openapi.json` via `task openapi` (CI enforces sync).
+      * Backward compatibility: this feature is purely additive. No existing
+        endpoint changes. In particular `POST /api/coins/lookup` (fast Identify
+        Coin) is untouched in request shape, response shape, and latency
+        (FR-001 / SC-008).
+      * All endpoints require the standard bearer access token
+        (`middleware.AuthRequiredWithSecurity`). All resources are scoped to the
+        authenticated owner; another user's job is indistinguishable from a
+        missing job (404, never 403-with-existence-leak) per FR-006/FR-037.
+      * Write endpoints sit behind the existing `writeRateLimit`; the SSE
+        endpoint sits behind `apiRateLimit`.
+servers:
+  - url: /api
+tags:
+  - name: deep-identification
+paths:
+  /deep-identification/capability:
+    get:
+      tags: [deep-identification]
+      summary: Report whether Deep Analysis is enabled for the current user
+      operationId: getDeepIdentificationCapability
+      description: |
+        Returns the Deep Analysis feature-flag state (FR-008) so the client can
+        hide or disable the entry point when it is disabled. Exposes only the
+        boolean gate, never the underlying admin settings; the backend remains
+        authoritative and independently gates job creation with 403 when
+        disabled. Available to any authenticated owner.
+      responses:
+        '200':
+          description: Capability state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enabled]
+                properties:
+                  enabled: { type: boolean }
+        '401': { description: Unauthenticated }
+  /deep-identification/jobs:
+    post:
+      tags: [deep-identification]
+      summary: Start a Deep Analysis job
+      operationId: createDeepIdentificationJob
+      description: |
+        Accepts obverse/reverse coin-face images (uploaded or reused from a
+        saved coin), optional notes, optional ephemeral hint images, and an
+        optional provider override. Returns immediately with the job (SC-001).
+
+        Idempotency (FR-007): if an equivalent job (same owner, coin, image
+        content hashes, notes, provider override) is already `queued` or
+        `running`, the existing job is returned with `reused: true` and HTTP
+        200 instead of creating a duplicate.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                coinId:
+                  type: integer
+                  description: Saved coin to analyse. Omit for new-coin intake.
+                obverse:
+                  type: string
+                  format: binary
+                  description: Required unless the saved coin already has an obverse image.
+                reverse:
+                  type: string
+                  format: binary
+                  description: Required unless the saved coin already has a reverse image.
+                hints:
+                  type: array
+                  maxItems: 3
+                  items:
+                    type: string
+                    format: binary
+                  description: Ephemeral reference images. Never coin-face evidence, never persisted to the coin.
+                notes:
+                  type: string
+                  maxLength: 2000
+                providers:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ProviderId'
+                  description: Optional pre-run override. Empty means the router proposes the set.
+            encoding:
+              hints:
+                contentType: image/jpeg, image/png, image/gif, image/webp
+      responses:
+        '202':
+          description: Job accepted and queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeepJobEnvelope'
+        '200':
+          description: Equivalent in-flight job reused (FR-007)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeepJobEnvelope'
+        '400':
+          description: Malformed multipart body, unknown provider id, or hint count over limit
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '401': { description: Unauthenticated }
+        '403':
+          description: Deep Analysis disabled by admin feature flag (FR-008)
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '404':
+          description: coinId not found for this owner
+        '413':
+          description: File or body exceeds upload limits (20 MB/file, existing MaxMultipartMemory cap)
+        '415':
+          description: Disallowed file type / magic-byte mismatch (same rules as coin image upload, FR-005)
+        '422':
+          description: |
+            Missing a required coin-face role. `code` is one of
+            `missing_obverse`, `missing_reverse`, `hint_image_in_coin_role`.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '429':
+          description: Per-user active job limit reached (a different in-flight job exists)
+        '503':
+          description: Job queue full (backpressure) or agent service unavailable
+    get:
+      tags: [deep-identification]
+      summary: List the owner's Deep Analysis jobs
+      operationId: listDeepIdentificationJobs
+      parameters:
+        - in: query
+          name: coinId
+          schema: { type: integer }
+        - in: query
+          name: activeOnly
+          schema: { type: boolean, default: false }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20, maximum: 100 }
+        - in: query
+          name: cursor
+          schema: { type: string }
+      responses:
+        '200':
+          description: Owner-scoped job list, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [jobs]
+                properties:
+                  jobs:
+                    type: array
+                    items: { $ref: '#/components/schemas/DeepJob' }
+                  nextCursor: { type: string, nullable: true }
+        '401': { description: Unauthenticated }
+
+  /deep-identification/jobs/{id}:
+    get:
+      tags: [deep-identification]
+      summary: Get a Deep Analysis job with its result when terminal
+      operationId: getDeepIdentificationJob
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          description: Job (including report/proposal when terminal and still retained)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeepJobEnvelope' }
+        '401': { description: Unauthenticated }
+        '404': { description: Not found or not owned }
+        '410':
+          description: Job result retention window elapsed (FR-034)
+
+  /deep-identification/jobs/{id}/cancel:
+    post:
+      tags: [deep-identification]
+      summary: Request cancellation of a running job
+      operationId: cancelDeepIdentificationJob
+      description: |
+        Records a cancellation request. Cancellation is cooperative: new
+        provider work stops promptly and in-flight provider results are
+        discarded rather than synthesized (FR-018).
+        Cancel/complete races settle into exactly one terminal state (FR-019):
+        if natural completion already won, this returns 409 with the settled
+        state, which is the same state every other observer sees.
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '202':
+          description: Cancellation requested (job will settle to `cancelled`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeepJobEnvelope' }
+        '409':
+          description: Job already terminal; body reports the settled state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeepJobEnvelope' }
+        '401': { description: Unauthenticated }
+        '404': { description: Not found or not owned }
+
+  /deep-identification/jobs/{id}/retry:
+    post:
+      tags: [deep-identification]
+      summary: Retry a terminal job as a new linked attempt
+      operationId: retryDeepIdentificationJob
+      description: |
+        Creates a NEW job linked via `retryOfJobId` (FR-020). The original job,
+        its events and its report are never deleted or overwritten. Inputs are
+        re-resolved at retry time: uploaded coin-face artifacts are copied,
+        saved-coin images are re-read as they exist now, and hint images (which
+        were deleted at the original job's terminal state) must be re-supplied
+        if still wanted.
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes: { type: string, maxLength: 2000 }
+                providers:
+                  type: array
+                  items: { $ref: '#/components/schemas/ProviderId' }
+      responses:
+        '202':
+          description: New attempt created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeepJobEnvelope' }
+        '409':
+          description: Source job is not terminal, or retry depth exceeded (max 3)
+        '403':
+          description: Deep Analysis disabled by admin feature flag
+        '404': { description: Not found or not owned }
+
+  /deep-identification/jobs/{id}/events:
+    get:
+      tags: [deep-identification]
+      summary: Replayable Server-Sent Events stream for a job
+      operationId: streamDeepIdentificationJobEvents
+      description: |
+        `text/event-stream`. Each frame carries `id:` = the per-job monotonic
+        sequence and `event:` = the envelope type (FR-015, FR-016).
+
+        Resume: send `Last-Event-ID: <seq>` (browser EventSource) or
+        `?since=<seq>` (fetch-based readers, which cannot set that header).
+        `since` wins if both are present. The server replays `(since, lastSeq]`
+        from durable storage, then follows live. Delivery is exactly-once and
+        gap-free while events remain in the retention window (SC-003).
+
+        Truncation: if `since` is older than the earliest retained sequence, the
+        stream opens with a `stream_truncated` frame carrying the current status
+        and the earliest retained sequence, then delivers the retained tail —
+        never an empty response and never a bare error (FR-017).
+
+        Keepalive: a `: ping` comment every 15 s (unsequenced, ignorable).
+
+        Termination: after the `terminal` frame the server sends `event: end`
+        and closes the connection; clients must not reconnect on a terminal job
+        (they should fall back to `GET /deep-identification/jobs/{id}`).
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+        - in: query
+          name: since
+          schema: { type: integer, format: int64, minimum: 0 }
+        - in: header
+          name: Last-Event-ID
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: SSE stream (see contracts/sse-events.md for the envelope)
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '401': { description: Unauthenticated }
+        '404': { description: Not found or not owned }
+        '410':
+          description: Job and its result are past retention; nothing to stream
+
+  /deep-identification/jobs/{id}/proposal:
+    patch:
+      tags: [deep-identification]
+      summary: Save owner edits and per-field accept/reject decisions on the proposal
+      operationId: updateDeepIdentificationProposal
+      description: |
+        Editing never writes coin data (FR-031). Owner edits are stored beside
+        the original AI-proposed values so the distinction is preserved
+        (FR-032).
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fields]
+              properties:
+                fields:
+                  type: object
+                  additionalProperties:
+                    type: object
+                    properties:
+                      ownerValue: { nullable: true }
+                      accepted: { type: boolean, nullable: true }
+      responses:
+        '200':
+          description: Updated proposal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Proposal' }
+        '400': { description: Unknown or non-writable field name (allowlist violation) }
+        '404': { description: Not found or not owned }
+        '409': { description: Job has no proposal (not completed/partial) or proposal already applied }
+
+  /deep-identification/jobs/{id}/apply:
+    post:
+      tags: [deep-identification]
+      summary: Confirm the proposal through an existing Go-owned write path
+      operationId: applyDeepIdentificationProposal
+      description: |
+        The only path from a Deep Analysis result to persisted coin data
+        (FR-031, FR-033). This endpoint performs no direct coin write of its
+        own:
+          * `target: "draft"` (new intake) creates/updates a QuickCaptureDraft
+            through the existing Quick Capture service; the owner then promotes
+            it with the shipped `POST /quick-capture/drafts/{id}/promote`.
+          * `target: "coin"` (saved coin) applies accepted fields through the
+            existing coin edit write path with journal source
+            `deep_identification`.
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target]
+              properties:
+                target: { type: string, enum: [draft, coin] }
+                fields:
+                  type: array
+                  description: Field names to apply. Omit to apply every field marked accepted.
+                  items: { type: string }
+      responses:
+        '200':
+          description: Applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId: { type: integer }
+                  draftId: { type: integer, nullable: true }
+                  coinId: { type: integer, nullable: true }
+                  appliedFields: { type: array, items: { type: string } }
+                  appliedAt: { type: string, format: date-time }
+        '400': { description: No accepted fields / allowlist violation }
+        '404': { description: Not found or not owned }
+        '409':
+          description: |
+            `already_applied`, `source_coin_missing` (coin deleted while the job
+            ran), or job is not in a terminal completed/partial state.
+
+components:
+  parameters:
+    JobId:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer }
+  schemas:
+    ProviderId:
+      type: string
+      enum: [nomisma, numista, ngc, ocre, rpc]
+    JobStatus:
+      type: string
+      enum: [queued, running, partial, completed, failed, cancelled]
+    ProviderStatus:
+      type: string
+      description: |
+        `not_automated` and `unavailable` are first-class and MUST NOT be
+        rendered or synthesized as `no_match` (FR-025).
+      enum: [pending, running, contributed, no_match, failed, timed_out, skipped, not_automated, unavailable]
+    DeepJob:
+      type: object
+      required: [id, status, source, createdAt]
+      properties:
+        id: { type: integer }
+        coinId: { type: integer, nullable: true }
+        source: { type: string, enum: [intake, saved_coin] }
+        status: { $ref: '#/components/schemas/JobStatus' }
+        partialSuccess: { type: boolean }
+        selectedProviders:
+          type: array
+          items: { $ref: '#/components/schemas/ProviderId' }
+        requestedProviders:
+          type: array
+          items: { $ref: '#/components/schemas/ProviderId' }
+        retryOfJobId: { type: integer, nullable: true }
+        cancelRequested: { type: boolean }
+        lastSeq: { type: integer, format: int64 }
+        eventsAvailable:
+          type: boolean
+          description: false once events have been pruned (FR-017)
+        failureCode: { type: string, nullable: true }
+        failureMessage: { type: string, nullable: true }
+        appliedCoinId: { type: integer, nullable: true }
+        appliedDraftId: { type: integer, nullable: true }
+        appliedAt: { type: string, format: date-time, nullable: true }
+        startedAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        expiresAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+    DeepJobEnvelope:
+      type: object
+      required: [job]
+      properties:
+        job: { $ref: '#/components/schemas/DeepJob' }
+        reused: { type: boolean, description: true when an in-flight equivalent job was returned }
+        providerRuns:
+          type: array
+          items: { $ref: '#/components/schemas/ProviderRun' }
+        report: { $ref: '#/components/schemas/Report' }
+        proposal: { $ref: '#/components/schemas/Proposal' }
+    ProviderRun:
+      type: object
+      required: [provider, status]
+      properties:
+        provider: { $ref: '#/components/schemas/ProviderId' }
+        status: { $ref: '#/components/schemas/ProviderStatus' }
+        automatable: { type: boolean }
+        confidence: { type: number, nullable: true }
+        errorKind:
+          type: string
+          nullable: true
+          enum: [timeout, quota, unconfigured, upstream, invalid_response]
+        latencyMs: { type: integer, nullable: true }
+        claims:
+          type: array
+          items: { $ref: '#/components/schemas/Claim' }
+        linkOut: { type: string, nullable: true, description: canonical human URL (e.g. NGC verify) }
+        attribution: { type: string, nullable: true, description: required license attribution text }
+    Claim:
+      type: object
+      required: [field, value, citation]
+      properties:
+        field: { type: string }
+        value: { type: string }
+        confidence: { type: number }
+        citation: { type: string, description: absolute URL or canonical authority URI }
+        excerpt: { type: string, nullable: true }
+    Report:
+      type: object
+      nullable: true
+      required: [schemaVersion, narrative, coverage]
+      properties:
+        schemaVersion: { type: integer }
+        narrative: { type: string }
+        coverage:
+          type: array
+          items:
+            type: object
+            properties:
+              provider: { $ref: '#/components/schemas/ProviderId' }
+              status: { $ref: '#/components/schemas/ProviderStatus' }
+              note: { type: string }
+              linkOut: { type: string, nullable: true }
+        disagreements:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              claims: { type: array, items: { $ref: '#/components/schemas/Claim' } }
+              resolution: { type: string, enum: [unresolved, preferred] }
+        unresolvedQuestions: { type: array, items: { type: string } }
+        attributions:
+          type: array
+          items:
+            type: object
+            properties:
+              provider: { $ref: '#/components/schemas/ProviderId' }
+              text: { type: string }
+              identifier: { type: string, nullable: true }
+        partialSuccess: { type: boolean }
+        generatedAt: { type: string, format: date-time }
+    Proposal:
+      type: object
+      nullable: true
+      required: [schemaVersion, fields]
+      properties:
+        schemaVersion: { type: integer }
+        targetCoinId: { type: integer, nullable: true }
+        fields:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              proposed: {}
+              ownerValue: { nullable: true }
+              ownerEdited: { type: boolean }
+              accepted: { type: boolean, nullable: true }
+              confidence: { type: number }
+              evidence: { type: array, items: { $ref: '#/components/schemas/Claim' } }
+    Error:
+      type: object
+      properties:
+        error: { type: string, description: generic client-safe message (Principle V) }
+        code: { type: string }

@@ -3,7 +3,9 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
+	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
 )
@@ -287,4 +289,251 @@ func (h *InternalToolsHandler) CommitUpdate(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"result": result})
+}
+
+// deepNomismaCallBudget is fixed (not a settings key) per tasks.md T052 /
+// contracts/agent-internal-contract.md §7 sample catalog entry
+// ("nomisma", "call_budget": 3) - Nomisma has no per-deployment tuning
+// knob, unlike Numista's SettingDeepIdentificationNumistaCallBudget.
+const deepNomismaCallBudget = 3
+
+// DeepProviderToolsHandler exposes the Go-hosted provider tool boundary
+// consumed by the Python deep identification pipeline
+// (contracts/agent-internal-contract.md §7). Routes are protected by
+// middleware.InternalJobTokenRequired, which binds each call to a single
+// (userID, jobID) pair so budgets are enforced per job run and a
+// forged/foreign job binding is rejected before reaching this handler.
+type DeepProviderToolsHandler struct {
+	numistaClient services.NumistaClient
+	nomismaClient services.NomismaClient
+	settingsSvc   *services.SettingsService
+	budgets       *services.DeepProviderBudgetTracker
+	logger        *services.Logger
+}
+
+// NewDeepProviderToolsHandler constructs the provider-tool handler.
+func NewDeepProviderToolsHandler(
+	numistaClient services.NumistaClient,
+	nomismaClient services.NomismaClient,
+	settingsSvc *services.SettingsService,
+	budgets *services.DeepProviderBudgetTracker,
+	logger *services.Logger,
+) *DeepProviderToolsHandler {
+	return &DeepProviderToolsHandler{
+		numistaClient: numistaClient,
+		nomismaClient: nomismaClient,
+		settingsSvc:   settingsSvc,
+		budgets:       budgets,
+		logger:        logger,
+	}
+}
+
+// deepProviderJobID reads the job binding set by InternalJobTokenRequired.
+// Returns (0, false) if the middleware did not run (defensive - should be
+// unreachable in production routing).
+func deepProviderJobID(c *gin.Context) (uint, bool) {
+	raw, exists := c.Get("deepJobId")
+	if !exists {
+		return 0, false
+	}
+	jobID, ok := raw.(uint)
+	return jobID, ok
+}
+
+// NumistaSearchRequest is the body for POST /internal/tools/numista_search.
+type NumistaSearchRequest struct {
+	Query string `json:"query" binding:"required"`
+	Limit int    `json:"limit"`
+}
+
+// NumistaDetailRequest is the body for POST /internal/tools/numista_detail.
+type NumistaDetailRequest struct {
+	ID int `json:"id" binding:"required"`
+}
+
+// NomismaSearchRequest is the body for POST /internal/tools/nomisma_search.
+type NomismaSearchRequest struct {
+	Query string `json:"query" binding:"required"`
+	Limit int    `json:"limit"`
+}
+
+// NumistaSearch godoc
+// @Summary      Deep-identification Numista search tool
+// @Description  Job-scoped, call-budget-limited Numista search for the Python deep identification pipeline
+// @Tags         Internal
+// @Accept       json
+// @Produce      json
+// @Param        Authorization header string true "******"
+// @Param        body body NumistaSearchRequest true "Search query"
+// @Success      200 {object} map[string]interface{} "status, candidates, attribution"
+// @Failure      400 {object} map[string]interface{}
+// @Failure      401 {object} map[string]interface{}
+// @Router       /internal/tools/numista_search [post]
+func (h *DeepProviderToolsHandler) NumistaSearch(c *gin.Context) {
+	jobID, ok := deepProviderJobID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing job binding"})
+		return
+	}
+
+	var req NumistaSearchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 5
+	}
+
+	budget := h.settingsSvc.GetDeepIdentificationSettings().NumistaCallBudget
+	if allowed, callCount := h.budgets.TryConsume(jobID, "numista", budget); !allowed {
+		h.logger.Warn("internal-tools", "deep identification numista call budget exceeded for job %d (count=%d, budget=%d)", jobID, callCount, budget)
+		c.JSON(http.StatusOK, gin.H{"status": "quota_limited", "candidates": []models.NumistaCandidate{}, "attribution": "Source: Numista"})
+		return
+	}
+
+	candidates, err := h.numistaClient.Search(c.Request.Context(), req.Query, limit)
+	status, candidates := deepNumistaSearchStatus(candidates, err)
+	c.JSON(http.StatusOK, gin.H{"status": status, "candidates": candidates, "attribution": "Source: Numista"})
+}
+
+// NumistaDetail godoc
+// @Summary      Deep-identification Numista detail tool
+// @Description  Job-scoped, call-budget-limited Numista detail lookup for the Python deep identification pipeline
+// @Tags         Internal
+// @Accept       json
+// @Produce      json
+// @Param        Authorization header string true "******"
+// @Param        body body NumistaDetailRequest true "Numista catalogue ID"
+// @Success      200 {object} map[string]interface{} "status, candidate, identifier"
+// @Failure      400 {object} map[string]interface{}
+// @Failure      401 {object} map[string]interface{}
+// @Router       /internal/tools/numista_detail [post]
+func (h *DeepProviderToolsHandler) NumistaDetail(c *gin.Context) {
+	jobID, ok := deepProviderJobID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing job binding"})
+		return
+	}
+
+	var req NumistaDetailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+
+	budget := h.settingsSvc.GetDeepIdentificationSettings().NumistaCallBudget
+	if allowed, callCount := h.budgets.TryConsume(jobID, "numista", budget); !allowed {
+		h.logger.Warn("internal-tools", "deep identification numista call budget exceeded for job %d (count=%d, budget=%d)", jobID, callCount, budget)
+		c.JSON(http.StatusOK, gin.H{"status": "quota_limited"})
+		return
+	}
+
+	candidate, err := h.numistaClient.Detail(c.Request.Context(), req.ID)
+	status := deepNumistaDetailStatus(err)
+	if status != "ok" {
+		c.JSON(http.StatusOK, gin.H{"status": status})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": status, "candidate": candidate, "identifier": "N#" + strconv.Itoa(req.ID)})
+}
+
+// NomismaSearch godoc
+// @Summary      Deep-identification Nomisma search tool
+// @Description  Job-scoped, call-budget-limited Nomisma reconciliation search for the Python deep identification pipeline
+// @Tags         Internal
+// @Accept       json
+// @Produce      json
+// @Param        Authorization header string true "******"
+// @Param        body body NomismaSearchRequest true "Search query"
+// @Success      200 {object} map[string]interface{} "status, candidates, attribution"
+// @Failure      400 {object} map[string]interface{}
+// @Failure      401 {object} map[string]interface{}
+// @Router       /internal/tools/nomisma_search [post]
+func (h *DeepProviderToolsHandler) NomismaSearch(c *gin.Context) {
+	jobID, ok := deepProviderJobID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing job binding"})
+		return
+	}
+
+	var req NomismaSearchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 5
+	}
+
+	if allowed, callCount := h.budgets.TryConsume(jobID, "nomisma", deepNomismaCallBudget); !allowed {
+		h.logger.Warn("internal-tools", "deep identification nomisma call budget exceeded for job %d (count=%d, budget=%d)", jobID, callCount, deepNomismaCallBudget)
+		c.JSON(http.StatusOK, gin.H{"status": "unavailable", "candidates": []services.NomismaCandidate{}, "attribution": "Data: Nomisma.org (CC BY)"})
+		return
+	}
+
+	candidates, kind, err := h.nomismaClient.Search(c.Request.Context(), req.Query, limit)
+	status := "ok"
+	if err != nil || kind != "" {
+		switch kind {
+		case services.NomismaErrorNoMatch:
+			status = "empty"
+		default:
+			status = "unavailable"
+		}
+	}
+	if candidates == nil {
+		candidates = []services.NomismaCandidate{}
+	}
+	c.JSON(http.StatusOK, gin.H{"status": status, "candidates": candidates, "attribution": "Data: Nomisma.org (CC BY)"})
+}
+
+// deepNumistaSearchStatus maps a raw NumistaClient.Search result to the
+// simplified status vocabulary of contracts/agent-internal-contract.md §7
+// ("ok|empty|unconfigured|quota_limited|timeout|unavailable"), always
+// returning a non-nil candidates slice.
+func deepNumistaSearchStatus(candidates []models.NumistaCandidate, err error) (string, []models.NumistaCandidate) {
+	if candidates == nil {
+		candidates = []models.NumistaCandidate{}
+	}
+	if err == nil {
+		if len(candidates) == 0 {
+			return "empty", candidates
+		}
+		return "ok", candidates
+	}
+	var numistaErr *services.NumistaError
+	if errors.As(err, &numistaErr) {
+		switch numistaErr.Kind {
+		case services.NumistaErrorUnconfigured, services.NumistaErrorUnauthorized:
+			return "unconfigured", []models.NumistaCandidate{}
+		case services.NumistaErrorQuotaLimited:
+			return "quota_limited", []models.NumistaCandidate{}
+		case services.NumistaErrorTimeout:
+			return "timeout", []models.NumistaCandidate{}
+		}
+	}
+	return "unavailable", []models.NumistaCandidate{}
+}
+
+// deepNumistaDetailStatus maps a raw NumistaClient.Detail error to the same
+// simplified status vocabulary as deepNumistaSearchStatus.
+func deepNumistaDetailStatus(err error) string {
+	if err == nil {
+		return "ok"
+	}
+	var numistaErr *services.NumistaError
+	if errors.As(err, &numistaErr) {
+		switch numistaErr.Kind {
+		case services.NumistaErrorUnconfigured, services.NumistaErrorUnauthorized:
+			return "unconfigured"
+		case services.NumistaErrorQuotaLimited:
+			return "quota_limited"
+		case services.NumistaErrorTimeout:
+			return "timeout"
+		}
+	}
+	return "unavailable"
 }

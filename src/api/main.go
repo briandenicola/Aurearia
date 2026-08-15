@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"path/filepath"
@@ -107,6 +108,11 @@ func main() {
 
 	// Create internal token service for Python agent callbacks
 	internalTokenSvc := services.NewInternalTokenService(cfg.JWTSecret)
+	// Deep identification provider-tool boundary (Phase 6, T051-T054):
+	// job-scoped call-budget tracking, shared across the numista_search/
+	// numista_detail/nomisma_search internal tool endpoints.
+	deepProviderBudgets := services.NewDeepProviderBudgetTracker()
+	deepNomismaClient := services.NewHTTPNomismaClient()
 	credentialEncryptionSvc := services.NewDisabledCredentialEncryptionService()
 	if cfg.AuctionCredentialEncryptionKey != "" {
 		var err error
@@ -247,6 +253,13 @@ func main() {
 	aiJobRepo := repository.NewAIJobRepository(database.DB)
 	aiJobSvc := services.NewAIJobService(aiJobRepo, agentProxy, userRepoForVal, settingsSvc, notifSvc, logger)
 	aiJobSvc.StartWorkers(1)
+	deepIdentificationRepo := repository.NewDeepIdentificationRepository(database.DB)
+	deepIdentificationSvc := services.NewDeepIdentificationService(deepIdentificationRepo, imageRepo, imageSvc, settingsSvc, logger, cfg.UploadDir)
+	deepIdentificationSvc.SetPipelineRunner(services.NewDeepIdentificationPipelineRunner(
+		agentProxy, deepIdentificationRepo, settingsSvc, internalTokenSvc, cfg.AgentInternalCallbackURL, logger, deepIdentificationSvc.Broker(),
+	))
+	deepIdentificationSvc.StartWorkers(context.Background())
+	deepIdentificationSvc.StartJanitor(context.Background())
 	healthRepo := repository.NewHealthRepository(database.DB)
 	healthSvc := services.NewHealthService(healthRepo, logger)
 	auctionWatchBidDigestRepo := repository.NewAuctionWatchBidDigestRepository(database.DB)
@@ -482,6 +495,18 @@ func main() {
 		protected.POST("/extract-text", analysisHandler.ExtractText)
 		protected.GET("/ollama-status", analysisHandler.OllamaStatus)
 		protected.GET("/ai-status", analysisHandler.AIStatus)
+
+		deepIdentificationProposalSvc := services.NewDeepIdentificationProposalService(deepIdentificationRepo, coinRepo, coinSvc, quickCaptureSvc)
+		deepIdentificationHandler := handlers.NewDeepIdentificationHandler(deepIdentificationSvc, settingsSvc, logger).WithProposalSupport(deepIdentificationProposalSvc)
+		protected.GET("/deep-identification/capability", deepIdentificationHandler.Capability)
+		protected.POST("/deep-identification/jobs", writeRateLimit, deepIdentificationHandler.CreateJob)
+		protected.GET("/deep-identification/jobs", deepIdentificationHandler.ListJobs)
+		protected.GET("/deep-identification/jobs/:id", deepIdentificationHandler.GetJob)
+		protected.GET("/deep-identification/jobs/:id/events", deepIdentificationHandler.StreamEvents)
+		protected.POST("/deep-identification/jobs/:id/cancel", writeRateLimit, deepIdentificationHandler.Cancel)
+		protected.POST("/deep-identification/jobs/:id/retry", writeRateLimit, deepIdentificationHandler.Retry)
+		protected.PATCH("/deep-identification/jobs/:id/proposal", writeRateLimit, deepIdentificationHandler.UpdateProposal)
+		protected.POST("/deep-identification/jobs/:id/apply", writeRateLimit, deepIdentificationHandler.ApplyProposal)
 
 		// Coin of the Day (user-facing)
 		coinOfDayHandler := handlers.NewCoinOfDayHandler(featuredCoinRepo, logger)
@@ -812,6 +837,20 @@ func main() {
 		internal.POST("/top_coins_by_value", internalToolsHandler.TopCoinsByValue)
 		internal.POST("/propose_update", internalToolsHandler.ProposeUpdate)
 		internal.POST("/commit_update", internalToolsHandler.CommitUpdate)
+	}
+
+	// Deep identification provider-tool boundary (Phase 6, T051): job-scoped
+	// token auth (distinct from the userID-only token above), shared route
+	// prefix per contracts/agent-internal-contract.md §7.
+	internalDeepProviderTools := r.Group("/api/internal/tools")
+	internalDeepProviderTools.Use(middleware.InternalJobTokenRequired(internalTokenSvc))
+	{
+		deepProviderToolsHandler := handlers.NewDeepProviderToolsHandler(
+			numistaClient, deepNomismaClient, settingsSvc, deepProviderBudgets, logger,
+		)
+		internalDeepProviderTools.POST("/numista_search", deepProviderToolsHandler.NumistaSearch)
+		internalDeepProviderTools.POST("/numista_detail", deepProviderToolsHandler.NumistaDetail)
+		internalDeepProviderTools.POST("/nomisma_search", deepProviderToolsHandler.NomismaSearch)
 	}
 
 	log.Printf("Starting server on :%s", cfg.Port)

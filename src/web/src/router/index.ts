@@ -104,6 +104,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/deep-analysis/:jobId?',
+      name: 'deep-analysis',
+      component: () => import('@/pages/DeepAnalysisPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/edit/:id',
       name: 'edit-coin',
       component: () => import('@/pages/EditCoinPage.vue'),

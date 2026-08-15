@@ -30,6 +30,14 @@ MAX_SET_BUILDER_FEEDBACK_LENGTH = 1000
 MAX_SET_BUILDER_MAX_TURNS = 8
 MAX_SET_BUILDER_MAX_SLOTS = 300
 
+# 344-deep-agentic-coin-identification (contracts/agent-internal-contract.md §2)
+MAX_DEEP_IMAGE_DATA_URI_LENGTH = 10 * 1024 * 1024
+MAX_DEEP_IMAGES = 4  # obverse + reverse + up to MaxDeepIdentificationHintArtifacts (3) hints, capped generously
+MAX_DEEP_NOTES_LENGTH = 10000
+MAX_DEEP_PROVIDER_CATALOG_ENTRIES = 10
+MAX_DEEP_PROVIDER_OVERRIDE_ENTRIES = 10
+DEEP_PROVIDER_NAMES = {"numista", "nomisma", "ngc", "ocre", "rpc"}
+
 BoundedMessage = Annotated[str, StringConstraints(max_length=MAX_MESSAGE_LENGTH)]
 BoundedHistoryMessage = Annotated[str, StringConstraints(max_length=MAX_HISTORY_MESSAGE_LENGTH)]
 BoundedPrompt = Annotated[str, StringConstraints(max_length=MAX_PROMPT_LENGTH)]
@@ -352,3 +360,113 @@ class SetBuilderRequest(StrictRequestModel):
     enable_external_lookup: bool = True
     # Optional feedback text for a regenerate-with-feedback request (US2 Phase 4).
     feedback: BoundedSetBuilderFeedback = ""
+
+
+# Deep Agentic Coin Identification DTOs (344-deep-agentic-coin-identification).
+# Contract anchor: specs/344-deep-agentic-coin-identification/contracts/agent-internal-contract.md §2
+BoundedDeepDataURI = Annotated[str, StringConstraints(max_length=MAX_DEEP_IMAGE_DATA_URI_LENGTH)]
+BoundedDeepNotes = Annotated[str, StringConstraints(max_length=MAX_DEEP_NOTES_LENGTH)]
+
+
+class DeepIdentifyImage(StrictRequestModel):
+    """A single obverse/reverse/hint image passed as a data URI.
+
+    Hint images are marked by role="hint" and are used only as router/LLM
+    context — they never enter the coin-face vision-prompt slots (FR-004).
+    """
+
+    role: Literal["obverse", "reverse", "hint"]
+    data_uri: BoundedDeepDataURI
+    hint_kind: Annotated[str, StringConstraints(max_length=40)] = ""
+
+
+class DeepProviderCatalogEntry(StrictRequestModel):
+    """One entry of the per-run provider catalog Go supplies (§2/§7).
+
+    `automatable: false` entries are never contacted upstream by Python;
+    the router short-circuits them into a typed `not_automated`/
+    `unavailable` evidence row (FR-025).
+    """
+
+    provider: Literal["numista", "nomisma", "ngc", "ocre", "rpc"]
+    automatable: bool
+    call_budget: int = Field(default=0, ge=0)
+    reason: Annotated[str, StringConstraints(max_length=100)] = ""
+    link_out: BoundedOptionalURL = ""
+
+
+class DeepIdentifyBounds(StrictRequestModel):
+    """Per-run bounds Go supplies; the graph must never exceed these
+    (contracts/agent-internal-contract.md §2/§6).
+    """
+
+    max_providers: int = Field(ge=1, le=10)
+    max_concurrency: int = Field(ge=1, le=10)
+    provider_timeout_s: int = Field(ge=1, le=120)
+    total_timeout_s: int = Field(ge=1, le=900)
+    recursion_limit: int = Field(ge=1, le=50)
+
+
+class QuickEvidenceNGC(StrictRequestModel):
+    """Optional NGC cert data already extracted upstream (F341 Quick
+    Identify). Never re-extracted or re-OCR'd by this pipeline.
+    """
+
+    cert_number: Annotated[str, StringConstraints(max_length=40)] = ""
+    grade: Annotated[str, StringConstraints(max_length=32)] = ""
+    lookup_url: BoundedOptionalURL = ""
+
+
+class QuickEvidence(StrictRequestModel):
+    """Optional normalized output of CoinLookupService.Lookup, passed
+    through as additional router/synthesis context. Never required —
+    absent when Go has no prior quick-lookup result for this job.
+    """
+
+    label_text: Annotated[str, StringConstraints(max_length=2000)] = ""
+    coin_fields: dict[str, str] = Field(default_factory=dict, max_length=50)
+    confidence: Annotated[str, StringConstraints(max_length=16)] = ""
+    ngc: QuickEvidenceNGC | None = None
+    numista_query: Annotated[str, StringConstraints(max_length=300)] = ""
+
+
+class DeepIdentifyRequest(StrictRequestModel):
+    """Go → Python deep-identification pipeline request (§2). Python holds
+    no database handle, no API keys beyond `llm`, and no persistent state
+    (Principle II, FR-035) — every field needed to run the pipeline for
+    this one job is supplied here.
+    """
+
+    job_id: int = Field(ge=1)
+    schema_version: int = 1
+    llm: LLMConfig
+    images: list[DeepIdentifyImage] = Field(default_factory=list, max_length=MAX_DEEP_IMAGES)
+    notes: BoundedDeepNotes = ""
+    quick_evidence: QuickEvidence | None = None
+    provider_override: list[Literal["numista", "nomisma", "ngc", "ocre", "rpc"]] = Field(
+        default_factory=list, max_length=MAX_DEEP_PROVIDER_OVERRIDE_ENTRIES
+    )
+    provider_catalog: list[DeepProviderCatalogEntry] = Field(
+        default_factory=list, max_length=MAX_DEEP_PROVIDER_CATALOG_ENTRIES
+    )
+    bounds: DeepIdentifyBounds
+    tools_base_url: BoundedOptionalURL = ""
+    internal_token: str = ""
+
+    @field_validator("images")
+    @classmethod
+    def validate_required_faces(cls, images: list[DeepIdentifyImage]) -> list[DeepIdentifyImage]:
+        roles = [img.role for img in images]
+        if roles.count("obverse") != 1 or roles.count("reverse") != 1:
+            raise ValueError("exactly one obverse and one reverse image are required")
+        return images
+
+    @field_validator("provider_catalog")
+    @classmethod
+    def validate_unique_providers(
+        cls, catalog: list[DeepProviderCatalogEntry]
+    ) -> list[DeepProviderCatalogEntry]:
+        names = [entry.provider for entry in catalog]
+        if len(set(names)) != len(names):
+            raise ValueError("provider_catalog contains duplicate providers")
+        return catalog
