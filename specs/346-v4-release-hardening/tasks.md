@@ -18,8 +18,8 @@
 
 - [x] T009 Remove high-confidence dead imports reported by lint.
 - [x] T010 Add provider-tool boundary contract coverage.
-- [ ] T011 Refactor verified oversized UI responsibilities without behavior change.
-- [ ] T012 Refactor verified oversized composition/backend responsibilities where
+- [x] T011 Refactor verified oversized UI responsibilities without behavior change.
+- [x] T012 Refactor verified oversized composition/backend responsibilities where
   existing seams permit a proportional extraction.
 
 ## Phase 4 - Release gate

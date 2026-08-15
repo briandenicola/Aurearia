@@ -16,8 +16,6 @@ import (
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 type SchedulerRegistry struct {
@@ -137,55 +135,7 @@ func main() {
 	}
 	logger.Debug("startup", "Upload directory: %s", cfg.UploadDir)
 
-	r := gin.Default()
-	if err := r.SetTrustedProxies(cfg.TrustedProxyList()); err != nil {
-		log.Fatalf("Failed to configure trusted proxies: %v", err)
-	}
-	r.MaxMultipartMemory = middleware.DefaultMultipartMemoryBytes
-	r.Use(middleware.SecurityHeaders())
-	r.Use(middleware.ResolvedClientIP())
-
-	// CORS middleware — restrict to configured origins
-	allowedOrigins := cfg.AllowedOrigins()
-	r.Use(func(c *gin.Context) {
-		origin := c.GetHeader("Origin")
-		allowed := false
-		for _, o := range allowedOrigins {
-			if o == origin {
-				allowed = true
-				break
-			}
-		}
-		if allowed {
-			c.Header("Access-Control-Allow-Origin", origin)
-			c.Header("Access-Control-Allow-Credentials", "true")
-		}
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-		c.Next()
-	})
-
-	// Serve Vue SPA from wwwroot
-	wwwroot := filepath.Join(".", "wwwroot")
-	if _, err := os.Stat(wwwroot); err == nil {
-		configureStaticRoutes(r, wwwroot)
-	}
-
-	// Health check (no auth, for container orchestration)
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
-	})
-	r.GET("/healthz", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
-	})
-
-	// Swagger docs
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	r := newHTTPRouter(cfg)
 
 	// Auth routes (public) — rate limited to prevent brute force
 	authRepo := repository.NewAuthRepository(database.DB)
@@ -862,46 +812,17 @@ func main() {
 		internalDeepProviderTools.POST("/ocre_search", deepProviderToolsHandler.OCRESearch)
 	}
 
-	log.Printf("Starting server on :%s", cfg.Port)
-	logger.Info("startup", "Server starting on port %s", cfg.Port)
-	logger.Info("startup", "Log level: %s", logger.GetLevel())
-
-	// Warn if callback URL is likely misconfigured in release mode
-	if os.Getenv("GIN_MODE") == "release" && strings.Contains(cfg.AgentInternalCallbackURL, "localhost") {
-		logger.Warn("startup", "AGENT_INTERNAL_CALLBACK_URL is set to '%s' in release mode. Collection chat (#217) will fail in multi-container deployments. Set it to the API container's network address (e.g., http://app:8080).", cfg.AgentInternalCallbackURL)
-	}
-	if os.Getenv("GIN_MODE") == "release" && cfg.AgentInternalServiceToken == "" {
-		log.Fatal("FATAL: AGENT_INTERNAL_SERVICE_TOKEN must be set in production")
-	}
-
-	// Check Ollama connectivity at startup (blocks until complete)
-	func() {
-		ollamaURL := settingsSvc.GetSetting(services.SettingOllamaURL)
-		ollamaModel := settingsSvc.GetSetting(services.SettingOllamaModel)
-		svc := services.NewOllamaService(ollamaURL, 10, logger)
-		available, msg := svc.CheckModel(ollamaModel)
-		if available {
-			logger.Info("startup", "Ollama: %s", msg)
-		} else {
-			logger.Warn("startup", "Ollama: %s — AI features will be unavailable until resolved", msg)
-		}
-	}()
-
-	// Start schedulers
-	schedulerRegistry.StartAll()
-	go coinOfDayScheduler.Start()
-
-	// Startup API key rotation sync:
-	// keep notifying users with pre-cutoff keys until those keys are revoked/recreated.
-	apiKeyRotationSvc := services.NewAPIKeyRotationService(apiKeyRepo, notifRepo, notifSvc, settingsSvc, logger)
-	apiKeyRotationSvc.SyncFromStartup()
-
-	logger.Info("startup", "Application ready")
-	log.Println("Application ready")
-
-	if err := r.Run(":" + cfg.Port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+	runServer(serverRuntime{
+		router:             r,
+		config:             cfg,
+		logger:             logger,
+		settings:           settingsSvc,
+		schedulers:         schedulerRegistry,
+		coinOfDayScheduler: coinOfDayScheduler,
+		apiKeys:            apiKeyRepo,
+		notifications:      notifRepo,
+		notificationSvc:    notifSvc,
+	})
 }
 
 func configureStaticRoutes(r *gin.Engine, wwwroot string) {

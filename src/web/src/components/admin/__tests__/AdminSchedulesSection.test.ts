@@ -66,6 +66,40 @@ describe('AdminSchedulesSection', () => {
     })
   })
 
+  it('renders every schedule workflow and loads each run history', async () => {
+    const wrapper = mount(AdminSchedulesSection, {
+      props: buildProps(),
+      global: {
+        stubs: {
+          SafeExternalLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+
+    for (const heading of [
+      'Wishlist Availability Check',
+      'ParcelApp Shipment Tracking',
+      'Wishlist Search Alerts',
+      'Auction Ending Alerts',
+      'Auction Price Alerts and Bid Reminders',
+      'Auction Watch Bid Digest',
+      'Collection Valuation',
+      'Collection Health Snapshots',
+      'Coin of the Day',
+    ]) {
+      expect(wrapper.text()).toContain(heading)
+    }
+
+    expect(mocks.getAvailabilityRuns).toHaveBeenCalled()
+    expect(mocks.getAuctionEndingRuns).toHaveBeenCalled()
+    expect(mocks.getAuctionAlertReminderRuns).toHaveBeenCalled()
+    expect(mocks.getAuctionWatchBidDigestRuns).toHaveBeenCalled()
+    expect(mocks.getValuationRuns).toHaveBeenCalled()
+    expect(mocks.getCollectionHealthSnapshotRuns).toHaveBeenCalled()
+    expect(mocks.getCoinOfDayRuns).toHaveBeenCalled()
+  })
+
   it('shows auction alert and reminder run history and triggers a manual run', async () => {
     const wrapper = mount(AdminSchedulesSection, {
       props: buildProps(),
