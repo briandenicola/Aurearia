@@ -490,13 +490,13 @@ admin.
       §21 item 13) and, if any cross-cutting decision emerged during
       implementation, add an entry under `.squad/decisions/inbox/`
       (constitution §21 item 14)
-- [ ] T057 Prepare a Conventional Commits-formatted commit for the feature
+- [X] T057 Prepare a Conventional Commits-formatted commit for the feature
       branch, citing the touched Constitution Principles/sections (I, II,
       III, IV, V, VI, VIII, §17, §21) in the commit body or PR description,
       and including the `Co-authored-by: Copilot
       <223556219+Copilot@users.noreply.github.com>` trailer (this work is
       AI-assisted; constitution §17)
-- [ ] T058 Push the `343-nomisma-mint-authority-linking` branch only, with a
+- [X] T058 Push the `343-nomisma-mint-authority-linking` branch only, with a
       **non-force** push (`git push origin
       343-nomisma-mint-authority-linking`) — no `--force`/
       `--force-with-lease`, and no other branch touched
