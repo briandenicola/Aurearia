@@ -277,6 +277,115 @@ func (h *MintLocationHandler) Geocode(c *gin.Context) {
 	c.JSON(http.StatusOK, geocodeMintResponse{Candidates: candidates})
 }
 
+type nomismaSearchResponse struct {
+	Status     services.NomismaSearchStatus `json:"status"`
+	Candidates []services.NomismaCandidate  `json:"candidates"`
+}
+
+// SearchNomisma looks up Nomisma.org authority candidates for a global mint
+// location, for admin review before an explicit confirm/link. Never returns
+// a 5xx for an upstream Nomisma failure - that's surfaced as a 200 with
+// status "unavailable" so the admin panel and mint/coin CRUD stay usable.
+//
+//	@Summary		Search Nomisma candidates for a global mint location
+//	@Description	Searches Nomisma.org's reconciliation service for authority candidates matching the given query. Admin only. Never fails for an upstream Nomisma outage - surfaced as status "unavailable".
+//	@Tags			Mint Locations
+//	@Produce		json
+//	@Param			id		path		int		true	"Mint location ID"
+//	@Param			query	query		string	true	"Text to search Nomisma for"
+//	@Success		200		{object}	nomismaSearchResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/admin/mint-locations/{id}/nomisma/search [get]
+func (h *MintLocationHandler) SearchNomisma(c *gin.Context) {
+	id, ok := parseID(c, "id")
+	if !ok {
+		return
+	}
+	query := c.Query("query")
+	outcome, err := h.svc.SearchNomisma(id, query)
+	if err != nil {
+		handleMintLocationError(c, err)
+		return
+	}
+	candidates := outcome.Candidates
+	if candidates == nil {
+		candidates = []services.NomismaCandidate{}
+	}
+	c.JSON(http.StatusOK, nomismaSearchResponse{Status: outcome.Status, Candidates: candidates})
+}
+
+type nomismaLinkRequest struct {
+	URI   string `json:"uri" binding:"required"`
+	Label string `json:"label" binding:"required"`
+}
+
+// LinkNomisma confirms exactly one Nomisma candidate for a global mint
+// location, replacing any existing link.
+//
+//	@Summary		Link a global mint location to a Nomisma authority concept
+//	@Description	Confirms a Nomisma.org candidate for a global mint location, persisting its URI/label/timestamp. Admin only. Replaces any existing link.
+//	@Tags			Mint Locations
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int					true	"Mint location ID"
+//	@Param			body	body		nomismaLinkRequest	true	"Confirmed Nomisma candidate"
+//	@Success		200		{object}	models.MintLocation
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/admin/mint-locations/{id}/nomisma [post]
+func (h *MintLocationHandler) LinkNomisma(c *gin.Context) {
+	id, ok := parseID(c, "id")
+	if !ok {
+		return
+	}
+	var body nomismaLinkRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		respondError(c, http.StatusBadRequest, "Invalid Nomisma link request", err)
+		return
+	}
+	location, err := h.svc.LinkNomismaGlobal(id, body.URI, body.Label)
+	if err != nil {
+		handleMintLocationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, location)
+}
+
+// UnlinkNomisma removes a confirmed Nomisma link from a global mint
+// location. Idempotent - unlinking an already-unlinked mint is a 200
+// success, not an error.
+//
+//	@Summary		Remove a Nomisma authority link from a global mint location
+//	@Description	Clears a global mint location's Nomisma URI/label/timestamp. Admin only. Idempotent.
+//	@Tags			Mint Locations
+//	@Produce		json
+//	@Param			id	path		int	true	"Mint location ID"
+//	@Success		200	{object}	MessageResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		403	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/admin/mint-locations/{id}/nomisma [delete]
+func (h *MintLocationHandler) UnlinkNomisma(c *gin.Context) {
+	id, ok := parseID(c, "id")
+	if !ok {
+		return
+	}
+	if _, err := h.svc.UnlinkNomismaGlobal(id); err != nil {
+		handleMintLocationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, MessageResponse{Message: "Nomisma link removed"})
+}
+
 func bindMintLocationRequest(c *gin.Context) (services.MintLocationInput, bool) {
 	var body mintLocationRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -306,7 +415,10 @@ func handleMintLocationError(c *gin.Context, err error) {
 		errors.Is(err, services.ErrMintLocationLngInvalid),
 		errors.Is(err, services.ErrMintLocationAliasInvalid),
 		errors.Is(err, services.ErrMintLocationAliasTooLong),
-		errors.Is(err, services.ErrMintLocationRegionInvalid):
+		errors.Is(err, services.ErrMintLocationRegionInvalid),
+		errors.Is(err, services.ErrMintLocationNomismaQueryInvalid),
+		errors.Is(err, services.ErrMintLocationNomismaURIInvalid),
+		errors.Is(err, services.ErrMintLocationNomismaLabelInvalid):
 		respondError(c, http.StatusBadRequest, err.Error(), err)
 	default:
 		respondError(c, http.StatusInternalServerError, "Failed to process mint location request", err)

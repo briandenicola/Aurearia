@@ -1528,6 +1528,197 @@
                 }
             }
         },
+        "/admin/mint-locations/{id}/nomisma": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Confirms a Nomisma.org candidate for a global mint location, persisting its URI/label/timestamp. Admin only. Replaces any existing link.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Mint Locations"
+                ],
+                "summary": "Link a global mint location to a Nomisma authority concept",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Mint location ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Confirmed Nomisma candidate",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.nomismaLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.MintLocation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Clears a global mint location's Nomisma URI/label/timestamp. Admin only. Idempotent.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Mint Locations"
+                ],
+                "summary": "Remove a Nomisma authority link from a global mint location",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Mint location ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MessageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/mint-locations/{id}/nomisma/search": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Searches Nomisma.org's reconciliation service for authority candidates matching the given query. Admin only. Never fails for an upstream Nomisma outage - surfaced as status \"unavailable\".",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Mint Locations"
+                ],
+                "summary": "Search Nomisma candidates for a global mint location",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Mint location ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Text to search Nomisma for",
+                        "name": "query",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.nomismaSearchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/numista/health": {
             "get": {
                 "security": [
@@ -18784,6 +18975,35 @@
                 }
             }
         },
+        "handlers.nomismaLinkRequest": {
+            "type": "object",
+            "required": [
+                "label",
+                "uri"
+            ],
+            "properties": {
+                "label": {
+                    "type": "string"
+                },
+                "uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.nomismaSearchResponse": {
+            "type": "object",
+            "properties": {
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.NomismaCandidate"
+                    }
+                },
+                "status": {
+                    "$ref": "#/definitions/services.NomismaSearchStatus"
+                }
+            }
+        },
         "handlers.noteRequest": {
             "type": "object",
             "properties": {
@@ -20295,6 +20515,16 @@
                 },
                 "lng": {
                     "type": "number"
+                },
+                "nomismaLabel": {
+                    "type": "string"
+                },
+                "nomismaLinkedAt": {
+                    "type": "string"
+                },
+                "nomismaUri": {
+                    "description": "NomismaURI, NomismaLabel, and NomismaLinkedAt are additive, nullable\nprovenance fields for an optional, admin-confirmed link to a\nNomisma.org authority concept. They are set or cleared together, only\nfor global (UserID == nil) mint locations, and are never touched by\nthe general display-field update path (see MintLocationService's\nLinkNomismaGlobal/UnlinkNomismaGlobal). Absence (nil/empty) means\n\"not linked\".",
+                    "type": "string"
                 },
                 "region": {
                     "type": "string"
@@ -22155,6 +22385,36 @@
                     "type": "number"
                 }
             }
+        },
+        "services.NomismaCandidate": {
+            "type": "object",
+            "properties": {
+                "label": {
+                    "type": "string"
+                },
+                "match": {
+                    "type": "boolean"
+                },
+                "score": {
+                    "type": "number"
+                },
+                "uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.NomismaSearchStatus": {
+            "type": "string",
+            "enum": [
+                "ok",
+                "no_match",
+                "unavailable"
+            ],
+            "x-enum-varnames": [
+                "NomismaSearchOK",
+                "NomismaSearchNoMatch",
+                "NomismaSearchUnavailable"
+            ]
         },
         "services.OIDCAdminProviderDTO": {
             "type": "object",

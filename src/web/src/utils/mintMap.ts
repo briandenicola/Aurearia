@@ -11,6 +11,9 @@ export interface MintReference {
   lng: number
   aliases: readonly string[]
   region: string
+  nomismaUri?: string | null
+  nomismaLabel?: string
+  nomismaLinkedAt?: string | null
 }
 
 export interface MintGroup {

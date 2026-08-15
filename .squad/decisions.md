@@ -1930,6 +1930,73 @@ subject compliance.
 Octavian remains locked out under Constitution §18.2 until Maximus explicitly
 clears these findings.
 
+---
+
+### Decision: Feature 343 Phase 1 — Nomisma OpenRefine Wire Contract Verification and Fix
+
+**Date:** 2026-08-14  
+**Agent:** GitHub Copilot CLI (QC follow-up)  
+**Branch:** `343-nomisma-mint-authority-linking`  
+**Status:** RESOLVED — T026 complete, verified live
+
+## Context
+
+Live QC for Feature 343 Phase 1 discovered that `HTTPNomismaClient.Search` always returned `no_match` even for valid mint names ("Roma", "Rome"). Root cause analysis identified two compounding contract bugs against the real `nomisma.org/apis/reconcile` OpenRefine-compatible reconciliation API:
+
+1. **Request double-wrapping.** Client marshalled query-id map under an outer `{"queries":{...}}` key, violating the OpenRefine wire spec (single query-id map expected).
+2. **Response unwrapping mismatch.** Parser expected top-level `{"results":{...}}` but real API returns query-id map at top level.
+
+Test fixtures (`httptest.Server`) masked both bugs by hand-crafting both incorrect shapes.
+
+## Fix Verified Live
+
+Confirmed against `https://nomisma.org/apis/reconcile` for "Roma"/"Rome":
+
+- **Request:** Query-id map **directly** in `queries` param (no outer wrapper): `{"q1":{"query":"Roma","limit":5}}`
+- **Response:** Query-id map at top level: `{"q1":{"result":[...]}}`  (no `results` wrapper)
+- **ID field:** Short local id (e.g., `"rome"`), expanded to Nomisma concept URI `http://nomisma.org/id/<id>` before returning
+- **Match field:** JSON string (`"true"`/`"false"`), not boolean; requires custom `UnmarshalJSON` for compatibility
+
+## Changes Applied
+
+- `src/api/services/nomisma_client.go`: Direct query-id map marshalling; response parser updated to `map[string]struct{Result []nomismaResultItem}`; short `id` expanded to concept URI; `match` field decoded via `nomismaMatch` custom type
+- `src/api/services/nomisma_client_test.go`: All fixtures corrected to live wire shape; two regression tests added (`TestHTTPNomismaClient_Search_RequestShapeMatchesLiveContract`, `TestHTTPNomismaClient_Search_ResponseShapeMatchesLiveContract`)
+- `specs/343-nomisma-mint-authority-linking/research.md` §1 and `docs/adr/0009-nomisma-authority-linking.md`: Corrected wire description and updated HTTP → HTTPS
+
+## Verification
+
+- `go build ./...`, `go vet ./...`, `go test ./...` all pass, including new regression tests
+- Live end-to-end (admin user → global mint location → search "Rome" on live nomisma.org → link `http://nomisma.org/id/rome` → verify persistence → unlink → verify idempotent clear): pass
+- Frontend component tests and existing Nomisma test suite pass
+- Architecture and OpenAPI generation green
+
+---
+
+### Decision: OCRE/RPC Identified as Required Phase 2 Identify Coin Data Sources (Deferred, Distinct from F343)
+
+**Date:** 2026-08-14  
+**Agent:** Specifier / Feature 343 Phase 1 closure  
+**Status:** DEFERRED to Phase 2 specification  
+**Branch:** `343-nomisma-mint-authority-linking`
+
+## Context
+
+Feature 343 Phase 1 delivers Nomisma authority linking for global mint locations. During Phase 1 planning, the broader Identify Coin feature (future) was analyzed as a consumer of authority data. Nomisma is suitable for mint-location global authority but insufficient for coin identification, which also requires:
+
+- **OCRE** (Online Catalog of Roman Monetary Empires): RPC-indexed data for Roman coin reverse identification
+- **RPC** (Roman Provincial Coinage): Reference types and typology required for date/mint/reverse binding in Identify Coin
+
+OCRE/RPC are separate API contracts, licensing terms, and UI workflows from Nomisma mint authority linking and must not be conflated with F343.
+
+## Decision
+
+1. **F343 Phase 1 closes as planned** without OCRE/RPC integration (not in scope)
+2. **OCRE/RPC are mandatory Phase 2 sources** for the future Identify Coin feature, requiring:
+   - Dedicated feature specification and research (new F344 or similar)
+   - API contract discovery, licensing review, and ADR
+   - Separate schema/handler/service implementation
+   - Independent QC and release cycle
+3. **No regression in F343**: Nomisma mint authority linking remains production-ready; Identify Coin UI does not yet depend on OCRE/RPC (future feature backlog)
 
 ---
 

@@ -59,5 +59,6 @@ ADR 0001 for the full list.
 | 0006 | [Workflow Contract Regression Gates](0006-workflow-contract-regression-gates.md) | — | Accepted |
 | 0007 | [Shared Numista Lookup Boundary](0007-shared-numista-lookup.md)       | 2026-08-11 | Accepted |
 | 0008 | [Feature 341 Immutable Public-History Waiver](0008-feature-341-immutable-public-history-waiver.md) | 2026-08-11 | Accepted |
+| 0009 | [Nomisma.org Authority Linking for Global Mint Locations](0009-nomisma-authority-linking.md) | 2026-08-14 | Accepted |
 
 [nygard]: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions

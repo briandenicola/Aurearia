@@ -1576,6 +1576,25 @@ definitions:
     - lat
     - lng
     type: object
+  handlers.nomismaLinkRequest:
+    properties:
+      label:
+        type: string
+      uri:
+        type: string
+    required:
+    - label
+    - uri
+    type: object
+  handlers.nomismaSearchResponse:
+    properties:
+      candidates:
+        items:
+          $ref: '#/definitions/services.NomismaCandidate'
+        type: array
+      status:
+        $ref: '#/definitions/services.NomismaSearchStatus'
+    type: object
   handlers.noteRequest:
     properties:
       body:
@@ -2617,6 +2636,20 @@ definitions:
         type: number
       lng:
         type: number
+      nomismaLabel:
+        type: string
+      nomismaLinkedAt:
+        type: string
+      nomismaUri:
+        description: |-
+          NomismaURI, NomismaLabel, and NomismaLinkedAt are additive, nullable
+          provenance fields for an optional, admin-confirmed link to a
+          Nomisma.org authority concept. They are set or cleared together, only
+          for global (UserID == nil) mint locations, and are never touched by
+          the general display-field update path (see MintLocationService's
+          LinkNomismaGlobal/UnlinkNomismaGlobal). Absence (nil/empty) means
+          "not linked".
+        type: string
       region:
         type: string
       updatedAt:
@@ -3891,6 +3924,27 @@ definitions:
       percentage:
         type: number
     type: object
+  services.NomismaCandidate:
+    properties:
+      label:
+        type: string
+      match:
+        type: boolean
+      score:
+        type: number
+      uri:
+        type: string
+    type: object
+  services.NomismaSearchStatus:
+    enum:
+    - ok
+    - no_match
+    - unavailable
+    type: string
+    x-enum-varnames:
+    - NomismaSearchOK
+    - NomismaSearchNoMatch
+    - NomismaSearchUnavailable
   services.OIDCAdminProviderDTO:
     properties:
       callbackPath:
@@ -5037,6 +5091,133 @@ paths:
       security:
       - BearerAuth: []
       summary: Update mint location
+      tags:
+      - Mint Locations
+  /admin/mint-locations/{id}/nomisma:
+    delete:
+      description: Clears a global mint location's Nomisma URI/label/timestamp. Admin
+        only. Idempotent.
+      parameters:
+      - description: Mint location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Remove a Nomisma authority link from a global mint location
+      tags:
+      - Mint Locations
+    post:
+      consumes:
+      - application/json
+      description: Confirms a Nomisma.org candidate for a global mint location, persisting
+        its URI/label/timestamp. Admin only. Replaces any existing link.
+      parameters:
+      - description: Mint location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Confirmed Nomisma candidate
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.nomismaLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MintLocation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Link a global mint location to a Nomisma authority concept
+      tags:
+      - Mint Locations
+  /admin/mint-locations/{id}/nomisma/search:
+    get:
+      description: Searches Nomisma.org's reconciliation service for authority candidates
+        matching the given query. Admin only. Never fails for an upstream Nomisma
+        outage - surfaced as status "unavailable".
+      parameters:
+      - description: Mint location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Text to search Nomisma for
+        in: query
+        name: query
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.nomismaSearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Search Nomisma candidates for a global mint location
       tags:
       - Mint Locations
   /admin/numista/health:

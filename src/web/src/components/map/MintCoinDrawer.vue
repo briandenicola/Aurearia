@@ -12,6 +12,7 @@
           <p class="section-label">Selected Mint</p>
           <h2 :id="titleId" class="mt-1">{{ group.mint.displayName }}</h2>
           <p class="m-0 text-body text-text-secondary">{{ group.count }} {{ group.count === 1 ? 'coin' : 'coins' }} in this view</p>
+          <NomismaAttribution :uri="group.mint.nomismaUri" class="mt-1" />
         </div>
         <button class="btn btn-sm btn-ghost" type="button" aria-label="Close mint drawer" @click="$emit('close')">
           <X :size="16" />
@@ -34,6 +35,7 @@
 import { computed, onBeforeUnmount, watch } from 'vue'
 import { X } from 'lucide-vue-next'
 import type { MintGroup } from '@/utils/mintMap'
+import NomismaAttribution from '@/components/mint/NomismaAttribution.vue'
 
 const props = defineProps<{
   group: MintGroup | null

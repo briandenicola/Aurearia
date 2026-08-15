@@ -1,14 +1,22 @@
 package services
 
 import (
+	"context"
 	"errors"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"github.com/briandenicola/ancient-coins-api/repository"
 )
 
-const maxMintLocationTextLength = 128
+const (
+	maxMintLocationTextLength = 128
+	maxNomismaQueryLength     = 200
+	maxNomismaLabelLength     = 256
+	nomismaAuthorityHost      = "nomisma.org"
+)
 
 var (
 	ErrMintLocationNotFound      = errors.New("mint location not found")
@@ -21,6 +29,10 @@ var (
 	ErrMintLocationNameTooLong   = errors.New("display name must be at most 128 characters")
 	ErrMintLocationAliasTooLong  = errors.New("aliases must be at most 128 characters")
 	ErrMintLocationInUse         = errors.New("mint location is in use")
+
+	ErrMintLocationNomismaQueryInvalid = errors.New("query must be non-blank and at most 200 characters")
+	ErrMintLocationNomismaURIInvalid   = errors.New("uri must be an absolute http(s) URL on the nomisma.org host")
+	ErrMintLocationNomismaLabelInvalid = errors.New("label is required and must be at most 256 characters")
 )
 
 // MintLocationInput contains editable mint-location fields.
@@ -35,12 +47,31 @@ type MintLocationInput struct {
 // MintLocationService manages global (admin-curated) and private
 // (per-user) mint-location rules.
 type MintLocationService struct {
-	repo *repository.MintLocationRepository
+	repo         *repository.MintLocationRepository
+	nomisma      NomismaClient
+	nomismaCache *NomismaCache
 }
 
 // NewMintLocationService creates a new MintLocationService.
 func NewMintLocationService(repo *repository.MintLocationRepository) *MintLocationService {
 	return &MintLocationService{repo: repo}
+}
+
+// WithNomisma enables the Nomisma.org authority-linking search/link/unlink
+// methods, wiring in the typed client and its bounded search cache. Mirrors
+// MintLocationHandler.WithGeocoding's optional-dependency shape.
+func (s *MintLocationService) WithNomisma(client NomismaClient, cache *NomismaCache) *MintLocationService {
+	s.nomisma = client
+	s.nomismaCache = cache
+	return s
+}
+
+// NomismaSearchOutcome is the typed result of a Nomisma search,
+// distinguishing ok/no_match/unavailable so callers never string-match an
+// error.
+type NomismaSearchOutcome struct {
+	Status     NomismaSearchStatus
+	Candidates []NomismaCandidate
 }
 
 // List returns every mint location a user may pick from: the global
@@ -145,6 +176,129 @@ func (s *MintLocationService) update(existing *models.MintLocation, input MintLo
 		return nil, err
 	}
 	return s.repo.FindByID(existing.ID)
+}
+
+// findGlobalMintLocation resolves id to a global (UserID == nil) mint
+// location, or ErrMintLocationNotFound otherwise - reused by
+// SearchNomisma/LinkNomismaGlobal/UnlinkNomismaGlobal so a private mint
+// never has a reachable code path into Nomisma (FR-006, User Story 4).
+func (s *MintLocationService) findGlobalMintLocation(id uint) (*models.MintLocation, error) {
+	existing, err := s.repo.FindByID(id)
+	if err != nil {
+		if repository.IsRecordNotFound(err) {
+			return nil, ErrMintLocationNotFound
+		}
+		return nil, err
+	}
+	if existing.UserID != nil {
+		return nil, ErrMintLocationNotFound
+	}
+	return existing, nil
+}
+
+// SearchNomisma looks up Nomisma.org authority candidates for a global mint
+// location's admin-typed query. Never returns a hard error for an upstream
+// Nomisma failure - that outcome is represented as NomismaSearchUnavailable
+// so mint/coin CRUD stays fully usable (FR-007).
+func (s *MintLocationService) SearchNomisma(id uint, query string) (NomismaSearchOutcome, error) {
+	trimmed := strings.TrimSpace(query)
+	if trimmed == "" || len([]rune(trimmed)) > maxNomismaQueryLength {
+		return NomismaSearchOutcome{}, ErrMintLocationNomismaQueryInvalid
+	}
+	if _, err := s.findGlobalMintLocation(id); err != nil {
+		return NomismaSearchOutcome{}, err
+	}
+	if s.nomisma == nil {
+		return NomismaSearchOutcome{Status: NomismaSearchUnavailable, Candidates: []NomismaCandidate{}}, nil
+	}
+
+	if s.nomismaCache != nil {
+		if status, candidates, ok := s.nomismaCache.Get(trimmed); ok {
+			return NomismaSearchOutcome{Status: status, Candidates: candidates}, nil
+		}
+	}
+
+	candidates, kind, err := s.nomisma.Search(context.Background(), trimmed, 0)
+	if err != nil || kind == NomismaErrorUnavailable || kind == NomismaErrorInvalidResponse {
+		// Never cached - a transient outage must not get "stuck" for the TTL.
+		return NomismaSearchOutcome{Status: NomismaSearchUnavailable, Candidates: []NomismaCandidate{}}, nil
+	}
+
+	status := NomismaSearchOK
+	if kind == NomismaErrorNoMatch || len(candidates) == 0 {
+		status = NomismaSearchNoMatch
+		candidates = []NomismaCandidate{}
+	}
+	if s.nomismaCache != nil {
+		s.nomismaCache.Set(trimmed, status, candidates)
+	}
+	return NomismaSearchOutcome{Status: status, Candidates: candidates}, nil
+}
+
+// LinkNomismaGlobal confirms exactly one Nomisma candidate for a global
+// mint location, replacing any existing link. Sets NomismaURI/NomismaLabel/
+// NomismaLinkedAt together in one repo.Update call touching only those
+// three columns - DisplayName/Lat/Lng/Region/Aliases are never part of this
+// update's column set (FR-005).
+func (s *MintLocationService) LinkNomismaGlobal(id uint, uri, label string) (*models.MintLocation, error) {
+	existing, err := s.findGlobalMintLocation(id)
+	if err != nil {
+		return nil, err
+	}
+	if !isValidNomismaURI(uri) {
+		return nil, ErrMintLocationNomismaURIInvalid
+	}
+	trimmedLabel := strings.TrimSpace(label)
+	if trimmedLabel == "" || len([]rune(trimmedLabel)) > maxNomismaLabelLength {
+		return nil, ErrMintLocationNomismaLabelInvalid
+	}
+
+	now := time.Now().UTC()
+	updates := map[string]interface{}{
+		"nomisma_uri":       uri,
+		"nomisma_label":     trimmedLabel,
+		"nomisma_linked_at": now,
+	}
+	if err := s.repo.Update(existing, updates); err != nil {
+		return nil, err
+	}
+	return s.repo.FindByID(existing.ID)
+}
+
+// UnlinkNomismaGlobal clears an existing Nomisma link on a global mint
+// location. Idempotent - unlinking an already-unlinked mint is a no-op
+// success, not an error.
+func (s *MintLocationService) UnlinkNomismaGlobal(id uint) (*models.MintLocation, error) {
+	existing, err := s.findGlobalMintLocation(id)
+	if err != nil {
+		return nil, err
+	}
+	if existing.NomismaURI == nil {
+		return existing, nil
+	}
+
+	updates := map[string]interface{}{
+		"nomisma_uri":       nil,
+		"nomisma_label":     "",
+		"nomisma_linked_at": nil,
+	}
+	if err := s.repo.Update(existing, updates); err != nil {
+		return nil, err
+	}
+	return s.repo.FindByID(existing.ID)
+}
+
+func isValidNomismaURI(uri string) bool {
+	trimmed := strings.TrimSpace(uri)
+	if trimmed == "" {
+		return false
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return false
+	}
+	host := parsed.Hostname()
+	return host == nomismaAuthorityHost || strings.HasSuffix(host, "."+nomismaAuthorityHost)
 }
 
 // DeleteGlobal removes a global mint location (admin only). Rejects the
