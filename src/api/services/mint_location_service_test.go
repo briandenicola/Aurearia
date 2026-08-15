@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -12,6 +13,33 @@ func newTestMintLocationService(t *testing.T) *MintLocationService {
 	t.Helper()
 	db := setupTestDB(t)
 	return NewMintLocationService(repository.NewMintLocationRepository(db))
+}
+
+// fakeNomismaClient is a test double for NomismaClient. If failIfCalled is
+// set, Search fails the test immediately - used to prove a private mint's
+// Nomisma methods never reach the client at all (User Story 4).
+type fakeNomismaClient struct {
+	t            *testing.T
+	failIfCalled bool
+	candidates   []NomismaCandidate
+	kind         NomismaErrorKind
+	err          error
+	calls        int
+}
+
+func (f *fakeNomismaClient) Search(ctx context.Context, query string, limit int) ([]NomismaCandidate, NomismaErrorKind, error) {
+	f.calls++
+	if f.failIfCalled {
+		f.t.Fatalf("NomismaClient.Search must never be invoked for this test, got query %q", query)
+	}
+	return f.candidates, f.kind, f.err
+}
+
+func newTestMintLocationServiceWithNomisma(t *testing.T, client NomismaClient) *MintLocationService {
+	t.Helper()
+	db := setupTestDB(t)
+	return NewMintLocationService(repository.NewMintLocationRepository(db)).
+		WithNomisma(client, NewNomismaCache())
 }
 
 func TestMintLocationService_CreateValidatesCoordinatesAndName(t *testing.T) {
@@ -387,5 +415,262 @@ func TestMintLocationService_UpdateAllowsOwnExistingAliases(t *testing.T) {
 		if updated.Aliases[i] != want[i] {
 			t.Fatalf("expected aliases %v, got %v", want, updated.Aliases)
 		}
+	}
+}
+
+// --- Nomisma authority linking (343-nomisma-mint-authority-linking) ---
+
+func TestMintLocationService_SearchNomisma_OK(t *testing.T) {
+	client := &fakeNomismaClient{t: t, candidates: []NomismaCandidate{{URI: "http://nomisma.org/id/roma", Label: "Roma", Score: 100, Match: true}}}
+	svc := newTestMintLocationServiceWithNomisma(t, client)
+	mint, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	outcome, err := svc.SearchNomisma(mint.ID, "Roma")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if outcome.Status != NomismaSearchOK || len(outcome.Candidates) != 1 {
+		t.Fatalf("unexpected outcome: %+v", outcome)
+	}
+}
+
+func TestMintLocationService_SearchNomisma_NoMatch(t *testing.T) {
+	client := &fakeNomismaClient{t: t, kind: NomismaErrorNoMatch}
+	svc := newTestMintLocationServiceWithNomisma(t, client)
+	mint, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	outcome, err := svc.SearchNomisma(mint.ID, "zzzzgibberish")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if outcome.Status != NomismaSearchNoMatch || len(outcome.Candidates) != 0 {
+		t.Fatalf("unexpected outcome: %+v", outcome)
+	}
+}
+
+func TestMintLocationService_SearchNomisma_Unavailable(t *testing.T) {
+	client := &fakeNomismaClient{t: t, kind: NomismaErrorUnavailable, err: errors.New("boom")}
+	svc := newTestMintLocationServiceWithNomisma(t, client)
+	mint, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	outcome, err := svc.SearchNomisma(mint.ID, "Roma")
+	if err != nil {
+		t.Fatalf("expected no hard error for an upstream failure, got %v", err)
+	}
+	if outcome.Status != NomismaSearchUnavailable || len(outcome.Candidates) != 0 {
+		t.Fatalf("unexpected outcome: %+v", outcome)
+	}
+}
+
+func TestMintLocationService_SearchNomisma_InvalidQuery(t *testing.T) {
+	client := &fakeNomismaClient{t: t, failIfCalled: true}
+	svc := newTestMintLocationServiceWithNomisma(t, client)
+	mint, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	if _, err := svc.SearchNomisma(mint.ID, "   "); !errors.Is(err, ErrMintLocationNomismaQueryInvalid) {
+		t.Fatalf("expected invalid query error, got %v", err)
+	}
+}
+
+func TestMintLocationService_SearchNomisma_PrivateMintNotFound(t *testing.T) {
+	client := &fakeNomismaClient{t: t, failIfCalled: true}
+	svc := newTestMintLocationServiceWithNomisma(t, client)
+	mint, err := svc.CreatePrivate(1, MintLocationInput{DisplayName: "My Mint", Lat: 1, Lng: 1})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	if _, err := svc.SearchNomisma(mint.ID, "Roma"); !errors.Is(err, ErrMintLocationNotFound) {
+		t.Fatalf("expected not found for a private mint, got %v", err)
+	}
+}
+
+func TestMintLocationService_LinkNomismaGlobal_HappyPath(t *testing.T) {
+	svc := newTestMintLocationServiceWithNomisma(t, &fakeNomismaClient{t: t})
+	mint, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	updated, err := svc.LinkNomismaGlobal(mint.ID, "http://nomisma.org/id/roma", "Roma")
+	if err != nil {
+		t.Fatalf("link failed: %v", err)
+	}
+	if updated.NomismaURI == nil || *updated.NomismaURI != "http://nomisma.org/id/roma" {
+		t.Fatalf("expected NomismaURI set, got %+v", updated)
+	}
+	if updated.NomismaLabel != "Roma" {
+		t.Fatalf("expected NomismaLabel set, got %+v", updated)
+	}
+	if updated.NomismaLinkedAt == nil {
+		t.Fatalf("expected NomismaLinkedAt set, got %+v", updated)
+	}
+}
+
+func TestMintLocationService_LinkNomismaGlobal_InvalidURIHost(t *testing.T) {
+	svc := newTestMintLocationServiceWithNomisma(t, &fakeNomismaClient{t: t})
+	mint, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	cases := []string{"http://evil.example.com/id/roma", "not-a-url", "ftp://nomisma.org/id/roma", ""}
+	for _, uri := range cases {
+		if _, err := svc.LinkNomismaGlobal(mint.ID, uri, "Roma"); !errors.Is(err, ErrMintLocationNomismaURIInvalid) {
+			t.Fatalf("expected URI invalid error for %q, got %v", uri, err)
+		}
+	}
+}
+
+func TestMintLocationService_LinkNomismaGlobal_BlankOrTooLongLabel(t *testing.T) {
+	svc := newTestMintLocationServiceWithNomisma(t, &fakeNomismaClient{t: t})
+	mint, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	if _, err := svc.LinkNomismaGlobal(mint.ID, "http://nomisma.org/id/roma", "  "); !errors.Is(err, ErrMintLocationNomismaLabelInvalid) {
+		t.Fatalf("expected label invalid error for blank label, got %v", err)
+	}
+
+	tooLong := make([]byte, 257)
+	for i := range tooLong {
+		tooLong[i] = 'a'
+	}
+	if _, err := svc.LinkNomismaGlobal(mint.ID, "http://nomisma.org/id/roma", string(tooLong)); !errors.Is(err, ErrMintLocationNomismaLabelInvalid) {
+		t.Fatalf("expected label invalid error for too-long label, got %v", err)
+	}
+}
+
+func TestMintLocationService_LinkNomismaGlobal_PrivateMintNotFound(t *testing.T) {
+	svc := newTestMintLocationServiceWithNomisma(t, &fakeNomismaClient{t: t})
+	mint, err := svc.CreatePrivate(1, MintLocationInput{DisplayName: "My Mint", Lat: 1, Lng: 1})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	if _, err := svc.LinkNomismaGlobal(mint.ID, "http://nomisma.org/id/roma", "Roma"); !errors.Is(err, ErrMintLocationNotFound) {
+		t.Fatalf("expected not found for a private mint, got %v", err)
+	}
+}
+
+func TestMintLocationService_LinkNomismaGlobal_ReplacesExistingLinkWithoutAlteringOtherFields(t *testing.T) {
+	svc := newTestMintLocationServiceWithNomisma(t, &fakeNomismaClient{t: t})
+	mint, err := svc.CreateGlobal(MintLocationInput{
+		DisplayName: "Rome", Lat: 41.9, Lng: 12.5, Region: "Italy", Aliases: []string{"Roma"},
+	})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	if _, err := svc.LinkNomismaGlobal(mint.ID, "http://nomisma.org/id/roma", "Roma"); err != nil {
+		t.Fatalf("first link failed: %v", err)
+	}
+
+	updated, err := svc.LinkNomismaGlobal(mint.ID, "http://nomisma.org/id/roma_alt", "Roma (alt)")
+	if err != nil {
+		t.Fatalf("replace link failed: %v", err)
+	}
+	if updated.NomismaURI == nil || *updated.NomismaURI != "http://nomisma.org/id/roma_alt" || updated.NomismaLabel != "Roma (alt)" {
+		t.Fatalf("expected replaced link fields, got %+v", updated)
+	}
+	if updated.DisplayName != "Rome" || updated.Lat != 41.9 || updated.Lng != 12.5 || updated.Region != "Italy" {
+		t.Fatalf("expected display fields unchanged after replacing a link, got %+v", updated)
+	}
+	if len(updated.Aliases) != 1 || updated.Aliases[0] != "Roma" {
+		t.Fatalf("expected aliases unchanged after replacing a link, got %+v", updated.Aliases)
+	}
+}
+
+func TestMintLocationService_UnlinkNomismaGlobal_ClearsExistingLink(t *testing.T) {
+	svc := newTestMintLocationServiceWithNomisma(t, &fakeNomismaClient{t: t})
+	mint, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	if _, err := svc.LinkNomismaGlobal(mint.ID, "http://nomisma.org/id/roma", "Roma"); err != nil {
+		t.Fatalf("link failed: %v", err)
+	}
+
+	updated, err := svc.UnlinkNomismaGlobal(mint.ID)
+	if err != nil {
+		t.Fatalf("unlink failed: %v", err)
+	}
+	if updated.NomismaURI != nil || updated.NomismaLabel != "" || updated.NomismaLinkedAt != nil {
+		t.Fatalf("expected Nomisma fields cleared, got %+v", updated)
+	}
+}
+
+func TestMintLocationService_UnlinkNomismaGlobal_IdempotentNoOp(t *testing.T) {
+	svc := newTestMintLocationServiceWithNomisma(t, &fakeNomismaClient{t: t})
+	mint, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	if _, err := svc.UnlinkNomismaGlobal(mint.ID); err != nil {
+		t.Fatalf("expected a no-op success on an already-unlinked mint, got %v", err)
+	}
+	if _, err := svc.UnlinkNomismaGlobal(mint.ID); err != nil {
+		t.Fatalf("expected idempotent double-unlink success, got %v", err)
+	}
+}
+
+func TestMintLocationService_UnlinkNomismaGlobal_PrivateMintNotFound(t *testing.T) {
+	svc := newTestMintLocationServiceWithNomisma(t, &fakeNomismaClient{t: t})
+	mint, err := svc.CreatePrivate(1, MintLocationInput{DisplayName: "My Mint", Lat: 1, Lng: 1})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	if _, err := svc.UnlinkNomismaGlobal(mint.ID); !errors.Is(err, ErrMintLocationNotFound) {
+		t.Fatalf("expected not found for a private mint, got %v", err)
+	}
+}
+
+func TestMintLocationService_UnlinkNomismaGlobal_NeverCallsNomismaClient(t *testing.T) {
+	svc := newTestMintLocationServiceWithNomisma(t, &fakeNomismaClient{t: t, failIfCalled: true})
+	mint, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	if _, err := svc.UnlinkNomismaGlobal(mint.ID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// TestMintLocationService_MintCoinCRUDUnaffectedByNomismaOutage proves
+// UpdateGlobal (general mint/coin CRUD) keeps working even when the
+// NomismaClient errors on every call - the two code paths are structurally
+// independent (FR-015, SC-004).
+func TestMintLocationService_MintCoinCRUDUnaffectedByNomismaOutage(t *testing.T) {
+	client := &fakeNomismaClient{t: t, kind: NomismaErrorUnavailable, err: errors.New("nomisma is down")}
+	svc := newTestMintLocationServiceWithNomisma(t, client)
+	mint, err := svc.CreateGlobal(MintLocationInput{DisplayName: "Rome", Lat: 41.9, Lng: 12.5})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	if _, err := svc.SearchNomisma(mint.ID, "Roma"); err != nil {
+		t.Fatalf("expected SearchNomisma to degrade gracefully, got %v", err)
+	}
+
+	updated, err := svc.UpdateGlobal(mint.ID, MintLocationInput{DisplayName: "Roma", Lat: 41.91, Lng: 12.51})
+	if err != nil {
+		t.Fatalf("expected UpdateGlobal to succeed despite Nomisma outage, got %v", err)
+	}
+	if updated.DisplayName != "Roma" {
+		t.Fatalf("expected UpdateGlobal to apply, got %+v", updated)
 	}
 }

@@ -563,12 +563,30 @@ export interface MintLocation {
   aliases: string[]
   createdAt: string
   updatedAt: string
+  nomismaUri?: string | null
+  nomismaLabel?: string
+  nomismaLinkedAt?: string | null
 }
 
 export interface GeocodeCandidate {
   displayName: string
   lat: number
   lng: number
+}
+
+// Nomisma.org authority linking (global mint locations only; admin-only)
+export type NomismaSearchStatus = 'ok' | 'no_match' | 'unavailable'
+
+export interface NomismaCandidate {
+  uri: string
+  label: string
+  score: number
+  match: boolean
+}
+
+export interface NomismaSearchResponse {
+  status: NomismaSearchStatus
+  candidates: NomismaCandidate[]
 }
 
 export interface CollectionSetOption {

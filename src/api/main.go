@@ -702,11 +702,16 @@ func main() {
 
 		// Mint location management
 		mintLocationRepo := repository.NewMintLocationRepository(database.DB)
-		mintLocationSvc := services.NewMintLocationService(mintLocationRepo)
+		nomismaClient := services.NewHTTPNomismaClient()
+		nomismaCache := services.NewNomismaCache()
+		mintLocationSvc := services.NewMintLocationService(mintLocationRepo).WithNomisma(nomismaClient, nomismaCache)
 		mintLocationHandler := handlers.NewMintLocationHandler(mintLocationSvc)
 		admin.POST("/mint-locations", mintLocationHandler.Create)
 		admin.PUT("/mint-locations/:id", mintLocationHandler.Update)
 		admin.DELETE("/mint-locations/:id", mintLocationHandler.Delete)
+		admin.GET("/mint-locations/:id/nomisma/search", mintLocationHandler.SearchNomisma)
+		admin.POST("/mint-locations/:id/nomisma", mintLocationHandler.LinkNomisma)
+		admin.DELETE("/mint-locations/:id/nomisma", mintLocationHandler.UnlinkNomisma)
 
 		// Availability check run history and manual trigger (reuse outer scope services)
 		adminAvailHandler := handlers.NewAvailabilityHandler(nil, availScheduler, availRepo, nil)
