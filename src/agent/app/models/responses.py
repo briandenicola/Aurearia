@@ -318,6 +318,17 @@ class ProviderCoverageEntry(StrictResponseModel):
     status: ProviderStatus
 
 
+class ProviderAttribution(StrictResponseModel):
+    """Visible attribution/license metadata for one provider that actually
+    contributed to the report (§6 / FR-019). Present only when that provider
+    surfaced ≥1 claim; each provider's text is distinct and never merged.
+    """
+
+    provider: ProviderName
+    text: Annotated[str, StringConstraints(max_length=200)]
+    identifier: str | None = None
+
+
 class DeepSynthesis(StrictResponseModel):
     """Typed final synthesis output (§5) — the terminal-success SSE frame
     payload. `proposed_fields` keys are re-validated against the coin-field
@@ -331,4 +342,5 @@ class DeepSynthesis(StrictResponseModel):
         default_factory=list, max_length=20
     )
     coverage: list[ProviderCoverageEntry] = Field(default_factory=list, max_length=10)
+    attributions: list[ProviderAttribution] = Field(default_factory=list, max_length=10)
     partial_success: bool = False
