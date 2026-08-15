@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"path/filepath"
@@ -247,6 +248,10 @@ func main() {
 	aiJobRepo := repository.NewAIJobRepository(database.DB)
 	aiJobSvc := services.NewAIJobService(aiJobRepo, agentProxy, userRepoForVal, settingsSvc, notifSvc, logger)
 	aiJobSvc.StartWorkers(1)
+	deepIdentificationRepo := repository.NewDeepIdentificationRepository(database.DB)
+	deepIdentificationSvc := services.NewDeepIdentificationService(deepIdentificationRepo, imageRepo, imageSvc, settingsSvc, logger, cfg.UploadDir)
+	deepIdentificationSvc.StartWorkers(context.Background())
+	deepIdentificationSvc.StartJanitor(context.Background())
 	healthRepo := repository.NewHealthRepository(database.DB)
 	healthSvc := services.NewHealthService(healthRepo, logger)
 	auctionWatchBidDigestRepo := repository.NewAuctionWatchBidDigestRepository(database.DB)
@@ -482,6 +487,13 @@ func main() {
 		protected.POST("/extract-text", analysisHandler.ExtractText)
 		protected.GET("/ollama-status", analysisHandler.OllamaStatus)
 		protected.GET("/ai-status", analysisHandler.AIStatus)
+
+		deepIdentificationHandler := handlers.NewDeepIdentificationHandler(deepIdentificationSvc, settingsSvc, logger)
+		protected.POST("/deep-identification/jobs", writeRateLimit, deepIdentificationHandler.CreateJob)
+		protected.GET("/deep-identification/jobs", deepIdentificationHandler.ListJobs)
+		protected.GET("/deep-identification/jobs/:id", deepIdentificationHandler.GetJob)
+		protected.POST("/deep-identification/jobs/:id/cancel", writeRateLimit, deepIdentificationHandler.Cancel)
+		protected.POST("/deep-identification/jobs/:id/retry", writeRateLimit, deepIdentificationHandler.Retry)
 
 		// Coin of the Day (user-facing)
 		coinOfDayHandler := handlers.NewCoinOfDayHandler(featuredCoinRepo, logger)

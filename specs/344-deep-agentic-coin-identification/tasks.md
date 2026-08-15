@@ -105,16 +105,16 @@ be implemented as part of this MVP.
 
 **⚠️ CRITICAL**: Blocks every user story phase.
 
-- [ ] T041 Create `src/api/handlers/deep_identification.go`: `POST /deep-identification/jobs` (multipart create) with swaggo annotations, behind `writeRateLimit` + `AuthRequiredWithSecurity` + feature-flag check (`403` when `SettingDeepIdentificationEnabled=false`)
-- [ ] T042 Add `GET /deep-identification/jobs` (owner-scoped list, `coinId`/`status` filters) to `src/api/handlers/deep_identification.go`
-- [ ] T043 Add `GET /deep-identification/jobs/{id}` (job + report + proposal; `404` for non-owner) to `src/api/handlers/deep_identification.go`
-- [ ] T044 Add `POST /deep-identification/jobs/{id}/cancel` to `src/api/handlers/deep_identification.go`
-- [ ] T045 Add `POST /deep-identification/jobs/{id}/retry` to `src/api/handlers/deep_identification.go` — creates a new job with `RetryOfJobID` set and `RetryDepth+1` capped at 3, reusing prior inputs unless new ones are supplied, never mutating the original (FR-020)
-- [ ] T046 Wire the five routes + DI into `src/api/main.go` (repo→service→handler pattern at `main.go:246-249`)
-- [ ] T047 [P] Create `src/api/handlers/deep_identification_test.go`: multipart validation (type/magic-byte/size/count/missing role ⇒ `422 missing_obverse`/`missing_reverse`/`hint_image_in_coin_role`); auth/ownership `404`s for cross-user job ids; feature-flag-off returns `403` on new start but does not block `GET` of already-running jobs (FR-008)
-- [ ] T048 [P] Add retry-lineage test to `src/api/handlers/deep_identification_test.go`: retry of a terminal job creates a new row with `RetryOfJobID` set; a 4th retry beyond depth 3 is rejected; the original job's events/report remain untouched
-- [ ] T049 Run `task openapi`, commit the regenerated `docs/openapi.json` for the five endpoints added so far, and confirm `route_openapi_drift_test.go` stays green
-- [ ] T050 [P] Add a fast-path regression test asserting `POST /api/coins/lookup`'s response shape is unchanged and that **zero** `DeepIdentificationJob` rows are created by it (FR-001/SC-008)
+- [X] T041 Create `src/api/handlers/deep_identification.go`: `POST /deep-identification/jobs` (multipart create) with swaggo annotations, behind `writeRateLimit` + `AuthRequiredWithSecurity` + feature-flag check (`403` when `SettingDeepIdentificationEnabled=false`)
+- [X] T042 Add `GET /deep-identification/jobs` (owner-scoped list, `coinId`/`status` filters) to `src/api/handlers/deep_identification.go`
+- [X] T043 Add `GET /deep-identification/jobs/{id}` (job + report + proposal; `404` for non-owner) to `src/api/handlers/deep_identification.go`
+- [X] T044 Add `POST /deep-identification/jobs/{id}/cancel` to `src/api/handlers/deep_identification.go`
+- [X] T045 Add `POST /deep-identification/jobs/{id}/retry` to `src/api/handlers/deep_identification.go` — creates a new job with `RetryOfJobID` set and `RetryDepth+1` capped at 3, reusing prior inputs unless new ones are supplied, never mutating the original (FR-020)
+- [X] T046 Wire the five routes + DI into `src/api/main.go` (repo→service→handler pattern at `main.go:246-249`)
+- [X] T047 [P] Create `src/api/handlers/deep_identification_test.go`: multipart validation (type/magic-byte/size/count/missing role ⇒ `422 missing_obverse`/`missing_reverse`/`hint_image_in_coin_role`); auth/ownership `404`s for cross-user job ids; feature-flag-off returns `403` on new start but does not block `GET` of already-running jobs (FR-008)
+- [X] T048 [P] Add retry-lineage test to `src/api/handlers/deep_identification_test.go`: retry of a terminal job creates a new row with `RetryOfJobID` set; a 4th retry beyond depth 3 is rejected; the original job's events/report remain untouched
+- [X] T049 Run `task openapi`, commit the regenerated `docs/openapi.json` for the five endpoints added so far, and confirm `route_openapi_drift_test.go` stays green
+- [X] T050 [P] Add a fast-path regression test asserting `POST /api/coins/lookup`'s response shape is unchanged and that **zero** `DeepIdentificationJob` rows are created by it (FR-001/SC-008)
 
 **Checkpoint**: Foundational Phases 2–5 complete — jobs can be created, claimed, cancelled, retried, and settled terminal via poll, with owner scoping, idempotency, backpressure, limits, and races proven safe. No pipeline output yet (`ReportJSON`/`ProposalJSON` empty) and no UI.
 
