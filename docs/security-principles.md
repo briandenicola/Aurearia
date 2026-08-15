@@ -25,17 +25,17 @@ The Constitution remains normative. This document translates its security expect
 
 | Control area | What we enforce | Constitution cross-reference |
 |---|---|---|
-| Input validation | User-controlled query inputs must be parameterized or validated against explicit allowlists before they reach SQL, search parameters, or downstream services. | Principle XI (Security Hardening) |
-| Output encoding and rendering | Untrusted HTML or Markdown rendered in the browser must be sanitized before `v-html` or equivalent sinks. | Principle XI |
-| Secret handling | Secrets, API keys, and signing material must come from environment or secret stores; tracked files may only contain obviously fake examples. | Principle XI, Principle XV |
-| Credential encryption | Stored provider credentials such as NumisBids and CNG passwords must be encrypted at rest with AES-GCM using `AUCTION_CREDENTIAL_ENCRYPTION_KEY`; plaintext legacy values migrate lazily on save or sync. | Principle XI |
-| Authentication and token policy | Access tokens stay short-lived, refresh tokens rotate on use, API keys stay hashed at rest, and WebAuthn ceremonies are origin-bound and time-bound. | Principle XII |
-| Upload safety | File uploads validate extension and MIME/magic bytes, and body sizes stay capped to prevent memory exhaustion. | Principle XI |
-| Abuse resistance | Auth endpoints are rate-limited and expensive operations should be reviewed for throttling or queueing. | Principle XI |
-| Transport security | Production deployments use HTTPS for browser ↔ API traffic and for any WebAuthn origin. Tokens are never designed around plaintext transport assumptions. | Principle XI, Principle XII |
-| Container hardening | Production containers should pin trusted base images and run as non-root users. | Principle XI, Principle XV |
-| Supply chain integrity | GitHub Actions pin by SHA, lockfiles stay committed, dependency updates are reviewed, and security scanners are part of the delivery path. | Principle XV |
-| Incident readiness | Security reports are acknowledged through [SECURITY.md](../SECURITY.md), triaged with [incident-response.md](incident-response.md), and tracked against the live threat inventory. | Principle XI, Principle XV |
+| Input validation | User-controlled query inputs must be parameterized or validated against explicit allowlists before they reach SQL, search parameters, or downstream services. | Principle V |
+| Output encoding and rendering | Untrusted HTML or Markdown rendered in the browser must be sanitized before `v-html` or equivalent sinks. | Principle V |
+| Secret handling | Secrets, API keys, and signing material must come from environment or secret stores; tracked files may only contain obviously fake examples. | Principles V and VII |
+| Credential encryption | Stored provider credentials such as NumisBids and CNG passwords must be encrypted at rest with AES-GCM using `AUCTION_CREDENTIAL_ENCRYPTION_KEY`; plaintext legacy values migrate lazily on save or sync. | Principle V |
+| Authentication and token policy | Access tokens stay short-lived, refresh tokens rotate on use, API keys stay hashed at rest, and WebAuthn ceremonies are origin-bound and time-bound. | Principle V |
+| Upload safety | File uploads validate extension and MIME/magic bytes, and body sizes stay capped to prevent memory exhaustion. | Principle V |
+| Abuse resistance | Auth endpoints are rate-limited and expensive operations should be reviewed for throttling or queueing. | Principle V |
+| Transport security | Production deployments use HTTPS for browser ↔ API traffic and for any WebAuthn origin. Tokens are never designed around plaintext transport assumptions. | Principle V |
+| Container hardening | Production containers should pin trusted base images and run as non-root users. | Principles V and VII |
+| Supply chain integrity | GitHub Actions pin by SHA, lockfiles stay committed, dependency updates are reviewed, and security scanners are part of the delivery path. | Principle VII |
+| Incident readiness | Security reports are acknowledged through [SECURITY.md](../SECURITY.md), triaged with [incident-response.md](incident-response.md), and tracked against the live threat inventory. | Principles V and VII |
 
 ## Current implementation expectations
 
@@ -46,6 +46,12 @@ The Constitution remains normative. This document translates its security expect
 - Set multipart and JSON body caps for endpoints that accept user payloads.
 - Keep WebAuthn origins explicit and ceremony sessions time-limited.
 - Encrypt auction provider credentials at rest using `AUCTION_CREDENTIAL_ENCRYPTION_KEY`; support lazy migration from legacy plaintext values.
+- Keep Deep Analysis jobs, events, artifacts, and proposals owner-scoped.
+- Use short-lived job-scoped credentials for Python-to-Go provider tools; never
+  expose those credentials in logs, browser responses, or replayable SSE.
+- Keep provider URL/citation allowlists and fixed OCRE query templates intact.
+- Persist only bounded public provider event summaries; full claims remain on
+  the internal stream and in confirm-gated reports/proposals.
 
 ### Frontend and browser surface
 

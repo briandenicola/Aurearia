@@ -6,7 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [4.0.0] — 2026-08-15
+
 ### Added
+
+- **Deep Analysis** — Optional persisted background identification for new intake
+  and saved coins with obverse/reverse image analysis, ephemeral hints, automatic
+  provider routing, bounded fan-out, replayable SSE progress, cancel/retry, cited
+  synthesis, and editable confirm-gated proposals.
+- **OCRE provider** — Roman Imperial coin-type evidence through fixed-template
+  Nomisma SPARQL with canonical OCRE links and visible ODbL 1.0 / American
+  Numismatic Society attribution. Disabled by default.
+- **Nomisma mint authority linking** — Admin-confirmed links from global mint
+  locations to Nomisma concepts with CC BY 4.0 attribution.
+- **Improved Numista lookup** — Editable generated queries, deterministic
+  relevance scoring, bounded enrichment, caching, telemetry, and selected
+  reference persistence.
 
 - **Health endpoints** — `GET /health` and `GET /healthz` for container orchestration probes
 - **API rate limiting** — General 120 req/min limit on all protected routes; 30 req/min on expensive write operations (image uploads, AI analysis, agent chat, imports)
@@ -24,6 +39,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Coin identification choices** — Quick Identify remains the default fast path;
+  Deep Analysis is an explicit opt-in for richer evidence and continues in the
+  background across UI disconnects.
+- **Provider boundaries** — NGC remains official-link-out only. Automated RPC
+  integration is paused because no supported API or downloadable corpus is
+  available; RPC images and data are not ingested.
+- **Go toolchain** — All intentional pins now use Go 1.26.6.
 - **CoinDetailPage decomposition** — Reduced from 1130 to ~360 lines; extracted CoinTagsSection, CoinInfoGrid, CoinActionsPanel, CoinAIAnalysis, CoinListingStatus sub-components
 - **Desktop layout** — Sticky image sidebar with 2-column dashboard; sticky action bar at top: 61px
 - **Mobile/PWA** — Removed sticky positioning leak; single-column layout preserved
@@ -40,6 +62,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - PWA mobile regression — Sticky CSS scoped to desktop-only `@media (min-width: 769px)`
 - Sticky action bar gap — Aligned `top: 61px` with actual navbar height (60px content + 1px border)
 - Removed stray `console.log` statements from `useCoinSearchChat.ts`
+
+### Security
+
+- **Deep Analysis isolation** — Go owns authenticated job-scoped provider tools,
+  persistence, artifact cleanup, citation allowlists, and confirm-gated writes;
+  the Python agent remains stateless and receives no database access.
 
 ---
 

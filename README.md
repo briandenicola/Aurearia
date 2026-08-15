@@ -5,7 +5,7 @@
 > **Note:** This application is 100% vibe coded. It exists for the author to learn and experiment with GitHub Copilot CLI.
 
 [![CI](https://github.com/briandenicola/coin-collection-app/actions/workflows/ci.yml/badge.svg)](https://github.com/briandenicola/coin-collection-app/actions/workflows/ci.yml)
-![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)
+![Go](https://img.shields.io/badge/Go-1.26.6-00ADD8?logo=go)
 ![Vue](https://img.shields.io/badge/Vue-3-42b883?logo=vuedotjs)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript)
 ![Python](https://img.shields.io/badge/Python-3.12-3776ab?logo=python)
@@ -40,6 +40,10 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 
 ### 🤖 AI-Powered Analysis
 **Obverse & Reverse Analysis** — Upload coin photos for AI inspection with condition assessment, grade estimates, historical context, and market insights. Supports Anthropic Claude or self-hosted Ollama vision models.
+
+**Deep Analysis** — Optionally send obverse/reverse photos, notes, and ephemeral hint images through a resumable background workflow. The router combines image evidence with available authority providers, streams replayable progress, and produces a cited report plus an editable proposal that is never written without confirmation. Numista and Nomisma-backed OCRE evidence are supported; NGC is link-out only and automated RPC research is paused. **[Learn more →](docs/features/deep-analysis.md)**
+
+**Nomisma Authority Linking** — Admins can explicitly reconcile global mint locations to Nomisma.org concepts with visible CC BY 4.0 attribution; private/user-defined mints remain local.
 
 **Coin Agent** — Ask one chat surface to search dealer listings, find shows, analyze portfolio questions, answer collection questions such as missing metadata, and save useful answers as markdown Notes after review. **[Learn more →](docs/features/ai-search-agent.md)**
 
@@ -112,7 +116,15 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 
 ## 🆕 What's New
 
-**v2.0 (Latest)**
+**v4.0 (Latest)**
+- **Deep Analysis** — Optional persisted coin-identification jobs with image analysis, provider routing, replayable SSE progress, cancellation/retry, cited reports, and confirm-gated proposals.
+- **OCRE Evidence** — Roman Imperial coin-type candidates from fixed-template Nomisma SPARQL with canonical links and ODbL 1.0 / American Numismatic Society attribution.
+- **Nomisma Mint Authorities** — Admin-confirmed authority links for global mint locations with CC BY 4.0 attribution.
+- **RPC Status** — Automated RPC integration remains paused because no supported API or downloadable corpus is available; no RPC images or data are ingested.
+- **Numista Lookup Improvements** — Richer editable queries, deterministic relevance scoring, bounded enrichment, caching, telemetry, and selected-reference persistence.
+- **v3 Foundation** — OIDC account linking, security hardening, expanded analytics, and other post-v2 platform work are included in this release.
+
+**v2.0**
 - **Quick Capture** — Mobile-first draft intake for show-floor photos/notes, resumable drafts, owner-scoped media, and idempotent promotion into normal collection coins.
 - **Coin Lookup** — Photo-based show workflow for NGC Ancients cert extraction, official NGC verification links, Numista fallback matches, and saving lookups to wish list or collection.
 - **Configurable Coin Properties** — Admin-managed Era and Category options used by coin forms and lookup saves.
@@ -124,7 +136,7 @@ Organize coins with rich metadata: denomination, ruler, material, weight, inscri
 - **Health Scorecard** — Track AI coverage, image coverage, and metadata completeness.
 - Enhanced AI agent teams (grading, price trends, gap analysis, photography guide, similar lots).
 
-**v1.0 (Current)**
+**v1.0**
 - ✅ Collection CRUD with rich metadata
 - ✅ AI-powered coin analysis (Claude/Ollama)
 - ✅ AI coin search agent with dealer discovery
@@ -149,7 +161,7 @@ Browser ──► Vue 3 SPA  ──► Go API (Gin, GORM, SQLite) ──► Pyth
 
 | Layer    | Tech                                  | Path         |
 | -------- | ------------------------------------- | ------------ |
-| Backend  | Go 1.26 (Gin), GORM, pure-Go SQLite   | `src/api/`   |
+| Backend  | Go 1.26.6 (Gin), GORM, pure-Go SQLite | `src/api/`   |
 | Frontend | Vue 3, TypeScript, Vite, Pinia (PWA)  | `src/web/`   |
 | Agent    | Python 3.12, FastAPI, LangGraph       | `src/agent/` |
 
@@ -159,7 +171,7 @@ Full details in **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)**; the binding 
 
 ## Quick Start
 
-**Prerequisites:** [Go 1.26+](https://go.dev/dl/), [Node.js 20+](https://nodejs.org/), [Task](https://taskfile.dev/) (optional), [Docker](https://docs.docker.com/get-docker/) (optional), [Ollama](https://ollama.ai/) (optional — for local AI).
+**Prerequisites:** [Go 1.26.6](https://go.dev/dl/), [Node.js 20+](https://nodejs.org/), [Task](https://taskfile.dev/) (optional), [Docker](https://docs.docker.com/get-docker/) (optional), [Ollama](https://ollama.ai/) (optional — for local AI).
 
 ```sh
 git clone <repo-url> && cd coin-collection-app
@@ -201,6 +213,7 @@ Run `task --list` to see all targets.
 | Feature: Collection Management | [`docs/features/collection-management.md`](docs/features/collection-management.md) |
 | Feature: Quick Capture | [`docs/quick-capture.md`](docs/quick-capture.md) |
 | Feature: Coin Lookup | [`docs/features/coin-lookup.md`](docs/features/coin-lookup.md) |
+| Feature: Deep Analysis | [`docs/features/deep-analysis.md`](docs/features/deep-analysis.md) |
 | Feature: Coin Sets | [`docs/features/coin-sets.md`](docs/features/coin-sets.md) |
 | Feature: Wish List | [`docs/features/wish-list.md`](docs/features/wish-list.md) |
 | Feature: Auction Tracking | [`docs/features/auction-tracking.md`](docs/features/auction-tracking.md) |
@@ -234,7 +247,7 @@ Run `task --list` to see all targets.
 
 ## Governance
 
-- **Constitution:** [`.specify/memory/constitution.md`](.specify/memory/constitution.md) (v2.0.0) — non-negotiable contract for how this project is built. §0 defines the Hierarchy of Authority.
+- **Constitution:** [`.specify/memory/constitution.md`](.specify/memory/constitution.md) (v3.1.0) — non-negotiable contract for how this project is built. §0 defines the Hierarchy of Authority.
 - **Spec workflow:** features ship through `specs/NNN-*/{spec,plan,tasks}.md` per the templates in [`.specify/templates/`](.specify/templates/).
 - **Decision records:** [`docs/adr/`](docs/adr/) (Michael Nygard format, established by **[ADR 0001](docs/adr/0001-record-architecture-decisions.md)**).
 - **Project decisions ledger:** [`.squad/decisions.md`](.squad/decisions.md); proposals land in [`.squad/decisions/inbox/`](.squad/decisions/inbox/).

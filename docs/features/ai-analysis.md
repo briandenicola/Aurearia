@@ -119,6 +119,14 @@ Beyond basic image analysis, the chat agent includes specialized analysis teams:
 | **Coin Search** | Dealer discovery | "Find coins like this" |
 | **Price Trends** | Market analysis | "What's trending?" |
 
+### Deep Analysis
+
+Deep Analysis is a separate optional identification workflow, not a replacement
+for saved obverse/reverse analysis. It creates a persisted background job,
+combines image observations with available reference providers, streams
+replayable progress, and returns cited evidence plus a confirm-gated proposal.
+See [Deep Analysis](deep-analysis.md).
+
 ## Limitations
 
 - **Accuracy** — Vision models may misidentify coins, especially rare varieties
@@ -163,6 +171,7 @@ GET    /api/ai-status               # Check AI provider status
 - [Coin Photography Guide](photography-guide.md) — Photo quality feedback
 - [Collection Statistics](statistics.md) — AI coverage metrics in health scorecard
 - [Collection Showcase](collection-showcase.md) — Share analyzed coins publicly
+- [Deep Analysis](deep-analysis.md) — Multi-provider identification and cited proposals
 
 ## See Also
 

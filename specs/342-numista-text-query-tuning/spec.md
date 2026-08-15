@@ -2,7 +2,7 @@
 
 **Feature Branch**: `342-numista-text-query-tuning`  
 **Created**: 2026-08-11  
-**Status**: Draft  
+**Status**: Implemented
 **Input**: Improve generated Numista text queries without image search or changes to explicit collector queries.
 
 ## Governance
@@ -195,4 +195,3 @@ binding threshold.
 - Numista image search, image upload, perceptual matching, or paid-plan APIs.
 - New AI/LLM parsing, speculative mintmark grammars, or broad mint ontology.
 - Scoring-weight changes, candidate persistence changes, or eager NGC lookup.
-

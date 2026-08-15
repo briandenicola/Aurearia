@@ -1,6 +1,6 @@
 # Aurearia — Product Requirements Document
 
-**Status:** v1 draft (2026-05-28) | **Owner:** Brian (briandenicola)
+**Status:** v4.0 release baseline (2026-08-15) | **Owner:** Brian (briandenicola)
 **Constitution alignment:** Authored under §19 (Documentation Requirements). This document is item #2 in §0 Hierarchy of Authority — second only to the constitution.
 
 ---
@@ -35,12 +35,12 @@ Aurearia is a **personal-scale, self-hosted Progressive Web App** for managing a
 1. **Catalog coins end-to-end** — CRUD operations on coins with images, attribution (ruler, mint, era), measurements (weight, diameter), category (Roman/Greek/Byzantine/Modern/Other), material, valuation, provenance notes, and free-text notes.
 2. **Provide frictionless authentication** — JWT + refresh tokens, WebAuthn passkey login, and API keys for programmatic access. First registered user becomes admin.
 3. **Surface coins via discovery** — List, search (by inscription, ruler, denomination), filter (by category, material, status), sort (by date added, value, random with deterministic seed), and paginate efficiently.
-4. **Deliver five AI-assisted experiences** — Coin search (dealer discovery), coin shows (upcoming auctions), coin analysis (vision-model inspection of uploaded photos), portfolio review (collection valuation and gap analysis), and availability checking (monitor wishlist URL status).
+4. **Deliver AI-assisted discovery and analysis** — Coin search, coin shows, vision analysis, portfolio review, availability checking, Quick Identify, and optional Deep Analysis with provider-backed evidence and confirm-gated writes.
 5. **Surface one coin daily** — Coin of the Day scheduler picks an un-shown coin each morning, caches a summary, and dispatches in-app + Pushover notifications. Idempotent across restarts.
 6. **Track wishlist & auctions** — Add wishlist coins with AI search; check availability; track NumisBids and CNG Auctions lots with provider-aware sync/status behavior; convert won lots to collection coins.
 7. **Enable social engagement** — Follow other collectors, accept/block followers, leave comments and star ratings on their coins, upload avatars, control privacy (public/private profiles and per-coin privacy).
 8. **Install as PWA** — Installable on iOS, Android, and desktop. Service-worker-cached offline read-only view of collection. Swipe carousel on mobile, grid on desktop.
-9. **Admin-controlled AI provider selection** — Anthropic (Claude + web search) or Ollama (self-hosted models). Admins choose, configure keys, and customize analysis prompts.
+9. **Admin-controlled AI and authority providers** — Anthropic (Claude + web search) or Ollama (self-hosted models) supply inference. Numista, Nomisma, and OCRE supply bounded reference evidence under provider-specific terms and feature flags.
 10. **Provide rich statistics** — Total portfolio value, category/material/grade distributions, price trends, era/region heat maps, top coins by value, and valuation history snapshots.
 11. **Support social showcases** — Create curated public-read-only coin subsets with unique shareable URLs (e.g., `/s/favorite-denarii`).
 12. **Supply export/import** — JSON export of full collection; JSON import with per-coin validation; PDF catalog export with photos, grades, and provenance.
@@ -73,11 +73,12 @@ Aurearia is a **personal-scale, self-hosted Progressive Web App** for managing a
 **Status:** Shipped (v1.0).  
 **Out of scope:** Advanced faceted search or tag-based discovery (tags exist but not primary filter UI).
 
-### 5.3 AI-Assisted Discovery (Five Team Pipelines)
-**Capability:** Chat with AI agent to search dealers (Coin Search team), find upcoming auctions (Coin Shows team), analyze uploaded photos (Coin Analysis team), review portfolio gaps (Portfolio Review team), and check wishlist URL availability (Availability Check team). Streaming SSE responses with real-time status indicators.  
-**Cross-linked specs:** F003 (Portfolio Review), F004 (Coin Analysis Vision); `specs/001-foundation/spec.md` (User Story 3: AI-assisted analysis).  
-**Status:** Shipped (v1.0) with Anthropic + Ollama provider support; additional teams (Grading, Gap Analysis, Photo Guide, Price Trends, Similar Lots) added post-v1.0.  
-**Out of scope:** Offline agent execution; multi-provider concurrent calls.
+### 5.3 AI-Assisted Discovery and Identification
+**Capability:** Chat with specialized teams to search dealers, find upcoming auctions, analyze photos, review portfolio gaps, and check wishlist availability. Quick Identify provides a fast photo-based intake path. Optional Deep Analysis creates a persisted background job, evaluates images and user hints, routes to available reference providers with bounded concurrency, streams replayable progress, and returns a cited report plus an editable proposal. Applying any proposal requires explicit confirmation.
+**Authority boundaries:** Nomisma links global mint concepts (CC BY 4.0). Numista provides API-backed catalog candidates under its own terms. OCRE provides Roman Imperial coin-type evidence through fixed-template Nomisma SPARQL with ODbL 1.0 / American Numismatic Society attribution. NGC is official-link-out only. Automated RPC integration is paused because no supported API or downloadable corpus is available.
+**Cross-linked specs:** `specs/341-improve-numista-lookup/`, `specs/343-nomisma-mint-authority-linking/`, `specs/344-deep-agentic-coin-identification/`, and `specs/345-ocre-deep-analysis-provider/`.
+**Status:** Shipped through v4.0. Deep Analysis and OCRE are disabled by default and require explicit admin enablement.
+**Out of scope:** Offline agent execution; automated RPC access; bulk ingestion of reference catalogs; OCRE or RPC images.
 
 ### 5.4 Wishlist & Auction Tracking
 **Capability:** Mark coins as wishlist; AI-search for listings; track NumisBids and CNG Auctions lots through Watching → Bidding → Won/Lost workflow; verify availability of URLs on demand or via scheduled checks; convert won lots to collection coins. CNG Auctions supports richer hosted-auction sync and won/lost outcome detection where provider data exists; NumisBids supports watchlist/import tracking only today, so final outcome and max-bid values are manual unless future verified site data exposes those signals.
@@ -131,10 +132,10 @@ Aurearia is a **personal-scale, self-hosted Progressive Web App** for managing a
 - **Single primary user scale** — Designed for one primary collector (Brian) plus a small number of invited friends (< 10 concurrent). No multi-workspace isolation.
 - **Self-hosted, single-node deployment** — SQLite database is acceptable at this scale. No clustering, no distributed transactions, no read replicas.
 - **Docker containerization** — Two-container deployment (Go API + Vue SPA in one image; Python LangGraph agent in another). No Kubernetes, no load balancing.
-- **Optional AI provider** — Anthropic or Ollama required for AI features; the app remains functional without them (AI actions disabled).
+- **Optional AI provider** — Anthropic or Ollama is required for inference-backed AI features; the app remains functional without either provider. Deep Analysis and OCRE default off.
 - **No PII outside owner's account** — Users can only manage their own data; no PII about other users is persisted beyond profiles and follow relationships.
 - **No payment processing** — No stripe, no in-app purchases, no currency handling.
-- **Constitution-bound** — All code changes must comply with the 16 Principles and 8 operational sections in `.specify/memory/constitution.md`. Deviations require an Amendment (§22).
+- **Constitution-bound** — All code changes must comply with the 9 Principles and operational sections in `.specify/memory/constitution.md`. Deviations require an Amendment (§22).
 
 ---
 
@@ -174,11 +175,9 @@ New product questions should be added below this table when they arise.
 
 **Technical constraints** are documented in the Constitution and are not restated here:
 
-- **Principle I (Layered Architecture)** — Go API enforces Handler → Service → Repository → Database with strict import rules.
-- **Principle II (Dependency Injection)** — All dependencies injected via constructors; only `main.go` imports the database package.
-- **Principle XI (Security Hardening)** — Input validation, secret handling, output encoding.
-- **Principle XII (Authentication & Token Policy)** — JWT issuance, refresh, revocation, storage.
-- **Principle XIII (PWA / Mobile Rules)** — CSP, service worker scope, offline boundaries.
+- **Principle I (Clear Layered Architecture)** — Go API enforces Handler → Service → Repository → Database, constructor injection, and composition-root ownership.
+- **Principle V (Security, Auth, and Privacy by Default)** — Input validation, secret handling, token policy, and access control.
+- **Principle VI (Consistent User Experience)** — PWA/mobile behavior, service-worker boundaries, and design-system consistency.
 
 See `.specify/memory/constitution.md` §0–22 for the full governance model and quality gates.
 
