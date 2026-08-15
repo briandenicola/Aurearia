@@ -1,0 +1,28 @@
+<template>
+  <BaseButton
+    type="button"
+    variant="ghost"
+    size="sm"
+    :disabled="disabled"
+    aria-haspopup="dialog"
+    :aria-label="label"
+    @click="$emit('click')"
+  >
+    <span aria-hidden="true">🔬</span>
+    {{ label }}
+  </BaseButton>
+</template>
+
+<script setup lang="ts">
+import BaseButton from '@/components/ui/BaseButton.vue'
+
+withDefaults(defineProps<{
+  label?: string
+  disabled?: boolean
+}>(), {
+  label: 'Deep Analysis',
+  disabled: false,
+})
+
+defineEmits<{ click: [] }>()
+</script>

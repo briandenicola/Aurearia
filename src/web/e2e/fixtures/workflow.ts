@@ -37,6 +37,7 @@ export interface WorkflowApiState {
   mediaRequests: Array<{ path: string; authorization: string; cacheControl: string }>
   coinQueries: Array<Record<string, string>>
   authorizedRequests: string[]
+  deepIdentificationJobs: Array<{ id: number; notes: string; providers: string }>
 }
 
 export async function installAuthenticatedSession(page: Page) {
@@ -62,9 +63,11 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
     mediaRequests: [],
     coinQueries: [],
     authorizedRequests: [],
+    deepIdentificationJobs: [],
   }
   let nextCoinId = 7001
   let nextImageId = 9001
+  let nextDeepJobId = 5001
 
   await page.route('**/uploads/**', async (route) => {
     const request = route.request()
@@ -322,6 +325,51 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
         ? cloneCoin({ ...coin, sets: coin.sets?.filter((set) => set.id !== setId) ?? [] })
         : coin)
       await json(route, { message: 'Coin removed from set' })
+      return
+    }
+
+    if (path === '/deep-identification/jobs' && method === 'POST') {
+      const id = nextDeepJobId++
+      state.deepIdentificationJobs.push({
+        id,
+        notes: String((request.postData() ?? '').includes('notes') ? 'submitted' : ''),
+        providers: '',
+      })
+      await route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          job: {
+            id,
+            source: 'intake',
+            status: 'queued',
+            partialSuccess: false,
+            cancelRequested: false,
+            lastSeq: 0,
+            eventsAvailable: false,
+            expiresAt: '2030-01-01T00:00:00Z',
+            createdAt: '2030-01-01T00:00:00Z',
+          },
+        }),
+      })
+      return
+    }
+
+    if (path.match(/^\/deep-identification\/jobs\/\d+$/) && method === 'GET') {
+      const id = Number(path.split('/').pop())
+      await json(route, {
+        job: {
+          id,
+          source: 'intake',
+          status: 'queued',
+          partialSuccess: false,
+          cancelRequested: false,
+          lastSeq: 0,
+          eventsAvailable: false,
+          expiresAt: '2030-01-01T00:00:00Z',
+          createdAt: '2030-01-01T00:00:00Z',
+        },
+      })
       return
     }
 

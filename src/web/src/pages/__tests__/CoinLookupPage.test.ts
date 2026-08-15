@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import CoinLookupPage from '../CoinLookupPage.vue'
-import { createQuickCaptureDraft, lookupCoin, lookupNumista } from '@/api/client'
+import { createDeepIdentificationJob, createQuickCaptureDraft, lookupCoin, lookupNumista } from '@/api/client'
 import { makeNumistaCandidate, makeNumistaLookupOutcome } from '@/test/numista-fixtures'
 
 const routerPush = vi.fn()
@@ -23,6 +23,7 @@ vi.mock('@/api/client', () => ({
   lookupCoin: vi.fn(),
   lookupNumista: vi.fn(),
   createQuickCaptureDraft: vi.fn(),
+  createDeepIdentificationJob: vi.fn(),
   onTokenRefreshed: vi.fn(),
 }))
 
@@ -48,6 +49,7 @@ describe('CoinLookupPage', () => {
     vi.mocked(lookupCoin).mockReset()
     vi.mocked(createQuickCaptureDraft).mockReset()
     vi.mocked(lookupNumista).mockReset()
+    vi.mocked(createDeepIdentificationJob).mockReset()
     routerPush.mockReset()
     routerBack.mockReset()
 
@@ -255,6 +257,74 @@ describe('CoinLookupPage', () => {
     await flushPromises()
 
     expect(findActionButtons(wrapper).map(button => button.text())).toContain('Save as Draft')
+  })
+
+  it('shows a Deep Analysis entry point without altering the fast lookup submit path', async () => {
+    const file = new File(['coin'], 'labels.jpg', { type: 'image/jpeg' })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: { confidence: 'low', rawAnalysis: '' },
+        proposedNumistaQuery: '',
+        numistaEvidence: {},
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Unidentified Coin' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+
+    const wrapper = mount(CoinLookupPage, {
+      global: { stubs: { RouterLink: true, List: true } },
+    })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+
+    const deepAnalysisButton = wrapper.findAll('button').find((button) => button.text().includes('Deep Analysis'))
+    expect(deepAnalysisButton).toBeTruthy()
+
+    // Fast lookup submit continues to call lookupCoin only, never the deep-identification API.
+    await findAnalyzeButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(lookupCoin).toHaveBeenCalledTimes(1)
+    expect(createDeepIdentificationJob).not.toHaveBeenCalled()
+  })
+
+  it('opens the Deep Analysis panel from Identify Coin and starts a job without touching quick lookup', async () => {
+    const file = new File(['coin'], 'labels.jpg', { type: 'image/jpeg' })
+    vi.mocked(createDeepIdentificationJob).mockResolvedValue({
+      data: {
+        job: {
+          id: 42,
+          source: 'intake',
+          status: 'queued',
+          partialSuccess: false,
+          cancelRequested: false,
+          lastSeq: 0,
+          eventsAvailable: false,
+          expiresAt: '2030-01-01T00:00:00Z',
+          createdAt: '2030-01-01T00:00:00Z',
+        },
+      },
+    } as Awaited<ReturnType<typeof createDeepIdentificationJob>>)
+
+    const wrapper = mount(CoinLookupPage, {
+      global: { stubs: { RouterLink: true, List: true } },
+    })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+
+    const deepAnalysisButton = wrapper.findAll('button').find((button) => button.text().includes('Deep Analysis'))
+    await deepAnalysisButton!.trigger('click')
+    await flushPromises()
+
+    // Missing obverse/reverse blocks submit with a specific validation message.
+    const startButton = wrapper.findAll('button').find((button) => button.text().includes('Start Deep Analysis'))
+    await startButton!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Obverse and reverse photos are both required')
+    expect(createDeepIdentificationJob).not.toHaveBeenCalled()
+    expect(lookupCoin).not.toHaveBeenCalled()
   })
 
   it('reveals an editable NGC Numista override by keyboard without an eager request', async () => {

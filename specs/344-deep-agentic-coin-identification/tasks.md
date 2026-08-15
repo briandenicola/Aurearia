@@ -172,15 +172,15 @@ be implemented as part of this MVP.
 
 **Independent Test**: Upload obverse+reverse from new intake, start Deep Analysis, verify a job id returns immediately, the fast lookup (if also requested) is unaffected, and the job/result are later retrievable.
 
-- [ ] T079 [P] [US1] Create `DeepAnalysisEntryButton.vue` (shared CTA) in `src/web/src/components/deep-identification/`
-- [ ] T080 [US1] Add a secondary "Deep Analysis" CTA to `src/web/src/pages/CoinLookupPage.vue`, wired to the new-intake images/notes without touching the existing fast-lookup call path
-- [ ] T081 [US1] Create `DeepAnalysisStartPanel.vue` in `src/web/src/components/deep-identification/` (obverse/reverse/hint upload, notes, provider-override checklist) for the new-intake case
-- [ ] T082 [US1] Add `createDeepIdentificationJob` client wrapper + types to `src/web/src/api/client.ts` and `src/web/src/types/index.ts`
-- [ ] T083 [US1] Add route `/deep-analysis/:jobId?` to `src/web/src/router/index.ts` and create a thin `src/web/src/pages/DeepAnalysisPage.vue` shell (fetches job on mount; child components stubbed until later phases)
-- [ ] T084 [US1] Create `src/web/src/composables/useDeepIdentification.ts` (job lifecycle: start/get/list)
-- [ ] T085 [P] [US1] Vitest: `DeepAnalysisStartPanel` validation — missing obverse/reverse blocks submit with a specific message; hint-count cap enforced client-side (server remains authoritative)
-- [ ] T086 [P] [US1] Vitest: fast-lookup path on `CoinLookupPage.vue` is unaffected when the Deep Analysis CTA is not used (no extra network calls, no job created)
-- [ ] T087 [US1] Add a Playwright workflow spec in `src/web/e2e/workflows/`: upload obverse+reverse from new intake, click Deep Analysis, verify a job id returns and the page navigates to `/deep-analysis/:jobId`
+- [X] T079 [P] [US1] Create `DeepAnalysisEntryButton.vue` (shared CTA) in `src/web/src/components/deep-identification/`
+- [X] T080 [US1] Add a secondary "Deep Analysis" CTA to `src/web/src/pages/CoinLookupPage.vue`, wired to the new-intake images/notes without touching the existing fast-lookup call path
+- [X] T081 [US1] Create `DeepAnalysisStartPanel.vue` in `src/web/src/components/deep-identification/` (obverse/reverse/hint upload, notes, provider-override checklist) for the new-intake case
+- [X] T082 [US1] Add `createDeepIdentificationJob` client wrapper + types to `src/web/src/api/client.ts` and `src/web/src/types/index.ts`
+- [X] T083 [US1] Add route `/deep-analysis/:jobId?` to `src/web/src/router/index.ts` and create a thin `src/web/src/pages/DeepAnalysisPage.vue` shell (fetches job on mount; child components stubbed until later phases)
+- [X] T084 [US1] Create `src/web/src/composables/useDeepIdentification.ts` (job lifecycle: start/get/list)
+- [X] T085 [P] [US1] Vitest: `DeepAnalysisStartPanel` validation — missing obverse/reverse blocks submit with a specific message; hint-count cap enforced client-side (server remains authoritative)
+- [X] T086 [P] [US1] Vitest: fast-lookup path on `CoinLookupPage.vue` is unaffected when the Deep Analysis CTA is not used (no extra network calls, no job created)
+- [X] T087 [US1] Add a Playwright workflow spec in `src/web/e2e/workflows/`: upload obverse+reverse from new intake, click Deep Analysis, verify a job id returns and the page navigates to `/deep-analysis/:jobId`
 
 **Checkpoint**: US1 independently testable end-to-end (new-intake entry, job accepted, fast path unaffected).
 

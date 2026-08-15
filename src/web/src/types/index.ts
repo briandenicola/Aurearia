@@ -1885,6 +1885,74 @@ export interface MarketSignal {
   sources?: string[]
 }
 
+// Deep Agentic Coin Identification (344-deep-agentic-coin-identification).
+// Contract anchor: specs/344-deep-agentic-coin-identification/contracts/deep-identification.openapi.yaml
+export type DeepProviderId = 'nomisma' | 'numista' | 'ngc' | 'ocre' | 'rpc'
+export type DeepJobStatus = 'queued' | 'running' | 'partial' | 'completed' | 'failed' | 'cancelled'
+export type DeepJobSource = 'intake' | 'saved_coin'
+export type DeepProviderStatus =
+  | 'pending'
+  | 'running'
+  | 'contributed'
+  | 'no_match'
+  | 'failed'
+  | 'timed_out'
+  | 'skipped'
+  | 'not_automated'
+  | 'unavailable'
+
+export interface DeepJob {
+  id: number
+  coinId?: number | null
+  source: DeepJobSource
+  status: DeepJobStatus
+  partialSuccess: boolean
+  selectedProviders?: DeepProviderId[]
+  requestedProviders?: DeepProviderId[]
+  retryOfJobId?: number | null
+  cancelRequested: boolean
+  lastSeq: number
+  eventsAvailable: boolean
+  failureCode?: string
+  failureMessage?: string
+  appliedCoinId?: number | null
+  appliedDraftId?: number | null
+  appliedAt?: string | null
+  startedAt?: string | null
+  completedAt?: string | null
+  expiresAt: string
+  createdAt: string
+}
+
+export interface DeepJobEnvelope {
+  job: DeepJob
+  reused?: boolean
+  report?: unknown
+  proposal?: unknown
+}
+
+export interface DeepJobListResponse {
+  jobs: DeepJob[]
+  nextCursor?: string
+}
+
+export interface CreateDeepIdentificationJobInput {
+  coinId?: number
+  obverseImage?: File | null
+  reverseImage?: File | null
+  hintImages?: File[]
+  notes?: string
+  providers?: DeepProviderId[]
+}
+
+export interface ListDeepIdentificationJobsParams {
+  coinId?: number
+  activeOnly?: boolean
+  status?: DeepJobStatus
+  limit?: number
+  cursor?: string
+}
+
 export interface CalendarEventDetail {
   id: number
   title: string
