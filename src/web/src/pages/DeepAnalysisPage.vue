@@ -39,6 +39,24 @@
             :cancelling="deep.cancelling.value"
             @cancel="onCancel"
           />
+
+          <template v-if="isTerminal && deep.report.value">
+            <DeepReportPanel :report="deep.report.value" />
+          </template>
+
+          <template v-if="isTerminal && deep.proposal.value && !job.appliedAt">
+            <DeepProposalEditor
+              :proposal="deep.proposal.value"
+              :applying="deep.applying.value"
+              @update-field="onUpdateProposalField"
+              @confirm="onApplyProposal"
+            />
+            <p v-if="applyError" role="alert" class="text-body text-byzantine">{{ applyError }}</p>
+          </template>
+
+          <p v-else-if="job.appliedAt" class="text-body text-text-secondary" role="status">
+            Applied on {{ new Date(job.appliedAt).toLocaleString() }}.
+          </p>
         </section>
       </template>
     </div>
@@ -46,13 +64,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { Search } from 'lucide-vue-next'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import DeepAnalysisProgressTimeline from '@/components/deep-identification/DeepAnalysisProgressTimeline.vue'
+import DeepReportPanel from '@/components/deep-identification/DeepReportPanel.vue'
+import DeepProposalEditor from '@/components/deep-identification/DeepProposalEditor.vue'
 import { useDeepIdentification } from '@/composables/useDeepIdentification'
 import { useDeepIdentificationStream } from '@/composables/useDeepIdentificationStream'
+import type { DeepApplyTarget, DeepProposalFieldEdit } from '@/types'
 
 const route = useRoute()
 const jobId = computed(() => {
@@ -84,6 +105,25 @@ async function onCancel() {
   await deep.cancel(jobId.value)
 }
 
+const isTerminal = computed(() => terminalStatus.value === 'completed' || terminalStatus.value === 'partial')
+
+const applyError = ref('')
+
+async function onUpdateProposalField(name: string, edit: DeepProposalFieldEdit) {
+  if (jobId.value === null) return
+  await deep.updateProposalField(jobId.value, name, edit)
+}
+
+async function onApplyProposal() {
+  if (jobId.value === null || !job.value) return
+  applyError.value = ''
+  const target: DeepApplyTarget = job.value.source === 'saved_coin' ? 'coin' : 'draft'
+  const result = await deep.applyProposal(jobId.value, { target })
+  if (!result) {
+    applyError.value = deep.error.value || 'Unable to apply the Deep Analysis proposal.'
+  }
+}
+
 // Resume-on-mount (T101): reconnect from the last durably-seen seq for
 // this jobId so a page reload or remount never re-fetches events already
 // processed. Storage is keyed per-jobId and cleared once the job reaches
@@ -107,6 +147,15 @@ watch(() => stream.lastSeq.value, (seq) => {
 watch(() => stream.ended.value, (ended) => {
   if (ended && jobId.value !== null) {
     sessionStorage.removeItem(storageKey(jobId.value))
+  }
+})
+
+// Once the SSE stream reports a terminal frame, re-fetch the job snapshot
+// (T121): only the plain GET response carries the synthesized report and
+// proposal, so the terminal frame alone is not enough to render them.
+watch(() => stream.terminal.value, async (terminal) => {
+  if (terminal && jobId.value !== null) {
+    await refresh(jobId.value)
   }
 })
 

@@ -1,0 +1,120 @@
+<template>
+  <section class="grid gap-4" aria-label="Deep Analysis proposal">
+    <p class="m-0 text-sm text-text-secondary">
+      Review each proposed field. Nothing is saved to your collection until you confirm.
+    </p>
+    <ul class="m-0 grid gap-3 p-0" style="list-style: none;">
+      <li
+        v-for="name in fieldNames"
+        :key="name"
+        class="grid gap-2 rounded-sm border border-border-subtle bg-card p-3"
+      >
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <span class="text-sm font-semibold uppercase tracking-[0.04em] text-text-primary">{{ fieldLabel(name) }}</span>
+          <span v-if="entryOf(name).ownerEdited" class="text-xs font-semibold uppercase tracking-[0.05em] text-byzantine">
+            Edited by you
+          </span>
+          <span v-else class="text-xs font-semibold uppercase tracking-[0.05em] text-gold">AI proposed</span>
+        </div>
+
+        <p class="m-0 text-sm text-text-secondary">
+          AI value: <span class="font-medium text-text-primary">{{ displayValue(entryOf(name).proposed) }}</span>
+        </p>
+
+        <label class="grid gap-1 text-sm text-text-secondary" :for="`deep-proposal-field-${name}`">
+          Your value
+          <input
+            :id="`deep-proposal-field-${name}`"
+            type="text"
+            class="rounded-sm border border-border-subtle bg-background px-2 py-1 text-text-primary"
+            :value="ownerValue(name)"
+            @input="onOwnerValueInput(name, $event)"
+          >
+        </label>
+
+        <div class="flex items-center gap-2" role="group" :aria-label="`${fieldLabel(name)} decision`">
+          <button
+            type="button"
+            class="rounded-full border px-3 py-1 text-sm font-medium transition-colors duration-150"
+            :class="entryOf(name).accepted === true ? 'border-gold bg-gold text-white' : 'border-border-subtle text-text-secondary'"
+            :aria-pressed="entryOf(name).accepted === true"
+            @click="setAccepted(name, true)"
+          >
+            Accept
+          </button>
+          <button
+            type="button"
+            class="rounded-full border px-3 py-1 text-sm font-medium transition-colors duration-150"
+            :class="entryOf(name).accepted === false ? 'border-byzantine bg-byzantine text-white' : 'border-border-subtle text-text-secondary'"
+            :aria-pressed="entryOf(name).accepted === false"
+            @click="setAccepted(name, false)"
+          >
+            Reject
+          </button>
+        </div>
+      </li>
+    </ul>
+
+    <button
+      type="button"
+      class="justify-self-start rounded-full border border-gold bg-gold px-5 py-2 text-sm font-semibold text-white transition-opacity duration-150 disabled:cursor-not-allowed disabled:opacity-50"
+      :disabled="confirmDisabled"
+      @click="$emit('confirm')"
+    >
+      {{ applying ? 'Applying…' : 'Confirm and apply' }}
+    </button>
+  </section>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import type { DeepProposal, DeepProposalFieldEntry } from '@/types'
+
+const props = defineProps<{
+  proposal: DeepProposal
+  applying?: boolean
+}>()
+
+const emit = defineEmits<{
+  (e: 'update-field', name: string, edit: { ownerValue?: unknown; accepted?: boolean | null }): void
+  (e: 'confirm'): void
+}>()
+
+const emptyEntry: DeepProposalFieldEntry = { proposed: null, ownerEdited: false, ownerValue: null, accepted: null }
+
+const fields = computed(() => props.proposal.fields)
+const fieldNames = computed(() => Object.keys(props.proposal.fields).sort())
+
+function entryOf(name: string): DeepProposalFieldEntry {
+  return fields.value[name] ?? emptyEntry
+}
+
+const confirmDisabled = computed(() => {
+  if (props.applying) return true
+  return !fieldNames.value.some((name) => entryOf(name).accepted === true)
+})
+
+function fieldLabel(name: string): string {
+  return name.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())
+}
+
+function displayValue(value: unknown): string {
+  if (value === null || value === undefined) return '—'
+  return String(value)
+}
+
+function ownerValue(name: string): string {
+  const entry = entryOf(name)
+  const value = entry.ownerEdited ? entry.ownerValue : entry.proposed
+  return value === null || value === undefined ? '' : String(value)
+}
+
+function onOwnerValueInput(name: string, event: Event) {
+  const target = event.target as HTMLInputElement
+  emit('update-field', name, { ownerValue: target.value })
+}
+
+function setAccepted(name: string, accepted: boolean) {
+  emit('update-field', name, { accepted })
+}
+</script>

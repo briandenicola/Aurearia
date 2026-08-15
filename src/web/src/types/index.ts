@@ -1924,11 +1924,65 @@ export interface DeepJob {
   createdAt: string
 }
 
+export interface DeepReportCoverage {
+  provider: DeepProviderId
+  status: DeepProviderStatus
+  note?: string
+  linkOut?: string | null
+}
+
+export interface DeepClaim {
+  field: string
+  value: string
+  confidence?: number
+  citation: string
+  excerpt?: string
+}
+
+export interface DeepReportDisagreement {
+  field: string
+  claims: DeepClaim[]
+  resolution: 'unresolved' | 'preferred'
+}
+
+export interface DeepReportAttribution {
+  provider: DeepProviderId
+  text: string
+  identifier?: string | null
+}
+
+export interface DeepReport {
+  schemaVersion: number
+  narrative: string
+  coverage: DeepReportCoverage[]
+  disagreements?: DeepReportDisagreement[]
+  unresolvedQuestions?: string[]
+  attributions?: DeepReportAttribution[]
+  partialSuccess: boolean
+  generatedAt: string
+}
+
+export interface DeepProposalFieldEntry {
+  proposed: unknown
+  confidence?: number
+  evidence?: DeepClaim[]
+  ownerEdited: boolean
+  ownerValue: unknown
+  accepted: boolean | null
+}
+
+export interface DeepProposal {
+  schemaVersion: number
+  targetCoinId?: number | null
+  fields: Record<string, DeepProposalFieldEntry>
+  sourceReportGeneratedAt?: string
+}
+
 export interface DeepJobEnvelope {
   job: DeepJob
   reused?: boolean
-  report?: unknown
-  proposal?: unknown
+  report?: DeepReport | null
+  proposal?: DeepProposal | null
 }
 
 export interface DeepJobListResponse {
@@ -1943,6 +1997,30 @@ export interface CreateDeepIdentificationJobInput {
   hintImages?: File[]
   notes?: string
   providers?: DeepProviderId[]
+}
+
+export interface DeepProposalFieldEdit {
+  ownerValue?: unknown
+  accepted?: boolean | null
+}
+
+export interface UpdateDeepIdentificationProposalInput {
+  fields: Record<string, DeepProposalFieldEdit>
+}
+
+export type DeepApplyTarget = 'draft' | 'coin'
+
+export interface ApplyDeepIdentificationProposalInput {
+  target: DeepApplyTarget
+  fields?: string[]
+}
+
+export interface DeepApplyResult {
+  jobId: number
+  draftId?: number | null
+  coinId?: number | null
+  appliedFields: string[]
+  appliedAt: string
 }
 
 export interface ListDeepIdentificationJobsParams {

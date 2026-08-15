@@ -1531,6 +1531,35 @@ definitions:
       prompt:
         type: string
     type: object
+  handlers.deepApplyRequest:
+    properties:
+      fields:
+        items:
+          type: string
+        type: array
+      target:
+        enum:
+        - draft
+        - coin
+        type: string
+    required:
+    - target
+    type: object
+  handlers.deepApplyResponse:
+    properties:
+      appliedAt:
+        type: string
+      appliedFields:
+        items:
+          type: string
+        type: array
+      coinId:
+        type: integer
+      draftId:
+        type: integer
+      jobId:
+        type: integer
+    type: object
   handlers.deepJobDTO:
     properties:
       appliedAt:
@@ -1601,6 +1630,20 @@ definitions:
         type: array
       nextCursor:
         type: string
+    type: object
+  handlers.deepProposalPatchRequest:
+    properties:
+      fields:
+        additionalProperties:
+          properties:
+            accepted:
+              type: boolean
+            ownerValue:
+              items:
+                type: integer
+              type: array
+          type: object
+        type: object
     type: object
   handlers.deepRetryRequest:
     properties:
@@ -9925,6 +9968,50 @@ paths:
       summary: Get a Deep Analysis job
       tags:
       - Deep Identification
+  /deep-identification/jobs/{id}/apply:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Apply target and optional field subset
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.deepApplyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.deepApplyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Confirm a Deep Analysis proposal through the existing write path
+      tags:
+      - Deep Identification
   /deep-identification/jobs/{id}/cancel:
     post:
       parameters:
@@ -9993,6 +10080,52 @@ paths:
       security:
       - BearerAuth: []
       summary: Stream a Deep Analysis job's events (SSE)
+      tags:
+      - Deep Identification
+  /deep-identification/jobs/{id}/proposal:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Field edits
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.deepProposalPatchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: integer
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Save owner edits and per-field decisions on a Deep Analysis proposal
       tags:
       - Deep Identification
   /deep-identification/jobs/{id}/retry:

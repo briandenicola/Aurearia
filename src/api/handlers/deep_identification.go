@@ -24,12 +24,21 @@ type DeepIdentificationHandler struct {
 	service     *services.DeepIdentificationService
 	settingsSvc *services.SettingsService
 	logger      *services.Logger
+	proposalSvc *services.DeepIdentificationProposalService
 }
 
 // NewDeepIdentificationHandler constructs the handler, following the
 // repo -> service -> handler DI pattern used elsewhere (main.go:246-249).
 func NewDeepIdentificationHandler(service *services.DeepIdentificationService, settingsSvc *services.SettingsService, logger *services.Logger) *DeepIdentificationHandler {
 	return &DeepIdentificationHandler{service: service, settingsSvc: settingsSvc, logger: logger}
+}
+
+// WithProposalSupport wires in the confirm-gated report->write bridge
+// (US4). Proposal/apply endpoints 500 if this was never called - every
+// production wiring in main.go calls it immediately after construction.
+func (h *DeepIdentificationHandler) WithProposalSupport(proposalSvc *services.DeepIdentificationProposalService) *DeepIdentificationHandler {
+	h.proposalSvc = proposalSvc
+	return h
 }
 
 // deepProviderIDs is the closed vocabulary accepted for a provider
@@ -570,5 +579,157 @@ func (h *DeepIdentificationHandler) respondDeepJobError(c *gin.Context, err erro
 	default:
 		h.logger.Error("deep-identification", "Deep Analysis job request failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process Deep Analysis job request"})
+	}
+}
+
+// deepProposalPatchRequest is the PATCH .../proposal request body.
+type deepProposalPatchRequest struct {
+	Fields map[string]struct {
+		OwnerValue json.RawMessage `json:"ownerValue"`
+		Accepted   *bool           `json:"accepted"`
+	} `json:"fields"`
+}
+
+// UpdateProposal saves owner edits/accept-reject decisions on a job's
+// proposal (T110). It never writes coin/draft data - only the job's own
+// ProposalJSON column (FR-031/FR-032).
+//
+//	@Summary		Save owner edits and per-field decisions on a Deep Analysis proposal
+//	@Tags			Deep Identification
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path	int							true	"Job ID"
+//	@Param			request	body	deepProposalPatchRequest	true	"Field edits"
+//	@Success		200	{object}	json.RawMessage
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Failure		409	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/deep-identification/jobs/{id}/proposal [patch]
+func (h *DeepIdentificationHandler) UpdateProposal(c *gin.Context) {
+	userID := c.GetUint("userId")
+	jobID, ok := parseID(c, "id")
+	if !ok {
+		return
+	}
+	var req deepProposalPatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+	edits := make(map[string]services.DeepProposalFieldEdit, len(req.Fields))
+	for name, raw := range req.Fields {
+		edit := services.DeepProposalFieldEdit{Accepted: raw.Accepted}
+		if len(raw.OwnerValue) > 0 && string(raw.OwnerValue) != "null" {
+			var v any
+			if err := json.Unmarshal(raw.OwnerValue, &v); err != nil {
+				respondError(c, http.StatusBadRequest, "Invalid ownerValue for field "+name, err)
+				return
+			}
+			edit.OwnerValue = v
+			edit.OwnerValueSet = true
+		} else if len(raw.OwnerValue) > 0 {
+			edit.OwnerValueSet = true
+			edit.OwnerValue = nil
+		}
+		edits[name] = edit
+	}
+	doc, err := h.proposalSvc.UpdateProposal(jobID, userID, edits)
+	if err != nil {
+		h.respondDeepProposalError(c, err)
+		return
+	}
+	encoded, err := json.Marshal(doc)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "Failed to encode proposal", err)
+		return
+	}
+	c.Data(http.StatusOK, "application/json", encoded)
+}
+
+// deepApplyRequest is the POST .../apply request body.
+type deepApplyRequest struct {
+	Target string   `json:"target" binding:"required,oneof=draft coin"`
+	Fields []string `json:"fields,omitempty"`
+}
+
+// deepApplyResponse mirrors the `apply` 200 response.
+type deepApplyResponse struct {
+	JobID         uint      `json:"jobId"`
+	DraftID       *uint     `json:"draftId,omitempty"`
+	CoinID        *uint     `json:"coinId,omitempty"`
+	AppliedFields []string  `json:"appliedFields"`
+	AppliedAt     time.Time `json:"appliedAt"`
+}
+
+// ApplyProposal confirms the proposal through an existing Go-owned write
+// path (T111, FR-031/FR-033): "draft" seeds a QuickCaptureDraft (existing
+// promote flow finishes the job); "coin" patches the saved coin via
+// CoinService.UpdateCoinWithFields(source="deep_identification"). This
+// handler performs no write of its own.
+//
+//	@Summary		Confirm a Deep Analysis proposal through the existing write path
+//	@Tags			Deep Identification
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path	int					true	"Job ID"
+//	@Param			request	body	deepApplyRequest	true	"Apply target and optional field subset"
+//	@Success		200	{object}	deepApplyResponse
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
+//	@Failure		409	{object}	ErrorResponse
+//	@Security		BearerAuth
+//	@Router			/deep-identification/jobs/{id}/apply [post]
+func (h *DeepIdentificationHandler) ApplyProposal(c *gin.Context) {
+	userID := c.GetUint("userId")
+	jobID, ok := parseID(c, "id")
+	if !ok {
+		return
+	}
+	var req deepApplyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+	result, err := h.proposalSvc.Apply(jobID, userID, req.Target, req.Fields)
+	if err != nil {
+		h.respondDeepProposalError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, deepApplyResponse{
+		JobID:         result.JobID,
+		DraftID:       result.DraftID,
+		CoinID:        result.CoinID,
+		AppliedFields: result.AppliedFields,
+		AppliedAt:     result.AppliedAt,
+	})
+}
+
+// respondDeepProposalError maps DeepIdentificationProposalService errors to
+// the HTTP status/code vocabulary in
+// contracts/deep-identification.openapi.yaml (proposal/apply endpoints).
+func (h *DeepIdentificationHandler) respondDeepProposalError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, services.ErrDeepProposalNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "Deep Analysis job not found"})
+	case errors.Is(err, services.ErrDeepProposalAlreadyApplied):
+		c.JSON(http.StatusConflict, gin.H{"error": "Proposal has already been applied", "code": "already_applied"})
+	case errors.Is(err, services.ErrDeepProposalSourceMissing):
+		c.JSON(http.StatusConflict, gin.H{"error": "Source coin no longer exists", "code": "source_coin_missing"})
+	case errors.Is(err, services.ErrDeepProposalNotReady):
+		c.JSON(http.StatusConflict, gin.H{"error": "Job has no proposal to edit or apply yet"})
+	case errors.Is(err, services.ErrDeepProposalTargetMismatch):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Apply target does not match this job's source"})
+	case errors.Is(err, services.ErrDeepProposalFieldNotAllowed):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, services.ErrDeepProposalNoAcceptedFields):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No accepted fields to apply"})
+	case repository.IsRecordNotFound(err):
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
+	default:
+		h.logger.Error("deep-identification", "Deep Analysis proposal request failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process Deep Analysis proposal request"})
 	}
 }

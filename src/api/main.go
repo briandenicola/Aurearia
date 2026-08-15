@@ -496,13 +496,16 @@ func main() {
 		protected.GET("/ollama-status", analysisHandler.OllamaStatus)
 		protected.GET("/ai-status", analysisHandler.AIStatus)
 
-		deepIdentificationHandler := handlers.NewDeepIdentificationHandler(deepIdentificationSvc, settingsSvc, logger)
+		deepIdentificationProposalSvc := services.NewDeepIdentificationProposalService(deepIdentificationRepo, coinRepo, coinSvc, quickCaptureSvc)
+		deepIdentificationHandler := handlers.NewDeepIdentificationHandler(deepIdentificationSvc, settingsSvc, logger).WithProposalSupport(deepIdentificationProposalSvc)
 		protected.POST("/deep-identification/jobs", writeRateLimit, deepIdentificationHandler.CreateJob)
 		protected.GET("/deep-identification/jobs", deepIdentificationHandler.ListJobs)
 		protected.GET("/deep-identification/jobs/:id", deepIdentificationHandler.GetJob)
 		protected.GET("/deep-identification/jobs/:id/events", deepIdentificationHandler.StreamEvents)
 		protected.POST("/deep-identification/jobs/:id/cancel", writeRateLimit, deepIdentificationHandler.Cancel)
 		protected.POST("/deep-identification/jobs/:id/retry", writeRateLimit, deepIdentificationHandler.Retry)
+		protected.PATCH("/deep-identification/jobs/:id/proposal", writeRateLimit, deepIdentificationHandler.UpdateProposal)
+		protected.POST("/deep-identification/jobs/:id/apply", writeRateLimit, deepIdentificationHandler.ApplyProposal)
 
 		// Coin of the Day (user-facing)
 		coinOfDayHandler := handlers.NewCoinOfDayHandler(featuredCoinRepo, logger)

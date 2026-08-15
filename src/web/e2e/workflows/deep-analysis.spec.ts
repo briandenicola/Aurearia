@@ -96,3 +96,95 @@ test('T108: observes streamed progress and can cancel a running Deep Analysis jo
 
   await expect(page.getByLabel('Deep Analysis progress').getByText('cancelled')).toBeVisible()
 })
+
+test('T124: a partial-success terminal job shows an editable proposal that only applies to a new draft on explicit confirm', async ({ page }) => {
+  const state = await installWorkflowApiMocks(page)
+  const jobId = 6001
+  state.deepIdentificationJobs.push({
+    id: jobId,
+    notes: '',
+    providers: '',
+    status: 'partial',
+    source: 'intake',
+    report: {
+      schemaVersion: 1,
+      narrative: 'Nomisma and Numista agree this is a Trajan denarius; NGC could not be automated.',
+      coverage: [
+        { provider: 'nomisma', status: 'contributed' },
+        { provider: 'numista', status: 'contributed' },
+        { provider: 'ngc', status: 'not_automated', note: 'Link out only' },
+        { provider: 'ocre', status: 'not_automated' },
+        { provider: 'rpc', status: 'unavailable' },
+      ],
+      partialSuccess: true,
+      generatedAt: '2030-01-01T00:00:00Z',
+    },
+    proposal: {
+      ruler: { proposed: 'Trajan', ownerEdited: false, ownerValue: null, accepted: null },
+      denomination: { proposed: 'Denarius', ownerEdited: false, ownerValue: null, accepted: null },
+    },
+  })
+
+  await page.goto(`/deep-analysis/${jobId}`)
+  await expect(page.getByRole('heading', { name: `Job #${jobId}` })).toBeVisible()
+
+  // Partial-success banner and coverage must remain visible alongside the
+  // editable proposal - a partial result never hides provider status.
+  await expect(page.getByText('Partial results')).toBeVisible()
+  await expect(page.getByText('Not automated').first()).toBeVisible()
+  await expect(page.getByText('Unavailable')).toBeVisible()
+
+  const confirmButton = page.getByRole('button', { name: 'Confirm and apply' })
+  await expect(confirmButton).toBeDisabled()
+
+  // Accept only the ruler field; the button stays disabled until a
+  // decision is made, then becomes available.
+  await page.locator('#deep-proposal-field-ruler').fill('Trajan (edited)')
+  await page.getByRole('group', { name: /Ruler decision/ }).getByRole('button', { name: 'Accept' }).click()
+  await expect(confirmButton).toBeEnabled()
+
+  await confirmButton.click()
+
+  expect(state.deepIdentificationApplies).toHaveLength(1)
+  expect(state.deepIdentificationApplies[0]).toMatchObject({ id: jobId, target: 'draft' })
+  await expect(page.getByText(/Applied on/)).toBeVisible()
+})
+
+test('T124: a completed terminal job for a saved coin applies proposal edits through the existing coin-update path only', async ({ page }) => {
+  const state = await installWorkflowApiMocks(page)
+  const coinId = state.coins[0]!.id
+  const jobId = 6002
+  state.deepIdentificationJobs.push({
+    id: jobId,
+    notes: '',
+    providers: '',
+    status: 'completed',
+    source: 'saved_coin',
+    report: {
+      schemaVersion: 1,
+      narrative: 'All automated providers agree on the attribution for this saved coin.',
+      coverage: [
+        { provider: 'nomisma', status: 'contributed' },
+        { provider: 'numista', status: 'contributed' },
+      ],
+      partialSuccess: false,
+      generatedAt: '2030-01-01T00:00:00Z',
+    },
+    proposal: {
+      mint: { proposed: 'Rome', ownerEdited: false, ownerValue: null, accepted: null },
+    },
+  })
+
+  await page.goto(`/deep-analysis/${jobId}`)
+  await expect(page.getByRole('heading', { name: `Job #${jobId}` })).toBeVisible()
+
+  await page.getByRole('group', { name: /Mint decision/ }).getByRole('button', { name: 'Accept' }).click()
+  await page.getByRole('button', { name: 'Confirm and apply' }).click()
+
+  expect(state.deepIdentificationApplies).toHaveLength(1)
+  expect(state.deepIdentificationApplies[0]).toMatchObject({ id: jobId, target: 'coin' })
+  // Principle IV: applying a Deep Analysis proposal must never bypass the
+  // existing coin-update path with an ad-hoc write.
+  expect(state.updatePayloads.filter((entry) => entry.id === coinId)).toHaveLength(0)
+  await expect(page.getByText(/Applied on/)).toBeVisible()
+})

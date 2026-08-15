@@ -235,22 +235,22 @@ be implemented as part of this MVP.
 
 **Independent Test**: Complete a run (including one with partial provider failures), verify the report/proposal contents, edit a field, confirm, and verify the write happens only through the existing Quick Capture/coin-edit paths.
 
-- [ ] T109 [US4] Create `src/api/services/deep_identification_proposal.go` — field allowlist (only fields writable via `CoinService.UpdateCoinWithFields`/`QuickCaptureDraft` payloads), owner-edit tracking, apply routing (data-model.md §7)
-- [ ] T110 [US4] Add `PATCH /deep-identification/jobs/{id}/proposal` to `src/api/handlers/deep_identification.go` — owner edits `ProposalJSON` fields (`ownerEdited`/`ownerValue`/`accepted`); job stays terminal; coin untouched
-- [ ] T111 [US4] Add `POST /deep-identification/jobs/{id}/apply` to `src/api/handlers/deep_identification.go` — intake path seeds/patches a `QuickCaptureDraft` (existing promote flow) via `deep_identification_proposal.go`; saved-coin path calls `CoinService.UpdateCoinWithFields(source="deep_identification")`; sets `AppliedCoinID`/`AppliedDraftID`/`AppliedAt`; rejects already-applied (`409 already_applied`) and a deleted source coin (`409 source_coin_missing`) per data-model.md §7.1
-- [ ] T112 [US4] Wire the proposal/apply routes into `src/api/main.go` behind `writeRateLimit`
-- [ ] T113 [P] [US4] Add a test to `src/api/services/deep_identification_proposal_test.go`: the field allowlist rejects any field not writable via `CoinService`/`QuickCaptureDraft` (no silent new write surface)
-- [ ] T114 [P] [US4] Add a test proving apply routes exclusively through `QuickCaptureService`/`CoinService` fakes — no direct coin write exists anywhere in the deep-identification package (Principle IV / FR-033)
-- [ ] T115 [P] [US4] Add a test: apply on a coin deleted mid-run returns `409 source_coin_missing`; the report remains readable
-- [ ] T116 [P] [US4] Add a test: a second apply attempt returns `409 already_applied` unless a fresh report cycle exists
-- [ ] T117 [P] [US4] Add a test: every terminal `completed`/`partial` job has `narrative`/`coverage`/`disagreements`/`unresolvedQuestions` populated per data-model.md §6, and `partial` jobs set `PartialSuccess=true`
-- [ ] T118 [US4] Add `getDeepIdentificationJob`/`patchProposal`/`applyProposal` client wrappers + types to `src/web/src/api/client.ts` and `src/web/src/types/index.ts`
-- [ ] T119 [US4] Create `DeepReportPanel.vue` in `src/web/src/components/deep-identification/` (narrative, disagreements, citations, coverage summary)
-- [ ] T120 [US4] Create `DeepProposalEditor.vue` in `src/web/src/components/deep-identification/` (per-field accept/edit, AI-vs-owner visual distinction, confirm action)
-- [ ] T121 [US4] Wire `DeepAnalysisPage.vue` to render `DeepReportPanel`+`DeepProposalEditor` once the job is terminal, calling apply only on explicit confirm
-- [ ] T122 [P] [US4] Vitest: `DeepProposalEditor` — per-field accept/reject, owner edit visibly distinct from the AI value, confirm disabled until at least one explicit decision is made, nothing written without confirm
-- [ ] T123 [P] [US4] Vitest: `DeepReportPanel` renders the partial-success banner and disagreements without hiding any provider status
-- [ ] T124 [US4] Add a Playwright workflow spec: complete a run with one provider forced to fail → verify partial banner, editable proposal, apply creates/updates only after explicit confirm (both new-intake→draft and saved-coin→update variants)
+- [X] T109 [US4] Create `src/api/services/deep_identification_proposal.go` — field allowlist (only fields writable via `CoinService.UpdateCoinWithFields`/`QuickCaptureDraft` payloads), owner-edit tracking, apply routing (data-model.md §7)
+- [X] T110 [US4] Add `PATCH /deep-identification/jobs/{id}/proposal` to `src/api/handlers/deep_identification.go` — owner edits `ProposalJSON` fields (`ownerEdited`/`ownerValue`/`accepted`); job stays terminal; coin untouched
+- [X] T111 [US4] Add `POST /deep-identification/jobs/{id}/apply` to `src/api/handlers/deep_identification.go` — intake path seeds/patches a `QuickCaptureDraft` (existing promote flow) via `deep_identification_proposal.go`; saved-coin path calls `CoinService.UpdateCoinWithFields(source="deep_identification")`; sets `AppliedCoinID`/`AppliedDraftID`/`AppliedAt`; rejects already-applied (`409 already_applied`) and a deleted source coin (`409 source_coin_missing`) per data-model.md §7.1
+- [X] T112 [US4] Wire the proposal/apply routes into `src/api/main.go` behind `writeRateLimit`
+- [X] T113 [P] [US4] Add a test to `src/api/services/deep_identification_proposal_test.go`: the field allowlist rejects any field not writable via `CoinService`/`QuickCaptureDraft` (no silent new write surface)
+- [X] T114 [P] [US4] Add a test proving apply routes exclusively through `QuickCaptureService`/`CoinService` fakes — no direct coin write exists anywhere in the deep-identification package (Principle IV / FR-033)
+- [X] T115 [P] [US4] Add a test: apply on a coin deleted mid-run returns `409 source_coin_missing`; the report remains readable
+- [X] T116 [P] [US4] Add a test: a second apply attempt returns `409 already_applied` unless a fresh report cycle exists
+- [X] T117 [P] [US4] Add a test: every terminal `completed`/`partial` job has `narrative`/`coverage`/`disagreements`/`unresolvedQuestions` populated per data-model.md §6, and `partial` jobs set `PartialSuccess=true`
+- [X] T118 [US4] Add `getDeepIdentificationJob`/`patchProposal`/`applyProposal` client wrappers + types to `src/web/src/api/client.ts` and `src/web/src/types/index.ts`
+- [X] T119 [US4] Create `DeepReportPanel.vue` in `src/web/src/components/deep-identification/` (narrative, disagreements, citations, coverage summary)
+- [X] T120 [US4] Create `DeepProposalEditor.vue` in `src/web/src/components/deep-identification/` (per-field accept/edit, AI-vs-owner visual distinction, confirm action)
+- [X] T121 [US4] Wire `DeepAnalysisPage.vue` to render `DeepReportPanel`+`DeepProposalEditor` once the job is terminal, calling apply only on explicit confirm
+- [X] T122 [P] [US4] Vitest: `DeepProposalEditor` — per-field accept/reject, owner edit visibly distinct from the AI value, confirm disabled until at least one explicit decision is made, nothing written without confirm
+- [X] T123 [P] [US4] Vitest: `DeepReportPanel` renders the partial-success banner and disagreements without hiding any provider status
+- [X] T124 [US4] Add a Playwright workflow spec: complete a run with one provider forced to fail → verify partial banner, editable proposal, apply creates/updates only after explicit confirm (both new-intake→draft and saved-coin→update variants)
 
 **Checkpoint**: US4 independently testable (report/draft rendering, confirm-gated apply through existing write paths only, no silent writes, traceability via `AppliedAt`).
 

@@ -39,9 +39,11 @@ func deepTestPNGBytes(t *testing.T) []byte {
 }
 
 type deepHandlerTestDeps struct {
-	router *gin.Engine
-	db     *gorm.DB
-	svc    *services.DeepIdentificationService
+	router      *gin.Engine
+	db          *gorm.DB
+	svc         *services.DeepIdentificationService
+	coinRepo    *repository.CoinRepository
+	proposalSvc *services.DeepIdentificationProposalService
 }
 
 func setupDeepIdentificationHandlerTest(t *testing.T, userID uint, enabled bool) deepHandlerTestDeps {
@@ -53,9 +55,10 @@ func setupDeepIdentificationHandlerTest(t *testing.T, userID uint, enabled bool)
 		t.Fatalf("open db: %v", err)
 	}
 	if err := db.AutoMigrate(
-		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.AppSetting{},
+		&models.User{}, &models.Coin{}, &models.CoinImage{}, &models.CoinReference{}, &models.ValueSnapshot{}, &models.CoinJournal{}, &models.AppSetting{},
 		&models.DeepIdentificationJob{}, &models.DeepIdentificationEvent{},
 		&models.DeepIdentificationProviderRun{}, &models.DeepIdentificationArtifact{},
+		&models.QuickCaptureDraft{}, &models.QuickCaptureDraftImage{}, &models.QuickCaptureDraftReference{}, &models.DraftLifecycleEvent{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -75,7 +78,17 @@ func setupDeepIdentificationHandlerTest(t *testing.T, userID uint, enabled bool)
 	repo := repository.NewDeepIdentificationRepository(db)
 	svc := services.NewDeepIdentificationService(repo, imageRepo, imageSvc, settingsSvc, services.NewLogger(10), uploadDir)
 
-	handler := NewDeepIdentificationHandler(svc, settingsSvc, services.NewLogger(10))
+	coinRepo := repository.NewCoinRepository(db)
+	notifRepo := repository.NewNotificationRepository(db)
+	socialRepo := repository.NewSocialRepository(db)
+	userRepo := repository.NewUserRepository(db)
+	notifSvc := services.NewNotificationService(notifRepo, socialRepo, userRepo, services.NewPushoverService(settingsSvc, services.NewLogger(10)), services.NewLogger(10))
+	coinSvc := services.NewCoinService(coinRepo, notifSvc)
+	quickCaptureRepo := repository.NewQuickCaptureRepository(db)
+	quickCaptureSvc := services.NewQuickCaptureService(quickCaptureRepo, uploadDir).WithCoinValidation(coinSvc)
+	proposalSvc := services.NewDeepIdentificationProposalService(repo, coinRepo, coinSvc, quickCaptureSvc)
+
+	handler := NewDeepIdentificationHandler(svc, settingsSvc, services.NewLogger(10)).WithProposalSupport(proposalSvc)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Set("userId", userID)
@@ -87,8 +100,10 @@ func setupDeepIdentificationHandlerTest(t *testing.T, userID uint, enabled bool)
 	router.GET("/api/deep-identification/jobs/:id/events", handler.StreamEvents)
 	router.POST("/api/deep-identification/jobs/:id/cancel", handler.Cancel)
 	router.POST("/api/deep-identification/jobs/:id/retry", handler.Retry)
+	router.PATCH("/api/deep-identification/jobs/:id/proposal", handler.UpdateProposal)
+	router.POST("/api/deep-identification/jobs/:id/apply", handler.ApplyProposal)
 
-	return deepHandlerTestDeps{router: router, db: db, svc: svc}
+	return deepHandlerTestDeps{router: router, db: db, svc: svc, coinRepo: coinRepo, proposalSvc: proposalSvc}
 }
 
 // deepTestPNGVariant returns a valid PNG with a unique trailing marker byte

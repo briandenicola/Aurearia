@@ -4,9 +4,21 @@ import {
   getDeepIdentificationJob,
   cancelDeepIdentificationJob,
   retryDeepIdentificationJob,
+  patchDeepIdentificationProposal,
+  applyDeepIdentificationProposal,
   getApiErrorMessage,
 } from '@/api/client'
-import type { CreateDeepIdentificationJobInput, DeepJob, DeepJobEnvelope, DeepProviderId } from '@/types'
+import type {
+  ApplyDeepIdentificationProposalInput,
+  CreateDeepIdentificationJobInput,
+  DeepApplyResult,
+  DeepJob,
+  DeepJobEnvelope,
+  DeepProposal,
+  DeepProposalFieldEdit,
+  DeepProviderId,
+  DeepReport,
+} from '@/types'
 
 /**
  * Job-lifecycle composable for Deep Agentic Coin Identification (Feature 344).
@@ -15,10 +27,13 @@ import type { CreateDeepIdentificationJobInput, DeepJob, DeepJobEnvelope, DeepPr
  */
 export function useDeepIdentification() {
   const job = ref<DeepJob | null>(null)
+  const report = ref<DeepReport | null>(null)
+  const proposal = ref<DeepProposal | null>(null)
   const starting = ref(false)
   const loading = ref(false)
   const cancelling = ref(false)
   const retrying = ref(false)
+  const applying = ref(false)
   const error = ref('')
 
   async function start(input: CreateDeepIdentificationJobInput): Promise<DeepJob | null> {
@@ -42,6 +57,8 @@ export function useDeepIdentification() {
     try {
       const { data } = await getDeepIdentificationJob(jobId)
       job.value = data.job
+      report.value = data.report ?? null
+      proposal.value = data.proposal ?? null
       return data
     } catch (err) {
       error.value = getApiErrorMessage(err) || 'Unable to load Deep Analysis job.'
@@ -93,17 +110,84 @@ export function useDeepIdentification() {
     }
   }
 
+  /**
+   * Saves one field's owner edit/accept-reject decision (T121/T122). Never
+   * writes coin/draft data - only the job's own proposal (FR-031/FR-032).
+   * Applies an optimistic local update to `proposal` immediately, then
+   * reconciles with the server-confirmed document.
+   */
+  async function updateProposalField(jobId: number, name: string, edit: DeepProposalFieldEdit): Promise<DeepProposal | null> {
+    error.value = ''
+    const current = proposal.value
+    if (current) {
+      const existing = current.fields[name]
+      if (existing) {
+        const next: DeepProposal = {
+          ...current,
+          fields: {
+            ...current.fields,
+            [name]: {
+              ...existing,
+              ...(edit.ownerValue !== undefined ? { ownerValue: edit.ownerValue, ownerEdited: true } : {}),
+              ...(edit.accepted !== undefined ? { accepted: edit.accepted ?? null } : {}),
+            },
+          },
+        }
+        proposal.value = next
+      }
+    }
+    try {
+      const { data } = await patchDeepIdentificationProposal(jobId, { fields: { [name]: edit } })
+      proposal.value = data
+      return data
+    } catch (err) {
+      error.value = getApiErrorMessage(err) || 'Unable to save your proposal edit.'
+      return null
+    }
+  }
+
+  /**
+   * Confirms the proposal through the existing Go-owned write path
+   * (T121/T124): never called without an explicit user confirm action.
+   */
+  async function applyProposal(jobId: number, input: ApplyDeepIdentificationProposalInput): Promise<DeepApplyResult | null> {
+    applying.value = true
+    error.value = ''
+    try {
+      const { data } = await applyDeepIdentificationProposal(jobId, input)
+      if (job.value) {
+        job.value = {
+          ...job.value,
+          appliedCoinId: data.coinId ?? job.value.appliedCoinId,
+          appliedDraftId: data.draftId ?? job.value.appliedDraftId,
+          appliedAt: data.appliedAt,
+        }
+      }
+      return data
+    } catch (err) {
+      error.value = getApiErrorMessage(err) || 'Unable to apply the Deep Analysis proposal.'
+      return null
+    } finally {
+      applying.value = false
+    }
+  }
+
   return {
     job,
+    report,
+    proposal,
     starting,
     loading,
     cancelling,
     retrying,
+    applying,
     error,
     start,
     refresh,
     cancel,
     retry,
+    updateProposalField,
+    applyProposal,
   }
 }
 

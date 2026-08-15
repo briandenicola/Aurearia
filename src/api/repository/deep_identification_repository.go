@@ -250,6 +250,40 @@ func (r *DeepIdentificationRepository) SettleTerminal(jobID uint, expectedStatus
 	return won, err
 }
 
+// UpdateProposalJSON persists an owner-edited proposal document (T110). It
+// is guarded by applied_at IS NULL: editing a proposal after it has already
+// been applied is meaningless (the AI-vs-owner distinction it carries no
+// longer has anywhere left to flow), so the caller should treat 0 rows
+// affected as "already applied" rather than silently succeeding.
+func (r *DeepIdentificationRepository) UpdateProposalJSON(jobID, userID uint, proposalJSON string) (bool, error) {
+	result := r.db.Model(&models.DeepIdentificationJob{}).
+		Where("id = ? AND user_id = ? AND applied_at IS NULL", jobID, userID).
+		Update("proposal_json", proposalJSON)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+// ApplyJob performs the single conditional apply UPDATE (T111): WHERE
+// applied_at IS NULL, mirroring SettleTerminal's conditional-UPDATE race
+// guarantee (FR-019) for the sibling apply-once guarantee (FR-033). Only
+// one concurrent Apply call for a given job can ever win; the loser gets
+// RowsAffected == 0 and must report 409 already_applied.
+func (r *DeepIdentificationRepository) ApplyJob(jobID, userID uint, appliedCoinID, appliedDraftID *uint, appliedAt time.Time) (bool, error) {
+	result := r.db.Model(&models.DeepIdentificationJob{}).
+		Where("id = ? AND user_id = ? AND applied_at IS NULL", jobID, userID).
+		Updates(map[string]interface{}{
+			"applied_coin_id":  appliedCoinID,
+			"applied_draft_id": appliedDraftID,
+			"applied_at":       appliedAt,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
 // RecoverStaleJobs flips running jobs whose heartbeat is older than
 // staleAfter to failed:stale_restart, appending exactly one terminal event
 // per job (FR-012). It never leaves a job running forever across a process
