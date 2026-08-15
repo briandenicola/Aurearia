@@ -35,3 +35,29 @@ test('starting Deep Analysis from new intake requires both faces and navigates t
   await expect(page).toHaveURL(/\/deep-analysis\/\d+$/)
   await expect(page.getByRole('heading', { name: /Job #\d+/ })).toBeVisible()
 })
+
+test('starting Deep Analysis from a saved coin reuses existing images and never writes to the coin', async ({ page }) => {
+  const state = await installWorkflowApiMocks(page)
+  const coinId = state.coins[0]!.id
+
+  await page.goto(`/coin/${coinId}/actions`)
+  await expect(page.getByRole('heading', { name: 'Actions' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Deep Analysis' }).click()
+  await expect(page.getByRole('heading', { name: 'Deep Analysis' })).toBeVisible()
+
+  // Both faces already exist on the saved coin, so no upload inputs for
+  // obverse/reverse are shown - submit is immediately available.
+  await expect(page.getByText("Using this coin's existing obverse photo")).toBeVisible()
+  await expect(page.getByText("Using this coin's existing reverse photo")).toBeVisible()
+
+  await page.getByRole('button', { name: 'Start Deep Analysis' }).click()
+
+  await expect(page).toHaveURL(/\/deep-analysis\/\d+$/)
+  await expect(page.getByRole('heading', { name: /Job #\d+/ })).toBeVisible()
+
+  expect(state.deepIdentificationJobs).toHaveLength(1)
+  // Principle IV: Deep Analysis start must never directly write to the coin
+  // via the existing update path, regardless of how many roles it reuses.
+  expect(state.updatePayloads).toHaveLength(0)
+})

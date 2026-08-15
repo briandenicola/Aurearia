@@ -328,6 +328,69 @@ func TestDeepIdentificationHandler_GetJob_CrossUserReturns404(t *testing.T) {
 	}
 }
 
+// TestDeepIdentificationHandler_CreateJob_ForeignOwnedCoinIdReturns404 covers
+// T091's create-time cross-user path, which is distinct from GetJob's
+// cross-user check above: it exercises a request where `coinId` names a
+// coin owned by a *different* user, not an existing deep-identification job.
+func TestDeepIdentificationHandler_CreateJob_ForeignOwnedCoinIdReturns404(t *testing.T) {
+	deps := setupDeepIdentificationHandlerTest(t, 1, true)
+	if err := deps.db.Create(&models.User{ID: 2, Username: "coin-owner", Email: "coin-owner@example.com", PasswordHash: "x"}).Error; err != nil {
+		t.Fatalf("create coin owner: %v", err)
+	}
+	otherCoin := &models.Coin{UserID: 2, Name: "Someone Else's Coin"}
+	if err := deps.db.Create(otherCoin).Error; err != nil {
+		t.Fatalf("seed other user's coin: %v", err)
+	}
+
+	body, contentType := multipartWithImages(t, map[string]string{"coinId": fmt.Sprintf("%d", otherCoin.ID)}, true, true, 0)
+	req := httptest.NewRequest(http.MethodPost, "/api/deep-identification/jobs", body)
+	req.Header.Set("Content-Type", contentType)
+	rec := httptest.NewRecorder()
+	deps.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for a foreign-owned coinId on create, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var jobCount int64
+	deps.db.Model(&models.DeepIdentificationJob{}).Count(&jobCount)
+	if jobCount != 0 {
+		t.Fatalf("expected no job row created for a foreign-owned coinId, got %d", jobCount)
+	}
+}
+
+// TestDeepIdentificationHandler_CancelRetry_CrossUserReturns404 covers the
+// remaining T091 cross-user surfaces: cancel and retry of a job owned by a
+// different user must both 404, exactly like GetJob, never leaking the
+// job's existence or its current status to a non-owner.
+func TestDeepIdentificationHandler_CancelRetry_CrossUserReturns404(t *testing.T) {
+	deps := setupDeepIdentificationHandlerTest(t, 1, true)
+	if err := deps.db.Create(&models.User{ID: 2, Username: "other", Email: "other@example.com", PasswordHash: "x"}).Error; err != nil {
+		t.Fatalf("create other user: %v", err)
+	}
+	otherJob := &models.DeepIdentificationJob{
+		UserID: 2, Source: models.DeepJobSourceIntake,
+		InputFingerprint: "other-user-cancel-retry-fp",
+		ExpiresAt:        time.Now().Add(90 * 24 * time.Hour),
+	}
+	if err := deps.db.Create(otherJob).Error; err != nil {
+		t.Fatalf("seed other user job: %v", err)
+	}
+
+	cancelReq := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/deep-identification/jobs/%d/cancel", otherJob.ID), nil)
+	cancelRec := httptest.NewRecorder()
+	deps.router.ServeHTTP(cancelRec, cancelReq)
+	if cancelRec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for cross-user cancel, got %d: %s", cancelRec.Code, cancelRec.Body.String())
+	}
+
+	retryReq := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/deep-identification/jobs/%d/retry", otherJob.ID), nil)
+	retryRec := httptest.NewRecorder()
+	deps.router.ServeHTTP(retryRec, retryReq)
+	if retryRec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for cross-user retry, got %d: %s", retryRec.Code, retryRec.Body.String())
+	}
+}
+
 func TestDeepIdentificationHandler_GetJob_NotBlockedByFeatureFlagOff(t *testing.T) {
 	// Create the job while the feature is enabled, then simulate the flag
 	// being turned off afterward (FR-008: GET of an already-running/queued

@@ -85,4 +85,48 @@ describe('DeepAnalysisStartPanel', () => {
     await cancelButton!.trigger('click')
     expect(wrapper.emitted('cancel')).toBeTruthy()
   })
+
+  it('saved-coin mode: hides the obverse upload slot and only requires the missing reverse photo', async () => {
+    Object.defineProperty(URL, 'createObjectURL', { value: () => 'blob:deep-analysis', configurable: true })
+    Object.defineProperty(URL, 'revokeObjectURL', { value: () => {}, configurable: true })
+    const wrapper = mount(DeepAnalysisStartPanel, {
+      props: { coinId: 42, hasExistingObverse: true, hasExistingReverse: false },
+    })
+
+    expect(wrapper.text()).toContain("Using this coin's existing obverse photo")
+    expect(wrapper.findAll('input[type="file"][capture="environment"]')).toHaveLength(1)
+
+    const startButton = wrapper.findAll('button').find((b) => b.text().includes('Start Deep Analysis'))
+    await startButton!.trigger('click')
+    expect(wrapper.text()).toContain('Obverse and reverse photos are both required to start Deep Analysis.')
+    expect(wrapper.emitted('submit')).toBeFalsy()
+
+    const reverseInput = wrapper.findAll('input[type="file"]').find((i) => i.attributes('capture') === 'environment')
+    Object.defineProperty(reverseInput!.element, 'files', { value: [makeFile('reverse.jpg')], configurable: true })
+    await reverseInput!.trigger('change')
+    await startButton!.trigger('click')
+
+    expect(wrapper.emitted('submit')).toBeTruthy()
+    const payload = wrapper.emitted('submit')![0][0] as { coinId?: number; obverseImage: File | null; reverseImage: File | null }
+    expect(payload.coinId).toBe(42)
+    expect(payload.obverseImage).toBeNull()
+    expect(payload.reverseImage?.name).toBe('reverse.jpg')
+  })
+
+  it('saved-coin mode: submits immediately with no images when both roles already exist', async () => {
+    const wrapper = mount(DeepAnalysisStartPanel, {
+      props: { coinId: 42, hasExistingObverse: true, hasExistingReverse: true },
+    })
+
+    expect(wrapper.findAll('input[type="file"][capture="environment"]')).toHaveLength(0)
+
+    const startButton = wrapper.findAll('button').find((b) => b.text().includes('Start Deep Analysis'))
+    await startButton!.trigger('click')
+
+    expect(wrapper.emitted('submit')).toBeTruthy()
+    const payload = wrapper.emitted('submit')![0][0] as { coinId?: number; obverseImage: File | null; reverseImage: File | null }
+    expect(payload.coinId).toBe(42)
+    expect(payload.obverseImage).toBeNull()
+    expect(payload.reverseImage).toBeNull()
+  })
 })

@@ -6,7 +6,10 @@
     </p>
 
     <div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
-      <label class="relative grid min-h-[170px] cursor-pointer gap-3 rounded-sm border border-dashed border-border-accent bg-card p-4 transition-[border-color,background] duration-200 hover:border-gold hover:bg-card-hover">
+      <label
+        v-if="!hasExistingObverse"
+        class="relative grid min-h-[170px] cursor-pointer gap-3 rounded-sm border border-dashed border-border-accent bg-card p-4 transition-[border-color,background] duration-200 hover:border-gold hover:bg-card-hover"
+      >
         <span class="text-base font-semibold text-heading">Obverse *</span>
         <img v-if="obverseUrl" :src="obverseUrl" alt="Obverse preview" class="aspect-square w-full rounded-sm border border-border-subtle object-cover">
         <span v-else class="grid min-h-20 place-items-center rounded-sm border border-dashed border-border-subtle p-3 text-center text-body text-text-secondary">Required obverse photo</span>
@@ -14,7 +17,14 @@
         <button v-if="obverseImage" type="button" class="relative z-10 justify-self-start bg-transparent p-0 text-sm text-byzantine underline" @click.prevent="obverseImage = null">Remove</button>
         <input class="absolute inset-0 cursor-pointer opacity-0" type="file" accept="image/*" capture="environment" @change="onSingleFile('obverse', $event)">
       </label>
-      <label class="relative grid min-h-[170px] cursor-pointer gap-3 rounded-sm border border-dashed border-border-accent bg-card p-4 transition-[border-color,background] duration-200 hover:border-gold hover:bg-card-hover">
+      <div v-else class="grid min-h-[170px] gap-3 rounded-sm border border-border-subtle bg-card p-4">
+        <span class="text-base font-semibold text-heading">Obverse</span>
+        <span class="grid min-h-20 place-items-center rounded-sm border border-border-subtle bg-input p-3 text-center text-body text-text-secondary">Using this coin's existing obverse photo</span>
+      </div>
+      <label
+        v-if="!hasExistingReverse"
+        class="relative grid min-h-[170px] cursor-pointer gap-3 rounded-sm border border-dashed border-border-accent bg-card p-4 transition-[border-color,background] duration-200 hover:border-gold hover:bg-card-hover"
+      >
         <span class="text-base font-semibold text-heading">Reverse *</span>
         <img v-if="reverseUrl" :src="reverseUrl" alt="Reverse preview" class="aspect-square w-full rounded-sm border border-border-subtle object-cover">
         <span v-else class="grid min-h-20 place-items-center rounded-sm border border-dashed border-border-subtle p-3 text-center text-body text-text-secondary">Required reverse photo</span>
@@ -22,6 +32,10 @@
         <button v-if="reverseImage" type="button" class="relative z-10 justify-self-start bg-transparent p-0 text-sm text-byzantine underline" @click.prevent="reverseImage = null">Remove</button>
         <input class="absolute inset-0 cursor-pointer opacity-0" type="file" accept="image/*" capture="environment" @change="onSingleFile('reverse', $event)">
       </label>
+      <div v-else class="grid min-h-[170px] gap-3 rounded-sm border border-border-subtle bg-card p-4">
+        <span class="text-base font-semibold text-heading">Reverse</span>
+        <span class="grid min-h-20 place-items-center rounded-sm border border-border-subtle bg-input p-3 text-center text-body text-text-secondary">Using this coin's existing reverse photo</span>
+      </div>
       <label class="relative grid min-h-[170px] cursor-pointer gap-3 rounded-sm border border-dashed border-border-accent bg-card p-4 transition-[border-color,background] duration-200 hover:border-gold hover:bg-card-hover">
         <span class="text-base font-semibold text-heading">Hint photos</span>
         <span class="grid min-h-20 place-items-center rounded-sm border border-dashed border-border-subtle p-3 text-center text-body text-text-secondary">{{ hintCountText }}</span>
@@ -86,10 +100,14 @@ function providerLabel(id: DeepProviderId): string {
 
 const props = withDefaults(defineProps<{
   coinId?: number | null
+  hasExistingObverse?: boolean
+  hasExistingReverse?: boolean
   submitting?: boolean
   submitError?: string
 }>(), {
   coinId: null,
+  hasExistingObverse: false,
+  hasExistingReverse: false,
   submitting: false,
   submitError: '',
 })
@@ -151,7 +169,9 @@ onBeforeUnmount(() => {
 
 function onSubmit() {
   validationError.value = ''
-  if (!obverseImage.value || !reverseImage.value) {
+  const obverseMissing = !props.hasExistingObverse && !obverseImage.value
+  const reverseMissing = !props.hasExistingReverse && !reverseImage.value
+  if (obverseMissing || reverseMissing) {
     validationError.value = 'Obverse and reverse photos are both required to start Deep Analysis.'
     return
   }

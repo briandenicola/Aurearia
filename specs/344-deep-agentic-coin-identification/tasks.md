@@ -192,13 +192,13 @@ be implemented as part of this MVP.
 
 **Independent Test**: Start Deep Analysis from a saved coin with both faces present, verify no new uploads are required and the coin record stays byte-identical until an explicit Apply; verify cross-user access is rejected.
 
-- [ ] T088 [US2] Add a "Deep Analysis" CTA to `src/web/src/components/coin/CoinActionsPanel.vue` passing `coinId` (no re-upload)
-- [ ] T089 [US2] Extend `DeepAnalysisStartPanel.vue` to support saved-coin mode: reuse the coin's existing obverse/reverse images, requiring upload only for a missing role (FR-003)
-- [ ] T090 [US2] Enforce in `src/api/services/deep_identification_service.go` (extends T023) that a saved-coin start missing a required image with no upload supplied is rejected `422` — no silent hint/absent substitution
-- [ ] T091 [P] [US2] Add a handler test to `src/api/handlers/deep_identification_test.go`: a saved coin owned by another user ⇒ `404` on create/get/cancel/retry (FR-006)
-- [ ] T092 [P] [US2] Add a service test to `src/api/services/deep_identification_service_test.go`: saved coin missing one required image and no upload supplied ⇒ `422`, no job row created
-- [ ] T093 [P] [US2] Vitest: saved-coin start panel shows only the missing role's upload control and submits existing coin-image ids for present role(s)
-- [ ] T094 [US2] Add a Playwright workflow spec: start Deep Analysis from a saved-coin detail page with both faces present; verify no `PATCH`/`PUT` to the coin occurs during start or run (write occurs only later, in US4's Apply)
+- [X] T088 [US2] Add a "Deep Analysis" CTA to `src/web/src/components/coin/CoinActionsPanel.vue` passing `coinId` (no re-upload)
+- [X] T089 [US2] Extend `DeepAnalysisStartPanel.vue` to support saved-coin mode: reuse the coin's existing obverse/reverse images, requiring upload only for a missing role (FR-003)
+- [X] T090 [US2] Enforce in `src/api/services/deep_identification_service.go` (extends T023) that a saved-coin start missing a required image with no upload supplied is rejected `422` — no silent hint/absent substitution
+- [X] T091 [P] [US2] Add a handler test to `src/api/handlers/deep_identification_test.go`: a saved coin owned by another user ⇒ `404` on create/get/cancel/retry (FR-006)
+- [X] T092 [P] [US2] Add a service test to `src/api/services/deep_identification_service_test.go`: saved coin missing one required image and no upload supplied ⇒ `422`, no job row created
+- [X] T093 [P] [US2] Vitest: saved-coin start panel shows only the missing role's upload control and submits existing coin-image ids for present role(s)
+- [X] T094 [US2] Add a Playwright workflow spec: start Deep Analysis from a saved-coin detail page with both faces present; verify no `PATCH`/`PUT` to the coin occurs during start or run (write occurs only later, in US4's Apply)
 
 **Checkpoint**: US2 independently testable (saved-coin entry, ownership enforcement, no silent write during run).
 

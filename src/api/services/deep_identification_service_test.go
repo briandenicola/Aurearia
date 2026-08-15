@@ -834,6 +834,100 @@ func TestDeepIdentificationService_CreateJobFromIntake_SavedCoinReusesExistingIm
 	}
 }
 
+func TestDeepIdentificationService_CreateJobFromIntake_SavedCoinPartialImageMissingRoleRejected(t *testing.T) {
+	// T092: a saved coin with only ONE of the two roles already photographed
+	// must still be rejected with the specific missing-role error (422 at
+	// the handler layer) when the caller uploads neither image for the
+	// still-missing role - the presence of coinID/one existing image must
+	// not silently waive the requirement for the other role.
+	svc, db, uploadDir := newDeepIdentificationServiceTestDeps(t)
+	user := models.User{Username: "partial-saved-coin-owner", Email: "partial-saved-coin-owner@example.com", PasswordHash: "x"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	coin := models.Coin{UserID: user.ID, Name: "Partial Saved Coin"}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatal(err)
+	}
+	// Only the obverse image already exists on the saved coin; reverse is
+	// intentionally absent, and the request supplies no reverse upload.
+	relPath := filepath.ToSlash(filepath.Join(fmt.Sprintf("coin-%d", coin.ID), "obverse.png"))
+	fullPath := filepath.Join(uploadDir, filepath.FromSlash(relPath))
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fullPath, tinyPNGBytes(t), 0644); err != nil {
+		t.Fatal(err)
+	}
+	image := models.CoinImage{CoinID: coin.ID, FilePath: relPath, ImageType: models.ImageTypeObverse}
+	if err := db.Create(&image).Error; err != nil {
+		t.Fatal(err)
+	}
+	enableDeepIdentification(t, svc, nil)
+
+	if _, _, err := svc.CreateJobFromIntake(CreateJobInput{UserID: user.ID, CoinID: &coin.ID}); !errors.Is(err, ErrDeepJobMissingReverse) {
+		t.Fatalf("expected ErrDeepJobMissingReverse for a saved coin missing only the reverse photo, got %v", err)
+	}
+	var jobCount int64
+	db.Model(&models.DeepIdentificationJob{}).Count(&jobCount)
+	if jobCount != 0 {
+		t.Fatalf("expected no job row created by the rejected partial-image saved-coin request, got %d", jobCount)
+	}
+
+	// Supplying the missing reverse upload alongside the reused obverse must
+	// succeed, proving the rejection above was role-specific and not a
+	// broader saved-coin regression.
+	png := tinyPNGBytes(t)
+	job, reused, err := svc.CreateJobFromIntake(CreateJobInput{UserID: user.ID, CoinID: &coin.ID, ReverseBytes: png, ReverseFilename: "r.png"})
+	if err != nil {
+		t.Fatalf("expected success once the missing reverse upload is supplied, got %v", err)
+	}
+	if reused {
+		t.Fatal("expected a new job")
+	}
+	artifacts, err := svc.repo.ListArtifacts(job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	obverseCount, reverseCount, _ := countArtifactRoles(artifacts)
+	if obverseCount != 1 || reverseCount != 1 {
+		t.Fatalf("expected one reused obverse + one uploaded reverse artifact, got obverse=%d reverse=%d", obverseCount, reverseCount)
+	}
+}
+
+func TestDeepIdentificationService_CreateJobFromIntake_ForeignOwnedCoinRejected(t *testing.T) {
+	// T091: creating a job with a coinId owned by a different user must be
+	// rejected the same way as a nonexistent coin, never leaking whether the
+	// coin exists under another account.
+	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+	owner := models.User{Username: "coin-owner", Email: "coin-owner@example.com", PasswordHash: "x"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatal(err)
+	}
+	requester := models.User{Username: "not-the-owner", Email: "not-the-owner@example.com", PasswordHash: "x"}
+	if err := db.Create(&requester).Error; err != nil {
+		t.Fatal(err)
+	}
+	coin := models.Coin{UserID: owner.ID, Name: "Someone Else's Coin"}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatal(err)
+	}
+	enableDeepIdentification(t, svc, nil)
+
+	png := tinyPNGBytes(t)
+	if _, _, err := svc.CreateJobFromIntake(CreateJobInput{
+		UserID: requester.ID, CoinID: &coin.ID,
+		ObverseBytes: png, ObverseFilename: "o.png", ReverseBytes: png, ReverseFilename: "r.png",
+	}); !errors.Is(err, ErrDeepArtifactMissingCoin) {
+		t.Fatalf("expected ErrDeepArtifactMissingCoin for a foreign-owned coinId, got %v", err)
+	}
+	var jobCount int64
+	db.Model(&models.DeepIdentificationJob{}).Count(&jobCount)
+	if jobCount != 0 {
+		t.Fatalf("expected no job row created for a foreign-owned coinId, got %d", jobCount)
+	}
+}
+
 func TestDeepIdentificationService_CreateJobFromIntake_DuplicateSubmitIsIdempotent(t *testing.T) {
 	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
 	user := models.User{Username: "dup-owner", Email: "dup-owner@example.com", PasswordHash: "x"}
