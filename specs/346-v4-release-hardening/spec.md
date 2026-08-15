@@ -2,7 +2,7 @@
 
 **Feature Branch**: `346-v4-release-hardening`
 **Created**: 2026-08-15
-**Status**: In Progress
+**Status**: Implemented
 **Input**: User description: "Perform a deep software and documentation analysis, fix verified release-readiness issues, and leave beta ready for the final v4 merge to main."
 
 ## User Scenarios & Testing
@@ -81,4 +81,3 @@ full quality gates after behavior-preserving extractions.
   baseline; this feature does not expand provider behavior.
 - Generated API artifacts are updated only through the repository's existing
   generation command when their source metadata changes.
-

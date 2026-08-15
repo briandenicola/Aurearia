@@ -27,5 +27,5 @@
 - [x] T013 Run full Go, Python, and Vue quality gates.
 - [x] T014 Run security and generated-contract checks.
 - [x] T015 Complete independent post-major-work QC.
-- [ ] T016 Commit and push coherent batches, open a PR to beta, and merge only
+- [x] T016 Commit and push coherent batches, open a PR to beta, and merge only
   after all required checks pass.
