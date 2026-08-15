@@ -167,3 +167,36 @@ async def test_ocre_override_cannot_bypass_flag_off():
 
     assert "ocre" not in decision.selected
     assert model.calls == 0
+
+
+# --- T046 (US5): provider_override selects/deselects OCRE, bypassing the LLM ---
+
+
+@pytest.mark.asyncio
+async def test_provider_override_forces_ocre_even_when_llm_would_skip_it():
+    """override=["ocre"] selects OCRE and never consults the LLM, even for a
+    catalog/context where the router model would not have chosen it."""
+    catalog = _catalog(("numista", True), ("ocre", True))
+    # A model that would raise if invoked — proves the LLM path is bypassed.
+    model = FakeModel(raise_exc=RuntimeError("router LLM must not be called under override"))
+
+    decision = await route(model, catalog, provider_override=["ocre"], max_providers=5, notes="modern euro coin")
+
+    assert decision.selected == ["ocre"]
+    assert model.calls == 0
+    assert any(s["provider"] == "numista" for s in decision.skipped)
+
+
+@pytest.mark.asyncio
+async def test_provider_override_omitting_ocre_prevents_it_from_running():
+    """An override that lists other providers but not OCRE keeps OCRE out of
+    the selected set even though it is automatable."""
+    catalog = _catalog(("numista", True), ("ocre", True))
+    model = FakeModel(raise_exc=RuntimeError("router LLM must not be called under override"))
+
+    decision = await route(model, catalog, provider_override=["numista"], max_providers=5, notes="")
+
+    assert decision.selected == ["numista"]
+    assert "ocre" not in decision.selected
+    assert any(s["provider"] == "ocre" and "provider_override" in s["reason"] for s in decision.skipped)
+    assert model.calls == 0

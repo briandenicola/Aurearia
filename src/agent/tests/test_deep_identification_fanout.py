@@ -273,3 +273,38 @@ async def test_fanout_ocre_flag_off_makes_zero_tool_calls(monkeypatch):
     assert result["evidence"][0].status == "not_automated"
     assert result["evidence"][0].call_count == 0
     assert spy.ocre_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_fanout_flag_off_beats_provider_override_zero_ocre_calls():
+    """T047 (US5, FR-004): the OCRE flag takes precedence over an explicit
+    provider_override. With OCRE non-automatable (flag off), even a caller
+    override selecting "ocre" yields not_automated with zero tool calls."""
+    class SpyTools:
+        def __init__(self):
+            self.ocre_calls = 0
+
+        async def ocre_search(self, **kwargs):
+            self.ocre_calls += 1
+            return {"status": "empty", "candidates": []}
+
+    spy = SpyTools()
+    catalog = [DeepProviderCatalogEntry(provider="ocre", automatable=False, reason="pending_license_validation")]
+    state = {
+        "catalog": catalog,
+        "bounds": _bounds(),
+        "quick_evidence": None,
+        "notes": "",
+        # Router excludes a non-automatable provider from `selected` even under
+        # override; the fanout still runs it via the non-automatable path.
+        "selected": [],
+        "provider_override": ["ocre"],
+        "skipped": [],
+    }
+
+    result = await provider_fanout_node(state, tools=spy)
+
+    ocre_row = next(row for row in result["evidence"] if row.provider == "ocre")
+    assert ocre_row.status == "not_automated"
+    assert ocre_row.call_count == 0
+    assert spy.ocre_calls == 0

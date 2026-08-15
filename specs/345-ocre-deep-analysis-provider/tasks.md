@@ -226,8 +226,8 @@ zero calls.
 > automatically once it is a normal automatable catalog entry (Phase 3). This
 > phase is regression-verification only.
 
-- [ ] T046 [P] [US5] Extend `src/agent/tests/test_deep_identification_router.py`: `provider_override=["ocre"]` selects OCRE even when the LLM-simulated router would not have chosen it (bypassing the LLM call entirely, per existing override semantics); `provider_override` omitting `"ocre"` from an otherwise-automatable catalog prevents it from running
-- [ ] T047 [P] [US5] Extend `src/agent/tests/test_deep_identification_ocre.py` or `test_deep_identification_fanout.py`: flag disabled (`automatable=false`) + `provider_override=["ocre"]` still yields `not_automated` with **zero** `tools.ocre_search` calls — flag takes precedence over override (FR-004)
+- [X] T046 [P] [US5] Extend `src/agent/tests/test_deep_identification_router.py`: `provider_override=["ocre"]` selects OCRE even when the LLM-simulated router would not have chosen it (bypassing the LLM call entirely, per existing override semantics); `provider_override` omitting `"ocre"` from an otherwise-automatable catalog prevents it from running
+- [X] T047 [P] [US5] Extend `src/agent/tests/test_deep_identification_ocre.py` or `test_deep_identification_fanout.py`: flag disabled (`automatable=false`) + `provider_override=["ocre"]` still yields `not_automated` with **zero** `tools.ocre_search` calls — flag takes precedence over override (FR-004)
 
 **Checkpoint**: All five user stories independently functional and tested.
 
