@@ -175,11 +175,9 @@ New product questions should be added below this table when they arise.
 
 **Technical constraints** are documented in the Constitution and are not restated here:
 
-- **Principle I (Layered Architecture)** — Go API enforces Handler → Service → Repository → Database with strict import rules.
-- **Principle II (Dependency Injection)** — All dependencies injected via constructors; only `main.go` imports the database package.
-- **Principle XI (Security Hardening)** — Input validation, secret handling, output encoding.
-- **Principle XII (Authentication & Token Policy)** — JWT issuance, refresh, revocation, storage.
-- **Principle XIII (PWA / Mobile Rules)** — CSP, service worker scope, offline boundaries.
+- **Principle I (Clear Layered Architecture)** — Go API enforces Handler → Service → Repository → Database, constructor injection, and composition-root ownership.
+- **Principle V (Security, Auth, and Privacy by Default)** — Input validation, secret handling, token policy, and access control.
+- **Principle VI (Consistent User Experience)** — PWA/mobile behavior, service-worker boundaries, and design-system consistency.
 
 See `.specify/memory/constitution.md` §0–22 for the full governance model and quality gates.
 
