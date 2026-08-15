@@ -99,6 +99,71 @@ async def test_happy_path_frame_sequence_and_terminal_invariant(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_provider_result_frame_carries_complete_claims(monkeypatch):
+    """B1 regression: the production stream must emit the full, typed
+    ProviderEvidence (with citation-backed claims) on `provider_result`
+    (contract §3/§4). The Go runner resolves the terminal synthesis'
+    evidence_refs against these streamed claims, so dropping them here
+    silently empties every proposal's citation evidence in production.
+    """
+    monkeypatch.setattr(graph_module, "get_chat_model", lambda llm: FakeModel())
+
+    async def fake_numista_run(entry, tools, quick_evidence, notes):
+        from app.models.responses import ProviderClaim
+
+        return ProviderEvidence(
+            provider="numista",
+            status="contributed",
+            automatable=True,
+            confidence=0.7,
+            call_count=1,
+            attribution="Source: Numista",
+            claims=[
+                ProviderClaim(
+                    field="denomination",
+                    value="Denarius",
+                    confidence=0.8,
+                    citation="https://en.numista.com/catalogue/pieces12345.html",
+                    excerpt="Silver denarius, Rome mint",
+                )
+            ],
+        )
+
+    monkeypatch.setitem(graph_module._AUTOMATED_PROVIDER_NODES, "numista", fake_numista_run)
+
+    frames = await _collect_frames(_request())
+
+    provider_results = [f for f in frames if f["type"] == "provider_result"]
+    numista = next((f for f in provider_results if f.get("provider") == "numista"), None)
+    assert numista is not None, "expected a numista provider_result frame"
+
+    # Full ProviderEvidence shape must be present on the frame (not just
+    # {type, provider, status}).
+    assert numista["status"] == "contributed"
+    assert numista["confidence"] == 0.7
+    assert numista["automatable"] is True
+    assert numista["call_count"] == 1
+
+    claims = numista["claims"]
+    assert len(claims) == 1
+    claim = claims[0]
+    # Exact field names/types the Go mirror (deepProposalClaim) unmarshals.
+    assert claim["field"] == "denomination"
+    assert claim["value"] == "Denarius"
+    assert claim["confidence"] == 0.8
+    assert claim["citation"] == "https://en.numista.com/catalogue/pieces12345.html"
+    assert claim["excerpt"] == "Silver denarius, Rome mint"
+
+    # The terminal synthesis references this claim by index, so the streamed
+    # claims and the synthesis' evidence_refs are index-aligned end to end.
+    synthesis = frames[-1]
+    assert synthesis["type"] == "synthesis"
+    ref = synthesis["report"]["proposed_fields"]["denomination"]["evidence_refs"][0]
+    assert ref["provider"] == "numista"
+    assert ref["claim_index"] == 0
+
+
+@pytest.mark.asyncio
 async def test_no_token_shaped_strings_leak_in_any_frame(monkeypatch):
     monkeypatch.setattr(graph_module, "get_chat_model", lambda llm: FakeModel())
 

@@ -169,7 +169,16 @@ async def provider_fanout_node(
         if on_result:
             on_result(result)
         if on_provider_event:
-            await on_provider_event({"type": "provider_result", "provider": result.provider, "status": result.status})
+            # Emit the full, application-owned ProviderEvidence (contract
+            # §3/§4): the runner needs the typed, citation-backed `claims`
+            # here to resolve the terminal synthesis' evidence_refs into
+            # citation-bearing proposal evidence. Serialize via the Pydantic
+            # model (never an ad-hoc dict) so field names/types/nullability
+            # match the Go mirror exactly; every field is length-bounded by
+            # the model and carries no raw provider payload, user notes, or
+            # image data. `_emit`'s sanitizer still redacts any token-shaped
+            # string defense-in-depth without stripping valid claims.
+            await on_provider_event({"type": "provider_result", **result.model_dump(mode="json")})
         return result
 
     tasks = [run_and_report(name) for name in names_to_run]

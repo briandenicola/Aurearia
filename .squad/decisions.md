@@ -2,6 +2,95 @@
 
 ## Active Decisions
 
+### Decision: Feature 344 — Preserve provider claims across the analysis stream (B1 re-remediation)
+
+**Date:** 2026-08-15
+**Agent:** Aurelia (remediation; original implementer and Cassius locked out under Strict Lockout §18.2)
+**Status:** Proposed — READY FOR RE-REVIEW
+**Supersedes wording of:** commit `896955e` B1 paragraph (see Correction below)
+
+## Context
+
+The prior B1 remediation (`896955e`) made the Go pipeline runner build the rich
+`deepProposalDocument` by resolving `proposed_fields.evidence_refs` against the
+`claims` carried on internal `provider_result` frames. But production Python
+(`run_deep_identification_stream`) emitted only `{type, provider, status}` for
+`provider_result` — it never serialized the application-owned `ProviderEvidence`
+claims (contract §3/§4). Result: in production `providerClaims` was always empty,
+every proposal's evidence/citation arrays were dropped, violating the internal
+contract and the MVP citation requirement (SC-006). The existing Go integration
+tests hand-injected a `providerClaims` map into `buildDeepProposalDocumentJSON`,
+so they passed while production was broken (false assurance).
+
+## Decision
+
+1. **Python emits the full ProviderEvidence** on each `provider_result` internal
+   frame via Pydantic serialization (`result.model_dump(mode="json")`), never an
+   ad-hoc dict — field names/types/nullability match the Go mirror exactly. All
+   fields are length-bounded by the model; no raw provider payload, user notes,
+   or image data enter the frame. `_emit`'s sanitizer still redacts token-shaped
+   strings without stripping valid claims/citations.
+   (`src/agent/app/teams/deep_identification/graph.py`)
+
+2. **Persistence/privacy split (§5 of the task).** The internal Go↔Python
+   `provider_result` frame carries full claims (contract §4); the runner consumes
+   them **in-memory** to build the confirm-gated proposal, but persists only the
+   bounded public payload `{provider, status, confidence, claimCount, errorKind?,
+   linkOut?}` (contracts/sse-events.md §2) into the user-visible, replayable event
+   log. Full claims/citations therefore never leak into the owner-facing event
+   stream (FR-036) and the log is not bloated with per-claim evidence.
+   (`src/api/services/deep_identification_pipeline_runner.go`)
+
+3. **Go re-validation preserved.** `buildDeepProposalDocumentJSON` still enforces
+   the coin-field allowlist and re-checks each claim's citation host against the
+   per-provider allowlist before it enters the proposal; the full streamed claim
+   list is retained in emitted order so synthesis `claim_index` values stay
+   index-aligned (no reindexing). `claimCount` in the public payload counts only
+   host-allowlisted claims, so a hostile frame cannot inflate it or surface an
+   arbitrary URL.
+
+4. **Real cross-boundary regression replaces false assurance.**
+   - Python: `test_provider_result_frame_carries_complete_claims` asserts the real
+     stream emits full, typed claims (field/value/confidence/citation/excerpt),
+     index-aligned with the terminal synthesis' evidence_refs (no live network).
+   - Go: `TestRunnerAccumulatesStreamedClaimsIntoProposal` feeds the exact
+     Python-shaped SSE frames through the actual `Run`/stream parser and asserts
+     the persisted `ProposalJSON` carries confidence + citation evidence, and that
+     the persisted `provider_result` event carries only the bounded public payload.
+     Plus off-allowlist-host rejection and malformed-frame-skip tests.
+   - Integration: `seedDeepJobWithRunnerProposal` now drives the **actual runner**
+     over a fake Python agent (no hand-built `providerClaims`) so the saved-coin
+     and new-intake Get/PATCH/Apply regressions consume genuine runner output.
+
+5. **`DeepIdentificationProviderRun.ClaimsJSON` (task §7).** The entity is
+   provisioned/migrated but intentionally **not written** in the MVP; per-provider
+   outcomes live in the append-only event log and the proposal. Documented as a
+   deliberate deferral in `data-model.md §4` (not silent drift) — raw claims are
+   deliberately not duplicated into a second user-visible store.
+
+## Correction (task §11)
+
+Commit `896955e`'s B1 wording — "Evidence/citations resolved Go-side from
+provider_result frames; field + citation-host allowlists enforced at translation
+and apply" — was **aspirational, not operative**, because production Python never
+emitted claims, so nothing was resolved Go-side at runtime. The accurate record:
+citation-host allowlisting is enforced at **proposal-build (translation) time**
+inside `buildDeepProposalDocumentJSON`; **apply** enforces only the coin/draft
+**field** allowlist (`applyToCoin`/`applyToDraft`). This fix makes the "resolved
+from provider_result frames" behavior actually true end-to-end.
+
+## Validation
+
+- Go: gofmt (CRLF-only), `go build ./...`, `go vet ./...`, full `go test ./...`,
+  OpenAPI drift, architecture test — all pass.
+- Python: `ruff check`, full `pytest` — pass.
+- Vue: `vue-tsc --build`, `vite build`, full Vitest, no-emoji/design-token
+  regression — pass (no Vue changes in this fix).
+- Manual fixture-backed end-to-end: real Python-shaped claim frame → Go runner →
+  stored rich proposal evidence/citation → PATCH/Apply, no auto-write, no live
+  provider calls.
+
+
 ### Decision: Feature 342 — Measured Numista Text-Query Tuning (T001–T025)
 
 **Date:** 2026-08-11  

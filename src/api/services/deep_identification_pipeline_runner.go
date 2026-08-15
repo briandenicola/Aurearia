@@ -130,13 +130,25 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 	// claims keyed by provider, indexed positionally so the terminal
 	// synthesis' proposed_fields.evidence_refs (contract §5) can be
 	// resolved into full citation-bearing evidence when the rich proposal
-	// document is built (B1: no citations/confidence are dropped).
+	// document is built (B1: no citations/confidence are dropped). The full
+	// per-provider claim list (in the emitted order) is retained verbatim so
+	// each synthesis `claim_index` still resolves to the exact claim the
+	// synthesizer saw; per-claim citation-host re-validation happens later in
+	// buildDeepProposalDocumentJSON, not by reindexing here.
 	providerClaims := map[string][]deepProposalClaim{}
 
 	onFrame := func(frame DeepIdentifyFrame) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		// persistPayload is the JSON persisted into the user-visible event
+		// log. It defaults to the raw internal frame, but privacy/event-bloat
+		// sensitive frames (provider_result) are reduced to the bounded
+		// public payload defined in contracts/sse-events.md §2 before
+		// persistence, so full provider claims/citations never enter the
+		// owner-facing, replayable event stream (FR-036) even though the
+		// runner itself consumes them in-memory to build the proposal.
+		persistPayload := string(frame.Raw)
 		switch frame.Type {
 		case "synthesis":
 			var payload struct {
@@ -151,12 +163,23 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 				lastSynthesis = frame.Raw
 			}
 		case "provider_result":
+			// The internal provider_result frame carries the full
+			// ProviderEvidence (contract §3/§4). Consume its claims for the
+			// proposal, but persist only the bounded public payload.
 			var evidence struct {
-				Provider string              `json:"provider"`
-				Claims   []deepProposalClaim `json:"claims"`
+				Provider   string              `json:"provider"`
+				Status     string              `json:"status"`
+				Confidence float64             `json:"confidence"`
+				ErrorKind  string              `json:"error_kind"`
+				LinkOut    string              `json:"link_out"`
+				Claims     []deepProposalClaim `json:"claims"`
 			}
 			if jsonErr := json.Unmarshal(frame.Raw, &evidence); jsonErr == nil && evidence.Provider != "" {
 				providerClaims[evidence.Provider] = evidence.Claims
+				persistPayload = deepProviderResultPublicPayloadJSON(
+					evidence.Provider, evidence.Status, evidence.Confidence,
+					evidence.ErrorKind, evidence.LinkOut, evidence.Claims,
+				)
 			}
 		case "error":
 			var payload struct {
@@ -178,7 +201,7 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 			return nil
 		}
 		seq++
-		if _, appendErr := r.repo.AppendEvent(job.ID, job.UserID, eventType, string(frame.Raw)); appendErr != nil {
+		if _, appendErr := r.repo.AppendEvent(job.ID, job.UserID, eventType, persistPayload); appendErr != nil {
 			if r.logger != nil {
 				r.logger.Error("deep-identification", "failed to append event for job %d: %v", job.ID, appendErr)
 			}
@@ -332,6 +355,50 @@ func deepPipelineEventType(frameType string) (models.DeepIdentificationEventType
 	default:
 		return "", false
 	}
+}
+
+// deepProviderResultPublicPayload is the bounded, owner-facing payload
+// persisted for a provider_result event (contracts/sse-events.md §2):
+// `{provider, status, confidence, claimCount, errorKind?, linkOut?}`. The
+// full per-claim citation/excerpt evidence from the internal frame is
+// deliberately excluded — it is consumed only in-memory by the runner to
+// build the confirm-gated proposal, never leaked into the replayable,
+// user-visible event log (FR-036, privacy/event-bloat decision).
+type deepProviderResultPublicPayload struct {
+	Provider   string  `json:"provider"`
+	Status     string  `json:"status"`
+	Confidence float64 `json:"confidence"`
+	ClaimCount int     `json:"claimCount"`
+	ErrorKind  string  `json:"errorKind,omitempty"`
+	LinkOut    string  `json:"linkOut,omitempty"`
+}
+
+// deepProviderResultPublicPayloadJSON reduces a full internal
+// ProviderEvidence frame to the bounded public payload. claimCount counts
+// only citation-host-allowlisted claims, so a compromised/buggy provider
+// frame injecting off-allowlist citations can neither inflate the count nor
+// surface an arbitrary URL to the owner (SC-006, Principle V). Falls back to
+// an empty JSON object only on the (unreachable) marshal error path.
+func deepProviderResultPublicPayloadJSON(provider, status string, confidence float64, errorKind, linkOut string, claims []deepProposalClaim) string {
+	claimCount := 0
+	for _, claim := range claims {
+		if deepCitationHostAllowed(provider, claim.Citation) {
+			claimCount++
+		}
+	}
+	payload := deepProviderResultPublicPayload{
+		Provider:   provider,
+		Status:     status,
+		Confidence: confidence,
+		ClaimCount: claimCount,
+		ErrorKind:  errorKind,
+		LinkOut:    linkOut,
+	}
+	out, err := json.Marshal(payload)
+	if err != nil {
+		return "{}"
+	}
+	return string(out)
 }
 
 // deepCitationHostAllowlist mirrors the Python

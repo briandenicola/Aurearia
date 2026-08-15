@@ -1,8 +1,11 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,55 +14,112 @@ import (
 	"gorm.io/gorm"
 )
 
-// realisticDeepSynthesisReport returns a synthesis `report` payload shaped
-// exactly like the Python DeepSynthesis dump the pipeline runner receives
-// on the terminal `synthesis` frame (contract §5), plus the matching
-// provider_result claims the runner accumulates while streaming. It mixes
-// allowlisted coin fields (denomination, mint, era), citation-bearing
-// evidence, and one non-allowlisted key that must be dropped.
-func realisticDeepSynthesisReport() (json.RawMessage, map[string][]deepProposalClaim) {
-	report := json.RawMessage(`{
-		"narrative": "A silver denarius of Septimius Severus.",
-		"proposed_fields": {
-			"denomination": {"value":"Denarius","confidence":0.82,"evidence_refs":[{"provider":"numista","claim_index":0}]},
-			"mint": {"value":"Rome","confidence":0.61,"evidence_refs":[{"provider":"nomisma","claim_index":0}]},
-			"era": {"value":"roman-imperial","confidence":0.7,"evidence_refs":[{"provider":"numista","claim_index":1}]},
-			"notes": {"value":"Bought at a show; dealer said Severan.","confidence":0.5,"evidence_refs":[]},
-			"secretAdminField": {"value":"nope","confidence":0.99,"evidence_refs":[]}
-		},
-		"partial_success": false
-	}`)
-	claims := map[string][]deepProposalClaim{
-		"numista": {
-			{Field: "denomination", Value: "Denarius", Confidence: 0.8, Citation: "https://en.numista.com/catalogue/pieces12345.html", Excerpt: "Silver denarius, Rome mint"},
-			{Field: "era", Value: "roman-imperial", Confidence: 0.7, Citation: "https://en.numista.com/catalogue/pieces12345.html"},
-		},
-		"nomisma": {
-			{Field: "mint", Value: "Rome", Confidence: 0.6, Citation: "http://nomisma.org/id/rome"},
+// realisticRunnerStreamFrames returns the exact Python-shaped SSE frames a
+// real run_deep_identification_stream emits for a multi-provider run: full
+// ProviderEvidence provider_result frames (claims included) for numista
+// (denomination, era) and nomisma (mint), plus a terminal synthesis whose
+// proposed_fields reference those claims by index and add an image-only
+// `notes` field and one non-allowlisted key that must be dropped Go-side.
+// The proposal these frames produce through the real runner is the input the
+// Get/PATCH/Apply integration below exercises — no hand-built providerClaims.
+func realisticRunnerStreamFrames() []string {
+	numistaResult := map[string]any{
+		"type": "provider_result", "provider": "numista", "status": "contributed",
+		"automatable": true, "confidence": 0.7, "call_count": 1, "link_out": "",
+		"attribution": "Source: Numista",
+		"claims": []map[string]any{
+			{"field": "denomination", "value": "Denarius", "confidence": 0.8, "citation": "https://en.numista.com/catalogue/pieces12345.html", "excerpt": "Silver denarius, Rome mint"},
+			{"field": "era", "value": "roman-imperial", "confidence": 0.7, "citation": "https://en.numista.com/catalogue/pieces12345.html"},
 		},
 	}
-	return report, claims
+	nomismaResult := map[string]any{
+		"type": "provider_result", "provider": "nomisma", "status": "contributed",
+		"automatable": true, "confidence": 0.6, "call_count": 1, "link_out": "",
+		"attribution": "Data: Nomisma.org (CC BY)",
+		"claims": []map[string]any{
+			{"field": "mint", "value": "Rome", "confidence": 0.6, "citation": "http://nomisma.org/id/rome"},
+		},
+	}
+	synthesis := map[string]any{
+		"type": "synthesis",
+		"report": map[string]any{
+			"narrative": "A silver denarius of Septimius Severus.",
+			"proposed_fields": map[string]any{
+				"denomination":     map[string]any{"value": "Denarius", "confidence": 0.82, "evidence_refs": []map[string]any{{"provider": "numista", "claim_index": 0}}},
+				"mint":             map[string]any{"value": "Rome", "confidence": 0.61, "evidence_refs": []map[string]any{{"provider": "nomisma", "claim_index": 0}}},
+				"era":              map[string]any{"value": "roman-imperial", "confidence": 0.7, "evidence_refs": []map[string]any{{"provider": "numista", "claim_index": 1}}},
+				"notes":            map[string]any{"value": "Bought at a show; dealer said Severan.", "confidence": 0.5, "evidence_refs": []map[string]any{{"provider": "image"}}},
+				"secretAdminField": map[string]any{"value": "nope", "confidence": 0.99, "evidence_refs": []map[string]any{}},
+			},
+			"partial_success": false,
+		},
+	}
+	frames := []map[string]any{
+		{"type": "progress", "stage": "image_evidence_ready"},
+		{"type": "router_selected", "selected": []string{"numista", "nomisma"}, "rationale": "auto"},
+		{"type": "provider_started", "provider": "numista"},
+		numistaResult,
+		{"type": "provider_started", "provider": "nomisma"},
+		nomismaResult,
+		{"type": "evaluation", "disagreement_count": 0, "resolved_count": 0},
+		{"type": "synthesis_started"},
+		synthesis,
+	}
+	out := make([]string, 0, len(frames))
+	for _, f := range frames {
+		raw, _ := json.Marshal(f)
+		out = append(out, "data: "+string(raw)+"\n\n")
+	}
+	return out
 }
 
-func seedDeepJobWithBuiltProposal(t *testing.T, db *gorm.DB, userID uint, source models.DeepJobSource, coinID *uint) uint {
+// seedDeepJobWithRunnerProposal creates a job, drives the ACTUAL pipeline
+// runner over a fake Python agent emitting realisticRunnerStreamFrames, and
+// persists the runner-produced report+proposal onto the job. The proposal is
+// therefore genuine runner output (streamed claims accumulated across the
+// provider_result frames), not a hand-built providerClaims map — so it fails
+// if production ever stops carrying claims across the stream boundary.
+func seedDeepJobWithRunnerProposal(t *testing.T, db *gorm.DB, userID uint, source models.DeepJobSource, coinID *uint) uint {
 	t.Helper()
-	report, claims := realisticDeepSynthesisReport()
-	proposalJSON := buildDeepProposalDocumentJSON(report, coinID, claims)
-	if proposalJSON == "" {
-		t.Fatal("expected a non-empty rich proposal JSON from the runner builder")
-	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher := w.(http.Flusher)
+		w.WriteHeader(http.StatusOK)
+		for _, f := range realisticRunnerStreamFrames() {
+			_, _ = w.Write([]byte(f))
+			flusher.Flush()
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	runner := newDeepRunnerOnDB(t, db, server.URL)
 	job := &models.DeepIdentificationJob{
 		UserID:           userID,
 		Source:           source,
 		CoinID:           coinID,
-		Status:           models.DeepJobStatusCompleted,
+		Status:           models.DeepJobStatusRunning,
 		InputFingerprint: fmt.Sprintf("fp-int-%d-%d", time.Now().UnixNano(), atomic.AddInt64(&deepTestDBCounter, 1)),
 		ExpiresAt:        time.Now().Add(90 * 24 * time.Hour),
-		ReportJSON:       string(report),
-		ProposalJSON:     proposalJSON,
 	}
 	if err := db.Create(job).Error; err != nil {
 		t.Fatalf("seed job: %v", err)
+	}
+
+	result, err := runner.Run(context.Background(), job)
+	if err != nil {
+		t.Fatalf("runner.Run: %v", err)
+	}
+	if result == nil || result.ProposalJSON == "" {
+		t.Fatal("expected a non-empty rich proposal JSON from the actual runner")
+	}
+	// Persist the terminal result onto the job exactly as SettleTerminal
+	// would, then mark it completed so the proposal service can load/apply.
+	if err := db.Model(job).Updates(map[string]any{
+		"report_json":   result.ReportJSON,
+		"proposal_json": result.ProposalJSON,
+		"status":        models.DeepJobStatusCompleted,
+	}).Error; err != nil {
+		t.Fatalf("persist terminal result: %v", err)
 	}
 	return job.ID
 }
@@ -79,7 +139,7 @@ func TestDeepIdentificationProposal_RunnerSynthesisThroughApply_SavedCoin(t *tes
 	if err := db.Create(&coin).Error; err != nil {
 		t.Fatal(err)
 	}
-	jobID := seedDeepJobWithBuiltProposal(t, db, userID, models.DeepJobSourceSavedCoin, &coin.ID)
+	jobID := seedDeepJobWithRunnerProposal(t, db, userID, models.DeepJobSourceSavedCoin, &coin.ID)
 
 	// Parse/load must succeed on the rich document and preserve citation +
 	// confidence (this is the assertion that fails under the old flat shape).
@@ -154,7 +214,7 @@ func TestDeepIdentificationProposal_RunnerSynthesisThroughApply_SavedCoin(t *tes
 func TestDeepIdentificationProposal_RunnerSynthesisThroughApply_NewIntake(t *testing.T) {
 	svc, _, db := newDeepProposalTestDeps(t)
 	userID := seedDeepProposalUser(t, db)
-	jobID := seedDeepJobWithBuiltProposal(t, db, userID, models.DeepJobSourceIntake, nil)
+	jobID := seedDeepJobWithRunnerProposal(t, db, userID, models.DeepJobSourceIntake, nil)
 
 	// Only draft-allowlisted fields (era, notes) are applicable to a draft
 	// target; coin-only fields (denomination/mint) remain proposable but not

@@ -209,6 +209,21 @@ client GET .../events?since=N   (or Last-Event-ID: N)
 Unique index `uix_deep_provider_run_job_provider` on `(job_id, provider)` —
 one row per provider per job attempt (retries create a new job).
 
+> **MVP persistence status (Feature 344).** The append-only
+> `DeepIdentificationEvent` log is the source of truth for per-provider
+> outcomes this phase: the pipeline runner persists one `provider_result`
+> event per provider (bounded public payload `{provider, status, confidence,
+> claimCount, errorKind?, linkOut?}`, contracts/sse-events.md §2) and consumes
+> the full streamed claims **in-memory** to build the confirm-gated
+> `proposal_json`. The `DeepIdentificationProviderRun` table (and its
+> `ClaimsJSON` column) is provisioned/migrated but intentionally **not
+> written** in the MVP — it is reserved for post-MVP per-provider telemetry
+> and analytics that need queryable rows rather than event-log replay. This is
+> a deliberate, documented deferral (not drift): raw claims are deliberately
+> **not** duplicated into a second user-visible store, keeping provider
+> citations out of the replayable event log (FR-036) while still preserving
+> every citation/confidence in the proposal the owner confirms.
+
 ---
 
 ## 5. `DeepIdentificationArtifact`
