@@ -81,6 +81,42 @@ func acceptTrue() *bool {
 
 // T113: the field allowlist rejects any field not writable via
 // CoinService/QuickCaptureDraft (no silent new write surface).
+// TestDeepIdentificationProposal_CoinTypeFieldMapsToReferenceText verifies
+// Feature 345: the additive `coin_type` allowlist entry carries the OCRE
+// RIC-style type label into the reused models.Coin.ReferenceText column (no
+// schema migration), survives buildDeepProposalDocumentJSON end to end, and
+// applies through CoinService like any other allowlisted field.
+func TestDeepIdentificationProposal_CoinTypeFieldMapsToReferenceText(t *testing.T) {
+	if got := deepProposalCoinFieldAllowlist["coin_type"]; got != "ReferenceText" {
+		t.Fatalf("expected coin_type to map to ReferenceText, got %q", got)
+	}
+
+	svc, _, db := newDeepProposalTestDeps(t)
+	userID := seedDeepProposalUser(t, db)
+	coin := models.Coin{UserID: userID, Name: "Test Coin"}
+	if err := db.Create(&coin).Error; err != nil {
+		t.Fatal(err)
+	}
+	jobID := seedDeepProposalJob(t, db, userID, models.DeepJobSourceSavedCoin, &coin.ID, map[string]any{
+		"coin_type": "RIC II Hadrian 39b",
+	})
+	if _, err := svc.UpdateProposal(jobID, userID, map[string]DeepProposalFieldEdit{
+		"coin_type": {Accepted: acceptTrue()},
+	}); err != nil {
+		t.Fatalf("update proposal: %v", err)
+	}
+	if _, err := svc.Apply(jobID, userID, "coin", []string{"coin_type"}); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	var updated models.Coin
+	if err := db.First(&updated, coin.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if updated.ReferenceText != "RIC II Hadrian 39b" {
+		t.Fatalf("expected coin_type applied to ReferenceText, got %q", updated.ReferenceText)
+	}
+}
+
 func TestDeepIdentificationProposal_FieldAllowlistRejectsUnknownField(t *testing.T) {
 	svc, _, db := newDeepProposalTestDeps(t)
 	userID := seedDeepProposalUser(t, db)

@@ -450,6 +450,10 @@ func setCoinFieldFromProposalValue(coin *models.Coin, field string, value any) e
 		coin.ReverseDescription = deepProposalValueToString(value)
 	case "Notes":
 		coin.Notes = deepProposalValueToString(value)
+	case "ReferenceText":
+		// Feature 345: OCRE coin_type RIC-style catalog label reuses the
+		// existing ReferenceText column (no schema migration).
+		coin.ReferenceText = deepProposalValueToString(value)
 	default:
 		return fmt.Errorf("%w: %q", ErrDeepProposalFieldNotAllowed, field)
 	}

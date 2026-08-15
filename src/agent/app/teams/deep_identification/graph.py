@@ -49,8 +49,12 @@ inscriptions/legends, material/color, and wear. Do not guess a specific
 ruler, mint, or date unless legend text makes it unambiguous. Do not use
 emojis.""")
 
-_AUTOMATED_PROVIDER_NODES = {"numista": numista_provider.run, "nomisma": nomisma_provider.run}
-_TRIVIAL_PROVIDER_NODES = {"ocre": ocre_provider.run, "rpc": rpc_provider.run}
+_AUTOMATED_PROVIDER_NODES = {
+    "numista": numista_provider.run,
+    "nomisma": nomisma_provider.run,
+    "ocre": ocre_provider.run,
+}
+_TRIVIAL_PROVIDER_NODES = {"rpc": rpc_provider.run}
 
 
 async def prepare_evidence_node(state: DeepIdentificationState, model) -> dict:
@@ -111,7 +115,14 @@ async def _run_one_provider(
         return _TRIVIAL_PROVIDER_NODES[name](entry)
 
     fn = _AUTOMATED_PROVIDER_NODES.get(name)
-    if fn is None or tools is None:
+    if fn is None:
+        return ProviderEvidence(
+            provider=name, status="failed", automatable=True, error_kind="unconfigured", call_count=0
+        )
+    # An automatable provider needs the tools client to reach upstream; a
+    # disabled one (e.g. OCRE with its flag off, automatable=False) still runs
+    # its node purely so it can emit a zero-call not_automated row (FR-016).
+    if tools is None and entry.automatable:
         return ProviderEvidence(
             provider=name, status="failed", automatable=True, error_kind="unconfigured", call_count=0
         )

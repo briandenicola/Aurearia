@@ -314,11 +314,18 @@ func deepPipelineBounds(settings DeepIdentificationSettings) DeepIdentifyBoundsP
 
 // deepPipelineProviderCatalog builds the fixed MVP provider catalog
 // (contract §2 example): Nomisma/Numista automated via existing Go
-// services/internal tools; NGC is OCR/link-out only; OCRE/RPC are always
-// typed not_automated/unavailable this phase regardless of the
-// OCREEnabled/RPCEnabled settings flags, which are reserved for the
-// deferred T155/T156 gates and intentionally not read here.
+// services/internal tools; NGC is OCR/link-out only; RPC is always typed
+// not_automated/unavailable this phase (deferred T156 gate, flag not read
+// here). OCRE is conditionally automated (Feature 345): when the
+// DeepIdentificationOCREEnabled setting is on it becomes a normal automatable
+// catalog entry with its own call budget; when off it stays a typed
+// not_automated entry — byte-for-byte the previous beta behavior — so the
+// flag is the sole enable/rollback control (FR-004/FR-016).
 func deepPipelineProviderCatalog(settings DeepIdentificationSettings) []DeepProviderCatalogEntryProxy {
+	ocreEntry := DeepProviderCatalogEntryProxy{Provider: "ocre", Automatable: false, Reason: "provider_disabled"}
+	if settings.OCREEnabled {
+		ocreEntry = DeepProviderCatalogEntryProxy{Provider: "ocre", Automatable: true, CallBudget: settings.OCRECallBudget}
+	}
 	return []DeepProviderCatalogEntryProxy{
 		{Provider: "numista", Automatable: true, CallBudget: settings.NumistaCallBudget},
 		{Provider: "nomisma", Automatable: true, CallBudget: settings.MaxProviders},
@@ -328,7 +335,7 @@ func deepPipelineProviderCatalog(settings DeepIdentificationSettings) []DeepProv
 			Reason:      "terms_prohibit_automated_access",
 			LinkOut:     "https://www.ngccoin.com/verify/",
 		},
-		{Provider: "ocre", Automatable: false, Reason: "pending_license_validation"},
+		ocreEntry,
 		{Provider: "rpc", Automatable: false, Reason: "no_public_api"},
 	}
 }

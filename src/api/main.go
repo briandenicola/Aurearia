@@ -113,6 +113,12 @@ func main() {
 	// numista_detail/nomisma_search internal tool endpoints.
 	deepProviderBudgets := services.NewDeepProviderBudgetTracker()
 	deepNomismaClient := services.NewHTTPNomismaClient()
+	// Feature 345: OCRE automated Deep Analysis provider — the single
+	// Nomisma-SPARQL HTTP boundary + its bounded search cache, shared with
+	// the ocre_search internal tool endpoint (default-off; gated by the
+	// DeepIdentificationOCREEnabled setting via the provider catalog).
+	deepOCREClient := services.NewHTTPOCREClient()
+	deepOCRECache := services.NewOCRECache()
 	credentialEncryptionSvc := services.NewDisabledCredentialEncryptionService()
 	if cfg.AuctionCredentialEncryptionKey != "" {
 		var err error
@@ -846,11 +852,12 @@ func main() {
 	internalDeepProviderTools.Use(middleware.InternalJobTokenRequired(internalTokenSvc))
 	{
 		deepProviderToolsHandler := handlers.NewDeepProviderToolsHandler(
-			numistaClient, deepNomismaClient, settingsSvc, deepProviderBudgets, logger,
+			numistaClient, deepNomismaClient, deepOCREClient, deepOCRECache, settingsSvc, deepProviderBudgets, logger,
 		)
 		internalDeepProviderTools.POST("/numista_search", deepProviderToolsHandler.NumistaSearch)
 		internalDeepProviderTools.POST("/numista_detail", deepProviderToolsHandler.NumistaDetail)
 		internalDeepProviderTools.POST("/nomisma_search", deepProviderToolsHandler.NomismaSearch)
+		internalDeepProviderTools.POST("/ocre_search", deepProviderToolsHandler.OCRESearch)
 	}
 
 	log.Printf("Starting server on :%s", cfg.Port)

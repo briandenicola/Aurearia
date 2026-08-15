@@ -117,3 +117,53 @@ async def test_route_empty_catalog_selects_nothing_without_llm_call():
     assert decision.selected == []
     assert decision.skipped == []
     assert model.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_route_can_select_ocre_when_flag_on():
+    # Feature 345: with the OCRE flag on, Go supplies an automatable OCRE
+    # catalog entry; the router may select it for Roman-Imperial evidence.
+    catalog = _catalog(("numista", True), ("ocre", True))
+    model = FakeModel(content='{"selected": ["numista", "ocre"], "rationale": "roman imperial"}')
+
+    decision = await route(model, catalog, provider_override=[], max_providers=5, notes="Roman denarius of Augustus")
+
+    assert "ocre" in decision.selected
+
+
+@pytest.mark.asyncio
+async def test_route_does_not_force_ocre_without_override():
+    # A non-Roman-Imperial run: the LLM may legitimately omit OCRE and nothing
+    # forces its selection absent an explicit override.
+    catalog = _catalog(("numista", True), ("ocre", True))
+    model = FakeModel(content='{"selected": ["numista"], "rationale": "modern coin, ocre not relevant"}')
+
+    decision = await route(model, catalog, provider_override=[], max_providers=5, notes="modern euro coin")
+
+    assert decision.selected == ["numista"]
+
+
+@pytest.mark.asyncio
+async def test_route_never_selects_ocre_when_flag_off():
+    # Flag off → Go marks OCRE automatable=false; it must never appear in
+    # selected or skipped (it takes the trivial not_automated fan-out path).
+    catalog = _catalog(("numista", True), ("ocre", False))
+    model = FakeModel(content='{"selected": ["numista", "ocre"], "rationale": "test"}')
+
+    decision = await route(model, catalog, provider_override=[], max_providers=5, notes="")
+
+    assert "ocre" not in decision.selected
+    assert all(skip["provider"] != "ocre" for skip in decision.skipped)
+
+
+@pytest.mark.asyncio
+async def test_ocre_override_cannot_bypass_flag_off():
+    # Even an explicit override cannot promote a flag-off (non-automatable)
+    # OCRE into the automated selection.
+    catalog = _catalog(("numista", True), ("ocre", False))
+    model = FakeModel(content="unused")
+
+    decision = await route(model, catalog, provider_override=["ocre"], max_providers=5, notes="")
+
+    assert "ocre" not in decision.selected
+    assert model.calls == 0

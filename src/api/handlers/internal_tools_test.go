@@ -56,9 +56,27 @@ func (f *fakeDeepNomismaClient) Search(_ context.Context, _ string, _ int) ([]se
 	return f.candidates, f.kind, f.err
 }
 
+// fakeDeepOCREClient is an in-memory stand-in for services.OCREClient.
+type fakeDeepOCREClient struct {
+	searchCalls atomic.Int32
+	candidates  []services.OCRECandidate
+	kind        services.OCREErrorKind
+	err         error
+}
+
+func (f *fakeDeepOCREClient) Search(_ context.Context, _ services.OCREQueryParams, _ int) ([]services.OCRECandidate, services.OCREErrorKind, error) {
+	f.searchCalls.Add(1)
+	return f.candidates, f.kind, f.err
+}
+
 var deepProviderToolsTestDBCounter int64
 
 func setupDeepProviderToolsTest(t *testing.T, numistaBudget int) (*gin.Engine, *services.InternalTokenService, *fakeDeepNumistaClient, *fakeDeepNomismaClient) {
+	router, tokenSvc, numista, nomisma, _ := setupDeepProviderToolsTestWithOCRE(t, numistaBudget, 3)
+	return router, tokenSvc, numista, nomisma
+}
+
+func setupDeepProviderToolsTestWithOCRE(t *testing.T, numistaBudget, ocreBudget int) (*gin.Engine, *services.InternalTokenService, *fakeDeepNumistaClient, *fakeDeepNomismaClient, *fakeDeepOCREClient) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	dsn := fmt.Sprintf("file:deep_provider_tools_%d_%d?mode=memory&cache=shared", time.Now().UnixNano(), atomic.AddInt64(&deepProviderToolsTestDBCounter, 1))
@@ -74,13 +92,28 @@ func setupDeepProviderToolsTest(t *testing.T, numistaBudget int) (*gin.Engine, *
 	}).Error; err != nil {
 		t.Fatalf("seed numista budget: %v", err)
 	}
+	if err := db.Create(&models.AppSetting{
+		Key: services.SettingDeepIdentificationOCRECallBudget, Value: fmt.Sprintf("%d", ocreBudget),
+	}).Error; err != nil {
+		t.Fatalf("seed ocre budget: %v", err)
+	}
+	if err := db.Create(&models.AppSetting{
+		Key: services.SettingDeepIdentificationOCREEnabled, Value: "true",
+	}).Error; err != nil {
+		t.Fatalf("seed ocre enabled: %v", err)
+	}
 	settingsSvc := services.NewSettingsService(repository.NewSettingsRepository(db))
 
 	numistaClient := &fakeDeepNumistaClient{candidates: []models.NumistaCandidate{{ID: 1, Title: "Denarius"}}}
 	nomismaClient := &fakeDeepNomismaClient{candidates: []services.NomismaCandidate{{URI: "http://nomisma.org/id/ar", Label: "AR"}}}
+	ocreClient := &fakeDeepOCREClient{candidates: []services.OCRECandidate{{
+		TypeURI: "https://numismatics.org/ocre/id/ric.2.hdn.39b", Label: "RIC II Hadrian 39b",
+		MatchedFields: []string{"ruler:hadrian"}, Confidence: 0.86, Explanation: "Matched ruler hadrian.",
+	}}}
+	ocreCache := services.NewOCRECache()
 	tokenSvc := services.NewInternalTokenService("test-secret")
 	budgets := services.NewDeepProviderBudgetTracker()
-	handler := NewDeepProviderToolsHandler(numistaClient, nomismaClient, settingsSvc, budgets, services.NewLogger(10))
+	handler := NewDeepProviderToolsHandler(numistaClient, nomismaClient, ocreClient, ocreCache, settingsSvc, budgets, services.NewLogger(10))
 
 	router := gin.New()
 	authed := router.Group("/api/internal/tools")
@@ -106,8 +139,9 @@ func setupDeepProviderToolsTest(t *testing.T, numistaBudget int) (*gin.Engine, *
 	authed.POST("/numista_search", handler.NumistaSearch)
 	authed.POST("/numista_detail", handler.NumistaDetail)
 	authed.POST("/nomisma_search", handler.NomismaSearch)
+	authed.POST("/ocre_search", handler.OCRESearch)
 
-	return router, tokenSvc, numistaClient, nomismaClient
+	return router, tokenSvc, numistaClient, nomismaClient, ocreClient
 }
 
 func TestDeepProviderTools_UnauthenticatedRequestReturns401(t *testing.T) {
@@ -259,5 +293,153 @@ func TestDeepProviderTools_NomismaSearchIndependentBudgetFromNumista(t *testing.
 	}
 	if numistaClient.searchCalls.Load() != 1 || nomismaClient.searchCalls.Load() != 1 {
 		t.Fatalf("expected one call each, got numista=%d nomisma=%d", numistaClient.searchCalls.Load(), nomismaClient.searchCalls.Load())
+	}
+}
+
+// ---- Feature 345 (T013/T034): OCRE internal tool handler tests ----
+
+func ocreCall(t *testing.T, router *gin.Engine, token, body string) (int, map[string]any) {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/internal/tools/ocre_search", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	var resp map[string]any
+	if rec.Body.Len() > 0 {
+		_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	}
+	return rec.Code, resp
+}
+
+const ocreHadrianBody = `{"ruler":"hadrian","denomination":"denarius","mint":"rome","limit":5}`
+
+func TestDeepProviderTools_OCRESearchOK(t *testing.T) {
+	router, tokenSvc, _, _, ocreClient := setupDeepProviderToolsTestWithOCRE(t, 4, 3)
+	token, _ := tokenSvc.MintForJob(1, 5)
+	code, resp := ocreCall(t, router, token, ocreHadrianBody)
+	if code != http.StatusOK || resp["status"] != "ok" {
+		t.Fatalf("expected 200/ok, got %d/%v", code, resp["status"])
+	}
+	if resp["attribution"] != "Coin type data: Online Coins of the Roman Empire (OCRE), American Numismatic Society \u2014 ODbL 1.0." {
+		t.Fatalf("unexpected attribution: %v", resp["attribution"])
+	}
+	cands, _ := resp["candidates"].([]any)
+	if len(cands) != 1 {
+		t.Fatalf("expected one candidate, got %v", resp["candidates"])
+	}
+	if ocreClient.searchCalls.Load() != 1 {
+		t.Fatalf("expected exactly one upstream call, got %d", ocreClient.searchCalls.Load())
+	}
+}
+
+func TestDeepProviderTools_OCRESearchEmpty(t *testing.T) {
+	router, tokenSvc, _, _, ocreClient := setupDeepProviderToolsTestWithOCRE(t, 4, 3)
+	ocreClient.candidates = nil
+	ocreClient.kind = services.OCREErrorNoMatch
+	token, _ := tokenSvc.MintForJob(1, 5)
+	code, resp := ocreCall(t, router, token, ocreHadrianBody)
+	if code != http.StatusOK || resp["status"] != "empty" {
+		t.Fatalf("expected 200/empty, got %d/%v", code, resp["status"])
+	}
+}
+
+func TestDeepProviderTools_OCRESearchInvalidResponse(t *testing.T) {
+	router, tokenSvc, _, _, ocreClient := setupDeepProviderToolsTestWithOCRE(t, 4, 3)
+	ocreClient.candidates = nil
+	ocreClient.kind = services.OCREErrorInvalidResponse
+	token, _ := tokenSvc.MintForJob(1, 5)
+	code, resp := ocreCall(t, router, token, ocreHadrianBody)
+	if code != http.StatusOK {
+		t.Fatalf("expected 200 (never a 5xx for an upstream problem), got %d", code)
+	}
+	if resp["status"] != "invalid_response" {
+		t.Fatalf("expected status=invalid_response, got %v", resp["status"])
+	}
+}
+
+func TestDeepProviderTools_OCRESearchUnavailableNever5xx(t *testing.T) {
+	router, tokenSvc, _, _, ocreClient := setupDeepProviderToolsTestWithOCRE(t, 4, 3)
+	ocreClient.candidates = nil
+	ocreClient.kind = services.OCREErrorUnavailable
+	token, _ := tokenSvc.MintForJob(1, 5)
+	code, resp := ocreCall(t, router, token, ocreHadrianBody)
+	if code != http.StatusOK || resp["status"] != "unavailable" {
+		t.Fatalf("expected 200/unavailable, got %d/%v", code, resp["status"])
+	}
+}
+
+func TestDeepProviderTools_OCRESearchCancelled(t *testing.T) {
+	router, tokenSvc, _, _, ocreClient := setupDeepProviderToolsTestWithOCRE(t, 4, 3)
+	ocreClient.candidates = nil
+	ocreClient.kind = services.OCREErrorCancelled
+	token, _ := tokenSvc.MintForJob(1, 5)
+	code, resp := ocreCall(t, router, token, ocreHadrianBody)
+	if code != http.StatusOK || resp["status"] != "cancelled" {
+		t.Fatalf("expected 200/cancelled, got %d/%v", code, resp["status"])
+	}
+}
+
+func TestDeepProviderTools_OCRESearchQuotaLimitedIndependentBudget(t *testing.T) {
+	router, tokenSvc, _, _, ocreClient := setupDeepProviderToolsTestWithOCRE(t, 4, 1)
+	token, _ := tokenSvc.MintForJob(1, 5)
+	// First call (distinct params) consumes the (budget=1) OCRE budget.
+	if code, resp := ocreCall(t, router, token, `{"ruler":"hadrian","limit":5}`); code != http.StatusOK || resp["status"] != "ok" {
+		t.Fatalf("first call: expected 200/ok, got %d/%v", code, resp["status"])
+	}
+	// Second call with *different* params misses the cache and is over
+	// budget: typed quota_limited, HTTP 200, no new upstream call.
+	code, resp := ocreCall(t, router, token, `{"ruler":"trajan","limit":5}`)
+	if code != http.StatusOK || resp["status"] != "quota_limited" {
+		t.Fatalf("expected 200/quota_limited, got %d/%v", code, resp["status"])
+	}
+	if ocreClient.searchCalls.Load() != 1 {
+		t.Fatalf("expected the over-budget call to short-circuit, got %d calls", ocreClient.searchCalls.Load())
+	}
+}
+
+func TestDeepProviderTools_OCRESearchMissingTokenReturns401(t *testing.T) {
+	router, _, _, _, _ := setupDeepProviderToolsTestWithOCRE(t, 4, 3)
+	code, _ := ocreCall(t, router, "", ocreHadrianBody)
+	if code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for a missing job token, got %d", code)
+	}
+}
+
+func TestDeepProviderTools_OCRESearchUnparseableBodyReturns400(t *testing.T) {
+	router, tokenSvc, _, _, _ := setupDeepProviderToolsTestWithOCRE(t, 4, 3)
+	token, _ := tokenSvc.MintForJob(1, 5)
+	code, _ := ocreCall(t, router, token, `{not valid json`)
+	if code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for an unparseable body, got %d", code)
+	}
+}
+
+func TestDeepProviderTools_OCRESearchNoSignalNoCall(t *testing.T) {
+	router, tokenSvc, _, _, ocreClient := setupDeepProviderToolsTestWithOCRE(t, 4, 3)
+	token, _ := tokenSvc.MintForJob(1, 5)
+	// Only a material + legend: no type-bearing signal → empty, zero calls.
+	code, resp := ocreCall(t, router, token, `{"material":"silver","legend_tokens":["cos"]}`)
+	if code != http.StatusOK || resp["status"] != "empty" {
+		t.Fatalf("expected 200/empty for a signal-less request, got %d/%v", code, resp["status"])
+	}
+	if ocreClient.searchCalls.Load() != 0 {
+		t.Fatalf("expected zero upstream calls for a signal-less request, got %d", ocreClient.searchCalls.Load())
+	}
+}
+
+func TestDeepProviderTools_OCRESearchCacheHitSkipsUpstream(t *testing.T) {
+	router, tokenSvc, _, _, ocreClient := setupDeepProviderToolsTestWithOCRE(t, 4, 5)
+	token, _ := tokenSvc.MintForJob(1, 5)
+	if code, resp := ocreCall(t, router, token, ocreHadrianBody); code != http.StatusOK || resp["status"] != "ok" {
+		t.Fatalf("first call: expected 200/ok, got %d/%v", code, resp["status"])
+	}
+	if code, resp := ocreCall(t, router, token, ocreHadrianBody); code != http.StatusOK || resp["status"] != "ok" {
+		t.Fatalf("second call: expected 200/ok cache hit, got %d/%v", code, resp["status"])
+	}
+	if ocreClient.searchCalls.Load() != 1 {
+		t.Fatalf("expected the second identical call to hit the cache (one upstream call total), got %d", ocreClient.searchCalls.Load())
 	}
 }
