@@ -86,4 +86,36 @@ describe('DeepProposalEditor', () => {
     expect(confirmButton.attributes('disabled')).toBeDefined()
     expect(confirmButton.text()).toContain('Applying')
   })
+
+  it('surfaces the OCRE attribution beside a coin_type field whose evidence cites an OCRE type', () => {
+    const proposal: DeepProposal = {
+      schemaVersion: 1,
+      fields: {
+        coin_type: {
+          proposed: 'RIC I Augustus 1',
+          confidence: 0.82,
+          evidence: [
+            {
+              field: 'coin_type',
+              value: 'RIC I Augustus 1',
+              confidence: 0.82,
+              citation: 'https://numismatics.org/ocre/id/ric.1(2).aug.1',
+            },
+          ],
+          ownerEdited: false,
+          ownerValue: null,
+          accepted: null,
+        },
+      },
+    }
+    const wrapper = mount(DeepProposalEditor, { props: { proposal } })
+    expect(wrapper.find('.ocre-attribution').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://opendatacommons.org/licenses/odbl/1-0/"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://numismatics.org/ocre/id/ric.1(2).aug.1"]').exists()).toBe(true)
+  })
+
+  it('does not surface an OCRE attribution for a field without OCRE-cited evidence', () => {
+    const wrapper = mount(DeepProposalEditor, { props: { proposal: baseProposal() } })
+    expect(wrapper.find('.ocre-attribution').exists()).toBe(false)
+  })
 })

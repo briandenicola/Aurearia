@@ -71,3 +71,34 @@ class ProviderToolsClient:
     async def nomisma_search(self, query: str, limit: int = 5) -> dict:
         """POST /api/internal/tools/nomisma_search — {status, candidates, attribution}."""
         return await self._post("nomisma_search", {"query": query, "limit": limit})
+
+    async def ocre_search(
+        self,
+        *,
+        ruler: str = "",
+        denomination: str = "",
+        mint: str = "",
+        material: str = "",
+        legend_tokens: list[str] | None = None,
+        ocre_id: str = "",
+        limit: int = 5,
+    ) -> dict:
+        """POST /api/internal/tools/ocre_search — {status, candidates, attribution}.
+
+        Feature 345: the OCRE (Nomisma SPARQL) coin-type provider. All query
+        signals are normalized/re-validated Go-side into Nomisma id slugs
+        before any SPARQL is emitted; free text never reaches the query.
+        Raises ProviderToolError on transport failure (never propagates).
+        """
+        return await self._post(
+            "ocre_search",
+            {
+                "ruler": ruler,
+                "denomination": denomination,
+                "mint": mint,
+                "material": material,
+                "legend_tokens": legend_tokens or [],
+                "ocre_id": ocre_id,
+                "limit": limit,
+            },
+        )

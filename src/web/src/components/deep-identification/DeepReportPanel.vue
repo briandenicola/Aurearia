@@ -62,11 +62,36 @@
         </li>
       </ul>
     </div>
+
+    <div v-if="report.attributions?.length" class="grid gap-2">
+      <h3 class="m-0 text-lg font-semibold text-text-primary">Attribution &amp; licensing</h3>
+      <ul class="m-0 grid gap-1 p-0" style="list-style: none;">
+        <li
+          v-for="entry in report.attributions"
+          :key="entry.provider"
+          class="rounded-sm border border-border-subtle bg-card p-2"
+        >
+          <OCREAttribution v-if="entry.provider === 'ocre'" :uri="entry.identifier" />
+          <p v-else class="m-0 text-sm text-text-secondary">
+            {{ entry.text }}
+            <SafeExternalLink
+              v-if="entry.identifier"
+              :href="entry.identifier"
+              class="text-gold underline"
+            >
+              source
+            </SafeExternalLink>
+          </p>
+        </li>
+      </ul>
+    </div>
   </section>
 </template>
 
 <script setup lang="ts">
 import type { DeepReport, DeepProviderStatus } from '@/types'
+import OCREAttribution from './OCREAttribution.vue'
+import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
 defineProps<{ report: DeepReport }>()
 

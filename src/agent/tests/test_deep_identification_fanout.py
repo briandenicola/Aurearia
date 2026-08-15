@@ -141,3 +141,170 @@ async def test_fanout_one_failing_provider_does_not_block_others(monkeypatch):
     by_provider = {row.provider: row for row in result["evidence"]}
     assert by_provider["numista"].status == "failed"
     assert by_provider["nomisma"].status == "contributed"
+
+
+@pytest.mark.asyncio
+async def test_fanout_runs_ocre_through_automated_timeout_wrapped_path(monkeypatch):
+    """Feature 345: a selected OCRE now runs via the automated fan-out path
+    (async, timeout/semaphore-wrapped) — invoked with the 4-arg node
+    signature — not the trivial single-arg dict."""
+    seen_args = {}
+
+    async def spy_ocre(entry, tools, quick_evidence, notes):
+        seen_args["argc"] = 4
+        seen_args["provider"] = entry.provider
+        return ProviderEvidence(provider="ocre", status="contributed", automatable=True, call_count=1)
+
+    import app.teams.deep_identification.graph as graph_module
+
+    assert "ocre" in graph_module._AUTOMATED_PROVIDER_NODES
+    assert "ocre" not in graph_module._TRIVIAL_PROVIDER_NODES
+    monkeypatch.setitem(graph_module._AUTOMATED_PROVIDER_NODES, "ocre", spy_ocre)
+
+    catalog = [DeepProviderCatalogEntry(provider="ocre", automatable=True)]
+    state = {
+        "catalog": catalog,
+        "bounds": _bounds(provider_timeout_s=5),
+        "quick_evidence": None,
+        "notes": "",
+        "selected": ["ocre"],
+        "skipped": [],
+    }
+
+    result = await provider_fanout_node(state, tools=object())
+
+    assert seen_args == {"argc": 4, "provider": "ocre"}
+    assert result["evidence"][0].status == "contributed"
+
+
+@pytest.mark.asyncio
+async def test_fanout_rpc_trivial_path_unaffected_by_dict_split():
+    """RPC remains the sole trivial (single-arg, synchronous) node after the
+    OCRE move; it still emits its typed unavailable row with zero calls."""
+    import app.teams.deep_identification.graph as graph_module
+
+    assert set(graph_module._TRIVIAL_PROVIDER_NODES) == {"rpc"}
+
+    catalog = [DeepProviderCatalogEntry(provider="rpc", automatable=False, reason="no_public_api")]
+    state = {
+        "catalog": catalog,
+        "bounds": _bounds(),
+        "quick_evidence": None,
+        "notes": "",
+        "selected": [],
+        "skipped": [],
+    }
+
+    result = await provider_fanout_node(state, tools=None)
+
+    row = result["evidence"][0]
+    assert row.provider == "rpc"
+    assert row.status == "unavailable"
+    assert row.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_fanout_ocre_hung_still_yields_already_completed_evidence(monkeypatch):
+    """T036: OCRE hung past its provider timeout must not strand the evidence
+    other providers already produced — the timed-out row is typed and the
+    completed provider's contribution survives (incremental on_result)."""
+    async def hung_ocre(entry, tools, quick_evidence, notes):
+        await asyncio.sleep(10)
+        return ProviderEvidence(provider="ocre", status="contributed", automatable=True)
+
+    async def fast_numista(entry, tools, quick_evidence, notes):
+        return ProviderEvidence(provider="numista", status="contributed", automatable=True, call_count=1)
+
+    import app.teams.deep_identification.graph as graph_module
+
+    monkeypatch.setitem(graph_module._AUTOMATED_PROVIDER_NODES, "ocre", hung_ocre)
+    monkeypatch.setitem(graph_module._AUTOMATED_PROVIDER_NODES, "numista", fast_numista)
+
+    accumulated: list = []
+    catalog = [
+        DeepProviderCatalogEntry(provider="ocre", automatable=True),
+        DeepProviderCatalogEntry(provider="numista", automatable=True),
+    ]
+    state = {
+        "catalog": catalog,
+        "bounds": _bounds(provider_timeout_s=1, max_concurrency=2),
+        "quick_evidence": None,
+        "notes": "",
+        "selected": ["ocre", "numista"],
+        "skipped": [],
+    }
+
+    result = await provider_fanout_node(state, tools=object(), on_result=lambda row: accumulated.append(row))
+
+    by_provider = {row.provider: row.status for row in result["evidence"]}
+    assert by_provider["numista"] == "contributed"
+    assert by_provider["ocre"] == "timed_out"
+    # The completed provider's evidence was accumulated incrementally, before
+    # the hung OCRE task resolved.
+    assert any(r.provider == "numista" and r.status == "contributed" for r in accumulated)
+
+
+@pytest.mark.asyncio
+async def test_fanout_ocre_flag_off_makes_zero_tool_calls(monkeypatch):
+    """T036: a flag-off (non-automatable) OCRE goes straight to not_automated
+    with no tool call — proven via a call-count spy on the tools client."""
+    class SpyTools:
+        def __init__(self):
+            self.ocre_calls = 0
+
+        async def ocre_search(self, **kwargs):
+            self.ocre_calls += 1
+            return {"status": "empty", "candidates": []}
+
+    spy = SpyTools()
+    catalog = [DeepProviderCatalogEntry(provider="ocre", automatable=False, reason="pending_license_validation")]
+    state = {
+        "catalog": catalog,
+        "bounds": _bounds(),
+        "quick_evidence": None,
+        "notes": "",
+        "selected": [],
+        "skipped": [],
+    }
+
+    result = await provider_fanout_node(state, tools=spy)
+
+    assert result["evidence"][0].provider == "ocre"
+    assert result["evidence"][0].status == "not_automated"
+    assert result["evidence"][0].call_count == 0
+    assert spy.ocre_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_fanout_flag_off_beats_provider_override_zero_ocre_calls():
+    """T047 (US5, FR-004): the OCRE flag takes precedence over an explicit
+    provider_override. With OCRE non-automatable (flag off), even a caller
+    override selecting "ocre" yields not_automated with zero tool calls."""
+    class SpyTools:
+        def __init__(self):
+            self.ocre_calls = 0
+
+        async def ocre_search(self, **kwargs):
+            self.ocre_calls += 1
+            return {"status": "empty", "candidates": []}
+
+    spy = SpyTools()
+    catalog = [DeepProviderCatalogEntry(provider="ocre", automatable=False, reason="pending_license_validation")]
+    state = {
+        "catalog": catalog,
+        "bounds": _bounds(),
+        "quick_evidence": None,
+        "notes": "",
+        # Router excludes a non-automatable provider from `selected` even under
+        # override; the fanout still runs it via the non-automatable path.
+        "selected": [],
+        "provider_override": ["ocre"],
+        "skipped": [],
+    }
+
+    result = await provider_fanout_node(state, tools=spy)
+
+    ocre_row = next(row for row in result["evidence"] if row.provider == "ocre")
+    assert ocre_row.status == "not_automated"
+    assert ocre_row.call_count == 0
+    assert spy.ocre_calls == 0

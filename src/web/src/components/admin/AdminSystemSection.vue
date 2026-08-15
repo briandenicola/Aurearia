@@ -148,6 +148,93 @@
         </section>
       </section>
 
+      <section
+        class="mt-6 min-w-0 rounded-md border border-border-subtle bg-input p-4 md:p-6"
+        aria-labelledby="ocre-section-heading"
+        data-testid="ocre-section"
+      >
+        <div class="mb-5">
+          <p class="section-label">Deep Analysis Provider</p>
+          <h3 id="ocre-section-heading" class="m-0 text-lg font-medium text-heading">OCRE / Deep Analysis</h3>
+          <p class="mt-1 text-sm text-text-muted">
+            Online Coins of the Roman Empire (Nomisma.org). Off by default; when enabled, Deep Analysis may
+            consult OCRE for Roman Imperial coin-type identification within a bounded per-job call budget.
+          </p>
+        </div>
+
+        <div class="form-group min-w-0">
+          <label class="flex items-center gap-3">
+            <input
+              id="ocre-enabled"
+              v-model="localOCREEnabled"
+              type="checkbox"
+              name="DeepIdentificationOCREEnabled"
+              data-testid="ocre-enabled-toggle"
+              aria-describedby="ocre-enabled-help"
+            />
+            <span class="form-label m-0">Enable OCRE Deep Analysis provider</span>
+          </label>
+          <span id="ocre-enabled-help" class="mt-1 block text-sm text-text-muted">
+            When off, no OCRE requests are ever made. Rollback at any time by disabling this toggle.
+          </span>
+        </div>
+
+        <fieldset class="mb-2 min-w-0">
+          <legend class="section-label mb-3">OCRE Limits</legend>
+          <div class="grid min-w-0 gap-4 md:grid-cols-2">
+            <div class="form-group min-w-0">
+              <label class="form-label" for="ocre-call-budget">Per-job call budget</label>
+              <input
+                id="ocre-call-budget"
+                v-model="localOCRECallBudget"
+                class="form-input"
+                type="number"
+                name="DeepIdentificationOCRECallBudget"
+                :min="1"
+                :max="20"
+                step="1"
+                required
+              />
+              <span class="mt-1 block text-sm text-text-muted">Requests per job; 1–20. Default 3.</span>
+            </div>
+          </div>
+        </fieldset>
+
+        <section class="border-t border-border-subtle pt-6" aria-labelledby="ocre-health-heading">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <h3 id="ocre-health-heading" class="m-0 text-lg font-medium text-heading">OCRE Health</h3>
+            <button type="button" class="btn btn-secondary btn-xs" :disabled="ocreHealthLoading" @click="loadOCREHealth">
+              {{ ocreHealthLoading ? 'Refreshing...' : 'Refresh' }}
+            </button>
+          </div>
+
+          <div v-if="ocreHealthLoading" class="flex items-center gap-3 py-6 text-sm text-text-secondary" role="status">
+            <span class="sr-only">Loading OCRE health</span>
+            Loading OCRE health
+          </div>
+          <p v-else-if="ocreHealthError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-[var(--color-negative)]" role="alert">
+            OCRE health is temporarily unavailable. Try again.
+          </p>
+          <div v-else-if="ocreHealth" class="grid gap-4 md:grid-cols-3" data-testid="ocre-health">
+            <div class="rounded-sm border border-border-subtle bg-card p-4">
+              <p class="section-label m-0">Provider</p>
+              <div class="mt-1 font-semibold text-text-primary">{{ ocreHealth.enabled ? 'Enabled' : 'Disabled' }}</div>
+              <div class="mt-1 text-sm text-text-secondary">{{ ocreHealth.gateValidated ? 'Configuration valid' : 'Configuration invalid' }}</div>
+            </div>
+            <div class="rounded-sm border border-border-subtle bg-card p-4">
+              <p class="section-label m-0">Call budget</p>
+              <div class="mt-1 text-sm text-text-primary">{{ ocreHealth.callBudget }} per job</div>
+            </div>
+            <div class="rounded-sm border border-border-subtle bg-card p-4">
+              <p class="section-label m-0">Last outcome</p>
+              <div class="mt-1 font-semibold text-text-primary">{{ formatOCREOutcome(ocreHealth.lastOutcome) }}</div>
+              <div class="mt-1 text-sm text-text-secondary">{{ formatTimestamp(ocreHealth.lastCheckedAt) }}</div>
+            </div>
+          </div>
+          <p v-else class="py-6 text-sm text-text-muted">No OCRE health data is available yet.</p>
+        </section>
+      </section>
+
       <p v-if="msg" class="my-2 text-body" :class="error ? 'text-[var(--color-negative)]' : 'text-gold'">{{ msg }}</p>
       <button type="submit" class="btn btn-primary btn-sm" :disabled="saving">
         {{ saving ? 'Saving...' : 'Save System Settings' }}
@@ -164,8 +251,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { getAdminNumistaHealth } from '@/api/client'
-import type { NumistaHealthSummary, NumistaLookupStatus } from '@/types'
+import { getAdminNumistaHealth, getAdminOCREHealth } from '@/api/client'
+import type { NumistaHealthSummary, NumistaLookupStatus, OCREHealthSummary } from '@/types'
 
 const props = defineProps<{
   numistaApiKey: string
@@ -175,6 +262,8 @@ const props = defineProps<{
   numistaSearchResultLimit: string
   numistaSearchTimeoutSeconds: string
   numistaDetailTimeoutSeconds: string
+  deepIdentificationOCREEnabled: string
+  deepIdentificationOCRECallBudget: string
   pushoverAppToken: string
   publicAppUrl: string
   uspsApiBaseUrl: string
@@ -208,6 +297,8 @@ const emit = defineEmits<{
     numistaSearchResultLimit: string
     numistaSearchTimeoutSeconds: string
     numistaDetailTimeoutSeconds: string
+    deepIdentificationOCREEnabled: string
+    deepIdentificationOCRECallBudget: string
     logLevel: string
     pushoverAppToken: string
     publicAppUrl: string
@@ -234,6 +325,8 @@ const localNumistaEnrichmentLimit = ref(props.numistaEnrichmentLimit || '5')
 const localNumistaSearchResultLimit = ref(props.numistaSearchResultLimit || '20')
 const localNumistaSearchTimeoutSeconds = ref(props.numistaSearchTimeoutSeconds || '4')
 const localNumistaDetailTimeoutSeconds = ref(props.numistaDetailTimeoutSeconds || '3')
+const localOCREEnabled = ref((props.deepIdentificationOCREEnabled || 'false') === 'true')
+const localOCRECallBudget = ref(props.deepIdentificationOCRECallBudget || '3')
 const localPushoverAppToken = ref(props.pushoverAppToken)
 const localPublicAppUrl = ref(props.publicAppUrl)
 const localUSPSAPIBaseURL = ref(props.uspsApiBaseUrl)
@@ -253,6 +346,9 @@ const localLogLevel = ref(props.logLevel)
 const health = ref<NumistaHealthSummary | null>(null)
 const healthLoading = ref(true)
 const healthError = ref(false)
+const ocreHealth = ref<OCREHealthSummary | null>(null)
+const ocreHealthLoading = ref(true)
+const ocreHealthError = ref(false)
 const hasHealthEvents = computed(() => {
   if (!health.value) return false
   const counters = [
@@ -301,6 +397,7 @@ function save() {
   for (const setting of numistaSettingFields) {
     setting.model.value = boundedValue(setting.model.value, setting.min, setting.max, setting.fallback)
   }
+  localOCRECallBudget.value = boundedValue(localOCRECallBudget.value, 1, 20, 3)
   emit('save', {
     numistaApiKey: localNumistaApiKey.value,
     numistaSearchTTLHours: localNumistaSearchTTLHours.value,
@@ -309,6 +406,8 @@ function save() {
     numistaSearchResultLimit: localNumistaSearchResultLimit.value,
     numistaSearchTimeoutSeconds: localNumistaSearchTimeoutSeconds.value,
     numistaDetailTimeoutSeconds: localNumistaDetailTimeoutSeconds.value,
+    deepIdentificationOCREEnabled: localOCREEnabled.value ? 'true' : 'false',
+    deepIdentificationOCRECallBudget: localOCRECallBudget.value,
     logLevel: localLogLevel.value,
     pushoverAppToken: localPushoverAppToken.value,
     publicAppUrl: localPublicAppUrl.value,
@@ -342,6 +441,28 @@ async function loadHealth() {
   }
 }
 
+async function loadOCREHealth() {
+  ocreHealthLoading.value = true
+  ocreHealthError.value = false
+  try {
+    const response = await getAdminOCREHealth()
+    ocreHealth.value = response.data
+  } catch {
+    ocreHealth.value = null
+    ocreHealthError.value = true
+  } finally {
+    ocreHealthLoading.value = false
+  }
+}
+
+function formatOCREOutcome(status?: string | null) {
+  if (!status) return 'No recent outcome'
+  return status
+    .split('_')
+    .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : part))
+    .join(' ')
+}
+
 function formatStatus(status?: NumistaLookupStatus | null) {
   if (!status) return 'No recent outcome'
   return status === 'quota-limited' ? 'Quota limited' : status.charAt(0).toUpperCase() + status.slice(1)
@@ -369,6 +490,8 @@ watch(() => props.numistaEnrichmentLimit, (value) => { localNumistaEnrichmentLim
 watch(() => props.numistaSearchResultLimit, (value) => { localNumistaSearchResultLimit.value = value || '20' })
 watch(() => props.numistaSearchTimeoutSeconds, (value) => { localNumistaSearchTimeoutSeconds.value = value || '4' })
 watch(() => props.numistaDetailTimeoutSeconds, (value) => { localNumistaDetailTimeoutSeconds.value = value || '3' })
+watch(() => props.deepIdentificationOCREEnabled, (value) => { localOCREEnabled.value = (value || 'false') === 'true' })
+watch(() => props.deepIdentificationOCRECallBudget, (value) => { localOCRECallBudget.value = value || '3' })
 watch(() => props.pushoverAppToken, (value) => { localPushoverAppToken.value = value })
 watch(() => props.publicAppUrl, (value) => { localPublicAppUrl.value = value })
 watch(() => props.uspsApiBaseUrl, (value) => { localUSPSAPIBaseURL.value = value })
@@ -386,5 +509,8 @@ watch(() => props.fedexClientSecret, (value) => { localFedExClientSecret.value =
 watch(() => props.fedexScope, (value) => { localFedExScope.value = value })
 watch(() => props.logLevel, (value) => { localLogLevel.value = value })
 
-onMounted(loadHealth)
+onMounted(() => {
+  loadHealth()
+  loadOCREHealth()
+})
 </script>

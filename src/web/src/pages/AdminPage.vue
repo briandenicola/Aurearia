@@ -82,6 +82,8 @@
           :numista-search-result-limit="settings.NumistaSearchResultLimit ?? '20'"
           :numista-search-timeout-seconds="settings.NumistaSearchTimeoutSeconds ?? '4'"
           :numista-detail-timeout-seconds="settings.NumistaDetailTimeoutSeconds ?? '3'"
+          :deep-identification-o-c-r-e-enabled="settings.DeepIdentificationOCREEnabled ?? 'false'"
+          :deep-identification-o-c-r-e-call-budget="settings.DeepIdentificationOCRECallBudget ?? '3'"
           :pushover-app-token="settings.PushoverAppToken ?? ''"
           :public-app-url="settings.PublicAppURL ?? ''"
           :usps-api-base-url="settings.USPSAPIBaseURL ?? ''"
@@ -405,6 +407,8 @@ function onSystemSave(payload: {
   numistaSearchResultLimit: string
   numistaSearchTimeoutSeconds: string
   numistaDetailTimeoutSeconds: string
+  deepIdentificationOCREEnabled: string
+  deepIdentificationOCRECallBudget: string
   logLevel: string
   pushoverAppToken: string
   publicAppUrl: string
@@ -429,6 +433,8 @@ function onSystemSave(payload: {
   settings.value.NumistaSearchResultLimit = payload.numistaSearchResultLimit
   settings.value.NumistaSearchTimeoutSeconds = payload.numistaSearchTimeoutSeconds
   settings.value.NumistaDetailTimeoutSeconds = payload.numistaDetailTimeoutSeconds
+  settings.value.DeepIdentificationOCREEnabled = payload.deepIdentificationOCREEnabled
+  settings.value.DeepIdentificationOCRECallBudget = payload.deepIdentificationOCRECallBudget
   settings.value.LogLevel = payload.logLevel
   settings.value.PushoverAppToken = payload.pushoverAppToken
   settings.value.PublicAppURL = payload.publicAppUrl

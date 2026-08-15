@@ -47,6 +47,12 @@ var deepProposalCoinFieldAllowlist = map[string]string{
 	"obverseDescription": "ObverseDescription",
 	"reverseDescription": "ReverseDescription",
 	"notes":              "Notes",
+	// coin_type carries the OCRE RIC-style catalog type label (e.g.
+	// "RIC II Hadrian 39b"). It reuses the existing ReferenceText column —
+	// no schema migration — because a coin-type is a catalogue reference.
+	// The canonical numismatics.org/ocre citation lives in the claim
+	// evidence, never on the Coin row itself (Feature 345, data-model §5).
+	"coin_type": "ReferenceText",
 }
 
 // deepProposalDraftFieldAllowlist maps a Proposal.fields JSON key to the
@@ -444,6 +450,10 @@ func setCoinFieldFromProposalValue(coin *models.Coin, field string, value any) e
 		coin.ReverseDescription = deepProposalValueToString(value)
 	case "Notes":
 		coin.Notes = deepProposalValueToString(value)
+	case "ReferenceText":
+		// Feature 345: OCRE coin_type RIC-style catalog label reuses the
+		// existing ReferenceText column (no schema migration).
+		coin.ReferenceText = deepProposalValueToString(value)
 	default:
 		return fmt.Errorf("%w: %q", ErrDeepProposalFieldNotAllowed, field)
 	}

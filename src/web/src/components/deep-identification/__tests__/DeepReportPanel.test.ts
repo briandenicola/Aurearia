@@ -77,4 +77,55 @@ describe('DeepReportPanel', () => {
     })
     expect(wrapper.text()).toContain('Is the mint mark legible?')
   })
+
+  it('renders no attribution section when attributions are absent/empty', () => {
+    const wrapper = mount(DeepReportPanel, { props: { report: baseReport() } })
+    expect(wrapper.text()).not.toContain('Attribution & licensing')
+    expect(wrapper.find('.ocre-attribution').exists()).toBe(false)
+  })
+
+  it('renders the OCRE attribution when the report includes an ocre attribution entry', () => {
+    const wrapper = mount(DeepReportPanel, {
+      props: {
+        report: baseReport({
+          attributions: [
+            {
+              provider: 'ocre',
+              text: 'Coin type data: Online Coins of the Roman Empire (OCRE), American Numismatic Society \u2014 ODbL 1.0.',
+              identifier: 'https://numismatics.org/ocre/id/ric.1(2).aug.1',
+            },
+          ],
+        }),
+      },
+    })
+    expect(wrapper.text()).toContain('Attribution & licensing')
+    expect(wrapper.find('.ocre-attribution').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://opendatacommons.org/licenses/odbl/1-0/"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="https://numismatics.org/ocre/id/ric.1(2).aug.1"]').exists()).toBe(true)
+  })
+
+  it('keeps OCRE attribution distinct from a co-present Nomisma attribution entry', () => {
+    const wrapper = mount(DeepReportPanel, {
+      props: {
+        report: baseReport({
+          attributions: [
+            {
+              provider: 'ocre',
+              text: 'Coin type data: Online Coins of the Roman Empire (OCRE), American Numismatic Society \u2014 ODbL 1.0.',
+              identifier: 'https://numismatics.org/ocre/id/ric.1(2).aug.1',
+            },
+            {
+              provider: 'nomisma',
+              text: 'Data: Nomisma.org (CC BY)',
+              identifier: 'https://nomisma.org/id/augustus',
+            },
+          ],
+        }),
+      },
+    })
+    // OCRE renders via its dedicated distinct component; Nomisma via generic text.
+    expect(wrapper.find('.ocre-attribution').exists()).toBe(true)
+    expect(wrapper.text()).toContain('ODbL 1.0')
+    expect(wrapper.text()).toContain('Data: Nomisma.org (CC BY)')
+  })
 })

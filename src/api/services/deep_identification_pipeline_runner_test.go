@@ -276,20 +276,20 @@ func TestBuildDeepProposalDocumentJSONEmptyWhenNoProposedFields(t *testing.T) {
 	}
 }
 
-func TestDeepPipelineProviderCatalogNeverAutomatesOCREOrRPC(t *testing.T) {
+func TestDeepPipelineProviderCatalogNeverAutomatesRPCorNGC(t *testing.T) {
 	settings := DeepIdentificationSettings{MaxProviders: 4, NumistaCallBudget: 4}
 	catalog := deepPipelineProviderCatalog(settings)
 	found := map[string]DeepProviderCatalogEntryProxy{}
 	for _, entry := range catalog {
 		found[entry.Provider] = entry
 	}
-	for _, provider := range []string{"ocre", "rpc", "ngc"} {
+	for _, provider := range []string{"rpc", "ngc"} {
 		entry, ok := found[provider]
 		if !ok {
 			t.Fatalf("expected a catalog entry for %q", provider)
 		}
 		if entry.Automatable {
-			t.Fatalf("provider %q must never be automatable (deferred T155/T156 or terms-prohibited): %#v", provider, entry)
+			t.Fatalf("provider %q must never be automatable (deferred T156 or terms-prohibited): %#v", provider, entry)
 		}
 	}
 	for _, provider := range []string{"numista", "nomisma"} {
@@ -297,6 +297,47 @@ func TestDeepPipelineProviderCatalogNeverAutomatesOCREOrRPC(t *testing.T) {
 		if !ok || !entry.Automatable {
 			t.Fatalf("expected provider %q to be automatable, got %#v", provider, entry)
 		}
+	}
+}
+
+// TestDeepPipelineProviderCatalogOCREConditional verifies Feature 345: the
+// OCRE catalog entry is automatable with its own call budget iff the
+// DeepIdentificationOCREEnabled flag is on, and stays a typed not_automated
+// entry when off — while RPC's entry is untouched either way.
+func TestDeepPipelineProviderCatalogOCREConditional(t *testing.T) {
+	find := func(catalog []DeepProviderCatalogEntryProxy, provider string) DeepProviderCatalogEntryProxy {
+		for _, entry := range catalog {
+			if entry.Provider == provider {
+				return entry
+			}
+		}
+		t.Fatalf("no catalog entry for %q", provider)
+		return DeepProviderCatalogEntryProxy{}
+	}
+
+	// Flag ON: OCRE becomes automatable with its configured call budget.
+	on := deepPipelineProviderCatalog(DeepIdentificationSettings{MaxProviders: 4, NumistaCallBudget: 4, OCREEnabled: true, OCRECallBudget: 7})
+	ocreOn := find(on, "ocre")
+	if !ocreOn.Automatable {
+		t.Fatalf("flag on: expected OCRE automatable, got %#v", ocreOn)
+	}
+	if ocreOn.CallBudget != 7 {
+		t.Fatalf("flag on: expected OCRE call budget 7, got %#v", ocreOn)
+	}
+
+	// Flag OFF: OCRE is a typed not-automated entry, no budget.
+	off := deepPipelineProviderCatalog(DeepIdentificationSettings{MaxProviders: 4, NumistaCallBudget: 4, OCREEnabled: false, OCRECallBudget: 7})
+	ocreOff := find(off, "ocre")
+	if ocreOff.Automatable {
+		t.Fatalf("flag off: expected OCRE not automatable, got %#v", ocreOff)
+	}
+	if ocreOff.CallBudget != 0 {
+		t.Fatalf("flag off: expected no OCRE call budget, got %#v", ocreOff)
+	}
+
+	// RPC is untouched by the OCRE flag in both cases.
+	if find(on, "rpc").Automatable || find(off, "rpc").Automatable {
+		t.Fatalf("RPC catalog entry must remain not automatable regardless of the OCRE flag")
 	}
 }
 

@@ -15,6 +15,7 @@ from app.models.responses import (
     DisagreementEntry,
     EvidenceRef,
     ProposedFieldValue,
+    ProviderAttribution,
     ProviderCoverageEntry,
     ProviderEvidence,
 )
@@ -67,6 +68,28 @@ def _build_coverage(evidence: list[ProviderEvidence]) -> list[ProviderCoverageEn
     return [ProviderCoverageEntry(provider=row.provider, status=row.status) for row in evidence]
 
 
+def _build_attributions(evidence: list[ProviderEvidence]) -> list[ProviderAttribution]:
+    """One attribution entry per provider that BOTH carries a non-empty
+    attribution string AND surfaced ≥1 claim (FR-019). Fully deterministic,
+    no LLM: attribution appears only when the provider actually contributed,
+    and each provider's text is kept distinct (never merged). `identifier`
+    carries the top claim's canonical citation so the UI can deep-link the
+    exact contributed type.
+    """
+    attributions: list[ProviderAttribution] = []
+    for row in evidence:
+        if not row.attribution or not row.claims:
+            continue
+        attributions.append(
+            ProviderAttribution(
+                provider=row.provider,
+                text=row.attribution,
+                identifier=row.claims[0].citation or None,
+            )
+        )
+    return attributions
+
+
 async def synthesize(
     model,
     evidence: list[ProviderEvidence],
@@ -77,6 +100,7 @@ async def synthesize(
     disagreement_fields = {d.field for d in disagreements}
     proposed_fields = _build_proposed_fields(evidence, disagreement_fields)
     coverage = _build_coverage(evidence)
+    attributions = _build_attributions(evidence)
 
     contributing = [row for row in evidence if row.status == "contributed"]
     if not contributing:
@@ -90,6 +114,7 @@ async def synthesize(
         disagreements=disagreements,
         unresolved_questions=unresolved_questions[:20],
         coverage=coverage,
+        attributions=attributions,
         partial_success=partial_success,
     )
 

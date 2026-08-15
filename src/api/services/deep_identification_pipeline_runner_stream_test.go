@@ -358,3 +358,37 @@ func TestRunnerMalformedProviderResultFrameSkippedNotFabricated(t *testing.T) {
 		}
 	}
 }
+
+// T037 (US3/FR-022): the OCRE provider_result public payload persisted into
+// the owner-visible, replayable event log must carry only status/timing/
+// counts/error-kind/link-out — never the user's notes or the full legend/
+// inscription text that seeded the query, and never raw claim citations.
+func TestOCREProviderResultPublicPayloadOmitsUserAndLegendText(t *testing.T) {
+	secretLegend := "IMP CAESAR AVGVSTVS DIVI F"
+	secretNote := "my private grading note and provenance"
+	claims := []deepProposalClaim{
+		{
+			Field:      "coin_type",
+			Value:      "RIC I Augustus 1",
+			Confidence: 0.82,
+			Citation:   "https://numismatics.org/ocre/id/ric.1(2).aug.1",
+			Excerpt:    "matched authority; legend seed " + secretLegend + "; note " + secretNote,
+		},
+	}
+
+	payload := deepProviderResultPublicPayloadJSON("ocre", "contributed", 0.82, "", "", claims)
+
+	for _, forbidden := range []string{secretLegend, secretNote, "matched authority", "ric.1(2).aug.1", "numismatics.org"} {
+		if strings.Contains(payload, forbidden) {
+			t.Fatalf("public payload leaked %q: %s", forbidden, payload)
+		}
+	}
+
+	var pp deepProviderResultPublicPayload
+	if err := json.Unmarshal([]byte(payload), &pp); err != nil {
+		t.Fatalf("payload is not valid JSON: %v", err)
+	}
+	if pp.Provider != "ocre" || pp.Status != "contributed" || pp.ClaimCount != 1 {
+		t.Fatalf("unexpected bounded payload: %+v", pp)
+	}
+}

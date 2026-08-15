@@ -87,6 +87,8 @@ def test_sort_claims_shuffle_stability():
 
 
 def test_ngc_ocre_rpc_never_emit_no_match():
+    import asyncio
+
     from app.models.requests import DeepProviderCatalogEntry
 
     ngc_entry = DeepProviderCatalogEntry(provider="ngc", automatable=False, link_out="https://www.ngccoin.com/verify/")
@@ -94,11 +96,15 @@ def test_ngc_ocre_rpc_never_emit_no_match():
     rpc_entry = DeepProviderCatalogEntry(provider="rpc", automatable=False, reason="no_public_api")
 
     ngc_result = ngc.run(ngc_entry, None)
-    ocre_result = ocre.run(ocre_entry)
+    # Feature 345: OCRE is now an automated node, but with its flag off
+    # (automatable=False) it still short-circuits to not_automated with zero
+    # tool calls and no tools client needed.
+    ocre_result = asyncio.run(ocre.run(ocre_entry, None, None, ""))
     rpc_result = rpc.run(rpc_entry)
 
     assert ngc_result.status == "not_automated"
     assert ocre_result.status == "not_automated"
+    assert ocre_result.call_count == 0
     assert rpc_result.status == "unavailable"
     for result in (ngc_result, ocre_result, rpc_result):
         assert result.status != "no_match"
