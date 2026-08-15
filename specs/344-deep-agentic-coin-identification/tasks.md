@@ -124,10 +124,10 @@ be implemented as part of this MVP.
 
 **⚠️ CRITICAL**: Blocks the Python pipeline (Phase 7) and therefore every user story.
 
-- [ ] T051 Add `numista_search`/`numista_detail`/`nomisma_search` internal tool endpoints to `src/api/handlers/internal_tools.go` per `contracts/agent-internal-contract.md` §7, reusing `src/api/services/numista_client.go` and `src/api/services/nomisma_client.go`
-- [ ] T052 Add per-job call-budget enforcement (`SettingDeepIdentificationNumistaCallBudget`; Nomisma ≤3/job) keyed off the minted internal token's job binding in `src/api/handlers/internal_tools.go` — returns `quota_limited` status rather than an error
-- [ ] T053 Extend `src/api/services/internal_token_service.go` with `Mint(userID, jobID)` job-scoped binding used to authorize/limit tool calls
-- [ ] T054 [P] Add `httptest`-backed cases to `src/api/handlers/internal_tools_test.go`: budget enforcement returns `quota_limited` after N calls; internal-token middleware rejects unauthenticated or foreign-job calls; reuses the existing `numista_client_test.go`/`nomisma_client_test.go` fake-transport patterns, no live HTTP
+- [X] T051 Add `numista_search`/`numista_detail`/`nomisma_search` internal tool endpoints to `src/api/handlers/internal_tools.go` per `contracts/agent-internal-contract.md` §7, reusing `src/api/services/numista_client.go` and `src/api/services/nomisma_client.go`
+- [X] T052 Add per-job call-budget enforcement (`SettingDeepIdentificationNumistaCallBudget`; Nomisma ≤3/job) keyed off the minted internal token's job binding in `src/api/handlers/internal_tools.go` — returns `quota_limited` status rather than an error
+- [X] T053 Extend `src/api/services/internal_token_service.go` with `Mint(userID, jobID)` job-scoped binding used to authorize/limit tool calls
+- [X] T054 [P] Add `httptest`-backed cases to `src/api/handlers/internal_tools_test.go`: budget enforcement returns `quota_limited` after N calls; internal-token middleware rejects unauthenticated or foreign-job calls; reuses the existing `numista_client_test.go`/`nomisma_client_test.go` fake-transport patterns, no live HTTP
 
 **Checkpoint**: Go-side provider tool boundary exists, budgeted and owner/job-scoped, ready for Python to call.
 

@@ -821,6 +821,15 @@ definitions:
         example: 823160-093
         type: string
     type: object
+  handlers.NomismaSearchRequest:
+    properties:
+      limit:
+        type: integer
+      query:
+        type: string
+    required:
+    - query
+    type: object
   handlers.NoteListResponse:
     properties:
       notes:
@@ -848,6 +857,13 @@ definitions:
       year:
         example: 101-102
         type: string
+    type: object
+  handlers.NumistaDetailRequest:
+    properties:
+      id:
+        type: integer
+    required:
+    - id
     type: object
   handlers.NumistaEnrichmentRequestSwagger:
     properties:
@@ -963,6 +979,15 @@ definitions:
     - generationVersion
     - query
     - querySource
+    type: object
+  handlers.NumistaSearchRequest:
+    properties:
+      limit:
+        type: integer
+      query:
+        type: string
+    required:
+    - query
     type: object
   handlers.OllamaStatusResponse:
     properties:
@@ -10191,6 +10216,123 @@ paths:
             additionalProperties: true
             type: object
       summary: Get a single coin by ID
+      tags:
+      - Internal
+  /internal/tools/nomisma_search:
+    post:
+      consumes:
+      - application/json
+      description: Job-scoped, call-budget-limited Nomisma reconciliation search for
+        the Python deep identification pipeline
+      parameters:
+      - description: '******'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Search query
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.NomismaSearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: status, candidates, attribution
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Deep-identification Nomisma search tool
+      tags:
+      - Internal
+  /internal/tools/numista_detail:
+    post:
+      consumes:
+      - application/json
+      description: Job-scoped, call-budget-limited Numista detail lookup for the Python
+        deep identification pipeline
+      parameters:
+      - description: '******'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Numista catalogue ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.NumistaDetailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: status, candidate, identifier
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Deep-identification Numista detail tool
+      tags:
+      - Internal
+  /internal/tools/numista_search:
+    post:
+      consumes:
+      - application/json
+      description: Job-scoped, call-budget-limited Numista search for the Python deep
+        identification pipeline
+      parameters:
+      - description: '******'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Search query
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.NumistaSearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: status, candidates, attribution
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Deep-identification Numista search tool
       tags:
       - Internal
   /internal/tools/propose_update:

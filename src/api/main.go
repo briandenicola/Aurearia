@@ -108,6 +108,11 @@ func main() {
 
 	// Create internal token service for Python agent callbacks
 	internalTokenSvc := services.NewInternalTokenService(cfg.JWTSecret)
+	// Deep identification provider-tool boundary (Phase 6, T051-T054):
+	// job-scoped call-budget tracking, shared across the numista_search/
+	// numista_detail/nomisma_search internal tool endpoints.
+	deepProviderBudgets := services.NewDeepProviderBudgetTracker()
+	deepNomismaClient := services.NewHTTPNomismaClient()
 	credentialEncryptionSvc := services.NewDisabledCredentialEncryptionService()
 	if cfg.AuctionCredentialEncryptionKey != "" {
 		var err error
@@ -824,6 +829,20 @@ func main() {
 		internal.POST("/top_coins_by_value", internalToolsHandler.TopCoinsByValue)
 		internal.POST("/propose_update", internalToolsHandler.ProposeUpdate)
 		internal.POST("/commit_update", internalToolsHandler.CommitUpdate)
+	}
+
+	// Deep identification provider-tool boundary (Phase 6, T051): job-scoped
+	// token auth (distinct from the userID-only token above), shared route
+	// prefix per contracts/agent-internal-contract.md §7.
+	internalDeepProviderTools := r.Group("/api/internal/tools")
+	internalDeepProviderTools.Use(middleware.InternalJobTokenRequired(internalTokenSvc))
+	{
+		deepProviderToolsHandler := handlers.NewDeepProviderToolsHandler(
+			numistaClient, deepNomismaClient, settingsSvc, deepProviderBudgets, logger,
+		)
+		internalDeepProviderTools.POST("/numista_search", deepProviderToolsHandler.NumistaSearch)
+		internalDeepProviderTools.POST("/numista_detail", deepProviderToolsHandler.NumistaDetail)
+		internalDeepProviderTools.POST("/nomisma_search", deepProviderToolsHandler.NomismaSearch)
 	}
 
 	log.Printf("Starting server on :%s", cfg.Port)
