@@ -107,6 +107,8 @@ type DeepIdentificationService struct {
 	cancelMu sync.Mutex
 	cancels  map[uint]context.CancelFunc
 
+	broker *DeepIdentificationBroker
+
 	wakeMu sync.Mutex
 	wake   chan struct{}
 }
@@ -123,8 +125,17 @@ func NewDeepIdentificationService(repo *repository.DeepIdentificationRepository,
 		uploadDir:   uploadDir,
 		runner:      noopPipelineRunner{},
 		cancels:     make(map[uint]context.CancelFunc),
+		broker:      NewDeepIdentificationBroker(),
 		wake:        make(chan struct{}, 1),
 	}
+}
+
+// Broker returns the service's shared in-process SSE fan-out broker (T095)
+// so the handler layer can Subscribe/SubscriberCount for the
+// `GET /deep-identification/jobs/{id}/events` endpoint (T096) without the
+// handler needing its own broker instance or direct access to internals.
+func (s *DeepIdentificationService) Broker() *DeepIdentificationBroker {
+	return s.broker
 }
 
 // SetPipelineRunner installs the pipeline implementation used by the worker
@@ -637,6 +648,13 @@ func (s *DeepIdentificationService) GetJob(jobID, userID uint) (*models.DeepIden
 	return s.repo.GetJob(jobID, userID)
 }
 
+// ListEventsSince is a thin pass-through to the repository (T096), scoped
+// to the owning user exactly like GetJob, for the SSE handler's replay and
+// live-tail re-reads.
+func (s *DeepIdentificationService) ListEventsSince(jobID, userID uint, since int64) ([]models.DeepIdentificationEvent, error) {
+	return s.repo.ListEventsSince(jobID, userID, since)
+}
+
 // ListJobs returns an owner-scoped, filtered/paginated job list (Phase 5
 // REST layer). See repository.DeepJobListFilters for the supported filters.
 func (s *DeepIdentificationService) ListJobs(userID uint, filters repository.DeepJobListFilters) ([]models.DeepIdentificationJob, error) {
@@ -662,6 +680,7 @@ func (s *DeepIdentificationService) RequestCancel(jobID, userID uint) error {
 		if err != nil {
 			return err
 		}
+		s.broker.Publish(jobID)
 		return s.DeleteHintArtifacts(jobID)
 	case models.DeepJobStatusRunning:
 		if err := s.repo.RequestCancel(jobID, userID); err != nil {
@@ -812,6 +831,7 @@ func (s *DeepIdentificationService) runJob(parent context.Context, job *models.D
 			s.logger.Error("deep-identification", "failed to settle job %d: %v", job.ID, err)
 		}
 	}
+	s.broker.Publish(job.ID)
 	if err := s.DeleteHintArtifacts(job.ID); err != nil {
 		if s.logger != nil {
 			s.logger.Error("deep-identification", "failed to clean up hint artifacts for job %d: %v", job.ID, err)
@@ -845,6 +865,15 @@ func (s *DeepIdentificationService) StartJanitor(ctx context.Context) {
 	}()
 }
 
+// RecoverStaleAndSweepHintsForTest exposes the janitor's stale-job
+// recovery + hint-sweep sweep for handler-package tests (T105) that need
+// to trigger a restart-recovery pass without waiting for StartJanitor's
+// ticker, since deep_identification_sse_test.go lives outside this
+// package and recoverStaleAndSweepHints is unexported.
+func (s *DeepIdentificationService) RecoverStaleAndSweepHintsForTest() {
+	s.recoverStaleAndSweepHints()
+}
+
 func (s *DeepIdentificationService) recoverStaleAndSweepHints() {
 	settings := s.settingsSvc.GetDeepIdentificationSettings()
 	staleAfter := settings.HardTimeout + 2*time.Minute
@@ -855,6 +884,7 @@ func (s *DeepIdentificationService) recoverStaleAndSweepHints() {
 		}
 	}
 	for _, id := range recoveredIDs {
+		s.broker.Publish(id)
 		if err := s.DeleteHintArtifacts(id); err != nil && s.logger != nil {
 			s.logger.Error("deep-identification", "failed to clean up hints for recovered job %d: %v", id, err)
 		}

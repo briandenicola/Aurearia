@@ -9957,6 +9957,44 @@ paths:
       summary: Cancel a Deep Analysis job
       tags:
       - Deep Identification
+  /deep-identification/jobs/{id}/events:
+    get:
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Resume after this sequence number
+        in: query
+        name: since
+        type: integer
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "410":
+          description: Gone
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Stream a Deep Analysis job's events (SSE)
+      tags:
+      - Deep Identification
   /deep-identification/jobs/{id}/retry:
     post:
       consumes:

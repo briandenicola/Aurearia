@@ -61,3 +61,38 @@ test('starting Deep Analysis from a saved coin reuses existing images and never 
   // via the existing update path, regardless of how many roles it reuses.
   expect(state.updatePayloads).toHaveLength(0)
 })
+
+test('T108: observes streamed progress and can cancel a running Deep Analysis job', async ({ page }) => {
+  await installWorkflowApiMocks(page)
+
+  await page.goto('/lookup')
+  await page.getByRole('button', { name: 'Deep Analysis' }).click()
+
+  const fileInputs = page.locator('input[type="file"]')
+  await fileInputs.nth(1).setInputFiles({
+    name: 'obverse.jpg',
+    mimeType: 'image/jpeg',
+    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+  })
+  await fileInputs.nth(2).setInputFiles({
+    name: 'reverse.jpg',
+    mimeType: 'image/jpeg',
+    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+  })
+  await page.getByRole('button', { name: 'Start Deep Analysis' }).click()
+  await expect(page).toHaveURL(/\/deep-analysis\/\d+$/)
+
+  // Streamed progress events (the mocked SSE fixture replays job_accepted,
+  // a progress frame, then a terminal frame) are rendered in the timeline.
+  await expect(page.getByText('Job accepted')).toBeVisible()
+  await expect(page.getByText('Running providers')).toBeVisible()
+
+  // The job is still shown non-terminal from the plain GET snapshot (the
+  // fixture only flips status to cancelled once /cancel is called), so the
+  // Cancel button is available; clicking it calls the cancel endpoint.
+  const cancelButton = page.getByRole('button', { name: 'Cancel Deep Analysis' })
+  await expect(cancelButton).toBeVisible()
+  await cancelButton.click()
+
+  await expect(page.getByLabel('Deep Analysis progress').getByText('cancelled')).toBeVisible()
+})

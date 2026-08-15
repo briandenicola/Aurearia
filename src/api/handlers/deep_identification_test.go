@@ -84,6 +84,7 @@ func setupDeepIdentificationHandlerTest(t *testing.T, userID uint, enabled bool)
 	router.POST("/api/deep-identification/jobs", handler.CreateJob)
 	router.GET("/api/deep-identification/jobs", handler.ListJobs)
 	router.GET("/api/deep-identification/jobs/:id", handler.GetJob)
+	router.GET("/api/deep-identification/jobs/:id/events", handler.StreamEvents)
 	router.POST("/api/deep-identification/jobs/:id/cancel", handler.Cancel)
 	router.POST("/api/deep-identification/jobs/:id/retry", handler.Retry)
 

@@ -1953,6 +1953,42 @@ export interface ListDeepIdentificationJobsParams {
   cursor?: string
 }
 
+// SSE envelope from GET /api/deep-identification/jobs/{id}/events
+// (contracts/sse-events.md §1/§2). Not a passthrough of the internal
+// LangGraph stream - a persisted, replayable, application-owned shape.
+export type DeepStreamEventType =
+  | 'job_accepted'
+  | 'status_changed'
+  | 'router_selected'
+  | 'provider_started'
+  | 'provider_result'
+  | 'evaluation'
+  | 'synthesis_started'
+  | 'progress'
+  | 'terminal'
+
+export interface DeepStreamEvent {
+  seq: number
+  jobId: number
+  type: DeepStreamEventType | string
+  ts: string
+  payload: Record<string, unknown>
+}
+
+export interface DeepStreamTruncatedPayload {
+  status: DeepJobStatus
+  earliestSeq: number
+  lastSeq: number
+}
+
+export interface DeepStreamTerminalPayload {
+  status: DeepJobStatus
+  partialSuccess: boolean
+  failureCode?: string
+  hasReport: boolean
+  hasProposal: boolean
+}
+
 export interface CalendarEventDetail {
   id: number
   title: string

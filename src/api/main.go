@@ -256,7 +256,7 @@ func main() {
 	deepIdentificationRepo := repository.NewDeepIdentificationRepository(database.DB)
 	deepIdentificationSvc := services.NewDeepIdentificationService(deepIdentificationRepo, imageRepo, imageSvc, settingsSvc, logger, cfg.UploadDir)
 	deepIdentificationSvc.SetPipelineRunner(services.NewDeepIdentificationPipelineRunner(
-		agentProxy, deepIdentificationRepo, settingsSvc, internalTokenSvc, cfg.AgentInternalCallbackURL, logger,
+		agentProxy, deepIdentificationRepo, settingsSvc, internalTokenSvc, cfg.AgentInternalCallbackURL, logger, deepIdentificationSvc.Broker(),
 	))
 	deepIdentificationSvc.StartWorkers(context.Background())
 	deepIdentificationSvc.StartJanitor(context.Background())
@@ -500,6 +500,7 @@ func main() {
 		protected.POST("/deep-identification/jobs", writeRateLimit, deepIdentificationHandler.CreateJob)
 		protected.GET("/deep-identification/jobs", deepIdentificationHandler.ListJobs)
 		protected.GET("/deep-identification/jobs/:id", deepIdentificationHandler.GetJob)
+		protected.GET("/deep-identification/jobs/:id/events", deepIdentificationHandler.StreamEvents)
 		protected.POST("/deep-identification/jobs/:id/cancel", writeRateLimit, deepIdentificationHandler.Cancel)
 		protected.POST("/deep-identification/jobs/:id/retry", writeRateLimit, deepIdentificationHandler.Retry)
 

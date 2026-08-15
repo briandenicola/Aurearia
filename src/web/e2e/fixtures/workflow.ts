@@ -37,7 +37,8 @@ export interface WorkflowApiState {
   mediaRequests: Array<{ path: string; authorization: string; cacheControl: string }>
   coinQueries: Array<Record<string, string>>
   authorizedRequests: string[]
-  deepIdentificationJobs: Array<{ id: number; notes: string; providers: string }>
+  deepIdentificationJobs: Array<{ id: number; notes: string; providers: string; status: string }>
+  deepIdentificationCancels: number[]
 }
 
 export async function installAuthenticatedSession(page: Page) {
@@ -64,6 +65,7 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
     coinQueries: [],
     authorizedRequests: [],
     deepIdentificationJobs: [],
+    deepIdentificationCancels: [],
   }
   let nextCoinId = 7001
   let nextImageId = 9001
@@ -334,6 +336,7 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
         id,
         notes: String((request.postData() ?? '').includes('notes') ? 'submitted' : ''),
         providers: '',
+        status: 'running',
       })
       await route.fulfill({
         status: 202,
@@ -342,7 +345,7 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
           job: {
             id,
             source: 'intake',
-            status: 'queued',
+            status: 'running',
             partialSuccess: false,
             cancelRequested: false,
             lastSeq: 0,
@@ -357,11 +360,12 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
 
     if (path.match(/^\/deep-identification\/jobs\/\d+$/) && method === 'GET') {
       const id = Number(path.split('/').pop())
+      const job = state.deepIdentificationJobs.find((item) => item.id === id)
       await json(route, {
         job: {
           id,
           source: 'intake',
-          status: 'queued',
+          status: job?.status ?? 'queued',
           partialSuccess: false,
           cancelRequested: false,
           lastSeq: 0,
@@ -369,6 +373,43 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
           expiresAt: '2030-01-01T00:00:00Z',
           createdAt: '2030-01-01T00:00:00Z',
         },
+      })
+      return
+    }
+
+    const cancelMatch = path.match(/^\/deep-identification\/jobs\/(\d+)\/cancel$/)
+    if (cancelMatch && method === 'POST') {
+      const id = Number(cancelMatch[1])
+      state.deepIdentificationCancels.push(id)
+      const job = state.deepIdentificationJobs.find((item) => item.id === id)
+      if (job) job.status = 'cancelled'
+      await json(route, {
+        job: {
+          id,
+          source: 'intake',
+          status: 'cancelled',
+          partialSuccess: false,
+          cancelRequested: true,
+          lastSeq: 1,
+          eventsAvailable: true,
+          expiresAt: '2030-01-01T00:00:00Z',
+          createdAt: '2030-01-01T00:00:00Z',
+        },
+      })
+      return
+    }
+
+    const eventsMatch = path.match(/^\/deep-identification\/jobs\/(\d+)\/events$/)
+    if (eventsMatch && method === 'GET') {
+      const id = Number(eventsMatch[1])
+      const frames = [
+        `id: 1\nevent: job_accepted\ndata: ${JSON.stringify({ seq: 1, jobId: id, type: 'job_accepted', ts: '2030-01-01T00:00:00Z', payload: { status: 'queued' } })}\n\n`,
+        `id: 2\nevent: progress\ndata: ${JSON.stringify({ seq: 2, jobId: id, type: 'progress', ts: '2030-01-01T00:00:00Z', payload: { message: 'Running providers' } })}\n\n`,
+      ]
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: frames.join(''),
       })
       return
     }

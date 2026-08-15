@@ -30,10 +30,14 @@ type DeepIdentificationPipelineRunner struct {
 	tokenSvc     *InternalTokenService
 	toolsBaseURL string
 	logger       *Logger
+	broker       *DeepIdentificationBroker
 }
 
 // NewDeepIdentificationPipelineRunner constructs the real pipeline runner,
 // wired in via DeepIdentificationService.SetPipelineRunner (main.go).
+// broker may be nil in older call sites/tests that do not exercise live
+// SSE fan-out; a nil broker simply means no wake is published (persisted
+// events and later replay are unaffected).
 func NewDeepIdentificationPipelineRunner(
 	proxy *AgentProxy,
 	repo *repository.DeepIdentificationRepository,
@@ -41,6 +45,7 @@ func NewDeepIdentificationPipelineRunner(
 	tokenSvc *InternalTokenService,
 	toolsBaseURL string,
 	logger *Logger,
+	broker *DeepIdentificationBroker,
 ) *DeepIdentificationPipelineRunner {
 	return &DeepIdentificationPipelineRunner{
 		proxy:        proxy,
@@ -49,6 +54,7 @@ func NewDeepIdentificationPipelineRunner(
 		tokenSvc:     tokenSvc,
 		toolsBaseURL: toolsBaseURL,
 		logger:       logger,
+		broker:       broker,
 	}
 }
 
@@ -160,6 +166,8 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 			if r.logger != nil {
 				r.logger.Error("deep-identification", "failed to append event for job %d: %v", job.ID, appendErr)
 			}
+		} else if r.broker != nil {
+			r.broker.Publish(job.ID)
 		}
 		return nil
 	}
