@@ -11,7 +11,8 @@ import asyncio
 
 import pytest
 
-from app.models.requests import DeepProviderCatalogEntry, QuickEvidence
+from app.models.requests import DeepIdentifyBounds, DeepProviderCatalogEntry, QuickEvidence
+from app.teams.deep_identification.graph import _run_one_provider, provider_fanout_node
 from app.teams.deep_identification.providers import ocre
 from app.tools.provider_tools import ProviderToolError
 
@@ -203,3 +204,64 @@ def test_legend_injection_never_enters_slug_slots():
     # The injection text is reduced to alnum scoring tokens only.
     for token in call["legend_tokens"]:
         assert token.isalnum()
+
+
+# --- T035 (US3): OCRE failure never breaks partial synthesis ---
+
+
+def _bounds(provider_timeout_s=5):
+    return DeepIdentifyBounds(
+        max_providers=5, max_concurrency=3, provider_timeout_s=provider_timeout_s,
+        total_timeout_s=60, recursion_limit=10,
+    )
+
+
+@pytest.mark.asyncio
+async def test_ocre_node_exception_is_absorbed_by_run_one_provider(monkeypatch):
+    """A node that raises must surface as a typed failed row, never propagate."""
+    async def boom(entry, tools, quick_evidence, notes):
+        raise RuntimeError("kaboom")
+
+    import app.teams.deep_identification.graph as graph_module
+
+    monkeypatch.setitem(graph_module._AUTOMATED_PROVIDER_NODES, "ocre", boom)
+
+    catalog_by_name = {"ocre": _entry(automatable=True)}
+    row = await _run_one_provider(
+        "ocre", catalog_by_name, tools=object(), quick_evidence=None, notes="",
+        bounds=_bounds(), semaphore=asyncio.Semaphore(1),
+    )
+    assert row.status == "failed"
+    assert row.error_kind == "upstream"
+
+
+@pytest.mark.asyncio
+async def test_ocre_failure_alongside_contributor_still_reaches_synthesis(monkeypatch):
+    """OCRE timing out / failing leaves every other provider's evidence intact."""
+    from app.models.responses import ProviderEvidence
+
+    async def ocre_timeout(entry, tools, quick_evidence, notes):
+        return ProviderEvidence(provider="ocre", status="timed_out", automatable=True,
+                                error_kind="timeout", call_count=1)
+
+    async def numista_ok(entry, tools, quick_evidence, notes):
+        return ProviderEvidence(provider="numista", status="contributed", automatable=True, call_count=1)
+
+    import app.teams.deep_identification.graph as graph_module
+
+    monkeypatch.setitem(graph_module._AUTOMATED_PROVIDER_NODES, "ocre", ocre_timeout)
+    monkeypatch.setitem(graph_module._AUTOMATED_PROVIDER_NODES, "numista", numista_ok)
+
+    catalog = [
+        DeepProviderCatalogEntry(provider="ocre", automatable=True),
+        DeepProviderCatalogEntry(provider="numista", automatable=True),
+    ]
+    state = {
+        "catalog": catalog, "bounds": _bounds(), "quick_evidence": None, "notes": "",
+        "selected": ["ocre", "numista"], "skipped": [],
+    }
+
+    result = await provider_fanout_node(state, tools=object())
+    by_provider = {row.provider: row.status for row in result["evidence"]}
+    assert by_provider["ocre"] == "timed_out"
+    assert by_provider["numista"] == "contributed"

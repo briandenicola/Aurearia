@@ -227,6 +227,65 @@ func TestHTTPOCREClient_Search_ConnectionRefused(t *testing.T) {
 	}
 }
 
+// T033: consolidate the failure-isolation contract — for every transport or
+// parse failure the caller sees ONLY a typed OCREErrorKind (always set, drawn
+// from the known set) and an empty candidate slice. A raw net/JSON error type
+// is never the classification the caller must interpret; the returned err is
+// diagnostic-only and never leaks partial/unsanitized candidate data.
+func TestHTTPOCREClient_Search_RawErrorsNeverSurfacedOnlyTypedKind(t *testing.T) {
+	typedKinds := map[OCREErrorKind]bool{
+		OCREErrorUnavailable:     true,
+		OCREErrorInvalidResponse: true,
+		OCREErrorCancelled:       true,
+	}
+
+	t.Run("http_500", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer server.Close()
+		candidates, kind, _ := newGuardedOCREClient(t, server).Search(context.Background(), hadrianParams(), 5)
+		if !typedKinds[kind] {
+			t.Fatalf("expected a typed kind, got %q", kind)
+		}
+		if len(candidates) != 0 {
+			t.Fatalf("no candidate data may leak on failure, got %d", len(candidates))
+		}
+	})
+
+	t.Run("malformed_json", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", ocreAcceptSPARQLJSON)
+			_, _ = w.Write([]byte(`{not valid json`))
+		}))
+		defer server.Close()
+		candidates, kind, _ := newGuardedOCREClient(t, server).Search(context.Background(), hadrianParams(), 5)
+		if kind != OCREErrorInvalidResponse {
+			t.Fatalf("expected invalid_response, got %q", kind)
+		}
+		if len(candidates) != 0 {
+			t.Fatalf("no candidate data may leak on a parse failure, got %d", len(candidates))
+		}
+	})
+
+	t.Run("timeout", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(50 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+		defer cancel()
+		candidates, kind, _ := newGuardedOCREClient(t, server).Search(ctx, hadrianParams(), 5)
+		if !typedKinds[kind] {
+			t.Fatalf("expected a typed kind on timeout, got %q", kind)
+		}
+		if len(candidates) != 0 {
+			t.Fatalf("no candidate data may leak on timeout, got %d", len(candidates))
+		}
+	})
+}
+
 func TestHTTPOCREClient_DefaultBaseURLIsRealHost(t *testing.T) {
 	client := NewHTTPOCREClient()
 	if client.baseURL != defaultOCREBaseURL {
