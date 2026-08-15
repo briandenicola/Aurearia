@@ -255,6 +255,9 @@ func main() {
 	aiJobSvc.StartWorkers(1)
 	deepIdentificationRepo := repository.NewDeepIdentificationRepository(database.DB)
 	deepIdentificationSvc := services.NewDeepIdentificationService(deepIdentificationRepo, imageRepo, imageSvc, settingsSvc, logger, cfg.UploadDir)
+	deepIdentificationSvc.SetPipelineRunner(services.NewDeepIdentificationPipelineRunner(
+		agentProxy, deepIdentificationRepo, settingsSvc, internalTokenSvc, cfg.AgentInternalCallbackURL, logger,
+	))
 	deepIdentificationSvc.StartWorkers(context.Background())
 	deepIdentificationSvc.StartJanitor(context.Background())
 	healthRepo := repository.NewHealthRepository(database.DB)
