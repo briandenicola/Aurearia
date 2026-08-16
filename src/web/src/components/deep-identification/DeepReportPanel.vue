@@ -1,5 +1,5 @@
 <template>
-  <section class="grid gap-4" aria-label="Deep Analysis report">
+  <section class="grid min-w-0 gap-4 overflow-hidden" aria-label="Deep Analysis report">
     <div v-if="report.partialSuccess" class="rounded-sm border border-byzantine bg-card p-3" role="status">
       <p class="m-0 text-sm font-semibold text-byzantine">Partial results</p>
       <p class="m-0 text-sm text-text-secondary">
@@ -7,9 +7,9 @@
       </p>
     </div>
 
-    <div class="grid gap-2">
+    <div class="grid min-w-0 gap-2">
       <h3 class="m-0 text-lg font-semibold text-text-primary">Narrative</h3>
-      <p class="m-0 whitespace-pre-line text-body text-text-secondary">{{ report.narrative }}</p>
+      <p class="m-0 whitespace-pre-line break-words text-body text-text-secondary [overflow-wrap:anywhere]">{{ safeNarrative }}</p>
     </div>
 
     <div class="grid gap-2">
@@ -18,11 +18,11 @@
         <li
           v-for="entry in report.coverage"
           :key="entry.provider"
-          class="grid grid-cols-[auto_auto_1fr] items-center gap-3 rounded-sm border border-border-subtle bg-card p-2"
+          class="grid min-w-0 grid-cols-1 items-start gap-1 rounded-sm border border-border-subtle bg-card p-2 sm:grid-cols-[auto_auto_minmax(0,1fr)] sm:items-center sm:gap-3"
         >
           <span class="text-sm font-semibold uppercase tracking-[0.04em] text-text-primary">{{ entry.provider }}</span>
           <span class="text-sm font-medium" :class="statusClasses(entry.status)">{{ statusLabel(entry.status) }}</span>
-          <span class="text-sm text-text-secondary">
+          <span class="min-w-0 break-words text-sm text-text-secondary [overflow-wrap:anywhere]">
             {{ entry.note }}
             <a v-if="entry.linkOut" :href="entry.linkOut" target="_blank" rel="noopener noreferrer" class="text-gold underline">
               View reference
@@ -38,14 +38,14 @@
         <li
           v-for="disagreement in report.disagreements"
           :key="disagreement.field"
-          class="grid gap-1 rounded-sm border border-border-subtle bg-card p-3"
+          class="grid min-w-0 gap-1 rounded-sm border border-border-subtle bg-card p-3"
         >
           <p class="m-0 text-sm font-semibold text-text-primary">
             {{ disagreement.field }}
             <span class="text-text-secondary">({{ disagreement.resolution }})</span>
           </p>
           <ul class="m-0 grid gap-1 p-0" style="list-style: none;">
-            <li v-for="(claim, index) in disagreement.claims" :key="index" class="text-sm text-text-secondary">
+            <li v-for="(claim, index) in disagreement.claims" :key="index" class="break-words text-sm text-text-secondary [overflow-wrap:anywhere]">
               {{ claim.value }}
               <a :href="claim.citation" target="_blank" rel="noopener noreferrer" class="text-gold underline">source</a>
             </li>
@@ -69,10 +69,10 @@
         <li
           v-for="entry in report.attributions"
           :key="entry.provider"
-          class="rounded-sm border border-border-subtle bg-card p-2"
+          class="min-w-0 overflow-hidden rounded-sm border border-border-subtle bg-card p-2"
         >
           <OCREAttribution v-if="entry.provider === 'ocre'" :uri="entry.identifier" />
-          <p v-else class="m-0 text-sm text-text-secondary">
+          <p v-else class="m-0 break-words text-sm text-text-secondary [overflow-wrap:anywhere]">
             {{ entry.text }}
             <SafeExternalLink
               v-if="entry.identifier"
@@ -89,11 +89,26 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { DeepReport, DeepProviderStatus } from '@/types'
 import OCREAttribution from './OCREAttribution.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
-defineProps<{ report: DeepReport }>()
+const props = defineProps<{ report: DeepReport }>()
+
+const safeNarrative = computed(() => {
+  const narrative = props.report.narrative?.trim() ?? ''
+  const transportMarkers = [
+    /['"]type['"]\s*:\s*['"]thinking['"]/i,
+    /['"]signature['"]\s*:/i,
+    /data:image\/[^;]+;base64,/i,
+    /[A-Za-z0-9+/]{500,}={0,2}/,
+  ]
+  if (!narrative || transportMarkers.some((marker) => marker.test(narrative))) {
+    return 'The narrative summary could not be displayed safely. Review the structured findings and provider coverage below, or retry the analysis.'
+  }
+  return narrative
+})
 
 const statusLabels: Record<DeepProviderStatus, string> = {
   pending: 'Pending',

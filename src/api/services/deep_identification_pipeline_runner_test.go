@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -260,7 +261,8 @@ func TestBuildDeepProposalDocumentJSONRejectsNonAllowlistedCitationHost(t *testi
 	providerClaims := map[string][]deepProposalClaim{
 		"numista": {{Field: "denomination", Value: "Denarius", Confidence: 0.8, Citation: "https://evil.example.com/inject"}},
 	}
-	out := buildDeepProposalDocumentJSON(report, nil, providerClaims)
+	var coinID uint = 42
+	out := buildDeepProposalDocumentJSON(report, &coinID, providerClaims)
 	var doc deepProposalDocument
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("expected valid JSON, got %v", err)
@@ -270,9 +272,42 @@ func TestBuildDeepProposalDocumentJSONRejectsNonAllowlistedCitationHost(t *testi
 	}
 }
 
-func TestBuildDeepProposalDocumentJSONEmptyWhenNoProposedFields(t *testing.T) {
-	if out := buildDeepProposalDocumentJSON(json.RawMessage(`{"narrative":"no fields here"}`), nil, nil); out != "" {
-		t.Fatalf("expected empty proposal JSON, got %q", out)
+func TestBuildDeepProposalDocumentJSONCreatesReportOnlyIntakeProposal(t *testing.T) {
+	out := buildDeepProposalDocumentJSON(json.RawMessage(`{"narrative":"No structured match was available."}`), nil, nil)
+	var doc deepProposalDocument
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("expected valid proposal JSON, got %v", err)
+	}
+	if got := doc.Fields["notes"]; got == nil || got.Proposed != "No structured match was available." {
+		t.Fatalf("expected report narrative to remain saveable as draft notes, got %#v", got)
+	}
+}
+
+func TestBuildDeepProposalDocumentJSONMapsIntakeFindingsToDraftFields(t *testing.T) {
+	report := json.RawMessage(`{
+		"narrative":"The evidence supports a Roman denarius.",
+		"proposed_fields":{
+			"ruler":{"value":"Trajan","confidence":0.8},
+			"denomination":{"value":"Denarius","confidence":0.9},
+			"mint":{"value":"Rome","confidence":0.7}
+		}
+	}`)
+	out := buildDeepProposalDocumentJSON(report, nil, nil)
+	var doc deepProposalDocument
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("expected valid proposal JSON, got %v", err)
+	}
+	if got := doc.Fields["workingTitle"]; got == nil || got.Proposed != "Trajan Denarius" {
+		t.Fatalf("expected draft working title, got %#v", got)
+	}
+	notes := doc.Fields["notes"]
+	if notes == nil || !strings.Contains(notes.Proposed.(string), "mint: Rome") {
+		t.Fatalf("expected structured findings in draft notes, got %#v", notes)
+	}
+	for name := range doc.Fields {
+		if _, allowed := deepProposalDraftFieldAllowlist[name]; !allowed {
+			t.Fatalf("intake proposal contains non-draft field %q", name)
+		}
 	}
 }
 

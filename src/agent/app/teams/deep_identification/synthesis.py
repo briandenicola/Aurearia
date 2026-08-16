@@ -10,6 +10,7 @@ are simply never read).
 
 import logging
 
+from app.llm.content import extract_text_content
 from app.models.responses import (
     DeepSynthesis,
     DisagreementEntry,
@@ -144,5 +145,4 @@ async def _write_narrative(
     except Exception:
         logger.exception("[deep_identification.synthesis] narrative LLM call failed")
         return None
-    content = response.content if isinstance(response.content, str) else str(response.content)
-    return content.strip() or None
+    return extract_text_content(response.content) or None

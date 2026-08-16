@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import DeepAnalysisPage from '../DeepAnalysisPage.vue'
-import { getDeepIdentificationJob, cancelDeepIdentificationJob, retryDeepIdentificationJob } from '@/api/client'
+import {
+  applyDeepIdentificationProposal,
+  cancelDeepIdentificationJob,
+  getDeepIdentificationJob,
+  retryDeepIdentificationJob,
+} from '@/api/client'
 
 const routerPush = vi.hoisted(() => vi.fn())
 
@@ -10,6 +15,8 @@ vi.mock('@/api/client', () => ({
   createDeepIdentificationJob: vi.fn(),
   cancelDeepIdentificationJob: vi.fn(),
   retryDeepIdentificationJob: vi.fn(),
+  updateDeepIdentificationProposal: vi.fn(),
+  applyDeepIdentificationProposal: vi.fn(),
   refreshAccessToken: vi.fn(),
   getApiErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error)),
 }))
@@ -192,5 +199,53 @@ describe('DeepAnalysisPage', () => {
     await flushPromises()
     expect(routerPush).toHaveBeenCalledWith({ name: 'deep-analysis', params: { jobId: '11' } })
   })
-})
 
+  it('labels intake completion as Save as Draft and opens the created draft', async () => {
+    vi.mocked(getDeepIdentificationJob).mockResolvedValue({
+      data: {
+        job: terminalJob('completed'),
+        report: {
+          schemaVersion: 1,
+          narrative: 'The evidence supports a Roman denarius.',
+          coverage: [],
+          partialSuccess: false,
+          generatedAt: '2030-01-01T00:00:00Z',
+        },
+        proposal: {
+          schemaVersion: 1,
+          fields: {
+            notes: {
+              proposed: 'The evidence supports a Roman denarius.',
+              ownerEdited: false,
+              ownerValue: null,
+              accepted: true,
+            },
+          },
+        },
+      },
+    } as Awaited<ReturnType<typeof getDeepIdentificationJob>>)
+    vi.mocked(applyDeepIdentificationProposal).mockResolvedValue({
+      data: {
+        jobId: 9,
+        draftId: 27,
+        appliedFields: ['notes'],
+        appliedAt: '2030-01-01T00:00:00Z',
+      },
+    } as Awaited<ReturnType<typeof applyDeepIdentificationProposal>>)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream(), { status: 200 })))
+
+    const wrapper = mount(DeepAnalysisPage, { global: { stubs } })
+    await flushPromises()
+
+    const saveButton = wrapper.findAll('button').find((button) => button.text().includes('Save as Draft'))
+    expect(saveButton).toBeDefined()
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    expect(applyDeepIdentificationProposal).toHaveBeenCalledWith(9, { target: 'draft' })
+    expect(routerPush).toHaveBeenCalledWith({
+      name: 'quick-capture-draft',
+      params: { id: '27' },
+    })
+  })
+})

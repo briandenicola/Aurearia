@@ -73,7 +73,7 @@ async def run(
         title = str(top.get("title") or "")
         for field_name, value in (
             ("denomination", top.get("denomination")),
-            ("issuer", top.get("issuer")),
+            ("ruler", top.get("issuer")),
             ("mint", top.get("mint")),
             ("material", top.get("material")),
         ):

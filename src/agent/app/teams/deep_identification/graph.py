@@ -24,6 +24,7 @@ from collections.abc import AsyncGenerator
 
 from langgraph.graph import END, StateGraph
 
+from app.llm.content import extract_text_content
 from app.llm.provider import get_chat_model
 from app.models.requests import DeepIdentifyBounds, DeepIdentifyImage, DeepIdentifyRequest, QuickEvidence
 from app.models.responses import ProviderEvidence
@@ -78,7 +79,7 @@ async def prepare_evidence_node(state: DeepIdentificationState, model) -> dict:
         response = await ainvoke_with_retry(
             model, [SystemMessage(content="You are an expert numismatist."), HumanMessage(content=human_content)]
         )
-        content = response.content if isinstance(response.content, str) else str(response.content)
+        content = extract_text_content(response.content)
     except Exception:
         logger.exception("[deep_identification.graph] image analysis LLM call failed")
         content = ""

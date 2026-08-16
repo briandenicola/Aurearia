@@ -18,6 +18,7 @@ provider absent from the catalog — Go controls the closed candidate list.
 import json
 import logging
 
+from app.llm.content import extract_text_content
 from app.llm.retry import ainvoke_with_retry
 from app.models.requests import DeepProviderCatalogEntry
 from app.safety import with_safety
@@ -100,7 +101,7 @@ async def route(
     )
     try:
         response = await ainvoke_with_retry(model, [_system_message(), _human_message(human_text)])
-        raw = response.content if isinstance(response.content, str) else str(response.content)
+        raw = extract_text_content(response.content)
         decision = _parse_router_json(raw)
     except Exception:
         logger.exception("[deep_identification.router] router LLM call failed — selecting all automatable providers")

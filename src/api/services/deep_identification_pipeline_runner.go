@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -443,9 +444,8 @@ func deepCitationHostAllowed(provider, citation string) bool {
 // DeepProposalEditor consume (data-model.md §7, OpenAPI Proposal schema).
 //
 // It is the single writer of ProposalJSON and enforces two invariants:
-//  1. only fields writable through the coin update path
-//     (deepProposalCoinFieldAllowlist) survive - every other proposed key
-//     is dropped, so no silent new write surface is created (Principle IV);
+//  1. saved-coin jobs retain only coin-writable fields, while intake jobs
+//     translate findings into the existing draft-writable title/notes fields;
 //  2. each field's per-provider evidence is resolved from the streamed
 //     provider_result claims via evidence_refs and re-validated against the
 //     citation host allowlist, preserving citations + confidence while
@@ -454,18 +454,37 @@ func deepCitationHostAllowed(provider, citation string) bool {
 // Owner-decision fields are initialized to their pristine state
 // (ownerEdited=false, ownerValue=null, accepted=null) so nothing is
 // auto-accepted and no coin data is written until an explicit confirm.
+type deepSynthesisProposedField struct {
+	Value        string  `json:"value"`
+	Confidence   float64 `json:"confidence"`
+	EvidenceRefs []struct {
+		Provider   string `json:"provider"`
+		ClaimIndex *int   `json:"claim_index"`
+	} `json:"evidence_refs"`
+}
+
 func buildDeepProposalDocumentJSON(reportJSON json.RawMessage, targetCoinID *uint, providerClaims map[string][]deepProposalClaim) string {
 	var report struct {
-		ProposedFields map[string]struct {
-			Value        string  `json:"value"`
-			Confidence   float64 `json:"confidence"`
-			EvidenceRefs []struct {
-				Provider   string `json:"provider"`
-				ClaimIndex *int   `json:"claim_index"`
-			} `json:"evidence_refs"`
-		} `json:"proposed_fields"`
+		Narrative      string                                `json:"narrative"`
+		ProposedFields map[string]deepSynthesisProposedField `json:"proposed_fields"`
 	}
-	if err := json.Unmarshal(reportJSON, &report); err != nil || len(report.ProposedFields) == 0 {
+	if err := json.Unmarshal(reportJSON, &report); err != nil {
+		return ""
+	}
+
+	if targetCoinID == nil {
+		fields := buildDeepIntakeProposalFields(report.Narrative, report.ProposedFields)
+		if len(fields) == 0 {
+			return ""
+		}
+		out, err := json.Marshal(deepProposalDocument{SchemaVersion: 1, Fields: fields})
+		if err != nil {
+			return ""
+		}
+		return string(out)
+	}
+
+	if len(report.ProposedFields) == 0 {
 		return ""
 	}
 
@@ -514,4 +533,66 @@ func buildDeepProposalDocumentJSON(reportJSON json.RawMessage, targetCoinID *uin
 		return ""
 	}
 	return string(out)
+}
+
+func buildDeepIntakeProposalFields(
+	narrative string,
+	proposedFields map[string]deepSynthesisProposedField,
+) map[string]*deepProposalFieldEntry {
+	fields := make(map[string]*deepProposalFieldEntry)
+	newEntry := func(value string) *deepProposalFieldEntry {
+		return &deepProposalFieldEntry{
+			Proposed: value, OwnerEdited: false, OwnerValue: nil, Accepted: nil,
+		}
+	}
+
+	for _, name := range []string{"era", "dateRange"} {
+		if proposed, ok := proposedFields[name]; ok && strings.TrimSpace(proposed.Value) != "" {
+			entry := newEntry(proposed.Value)
+			entry.Confidence = proposed.Confidence
+			fields[name] = entry
+		}
+	}
+
+	titleParts := make([]string, 0, 2)
+	for _, name := range []string{"ruler", "denomination"} {
+		if proposed, ok := proposedFields[name]; ok && strings.TrimSpace(proposed.Value) != "" {
+			titleParts = append(titleParts, strings.TrimSpace(proposed.Value))
+		}
+	}
+	if len(titleParts) > 0 {
+		fields["workingTitle"] = newEntry(truncateDeepProposalText(strings.Join(titleParts, " "), 200))
+	}
+
+	notesParts := make([]string, 0, 2)
+	if trimmed := strings.TrimSpace(narrative); trimmed != "" {
+		notesParts = append(notesParts, trimmed)
+	}
+	fieldNames := make([]string, 0, len(proposedFields))
+	for name, proposed := range proposedFields {
+		if _, allowed := deepProposalCoinFieldAllowlist[name]; allowed && strings.TrimSpace(proposed.Value) != "" {
+			fieldNames = append(fieldNames, name)
+		}
+	}
+	sort.Strings(fieldNames)
+	if len(fieldNames) > 0 {
+		findings := make([]string, 0, len(fieldNames)+1)
+		findings = append(findings, "Deep Analysis findings:")
+		for _, name := range fieldNames {
+			findings = append(findings, fmt.Sprintf("%s: %s", name, proposedFields[name].Value))
+		}
+		notesParts = append(notesParts, strings.Join(findings, "\n"))
+	}
+	if len(notesParts) > 0 {
+		fields["notes"] = newEntry(truncateDeepProposalText(strings.Join(notesParts, "\n\n"), 5000))
+	}
+	return fields
+}
+
+func truncateDeepProposalText(value string, maxRunes int) string {
+	runes := []rune(value)
+	if len(runes) <= maxRunes {
+		return value
+	}
+	return string(runes[:maxRunes])
 }

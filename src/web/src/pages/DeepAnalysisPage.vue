@@ -1,6 +1,6 @@
 <template>
-  <div class="container">
-    <div class="mx-auto max-w-[900px]">
+  <div class="container min-w-0 overflow-x-hidden">
+    <div class="mx-auto min-w-0 max-w-[900px]">
       <div class="page-header">
         <h1>Deep Analysis</h1>
         <div class="pwa-actions">
@@ -18,8 +18,8 @@
         <p v-if="loading" class="text-body text-text-secondary">Loading Deep Analysis job...</p>
         <p v-else-if="loadError" role="alert" class="text-body text-byzantine">{{ loadError }}</p>
 
-        <section v-else-if="job" class="card grid gap-4">
-          <div class="flex items-center justify-between">
+        <section v-else-if="job" class="card grid min-w-0 gap-4 overflow-hidden">
+          <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
             <h2 class="m-0 text-lg text-heading">Job #{{ job.id }}</h2>
             <BaseBadge>{{ job.status }}</BaseBadge>
           </div>
@@ -58,6 +58,12 @@
           </div>
 
           <template v-if="isTerminal && deep.report.value">
+            <div class="grid gap-1">
+              <h2 class="m-0 text-lg text-heading">Results</h2>
+              <p class="m-0 text-body text-text-secondary">
+                Review the report, choose the details you want to keep, then save the result.
+              </p>
+            </div>
             <DeepReportPanel :report="deep.report.value" />
           </template>
 
@@ -65,14 +71,27 @@
             <DeepProposalEditor
               :proposal="deep.proposal.value"
               :applying="deep.applying.value"
+              :action-label="proposalActionLabel"
+              :applying-label="proposalApplyingLabel"
               @update-field="onUpdateProposalField"
               @confirm="onApplyProposal"
             />
             <p v-if="applyError" role="alert" class="text-body text-byzantine">{{ applyError }}</p>
           </template>
 
+          <div
+            v-else-if="isTerminal && deep.report.value && !job.appliedAt"
+            class="grid gap-2 rounded-sm border border-border-subtle bg-card p-3"
+          >
+            <h3 class="m-0 text-lg text-text-primary">No draft fields were proposed</h3>
+            <p class="m-0 text-body text-text-secondary">
+              The report is still available above. Retry the analysis to gather a new result, or return to Identify Coin.
+            </p>
+            <RouterLink class="btn btn-secondary justify-self-start" to="/lookup">Identify Coin</RouterLink>
+          </div>
+
           <p v-else-if="job.appliedAt" class="text-body text-text-secondary" role="status">
-            Applied on {{ new Date(job.appliedAt).toLocaleString() }}.
+            {{ appliedStatusText }}
           </p>
         </section>
       </template>
@@ -158,6 +177,14 @@ async function onRetry() {
 }
 
 const applyError = ref('')
+const isIntakeJob = computed(() => job.value?.source !== 'saved_coin')
+const proposalActionLabel = computed(() => isIntakeJob.value ? 'Save as Draft' : 'Apply to Coin')
+const proposalApplyingLabel = computed(() => isIntakeJob.value ? 'Saving...' : 'Applying...')
+const appliedStatusText = computed(() => {
+  if (!job.value?.appliedAt) return ''
+  const action = job.value.source === 'saved_coin' ? 'Applied to coin' : 'Saved as draft'
+  return `${action} on ${new Date(job.value.appliedAt).toLocaleString()}.`
+})
 
 async function onUpdateProposalField(name: string, edit: DeepProposalFieldEdit) {
   if (jobId.value === null) return
@@ -171,6 +198,10 @@ async function onApplyProposal() {
   const result = await deep.applyProposal(jobId.value, { target })
   if (!result) {
     applyError.value = deep.error.value || 'Unable to apply the Deep Analysis proposal.'
+    return
+  }
+  if (target === 'draft' && result.draftId) {
+    await router.push({ name: 'quick-capture-draft', params: { id: String(result.draftId) } })
   }
 }
 

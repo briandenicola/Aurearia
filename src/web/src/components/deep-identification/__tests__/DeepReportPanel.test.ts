@@ -26,6 +26,19 @@ describe('DeepReportPanel', () => {
     expect(wrapper.text()).toContain('This denarius likely depicts Trajan')
   })
 
+  it('does not render model thinking, signatures, or encoded transport content', () => {
+    const wrapper = mount(DeepReportPanel, {
+      props: {
+        report: baseReport({
+          narrative: "[{'type': 'thinking', 'signature': 'secret'}, {'type': 'text', 'text': 'result'}]",
+        }),
+      },
+    })
+    expect(wrapper.text()).toContain('could not be displayed safely')
+    expect(wrapper.text()).not.toContain('signature')
+    expect(wrapper.text()).not.toContain('secret')
+  })
+
   it('shows a partial-success banner only when the report is partial', () => {
     const partialWrapper = mount(DeepReportPanel, { props: { report: baseReport({ partialSuccess: true }) } })
     expect(partialWrapper.text()).toContain('Partial results')

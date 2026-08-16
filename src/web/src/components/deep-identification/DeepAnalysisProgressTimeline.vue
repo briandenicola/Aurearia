@@ -1,7 +1,7 @@
 <template>
-  <section class="grid gap-4" aria-label="Deep Analysis progress">
+  <section class="grid min-w-0 gap-4 overflow-hidden" aria-label="Deep Analysis progress">
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-2" role="status" aria-live="polite">
+      <div class="flex min-w-0 flex-wrap items-center gap-2" role="status" aria-live="polite">
         <span
           class="inline-flex items-center rounded-full border px-[0.7rem] py-1 text-sm font-semibold uppercase tracking-[0.05em]"
           :class="connectionClasses"
@@ -26,10 +26,10 @@
       <li
         v-for="event in events"
         :key="event.seq"
-        class="grid grid-cols-[auto_1fr] items-baseline gap-3 rounded-sm border border-border-subtle bg-card p-3"
+        class="grid min-w-0 grid-cols-1 items-baseline gap-1 rounded-sm border border-border-subtle bg-card p-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-3"
       >
         <span class="text-sm font-semibold text-gold">{{ labelFor(event) }}</span>
-        <span class="text-sm text-text-secondary">{{ detailFor(event) }}</span>
+        <span class="min-w-0 break-words text-sm text-text-secondary [overflow-wrap:anywhere]">{{ detailFor(event) }}</span>
       </li>
     </ol>
     <p v-else class="text-body text-text-secondary">Waiting for Deep Analysis to begin…</p>

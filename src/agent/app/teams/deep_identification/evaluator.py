@@ -12,6 +12,7 @@ an already-detected disagreement.
 
 import logging
 
+from app.llm.content import extract_text_content
 from app.models.responses import DisagreementEntry, EvidenceRef, ProviderEvidence
 
 logger = logging.getLogger(__name__)
@@ -93,7 +94,7 @@ async def _summarize(model, disagreements: list[DisagreementEntry]) -> list[str]
         model,
         [SystemMessage(content=SUMMARY_PROMPT), HumanMessage(content=f"Disagreement fields: {json.dumps(fields)}")],
     )
-    raw = response.content if isinstance(response.content, str) else str(response.content)
+    raw = extract_text_content(response.content)
     text = raw.strip()
     start = text.find("```json")
     if start != -1:

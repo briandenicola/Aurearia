@@ -1,13 +1,14 @@
 <template>
-  <section class="grid gap-4" aria-label="Deep Analysis proposal">
+  <section class="grid min-w-0 gap-4 overflow-hidden" aria-label="Deep Analysis proposal">
+    <h3 class="m-0 text-lg font-semibold text-text-primary">Review and save</h3>
     <p class="m-0 text-sm text-text-secondary">
-      Review each proposed field. Nothing is saved to your collection until you confirm.
+      Accept the details you want to keep. Nothing is saved until you use the action below.
     </p>
     <ul class="m-0 grid gap-3 p-0" style="list-style: none;">
       <li
         v-for="name in fieldNames"
         :key="name"
-        class="grid gap-2 rounded-sm border border-border-subtle bg-card p-3"
+        class="grid min-w-0 gap-2 overflow-hidden rounded-sm border border-border-subtle bg-card p-3"
       >
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <span class="text-sm font-semibold uppercase tracking-[0.04em] text-text-primary">{{ fieldLabel(name) }}</span>
@@ -17,7 +18,7 @@
           <span v-else class="text-xs font-semibold uppercase tracking-[0.05em] text-gold">AI proposed</span>
         </div>
 
-        <p class="m-0 text-sm text-text-secondary">
+        <p class="m-0 break-words text-sm text-text-secondary [overflow-wrap:anywhere]">
           AI value: <span class="font-medium text-text-primary">{{ displayValue(entryOf(name).proposed) }}</span>
         </p>
 
@@ -28,7 +29,15 @@
 
         <label class="grid gap-1 text-sm text-text-secondary" :for="`deep-proposal-field-${name}`">
           Your value
+          <textarea
+            v-if="name === 'notes'"
+            :id="`deep-proposal-field-${name}`"
+            class="min-h-[132px] min-w-0 resize-y rounded-sm border border-border-subtle bg-background px-2 py-1 text-text-primary"
+            :value="ownerValue(name)"
+            @input="onOwnerValueInput(name, $event)"
+          ></textarea>
           <input
+            v-else
             :id="`deep-proposal-field-${name}`"
             type="text"
             class="min-h-[44px] rounded-sm border border-border-subtle bg-background px-2 py-1 text-text-primary"
@@ -66,7 +75,7 @@
       :disabled="confirmDisabled"
       @click="$emit('confirm')"
     >
-      {{ applying ? 'Applying…' : 'Confirm and apply' }}
+      {{ applying ? applyingLabel : actionLabel }}
     </button>
   </section>
 </template>
@@ -79,6 +88,8 @@ import OCREAttribution from './OCREAttribution.vue'
 const props = defineProps<{
   proposal: DeepProposal
   applying?: boolean
+  actionLabel?: string
+  applyingLabel?: string
 }>()
 
 const emit = defineEmits<{
@@ -90,6 +101,8 @@ const emptyEntry: DeepProposalFieldEntry = { proposed: null, ownerEdited: false,
 
 const fields = computed(() => props.proposal.fields)
 const fieldNames = computed(() => Object.keys(props.proposal.fields).sort())
+const actionLabel = computed(() => props.actionLabel ?? 'Apply to Coin')
+const applyingLabel = computed(() => props.applyingLabel ?? 'Applying...')
 
 function entryOf(name: string): DeepProposalFieldEntry {
   return fields.value[name] ?? emptyEntry

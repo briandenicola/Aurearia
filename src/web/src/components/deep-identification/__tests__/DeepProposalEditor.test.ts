@@ -87,6 +87,25 @@ describe('DeepProposalEditor', () => {
     expect(confirmButton.text()).toContain('Applying')
   })
 
+  it('uses context-specific save labels and a wrapping notes editor', () => {
+    const proposal = baseProposal()
+    proposal.fields.notes = {
+      proposed: 'Detailed report notes',
+      ownerEdited: false,
+      ownerValue: null,
+      accepted: true,
+    }
+    const wrapper = mount(DeepProposalEditor, {
+      props: {
+        proposal,
+        actionLabel: 'Save as Draft',
+        applyingLabel: 'Saving...',
+      },
+    })
+    expect(wrapper.text()).toContain('Save as Draft')
+    expect(wrapper.find('textarea#deep-proposal-field-notes').exists()).toBe(true)
+  })
+
   it('surfaces the OCRE attribution beside a coin_type field whose evidence cites an OCRE type', () => {
     const proposal: DeepProposal = {
       schemaVersion: 1,
