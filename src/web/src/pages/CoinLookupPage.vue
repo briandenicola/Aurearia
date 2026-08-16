@@ -43,6 +43,11 @@
           @change="handleFileUpload"
         />
 
+        <div v-if="uploadError" class="flex items-center gap-3 rounded-md border border-[rgba(192,57,43,0.3)] bg-[rgba(192,57,43,0.2)] p-4 text-base text-byzantine" role="alert">
+          <AlertCircle :size="20" />
+          <span>{{ uploadError }}</span>
+        </div>
+
         <button
           v-if="capturedImages.length > 0"
           class="btn btn-primary w-full justify-center px-6 py-[0.85rem] text-base"
@@ -292,7 +297,7 @@
 <script setup lang="ts">
 import { ref, computed, reactive, nextTick, onBeforeUnmount } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { createQuickCaptureDraft, lookupCoin } from '@/api/client'
+import { createQuickCaptureDraft, getApiErrorMessage, lookupCoin } from '@/api/client'
 import type { CoinLookupResponse, CoinMutationPayload, CreateDeepIdentificationJobInput, NumistaCandidate, NumistaEvidence } from '@/types'
 import { renderSafeMarkdown } from '@/composables/useMarkdown'
 import { appendUniqueObservation, deriveAiObservations, normalizedEra, normalizeLookupDraft } from '@/utils/coinLookupDraft'
@@ -315,6 +320,7 @@ import AppIconButton from '@/components/ui/AppIconButton.vue'
 import { useDeepIdentification } from '@/composables/useDeepIdentification'
 import { useDeepIdentificationCapability } from '@/composables/useDeepIdentificationCapability'
 import { selectedNumistaReferenceFromCandidate } from '@/utils/numistaLookup'
+import { normalizeGalleryImage } from '@/utils/galleryImage'
 import { useAuthStore } from '@/stores/auth'
 
 interface CapturedImage {
@@ -334,6 +340,7 @@ const cameraPanel = ref<InstanceType<typeof InlineCameraCapturePanel> | null>(nu
 const submitting = ref(false)
 const saving = ref(false)
 const error = ref('')
+const uploadError = ref('')
 const results = ref<CoinLookupResponse | null>(null)
 const aiObservations = ref('')
 const selectedNumistaCandidate = ref<NumistaCandidate | null>(null)
@@ -423,6 +430,7 @@ function applyLookupMetadata(lookup: CoinLookupResponse) {
 }
 
 function addCapturedFile(file: File) {
+  uploadError.value = ''
   const preview = URL.createObjectURL(file)
   capturedImages.value.push({ file, preview })
 }
@@ -437,20 +445,26 @@ function triggerFileUpload() {
   fileInput.value?.click()
 }
 
-function handleFileUpload(event: Event) {
+async function handleFileUpload(event: Event) {
   const input = event.target as HTMLInputElement
   const files = input.files
   if (!files || files.length === 0) return
 
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i]
-    if (!file) continue
-    addCapturedFile(file)
-  }
-
-  // Reset input
-  if (fileInput.value) {
-    fileInput.value.value = ''
+  uploadError.value = ''
+  try {
+    const normalizedFiles: File[] = []
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      if (!file) continue
+      normalizedFiles.push(await normalizeGalleryImage(file))
+    }
+    for (const file of normalizedFiles) {
+      addCapturedFile(file)
+    }
+  } catch (err: unknown) {
+    uploadError.value = getApiErrorMessage(err) || 'The selected image could not be prepared. Try a JPEG or PNG image.'
+  } finally {
+    input.value = ''
   }
 }
 
@@ -482,7 +496,7 @@ async function handleSubmit() {
     state.value = 'results'
   } catch (err: unknown) {
     console.error('Lookup failed:', err)
-    error.value = err instanceof Error ? err.message : 'Failed to analyze coin'
+    error.value = getApiErrorMessage(err) || 'Failed to analyze coin'
     state.value = 'results'
   } finally {
     submitting.value = false
@@ -568,7 +582,7 @@ async function handleSaveAsDraft() {
     router.push(`/quick-capture/drafts/${draft.data.id}`)
   } catch (err: unknown) {
     console.error('Failed to save draft:', err)
-    error.value = err instanceof Error ? err.message : 'Failed to save draft'
+    error.value = getApiErrorMessage(err) || 'Failed to save draft'
   } finally {
     saving.value = false
   }
