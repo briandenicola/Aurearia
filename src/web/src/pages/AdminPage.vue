@@ -82,6 +82,7 @@
           :numista-search-result-limit="settings.NumistaSearchResultLimit ?? '20'"
           :numista-search-timeout-seconds="settings.NumistaSearchTimeoutSeconds ?? '4'"
           :numista-detail-timeout-seconds="settings.NumistaDetailTimeoutSeconds ?? '3'"
+          :deep-identification-enabled="settings.DeepIdentificationEnabled ?? 'false'"
           :deep-identification-o-c-r-e-enabled="settings.DeepIdentificationOCREEnabled ?? 'false'"
           :deep-identification-o-c-r-e-call-budget="settings.DeepIdentificationOCRECallBudget ?? '3'"
           :pushover-app-token="settings.PushoverAppToken ?? ''"
@@ -407,6 +408,7 @@ function onSystemSave(payload: {
   numistaSearchResultLimit: string
   numistaSearchTimeoutSeconds: string
   numistaDetailTimeoutSeconds: string
+  deepIdentificationEnabled: string
   deepIdentificationOCREEnabled: string
   deepIdentificationOCRECallBudget: string
   logLevel: string
@@ -433,6 +435,7 @@ function onSystemSave(payload: {
   settings.value.NumistaSearchResultLimit = payload.numistaSearchResultLimit
   settings.value.NumistaSearchTimeoutSeconds = payload.numistaSearchTimeoutSeconds
   settings.value.NumistaDetailTimeoutSeconds = payload.numistaDetailTimeoutSeconds
+  settings.value.DeepIdentificationEnabled = payload.deepIdentificationEnabled
   settings.value.DeepIdentificationOCREEnabled = payload.deepIdentificationOCREEnabled
   settings.value.DeepIdentificationOCRECallBudget = payload.deepIdentificationOCRECallBudget
   settings.value.LogLevel = payload.logLevel

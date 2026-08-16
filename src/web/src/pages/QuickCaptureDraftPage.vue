@@ -1,6 +1,6 @@
 <template>
   <div class="container">
-    <div class="form-wrapper grid gap-4">
+    <div class="form-wrapper grid min-w-0 gap-4">
       <div class="page-header">
         <h1>Draft</h1>
         <div class="pwa-actions">
@@ -34,7 +34,7 @@
 
         <!-- Active editing state -->
         <template v-else>
-          <form class="card grid gap-5" @submit.prevent="saveDraft">
+          <form class="card grid min-w-0 gap-5 overflow-hidden" @submit.prevent="saveDraft">
             <h2 class="m-0">Edit Draft</h2>
             <section
               v-if="draft.source === 'find_coin_ai' || draft.ngcCertNumber || draft.labelText"
@@ -59,7 +59,7 @@
                   <strong>{{ draft.ngcGrade }}</strong>
                 </div>
               </div>
-              <p v-if="draft.labelText" class="mt-3 mb-0 text-body text-text-secondary">{{ draft.labelText }}</p>
+              <p v-if="draft.labelText" class="mt-3 mb-0 break-words text-body text-text-secondary">{{ draft.labelText }}</p>
             </section>
             <!-- Existing images -->
             <section v-if="draft.images.length" class="grid gap-3">

@@ -1,6 +1,6 @@
 <template>
   <div class="container">
-    <div class="mx-auto max-w-[900px]">
+    <div class="mx-auto min-w-0 max-w-[900px]">
       <div class="page-header">
         <h1>Identify Coin</h1>
         <div class="pwa-actions">
@@ -60,15 +60,15 @@
       </div>
 
       <!-- Results State -->
-      <div v-if="state === 'results'" class="flex flex-col gap-6">
+      <div v-if="state === 'results'" class="min-w-0 flex flex-col gap-6">
         <div v-if="error" class="flex items-center gap-3 rounded-md border border-[rgba(192,57,43,0.3)] bg-[rgba(192,57,43,0.2)] p-4 text-base text-byzantine">
           <AlertCircle :size="20" />
           <span>{{ error }}</span>
         </div>
 
-        <div v-if="results" class="flex flex-col gap-6">
+        <div v-if="results" class="min-w-0 flex flex-col gap-6">
           <!-- NGC Certification Path -->
-          <form v-if="ngcCertNumber" class="card" @submit.prevent="handleSaveAsDraft">
+          <form v-if="ngcCertNumber" class="card min-w-0 overflow-hidden" @submit.prevent="handleSaveAsDraft">
             <h3 class="mb-4 text-lg text-text-primary">Review Coin Details</h3>
             <div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
               <label class="form-group col-span-full">
@@ -136,12 +136,12 @@
 
             <div v-if="aiObservations" class="mt-2">
               <h4 class="section-label mb-3 block">AI Observations</h4>
-              <div class="markdown-rendered rounded-sm border border-border-subtle bg-input p-3 text-body leading-6 text-text-secondary [&_ol]:mb-3 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_strong]:text-gold [&_ul]:mb-3" v-html="renderedAiObservations"></div>
+              <div class="markdown-rendered min-w-0 overflow-hidden rounded-sm border border-border-subtle bg-input p-3 text-body leading-6 text-text-secondary [overflow-wrap:anywhere] [&_ol]:mb-3 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_strong]:text-gold [&_ul]:mb-3" v-html="renderedAiObservations"></div>
             </div>
           </form>
 
           <!-- Non-NGC Path (editable review form) -->
-          <form v-else class="card" @submit.prevent="handleSaveAsDraft">
+          <form v-else class="card min-w-0 overflow-hidden" @submit.prevent="handleSaveAsDraft">
             <h3 class="mb-4 text-lg text-text-primary">Review Coin Details</h3>
 
             <div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
@@ -172,7 +172,7 @@
 
               <div v-if="aiObservations" class="form-group col-span-full">
                 <span class="section-label">AI Observations</span>
-                <div class="markdown-rendered rounded-sm border border-border-subtle bg-input p-3 text-body leading-6 text-text-secondary [&_ol]:mb-3 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_strong]:text-gold [&_ul]:mb-3" v-html="renderedAiObservations"></div>
+                <div class="markdown-rendered min-w-0 overflow-hidden rounded-sm border border-border-subtle bg-input p-3 text-body leading-6 text-text-secondary [overflow-wrap:anywhere] [&_ol]:mb-3 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_strong]:text-gold [&_ul]:mb-3" v-html="renderedAiObservations"></div>
               </div>
             </div>
           </form>

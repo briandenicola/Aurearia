@@ -114,6 +114,22 @@ function normalizeObservationForCompare(value: string) {
     .trim()
 }
 
+function safeRawObservation(value: string | undefined) {
+  const clean = cleanLookupValue(value)
+  if (!clean || clean.length > 4000) return undefined
+
+  const modelTransportMarkers = [
+    /data:image\//i,
+    /;base64,/i,
+    /['"]type['"]\s*:\s*['"](?:thinking|image)['"]/i,
+    /['"]source['"]\s*:\s*\{[^}]*['"]type['"]\s*:\s*['"]base64['"]/i,
+  ]
+  if (modelTransportMarkers.some(marker => marker.test(clean))) return undefined
+  if (/\S{256,}/.test(clean)) return undefined
+
+  return clean
+}
+
 export function appendUniqueObservation(parts: string[], value: string | undefined, heading?: string) {
   const clean = cleanLookupValue(value)
   if (!clean) return
@@ -134,7 +150,7 @@ export function deriveAiObservations(lookup: CoinLookupResponse, draft: CoinMuta
   appendUniqueObservation(parts, draft.notes)
   appendUniqueObservation(parts, draft.aiAnalysis)
   if (!parseJsonLookupFields(lookup.extractedData.rawAnalysis)) {
-    appendUniqueObservation(parts, lookup.extractedData.rawAnalysis)
+    appendUniqueObservation(parts, safeRawObservation(lookup.extractedData.rawAnalysis))
   }
   appendUniqueObservation(parts, draft.obverseDescription, 'Obverse')
   appendUniqueObservation(parts, draft.reverseDescription, 'Reverse')

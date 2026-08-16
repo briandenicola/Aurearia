@@ -134,8 +134,8 @@ describe('CoinLookupPage', () => {
     await input.trigger('change')
     await flushPromises()
 
-    await wrapper.findAll('button').find(button => button.text().includes('Add Reverse'))?.trigger('click')
-    await wrapper.findAll('button').find(button => button.text().includes('Add Notes'))?.trigger('click')
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
     await wrapper.find('textarea').setValue('Weight 3.2 g; dealer suggested Trajan.')
     Object.defineProperty(input.element, 'files', { value: [notesSource], configurable: true })
     await input.trigger('change')

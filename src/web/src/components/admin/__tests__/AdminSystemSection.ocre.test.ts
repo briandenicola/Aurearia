@@ -38,6 +38,10 @@ describe('AdminSystemSection OCRE / Deep Analysis configuration and health', () 
 
   it('renders a default-off toggle and a bounded 1–20 call-budget input', () => {
     const wrapper = mount(AdminSystemSection, { props: baseProps() })
+    const deepToggle = wrapper.find<HTMLInputElement>('input[name="DeepIdentificationEnabled"]')
+    expect(deepToggle.exists()).toBe(true)
+    expect(deepToggle.element.checked).toBe(false)
+
     const toggle = wrapper.find<HTMLInputElement>('input[name="DeepIdentificationOCREEnabled"]')
     expect(toggle.exists()).toBe(true)
     expect(toggle.attributes('type')).toBe('checkbox')
@@ -54,12 +58,14 @@ describe('AdminSystemSection OCRE / Deep Analysis configuration and health', () 
   it('persists a toggle change and a validated call budget on save', async () => {
     const wrapper = mount(AdminSystemSection, { props: baseProps() })
 
+    await wrapper.find<HTMLInputElement>('input[name="DeepIdentificationEnabled"]').setValue(true)
     await wrapper.find<HTMLInputElement>('input[name="DeepIdentificationOCREEnabled"]').setValue(true)
     await wrapper.find<HTMLInputElement>('input[name="DeepIdentificationOCRECallBudget"]').setValue('9')
     await wrapper.find('form').trigger('submit')
 
     const payload = wrapper.emitted('save')?.at(-1)?.[0]
     expect(payload).toMatchObject({
+      deepIdentificationEnabled: 'true',
       deepIdentificationOCREEnabled: 'true',
       deepIdentificationOCRECallBudget: '9',
     })
@@ -152,6 +158,7 @@ function baseProps() {
     numistaSearchResultLimit: '20',
     numistaSearchTimeoutSeconds: '4',
     numistaDetailTimeoutSeconds: '3',
+    deepIdentificationEnabled: 'false',
     deepIdentificationOCREEnabled: 'false',
     deepIdentificationOCRECallBudget: '3',
     pushoverAppToken: '',
