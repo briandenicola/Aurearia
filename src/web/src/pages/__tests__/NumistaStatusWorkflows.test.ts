@@ -17,6 +17,7 @@ import {
   makeSelectedNumistaReference,
 } from '@/test/numista-fixtures'
 import type { QuickCaptureDraft } from '@/types'
+import { normalizeGalleryImage } from '@/utils/galleryImage'
 
 const routerPush = vi.fn()
 
@@ -37,6 +38,10 @@ vi.mock('@/api/client', () => ({
   onTokenRefreshed: vi.fn(),
   promoteQuickCaptureDraft: vi.fn(),
   updateQuickCaptureDraft: vi.fn(),
+}))
+
+vi.mock('@/utils/galleryImage', () => ({
+  normalizeGalleryImage: vi.fn(),
 }))
 
 const directProps = {
@@ -84,6 +89,8 @@ describe('Numista status workflow retention', () => {
     localStorage.clear()
     vi.resetAllMocks()
     routerPush.mockReset()
+    vi.mocked(normalizeGalleryImage).mockReset()
+    vi.mocked(normalizeGalleryImage).mockImplementation(async file => file)
   })
 
   it('keeps the direct edited query and selection through timeout and unavailable transitions', async () => {

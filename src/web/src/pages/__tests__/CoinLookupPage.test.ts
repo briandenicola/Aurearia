@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import CoinLookupPage from '../CoinLookupPage.vue'
 import { createDeepIdentificationJob, createQuickCaptureDraft, lookupCoin, lookupNumista } from '@/api/client'
 import { makeNumistaCandidate, makeNumistaLookupOutcome } from '@/test/numista-fixtures'
+import { normalizeGalleryImage } from '@/utils/galleryImage'
 
 const routerPush = vi.fn()
 const routerBack = vi.fn()
@@ -25,7 +26,18 @@ vi.mock('@/api/client', () => ({
   createQuickCaptureDraft: vi.fn(),
   createDeepIdentificationJob: vi.fn(),
   getDeepIdentificationCapability: vi.fn().mockResolvedValue({ data: { enabled: true } }),
+  getApiErrorMessage: (error: unknown) => {
+    if (typeof error !== 'object' || error === null) return ''
+    const typed = error as { response?: { data?: { error?: unknown } }; message?: unknown }
+    const apiMessage = typed.response?.data?.error
+    if (typeof apiMessage === 'string') return apiMessage
+    return typeof typed.message === 'string' ? typed.message : ''
+  },
   onTokenRefreshed: vi.fn(),
+}))
+
+vi.mock('@/utils/galleryImage', () => ({
+  normalizeGalleryImage: vi.fn(),
 }))
 
 function findAnalyzeButton(wrapper: ReturnType<typeof mount>) {
@@ -51,6 +63,8 @@ describe('CoinLookupPage', () => {
     vi.mocked(createQuickCaptureDraft).mockReset()
     vi.mocked(lookupNumista).mockReset()
     vi.mocked(createDeepIdentificationJob).mockReset()
+    vi.mocked(normalizeGalleryImage).mockReset()
+    vi.mocked(normalizeGalleryImage).mockImplementation(async file => file)
     routerPush.mockReset()
     routerBack.mockReset()
 
@@ -58,6 +72,7 @@ describe('CoinLookupPage', () => {
       value: vi.fn(() => 'blob:lookup-image'),
       configurable: true,
     })
+
     Object.defineProperty(URL, 'revokeObjectURL', {
       value: vi.fn(),
       configurable: true,
@@ -66,6 +81,55 @@ describe('CoinLookupPage', () => {
       value: undefined,
       configurable: true,
     })
+  })
+
+  it('normalizes a gallery image before starting identification', async () => {
+    const galleryFile = new File(['heic'], 'IMG_1234.HEIC', { type: 'image/heic' })
+    const normalizedFile = new File(['jpeg'], 'IMG_1234.jpg', { type: 'image/jpeg' })
+    vi.mocked(normalizeGalleryImage).mockResolvedValue(normalizedFile)
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: { confidence: 'low', rawAnalysis: '' },
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Unidentified Coin' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+
+    const wrapper = mount(CoinLookupPage)
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [galleryFile],
+      configurable: true,
+    })
+    await input.trigger('change')
+    await flushPromises()
+    await findAnalyzeButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(normalizeGalleryImage).toHaveBeenCalledWith(galleryFile)
+    expect(lookupCoin).toHaveBeenCalledWith([normalizedFile])
+  })
+
+  it('shows the API validation detail instead of a generic 400 message', async () => {
+    const file = new File(['jpeg'], 'coin.jpg', { type: 'image/jpeg' })
+    vi.mocked(lookupCoin).mockRejectedValue({
+      response: { data: { error: 'Invalid image upload' } },
+      message: 'Request failed with status code 400',
+    })
+
+    const wrapper = mount(CoinLookupPage)
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [file],
+      configurable: true,
+    })
+    await input.trigger('change')
+    await flushPromises()
+    await findAnalyzeButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Invalid image upload')
+    expect(wrapper.text()).not.toContain('Request failed with status code 400')
   })
 
   it('waits for a user tap before requesting camera permission', async () => {
