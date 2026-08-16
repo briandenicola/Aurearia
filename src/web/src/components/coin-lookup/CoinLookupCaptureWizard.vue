@@ -58,6 +58,11 @@
         <span>{{ uploadError }}</span>
       </div>
 
+      <div v-if="deepRequirementError" class="flex items-center gap-3 rounded-md border border-border-accent bg-input p-4 text-base text-text-primary" role="alert">
+        <AlertCircle :size="20" class="shrink-0 text-byzantine" />
+        <span>{{ deepRequirementError }}</span>
+      </div>
+
       <div class="flex items-center gap-2">
         <button
           v-if="step > 0"
@@ -73,14 +78,25 @@
         <button
           v-if="obverse"
           type="button"
-          class="btn btn-primary min-w-0 flex-1 justify-center px-2 text-sm sm:px-5 sm:text-base"
+          class="btn btn-primary min-w-0 flex-1 justify-center px-2 text-tiny sm:px-5 sm:text-base"
           :disabled="submitting || preparingImage"
           @click="$emit('analyze')"
         >
           <span v-if="submitting" class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"></span>
           <span v-else-if="preparingImage" class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"></span>
-          <Search v-else :size="19" />
+          <Search v-else :size="19" class="hidden sm:block" />
           {{ submitting ? 'Analyzing...' : preparingImage ? 'Preparing image...' : 'Analyze Photos' }}
+        </button>
+
+        <button
+          v-if="obverse && deepAnalysisEnabled"
+          type="button"
+          class="btn btn-secondary min-w-0 flex-1 justify-center px-2 text-tiny sm:px-5 sm:text-base"
+          :disabled="submitting || preparingImage"
+          @click="startDeepAnalysis"
+        >
+          <Microscope :size="19" class="hidden sm:block" aria-hidden="true" />
+          Deep Analysis
         </button>
 
         <button
@@ -100,8 +116,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { AlertCircle, ChevronLeft, ChevronRight, Search, X } from 'lucide-vue-next'
+import { computed, ref, watch } from 'vue'
+import { AlertCircle, ChevronLeft, ChevronRight, Microscope, Search, X } from 'lucide-vue-next'
 import InlineCameraCapturePanel from '@/components/InlineCameraCapturePanel.vue'
 import type { CoinLookupImageRole } from '@/types'
 
@@ -110,7 +126,7 @@ interface CaptureImage {
   preview: string
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   obverse: CaptureImage | null
   reverse: CaptureImage | null
   notesImage: CaptureImage | null
@@ -118,13 +134,17 @@ const props = defineProps<{
   submitting: boolean
   preparingImage: boolean
   uploadError: string
-}>()
+  deepAnalysisEnabled?: boolean
+}>(), {
+  deepAnalysisEnabled: false,
+})
 
 const emit = defineEmits<{
   captured: [role: CoinLookupImageRole, file: File]
   selected: [role: CoinLookupImageRole, file: File]
   remove: [role: CoinLookupImageRole]
   analyze: []
+  deepAnalyze: []
   'update:notes': [value: string]
 }>()
 
@@ -142,7 +162,7 @@ const steps = [
     label: 'Reverse',
     required: false,
     title: 'Add the reverse',
-    description: 'A reverse image is optional, but legends and designs can significantly improve attribution.',
+    description: 'Optional for quick analysis and required for Deep Analysis. Legends and designs significantly improve attribution.',
     instruction: 'Center the reverse in the circle',
   },
   {
@@ -156,6 +176,7 @@ const steps = [
 ] as const
 
 const step = ref(0)
+const deepRequirementError = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const cameraPanel = ref<InstanceType<typeof InlineCameraCapturePanel> | null>(null)
 const currentStep = computed(() => {
@@ -177,6 +198,20 @@ function handleFileSelection(event: Event) {
   }
   input.value = ''
 }
+
+function startDeepAnalysis() {
+  deepRequirementError.value = ''
+  if (!props.reverse) {
+    step.value = 1
+    deepRequirementError.value = 'Add a reverse image before starting Deep Analysis.'
+    return
+  }
+  emit('deepAnalyze')
+}
+
+watch(() => props.reverse, (reverse) => {
+  if (reverse) deepRequirementError.value = ''
+})
 
 function stopCamera() {
   cameraPanel.value?.stopCamera()
