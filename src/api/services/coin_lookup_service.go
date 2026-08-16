@@ -39,7 +39,9 @@ func NewCoinLookupService(
 
 // CoinLookupRequest wraps the input for coin lookup.
 type CoinLookupRequest struct {
-	Images []string `json:"images"` // Data URIs
+	Images     []string `json:"images"` // Data URIs
+	ImageRoles []string `json:"imageRoles,omitempty"`
+	Notes      string   `json:"notes,omitempty"`
 }
 
 // LookupExtractedData represents extracted data from vision analysis.
@@ -98,7 +100,7 @@ func (s *CoinLookupService) Lookup(ctx context.Context, userID uint, req CoinLoo
 	}
 
 	// 1. Vision analysis to extract NGC cert, label text, and coin fields
-	extractedData, err := s.extractDataFromImages(ctx, req.Images)
+	extractedData, err := s.extractDataFromImages(ctx, req.Images, req.ImageRoles, req.Notes)
 	if err != nil {
 		logger.Error("coin-lookup", "Vision analysis failed: %v", err)
 		return nil, fmt.Errorf("vision analysis failed: %w", err)
@@ -132,7 +134,7 @@ func (s *CoinLookupService) Lookup(ctx context.Context, userID uint, req CoinLoo
 }
 
 // extractDataFromImages uses vision analysis to extract NGC cert, label text, and coin fields.
-func (s *CoinLookupService) extractDataFromImages(ctx context.Context, images []string) (*LookupExtractedData, error) {
+func (s *CoinLookupService) extractDataFromImages(ctx context.Context, images, imageRoles []string, notes string) (*LookupExtractedData, error) {
 	logger := s.logger
 
 	// Resolve LLM config
@@ -142,14 +144,15 @@ func (s *CoinLookupService) extractDataFromImages(ctx context.Context, images []
 	}
 
 	// Build vision analysis prompt
-	prompt := s.buildVisionPrompt()
+	prompt := s.buildVisionPrompt(imageRoles)
 
 	// Call agent proxy for vision analysis
 	formatOutput := false
 	proxyReq := AnalyzeProxyRequest{
 		LLM: llmCfg,
 		Coin: CoinDataProxy{
-			Name: "Lookup Candidate",
+			Name:  "Lookup Candidate",
+			Notes: notes,
 		},
 		Images:       images,
 		Side:         "lookup",
@@ -199,8 +202,8 @@ func (s *CoinLookupService) extractDataFromImages(ctx context.Context, images []
 }
 
 // buildVisionPrompt creates a specialized prompt for quick coin lookup vision analysis.
-func (s *CoinLookupService) buildVisionPrompt() string {
-	return `You are analyzing a coin or coin slab photo for a quick capture draft. Be fast and conservative. Extract only details visible or strongly inferable from the image.
+func (s *CoinLookupService) buildVisionPrompt(imageRoles []string) string {
+	prompt := `You are analyzing a coin or coin slab photo for a quick capture draft. Be fast and conservative. Extract only details visible or strongly inferable from the image.
 
 1. NGC Certification: If this is an NGC slab/holder or the image shows an NGC certification number, extract the NGC certification number (format: XXXXXXX-XXX, e.g., 823160-093 or 1234567-001). Also extract the grade (e.g., "Ch AU", "NGC AU", etc.) and any description text on the label.
 
@@ -244,6 +247,15 @@ Return your response in this EXACT JSON format (no markdown, no extra text):
 }
 
 Be precise. If uncertain, use null. Do not include long history, market analysis, catalog references, or broad commentary. Prefer NGC cert extraction when a slab/cert is present; otherwise return the smallest useful draft.`
+	if len(imageRoles) == 0 {
+		return prompt
+	}
+
+	roles := make([]string, 0, len(imageRoles))
+	for index, role := range imageRoles {
+		roles = append(roles, fmt.Sprintf("image %d is %s", index+1, role))
+	}
+	return prompt + "\n\nImage roles: " + strings.Join(roles, "; ") + "."
 }
 
 // extractNGCCert parses NGC certification data from analysis text.

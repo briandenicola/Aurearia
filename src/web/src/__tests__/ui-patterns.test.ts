@@ -54,9 +54,11 @@ describe('UI pattern recipes', () => {
   it('keeps Identify Coin camera-first with Add Coin upload icon pattern', () => {
     const lookupPage = readRepoFile(join('pages', 'CoinLookupPage.vue'))
     const addCoinPage = readRepoFile(join('pages', 'AddCoinPage.vue'))
+    const lookupWizard = readRepoFile(join('components', 'coin-lookup', 'CoinLookupCaptureWizard.vue'))
     const inlineCameraPanel = readRepoFile(join('components', 'InlineCameraCapturePanel.vue'))
 
-    expect(lookupPage).toContain('InlineCameraCapturePanel')
+    expect(lookupPage).toContain('CoinLookupCaptureWizard')
+    expect(lookupWizard).toContain('InlineCameraCapturePanel')
     expect(addCoinPage).toContain('InlineCameraCapturePanel')
     expect(inlineCameraPanel).toContain('ref="cameraVideo"')
     expect(inlineCameraPanel).toContain('Start Camera')

@@ -107,7 +107,58 @@ describe('CoinLookupPage', () => {
     await flushPromises()
 
     expect(normalizeGalleryImage).toHaveBeenCalledWith(galleryFile)
-    expect(lookupCoin).toHaveBeenCalledWith([normalizedFile])
+    expect(lookupCoin).toHaveBeenCalledWith([normalizedFile], '', ['obverse'])
+  })
+
+  it('sends and saves typed notes and a supporting image without treating it as the reverse', async () => {
+    const obverse = new File(['obverse'], 'obverse.jpg', { type: 'image/jpeg' })
+    const notesSource = new File(['label'], 'label.png', { type: 'image/png' })
+    const notesImage = new File(['label-jpeg'], 'label.jpg', { type: 'image/jpeg' })
+    vi.mocked(normalizeGalleryImage)
+      .mockResolvedValueOnce(obverse)
+      .mockResolvedValueOnce(notesImage)
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: { confidence: 'low', rawAnalysis: '' },
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Unidentified Coin' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+    vi.mocked(createQuickCaptureDraft).mockResolvedValue({
+      data: { id: 84 },
+    } as Awaited<ReturnType<typeof createQuickCaptureDraft>>)
+
+    const wrapper = mount(CoinLookupPage)
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [obverse], configurable: true })
+    await input.trigger('change')
+    await flushPromises()
+
+    await wrapper.findAll('button').find(button => button.text().includes('Add Reverse'))?.trigger('click')
+    await wrapper.findAll('button').find(button => button.text().includes('Add Notes'))?.trigger('click')
+    await wrapper.find('textarea').setValue('Weight 3.2 g; dealer suggested Trajan.')
+    Object.defineProperty(input.element, 'files', { value: [notesSource], configurable: true })
+    await input.trigger('change')
+    await flushPromises()
+    await findAnalyzeButton(wrapper)?.trigger('click')
+    await flushPromises()
+
+    expect(lookupCoin).toHaveBeenCalledWith(
+      [obverse, notesImage],
+      'Weight 3.2 g; dealer suggested Trajan.',
+      ['obverse', 'notes'],
+    )
+
+    const saveButton = findActionButtons(wrapper).find(button => button.text().includes('Save as Draft'))
+    await saveButton?.trigger('click')
+    await flushPromises()
+
+    expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
+      notes: expect.stringContaining('**Collector notes:** Weight 3.2 g; dealer suggested Trajan.'),
+      obverseImage: obverse,
+      reverseImage: null,
+      detailImages: [notesImage],
+    }))
   })
 
   it('shows the API validation detail instead of a generic 400 message', async () => {

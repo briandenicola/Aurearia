@@ -9884,6 +9884,17 @@ paths:
         name: images
         required: true
         type: file
+      - collectionFormat: multi
+        description: 'Semantic role for each image: obverse, reverse, or notes'
+        in: formData
+        items:
+          type: string
+        name: imageRoles
+        type: array
+      - description: Collector-provided identification context (max 2000 characters)
+        in: formData
+        name: notes
+        type: string
       produces:
       - application/json
       responses:

@@ -405,6 +405,8 @@ export interface CoinLookupResponse {
   candidateReferences?: CoinReferenceInput[]
 }
 
+export type CoinLookupImageRole = 'obverse' | 'reverse' | 'notes'
+
 export interface IntakeCommitRequest {
   draftId: number
   confirm: boolean

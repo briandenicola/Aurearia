@@ -6337,6 +6337,22 @@ const docTemplate = `{
                         "name": "images",
                         "in": "formData",
                         "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "multi",
+                        "description": "Semantic role for each image: obverse, reverse, or notes",
+                        "name": "imageRoles",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Collector-provided identification context (max 2000 characters)",
+                        "name": "notes",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
