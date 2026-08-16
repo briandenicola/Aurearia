@@ -9,12 +9,17 @@ vi.mock('@/api/client', () => ({
 }))
 
 function mountCapability() {
-  const state: { enabled: boolean; loaded: boolean } = { enabled: false, loaded: false }
+  const state: { enabled: boolean; providers: string[]; loaded: boolean } = {
+    enabled: false,
+    providers: [],
+    loaded: false,
+  }
   const host = defineComponent({
     setup() {
       const cap = useDeepIdentificationCapability()
       return () => {
         state.enabled = cap.enabled.value
+        state.providers = cap.providers.value
         state.loaded = cap.loaded.value
         return h('div')
       }
@@ -27,7 +32,7 @@ function mountCapability() {
 describe('useDeepIdentificationCapability', () => {
   it('enables the entry point when the backend reports enabled', async () => {
     vi.mocked(getDeepIdentificationCapability).mockResolvedValue({
-      data: { enabled: true },
+      data: { enabled: true, providers: ['nomisma', 'numista', 'ocre'] },
     } as Awaited<ReturnType<typeof getDeepIdentificationCapability>>)
 
     const { state } = mountCapability()
@@ -35,12 +40,13 @@ describe('useDeepIdentificationCapability', () => {
     await nextTick()
 
     expect(state.enabled).toBe(true)
+    expect(state.providers).toEqual(['nomisma', 'numista', 'ocre'])
     expect(state.loaded).toBe(true)
   })
 
   it('hides the entry point when the backend reports disabled', async () => {
     vi.mocked(getDeepIdentificationCapability).mockResolvedValue({
-      data: { enabled: false },
+      data: { enabled: false, providers: ['nomisma', 'numista'] },
     } as Awaited<ReturnType<typeof getDeepIdentificationCapability>>)
 
     const { state } = mountCapability()
@@ -48,6 +54,7 @@ describe('useDeepIdentificationCapability', () => {
     await nextTick()
 
     expect(state.enabled).toBe(false)
+    expect(state.providers).toEqual(['nomisma', 'numista'])
     expect(state.loaded).toBe(true)
   })
 
@@ -59,6 +66,7 @@ describe('useDeepIdentificationCapability', () => {
     await nextTick()
 
     expect(state.enabled).toBe(false)
+    expect(state.providers).toEqual([])
     expect(state.loaded).toBe(true)
   })
 })

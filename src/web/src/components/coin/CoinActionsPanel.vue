@@ -129,6 +129,7 @@
           :coin-id="coinId"
           :has-existing-obverse="coinHasObverseImage"
           :has-existing-reverse="coinHasReverseImage"
+          :eligible-providers="deepAnalysisProviders"
           :submitting="deepIdentification.starting.value"
           :submit-error="deepIdentification.error.value"
           @submit="onDeepAnalysisSubmit"
@@ -191,7 +192,10 @@ const { refresh: refreshNotifications } = useNotifications()
 const { showToast } = useToast()
 const router = useRouter()
 const deepIdentification = useDeepIdentification()
-const { enabled: deepAnalysisEnabled } = useDeepIdentificationCapability()
+const {
+  enabled: deepAnalysisEnabled,
+  providers: deepAnalysisProviders,
+} = useDeepIdentificationCapability()
 const showDeepAnalysisModal = ref(false)
 const coinHasObverseImage = computed(() => props.coinHasObverseImage ?? false)
 const coinHasReverseImage = computed(() => props.coinHasReverseImage ?? false)

@@ -736,6 +736,10 @@ func main() {
 		admin.GET("/collection-health-snapshot-runs", adminHealthHandler.ListSnapshotRuns)
 		admin.GET("/collection-health/status", adminHealthHandler.GetSnapshotStatus)
 
+		// Deep Identification aggregate operational metrics
+		adminDeepIdentificationHandler := handlers.NewAdminDeepIdentificationHandler(deepIdentificationSvc)
+		admin.GET("/deep-identification/observability", adminDeepIdentificationHandler.Observability)
+
 		// API key rotation notification trigger
 		apiKeyAdminHandler := handlers.NewApiKeyAdminHandler(apiKeyRepo, notifSvc, logger)
 		admin.POST("/api-keys/notify-rotation", apiKeyAdminHandler.NotifyRotationRequired)

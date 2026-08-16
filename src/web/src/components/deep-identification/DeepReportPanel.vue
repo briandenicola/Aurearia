@@ -12,25 +12,7 @@
       <p class="m-0 whitespace-pre-line break-words text-body text-text-secondary [overflow-wrap:anywhere]">{{ safeNarrative }}</p>
     </div>
 
-    <div class="grid gap-2">
-      <h3 class="m-0 text-lg font-semibold text-text-primary">Provider coverage</h3>
-      <ul class="m-0 grid gap-2 p-0" style="list-style: none;">
-        <li
-          v-for="entry in report.coverage"
-          :key="entry.provider"
-          class="grid min-w-0 grid-cols-1 items-start gap-1 rounded-sm border border-border-subtle bg-card p-2 sm:grid-cols-[auto_auto_minmax(0,1fr)] sm:items-center sm:gap-3"
-        >
-          <span class="text-sm font-semibold uppercase tracking-[0.04em] text-text-primary">{{ entry.provider }}</span>
-          <span class="text-sm font-medium" :class="statusClasses(entry.status)">{{ statusLabel(entry.status) }}</span>
-          <span class="min-w-0 break-words text-sm text-text-secondary [overflow-wrap:anywhere]">
-            {{ entry.note }}
-            <a v-if="entry.linkOut" :href="entry.linkOut" target="_blank" rel="noopener noreferrer" class="text-gold underline">
-              View reference
-            </a>
-          </span>
-        </li>
-      </ul>
-    </div>
+    <DeepProviderCoverageList :coverage="report.coverage" />
 
     <div v-if="report.disagreements?.length" class="grid gap-2">
       <h3 class="m-0 text-lg font-semibold text-text-primary">Disagreements</h3>
@@ -90,7 +72,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { DeepReport, DeepProviderStatus } from '@/types'
+import type { DeepReport } from '@/types'
+import DeepProviderCoverageList from './DeepProviderCoverageList.vue'
 import OCREAttribution from './OCREAttribution.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 
@@ -110,25 +93,4 @@ const safeNarrative = computed(() => {
   return narrative
 })
 
-const statusLabels: Record<DeepProviderStatus, string> = {
-  pending: 'Pending',
-  running: 'Running',
-  contributed: 'Contributed',
-  no_match: 'No match',
-  failed: 'Failed',
-  timed_out: 'Timed out',
-  skipped: 'Skipped',
-  not_automated: 'Not automated',
-  unavailable: 'Unavailable',
-}
-
-function statusLabel(status: DeepProviderStatus): string {
-  return statusLabels[status] ?? status
-}
-
-function statusClasses(status: DeepProviderStatus): string {
-  if (status === 'contributed') return 'text-gold'
-  if (status === 'failed' || status === 'timed_out') return 'text-byzantine'
-  return 'text-text-secondary'
-}
 </script>

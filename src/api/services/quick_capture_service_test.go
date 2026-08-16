@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var quickCaptureTestDBCounter int64
+
 func newQuickCaptureServiceForTest(t *testing.T) *QuickCaptureService {
 	t.Helper()
 	svc, _ := newQuickCaptureServiceAndDBForTest(t, t.TempDir())
@@ -22,7 +25,11 @@ func newQuickCaptureServiceForTest(t *testing.T) *QuickCaptureService {
 
 func newQuickCaptureServiceAndDBForTest(t *testing.T, uploadDir string) (*QuickCaptureService, *gorm.DB) {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:quick_capture_service_%d?mode=memory&cache=shared", time.Now().UnixNano())), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf(
+		"file:quick_capture_service_%d_%d?mode=memory&cache=shared",
+		time.Now().UnixNano(),
+		atomic.AddInt64(&quickCaptureTestDBCounter, 1),
+	)), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}

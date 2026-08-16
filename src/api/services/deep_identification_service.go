@@ -111,7 +111,8 @@ type DeepIdentificationService struct {
 	cancelMu sync.Mutex
 	cancels  map[uint]context.CancelFunc
 
-	broker *DeepIdentificationBroker
+	broker  *DeepIdentificationBroker
+	metrics *deepIdentificationRuntimeMetrics
 
 	wakeMu sync.Mutex
 	wake   chan struct{}
@@ -130,6 +131,7 @@ func NewDeepIdentificationService(repo *repository.DeepIdentificationRepository,
 		runner:      noopPipelineRunner{},
 		cancels:     make(map[uint]context.CancelFunc),
 		broker:      NewDeepIdentificationBroker(),
+		metrics:     &deepIdentificationRuntimeMetrics{},
 		wake:        make(chan struct{}, 1),
 	}
 }
@@ -321,7 +323,13 @@ func (s *DeepIdentificationService) savedImageFingerprintHash(image *models.Coin
 // every terminal path (completed/partial/failed/cancelled) and the
 // janitor's restart sweep (FR-030, SC-004).
 func (s *DeepIdentificationService) DeleteHintArtifacts(jobID uint) error {
-	return s.deleteArtifacts(jobID, true)
+	err := s.deleteArtifacts(jobID, true)
+	if err != nil {
+		s.metrics.hintDeletionFailure.Add(1)
+	} else {
+		s.metrics.hintDeletionSuccess.Add(1)
+	}
+	return err
 }
 
 // DeleteJobArtifacts deletes every not-yet-deleted artifact (hint and
@@ -838,10 +846,17 @@ func (s *DeepIdentificationService) runJob(parent context.Context, job *models.D
 		}
 	}
 
-	if _, err := s.repo.SettleTerminal(job.ID, []models.DeepJobStatus{models.DeepJobStatusRunning}, newStatus, reportJSON, proposalJSON, failureCode, failureMessage); err != nil {
+	won, err := s.repo.SettleTerminal(job.ID, []models.DeepJobStatus{models.DeepJobStatusRunning}, newStatus, reportJSON, proposalJSON, failureCode, failureMessage)
+	if err != nil {
 		if s.logger != nil {
 			s.logger.Error("deep-identification", "failed to settle job %d: %v", job.ID, err)
 		}
+	} else if won && s.logger != nil {
+		durationMS := int64(0)
+		if job.StartedAt != nil {
+			durationMS = time.Since(*job.StartedAt).Milliseconds()
+		}
+		s.logger.Info("deep-identification", "job %d user %d settled status=%s duration_ms=%d", job.ID, job.UserID, newStatus, durationMS)
 	}
 	s.broker.Publish(job.ID)
 	if err := s.DeleteHintArtifacts(job.ID); err != nil {
@@ -887,18 +902,24 @@ func (s *DeepIdentificationService) RecoverStaleAndSweepHintsForTest() {
 }
 
 func (s *DeepIdentificationService) recoverStaleAndSweepHints() {
+	s.metrics.janitorRecoverySweeps.Add(1)
+	failed := false
 	settings := s.settingsSvc.GetDeepIdentificationSettings()
 	staleAfter := settings.HardTimeout + 2*time.Minute
 	recoveredIDs, err := s.repo.RecoverStaleJobs(staleAfter)
 	if err != nil {
+		failed = true
 		if s.logger != nil {
 			s.logger.Error("deep-identification", "failed to recover stale jobs: %v", err)
 		}
 	}
 	for _, id := range recoveredIDs {
 		s.broker.Publish(id)
-		if err := s.DeleteHintArtifacts(id); err != nil && s.logger != nil {
-			s.logger.Error("deep-identification", "failed to clean up hints for recovered job %d: %v", id, err)
+		if err := s.DeleteHintArtifacts(id); err != nil {
+			failed = true
+			if s.logger != nil {
+				s.logger.Error("deep-identification", "failed to clean up hints for recovered job %d: %v", id, err)
+			}
 		}
 	}
 
@@ -906,35 +927,64 @@ func (s *DeepIdentificationService) recoverStaleAndSweepHints() {
 	// crash left un-cleaned (independent of the two hooks above).
 	jobIDs, err := s.repo.ListJobIDsWithUndeletedHintArtifacts()
 	if err != nil {
+		failed = true
 		if s.logger != nil {
 			s.logger.Error("deep-identification", "failed to list jobs with undeleted hints: %v", err)
+		}
+		if failed {
+			s.metrics.janitorFailures.Add(1)
 		}
 		return
 	}
 	for _, id := range jobIDs {
-		if err := s.DeleteHintArtifacts(id); err != nil && s.logger != nil {
-			s.logger.Error("deep-identification", "failed to sweep hints for job %d: %v", id, err)
+		if err := s.DeleteHintArtifacts(id); err != nil {
+			failed = true
+			if s.logger != nil {
+				s.logger.Error("deep-identification", "failed to sweep hints for job %d: %v", id, err)
+			}
 		}
+	}
+	if failed {
+		s.metrics.janitorFailures.Add(1)
+	}
+	if s.logger != nil {
+		s.logger.Debug("deep-identification", "janitor recovery sweep recovered_jobs=%d hint_jobs=%d failed=%t", len(recoveredIDs), len(jobIDs), failed)
 	}
 }
 
 func (s *DeepIdentificationService) runRetentionSweep() {
+	s.metrics.janitorRetentionSweep.Add(1)
+	failed := false
 	settings := s.settingsSvc.GetDeepIdentificationSettings()
 	cutoff := time.Now().Add(-settings.EventRetention)
-	if err := s.repo.PruneEventsBefore(cutoff); err != nil && s.logger != nil {
-		s.logger.Error("deep-identification", "failed to prune events: %v", err)
+	if err := s.repo.PruneEventsBefore(cutoff); err != nil {
+		failed = true
+		if s.logger != nil {
+			s.logger.Error("deep-identification", "failed to prune events: %v", err)
+		}
 	}
 	expiredIDs, err := s.repo.ListExpiredJobIDs(time.Now())
 	if err != nil {
+		failed = true
 		if s.logger != nil {
 			s.logger.Error("deep-identification", "failed to list expired jobs: %v", err)
 		}
+		s.metrics.janitorFailures.Add(1)
 		return
 	}
 	for _, id := range expiredIDs {
-		if err := s.DeleteJobArtifacts(id); err != nil && s.logger != nil {
-			s.logger.Error("deep-identification", "failed to delete artifacts for expired job %d: %v", id, err)
+		if err := s.DeleteJobArtifacts(id); err != nil {
+			failed = true
+			if s.logger != nil {
+				s.logger.Error("deep-identification", "failed to delete artifacts for expired job %d: %v", id, err)
+			}
 		}
+	}
+	if failed {
+		s.metrics.janitorFailures.Add(1)
+	}
+	if s.logger != nil {
+		s.logger.Debug("deep-identification", "janitor retention sweep expired_jobs=%d failed=%t", len(expiredIDs), failed)
 	}
 }
 

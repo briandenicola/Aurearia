@@ -45,6 +45,7 @@
             :initial-reverse-image="reverseImage?.file ?? null"
             :initial-hint-images="notesImage ? [notesImage.file] : []"
             :initial-notes="captureNotes"
+            :eligible-providers="deepAnalysisProviders"
             :submitting="deepIdentification.starting.value"
             :submit-error="deepIdentification.error.value"
             @submit="onDeepAnalysisSubmit"
@@ -322,7 +323,10 @@ const reverseImage = computed(() => capturedImages.value.find(image => image.rol
 const notesImage = computed(() => capturedImages.value.find(image => image.role === 'notes') ?? null)
 
 const showDeepAnalysisModal = ref(false)
-const { enabled: deepAnalysisEnabled } = useDeepIdentificationCapability()
+const {
+  enabled: deepAnalysisEnabled,
+  providers: deepAnalysisProviders,
+} = useDeepIdentificationCapability()
 const deepIdentification = useDeepIdentification()
 
 async function onDeepAnalysisSubmit(input: CreateDeepIdentificationJobInput) {

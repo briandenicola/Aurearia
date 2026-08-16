@@ -3,7 +3,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex min-w-0 flex-wrap items-center gap-2" role="status" aria-live="polite">
         <span
-          class="inline-flex items-center rounded-full border px-[0.7rem] py-1 text-sm font-semibold uppercase tracking-[0.05em]"
+          class="inline-flex items-center rounded-full border px-[0.7rem] py-1 text-sm font-semibold uppercase tracking-[0.08em]"
           :class="connectionClasses"
         >{{ connectionLabel }}</span>
         <span v-if="truncated" class="text-sm text-text-secondary">
@@ -13,7 +13,7 @@
       <button
         v-if="showCancel"
         type="button"
-        class="rounded-full border border-byzantine px-4 py-2 text-sm font-medium text-byzantine transition-colors duration-150 hover:bg-byzantine hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+        class="btn btn-danger btn-sm min-h-[44px]"
         :disabled="cancelDisabled"
         aria-label="Cancel Deep Analysis"
         @click="$emit('cancel')"

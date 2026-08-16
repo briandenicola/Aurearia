@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test'
 import { installAuthenticatedSession, installWorkflowApiMocks } from '../fixtures/workflow'
 
+const tinyPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+)
+
 test.beforeEach(async ({ page }) => {
   await installAuthenticatedSession(page)
 })
@@ -11,25 +16,22 @@ test('starting Deep Analysis from new intake requires both faces and navigates t
   await page.goto('/lookup')
   await expect(page.getByRole('heading', { name: 'Identify Coin' })).toBeVisible()
 
+  await page.getByRole('button', { name: 'Upload from library' }).click()
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'obverse.png',
+    mimeType: 'image/png',
+    buffer: tinyPng,
+  })
+  await page.getByRole('button', { name: 'Deep Analysis' }).click()
+  await expect(page.getByText('Add a reverse image before starting Deep Analysis.')).toBeVisible()
+  await page.getByRole('button', { name: 'Upload from library' }).click()
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'reverse.png',
+    mimeType: 'image/png',
+    buffer: tinyPng,
+  })
   await page.getByRole('button', { name: 'Deep Analysis' }).click()
   await expect(page.getByRole('heading', { name: 'Deep Analysis' })).toBeVisible()
-
-  // Missing obverse/reverse blocks submit with a specific validation message.
-  await page.getByRole('button', { name: 'Start Deep Analysis' }).click()
-  await expect(page.getByText('Obverse and reverse photos are both required to start Deep Analysis.')).toBeVisible()
-
-  const fileInputs = page.locator('input[type="file"]')
-  await fileInputs.nth(1).setInputFiles({
-    name: 'obverse.jpg',
-    mimeType: 'image/jpeg',
-    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
-  })
-  await fileInputs.nth(2).setInputFiles({
-    name: 'reverse.jpg',
-    mimeType: 'image/jpeg',
-    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
-  })
-
   await page.getByRole('button', { name: 'Start Deep Analysis' }).click()
 
   await expect(page).toHaveURL(/\/deep-analysis\/\d+$/)
@@ -66,19 +68,20 @@ test('T108: observes streamed progress and can cancel a running Deep Analysis jo
   await installWorkflowApiMocks(page)
 
   await page.goto('/lookup')
+  await page.getByRole('button', { name: 'Upload from library' }).click()
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'obverse.png',
+    mimeType: 'image/png',
+    buffer: tinyPng,
+  })
+  await page.getByRole('button', { name: 'Add reverse image' }).click()
+  await page.getByRole('button', { name: 'Upload from library' }).click()
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'reverse.png',
+    mimeType: 'image/png',
+    buffer: tinyPng,
+  })
   await page.getByRole('button', { name: 'Deep Analysis' }).click()
-
-  const fileInputs = page.locator('input[type="file"]')
-  await fileInputs.nth(1).setInputFiles({
-    name: 'obverse.jpg',
-    mimeType: 'image/jpeg',
-    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
-  })
-  await fileInputs.nth(2).setInputFiles({
-    name: 'reverse.jpg',
-    mimeType: 'image/jpeg',
-    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
-  })
   await page.getByRole('button', { name: 'Start Deep Analysis' }).click()
   await expect(page).toHaveURL(/\/deep-analysis\/\d+$/)
 
@@ -132,9 +135,9 @@ test('T124: a partial-success terminal job shows an editable proposal that only 
   // editable proposal - a partial result never hides provider status.
   await expect(page.getByText('Partial results')).toBeVisible()
   await expect(page.getByText('Not automated').first()).toBeVisible()
-  await expect(page.getByText('Unavailable')).toBeVisible()
+  await expect(page.getByText('Unavailable', { exact: true })).toBeVisible()
 
-  const confirmButton = page.getByRole('button', { name: 'Confirm and apply' })
+  const confirmButton = page.getByRole('button', { name: 'Save as Draft' })
   await expect(confirmButton).toBeDisabled()
 
   // Accept only the ruler field; the button stays disabled until a
@@ -147,7 +150,7 @@ test('T124: a partial-success terminal job shows an editable proposal that only 
 
   expect(state.deepIdentificationApplies).toHaveLength(1)
   expect(state.deepIdentificationApplies[0]).toMatchObject({ id: jobId, target: 'draft' })
-  await expect(page.getByText(/Applied on/)).toBeVisible()
+  await expect(page).toHaveURL('/quick-capture/drafts/8002')
 })
 
 test('T124: a completed terminal job for a saved coin applies proposal edits through the existing coin-update path only', async ({ page }) => {
@@ -179,12 +182,12 @@ test('T124: a completed terminal job for a saved coin applies proposal edits thr
   await expect(page.getByRole('heading', { name: `Job #${jobId}` })).toBeVisible()
 
   await page.getByRole('group', { name: /Mint decision/ }).getByRole('button', { name: 'Accept' }).click()
-  await page.getByRole('button', { name: 'Confirm and apply' }).click()
+  await page.getByRole('button', { name: 'Apply to Coin' }).click()
 
   expect(state.deepIdentificationApplies).toHaveLength(1)
   expect(state.deepIdentificationApplies[0]).toMatchObject({ id: jobId, target: 'coin' })
   // Principle IV: applying a Deep Analysis proposal must never bypass the
   // existing coin-update path with an ad-hoc write.
   expect(state.updatePayloads.filter((entry) => entry.id === coinId)).toHaveLength(0)
-  await expect(page.getByText(/Applied on/)).toBeVisible()
+  await expect(page.getByText(/Applied to coin on/)).toBeVisible()
 })

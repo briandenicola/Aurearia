@@ -1207,6 +1207,49 @@
                 }
             }
         },
+        "/admin/deep-identification/observability": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns redacted aggregate job, provider, SSE, queue, cleanup, and janitor metrics. Never includes notes, queries, claims, reports, tokens, or other user content. Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get Deep Identification observability",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.DeepIdentificationObservabilitySummary"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/deep-identification/ocre/health": {
             "get": {
                 "security": [
@@ -19852,6 +19895,12 @@
             "properties": {
                 "enabled": {
                     "type": "boolean"
+                },
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -19908,6 +19957,9 @@
                 },
                 "retryOfJobId": {
                     "type": "integer"
+                },
+                "routerRationale": {
+                    "type": "string"
                 },
                 "selectedProviders": {
                     "type": "array",
@@ -21478,6 +21530,99 @@
                 },
                 "value": {
                     "type": "number"
+                }
+            }
+        },
+        "models.DeepIdentificationHintDeletionMetrics": {
+            "type": "object",
+            "properties": {
+                "failure": {
+                    "type": "integer"
+                },
+                "success": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.DeepIdentificationJanitorMetrics": {
+            "type": "object",
+            "properties": {
+                "failures": {
+                    "type": "integer"
+                },
+                "recoverySweeps": {
+                    "type": "integer"
+                },
+                "retentionSweeps": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.DeepIdentificationLatencySummary": {
+            "type": "object",
+            "properties": {
+                "p50Ms": {
+                    "type": "integer"
+                },
+                "p95Ms": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.DeepIdentificationObservabilitySummary": {
+            "type": "object",
+            "properties": {
+                "activeSseStreams": {
+                    "type": "integer"
+                },
+                "duration": {
+                    "$ref": "#/definitions/models.DeepIdentificationLatencySummary"
+                },
+                "hintDeletion": {
+                    "$ref": "#/definitions/models.DeepIdentificationHintDeletionMetrics"
+                },
+                "janitor": {
+                    "$ref": "#/definitions/models.DeepIdentificationJanitorMetrics"
+                },
+                "jobsByTerminalStatus": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "partialSuccessRate": {
+                    "type": "number"
+                },
+                "providers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/models.DeepIdentificationProviderMetrics"
+                    }
+                },
+                "queueDepth": {
+                    "type": "integer"
+                },
+                "reconnectCount": {
+                    "type": "integer"
+                },
+                "truncationCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.DeepIdentificationProviderMetrics": {
+            "type": "object",
+            "properties": {
+                "latency": {
+                    "$ref": "#/definitions/models.DeepIdentificationLatencySummary"
+                },
+                "statusCounts": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
                 }
             }
         },

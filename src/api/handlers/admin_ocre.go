@@ -56,8 +56,7 @@ func (h *AdminOCREHandler) Health(c *gin.Context) {
 		if run, err := h.runs.GetLatestProviderStatus(models.DeepProviderOCRE); err == nil && run != nil {
 			status := run.Status
 			summary.LastOutcome = &status
-			created := run.CreatedAt
-			summary.LastCheckedAt = &created
+			summary.LastCheckedAt = run.CompletedAt
 		}
 	}
 	c.JSON(http.StatusOK, summary)

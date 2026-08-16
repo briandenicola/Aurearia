@@ -3,6 +3,7 @@
     type="button"
     variant="ghost"
     size="sm"
+    class="min-h-[44px]"
     :disabled="disabled"
     aria-haspopup="dialog"
     :aria-label="label"

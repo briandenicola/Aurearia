@@ -256,13 +256,17 @@ func TestDeepIdentificationHandler_Capability_ReflectsFeatureFlag(t *testing.T) 
 				t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 			}
 			var resp struct {
-				Enabled bool `json:"enabled"`
+				Enabled   bool     `json:"enabled"`
+				Providers []string `json:"providers"`
 			}
 			if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 				t.Fatalf("decode capability response: %v", err)
 			}
 			if resp.Enabled != tc.enabled {
 				t.Fatalf("expected enabled=%v, got %v", tc.enabled, resp.Enabled)
+			}
+			if len(resp.Providers) != 2 || resp.Providers[0] != "nomisma" || resp.Providers[1] != "numista" {
+				t.Fatalf("expected default eligible providers, got %#v", resp.Providers)
 			}
 		})
 	}

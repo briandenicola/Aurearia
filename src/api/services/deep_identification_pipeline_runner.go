@@ -84,6 +84,14 @@ const (
 // cancellable on explicit user cancel); it is passed straight through to
 // StreamDeepIdentification so HTTP-level cancellation is automatic (T071).
 func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+	unsettledStatus := models.DeepProviderRunFailed
+	unsettledErrorKind := "upstream"
+	defer func() {
+		if err := r.repo.SettleRunningProviderRuns(job.ID, job.UserID, unsettledStatus, unsettledErrorKind, time.Now()); err != nil && r.logger != nil {
+			r.logger.Error("deep-identification", "failed to settle unfinished provider runs for job %d: %v", job.ID, err)
+		}
+	}()
+
 	images, err := r.loadImages(job.ID)
 	if err != nil {
 		return nil, fmt.Errorf("load artifacts for job %d: %w", job.ID, err)
@@ -137,6 +145,7 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 	// synthesizer saw; per-claim citation-host re-validation happens later in
 	// buildDeepProposalDocumentJSON, not by reindexing here.
 	providerClaims := map[string][]deepProposalClaim{}
+	providerStartedAt := map[models.DeepProviderName]time.Time{}
 
 	onFrame := func(frame DeepIdentifyFrame) error {
 		if ctx.Err() != nil {
@@ -151,6 +160,39 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 		// runner itself consumes them in-memory to build the proposal.
 		persistPayload := string(frame.Raw)
 		switch frame.Type {
+		case "provider_started":
+			var payload struct {
+				Provider    string `json:"provider"`
+				Automatable *bool  `json:"automatable"`
+			}
+			if jsonErr := json.Unmarshal(frame.Raw, &payload); jsonErr == nil {
+				if provider, ok := deepProviderName(payload.Provider); ok {
+					startedAt := time.Now()
+					providerStartedAt[provider] = startedAt
+					automatable := true
+					if payload.Automatable != nil {
+						automatable = *payload.Automatable
+					}
+					if recordErr := r.repo.RecordProviderStarted(job.ID, job.UserID, provider, automatable, startedAt); recordErr != nil && r.logger != nil {
+						r.logger.Error("deep-identification", "failed to record provider start job=%d provider=%s: %v", job.ID, provider, recordErr)
+					}
+				}
+			}
+		case "router_selected":
+			var payload struct {
+				Selected  []string `json:"selected"`
+				Rationale string   `json:"rationale"`
+				Skipped   []struct {
+					Provider string `json:"provider"`
+					Reason   string `json:"reason"`
+				} `json:"skipped"`
+			}
+			if jsonErr := json.Unmarshal(frame.Raw, &payload); jsonErr == nil {
+				persistPayload = deepRouterSelectedPublicPayloadJSON(payload.Selected, payload.Rationale, payload.Skipped)
+				if updateErr := r.repo.RecordRouterSelection(job.ID, job.UserID, payload.Selected, payload.Rationale); updateErr != nil && r.logger != nil {
+					r.logger.Error("deep-identification", "failed to persist router selection for job %d: %v", job.ID, updateErr)
+				}
+			}
 		case "synthesis":
 			var payload struct {
 				Report json.RawMessage `json:"report"`
@@ -168,12 +210,14 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 			// ProviderEvidence (contract §3/§4). Consume its claims for the
 			// proposal, but persist only the bounded public payload.
 			var evidence struct {
-				Provider   string              `json:"provider"`
-				Status     string              `json:"status"`
-				Confidence float64             `json:"confidence"`
-				ErrorKind  string              `json:"error_kind"`
-				LinkOut    string              `json:"link_out"`
-				Claims     []deepProposalClaim `json:"claims"`
+				Provider    string              `json:"provider"`
+				Status      string              `json:"status"`
+				Automatable *bool               `json:"automatable"`
+				Confidence  float64             `json:"confidence"`
+				CallCount   int                 `json:"call_count"`
+				ErrorKind   string              `json:"error_kind"`
+				LinkOut     string              `json:"link_out"`
+				Claims      []deepProposalClaim `json:"claims"`
 			}
 			if jsonErr := json.Unmarshal(frame.Raw, &evidence); jsonErr == nil && evidence.Provider != "" {
 				providerClaims[evidence.Provider] = evidence.Claims
@@ -181,6 +225,64 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 					evidence.Provider, evidence.Status, evidence.Confidence,
 					evidence.ErrorKind, evidence.LinkOut, evidence.Claims,
 				)
+				if provider, ok := deepProviderName(evidence.Provider); ok {
+					completedAt := time.Now()
+					startedAt, found := providerStartedAt[provider]
+					if !found {
+						startedAt = completedAt
+					}
+					latencyMS := int(completedAt.Sub(startedAt).Milliseconds())
+					if found && latencyMS < 1 {
+						latencyMS = 1
+					}
+					status := deepProviderRunStatus(evidence.Status)
+					errorKind := deepProviderErrorKind(evidence.ErrorKind)
+					automatable := status != models.DeepProviderRunNotAutomated
+					if evidence.Automatable != nil {
+						automatable = *evidence.Automatable
+					}
+					if recordErr := r.repo.RecordProviderResult(
+						job.ID, job.UserID, provider, status, automatable,
+						evidence.Confidence, evidence.CallCount, latencyMS, errorKind,
+						startedAt, completedAt,
+					); recordErr != nil {
+						if r.logger != nil {
+							r.logger.Error("deep-identification", "failed to record provider result job=%d provider=%s: %v", job.ID, provider, recordErr)
+						}
+					} else if r.logger != nil {
+						r.logger.Info("deep-identification", "provider settled job=%d provider=%s status=%s latency_ms=%d call_count=%d", job.ID, provider, status, latencyMS, evidence.CallCount)
+					}
+				}
+			}
+		case "evaluation":
+			var payload struct {
+				DisagreementCount int `json:"disagreement_count"`
+				ResolvedCount     int `json:"resolved_count"`
+			}
+			if jsonErr := json.Unmarshal(frame.Raw, &payload); jsonErr == nil {
+				persistPayload = fmt.Sprintf(
+					`{"disagreementCount":%d,"resolvedCount":%d}`,
+					payload.DisagreementCount,
+					payload.ResolvedCount,
+				)
+			}
+		case "progress":
+			var payload struct {
+				Stage   string `json:"stage"`
+				Phase   string `json:"phase"`
+				Message string `json:"message"`
+			}
+			if jsonErr := json.Unmarshal(frame.Raw, &payload); jsonErr == nil {
+				phase := payload.Phase
+				if phase == "" {
+					phase = payload.Stage
+				}
+				message := payload.Message
+				if message == "" {
+					message = deepProgressMessage(phase)
+				}
+				encoded, _ := json.Marshal(map[string]string{"phase": phase, "message": message})
+				persistPayload = string(encoded)
 			}
 		case "error":
 			var payload struct {
@@ -221,6 +323,13 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 		// never applied (FR-018/FR-019). Returning ctx.Err() here keeps
 		// Run's contract honest even though the caller does not depend on
 		// this specific error value in that branch.
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			unsettledStatus = models.DeepProviderRunTimedOut
+			unsettledErrorKind = "timeout"
+		} else {
+			unsettledStatus = models.DeepProviderRunSkipped
+			unsettledErrorKind = ""
+		}
 		return nil, ctx.Err()
 	}
 
@@ -236,6 +345,13 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 			PartialSuccess bool `json:"partial_success"`
 		}
 		_ = json.Unmarshal(lastSynthesis, &partial)
+		if partial.PartialSuccess {
+			unsettledStatus = models.DeepProviderRunTimedOut
+			unsettledErrorKind = "timeout"
+		} else {
+			unsettledStatus = models.DeepProviderRunSkipped
+			unsettledErrorKind = ""
+		}
 		return &DeepPipelineResult{
 			ReportJSON:   string(lastSynthesis),
 			ProposalJSON: buildDeepProposalDocumentJSON(lastSynthesis, job.CoinID, providerClaims),
@@ -253,6 +369,91 @@ func (r *DeepIdentificationPipelineRunner) Run(ctx context.Context, job *models.
 		lastErrorMessage = "The identification pipeline reported an error."
 	}
 	return nil, fmt.Errorf("deep identification pipeline error %s: %s", lastErrorCode, lastErrorMessage)
+}
+
+func deepProviderName(value string) (models.DeepProviderName, bool) {
+	provider := models.DeepProviderName(value)
+	switch provider {
+	case models.DeepProviderNomisma, models.DeepProviderNumista, models.DeepProviderNGC,
+		models.DeepProviderOCRE, models.DeepProviderRPC:
+		return provider, true
+	default:
+		return "", false
+	}
+}
+
+func deepProviderRunStatus(value string) models.DeepProviderRunStatus {
+	switch models.DeepProviderRunStatus(value) {
+	case models.DeepProviderRunContributed:
+		return models.DeepProviderRunContributed
+	case models.DeepProviderRunNoMatch:
+		return models.DeepProviderRunNoMatch
+	case models.DeepProviderRunTimedOut:
+		return models.DeepProviderRunTimedOut
+	case models.DeepProviderRunSkipped:
+		return models.DeepProviderRunSkipped
+	case models.DeepProviderRunNotAutomated:
+		return models.DeepProviderRunNotAutomated
+	case models.DeepProviderRunUnavailable:
+		return models.DeepProviderRunUnavailable
+	case models.DeepProviderRunFailed:
+		return models.DeepProviderRunFailed
+	default:
+		if value == "match" {
+			return models.DeepProviderRunContributed
+		}
+		return models.DeepProviderRunFailed
+	}
+}
+
+func deepProviderErrorKind(value string) string {
+	switch value {
+	case "timeout", "quota", "unconfigured", "upstream", "invalid_response":
+		return value
+	default:
+		return ""
+	}
+}
+
+type deepRouterSkippedPublic struct {
+	Provider string `json:"provider"`
+	Reason   string `json:"reason"`
+}
+
+func deepRouterSelectedPublicPayloadJSON(
+	selected []string,
+	rationale string,
+	skipped []struct {
+		Provider string `json:"provider"`
+		Reason   string `json:"reason"`
+	},
+) string {
+	publicSkipped := make([]deepRouterSkippedPublic, 0, len(skipped))
+	for _, item := range skipped {
+		publicSkipped = append(publicSkipped, deepRouterSkippedPublic(item))
+	}
+	encoded, err := json.Marshal(struct {
+		SelectedProviders []string                  `json:"selectedProviders"`
+		Rationale         string                    `json:"rationale"`
+		Skipped           []deepRouterSkippedPublic `json:"skipped"`
+	}{selected, rationale, publicSkipped})
+	if err != nil {
+		return "{}"
+	}
+	return string(encoded)
+}
+
+func deepProgressMessage(phase string) string {
+	switch phase {
+	case "image_evidence_ready":
+		return "Image evidence prepared"
+	case "provider_fanout_started":
+		return "Running selected providers"
+	case "evaluation_started":
+		return "Comparing provider findings"
+	default:
+		return "Deep Analysis is progressing"
+	}
 }
 
 // loadImages reads each non-deleted artifact's bytes from disk and encodes

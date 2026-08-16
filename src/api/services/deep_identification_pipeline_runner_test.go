@@ -376,6 +376,34 @@ func TestDeepPipelineProviderCatalogOCREConditional(t *testing.T) {
 	}
 }
 
+func TestDeepRouterSelectedPublicPayloadUsesContractShape(t *testing.T) {
+	skipped := []struct {
+		Provider string `json:"provider"`
+		Reason   string `json:"reason"`
+	}{
+		{Provider: "ocre", Reason: "not selected"},
+	}
+	raw := deepRouterSelectedPublicPayloadJSON(
+		[]string{"nomisma", "numista"},
+		"selected from image evidence",
+		skipped,
+	)
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if _, internalNameLeaked := payload["selected"]; internalNameLeaked {
+		t.Fatal("internal selected field must not leak into the public event")
+	}
+	selected, ok := payload["selectedProviders"].([]any)
+	if !ok || len(selected) != 2 {
+		t.Fatalf("expected selectedProviders contract field, got %#v", payload)
+	}
+	if payload["rationale"] != "selected from image evidence" {
+		t.Fatalf("expected evidence-based rationale, got %#v", payload["rationale"])
+	}
+}
+
 func TestDeepPipelineBoundsClampToContractLimits(t *testing.T) {
 	bounds := deepPipelineBounds(DeepIdentificationSettings{HardTimeout: 300 * time.Second, MaxProviders: 4})
 	if bounds.TotalTimeoutS <= 0 || bounds.TotalTimeoutS > 900 {

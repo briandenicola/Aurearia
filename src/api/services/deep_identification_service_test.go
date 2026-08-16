@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -338,6 +339,141 @@ func TestDeepIdentificationService_DeleteHintArtifacts_LeavesFacesIntact(t *test
 	}
 	if _, err := os.Stat(obverse.FilePath); err != nil {
 		t.Fatalf("expected obverse artifact file to remain: %v", err)
+	}
+}
+
+func TestDeepIdentificationService_AllTerminalStatesDeleteHints(t *testing.T) {
+	tests := []struct {
+		name       string
+		wantStatus models.DeepJobStatus
+		run        func(context.Context, *models.DeepIdentificationJob) (*DeepPipelineResult, error)
+		cancel     bool
+	}{
+		{
+			name: "completed", wantStatus: models.DeepJobStatusCompleted,
+			run: func(context.Context, *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+				return &DeepPipelineResult{ReportJSON: `{"narrative":"complete"}`, ProposalJSON: `{"fields":{}}`}, nil
+			},
+		},
+		{
+			name: "partial", wantStatus: models.DeepJobStatusPartial,
+			run: func(context.Context, *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+				return &DeepPipelineResult{ReportJSON: `{"narrative":"partial"}`, Partial: true}, nil
+			},
+		},
+		{
+			name: "failed", wantStatus: models.DeepJobStatusFailed,
+			run: func(context.Context, *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+				return nil, errors.New("provider unavailable")
+			},
+		},
+		{
+			name: "cancelled", wantStatus: models.DeepJobStatusCancelled, cancel: true,
+			run: func(ctx context.Context, _ *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+				<-ctx.Done()
+				return nil, ctx.Err()
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+			user := models.User{
+				Username:     "terminal-" + tc.name,
+				Email:        "terminal-" + tc.name + "@example.com",
+				PasswordHash: "x",
+			}
+			if err := db.Create(&user).Error; err != nil {
+				t.Fatal(err)
+			}
+			enableDeepIdentification(t, svc, nil)
+			jobID := seedDeepTestJob(t, db, user.ID)
+			hint, err := svc.ValidateAndSaveArtifact(
+				jobID, user.ID, models.DeepArtifactRoleHint, "hint.png", tinyPNGBytes(t),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Model(&models.DeepIdentificationJob{}).Where("id = ?", jobID).
+				Updates(map[string]any{"status": models.DeepJobStatusRunning, "started_at": time.Now()}).Error; err != nil {
+				t.Fatal(err)
+			}
+			var job models.DeepIdentificationJob
+			if err := db.First(&job, jobID).Error; err != nil {
+				t.Fatal(err)
+			}
+			svc.SetPipelineRunner(&fakeRunner{run: tc.run})
+			ctx := context.Background()
+			if tc.cancel {
+				cancelled, cancel := context.WithCancel(ctx)
+				cancel()
+				ctx = cancelled
+			}
+
+			svc.runJob(ctx, &job)
+
+			var final models.DeepIdentificationJob
+			if err := db.First(&final, jobID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if final.Status != tc.wantStatus {
+				t.Fatalf("expected %s, got %s", tc.wantStatus, final.Status)
+			}
+			var artifact models.DeepIdentificationArtifact
+			if err := db.First(&artifact, hint.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			if artifact.DeletedAt == nil {
+				t.Fatal("expected hint DeletedAt to be stamped")
+			}
+			if _, err := os.Stat(hint.FilePath); !os.IsNotExist(err) {
+				t.Fatal("expected hint file to be deleted")
+			}
+			if strings.Contains(final.ReportJSON, hint.FilePath) || strings.Contains(final.ProposalJSON, hint.FilePath) {
+				t.Fatal("terminal report/proposal must never contain a hint artifact path")
+			}
+		})
+	}
+}
+
+func TestDeepIdentificationService_RetentionSweepDeletesAllArtifacts(t *testing.T) {
+	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+	user := models.User{Username: "expired-artifacts", Email: "expired-artifacts@example.com", PasswordHash: "x"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	jobID := seedDeepTestJob(t, db, user.ID)
+	obverse, err := svc.ValidateAndSaveArtifact(jobID, user.ID, models.DeepArtifactRoleObverse, "obverse.png", tinyPNGBytes(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hint, err := svc.ValidateAndSaveArtifact(jobID, user.ID, models.DeepArtifactRoleHint, "hint.png", tinyPNGBytes(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&models.DeepIdentificationJob{}).Where("id = ?", jobID).
+		Updates(map[string]any{
+			"status":       models.DeepJobStatusCompleted,
+			"completed_at": time.Now().Add(-48 * time.Hour),
+			"expires_at":   time.Now().Add(-time.Hour),
+		}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	svc.runRetentionSweep()
+
+	for _, artifact := range []*models.DeepIdentificationArtifact{obverse, hint} {
+		var reloaded models.DeepIdentificationArtifact
+		if err := db.First(&reloaded, artifact.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if reloaded.DeletedAt == nil {
+			t.Fatalf("expected artifact %d DeletedAt to be stamped", artifact.ID)
+		}
+		if _, err := os.Stat(artifact.FilePath); !os.IsNotExist(err) {
+			t.Fatalf("expected artifact %d file to be deleted", artifact.ID)
+		}
 	}
 }
 

@@ -1594,6 +1594,10 @@ definitions:
     properties:
       enabled:
         type: boolean
+      providers:
+        items:
+          type: string
+        type: array
     type: object
   handlers.deepJobDTO:
     properties:
@@ -1631,6 +1635,8 @@ definitions:
         type: array
       retryOfJobId:
         type: integer
+      routerRationale:
+        type: string
       selectedProviders:
         items:
           type: string
@@ -2700,6 +2706,67 @@ definitions:
         type: integer
       value:
         type: number
+    type: object
+  models.DeepIdentificationHintDeletionMetrics:
+    properties:
+      failure:
+        type: integer
+      success:
+        type: integer
+    type: object
+  models.DeepIdentificationJanitorMetrics:
+    properties:
+      failures:
+        type: integer
+      recoverySweeps:
+        type: integer
+      retentionSweeps:
+        type: integer
+    type: object
+  models.DeepIdentificationLatencySummary:
+    properties:
+      p50Ms:
+        type: integer
+      p95Ms:
+        type: integer
+    type: object
+  models.DeepIdentificationObservabilitySummary:
+    properties:
+      activeSseStreams:
+        type: integer
+      duration:
+        $ref: '#/definitions/models.DeepIdentificationLatencySummary'
+      hintDeletion:
+        $ref: '#/definitions/models.DeepIdentificationHintDeletionMetrics'
+      janitor:
+        $ref: '#/definitions/models.DeepIdentificationJanitorMetrics'
+      jobsByTerminalStatus:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      partialSuccessRate:
+        type: number
+      providers:
+        additionalProperties:
+          $ref: '#/definitions/models.DeepIdentificationProviderMetrics'
+        type: object
+      queueDepth:
+        type: integer
+      reconnectCount:
+        type: integer
+      truncationCount:
+        type: integer
+    type: object
+  models.DeepIdentificationProviderMetrics:
+    properties:
+      latency:
+        $ref: '#/definitions/models.DeepIdentificationLatencySummary'
+      statusCounts:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
     type: object
   models.DeepProviderRunStatus:
     enum:
@@ -5127,6 +5194,35 @@ paths:
       security:
       - BearerAuth: []
       summary: Get collection health scheduler status
+      tags:
+      - Admin
+  /admin/deep-identification/observability:
+    get:
+      description: Returns redacted aggregate job, provider, SSE, queue, cleanup,
+        and janitor metrics. Never includes notes, queries, claims, reports, tokens,
+        or other user content. Admin only.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DeepIdentificationObservabilitySummary'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Deep Identification observability
       tags:
       - Admin
   /admin/deep-identification/ocre/health:

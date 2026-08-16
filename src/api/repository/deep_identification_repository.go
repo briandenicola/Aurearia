@@ -1,10 +1,14 @@
 package repository
 
 import (
+	"math"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/briandenicola/ancient-coins-api/models"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // DeepIdentificationRepository is the owner-scoped persistence layer for
@@ -120,6 +124,17 @@ func (r *DeepIdentificationRepository) Heartbeat(jobID uint) error {
 	return r.db.Model(&models.DeepIdentificationJob{}).
 		Where("id = ? AND status = ?", jobID, models.DeepJobStatusRunning).
 		Update("heartbeat_at", time.Now()).Error
+}
+
+// RecordRouterSelection persists the router's bounded provider decision so
+// create/get responses remain transparent after the event stream is pruned.
+func (r *DeepIdentificationRepository) RecordRouterSelection(jobID, userID uint, selected []string, rationale string) error {
+	return r.db.Model(&models.DeepIdentificationJob{}).
+		Where("id = ? AND user_id = ?", jobID, userID).
+		Updates(map[string]interface{}{
+			"selected_providers": strings.Join(selected, ","),
+			"router_rationale":   rationale,
+		}).Error
 }
 
 // AppendEvent assigns the next monotonic per-job sequence number and
@@ -423,6 +438,250 @@ func (r *DeepIdentificationRepository) CountQueuedJobs() (int64, error) {
 	return count, err
 }
 
+// RecordProviderStarted creates or resets the bounded operational row for a
+// provider attempt. ClaimsJSON is always cleared: provider content belongs in
+// the transient pipeline flow, never in observability storage.
+func (r *DeepIdentificationRepository) RecordProviderStarted(
+	jobID, userID uint,
+	provider models.DeepProviderName,
+	automatable bool,
+	startedAt time.Time,
+) error {
+	run := models.DeepIdentificationProviderRun{
+		JobID:       jobID,
+		UserID:      userID,
+		Provider:    provider,
+		Status:      models.DeepProviderRunRunning,
+		Automatable: automatable,
+		ClaimsJSON:  "",
+		StartedAt:   &startedAt,
+	}
+	return r.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "job_id"}, {Name: "provider"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"user_id":      userID,
+			"status":       models.DeepProviderRunRunning,
+			"automatable":  automatable,
+			"claims_json":  "",
+			"confidence":   0,
+			"call_count":   0,
+			"latency_ms":   0,
+			"error_kind":   "",
+			"started_at":   startedAt,
+			"completed_at": nil,
+		}),
+	}).Create(&run).Error
+}
+
+// RecordProviderResult settles a provider attempt with operational fields
+// only. It intentionally never accepts or persists claims, citations, links,
+// queries, or any other user/provider content.
+func (r *DeepIdentificationRepository) RecordProviderResult(
+	jobID, userID uint,
+	provider models.DeepProviderName,
+	status models.DeepProviderRunStatus,
+	automatable bool,
+	confidence float64,
+	callCount, latencyMS int,
+	errorKind string,
+	startedAt, completedAt time.Time,
+) error {
+	run := models.DeepIdentificationProviderRun{
+		JobID:       jobID,
+		UserID:      userID,
+		Provider:    provider,
+		Status:      status,
+		Automatable: automatable,
+		ClaimsJSON:  "",
+		Confidence:  confidence,
+		CallCount:   callCount,
+		LatencyMS:   latencyMS,
+		ErrorKind:   errorKind,
+		StartedAt:   &startedAt,
+		CompletedAt: &completedAt,
+	}
+	return r.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "job_id"}, {Name: "provider"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"user_id":      userID,
+			"status":       status,
+			"automatable":  automatable,
+			"claims_json":  "",
+			"confidence":   confidence,
+			"call_count":   callCount,
+			"latency_ms":   latencyMS,
+			"error_kind":   errorKind,
+			"started_at":   startedAt,
+			"completed_at": completedAt,
+		}),
+	}).Create(&run).Error
+}
+
+// SettleRunningProviderRuns closes provider attempts that never emitted a
+// provider_result because the pipeline was cancelled, timed out, or ended.
+func (r *DeepIdentificationRepository) SettleRunningProviderRuns(
+	jobID, userID uint,
+	status models.DeepProviderRunStatus,
+	errorKind string,
+	completedAt time.Time,
+) error {
+	var runs []models.DeepIdentificationProviderRun
+	if err := r.db.
+		Select("id", "started_at").
+		Where("job_id = ? AND user_id = ? AND status = ?", jobID, userID, models.DeepProviderRunRunning).
+		Find(&runs).Error; err != nil {
+		return err
+	}
+	for _, run := range runs {
+		latencyMS := 0
+		if run.StartedAt != nil && !completedAt.Before(*run.StartedAt) {
+			latencyMS = int(completedAt.Sub(*run.StartedAt).Milliseconds())
+		}
+		if err := r.db.Model(&models.DeepIdentificationProviderRun{}).
+			Where("id = ? AND status = ?", run.ID, models.DeepProviderRunRunning).
+			Updates(map[string]interface{}{
+				"status":       status,
+				"error_kind":   errorKind,
+				"latency_ms":   latencyMS,
+				"completed_at": completedAt,
+				"claims_json":  "",
+			}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// DeepIdentificationDurableMetrics contains only aggregate operational data
+// selected from durable rows.
+type DeepIdentificationDurableMetrics struct {
+	JobsByTerminalStatus map[models.DeepJobStatus]int64
+	PartialSuccessRate   float64
+	Duration             models.DeepIdentificationLatencySummary
+	Providers            map[models.DeepProviderName]models.DeepIdentificationProviderMetrics
+	QueueDepth           int64
+}
+
+// GetObservabilityMetrics aggregates the durable portion of the admin
+// observability surface. Queries select only status/timestamp/count columns.
+func (r *DeepIdentificationRepository) GetObservabilityMetrics() (*DeepIdentificationDurableMetrics, error) {
+	metrics := &DeepIdentificationDurableMetrics{
+		JobsByTerminalStatus: make(map[models.DeepJobStatus]int64),
+		Providers:            make(map[models.DeepProviderName]models.DeepIdentificationProviderMetrics),
+	}
+	for _, status := range deepJobTerminalStatuses() {
+		metrics.JobsByTerminalStatus[status] = 0
+	}
+
+	type statusCount struct {
+		Status models.DeepJobStatus
+		Count  int64
+	}
+	var jobCounts []statusCount
+	if err := r.db.Model(&models.DeepIdentificationJob{}).
+		Select("status, COUNT(*) AS count").
+		Where("status IN ?", deepJobTerminalStatuses()).
+		Group("status").
+		Scan(&jobCounts).Error; err != nil {
+		return nil, err
+	}
+	var terminalCount int64
+	for _, row := range jobCounts {
+		metrics.JobsByTerminalStatus[row.Status] = row.Count
+		terminalCount += row.Count
+	}
+	if terminalCount > 0 {
+		metrics.PartialSuccessRate = float64(metrics.JobsByTerminalStatus[models.DeepJobStatusPartial]) / float64(terminalCount)
+	}
+
+	type jobTiming struct {
+		StartedAt   *time.Time
+		CompletedAt *time.Time
+	}
+	var timings []jobTiming
+	if err := r.db.Model(&models.DeepIdentificationJob{}).
+		Select("started_at, completed_at").
+		Where("status IN ? AND started_at IS NOT NULL AND completed_at IS NOT NULL", deepJobTerminalStatuses()).
+		Find(&timings).Error; err != nil {
+		return nil, err
+	}
+	durations := make([]int64, 0, len(timings))
+	for _, timing := range timings {
+		if timing.StartedAt != nil && timing.CompletedAt != nil && !timing.CompletedAt.Before(*timing.StartedAt) {
+			durations = append(durations, timing.CompletedAt.Sub(*timing.StartedAt).Milliseconds())
+		}
+	}
+	metrics.Duration = latencyPercentiles(durations)
+
+	type providerStatusCount struct {
+		Provider models.DeepProviderName
+		Status   models.DeepProviderRunStatus
+		Count    int64
+	}
+	var providerCounts []providerStatusCount
+	if err := r.db.Model(&models.DeepIdentificationProviderRun{}).
+		Select("provider, status, COUNT(*) AS count").
+		Group("provider, status").
+		Scan(&providerCounts).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range providerCounts {
+		provider := metrics.Providers[row.Provider]
+		if provider.StatusCounts == nil {
+			provider.StatusCounts = make(map[models.DeepProviderRunStatus]int64)
+		}
+		provider.StatusCounts[row.Status] = row.Count
+		metrics.Providers[row.Provider] = provider
+	}
+
+	type providerTiming struct {
+		Provider  models.DeepProviderName
+		LatencyMS int
+	}
+	var providerTimings []providerTiming
+	if err := r.db.Model(&models.DeepIdentificationProviderRun{}).
+		Select("provider, latency_ms").
+		Where("completed_at IS NOT NULL AND latency_ms >= 0").
+		Find(&providerTimings).Error; err != nil {
+		return nil, err
+	}
+	latencies := make(map[models.DeepProviderName][]int64)
+	for _, timing := range providerTimings {
+		latencies[timing.Provider] = append(latencies[timing.Provider], int64(timing.LatencyMS))
+	}
+	for providerName, values := range latencies {
+		provider := metrics.Providers[providerName]
+		if provider.StatusCounts == nil {
+			provider.StatusCounts = make(map[models.DeepProviderRunStatus]int64)
+		}
+		provider.Latency = latencyPercentiles(values)
+		metrics.Providers[providerName] = provider
+	}
+
+	queueDepth, err := r.CountQueuedJobs()
+	if err != nil {
+		return nil, err
+	}
+	metrics.QueueDepth = queueDepth
+	return metrics, nil
+}
+
+func latencyPercentiles(values []int64) models.DeepIdentificationLatencySummary {
+	if len(values) == 0 {
+		return models.DeepIdentificationLatencySummary{}
+	}
+	sorted := append([]int64(nil), values...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+	at := func(percentile float64) int64 {
+		index := int(math.Ceil(percentile*float64(len(sorted)))) - 1
+		if index < 0 {
+			index = 0
+		}
+		return sorted[index]
+	}
+	return models.DeepIdentificationLatencySummary{P50MS: at(0.50), P95MS: at(0.95)}
+}
+
 // ListExpiredJobIDs returns terminal job ids whose ExpiresAt has passed
 // (data-model.md §9 retention, FR-034). Used by the result-retention
 // janitor sweep to remove artifacts (rows/files) past their retention
@@ -463,8 +722,8 @@ func (r *DeepIdentificationRepository) GetLatestProviderStatus(provider models.D
 	var run models.DeepIdentificationProviderRun
 	err := r.db.
 		Select("id", "provider", "status", "confidence", "call_count", "latency_ms", "error_kind", "started_at", "completed_at", "created_at", "updated_at").
-		Where("provider = ?", provider).
-		Order("created_at DESC").
+		Where("provider = ? AND completed_at IS NOT NULL", provider).
+		Order("completed_at DESC").
 		Limit(1).
 		Take(&run).Error
 	if err != nil {

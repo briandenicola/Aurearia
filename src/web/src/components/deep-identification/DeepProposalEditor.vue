@@ -11,11 +11,11 @@
         class="grid min-w-0 gap-2 overflow-hidden rounded-sm border border-border-subtle bg-card p-3"
       >
         <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <span class="text-sm font-semibold uppercase tracking-[0.04em] text-text-primary">{{ fieldLabel(name) }}</span>
-          <span v-if="entryOf(name).ownerEdited" class="text-xs font-semibold uppercase tracking-[0.05em] text-byzantine">
+          <span class="text-sm font-semibold uppercase tracking-[0.08em] text-text-primary">{{ fieldLabel(name) }}</span>
+          <span v-if="entryOf(name).ownerEdited" class="text-xs font-semibold uppercase tracking-[0.08em] text-byzantine">
             Edited by you
           </span>
-          <span v-else class="text-xs font-semibold uppercase tracking-[0.05em] text-gold">AI proposed</span>
+          <span v-else class="text-xs font-semibold uppercase tracking-[0.08em] text-gold">AI proposed</span>
         </div>
 
         <p class="m-0 break-words text-sm text-text-secondary [overflow-wrap:anywhere]">
@@ -49,7 +49,7 @@
         <div class="flex items-center gap-2" role="group" :aria-label="`${fieldLabel(name)} decision`">
           <button
             type="button"
-            class="inline-flex min-h-[44px] items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors duration-150"
+            class="chip min-h-[44px]"
             :class="entryOf(name).accepted === true ? 'border-gold bg-gold text-white' : 'border-border-subtle text-text-secondary'"
             :aria-pressed="entryOf(name).accepted === true"
             @click="setAccepted(name, true)"
@@ -58,7 +58,7 @@
           </button>
           <button
             type="button"
-            class="inline-flex min-h-[44px] items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors duration-150"
+            class="chip min-h-[44px]"
             :class="entryOf(name).accepted === false ? 'border-byzantine bg-byzantine text-white' : 'border-border-subtle text-text-secondary'"
             :aria-pressed="entryOf(name).accepted === false"
             @click="setAccepted(name, false)"
@@ -71,7 +71,7 @@
 
     <button
       type="button"
-      class="inline-flex min-h-[44px] items-center justify-self-start rounded-full border border-gold bg-gold px-5 py-2 text-sm font-semibold text-white transition-opacity duration-150 disabled:cursor-not-allowed disabled:opacity-50"
+      class="btn btn-primary min-h-[44px] justify-self-start"
       :disabled="confirmDisabled"
       @click="$emit('confirm')"
     >

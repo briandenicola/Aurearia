@@ -179,6 +179,27 @@
           </span>
         </div>
 
+        <fieldset class="mb-6 min-w-0">
+          <legend class="section-label mb-3">Deep Analysis Limits</legend>
+          <div class="grid min-w-0 gap-4 md:grid-cols-2">
+            <div v-for="setting in deepIdentificationSettingFields" :key="setting.name" class="form-group min-w-0">
+              <label class="form-label" :for="setting.name">{{ setting.label }}</label>
+              <input
+                :id="setting.name"
+                v-model="setting.model.value"
+                class="form-input"
+                type="number"
+                :name="setting.name"
+                :min="setting.min"
+                :max="setting.max"
+                step="1"
+                required
+              />
+              <span class="mt-1 block text-sm text-text-muted">{{ setting.hint }}</span>
+            </div>
+          </div>
+        </fieldset>
+
         <div class="form-group min-w-0">
           <label class="flex items-center gap-3">
             <input
@@ -250,6 +271,59 @@
           </div>
           <p v-else class="py-6 text-sm text-text-muted">No OCRE health data is available yet.</p>
         </section>
+
+        <section class="mt-6 border-t border-border-subtle pt-6" aria-labelledby="deep-observability-heading">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <h3 id="deep-observability-heading" class="m-0 text-lg font-medium text-heading">Deep Analysis Operations</h3>
+            <button type="button" class="btn btn-secondary btn-xs min-h-[44px]" :disabled="deepMetricsLoading" @click="loadDeepMetrics">
+              {{ deepMetricsLoading ? 'Refreshing...' : 'Refresh' }}
+            </button>
+          </div>
+          <div v-if="deepMetricsLoading" class="py-6 text-sm text-text-secondary" role="status">Loading Deep Analysis operations</div>
+          <p v-else-if="deepMetricsError" class="rounded-sm border border-[var(--color-negative)] p-3 text-sm text-[var(--color-negative)]" role="alert">
+            Deep Analysis operations are temporarily unavailable. Try again.
+          </p>
+          <div v-else-if="deepMetrics" class="grid gap-4" data-testid="deep-observability">
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div class="rounded-sm border border-border-subtle bg-card p-4">
+                <p class="section-label m-0">Terminal jobs</p>
+                <div class="mt-1 text-sm text-text-primary">{{ terminalJobCount }}</div>
+              </div>
+              <div class="rounded-sm border border-border-subtle bg-card p-4">
+                <p class="section-label m-0">Partial success</p>
+                <div class="mt-1 text-sm text-text-primary">{{ formatRate(deepMetrics.partialSuccessRate) }}</div>
+              </div>
+              <div class="rounded-sm border border-border-subtle bg-card p-4">
+                <p class="section-label m-0">Job duration</p>
+                <div class="mt-1 text-sm text-text-primary">p50 {{ formatDuration(deepMetrics.duration.p50Ms) }} · p95 {{ formatDuration(deepMetrics.duration.p95Ms) }}</div>
+              </div>
+              <div class="rounded-sm border border-border-subtle bg-card p-4">
+                <p class="section-label m-0">Queue / live streams</p>
+                <div class="mt-1 text-sm text-text-primary">{{ deepMetrics.queueDepth }} queued · {{ deepMetrics.activeSseStreams }} live</div>
+              </div>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full min-w-[540px] text-left text-sm">
+                <thead class="text-text-muted">
+                  <tr><th class="p-2">Provider</th><th class="p-2">Outcomes</th><th class="p-2">Latency</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(metrics, provider) in deepMetrics.providers" :key="provider" class="border-t border-border-subtle">
+                    <td class="p-2 font-semibold uppercase text-text-primary">{{ provider }}</td>
+                    <td class="p-2 text-text-secondary">{{ formatStatusCounts(metrics.statusCounts) }}</td>
+                    <td class="p-2 text-text-secondary">p50 {{ formatDuration(metrics.latency.p50Ms) }} · p95 {{ formatDuration(metrics.latency.p95Ms) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="m-0 text-sm text-text-secondary">
+              SSE reconnects {{ deepMetrics.reconnectCount }}, truncations {{ deepMetrics.truncationCount }};
+              hint cleanup {{ deepMetrics.hintDeletion.success }} succeeded / {{ deepMetrics.hintDeletion.failure }} failed;
+              janitor {{ deepMetrics.janitor.recoverySweeps }} recovery / {{ deepMetrics.janitor.retentionSweeps }} retention sweeps,
+              {{ deepMetrics.janitor.failures }} failures.
+            </p>
+          </div>
+        </section>
       </section>
 
       <p v-if="msg" class="my-2 text-body" :class="error ? 'text-[var(--color-negative)]' : 'text-gold'">{{ msg }}</p>
@@ -268,8 +342,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { getAdminNumistaHealth, getAdminOCREHealth } from '@/api/client'
-import type { NumistaHealthSummary, NumistaLookupStatus, OCREHealthSummary } from '@/types'
+import { getAdminDeepIdentificationObservability, getAdminNumistaHealth, getAdminOCREHealth } from '@/api/client'
+import type { DeepIdentificationObservabilitySummary, NumistaHealthSummary, NumistaLookupStatus, OCREHealthSummary } from '@/types'
 
 const props = withDefaults(defineProps<{
   numistaApiKey: string
@@ -280,6 +354,14 @@ const props = withDefaults(defineProps<{
   numistaSearchTimeoutSeconds: string
   numistaDetailTimeoutSeconds: string
   deepIdentificationEnabled?: string
+  deepIdentificationWorkerCount?: string
+  deepIdentificationMaxActivePerUser?: string
+  deepIdentificationQueueDepth?: string
+  deepIdentificationHardTimeoutSeconds?: string
+  deepIdentificationEventRetentionHours?: string
+  deepIdentificationResultRetentionDays?: string
+  deepIdentificationMaxProviders?: string
+  deepIdentificationNumistaCallBudget?: string
   deepIdentificationOCREEnabled: string
   deepIdentificationOCRECallBudget: string
   pushoverAppToken: string
@@ -306,6 +388,14 @@ const props = withDefaults(defineProps<{
   buildDate: string
 }>(), {
   deepIdentificationEnabled: 'false',
+  deepIdentificationWorkerCount: '2',
+  deepIdentificationMaxActivePerUser: '1',
+  deepIdentificationQueueDepth: '32',
+  deepIdentificationHardTimeoutSeconds: '300',
+  deepIdentificationEventRetentionHours: '24',
+  deepIdentificationResultRetentionDays: '90',
+  deepIdentificationMaxProviders: '4',
+  deepIdentificationNumistaCallBudget: '4',
 })
 
 const emit = defineEmits<{
@@ -318,6 +408,14 @@ const emit = defineEmits<{
     numistaSearchTimeoutSeconds: string
     numistaDetailTimeoutSeconds: string
     deepIdentificationEnabled: string
+    deepIdentificationWorkerCount: string
+    deepIdentificationMaxActivePerUser: string
+    deepIdentificationQueueDepth: string
+    deepIdentificationHardTimeoutSeconds: string
+    deepIdentificationEventRetentionHours: string
+    deepIdentificationResultRetentionDays: string
+    deepIdentificationMaxProviders: string
+    deepIdentificationNumistaCallBudget: string
     deepIdentificationOCREEnabled: string
     deepIdentificationOCRECallBudget: string
     logLevel: string
@@ -347,6 +445,14 @@ const localNumistaSearchResultLimit = ref(props.numistaSearchResultLimit || '20'
 const localNumistaSearchTimeoutSeconds = ref(props.numistaSearchTimeoutSeconds || '4')
 const localNumistaDetailTimeoutSeconds = ref(props.numistaDetailTimeoutSeconds || '3')
 const localDeepIdentificationEnabled = ref((props.deepIdentificationEnabled || 'false') === 'true')
+const localDeepIdentificationWorkerCount = ref(props.deepIdentificationWorkerCount)
+const localDeepIdentificationMaxActivePerUser = ref(props.deepIdentificationMaxActivePerUser)
+const localDeepIdentificationQueueDepth = ref(props.deepIdentificationQueueDepth)
+const localDeepIdentificationHardTimeoutSeconds = ref(props.deepIdentificationHardTimeoutSeconds)
+const localDeepIdentificationEventRetentionHours = ref(props.deepIdentificationEventRetentionHours)
+const localDeepIdentificationResultRetentionDays = ref(props.deepIdentificationResultRetentionDays)
+const localDeepIdentificationMaxProviders = ref(props.deepIdentificationMaxProviders)
+const localDeepIdentificationNumistaCallBudget = ref(props.deepIdentificationNumistaCallBudget)
 const localOCREEnabled = ref((props.deepIdentificationOCREEnabled || 'false') === 'true')
 const localOCRECallBudget = ref(props.deepIdentificationOCRECallBudget || '3')
 const localPushoverAppToken = ref(props.pushoverAppToken)
@@ -371,6 +477,12 @@ const healthError = ref(false)
 const ocreHealth = ref<OCREHealthSummary | null>(null)
 const ocreHealthLoading = ref(true)
 const ocreHealthError = ref(false)
+const deepMetrics = ref<DeepIdentificationObservabilitySummary | null>(null)
+const deepMetricsLoading = ref(true)
+const deepMetricsError = ref(false)
+const terminalJobCount = computed(() =>
+  Object.values(deepMetrics.value?.jobsByTerminalStatus ?? {}).reduce((total, count) => total + count, 0),
+)
 const hasHealthEvents = computed(() => {
   if (!health.value) return false
   const counters = [
@@ -400,6 +512,17 @@ const numistaSettingFields = [
   { name: 'NumistaDetailTimeoutSeconds', label: 'Detail timeout', min: 1, max: 10, fallback: 3, model: localNumistaDetailTimeoutSeconds, hint: 'Seconds; 1–10. Default 3.' },
 ] as const
 
+const deepIdentificationSettingFields = [
+  { name: 'DeepIdentificationWorkerCount', label: 'Worker count', min: 1, max: 32, fallback: 2, model: localDeepIdentificationWorkerCount, hint: 'Concurrent job workers; 1–32. Default 2.' },
+  { name: 'DeepIdentificationMaxActivePerUser', label: 'Active jobs per user', min: 1, max: 10, fallback: 1, model: localDeepIdentificationMaxActivePerUser, hint: 'Per-user active job limit; 1–10. Default 1.' },
+  { name: 'DeepIdentificationQueueDepth', label: 'Queue depth', min: 1, max: 1000, fallback: 32, model: localDeepIdentificationQueueDepth, hint: 'Queued jobs; 1–1000. Default 32.' },
+  { name: 'DeepIdentificationHardTimeoutSeconds', label: 'Hard timeout', min: 1, max: 900, fallback: 300, model: localDeepIdentificationHardTimeoutSeconds, hint: 'Seconds per job; 1–900. Default 300.' },
+  { name: 'DeepIdentificationEventRetentionHours', label: 'Event retention', min: 1, max: 720, fallback: 24, model: localDeepIdentificationEventRetentionHours, hint: 'Hours; 1–720. Default 24.' },
+  { name: 'DeepIdentificationResultRetentionDays', label: 'Result retention', min: 1, max: 3650, fallback: 90, model: localDeepIdentificationResultRetentionDays, hint: 'Days; 1–3650. Default 90.' },
+  { name: 'DeepIdentificationMaxProviders', label: 'Provider limit', min: 1, max: 10, fallback: 4, model: localDeepIdentificationMaxProviders, hint: 'Providers per job; 1–10. Default 4.' },
+  { name: 'DeepIdentificationNumistaCallBudget', label: 'Numista call budget', min: 1, max: 20, fallback: 4, model: localDeepIdentificationNumistaCallBudget, hint: 'Requests per job; 1–20. Default 4.' },
+] as const
+
 const statusRows: { key: NumistaLookupStatus; label: string }[] = [
   { key: 'success', label: 'Success' },
   { key: 'empty', label: 'Empty' },
@@ -419,6 +542,9 @@ function save() {
   for (const setting of numistaSettingFields) {
     setting.model.value = boundedValue(setting.model.value, setting.min, setting.max, setting.fallback)
   }
+  for (const setting of deepIdentificationSettingFields) {
+    setting.model.value = boundedValue(setting.model.value, setting.min, setting.max, setting.fallback)
+  }
   localOCRECallBudget.value = boundedValue(localOCRECallBudget.value, 1, 20, 3)
   emit('save', {
     numistaApiKey: localNumistaApiKey.value,
@@ -429,6 +555,14 @@ function save() {
     numistaSearchTimeoutSeconds: localNumistaSearchTimeoutSeconds.value,
     numistaDetailTimeoutSeconds: localNumistaDetailTimeoutSeconds.value,
     deepIdentificationEnabled: localDeepIdentificationEnabled.value ? 'true' : 'false',
+    deepIdentificationWorkerCount: localDeepIdentificationWorkerCount.value,
+    deepIdentificationMaxActivePerUser: localDeepIdentificationMaxActivePerUser.value,
+    deepIdentificationQueueDepth: localDeepIdentificationQueueDepth.value,
+    deepIdentificationHardTimeoutSeconds: localDeepIdentificationHardTimeoutSeconds.value,
+    deepIdentificationEventRetentionHours: localDeepIdentificationEventRetentionHours.value,
+    deepIdentificationResultRetentionDays: localDeepIdentificationResultRetentionDays.value,
+    deepIdentificationMaxProviders: localDeepIdentificationMaxProviders.value,
+    deepIdentificationNumistaCallBudget: localDeepIdentificationNumistaCallBudget.value,
     deepIdentificationOCREEnabled: localOCREEnabled.value ? 'true' : 'false',
     deepIdentificationOCRECallBudget: localOCRECallBudget.value,
     logLevel: localLogLevel.value,
@@ -478,6 +612,37 @@ async function loadOCREHealth() {
   }
 }
 
+async function loadDeepMetrics() {
+  deepMetricsLoading.value = true
+  deepMetricsError.value = false
+  try {
+    const response = await getAdminDeepIdentificationObservability()
+    deepMetrics.value = response.data
+  } catch {
+    deepMetrics.value = null
+    deepMetricsError.value = true
+  } finally {
+    deepMetricsLoading.value = false
+  }
+}
+
+function formatRate(value: number) {
+  return `${(Math.min(1, Math.max(0, value)) * 100).toFixed(1)}%`
+}
+
+function formatDuration(milliseconds: number) {
+  if (milliseconds <= 0) return 'not observed'
+  if (milliseconds < 1000) return `${milliseconds} ms`
+  return `${(milliseconds / 1000).toFixed(1)} s`
+}
+
+function formatStatusCounts(counts: Record<string, number>) {
+  const entries = Object.entries(counts).filter(([, count]) => count > 0)
+  return entries.length
+    ? entries.map(([status, count]) => `${formatOCREOutcome(status)} ${count}`).join(', ')
+    : 'No attempts'
+}
+
 function formatOCREOutcome(status?: string | null) {
   if (!status) return 'No recent outcome'
   return status
@@ -514,6 +679,14 @@ watch(() => props.numistaSearchResultLimit, (value) => { localNumistaSearchResul
 watch(() => props.numistaSearchTimeoutSeconds, (value) => { localNumistaSearchTimeoutSeconds.value = value || '4' })
 watch(() => props.numistaDetailTimeoutSeconds, (value) => { localNumistaDetailTimeoutSeconds.value = value || '3' })
 watch(() => props.deepIdentificationEnabled, (value) => { localDeepIdentificationEnabled.value = (value || 'false') === 'true' })
+watch(() => props.deepIdentificationWorkerCount, (value) => { localDeepIdentificationWorkerCount.value = value })
+watch(() => props.deepIdentificationMaxActivePerUser, (value) => { localDeepIdentificationMaxActivePerUser.value = value })
+watch(() => props.deepIdentificationQueueDepth, (value) => { localDeepIdentificationQueueDepth.value = value })
+watch(() => props.deepIdentificationHardTimeoutSeconds, (value) => { localDeepIdentificationHardTimeoutSeconds.value = value })
+watch(() => props.deepIdentificationEventRetentionHours, (value) => { localDeepIdentificationEventRetentionHours.value = value })
+watch(() => props.deepIdentificationResultRetentionDays, (value) => { localDeepIdentificationResultRetentionDays.value = value })
+watch(() => props.deepIdentificationMaxProviders, (value) => { localDeepIdentificationMaxProviders.value = value })
+watch(() => props.deepIdentificationNumistaCallBudget, (value) => { localDeepIdentificationNumistaCallBudget.value = value })
 watch(() => props.deepIdentificationOCREEnabled, (value) => { localOCREEnabled.value = (value || 'false') === 'true' })
 watch(() => props.deepIdentificationOCRECallBudget, (value) => { localOCRECallBudget.value = value || '3' })
 watch(() => props.pushoverAppToken, (value) => { localPushoverAppToken.value = value })
@@ -536,5 +709,6 @@ watch(() => props.logLevel, (value) => { localLogLevel.value = value })
 onMounted(() => {
   loadHealth()
   loadOCREHealth()
+  loadDeepMetrics()
 })
 </script>

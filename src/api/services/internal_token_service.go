@@ -115,6 +115,9 @@ func (s *InternalTokenService) VerifyForJob(token string) (userID uint, jobID ui
 	if err != nil {
 		return 0, 0, ErrInvalidInternalToken
 	}
+	if base64.RawURLEncoding.EncodeToString(signature) != signatureB64 {
+		return 0, 0, ErrInvalidInternalToken
+	}
 
 	payload := userIDStr + ":" + jobIDStr + ":" + expiryStr
 	h := hmac.New(sha256.New, s.secret)
@@ -161,6 +164,9 @@ func (s *InternalTokenService) Verify(token string) (uint, error) {
 	// Decode signature
 	signature, err := base64.RawURLEncoding.DecodeString(signatureB64)
 	if err != nil {
+		return 0, ErrInvalidInternalToken
+	}
+	if base64.RawURLEncoding.EncodeToString(signature) != signatureB64 {
 		return 0, ErrInvalidInternalToken
 	}
 

@@ -295,15 +295,15 @@ No post-MVP task (T125+) is marked complete by this work.
 
 **Independent Test**: Start a job, verify the proposed provider set is evidence-based, adjust it before the run, force one provider to fail/be not-automated, and verify accurate, non-fabricated coverage reporting including surfaced disagreements.
 
-- [ ] T125 [US5] Confirm/extend `POST /deep-identification/jobs` (T041) to echo `RequestedProviders`/`SelectedProviders`/`RouterRationale` in the create response so the owner-adjusted set is reviewable before dispatch (FR-022/FR-023)
-- [ ] T126 [US5] Add a provider add/remove control to `DeepAnalysisStartPanel.vue` (checklist sourced from `provider_catalog` eligibility) so the owner can adjust the proposed set before the job runs
-- [ ] T127 [US5] Create `DeepProviderCoverageList.vue` in `src/web/src/components/deep-identification/` — renders `contributed`/`no_match`/`failed`/`timed_out`/`not_automated`/`unavailable` distinctly, with attribution string and link-out for non-automated providers, never as a generic "no result"
-- [ ] T128 [US5] Wire `DeepProviderCoverageList.vue` into `DeepAnalysisPage.vue` alongside the progress timeline (live during run) and the report panel (final coverage)
-- [ ] T129 [P] [US5] Add a Go test asserting the `router_selected` event payload reflects an evidence-based rationale, not a fixed always-all-providers set
-- [ ] T130 [P] [US5] Add a Go/Python test: `provider_override` always includes the named provider even if the router would not have selected it; deselecting a provider results in zero calls to it (FR-023)
-- [ ] T131 [P] [US5] Add a test: a failing/timed-out provider is listed with its exact status and never blended into another provider's confidence or reclassified as `no_match` (FR-025)
-- [ ] T132 [P] [US5] Add a test: two providers returning conflicting claims for the same field both appear in `disagreements` with `resolution: "unresolved"`, never silently overridden (FR-027)
-- [ ] T133 [P] [US5] Vitest: `DeepProviderCoverageList` renders `not_automated`/`unavailable` with link-out distinctly from `no_match`/`failed`, keyboard/a11y accessible
+- [X] T125 [US5] Confirm/extend `POST /deep-identification/jobs` (T041) to echo `RequestedProviders`/`SelectedProviders`/`RouterRationale` in the create response so the owner-adjusted set is reviewable before dispatch (FR-022/FR-023)
+- [X] T126 [US5] Add a provider add/remove control to `DeepAnalysisStartPanel.vue` (checklist sourced from `provider_catalog` eligibility) so the owner can adjust the proposed set before the job runs
+- [X] T127 [US5] Create `DeepProviderCoverageList.vue` in `src/web/src/components/deep-identification/` — renders `contributed`/`no_match`/`failed`/`timed_out`/`not_automated`/`unavailable` distinctly, with attribution string and link-out for non-automated providers, never as a generic "no result"
+- [X] T128 [US5] Wire `DeepProviderCoverageList.vue` into `DeepAnalysisPage.vue` alongside the progress timeline (live during run) and the report panel (final coverage)
+- [X] T129 [P] [US5] Add a Go test asserting the `router_selected` event payload reflects an evidence-based rationale, not a fixed always-all-providers set
+- [X] T130 [P] [US5] Add a Go/Python test: `provider_override` always includes the named provider even if the router would not have selected it; deselecting a provider results in zero calls to it (FR-023)
+- [X] T131 [P] [US5] Add a test: a failing/timed-out provider is listed with its exact status and never blended into another provider's confidence or reclassified as `no_match` (FR-025)
+- [X] T132 [P] [US5] Add a test: two providers returning conflicting claims for the same field both appear in `disagreements` with `resolution: "unresolved"`, never silently overridden (FR-027)
+- [X] T133 [P] [US5] Vitest: `DeepProviderCoverageList` renders `not_automated`/`unavailable` with link-out distinctly from `no_match`/`failed`, keyboard/a11y accessible
 
 **Checkpoint**: US5 independently testable (router transparency, owner override honored, no fabricated results, disagreements surfaced).
 
@@ -315,14 +315,14 @@ No post-MVP task (T125+) is marked complete by this work.
 
 **Independent Test**: Run jobs with hint images to each terminal state in turn (completed, partial, failed, cancelled) plus a simulated crash/restart and a retention-expiry sweep, and verify hint files are deleted and unretrievable in every case.
 
-- [ ] T134 [US6] Add an integration test (Go, e.g. `src/api/services/deep_identification_hint_cleanup_test.go`): a full-stack run with hint images through a **completed** terminal state — assert hint files are deleted from `<UploadDir>/deep-jobs/job-<id>/` and unretrievable via any coin-image endpoint, `DeletedAt` stamped, row retained for audit (SC-004)
-- [ ] T135 [P] [US6] Add the identical assertion for a job reaching **partial**
-- [ ] T136 [P] [US6] Add the identical assertion for a job reaching **failed** (including a hard-timeout-triggered failure)
-- [ ] T137 [P] [US6] Add the identical assertion for a job reaching **cancelled** (including the cancel-vs-complete race's cancelled winner)
-- [ ] T138 [P] [US6] Add the identical assertion for a job whose result has passed `ExpiresAt` (retention janitor sweep) — both hint and coin-face artifacts removed per data-model.md §9
-- [ ] T139 [P] [US6] Add a simulated-crash-then-restart test: hint artifacts with no `DeletedAt` after a killed process, once the job settles via `RecoverStaleJobs` on the new instance, are swept and deleted by the janitor's startup pass — verified via filesystem check, not only the DB flag
-- [ ] T140 [US6] Add a Go test that the persisted `ReportJSON`/`ProposalJSON` never embeds or links a hint artifact's file path or binary (FR-030 negative assertion — string-search the persisted JSON for any hint `FilePath`)
-- [ ] T141 [P] [US6] Vitest: hint images never appear in any coin image gallery/endpoint-consuming component after any Deep Analysis run
+- [X] T134 [US6] Add an integration test (Go, e.g. `src/api/services/deep_identification_hint_cleanup_test.go`): a full-stack run with hint images through a **completed** terminal state — assert hint files are deleted from `<UploadDir>/deep-jobs/job-<id>/` and unretrievable via any coin-image endpoint, `DeletedAt` stamped, row retained for audit (SC-004)
+- [X] T135 [P] [US6] Add the identical assertion for a job reaching **partial**
+- [X] T136 [P] [US6] Add the identical assertion for a job reaching **failed** (including a hard-timeout-triggered failure)
+- [X] T137 [P] [US6] Add the identical assertion for a job reaching **cancelled** (including the cancel-vs-complete race's cancelled winner)
+- [X] T138 [P] [US6] Add the identical assertion for a job whose result has passed `ExpiresAt` (retention janitor sweep) — both hint and coin-face artifacts removed per data-model.md §9
+- [X] T139 [P] [US6] Add a simulated-crash-then-restart test: hint artifacts with no `DeletedAt` after a killed process, once the job settles via `RecoverStaleJobs` on the new instance, are swept and deleted by the janitor's startup pass — verified via filesystem check, not only the DB flag
+- [X] T140 [US6] Add a Go test that the persisted `ReportJSON`/`ProposalJSON` never embeds or links a hint artifact's file path or binary (FR-030 negative assertion — string-search the persisted JSON for any hint `FilePath`)
+- [X] T141 [P] [US6] Vitest: hint images never appear in any coin image gallery/endpoint-consuming component after any Deep Analysis run
 
 **Checkpoint**: US6 independently testable (hint ephemerality proven across every terminal outcome plus crash/restart and retention expiry, with no report leakage).
 
@@ -332,19 +332,19 @@ No post-MVP task (T125+) is marked complete by this work.
 
 **Purpose**: Hardening, observability, documentation, rollout readiness, and final gate verification.
 
-- [ ] T142 [P] Add a mobile-viewport + a11y pass across all `src/web/src/components/deep-identification/*.vue` components (labels, focus order, keyboard-accessible cancel/apply, touch targets), reusing `InlineCameraCapturePanel`/`QuickCaptureImageSlots` patterns
-- [ ] T143 [P] Add observability counters/gauges to the existing logger/admin surface: jobs by terminal status, partial-success rate, p50/p95 duration, per-provider status+latency, active SSE streams, reconnect/truncation counts, queue depth, hint-deletion success/failure, janitor-sweep counts — with no sensitive notes/queries logged (FR-036)
-- [ ] T144 [P] Add admin/settings UI visibility for the `SettingDeepIdentification*` keys in the existing admin settings screen
-- [ ] T145 Write `docs/adr/0010-deep-agentic-coin-identification.md` (Nygard format): sibling job/event domain vs `AIJob`; Go-persisted/served SSE with bounded retention; provider HTTP calls staying in Go; provider staging/licensing posture (NGC no-automation, OCRE ODbL gate, RPC blocked, Numista attribution/caching)
-- [ ] T146 [P] Update `docs/ARCHITECTURE.md` with background-jobs/AI-integration/SSE sections for this feature
-- [ ] T147 [P] Update `docs/features/ai-analysis.md` (fast vs deep) and `docs/quick-capture.md` (deep proposal seeding a draft)
-- [ ] T148 [P] Update `docs/testing.md` with the deterministic agent seams used by this feature
-- [ ] T149 Regenerate `docs/openapi.json` via `task openapi` for the full endpoint set (create/list/get/cancel/retry/events/proposal/apply) and confirm `route_openapi_drift_test.go` is green
-- [ ] T150 Add a cross-cutting decision note to `.squad/decisions/inbox/` per §18.2 (never edit `.squad/decisions.md` directly) summarizing ADR 0010 and the phase rollout plan
-- [ ] T151 Verify rollout sequencing: `SettingDeepIdentificationEnabled` defaults to `false`; confirm this stays true through this PR (flag flips happen out-of-band per the plan's rollout table)
-- [ ] T152 Run the full gate suite: `go build ./...`, `go vet ./...`, `go test ./...` (incl. `TestArchitecture`), `ruff check app/ tests/`, `pytest`, `npm run type-check`, `npm run test`, `npm run build`, `task openapi`, `task test` — all green (§17/§21 gate)
+- [X] T142 [P] Add a mobile-viewport + a11y pass across all `src/web/src/components/deep-identification/*.vue` components (labels, focus order, keyboard-accessible cancel/apply, touch targets), reusing `InlineCameraCapturePanel`/`QuickCaptureImageSlots` patterns
+- [X] T143 [P] Add observability counters/gauges to the existing logger/admin surface: jobs by terminal status, partial-success rate, p50/p95 duration, per-provider status+latency, active SSE streams, reconnect/truncation counts, queue depth, hint-deletion success/failure, janitor-sweep counts — with no sensitive notes/queries logged (FR-036)
+- [X] T144 [P] Add admin/settings UI visibility for the `SettingDeepIdentification*` keys in the existing admin settings screen
+- [X] T145 Write `docs/adr/0011-deep-agentic-coin-identification.md` (Nygard format; 0010 was already assigned): sibling job/event domain vs `AIJob`; Go-persisted/served SSE with bounded retention; provider HTTP calls staying in Go; provider staging/licensing posture (NGC no-automation, OCRE ODbL gate, RPC blocked, Numista attribution/caching)
+- [X] T146 [P] Update `docs/ARCHITECTURE.md` with background-jobs/AI-integration/SSE sections for this feature
+- [X] T147 [P] Update `docs/features/ai-analysis.md` (fast vs deep) and `docs/quick-capture.md` (deep proposal seeding a draft)
+- [X] T148 [P] Update `docs/testing.md` with the deterministic agent seams used by this feature
+- [X] T149 Regenerate `docs/openapi.json` via `task openapi` for the full endpoint set (create/list/get/cancel/retry/events/proposal/apply) and confirm `route_openapi_drift_test.go` is green
+- [X] T150 Add a cross-cutting decision note to `.squad/decisions/inbox/` per §18.2 (never edit `.squad/decisions.md` directly) summarizing ADR 0011 and the phase rollout plan
+- [X] T151 Verify rollout sequencing: `SettingDeepIdentificationEnabled` defaults to `false`; confirm this stays true through this PR (flag flips happen out-of-band per the plan's rollout table)
+- [X] T152 Run the full gate suite: `go build ./...`, `go vet ./...`, `go test ./...` (incl. `TestArchitecture`), `ruff check app/ tests/`, `pytest`, `npm run type-check`, `npm run test`, `npm run build`, `task openapi`, `task test` — all green (§17/§21 gate)
 - [ ] T153 Perform the manual end-to-end `quickstart.md` verification (all six walkthroughs: US1 intake, US2 saved coin, US3 resume/cancel/retry, US4 report/draft, US5 provider transparency, US6 hint privacy) — this is a **supplementary confirmation only** and does not substitute for the automated tests in Phases 2–13
-- [ ] T154 Prepare post-major-work QC/review readiness (repository `post-major-work-qc-audit` skill): confirm engineering best practices, security, docs, architecture, test coverage, supply chain, UX, and operational readiness are all addressed before requesting review
+- [X] T154 Prepare post-major-work QC/review readiness (repository `post-major-work-qc-audit` skill): confirm engineering best practices, security, docs, architecture, test coverage, supply chain, UX, and operational readiness are all addressed before requesting review
 
 ---
 

@@ -312,6 +312,14 @@ func TestDeepIdentificationHandler_StreamEvents_StreamTruncatedOnPrunedGap(t *te
 	if !strings.Contains(body, "id: 4\nevent: progress") {
 		t.Fatalf("expected surviving seq 4 replayed after truncation notice, got body:\n%s", body)
 	}
+	summary, err := deps.svc.GetObservabilitySummary()
+	if err != nil {
+		t.Fatalf("GetObservabilitySummary: %v", err)
+	}
+	if summary.ActiveSSEStreams != 0 || summary.ReconnectCount != 1 || summary.TruncationCount != 1 {
+		t.Fatalf("unexpected SSE observability: active=%d reconnects=%d truncations=%d",
+			summary.ActiveSSEStreams, summary.ReconnectCount, summary.TruncationCount)
+	}
 }
 
 // TestDeepIdentificationHandler_StreamEvents_ExpiredJobReturns410 covers

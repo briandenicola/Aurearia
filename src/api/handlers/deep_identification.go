@@ -74,6 +74,7 @@ type deepJobDTO struct {
 	PartialSuccess     bool       `json:"partialSuccess"`
 	SelectedProviders  []string   `json:"selectedProviders,omitempty"`
 	RequestedProviders []string   `json:"requestedProviders,omitempty"`
+	RouterRationale    string     `json:"routerRationale,omitempty"`
 	RetryOfJobID       *uint      `json:"retryOfJobId,omitempty"`
 	CancelRequested    bool       `json:"cancelRequested"`
 	LastSeq            int64      `json:"lastSeq"`
@@ -120,6 +121,7 @@ func toDeepJobDTO(job *models.DeepIdentificationJob) deepJobDTO {
 		PartialSuccess:     job.PartialSuccess,
 		SelectedProviders:  splitCSV(job.SelectedProviders),
 		RequestedProviders: splitCSV(job.RequestedProviders),
+		RouterRationale:    job.RouterRationale,
 		RetryOfJobID:       job.RetryOfJobID,
 		CancelRequested:    job.CancelRequestedAt != nil,
 		LastSeq:            job.LastSeq,
@@ -158,7 +160,8 @@ func (h *DeepIdentificationHandler) deepIdentificationEnabled() bool {
 // deepCapabilityResponse is the wire shape for the Deep Analysis capability
 // probe (contracts/deep-identification.openapi.yaml `Capability`).
 type deepCapabilityResponse struct {
-	Enabled bool `json:"enabled"`
+	Enabled   bool     `json:"enabled"`
+	Providers []string `json:"providers"`
 }
 
 // Capability reports whether Deep Analysis is currently available to the
@@ -175,7 +178,12 @@ type deepCapabilityResponse struct {
 //	@Success		200	{object}	deepCapabilityResponse
 //	@Router			/deep-identification/capability [get]
 func (h *DeepIdentificationHandler) Capability(c *gin.Context) {
-	c.JSON(http.StatusOK, deepCapabilityResponse{Enabled: h.deepIdentificationEnabled()})
+	settings := h.settingsSvc.GetDeepIdentificationSettings()
+	providers := []string{"nomisma", "numista"}
+	if settings.OCREEnabled {
+		providers = append(providers, "ocre")
+	}
+	c.JSON(http.StatusOK, deepCapabilityResponse{Enabled: settings.Enabled, Providers: providers})
 }
 
 // CreateJob starts a Deep Analysis job from multipart intake.

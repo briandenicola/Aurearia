@@ -5,6 +5,7 @@ import AdminSystemSection from '../AdminSystemSection.vue'
 const mocks = vi.hoisted(() => ({
   getAdminNumistaHealth: vi.fn(),
   getAdminOCREHealth: vi.fn(),
+  getAdminDeepIdentificationObservability: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => mocks)
@@ -23,6 +24,8 @@ describe('AdminSystemSection OCRE / Deep Analysis configuration and health', () 
         lastCheckedAt: '2026-08-11T18:00:00Z',
       },
     })
+    mocks.getAdminDeepIdentificationObservability.mockReset()
+    mocks.getAdminDeepIdentificationObservability.mockResolvedValue({ data: deepMetrics() })
   })
 
   it('groups OCRE controls in one labelled boundary distinct from Numista', () => {
@@ -71,6 +74,34 @@ describe('AdminSystemSection OCRE / Deep Analysis configuration and health', () 
     })
   })
 
+  it('renders and persists every active Deep Analysis operational limit', async () => {
+    const wrapper = mount(AdminSystemSection, { props: baseProps() })
+    const expectedNames = [
+      'DeepIdentificationWorkerCount',
+      'DeepIdentificationMaxActivePerUser',
+      'DeepIdentificationQueueDepth',
+      'DeepIdentificationHardTimeoutSeconds',
+      'DeepIdentificationEventRetentionHours',
+      'DeepIdentificationResultRetentionDays',
+      'DeepIdentificationMaxProviders',
+      'DeepIdentificationNumistaCallBudget',
+    ]
+    for (const name of expectedNames) {
+      expect(wrapper.find(`input[name="${name}"]`).exists()).toBe(true)
+    }
+
+    await wrapper.find<HTMLInputElement>('input[name="DeepIdentificationWorkerCount"]').setValue('99')
+    await wrapper.find<HTMLInputElement>('input[name="DeepIdentificationHardTimeoutSeconds"]').setValue('0')
+    await wrapper.find('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.at(-1)?.[0]).toMatchObject({
+      deepIdentificationWorkerCount: '32',
+      deepIdentificationHardTimeoutSeconds: '1',
+      deepIdentificationQueueDepth: '32',
+      deepIdentificationResultRetentionDays: '90',
+    })
+  })
+
   it('clamps an out-of-range call budget to the 1–20 bound on save', async () => {
     const wrapper = mount(AdminSystemSection, { props: baseProps() })
 
@@ -113,8 +144,7 @@ describe('AdminSystemSection OCRE / Deep Analysis configuration and health', () 
     const ocreSection = wrapper.get('[data-testid="ocre-section"]')
     expect(ocreSection.get('[role="alert"]').text()).toContain('temporarily unavailable')
 
-    // Refresh via the OCRE health refresh button (second button inside the section).
-    const refreshButton = ocreSection.findAll('button.btn-secondary').at(-1)!
+    const refreshButton = ocreSection.get('section[aria-labelledby="ocre-health-heading"] button')
     await refreshButton.trigger('click')
     await flushPromises()
     expect(mocks.getAdminOCREHealth).toHaveBeenCalledTimes(2)
@@ -146,6 +176,20 @@ describe('AdminSystemSection OCRE / Deep Analysis configuration and health', () 
       expect(text).not.toContain(forbidden)
     }
     expect(wrapper.get('[data-testid="ocre-health"]').text()).toContain('No Match')
+  })
+
+  it('renders redacted Deep Analysis operational metrics', async () => {
+    const wrapper = mount(AdminSystemSection, { props: baseProps() })
+    await flushPromises()
+
+    const metrics = wrapper.get('[data-testid="deep-observability"]').text()
+    expect(metrics).toContain('4')
+    expect(metrics).toContain('25.0%')
+    expect(metrics).toContain('numista')
+    expect(metrics).toContain('Contributed 2')
+    for (const forbidden of ['notes', 'query', 'claims', 'report']) {
+      expect(metrics.toLowerCase()).not.toContain(forbidden)
+    }
   })
 })
 
@@ -204,5 +248,22 @@ function emptyNumistaHealth() {
     enrichmentAttempted: 0,
     enrichmentSucceeded: 0,
     enrichmentFailed: 0,
+  }
+}
+
+function deepMetrics() {
+  return {
+    jobsByTerminalStatus: { completed: 2, partial: 1, failed: 1, cancelled: 0 },
+    partialSuccessRate: 0.25,
+    duration: { p50Ms: 1200, p95Ms: 4800 },
+    providers: {
+      numista: { statusCounts: { contributed: 2 }, latency: { p50Ms: 80, p95Ms: 150 } },
+    },
+    activeSseStreams: 1,
+    reconnectCount: 3,
+    truncationCount: 1,
+    queueDepth: 2,
+    hintDeletion: { success: 4, failure: 0 },
+    janitor: { recoverySweeps: 2, retentionSweeps: 1, failures: 0 },
   }
 }

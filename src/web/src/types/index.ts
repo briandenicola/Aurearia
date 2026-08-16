@@ -1481,6 +1481,22 @@ export interface OCREHealthSummary {
   lastCheckedAt?: string | null
 }
 
+export interface DeepIdentificationObservabilitySummary {
+  jobsByTerminalStatus: Record<string, number>
+  partialSuccessRate: number
+  duration: { p50Ms: number; p95Ms: number }
+  providers: Record<string, {
+    statusCounts: Record<string, number>
+    latency: { p50Ms: number; p95Ms: number }
+  }>
+  activeSseStreams: number
+  reconnectCount: number
+  truncationCount: number
+  queueDepth: number
+  hintDeletion: { success: number; failure: number }
+  janitor: { recoverySweeps: number; retentionSweeps: number; failures: number }
+}
+
 export interface SecuritySummary {
   failedLogins: number
   lockedAccounts: number
@@ -1925,6 +1941,7 @@ export interface DeepJob {
   partialSuccess: boolean
   selectedProviders?: DeepProviderId[]
   requestedProviders?: DeepProviderId[]
+  routerRationale?: string
   retryOfJobId?: number | null
   cancelRequested: boolean
   lastSeq: number
@@ -2008,6 +2025,7 @@ export interface DeepJobListResponse {
 
 export interface DeepIdentificationCapability {
   enabled: boolean
+  providers: DeepProviderId[]
 }
 
 export interface CreateDeepIdentificationJobInput {

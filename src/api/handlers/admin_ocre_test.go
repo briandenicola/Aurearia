@@ -109,13 +109,13 @@ func TestAdminOCREHealthReflectsFlagAndLatestRun(t *testing.T) {
 	newer := time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC)
 	if err := db.Create(&models.DeepIdentificationProviderRun{
 		JobID: 1, UserID: 1, Provider: models.DeepProviderOCRE,
-		Status: models.DeepProviderRunNoMatch, Automatable: true, CreatedAt: older,
+		Status: models.DeepProviderRunNoMatch, Automatable: true, CreatedAt: older, CompletedAt: &older,
 	}).Error; err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Create(&models.DeepIdentificationProviderRun{
 		JobID: 2, UserID: 1, Provider: models.DeepProviderOCRE,
-		Status: models.DeepProviderRunContributed, Automatable: true, CallCount: 2, LatencyMS: 40, CreatedAt: newer,
+		Status: models.DeepProviderRunContributed, Automatable: true, CallCount: 2, LatencyMS: 40, CreatedAt: newer, CompletedAt: &newer,
 	}).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -198,9 +198,10 @@ func TestGetLatestProviderStatusReturnsMostRecentOCREOnly(t *testing.T) {
 	older := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
 	newer := time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC)
 	seed := []models.DeepIdentificationProviderRun{
-		{JobID: 1, UserID: 1, Provider: models.DeepProviderOCRE, Status: models.DeepProviderRunNoMatch, CreatedAt: older},
-		{JobID: 2, UserID: 1, Provider: models.DeepProviderOCRE, Status: models.DeepProviderRunContributed, CreatedAt: newer},
-		{JobID: 3, UserID: 1, Provider: models.DeepProviderNumista, Status: models.DeepProviderRunFailed, CreatedAt: newer.Add(time.Hour)},
+		{JobID: 1, UserID: 1, Provider: models.DeepProviderOCRE, Status: models.DeepProviderRunNoMatch, CreatedAt: older, CompletedAt: &older},
+		{JobID: 2, UserID: 1, Provider: models.DeepProviderOCRE, Status: models.DeepProviderRunContributed, CreatedAt: newer, CompletedAt: &newer},
+		{JobID: 3, UserID: 1, Provider: models.DeepProviderNumista, Status: models.DeepProviderRunFailed, CreatedAt: newer.Add(time.Hour), CompletedAt: &newer},
+		{JobID: 4, UserID: 1, Provider: models.DeepProviderOCRE, Status: models.DeepProviderRunRunning, CreatedAt: newer.Add(2 * time.Hour)},
 	}
 	for i := range seed {
 		if err := db.Create(&seed[i]).Error; err != nil {
@@ -218,7 +219,7 @@ func TestGetLatestProviderStatusReturnsMostRecentOCREOnly(t *testing.T) {
 	if run.Provider != models.DeepProviderOCRE || run.Status != models.DeepProviderRunContributed {
 		t.Fatalf("expected most recent OCRE contributed, got %s/%s", run.Provider, run.Status)
 	}
-	if !run.CreatedAt.Equal(newer) {
-		t.Fatalf("expected created_at %v, got %v", newer, run.CreatedAt)
+	if run.CompletedAt == nil || !run.CompletedAt.Equal(newer) {
+		t.Fatalf("expected completed_at %v, got %v", newer, run.CompletedAt)
 	}
 }

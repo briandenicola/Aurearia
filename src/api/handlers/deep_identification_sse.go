@@ -84,6 +84,8 @@ func (h *DeepIdentificationHandler) StreamEvents(c *gin.Context) {
 
 	ch, unsubscribe := broker.Subscribe(jobID)
 	defer unsubscribe()
+	endStream := h.service.BeginSSEStream(since > 0)
+	defer endStream()
 
 	ctx := c.Request.Context()
 	lastSeq := since
@@ -113,6 +115,7 @@ func (h *DeepIdentificationHandler) StreamEvents(c *gin.Context) {
 	// retention sweep already pruned the gap). This is a control frame:
 	// it consumes no sequence number (`id:` omitted, contract §1/§2).
 	if job.EventsPrunedAt != nil && since > 0 && (len(events) == 0 || events[0].Seq != since+1) {
+		h.service.RecordSSETruncation()
 		earliest := job.LastSeq
 		if len(events) > 0 {
 			earliest = events[0].Seq

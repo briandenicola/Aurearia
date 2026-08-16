@@ -201,7 +201,7 @@ Three route groups with distinct auth levels:
 |-------|--------|------|----------------|
 | `api` (public) | `/api` | None (rate-limited) | `/auth/login`, `/auth/register`, `/auth/refresh`, `/auth/webauthn/*`, `/showcase/:slug` |
 | `protected` | `/api` | JWT or API Key | `/coins`, `/coins/bulk`, `/sets`, `/agent/chat`, `/deep-identification/*`, `/auctions`, `/stats`, `/social/*`, `/notifications`, `/calendar/*`, `/showcases/*`, `/api-keys` |
-| `admin` | `/api/admin` | JWT + admin role | `/users`, `/settings`, `/logs`, `/availability-runs`, `/valuation-runs`, `/deep-identification/ocre/health`, `/mint-locations/:id/nomisma/*`, `/test-anthropic`, `/test-searxng` |
+| `admin` | `/api/admin` | JWT + admin role | `/users`, `/settings`, `/logs`, `/availability-runs`, `/valuation-runs`, `/deep-identification/ocre/health`, `/deep-identification/observability`, `/mint-locations/:id/nomisma/*`, `/test-anthropic`, `/test-searxng` |
 
 ### Shared GORM Scopes
 
@@ -776,6 +776,11 @@ Deep Analysis defaults to disabled. Its settings cover enablement, worker count,
 per-user concurrency, queue depth, hard timeout, event/result retention,
 provider count, Numista call budget, and OCRE enablement/call budget. RPC remains
 disabled and non-automatable. Disabling OCRE prevents new OCRE calls.
+
+The admin-only Deep Analysis operations view combines durable aggregate job and
+provider-run status/latency with process-local SSE, cleanup, and janitor
+counters. It never returns notes, query terms, claims, reports, tokens, or
+per-job owner content.
 
 ---
 

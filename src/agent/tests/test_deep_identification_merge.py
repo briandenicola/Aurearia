@@ -7,6 +7,7 @@ and that non-automated/unavailable providers never emit `no_match`.
 import random
 
 from app.models.responses import ProviderClaim, ProviderEvidence
+from app.teams.deep_identification.evaluator import detect_disagreements
 from app.teams.deep_identification.merge import sort_claims, validate_citations
 from app.teams.deep_identification.providers import ngc, ocre, rpc
 
@@ -84,6 +85,48 @@ def test_sort_claims_shuffle_stability():
     random.Random(42).shuffle(shuffled)
     result = sort_claims(shuffled)
     assert [c.value for _, _, c in baseline] == [c.value for _, _, c in result]
+
+
+def test_conflicting_provider_claims_remain_an_unresolved_disagreement():
+    rows = [
+        ProviderEvidence(
+            provider="numista",
+            status="contributed",
+            automatable=True,
+            claims=[
+                ProviderClaim(
+                    field="mint",
+                    value="Rome",
+                    confidence=0.8,
+                    citation="https://en.numista.com/catalogue/1",
+                )
+            ],
+        ),
+        ProviderEvidence(
+            provider="nomisma",
+            status="contributed",
+            automatable=True,
+            claims=[
+                ProviderClaim(
+                    field="mint",
+                    value="Antioch",
+                    confidence=0.7,
+                    citation="https://nomisma.org/id/antioch",
+                )
+            ],
+        ),
+    ]
+
+    disagreements, resolved_count = detect_disagreements(rows)
+
+    assert resolved_count == 0
+    assert len(disagreements) == 1
+    assert disagreements[0].field == "mint"
+    assert disagreements[0].resolution == "unresolved"
+    assert {(ref.provider, ref.claim_index) for ref in disagreements[0].claim_refs} == {
+        ("numista", 0),
+        ("nomisma", 0),
+    }
 
 
 def test_ngc_ocre_rpc_never_emit_no_match():

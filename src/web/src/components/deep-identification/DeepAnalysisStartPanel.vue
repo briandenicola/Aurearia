@@ -15,43 +15,43 @@
     </div>
 
     <div v-else class="grid min-w-0 gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr))]">
-      <label
+      <div
         v-if="!hasExistingObverse"
         class="relative grid min-h-[170px] cursor-pointer gap-3 rounded-sm border border-dashed border-border-accent bg-card p-4 transition-[border-color,background] duration-200 hover:border-gold hover:bg-card-hover"
       >
         <span class="text-base font-semibold text-heading">Obverse *</span>
         <img v-if="obverseUrl" :src="obverseUrl" alt="Obverse preview" class="aspect-square w-full rounded-sm border border-border-subtle object-cover">
         <span v-else class="grid min-h-20 place-items-center rounded-sm border border-dashed border-border-subtle p-3 text-center text-body text-text-secondary">Required obverse photo</span>
-        <span class="justify-self-start rounded-full border border-border-accent px-[0.7rem] py-1 text-sm font-medium text-gold">{{ obverseImage ? 'Replace photo' : 'Choose photo' }}</span>
-        <button v-if="obverseImage" type="button" class="relative z-10 justify-self-start bg-transparent p-0 text-sm text-byzantine underline" @click.prevent="obverseImage = null">Remove</button>
-        <input class="absolute inset-0 cursor-pointer opacity-0" type="file" accept="image/*" capture="environment" @change="onSingleFile('obverse', $event)">
-      </label>
+        <span class="chip pointer-events-none justify-self-start">{{ obverseImage ? 'Replace photo' : 'Choose photo' }}</span>
+        <button v-if="obverseImage" type="button" class="relative z-10 min-h-[44px] justify-self-start bg-transparent px-2 text-sm text-byzantine underline" aria-label="Remove obverse photo" @click="obverseImage = null">Remove</button>
+        <input class="absolute inset-0 cursor-pointer opacity-0" type="file" accept="image/*" capture="environment" aria-label="Choose obverse photo" @change="onSingleFile('obverse', $event)">
+      </div>
       <div v-else class="grid min-h-[170px] gap-3 rounded-sm border border-border-subtle bg-card p-4">
         <span class="text-base font-semibold text-heading">Obverse</span>
         <span class="grid min-h-20 place-items-center rounded-sm border border-border-subtle bg-input p-3 text-center text-body text-text-secondary">Using this coin's existing obverse photo</span>
       </div>
-      <label
+      <div
         v-if="!hasExistingReverse"
         class="relative grid min-h-[170px] cursor-pointer gap-3 rounded-sm border border-dashed border-border-accent bg-card p-4 transition-[border-color,background] duration-200 hover:border-gold hover:bg-card-hover"
       >
         <span class="text-base font-semibold text-heading">Reverse *</span>
         <img v-if="reverseUrl" :src="reverseUrl" alt="Reverse preview" class="aspect-square w-full rounded-sm border border-border-subtle object-cover">
         <span v-else class="grid min-h-20 place-items-center rounded-sm border border-dashed border-border-subtle p-3 text-center text-body text-text-secondary">Required reverse photo</span>
-        <span class="justify-self-start rounded-full border border-border-accent px-[0.7rem] py-1 text-sm font-medium text-gold">{{ reverseImage ? 'Replace photo' : 'Choose photo' }}</span>
-        <button v-if="reverseImage" type="button" class="relative z-10 justify-self-start bg-transparent p-0 text-sm text-byzantine underline" @click.prevent="reverseImage = null">Remove</button>
-        <input class="absolute inset-0 cursor-pointer opacity-0" type="file" accept="image/*" capture="environment" @change="onSingleFile('reverse', $event)">
-      </label>
+        <span class="chip pointer-events-none justify-self-start">{{ reverseImage ? 'Replace photo' : 'Choose photo' }}</span>
+        <button v-if="reverseImage" type="button" class="relative z-10 min-h-[44px] justify-self-start bg-transparent px-2 text-sm text-byzantine underline" aria-label="Remove reverse photo" @click="reverseImage = null">Remove</button>
+        <input class="absolute inset-0 cursor-pointer opacity-0" type="file" accept="image/*" capture="environment" aria-label="Choose reverse photo" @change="onSingleFile('reverse', $event)">
+      </div>
       <div v-else class="grid min-h-[170px] gap-3 rounded-sm border border-border-subtle bg-card p-4">
         <span class="text-base font-semibold text-heading">Reverse</span>
         <span class="grid min-h-20 place-items-center rounded-sm border border-border-subtle bg-input p-3 text-center text-body text-text-secondary">Using this coin's existing reverse photo</span>
       </div>
-      <label class="relative grid min-h-[170px] cursor-pointer gap-3 rounded-sm border border-dashed border-border-accent bg-card p-4 transition-[border-color,background] duration-200 hover:border-gold hover:bg-card-hover">
+      <div class="relative grid min-h-[170px] cursor-pointer gap-3 rounded-sm border border-dashed border-border-accent bg-card p-4 transition-[border-color,background] duration-200 hover:border-gold hover:bg-card-hover">
         <span class="text-base font-semibold text-heading">Hint photos</span>
         <span class="grid min-h-20 place-items-center rounded-sm border border-dashed border-border-subtle p-3 text-center text-body text-text-secondary">{{ hintCountText }}</span>
-        <span class="justify-self-start rounded-full border border-border-accent px-[0.7rem] py-1 text-sm font-medium text-gold">{{ hintImages.length ? 'Replace hints' : 'Choose hints' }}</span>
-        <button v-if="hintImages.length" type="button" class="relative z-10 justify-self-start bg-transparent p-0 text-sm text-byzantine underline" @click.prevent="hintImages = []">Remove</button>
-        <input class="absolute inset-0 cursor-pointer opacity-0" type="file" accept="image/*" multiple @change="onHintFiles">
-      </label>
+        <span class="chip pointer-events-none justify-self-start">{{ hintImages.length ? 'Replace hints' : 'Choose hints' }}</span>
+        <button v-if="hintImages.length" type="button" class="relative z-10 min-h-[44px] justify-self-start bg-transparent px-2 text-sm text-byzantine underline" aria-label="Remove hint photos" @click="hintImages = []">Remove</button>
+        <input class="absolute inset-0 cursor-pointer opacity-0" type="file" accept="image/*" multiple aria-label="Choose hint photos" @change="onHintFiles">
+      </div>
     </div>
     <p v-if="!reuseCapturedEvidence" class="text-sm text-text-secondary">
       Hint photos (labels, envelopes, references) are used only during analysis and are never saved to your coin.
@@ -71,7 +71,7 @@
     <fieldset class="grid gap-2 rounded-sm border border-border-subtle p-3">
       <legend class="px-1 text-base font-semibold text-heading">Providers (optional override)</legend>
       <p class="text-sm text-text-secondary">Leave all unchecked to let Deep Analysis choose providers automatically.</p>
-      <label v-for="providerId in providerOptions" :key="providerId" class="flex items-center gap-2 text-body text-text-primary">
+      <label v-for="providerId in eligibleProviders" :key="providerId" class="flex min-h-[44px] items-center gap-2 text-body text-text-primary">
         <input type="checkbox" :value="providerId" :checked="selectedProviders.includes(providerId)" @change="toggleProvider(providerId)">
         {{ providerLabel(providerId) }}
       </label>
@@ -80,7 +80,7 @@
     <p v-if="validationError" role="alert" class="text-body text-byzantine">{{ validationError }}</p>
     <p v-if="submitError" role="alert" class="text-body text-byzantine">{{ submitError }}</p>
 
-    <div class="flex justify-end gap-3">
+    <div class="flex flex-wrap justify-end gap-3">
       <BaseButton type="button" variant="ghost" @click="$emit('cancel')">Cancel</BaseButton>
       <BaseButton type="button" variant="primary" :loading="submitting" @click="onSubmit">Start Deep Analysis</BaseButton>
     </div>
@@ -93,8 +93,6 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import type { CreateDeepIdentificationJobInput, DeepProviderId } from '@/types'
 
 const MAX_DEEP_HINT_IMAGES = 3
-
-const providerOptions: DeepProviderId[] = ['nomisma', 'numista', 'ngc', 'ocre', 'rpc']
 
 function providerLabel(id: DeepProviderId): string {
   switch (id) {
@@ -116,6 +114,7 @@ const props = withDefaults(defineProps<{
   initialReverseImage?: File | null
   initialHintImages?: File[]
   initialNotes?: string
+  eligibleProviders?: DeepProviderId[]
   submitting?: boolean
   submitError?: string
 }>(), {
@@ -127,6 +126,7 @@ const props = withDefaults(defineProps<{
   initialReverseImage: null,
   initialHintImages: () => [],
   initialNotes: '',
+  eligibleProviders: () => ['nomisma', 'numista'],
   submitting: false,
   submitError: '',
 })

@@ -24,8 +24,8 @@
             <BaseBadge>{{ job.status }}</BaseBadge>
           </div>
           <p class="m-0 text-body text-text-secondary">
-            Deep Analysis runs Nomisma and Numista automatically. NGC results link out only; OCRE and RPC
-            remain manual for this job. Progress and results will appear here as the job runs.
+            Deep Analysis routes eligible reference providers for this coin. NGC remains link-out only and
+            RPC is unavailable. Progress, provider selection, and exact outcomes appear here as the job runs.
           </p>
 
           <p v-if="streamError" role="alert" class="text-body text-byzantine">{{ streamError }}</p>
@@ -39,6 +39,15 @@
             :cancelling="deep.cancelling.value"
             @cancel="onCancel"
           />
+
+          <DeepProviderCoverageList
+            v-if="!isTerminal && liveProviderCoverage.length"
+            :coverage="liveProviderCoverage"
+            title="Live provider coverage"
+          />
+          <p v-if="routerRationale" class="m-0 break-words text-sm text-text-secondary [overflow-wrap:anywhere]">
+            <strong class="text-text-primary">Provider selection:</strong> {{ routerRationale }}
+          </p>
 
           <div v-if="canRetry" class="flex flex-wrap items-center gap-3">
             <BaseButton
@@ -108,9 +117,16 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import DeepAnalysisProgressTimeline from '@/components/deep-identification/DeepAnalysisProgressTimeline.vue'
 import DeepReportPanel from '@/components/deep-identification/DeepReportPanel.vue'
 import DeepProposalEditor from '@/components/deep-identification/DeepProposalEditor.vue'
+import DeepProviderCoverageList from '@/components/deep-identification/DeepProviderCoverageList.vue'
 import { useDeepIdentification } from '@/composables/useDeepIdentification'
 import { useDeepIdentificationStream } from '@/composables/useDeepIdentificationStream'
-import type { DeepApplyTarget, DeepProposalFieldEdit } from '@/types'
+import type {
+  DeepApplyTarget,
+  DeepProposalFieldEdit,
+  DeepProviderId,
+  DeepProviderStatus,
+  DeepReportCoverage,
+} from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -144,6 +160,32 @@ async function onCancel() {
 }
 
 const isTerminal = computed(() => terminalStatus.value === 'completed' || terminalStatus.value === 'partial')
+const routerRationale = computed(() => {
+  if (job.value?.routerRationale) return job.value.routerRationale
+  const event = [...stream.events.value].reverse().find((entry) => entry.type === 'router_selected')
+  return typeof event?.payload.rationale === 'string' ? event.payload.rationale : ''
+})
+const liveProviderCoverage = computed<DeepReportCoverage[]>(() => {
+  const statuses = new Map<DeepProviderId, DeepReportCoverage>()
+  for (const event of stream.events.value) {
+    const provider = event.payload.provider
+    if (typeof provider !== 'string') continue
+    const providerId = provider as DeepProviderId
+    if (event.type === 'provider_started') {
+      statuses.set(providerId, { provider: providerId, status: 'running' })
+    } else if (event.type === 'provider_result') {
+      const status = typeof event.payload.status === 'string'
+        ? event.payload.status as DeepProviderStatus
+        : 'failed'
+      statuses.set(providerId, {
+        provider: providerId,
+        status,
+        linkOut: typeof event.payload.linkOut === 'string' ? event.payload.linkOut : undefined,
+      })
+    }
+  }
+  return [...statuses.values()]
+})
 
 // Retry is offered for any contract-eligible terminal state (completed,
 // partial, failed, cancelled) and never while the job is still active
@@ -202,6 +244,8 @@ async function onApplyProposal() {
   }
   if (target === 'draft' && result.draftId) {
     await router.push({ name: 'quick-capture-draft', params: { id: String(result.draftId) } })
+  } else {
+    await refresh(jobId.value)
   }
 }
 

@@ -153,6 +153,7 @@ func seedDeepRunnerJob(t *testing.T, db *gorm.DB, source models.DeepJobSource, c
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
+
 	job := &models.DeepIdentificationJob{
 		UserID:           user.ID,
 		Source:           source,
@@ -165,6 +166,90 @@ func seedDeepRunnerJob(t *testing.T, db *gorm.DB, source models.DeepJobSource, c
 		t.Fatalf("seed job: %v", err)
 	}
 	return job, user.ID
+}
+
+func TestDeepIdentificationPipelineRunnerSettlesUnfinishedProviderRuns(t *testing.T) {
+	tests := []struct {
+		name       string
+		mode       string
+		wantStatus models.DeepProviderRunStatus
+		wantError  string
+	}{
+		{name: "explicit cancellation", mode: "cancel", wantStatus: models.DeepProviderRunSkipped},
+		{name: "hard timeout", mode: "timeout", wantStatus: models.DeepProviderRunTimedOut, wantError: "timeout"},
+		{name: "agent failure", mode: "failure", wantStatus: models.DeepProviderRunFailed, wantError: "upstream"},
+		{name: "partial synthesis timeout", mode: "partial", wantStatus: models.DeepProviderRunTimedOut, wantError: "timeout"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			started := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				flusher := w.(http.Flusher)
+				_, _ = w.Write([]byte("data: {\"type\":\"provider_started\",\"provider\":\"numista\"}\n\n"))
+				flusher.Flush()
+				close(started)
+				switch tt.mode {
+				case "cancel", "timeout":
+					<-r.Context().Done()
+				case "failure":
+					_, _ = w.Write([]byte("data: {\"type\":\"error\",\"code\":\"llm_unavailable\",\"message\":\"unavailable\"}\n\n"))
+					flusher.Flush()
+				case "partial":
+					_, _ = w.Write([]byte("data: {\"type\":\"synthesis\",\"report\":{\"partial_success\":true}}\n\n"))
+					flusher.Flush()
+				}
+			}))
+			defer server.Close()
+
+			runner, repo, db := newDeepRunnerStreamTestDeps(t, server.URL)
+			job, _ := seedDeepRunnerJob(t, db, models.DeepJobSourceIntake, nil)
+			ctx := context.Background()
+			cancel := func() {}
+			switch tt.mode {
+			case "cancel":
+				var cancelCtx context.CancelFunc
+				ctx, cancelCtx = context.WithCancel(ctx)
+				cancel = cancelCtx
+				go func() {
+					<-started
+					deadline := time.Now().Add(time.Second)
+					for time.Now().Before(deadline) {
+						var count int64
+						db.Model(&models.DeepIdentificationProviderRun{}).
+							Where("job_id = ? AND provider = ?", job.ID, models.DeepProviderNumista).
+							Count(&count)
+						if count == 1 {
+							break
+						}
+						time.Sleep(5 * time.Millisecond)
+					}
+					cancelCtx()
+				}()
+			case "timeout":
+				ctx, cancel = context.WithTimeout(ctx, 50*time.Millisecond)
+			}
+			defer cancel()
+
+			_, _ = runner.Run(ctx, job)
+
+			var run models.DeepIdentificationProviderRun
+			if err := db.Where("job_id = ? AND provider = ?", job.ID, models.DeepProviderNumista).First(&run).Error; err != nil {
+				t.Fatal(err)
+			}
+			if run.Status != tt.wantStatus || run.ErrorKind != tt.wantError || run.CompletedAt == nil {
+				t.Fatalf("provider settlement = status %q error %q completed %v, want status %q error %q",
+					run.Status, run.ErrorKind, run.CompletedAt, tt.wantStatus, tt.wantError)
+			}
+			metrics, err := repo.GetObservabilityMetrics()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if metrics.Providers[models.DeepProviderNumista].StatusCounts[tt.wantStatus] != 1 {
+				t.Fatalf("settled provider status missing from observability: %+v", metrics.Providers)
+			}
+		})
+	}
 }
 
 // TestRunnerAccumulatesStreamedClaimsIntoProposal is the core B1 regression:
@@ -245,6 +330,18 @@ func TestRunnerAccumulatesStreamedClaimsIntoProposal(t *testing.T) {
 	}
 	if publicPayload.ClaimCount != 1 {
 		t.Fatalf("expected claimCount 1 in the bounded public payload, got %d", publicPayload.ClaimCount)
+	}
+
+	var providerRun models.DeepIdentificationProviderRun
+	if err := db.Where("job_id = ? AND provider = ?", job.ID, models.DeepProviderNumista).First(&providerRun).Error; err != nil {
+		t.Fatalf("load persisted provider run: %v", err)
+	}
+	if providerRun.Status != models.DeepProviderRunContributed ||
+		providerRun.CallCount != 1 || providerRun.LatencyMS < 1 {
+		t.Fatalf("provider run operational fields = %+v", providerRun)
+	}
+	if providerRun.ClaimsJSON != "" {
+		t.Fatalf("provider run must not persist claims: %q", providerRun.ClaimsJSON)
 	}
 }
 

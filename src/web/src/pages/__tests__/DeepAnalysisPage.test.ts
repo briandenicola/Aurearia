@@ -248,4 +248,29 @@ describe('DeepAnalysisPage', () => {
       params: { id: '27' },
     })
   })
+
+  it('never renders hint artifact data returned outside the public job contract', async () => {
+    vi.mocked(getDeepIdentificationJob).mockResolvedValue({
+      data: {
+        job: {
+          ...terminalJob('completed'),
+          hintImages: [{ path: '/uploads/deep-jobs/job-9/private-hint.jpg' }],
+        },
+        report: {
+          schemaVersion: 1,
+          narrative: 'Identification completed.',
+          coverage: [],
+          partialSuccess: false,
+          generatedAt: '2030-01-01T00:00:00Z',
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof getDeepIdentificationJob>>)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream(), { status: 200 })))
+
+    const wrapper = mount(DeepAnalysisPage, { global: { stubs } })
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('private-hint.jpg')
+    expect(wrapper.find('img[src*="private-hint"]').exists()).toBe(false)
+  })
 })

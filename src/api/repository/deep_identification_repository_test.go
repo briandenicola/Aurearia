@@ -46,6 +46,10 @@ func createDeepTestUser(t *testing.T, db *gorm.DB, username string) models.User 
 	return user
 }
 
+func timePtr(value time.Time) *time.Time {
+	return &value
+}
+
 func TestDeepIdentificationRepository_OwnerScoping(t *testing.T) {
 	db := newDeepIdentificationTestDB(t)
 	repo := NewDeepIdentificationRepository(db)
@@ -67,6 +71,166 @@ func TestDeepIdentificationRepository_OwnerScoping(t *testing.T) {
 	}
 	if err := repo.RequestCancel(created.ID, other.ID); err == nil {
 		t.Fatal("expected cross-user RequestCancel to fail")
+	}
+}
+
+func TestDeepIdentificationRepository_RecordRouterSelectionIsOwnerScoped(t *testing.T) {
+	db := newDeepIdentificationTestDB(t)
+	repo := NewDeepIdentificationRepository(db)
+	owner := createDeepTestUser(t, db, "router-owner")
+	other := createDeepTestUser(t, db, "router-other")
+	job := &models.DeepIdentificationJob{
+		UserID: owner.ID, Source: models.DeepJobSourceIntake,
+		InputFingerprint: "fp-router-selection", ExpiresAt: time.Now().Add(90 * 24 * time.Hour),
+	}
+	created, _, err := repo.CreateJob(job)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := repo.RecordRouterSelection(created.ID, other.ID, []string{"numista"}, "wrong owner"); err != nil {
+		t.Fatal(err)
+	}
+	unchanged, err := repo.GetJob(created.ID, owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unchanged.SelectedProviders != "" || unchanged.RouterRationale != "" {
+		t.Fatal("cross-owner router update must not modify the job")
+	}
+
+	if err := repo.RecordRouterSelection(created.ID, owner.ID, []string{"nomisma", "numista"}, "image evidence"); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := repo.GetJob(created.ID, owner.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.SelectedProviders != "nomisma,numista" || updated.RouterRationale != "image evidence" {
+		t.Fatalf("unexpected router selection persistence: %#v", updated)
+	}
+}
+
+func TestDeepIdentificationRepository_ObservabilityAggregatesOnlyOperationalData(t *testing.T) {
+	db := newDeepIdentificationTestDB(t)
+	repo := NewDeepIdentificationRepository(db)
+	user := createDeepTestUser(t, db, "observability-owner")
+	base := time.Now().Add(-time.Hour)
+
+	statuses := []models.DeepJobStatus{
+		models.DeepJobStatusCompleted,
+		models.DeepJobStatusPartial,
+		models.DeepJobStatusFailed,
+		models.DeepJobStatusCancelled,
+	}
+
+	for i, status := range statuses {
+		started := base.Add(time.Duration(i) * time.Second)
+		completed := started.Add(time.Duration(i+1) * 100 * time.Millisecond)
+		job := models.DeepIdentificationJob{
+			UserID: user.ID, Source: models.DeepJobSourceIntake,
+			InputFingerprint: fmt.Sprintf("observability-terminal-%d", i),
+			Status:           status, StartedAt: timePtr(started), CompletedAt: timePtr(completed),
+			Notes: "must not be selected", ReportJSON: `{"private":"report"}`,
+			ExpiresAt: time.Now().Add(time.Hour), ActiveKey: fmt.Sprintf("%d", i+1),
+		}
+		if err := db.Create(&job).Error; err != nil {
+			t.Fatalf("seed terminal job %d: %v", i, err)
+		}
+	}
+	queued := models.DeepIdentificationJob{
+		UserID: user.ID, Source: models.DeepJobSourceIntake,
+		InputFingerprint: "observability-queued", Status: models.DeepJobStatusQueued,
+		ExpiresAt: time.Now().Add(time.Hour),
+	}
+	if err := db.Create(&queued).Error; err != nil {
+		t.Fatalf("seed queued job: %v", err)
+	}
+
+	started := base
+	completed := base.Add(250 * time.Millisecond)
+	if err := repo.RecordProviderResult(
+		1, user.ID, models.DeepProviderNumista, models.DeepProviderRunContributed,
+		true, 0.9, 2, 250, "upstream", started, completed,
+	); err != nil {
+		t.Fatalf("record provider result: %v", err)
+	}
+	if err := db.Model(&models.DeepIdentificationProviderRun{}).
+		Where("job_id = ? AND provider = ?", 1, models.DeepProviderNumista).
+		Update("claims_json", `{"private":"claim"}`).Error; err != nil {
+		t.Fatalf("seed prohibited legacy claims: %v", err)
+	}
+	if err := repo.RecordProviderResult(
+		1, user.ID, models.DeepProviderNumista, models.DeepProviderRunContributed,
+		true, 0.9, 2, 250, "", started, completed,
+	); err != nil {
+		t.Fatalf("rewrite provider result: %v", err)
+	}
+
+	var run models.DeepIdentificationProviderRun
+	if err := db.Where("job_id = ? AND provider = ?", 1, models.DeepProviderNumista).First(&run).Error; err != nil {
+		t.Fatalf("load provider run: %v", err)
+	}
+	if run.ClaimsJSON != "" {
+		t.Fatalf("provider observability row retained claims: %q", run.ClaimsJSON)
+	}
+
+	metrics, err := repo.GetObservabilityMetrics()
+	if err != nil {
+		t.Fatalf("GetObservabilityMetrics: %v", err)
+	}
+	if metrics.PartialSuccessRate != 0.25 {
+		t.Fatalf("partial success rate = %v, want 0.25", metrics.PartialSuccessRate)
+	}
+	if metrics.Duration.P50MS != 200 || metrics.Duration.P95MS != 400 {
+		t.Fatalf("duration percentiles = %+v, want p50=200 p95=400", metrics.Duration)
+	}
+	if metrics.QueueDepth != 1 {
+		t.Fatalf("queue depth = %d, want 1", metrics.QueueDepth)
+	}
+	provider := metrics.Providers[models.DeepProviderNumista]
+	if provider.StatusCounts[models.DeepProviderRunContributed] != 1 ||
+		provider.Latency.P50MS != 250 || provider.Latency.P95MS != 250 {
+		t.Fatalf("provider metrics = %+v", provider)
+	}
+}
+
+func TestDeepIdentificationRepository_SettleRunningProviderRuns(t *testing.T) {
+	db := newDeepIdentificationTestDB(t)
+	repo := NewDeepIdentificationRepository(db)
+	user := createDeepTestUser(t, db, "provider-settlement-owner")
+	started := time.Now().Add(-250 * time.Millisecond)
+	if err := repo.RecordProviderStarted(41, user.ID, models.DeepProviderNumista, true, started); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.RecordProviderResult(
+		41, user.ID, models.DeepProviderNomisma, models.DeepProviderRunContributed,
+		true, 0.8, 1, 50, "", started, started.Add(50*time.Millisecond),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	completed := time.Now()
+	if err := repo.SettleRunningProviderRuns(
+		41, user.ID, models.DeepProviderRunTimedOut, "timeout", completed,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	var timedOut models.DeepIdentificationProviderRun
+	if err := db.Where("job_id = ? AND provider = ?", 41, models.DeepProviderNumista).First(&timedOut).Error; err != nil {
+		t.Fatal(err)
+	}
+	if timedOut.Status != models.DeepProviderRunTimedOut || timedOut.CompletedAt == nil ||
+		timedOut.ErrorKind != "timeout" || timedOut.LatencyMS <= 0 {
+		t.Fatalf("unfinished provider was not settled: %+v", timedOut)
+	}
+	var contributed models.DeepIdentificationProviderRun
+	if err := db.Where("job_id = ? AND provider = ?", 41, models.DeepProviderNomisma).First(&contributed).Error; err != nil {
+		t.Fatal(err)
+	}
+	if contributed.Status != models.DeepProviderRunContributed {
+		t.Fatalf("settlement changed an already terminal provider: %+v", contributed)
 	}
 }
 

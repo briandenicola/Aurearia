@@ -334,6 +334,11 @@ export async function installWorkflowApiMocks(page: Page, initialCoins: Coin[] =
       return
     }
 
+    if (path === '/deep-identification/capability' && method === 'GET') {
+      await json(route, { enabled: true, providers: ['nomisma', 'numista', 'ocre'] })
+      return
+    }
+
     if (path === '/deep-identification/jobs' && method === 'POST') {
       const id = nextDeepJobId++
       const rawBody = request.postData() ?? ''

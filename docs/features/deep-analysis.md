@@ -37,12 +37,16 @@ SPARQL.
 
 1. Start from Coin Lookup/new intake or a saved coin with obverse and reverse
    images.
-2. Optionally provide notes, hint images, or a provider override.
-3. The router selects available providers within configured limits.
-4. Provider progress streams to the UI and remains replayable after reconnect.
+2. Optionally provide notes, hint images, or adjust the backend-eligible
+   provider set. Only providers that can actually be automated are selectable.
+3. The router selects available providers within configured limits and records
+   its rationale.
+4. Provider progress and exact coverage states stream to the UI and remain
+   replayable after reconnect. Failures, timeouts, no-match results, unavailable
+   providers, and non-automated providers remain distinct.
 5. The pipeline evaluates contradictions and synthesizes a cited report.
-6. Review and edit the proposal, accept individual fields, then explicitly apply
-   them to a saved coin or intake draft.
+6. Review and edit the proposal, accept individual fields, then select
+   **Save as Draft** for intake or **Apply to Coin** for a saved coin.
 
 Jobs settle as completed, partial, failed, or cancelled. One provider timing out
 or being unavailable does not fail evidence returned by other providers.
@@ -59,6 +63,12 @@ timeout, retention, provider count, and provider call budgets. Disabling OCRE
 is an immediate rollback: no new OCRE requests are made.
 
 `DeepIdentificationRPCEnabled` remains false and does not make RPC automatable.
+
+Admins can inspect redacted operational metrics beside these settings: terminal
+job counts, partial-success rate, p50/p95 job and provider latency, exact
+provider outcomes, queue and live-stream state, reconnect/truncation counts, and
+cleanup/janitor outcomes. This view contains no owner notes, provider queries,
+claims, reports, tokens, or per-job identifiers.
 
 ## Privacy and Security
 
@@ -77,4 +87,3 @@ is an immediate rollback: no new OCRE requests are made.
 - [ADR 0010 - OCRE ODbL Provider](../adr/0010-ocre-odbl-provider.md)
 - [Coin Lookup](coin-lookup.md)
 - [AI Coin Analysis](ai-analysis.md)
-

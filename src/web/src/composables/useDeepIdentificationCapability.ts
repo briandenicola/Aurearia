@@ -1,5 +1,6 @@
 import { onMounted, ref } from 'vue'
 import { getDeepIdentificationCapability } from '@/api/client'
+import type { DeepProviderId } from '@/types'
 
 /**
  * useDeepIdentificationCapability probes the backend-authoritative Deep
@@ -10,14 +11,17 @@ import { getDeepIdentificationCapability } from '@/api/client'
  */
 export function useDeepIdentificationCapability() {
   const enabled = ref(false)
+  const providers = ref<DeepProviderId[]>([])
   const loaded = ref(false)
 
   async function load(): Promise<void> {
     try {
       const { data } = await getDeepIdentificationCapability()
       enabled.value = data?.enabled === true
+      providers.value = data?.providers ?? []
     } catch {
       enabled.value = false
+      providers.value = []
     } finally {
       loaded.value = true
     }
@@ -25,5 +29,5 @@ export function useDeepIdentificationCapability() {
 
   onMounted(load)
 
-  return { enabled, loaded, load }
+  return { enabled, providers, loaded, load }
 }

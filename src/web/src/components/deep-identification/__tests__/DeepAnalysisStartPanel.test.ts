@@ -79,6 +79,16 @@ describe('DeepAnalysisStartPanel', () => {
     expect(payload.providers).toEqual(['nomisma'])
   })
 
+  it('offers only backend-eligible providers for override', () => {
+    const wrapper = mount(DeepAnalysisStartPanel, {
+      props: { eligibleProviders: ['numista', 'ocre'] },
+    })
+    const values = wrapper.findAll('input[type="checkbox"]').map((input) => input.element.value)
+    expect(values).toEqual(['numista', 'ocre'])
+    expect(wrapper.text()).not.toContain('RPC')
+    expect(wrapper.text()).not.toContain('NGC')
+  })
+
   it('emits cancel when the Cancel button is clicked', async () => {
     const wrapper = mountPanel()
     const cancelButton = wrapper.findAll('button').find((b) => b.text().includes('Cancel'))
