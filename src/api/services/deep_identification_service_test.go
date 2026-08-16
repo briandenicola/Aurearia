@@ -758,6 +758,49 @@ func TestDeepIdentificationService_CreateJobFromIntake_IntakeHappyPath(t *testin
 	}
 }
 
+func TestDeepIdentificationService_WorkerCannotClaimUntilIntakeArtifactsAreReady(t *testing.T) {
+	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
+	user := models.User{Username: "intake-race-owner", Email: "intake-race-owner@example.com", PasswordHash: "x"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	enableDeepIdentification(t, svc, nil)
+
+	started := make(chan struct{}, 1)
+	svc.SetPipelineRunner(&fakeRunner{run: func(context.Context, *models.DeepIdentificationJob) (*DeepPipelineResult, error) {
+		started <- struct{}{}
+		return &DeepPipelineResult{ReportJSON: "{}"}, nil
+	}})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	svc.StartWorkers(ctx)
+
+	// Reproduce the production critical section deterministically: StartJob
+	// publishes a queued row and wakes the worker while intake persistence is
+	// still holding the exclusive lock.
+	svc.intakeMu.Lock()
+	job, reused, err := svc.StartJob(newDeepStartJob(t, user.ID, "intake race"))
+	if err != nil || reused {
+		svc.intakeMu.Unlock()
+		t.Fatalf("expected a new queued job, got reused=%v err=%v", reused, err)
+	}
+
+	select {
+	case <-started:
+		svc.intakeMu.Unlock()
+		t.Fatal("worker claimed the job before intake artifacts were ready")
+	case <-time.After(100 * time.Millisecond):
+	}
+	svc.intakeMu.Unlock()
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("worker did not claim job %d after intake became ready", job.ID)
+	}
+}
+
 func TestDeepIdentificationService_CreateJobFromIntake_MissingRoleRejected(t *testing.T) {
 	svc, db, _ := newDeepIdentificationServiceTestDeps(t)
 	user := models.User{Username: "missing-role-owner", Email: "missing-role-owner@example.com", PasswordHash: "x"}

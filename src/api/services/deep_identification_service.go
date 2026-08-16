@@ -104,6 +104,10 @@ type DeepIdentificationService struct {
 	runnerMu sync.RWMutex
 	runner   DeepPipelineRunner
 
+	// intakeMu prevents workers from claiming a queued intake job before its
+	// obverse/reverse artifacts have been persisted.
+	intakeMu sync.RWMutex
+
 	cancelMu sync.Mutex
 	cancels  map[uint]context.CancelFunc
 
@@ -436,11 +440,10 @@ type CreateJobHintInput struct {
 // saved coin's existing image when coinID is set and no upload is
 // supplied), computes the input fingerprint up front so idempotent
 // duplicate-submit reuse (FR-007) works without ever creating artifacts for
-// a job that turns out to be a dupe, then creates the job via StartJob and
-// - only for a genuinely new job - persists the coin-face and hint
-// artifacts. If artifact persistence fails after the job row was created,
-// the job is settled failed immediately rather than left queued with
-// missing evidence.
+// a job that turns out to be a dupe, then creates the job and persists its
+// artifacts before workers may claim it. If artifact persistence fails after
+// the job row was created, the job is settled failed immediately rather than
+// left queued with missing evidence.
 func (s *DeepIdentificationService) CreateJobFromIntake(in CreateJobInput) (*models.DeepIdentificationJob, bool, error) {
 	source := models.DeepJobSourceIntake
 	var obverseImage, reverseImage *models.CoinImage
@@ -489,6 +492,13 @@ func (s *DeepIdentificationService) CreateJobFromIntake(in CreateJobInput) (*mod
 		RequestedProviders: strings.Join(in.RequestedProviders, ","),
 		ExpiresAt:          time.Now().Add(90 * 24 * time.Hour),
 	}
+
+	// StartJob makes the row visible as queued and wakes workers. Hold the
+	// intake write lock across row creation and artifact persistence so neither
+	// the wake signal nor the polling fallback can claim incomplete evidence.
+	s.intakeMu.Lock()
+	defer s.intakeMu.Unlock()
+
 	created, reused, err := s.StartJob(job)
 	if err != nil {
 		return nil, false, err
@@ -737,7 +747,9 @@ func (s *DeepIdentificationService) workerLoop(ctx context.Context, workerID str
 		case <-ticker.C:
 		}
 		for {
+			s.intakeMu.RLock()
 			job, claimed, err := s.repo.ClaimNextQueuedJob(workerID)
+			s.intakeMu.RUnlock()
 			if err != nil {
 				if s.logger != nil {
 					s.logger.Error("deep-identification", "worker %s failed to claim job: %v", workerID, err)
