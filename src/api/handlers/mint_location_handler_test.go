@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -15,6 +17,8 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
+
+var errNomismaUpstreamFailure = errors.New("nomisma upstream failure")
 
 func setupMintLocationHandlerRouter(t *testing.T, authenticated bool, role models.UserRole) (*gin.Engine, *gorm.DB) {
 	return setupMintLocationHandlerRouterForUser(t, authenticated, role, 1)
@@ -57,6 +61,57 @@ func setupMintLocationHandlerRouterForUser(t *testing.T, authenticated bool, rol
 	admin.POST("/mint-locations", handler.Create)
 	admin.PUT("/mint-locations/:id", handler.Update)
 	admin.DELETE("/mint-locations/:id", handler.Delete)
+
+	return r, db
+}
+
+// fakeNomismaClient is a test double for services.NomismaClient. If
+// failIfCalled is set, Search fails the test immediately - used to prove a
+// private mint's Nomisma routes never reach the client at all (User Story
+// 4: no outbound Nomisma call for a request that 404s on the mint guard).
+type fakeNomismaClient struct {
+	t            *testing.T
+	failIfCalled bool
+	candidates   []services.NomismaCandidate
+	kind         services.NomismaErrorKind
+	err          error
+}
+
+func (f *fakeNomismaClient) Search(ctx context.Context, query string, limit int) ([]services.NomismaCandidate, services.NomismaErrorKind, error) {
+	if f.failIfCalled {
+		f.t.Fatalf("NomismaClient.Search must never be invoked for this test, got query %q", query)
+	}
+	return f.candidates, f.kind, f.err
+}
+
+func setupMintLocationHandlerRouterWithNomisma(t *testing.T, role models.UserRole, client services.NomismaClient) (*gin.Engine, *gorm.DB) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to open test db: %v", err)
+	}
+	if err := db.AutoMigrate(&models.User{}, &models.Coin{}, &models.MintLocation{}); err != nil {
+		t.Fatalf("failed to migrate: %v", err)
+	}
+
+	svc := services.NewMintLocationService(repository.NewMintLocationRepository(db)).WithNomisma(client, services.NewNomismaCache())
+	handler := NewMintLocationHandler(svc)
+	r := gin.New()
+
+	protected := r.Group("/api")
+	protected.Use(func(c *gin.Context) {
+		c.Set("userId", uint(1))
+		c.Set("userRole", string(role))
+		c.Next()
+	})
+
+	admin := protected.Group("/admin")
+	admin.Use(AdminRequired())
+	admin.GET("/mint-locations/:id/nomisma/search", handler.SearchNomisma)
+	admin.POST("/mint-locations/:id/nomisma", handler.LinkNomisma)
+	admin.DELETE("/mint-locations/:id/nomisma", handler.UnlinkNomisma)
 
 	return r, db
 }
@@ -344,5 +399,156 @@ func TestMintLocationHandler_SelfServiceCannotMutateAnotherUsersPrivateMint(t *t
 	w := performMintLocationRequest(router, http.MethodDelete, "/api/mint-locations/"+id, "")
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 when a user tries to delete another user's private mint, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// --- Nomisma authority linking (343-nomisma-mint-authority-linking) ---
+
+func seedGlobalMintForNomisma(t *testing.T, db *gorm.DB) *models.MintLocation {
+	t.Helper()
+	mint := &models.MintLocation{
+		DisplayName:    "Rome",
+		NormalizedName: models.NormalizeMintLocationName("Rome"),
+		Lat:            41.9,
+		Lng:            12.5,
+		Aliases:        models.StringList{},
+	}
+	if err := db.Create(mint).Error; err != nil {
+		t.Fatalf("seed global mint failed: %v", err)
+	}
+	return mint
+}
+
+func seedPrivateMintForNomisma(t *testing.T, db *gorm.DB, userID uint) *models.MintLocation {
+	t.Helper()
+	mint := &models.MintLocation{
+		UserID:         &userID,
+		DisplayName:    "My Private Mint",
+		NormalizedName: models.NormalizeMintLocationName("My Private Mint"),
+		Lat:            1,
+		Lng:            1,
+		Aliases:        models.StringList{},
+	}
+	if err := db.Create(mint).Error; err != nil {
+		t.Fatalf("seed private mint failed: %v", err)
+	}
+	return mint
+}
+
+func TestMintLocationHandler_SearchNomisma_HappyPath(t *testing.T) {
+	client := &fakeNomismaClient{t: t, candidates: []services.NomismaCandidate{{URI: "http://nomisma.org/id/roma", Label: "Roma", Score: 100, Match: true}}}
+	router, db := setupMintLocationHandlerRouterWithNomisma(t, models.RoleAdmin, client)
+	mint := seedGlobalMintForNomisma(t, db)
+
+	id := strconv.FormatUint(uint64(mint.ID), 10)
+	w := performMintLocationRequest(router, http.MethodGet, "/api/admin/mint-locations/"+id+"/nomisma/search?query=Roma", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp nomismaSearchResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Status != services.NomismaSearchOK || len(resp.Candidates) != 1 {
+		t.Fatalf("unexpected response: %+v", resp)
+	}
+}
+
+func TestMintLocationHandler_LinkNomisma_HappyPath(t *testing.T) {
+	client := &fakeNomismaClient{t: t}
+	router, db := setupMintLocationHandlerRouterWithNomisma(t, models.RoleAdmin, client)
+	mint := seedGlobalMintForNomisma(t, db)
+
+	id := strconv.FormatUint(uint64(mint.ID), 10)
+	body := `{"uri":"http://nomisma.org/id/roma","label":"Roma"}`
+	w := performMintLocationRequest(router, http.MethodPost, "/api/admin/mint-locations/"+id+"/nomisma", body)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var updated models.MintLocation
+	if err := json.Unmarshal(w.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if updated.NomismaURI == nil || *updated.NomismaURI != "http://nomisma.org/id/roma" || updated.NomismaLabel != "Roma" {
+		t.Fatalf("unexpected response: %+v", updated)
+	}
+}
+
+func TestMintLocationHandler_UnlinkNomisma_RemovesLink(t *testing.T) {
+	client := &fakeNomismaClient{t: t}
+	router, db := setupMintLocationHandlerRouterWithNomisma(t, models.RoleAdmin, client)
+	mint := seedGlobalMintForNomisma(t, db)
+	id := strconv.FormatUint(uint64(mint.ID), 10)
+
+	linkBody := `{"uri":"http://nomisma.org/id/roma","label":"Roma"}`
+	performMintLocationRequest(router, http.MethodPost, "/api/admin/mint-locations/"+id+"/nomisma", linkBody)
+
+	w := performMintLocationRequest(router, http.MethodDelete, "/api/admin/mint-locations/"+id+"/nomisma", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp MessageResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Message != "Nomisma link removed" {
+		t.Fatalf("unexpected message: %+v", resp)
+	}
+}
+
+func TestMintLocationHandler_UnlinkNomisma_IdempotentDoubleUnlink(t *testing.T) {
+	client := &fakeNomismaClient{t: t}
+	router, db := setupMintLocationHandlerRouterWithNomisma(t, models.RoleAdmin, client)
+	mint := seedGlobalMintForNomisma(t, db)
+	id := strconv.FormatUint(uint64(mint.ID), 10)
+
+	w := performMintLocationRequest(router, http.MethodDelete, "/api/admin/mint-locations/"+id+"/nomisma", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 on first unlink, got %d: %s", w.Code, w.Body.String())
+	}
+	w = performMintLocationRequest(router, http.MethodDelete, "/api/admin/mint-locations/"+id+"/nomisma", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 on idempotent double-unlink, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestMintLocationHandler_Nomisma_PrivateMintReturns404AndNeverCallsClient(t *testing.T) {
+	client := &fakeNomismaClient{t: t, failIfCalled: true}
+	router, db := setupMintLocationHandlerRouterWithNomisma(t, models.RoleAdmin, client)
+	mint := seedPrivateMintForNomisma(t, db, 1)
+	id := strconv.FormatUint(uint64(mint.ID), 10)
+
+	w := performMintLocationRequest(router, http.MethodGet, "/api/admin/mint-locations/"+id+"/nomisma/search?query=Roma", "")
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for search on a private mint, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = performMintLocationRequest(router, http.MethodPost, "/api/admin/mint-locations/"+id+"/nomisma", `{"uri":"http://nomisma.org/id/roma","label":"Roma"}`)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for link on a private mint, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = performMintLocationRequest(router, http.MethodDelete, "/api/admin/mint-locations/"+id+"/nomisma", "")
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for unlink on a private mint, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestMintLocationHandler_SearchNomisma_UnavailableNeverSurfaces5xx(t *testing.T) {
+	client := &fakeNomismaClient{t: t, kind: services.NomismaErrorUnavailable, err: errNomismaUpstreamFailure}
+	router, db := setupMintLocationHandlerRouterWithNomisma(t, models.RoleAdmin, client)
+	mint := seedGlobalMintForNomisma(t, db)
+	id := strconv.FormatUint(uint64(mint.ID), 10)
+
+	w := performMintLocationRequest(router, http.MethodGet, "/api/admin/mint-locations/"+id+"/nomisma/search?query=Roma", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 (never 5xx) for an upstream Nomisma failure, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp nomismaSearchResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Status != services.NomismaSearchUnavailable || len(resp.Candidates) != 0 {
+		t.Fatalf("unexpected response: %+v", resp)
 	}
 }

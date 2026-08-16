@@ -129,7 +129,7 @@ Each coin can store:
 - **Financial data** — Purchase price, current value, acquisition date, dealer/source
 - **Images** — Multiple image uploads per coin (obverse, reverse, edge, detail, full) with a gallery viewer. Supports file upload, paste-from-URL (fetched via server proxy), and direct camera capture in PWA mode.
 - **Camera Capture (PWA)** — In PWA/mobile mode, a "Photo" button appears on upload sections letting you take coin photos directly with the rear camera. Available on the coin detail page and the add/edit form.
-- **AI Analysis** — Markdown-formatted analysis from Ollama, stored with the coin (obverse and reverse analyzed separately)
+- **AI Analysis** — Markdown-formatted analysis from the configured Anthropic or Ollama provider, stored with the coin (obverse and reverse analyzed separately)
 - **Structured Catalog References** — Add and manage normalized references per coin (`catalog`, `volume`, `number`, optional invoice number, optional authority URI) directly in coin detail.
 - **Activity Journal** — Timestamped log entries per coin (e.g., "cleaned", "sent to NGC for grading", "displayed at coin show"). Add and delete entries directly from the detail page.
 - **Numista Catalog Lookup** — Search the Numista coin catalog directly from a coin's detail page. Results show thumbnails, title, issuer, and year range with links to the full Numista catalog entry.
@@ -137,13 +137,17 @@ Each coin can store:
 
 ## AI Coin Analysis
 
-Upload photos of a coin and click **Analyze with AI** to get an AI-powered numismatic analysis via Ollama. The analysis covers identification, obverse/reverse descriptions, inscriptions, condition assessment, historical context, and estimated market value. Obverse and reverse sides are analyzed separately with dedicated prompts. If accepted, the analysis is saved to the coin's record.
+Upload photos of a coin and click **Analyze with AI** to get a numismatic
+analysis through the configured Anthropic or Ollama provider. The analysis
+covers identification, obverse/reverse descriptions, inscriptions, condition
+assessment, historical context, and estimated market value. Obverse and reverse
+sides are analyzed separately with dedicated prompts. If accepted, the analysis
+is saved to the coin's record.
 
 To enable AI analysis:
 
-1. Install [Ollama](https://ollama.ai/) and pull a vision model: `ollama pull llava`
-2. Start Ollama: `ollama serve`
-3. Configure the Ollama URL and model in **Admin → AI Configuration**
+Configure either Anthropic or Ollama in **Admin → AI Configuration**. Ollama
+deployments must run a compatible local vision model.
 
 ## AI Coin Search Agent
 
@@ -174,6 +178,13 @@ Use **Lookup Coin** from the main menu or Wish List page when evaluating a coin 
 When an NGC cert is found, the result includes the normalized cert and an official NGC Ancients verification link in the form `https://www.ngccoin.com/certlookup/{compactCert}/NGCAncients/`. The lookup returns immediately after NGC extraction instead of waiting on catalog enrichment. When no NGC cert is found, the app uses configured Numista access to search for possible catalog matches and displays links to Numista entries.
 
 Lookup results can be saved directly to the Wish List or Collection. The save flow creates the coin first, uploads the captured photos, then adds generated NGC or Numista structured references.
+
+When enabled, **Deep Analysis** is an optional slower path from lookup or a
+saved coin. It persists background work, streams replayable progress, routes to
+available evidence providers, and returns a cited report plus an editable,
+confirm-gated proposal. OCRE supplies Roman Imperial type evidence with ODbL
+1.0 / American Numismatic Society attribution; Nomisma authority links use CC
+BY 4.0. Automated RPC integration is paused.
 
 ## Numista Catalog Integration
 
@@ -237,7 +248,8 @@ The first registered user is the admin. Admins can access **Admin** to manage:
 
 - **Users** — View all registered users, delete accounts, and reset passwords.
 - **AI Configuration** — Select your AI Provider: Anthropic (recommended) or Ollama. Configure Ollama (URL, vision model, timeout, analysis prompts), Anthropic (API key, model dropdown, editable agent prompt for the search agent), and SearXNG URL for Ollama web search.
-- **System** — Set the application log level (trace, debug, info, warn, error) and configure the Numista API key for catalog lookups.
+- **System** — Set the application log level, configure Numista catalog access,
+  and control default-off Deep Analysis and OCRE settings and budgets.
 - **Coin Properties** — Configure newline-delimited Category and Era option lists used by coin forms and lookup saves.
 - **Logs** — View real-time application logs with level filtering, auto-refresh, and log export.
 - **Availability Checks** — Enable/disable automatic wishlist availability checking, configure the daily start time and repeat interval, and view paginated run history with per-coin drill-down results (URL, status, reason, HTTP code, whether the AI agent was used).
@@ -430,6 +442,9 @@ These are configured in the Admin UI (not environment variables) and stored in t
 | `OllamaTimeout`      | AI request timeout in seconds (default: `300`) |
 | `SearXNGURL`         | SearXNG search engine URL (required for Ollama web search) |
 | `NumistaAPIKey`       | Numista catalog API key for coin lookups |
+| `DeepIdentificationEnabled` | Enables optional persisted Deep Analysis jobs (default: `false`) |
+| `DeepIdentificationOCREEnabled` | Enables OCRE evidence in Deep Analysis (default: `false`) |
+| `DeepIdentificationOCRECallBudget` | Maximum OCRE calls per job (default: `3`) |
 | `CoinSearchPrompt`   | System prompt for the AI coin search agent |
 | `CoinShowsPrompt`    | System prompt for the coin shows agent |
 | `ValuationPrompt`    | System prompt for the value estimator |

@@ -14,12 +14,12 @@
 
 | Domain | Findings | Mitigated | Open | Accepted |
 |---|---:|---:|---:|---:|
-| Backend API | 11 | 10 | 1 | 0 |
+| Backend API | 12 | 11 | 1 | 0 |
 | Frontend | 8 | 3 | 4 | 1 |
 | Supply chain & infrastructure | 7 | 2 | 5 | 0 |
-| **Total** | **26 enumerated** | **15** | **10** | **1** |
+| **Total** | **27 enumerated** | **16** | **10** | **1** |
 
-**Last reconciliation:** 2026-06-01. Recent mitigations include B-2 (SQL injection whitelist), B-6/B-7/B-8 (request size limits, WebAuthn TTL and origin validation), B-10 (external tool server capability scoping, two-phase writes, kill switch, per-key rate limiting, tenant isolation), F-1/F-2/F-4 (DOMPurify sanitization for XSS), SC-1/SC-2 (GitHub Actions SHA pins, Taskfile secret generation). Status table reflects current code state.
+**Last reconciliation:** 2026-08-15. Recent mitigations include B-2 (SQL injection whitelist), B-6/B-7/B-8 (request size limits, WebAuthn TTL and origin validation), B-10 (external tool server capability scoping, two-phase writes, kill switch, per-key rate limiting, tenant isolation), B-12 (Deep Analysis owner scoping, job credentials, provider allowlists, bounded public events, and confirm-gated writes), F-1/F-2/F-4 (DOMPurify sanitization for XSS), and SC-1/SC-2 (GitHub Actions SHA pins, Taskfile secret generation). Status table reflects current code state.
 
 ## Backend API findings
 
@@ -36,6 +36,7 @@
 | B-9 | Low | Open (P3) | `src/api/handlers/numista.go` | Some error responses expose more internal detail than clients need. | Return generic client-facing errors and keep specifics in logs only. [#163](https://github.com/briandenicola/coin-collection-app/issues/163) |
 | B-10 | High | Mitigated | `src/api/handlers/external_tools.go`, `src/api/middleware/external_tools_gate.go`, `src/api/middleware/capability.go`, `src/api/main.go` (lines 469–506), `src/api/models/api_key.go` | External tool server (`/api/v1/tools/*`) exposes write operations over a public HTTP surface, introducing risk of unauthorized or accidental writes. Mitigations: (1) Default-off admin kill switch (`ExternalToolServerEnabled`), (2) API key capability scopes (`read` default, `read,write` opt-in), (3) Two-phase proposal+confirm flow (no auto-writes), (4) Field allowlist (identity fields rejected), (5) Per-key rate limiting (50 req/min, stricter than in-app), (6) Journaled audit trail with source `external_tool_server` and API key id/name/capabilities, (7) Server-side tenant isolation (user identity derived from key, no cross-user access). See [external-tool-server.md](external-tool-server.md) for full security model. | Maintain the layered defenses (kill switch, least-privilege scopes, confirm gate, allowlist, rate limits, journaling). Monitor audit logs for unexpected external commits. Periodically review API key scopes and revoke unused keys. Issue #218. |
 | B-11 | High | Mitigated | `src/api/services/credential_encryption_service.go`, `src/api/handlers/user.go`, `src/api/handlers/auction_lots.go`, `src/api/models/user.go` | NumisBids and CNG provider credentials are stored per-user and encrypted at rest. | Keep provider passwords encrypted with AES-GCM using `AUCTION_CREDENTIAL_ENCRYPTION_KEY`; legacy plaintext values migrate lazily to `enc:v1:` on next save or sync. If the key is lost or changed without re-encrypting, users must re-enter provider passwords. |
+| B-12 | High | Mitigated | `src/api/services/deep_identification_service.go`, `src/api/services/deep_identification_pipeline_runner.go`, `src/api/handlers/internal_tools.go`, `src/api/middleware/internal_token.go`, `src/agent/app/teams/deep_identification/` | Deep Analysis introduces persisted background jobs, uploaded hint artifacts, replayable SSE, and Python-to-Go provider callbacks. Mitigations include owner-scoped repositories, ephemeral hint cleanup, short-lived job-scoped callback tokens, provider/citation allowlists, fixed-template OCRE SPARQL, bounded public event payloads, and explicit proposal review/apply before any coin write. | Preserve all layers together. New providers must add explicit network/license validation, typed bounded evidence, failure isolation, and citation allowlisting. Never place internal tokens or full raw provider payloads in replayable events. |
 
 ## Frontend findings
 
@@ -59,7 +60,7 @@
 | SC-3 | Critical | Open (P2) | `src/web/package.json` (@imgly/background-removal dependency) | `@imgly/background-removal` downloads large runtime models from external CDNs without integrity verification. | Evaluate bundling, server-side processing, or a lower-risk alternative. [#163](https://github.com/briandenicola/coin-collection-app/issues/163) |
 | SC-4 | High | Open (P1) | `src/api/go.mod` | `golang.org/x/*` dependencies were called out for lagging current versions in the original review. | Re-check with `govulncheck` / dependency review and upgrade deliberately. [#163](https://github.com/briandenicola/coin-collection-app/issues/163) |
 | SC-5 | High | Open (P2) | GitHub repository settings | Branch protection is not documented as enforced for `main`/`beta`. | Require PR reviews, required checks, and restricted direct pushes in GitHub Settings → Branches. [#163](https://github.com/briandenicola/coin-collection-app/issues/163) |
-| SC-6 | Medium | Mitigated | `Dockerfile`, `src/agent/Dockerfile` | Production base images use reviewed tag-plus-OCI-index-digest references, including the Go API builder on the fixed Go 1.26.5 patch line. | Keep the tag and digest paired; refresh monthly or when a base-image CVE requires it. [#320](https://github.com/briandenicola/coin-collection-app/issues/320) |
+| SC-6 | Medium | Mitigated | `Dockerfile`, `src/agent/Dockerfile` | Production base images use reviewed tag-plus-OCI-index-digest references, including the Go API builder on the fixed Go 1.26.6 patch line. | Keep the tag and digest paired; refresh monthly or when a base-image CVE requires it. [#320](https://github.com/briandenicola/coin-collection-app/issues/320) |
 | SC-7 | Medium | Mitigated | `Dockerfile`, `src/agent/Dockerfile`, `docs/deployment.md` | Final application containers now run as non-root UID/GID `10001:10001`, with runtime-owned app, data, uploads, and agent paths. | Keep persistent bind mounts writable by UID/GID `10001:10001`; see `docs/deployment.md`. [#319](https://github.com/briandenicola/coin-collection-app/issues/319) |
 
 ## Related documents

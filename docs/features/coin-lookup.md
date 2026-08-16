@@ -64,6 +64,19 @@ Coin Lookup supports:
 
 The save flow creates the coin first, then attaches images and references. This keeps the normal coin-create payload valid and avoids coupling lookup-only data to the core coin API.
 
+## Deep Analysis
+
+When the feature is enabled by an administrator, Coin Lookup also offers
+**Deep Analysis** as an optional path. It does not replace or delay the normal
+quick lookup. Deep Analysis requires obverse and reverse images and may also use
+collector notes or temporary hint images. It runs in the background, streams
+replayable progress, and returns a cited report with an editable proposal.
+Nothing is saved to a coin or draft until the collector explicitly accepts and
+applies selected fields.
+
+See [Deep Analysis](deep-analysis.md) for provider, attribution, privacy, and
+configuration details.
+
 ## Configuration
 
 ### Required
@@ -73,6 +86,8 @@ The save flow creates the coin first, then attaches images and references. This 
 ### Optional
 
 - **Numista API Key** in **Admin → System** for fallback catalog matches
+- **Deep Analysis** and **OCRE** toggles in **Admin → System** for the optional
+  background workflow and Roman Imperial authority evidence
 - Admin-configured Category and Era values in **Admin → Coin Properties**
 
 ## Related Features
@@ -80,4 +95,5 @@ The save flow creates the coin first, then attaches images and references. This 
 - [Wish List](wish-list.md) — Save lookups as potential acquisitions
 - [Numista Catalog Lookup](numista-integration.md) — Catalog reference integration
 - [Admin Settings](admin-settings.md) — AI provider, Numista API key, and coin property configuration
+- [Deep Analysis](deep-analysis.md) — Background provider routing and cited proposals
 - [Camera Capture](camera-capture.md) — Device camera support in PWA mode

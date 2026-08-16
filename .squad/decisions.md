@@ -1,6 +1,295 @@
 # Squad Decisions
 
+## Baseline Note: Pre-existing flaky test in `src/api/services` (unrelated to Feature 344)
+
+**Date:** 2026-08-15
+**Feature:** 344-deep-agentic-coin-identification (implementation session)
+**Status:** BASELINED — not modified, not caused by Feature 344 changes
+
+## Observation
+
+While running the full Go test suite (`go test ./...`) after landing Feature
+344's Phase 2 foundational changes (T004–T021), a single test in
+`github.com/briandenicola/ancient-coins-api/services` intermittently fails
+under `go test ./...` (full-package run) but passes reliably in isolation
+(`go test ./services/... -run <name>`). The specific failing test name
+varies between runs, which points to shared/global test state or ordering
+sensitivity within the `services` package rather than a defect in any
+individual test.
+
+This flake was verified as pre-existing and unrelated to Feature 344 by
+using `git stash` to remove all Feature 344 changes and re-running the same
+test against the clean branch tip, where the same class of flake reproduced
+identically.
+
+## Decision
+
+No fix is attempted as part of Feature 344. Future work (outside Feature
+344's scope) should investigate shared mutable state across `services`
+package tests as the likely root cause.
+
+---
+
+### Decision: Feature 344 Phase 6 — Provider-Tool Boundary Implementation (T051–T054)
+
+**Date:** 2026-08-15
+**Feature:** 344-deep-agentic-coin-identification
+**Phase:** 6 (Foundational — Go provider tool boundary, T051–T054)
+**Status:** IMPLEMENTED
+
+## Key Decisions
+
+1. **Job-scoped token family uses new `MintForJob(userID, jobID)` method**
+   - Go has no method overloading; existing `Mint(userID)` has external callers
+   - New method uses distinct 4-field token shape (`userID:jobID:expiry:sig`)
+   - Two token families are mutually rejecting; existing internal-token routes unmodified
+   - New middleware `InternalJobTokenRequired` used only for three new provider-tool routes
+
+2. **Nomisma call budget is Go constant, not settings key**
+   - `const deepNomismaCallBudget = 3` in `handlers/internal_tools.go`
+   - Matches contract §2 sample and Phase 1/2 settings schema (no entry existed)
+   - Future phases can promote to admin-tunable setting if needed
+
+3. **Provider budgets (`DeepProviderBudgetTracker`) are in-memory, per-job**
+   - `sync.Mutex`-guarded map keyed by `"<jobID>:<provider>"`
+   - Ephemeral per-run enforcement; no persistence needed (jobs are time-boxed to ≤900s)
+   - Avoids new migration/table; remains additive and small
+   - `Reset(jobID)` provided for future wiring from job-completion path if needed
+
+4. **Status-vocabulary mapping for `numista_search`/`numista_detail`**
+   - Provider-layer `NumistaErrorKind` vocabulary is richer than contract §7 requirement
+   - Mapping: `invalid_request`/`malformed_response`/`cancelled` → `unavailable`
+   - Mapping: `unauthorized` → `unconfigured` (both mean "cannot use Numista right now")
+   - Mirrors spirit of non-fabrication: never invent a false no_match
+
+## Alignment
+- Principle IV: Smallest complete changes, no unrelated refactoring
+- Principle I: Clear layering (handler → service → repository pattern maintained)
+- §17 Quality Gate: All gates passed; tests prove token families distinct and tamper-rejecting
+
+---
+
+### Decision: Feature 344 Phase 7 — Python LangGraph Pipeline & Go↔Python Streaming (T055–T078)
+
+**Date:** 2026-08-15
+**Feature:** 344-deep-agentic-coin-identification
+**Phase:** 7 (Python agent implementation + Go pipeline runner, T055–T078)
+**Status:** IMPLEMENTED — **See Remediation below for proposal contract correction**
+
+## Key Decisions
+
+1. **Job-scoped internal token TTL extended via `MintForJobWithTTL`**
+   - Deep pipeline can run up to 900s; 30s default TTL too short
+   - New method `MintForJobWithTTL(userID, jobID uint, ttl time.Duration)` reuses HMAC logic
+   - `MintForJob` now delegates to this method with 30s default (unchanged for existing callers)
+   - Pipeline runner mints with `total_timeout_s + 30s` margin
+
+2. **Per-run bounds derived in code, not settings keys**
+   - `deepPipelineBounds()` derives from constants matching Python agent defaults
+   - Max concurrency 2, provider timeout 45s, recursion limit 12
+   - `total_timeout_s = clamp(HardTimeout - 20s, [30, 900])`
+   - Keeps settings schema unchanged for this phase; future phases can promote to tunable
+
+3. **`quick_evidence` intentionally omitted (null) from Go→Python request**
+   - Field is optional in Python contract; Go leaves it `nil` (omitted in JSON)
+   - Wiring Feature 341 Quick Lookup into job creation is not Phase 7 scope
+   - Revisit when later phase explicitly integrates Quick Identify results
+
+4. **NGC provider node is fixed link-out only, no OCR**
+   - Reuses `quick_evidence.ngc` (already extracted upstream by Feature 341)
+   - Returns `not_automated` + fixed link URL; never performs extraction/OCR itself
+   - No live NGC API call (Terms of Use prohibited)
+
+5. **OCRE/RPC catalog entries always non-automatable (unconditional)**
+   - Settings flags `OCREEnabled`/`RPCEnabled` exist but not read by provider catalog
+   - Reserved for deferred T155/T156; this phase hardcodes `automatable: false`
+   - When T155/T156 implemented, both catalog-building and settings-plumbing must be revisited together
+
+6. **Terminal SSE frames (`synthesis`/`error`) not persisted as individual events**
+   - `SettleTerminal` already appends exactly one terminal event transactionally
+   - Pipeline runner's `onFrame` callback does not call `AppendEvent` for terminal frames
+   - Only router_selected/provider_started/provider_result/evaluation/synthesis_started/progress persisted
+
+7. **Proposal JSON originally flat shape — See Remediation for superseding decision**
+   - Initial Phase 7 implementation used minimal flat `{"fields": {field: value}}` shape
+   - This shape was insufficient for review/confirm/apply workflows
+   - **This decision was superseded by Remediation decision #1 below**
+
+## Pre-existing production bug found (not fixed — out of scope)
+- `collection_tools.py:75` uses literal placeholder `"Authorization": "******"` instead of f-string
+- All existing collection tools send non-functional headers; this was even encoded as expected in tests
+- Left unfixed per explicit instruction not to modify unrelated code
+- Flagged for coordinator/QC to fix in separate change with test update
+
+## Alignment
+- Principle IV: Proportional changes; no fabricated completion
+- Principle II: Python stateless/DB-free; Go is authoritative
+- §17: Security constraints honored; secrets/logging discipline maintained
+- §21: Owner-scoping and authorization layers preserved
+
+---
+
+### Decision: Feature 344 Remediation — Proposal Contract & Security Allowlisting (Post-QC Block)
+
+**Date:** 2026-08-15
+**Feature:** 344-deep-agentic-coin-identification
+**Agent:** Cassius (independent revision after QC blocks)
+**Status:** IMPLEMENTED — **Supersedes Phase 7 decision #7; correction history preserved**
+
+## Correction History
+
+**Prior state (Phase 7, superseded):** Proposal was shipped as minimal flat `{"fields": {field: value}}` map, deferring the rich shape to "a later phase."
+
+**QC Finding:** This flat shape was insufficient; deep identification requires proposal to round-trip through PATCH edit/accept and POST apply. The existing `deep_identification_proposal.go` parser already consumed rich `deepProposalDocument` (schemaVersion, per-field proposed/confidence/evidence[]/ownerEdited/ownerValue/accepted), so flat proposals failed and dropped citations + confidence.
+
+**Accepted truth (Remediation, this record):** Proposal is the full rich `deepProposalDocument`. This was the actual application contract all along; the initial deferral was incomplete. Commits `896955e` and `080e598` corrected the implementation.
+
+## Key Decisions
+
+1. **Proposal built as rich `deepProposalDocument` in Go**
+   - Directly reuses existing application-owned DTOs from `deep_identification_proposal.go`
+   - No duplicate/incompatible structs; JSON tags match TS `DeepProposal` types and OpenAPI schemas
+   - `DeepProposalEditor.vue` receives exactly the shape it consumes
+   - `deepProposalDocument` carries: schemaVersion, per-field `proposed`/`confidence`/`evidence[]`/`ownerEdited`/`ownerValue`/`accepted`
+
+2. **Evidence/citations resolved Go-side from `provider_result` frames**
+   - Python synthesis carries lightweight `{provider, claim_index}` pointers, not resolved citations
+   - Full citations/excerpts/confidence live in per-provider `provider_result` frames streamed during pipeline
+   - Runner accumulates `provider_result` claims and resolves each evidence_ref into full claim on document build
+   - **No Python contract change:** rich shape was always Go/OpenAPI/TS concern; bug was Go emitting wrong shape
+   - Preserves citations + per-field confidence without changing Python synthesis contract
+
+3. **Field allowlist + citation-host allowlist re-validated at translation (document build)**
+   - Field allowlist: `deepProposalCoinFieldAllowlist` filters to coin-updatable fields only before persistence
+   - Citation allowlist: `deepCitationHostAllowed` re-validates every resolved citation URI host against allowlist at translation
+   - Claims with non-allowlisted citation hosts are dropped from proposal
+   - Owner-edited/owner-value/accepted initialized pristine (false/nil/nil) — no auto-accept, no auto-write
+   - In-memory validation at translation time provides defense-in-depth with apply-time field allowlist
+
+4. **Deep Analysis capability probe: `GET /deep-identification/capability`**
+   - Exposes only boolean `{"enabled": bool}` derived from `SettingDeepIdentificationEnabled`
+   - Protected (JWT required); never exposes underlying settings
+   - Frontend composable `useDeepIdentificationCapability` fails closed (hidden on error)
+   - Backend independently 403s job creation when disabled
+   - Quick Identify workflow untouched
+
+5. **Terminal error frame emits `code` not `error_kind`**
+   - Contract §3 defines error frame as `{code, message}` with typed codes: llm_unavailable | timeout | invalid_model_output | internal
+   - Python implementation was emitting `error_kind` (different field); this was implementation/contract mismatch, not spec change
+   - Narrow error classifier: ValidationError/OutputParserException → invalid_model_output; connection/Unavailable → llm_unavailable; else → internal
+   - Go `runJob` maps any run error to stored failure code `agent_unavailable` regardless; `code` drives message string
+
+6. **`bounds.recursion_limit` bound into LangGraph config (contract §6)**
+   - Production driver `run_deep_identification_stream` is hand-written async generator (emits per-provider SSE frames)
+   - Does not invoke compiled graph, so recursion limit currently inert for serving path
+   - Binding via `compiled.with_config({"recursion_limit": N})` ensures any graph-based caller is capped at contract bound
+   - Documented honestly as inert for current streaming driver rather than fabricating graph invocation SSE envelope cannot use
+
+## Integration Test Coverage
+
+`deep_identification_proposal_integration_test.go` drives realistic runner synthesis through:
+- Persistence → Parse → PATCH accept/owner-edit → Apply
+- Asserts: (a) no coin write before Apply, (b) citation + confidence survive round-trip
+- Fails under old flat shape by construction (cannot express proposed/confidence/citation)
+
+## Alignment
+- Principle IV: Simplest complete change; resolved evidence Go-side using existing DTOs
+- Principle V: Input validation, allowlisting, owner-scoping all enforced at translation + apply
+- §17 Quality Gate: All gates passed; integration tests cover realistic workflows
+- §21 Definition of Done: T123/T124 proposal acceptance confirmed complete
+
+---
+
 ## Active Decisions
+
+### Decision: Feature 344 — Preserve provider claims across the analysis stream (B1 re-remediation)
+
+**Date:** 2026-08-15
+**Agent:** Aurelia (remediation; original implementer and Cassius locked out under Strict Lockout §18.2)
+**Status:** Proposed — READY FOR RE-REVIEW
+**Supersedes wording of:** commit `896955e` B1 paragraph (see Correction below)
+
+## Context
+
+The prior B1 remediation (`896955e`) made the Go pipeline runner build the rich
+`deepProposalDocument` by resolving `proposed_fields.evidence_refs` against the
+`claims` carried on internal `provider_result` frames. But production Python
+(`run_deep_identification_stream`) emitted only `{type, provider, status}` for
+`provider_result` — it never serialized the application-owned `ProviderEvidence`
+claims (contract §3/§4). Result: in production `providerClaims` was always empty,
+every proposal's evidence/citation arrays were dropped, violating the internal
+contract and the MVP citation requirement (SC-006). The existing Go integration
+tests hand-injected a `providerClaims` map into `buildDeepProposalDocumentJSON`,
+so they passed while production was broken (false assurance).
+
+## Decision
+
+1. **Python emits the full ProviderEvidence** on each `provider_result` internal
+   frame via Pydantic serialization (`result.model_dump(mode="json")`), never an
+   ad-hoc dict — field names/types/nullability match the Go mirror exactly. All
+   fields are length-bounded by the model; no raw provider payload, user notes,
+   or image data enter the frame. `_emit`'s sanitizer still redacts token-shaped
+   strings without stripping valid claims/citations.
+   (`src/agent/app/teams/deep_identification/graph.py`)
+
+2. **Persistence/privacy split (§5 of the task).** The internal Go↔Python
+   `provider_result` frame carries full claims (contract §4); the runner consumes
+   them **in-memory** to build the confirm-gated proposal, but persists only the
+   bounded public payload `{provider, status, confidence, claimCount, errorKind?,
+   linkOut?}` (contracts/sse-events.md §2) into the user-visible, replayable event
+   log. Full claims/citations therefore never leak into the owner-facing event
+   stream (FR-036) and the log is not bloated with per-claim evidence.
+   (`src/api/services/deep_identification_pipeline_runner.go`)
+
+3. **Go re-validation preserved.** `buildDeepProposalDocumentJSON` still enforces
+   the coin-field allowlist and re-checks each claim's citation host against the
+   per-provider allowlist before it enters the proposal; the full streamed claim
+   list is retained in emitted order so synthesis `claim_index` values stay
+   index-aligned (no reindexing). `claimCount` in the public payload counts only
+   host-allowlisted claims, so a hostile frame cannot inflate it or surface an
+   arbitrary URL.
+
+4. **Real cross-boundary regression replaces false assurance.**
+   - Python: `test_provider_result_frame_carries_complete_claims` asserts the real
+     stream emits full, typed claims (field/value/confidence/citation/excerpt),
+     index-aligned with the terminal synthesis' evidence_refs (no live network).
+   - Go: `TestRunnerAccumulatesStreamedClaimsIntoProposal` feeds the exact
+     Python-shaped SSE frames through the actual `Run`/stream parser and asserts
+     the persisted `ProposalJSON` carries confidence + citation evidence, and that
+     the persisted `provider_result` event carries only the bounded public payload.
+     Plus off-allowlist-host rejection and malformed-frame-skip tests.
+   - Integration: `seedDeepJobWithRunnerProposal` now drives the **actual runner**
+     over a fake Python agent (no hand-built `providerClaims`) so the saved-coin
+     and new-intake Get/PATCH/Apply regressions consume genuine runner output.
+
+5. **`DeepIdentificationProviderRun.ClaimsJSON` (task §7).** The entity is
+   provisioned/migrated but intentionally **not written** in the MVP; per-provider
+   outcomes live in the append-only event log and the proposal. Documented as a
+   deliberate deferral in `data-model.md §4` (not silent drift) — raw claims are
+   deliberately not duplicated into a second user-visible store.
+
+## Correction (task §11)
+
+Commit `896955e`'s B1 wording — "Evidence/citations resolved Go-side from
+provider_result frames; field + citation-host allowlists enforced at translation
+and apply" — was **aspirational, not operative**, because production Python never
+emitted claims, so nothing was resolved Go-side at runtime. The accurate record:
+citation-host allowlisting is enforced at **proposal-build (translation) time**
+inside `buildDeepProposalDocumentJSON`; **apply** enforces only the coin/draft
+**field** allowlist (`applyToCoin`/`applyToDraft`). This fix makes the "resolved
+from provider_result frames" behavior actually true end-to-end.
+
+## Validation
+
+- Go: gofmt (CRLF-only), `go build ./...`, `go vet ./...`, full `go test ./...`,
+  OpenAPI drift, architecture test — all pass.
+- Python: `ruff check`, full `pytest` — pass.
+- Vue: `vue-tsc --build`, `vite build`, full Vitest, no-emoji/design-token
+  regression — pass (no Vue changes in this fix).
+- Manual fixture-backed end-to-end: real Python-shaped claim frame → Go runner →
+  stored rich proposal evidence/citation → PATCH/Apply, no auto-write, no live
+  provider calls.
+
 
 ### Decision: Feature 342 — Measured Numista Text-Query Tuning (T001–T025)
 
@@ -1930,6 +2219,73 @@ subject compliance.
 Octavian remains locked out under Constitution §18.2 until Maximus explicitly
 clears these findings.
 
+---
+
+### Decision: Feature 343 Phase 1 — Nomisma OpenRefine Wire Contract Verification and Fix
+
+**Date:** 2026-08-14  
+**Agent:** GitHub Copilot CLI (QC follow-up)  
+**Branch:** `343-nomisma-mint-authority-linking`  
+**Status:** RESOLVED — T026 complete, verified live
+
+## Context
+
+Live QC for Feature 343 Phase 1 discovered that `HTTPNomismaClient.Search` always returned `no_match` even for valid mint names ("Roma", "Rome"). Root cause analysis identified two compounding contract bugs against the real `nomisma.org/apis/reconcile` OpenRefine-compatible reconciliation API:
+
+1. **Request double-wrapping.** Client marshalled query-id map under an outer `{"queries":{...}}` key, violating the OpenRefine wire spec (single query-id map expected).
+2. **Response unwrapping mismatch.** Parser expected top-level `{"results":{...}}` but real API returns query-id map at top level.
+
+Test fixtures (`httptest.Server`) masked both bugs by hand-crafting both incorrect shapes.
+
+## Fix Verified Live
+
+Confirmed against `https://nomisma.org/apis/reconcile` for "Roma"/"Rome":
+
+- **Request:** Query-id map **directly** in `queries` param (no outer wrapper): `{"q1":{"query":"Roma","limit":5}}`
+- **Response:** Query-id map at top level: `{"q1":{"result":[...]}}`  (no `results` wrapper)
+- **ID field:** Short local id (e.g., `"rome"`), expanded to Nomisma concept URI `http://nomisma.org/id/<id>` before returning
+- **Match field:** JSON string (`"true"`/`"false"`), not boolean; requires custom `UnmarshalJSON` for compatibility
+
+## Changes Applied
+
+- `src/api/services/nomisma_client.go`: Direct query-id map marshalling; response parser updated to `map[string]struct{Result []nomismaResultItem}`; short `id` expanded to concept URI; `match` field decoded via `nomismaMatch` custom type
+- `src/api/services/nomisma_client_test.go`: All fixtures corrected to live wire shape; two regression tests added (`TestHTTPNomismaClient_Search_RequestShapeMatchesLiveContract`, `TestHTTPNomismaClient_Search_ResponseShapeMatchesLiveContract`)
+- `specs/343-nomisma-mint-authority-linking/research.md` §1 and `docs/adr/0009-nomisma-authority-linking.md`: Corrected wire description and updated HTTP → HTTPS
+
+## Verification
+
+- `go build ./...`, `go vet ./...`, `go test ./...` all pass, including new regression tests
+- Live end-to-end (admin user → global mint location → search "Rome" on live nomisma.org → link `http://nomisma.org/id/rome` → verify persistence → unlink → verify idempotent clear): pass
+- Frontend component tests and existing Nomisma test suite pass
+- Architecture and OpenAPI generation green
+
+---
+
+### Decision: OCRE/RPC Identified as Required Phase 2 Identify Coin Data Sources (Deferred, Distinct from F343)
+
+**Date:** 2026-08-14  
+**Agent:** Specifier / Feature 343 Phase 1 closure  
+**Status:** DEFERRED to Phase 2 specification  
+**Branch:** `343-nomisma-mint-authority-linking`
+
+## Context
+
+Feature 343 Phase 1 delivers Nomisma authority linking for global mint locations. During Phase 1 planning, the broader Identify Coin feature (future) was analyzed as a consumer of authority data. Nomisma is suitable for mint-location global authority but insufficient for coin identification, which also requires:
+
+- **OCRE** (Online Catalog of Roman Monetary Empires): RPC-indexed data for Roman coin reverse identification
+- **RPC** (Roman Provincial Coinage): Reference types and typology required for date/mint/reverse binding in Identify Coin
+
+OCRE/RPC are separate API contracts, licensing terms, and UI workflows from Nomisma mint authority linking and must not be conflated with F343.
+
+## Decision
+
+1. **F343 Phase 1 closes as planned** without OCRE/RPC integration (not in scope)
+2. **OCRE/RPC are mandatory Phase 2 sources** for the future Identify Coin feature, requiring:
+   - Dedicated feature specification and research (new F344 or similar)
+   - API contract discovery, licensing review, and ADR
+   - Separate schema/handler/service implementation
+   - Independent QC and release cycle
+3. **No regression in F343**: Nomisma mint authority linking remains production-ready; Identify Coin UI does not yet depend on OCRE/RPC (future feature backlog)
 
 ---
 

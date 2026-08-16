@@ -243,3 +243,104 @@ class SetBuilderResponse(StrictResponseModel):
     failure_reason: Annotated[str, StringConstraints(max_length=1000)] = ""
     transcript_summary: Annotated[str, StringConstraints(max_length=4000)] = ""
     turns_used: int = Field(default=0, ge=0)
+
+
+# Deep Agentic Coin Identification DTOs (344-deep-agentic-coin-identification).
+# Contract anchor: specs/344-deep-agentic-coin-identification/contracts/agent-internal-contract.md §4-5
+ProviderName = Literal["numista", "nomisma", "ngc", "ocre", "rpc"]
+ProviderStatus = Literal[
+    "contributed", "no_match", "failed", "timed_out", "not_automated", "unavailable", "skipped"
+]
+ProviderErrorKind = Literal["timeout", "quota", "unconfigured", "upstream", "invalid_response"]
+
+
+class ProviderClaim(StrictResponseModel):
+    """A single typed, citation-backed factual claim from one provider.
+
+    Every claim MUST carry a citation whose host belongs to the emitting
+    provider's canonical allowlist (§4, SC-006) — claims failing that check
+    are dropped by `merge.validate_citations` before this model is even
+    constructed, so an instance of this class is always pre-validated.
+    """
+
+    field: Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    value: Annotated[str, StringConstraints(min_length=1, max_length=1000)]
+    confidence: float = Field(ge=0.0, le=1.0)
+    citation: Annotated[str, StringConstraints(min_length=1, max_length=2048)]
+    excerpt: Annotated[str, StringConstraints(max_length=500)] = ""
+
+
+class ProviderEvidence(StrictResponseModel):
+    """Typed, never-prose evidence row for a single provider (§4)."""
+
+    provider: ProviderName
+    status: ProviderStatus
+    automatable: bool
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    call_count: int = Field(default=0, ge=0)
+    error_kind: ProviderErrorKind | None = None
+    link_out: Annotated[str, StringConstraints(max_length=2048)] = ""
+    attribution: Annotated[str, StringConstraints(max_length=200)] = ""
+    claims: list[ProviderClaim] = Field(default_factory=list, max_length=50)
+
+
+class EvidenceRef(StrictResponseModel):
+    """A reference from a proposed field or disagreement back to one
+    provider's evidence (or `provider: "image"` for image-only support).
+    """
+
+    provider: Annotated[str, StringConstraints(min_length=1, max_length=20)]
+    claim_index: int | None = Field(default=None, ge=0)
+
+
+class ProposedFieldValue(StrictResponseModel):
+    """One proposed coin-field value with its supporting evidence."""
+
+    value: Annotated[str, StringConstraints(min_length=1, max_length=1000)]
+    confidence: float = Field(ge=0.0, le=1.0)
+    evidence_refs: list[EvidenceRef] = Field(default_factory=list, min_length=1, max_length=20)
+
+
+class DisagreementEntry(StrictResponseModel):
+    """A field where two or more providers disagree — surfaced, never
+    silently resolved by precedence (FR-027).
+    """
+
+    field: Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    claim_refs: list[EvidenceRef] = Field(default_factory=list, min_length=1, max_length=20)
+    resolution: Literal["unresolved", "resolved"] = "unresolved"
+
+
+class ProviderCoverageEntry(StrictResponseModel):
+    """One provider's final status, for the run's coverage summary."""
+
+    provider: ProviderName
+    status: ProviderStatus
+
+
+class ProviderAttribution(StrictResponseModel):
+    """Visible attribution/license metadata for one provider that actually
+    contributed to the report (§6 / FR-019). Present only when that provider
+    surfaced ≥1 claim; each provider's text is distinct and never merged.
+    """
+
+    provider: ProviderName
+    text: Annotated[str, StringConstraints(max_length=200)]
+    identifier: str | None = None
+
+
+class DeepSynthesis(StrictResponseModel):
+    """Typed final synthesis output (§5) — the terminal-success SSE frame
+    payload. `proposed_fields` keys are re-validated against the coin-field
+    allowlist Go-side on ingest; unknown keys are dropped there, not here.
+    """
+
+    narrative: Annotated[str, StringConstraints(max_length=8000)] = ""
+    proposed_fields: dict[str, ProposedFieldValue] = Field(default_factory=dict, max_length=50)
+    disagreements: list[DisagreementEntry] = Field(default_factory=list, max_length=50)
+    unresolved_questions: list[Annotated[str, StringConstraints(max_length=500)]] = Field(
+        default_factory=list, max_length=20
+    )
+    coverage: list[ProviderCoverageEntry] = Field(default_factory=list, max_length=10)
+    attributions: list[ProviderAttribution] = Field(default_factory=list, max_length=10)
+    partial_success: bool = False

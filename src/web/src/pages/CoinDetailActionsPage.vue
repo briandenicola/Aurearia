@@ -12,6 +12,8 @@
         :coin-obverse-inscription="coin.obverseInscription ?? ''"
         :coin-reverse-inscription="coin.reverseInscription ?? ''"
         :image-count="coin.images?.length ?? 0"
+        :coin-has-obverse-image="coin.images?.some((img) => img.imageType === 'obverse') ?? false"
+        :coin-has-reverse-image="coin.images?.some((img) => img.imageType === 'reverse') ?? false"
         :is-pwa="isPwa"
         @images-changed="refresh"
         @estimate-applied="handleEstimateApplied"

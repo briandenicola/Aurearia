@@ -1,8 +1,8 @@
 import axios from 'axios'
-import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, NumistaLookupRequest, NumistaEnrichmentRequest, NumistaLookupOutcome, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, GeocodeCandidate, ValuationRun, AuctionEndingRun, AuctionWatchBidDigestRun, CollectionHealthSnapshotRunResult, CollectionHealthSnapshotRun, SchedulerStatus, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, CreateSetBuilderRunRequest, SetBuilderRun, SetProposal, UpdateSetProposalRequest, RegenerateSetProposalRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, SmartCriteriaTemplate, SuggestedSmartCriteria, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse, AIJob, AIJobStartResponse, PriceAlert, BidReminder, PriceAlertDirection, AuctionAlertReminderRun, CoinOfDayRun, BidRecommendation, MarketSignal, RomanImperialFigure, ImperialFigureRole, EmperorTrackerResult, CoinRecommendation, ShipmentEnvelopeResponse, ShipmentUpsertInput, ShipmentStatus } from '@/types'
+import type { Coin, CoinListResponse, CoinImage, AuthResponse, StatsResponse, UserInfo, AppSettings, LogEntry, ApiKey, WebAuthnCredentialInfo, ValueSnapshot, CoinJournal, NumistaSearchResponse, NumistaLookupRequest, NumistaEnrichmentRequest, NumistaLookupOutcome, AgentChatMessage, AgentChatAppContext, CoinSuggestion, CollectionChatResponse, FollowUser, PublicProfile, CoinComment, CoinRating, LimitedCoin, CoinValueHistory, PortfolioSummary, AuctionLot, AuctionLotListResponse, AvailabilityRunSummary, AvailabilityRun, NotificationListResponse, Tag, StorageLocation, MintLocation, GeocodeCandidate, ValuationRun, AuctionEndingRun, AuctionWatchBidDigestRun, CollectionHealthSnapshotRunResult, CollectionHealthSnapshotRun, SchedulerStatus, CalendarEventDetail, FeaturedCoin, CollectionHealthSummary, CoinHealthListResponse, CoinHealthItem, AdminHealthSummaryResponse, CoinReference, CoinReferenceInput, CoinMutationPayload, IntakeDraft, IntakeCommitRequest, IntakeCommitResponse, CoinLookupResponse, CoinLookupImageRole, LegacyMigrationResult, CatalogRegistry, CoinSetSummary, CoinSetDetail, CreateCoinSetRequest, CreateSetBuilderRunRequest, SetBuilderRun, SetProposal, UpdateSetProposalRequest, RegenerateSetProposalRequest, UpdateCoinSetRequest, AddCoinToSetRequest, ReorderSetCoinsRequest, CoinSetTemplate, CoinSetCompletion, CreateCoinSetFromCsvRequest, CoinSetSnapshot, CoinSetAnalytics, CoinSetComparison, SmartCriteriaGroup, SmartSetPreview, SmartCriteriaTemplate, SuggestedSmartCriteria, UserNote, NoteInput, NoteListResponse, SecuritySummary, SecurityEventFilters, SecurityEventsResponse, SecurityIpRule, CreateSecurityIpRuleRequest, SecurityExposureCheck, InvestmentBreakdownDimension, InvestmentBreakdownResponse, OIDCPublicProvidersResponse, OIDCStartFlowRequest, OIDCStartFlowResponse, OIDCLinkCallbackResponse, OIDCLinkedIdentitiesResponse, OIDCMessageResponse, OIDCAdminProvidersResponse, OIDCAdminProvider, OIDCAdminProviderInput, OIDCAdminProviderUpdate, OIDCProviderTestResponse, AIJob, AIJobStartResponse, PriceAlert, BidReminder, PriceAlertDirection, AuctionAlertReminderRun, CoinOfDayRun, BidRecommendation, MarketSignal, RomanImperialFigure, ImperialFigureRole, EmperorTrackerResult, CoinRecommendation, ShipmentEnvelopeResponse, ShipmentUpsertInput, ShipmentStatus, NomismaSearchResponse, DeepProviderId, DeepJobEnvelope, DeepJobListResponse, DeepIdentificationCapability, CreateDeepIdentificationJobInput, ListDeepIdentificationJobsParams, DeepProposal, UpdateDeepIdentificationProposalInput, ApplyDeepIdentificationProposalInput, DeepApplyResult } from '@/types'
 import type { QuickCaptureDraft, QuickCaptureDraftInput, QuickCaptureDraftUpdateInput, QuickCaptureDraftListResponse, QuickCaptureDraftStatus, QuickCapturePromoteRequest, QuickCapturePromotionResponse } from '@/types'
 import type { WishlistSearchAlert, WishlistSearchAlertInput, WishlistSearchAlertListResponse, AlertRun, AlertRunListResponse, AlertRunResult, AlertCandidate, AlertCandidateListResponse, AlertCandidateState, CandidateProvenanceStatus, DismissWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateInput, ConvertWishlistSearchAlertCandidateResponse, AdjustWishlistSearchAlertCriteriaInput } from '@/types'
-import type { NumistaHealthSummary } from '@/types'
+import type { DeepIdentificationObservabilitySummary, NumistaHealthSummary, OCREHealthSummary } from '@/types'
 import type { NumistaQueryProposal, NumistaQueryProposalRequest } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
@@ -426,6 +426,14 @@ export const deleteMintLocation = (id: number) => api.delete(`/mint-locations/${
 export const geocodeMintName = (query: string) =>
   api.get<{ candidates: GeocodeCandidate[] }>('/mint-locations/geocode', { params: { query } })
 
+// Nomisma.org authority linking (global mint locations only; admin-only)
+export const searchNomismaMintCandidates = (id: number, query: string) =>
+  api.get<NomismaSearchResponse>(`/admin/mint-locations/${id}/nomisma/search`, { params: { query } })
+export const linkNomismaMintLocation = (id: number, uri: string, label: string) =>
+  api.post<MintLocation>(`/admin/mint-locations/${id}/nomisma`, { uri, label })
+export const unlinkNomismaMintLocation = (id: number) =>
+  api.delete<{ message: string }>(`/admin/mint-locations/${id}/nomisma`)
+
 // Roman Imperial Figures (F028)
 export const searchRomanImperialFigures = (params: { q?: string; role?: ImperialFigureRole; limit?: number }) =>
   api.get<{ figures: RomanImperialFigure[] }>('/roman-imperial-figures', { params })
@@ -513,10 +521,15 @@ export const enrichNumista = (request: NumistaEnrichmentRequest, signal?: AbortS
   api.post<NumistaLookupOutcome>('/numista/enrich', request, { signal })
 
 // Coin Lookup
-export async function lookupCoin(images: File[]) {
+export async function lookupCoin(images: File[], notes = '', imageRoles: CoinLookupImageRole[] = []) {
   const formData = new FormData()
-  for (const image of images) {
+  for (const [index, image] of images.entries()) {
     formData.append('images', image)
+    const role = imageRoles[index]
+    if (role) formData.append('imageRoles', role)
+  }
+  if (notes.trim()) {
+    formData.append('notes', notes.trim())
   }
   return api.post<CoinLookupResponse>('/coins/lookup', formData)
 }
@@ -800,6 +813,10 @@ export const updateAppSettings = (settings: { key: string; value: string }[]) =>
   api.put('/admin/settings', settings)
 export const getAdminNumistaHealth = () =>
   api.get<NumistaHealthSummary>('/admin/numista/health')
+export const getAdminOCREHealth = () =>
+  api.get<OCREHealthSummary>('/admin/deep-identification/ocre/health')
+export const getAdminDeepIdentificationObservability = () =>
+  api.get<DeepIdentificationObservabilitySummary>('/admin/deep-identification/observability')
 export const getSecuritySummary = () =>
   api.get<SecuritySummary | { summary?: Partial<SecuritySummary>; backupStatus?: string }>('/admin/security/summary')
 export const getSecurityEvents = (filters?: SecurityEventFilters) => {
@@ -1118,6 +1135,39 @@ export const markAllNotificationsRead = () =>
   api.put('/notifications/read-all')
 export const deleteNotification = (id: number) =>
   api.delete(`/notifications/${id}`)
+
+// Deep Agentic Coin Identification (344-deep-agentic-coin-identification).
+export async function createDeepIdentificationJob(input: CreateDeepIdentificationJobInput) {
+  const formData = new FormData()
+  if (input.coinId !== undefined) formData.append('coinId', String(input.coinId))
+  if (input.obverseImage) formData.append('obverse', input.obverseImage)
+  if (input.reverseImage) formData.append('reverse', input.reverseImage)
+  for (const hint of input.hintImages ?? []) {
+    formData.append('hints', hint)
+  }
+  appendOptionalFormValue(formData, 'notes', input.notes)
+  if (input.providers && input.providers.length > 0) {
+    formData.append('providers', input.providers.join(','))
+  }
+  return api.post<DeepJobEnvelope>('/deep-identification/jobs', formData)
+}
+export const listDeepIdentificationJobs = (params?: ListDeepIdentificationJobsParams) =>
+  api.get<DeepJobListResponse>('/deep-identification/jobs', { params })
+export const getDeepIdentificationCapability = () =>
+  api.get<DeepIdentificationCapability>('/deep-identification/capability')
+export const getDeepIdentificationJob = (id: number) =>
+  api.get<DeepJobEnvelope>(`/deep-identification/jobs/${id}`)
+export const cancelDeepIdentificationJob = (id: number) =>
+  api.post<DeepJobEnvelope>(`/deep-identification/jobs/${id}/cancel`)
+export const retryDeepIdentificationJob = (id: number, input?: { notes?: string; providers?: DeepProviderId[] }) =>
+  api.post<DeepJobEnvelope>(`/deep-identification/jobs/${id}/retry`, {
+    notes: input?.notes,
+    providers: input?.providers,
+  })
+export const patchDeepIdentificationProposal = (id: number, input: UpdateDeepIdentificationProposalInput) =>
+  api.patch<DeepProposal>(`/deep-identification/jobs/${id}/proposal`, input)
+export const applyDeepIdentificationProposal = (id: number, input: ApplyDeepIdentificationProposalInput) =>
+  api.post<DeepApplyResult>(`/deep-identification/jobs/${id}/apply`, input)
 
 export default api
 

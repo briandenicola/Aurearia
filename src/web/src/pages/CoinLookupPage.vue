@@ -1,6 +1,6 @@
 <template>
   <div class="container">
-    <div class="mx-auto max-w-[900px]">
+    <div class="mx-auto min-w-0 max-w-[900px]">
       <div class="page-header">
         <h1>Identify Coin</h1>
         <div class="pwa-actions">
@@ -12,47 +12,46 @@
 
       <!-- Capture State -->
       <div v-if="state === 'capture'" class="flex flex-col gap-6">
-        <p class="rounded-md border border-border-subtle bg-card p-6 text-base leading-6 text-text-secondary shadow-[var(--shadow-card)]">
-          Use the camera or upload an obverse image to start a quick AI draft. Reverse and slab detail photos are optional, but improve attribution and NGC number capture.
-        </p>
-
-        <InlineCameraCapturePanel
-          ref="cameraPanel"
-          filename-prefix="lookup"
-          @captured="addCapturedFile"
-          @upload="triggerFileUpload"
+        <CoinLookupCaptureWizard
+          ref="captureWizard"
+          :obverse="obverseImage"
+          :reverse="reverseImage"
+          :notes-image="notesImage"
+          :notes="captureNotes"
+          :submitting="submitting"
+          :preparing-image="preparingImage"
+          :upload-error="uploadError"
+          :deep-analysis-enabled="deepAnalysisEnabled"
+          @captured="handleCameraCapture"
+          @selected="handleGallerySelection"
+          @remove="removeCapturedImage"
+          @update:notes="captureNotes = $event"
+          @analyze="handleSubmit"
+          @deep-analyze="showDeepAnalysisModal = true"
         />
+      </div>
 
-        <!-- Image preview grid -->
-        <div v-if="capturedImages.length > 0" class="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))]">
-          <div v-for="(img, idx) in capturedImages" :key="idx" class="relative aspect-square overflow-hidden rounded-sm border border-border-subtle">
-            <span class="absolute left-2 top-2 z-[1] rounded-full border border-border-subtle bg-card px-2 py-[0.15rem] text-sm text-text-secondary">{{ imageTypeLabel(idx) }}</span>
-            <img :src="img.preview" alt="Captured coin" class="h-full w-full object-cover" />
-            <button class="absolute right-2 top-2 flex items-center justify-center rounded-sm bg-[rgba(0,0,0,0.7)] p-[0.35rem] text-text-primary transition-colors hover:bg-[rgba(192,57,43,0.8)]" @click="removeImage(idx)" title="Remove">
-              <X :size="16" />
-            </button>
+      <div v-if="showDeepAnalysisModal" class="fixed inset-0 z-[1000] flex items-center justify-center bg-overlay p-4" @click.self="showDeepAnalysisModal = false">
+        <div class="card max-h-[90vh] w-full max-w-[640px] overflow-y-auto p-6">
+          <div class="mb-4 flex items-center justify-between">
+            <h2 class="text-lg text-heading">Deep Analysis</h2>
+            <AppIconButton title="Close" @click="showDeepAnalysisModal = false">
+              <X :size="18" />
+            </AppIconButton>
           </div>
+          <DeepAnalysisStartPanel
+            reuse-captured-evidence
+            :initial-obverse-image="obverseImage?.file ?? null"
+            :initial-reverse-image="reverseImage?.file ?? null"
+            :initial-hint-images="notesImage ? [notesImage.file] : []"
+            :initial-notes="captureNotes"
+            :eligible-providers="deepAnalysisProviders"
+            :submitting="deepIdentification.starting.value"
+            :submit-error="deepIdentification.error.value"
+            @submit="onDeepAnalysisSubmit"
+            @cancel="showDeepAnalysisModal = false"
+          />
         </div>
-
-        <input
-          ref="fileInput"
-          type="file"
-          accept="image/*"
-          multiple
-          style="display: none"
-          @change="handleFileUpload"
-        />
-
-        <button
-          v-if="capturedImages.length > 0"
-          class="btn btn-primary w-full justify-center px-6 py-[0.85rem] text-base"
-          @click="handleSubmit"
-          :disabled="submitting"
-        >
-          <span v-if="submitting" class="inline-block h-[14px] w-[14px] animate-spin rounded-full border-2 border-border-subtle border-t-gold"></span>
-          <Search v-else :size="20" />
-          {{ submitting ? 'Analyzing...' : 'Analyze Photos' }}
-        </button>
       </div>
 
       <!-- Analyzing State -->
@@ -65,15 +64,15 @@
       </div>
 
       <!-- Results State -->
-      <div v-if="state === 'results'" class="flex flex-col gap-6">
+      <div v-if="state === 'results'" class="min-w-0 flex flex-col gap-6">
         <div v-if="error" class="flex items-center gap-3 rounded-md border border-[rgba(192,57,43,0.3)] bg-[rgba(192,57,43,0.2)] p-4 text-base text-byzantine">
           <AlertCircle :size="20" />
           <span>{{ error }}</span>
         </div>
 
-        <div v-if="results" class="flex flex-col gap-6">
+        <div v-if="results" class="min-w-0 flex flex-col gap-6">
           <!-- NGC Certification Path -->
-          <form v-if="ngcCertNumber" class="card" @submit.prevent="handleSaveAsDraft">
+          <form v-if="ngcCertNumber" class="card min-w-0 overflow-hidden" @submit.prevent="handleSaveAsDraft">
             <h3 class="mb-4 text-lg text-text-primary">Review Coin Details</h3>
             <div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
               <label class="form-group col-span-full">
@@ -141,12 +140,12 @@
 
             <div v-if="aiObservations" class="mt-2">
               <h4 class="section-label mb-3 block">AI Observations</h4>
-              <div class="markdown-rendered rounded-sm border border-border-subtle bg-input p-3 text-body leading-6 text-text-secondary [&_ol]:mb-3 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_strong]:text-gold [&_ul]:mb-3" v-html="renderedAiObservations"></div>
+              <div class="markdown-rendered min-w-0 overflow-hidden rounded-sm border border-border-subtle bg-input p-3 text-body leading-6 text-text-secondary [overflow-wrap:anywhere] [&_ol]:mb-3 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_strong]:text-gold [&_ul]:mb-3" v-html="renderedAiObservations"></div>
             </div>
           </form>
 
           <!-- Non-NGC Path (editable review form) -->
-          <form v-else class="card" @submit.prevent="handleSaveAsDraft">
+          <form v-else class="card min-w-0 overflow-hidden" @submit.prevent="handleSaveAsDraft">
             <h3 class="mb-4 text-lg text-text-primary">Review Coin Details</h3>
 
             <div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
@@ -177,7 +176,7 @@
 
               <div v-if="aiObservations" class="form-group col-span-full">
                 <span class="section-label">AI Observations</span>
-                <div class="markdown-rendered rounded-sm border border-border-subtle bg-input p-3 text-body leading-6 text-text-secondary [&_ol]:mb-3 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_strong]:text-gold [&_ul]:mb-3" v-html="renderedAiObservations"></div>
+                <div class="markdown-rendered min-w-0 overflow-hidden rounded-sm border border-border-subtle bg-input p-3 text-body leading-6 text-text-secondary [overflow-wrap:anywhere] [&_ol]:mb-3 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_strong]:text-gold [&_ul]:mb-3" v-html="renderedAiObservations"></div>
               </div>
             </div>
           </form>
@@ -271,12 +270,11 @@
 <script setup lang="ts">
 import { ref, computed, reactive, nextTick, onBeforeUnmount } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { createQuickCaptureDraft, lookupCoin } from '@/api/client'
-import type { CoinLookupResponse, CoinMutationPayload, NumistaCandidate, NumistaEvidence } from '@/types'
+import { createQuickCaptureDraft, getApiErrorMessage, lookupCoin } from '@/api/client'
+import type { CoinLookupImageRole, CoinLookupResponse, CoinMutationPayload, CreateDeepIdentificationJobInput, NumistaCandidate, NumistaEvidence } from '@/types'
 import { renderSafeMarkdown } from '@/composables/useMarkdown'
 import { appendUniqueObservation, deriveAiObservations, normalizedEra, normalizeLookupDraft } from '@/utils/coinLookupDraft'
 import {
-  Search,
   X,
   AlertCircle,
   ShieldCheck,
@@ -285,13 +283,19 @@ import {
   Bookmark,
   List,
 } from 'lucide-vue-next'
-import InlineCameraCapturePanel from '@/components/InlineCameraCapturePanel.vue'
+import CoinLookupCaptureWizard from '@/components/coin-lookup/CoinLookupCaptureWizard.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import NumistaLookupPanel from '@/components/numista/NumistaLookupPanel.vue'
+import DeepAnalysisStartPanel from '@/components/deep-identification/DeepAnalysisStartPanel.vue'
+import AppIconButton from '@/components/ui/AppIconButton.vue'
+import { useDeepIdentification } from '@/composables/useDeepIdentification'
+import { useDeepIdentificationCapability } from '@/composables/useDeepIdentificationCapability'
 import { selectedNumistaReferenceFromCandidate } from '@/utils/numistaLookup'
+import { normalizeGalleryImage } from '@/utils/galleryImage'
 import { useAuthStore } from '@/stores/auth'
 
 interface CapturedImage {
+  role: CoinLookupImageRole
   file: File
   preview: string
 }
@@ -303,15 +307,36 @@ const auth = useAuthStore()
 
 const state = ref<LookupState>('capture')
 const capturedImages = ref<CapturedImage[]>([])
-const fileInput = ref<HTMLInputElement | null>(null)
-const cameraPanel = ref<InstanceType<typeof InlineCameraCapturePanel> | null>(null)
+const captureWizard = ref<InstanceType<typeof CoinLookupCaptureWizard> | null>(null)
+const captureNotes = ref('')
 const submitting = ref(false)
+const preparingImage = ref(false)
 const saving = ref(false)
 const error = ref('')
+const uploadError = ref('')
 const results = ref<CoinLookupResponse | null>(null)
 const aiObservations = ref('')
 const selectedNumistaCandidate = ref<NumistaCandidate | null>(null)
 const ngcNumistaExpanded = ref(false)
+const obverseImage = computed(() => capturedImages.value.find(image => image.role === 'obverse') ?? null)
+const reverseImage = computed(() => capturedImages.value.find(image => image.role === 'reverse') ?? null)
+const notesImage = computed(() => capturedImages.value.find(image => image.role === 'notes') ?? null)
+
+const showDeepAnalysisModal = ref(false)
+const {
+  enabled: deepAnalysisEnabled,
+  providers: deepAnalysisProviders,
+} = useDeepIdentificationCapability()
+const deepIdentification = useDeepIdentification()
+
+async function onDeepAnalysisSubmit(input: CreateDeepIdentificationJobInput) {
+  const job = await deepIdentification.start(input)
+  if (job) {
+    showDeepAnalysisModal.value = false
+    await router.push(`/deep-analysis/${job.id}`)
+  }
+}
+
 
 const reviewForm = reactive<CoinMutationPayload>({
   name: '',
@@ -383,57 +408,58 @@ function applyLookupMetadata(lookup: CoinLookupResponse) {
   ngcForm.confidence = lookup.extractedData.confidence ?? ''
 }
 
-function addCapturedFile(file: File) {
+function setCapturedImage(role: CoinLookupImageRole, file: File) {
+  uploadError.value = ''
+  const existingIndex = capturedImages.value.findIndex(image => image.role === role)
+  if (existingIndex >= 0) {
+    const existing = capturedImages.value[existingIndex]
+    if (existing) URL.revokeObjectURL(existing.preview)
+    capturedImages.value.splice(existingIndex, 1)
+  }
   const preview = URL.createObjectURL(file)
-  capturedImages.value.push({ file, preview })
+  capturedImages.value.push({ role, file, preview })
 }
 
-function imageTypeLabel(index: number) {
-  if (index === 0) return 'Obverse'
-  if (index === 1) return 'Reverse optional'
-  return 'Detail'
+function handleCameraCapture(role: CoinLookupImageRole, file: File) {
+  setCapturedImage(role, file)
 }
 
-function triggerFileUpload() {
-  fileInput.value?.click()
-}
-
-function handleFileUpload(event: Event) {
-  const input = event.target as HTMLInputElement
-  const files = input.files
-  if (!files || files.length === 0) return
-
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i]
-    if (!file) continue
-    addCapturedFile(file)
-  }
-
-  // Reset input
-  if (fileInput.value) {
-    fileInput.value.value = ''
+async function handleGallerySelection(role: CoinLookupImageRole, file: File) {
+  uploadError.value = ''
+  preparingImage.value = true
+  try {
+    setCapturedImage(role, await normalizeGalleryImage(file))
+  } catch (err: unknown) {
+    uploadError.value = getApiErrorMessage(err) || 'The selected image could not be prepared. Try a JPEG or PNG image.'
+  } finally {
+    preparingImage.value = false
   }
 }
 
-function removeImage(index: number) {
-  const img = capturedImages.value[index]
-  if (img) {
-    URL.revokeObjectURL(img.preview)
-    capturedImages.value.splice(index, 1)
-  }
+function removeCapturedImage(role: CoinLookupImageRole) {
+  const index = capturedImages.value.findIndex(image => image.role === role)
+  const image = capturedImages.value[index]
+  if (!image) return
+  URL.revokeObjectURL(image.preview)
+  capturedImages.value.splice(index, 1)
 }
 
 async function handleSubmit() {
-  if (capturedImages.value.length === 0) return
+  if (!obverseImage.value || preparingImage.value) return
 
   submitting.value = true
   error.value = ''
   state.value = 'analyzing'
-  cameraPanel.value?.stopCamera()
+  captureWizard.value?.stopCamera()
 
   try {
-    const files = capturedImages.value.map(img => img.file)
-    const lookup = await lookupCoin(files)
+    const selectedImages = [obverseImage.value, reverseImage.value, notesImage.value]
+      .filter((image): image is CapturedImage => image !== null)
+    const lookup = await lookupCoin(
+      selectedImages.map(image => image.file),
+      captureNotes.value,
+      selectedImages.map(image => image.role),
+    )
     const normalizedDraft = normalizeLookupDraft(lookup.data)
     results.value = lookup.data
     applyLookupMetadata(lookup.data)
@@ -443,7 +469,7 @@ async function handleSubmit() {
     state.value = 'results'
   } catch (err: unknown) {
     console.error('Lookup failed:', err)
-    error.value = err instanceof Error ? err.message : 'Failed to analyze coin'
+    error.value = getApiErrorMessage(err) || 'Failed to analyze coin'
     state.value = 'results'
   } finally {
     submitting.value = false
@@ -456,6 +482,7 @@ function handleRetake() {
     URL.revokeObjectURL(img.preview)
   }
   capturedImages.value = []
+  captureNotes.value = ''
   results.value = null
   selectedNumistaCandidate.value = null
   ngcNumistaExpanded.value = false
@@ -480,6 +507,7 @@ function handleCancel() {
 
 function buildDraftNotes() {
   const parts: string[] = []
+  appendUniqueObservation(parts, captureNotes.value, 'Collector notes')
   const extractedFields = [
     reviewForm.ruler ? `Ruler: ${reviewForm.ruler}` : '',
     reviewForm.denomination ? `Denomination: ${reviewForm.denomination}` : '',
@@ -522,21 +550,21 @@ async function handleSaveAsDraft() {
       aiConfidence: ngcForm.confidence,
       selectedNumistaId: selectedReference?.number,
       selectedNumistaUrl: selectedReference?.uri,
-      obverseImage: capturedImages.value[0]?.file ?? null,
-      reverseImage: capturedImages.value[1]?.file ?? null,
-      detailImages: capturedImages.value.slice(2).map(img => img.file),
+      obverseImage: obverseImage.value?.file ?? null,
+      reverseImage: reverseImage.value?.file ?? null,
+      detailImages: notesImage.value ? [notesImage.value.file] : [],
     })
     router.push(`/quick-capture/drafts/${draft.data.id}`)
   } catch (err: unknown) {
     console.error('Failed to save draft:', err)
-    error.value = err instanceof Error ? err.message : 'Failed to save draft'
+    error.value = getApiErrorMessage(err) || 'Failed to save draft'
   } finally {
     saving.value = false
   }
 }
 
 onBeforeUnmount(() => {
-  cameraPanel.value?.stopCamera()
+  captureWizard.value?.stopCamera()
   for (const img of capturedImages.value) {
     URL.revokeObjectURL(img.preview)
   }

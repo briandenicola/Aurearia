@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import CoinLookupPage from '../CoinLookupPage.vue'
-import { createQuickCaptureDraft, lookupCoin, lookupNumista } from '@/api/client'
+import { createDeepIdentificationJob, createQuickCaptureDraft, lookupCoin, lookupNumista } from '@/api/client'
 import { makeNumistaCandidate, makeNumistaLookupOutcome } from '@/test/numista-fixtures'
+import { normalizeGalleryImage } from '@/utils/galleryImage'
 
 const routerPush = vi.fn()
 const routerBack = vi.fn()
@@ -23,7 +24,20 @@ vi.mock('@/api/client', () => ({
   lookupCoin: vi.fn(),
   lookupNumista: vi.fn(),
   createQuickCaptureDraft: vi.fn(),
+  createDeepIdentificationJob: vi.fn(),
+  getDeepIdentificationCapability: vi.fn().mockResolvedValue({ data: { enabled: true } }),
+  getApiErrorMessage: (error: unknown) => {
+    if (typeof error !== 'object' || error === null) return ''
+    const typed = error as { response?: { data?: { error?: unknown } }; message?: unknown }
+    const apiMessage = typed.response?.data?.error
+    if (typeof apiMessage === 'string') return apiMessage
+    return typeof typed.message === 'string' ? typed.message : ''
+  },
   onTokenRefreshed: vi.fn(),
+}))
+
+vi.mock('@/utils/galleryImage', () => ({
+  normalizeGalleryImage: vi.fn(),
 }))
 
 function findAnalyzeButton(wrapper: ReturnType<typeof mount>) {
@@ -48,6 +62,9 @@ describe('CoinLookupPage', () => {
     vi.mocked(lookupCoin).mockReset()
     vi.mocked(createQuickCaptureDraft).mockReset()
     vi.mocked(lookupNumista).mockReset()
+    vi.mocked(createDeepIdentificationJob).mockReset()
+    vi.mocked(normalizeGalleryImage).mockReset()
+    vi.mocked(normalizeGalleryImage).mockImplementation(async file => file)
     routerPush.mockReset()
     routerBack.mockReset()
 
@@ -55,6 +72,7 @@ describe('CoinLookupPage', () => {
       value: vi.fn(() => 'blob:lookup-image'),
       configurable: true,
     })
+
     Object.defineProperty(URL, 'revokeObjectURL', {
       value: vi.fn(),
       configurable: true,
@@ -63,6 +81,106 @@ describe('CoinLookupPage', () => {
       value: undefined,
       configurable: true,
     })
+  })
+
+  it('normalizes a gallery image before starting identification', async () => {
+    const galleryFile = new File(['heic'], 'IMG_1234.HEIC', { type: 'image/heic' })
+    const normalizedFile = new File(['jpeg'], 'IMG_1234.jpg', { type: 'image/jpeg' })
+    vi.mocked(normalizeGalleryImage).mockResolvedValue(normalizedFile)
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: { confidence: 'low', rawAnalysis: '' },
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Unidentified Coin' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+
+    const wrapper = mount(CoinLookupPage)
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [galleryFile],
+      configurable: true,
+    })
+    await input.trigger('change')
+    await flushPromises()
+    await findAnalyzeButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(normalizeGalleryImage).toHaveBeenCalledWith(galleryFile)
+    expect(lookupCoin).toHaveBeenCalledWith([normalizedFile], '', ['obverse'])
+  })
+
+  it('sends and saves typed notes and a supporting image without treating it as the reverse', async () => {
+    const obverse = new File(['obverse'], 'obverse.jpg', { type: 'image/jpeg' })
+    const notesSource = new File(['label'], 'label.png', { type: 'image/png' })
+    const notesImage = new File(['label-jpeg'], 'label.jpg', { type: 'image/jpeg' })
+    vi.mocked(normalizeGalleryImage)
+      .mockResolvedValueOnce(obverse)
+      .mockResolvedValueOnce(notesImage)
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: { confidence: 'low', rawAnalysis: '' },
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Unidentified Coin' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+    vi.mocked(createQuickCaptureDraft).mockResolvedValue({
+      data: { id: 84 },
+    } as Awaited<ReturnType<typeof createQuickCaptureDraft>>)
+
+    const wrapper = mount(CoinLookupPage)
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [obverse], configurable: true })
+    await input.trigger('change')
+    await flushPromises()
+
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
+    await wrapper.find('textarea').setValue('Weight 3.2 g; dealer suggested Trajan.')
+    Object.defineProperty(input.element, 'files', { value: [notesSource], configurable: true })
+    await input.trigger('change')
+    await flushPromises()
+    await findAnalyzeButton(wrapper)?.trigger('click')
+    await flushPromises()
+
+    expect(lookupCoin).toHaveBeenCalledWith(
+      [obverse, notesImage],
+      'Weight 3.2 g; dealer suggested Trajan.',
+      ['obverse', 'notes'],
+    )
+
+    const saveButton = findActionButtons(wrapper).find(button => button.text().includes('Save as Draft'))
+    await saveButton?.trigger('click')
+    await flushPromises()
+
+    expect(createQuickCaptureDraft).toHaveBeenCalledWith(expect.objectContaining({
+      notes: expect.stringContaining('**Collector notes:** Weight 3.2 g; dealer suggested Trajan.'),
+      obverseImage: obverse,
+      reverseImage: null,
+      detailImages: [notesImage],
+    }))
+  })
+
+  it('shows the API validation detail instead of a generic 400 message', async () => {
+    const file = new File(['jpeg'], 'coin.jpg', { type: 'image/jpeg' })
+    vi.mocked(lookupCoin).mockRejectedValue({
+      response: { data: { error: 'Invalid image upload' } },
+      message: 'Request failed with status code 400',
+    })
+
+    const wrapper = mount(CoinLookupPage)
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [file],
+      configurable: true,
+    })
+    await input.trigger('change')
+    await flushPromises()
+    await findAnalyzeButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Invalid image upload')
+    expect(wrapper.text()).not.toContain('Request failed with status code 400')
   })
 
   it('waits for a user tap before requesting camera permission', async () => {
@@ -255,6 +373,87 @@ describe('CoinLookupPage', () => {
     await flushPromises()
 
     expect(findActionButtons(wrapper).map(button => button.text())).toContain('Save as Draft')
+  })
+
+  it('shows Deep Analysis in the shared wizard without altering the fast lookup submit path', async () => {
+    const file = new File(['coin'], 'labels.jpg', { type: 'image/jpeg' })
+    vi.mocked(lookupCoin).mockResolvedValue({
+      data: {
+        extractedData: { confidence: 'low', rawAnalysis: '' },
+        proposedNumistaQuery: '',
+        numistaEvidence: {},
+        numistaCandidates: [],
+        prefilledDraft: { name: 'Unidentified Coin' },
+      },
+    } as Awaited<ReturnType<typeof lookupCoin>>)
+
+    const wrapper = mount(CoinLookupPage, {
+      global: { stubs: { RouterLink: true, List: true } },
+    })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+
+    const deepAnalysisButton = wrapper.findAll('button').find((button) => button.text().includes('Deep Analysis'))
+    expect(deepAnalysisButton).toBeTruthy()
+
+    // Fast lookup submit continues to call lookupCoin only, never the deep-identification API.
+    await findAnalyzeButton(wrapper)!.trigger('click')
+    await flushPromises()
+
+    expect(lookupCoin).toHaveBeenCalledTimes(1)
+    expect(createDeepIdentificationJob).not.toHaveBeenCalled()
+  })
+
+  it('reuses wizard evidence for Deep Analysis without rendering duplicate capture inputs', async () => {
+    const obverse = new File(['obverse'], 'obverse.jpg', { type: 'image/jpeg' })
+    const reverse = new File(['reverse'], 'reverse.jpg', { type: 'image/jpeg' })
+    vi.mocked(createDeepIdentificationJob).mockResolvedValue({
+      data: {
+        job: {
+          id: 42,
+          source: 'intake',
+          status: 'queued',
+          partialSuccess: false,
+          cancelRequested: false,
+          lastSeq: 0,
+          eventsAvailable: false,
+          expiresAt: '2030-01-01T00:00:00Z',
+          createdAt: '2030-01-01T00:00:00Z',
+        },
+      },
+    } as Awaited<ReturnType<typeof createDeepIdentificationJob>>)
+
+    const wrapper = mount(CoinLookupPage, {
+      global: { stubs: { RouterLink: true, List: true } },
+    })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [obverse], configurable: true })
+    await input.trigger('change')
+    await flushPromises()
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    Object.defineProperty(input.element, 'files', { value: [reverse], configurable: true })
+    await input.trigger('change')
+    await flushPromises()
+
+    const deepAnalysisButton = wrapper.findAll('button').find((button) => button.text().includes('Deep Analysis'))
+    await deepAnalysisButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Using photos from Identify Coin')
+    expect(wrapper.find('[data-testid="reused-capture-summary"]').exists()).toBe(true)
+    expect(wrapper.findAll('.fixed input[type="file"]')).toHaveLength(0)
+
+    const startButton = wrapper.findAll('button').find((button) => button.text().includes('Start Deep Analysis'))
+    await startButton!.trigger('click')
+    await flushPromises()
+
+    expect(createDeepIdentificationJob).toHaveBeenCalledWith(expect.objectContaining({
+      obverseImage: obverse,
+      reverseImage: reverse,
+    }))
+    expect(lookupCoin).not.toHaveBeenCalled()
+    expect(routerPush).toHaveBeenCalledWith('/deep-analysis/42')
   })
 
   it('reveals an editable NGC Numista override by keyboard without an eager request', async () => {

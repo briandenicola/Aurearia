@@ -55,6 +55,16 @@ Architecture tests and type/lint gates (cheapest, fastest, most structural)
 
 For AI features, the top of the pyramid is intentionally shallow: we test deterministic orchestration and schema boundaries, then rely on runtime telemetry and human review for model quality.
 
+Deep Analysis follows that rule across all three services. Python tests exercise
+the router override, bounded fan-out, typed provider failures, deterministic
+disagreement detection, and Pydantic stream frames without live LLM or provider
+calls. Go `httptest` streams feed those Python-shaped frames through the real
+pipeline runner to verify public SSE translation, persisted proposals,
+owner-scoped lifecycle behavior, provider telemetry, and hint cleanup. Vue
+component and mocked Playwright tests verify reconnect, exact coverage states,
+confirm-gated draft/coin writes, and the absence of hint artifacts from
+result-consuming UI.
+
 ## 5. Adding a New Test
 
 ### Go API

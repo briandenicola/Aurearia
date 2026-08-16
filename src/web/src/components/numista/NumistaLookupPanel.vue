@@ -1,5 +1,5 @@
 <template>
-  <section class="grid gap-3" aria-labelledby="numista-lookup-heading">
+  <section class="grid min-w-0 gap-3 overflow-hidden [overflow-wrap:anywhere]" aria-labelledby="numista-lookup-heading">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h3 id="numista-lookup-heading" class="m-0 text-base font-medium text-text-primary">
         Numista Lookup

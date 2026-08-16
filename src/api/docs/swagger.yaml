@@ -821,6 +821,15 @@ definitions:
         example: 823160-093
         type: string
     type: object
+  handlers.NomismaSearchRequest:
+    properties:
+      limit:
+        type: integer
+      query:
+        type: string
+    required:
+    - query
+    type: object
   handlers.NoteListResponse:
     properties:
       notes:
@@ -848,6 +857,13 @@ definitions:
       year:
         example: 101-102
         type: string
+    type: object
+  handlers.NumistaDetailRequest:
+    properties:
+      id:
+        type: integer
+    required:
+    - id
     type: object
   handlers.NumistaEnrichmentRequestSwagger:
     properties:
@@ -963,6 +979,45 @@ definitions:
     - generationVersion
     - query
     - querySource
+    type: object
+  handlers.NumistaSearchRequest:
+    properties:
+      limit:
+        type: integer
+      query:
+        type: string
+    required:
+    - query
+    type: object
+  handlers.OCRESearchRequest:
+    properties:
+      denomination:
+        type: string
+      legend_tokens:
+        items:
+          type: string
+        type: array
+      limit:
+        type: integer
+      material:
+        type: string
+      mint:
+        type: string
+      ocre_id:
+        type: string
+      ruler:
+        type: string
+    type: object
+  handlers.OCRESearchResponse:
+    properties:
+      attribution:
+        type: string
+      candidates:
+        items:
+          $ref: '#/definitions/services.OCRECandidate'
+        type: array
+      status:
+        type: string
     type: object
   handlers.OllamaStatusResponse:
     properties:
@@ -1506,6 +1561,140 @@ definitions:
       prompt:
         type: string
     type: object
+  handlers.deepApplyRequest:
+    properties:
+      fields:
+        items:
+          type: string
+        type: array
+      target:
+        enum:
+        - draft
+        - coin
+        type: string
+    required:
+    - target
+    type: object
+  handlers.deepApplyResponse:
+    properties:
+      appliedAt:
+        type: string
+      appliedFields:
+        items:
+          type: string
+        type: array
+      coinId:
+        type: integer
+      draftId:
+        type: integer
+      jobId:
+        type: integer
+    type: object
+  handlers.deepCapabilityResponse:
+    properties:
+      enabled:
+        type: boolean
+      providers:
+        items:
+          type: string
+        type: array
+    type: object
+  handlers.deepJobDTO:
+    properties:
+      appliedAt:
+        type: string
+      appliedCoinId:
+        type: integer
+      appliedDraftId:
+        type: integer
+      cancelRequested:
+        type: boolean
+      coinId:
+        type: integer
+      completedAt:
+        type: string
+      createdAt:
+        type: string
+      eventsAvailable:
+        type: boolean
+      expiresAt:
+        type: string
+      failureCode:
+        type: string
+      failureMessage:
+        type: string
+      id:
+        type: integer
+      lastSeq:
+        type: integer
+      partialSuccess:
+        type: boolean
+      requestedProviders:
+        items:
+          type: string
+        type: array
+      retryOfJobId:
+        type: integer
+      routerRationale:
+        type: string
+      selectedProviders:
+        items:
+          type: string
+        type: array
+      source:
+        type: string
+      startedAt:
+        type: string
+      status:
+        type: string
+    type: object
+  handlers.deepJobEnvelope:
+    properties:
+      job:
+        $ref: '#/definitions/handlers.deepJobDTO'
+      proposal:
+        items:
+          type: integer
+        type: array
+      report:
+        items:
+          type: integer
+        type: array
+      reused:
+        type: boolean
+    type: object
+  handlers.deepJobListResponse:
+    properties:
+      jobs:
+        items:
+          $ref: '#/definitions/handlers.deepJobDTO'
+        type: array
+      nextCursor:
+        type: string
+    type: object
+  handlers.deepProposalPatchRequest:
+    properties:
+      fields:
+        additionalProperties:
+          properties:
+            accepted:
+              type: boolean
+            ownerValue:
+              items:
+                type: integer
+              type: array
+          type: object
+        type: object
+    type: object
+  handlers.deepRetryRequest:
+    properties:
+      notes:
+        type: string
+      providers:
+        items:
+          type: string
+        type: array
+    type: object
   handlers.emperorTrackerHighlightRequest:
     properties:
       coinId:
@@ -1575,6 +1764,25 @@ definitions:
     - displayName
     - lat
     - lng
+    type: object
+  handlers.nomismaLinkRequest:
+    properties:
+      label:
+        type: string
+      uri:
+        type: string
+    required:
+    - label
+    - uri
+    type: object
+  handlers.nomismaSearchResponse:
+    properties:
+      candidates:
+        items:
+          $ref: '#/definitions/services.NomismaCandidate'
+        type: array
+      status:
+        $ref: '#/definitions/services.NomismaSearchStatus'
     type: object
   handlers.noteRequest:
     properties:
@@ -2499,6 +2707,89 @@ definitions:
       value:
         type: number
     type: object
+  models.DeepIdentificationHintDeletionMetrics:
+    properties:
+      failure:
+        type: integer
+      success:
+        type: integer
+    type: object
+  models.DeepIdentificationJanitorMetrics:
+    properties:
+      failures:
+        type: integer
+      recoverySweeps:
+        type: integer
+      retentionSweeps:
+        type: integer
+    type: object
+  models.DeepIdentificationLatencySummary:
+    properties:
+      p50Ms:
+        type: integer
+      p95Ms:
+        type: integer
+    type: object
+  models.DeepIdentificationObservabilitySummary:
+    properties:
+      activeSseStreams:
+        type: integer
+      duration:
+        $ref: '#/definitions/models.DeepIdentificationLatencySummary'
+      hintDeletion:
+        $ref: '#/definitions/models.DeepIdentificationHintDeletionMetrics'
+      janitor:
+        $ref: '#/definitions/models.DeepIdentificationJanitorMetrics'
+      jobsByTerminalStatus:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      partialSuccessRate:
+        type: number
+      providers:
+        additionalProperties:
+          $ref: '#/definitions/models.DeepIdentificationProviderMetrics'
+        type: object
+      queueDepth:
+        type: integer
+      reconnectCount:
+        type: integer
+      truncationCount:
+        type: integer
+    type: object
+  models.DeepIdentificationProviderMetrics:
+    properties:
+      latency:
+        $ref: '#/definitions/models.DeepIdentificationLatencySummary'
+      statusCounts:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+    type: object
+  models.DeepProviderRunStatus:
+    enum:
+    - pending
+    - running
+    - contributed
+    - no_match
+    - failed
+    - timed_out
+    - skipped
+    - not_automated
+    - unavailable
+    type: string
+    x-enum-varnames:
+    - DeepProviderRunPending
+    - DeepProviderRunRunning
+    - DeepProviderRunContributed
+    - DeepProviderRunNoMatch
+    - DeepProviderRunFailed
+    - DeepProviderRunTimedOut
+    - DeepProviderRunSkipped
+    - DeepProviderRunNotAutomated
+    - DeepProviderRunUnavailable
   models.Era:
     enum:
     - ancient
@@ -2617,6 +2908,20 @@ definitions:
         type: number
       lng:
         type: number
+      nomismaLabel:
+        type: string
+      nomismaLinkedAt:
+        type: string
+      nomismaUri:
+        description: |-
+          NomismaURI, NomismaLabel, and NomismaLinkedAt are additive, nullable
+          provenance fields for an optional, admin-confirmed link to a
+          Nomisma.org authority concept. They are set or cleared together, only
+          for global (UserID == nil) mint locations, and are never touched by
+          the general display-field update path (see MintLocationService's
+          LinkNomismaGlobal/UnlinkNomismaGlobal). Absence (nil/empty) means
+          "not linked".
+        type: string
       region:
         type: string
       updatedAt:
@@ -2891,6 +3196,32 @@ definitions:
     x-enum-varnames:
     - NumistaSearchAttemptPrimary
     - NumistaSearchAttemptRelaxed
+  models.OCREHealthSummary:
+    properties:
+      callBudget:
+        description: CallBudget is the current per-job OCRE call budget.
+        type: integer
+      enabled:
+        description: Enabled reflects the current DeepIdentificationOCREEnabled flag.
+        type: boolean
+      gateValidated:
+        description: |-
+          GateValidated reports whether the deep-identification settings snapshot
+          parsed to a valid enablement gate (bounded flag + budget). A false value
+          means an operator must correct configuration before OCRE can be trusted.
+        type: boolean
+      lastCheckedAt:
+        description: |-
+          LastCheckedAt is the created_at of that most recent OCRE provider-run
+          row, or nil when OCRE has never run.
+        type: string
+      lastOutcome:
+        allOf:
+        - $ref: '#/definitions/models.DeepProviderRunStatus'
+        description: |-
+          LastOutcome is the status of the most recent OCRE provider-run row, or
+          nil when OCRE has never run.
+    type: object
   models.OIDCProviderTestStatus:
     enum:
     - unknown
@@ -3891,6 +4222,42 @@ definitions:
       percentage:
         type: number
     type: object
+  services.NomismaCandidate:
+    properties:
+      label:
+        type: string
+      match:
+        type: boolean
+      score:
+        type: number
+      uri:
+        type: string
+    type: object
+  services.NomismaSearchStatus:
+    enum:
+    - ok
+    - no_match
+    - unavailable
+    type: string
+    x-enum-varnames:
+    - NomismaSearchOK
+    - NomismaSearchNoMatch
+    - NomismaSearchUnavailable
+  services.OCRECandidate:
+    properties:
+      confidence:
+        type: number
+      explanation:
+        type: string
+      label:
+        type: string
+      matched_fields:
+        items:
+          type: string
+        type: array
+      type_uri:
+        type: string
+    type: object
   services.OIDCAdminProviderDTO:
     properties:
       callbackPath:
@@ -4049,7 +4416,7 @@ info:
     image uploads, AI-powered analysis, user management, auction tracking, and admin
     features.
   title: Aurearia API
-  version: "1.0"
+  version: 4.0.0
 paths:
   /admin/api-keys/notify-rotation:
     post:
@@ -4829,6 +5196,60 @@ paths:
       summary: Get collection health scheduler status
       tags:
       - Admin
+  /admin/deep-identification/observability:
+    get:
+      description: Returns redacted aggregate job, provider, SSE, queue, cleanup,
+        and janitor metrics. Never includes notes, queries, claims, reports, tokens,
+        or other user content. Admin only.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DeepIdentificationObservabilitySummary'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Deep Identification observability
+      tags:
+      - Admin
+  /admin/deep-identification/ocre/health:
+    get:
+      description: Returns the OCRE Deep Analysis enablement flag, per-job call budget,
+        configuration gate validity, and the last recorded provider-run outcome class
+        and timestamp. No per-job user content is exposed. Admin only.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.OCREHealthSummary'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get OCRE Deep Analysis operational health
+      tags:
+      - Admin
   /admin/health/summary:
     get:
       description: Returns aggregate collection health metrics across all users. Admin
@@ -5037,6 +5458,133 @@ paths:
       security:
       - BearerAuth: []
       summary: Update mint location
+      tags:
+      - Mint Locations
+  /admin/mint-locations/{id}/nomisma:
+    delete:
+      description: Clears a global mint location's Nomisma URI/label/timestamp. Admin
+        only. Idempotent.
+      parameters:
+      - description: Mint location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MessageResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Remove a Nomisma authority link from a global mint location
+      tags:
+      - Mint Locations
+    post:
+      consumes:
+      - application/json
+      description: Confirms a Nomisma.org candidate for a global mint location, persisting
+        its URI/label/timestamp. Admin only. Replaces any existing link.
+      parameters:
+      - description: Mint location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Confirmed Nomisma candidate
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.nomismaLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MintLocation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Link a global mint location to a Nomisma authority concept
+      tags:
+      - Mint Locations
+  /admin/mint-locations/{id}/nomisma/search:
+    get:
+      description: Searches Nomisma.org's reconciliation service for authority candidates
+        matching the given query. Admin only. Never fails for an upstream Nomisma
+        outage - surfaced as status "unavailable".
+      parameters:
+      - description: Mint location ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Text to search Nomisma for
+        in: query
+        name: query
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.nomismaSearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Search Nomisma candidates for a global mint location
       tags:
       - Mint Locations
   /admin/numista/health:
@@ -9432,6 +9980,17 @@ paths:
         name: images
         required: true
         type: file
+      - collectionFormat: multi
+        description: 'Semantic role for each image: obverse, reverse, or notes'
+        in: formData
+        items:
+          type: string
+        name: imageRoles
+        type: array
+      - description: Collector-provided identification context (max 2000 characters)
+        in: formData
+        name: notes
+        type: string
       produces:
       - application/json
       responses:
@@ -9488,6 +10047,375 @@ paths:
       summary: Match a category/era candidate against known values
       tags:
       - coins
+  /deep-identification/capability:
+    get:
+      description: Returns the Deep Analysis feature-flag state so the client can
+        hide or disable the entry point. The backend remains authoritative; job creation
+        is independently gated.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.deepCapabilityResponse'
+      summary: Report whether Deep Analysis is enabled for the current user
+      tags:
+      - Deep Identification
+  /deep-identification/jobs:
+    get:
+      parameters:
+      - description: Filter by coin id
+        in: query
+        name: coinId
+        type: integer
+      - description: Only queued/running jobs
+        in: query
+        name: activeOnly
+        type: boolean
+      - description: Filter by exact job status
+        in: query
+        name: status
+        type: string
+      - description: Page size (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Opaque pagination cursor from a previous response
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.deepJobListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List the owner's Deep Analysis jobs
+      tags:
+      - Deep Identification
+    post:
+      consumes:
+      - multipart/form-data
+      description: Accepts obverse/reverse coin images (uploaded or reused from a
+        saved coin), optional notes, optional ephemeral hint images, and an optional
+        provider override. Idempotent duplicate submissions return the existing in-flight
+        job with reused=true.
+      parameters:
+      - description: Saved coin to analyse; omit for new-coin intake
+        in: formData
+        name: coinId
+        type: integer
+      - description: Obverse image; required unless the saved coin already has one
+        in: formData
+        name: obverse
+        type: file
+      - description: Reverse image; required unless the saved coin already has one
+        in: formData
+        name: reverse
+        type: file
+      - description: Ephemeral hint images (max 3)
+        in: formData
+        name: hints
+        type: file
+      - description: Free-text notes (max 2000 chars)
+        in: formData
+        name: notes
+        type: string
+      - description: Comma-separated provider override
+        in: formData
+        name: providers
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.deepJobEnvelope'
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handlers.deepJobEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "415":
+          description: Unsupported Media Type
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Start a Deep Analysis job
+      tags:
+      - Deep Identification
+  /deep-identification/jobs/{id}:
+    get:
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.deepJobEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a Deep Analysis job
+      tags:
+      - Deep Identification
+  /deep-identification/jobs/{id}/apply:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Apply target and optional field subset
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.deepApplyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.deepApplyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Confirm a Deep Analysis proposal through the existing write path
+      tags:
+      - Deep Identification
+  /deep-identification/jobs/{id}/cancel:
+    post:
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handlers.deepJobEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.deepJobEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Cancel a Deep Analysis job
+      tags:
+      - Deep Identification
+  /deep-identification/jobs/{id}/events:
+    get:
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Resume after this sequence number
+        in: query
+        name: since
+        type: integer
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "410":
+          description: Gone
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Stream a Deep Analysis job's events (SSE)
+      tags:
+      - Deep Identification
+  /deep-identification/jobs/{id}/proposal:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Field edits
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.deepProposalPatchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: integer
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Save owner edits and per-field decisions on a Deep Analysis proposal
+      tags:
+      - Deep Identification
+  /deep-identification/jobs/{id}/retry:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Job ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Optional notes/provider override
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/handlers.deepRetryRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handlers.deepJobEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Retry a Deep Analysis job
+      tags:
+      - Deep Identification
   /extract-text:
     post:
       consumes:
@@ -9704,6 +10632,161 @@ paths:
             additionalProperties: true
             type: object
       summary: Get a single coin by ID
+      tags:
+      - Internal
+  /internal/tools/nomisma_search:
+    post:
+      consumes:
+      - application/json
+      description: Job-scoped, call-budget-limited Nomisma reconciliation search for
+        the Python deep identification pipeline
+      parameters:
+      - description: '******'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Search query
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.NomismaSearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: status, candidates, attribution
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Deep-identification Nomisma search tool
+      tags:
+      - Internal
+  /internal/tools/numista_detail:
+    post:
+      consumes:
+      - application/json
+      description: Job-scoped, call-budget-limited Numista detail lookup for the Python
+        deep identification pipeline
+      parameters:
+      - description: '******'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Numista catalogue ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.NumistaDetailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: status, candidate, identifier
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Deep-identification Numista detail tool
+      tags:
+      - Internal
+  /internal/tools/numista_search:
+    post:
+      consumes:
+      - application/json
+      description: Job-scoped, call-budget-limited Numista search for the Python deep
+        identification pipeline
+      parameters:
+      - description: '******'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Search query
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.NumistaSearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: status, candidates, attribution
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Deep-identification Numista search tool
+      tags:
+      - Internal
+  /internal/tools/ocre_search:
+    post:
+      consumes:
+      - application/json
+      description: Job-scoped, call-budget-limited OCRE (Nomisma SPARQL) coin-type
+        search for the Python deep identification pipeline
+      parameters:
+      - description: '******'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Bound OCRE query signals
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.OCRESearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: status, candidates, attribution
+          schema:
+            $ref: '#/definitions/handlers.OCRESearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Deep-identification OCRE search tool
       tags:
       - Internal
   /internal/tools/propose_update:

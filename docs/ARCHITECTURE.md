@@ -56,7 +56,7 @@ Aurearia is a full-stack PWA for managing a personal coin collection, with deep 
 
 | Service | Tech Stack | Port | Path |
 |---------|-----------|------|------|
-| **Go API** | Go 1.26.5, Gin, GORM, SQLite | 8080 | `src/api/` |
+| **Go API** | Go 1.26.6, Gin, GORM, SQLite | 8080 | `src/api/` |
 | **Vue Frontend** | Vue 3, TypeScript, Pinia, Vite, PWA | (bundled) | `src/web/` |
 | **Python Agent** | Python 3.12, FastAPI, LangGraph, LangChain | 8081 | `src/agent/` |
 
@@ -74,7 +74,7 @@ The Vue SPA is bundled into the Go binary's `wwwroot/` directory at build time. 
 │  │  ┌───────────────────────┐  │    │  ┌────────────────────────┐ │ │
 │  │  │  Vue SPA (wwwroot/)   │  │    │  │  FastAPI + LangGraph   │ │ │
 │  │  └───────────────────────┘  │    │  │                        │ │ │
-│  │  ┌───────────────────────┐  │    │  │  11 Team Pipelines     │ │ │
+│  │  ┌───────────────────────┐  │    │  │  12 Team Pipelines     │ │ │
 │  │  │  Gin HTTP Server      │  │    │  │  Supervisor Router     │ │ │
 │  │  │  REST API + SSE Proxy │──────────│  SSE Streaming         │ │ │
 │  │  └───────────────────────┘  │    │  └────────────────────────┘ │ │
@@ -200,8 +200,8 @@ Three route groups with distinct auth levels:
 | Group | Prefix | Auth | Example Routes |
 |-------|--------|------|----------------|
 | `api` (public) | `/api` | None (rate-limited) | `/auth/login`, `/auth/register`, `/auth/refresh`, `/auth/webauthn/*`, `/showcase/:slug` |
-| `protected` | `/api` | JWT or API Key | `/coins`, `/coins/bulk`, `/sets`, `/agent/chat`, `/agent/status`, `/auctions`, `/stats`, `/social/*`, `/notifications`, `/calendar/*`, `/alerts`, `/reminders`, `/showcases/*`, `/api-keys` |
-| `admin` | `/api/admin` | JWT + admin role | `/users`, `/settings`, `/logs`, `/availability-runs`, `/valuation-runs`, `/valuation-runs/trigger`, `/test-anthropic`, `/test-searxng` |
+| `protected` | `/api` | JWT or API Key | `/coins`, `/coins/bulk`, `/sets`, `/agent/chat`, `/deep-identification/*`, `/auctions`, `/stats`, `/social/*`, `/notifications`, `/calendar/*`, `/showcases/*`, `/api-keys` |
+| `admin` | `/api/admin` | JWT + admin role | `/users`, `/settings`, `/logs`, `/availability-runs`, `/valuation-runs`, `/deep-identification/ocre/health`, `/deep-identification/observability`, `/mint-locations/:id/nomisma/*`, `/test-anthropic`, `/test-searxng` |
 
 ### Shared GORM Scopes
 
@@ -343,6 +343,7 @@ The agent is a **stateless** FastAPI service. It owns no database. All configura
 | `POST` | `/api/analyze` | JSON | Vision-based coin analysis |
 | `POST` | `/api/portfolio/review` | SSE stream | Portfolio review and valuation |
 | `POST` | `/api/check-availability` | JSON | Wishlist URL availability check |
+| `POST` | `/api/deep-identify/stream` | SSE stream | Deep-identification image analysis, routing, provider fan-out, and synthesis |
 | `GET` | `/logs` | JSON | Log ring buffer |
 | `PUT` | `/log-level` | JSON | Dynamic log level |
 
@@ -388,11 +389,16 @@ Each team is a LangGraph `StateGraph` with verification stages:
 | 9 | Photo Guide | Analyze photos → Evaluate → Tips | Photography improvement |
 | 10 | Price Trends | Search auctions → Analyze trends → Format | Market price analysis |
 | 11 | Similar Lots | Search → Rank → Format | Find similar auction lots |
+| 12 | Deep Identification | Observe images → Route providers → Evaluate contradictions → Synthesize | Resumable, cited coin identification |
 
 **Pipeline design rules:**
 - Search agents pass only tool-returned data downstream — never invented details
 - Verification agents confirm every URL is live and every date is in the future
 - All worker outputs conform to defined Pydantic schemas — no free-form text
+- Deep Identification receives provider evidence only through authenticated Go
+  internal tools; Python remains stateless and does not persist jobs or artifacts
+- Full provider claims stay on the internal stream; replayable owner-facing
+  events persist bounded status, confidence, count, and link-out data
 
 ### LLM Provider Abstraction
 
@@ -417,6 +423,11 @@ LangGraph events → stream_graph_events() → SSE text/event-stream
 ```
 
 Event types emitted: `status`, `text`, `done`, `error`.
+
+Deep Identification uses a separate typed event contract. Go persists
+monotonically sequenced, replayable job events and can reconnect clients from
+the last observed sequence. Terminal job states are completed, partial, failed,
+or cancelled. Proposal writes remain explicitly confirm-gated.
 
 Final message extraction priority:
 1. Last node's message content
@@ -574,6 +585,10 @@ Auction provider services intentionally have asymmetric capabilities:
 | `AvailabilityResult` | `availability_results` | RunID, CoinID, URL, Status, Reason, AgentUsed |
 | `ValuationRun` | `valuation_runs` | UserID, TriggerType, Status, TotalCoins, CoinsUpdated, DurationMs |
 | `ValuationResult` | `valuation_results` | RunID, CoinID, PreviousValue, EstimatedValue, Confidence, Reasoning |
+| `DeepIdentificationJob` | `deep_identification_jobs` | UserID, Source, CoinID, Status, timeout/retention metadata, report and proposal |
+| `DeepIdentificationEvent` | `deep_identification_events` | JobID, sequence, typed public payload |
+| `DeepIdentificationProviderRun` | `deep_identification_provider_runs` | JobID, provider, status, timing and bounded outcome metadata |
+| `DeepIdentificationArtifact` | `deep_identification_artifacts` | JobID, role, ephemeral path and cleanup metadata |
 
 ### System Models
 
@@ -676,7 +691,7 @@ Stage 1: node:24-alpine@sha256:...
   → npm install + npm run build (Vue SPA)
   → Output: dist/
 
-Stage 2: golang:1.26.5-alpine@sha256:...
+Stage 2: golang:1.26.6-alpine@sha256:...
   → go build -o ancient-coins-api
   → Output: binary
 
@@ -757,6 +772,16 @@ cd src/web && npx vue-tsc --noEmit
 
 AI provider, model names, system prompts, scheduler configs, and feature toggles are stored as key-value pairs and managed via the Admin UI. Constants and defaults live in `services/settings_service.go`.
 
+Deep Analysis defaults to disabled. Its settings cover enablement, worker count,
+per-user concurrency, queue depth, hard timeout, event/result retention,
+provider count, Numista call budget, and OCRE enablement/call budget. RPC remains
+disabled and non-automatable. Disabling OCRE prevents new OCRE calls.
+
+The admin-only Deep Analysis operations view combines durable aggregate job and
+provider-run status/latency with process-local SSE, cleanup, and janitor
+counters. It never returns notes, query terms, claims, reports, tokens, or
+per-job owner content.
+
 ---
 
 ## Key Design Decisions
@@ -773,3 +798,5 @@ AI provider, model names, system prompts, scheduler configs, and feature toggles
 | **PWA over native app** | One codebase for desktop and mobile. Offline-capable with Workbox. Installable from browser. |
 | **No emojis in UI** | Numismatic audience. Professional tone. Enforced by convention. |
 | **Settings as key-value pairs** | Flexible runtime config without schema migrations. Admin UI for non-technical users. |
+| **Provider-specific authority boundaries** | Nomisma reconciles controlled vocabulary; OCRE contributes Roman Imperial type evidence under ODbL; NGC is link-out only; RPC automation is paused. |
+| **Confirm-gated deep writes** | Provider evidence can propose fields but cannot mutate a coin or draft without explicit owner review and apply. |

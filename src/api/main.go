@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"path/filepath"
@@ -15,8 +16,6 @@ import (
 	"github.com/briandenicola/ancient-coins-api/repository"
 	"github.com/briandenicola/ancient-coins-api/services"
 	"github.com/gin-gonic/gin"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 type SchedulerRegistry struct {
@@ -65,7 +64,7 @@ func buildShipmentCarrierClients(settingsSvc *services.SettingsService, logger *
 }
 
 //	@title						Aurearia API
-//	@version					1.0
+//	@version					4.0.0
 //	@description				REST API for managing a personal coin collection. Supports coin CRUD, image uploads, AI-powered analysis, user management, auction tracking, and admin features.
 //	@BasePath					/api
 //	@securityDefinitions.apikey	BearerAuth
@@ -107,6 +106,17 @@ func main() {
 
 	// Create internal token service for Python agent callbacks
 	internalTokenSvc := services.NewInternalTokenService(cfg.JWTSecret)
+	// Deep identification provider-tool boundary (Phase 6, T051-T054):
+	// job-scoped call-budget tracking, shared across the numista_search/
+	// numista_detail/nomisma_search internal tool endpoints.
+	deepProviderBudgets := services.NewDeepProviderBudgetTracker()
+	deepNomismaClient := services.NewHTTPNomismaClient()
+	// Feature 345: OCRE automated Deep Analysis provider — the single
+	// Nomisma-SPARQL HTTP boundary + its bounded search cache, shared with
+	// the ocre_search internal tool endpoint (default-off; gated by the
+	// DeepIdentificationOCREEnabled setting via the provider catalog).
+	deepOCREClient := services.NewHTTPOCREClient()
+	deepOCRECache := services.NewOCRECache()
 	credentialEncryptionSvc := services.NewDisabledCredentialEncryptionService()
 	if cfg.AuctionCredentialEncryptionKey != "" {
 		var err error
@@ -125,55 +135,7 @@ func main() {
 	}
 	logger.Debug("startup", "Upload directory: %s", cfg.UploadDir)
 
-	r := gin.Default()
-	if err := r.SetTrustedProxies(cfg.TrustedProxyList()); err != nil {
-		log.Fatalf("Failed to configure trusted proxies: %v", err)
-	}
-	r.MaxMultipartMemory = middleware.DefaultMultipartMemoryBytes
-	r.Use(middleware.SecurityHeaders())
-	r.Use(middleware.ResolvedClientIP())
-
-	// CORS middleware — restrict to configured origins
-	allowedOrigins := cfg.AllowedOrigins()
-	r.Use(func(c *gin.Context) {
-		origin := c.GetHeader("Origin")
-		allowed := false
-		for _, o := range allowedOrigins {
-			if o == origin {
-				allowed = true
-				break
-			}
-		}
-		if allowed {
-			c.Header("Access-Control-Allow-Origin", origin)
-			c.Header("Access-Control-Allow-Credentials", "true")
-		}
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-		c.Next()
-	})
-
-	// Serve Vue SPA from wwwroot
-	wwwroot := filepath.Join(".", "wwwroot")
-	if _, err := os.Stat(wwwroot); err == nil {
-		configureStaticRoutes(r, wwwroot)
-	}
-
-	// Health check (no auth, for container orchestration)
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
-	})
-	r.GET("/healthz", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
-	})
-
-	// Swagger docs
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	r := newHTTPRouter(cfg)
 
 	// Auth routes (public) — rate limited to prevent brute force
 	authRepo := repository.NewAuthRepository(database.DB)
@@ -247,6 +209,13 @@ func main() {
 	aiJobRepo := repository.NewAIJobRepository(database.DB)
 	aiJobSvc := services.NewAIJobService(aiJobRepo, agentProxy, userRepoForVal, settingsSvc, notifSvc, logger)
 	aiJobSvc.StartWorkers(1)
+	deepIdentificationRepo := repository.NewDeepIdentificationRepository(database.DB)
+	deepIdentificationSvc := services.NewDeepIdentificationService(deepIdentificationRepo, imageRepo, imageSvc, settingsSvc, logger, cfg.UploadDir)
+	deepIdentificationSvc.SetPipelineRunner(services.NewDeepIdentificationPipelineRunner(
+		agentProxy, deepIdentificationRepo, settingsSvc, internalTokenSvc, cfg.AgentInternalCallbackURL, logger, deepIdentificationSvc.Broker(),
+	))
+	deepIdentificationSvc.StartWorkers(context.Background())
+	deepIdentificationSvc.StartJanitor(context.Background())
 	healthRepo := repository.NewHealthRepository(database.DB)
 	healthSvc := services.NewHealthService(healthRepo, logger)
 	auctionWatchBidDigestRepo := repository.NewAuctionWatchBidDigestRepository(database.DB)
@@ -483,6 +452,18 @@ func main() {
 		protected.GET("/ollama-status", analysisHandler.OllamaStatus)
 		protected.GET("/ai-status", analysisHandler.AIStatus)
 
+		deepIdentificationProposalSvc := services.NewDeepIdentificationProposalService(deepIdentificationRepo, coinRepo, coinSvc, quickCaptureSvc)
+		deepIdentificationHandler := handlers.NewDeepIdentificationHandler(deepIdentificationSvc, settingsSvc, logger).WithProposalSupport(deepIdentificationProposalSvc)
+		protected.GET("/deep-identification/capability", deepIdentificationHandler.Capability)
+		protected.POST("/deep-identification/jobs", writeRateLimit, deepIdentificationHandler.CreateJob)
+		protected.GET("/deep-identification/jobs", deepIdentificationHandler.ListJobs)
+		protected.GET("/deep-identification/jobs/:id", deepIdentificationHandler.GetJob)
+		protected.GET("/deep-identification/jobs/:id/events", deepIdentificationHandler.StreamEvents)
+		protected.POST("/deep-identification/jobs/:id/cancel", writeRateLimit, deepIdentificationHandler.Cancel)
+		protected.POST("/deep-identification/jobs/:id/retry", writeRateLimit, deepIdentificationHandler.Retry)
+		protected.PATCH("/deep-identification/jobs/:id/proposal", writeRateLimit, deepIdentificationHandler.UpdateProposal)
+		protected.POST("/deep-identification/jobs/:id/apply", writeRateLimit, deepIdentificationHandler.ApplyProposal)
+
 		// Coin of the Day (user-facing)
 		coinOfDayHandler := handlers.NewCoinOfDayHandler(featuredCoinRepo, logger)
 		protected.GET("/featured-coins/latest", coinOfDayHandler.Latest)
@@ -665,6 +646,8 @@ func main() {
 		admin.GET("/logs", adminHandler.GetLogs)
 		adminNumistaHandler := handlers.NewAdminNumistaHandler(numistaTelemetry, settingsSvc)
 		admin.GET("/numista/health", adminNumistaHandler.Health)
+		adminOCREHandler := handlers.NewAdminOCREHandler(settingsSvc, deepIdentificationRepo)
+		admin.GET("/deep-identification/ocre/health", adminOCREHandler.Health)
 		admin.GET("/test-anthropic", adminHandler.TestAnthropicConnection)
 		admin.GET("/test-searxng", adminHandler.TestSearXNGConnection)
 
@@ -702,11 +685,16 @@ func main() {
 
 		// Mint location management
 		mintLocationRepo := repository.NewMintLocationRepository(database.DB)
-		mintLocationSvc := services.NewMintLocationService(mintLocationRepo)
+		nomismaClient := services.NewHTTPNomismaClient()
+		nomismaCache := services.NewNomismaCache()
+		mintLocationSvc := services.NewMintLocationService(mintLocationRepo).WithNomisma(nomismaClient, nomismaCache)
 		mintLocationHandler := handlers.NewMintLocationHandler(mintLocationSvc)
 		admin.POST("/mint-locations", mintLocationHandler.Create)
 		admin.PUT("/mint-locations/:id", mintLocationHandler.Update)
 		admin.DELETE("/mint-locations/:id", mintLocationHandler.Delete)
+		admin.GET("/mint-locations/:id/nomisma/search", mintLocationHandler.SearchNomisma)
+		admin.POST("/mint-locations/:id/nomisma", mintLocationHandler.LinkNomisma)
+		admin.DELETE("/mint-locations/:id/nomisma", mintLocationHandler.UnlinkNomisma)
 
 		// Availability check run history and manual trigger (reuse outer scope services)
 		adminAvailHandler := handlers.NewAvailabilityHandler(nil, availScheduler, availRepo, nil)
@@ -747,6 +735,10 @@ func main() {
 		admin.POST("/collection-health-snapshots/run", adminHealthHandler.TriggerSnapshotRun)
 		admin.GET("/collection-health-snapshot-runs", adminHealthHandler.ListSnapshotRuns)
 		admin.GET("/collection-health/status", adminHealthHandler.GetSnapshotStatus)
+
+		// Deep Identification aggregate operational metrics
+		adminDeepIdentificationHandler := handlers.NewAdminDeepIdentificationHandler(deepIdentificationSvc)
+		admin.GET("/deep-identification/observability", adminDeepIdentificationHandler.Observability)
 
 		// API key rotation notification trigger
 		apiKeyAdminHandler := handlers.NewApiKeyAdminHandler(apiKeyRepo, notifSvc, logger)
@@ -809,46 +801,32 @@ func main() {
 		internal.POST("/commit_update", internalToolsHandler.CommitUpdate)
 	}
 
-	log.Printf("Starting server on :%s", cfg.Port)
-	logger.Info("startup", "Server starting on port %s", cfg.Port)
-	logger.Info("startup", "Log level: %s", logger.GetLevel())
-
-	// Warn if callback URL is likely misconfigured in release mode
-	if os.Getenv("GIN_MODE") == "release" && strings.Contains(cfg.AgentInternalCallbackURL, "localhost") {
-		logger.Warn("startup", "AGENT_INTERNAL_CALLBACK_URL is set to '%s' in release mode. Collection chat (#217) will fail in multi-container deployments. Set it to the API container's network address (e.g., http://app:8080).", cfg.AgentInternalCallbackURL)
+	// Deep identification provider-tool boundary (Phase 6, T051): job-scoped
+	// token auth (distinct from the userID-only token above), shared route
+	// prefix per contracts/agent-internal-contract.md §7.
+	internalDeepProviderTools := r.Group("/api/internal/tools")
+	internalDeepProviderTools.Use(middleware.InternalJobTokenRequired(internalTokenSvc))
+	{
+		deepProviderToolsHandler := handlers.NewDeepProviderToolsHandler(
+			numistaClient, deepNomismaClient, deepOCREClient, deepOCRECache, settingsSvc, deepProviderBudgets, logger,
+		)
+		internalDeepProviderTools.POST("/numista_search", deepProviderToolsHandler.NumistaSearch)
+		internalDeepProviderTools.POST("/numista_detail", deepProviderToolsHandler.NumistaDetail)
+		internalDeepProviderTools.POST("/nomisma_search", deepProviderToolsHandler.NomismaSearch)
+		internalDeepProviderTools.POST("/ocre_search", deepProviderToolsHandler.OCRESearch)
 	}
-	if os.Getenv("GIN_MODE") == "release" && cfg.AgentInternalServiceToken == "" {
-		log.Fatal("FATAL: AGENT_INTERNAL_SERVICE_TOKEN must be set in production")
-	}
 
-	// Check Ollama connectivity at startup (blocks until complete)
-	func() {
-		ollamaURL := settingsSvc.GetSetting(services.SettingOllamaURL)
-		ollamaModel := settingsSvc.GetSetting(services.SettingOllamaModel)
-		svc := services.NewOllamaService(ollamaURL, 10, logger)
-		available, msg := svc.CheckModel(ollamaModel)
-		if available {
-			logger.Info("startup", "Ollama: %s", msg)
-		} else {
-			logger.Warn("startup", "Ollama: %s — AI features will be unavailable until resolved", msg)
-		}
-	}()
-
-	// Start schedulers
-	schedulerRegistry.StartAll()
-	go coinOfDayScheduler.Start()
-
-	// Startup API key rotation sync:
-	// keep notifying users with pre-cutoff keys until those keys are revoked/recreated.
-	apiKeyRotationSvc := services.NewAPIKeyRotationService(apiKeyRepo, notifRepo, notifSvc, settingsSvc, logger)
-	apiKeyRotationSvc.SyncFromStartup()
-
-	logger.Info("startup", "Application ready")
-	log.Println("Application ready")
-
-	if err := r.Run(":" + cfg.Port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+	runServer(serverRuntime{
+		router:             r,
+		config:             cfg,
+		logger:             logger,
+		settings:           settingsSvc,
+		schedulers:         schedulerRegistry,
+		coinOfDayScheduler: coinOfDayScheduler,
+		apiKeys:            apiKeyRepo,
+		notifications:      notifRepo,
+		notificationSvc:    notifSvc,
+	})
 }
 
 func configureStaticRoutes(r *gin.Engine, wwwroot string) {

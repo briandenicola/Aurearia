@@ -16,7 +16,7 @@ Aurearia runs as **two Docker containers** orchestrated via `docker-compose.yaml
 The **app** container uses a 3-stage Dockerfile (`Dockerfile`) that builds through:
 
 1. **Node 24** — builds the Vue frontend (`npm run build`)
-2. **Go 1.26.5** — compiles the API binary and embeds the Vue dist
+2. **Go 1.26.6** — compiles the API binary and embeds the Vue dist
 3. **Alpine 3.21** — minimal runtime (~40 MB final image)
 
 The **agent** container uses a separate Dockerfile (`src/agent/Dockerfile`) to build the Python LangGraph service.
@@ -622,6 +622,18 @@ These settings are stored in the database and configured through the **Admin** U
 | NumistaSearchResultLimit | `20` | Broad candidate limit, integer 1–50 |
 | NumistaSearchTimeoutSeconds | `4` | Broad provider timeout, integer 1–10 seconds |
 | NumistaDetailTimeoutSeconds | `3` | Per-detail provider timeout, integer 1–10 seconds |
+| DeepIdentificationEnabled | `false` | Enables optional persisted Deep Analysis jobs |
+| DeepIdentificationWorkerCount | `2` | Background worker count, integer 1–32 |
+| DeepIdentificationMaxActivePerUser | `1` | Concurrent active jobs per user, integer 1–10 |
+| DeepIdentificationQueueDepth | `32` | Maximum queued jobs, integer 1–1000 |
+| DeepIdentificationHardTimeoutSeconds | `300` | Job hard timeout, integer 1–900 seconds |
+| DeepIdentificationEventRetentionHours | `24` | Replay event retention, integer 1–720 hours |
+| DeepIdentificationResultRetentionDays | `90` | Result retention, integer 1–3650 days |
+| DeepIdentificationMaxProviders | `4` | Provider fan-out cap, integer 1–10 |
+| DeepIdentificationNumistaCallBudget | `4` | Numista calls allowed per job, integer 1–20 |
+| DeepIdentificationOCREEnabled | `false` | Enables OCRE Roman Imperial evidence; disabling prevents new OCRE calls |
+| DeepIdentificationOCRECallBudget | `3` | OCRE calls allowed per job, integer 1–20 |
+| DeepIdentificationRPCEnabled | `false` | Reserved setting; RPC remains unavailable for automated analysis |
 | CoinSearchPrompt | — | System prompt for coin search agent |
 | CoinShowsPrompt | — | System prompt for coin shows agent |
 | ValuationPrompt | — | System prompt for value estimator |
@@ -632,6 +644,11 @@ These settings are stored in the database and configured through the **Admin** U
 | PublicAppURL | — | Public `https://` base URL used for external notifications and links |
 | RegistrationMode | `closed` | `closed`, `invite`, or `open`; use `invite` for public beta |
 | BackupStatus | `not_configured` | Operator-maintained backup readiness/status surfaced in the Admin Security summary |
+
+OCRE requires outbound HTTPS access to `nomisma.org`. It does not require an
+API key. The implementation uses bounded GET requests with fixed SPARQL
+templates and a non-default User-Agent. RPC requires no deployment
+configuration because automated RPC integration is paused.
 
 
 ---

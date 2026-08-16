@@ -41,11 +41,13 @@ describe('Quick Capture Numista API contracts', () => {
     const obverse = new File(['obverse'], 'obverse.jpg', { type: 'image/jpeg' })
     const reverse = new File(['reverse'], 'reverse.jpg', { type: 'image/jpeg' })
 
-    await client.lookupCoin([obverse, reverse])
+    await client.lookupCoin([obverse, reverse], 'Weight 3.2 g', ['obverse', 'reverse'])
 
     expect(mockApi.post).toHaveBeenCalledTimes(1)
     expect(mockApi.post.mock.calls[0]?.[0]).toBe('/coins/lookup')
     expect(formEntries(mockApi.post.mock.calls[0] ?? []).images).toHaveLength(2)
+    expect(formEntries(mockApi.post.mock.calls[0] ?? []).notes).toEqual(['Weight 3.2 g'])
+    expect(formEntries(mockApi.post.mock.calls[0] ?? []).imageRoles).toEqual(['obverse', 'reverse'])
   })
 
   it('creates a draft with exactly the selected Numista id and canonical URL', async () => {

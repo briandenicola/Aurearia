@@ -2,7 +2,7 @@
 
 **Feature Branch**: `341-improve-numista-lookup`  
 **Created**: 2026-08-11  
-**Status**: Draft  
+**Status**: Implemented
 **Amended**: 2026-08-11 — approved canonical-placement UX reconciliation
 **Input**: Improve Numista lookup for direct coin-detail and photo-assisted workflows through a shared contract, richer editable queries, explainable relevance ranking, selected-reference persistence, distinct service states, caching and telemetry, and staged result enrichment.
 

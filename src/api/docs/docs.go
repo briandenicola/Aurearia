@@ -1214,6 +1214,86 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/deep-identification/observability": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns redacted aggregate job, provider, SSE, queue, cleanup, and janitor metrics. Never includes notes, queries, claims, reports, tokens, or other user content. Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get Deep Identification observability",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.DeepIdentificationObservabilitySummary"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/deep-identification/ocre/health": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the OCRE Deep Analysis enablement flag, per-job call budget, configuration gate validity, and the last recorded provider-run outcome class and timestamp. No per-job user content is exposed. Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get OCRE Deep Analysis operational health",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.OCREHealthSummary"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/health/summary": {
             "get": {
                 "security": [
@@ -1528,6 +1608,197 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/mint-locations/{id}/nomisma": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Confirms a Nomisma.org candidate for a global mint location, persisting its URI/label/timestamp. Admin only. Replaces any existing link.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Mint Locations"
+                ],
+                "summary": "Link a global mint location to a Nomisma authority concept",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Mint location ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Confirmed Nomisma candidate",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.nomismaLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.MintLocation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Clears a global mint location's Nomisma URI/label/timestamp. Admin only. Idempotent.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Mint Locations"
+                ],
+                "summary": "Remove a Nomisma authority link from a global mint location",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Mint location ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MessageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/mint-locations/{id}/nomisma/search": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Searches Nomisma.org's reconciliation service for authority candidates matching the given query. Admin only. Never fails for an upstream Nomisma outage - surfaced as status \"unavailable\".",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Mint Locations"
+                ],
+                "summary": "Search Nomisma candidates for a global mint location",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Mint location ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Text to search Nomisma for",
+                        "name": "query",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.nomismaSearchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
@@ -6109,6 +6380,22 @@ const docTemplate = `{
                         "name": "images",
                         "in": "formData",
                         "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "multi",
+                        "description": "Semantic role for each image: obverse, reverse, or notes",
+                        "name": "imageRoles",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Collector-provided identification context (max 2000 characters)",
+                        "name": "notes",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -8365,6 +8652,577 @@ const docTemplate = `{
                 }
             }
         },
+        "/deep-identification/capability": {
+            "get": {
+                "description": "Returns the Deep Analysis feature-flag state so the client can hide or disable the entry point. The backend remains authoritative; job creation is independently gated.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Deep Identification"
+                ],
+                "summary": "Report whether Deep Analysis is enabled for the current user",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.deepCapabilityResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/deep-identification/jobs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Deep Identification"
+                ],
+                "summary": "List the owner's Deep Analysis jobs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Filter by coin id",
+                        "name": "coinId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Only queued/running jobs",
+                        "name": "activeOnly",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by exact job status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 20, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque pagination cursor from a previous response",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.deepJobListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Accepts obverse/reverse coin images (uploaded or reused from a saved coin), optional notes, optional ephemeral hint images, and an optional provider override. Idempotent duplicate submissions return the existing in-flight job with reused=true.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Deep Identification"
+                ],
+                "summary": "Start a Deep Analysis job",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Saved coin to analyse; omit for new-coin intake",
+                        "name": "coinId",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Obverse image; required unless the saved coin already has one",
+                        "name": "obverse",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Reverse image; required unless the saved coin already has one",
+                        "name": "reverse",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Ephemeral hint images (max 3)",
+                        "name": "hints",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Free-text notes (max 2000 chars)",
+                        "name": "notes",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated provider override",
+                        "name": "providers",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.deepJobEnvelope"
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.deepJobEnvelope"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/deep-identification/jobs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Deep Identification"
+                ],
+                "summary": "Get a Deep Analysis job",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Job ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.deepJobEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/deep-identification/jobs/{id}/apply": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Deep Identification"
+                ],
+                "summary": "Confirm a Deep Analysis proposal through the existing write path",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Job ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Apply target and optional field subset",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.deepApplyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.deepApplyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/deep-identification/jobs/{id}/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Deep Identification"
+                ],
+                "summary": "Cancel a Deep Analysis job",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Job ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.deepJobEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.deepJobEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/deep-identification/jobs/{id}/events": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "Deep Identification"
+                ],
+                "summary": "Stream a Deep Analysis job's events (SSE)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Job ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Resume after this sequence number",
+                        "name": "since",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/deep-identification/jobs/{id}/proposal": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Deep Identification"
+                ],
+                "summary": "Save owner edits and per-field decisions on a Deep Analysis proposal",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Job ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Field edits",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.deepProposalPatchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/deep-identification/jobs/{id}/retry": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Deep Identification"
+                ],
+                "summary": "Retry a Deep Analysis job",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Job ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Optional notes/provider override",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.deepRetryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.deepJobEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/extract-text": {
             "post": {
                 "security": [
@@ -8682,6 +9540,229 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/tools/nomisma_search": {
+            "post": {
+                "description": "Job-scoped, call-budget-limited Nomisma reconciliation search for the Python deep identification pipeline",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal"
+                ],
+                "summary": "Deep-identification Nomisma search tool",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "******",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Search query",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.NomismaSearchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "status, candidates, attribution",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/tools/numista_detail": {
+            "post": {
+                "description": "Job-scoped, call-budget-limited Numista detail lookup for the Python deep identification pipeline",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal"
+                ],
+                "summary": "Deep-identification Numista detail tool",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "******",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Numista catalogue ID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.NumistaDetailRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "status, candidate, identifier",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/tools/numista_search": {
+            "post": {
+                "description": "Job-scoped, call-budget-limited Numista search for the Python deep identification pipeline",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal"
+                ],
+                "summary": "Deep-identification Numista search tool",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "******",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Search query",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.NumistaSearchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "status, candidates, attribution",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/tools/ocre_search": {
+            "post": {
+                "description": "Job-scoped, call-budget-limited OCRE (Nomisma SPARQL) coin-type search for the Python deep identification pipeline",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Internal"
+                ],
+                "summary": "Deep-identification OCRE search tool",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "******",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Bound OCRE query signals",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.OCRESearchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "status, candidates, attribution",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.OCRESearchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -17678,6 +18759,20 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.NomismaSearchRequest": {
+            "type": "object",
+            "required": [
+                "query"
+            ],
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "query": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.NoteListResponse": {
             "type": "object",
             "properties": {
@@ -17715,6 +18810,17 @@ const docTemplate = `{
                 "year": {
                     "type": "string",
                     "example": "101-102"
+                }
+            }
+        },
+        "handlers.NumistaDetailRequest": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer"
                 }
             }
         },
@@ -17888,6 +18994,66 @@ const docTemplate = `{
                             "$ref": "#/definitions/models.NumistaQuerySource"
                         }
                     ]
+                }
+            }
+        },
+        "handlers.NumistaSearchRequest": {
+            "type": "object",
+            "required": [
+                "query"
+            ],
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "query": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.OCRESearchRequest": {
+            "type": "object",
+            "properties": {
+                "denomination": {
+                    "type": "string"
+                },
+                "legend_tokens": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "material": {
+                    "type": "string"
+                },
+                "mint": {
+                    "type": "string"
+                },
+                "ocre_id": {
+                    "type": "string"
+                },
+                "ruler": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.OCRESearchResponse": {
+            "type": "object",
+            "properties": {
+                "attribution": {
+                    "type": "string"
+                },
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.OCRECandidate"
+                    }
+                },
+                "status": {
+                    "type": "string"
                 }
             }
         },
@@ -18687,6 +19853,211 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.deepApplyRequest": {
+            "type": "object",
+            "required": [
+                "target"
+            ],
+            "properties": {
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "target": {
+                    "type": "string",
+                    "enum": [
+                        "draft",
+                        "coin"
+                    ]
+                }
+            }
+        },
+        "handlers.deepApplyResponse": {
+            "type": "object",
+            "properties": {
+                "appliedAt": {
+                    "type": "string"
+                },
+                "appliedFields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "coinId": {
+                    "type": "integer"
+                },
+                "draftId": {
+                    "type": "integer"
+                },
+                "jobId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.deepCapabilityResponse": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handlers.deepJobDTO": {
+            "type": "object",
+            "properties": {
+                "appliedAt": {
+                    "type": "string"
+                },
+                "appliedCoinId": {
+                    "type": "integer"
+                },
+                "appliedDraftId": {
+                    "type": "integer"
+                },
+                "cancelRequested": {
+                    "type": "boolean"
+                },
+                "coinId": {
+                    "type": "integer"
+                },
+                "completedAt": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "eventsAvailable": {
+                    "type": "boolean"
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "failureCode": {
+                    "type": "string"
+                },
+                "failureMessage": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "lastSeq": {
+                    "type": "integer"
+                },
+                "partialSuccess": {
+                    "type": "boolean"
+                },
+                "requestedProviders": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "retryOfJobId": {
+                    "type": "integer"
+                },
+                "routerRationale": {
+                    "type": "string"
+                },
+                "selectedProviders": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "source": {
+                    "type": "string"
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.deepJobEnvelope": {
+            "type": "object",
+            "properties": {
+                "job": {
+                    "$ref": "#/definitions/handlers.deepJobDTO"
+                },
+                "proposal": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "report": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "reused": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handlers.deepJobListResponse": {
+            "type": "object",
+            "properties": {
+                "jobs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.deepJobDTO"
+                    }
+                },
+                "nextCursor": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.deepProposalPatchRequest": {
+            "type": "object",
+            "properties": {
+                "fields": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                            "accepted": {
+                                "type": "boolean"
+                            },
+                            "ownerValue": {
+                                "type": "array",
+                                "items": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "handlers.deepRetryRequest": {
+            "type": "object",
+            "properties": {
+                "notes": {
+                    "type": "string"
+                },
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "handlers.emperorTrackerHighlightRequest": {
             "type": "object",
             "properties": {
@@ -18788,6 +20159,35 @@ const docTemplate = `{
                 },
                 "region": {
                     "type": "string"
+                }
+            }
+        },
+        "handlers.nomismaLinkRequest": {
+            "type": "object",
+            "required": [
+                "label",
+                "uri"
+            ],
+            "properties": {
+                "label": {
+                    "type": "string"
+                },
+                "uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.nomismaSearchResponse": {
+            "type": "object",
+            "properties": {
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.NomismaCandidate"
+                    }
+                },
+                "status": {
+                    "$ref": "#/definitions/services.NomismaSearchStatus"
                 }
             }
         },
@@ -20140,6 +21540,124 @@ const docTemplate = `{
                 }
             }
         },
+        "models.DeepIdentificationHintDeletionMetrics": {
+            "type": "object",
+            "properties": {
+                "failure": {
+                    "type": "integer"
+                },
+                "success": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.DeepIdentificationJanitorMetrics": {
+            "type": "object",
+            "properties": {
+                "failures": {
+                    "type": "integer"
+                },
+                "recoverySweeps": {
+                    "type": "integer"
+                },
+                "retentionSweeps": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.DeepIdentificationLatencySummary": {
+            "type": "object",
+            "properties": {
+                "p50Ms": {
+                    "type": "integer"
+                },
+                "p95Ms": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.DeepIdentificationObservabilitySummary": {
+            "type": "object",
+            "properties": {
+                "activeSseStreams": {
+                    "type": "integer"
+                },
+                "duration": {
+                    "$ref": "#/definitions/models.DeepIdentificationLatencySummary"
+                },
+                "hintDeletion": {
+                    "$ref": "#/definitions/models.DeepIdentificationHintDeletionMetrics"
+                },
+                "janitor": {
+                    "$ref": "#/definitions/models.DeepIdentificationJanitorMetrics"
+                },
+                "jobsByTerminalStatus": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "partialSuccessRate": {
+                    "type": "number"
+                },
+                "providers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/models.DeepIdentificationProviderMetrics"
+                    }
+                },
+                "queueDepth": {
+                    "type": "integer"
+                },
+                "reconnectCount": {
+                    "type": "integer"
+                },
+                "truncationCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.DeepIdentificationProviderMetrics": {
+            "type": "object",
+            "properties": {
+                "latency": {
+                    "$ref": "#/definitions/models.DeepIdentificationLatencySummary"
+                },
+                "statusCounts": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            }
+        },
+        "models.DeepProviderRunStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "running",
+                "contributed",
+                "no_match",
+                "failed",
+                "timed_out",
+                "skipped",
+                "not_automated",
+                "unavailable"
+            ],
+            "x-enum-varnames": [
+                "DeepProviderRunPending",
+                "DeepProviderRunRunning",
+                "DeepProviderRunContributed",
+                "DeepProviderRunNoMatch",
+                "DeepProviderRunFailed",
+                "DeepProviderRunTimedOut",
+                "DeepProviderRunSkipped",
+                "DeepProviderRunNotAutomated",
+                "DeepProviderRunUnavailable"
+            ]
+        },
         "models.Era": {
             "type": "string",
             "enum": [
@@ -20302,6 +21820,16 @@ const docTemplate = `{
                 },
                 "lng": {
                     "type": "number"
+                },
+                "nomismaLabel": {
+                    "type": "string"
+                },
+                "nomismaLinkedAt": {
+                    "type": "string"
+                },
+                "nomismaUri": {
+                    "description": "NomismaURI, NomismaLabel, and NomismaLinkedAt are additive, nullable\nprovenance fields for an optional, admin-confirmed link to a\nNomisma.org authority concept. They are set or cleared together, only\nfor global (UserID == nil) mint locations, and are never touched by\nthe general display-field update path (see MintLocationService's\nLinkNomismaGlobal/UnlinkNomismaGlobal). Absence (nil/empty) means\n\"not linked\".",
+                    "type": "string"
                 },
                 "region": {
                     "type": "string"
@@ -20699,6 +22227,35 @@ const docTemplate = `{
                 "NumistaSearchAttemptPrimary",
                 "NumistaSearchAttemptRelaxed"
             ]
+        },
+        "models.OCREHealthSummary": {
+            "type": "object",
+            "properties": {
+                "callBudget": {
+                    "description": "CallBudget is the current per-job OCRE call budget.",
+                    "type": "integer"
+                },
+                "enabled": {
+                    "description": "Enabled reflects the current DeepIdentificationOCREEnabled flag.",
+                    "type": "boolean"
+                },
+                "gateValidated": {
+                    "description": "GateValidated reports whether the deep-identification settings snapshot\nparsed to a valid enablement gate (bounded flag + budget). A false value\nmeans an operator must correct configuration before OCRE can be trusted.",
+                    "type": "boolean"
+                },
+                "lastCheckedAt": {
+                    "description": "LastCheckedAt is the created_at of that most recent OCRE provider-run\nrow, or nil when OCRE has never run.",
+                    "type": "string"
+                },
+                "lastOutcome": {
+                    "description": "LastOutcome is the status of the most recent OCRE provider-run row, or\nnil when OCRE has never run.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.DeepProviderRunStatus"
+                        }
+                    ]
+                }
+            }
         },
         "models.OIDCProviderTestStatus": {
             "type": "string",
@@ -22163,6 +23720,59 @@ const docTemplate = `{
                 }
             }
         },
+        "services.NomismaCandidate": {
+            "type": "object",
+            "properties": {
+                "label": {
+                    "type": "string"
+                },
+                "match": {
+                    "type": "boolean"
+                },
+                "score": {
+                    "type": "number"
+                },
+                "uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.NomismaSearchStatus": {
+            "type": "string",
+            "enum": [
+                "ok",
+                "no_match",
+                "unavailable"
+            ],
+            "x-enum-varnames": [
+                "NomismaSearchOK",
+                "NomismaSearchNoMatch",
+                "NomismaSearchUnavailable"
+            ]
+        },
+        "services.OCRECandidate": {
+            "type": "object",
+            "properties": {
+                "confidence": {
+                    "type": "number"
+                },
+                "explanation": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "matched_fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "type_uri": {
+                    "type": "string"
+                }
+            }
+        },
         "services.OIDCAdminProviderDTO": {
             "type": "object",
             "properties": {
@@ -22414,7 +24024,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "4.0.0",
 	Host:             "",
 	BasePath:         "/api",
 	Schemes:          []string{},

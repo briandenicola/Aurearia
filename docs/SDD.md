@@ -4,8 +4,8 @@
 
 | | |
 |---|---|
-| **Version** | 1.0 |
-| **Date** | April 2, 2026 |
+| **Version** | 4.0 |
+| **Date** | August 15, 2026 |
 | **Author** | Brian DeNicola |
 | **License** | MIT |
 
@@ -61,6 +61,8 @@ The system provides:
 | JWT | JSON Web Token |
 | SearXNG | Privacy-respecting metasearch engine |
 | Numista | Online coin catalog and reference database |
+| Nomisma | Linked-data authority for numismatic concepts |
+| OCRE | Online Coins of the Roman Empire coin-type corpus |
 
 ---
 
@@ -83,6 +85,7 @@ The system provides:
                                    │  Database │  │ (Anthropic,   │
                                    └───────────┘  │  Ollama,      │
                                                   │  Numista,     │
+                                                  │  Nomisma/OCRE,│
                                                   │  SearXNG)     │
                                                   └───────────────┘
 ```
@@ -91,7 +94,7 @@ The system provides:
 
 | Layer | Technology | Version |
 |---|---|---|
-| Backend API | Go, Gin, GORM | Go 1.26.5 |
+| Backend API | Go, Gin, GORM | Go 1.26.6 |
 | Frontend SPA | Vue 3, TypeScript, Pinia, Vite | Vue 3 |
 | Agent Service | Python, FastAPI, LangGraph, LangChain | Python 3.12 |
 | Database | SQLite (WAL mode) | — |
@@ -190,6 +193,7 @@ The Go API serves the Vue SPA as static files and proxies AI requests to the Pyt
 | Team 2: Coin Shows | Search → Verify → Format | Find upcoming coin shows near the user |
 | Team 3: Coin Analysis | Analyze → Format | Vision-model coin image analysis |
 | Team 4: Portfolio Review | Reader → Valuation → Analysis | Assess collection composition and value |
+| Deep Identification | Observe → Route → Provider fan-out → Evaluate → Synthesize | Produce cited identification reports and proposals |
 
 **Agent design rules:**
 - Search agents pass only tool-returned data downstream — never invented details
@@ -197,6 +201,8 @@ The Go API serves the Vue SPA as static files and proxies AI requests to the Pyt
 - All worker outputs conform to a defined schema
 - The supervisor enforces max iteration count to prevent loops
 - Streaming responses are delivered via SSE through the Go API proxy
+- Deep Identification provider calls cross an authenticated, job-scoped Go
+  internal-tool boundary; Python owns no job or provider persistence
 
 ### 3.4 Frontend — Vue 3 SPA Architecture
 
@@ -379,7 +385,11 @@ SQLite with GORM, configured with:
 | Key | string | Primary key |
 | Value | string | Setting value |
 
-Key settings stored: `AIProvider`, `AnthropicAPIKey`, `AnthropicModel`, `OllamaURL`, `OllamaModel`, `OllamaTimeout`, `SearXNGURL`, `NumistaAPIKey`, `CoinSearchPrompt`, `CoinShowsPrompt`, `ValuationPrompt`, `ObversePrompt`, `ReversePrompt`, `TextExtractionPrompt`, `LogLevel`.
+Key settings stored: `AIProvider`, `AnthropicAPIKey`, `AnthropicModel`,
+`OllamaURL`, `OllamaModel`, `OllamaTimeout`, `SearXNGURL`, `NumistaAPIKey`,
+Deep Identification enablement/limits/retention/provider budgets, OCRE
+enablement/call budget, system prompts, and `LogLevel`. Deep Identification and
+OCRE default to disabled; RPC remains disabled and non-automatable.
 
 ### 4.4 Enumerations
 
@@ -644,6 +654,15 @@ Rate limit: 10 requests per minute per IP on auth endpoints.
 | POST | `/api/coins/:id/estimate-value` | AI value estimation |
 | POST | `/api/extract-text` | OCR text extraction from image |
 | GET | `/api/ollama-status` | Check Ollama model availability |
+| GET | `/api/deep-identification/capability` | Check whether Deep Analysis is enabled |
+| POST | `/api/deep-identification/jobs` | Create a persisted Deep Analysis job |
+| GET | `/api/deep-identification/jobs` | List owner-scoped jobs |
+| GET | `/api/deep-identification/jobs/:id` | Read one owner-scoped job |
+| GET | `/api/deep-identification/jobs/:id/events` | Replay/stream sequenced job events |
+| POST | `/api/deep-identification/jobs/:id/cancel` | Cancel active work |
+| POST | `/api/deep-identification/jobs/:id/retry` | Retry a settled job |
+| PATCH | `/api/deep-identification/jobs/:id/proposal` | Edit or accept proposed fields |
+| POST | `/api/deep-identification/jobs/:id/apply` | Explicitly apply accepted fields |
 
 #### 6.1.6 Journal (Protected)
 
@@ -737,6 +756,7 @@ These endpoints are called exclusively by the Go API, not exposed to the fronten
 | POST | `/api/search/shows` | CoinShowSearchRequest | SSE stream | Coin shows pipeline |
 | POST | `/api/analyze` | AnalyzeRequest | JSON | Image analysis |
 | POST | `/api/portfolio/review` | PortfolioReviewRequest | SSE stream | Portfolio review pipeline |
+| POST | `/api/deep-identify/stream` | DeepIdentifyRequest | Typed SSE stream | Image observation, provider routing, evaluation, and synthesis |
 
 `CoinSearchRequest` includes optional `app_context` (`route`, `activeCoinId`) when the Go API forwards collection-chat UI context; the Python DTO rejects unknown fields to catch Go/Python contract drift.
 
@@ -864,7 +884,7 @@ The system implements a multi-layered authentication strategy:
 | Stage | Base Image | Output |
 |---|---|---|
 | `web-build` | `node:24-alpine@sha256:...` | Vue production bundle (`/web/dist`) |
-| `api-build` | `golang:1.26.5-alpine@sha256:...` | Static Go binary (`CGO_ENABLED=0`) |
+| `api-build` | `golang:1.26.6-alpine@sha256:...` | Static Go binary (`CGO_ENABLED=0`) |
 | Final | `alpine:3.21@sha256:...` | Combined binary + SPA assets |
 
 **Agent Container** (`src/agent/Dockerfile`) — 2-stage build:
@@ -1031,6 +1051,16 @@ Users select one AI provider in Admin Settings:
 | **Ollama** | Self-hosted (e.g., llava, llama3.1) | External SearXNG instance | Ollama server + SearXNG |
 
 The `AIProvider` setting must be explicitly configured before agent features work. The agent chat displays a configuration banner when unconfigured.
+
+Reference providers are separate from the inference-provider choice:
+
+| Provider | Role | Boundary |
+|---|---|---|
+| Numista | API-backed catalog candidates | Requires configured API key and respects quotas |
+| Nomisma | Controlled-vocabulary authority links | Global mint linking, CC BY 4.0 |
+| OCRE | Roman Imperial coin-type evidence | Fixed-template Nomisma SPARQL, ODbL 1.0 / American Numismatic Society attribution, default off |
+| NGC | Official certification verification | Link-out only; no automated API or scraping |
+| RPC | Provincial coinage reference | Automation paused; no API/corpus ingestion |
 
 ### 10.3 Commit Convention
 

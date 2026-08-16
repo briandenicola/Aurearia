@@ -56,6 +56,20 @@ func (r *ImageRepository) FindImage(imageID, coinID uint) (*models.CoinImage, er
 	return &image, nil
 }
 
+// FindCoinImageByType returns the most recently uploaded image of the given
+// type for a coin (used by deep identification to resolve an obverse/reverse
+// role from a saved coin when no new upload is provided for that role).
+func (r *ImageRepository) FindCoinImageByType(coinID uint, imageType models.ImageType) (*models.CoinImage, error) {
+	var image models.CoinImage
+	err := r.db.Where("coin_id = ? AND image_type = ?", coinID, imageType).
+		Order("id DESC").
+		First(&image).Error
+	if err != nil {
+		return nil, err
+	}
+	return &image, nil
+}
+
 // FindCoinImageMediaByPath returns image ownership and visibility metadata for a stored file path.
 func (r *ImageRepository) FindCoinImageMediaByPath(filePath string) (*CoinImageMediaAccess, error) {
 	var media CoinImageMediaAccess

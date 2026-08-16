@@ -82,6 +82,17 @@
           :numista-search-result-limit="settings.NumistaSearchResultLimit ?? '20'"
           :numista-search-timeout-seconds="settings.NumistaSearchTimeoutSeconds ?? '4'"
           :numista-detail-timeout-seconds="settings.NumistaDetailTimeoutSeconds ?? '3'"
+          :deep-identification-enabled="settings.DeepIdentificationEnabled ?? 'false'"
+          :deep-identification-worker-count="settings.DeepIdentificationWorkerCount ?? '2'"
+          :deep-identification-max-active-per-user="settings.DeepIdentificationMaxActivePerUser ?? '1'"
+          :deep-identification-queue-depth="settings.DeepIdentificationQueueDepth ?? '32'"
+          :deep-identification-hard-timeout-seconds="settings.DeepIdentificationHardTimeoutSeconds ?? '300'"
+          :deep-identification-event-retention-hours="settings.DeepIdentificationEventRetentionHours ?? '24'"
+          :deep-identification-result-retention-days="settings.DeepIdentificationResultRetentionDays ?? '90'"
+          :deep-identification-max-providers="settings.DeepIdentificationMaxProviders ?? '4'"
+          :deep-identification-numista-call-budget="settings.DeepIdentificationNumistaCallBudget ?? '4'"
+          :deep-identification-o-c-r-e-enabled="settings.DeepIdentificationOCREEnabled ?? 'false'"
+          :deep-identification-o-c-r-e-call-budget="settings.DeepIdentificationOCRECallBudget ?? '3'"
           :pushover-app-token="settings.PushoverAppToken ?? ''"
           :public-app-url="settings.PublicAppURL ?? ''"
           :usps-api-base-url="settings.USPSAPIBaseURL ?? ''"
@@ -405,6 +416,17 @@ function onSystemSave(payload: {
   numistaSearchResultLimit: string
   numistaSearchTimeoutSeconds: string
   numistaDetailTimeoutSeconds: string
+  deepIdentificationEnabled: string
+  deepIdentificationWorkerCount: string
+  deepIdentificationMaxActivePerUser: string
+  deepIdentificationQueueDepth: string
+  deepIdentificationHardTimeoutSeconds: string
+  deepIdentificationEventRetentionHours: string
+  deepIdentificationResultRetentionDays: string
+  deepIdentificationMaxProviders: string
+  deepIdentificationNumistaCallBudget: string
+  deepIdentificationOCREEnabled: string
+  deepIdentificationOCRECallBudget: string
   logLevel: string
   pushoverAppToken: string
   publicAppUrl: string
@@ -429,6 +451,17 @@ function onSystemSave(payload: {
   settings.value.NumistaSearchResultLimit = payload.numistaSearchResultLimit
   settings.value.NumistaSearchTimeoutSeconds = payload.numistaSearchTimeoutSeconds
   settings.value.NumistaDetailTimeoutSeconds = payload.numistaDetailTimeoutSeconds
+  settings.value.DeepIdentificationEnabled = payload.deepIdentificationEnabled
+  settings.value.DeepIdentificationWorkerCount = payload.deepIdentificationWorkerCount
+  settings.value.DeepIdentificationMaxActivePerUser = payload.deepIdentificationMaxActivePerUser
+  settings.value.DeepIdentificationQueueDepth = payload.deepIdentificationQueueDepth
+  settings.value.DeepIdentificationHardTimeoutSeconds = payload.deepIdentificationHardTimeoutSeconds
+  settings.value.DeepIdentificationEventRetentionHours = payload.deepIdentificationEventRetentionHours
+  settings.value.DeepIdentificationResultRetentionDays = payload.deepIdentificationResultRetentionDays
+  settings.value.DeepIdentificationMaxProviders = payload.deepIdentificationMaxProviders
+  settings.value.DeepIdentificationNumistaCallBudget = payload.deepIdentificationNumistaCallBudget
+  settings.value.DeepIdentificationOCREEnabled = payload.deepIdentificationOCREEnabled
+  settings.value.DeepIdentificationOCRECallBudget = payload.deepIdentificationOCRECallBudget
   settings.value.LogLevel = payload.logLevel
   settings.value.PushoverAppToken = payload.pushoverAppToken
   settings.value.PublicAppURL = payload.publicAppUrl

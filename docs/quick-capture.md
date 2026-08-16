@@ -21,6 +21,14 @@ promotion step.
    create an active collection coin or a wish-list coin. Repeated promotion
    returns the existing coin rather than creating a duplicate.
 
+## Deep Analysis Drafts
+
+Deep Analysis reuses the same intake images and remains an optional alternative
+to **Analyze Photos**. The owner can review provider coverage, edit proposed
+fields, and choose **Save as Draft**. Only accepted proposal fields are written
+through the existing Quick Capture draft path; hint/reference images are
+temporary analysis context and never enter the draft or promoted coin gallery.
+
 ## Numista References
 
 Numista lookup remains contextual to Identify Coin and draft review; it is not

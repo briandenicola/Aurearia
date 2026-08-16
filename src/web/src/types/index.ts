@@ -405,6 +405,8 @@ export interface CoinLookupResponse {
   candidateReferences?: CoinReferenceInput[]
 }
 
+export type CoinLookupImageRole = 'obverse' | 'reverse' | 'notes'
+
 export interface IntakeCommitRequest {
   draftId: number
   confirm: boolean
@@ -563,12 +565,30 @@ export interface MintLocation {
   aliases: string[]
   createdAt: string
   updatedAt: string
+  nomismaUri?: string | null
+  nomismaLabel?: string
+  nomismaLinkedAt?: string | null
 }
 
 export interface GeocodeCandidate {
   displayName: string
   lat: number
   lng: number
+}
+
+// Nomisma.org authority linking (global mint locations only; admin-only)
+export type NomismaSearchStatus = 'ok' | 'no_match' | 'unavailable'
+
+export interface NomismaCandidate {
+  uri: string
+  label: string
+  score: number
+  match: boolean
+}
+
+export interface NomismaSearchResponse {
+  status: NomismaSearchStatus
+  candidates: NomismaCandidate[]
 }
 
 export interface CollectionSetOption {
@@ -1444,7 +1464,37 @@ export interface AppSettings extends Partial<NumistaSettings> {
   WishlistSearchAlertsCheckStartTime?: string
   CoinCategories?: string
   CoinEras?: string
+  DeepIdentificationOCREEnabled?: string
+  DeepIdentificationOCRECallBudget?: string
   [key: string]: string | undefined
+}
+
+// OCREHealthSummary mirrors the Go models.OCREHealthSummary bounded admin
+// view of the OCRE Deep Analysis provider (Feature 345 US4). It carries only
+// enablement/gate state and the last recorded outcome class — no per-job
+// user content.
+export interface OCREHealthSummary {
+  enabled: boolean
+  callBudget: number
+  gateValidated: boolean
+  lastOutcome?: string | null
+  lastCheckedAt?: string | null
+}
+
+export interface DeepIdentificationObservabilitySummary {
+  jobsByTerminalStatus: Record<string, number>
+  partialSuccessRate: number
+  duration: { p50Ms: number; p95Ms: number }
+  providers: Record<string, {
+    statusCounts: Record<string, number>
+    latency: { p50Ms: number; p95Ms: number }
+  }>
+  activeSseStreams: number
+  reconnectCount: number
+  truncationCount: number
+  queueDepth: number
+  hintDeletion: { success: number; failure: number }
+  janitor: { recoverySweeps: number; retentionSweeps: number; failures: number }
 }
 
 export interface SecuritySummary {
@@ -1865,6 +1915,194 @@ export interface MarketSignal {
   sampleSize?: number
   rationale: string
   sources?: string[]
+}
+
+// Deep Agentic Coin Identification (344-deep-agentic-coin-identification).
+// Contract anchor: specs/344-deep-agentic-coin-identification/contracts/deep-identification.openapi.yaml
+export type DeepProviderId = 'nomisma' | 'numista' | 'ngc' | 'ocre' | 'rpc'
+export type DeepJobStatus = 'queued' | 'running' | 'partial' | 'completed' | 'failed' | 'cancelled'
+export type DeepJobSource = 'intake' | 'saved_coin'
+export type DeepProviderStatus =
+  | 'pending'
+  | 'running'
+  | 'contributed'
+  | 'no_match'
+  | 'failed'
+  | 'timed_out'
+  | 'skipped'
+  | 'not_automated'
+  | 'unavailable'
+
+export interface DeepJob {
+  id: number
+  coinId?: number | null
+  source: DeepJobSource
+  status: DeepJobStatus
+  partialSuccess: boolean
+  selectedProviders?: DeepProviderId[]
+  requestedProviders?: DeepProviderId[]
+  routerRationale?: string
+  retryOfJobId?: number | null
+  cancelRequested: boolean
+  lastSeq: number
+  eventsAvailable: boolean
+  failureCode?: string
+  failureMessage?: string
+  appliedCoinId?: number | null
+  appliedDraftId?: number | null
+  appliedAt?: string | null
+  startedAt?: string | null
+  completedAt?: string | null
+  expiresAt: string
+  createdAt: string
+}
+
+export interface DeepReportCoverage {
+  provider: DeepProviderId
+  status: DeepProviderStatus
+  note?: string
+  linkOut?: string | null
+}
+
+export interface DeepClaim {
+  field: string
+  value: string
+  confidence?: number
+  citation: string
+  excerpt?: string
+}
+
+export interface DeepReportDisagreement {
+  field: string
+  claims: DeepClaim[]
+  resolution: 'unresolved' | 'preferred'
+}
+
+export interface DeepReportAttribution {
+  provider: DeepProviderId
+  text: string
+  identifier?: string | null
+}
+
+export interface DeepReport {
+  schemaVersion: number
+  narrative: string
+  coverage: DeepReportCoverage[]
+  disagreements?: DeepReportDisagreement[]
+  unresolvedQuestions?: string[]
+  attributions?: DeepReportAttribution[]
+  partialSuccess: boolean
+  generatedAt: string
+}
+
+export interface DeepProposalFieldEntry {
+  proposed: unknown
+  confidence?: number
+  evidence?: DeepClaim[]
+  ownerEdited: boolean
+  ownerValue: unknown
+  accepted: boolean | null
+}
+
+export interface DeepProposal {
+  schemaVersion: number
+  targetCoinId?: number | null
+  fields: Record<string, DeepProposalFieldEntry>
+  sourceReportGeneratedAt?: string
+}
+
+export interface DeepJobEnvelope {
+  job: DeepJob
+  reused?: boolean
+  report?: DeepReport | null
+  proposal?: DeepProposal | null
+}
+
+export interface DeepJobListResponse {
+  jobs: DeepJob[]
+  nextCursor?: string
+}
+
+export interface DeepIdentificationCapability {
+  enabled: boolean
+  providers: DeepProviderId[]
+}
+
+export interface CreateDeepIdentificationJobInput {
+  coinId?: number
+  obverseImage?: File | null
+  reverseImage?: File | null
+  hintImages?: File[]
+  notes?: string
+  providers?: DeepProviderId[]
+}
+
+export interface DeepProposalFieldEdit {
+  ownerValue?: unknown
+  accepted?: boolean | null
+}
+
+export interface UpdateDeepIdentificationProposalInput {
+  fields: Record<string, DeepProposalFieldEdit>
+}
+
+export type DeepApplyTarget = 'draft' | 'coin'
+
+export interface ApplyDeepIdentificationProposalInput {
+  target: DeepApplyTarget
+  fields?: string[]
+}
+
+export interface DeepApplyResult {
+  jobId: number
+  draftId?: number | null
+  coinId?: number | null
+  appliedFields: string[]
+  appliedAt: string
+}
+
+export interface ListDeepIdentificationJobsParams {
+  coinId?: number
+  activeOnly?: boolean
+  status?: DeepJobStatus
+  limit?: number
+  cursor?: string
+}
+
+// SSE envelope from GET /api/deep-identification/jobs/{id}/events
+// (contracts/sse-events.md §1/§2). Not a passthrough of the internal
+// LangGraph stream - a persisted, replayable, application-owned shape.
+export type DeepStreamEventType =
+  | 'job_accepted'
+  | 'status_changed'
+  | 'router_selected'
+  | 'provider_started'
+  | 'provider_result'
+  | 'evaluation'
+  | 'synthesis_started'
+  | 'progress'
+  | 'terminal'
+
+export interface DeepStreamEvent {
+  seq: number
+  jobId: number
+  type: DeepStreamEventType | string
+  ts: string
+  payload: Record<string, unknown>
+}
+
+export interface DeepStreamTruncatedPayload {
+  status: DeepJobStatus
+  earliestSeq: number
+  lastSeq: number
+}
+
+export interface DeepStreamTerminalPayload {
+  status: DeepJobStatus
+  partialSuccess: boolean
+  failureCode?: string
+  hasReport: boolean
+  hasProposal: boolean
 }
 
 export interface CalendarEventDetail {

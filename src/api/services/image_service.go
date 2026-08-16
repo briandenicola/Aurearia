@@ -54,6 +54,16 @@ func NewImageService(repo *repository.ImageRepository, uploadDir string) *ImageS
 	return &ImageService{repo: repo, uploadDir: uploadDir}
 }
 
+// DeepJobArtifactDir returns the path convention for storing a deep
+// identification job's obverse/reverse/hint artifact files:
+// <UploadDir>/deep-jobs/job-<id>/ (344-deep-agentic-coin-identification,
+// data-model.md §5). This is a path helper only - no upload/write behavior
+// is added here; the deep identification service (Phase 3) uses this to
+// build per-artifact file paths.
+func (s *ImageService) DeepJobArtifactDir(jobID uint) string {
+	return filepath.Join(s.uploadDir, "deep-jobs", fmt.Sprintf("job-%d", jobID))
+}
+
 // UploadImage saves image file data to disk and creates a DB record.
 func (s *ImageService) UploadImage(coinID, userID uint, fileData []byte, ext string, imageType string, isPrimary bool) (*models.CoinImage, error) {
 	if _, err := s.repo.FindCoinByOwner(coinID, userID); err != nil {

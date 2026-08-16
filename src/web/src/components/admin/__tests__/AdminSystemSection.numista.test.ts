@@ -4,12 +4,33 @@ import AdminSystemSection from '../AdminSystemSection.vue'
 
 const mocks = vi.hoisted(() => ({
   getAdminNumistaHealth: vi.fn(),
+  getAdminOCREHealth: vi.fn(),
+  getAdminDeepIdentificationObservability: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => mocks)
 
 describe('AdminSystemSection Numista configuration and health', () => {
   beforeEach(() => {
+    mocks.getAdminOCREHealth.mockReset()
+    mocks.getAdminOCREHealth.mockResolvedValue({
+      data: { enabled: false, callBudget: 3, gateValidated: true, lastOutcome: null, lastCheckedAt: null },
+    })
+    mocks.getAdminDeepIdentificationObservability.mockReset()
+    mocks.getAdminDeepIdentificationObservability.mockResolvedValue({
+      data: {
+        jobsByTerminalStatus: {},
+        partialSuccessRate: 0,
+        duration: { p50Ms: 0, p95Ms: 0 },
+        providers: {},
+        activeSseStreams: 0,
+        reconnectCount: 0,
+        truncationCount: 0,
+        queueDepth: 0,
+        hintDeletion: { success: 0, failure: 0 },
+        janitor: { recoverySweeps: 0, retentionSweeps: 0, failures: 0 },
+      },
+    })
     mocks.getAdminNumistaHealth.mockReset()
     mocks.getAdminNumistaHealth.mockResolvedValue({
       data: {
@@ -289,6 +310,8 @@ function baseProps() {
     numistaSearchResultLimit: '20',
     numistaSearchTimeoutSeconds: '4',
     numistaDetailTimeoutSeconds: '3',
+    deepIdentificationOCREEnabled: 'false',
+    deepIdentificationOCRECallBudget: '3',
     pushoverAppToken: '',
     publicAppUrl: '',
     uspsApiBaseUrl: '',

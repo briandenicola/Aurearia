@@ -123,6 +123,16 @@ type MintLocation struct {
 	Lng            float64    `gorm:"not null" json:"lng"`
 	Region         string     `gorm:"type:varchar(128)" json:"region,omitempty"`
 	Aliases        StringList `gorm:"type:text;not null" json:"aliases"`
-	CreatedAt      time.Time  `json:"createdAt"`
-	UpdatedAt      time.Time  `json:"updatedAt"`
+	// NomismaURI, NomismaLabel, and NomismaLinkedAt are additive, nullable
+	// provenance fields for an optional, admin-confirmed link to a
+	// Nomisma.org authority concept. They are set or cleared together, only
+	// for global (UserID == nil) mint locations, and are never touched by
+	// the general display-field update path (see MintLocationService's
+	// LinkNomismaGlobal/UnlinkNomismaGlobal). Absence (nil/empty) means
+	// "not linked".
+	NomismaURI      *string    `gorm:"type:varchar(256)" json:"nomismaUri,omitempty"`
+	NomismaLabel    string     `gorm:"type:varchar(256)" json:"nomismaLabel,omitempty"`
+	NomismaLinkedAt *time.Time `json:"nomismaLinkedAt,omitempty"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
 }
