@@ -375,7 +375,7 @@ describe('CoinLookupPage', () => {
     expect(findActionButtons(wrapper).map(button => button.text())).toContain('Save as Draft')
   })
 
-  it('shows a Deep Analysis entry point without altering the fast lookup submit path', async () => {
+  it('shows Deep Analysis in the shared wizard without altering the fast lookup submit path', async () => {
     const file = new File(['coin'], 'labels.jpg', { type: 'image/jpeg' })
     vi.mocked(lookupCoin).mockResolvedValue({
       data: {
@@ -405,8 +405,9 @@ describe('CoinLookupPage', () => {
     expect(createDeepIdentificationJob).not.toHaveBeenCalled()
   })
 
-  it('opens the Deep Analysis panel from Identify Coin and starts a job without touching quick lookup', async () => {
-    const file = new File(['coin'], 'labels.jpg', { type: 'image/jpeg' })
+  it('reuses wizard evidence for Deep Analysis without rendering duplicate capture inputs', async () => {
+    const obverse = new File(['obverse'], 'obverse.jpg', { type: 'image/jpeg' })
+    const reverse = new File(['reverse'], 'reverse.jpg', { type: 'image/jpeg' })
     vi.mocked(createDeepIdentificationJob).mockResolvedValue({
       data: {
         job: {
@@ -427,20 +428,32 @@ describe('CoinLookupPage', () => {
       global: { stubs: { RouterLink: true, List: true } },
     })
     const input = wrapper.find('input[type="file"]')
-    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    Object.defineProperty(input.element, 'files', { value: [obverse], configurable: true })
     await input.trigger('change')
+    await flushPromises()
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    Object.defineProperty(input.element, 'files', { value: [reverse], configurable: true })
+    await input.trigger('change')
+    await flushPromises()
 
     const deepAnalysisButton = wrapper.findAll('button').find((button) => button.text().includes('Deep Analysis'))
     await deepAnalysisButton!.trigger('click')
     await flushPromises()
 
-    // Missing obverse/reverse blocks submit with a specific validation message.
+    expect(wrapper.text()).toContain('Using photos from Identify Coin')
+    expect(wrapper.find('[data-testid="reused-capture-summary"]').exists()).toBe(true)
+    expect(wrapper.findAll('.fixed input[type="file"]')).toHaveLength(0)
+
     const startButton = wrapper.findAll('button').find((button) => button.text().includes('Start Deep Analysis'))
     await startButton!.trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('Obverse and reverse photos are both required')
-    expect(createDeepIdentificationJob).not.toHaveBeenCalled()
+
+    expect(createDeepIdentificationJob).toHaveBeenCalledWith(expect.objectContaining({
+      obverseImage: obverse,
+      reverseImage: reverse,
+    }))
     expect(lookupCoin).not.toHaveBeenCalled()
+    expect(routerPush).toHaveBeenCalledWith('/deep-analysis/42')
   })
 
   it('reveals an editable NGC Numista override by keyboard without an eager request', async () => {

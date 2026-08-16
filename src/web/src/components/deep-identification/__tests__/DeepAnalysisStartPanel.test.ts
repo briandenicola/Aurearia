@@ -86,6 +86,38 @@ describe('DeepAnalysisStartPanel', () => {
     expect(wrapper.emitted('cancel')).toBeTruthy()
   })
 
+  it('reuses Identify Coin evidence without rendering another set of image or notes inputs', async () => {
+    const obverse = makeFile('obverse.jpg')
+    const reverse = makeFile('reverse.jpg')
+    const hint = makeFile('label.jpg')
+    const wrapper = mount(DeepAnalysisStartPanel, {
+      props: {
+        reuseCapturedEvidence: true,
+        initialObverseImage: obverse,
+        initialReverseImage: reverse,
+        initialHintImages: [hint],
+        initialNotes: 'Weight 3.2 g',
+      },
+    })
+
+    expect(wrapper.get('[data-testid="reused-capture-summary"]').text())
+      .toContain('obverse, reverse, 1 supporting image, notes')
+    expect(wrapper.findAll('input[type="file"]')).toHaveLength(0)
+    expect(wrapper.find('textarea').exists()).toBe(false)
+
+    await wrapper.findAll('button').find((button) => button.text().includes('Start Deep Analysis'))!.trigger('click')
+    const payload = wrapper.emitted('submit')?.[0]?.[0] as {
+      obverseImage: File
+      reverseImage: File
+      hintImages: File[]
+      notes: string
+    }
+    expect(payload.obverseImage).toBe(obverse)
+    expect(payload.reverseImage).toBe(reverse)
+    expect(payload.hintImages).toEqual([hint])
+    expect(payload.notes).toBe('Weight 3.2 g')
+  })
+
   it('saved-coin mode: hides the obverse upload slot and only requires the missing reverse photo', async () => {
     Object.defineProperty(URL, 'createObjectURL', { value: () => 'blob:deep-analysis', configurable: true })
     Object.defineProperty(URL, 'revokeObjectURL', { value: () => {}, configurable: true })

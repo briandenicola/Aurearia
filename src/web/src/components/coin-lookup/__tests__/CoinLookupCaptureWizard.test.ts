@@ -75,6 +75,22 @@ describe('CoinLookupCaptureWizard', () => {
     expect(wrapper.find('[aria-label="Remove reverse image"]').exists()).toBe(true)
   })
 
+  it('uses the shared wizard for Deep Analysis and guides users to a missing reverse', async () => {
+    const wrapper = mountWizard({
+      obverse: image('obverse.jpg'),
+      deepAnalysisEnabled: true,
+    })
+
+    await wrapper.findAll('button').find(button => button.text().includes('Deep Analysis'))!.trigger('click')
+    expect(wrapper.text()).toContain('Step 2 of 3')
+    expect(wrapper.text()).toContain('Add a reverse image before starting Deep Analysis.')
+    expect(wrapper.emitted('deepAnalyze')).toBeUndefined()
+
+    await wrapper.setProps({ reverse: image('reverse.jpg') })
+    await wrapper.findAll('button').find(button => button.text().includes('Deep Analysis'))!.trigger('click')
+    expect(wrapper.emitted('deepAnalyze')).toHaveLength(1)
+  })
+
   it('does not analyze while a gallery image is still being prepared', () => {
     const wrapper = mountWizard({
       obverse: image('obverse.jpg'),

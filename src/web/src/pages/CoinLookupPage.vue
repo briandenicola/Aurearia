@@ -21,16 +21,14 @@
           :submitting="submitting"
           :preparing-image="preparingImage"
           :upload-error="uploadError"
+          :deep-analysis-enabled="deepAnalysisEnabled"
           @captured="handleCameraCapture"
           @selected="handleGallerySelection"
           @remove="removeCapturedImage"
           @update:notes="captureNotes = $event"
           @analyze="handleSubmit"
+          @deep-analyze="showDeepAnalysisModal = true"
         />
-
-        <div v-if="deepAnalysisEnabled" class="flex justify-center">
-          <DeepAnalysisEntryButton @click="showDeepAnalysisModal = true" />
-        </div>
       </div>
 
       <div v-if="showDeepAnalysisModal" class="fixed inset-0 z-[1000] flex items-center justify-center bg-overlay p-4" @click.self="showDeepAnalysisModal = false">
@@ -42,6 +40,11 @@
             </AppIconButton>
           </div>
           <DeepAnalysisStartPanel
+            reuse-captured-evidence
+            :initial-obverse-image="obverseImage?.file ?? null"
+            :initial-reverse-image="reverseImage?.file ?? null"
+            :initial-hint-images="notesImage ? [notesImage.file] : []"
+            :initial-notes="captureNotes"
             :submitting="deepIdentification.starting.value"
             :submit-error="deepIdentification.error.value"
             @submit="onDeepAnalysisSubmit"
@@ -282,7 +285,6 @@ import {
 import CoinLookupCaptureWizard from '@/components/coin-lookup/CoinLookupCaptureWizard.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import NumistaLookupPanel from '@/components/numista/NumistaLookupPanel.vue'
-import DeepAnalysisEntryButton from '@/components/deep-identification/DeepAnalysisEntryButton.vue'
 import DeepAnalysisStartPanel from '@/components/deep-identification/DeepAnalysisStartPanel.vue'
 import AppIconButton from '@/components/ui/AppIconButton.vue'
 import { useDeepIdentification } from '@/composables/useDeepIdentification'

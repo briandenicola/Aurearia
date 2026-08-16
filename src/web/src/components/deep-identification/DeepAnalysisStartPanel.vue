@@ -5,7 +5,16 @@
       report plus proposed fields for your review. It never saves or updates your coin automatically.
     </p>
 
-    <div class="grid min-w-0 gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr))]">
+    <div
+      v-if="reuseCapturedEvidence"
+      class="grid min-w-0 gap-1 rounded-sm border border-border-subtle bg-input p-3"
+      data-testid="reused-capture-summary"
+    >
+      <strong class="text-base text-text-primary">Using photos from Identify Coin</strong>
+      <span class="text-sm text-text-secondary">{{ reusedEvidenceSummary }}</span>
+    </div>
+
+    <div v-else class="grid min-w-0 gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr))]">
       <label
         v-if="!hasExistingObverse"
         class="relative grid min-h-[170px] cursor-pointer gap-3 rounded-sm border border-dashed border-border-accent bg-card p-4 transition-[border-color,background] duration-200 hover:border-gold hover:bg-card-hover"
@@ -44,11 +53,11 @@
         <input class="absolute inset-0 cursor-pointer opacity-0" type="file" accept="image/*" multiple @change="onHintFiles">
       </label>
     </div>
-    <p class="text-sm text-text-secondary">
+    <p v-if="!reuseCapturedEvidence" class="text-sm text-text-secondary">
       Hint photos (labels, envelopes, references) are used only during analysis and are never saved to your coin.
     </p>
 
-    <label class="grid gap-2">
+    <label v-if="!reuseCapturedEvidence" class="grid gap-2">
       <span class="text-base font-semibold text-heading">Notes (optional)</span>
       <textarea
         v-model="notes"
@@ -102,12 +111,22 @@ const props = withDefaults(defineProps<{
   coinId?: number | null
   hasExistingObverse?: boolean
   hasExistingReverse?: boolean
+  reuseCapturedEvidence?: boolean
+  initialObverseImage?: File | null
+  initialReverseImage?: File | null
+  initialHintImages?: File[]
+  initialNotes?: string
   submitting?: boolean
   submitError?: string
 }>(), {
   coinId: null,
   hasExistingObverse: false,
   hasExistingReverse: false,
+  reuseCapturedEvidence: false,
+  initialObverseImage: null,
+  initialReverseImage: null,
+  initialHintImages: () => [],
+  initialNotes: '',
   submitting: false,
   submitError: '',
 })
@@ -117,10 +136,10 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
-const obverseImage = ref<File | null>(null)
-const reverseImage = ref<File | null>(null)
-const hintImages = ref<File[]>([])
-const notes = ref('')
+const obverseImage = ref<File | null>(props.initialObverseImage)
+const reverseImage = ref<File | null>(props.initialReverseImage)
+const hintImages = ref<File[]>([...props.initialHintImages])
+const notes = ref(props.initialNotes)
 const selectedProviders = ref<DeepProviderId[]>([])
 const validationError = ref('')
 
@@ -154,6 +173,16 @@ function toggleProvider(id: DeepProviderId) {
 const hintCountText = computed(() => {
   if (!hintImages.value.length) return `Optional, up to ${MAX_DEEP_HINT_IMAGES}`
   return `${hintImages.value.length} of ${MAX_DEEP_HINT_IMAGES} selected`
+})
+const reusedEvidenceSummary = computed(() => {
+  const parts: string[] = []
+  if (obverseImage.value || props.hasExistingObverse) parts.push('obverse')
+  if (reverseImage.value || props.hasExistingReverse) parts.push('reverse')
+  if (hintImages.value.length > 0) {
+    parts.push(`${hintImages.value.length} supporting ${hintImages.value.length === 1 ? 'image' : 'images'}`)
+  }
+  if (notes.value.trim()) parts.push('notes')
+  return parts.join(', ') || 'No evidence selected'
 })
 
 function watchUrl(target: 'obverse' | 'reverse', file: File | null) {
