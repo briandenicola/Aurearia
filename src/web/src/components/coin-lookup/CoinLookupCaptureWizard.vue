@@ -1,32 +1,8 @@
 <template>
   <section class="flex flex-col gap-6" aria-labelledby="capture-wizard-title">
-    <div class="card p-4">
-      <h2 id="capture-wizard-title" class="sr-only">Coin photo steps</h2>
-      <ol class="grid grid-cols-3 gap-2" aria-label="Coin identification progress">
-        <li v-for="(item, index) in steps" :key="item.role">
-          <button
-            type="button"
-            class="flex min-h-11 w-full items-center gap-2 rounded-sm border px-3 py-2 text-left transition-colors"
-            :class="stepClass(index)"
-            :disabled="index > 0 && !obverse"
-            :aria-current="step === index ? 'step' : undefined"
-            @click="step = index"
-          >
-            <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-current text-tiny font-semibold">
-              <Check v-if="isComplete(item.role)" :size="14" aria-hidden="true" />
-              <span v-else>{{ index + 1 }}</span>
-            </span>
-            <span class="min-w-0">
-              <span class="block truncate text-small font-semibold">{{ item.label }}</span>
-              <span class="block text-tiny text-text-muted">{{ item.required ? 'Required' : 'Optional' }}</span>
-            </span>
-          </button>
-        </li>
-      </ol>
-    </div>
-
     <div class="flex flex-col gap-4">
       <div>
+        <h2 id="capture-wizard-title" class="sr-only">Coin photo steps</h2>
         <span class="section-label">Step {{ step + 1 }} of 3</span>
         <h2 class="mt-1 text-heading">{{ currentStep.title }}</h2>
         <p class="mt-2 text-base leading-6 text-text-secondary">{{ currentStep.description }}</p>
@@ -61,6 +37,7 @@
       </p>
 
       <InlineCameraCapturePanel
+        v-if="!currentImage"
         ref="cameraPanel"
         :filename-prefix="`lookup-${currentStep.role}`"
         :instruction="currentStep.instruction"
@@ -81,21 +58,22 @@
         <span>{{ uploadError }}</span>
       </div>
 
-      <div class="flex flex-wrap items-center gap-3">
+      <div class="flex items-center gap-2">
         <button
           v-if="step > 0"
           type="button"
-          class="btn btn-secondary"
+          class="btn btn-secondary min-h-11 min-w-11 shrink-0 justify-center px-3"
+          title="Previous step"
+          aria-label="Previous step"
           @click="step -= 1"
         >
-          <ChevronLeft :size="18" />
-          Back
+          <ChevronLeft :size="20" aria-hidden="true" />
         </button>
 
         <button
           v-if="obverse"
           type="button"
-          class="btn btn-primary flex-1 justify-center"
+          class="btn btn-primary min-w-0 flex-1 justify-center px-2 text-sm sm:px-5 sm:text-base"
           :disabled="submitting || preparingImage"
           @click="$emit('analyze')"
         >
@@ -108,12 +86,13 @@
         <button
           v-if="step < 2"
           type="button"
-          class="btn btn-secondary ml-auto"
+          class="btn btn-secondary ml-auto min-h-11 min-w-11 shrink-0 justify-center px-3"
           :disabled="!obverse || preparingImage"
+          :title="step === 0 ? 'Add reverse image' : 'Add notes'"
+          :aria-label="step === 0 ? 'Add reverse image' : 'Add notes'"
           @click="step += 1"
         >
-          {{ step === 0 ? 'Add Reverse' : 'Add Notes' }}
-          <ChevronRight :size="18" />
+          <ChevronRight :size="20" aria-hidden="true" />
         </button>
       </div>
     </div>
@@ -122,7 +101,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { AlertCircle, Check, ChevronLeft, ChevronRight, Search, X } from 'lucide-vue-next'
+import { AlertCircle, ChevronLeft, ChevronRight, Search, X } from 'lucide-vue-next'
 import InlineCameraCapturePanel from '@/components/InlineCameraCapturePanel.vue'
 import type { CoinLookupImageRole } from '@/types'
 
@@ -189,22 +168,6 @@ const currentImage = computed(() => {
   if (currentStep.value.role === 'reverse') return props.reverse
   return props.notesImage
 })
-
-function isComplete(role: CoinLookupImageRole) {
-  if (role === 'obverse') return props.obverse !== null
-  if (role === 'reverse') return props.reverse !== null
-  return props.notesImage !== null || props.notes.trim().length > 0
-}
-
-function stepClass(index: number) {
-  if (step.value === index) {
-    return 'border-border-accent bg-gold-glow text-gold'
-  }
-  if (isComplete(steps[index]?.role ?? 'obverse')) {
-    return 'border-border-subtle bg-card text-text-primary'
-  }
-  return 'border-border-subtle bg-input text-text-secondary'
-}
 
 function handleFileSelection(event: Event) {
   const input = event.target as HTMLInputElement

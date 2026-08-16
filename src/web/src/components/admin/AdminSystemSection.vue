@@ -165,6 +165,23 @@
         <div class="form-group min-w-0">
           <label class="flex items-center gap-3">
             <input
+              id="deep-identification-enabled"
+              v-model="localDeepIdentificationEnabled"
+              type="checkbox"
+              name="DeepIdentificationEnabled"
+              data-testid="deep-identification-enabled-toggle"
+              aria-describedby="deep-identification-enabled-help"
+            />
+            <span class="form-label m-0">Enable Deep Analysis</span>
+          </label>
+          <span id="deep-identification-enabled-help" class="mt-1 block text-sm text-text-muted">
+            Shows the Deep Analysis action in Identify Coin and on saved coins, and allows new background analysis jobs.
+          </span>
+        </div>
+
+        <div class="form-group min-w-0">
+          <label class="flex items-center gap-3">
+            <input
               id="ocre-enabled"
               v-model="localOCREEnabled"
               type="checkbox"
@@ -254,7 +271,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { getAdminNumistaHealth, getAdminOCREHealth } from '@/api/client'
 import type { NumistaHealthSummary, NumistaLookupStatus, OCREHealthSummary } from '@/types'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   numistaApiKey: string
   numistaSearchTTLHours: string
   numistaDetailTTLHours: string
@@ -262,6 +279,7 @@ const props = defineProps<{
   numistaSearchResultLimit: string
   numistaSearchTimeoutSeconds: string
   numistaDetailTimeoutSeconds: string
+  deepIdentificationEnabled?: string
   deepIdentificationOCREEnabled: string
   deepIdentificationOCRECallBudget: string
   pushoverAppToken: string
@@ -286,7 +304,9 @@ const props = defineProps<{
   error: boolean
   appVersion: string
   buildDate: string
-}>()
+}>(), {
+  deepIdentificationEnabled: 'false',
+})
 
 const emit = defineEmits<{
   save: [settings: {
@@ -297,6 +317,7 @@ const emit = defineEmits<{
     numistaSearchResultLimit: string
     numistaSearchTimeoutSeconds: string
     numistaDetailTimeoutSeconds: string
+    deepIdentificationEnabled: string
     deepIdentificationOCREEnabled: string
     deepIdentificationOCRECallBudget: string
     logLevel: string
@@ -325,6 +346,7 @@ const localNumistaEnrichmentLimit = ref(props.numistaEnrichmentLimit || '5')
 const localNumistaSearchResultLimit = ref(props.numistaSearchResultLimit || '20')
 const localNumistaSearchTimeoutSeconds = ref(props.numistaSearchTimeoutSeconds || '4')
 const localNumistaDetailTimeoutSeconds = ref(props.numistaDetailTimeoutSeconds || '3')
+const localDeepIdentificationEnabled = ref((props.deepIdentificationEnabled || 'false') === 'true')
 const localOCREEnabled = ref((props.deepIdentificationOCREEnabled || 'false') === 'true')
 const localOCRECallBudget = ref(props.deepIdentificationOCRECallBudget || '3')
 const localPushoverAppToken = ref(props.pushoverAppToken)
@@ -406,6 +428,7 @@ function save() {
     numistaSearchResultLimit: localNumistaSearchResultLimit.value,
     numistaSearchTimeoutSeconds: localNumistaSearchTimeoutSeconds.value,
     numistaDetailTimeoutSeconds: localNumistaDetailTimeoutSeconds.value,
+    deepIdentificationEnabled: localDeepIdentificationEnabled.value ? 'true' : 'false',
     deepIdentificationOCREEnabled: localOCREEnabled.value ? 'true' : 'false',
     deepIdentificationOCRECallBudget: localOCRECallBudget.value,
     logLevel: localLogLevel.value,
@@ -490,6 +513,7 @@ watch(() => props.numistaEnrichmentLimit, (value) => { localNumistaEnrichmentLim
 watch(() => props.numistaSearchResultLimit, (value) => { localNumistaSearchResultLimit.value = value || '20' })
 watch(() => props.numistaSearchTimeoutSeconds, (value) => { localNumistaSearchTimeoutSeconds.value = value || '4' })
 watch(() => props.numistaDetailTimeoutSeconds, (value) => { localNumistaDetailTimeoutSeconds.value = value || '3' })
+watch(() => props.deepIdentificationEnabled, (value) => { localDeepIdentificationEnabled.value = (value || 'false') === 'true' })
 watch(() => props.deepIdentificationOCREEnabled, (value) => { localOCREEnabled.value = (value || 'false') === 'true' })
 watch(() => props.deepIdentificationOCRECallBudget, (value) => { localOCRECallBudget.value = value || '3' })
 watch(() => props.pushoverAppToken, (value) => { localPushoverAppToken.value = value })

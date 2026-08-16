@@ -1,5 +1,5 @@
 <template>
-  <section class="card mt-6">
+  <section class="card mt-6 min-w-0 overflow-hidden [overflow-wrap:anywhere]">
     <div class="mb-4 flex items-start justify-between gap-4">
       <div>
         <span class="section-label">Ready for cataloging</span>
@@ -23,7 +23,7 @@
     <template v-else>
       <p class="mb-4 text-body text-text-secondary">Choose where this coin should land, review readiness, then promote it. Repeated promotion is safe.</p>
 
-      <fieldset class="m-0 grid border-0 p-0 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))] gap-3">
+      <fieldset class="m-0 grid min-w-0 gap-3 border-0 p-0 [grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr))]">
         <legend class="section-label col-span-full mb-1">Promote to</legend>
         <label
           class="flex cursor-pointer items-start gap-3 rounded-sm border border-border-subtle bg-input p-3 text-text-primary transition-[border-color,background,box-shadow] duration-200"

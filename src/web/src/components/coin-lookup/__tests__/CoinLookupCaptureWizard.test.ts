@@ -33,33 +33,46 @@ function mountWizard(overrides: Record<string, unknown> = {}) {
 }
 
 describe('CoinLookupCaptureWizard', () => {
-  it('shows required and optional steps before the first image', () => {
+  it('shows only the current step guidance before the first image', () => {
     const wrapper = mountWizard()
 
     expect(wrapper.text()).toContain('Step 1 of 3')
     expect(wrapper.text()).toContain('Add the obverse')
-    expect(wrapper.text()).toContain('Required')
-    expect(wrapper.text().match(/Optional/g)).toHaveLength(2)
-    expect(wrapper.findAll('button').find(button => button.text().includes('Add Reverse'))?.attributes('disabled')).toBeDefined()
+    expect(wrapper.find('ol').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Add reverse image"]').attributes('disabled')).toBeDefined()
     expect(wrapper.text()).not.toContain('Analyze Photos')
   })
 
-  it('offers immediate analysis or progression after the obverse', async () => {
+  it('offers immediate analysis and compact progression after the obverse', async () => {
     const wrapper = mountWizard({ obverse: image('obverse.jpg') })
 
+    expect(wrapper.find('.camera-stub').exists()).toBe(false)
     const analyze = wrapper.findAll('button').find(button => button.text().includes('Analyze Photos'))
     await analyze?.trigger('click')
     expect(wrapper.emitted('analyze')).toHaveLength(1)
 
-    await wrapper.findAll('button').find(button => button.text().includes('Add Reverse'))?.trigger('click')
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
     expect(wrapper.text()).toContain('Step 2 of 3')
     expect(wrapper.text()).toContain('Add the reverse')
+    expect(wrapper.find('.camera-stub').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="Previous step"]').exists()).toBe(true)
 
-    await wrapper.findAll('button').find(button => button.text().includes('Add Notes'))?.trigger('click')
+    await wrapper.find('[aria-label="Add notes"]').trigger('click')
     expect(wrapper.text()).toContain('Step 3 of 3')
     expect(wrapper.text()).toContain('Add supporting evidence')
     expect(wrapper.find('textarea').exists()).toBe(true)
     expect(wrapper.find('textarea').attributes('maxlength')).toBe('2000')
+  })
+
+  it('hides each camera after that step has an image', async () => {
+    const wrapper = mountWizard({
+      obverse: image('obverse.jpg'),
+      reverse: image('reverse.jpg'),
+    })
+
+    await wrapper.find('[aria-label="Add reverse image"]').trigger('click')
+    expect(wrapper.find('.camera-stub').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Remove reverse image"]').exists()).toBe(true)
   })
 
   it('does not analyze while a gallery image is still being prepared', () => {

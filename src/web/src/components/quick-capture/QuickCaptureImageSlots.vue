@@ -1,5 +1,5 @@
 <template>
-  <div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
+  <div class="grid min-w-0 gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr))]">
     <label class="relative grid min-h-[170px] cursor-pointer gap-3 rounded-sm border border-dashed border-border-accent bg-card p-4 transition-[border-color,background] duration-200 hover:border-gold hover:bg-card-hover">
       <span class="text-base font-semibold text-heading">Obverse</span>
       <img v-if="obverseUrl" :src="obverseUrl" alt="Obverse preview" class="aspect-square w-full rounded-sm border border-border-subtle object-cover">

@@ -5,7 +5,7 @@
       report plus proposed fields for your review. It never saves or updates your coin automatically.
     </p>
 
-    <div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
+    <div class="grid min-w-0 gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr))]">
       <label
         v-if="!hasExistingObverse"
         class="relative grid min-h-[170px] cursor-pointer gap-3 rounded-sm border border-dashed border-border-accent bg-card p-4 transition-[border-color,background] duration-200 hover:border-gold hover:bg-card-hover"
@@ -92,7 +92,7 @@ function providerLabel(id: DeepProviderId): string {
     case 'nomisma': return 'Nomisma'
     case 'numista': return 'Numista'
     case 'ngc': return 'NGC (link-out only)'
-    case 'ocre': return 'OCRE (not automated)'
+    case 'ocre': return 'OCRE'
     case 'rpc': return 'RPC (unavailable)'
     default: return id
   }
