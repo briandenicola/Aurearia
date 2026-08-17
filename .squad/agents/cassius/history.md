@@ -954,3 +954,121 @@ instead so a second connection can actually be granted. A regression test
 that "passes" only because a dependency was left nil elsewhere in its own
 fixture is not a real proof; wire the dependency in before trusting the
 green.
+
+## Learnings (352 Phase 1 — extract shared catalog-reference parser, 2026-08-17)
+
+Task: extract `ReferenceMigrationService.parseLegacyReference`'s token/volume/
+number parsing into a new shared `ParseCatalogReferenceText` helper in
+`services/catalog_reference_parser.go`, keeping the `Volume: "0"` sentinel and
+journal-message policy inside `ReferenceMigrationService`, without editing
+`reference_migration_service_test.go` at all.
+
+**The real trap was message-string fidelity, not the parsing algorithm
+itself.** The parsing algorithm (tokenize, normalize catalog alias, detect
+Roman numeral / plausible volume token, extract number) moved cleanly and
+mechanically. The hard part was that `parseLegacyReference`'s four "not
+parseable" exit points each build a *different* journal/log message
+("unrecognized catalog: X" using the raw uppercased token, "catalog not in
+registry: X" using the *normalized* code, "no number found in reference: X"
+using the origin text before any ";", and a silent `""` for empty input) —
+and the new helper's signature only returns `(ParsedCatalogReference, bool)`,
+no message string. Since the caller still needs to reconstruct those exact
+messages, I made `ParsedCatalogReference.Catalog` do double duty: it holds the
+raw uppercased token when `normalizeCatalogAlias` failed (so the caller can
+report the offending unrecognized alias), or the successfully-normalized code
+when normalization succeeded but the registry lookup failed. The caller
+distinguishes the two purely by checking
+`normalizeCatalogAlias(parsed.Catalog) == parsed.Catalog` (idempotent for
+already-canonical codes) — no extra "reason" field was needed.
+
+**Traced all four origin-text branches explicitly.** In the original code,
+each of the four early-return message branches independently computed
+`origText := text; if len(parts) > 1 { origText = first }` — i.e. "use the
+full trimmed input unless there's a `;`, in which case use only the segment
+before it." This is now computed exactly once inside `ParseCatalogReferenceText`
+and exposed as `ParsedCatalogReference.RawText`, reused by all of migration's
+message-building branches. Confirmed via
+`TestParseCatalogReferenceText_MultiReferenceRawText` that `"RIC 207; Sear
+1625"` yields `RawText == "RIC 207"`, matching the original `first`-not-`text`
+behavior when a `;` is present.
+
+**Confidence table maps 1:1 onto the original branch structure** (FR-017):
+0.90 for volume-not-required success, 0.90 for volume-required + Roman-numeral
+volume, 0.50 for volume-required + a plausible-but-non-Roman volume token
+(numeric ≤3 digits or alphabetic, e.g. "Cop"), 0.30 whenever `NeedsVolume` is
+true. All three of the original's `Volume: "0"` sentinel-emitting branches
+collapse into one shared `NeedsVolume: true, Volume: ""` case in the helper.
+
+**Verification, not just a green run:** ran
+`reference_migration_service_test.go` (`TestParseLegacyReference`,
+`TestMigrationIdempotency`, `TestMigrationWithExistingReference`,
+`TestMigrationWithVolume0Sentinel`, `TestMigrationUserScoped`) before writing
+any extraction code, then again afterward with the test file completely
+unedited — identical pass count both times, zero assertion changes needed.
+Falsified the new `TestParseCatalogReferenceText_NeverEmitsVolumeZeroSentinel`
+by temporarily hard-coding `Volume: "0"` into one of the `NeedsVolume: true`
+returns; got a real RED (`Volume = "0", shared helper must never emit the
+volume=0 sentinel (FR-019)`) across all three volume-required catalogs in the
+table, then reverted and confirmed GREEN again. Full gate (`go build ./...`,
+`go vet ./...`, `go test -count=1 ./...` — 10/10 packages,
+`TestArchitecture`, `TestNoDirectDatabaseImports`) all green. Did not touch
+`ocre_scoring.go`. Did not add `NGC` to `normalizeCatalogAlias` (FR-007, F-6).
+Left uncommitted per task instructions.
+
+**Lesson for future extractions:** when a "move this logic to a shared
+helper, but keep the policy/messaging in the original caller" task involves
+error-classification strings that read out specific substrings (raw token vs.
+normalized code vs. origin text), don't invent a wide "reason enum" — check
+whether the struct's own fields can be made to carry that information via a
+deterministic, checkable relationship (here, alias-normalization idempotency)
+instead of adding fields the plan didn't ask for.
+
+## Correction (same day): Brian rejected the idempotency-check design; added a typed CatalogParseReason enum instead
+
+Brian's review was right and my closing "lesson" above was wrong — retracting
+it. The `normalizeCatalogAlias(parsed.Catalog) != parsed.Catalog` trick was
+correct today but silently fragile: it depends on normalizeCatalogAlias
+staying idempotent on every canonical code forever, in a **shared parser file
+that Phases 2/3/4/6b will all call**, with no test able to catch a future
+violation because the oracle only covers today's alias table. It was also a
+one-off trick a future caller would have to reinvent or copy to ask the same
+question ("was this an unrecognized alias, or a registry-membership miss?").
+Overloading `ParsedCatalogReference.Catalog` to mean two different things
+depending on context was exactly the "clever over obvious" pattern
+Constitution Principle IV warns against, and Brian named that precisely.
+
+**Fix:** added an explicit `CatalogParseReason` int-enum to
+catalog_reference_parser.go, following the exact convention already used by
+`LogLevel` in services/logger.go (exported `int`-backed type, `iota`
+constants, a `catalogParseReasonNames` map, and a `String()` method for
+readable test/log output). Five values:
+`CatalogParseOK`, `CatalogParseEmpty`, `CatalogParseUnrecognizedCatalog`,
+`CatalogParseNotInRegistry`, `CatalogParseNoNumber`. `ParsedCatalogReference`
+now has a `Reason` field, and — critically — `Catalog` was redefined to mean
+exactly one thing on every path: the alias-normalized canonical code once
+resolved, empty only when no canonical code could be determined at all
+(`CatalogParseEmpty` or `CatalogParseUnrecognizedCatalog`). The one message
+that needs the raw offending token ("unrecognized catalog: BMCRE") derives it
+from `strings.Fields(parsed.RawText)[0]` in the migration wrapper — a single
+trivial extraction of an already-known string, not a re-implementation of any
+parsing logic, and not a re-purposing of the Catalog field.
+
+`reference_migration_service_test.go` was re-run after this second edit,
+still completely unedited, still all green — the oracle constraint held
+across both revisions. Added
+`TestParseCatalogReferenceText_ReasonOKOnSuccess` (Reason is CatalogParseOK
+on every success path, including both NeedsVolume=true cases) and updated
+`TestParseCatalogReferenceText_NotFoundCases` to assert the specific `Reason`
+for each not-found branch. Falsified the `CatalogParseNoNumber` assertion by
+swapping it to `CatalogParseUnrecognizedCatalog` in the source and got a real
+RED (`Reason = unrecognized_catalog, want no_number`), reverted, confirmed
+GREEN. Full gate rerun clean: build, vet, `go test -count=1 ./...` (10/10),
+`TestArchitecture`, `TestNoDirectDatabaseImports`.
+
+**Actual lesson:** when a shared helper's return value needs to answer "why
+didn't this succeed" for a caller building user-facing messages, and that
+helper will be called from multiple future features, prefer an explicit,
+named enum over any clever inference trick — even a provably-correct one —
+because the enum is legible to the next reader/caller and its correctness
+doesn't depend on an incidental invariant of unrelated code (here,
+`normalizeCatalogAlias`'s idempotency) that nothing enforces or tests for.

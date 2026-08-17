@@ -167,157 +167,51 @@ func (s *ReferenceMigrationService) formatReference(ref *models.CoinReference) s
 // - ref is nil if parsing failed or catalog not recognized
 // - needsJournal is true if a volume=0 sentinel was used
 // - logMsg describes what happened (for logging or journal)
+//
+// The token/volume/number parsing itself is delegated to the shared
+// ParseCatalogReferenceText helper (Feature 352 Phase 1,
+// catalog_reference_parser.go). The Volume:"0" sentinel and the
+// "manual review needed" / unrecognized-catalog / no-number journal
+// messages below are migration-specific policy and intentionally stay
+// here rather than in the shared helper (FR-016, FR-019).
 func (s *ReferenceMigrationService) parseLegacyReference(text string, registry map[string]*models.CatalogRegistry) (*models.CoinReference, bool, string) {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return nil, false, ""
-	}
+	parsed, found := ParseCatalogReferenceText(text, registry)
 
-	parts := strings.SplitN(text, ";", 2)
-	first := strings.TrimSpace(parts[0])
-	if first == "" {
-		return nil, false, ""
-	}
-
-	tokens := strings.Fields(first)
-	if len(tokens) == 0 {
-		return nil, false, "unparseable legacy reference"
-	}
-
-	catalogToken := strings.ToUpper(tokens[0])
-	catalogNormalized := s.normalizeCatalogAlias(catalogToken)
-	if catalogNormalized == "" {
-		return nil, false, "unrecognized catalog: " + catalogToken
-	}
-
-	regEntry, ok := registry[catalogNormalized]
-	if !ok {
-		return nil, false, "catalog not in registry: " + catalogNormalized
-	}
-
-	var volume, number string
-	remaining := tokens[1:]
-
-	if regEntry.VolumeRequired {
-		if len(remaining) == 0 {
-			origText := text
-			if len(parts) > 1 {
-				origText = first
-			}
-			return &models.CoinReference{
-					Catalog: catalogNormalized,
-					Volume:  "0",
-					Number:  "",
-				}, true,
-				"Legacy " + catalogNormalized + " reference imported with placeholder volume 0 — manual review needed: " + origText
-		}
-
-		volCandidate := remaining[0]
-		if s.isRomanNumeral(volCandidate) || s.isPlausibleVolumeToken(volCandidate) {
-			volume = volCandidate
-			remaining = remaining[1:]
-
-			if len(remaining) == 0 {
-				origText := text
-				if len(parts) > 1 {
-					origText = first
-				}
-				return &models.CoinReference{
-						Catalog: catalogNormalized,
-						Volume:  "0",
-						Number:  "",
-					}, true,
-					"Legacy " + catalogNormalized + " reference imported with placeholder volume 0 — manual review needed: " + origText
-			}
-		} else {
-			origText := text
-			if len(parts) > 1 {
-				origText = first
-			}
-			return &models.CoinReference{
-					Catalog: catalogNormalized,
-					Volume:  "0",
-					Number:  "",
-				}, true,
-				"Legacy " + catalogNormalized + " reference imported with placeholder volume 0 — manual review needed: " + origText
-		}
-	} else {
-		if len(remaining) == 0 {
-			origText := text
-			if len(parts) > 1 {
-				origText = first
-			}
-			return nil, false, "no number found in reference: " + origText
+	if !found {
+		switch parsed.Reason {
+		case CatalogParseEmpty:
+			// Empty/whitespace-only input, or (practically unreachable, since
+			// a non-empty trimmed string always yields at least one token)
+			// no parseable tokens at all. Matches the original silent-skip.
+			return nil, false, ""
+		case CatalogParseUnrecognizedCatalog:
+			// Catalog is empty for this reason (see ParsedCatalogReference.Catalog
+			// doc); the offending raw token is the first field of RawText.
+			catalogToken := strings.ToUpper(strings.Fields(parsed.RawText)[0])
+			return nil, false, "unrecognized catalog: " + catalogToken
+		case CatalogParseNotInRegistry:
+			return nil, false, "catalog not in registry: " + parsed.Catalog
+		case CatalogParseNoNumber:
+			return nil, false, "no number found in reference: " + parsed.RawText
+		default:
+			// Unreachable: ParseCatalogReferenceText only returns found=false
+			// with one of the reasons handled above.
+			return nil, false, ""
 		}
 	}
 
-	number = strings.Join(remaining, " ")
+	if parsed.NeedsVolume {
+		return &models.CoinReference{
+				Catalog: parsed.Catalog,
+				Volume:  "0",
+				Number:  "",
+			}, true,
+			"Legacy " + parsed.Catalog + " reference imported with placeholder volume 0 — manual review needed: " + parsed.RawText
+	}
 
 	return &models.CoinReference{
-		Catalog: catalogNormalized,
-		Volume:  volume,
-		Number:  number,
+		Catalog: parsed.Catalog,
+		Volume:  parsed.Volume,
+		Number:  parsed.Number,
 	}, false, ""
-}
-
-// normalizeCatalogAlias maps known aliases to canonical catalog codes.
-func (s *ReferenceMigrationService) normalizeCatalogAlias(token string) string {
-	upper := strings.ToUpper(token)
-	switch upper {
-	case "RIC", "RPC", "SNG", "CRAWFORD", "CNI", "KM", "Y", "CRAIG", "REDBOOK":
-		return upper
-	case "SEAR", "SRCV":
-		return "SEAR"
-	case "SPINK":
-		return "SPINK"
-	case "DUPLESSY":
-		return "DUPLESSY"
-	default:
-		return ""
-	}
-}
-
-// isRomanNumeral checks if a token is a valid Roman numeral.
-func (s *ReferenceMigrationService) isRomanNumeral(str string) bool {
-	str = strings.ToUpper(str)
-	for _, ch := range str {
-		if ch != 'I' && ch != 'V' && ch != 'X' && ch != 'L' && ch != 'C' && ch != 'D' && ch != 'M' {
-			return false
-		}
-	}
-	return len(str) > 0
-}
-
-// isPlausibleVolumeToken checks if a token looks like it could be a volume (not purely numeric like a catalog number).
-// Accepts Roman numerals, short numeric strings (1-3 digits), or alphabetic tokens (e.g. "Cop" for SNG Copenhagen).
-func (s *ReferenceMigrationService) isPlausibleVolumeToken(str string) bool {
-	if len(str) == 0 {
-		return false
-	}
-
-	if s.isRomanNumeral(str) {
-		return true
-	}
-
-	if len(str) <= 3 {
-		allDigits := true
-		for _, ch := range str {
-			if ch < '0' || ch > '9' {
-				allDigits = false
-				break
-			}
-		}
-		if allDigits {
-			return true
-		}
-	}
-
-	allLetters := true
-	for _, ch := range str {
-		if (ch < 'A' || ch > 'Z') && (ch < 'a' || ch > 'z') {
-			allLetters = false
-			break
-		}
-	}
-	return allLetters
 }
