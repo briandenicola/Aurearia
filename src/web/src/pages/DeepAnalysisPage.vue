@@ -37,6 +37,7 @@
             :reconnecting="reconnecting"
             :truncated="stream.truncated.value"
             :terminal-status="terminalStatus"
+            :ended="stream.ended.value"
             :cancelling="deep.cancelling.value"
             @cancel="onCancel"
             @retry="onManualStreamRetry"

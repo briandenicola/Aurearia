@@ -8,7 +8,7 @@ function ev(seq: number, type: string, payload: Record<string, unknown> = {}): D
 }
 
 describe('DeepAnalysisProgressTimeline', () => {
-  it('renders events in the order received', () => {
+  it('renders events in the order received via the activity timeline', () => {
     const wrapper = mount(DeepAnalysisProgressTimeline, {
       props: {
         events: [ev(1, 'job_accepted'), ev(2, 'router_selected', { selectedProviders: ['nomisma', 'numista'] })],
@@ -16,11 +16,11 @@ describe('DeepAnalysisProgressTimeline', () => {
         streaming: true,
       },
     })
-    const items = wrapper.findAll('li')
+    const items = wrapper.findAll('ol[role="log"] > li')
     expect(items).toHaveLength(2)
-    expect(items[0].text()).toContain('Job accepted')
-    expect(items[1].text()).toContain('Providers selected')
-    expect(items[1].text()).toContain('nomisma, numista')
+    expect(items[0]?.text()).toContain('Job accepted')
+    expect(items[1]?.text()).toContain('Providers selected')
+    expect(items[1]?.text()).toContain('nomisma, numista')
   })
 
   it('shows a connected/live indicator distinct from reconnecting and disconnected', () => {

@@ -33,22 +33,17 @@
       </div>
     </div>
 
-    <ol v-if="events.length" class="m-0 grid gap-2 p-0" style="list-style: none;">
-      <li
-        v-for="event in events"
-        :key="event.seq"
-        class="grid min-w-0 grid-cols-1 items-baseline gap-1 rounded-sm border border-border-subtle bg-card p-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-3"
-      >
-        <span class="text-sm font-semibold text-gold">{{ labelFor(event) }}</span>
-        <span class="min-w-0 break-words text-sm text-text-secondary [overflow-wrap:anywhere]">{{ detailFor(event) }}</span>
-      </li>
-    </ol>
-    <p v-else class="text-body text-text-secondary">Waiting for Deep Analysis to begin…</p>
+    <DeepAnalysisActivityTimeline
+      :events="props.events"
+      :terminal-status="props.terminalStatus"
+      :ended="props.ended"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import DeepAnalysisActivityTimeline from './DeepAnalysisActivityTimeline.vue'
 import type { DeepStreamEvent } from '@/types'
 
 const props = defineProps<{
@@ -65,6 +60,8 @@ const props = defineProps<{
   truncated?: boolean
   terminalStatus?: string | null
   cancelling?: boolean
+  /** True once the SSE stream has received `event: end` (contract §2). */
+  ended?: boolean
 }>()
 
 defineEmits<{ (e: 'cancel'): void; (e: 'retry'): void }>()
@@ -99,39 +96,4 @@ const connectionLabel = computed(() => {
   return 'Disconnected'
 })
 
-const eventLabels: Record<string, string> = {
-  job_accepted: 'Job accepted',
-  status_changed: 'Status changed',
-  router_selected: 'Providers selected',
-  provider_started: 'Provider started',
-  provider_result: 'Provider result',
-  evaluation: 'Evaluating results',
-  synthesis_started: 'Building report',
-  progress: 'Progress',
-  terminal: 'Finished',
-}
-
-function labelFor(event: DeepStreamEvent): string {
-  return eventLabels[event.type] ?? event.type
-}
-
-function detailFor(event: DeepStreamEvent): string {
-  const payload = event.payload || {}
-  switch (event.type) {
-    case 'provider_started':
-      return typeof payload.provider === 'string' ? String(payload.provider) : ''
-    case 'provider_result':
-      return [payload.provider, payload.status].filter(Boolean).join(': ')
-    case 'router_selected':
-      return Array.isArray(payload.selectedProviders) ? payload.selectedProviders.join(', ') : ''
-    case 'progress':
-      return typeof payload.message === 'string' ? payload.message : ''
-    case 'evaluation':
-      return `${payload.disagreementCount ?? 0} disagreement(s), ${payload.resolvedCount ?? 0} resolved`
-    case 'terminal':
-      return typeof payload.status === 'string' ? String(payload.status) : ''
-    default:
-      return ''
-  }
-}
 </script>
