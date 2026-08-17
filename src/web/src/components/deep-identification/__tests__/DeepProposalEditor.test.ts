@@ -137,4 +137,108 @@ describe('DeepProposalEditor', () => {
     const wrapper = mount(DeepProposalEditor, { props: { proposal: baseProposal() } })
     expect(wrapper.find('.ocre-attribution').exists()).toBe(false)
   })
+
+  it('marks a field with an empty evidence array as image-derived, distinct from provider-cited fields', () => {
+    const proposal: DeepProposal = {
+      schemaVersion: 1,
+      fields: {
+        ruler: {
+          proposed: 'Maximinus I (Thrax)',
+          confidence: 0.86,
+          evidence: [],
+          ownerEdited: false,
+          ownerValue: null,
+          accepted: null,
+        },
+        denomination: {
+          proposed: 'Denarius',
+          confidence: 0.9,
+          evidence: [{ field: 'denomination', value: 'Denarius', citation: 'https://en.numista.com/catalogue/pieces1.html' }],
+          ownerEdited: false,
+          ownerValue: null,
+          accepted: null,
+        },
+      },
+    }
+    const wrapper = mount(DeepProposalEditor, { props: { proposal } })
+    const items = wrapper.findAll('li')
+    const rulerItem = items.find((item) => item.text().includes('Maximinus'))
+    const denominationItem = items.find((item) => item.text().includes('Denarius'))
+    expect(rulerItem?.text()).toContain('Image only')
+    expect(denominationItem?.text()).not.toContain('Image only')
+  })
+
+  it('does not mark a field with no evidence array at all (e.g. the narrative-fallback notes field) as image-derived', () => {
+    const proposal = baseProposal()
+    proposal.fields.notes = { proposed: 'A silver denarius.', ownerEdited: false, ownerValue: null, accepted: null }
+    const wrapper = mount(DeepProposalEditor, { props: { proposal } })
+    const notesItem = wrapper.findAll('li').find((item) => item.text().includes('A silver denarius.'))
+    expect(notesItem?.text()).not.toContain('Image only')
+  })
+
+  describe('RD-3 confidence-driven acceptance default (T120)', () => {
+    function fieldProposal(overrides: Partial<DeepProposal['fields']['field']>): DeepProposal {
+      return {
+        schemaVersion: 1,
+        fields: {
+          field: {
+            proposed: 'Some value',
+            ownerEdited: false,
+            ownerValue: null,
+            accepted: null,
+            ...overrides,
+          },
+        },
+      }
+    }
+
+    it('renders an image-only field at confidence 0.85 as accepted by default (source does not gate acceptance)', () => {
+      const wrapper = mount(DeepProposalEditor, {
+        props: { proposal: fieldProposal({ confidence: 0.85, evidence: [] }) },
+      })
+      const acceptButton = wrapper.findAll('button[aria-pressed]').find((b) => b.text() === 'Accept')
+      expect(acceptButton?.attributes('aria-pressed')).toBe('true')
+    })
+
+    it('renders a provider-corroborated field at confidence 0.40 as unaccepted', () => {
+      const wrapper = mount(DeepProposalEditor, {
+        props: {
+          proposal: fieldProposal({
+            confidence: 0.4,
+            evidence: [{ field: 'field', value: 'Some value', citation: 'https://en.numista.com/catalogue/pieces1.html' }],
+          }),
+        },
+      })
+      const acceptButton = wrapper.findAll('button[aria-pressed]').find((b) => b.text() === 'Accept')
+      expect(acceptButton?.attributes('aria-pressed')).toBe('false')
+    })
+
+    it('renders a field corroborated up from image confidence 0.62 to 0.72 (RD-2 +0.10) as accepted by default, crossing the threshold', () => {
+      // RD-2: min(1.0, max(image, provider) + 0.10) applied once, no stacking.
+      // 0.62 + 0.10 = 0.72, which the synthesis side would have already computed
+      // before this reaches the proposal; the editor only needs to render
+      // whatever final confidence it receives correctly against the threshold.
+      const corroboratedConfidence = Math.min(1.0, 0.62 + 0.1)
+      const wrapper = mount(DeepProposalEditor, {
+        props: {
+          proposal: fieldProposal({
+            confidence: corroboratedConfidence,
+            evidence: [{ field: 'field', value: 'Some value', citation: 'https://en.numista.com/catalogue/pieces1.html' }],
+          }),
+        },
+      })
+      const acceptButton = wrapper.findAll('button[aria-pressed]').find((b) => b.text() === 'Accept')
+      expect(acceptButton?.attributes('aria-pressed')).toBe('true')
+      expect(corroboratedConfidence).toBeGreaterThanOrEqual(0.7)
+    })
+
+    it('lets an explicit owner rejection override a confidence-based default acceptance', async () => {
+      const wrapper = mount(DeepProposalEditor, {
+        props: { proposal: fieldProposal({ confidence: 0.9, evidence: [] }) },
+      })
+      const rejectButton = wrapper.findAll('button[aria-pressed]').find((b) => b.text() === 'Reject')
+      await rejectButton?.trigger('click')
+      expect(wrapper.emitted('update-field')?.[0]).toEqual(['field', { accepted: false }])
+    })
+  })
 })

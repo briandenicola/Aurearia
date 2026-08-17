@@ -167,4 +167,106 @@ describe('DeepReportPanel', () => {
     expect(wrapper.text()).toContain('ODbL 1.0')
     expect(wrapper.text()).toContain('Data: Nomisma.org (CC BY)')
   })
+
+  describe('image hypothesis panel (T091, RD-6)', () => {
+    it('hides the section entirely for a pre-351 report with no image_hypothesis key', () => {
+      const wrapper = mount(DeepReportPanel, { props: { report: baseReport() } })
+      expect(wrapper.find('details').exists()).toBe(false)
+      expect(wrapper.text()).not.toContain('What the images alone said')
+    })
+
+    it('renders collapsed by default when image_hypothesis is present', () => {
+      const wrapper = mount(DeepReportPanel, {
+        props: {
+          report: baseReport({
+            image_hypothesis: {
+              ruler: { value: 'Maximinus I (Thrax)', confidence: 0.86 },
+              legible: true,
+              observations: 'Silvered surfaces, high relief portrait.',
+            },
+          }),
+        },
+      })
+      const details = wrapper.find('details')
+      expect(details.exists()).toBe(true)
+      expect(details.attributes('open')).toBeUndefined()
+      expect(details.text()).toContain('What the images alone said')
+    })
+
+    it('renders each typed hypothesis field with its own confidence, plus observations', () => {
+      const wrapper = mount(DeepReportPanel, {
+        props: {
+          report: baseReport({
+            image_hypothesis: {
+              ruler: { value: 'Maximinus I (Thrax)', confidence: 0.86 },
+              denomination: { value: 'Denarius', confidence: 0.9 },
+              legible: true,
+              observations: 'Silvered surfaces, high relief portrait.',
+            },
+          }),
+        },
+      })
+      const text = wrapper.text()
+      expect(text).toContain('Maximinus I (Thrax)')
+      expect(text).toContain('86% confidence')
+      expect(text).toContain('Denarius')
+      expect(text).toContain('90% confidence')
+      expect(text).toContain('Silvered surfaces, high relief portrait.')
+    })
+
+    it('states plainly when legible is false, visibly distinct from an empty/dropped result', () => {
+      const wrapper = mount(DeepReportPanel, {
+        props: {
+          report: baseReport({
+            image_hypothesis: { legible: false },
+          }),
+        },
+      })
+      const text = wrapper.text()
+      expect(text).toContain('not legible enough')
+      expect(text).not.toContain('did not find any coin details')
+    })
+
+    it('distinguishes a legible-but-empty hypothesis from an unreadable one', () => {
+      const wrapper = mount(DeepReportPanel, {
+        props: {
+          report: baseReport({
+            image_hypothesis: { legible: true, observations: '' },
+          }),
+        },
+      })
+      const text = wrapper.text()
+      expect(text).toContain('did not find any coin details')
+      expect(text).not.toContain('not legible enough')
+    })
+  })
+
+  describe('disagreement claim source marking (T089, T092)', () => {
+    it('marks a citation-less disagreement claim as image-derived, distinct from a cited provider claim', () => {
+      const wrapper = mount(DeepReportPanel, {
+        props: {
+          report: baseReport({
+            disagreements: [
+              {
+                field: 'mint',
+                resolution: 'unresolved',
+                claims: [
+                  { field: 'mint', value: 'Rome', citation: 'https://en.numista.com/catalogue/pieces1.html' },
+                  { field: 'mint', value: 'Antioch' },
+                ],
+              },
+            ],
+          }),
+        },
+      })
+      const text = wrapper.text()
+      expect(text).toContain('Rome')
+      expect(text).toContain('Antioch')
+      expect(text).toContain('From images')
+      const disagreementLinks = wrapper.findAll('.chip-sm').filter((el) => el.text() === 'From images')
+      expect(disagreementLinks).toHaveLength(1)
+      const romeLink = wrapper.find('a[href="https://en.numista.com/catalogue/pieces1.html"]')
+      expect(romeLink.exists()).toBe(true)
+    })
+  })
 })

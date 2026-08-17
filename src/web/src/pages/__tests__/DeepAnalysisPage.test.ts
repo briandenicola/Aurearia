@@ -5,6 +5,7 @@ import {
   applyDeepIdentificationProposal,
   cancelDeepIdentificationJob,
   getDeepIdentificationJob,
+  patchDeepIdentificationProposal,
   retryDeepIdentificationJob,
 } from '@/api/client'
 
@@ -15,7 +16,7 @@ vi.mock('@/api/client', () => ({
   createDeepIdentificationJob: vi.fn(),
   cancelDeepIdentificationJob: vi.fn(),
   retryDeepIdentificationJob: vi.fn(),
-  updateDeepIdentificationProposal: vi.fn(),
+  patchDeepIdentificationProposal: vi.fn(),
   applyDeepIdentificationProposal: vi.fn(),
   refreshAccessToken: vi.fn(),
   getApiErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error)),
@@ -277,6 +278,54 @@ describe('DeepAnalysisPage', () => {
       name: 'quick-capture-draft',
       params: { id: '27' },
     })
+  })
+
+  it('does not apply when a pre-Apply confidence-default persist fails, and surfaces the failure instead of silently dropping it (RD-3)', async () => {
+    vi.mocked(getDeepIdentificationJob).mockResolvedValue({
+      data: {
+        job: terminalJob('completed'),
+        report: {
+          schemaVersion: 1,
+          narrative: 'The evidence supports a Roman denarius.',
+          coverage: [],
+          partialSuccess: false,
+          generatedAt: '2030-01-01T00:00:00Z',
+        },
+        proposal: {
+          schemaVersion: 1,
+          fields: {
+            // Never explicitly decided, but confidence-qualifies for the
+            // RD-3 default — the page must try to persist this before Apply.
+            ruler: {
+              proposed: 'Maximinus I (Thrax)',
+              confidence: 0.86,
+              evidence: [],
+              ownerEdited: false,
+              ownerValue: null,
+              accepted: null,
+            },
+          },
+        },
+      },
+    } as Awaited<ReturnType<typeof getDeepIdentificationJob>>)
+    vi.mocked(patchDeepIdentificationProposal).mockRejectedValue(new Error('network down'))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream(), { status: 200 })))
+
+    const wrapper = mount(DeepAnalysisPage, { global: { stubs } })
+    await flushPromises()
+
+    const saveButton = wrapper.findAll('button').find((button) => button.text().includes('Save as Draft'))
+    expect(saveButton).toBeDefined()
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    // The batched pre-Apply persist was attempted...
+    expect(patchDeepIdentificationProposal).toHaveBeenCalledWith(9, { fields: { ruler: { accepted: true } } })
+    // ...and because it failed, Apply must never have been called, and the
+    // page must say so rather than reporting success on a partial write.
+    expect(applyDeepIdentificationProposal).not.toHaveBeenCalled()
+    expect(routerPush).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('network down')
   })
 
   it('never renders hint artifact data returned outside the public job contract', async () => {

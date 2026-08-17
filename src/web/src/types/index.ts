@@ -1968,7 +1968,12 @@ export interface DeepClaim {
   field: string
   value: string
   confidence?: number
-  citation: string
+  /**
+   * Absent for an image-sourced claim (contract `vision-hypothesis.md` §3:
+   * "an image ref has no citation to validate"). Every provider-cited claim
+   * still carries one — `citation` stays effectively required for those.
+   */
+  citation?: string
   excerpt?: string
 }
 
@@ -1982,6 +1987,46 @@ export interface DeepReportAttribution {
   provider: DeepProviderId
   text: string
   identifier?: string | null
+}
+
+/**
+ * One typed, bounded-confidence value the vision hypothesis supports for a
+ * single coin field (contract `vision-hypothesis.md` §1). A field the images
+ * do not support is omitted entirely — never guessed at low confidence.
+ */
+export interface HypothesisFieldValue {
+  value: string
+  confidence: number
+}
+
+/**
+ * The vision node's typed output — "what the images alone said" before any
+ * provider/catalogue evidence was combined (FR-008, RD-6). Field names
+ * mirror the coin-field vocabulary shared with `DeepProposal.fields`.
+ */
+export interface CoinHypothesis {
+  ruler?: HypothesisFieldValue
+  denomination?: HypothesisFieldValue
+  material?: HypothesisFieldValue
+  mint?: HypothesisFieldValue
+  dateRange?: HypothesisFieldValue
+  era?: HypothesisFieldValue
+  obverseInscription?: HypothesisFieldValue
+  reverseInscription?: HypothesisFieldValue
+  obverseDescription?: HypothesisFieldValue
+  reverseDescription?: HypothesisFieldValue
+  diameterMm?: HypothesisFieldValue
+  weightGrams?: HypothesisFieldValue
+  notes?: HypothesisFieldValue
+  coin_type?: HypothesisFieldValue
+  /** Short bounded prose for the narrative writer only — never itself a proposed field value. */
+  observations?: string
+  /**
+   * `false` means the images could not be read clearly enough to produce
+   * findings — a distinct, plainly-stated state from "the pipeline dropped
+   * the result" (the original undiagnosable failure this panel exists to fix).
+   */
+  legible: boolean
 }
 
 export interface DeepReport {
@@ -2001,6 +2046,15 @@ export interface DeepReport {
    * (it completed and genuinely found nothing).
    */
   quickLookupOutcome?: 'ok' | 'no_data' | 'unavailable'
+  /**
+   * Additive, optional (contract `vision-hypothesis.md` §4, FR-008). Present
+   * when the vision call produced anything; absent on reports persisted
+   * before Feature 351. The key name is deliberately snake_case — Go passes
+   * the Python synthesis JSON through verbatim for this key, so the wire
+   * shape genuinely is `image_hypothesis`, not `imageHypothesis`, unlike the
+   * rest of this interface.
+   */
+  image_hypothesis?: CoinHypothesis
 }
 
 export interface DeepProposalFieldEntry {

@@ -147,6 +147,42 @@ export function useDeepIdentification() {
   }
 
   /**
+   * Saves multiple field decisions in a single request. The server applies
+   * every edit atomically (`UpdateProposal` validates all names up front,
+   * then writes the whole document in one save) — prefer this over calling
+   * `updateProposalField` in a loop whenever more than one field needs to be
+   * persisted at once (e.g. RD-3's pre-Apply confidence-default finalize),
+   * both for round-trip cost and to avoid a half-written proposal if one of
+   * several individual PATCHes were to fail partway through.
+   */
+  async function updateProposalFields(jobId: number, edits: Record<string, DeepProposalFieldEdit>): Promise<DeepProposal | null> {
+    error.value = ''
+    if (Object.keys(edits).length === 0) return proposal.value
+    const current = proposal.value
+    if (current) {
+      const nextFields = { ...current.fields }
+      for (const [name, edit] of Object.entries(edits)) {
+        const existing = nextFields[name]
+        if (!existing) continue
+        nextFields[name] = {
+          ...existing,
+          ...(edit.ownerValue !== undefined ? { ownerValue: edit.ownerValue, ownerEdited: true } : {}),
+          ...(edit.accepted !== undefined ? { accepted: edit.accepted ?? null } : {}),
+        }
+      }
+      proposal.value = { ...current, fields: nextFields }
+    }
+    try {
+      const { data } = await patchDeepIdentificationProposal(jobId, { fields: edits })
+      proposal.value = data
+      return data
+    } catch (err) {
+      error.value = getApiErrorMessage(err) || 'Unable to save your proposal edits.'
+      return null
+    }
+  }
+
+  /**
    * Confirms the proposal through the existing Go-owned write path
    * (T121/T124): never called without an explicit user confirm action.
    */
@@ -187,6 +223,7 @@ export function useDeepIdentification() {
     cancel,
     retry,
     updateProposalField,
+    updateProposalFields,
     applyProposal,
   }
 }

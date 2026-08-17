@@ -123,6 +123,7 @@ import DeepProposalEditor from '@/components/deep-identification/DeepProposalEdi
 import DeepProviderCoverageList from '@/components/deep-identification/DeepProviderCoverageList.vue'
 import { useDeepIdentification } from '@/composables/useDeepIdentification'
 import { useDeepIdentificationStream } from '@/composables/useDeepIdentificationStream'
+import { isDeepProposalConfidenceAccepted } from '@/utils/deepProposalAcceptance'
 import type {
   DeepApplyTarget,
   DeepProposalFieldEdit,
@@ -317,6 +318,32 @@ async function onUpdateProposalField(name: string, edit: DeepProposalFieldEdit) 
 async function onApplyProposal() {
   if (jobId.value === null || !job.value) return
   applyError.value = ''
+
+  // RD-3: acceptance is confidence-driven, not source-driven, and the
+  // editor renders that default without writing it anywhere — Apply only
+  // ever reads persisted `accepted === true` fields, so any field still at
+  // its unrecorded default (`accepted === null`) that qualifies on
+  // confidence must be explicitly persisted now, right before confirming.
+  // Batched into a single request (the server applies every edit
+  // atomically) rather than one PATCH per field, both to avoid a
+  // half-written proposal and to avoid up to a dozen-plus round trips.
+  const proposalFields = deep.proposal.value?.fields ?? {}
+  const pendingDefaults: Record<string, DeepProposalFieldEdit> = {}
+  for (const [name, entry] of Object.entries(proposalFields)) {
+    if (entry.accepted === null && isDeepProposalConfidenceAccepted(entry.confidence)) {
+      pendingDefaults[name] = { accepted: true }
+    }
+  }
+  if (Object.keys(pendingDefaults).length > 0) {
+    const persisted = await deep.updateProposalFields(jobId.value, pendingDefaults)
+    if (!persisted) {
+      // Do not apply a partial proposal silently: a field the owner saw
+      // rendered as accepted must not be dropped without being told.
+      applyError.value = deep.error.value || 'Unable to save the confidence-based default acceptances before applying. Nothing was applied.'
+      return
+    }
+  }
+
   const target: DeepApplyTarget = job.value.source === 'saved_coin' ? 'coin' : 'draft'
   const result = await deep.applyProposal(jobId.value, { target })
   if (!result) {
